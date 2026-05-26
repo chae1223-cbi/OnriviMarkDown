@@ -66,7 +66,7 @@ export default function SettingsModal({
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="relative w-full max-w-4xl h-[700px] flex overflow-hidden rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-5xl h-[780px] flex overflow-hidden rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
         style={{ backgroundColor: colors.surface, borderColor: colors.border }}
       >
         {/* 사이드바 탭 */}
@@ -95,7 +95,7 @@ export default function SettingsModal({
             <X size={18} style={{ color: colors.onSurface }} />
           </button>
 
-          <div className="max-w-2xl mx-auto space-y-8">
+          <div className={`${activeTab === 'shortcuts' ? 'max-w-4xl' : 'max-w-2xl'} mx-auto space-y-8`}>
             {activeTab === 'editor' && (
               <section className="space-y-8">
                 <SettingItem

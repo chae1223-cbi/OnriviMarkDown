@@ -1928,6 +1928,7 @@ export default function Home() {
     link: () => insertLink(),
     image: () => setIsImageModalOpen(true),
     video: () => setIsYoutubeModalOpen(true),
+    youtube: () => setIsYoutubeModalOpen(true),
     now: () => insertAtCursor(new Date().toLocaleString()),
     emoji: (e: any) => {
       if (e && e.currentTarget) {
@@ -1944,6 +1945,7 @@ export default function Home() {
     code: () => insertBlockTag('```javascript', '```', '코드'),
     chart: () => insertBlockTag('```mermaid', '```', '그래프'),
     math: () => setIsFormulaModalOpen(true),
+    latex: () => setIsFormulaModalOpen(true),
     zoomIn: () => setFontSize(prev => Math.min(prev + 2, 32)),
     zoomOut: () => setFontSize(prev => Math.max(prev - 2, 12)),
     globalSearch: () => setIsSearchOpen(true),

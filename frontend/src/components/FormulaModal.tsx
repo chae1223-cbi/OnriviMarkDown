@@ -21,7 +21,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   const [katexLoaded, setKatexLoaded] = useState(true);
   const [history, setHistory] = useState<string[]>([]);
 
-  // 최근 ?�용???�식 로드
+  // 최근 사용된 수식 로드
   useEffect(() => {
     const saved = localStorage.getItem('onrivi-formula-history');
     if (saved) {
@@ -31,7 +31,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
         console.error("Failed to load history", e);
       }
     } else {
-      // 초기 기본 공식 ?�트
+      // 초기 기본 공식 세트
       const defaults = [
         '\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}',
         'e^{i\\pi} + 1 = 0',
@@ -44,7 +44,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
     }
   }, []);
 
-  // ?�시�?미리보기 ?�더�?useEffect (DOM 직접 ?�근?�로 ?�차 �??�태 갱신 문제 100% ?�전 ?�복!)
+  // 실시간 미리보기 렌더링 useEffect (DOM 직접 접근으로 순서 및 상태 갱신 문제 100% 완전 해결!)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -54,7 +54,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
       if (previewEl && katex) {
         try {
           previewEl.innerHTML = "";
-          // ?��? ?�더�?구문 ?�러�??�방?�기 ?�해, ?�식???�을 ?�는 기본 공식(f(x) = x^2)???�시?�니??
+          // 실시간 렌더링 구문 에러를 예방하기 위해, 수식 값이 없을 때는 기본 공식(f(x) = x^2)을 표시합니다
           const cleanLatex = (latex.trim() || "f(x) = x^2").replace(/\\\\/g, '\\');
           katex.render(cleanLatex, previewEl, {
             throwOnError: false,
@@ -66,12 +66,12 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
           console.error("KaTeX Live Preview Render Error:", e);
         }
       } else if (previewEl) {
-        // KaTeX�? ?�직 ??불러??�?경우
-        previewEl.innerHTML = `<span style="font-size: 11.5px; opacity: 0.5;">?�식 ?�진 로드 ??�?�?..</span>`;
+        // KaTeX가 아직 다 불러와지지 않은 경우
+        previewEl.innerHTML = `<span style="font-size: 11.5px; opacity: 0.5;">수식 엔진 로딩 중...</span>`;
       }
     };
 
-    // DOM???�실???�더링되�?마운?�된 ?�에 ?�행?�도�?requestAnimationFrame?�로 ?�전???�행 ???�밍???�득?�니??
+    // DOM이 확실히 렌더링되고 마운트된 후에 실행되도록 requestAnimationFrame으로 안전한 실행 타이밍을 획득합니다
     const animId = requestAnimationFrame(renderPreview);
     
     return () => cancelAnimationFrame(animId);
@@ -111,7 +111,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
       const newLatex = before + code + after;
       setLatex(newLatex);
       
-      // ?�태 ?�데?�트 ??커서 ?�치 조정 (?�음 ?�더�??�이?�에???�행)
+      // 상태 업데이트 후 커서 위치 조정 (다음 렌더링 사이클에서 실행)
       setTimeout(() => {
         textarea.focus();
         textarea.setSelectionRange(start + code.length, start + code.length);
@@ -124,7 +124,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   const handleInsertToEditor = () => {
     if (!latex.trim()) return;
     
-    // 최근 기록 ?�데?�트
+    // 최근 기록 업데이트
     const newHistory = [latex, ...history.filter(h => h !== latex)].slice(0, 20);
     setHistory(newHistory);
     localStorage.setItem('onrivi-formula-history', JSON.stringify(newHistory));
@@ -253,9 +253,9 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
             <div className={`h-40 flex flex-col border-b ${isDarkMode ? 'border-[#44474e]' : 'border-[#c1c6d7]'}`}>
               <div className="px-4 py-2 flex items-center justify-between opacity-50">
                 <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                  <Info size={10} /> ?�시�?미리보기
+                  <Info size={10} /> 실시간 미리보기
                 </span>
-                {!katexLoaded && <span className="text-[10px] text-orange-500 animate-pulse">?�진 로딩 �?..</span>}
+                {!katexLoaded && <span className="text-[10px] text-orange-500 animate-pulse">수식 엔진 로딩 중...</span>}
               </div>
               <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 flex items-center justify-center min-w-0">
                 <div id="formula-live-preview" className={`${isDarkMode ? 'text-white' : 'text-zinc-900'} max-w-full overflow-x-auto`} style={{ fontSize: '1.05em', padding: '4px 0' }} />
@@ -266,19 +266,20 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
             <div className="flex-1 flex flex-col p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-              <p className="text-[10px] opacity-50">LaTeX 문법을 사용하여 수식을 작성하세요</p>
+                  <p className="text-[10px] opacity-50">LaTeX 문법을 사용하여 수식을 작성하세요</p>
                   <button 
                     onClick={() => setLatex("")}
                     className="text-[10px] text-red-500 hover:underline opacity-60 hover:opacity-100 transition-opacity"
                   >
-                    초기화                  </button>
+                    초기화
+                  </button>
                 </div>
                 <div className="flex bg-black/5 dark:bg-white/5 rounded-lg p-1 gap-1">
                   <button 
                     onClick={() => setDisplayMode(false)}
                     className={`px-3 py-1 text-[10px] rounded-md transition-all flex items-center gap-1.5 ${!displayMode ? 'bg-blue-500 text-white shadow-sm' : 'opacity-50'}`}
                   >
-                    <AlignLeft size={12} /> ?�라??($)
+                    <AlignLeft size={12} /> 인라인 ($)
                   </button>
                   <button 
                     onClick={() => setDisplayMode(true)}
@@ -302,7 +303,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
               />
               <div className="flex items-center gap-2 text-[10px] opacity-40 italic">
                 <ChevronRight size={12} />
-              <span>줄 바꿈은 \\ 를 사용하고, 공백은 \quad 또는 \, 를 사용하세요.</span>
+                <span>줄 바꿈은 \\ 를 사용하고, 공백은 \quad 또는 \, 를 사용하세요.</span>
               </div>
             </div>
           </div>
@@ -378,7 +379,7 @@ const SymbolPreview = React.memo(({
           containerRef.current.innerHTML = "";
           let finalLatex = latex.replace(/\\\\/g, '\\');
           
-          // 그리??문자?? ?�산??기호?�을 ?�에 ???�어?�게 굵�? 칠판 볼드체로 만들�??�해 공용 ?�퍼 ?�틸리티(wrapMathWithBold)�??�웁?�다!
+          // 그리스 문자나 연산자 기호들이 한눈에 들어오게 굵은 칠판 볼드체로 만들기 위해 공용 헬퍼 유틸리티(wrapMathWithBold)를 태웁니다!
           finalLatex = wrapMathWithBold(finalLatex);
 
           katex.render(finalLatex, containerRef.current, {

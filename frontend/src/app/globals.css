@@ -205,9 +205,9 @@ body {
 }
 
 /* Monaco WYSIWYG Decorations */
-.monaco-h1-text { font-size: 1.8em !important; font-weight: 800 !important; }
-.monaco-h2-text { font-size: 1.5em !important; font-weight: 700 !important; }
-.monaco-h3-text { font-size: 1.3em !important; font-weight: 700 !important; }
+.monaco-h1-text { font-weight: 800 !important; color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; }
+.monaco-h2-text { font-weight: 700 !important; color: #059669 !important; }
+.monaco-h3-text { font-weight: 700 !important; color: #34d399 !important; }
 .monaco-bold-text { font-weight: bold !important; }
 .monaco-italic-text { font-style: italic !important; }
 .monaco-strikethrough-text { text-decoration: line-through !important; }

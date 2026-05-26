@@ -18,11 +18,11 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
   const [height, setHeight] = useState("400");
   const [insertType, setInsertType] = useState<'iframe' | 'thumbnail'>('iframe');
 
-  // ?�튜�?URL ?�는 iframe 코드?�서 비디??ID 추출?�는 ?�규??�??�수
+  // 유튜브 URL 또는 iframe 코드에서 비디오 ID 추출하는 정규식 함수
   const videoId = useMemo(() => {
     if (!inputUrl.trim()) return "";
 
-    // 1. iframe ?�스코드?�서 src 추출
+    // 1. iframe 소스코드에서 src 추출
     if (inputUrl.includes("<iframe")) {
       const srcMatch = inputUrl.match(/src=["']([^"']+)["']/);
       if (srcMatch && srcMatch[1]) {
@@ -39,7 +39,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
     return (match && match[2].length === 11) ? match[2] : "";
   }, [inputUrl]);
 
-  // ?�츠(Shorts) ?�영???�력 ???�동?�로 ?�로??최적??비율(315x560) ?�정
+  // 쇼츠(Shorts) 동영상 입력 시 자동으로 세로 최적화 비율(315x560) 설정
   useEffect(() => {
     if (inputUrl.includes("/shorts/")) {
       setWidth("315");
@@ -95,7 +95,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
           isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-2">
-            <span className="text-lg leading-none">유튜브</span>
+            <Youtube size={20} className="text-red-500" />
             <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-blue-300' : 'text-[#181c20]'}`}>유튜브 영상 삽입</h2>
           </div>
           <button 
@@ -111,7 +111,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
           {/* Input URL */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">
-              ?�튜�?URL ?�는 공유 ?�스코드
+              유튜브 URL 또는 공유 소스코드
             </label>
             <input 
               type="text" 
@@ -128,7 +128,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
 
           {/* Option: Insert Type */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">?�입 방식</label>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">삽입 방식</label>
             <div className={`p-1 rounded-lg flex border ${
               isDarkMode ? 'bg-[#282a2f] border-[#44474e]' : 'bg-[#f1f4f9] border-[#c1c6d7]/60'
             }`}>
@@ -159,13 +159,12 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
             </div>
           </div>
 
-                미리보기 직접 재생 (Iframe)
           {insertType === 'iframe' && videoId && (
             <div className="flex gap-4 items-center justify-between p-3 rounded-lg border border-dashed animate-in fade-in duration-200 text-xs text-gray-500 dark:text-gray-400 bg-black/5 dark:bg-white/5 border-zinc-200 dark:border-zinc-800">
               <span className="font-medium">플레이어 크기 지정</span>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-gray-400">너비</span>
+                  <span className="text-[10px] text-gray-400">너비:</span>
                   <input 
                     type="text" 
                     value={width}
@@ -178,7 +177,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
                   />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-gray-400">?�로:</span>
+                  <span className="text-[10px] text-gray-400">세로:</span>
                   <input 
                     type="text" 
                     value={height}
@@ -232,7 +231,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
               ) : (
                 <div className="text-center p-6 text-gray-400">
                   <Youtube size={48} className="mx-auto mb-2 opacity-20" />
-                <p className="text-xs">유효한 이미지 주소를 입력하면<br/>여기에 미리보기가 표시됩니다.</p>
+                  <p className="text-xs">유효한 유튜브 링크를 입력하면<br/>여기에 미리보기가 표시됩니다.</p>
                 </div>
               )}
             </div>
@@ -275,7 +274,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
             }`}
           >
             <Check size={14} />
-              마크다운 코드 삽입
+            마크다운 코드 삽입
           </button>
         </div>
       </div>

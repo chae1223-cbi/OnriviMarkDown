@@ -18,7 +18,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   const [zoom, setZoom] = useState(15);
   const [isLoading, setIsLoading] = useState(false);
 
-  // �????�수
+  // 지도 검색 함수
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!address.trim()) return;
@@ -45,7 +45,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
     return coords.trim().replace(/^[\("'\s]+|[\)"'\s]+$/g, '');
   }, [coords]);
 
-  // 구�? �???Embed URL (API ???�이 ?�동?�는 방식)
+  // 구글 지도 Embed URL (API 키 없이 연동되는 방식)
   const googleEmbedUrl = useMemo(() => {
     const [lat, lng] = cleanCoords.split(',').map(s => s.trim());
     return `https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&t=&ie=UTF8&iwloc=&output=embed${isDarkMode ? '&theme=dark' : ''}`;
@@ -53,7 +53,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
 
   if (!isOpen) return null;
 
-  // ?�입??코드 (구�? ?�태??�??�식)
+  // 삽입할 코드 (구글 스태틱 지도 형식)
   const mapCode = `![Google Map](https://maps.googleapis.com/maps/api/staticmap?center=${cleanCoords.replace(/\s/g, '')}&zoom=${zoom}&size=600x300&key=YOUR_API_KEY)`;
 
   const handleInsert = () => {
@@ -76,8 +76,8 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
           isDarkMode ? 'border-[#414755] bg-[#201f1f]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-2">
-            <span className="text-lg leading-none">지도</span>
-            <h2 className={`text-lg font-bold ${isDarkMode ? 'text-[#e5e2e1]' : 'text-[#181c20]'}`}>????입</h2>
+            <MapIcon size={20} className="text-[#4285F4]" />
+            <h2 className={`text-lg font-bold ${isDarkMode ? 'text-[#e5e2e1]' : 'text-[#181c20]'}`}>지도 삽입</h2>
           </div>
           <button onClick={onClose} className="p-1 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors">
             <X size={20} />
@@ -87,7 +87,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
         {/* Content */}
         <div className="p-6 space-y-4">
           <form onSubmit={handleSearch} className="space-y-1.5">
-            <label className={`text-xs font-semibold ${isDarkMode ? 'text-[#c1c6d7]' : 'text-[#5c5f61]'}`}>주소 ?�는 ?�소 �???(Google)</label>
+            <label className={`text-xs font-semibold ${isDarkMode ? 'text-[#c1c6d7]' : 'text-[#5c5f61]'}`}>주소 또는 장소 검색 (Google)</label>
             <div className="relative flex items-center">
               {isLoading ? (
                 <Loader size={16} className="absolute left-3 text-[#4285F4] animate-spin" />
@@ -143,10 +143,10 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
 
         {/* Footer */}
         <div className={`px-6 py-4 border-t flex items-center justify-end gap-2 ${isDarkMode ? 'border-[#414755] bg-[#1c1b1b]' : 'border-[#c1c6d7] bg-[#f1f4f9]'}`}>
-            <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#21262d] border border-gray-200 dark:border-[#30363d] rounded-xl transition-all active:scale-[0.98]">취소</button>
+          <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#21262d] border border-gray-200 dark:border-[#30363d] rounded-xl transition-all active:scale-[0.98]">취소</button>
           <button onClick={handleInsert} className="px-5 py-2 bg-[#4285F4] text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-2 hover:opacity-90 transition-all">
             <Terminal size={16} />
-              마크다운 코드 삽입
+            마크다운 코드 삽입
           </button>
         </div>
       </div>

@@ -18,9 +18,9 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
 
   const handleInsert = () => {
     const { r, c } = selectedPos;
-    let header = "| " + Array(c).fill("?�목").join(" | ") + " |\n";
+    let header = "| " + Array(c).fill("제목").join(" | ") + " |\n";
     let divider = "| " + Array(c).fill("---").join(" | ") + " |\n";
-    let row = "| " + Array(c).fill("?�용").join(" | ") + " |\n";
+    let row = "| " + Array(c).fill("내용").join(" | ") + " |\n";
     let body = Array(r).fill(row).join("");
     
     onInsert(`\n${header}${divider}${body}\n`);
@@ -39,8 +39,8 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
           isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-2">
-            <span className="text-lg leading-none">표</span>
-            <h2 className={`text-sm font-bold ${isDarkMode ? 'text-[#eef1f6]' : 'text-[#181c20]'}`}>???�입</h2>
+            <TableIcon size={18} className="text-blue-500" />
+            <h2 className={`text-sm font-bold ${isDarkMode ? 'text-[#eef1f6]' : 'text-[#181c20]'}`}>표 삽입</h2>
           </div>
           <span className="text-blue-500 font-bold text-xs">{selectedPos.c} x {selectedPos.r}</span>
         </div>
@@ -91,9 +91,9 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
           <button 
             onClick={() => {
               const { r, c } = selectedPos;
-              let header = "| " + Array(c).fill("?�목").join(" | ") + " |\n";
+              let header = "| " + Array(c).fill("제목").join(" | ") + " |\n";
               let divider = "| " + Array(c).fill("---").join(" | ") + " |\n";
-              let row = "| " + Array(c).fill("?�용").join(" | ") + " |\n";
+              let row = "| " + Array(c).fill("내용").join(" | ") + " |\n";
               let body = Array(r).fill(row).join("");
               onInsert(`\n${header}${divider}${body}\n`);
               onClose();
