@@ -95,7 +95,7 @@ export default function PromptModal({
               type="submit"
               className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-blue-500/20 transition-all active:scale-95"
             >
-              ?�인
+              확인
             </button>
           </div>
         </form>

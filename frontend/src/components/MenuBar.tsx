@@ -1,13 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { 
-  Plus, Folder, Save, Download, LogOut, Search, 
-  Undo, Redo, Image as ImageIcon, Clock, HelpCircle,
-  Sidebar as SidebarIcon, Layout, Sun, Moon, ZoomIn, ZoomOut,
-  Settings, BarChart2, Map as MapIcon, BookOpen, ChevronRight, Info
-} from 'lucide-react';
-import OAIcon from '../app/icon_onriveauther.png';
+import { ChevronRight } from 'lucide-react';
 
 interface MenuBarProps {
   isDarkMode: boolean;
@@ -18,7 +12,7 @@ interface MenuBarProps {
   setIsToolbarOpen: (v: boolean) => void;
   previewMode: 'edit' | 'both' | 'preview';
   setPreviewMode: (v: 'edit' | 'both' | 'preview') => void;
-  handlers: any;
+  dispatch: (type: any, payload?: any) => void;
   setContent: (v: string) => void;
   isSearchOpen: boolean;
   isAddonEnv?: boolean;
@@ -104,86 +98,6 @@ const localTranslations: Record<string, Record<string, string>> = {
     shortcuts: "Keyboard Shortcuts",
     updates: "Check for Updates",
     about: "About Onrivi Author"
-  },
-  ja: {
-    file: "ファイル",
-    edit: "編集",
-    tools: "ツール",
-    help: "ヘルプ",
-    newFile: "新規ファイル",
-    openFolder: "ファイルを開く",
-    openWorkspace: "フォルダを開く",
-    saveFile: "ファイルを保存",
-    saveFileAs: "名前を付けて保存",
-    export: "エクスポート",
-    pdf: "PDF ドキュメント (.pdf)",
-    html: "HTML ファイル (.html)",
-    epub: "EPUB 電子書籍 (.epub)",
-    png: "PNG 画像 (.png)",
-    exit: "終了",
-    undo: "元に戻す",
-    redo: "やり直し",
-    find: "検索",
-    replace: "置換",
-    insertImage: "画像挿入",
-    insertDateTime: "日付/時刻の挿입",
-    zoomIn: "拡大",
-    zoomOut: "縮小",
-    sidebarToggle: "サイドバー表示/非表示",
-    viewMode: "表示モード",
-    modeEdit: "編集専用モード",
-    modeSplit: "分割表示モード",
-    modePreview: "プレビュー専用モード",
-    toLightMode: "ライトモードに切り替え",
-    toDarkMode: "ダークモードに切り替え",
-    globalSearch: "全体検索",
-    copyPreview: "プレビューコピー",
-    toolbarToggle: "ツールバー表示/非表示",
-    settings: "環境設定",
-    userManual: "ユーザーマニュアル",
-    shortcuts: "ショートカットキー案内",
-    updates: "アップデートを確認",
-    about: "Onrivi Authorについて"
-  },
-  zh: {
-    file: "文件",
-    edit: "编辑",
-    tools: "工具",
-    help: "帮助",
-    newFile: "新建文件",
-    openFolder: "打开文件",
-    openWorkspace: "打开文件夹",
-    saveFile: "保存文件",
-    saveFileAs: "另存为",
-    export: "导出",
-    pdf: "PDF 文档 (.pdf)",
-    html: "HTML 文件 (.html)",
-    epub: "EPUB 电子书 (.epub)",
-    png: "PNG 图像 (.png)",
-    exit: "退出",
-    undo: "撤销",
-    redo: "重做",
-    find: "查找",
-    replace: "替换",
-    insertImage: "插入图像",
-    insertDateTime: "插入日期/时间",
-    zoomIn: "放大",
-    zoomOut: "缩小",
-    sidebarToggle: "显示/隐藏侧边栏",
-    viewMode: "视图模式",
-    modeEdit: "仅编辑模式",
-    modeSplit: "双栏视图模式",
-    modePreview: "仅预览模式",
-    toLightMode: "切换到浅色模式",
-    toDarkMode: "切换到深色模式",
-    globalSearch: "全局搜索",
-    copyPreview: "预览复制",
-    toolbarToggle: "显示/隐藏工具栏",
-    settings: "环境设置",
-    userManual: "用户手册",
-    shortcuts: "快捷键指南",
-    updates: "检查更新",
-    about: "关于 Onrivi Author"
   }
 };
 
@@ -192,10 +106,10 @@ export default function MenuBar({
   isSidebarOpen, setIsSidebarOpen, 
   isToolbarOpen, setIsToolbarOpen, 
   previewMode, setPreviewMode, 
-  handlers, setContent,
+  dispatch, setContent,
   isSearchOpen,
   isAddonEnv
-}: MenuBarProps) {
+ }: MenuBarProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -215,25 +129,25 @@ export default function MenuBar({
   }, []);
 
   const fileItems = [
-    { label: "새 파일", icon: <span>📝</span>, shortcut: 'Ctrl+N', onClick: handlers.newFile },
-    ...(isAddonEnv ? [] : [{ label: "폴더 열기", icon: <span>📤</span>, shortcut: 'Ctrl+O', onClick: handlers.openFolder } as const]),
-    { label: t('openWorkspace'), icon: <span>📂</span>, shortcut: 'Ctrl+Shift+O', onClick: handlers.openWorkspace },
+    { label: "새 파일", icon: <span>📝</span>, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
+    ...(isAddonEnv ? [] : [{ label: "파일 열기", icon: <span>📤</span>, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') } as const]),
+    { label: t('openWorkspace'), icon: <span>📂</span>, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
     { divider: true },
-    { label: t('saveFile'), icon: <span>💾</span>, shortcut: 'Ctrl+S', onClick: handlers.save },
-    { label: t('saveFileAs'), icon: <span>💿</span>, shortcut: 'Ctrl+Shift+S', onClick: handlers.saveAs },
+    { label: t('saveFile'), icon: <span>💾</span>, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
+    { label: t('saveFileAs'), icon: <span>💿</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
     { divider: true },
     { 
       label: t('export'), 
       icon: <span>📤</span>,
       subItems: [
-        { label: t('pdf'), onClick: handlers.exportPDF },
-        { label: t('html'), onClick: handlers.exportHTML },
-        { label: t('epub'), onClick: handlers.exportEPUB },
-        { label: t('png'), onClick: handlers.exportPNG },
+        { label: t('pdf'), onClick: () => dispatch('EXPORT_PDF') },
+        { label: t('html'), onClick: () => dispatch('EXPORT_HTML') },
+        { label: t('epub'), onClick: () => dispatch('EXPORT_EPUB') },
+        { label: t('png'), onClick: () => dispatch('EXPORT_PNG') },
       ]
     },
     { divider: true },
-    { label: t('exit'), icon: <span>📴</span>, onClick: handlers.exit },
+    { label: t('exit'), icon: <span>📴</span>, onClick: () => dispatch('EXIT') },
   ];
 
   return (
@@ -254,14 +168,14 @@ export default function MenuBar({
           onClose={() => setActiveMenu(null)}
           isDarkMode={isDarkMode}
           items={[
-            { label: t('undo'), icon: <span>↩️</span>, shortcut: 'Ctrl+Z', onClick: handlers.undo },
-            { label: t('redo'), icon: <span>↪️</span>, shortcut: 'Ctrl+Y', onClick: handlers.redo },
+            { label: t('undo'), icon: <span>↩️</span>, shortcut: 'Ctrl+Z', onClick: () => dispatch('UNDO') },
+            { label: t('redo'), icon: <span>↪️</span>, shortcut: 'Ctrl+Y', onClick: () => dispatch('REDO') },
             { divider: true },
-            { label: t('find'), icon: <span>🔍</span>, shortcut: 'Ctrl+F', onClick: handlers.find },
-            { label: t('replace'), icon: <span>🔄</span>, shortcut: 'Ctrl+H', onClick: handlers.replace },
+            { label: t('find'), icon: <span>🔍</span>, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
+            { label: t('replace'), icon: <span>🔄</span>, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE') },
             { divider: true },
-            { label: t('zoomIn'), icon: <span>🔎</span>, onClick: handlers.zoomIn },
-            { label: t('zoomOut'), icon: <span>🔍</span>, onClick: handlers.zoomOut },
+            { label: t('zoomIn'), icon: <span>🔎</span>, onClick: () => dispatch('ZOOM_IN') },
+            { label: t('zoomOut'), icon: <span>🔍</span>, onClick: () => dispatch('ZOOM_OUT') },
           ]}
         />
       )}
@@ -285,9 +199,9 @@ export default function MenuBar({
           },
           { label: isDarkMode ? t('toLightMode') : t('toDarkMode'), icon: isDarkMode ? <span>☀️</span> : <span>🌙</span>, onClick: () => setIsDarkMode(!isDarkMode) },
           { divider: true },
-          { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: handlers.globalSearch },
-          { label: t('copyPreview'), icon: <span>📋</span>, onClick: handlers.copyAll },
-          { label: "환경 설정", icon: <span>⚙️</span>, onClick: handlers.settings },
+          { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
+          { label: t('copyPreview'), icon: <span>📋</span>, onClick: () => dispatch('COPY_ALL') },
+          { label: "환경 설정", icon: <span>⚙️</span>, onClick: () => dispatch('SETTINGS') },
         ]}
       />
       <MenuDropdown 
@@ -299,9 +213,9 @@ export default function MenuBar({
         items={[
           { label: t('userManual'), icon: <span>📖</span> },
           { label: t('shortcuts'), icon: <span>⌨️</span> },
-          { label: t('updates'), icon: <span>🚀</span>, onClick: handlers.updates },
+          { label: t('updates'), icon: <span>🚀</span>, onClick: () => dispatch('UPDATES') },
           { divider: true },
-          { label: t('about'), icon: <span>🍀</span>, onClick: handlers.about },
+          { label: t('about'), icon: <span>🍀</span>, onClick: () => dispatch('ABOUT') },
         ]}
       />
     </nav>

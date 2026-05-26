@@ -574,9 +574,9 @@ app.post('/api/select-folder', async (req, res) => {
         chosenPath = result.filePaths[0];
       }
     } else {
-      // 2. 비-Electron(일반 Node) 환경 또는 fallback인 경우 Windows PowerShell 다이얼로그 사용
+      // 2. 비-Electron(일반 Node) 환경 또는 fallback인 경우 Windows PowerShell 다이얼로그 사용 (한글 인코딩 깨짐 방지 장치 주입)
       const { exec } = require('child_process');
-      const powershellCmd = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = '워크스페이스 폴더 선택'; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }"`;
+      const powershellCmd = `powershell -NoProfile -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = '워크스페이스 폴더 선택'; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }"`;
       
       chosenPath = await new Promise((resolve) => {
         exec(powershellCmd, (err, stdout) => {
@@ -776,10 +776,17 @@ app.get('/api/file-content', async (req, res) => {
 // 파일 저장
 app.post('/api/save', async (req, res) => {
   try {
-    const filePath = getSafePath(req.body.path);
-    await fs.writeFile(filePath, req.body.content, 'utf-8');
-    res.json({ status: 'success' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const { path: reqPath, content } = req.body;
+    if (!reqPath) return res.status(400).json({ error: '파일 경로(path)가 유입되지 않았습니다.' });
+
+    const filePath = getSafePath(reqPath);
+    await fs.writeFile(filePath, content || '', 'utf-8');
+    console.log(`💾 [실시간 디스크 I/O 완료] 물리 경로: ${filePath}`);
+    res.json({ success: true, status: 'success', savedAt: new Date().toISOString() });
+  } catch (e) { 
+    console.error(`❌ [로컬 파일 저장 실패]: ${e.message}`);
+    res.status(500).json({ error: e.message }); 
+  }
 });
 
 // 새 파일 생성

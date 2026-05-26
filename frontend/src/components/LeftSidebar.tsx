@@ -5,6 +5,8 @@ import GlobalSearch from './GlobalSearch';
 import FileTreeItem from './FileTreeItem';
 import { FileNode } from '@/lib/helper';
 import { getApiUrl } from '@/lib/api';
+import PromptModal from '@/components/PromptModal';
+import { Plus, FolderPlus } from 'lucide-react';
 
 interface TocItem {
   id: string;
@@ -84,6 +86,101 @@ export default function LeftSidebar({
   const [drives, setDrives] = useState<FileNode[]>([]);
   const [isDrivesLoading, setIsDrivesLoading] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+
+  // 📝 루트 디렉토리 생성을 위한 Prompt 상태 제어 및 비동기 처리
+  const [promptConfig, setPromptConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    defaultValue: string;
+    type: 'createFile' | 'createFolder' | null;
+    error?: string;
+  }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
+
+  const onPromptConfirm = async (name: string) => {
+    const type = promptConfig.type;
+    setPromptConfig({ ...promptConfig, isOpen: false });
+    if (!name) return;
+
+    const rootPath = rootFolder?.name || "";
+
+    if (type === 'createFile') {
+      const finalName = name.toLowerCase().endsWith('.md') ? name : `${name}.md`;
+      
+      // 중복 체크
+      if (fileList.some(c => c.name.toLowerCase() === finalName.toLowerCase())) {
+        setPromptConfig(prev => ({ ...prev, error: "이미 같은 이름의 파일이 존재합니다." }));
+        return;
+      }
+
+      try {
+        setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
+        if (workspaceType === 'browser') {
+          if (rootFolder?.handle) {
+            const handle = await rootFolder.handle.getFileHandle(finalName, { create: true });
+            refreshFileList();
+            openFile({ name: finalName, kind: 'file', handle });
+          } else {
+            // LocalStorage 가상 파일 생성
+            const { vfsCreateFile } = await import('@/lib/vfsHelper');
+            vfsCreateFile("", finalName);
+            refreshFileList();
+            openFile({ name: finalName, kind: 'file', path: finalName });
+          }
+        } else {
+          const api = (window as any).electronAPI;
+          if (api?.createFile) {
+            const result = await api.createFile(rootPath, finalName);
+            if (result.success) {
+              refreshFileList();
+              openFile({ name: finalName, kind: 'file', path: result.path });
+            }
+          } else {
+            const res = await fetch(getApiUrl('/api/create-file'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ parentPath: rootPath, name: finalName })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              refreshFileList();
+              openFile({ name: finalName, kind: 'file', path: data.path });
+            }
+          }
+        }
+      } catch(e) { showToast("생성 실패: " + e, 'error'); }
+    } else if (type === 'createFolder') {
+      // 중복 체크
+      if (fileList.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+        setPromptConfig(prev => ({ ...prev, error: "이미 같은 이름의 폴더가 존재합니다." }));
+        return;
+      }
+
+      try {
+        setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
+        if (workspaceType === 'browser') {
+          if (rootFolder?.handle) {
+            await rootFolder.handle.getDirectoryHandle(name, { create: true });
+          } else {
+            // LocalStorage 가상 폴더 생성
+            const { vfsCreateFolder } = await import('@/lib/vfsHelper');
+            vfsCreateFolder("", name);
+          }
+        } else {
+          const api = (window as any).electronAPI;
+          if (api?.createFolder) {
+            await api.createFolder(rootPath, name);
+          } else {
+            await fetch(getApiUrl('/api/create-folder'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ parentPath: rootPath, name: name })
+            });
+          }
+        }
+        refreshFileList();
+      } catch(e) { showToast("생성 실패: " + e, 'error'); }
+    }
+  };
 
   useEffect(() => {
     setIsDesktop(typeof window !== 'undefined' && !!(window as any).electronAPI);
@@ -195,8 +292,40 @@ export default function LeftSidebar({
                 </div>
               ) : (
                 <div className="space-y-0.5">
-                  <div className="px-1 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 truncate border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
-                    📁 {rootFolder.name}
+                  <div className="group relative flex items-center justify-between px-1 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
+                    <span className="truncate">📁 {rootFolder.name}</span>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPromptConfig({
+                            isOpen: true,
+                            title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요:",
+                            defaultValue: "untitled.md",
+                            type: 'createFile'
+                          });
+                        }} 
+                        className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                        title="새 파일"
+                      >
+                        <Plus size={11} />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPromptConfig({
+                            isOpen: true,
+                            title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요:",
+                            defaultValue: "",
+                            type: 'createFolder'
+                          });
+                        }} 
+                        className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                        title="새 폴더"
+                      >
+                        <FolderPlus size={11} />
+                      </button>
+                    </div>
                   </div>
                   {fileList.map((node, i) => (
                     <FileTreeItem
@@ -210,10 +339,10 @@ export default function LeftSidebar({
                       workspaceType={workspaceType}
                       refreshParent={refreshFileList}
                       askConfirm={askConfirm}
-                     
                       isMergeMode={isMergeMode}
                       selectedMergeNodes={selectedMergeNodes}
                       toggleMergeNodeSelect={toggleMergeNodeSelect}
+                      onLazyLoad={handleLazyLoad}
                     />
                   ))}
                 </div>
@@ -321,6 +450,14 @@ export default function LeftSidebar({
           document.addEventListener('mousemove', doDrag);
           document.addEventListener('mouseup', stopDrag);
         }}
+      />
+      <PromptModal 
+        isOpen={promptConfig.isOpen}
+        title={promptConfig.title}
+        defaultValue={promptConfig.defaultValue}
+        error={promptConfig.error}
+        onConfirm={onPromptConfirm}
+        onCancel={() => setPromptConfig({ ...promptConfig, isOpen: false, error: '' })}
       />
     </aside>
   );

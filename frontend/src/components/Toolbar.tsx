@@ -18,7 +18,7 @@ interface ToolbarProps {
   setFontSize: (v: number) => void;
   wordWrap: 'on' | 'off';
   setWordWrap: (v: 'on' | 'off') => void;
-  handlers: any;
+  dispatch: (type: any, payload?: any) => void;
 }
 
 const localTranslations: Record<string, Record<string, string>> = {
@@ -125,110 +125,6 @@ const localTranslations: Record<string, Record<string, string>> = {
     copyAll: "Copy Preview",
     youtube: "Insert YouTube Video",
     cleanDoc: "Clean Document Formatting"
-  },
-  ja: {
-    sidebarHide: "サイドバー를 隠す",
-    sidebarShow: "サイドバーを表示",
-    groupFormatting: "書式",
-    groupHeading: "見出し",
-    groupParagraph: "段落",
-    groupInsert: "挿入",
-    groupAdvanced: "詳細",
-    groupText: "文字",
-    groupView: "表示",
-    groupSettings: "設定",
-    groupOther: "その他",
-    bold: "太字",
-    italic: "斜体",
-    inlineCode: "インラインコード",
-    strikethrough: "打ち消し線",
-    h1: "見出し 1",
-    h2: "見出し 2",
-    h3: "見出し 3",
-    h4: "見出し 4",
-    h5: "見出し 5",
-    h6: "見出し 6",
-    hr: "区切り線",
-    orderedList: "番号付きリスト",
-    list: "箇条書きリスト",
-    quote: "引用",
-    check: "タスクリスト",
-    eraser: "書式をクリア (Ctrl+Shift+X)",
-    link: "リンク挿入",
-    image: "画像挿入",
-    now: "当前の日時",
-    emoji: "絵文字ピッカー",
-    map: "Googleマップ挿入",
-    table: "テーブル挿入",
-    code: "コードブロック",
-    latex: "数式 (LaTeX)",
-    fontSmaller: "文字を小さく",
-    fontLarger: "文字を大きく",
-    wordWrap: "自動折り返し切り替え",
-    search: "全体検索",
-    toSplitMode: "分割表示モードに切り替え",
-    toPreviewMode: "プレビュー専用モードに切り替え",
-    toEditMode: "編集専用モードに切り替え",
-    theme: "テーマ切り替え",
-    settings: "設定",
-    help: "ヘルプ",
-    save: "保存",
-    export: "書き出し",
-    copyAll: "プレビューコピー",
-    youtube: "YouTube動画挿入",
-    cleanDoc: "ドキュメント書式の一括整理"
-  },
-  zh: {
-    sidebarHide: "隐藏侧边栏",
-    sidebarShow: "显示侧边栏",
-    groupFormatting: "格式",
-    groupHeading: "标题",
-    groupParagraph: "段落",
-    groupInsert: "插入",
-    groupAdvanced: "高级",
-    groupText: "文字",
-    groupView: "视图",
-    groupSettings: "设置",
-    groupOther: "其他",
-    bold: "加粗",
-    italic: "斜体",
-    inlineCode: "行内代码",
-    strikethrough: "删除线",
-    h1: "标题 1",
-    h2: "标题 2",
-    h3: "标题 3",
-    h4: "标题 4",
-    h5: "标题 5",
-    h6: "标题 6",
-    hr: "分割线",
-    orderedList: "有序列表",
-    list: "无序列表",
-    quote: "引用",
-    check: "任务列表",
-    eraser: "清除格式 (Ctrl+Shift+X)",
-    link: "插入链接",
-    image: "插入图像",
-    now: "当前日期时间",
-    emoji: "表情符号选择器",
-    map: "插入谷歌地图",
-    table: "插入表格",
-    code: "代码块",
-    latex: "数学公式 (LaTeX)",
-    fontSmaller: "减小字号",
-    fontLarger: "增大字号",
-    wordWrap: "切换自动折行",
-    search: "全局搜索",
-    toSplitMode: "切换到双栏视图模式",
-    toPreviewMode: "切换到仅预览模式",
-    toEditMode: "切换到仅编辑模式",
-    theme: "切换主题配色",
-    settings: "设置",
-    help: "语法帮助",
-    save: "保存",
-    export: "导出",
-    copyAll: "预览复制",
-    youtube: "插入 YouTube 视频",
-    cleanDoc: "一键清理文档格式"
   }
 };
 
@@ -238,7 +134,7 @@ export default function Toolbar({
   previewMode, setPreviewMode, 
   fontSize, setFontSize,
   wordWrap, setWordWrap,
-  handlers
+  dispatch
  }: ToolbarProps) {
   const { showToast } = useToast();
   const [headingLevel, setHeadingLevel] = React.useState(3);
@@ -248,21 +144,24 @@ export default function Toolbar({
     return dict[key] || key;
   };
 
-  const handleHeadingUp = () => {
+  const handleHeadingUp = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (headingLevel > 1) {
       const next = headingLevel - 1;
       setHeadingLevel(next);
-      handlers[`h${next}`]?.();
+      dispatch(`H${next}`);
     }
   };
 
-  const handleHeadingDown = () => {
+  const handleHeadingDown = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (headingLevel < 6) {
       const next = headingLevel + 1;
       setHeadingLevel(next);
-      handlers[`h${next}`]?.();
+      dispatch(`H${next}`);
     }
   };
+
   return (
     <div className="w-full h-[60px] border-b border-emerald-500/10 dark:border-emerald-500/20 flex flex-row items-center px-4 bg-[#f3f9f4] dark:bg-[#0f1712] shadow-sm z-30 text-zinc-700 dark:text-zinc-300 overflow-x-auto overflow-y-hidden shrink-0">
       <div className="flex flex-row items-center gap-6 w-full h-full min-w-max">
@@ -270,10 +169,10 @@ export default function Toolbar({
           <div className="flex flex-row items-center gap-6 h-full animate-in fade-in slide-in-from-left-2 duration-300">
             {/* 서식 */}
             <ToolbarGroup label={t('groupFormatting')}>
-              <ToolbarButton label="B" title={t('bold')} onClick={() => handlers.bold()} bold />
-              <ToolbarButton label="I" title={t('italic')} onClick={() => handlers.italic()} italic />
-              <ToolbarButton label="</>" title={t('inlineCode')} onClick={() => handlers.inlineCode()} />
-              <ToolbarButton label={<span className="line-through">S</span>} title={t('strikethrough')} onClick={() => handlers.strikethrough()} />
+              <ToolbarButton label="B" title={t('bold')} onAction={() => dispatch('BOLD')} bold />
+              <ToolbarButton label="I" title={t('italic')} onAction={() => dispatch('ITALIC')} italic />
+              <ToolbarButton label="</>" title={t('inlineCode')} onAction={() => dispatch('INLINE_CODE')} />
+              <ToolbarButton label={<span className="line-through">S</span>} title={t('strikethrough')} onAction={() => dispatch('STRIKETHROUGH')} />
             </ToolbarGroup>
 
             {/* 제목 */}
@@ -282,36 +181,39 @@ export default function Toolbar({
                 headingLevel={headingLevel} 
                 handleHeadingUp={handleHeadingUp} 
                 handleHeadingDown={handleHeadingDown} 
-                handlers={handlers} 
+                onHeadingSelect={(e) => {
+                  e.preventDefault();
+                  dispatch(`H${headingLevel}`);
+                }} 
               />
             </ToolbarGroup>
 
             {/* 문단 */}
             <ToolbarGroup label={t('groupParagraph')}>
-              <ToolbarButton label="—" title={t('hr')} onClick={() => handlers.hr()} />
-              <ToolbarButton label="1." title={t('orderedList')} onClick={() => handlers.orderedList()} />
-              <ToolbarButton label="☰" title={t('list')} onClick={() => handlers.list()} />
-              <ToolbarButton label="❝" title={t('quote')} onClick={() => handlers.quote()} />
-              <ToolbarButton label="☑️" title={t('check')} onClick={() => handlers.check()} />
-              <ToolbarButton label={<Eraser size={14} className="text-red-500 opacity-80 hover:opacity-100" />} title={t('eraser')} onClick={() => handlers.removePrefix && handlers.removePrefix()} />
-              <ToolbarButton label="✨" title={t('cleanDoc')} onClick={() => handlers.cleanDoc && handlers.cleanDoc()} />
+              <ToolbarButton label="—" title={t('hr')} onAction={() => dispatch('HR')} />
+              <ToolbarButton label="1." title={t('orderedList')} onAction={() => dispatch('ORDERED_LIST')} />
+              <ToolbarButton label="☰" title={t('list')} onAction={() => dispatch('LIST')} />
+              <ToolbarButton label="❝" title={t('quote')} onAction={() => dispatch('QUOTE')} />
+              <ToolbarButton label="☑️" title={t('check')} onAction={() => dispatch('CHECK')} />
+              <ToolbarButton label={<Eraser size={14} className="text-red-500 opacity-80 hover:opacity-100" />} title={t('eraser')} onAction={() => dispatch('REMOVE_PREFIX')} />
+              <ToolbarButton label="✨" title={t('cleanDoc')} onAction={() => dispatch('CLEAN_DOC')} />
             </ToolbarGroup>
 
             {/* 삽입 */}
             <ToolbarGroup label={t('groupInsert')}>
-              <ToolbarButton label="🔗" title={t('link')} onClick={() => handlers.link()} />
-              <ToolbarButton label="🖼️" title={t('image')} onClick={() => handlers.image()} />
-              <ToolbarButton label="🎥" title={t('youtube')} onClick={() => handlers.youtube && handlers.youtube()} />
-              <ToolbarButton label="📅" title={t('now')} onClick={() => handlers.now()} />
-              <ToolbarButton label="😊" title={t('emoji')} onClick={(e) => handlers.emoji && handlers.emoji(e)} />
+              <ToolbarButton label="🔗" title={t('link')} onAction={() => dispatch('LINK')} />
+              <ToolbarButton label="🖼️" title={t('image')} onAction={() => dispatch('IMAGE')} />
+              <ToolbarButton label="🎥" title={t('youtube')} onAction={() => dispatch('YOUTUBE')} />
+              <ToolbarButton label="📅" title={t('now')} onAction={() => dispatch('NOW')} />
+              <ToolbarButton label="😊" title={t('emoji')} onAction={(e) => dispatch('EMOJI', e)} />
             </ToolbarGroup>
 
             {/* 고급 */}
             <ToolbarGroup label={t('groupAdvanced')}>
-              <ToolbarButton label="🗺️" title={t('map')} onClick={() => handlers.map()} />
-              <ToolbarButton label="📊" title={t('table')} onClick={() => handlers.table && handlers.table()} />
-              <ToolbarButton label="💻" title={t('code')} onClick={() => handlers.code()} />
-              <ToolbarButton label="Σ" title={t('latex')} onClick={() => handlers.latex()} />
+              <ToolbarButton label="🗺️" title={t('map')} onAction={() => dispatch('MAP')} />
+              <ToolbarButton label="📊" title={t('table')} onAction={() => dispatch('TABLE')} />
+              <ToolbarButton label="💻" title={t('code')} onAction={() => dispatch('CODE')} />
+              <ToolbarButton label="Σ" title={t('latex')} onAction={() => dispatch('LATEX')} />
             </ToolbarGroup>
           </div>
         )}
@@ -322,19 +224,19 @@ export default function Toolbar({
         {/* 제어/보기 등 */}
         <div className="flex flex-row items-center gap-4 h-full">
           <ToolbarGroup label={t('groupText')}>
-            <ToolbarButton label={<span className="font-bold">A-</span>} title={t('fontSmaller')} onClick={() => setFontSize(Math.max(10, fontSize - 1))} />
-            <ToolbarButton label={<span className="font-bold text-xs">A+</span>} title={t('fontLarger')} onClick={() => setFontSize(Math.min(24, fontSize + 1))} />
-            <ToolbarButton label={<span className={`text-[10px] font-bold ${wordWrap === 'on' ? 'text-blue-500' : ''}`}>Wrap</span>} title={t('wordWrap')} onClick={() => setWordWrap(wordWrap === 'on' ? 'off' : 'on')} />
+            <ToolbarButton label={<span className="font-bold">A-</span>} title={t('fontSmaller')} onAction={() => setFontSize(Math.max(10, fontSize - 1))} />
+            <ToolbarButton label={<span className="font-bold text-xs">A+</span>} title={t('fontLarger')} onAction={() => setFontSize(Math.min(24, fontSize + 1))} />
+            <ToolbarButton label={<span className={`text-[10px] font-bold ${wordWrap === 'on' ? 'text-blue-500' : ''}`}>Wrap</span>} title={t('wordWrap')} onAction={() => setWordWrap(wordWrap === 'on' ? 'off' : 'on')} />
           </ToolbarGroup>
 
           <ToolbarGroup label={t('groupSettings')}>
-            <ToolbarButton label="⚙️" title={"환경 설정"} onClick={() => handlers.settings()} />
-            <ToolbarButton label="❓" title={t('help')} onClick={() => handlers.helper()} />
+            <ToolbarButton label="⚙️" title={"환경 설정"} onAction={() => dispatch('SETTINGS')} />
+            <ToolbarButton label="❓" title={t('help')} onAction={() => dispatch('ABOUT')} />
           </ToolbarGroup>
 
           <ToolbarGroup label={t('groupOther')} showDivider={false}>
             <CopyPreviewButton 
-              onClick={() => handlers.copyAll && handlers.copyAll()} 
+              onAction={() => dispatch('COPY_ALL')} 
               title={"전체 복사"} 
             />
           </ToolbarGroup>
@@ -362,11 +264,11 @@ function ToolbarGroup({ label, children, showDivider = true }: { label: string, 
   );
 }
 
-function ToolbarButton({ label, title, onClick, bold, italic }: { label: string | React.ReactNode, title: string, onClick?: (e: any) => void, bold?: boolean, italic?: boolean }) {
+function ToolbarButton({ label, title, onAction, bold, italic }: { label: string | React.ReactNode, title: string, onAction?: (e: any) => void, bold?: boolean, italic?: boolean }) {
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (onClick) {
-      onClick(e);
+    e.preventDefault(); // 포커스 유실 방지
+    if (onAction) {
+      onAction(e);
     }
   };
   return (
@@ -384,17 +286,17 @@ function HeadingSpinButton({
   headingLevel,
   handleHeadingUp,
   handleHeadingDown,
-  handlers,
+  onHeadingSelect,
 }: {
   headingLevel: number;
-  handleHeadingUp: () => void;
-  handleHeadingDown: () => void;
-  handlers: any;
+  handleHeadingUp: (e: any) => void;
+  handleHeadingDown: (e: any) => void;
+  onHeadingSelect: (e: any) => void;
 }) {
   return (
     <div className="flex items-center border border-emerald-500/20 dark:border-emerald-500/30 rounded bg-emerald-500/5 dark:bg-emerald-500/10 py-0.5 px-1.5 gap-1.5">
       <button 
-        onClick={handleHeadingUp}
+        onMouseDown={handleHeadingUp}
         disabled={headingLevel === 1}
         className="w-5 h-6 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[9px]"
         title="제목 크기 키우기 (H1 방향)"
@@ -402,14 +304,14 @@ function HeadingSpinButton({
         ▲
       </button>
       <button 
-        onClick={() => handlers[`h${headingLevel}`]?.()}
+        onMouseDown={onHeadingSelect}
         className="w-7 h-6 flex items-center justify-center font-bold text-[11px] hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0"
         title={`제목 ${headingLevel} 적용`}
       >
         H{headingLevel}
       </button>
       <button 
-        onClick={handleHeadingDown}
+        onMouseDown={handleHeadingDown}
         disabled={headingLevel === 6}
         className="w-5 h-6 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[9px]"
         title="제목 크기 줄이기 (H6 방향)"
@@ -421,15 +323,15 @@ function HeadingSpinButton({
 }
 
 function CopyPreviewButton({
-  onClick,
+  onAction,
   title,
 }: {
-  onClick: () => void;
+  onAction: () => void;
   title: string;
 }) {
   return (
     <button 
-      onClick={onClick}
+      onMouseDown={(e) => { e.preventDefault(); onAction(); }}
       className="w-8 h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded shadow-md transition-all active:scale-95 flex items-center justify-center text-sm"
       title={title}
     >

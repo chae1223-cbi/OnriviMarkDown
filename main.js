@@ -156,7 +156,8 @@ ipcMain.handle('dialog:openFile', async () => {
 // 2. 현재 파일 덮어쓰기 저장 핸들러
 ipcMain.handle('file:save', async (event, filePath, content) => {
   try {
-    fs.writeFileSync(filePath, content, 'utf-8');
+    const cleanPath = filePath.normalize('NFC');
+    fs.writeFileSync(cleanPath, content, 'utf-8');
     return true;
   } catch (e) {
     console.error('로컬 파일 덮어쓰기 저장 실패:', e);
@@ -167,7 +168,8 @@ ipcMain.handle('file:save', async (event, filePath, content) => {
 // 3. 다른 이름으로 저장 핸들러 (워크스페이스 폴더 우선, suggestedName 지원)
 ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir) => {
   const defaultName = suggestedName || 'untitled.md';
-  const startDir = defaultDir && fs.existsSync(defaultDir) ? defaultDir : app.getPath('documents');
+  const cleanDefaultDir = defaultDir ? defaultDir.normalize('NFC') : undefined;
+  const startDir = cleanDefaultDir && fs.existsSync(cleanDefaultDir) ? cleanDefaultDir : app.getPath('documents');
   const result = await dialog.showSaveDialog(mainWindow, {
     title: '다른 이름으로 저장',
     defaultPath: path.join(startDir, defaultName),
@@ -178,7 +180,7 @@ ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir) 
     return null;
   }
 
-  const filePath = result.filePath;
+  const filePath = result.filePath.normalize('NFC');
   try {
     fs.writeFileSync(filePath, content, 'utf-8');
     return {
@@ -209,10 +211,11 @@ ipcMain.handle('dialog:selectFolder', async () => {
 // 5. 절대 경로를 지정하여 직접 파일 내용 읽기
 ipcMain.handle('file:readFromPath', async (event, filePath) => {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const cleanPath = filePath.normalize('NFC');
+    const content = fs.readFileSync(cleanPath, 'utf-8');
     return {
-      name: path.basename(filePath),
-      path: filePath,
+      name: path.basename(cleanPath),
+      path: cleanPath,
       content: content
     };
   } catch (e) {
@@ -261,13 +264,14 @@ ipcMain.handle('file:getDrives', async () => {
 // 7. 디렉토리 파일 목록 조회 (Windows 탐색기)
 ipcMain.handle('file:listDirectory', async (event, dirPath) => {
   try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    const cleanPath = dirPath.normalize('NFC');
+    const entries = fs.readdirSync(cleanPath, { withFileTypes: true });
     const nodes = entries
       .filter(entry => !['node_modules', '.git', '.next', '.vscode'].includes(entry.name))
       .map(entry => {
-        const fullPath = path.join(dirPath, entry.name);
+        const fullPath = path.join(cleanPath, entry.name);
         if (entry.isDirectory()) {
-          return { name: entry.name, kind: 'directory', path: fullPath, children: [] };
+          return { name: entry.name, kind: 'directory', path: fullPath };
         } else {
           return { name: entry.name, kind: 'file', path: fullPath };
         }
@@ -285,7 +289,9 @@ ipcMain.handle('file:listDirectory', async (event, dirPath) => {
 // 9. 파일/폴더 이름 변경
 ipcMain.handle('file:rename', async (event, oldPath, newPath) => {
   try {
-    fs.renameSync(oldPath, newPath);
+    const cleanOld = oldPath.normalize('NFC');
+    const cleanNew = newPath.normalize('NFC');
+    fs.renameSync(cleanOld, cleanNew);
     return { success: true };
   } catch (e) {
     console.error('파일 이름 변경 실패:', e);
@@ -296,11 +302,12 @@ ipcMain.handle('file:rename', async (event, oldPath, newPath) => {
 // 10. 파일/폴더 삭제
 ipcMain.handle('file:delete', async (event, targetPath) => {
   try {
-    const stat = fs.statSync(targetPath);
+    const cleanPath = targetPath.normalize('NFC');
+    const stat = fs.statSync(cleanPath);
     if (stat.isDirectory()) {
-      fs.rmSync(targetPath, { recursive: true, force: true });
+      fs.rmSync(cleanPath, { recursive: true, force: true });
     } else {
-      fs.unlinkSync(targetPath);
+      fs.unlinkSync(cleanPath);
     }
     return { success: true };
   } catch (e) {
@@ -312,7 +319,9 @@ ipcMain.handle('file:delete', async (event, targetPath) => {
 // 11. 새 파일 생성
 ipcMain.handle('file:createFile', async (event, parentPath, name) => {
   try {
-    const fullPath = path.join(parentPath, name);
+    const cleanParent = parentPath.normalize('NFC');
+    const cleanName = name.normalize('NFC');
+    const fullPath = path.join(cleanParent, cleanName);
     fs.writeFileSync(fullPath, '', 'utf-8');
     return { success: true, path: fullPath };
   } catch (e) {
@@ -324,7 +333,9 @@ ipcMain.handle('file:createFile', async (event, parentPath, name) => {
 // 12. 새 폴더 생성
 ipcMain.handle('file:createFolder', async (event, parentPath, name) => {
   try {
-    const fullPath = path.join(parentPath, name);
+    const cleanParent = parentPath.normalize('NFC');
+    const cleanName = name.normalize('NFC');
+    const fullPath = path.join(cleanParent, cleanName);
     fs.mkdirSync(fullPath, { recursive: true });
     return { success: true, path: fullPath };
   } catch (e) {

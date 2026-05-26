@@ -26,13 +26,37 @@ interface FileTreeItemProps {
 }
 
 const FileTreeItem = ({ 
-  node, parentHandle, level, openFile, currentFileName, currentFilePath, workspaceType, refreshParent, askConfirm, siblings,
+  node: rawNode, parentHandle, level, openFile, currentFileName, currentFilePath, workspaceType, refreshParent, askConfirm, siblings,
   isMergeMode = false, selectedMergeNodes = [], toggleMergeNodeSelect, onLazyLoad
 }: FileTreeItemProps) => {
   const { showToast } = useToast();
+
+  // 🛡️ 백엔드/VFS 노드 규격(type: 'dir'/'file' -> kind) 자동 호환 안전장치
+  const node = React.useMemo(() => {
+    const kind = rawNode.kind || ((rawNode as any).type === 'dir' || (rawNode as any).type === 'directory' ? 'directory' : 'file');
+    return { ...rawNode, kind };
+  }, [rawNode]);
   
   const [isOpen, setIsOpen] = useState(false);
   const [localChildren, setLocalChildren] = useState<FileNode[] | null>(null);
+
+  React.useEffect(() => {
+    if (node.children !== undefined) {
+      setLocalChildren(node.children);
+    }
+  }, [node.children]);
+  const refreshThisDirectory = async () => {
+    if (node.kind !== 'directory' || !onLazyLoad) return;
+    setIsLoading(true);
+    try {
+      const children = await onLazyLoad(node);
+      setLocalChildren(children);
+    } catch (err) {
+      console.warn('폴더 재갱신 실패:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [promptConfig, setPromptConfig] = useState<{
     isOpen: boolean;
@@ -83,15 +107,23 @@ const FileTreeItem = ({
     try {
       if (workspaceType === 'local') {
         const newPath = node.path ? `${node.path}\\${sourceName}` : sourceName;
-        const res = await fetch(getApiUrl('/api/rename'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ oldPath: sourcePath, newPath })
-        });
-        if (res.ok) {
-          const moveSuccessMsg = `'${sourceName}' 이동 완료`;
-          showToast(moveSuccessMsg, 'success');
+        const api = (window as any).electronAPI;
+        if (api?.renameFile) {
+          await api.renameFile(sourcePath, newPath);
+          showToast(`'${sourceName}' 이동 완료`, 'success');
           refreshParent();
+          await refreshThisDirectory();
+        } else {
+          const res = await fetch(getApiUrl('/api/rename'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oldPath: sourcePath, newPath })
+          });
+          if (res.ok) {
+            showToast(`'${sourceName}' 이동 완료`, 'success');
+            refreshParent();
+            await refreshThisDirectory();
+          }
         }
       } else if (workspaceType === 'browser') {
         const browserMoveMsg = "브라우저 모드에서는 드래그 이동을 준비 중입니다.";
@@ -130,7 +162,7 @@ const FileTreeItem = ({
     e.stopPropagation();
     setPromptConfig({
       isOpen: true,
-      title: `'$${node.name }'의 새 이름을 입력하세요:`,
+      title: `'${node.name}'의 새 이름을 입력하세요:`,
       defaultValue: node.name,
       type: 'rename'
     });
@@ -140,7 +172,7 @@ const FileTreeItem = ({
     e.stopPropagation();
     setPromptConfig({
       isOpen: true,
-      title: `[$${node.name }]에 생성할 새 파일의 이름을 입력하세요:`,
+      title: `[${node.name}]에 생성할 새 파일의 이름을 입력하세요:`,
       defaultValue: "untitled.md",
       type: 'createFile'
     });
@@ -150,7 +182,7 @@ const FileTreeItem = ({
     e.stopPropagation();
     setPromptConfig({
       isOpen: true,
-      title: `[$${node.name }]에 생성할 새 폴더의 이름을 입력하세요:`,
+      title: `[${node.name}]에 생성할 새 폴더의 이름을 입력하세요:`,
       defaultValue: "",
       type: 'createFolder'
     });
@@ -253,7 +285,7 @@ const FileTreeItem = ({
           if (api?.createFile) {
             const result = await api.createFile(node.path, finalName);
             if (result.success) {
-              refreshParent();
+              await refreshThisDirectory();
               openFile({ name: finalName, kind: 'file', path: result.path });
             }
           } else {
@@ -264,7 +296,7 @@ const FileTreeItem = ({
             });
             if (res.ok) {
               const data = await res.json();
-              refreshParent();
+              await refreshThisDirectory();
               openFile({ name: finalName, kind: 'file', path: data.path });
             }
           }
@@ -298,7 +330,7 @@ const FileTreeItem = ({
             });
           }
         }
-        refreshParent();
+        await refreshThisDirectory();
       } catch(e) { showToast("생성 실패: " + e, 'error'); }
     }
   };
@@ -308,7 +340,7 @@ const FileTreeItem = ({
     
     askConfirm({
       title: "파일 삭제",
-      message: `'$${node.name }'을(를) 정말 삭제하시겠습니까?`,
+      message: `'${node.name}'을(를) 정말 삭제하시겠습니까?`,
       isDanger: true,
       onConfirm: async () => {
         try {
@@ -437,7 +469,7 @@ const FileTreeItem = ({
                 currentFileName={currentFileName}
                 currentFilePath={currentFilePath}
                 workspaceType={workspaceType}
-                refreshParent={refreshParent}
+                refreshParent={refreshThisDirectory}
                 askConfirm={askConfirm}
                 siblings={children}
                

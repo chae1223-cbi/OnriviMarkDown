@@ -45,6 +45,17 @@ import AboutModal from '@/components/AboutModal';
 import AIGeneratorPanel from '@/components/AIGeneratorPanel';
 import WritingAssistant from '@/components/WritingAssistant';
 
+export type EditorCommandType =
+  | 'NEW_FILE' | 'OPEN_FILE' | 'OPEN_WORKSPACE' | 'SAVE' | 'SAVE_AS'
+  | 'EXPORT_PDF' | 'EXPORT_HTML' | 'EXPORT_EPUB' | 'EXPORT_PNG' | 'EXIT'
+  | 'UNDO' | 'REDO' | 'FIND' | 'REPLACE' | 'ZOOM_IN' | 'ZOOM_OUT'
+  | 'GLOBAL_SEARCH' | 'TOGGLE_HELP' | 'ERASER' | 'BOLD' | 'ITALIC' 
+  | 'STRIKETHROUGH' | 'INLINE_CODE' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6'
+  | 'HR' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'QUOTE' | 'CHECKLIST'
+  | 'LINK' | 'IMAGE' | 'VIDEO' | 'MAP' | 'TABLE' | 'CODE' | 'LATEX' | 'CLEAN_DOC'
+  | 'YOUTUBE' | 'EMOJI' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'
+  | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL';
+
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') {
   const addonQuery = new URLSearchParams(window.location.search).get('env') === 'addon';
@@ -380,18 +391,22 @@ export default function Home() {
         setRootFolder(null);
         setPreviewMode('preview');
       } else {
-        // 백엔드에서 현재 ROOT 조회 (우선)
+        const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
         let rootPath: string | null = null;
-        try {
-          const res = await fetch(getApiUrl('/api/get-root'));
-          if (res.ok) {
-            const data = await res.json();
-            if (data.currentRoot) {
-              rootPath = data.currentRoot;
+
+        if (!isElectron) {
+          // 백엔드에서 현재 ROOT 조회 (웹 환경 우선)
+          try {
+            const res = await fetch(getApiUrl('/api/get-root'));
+            if (res.ok) {
+              const data = await res.json();
+              if (data.currentRoot) {
+                rootPath = data.currentRoot;
+              }
             }
+          } catch (err) {
+            console.warn('Backend root 조회 실패:', err);
           }
-        } catch (err) {
-          console.warn('Backend root 조회 실패:', err);
         }
 
         if (rootPath) {
@@ -403,7 +418,18 @@ export default function Home() {
           if (savedFolder) {
             try {
               const folder = JSON.parse(savedFolder);
-              if (folder.name && folder.name !== '브라우저 스토리지' && folder.name !== 'C:\\') {
+              // 🛡️ 윈도우 파일 시스템상 금지 문자(?, \uFFFD 등)가 포함된 깨진 한글 경로 캐시 자동 치료 작동
+              const hasInvalidChar = folder.name && (
+                folder.name.includes('?') || 
+                folder.name.includes('\uFFFD') || 
+                folder.name.includes('')
+              );
+              if (hasInvalidChar) {
+                console.warn("🩹 깨진 워크스페이스 캐시 자가 치료 작동: 캐시를 강제 파괴합니다.");
+                localStorage.removeItem('rootFolder');
+                localStorage.removeItem('workspaceType');
+                setRootFolder(null);
+              } else if (folder.name && folder.name !== '브라우저 스토리지' && folder.name !== 'C:\\') {
                 setRootFolder(folder);
               } else {
                 // 유효하지 않은 기본값 삭제
@@ -1971,6 +1997,92 @@ export default function Home() {
 
   handlersRef.current = handlers;
 
+  const dispatchCommand = useCallback((type: EditorCommandType, payload?: any) => {
+    // 1. 에디터 텍스트 비조작 명령어 (상태 제어 및 파일 입출력 위임)
+    switch (type) {
+      // 파일 관련
+      case 'NEW_FILE': handlers.newFile(); return;
+      case 'OPEN_FILE': handlers.openFolder(); return;
+      case 'OPEN_WORKSPACE': handlers.openWorkspace(); return;
+      case 'SAVE': handlers.save(); return;
+      case 'SAVE_AS': handlers.saveAs(); return;
+      case 'EXIT': handlers.exit(); return;
+
+      // 내보내기 관련
+      case 'EXPORT_PDF': handlers.exportPDF(); return;
+      case 'EXPORT_HTML': handlers.exportHTML(); return;
+      case 'EXPORT_EPUB': handlers.exportEPUB(); return;
+      case 'EXPORT_PNG': handlers.exportPNG(); return;
+      case 'OPEN_EXPORT': handlers.openExport(); return;
+
+      // 보기/제어 관련
+      case 'ZOOM_IN': handlers.zoomIn(); return;
+      case 'ZOOM_OUT': handlers.zoomOut(); return;
+      case 'UNDO': handlers.undo(); return;
+      case 'REDO': handlers.redo(); return;
+      case 'FIND': handlers.find(); return;
+      case 'REPLACE': handlers.replace(); return;
+      case 'GLOBAL_SEARCH': handlers.globalSearch(); return;
+      case 'SETTINGS': handlers.settings(); return;
+      case 'ABOUT': handlers.about(); return;
+      case 'UPDATES': handlers.updates(); return;
+      case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
+      case 'CLEAN_DOC': handlers.cleanDoc(); return;
+      case 'COPY_ALL': handlers.copyAll(); return;
+      case 'EMOJI': handlers.emoji(payload); return;
+    }
+
+    // 2. 에디터 본문 서식 조작 명령어 (포커스 가드 강제 추적)
+    if (!editorRef.current) return;
+    const editor = editorRef.current;
+    const selection = editor.getSelection();
+    const model = editor.getModel();
+    if (!model || !selection) return;
+
+    switch (type) {
+      // 서식 관련
+      case 'BOLD': handlers.bold(); break;
+      case 'ITALIC': handlers.italic(); break;
+      case 'INLINE_CODE': handlers.inlineCode(); break;
+      case 'STRIKETHROUGH': handlers.strikethrough(); break;
+      case 'H1': handlers.h1(); break;
+      case 'H2': handlers.h2(); break;
+      case 'H3': handlers.h3(); break;
+      case 'H4': handlers.h4(); break;
+      case 'H5': handlers.h5(); break;
+      case 'H6': handlers.h6(); break;
+      case 'HR': handlers.hr(); break;
+      case 'ORDERED_LIST': handlers.orderedList(); break;
+      case 'LIST': handlers.list(); break;
+      case 'QUOTE': handlers.quote(); break;
+      case 'CHECK':
+      case 'CHECKLIST': handlers.check(); break;
+      case 'ERASER':
+      case 'REMOVE_PREFIX': handlers.removePrefix(); break;
+
+      // 삽입 관련
+      case 'LINK': handlers.link(); break;
+      case 'IMAGE': handlers.image(); break;
+      case 'YOUTUBE':
+      case 'VIDEO': handlers.video(); break;
+      case 'NOW': handlers.now(); break;
+      case 'MAP': handlers.map(); break;
+      case 'TABLE': handlers.table(); break;
+      case 'CODE':
+      case 'CODE_BLOCK': handlers.code(); break;
+      case 'CHART': handlers.chart(); break;
+      case 'LATEX':
+      case 'MATH': handlers.math(); break;
+
+      default:
+        console.warn(`미매핑 커맨드 유입: ${type}`);
+        break;
+    }
+
+    // 포커스 회복
+    editor.focus();
+  }, [handlers]);
+
   useEffect(() => {
     if (!editorRef.current || !(window as any).monaco) return;
     const editor = editorRef.current;
@@ -2057,7 +2169,7 @@ export default function Home() {
         setIsToolbarOpen={setIsToolbarOpen}
         previewMode={previewMode}
         setPreviewMode={setPreviewMode}
-        handlers={handlers}
+        dispatch={dispatchCommand}
         setContent={setContent}
         isSearchOpen={isSearchOpen}
        
@@ -2113,7 +2225,7 @@ export default function Home() {
               setFontSize={setFontSize}
               wordWrap={wordWrap}
               setWordWrap={setWordWrap}
-              handlers={handlers}
+              dispatch={dispatchCommand}
              
             />
           )}
@@ -2196,6 +2308,18 @@ export default function Home() {
                       setActiveLine(e.position.lineNumber);
                       setCursorLine(e.position.lineNumber);
                       setCursorColumn(e.position.column);
+
+                      // 🚀 에디터 마우스 클릭/커서 변경 시 미리보기 자동 추적 이동 (Click-To-Scroll)
+                      if (previewRef.current && isScrollingRef.current !== 'editor') {
+                        const clickedLine = e.position.lineNumber;
+                        const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`);
+                        if (targetElement) {
+                          targetElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                          });
+                        }
+                      }
                     });
                     editor.onDidChangeCursorSelection((e) => {
                       lastSelectionRef.current = e.selection;
@@ -2296,7 +2420,10 @@ export default function Home() {
                     minimap: { enabled: false },
                     scrollbar: { vertical: 'visible', horizontal: 'visible' },
                     quickSuggestions: { other: true, comments: true, strings: true },
-                    suggestOnTriggerCharacters: true
+                    suggestOnTriggerCharacters: true,
+                    tabSize: 4,
+                    detectIndentation: false,
+                    insertSpaces: true
                   }}
                 />
                 {floatingToolbar.visible && (
