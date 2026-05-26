@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .glass {
+    @apply backdrop-blur-md bg-white/60 border border-white/20 shadow-xl;
+  }
+  .dark .glass {
+    @apply backdrop-blur-md bg-black/40 border border-white/5 shadow-2xl;
+  }
+}
+
+:root {
+  --foreground-rgb: 24, 28, 32;
+  --background-start-rgb: 247, 249, 255;
+  --background-end-rgb: 247, 249, 255;
+  --primary: 0 88 188;
+  --on-primary: 255 255 255;
+  --primary-container: 0 112 235;
+  --on-primary-container: 254 252 255;
+  --surface: 247 249 255;
+  --surface-dim: 215 218 223;
+  --surface-bright: 247 249 255;
+  --surface-container-lowest: 255 255 255;
+  --surface-container-low: 241 244 249;
+  --surface-container: 235 238 243;
+  --surface-container-high: 229 232 238;
+  --surface-container-highest: 224 227 232;
+  --on-surface: 24 28 32;
+  --on-surface-variant: 65 71 85;
+  --outline: 113 119 134;
+  --outline-variant: 193 198 215;
+  --error: 186 26 26;
+  --on-error: 255 255 255;
+  --secondary: 92 95 97;
+  --on-secondary: 255 255 255;
+}
+
+[class~="dark"] {
+  --foreground-rgb: 229, 226, 225;
+  --background-start-rgb: 19, 19, 19;
+  --background-end-rgb: 19, 19, 19;
+  --primary: 173 198 255;
+  --on-primary: 0 46 105;
+  --primary-container: 75 142 255;
+  --on-primary-container: 0 40 92;
+  --surface: 19 19 19;
+  --surface-dim: 19 19 19;
+  --surface-bright: 57 57 57;
+  --surface-container-lowest: 14 14 14;
+  --surface-container-low: 28 27 27;
+  --surface-container: 32 31 31;
+  --surface-container-high: 42 42 42;
+  --surface-container-highest: 53 53 52;
+  --on-surface: 229 226 225;
+  --on-surface-variant: 193 198 215;
+  --outline: 139 144 160;
+  --outline-variant: 65 71 85;
+  --error: 255 180 171;
+  --on-error: 105 0 5;
+  --secondary: 183 200 225;
+  --on-secondary: 33 49 69;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-start-rgb));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media print {
+  nav, aside, header, footer, .no-print {
+    display: none !important;
+  }
+  main {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .prose {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+}
+
+/* Monaco Find Widget 및 모든 UI 요소의 부동 툴팁(풍선 도움말) 강력 억제 */
+.monaco-hover,
+.monaco-editor .find-widget .monaco-hover,
+.monaco-editor-overlay .monaco-hover,
+[class*="monaco-hover"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
+/* Monaco 내장 버튼의 title 속성 툴팁 억제 */
+.monaco-editor .find-widget [title] {
+  pointer-events: auto !important; /* 버튼 자체는 클릭 가능해야 함 */
+}
+
+/* 프리뷰 라인 클릭/동기화 하이라이트 효과 (레이아웃 흔들림 방지 소프트 하이라이트) */
+.preview-highlight-line {
+  background-color: rgba(59, 130, 246, 0.07) !important; /* 소프트 블루 배경 */
+  transition: background-color 0.2s ease;
+  border-radius: 6px;
+}
+
+/* 다크모드 프리뷰 하이라이트 대응 */
+.dark .preview-highlight-line {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+
+/* 모나코 에디터 현재 행(액티브 행) 하이라이트 배경색 회색(Gray)으로 강제 적용 */
+.monaco-editor .current-line {
+  background-color: rgba(120, 120, 120, 0.06) !important;
+  border: none !important;
+}
+
+.monaco-editor .margin-view-overlays .current-line-margin {
+  background-color: rgba(120, 120, 120, 0.03) !important;
+  border: none !important;
+}
+
+/* 모나코 에디터 다크모드(vs-dark) 현재 행 하이라이트 대응 */
+.vs-dark .monaco-editor .current-line {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.vs-dark .monaco-editor .margin-view-overlays .current-line-margin {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* 스크롤바 숨기기 유틸리티 */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;  /* IE/Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+/* 리스트 항목(li) 및 리스트 자체의 상하 간격을 대폭 축소하여 많은 글을 담을 수 있게 보정 */
+.prose ul, .prose ol {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+.prose li {
+  margin-top: 0.2em !important;
+  margin-bottom: 0.2em !important;
+}
+
+/* 리스트 아이템(li) 하위의 p 태그가 기호 옆에 inline으로 나란히 착 달라붙게 강제 보정 */
+.prose li p {
+  display: inline !important;
+  margin: 0 !important;
+}
+
+/* 미리보기(Preview) 뷰어 패널 내부에 떠다니던 중복된 전체 복사(Copy All) 툴바 완벽 제거 */
+.notranslate .sticky.top-0.z-20 {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+}
+
+/* 프리뷰 영역 내의 제목 태그 파란색 테마 적용 */
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  color: #005bc1 !important;
+}
+
+/* 다크모드 프리뷰 제목 태그 대응 */
+.dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4, .dark .prose h5, .dark .prose h6 {
+  color: #60a5fa !important;
+}
+
+/* 프리뷰 내의 iframe 플레이어 디자인 시스템 강화 (가운데 정렬, 둥근 모서리, 부드러운 그림자) */
+.prose iframe {
+  display: block;
+  margin: 1.5rem auto !important;
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  max-width: 100%;
+}
+
+/* 일반 본문 문단의 상하 여백 및 줄간격을 컴팩트하게 조정 */
+.prose p {
+  margin-top: 1.2em !important;
+  margin-bottom: 1.2em !important;
+  line-height: 1.7 !important;
+}
+
+/* Tailwind Typography 플러그인의 blockquote 자동 따옴표(open-quote, close-quote) 억제 */
+.prose blockquote p:first-of-type::before,
+.prose blockquote p:last-of-type::after {
+  content: none !important;
+}
+
+/* Monaco WYSIWYG Decorations */
+.monaco-h1-text { font-size: 1.8em !important; font-weight: 800 !important; }
+.monaco-h2-text { font-size: 1.5em !important; font-weight: 700 !important; }
+.monaco-h3-text { font-size: 1.3em !important; font-weight: 700 !important; }
+.monaco-bold-text { font-weight: bold !important; }
+.monaco-italic-text { font-style: italic !important; }
+.monaco-strikethrough-text { text-decoration: line-through !important; }
+.monaco-md-syntax { 
+  color: #3b82f6 !important; 
+  font-weight: 700 !important; 
+  font-size: 1em !important; 
+  opacity: 0.8 !important;
+}
+
+.dark .monaco-md-syntax { 
+  color: #60a5fa !important; 
+}

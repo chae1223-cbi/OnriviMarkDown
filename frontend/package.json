@@ -1,0 +1,48 @@
+{
+  "name": "onrivi-author-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "clean": "rd /s /q .next",
+    "dev:clean": "npm run clean && next dev",
+    "build": "next build",
+    "build:extension": "npm run build && node fix-extension.js",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "@tailwindcss/typography": "^0.5.19",
+    "clsx": "^2.1.0",
+    "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
+    "html2pdf.js": "^0.14.0",
+    "jszip": "^3.10.1",
+    "katex": "^0.17.0",
+    "lucide-react": "^0.330.0",
+    "monaco-editor": "^0.45.0",
+    "next": "14.1.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-markdown": "^9.0.1",
+    "tailwind-merge": "^2.2.1"
+  },
+  "devDependencies": {
+    "@types/jszip": "^3.4.1",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
+    "eslint": "^8",
+    "eslint-config-next": "14.1.0",
+    "postcss": "^8",
+    "rehype-katex": "^7.0.1",
+    "rehype-raw": "^7.0.0",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5"
+  }
+}

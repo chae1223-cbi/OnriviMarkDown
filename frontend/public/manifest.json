@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Onrivi Author",
+  "version": "1.0.0",
+  "description": "프리미엄 마크다운 에디터 Onrivi Author",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "action": {
+    "default_title": "Onrivi Author 열기"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "128": "icon_onriveauther.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "monaco-editor/*",
+        "next/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
