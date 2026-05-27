@@ -374,6 +374,26 @@ export default function Home() {
   const hotkeyDisposablesRef = useRef<any[]>([]);
 
   useEffect(() => {
+    const previewEl = previewRef.current;
+    if (!previewEl) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (previewModeRef.current === 'both' && editorRef.current) {
+        e.preventDefault();
+        const editor = editorRef.current;
+        const currentScrollTop = editor.getScrollTop();
+        editor.setScrollTop(currentScrollTop + e.deltaY);
+      }
+    };
+
+    previewEl.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      previewEl.removeEventListener('wheel', handleWheel);
+    };
+  }, [previewMode]);
+
+  useEffect(() => {
     const restoreSettings = async () => {
       const savedTheme = localStorage.getItem('theme');
       if (savedTheme === 'dark') setIsDarkMode(true);
@@ -2418,11 +2438,33 @@ export default function Home() {
                     });
 
                     editor.onDidScrollChange(() => {
-                      if (isScrollingRef.current === 'preview' || previewMode !== 'both' || !previewRef.current) return;
+                      if (isScrollingRef.current === 'preview' || previewModeRef.current !== 'both' || !previewRef.current) return;
                       
                       isScrollingRef.current = 'editor';
                       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                       scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+
+                      const scrollTop = editor.getScrollTop();
+                      const scrollHeight = editor.getScrollHeight();
+                      const layoutInfo = editor.getLayoutInfo();
+
+                      // 1. 최상단(시작) 정밀 밀착 동기화
+                      if (scrollTop === 0) {
+                        previewRef.current.scrollTo({
+                          top: 0,
+                          behavior: 'auto'
+                        });
+                        return;
+                      }
+
+                      // 2. 최하단(끝) 정밀 밀착 동기화 (5px 마진 허용)
+                      if (scrollTop + layoutInfo.height >= scrollHeight - 5) {
+                        previewRef.current.scrollTo({
+                          top: previewRef.current.scrollHeight,
+                          behavior: 'auto'
+                        });
+                        return;
+                      }
 
                       const visibleRanges = editor.getVisibleRanges();
                       if (visibleRanges.length > 0) {
@@ -2528,16 +2570,8 @@ export default function Home() {
                   previewMode === 'both' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
                 }`}
                 style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
-                onWheel={(e) => {
-                  if (previewMode === 'both' && editorRef.current) {
-                    e.preventDefault();
-                    const editor = editorRef.current;
-                    const currentScrollTop = editor.getScrollTop();
-                    editor.setScrollTop(currentScrollTop + e.deltaY);
-                  }
-                }}
                 onScroll={(e) => {
-                  if (isScrollingRef.current === 'editor' || previewMode !== 'both' || !editorRef.current) return;
+                  if (isScrollingRef.current === 'editor' || previewModeRef.current !== 'both' || !editorRef.current) return;
                   
                   isScrollingRef.current = 'preview';
                   if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
