@@ -2308,16 +2308,19 @@ export default function Home() {
                       setActiveLine(e.position.lineNumber);
                       setCursorLine(e.position.lineNumber);
                       setCursorColumn(e.position.column);
+                    });
 
-                      // 🚀 에디터 마우스 클릭/커서 변경 시 미리보기 자동 추적 이동 (Click-To-Scroll)
-                      if (previewRef.current && isScrollingRef.current !== 'editor') {
-                        const clickedLine = e.position.lineNumber;
-                        const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`);
-                        if (targetElement) {
-                          targetElement.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                          });
+                    editor.onMouseDown((e) => {
+                      if (e.target && e.target.position) {
+                        const clickedLine = e.target.position.lineNumber;
+                        if (previewRef.current && isScrollingRef.current !== 'editor') {
+                          const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`);
+                          if (targetElement) {
+                            targetElement.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'center'
+                            });
+                          }
                         }
                       }
                     });
@@ -2380,14 +2383,18 @@ export default function Home() {
                         
                         const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
                         let targetEl: HTMLElement | null = null;
+                        let nextEl: HTMLElement | null = null;
                         let maxLine = -1;
-                        for (const el of elements) {
+
+                        for (let i = 0; i < elements.length; i++) {
+                          const el = elements[i];
                           const lineStr = el.getAttribute('data-line');
                           if (lineStr) {
                             const line = parseInt(lineStr, 10);
                             if (line <= topVisibleLine && line > maxLine) {
                               maxLine = line;
                               targetEl = el;
+                              nextEl = elements[i + 1] || null;
                             }
                           }
                         }
@@ -2402,9 +2409,18 @@ export default function Home() {
                             }
                             return offsetTop;
                           };
-                          const relativeTop = getRelativeOffsetTop(targetEl, previewRef.current);
+
+                          const t1 = editor.getTopForLineNumber(maxLine);
+                          const t2 = editor.getTopForLineNumber(maxLine + 1);
+                          const scrollTop = editor.getScrollTop();
+                          const ratio = (t2 > t1) ? Math.max(0, Math.min(1, (scrollTop - t1) / (t2 - t1))) : 0;
+
+                          const relativeTop1 = getRelativeOffsetTop(targetEl, previewRef.current);
+                          const relativeTop2 = nextEl ? getRelativeOffsetTop(nextEl, previewRef.current) : relativeTop1 + 24;
+                          const interpolatedTop = relativeTop1 + (relativeTop2 - relativeTop1) * ratio;
+
                           previewRef.current.scrollTo({
-                            top: Math.max(0, relativeTop - 20),
+                            top: Math.max(0, interpolatedTop - 20),
                             behavior: 'auto'
                           });
                         }
@@ -2460,8 +2476,18 @@ export default function Home() {
             {previewMode !== 'edit' && (
               <div 
                 ref={previewRef}
-                className={`flex-1 h-[calc(100vh-64px)] overflow-y-auto px-8 py-10 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none`}
+                className={`flex-1 h-[calc(100vh-64px)] px-8 py-10 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none ${
+                  previewMode === 'both' ? 'overflow-y-hidden' : 'overflow-y-auto'
+                }`}
                 style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
+                onWheel={(e) => {
+                  if (previewMode === 'both' && editorRef.current) {
+                    e.preventDefault();
+                    const editor = editorRef.current;
+                    const currentScrollTop = editor.getScrollTop();
+                    editor.setScrollTop(currentScrollTop + e.deltaY);
+                  }
+                }}
                 onScroll={(e) => {
                   if (isScrollingRef.current === 'editor' || previewMode !== 'both' || !editorRef.current) return;
                   
@@ -2486,7 +2512,7 @@ export default function Home() {
                   }
                   
                   if (targetLine !== -1) {
-                    editorRef.current.revealLineInCenter(targetLine);
+                    editorRef.current.revealLineAtTop(targetLine);
                   }
                 }}
               >
