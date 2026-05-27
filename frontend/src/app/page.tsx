@@ -700,9 +700,9 @@ export default function Home() {
       const hasElectronAPI = typeof window !== 'undefined' && !!(window as any).electronAPI;
       
       if (hasElectronAPI) {
-        // Electron: OS 탐색기 다이얼로그 (Documents 기본 폴더)
+        // Electron: OS 탐색기 다이얼로그 (현재 rootFolder 경로 전달)
         try {
-          const result = await (window as any).electronAPI.selectFolder();
+          const result = await (window as any).electronAPI.selectFolder(rootFolder?.name);
           if (result.status === 'success') {
             const finalRoot = result.path;
             // 백엔드에 저장 (실패해도 로컬에는 저장)

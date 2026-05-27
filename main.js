@@ -194,12 +194,16 @@ ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir) 
 });
 
 // 4. 프론트엔드에서 폴더 선택 다이얼로그 호출 시 OS 표준 창 띄우기
-//    기본 경로는 사용자 Documents 폴더
-ipcMain.handle('dialog:selectFolder', async () => {
+//    기본 경로는 사용자 Documents 폴더 혹은 전달받은 defaultPath
+ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
   if (!mainWindow) return { status: 'canceled' };
+  const cleanDefault = defaultPath ? defaultPath.normalize('NFC') : undefined;
+  const startDir = cleanDefault && fs.existsSync(cleanDefault) && fs.statSync(cleanDefault).isDirectory()
+    ? cleanDefault
+    : app.getPath('documents');
   const result = await dialog.showOpenDialog(mainWindow, {
     title: '워크스페이스 폴더 선택',
-    defaultPath: app.getPath('documents'),
+    defaultPath: startDir,
     properties: ['openDirectory', 'createDirectory']
   });
   if (result.canceled || result.filePaths.length === 0) {
