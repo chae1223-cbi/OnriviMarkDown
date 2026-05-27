@@ -286,7 +286,8 @@ ipcMain.handle('file:listDirectory', async (event, dirPath) => {
       });
     return nodes;
   } catch (e) {
-    return [];
+    console.error(`[Electron] listDirectory 오류 - 경로: [${dirPath}]:`, e);
+    throw e; // 🛡️ 에러를 삼키지 않고 프론트엔드로 전파하여 파일 목록 유실 원인 추적 가능하게 함
   }
 });
 
@@ -415,3 +416,15 @@ ipcMain.handle('file:searchInFolder', async (event, { folderPath, searchTerm, ma
     throw e;
   }
 });
+
+// 14. Windows/macOS 네이티브 시스템 이모지 피커 호출 핸들러
+ipcMain.handle('system:showEmojiPicker', () => {
+  try {
+    app.showEmojiPanel();
+    return true;
+  } catch (e) {
+    console.error("네이티브 이모지 패널 호출 실패:", e);
+    return false;
+  }
+});
+

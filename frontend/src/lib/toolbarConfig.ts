@@ -14,7 +14,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'h6', icon: 'H6', name: '제목 6', group: '제목', tagFormat: '###### 제목', defaultHotkey: 'Ctrl+6', defaultCommand: 'h6', insertText: '###### ', kind: 17 },
   
   // 3. 문단 (Paragraph)
-  { id: 'divider', icon: 'ㅡ', name: '구분선', group: '문단', tagFormat: '---', defaultHotkey: 'Ctrl+-', defaultCommand: 'hr', insertText: '\\n---\\n', kind: 15 },
+  { id: 'divider', icon: 'ㅡ', name: '구분선', group: '문단', tagFormat: '---', defaultHotkey: 'Ctrl+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
   { id: 'orderedList', icon: '1.', name: '숫자 목록', group: '문단', tagFormat: '1. ', defaultHotkey: 'Ctrl+Shift+7', defaultCommand: 'ol', insertText: '1. ', kind: 17 },
   { id: 'list', icon: '≡', name: '글머리 기호', group: '문단', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
   { id: 'quote', icon: '“', name: '인용구', group: '문단', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> ', kind: 17 },
@@ -31,10 +31,10 @@ export const TOOLBAR_ITEMS = [
   
   // 5. 고급 (Advanced)
   { id: 'map', icon: '🗺', name: '지도', group: '고급', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
-  { id: 'chart', icon: '📊', name: '차트', group: '고급', tagFormat: '```mermaid', defaultHotkey: '', defaultCommand: 'chart', insertText: '```mermaid\\n\\n```', kind: 15 },
-  { id: 'codeblock', icon: '💻', name: '코드 블록', group: '고급', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\\n\\n```', kind: 15 },
+  { id: 'chart', icon: '📊', name: '차트', group: '고급', tagFormat: '```mermaid', defaultHotkey: '', defaultCommand: 'chart', insertText: '```mermaid\n\n```', kind: 15 },
+  { id: 'codeblock', icon: '💻', name: '코드 블록', group: '고급', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\n\n```', kind: 15 },
   { id: 'math', icon: 'Σ', name: '수식', group: '고급', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
-  { id: 'table', icon: '표', name: '표', group: '고급', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\\n| --- | --- |\\n| 내용 | 내용 |', kind: 15 },
+  { id: 'table', icon: '표', name: '표', group: '고급', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
 
   // 푸터 및 기타 액션
   { id: 'toggleFloatingToolbar', icon: '🪟', name: '플로팅 툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F', defaultCommand: 'floating_toolbar', insertText: '', kind: 17 },
@@ -79,11 +79,11 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       } else if (insertText.includes('이미지_URL')) {
         insertText = insertText.replace('이미지_URL', '${1:이미지_URL}');
         insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '```javascript\\n\\n```') {
-        insertText = '```javascript\\n${1:코드}\\n```';
+      } else if (insertText === '```javascript\n\n```') {
+        insertText = '```javascript\n${1:코드}\n```';
         insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '```mermaid\\n\\n```') {
-        insertText = '```mermaid\\n${1:그래프}\\n```';
+      } else if (insertText === '```mermaid\n\n```') {
+        insertText = '```mermaid\n${1:그래프}\n```';
         insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
       } else if (insertText === '$$수식$$') {
         insertText = '$$${1:수식}$$';
@@ -119,8 +119,9 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       insertText = '';
       insertTextRules = undefined;
       command = {
-        id: `custom-action-${item.id}`,
-        title: item.name
+        id: 'trigger-custom-action',
+        title: item.name,
+        arguments: [item.id]
       };
     }
 
@@ -131,7 +132,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       insertText: insertText,
       insertTextRules: insertTextRules,
       detail: item.tagFormat,
-      filterText: `/${cmdStr}`,
+      filterText: `/${cmdStr} ${item.name}`,
       command: command
     };
   }).filter((item) => item !== null) as any[];

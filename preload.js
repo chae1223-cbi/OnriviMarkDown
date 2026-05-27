@@ -44,6 +44,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSaveFileRequested: (callback) => ipcRenderer.on('menu:save-file', (_, value) => callback(value)),
   onSaveFileAsRequested: (callback) => ipcRenderer.on('menu:save-file-as', (_, value) => callback(value)),
 
+  // 14. 시스템 네이티브 이모지 피커 호출
+  showEmojiPicker: () => ipcRenderer.invoke('system:showEmojiPicker'),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');

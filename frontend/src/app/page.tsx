@@ -54,7 +54,8 @@ export type EditorCommandType =
   | 'HR' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'QUOTE' | 'CHECKLIST'
   | 'LINK' | 'IMAGE' | 'VIDEO' | 'MAP' | 'TABLE' | 'CODE' | 'LATEX' | 'CLEAN_DOC'
   | 'YOUTUBE' | 'EMOJI' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'
-  | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL';
+  | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'
+  | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME';
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') {
@@ -223,8 +224,6 @@ export default function Home() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const [emojiPickerPosition, setEmojiPickerPosition] = useState({ top: 0, left: 0 });
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -269,6 +268,37 @@ export default function Home() {
 
   const editorRef = useRef<any>(null);
   const decorationsCollectionRef = useRef<any>(null);
+
+  // 🛡️ 미리보기 체크박스 클릭 시 에디터 본문의 상태를 동기화하는 함수
+  const handleCheckboxToggle = useCallback((lineNumber: number, checked: boolean) => {
+    if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
+    const editor = editorRef.current;
+    const model = editor.getModel();
+    if (!model) return;
+
+    if (lineNumber < 1 || lineNumber > model.getLineCount()) return;
+
+    const lineContent = model.getLineContent(lineNumber);
+    const checkboxRegex = /^([ \t]*[-*+]\s+\[)([ xX])(\].*)$/;
+    const match = lineContent.match(checkboxRegex);
+
+    if (match) {
+      const [_, prefix, currentStatus, suffix] = match;
+      const newStatus = checked ? 'x' : ' ';
+      const newLineContent = `${prefix}${newStatus}${suffix}`;
+      
+      const Range = (window as any).monaco.Range;
+      editor.pushUndoStop();
+      editor.executeEdits("checkboxToggle", [
+        {
+          range: new Range(lineNumber, 1, lineNumber, lineContent.length + 1),
+          text: newLineContent,
+          forceMoveMarkers: true,
+        }
+      ]);
+      editor.pushUndoStop();
+    }
+  }, []);
 
   const updateDecorations = useCallback((editor: any) => {
     if (!editor || typeof window === 'undefined' || !(window as any).monaco) return;
@@ -631,8 +661,13 @@ export default function Home() {
 
     if (activeType === 'browser') {
       if (rootFolder?.handle) {
-        const list = await scanDirectory(rootFolder.handle);
-        setFileList(list);
+        try {
+          const list = await scanDirectory(rootFolder.handle);
+          setFileList(list);
+        } catch (e) {
+          console.error("브라우저 디렉토리 스캔 오류:", e);
+          // 🛡️ 오류 발생 시 기존 목록 유지 (UI 붕괴 방지)
+        }
       } else {
         const list = getVfsFiles();
         setFileList(list);
@@ -643,8 +678,10 @@ export default function Home() {
         try {
           const list = await api.listDirectory(rootFolder.name);
           if (list) setFileList(list);
-        } catch (e) {
-          setFileList([]);
+        } catch (e: any) {
+          console.error("refreshFileList api.listDirectory 오류:", e);
+          // 🛡️ 핵심 방어선: 에러가 났더라도 기존 파일 목록을 []로 밀지 않고 기존 리스트를 유지하여 탐색기 UI 붕괴 방지
+          showToast(`워크스페이스 파일 목록을 갱신하지 못했습니다: ${e?.message || e}`, 'warning');
         }
       } else {
         try {
@@ -840,6 +877,16 @@ export default function Home() {
       }
       setCurrentFileName(node.name);
       setCurrentFileNode(node);
+      
+      // 📌 파일 열기 완료 후 에디터 및 미리보기 스크롤을 맨 위로 초기화
+      if (editorRef.current) {
+        editorRef.current.revealLine(1);  // 에디터 첫 번째 줄로 이동
+        editorRef.current.setScrollPosition({ scrollTop: 0 });
+      }
+      if (previewRef.current) {
+        previewRef.current.scrollTop = 0;  // 미리보기 패널도 맨 위로 초기화
+      }
+      
       const openedMsg = `${node.name} 파일을 열었습니다.`;
       showToast(openedMsg, "info");
       if (isSearchOpen) setIsSearchOpen(false);
@@ -1542,9 +1589,9 @@ export default function Home() {
       const leadingSpaces = line.match(/^(\s*)/)?.[1] || "";
       const trimmed = line.trim();
 
-      const match = trimmed.match(/^([-*+]|\d+\.|>+|- \[[ xX]\])\s+(.*)/);
+      const match = trimmed.match(/^(#{1,6}|[-*+]|\d+\.|>+|- \[[ xX]\])(?:\s+(.*))?$/);
       if (match) {
-        return leadingSpaces + match[2];
+        return leadingSpaces + (match[2] || "");
       }
       return line;
     });
@@ -1562,16 +1609,7 @@ export default function Home() {
     editor.focus();
   };
 
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'x') {
-        e.preventDefault();
-        removePrefix();
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown, true);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
-  }, []);
+
 
   const { processedContent, lineMap } = useMemo(() => {
     const res = preprocessMarkdownForPreview(content);
@@ -1979,15 +2017,19 @@ export default function Home() {
     video: () => setIsYoutubeModalOpen(true),
     youtube: () => setIsYoutubeModalOpen(true),
     now: () => insertAtCursor(new Date().toLocaleString()),
-    emoji: (e: any) => {
-      if (e && e.currentTarget) {
-        const rect = e.currentTarget.getBoundingClientRect();
-        setEmojiPickerPosition({
-          top: rect.bottom + window.scrollY,
-          left: rect.left + window.scrollX
-        });
-        setIsEmojiPickerOpen(prev => !prev);
+    emoji: () => {
+      if (editorRef.current) {
+        editorRef.current.focus();
+        if (lastSelectionRef.current) {
+          editorRef.current.setSelection(lastSelectionRef.current);
+        }
       }
+      setTimeout(() => {
+        const api = (window as any).electronAPI;
+        if (api && api.showEmojiPicker) {
+          api.showEmojiPicker();
+        }
+      }, 80);
     },
     map: () => setIsMapModalOpen(true),
     table: () => setIsTableModalOpen(true),
@@ -2052,7 +2094,14 @@ export default function Home() {
       case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
       case 'CLEAN_DOC': handlers.cleanDoc(); return;
       case 'COPY_ALL': handlers.copyAll(); return;
-      case 'EMOJI': handlers.emoji(payload); return;
+      case 'EMOJI': handlers.emoji(); return;
+      // 🎯 TOOLBAR_ITEMS '푸터' 그룹 토글 명령어 (handlers에 없으므로 직접 상태 변환)
+      case 'TOGGLE_TOOLBAR': setIsToolbarOpen(prev => !prev); return;
+      case 'TOGGLE_SIDEBAR': setIsSidebarOpen(prev => !prev); return;
+      case 'TOGGLE_MODE':
+        setPreviewMode(prev => prev === 'both' ? 'edit' : prev === 'edit' ? 'preview' : 'both');
+        return;
+      case 'TOGGLE_THEME': setIsDarkMode(prev => !prev); return;
     }
 
     // 2. 에디터 본문 서식 조작 명령어 (포커스 가드 강제 추적)
@@ -2102,9 +2151,53 @@ export default function Home() {
         break;
     }
 
-    // 포커스 회복
-    editor.focus();
+    // 🛡️ 모달이 팝업되는 명령어는 에디터로 포커스를 뺏기지 않도록 예외 처리
+    // (IMAGE, VIDEO, MAP, TABLE, LATEX, MATH, EMOJI, LINK 계열은 모달 입력 필드가 포커스를 가져야 함)
+    const MODAL_COMMANDS: EditorCommandType[] = ['IMAGE', 'VIDEO', 'YOUTUBE', 'MAP', 'TABLE', 'LATEX', 'MATH', 'LINK'];
+    if (!MODAL_COMMANDS.includes(type)) {
+      editor.focus();
+    }
   }, [handlers]);
+
+  // 🎯 툴바 아이템 ID(camelCase)를 EditorCommandType(UPPER_SNAKE_CASE)으로 변환하는 헬퍼
+  // 일부 아이템은 ID와 커맨드 타입이 의미적으로 다르므로 명시적 매핑 테이블을 우선 사용
+  const mapIdToCommandType = useCallback((id: string): EditorCommandType => {
+    // 🔑 명시적 매핑 테이블: TOOLBAR_ITEMS id → EditorCommandType
+    // (id ≠ commandType 인 항목들을 수동으로 정의하여 싱크 보장)
+    const EXPLICIT_MAP: Record<string, EditorCommandType> = {
+      bold:                  'BOLD',
+      italic:                'ITALIC',
+      inlineCode:            'INLINE_CODE',
+      strikethrough:         'STRIKETHROUGH',
+      h1: 'H1', h2: 'H2', h3: 'H3', h4: 'H4', h5: 'H5', h6: 'H6',
+      divider:               'HR',        // id는 divider이지만 커맨드는 HR
+      orderedList:           'ORDERED_LIST',
+      list:                  'LIST',
+      quote:                 'QUOTE',
+      checklist:             'CHECKLIST',
+      clear:                 'REMOVE_PREFIX',  // id는 clear이지만 커맨드는 REMOVE_PREFIX
+      cleanDoc:              'CLEAN_DOC',
+      link:                  'LINK',
+      image:                 'IMAGE',
+      video:                 'VIDEO',
+      calendar:              'NOW',       // id는 calendar이지만 커맨드는 NOW(날짜 삽입)
+      emoji:                 'EMOJI',
+      map:                   'MAP',
+      chart:                 'CHART',
+      codeblock:             'CODE_BLOCK',
+      math:                  'MATH',
+      table:                 'TABLE',
+      toggleFloatingToolbar: 'TOGGLE_FLOATING_TOOLBAR',
+      toggleToolbar:         'TOGGLE_TOOLBAR',
+      toggleSidebar:         'TOGGLE_SIDEBAR',
+      toggleMode:            'TOGGLE_MODE',
+      toggleTheme:           'TOGGLE_THEME',
+    };
+    if (EXPLICIT_MAP[id]) return EXPLICIT_MAP[id];
+    // 명시적 매핑이 없으면 camelCase → UPPER_SNAKE_CASE 자동 변환으로 폴백
+    const snake = id.replace(/([A-Z])/g, '_$1').toUpperCase();
+    return snake as EditorCommandType;
+  }, []);
 
   useEffect(() => {
     if (!editorRef.current || !(window as any).monaco) return;
@@ -2114,40 +2207,136 @@ export default function Home() {
     hotkeyDisposablesRef.current.forEach(d => d.dispose());
     hotkeyDisposablesRef.current = [];
 
+    // 글로벌 trigger-custom-action 명령어를 위한 최신 디스패처 갱신
+    if (typeof window !== 'undefined') {
+      (window as any).dispatchEditorCommand = (id: string) => {
+        const cmdType = mapIdToCommandType(id);
+        dispatchCommand(cmdType);
+      };
+    }
+
     const parseKeybinding = (keyStr: string) => {
       if (!keyStr) return 0;
       let binding = 0;
       const parts = keyStr.split('+').map(p => p.trim().toUpperCase());
-      if (parts.includes('CTRL')) binding |= monaco.KeyMod.CtrlCmd;
+      if (parts.includes('CTRL') || parts.includes('CTRLCMD')) binding |= monaco.KeyMod.CtrlCmd;
       if (parts.includes('SHIFT')) binding |= monaco.KeyMod.Shift;
       if (parts.includes('ALT')) binding |= monaco.KeyMod.Alt;
+      if (parts.includes('WIN') || parts.includes('META')) binding |= monaco.KeyMod.WinCtrl;
       
       const keyPart = parts[parts.length - 1];
       if (keyPart.length === 1 && keyPart >= 'A' && keyPart <= 'Z') {
         binding |= monaco.KeyCode[`Key${keyPart}`];
       } else if (keyPart >= '0' && keyPart <= '9') {
         binding |= monaco.KeyCode[`Digit${keyPart}`];
+      } else if (keyPart === '-') {
+        binding |= monaco.KeyCode.Minus;
+      } else if (keyPart === '=') {
+        binding |= monaco.KeyCode.Equal;
+      } else if (keyPart === '\\') {
+        binding |= monaco.KeyCode.Backslash;
+      } else if (keyPart === '[') {
+        binding |= monaco.KeyCode.BracketLeft;
+      } else if (keyPart === ']') {
+        binding |= monaco.KeyCode.BracketRight;
+      } else if (keyPart === ';') {
+        binding |= monaco.KeyCode.Semicolon;
+      } else if (keyPart === "'") {
+        binding |= monaco.KeyCode.Quote;
+      } else if (keyPart === ',') {
+        binding |= monaco.KeyCode.Comma;
+      } else if (keyPart === '.') {
+        binding |= monaco.KeyCode.Period;
+      } else if (keyPart === '/') {
+        binding |= monaco.KeyCode.Slash;
+      } else if (keyPart === 'SPACE') {
+        binding |= monaco.KeyCode.Space;
+      } else if (keyPart === 'ENTER') {
+        binding |= monaco.KeyCode.Enter;
       }
       return binding;
     };
 
-    Object.entries(handlersRef.current || {}).forEach(([key, handler]) => {
-      const kbStr = customHotkeys[key];
+    // 🚀 기존 Object.entries(handlers) 방식 → TOOLBAR_ITEMS 기준 순회로 전환
+    // 이유: handlers 메소드명과 TOOLBAR_ITEMS의 id가 불일치하면(예: checklist vs check, divider vs hr)
+    //       일부 단축키가 등록되지 않아 툴바·슬래시·단축키 3자 사이의 갯수·기능 싱크가 깨짐
+    TOOLBAR_ITEMS.forEach(item => {
+      const kbStr = customHotkeys[item.id];
       const kb = kbStr ? parseKeybinding(kbStr) : 0;
-      
+
       const disposable = editor.addAction({
-        id: `custom-action-${key}`,
-        label: `Custom ${key}`,
+        id: `custom-action-${item.id}`,
+        label: `${item.name} (${item.group})`,
         keybindings: kb !== 0 ? [kb] : [],
         run: () => {
-          if (typeof handler === 'function') {
-            (handler as Function)();
-          }
+          // 🚀 handlers 직접 호출 대신 dispatchCommand 단방향 파이프라인으로 일원화
+          const cmdType = mapIdToCommandType(item.id);
+          dispatchCommand(cmdType);
         }
       });
       hotkeyDisposablesRef.current.push(disposable);
     });
-  }, [customHotkeys, isEditorReady]);
+  }, [customHotkeys, isEditorReady, dispatchCommand, mapIdToCommandType]);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 에디터 포커스가 활성화되어 있을 때만 에디터 단축키 인터셉터 작동
+      if (!editorRef.current || !editorRef.current.hasTextFocus()) return;
+
+      const isCtrl = e.ctrlKey || e.metaKey;
+      const isShift = e.shiftKey;
+      const isAlt = e.altKey;
+
+      let key = e.key.toUpperCase();
+      
+      // 1. Shift 눌림에 의한 숫자 키의 기호 변조 보정 (& -> 7, * -> 8)
+      if (e.code.startsWith('Digit')) {
+        key = e.code.substring(5); // 'Digit7' -> '7'
+      }
+
+      // 2. 한글 입력기(IME) 상태에서 Ctrl+Shift 조합 입력 시 229 Process 상태 물리 복원
+      if (e.keyCode === 229 && isCtrl && isShift) {
+        if (e.code.startsWith('Key')) {
+          key = e.code.substring(3).toUpperCase(); // 'KeyX' -> 'X'
+        }
+      }
+
+      // 조합 스캔 키 문자열 생성 (예: CTRL+SHIFT+X)
+      const combinationParts: string[] = [];
+      if (isCtrl) combinationParts.push('CTRL');
+      if (isShift) combinationParts.push('SHIFT');
+      if (isAlt) combinationParts.push('ALT');
+      combinationParts.push(key);
+
+      const combinationStr = combinationParts.join('+');
+
+      // 등록된 단축키 목록에서 일치하는 기능 스캔
+      for (const item of TOOLBAR_ITEMS) {
+        const configuredHotkey = customHotkeys[item.id] || item.defaultHotkey;
+        if (!configuredHotkey) continue;
+
+        // 단축키 비교 포맷 표준 정규화 (예: 'Ctrl + Shift + X' -> 'CTRL+SHIFT+X')
+        const normalizedConfig = configuredHotkey
+          .replace(/\s+/g, '')
+          .toUpperCase()
+          .replace('CTRLCMD', 'CTRL');
+
+        if (combinationStr === normalizedConfig) {
+          // 단축키 매치 성공: 브라우저 기본 및 이벤트 전파 강제 억제
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const cmdType = mapIdToCommandType(item.id);
+          dispatchCommand(cmdType);
+          break;
+        }
+      }
+    };
+
+    // 캡처(true) 모드로 등록하여 최우선순위로 가로챕니다.
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
+  }, [customHotkeys, dispatchCommand, mapIdToCommandType]);
 
   const toc = useMemo(() => {
     // 윈도우 스타일의 개행(\r\n)과 일반 개행(\n) 모두를 안전하게 분리
@@ -2293,6 +2482,14 @@ export default function Home() {
                     if (typeof window !== 'undefined') {
                       (window as any).monaco = monaco;
                     }
+                    if (!(monaco.editor as any)._customActionCommandRegistered) {
+                      (monaco.editor as any)._customActionCommandRegistered = true;
+                      (monaco.editor as any).registerCommand('trigger-custom-action', (accessor: any, actionId: string) => {
+                        if (typeof window !== 'undefined' && (window as any).dispatchEditorCommand) {
+                          (window as any).dispatchEditorCommand(actionId);
+                        }
+                      });
+                    }
                     editor.onKeyUp((e) => {
                       if (e.browserEvent.key === '/') {
                         editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
@@ -2306,6 +2503,124 @@ export default function Home() {
                       editor.executeEdits("insertBr", [{
                         range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
                         text: "<br>",
+                        forceMoveMarkers: true
+                      }]);
+                    });
+
+                    // 🛡️ 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리
+                    editor.addCommand(monaco.KeyCode.Enter, () => {
+                      const position = editor.getPosition();
+                      if (!position) return;
+                      const model = editor.getModel();
+                      if (!model) return;
+
+                      const lineNumber = position.lineNumber;
+                      const lineContent = model.getLineContent(lineNumber);
+                      const beforeCursor = lineContent.substring(0, position.column - 1);
+
+                      const taskRegex = /^([ \t]*)([-*+])[ \t]+\[([ xX])\](?:[ \t]+(.*)|)$/;
+                      const orderRegex = /^([ \t]*)(\d+)\.(?:[ \t]+(.*)|)$/;
+                      const listRegex = /^([ \t]*)([-*+])(?:[ \t]+(.*)|)$/;
+                      const quoteRegex = /^([ \t]*)(>+)(?:[ \t]+(.*)|)$/;
+
+                      let match: RegExpMatchArray | null = null;
+
+                      // 1. 태스크 리스트 판별
+                      if ((match = beforeCursor.match(taskRegex))) {
+                        const indent = match[1];
+                        const marker = match[2];
+                        const checked = match[3];
+                        const text = match[4] || '';
+                        if (text.trim() === '') {
+                          editor.executeEdits("removeBullet", [{
+                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column),
+                            text: indent,
+                            forceMoveMarkers: true
+                          }]);
+                        } else {
+                          const insertText = `\n${indent}${marker} [ ] `;
+                          editor.executeEdits("insertBullet", [{
+                            range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                            text: insertText,
+                            forceMoveMarkers: true
+                          }]);
+                        }
+                        return;
+                      }
+
+                      // 2. 순번 리스트 판별
+                      if ((match = beforeCursor.match(orderRegex))) {
+                        const indent = match[1];
+                        const numStr = match[2];
+                        const text = match[3] || '';
+                        if (text.trim() === '') {
+                          editor.executeEdits("removeBullet", [{
+                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column),
+                            text: indent,
+                            forceMoveMarkers: true
+                          }]);
+                        } else {
+                          const nextNum = parseInt(numStr, 10) + 1;
+                          const insertText = `\n${indent}${nextNum}. `;
+                          editor.executeEdits("insertBullet", [{
+                            range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                            text: insertText,
+                            forceMoveMarkers: true
+                          }]);
+                        }
+                        return;
+                      }
+
+                      // 3. 일반 리스트 판별
+                      if ((match = beforeCursor.match(listRegex))) {
+                        const indent = match[1];
+                        const marker = match[2];
+                        const text = match[3] || '';
+                        if (text.trim() === '') {
+                          editor.executeEdits("removeBullet", [{
+                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column),
+                            text: indent,
+                            forceMoveMarkers: true
+                          }]);
+                        } else {
+                          const insertText = `\n${indent}${marker} `;
+                          editor.executeEdits("insertBullet", [{
+                            range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                            text: insertText,
+                            forceMoveMarkers: true
+                          }]);
+                        }
+                        return;
+                      }
+
+                      // 4. 인용구 판별
+                      if ((match = beforeCursor.match(quoteRegex))) {
+                        const indent = match[1];
+                        const quote = match[2];
+                        const text = match[3] || '';
+                        if (text.trim() === '') {
+                          editor.executeEdits("removeBullet", [{
+                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column),
+                            text: indent,
+                            forceMoveMarkers: true
+                          }]);
+                        } else {
+                          const insertText = `\n${indent}${quote} `;
+                          editor.executeEdits("insertBullet", [{
+                            range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                            text: insertText,
+                            forceMoveMarkers: true
+                          }]);
+                        }
+                        return;
+                      }
+
+                      // 5. 일반 개행 (인덴트 유지)
+                      const indentMatch = beforeCursor.match(/^([ \t]*)/);
+                      const indent = indentMatch ? indentMatch[1] : '';
+                      editor.executeEdits("insertNewline", [{
+                        range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                        text: `\n${indent}`,
                         forceMoveMarkers: true
                       }]);
                     });
@@ -2527,9 +2842,10 @@ export default function Home() {
                     quickSuggestions: { other: true, comments: true, strings: true },
                     suggestOnTriggerCharacters: true,
                     tabSize: 4,
-                    detectIndentation: false,
-                    insertSpaces: true,
-                    autoIndent: 'none'
+                    detectIndentation: true,
+                    insertSpaces: false,
+                    autoIndent: 'none',
+                    links: false
                   }}
                 />
                 {floatingToolbar.visible && (
@@ -2546,11 +2862,11 @@ export default function Home() {
                           <button 
                             className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-zinc-700 text-[13px] font-medium"
                             title={`${item.name} (${customHotkeys[item.id] || ''})`} 
-                            onClick={(e) => { 
-                              e.preventDefault(); 
-                              if (handlers[item.id as keyof typeof handlers]) {
-                                (handlers[item.id as keyof typeof handlers] as any)();
-                              }
+                            onMouseDown={(e) => { 
+                              e.preventDefault(); // 🎯 드래그 셀렉션이 풀리는 현상 차단
+                              // 🚀 handlers 직접 호출 대신 dispatchCommand 단일 파이프라인으로 일원화
+                              const cmdType = mapIdToCommandType(item.id);
+                              dispatchCommand(cmdType);
                             }}
                           >
                             {item.icon}
@@ -2566,7 +2882,7 @@ export default function Home() {
             {previewMode !== 'edit' && (
               <div 
                 ref={previewRef}
-                className={`flex-1 h-[calc(100vh-64px)] px-8 py-10 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none ${
+                className={`flex-1 h-[calc(100vh-64px)] px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none ${
                   previewMode === 'both' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
                 }`}
                 style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
@@ -2598,7 +2914,12 @@ export default function Home() {
                   }
                 }}
               >
-                <MarkdownViewer content={content} />
+                <MarkdownViewer 
+                  content={processedContent} 
+                  originalContent={content} 
+                  lineMap={lineMap} 
+                  onCheckboxToggle={handleCheckboxToggle} 
+                />
               </div>
             )}
           </div>
@@ -2780,18 +3101,6 @@ export default function Home() {
         onInsert={(formula) => insertAtCursor(formula)}
         isDarkMode={isDarkMode}
       />
-      {isEmojiPickerOpen && (
-        <EmojiPicker
-          isOpen={isEmojiPickerOpen}
-          position={emojiPickerPosition}
-          onSelect={(emoji) => {
-            insertAtCursor(emoji);
-            setIsEmojiPickerOpen(false);
-          }}
-          onClose={() => setIsEmojiPickerOpen(false)}
-          isDarkMode={isDarkMode}
-        />
-      )}
       <MergeModal
         isOpen={isMergeModalOpen}
         onClose={() => setIsMergeModalOpen(false)}

@@ -70,7 +70,16 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       return line;
     }
     
-    let processedLine = line.replace(/\t/g, "  ");
+    let processedLine = line.replace(/\t/g, "    ");
+    
+    // 🛡️ 코드 블록 외 본문 텍스트 내 위험 HTML 구조 태그 이스케이프
+    const dangerousTags = ['pre', 'code', 'div', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'tbody', 'thead', 'blockquote'];
+    dangerousTags.forEach(tag => {
+      const openRegex = new RegExp(`<(${tag})(?:\\s+[^>]*)?>`, 'gi');
+      const closeRegex = new RegExp(`</(${tag})>`, 'gi');
+      processedLine = processedLine.replace(openRegex, '&lt;$1&gt;').replace(closeRegex, '&lt;/$1&gt;');
+    });
+
     const isSpecial = /^(?:\s*#+\s|\s*[-*+]\s|\s*\d+\.\s|\s*>|\s*---|\s*\||\s*\$\$|\s*<[a-zA-Z])/.test(processedLine);
     
     if (isSpecial) {
@@ -83,18 +92,16 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
         const remainingText = processedLine.substring(indentSpaces.length);
         
         const isListOrQuote = /^(?:[-*+]\s|(?:\d+)\.\s|>|\s*\[[ xX]?\])/.test(remainingText.trim());
+        const isHeading = /^(#{1,6})\s/.test(remainingText.trim());
+        const isDivider = /^---/.test(remainingText.trim());
+
         if (isListOrQuote) {
-          const indentLength = indentSpaces.length;
-          let newIndentLength = indentLength;
-          if (indentLength >= 4) {
-            newIndentLength = 2;
-          }
-          processedLine = " ".repeat(newIndentLength) + remainingText.trim();
+          // 🛡️ remarkDisableIndentedCode 플러그인이 적용되어 있으므로 코드블록 오매핑 염려가 없습니다.
+          // 원본 들여쓰기 깊이를 그대로 보존하여 마크다운 파서가 정상적으로 ol/ul 계층을 파싱하고 번호를 1로 재시작하도록 처리합니다.
+          processedLine = indentSpaces + remainingText.trim();
+        } else if (isHeading || isDivider) {
+          processedLine = remainingText.trim();
         }
-      }
-      
-      if (/^\s+>/.test(processedLine)) {
-        processedLine = "  " + processedLine.trim();
       }
       
       return processedLine;
@@ -143,13 +150,18 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     if (i < correctedLines.length - 1) {
       const next = correctedLines[i + 1];
       
-      const isCurrSpecial = /^(?:\s*[-*+]\s|\s*\d+\.\s|\s*#+\s|\s*>|---|\s*\||\s*\$\$)/.test(curr.trim());
-      const isNextSpecial = /^(?:\s*[-*+]\s|\s*\d+\.\s|\s*#+\s|\s*>|---|\s*\||\s*\$\$)/.test(next.trim());
+      const isCurrSpecial = /^(?:\s*[-*+]\s|\s*\d+\.\s|\s*#+\s|---|\s*\||\s*\$\$)/.test(curr.trim());
+      const isNextSpecial = /^(?:\s*[-*+]\s|\s*\d+\.\s|\s*#+\s|---|\s*\||\s*\$\$)/.test(next.trim());
       
       const getLineIndent = (line: string): string => {
         const processed = line.replace(/\t/g, "  ");
         const match = processed.match(/^( +)/);
         return match ? match[1] : "";
+      };
+      
+      const isListLine = (line: string): boolean => {
+        const trimmed = line.trim();
+        return /^(?:[-*+]\s|\d+\.\s|\[[ xX]?\])/.test(trimmed);
       };
       
       const currIndent = getLineIndent(curr);
@@ -162,8 +174,10 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       
       const isNextNewIndent = nextIndent !== "" && currIndent !== nextIndent;
       const isTableToTable = curr.trim().startsWith("|") && next.trim().startsWith("|");
+      const isQuoteToQuote = curr.trim().startsWith(">") && next.trim().startsWith(">");
+      const isListToList = isListLine(curr) && isListLine(next);
       
-      if (!isTableToTable && !isCurrEmpty && !isNextEmpty && (isCurrSpecial || isNextSpecial || isNextNewIndent || isCurrSpacer || isNextSpacer)) {
+      if (!isTableToTable && !isQuoteToQuote && !isListToList && !isCurrEmpty && !isNextEmpty && (isCurrSpecial || isNextSpecial || isNextNewIndent || isCurrSpacer || isNextSpacer)) {
         finalLines.push("");
         finalLineMap.push(origLineNum); // 추가된 빈 줄도 직전 원본 라인 번호에 매핑
       }

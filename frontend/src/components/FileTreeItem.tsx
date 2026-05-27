@@ -236,12 +236,13 @@ const FileTreeItem = ({
           const lastSlashIndex = normalizedPath.lastIndexOf('/');
           const parentPath = lastSlashIndex !== -1 ? normalizedPath.substring(0, lastSlashIndex) : "";
           const finalParentPath = parentPath.replace(/\//g, '\\');
-          const newPath = finalParentPath ? `${finalParentPath}\\${finalName}` : finalName;
+          // 🛡️ 한글 자소 분리 깨짐 방지를 위한 NFC 경로 표준화
+          const newPath = (finalParentPath ? `${finalParentPath}\\${finalName}` : finalName).normalize('NFC');
 
           if (api?.renameFile) {
             await api.renameFile(node.path, newPath);
             refreshParent();
-            setTimeout(() => refreshParent(), 300);
+            setTimeout(() => refreshParent(), 500); // 🛡️ OS 파일 락 타임아웃 감안 300ms → 500ms 상향
             if (currentFileName === node.name) openFile({ name: finalName, kind: 'file', path: newPath });
           } else {
             const res = await fetch(getApiUrl('/api/rename'), {
@@ -251,7 +252,7 @@ const FileTreeItem = ({
             });
             if (res.ok) {
               refreshParent();
-              setTimeout(() => refreshParent(), 300);
+              setTimeout(() => refreshParent(), 500); // 🛡️ OS 파일 락 타임아웃 감안 300ms → 500ms 상향
               if (currentFileName === node.name) openFile({ name: finalName, kind: 'file', path: newPath });
             }
           }

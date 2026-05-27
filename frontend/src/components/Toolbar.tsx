@@ -149,7 +149,6 @@ export default function Toolbar({
     if (headingLevel > 1) {
       const next = headingLevel - 1;
       setHeadingLevel(next);
-      dispatch(`H${next}`);
     }
   };
 
@@ -158,7 +157,6 @@ export default function Toolbar({
     if (headingLevel < 6) {
       const next = headingLevel + 1;
       setHeadingLevel(next);
-      dispatch(`H${next}`);
     }
   };
 

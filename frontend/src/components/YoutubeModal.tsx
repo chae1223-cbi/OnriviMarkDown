@@ -52,7 +52,8 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
 
   const embedUrl = useMemo(() => {
     if (!videoId) return "";
-    return `https://www.youtube.com/embed/${videoId}`;
+    // origin 파라미터 추가 및 불필요한 관련 영상/로고 제거 옵션 적용
+    return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
   }, [videoId]);
 
   const generatedCode = useMemo(() => {
@@ -201,16 +202,24 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
             }`} style={{ minHeight: '200px' }}>
               {videoId ? (
                 insertType === 'iframe' ? (
-                  <div className="w-full aspect-video bg-black">
-                    <iframe
-                      title="YouTube Embed Preview"
-                      width="100%"
-                      height="100%"
-                      src={embedUrl}
-                      frameBorder="0"
-                      allowFullScreen
-                    />
-                  </div>
+                  <>
+                    <div className="w-full aspect-video bg-black relative">
+                      <iframe
+                        title="YouTube Embed Preview"
+                        width="100%"
+                        height="100%"
+                        src={embedUrl}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="absolute inset-0 w-full h-full"
+                      />
+                    </div>
+                    {/* 에러 153 안내: 영상 업로더가 embed 재생을 비허용한 경우 */}
+                    <div className={`mt-1.5 text-[10px] px-2 py-1 rounded flex items-center gap-1.5 ${isDarkMode ? 'text-yellow-400 bg-yellow-400/10' : 'text-yellow-700 bg-yellow-50'}`}>
+                      ⚠️ 일부 영상은 업로더가 외부 재생을 차단(오류 153)합니다. 다른 영상으로 테스트하거나 &apos;썸네일 링크 삽입&apos; 방식을 사용하세요.
+                    </div>
+                  </>
                 ) : (
                   <div className="relative w-full aspect-video bg-zinc-950 flex items-center justify-center">
                     <img 

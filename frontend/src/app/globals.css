@@ -221,3 +221,30 @@ body {
 .dark .monaco-md-syntax { 
   color: #60a5fa !important; 
 }
+
+/* 🛡️ 태스크 리스트 아이템의 중복 불릿 기호 제거 및 여백 보정 */
+.prose li.task-list-item {
+  list-style-type: none !important;
+  padding-left: 0 !important;
+}
+.prose li.task-list-item::before {
+  content: none !important;
+}
+
+/* 🛡️ 리스트의 마크다운 계층 중첩으로 인한 자동 들여쓰기 패딩/마진 강제 초기화 */
+.prose ul, .prose ol {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+.prose li {
+  padding-left: 0 !important;
+  margin-left: 0;
+}
+
+/* 🛡️ 인용문(blockquote) 박스 내부의 시작과 끝 빈 여백 소거 */
+.prose blockquote p:first-of-type {
+  margin-top: 0 !important;
+}
+.prose blockquote p:last-of-type {
+  margin-bottom: 0 !important;
+}
