@@ -28,7 +28,12 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&accept-language=ko`,
-        { headers: { 'Accept-Language': 'ko' } }
+        { 
+          headers: { 
+            'Accept-Language': 'ko',
+            'User-Agent': 'OnriviAuthor/1.0 (contact@onrivi.com)'
+          } 
+        }
       );
       const data = await response.json();
 

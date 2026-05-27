@@ -13,6 +13,7 @@ interface ImageModalProps {
 export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: ImageModalProps) {
   const [imagePath, setImagePath] = React.useState("");
   const [imageAlt, setImageAlt] = React.useState("이미지 설명");
+  const [imageWidth, setImageWidth] = React.useState(""); // 📏 이미지 가로폭 상태 추가
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 실제 이미지 주소 추출
@@ -30,9 +31,15 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
 
   const handleInsert = () => {
     if (cleanImagePath) {
-      onInsert(cleanImagePath, imageAlt);
+      let finalPath = cleanImagePath;
+      if (imageWidth.trim()) {
+        const widthVal = imageWidth.trim();
+        finalPath += (finalPath.includes('?') ? '&' : '?') + `width=${encodeURIComponent(widthVal)}`;
+      }
+      onInsert(finalPath, imageAlt);
       setImagePath("");
       setImageAlt("이미지 설명");
+      setImageWidth("");
       onClose(); // 삽입 후 모달 닫기 추가
     }
   };
@@ -102,18 +109,34 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">이미지 설명 (Alt)</label>
-            <input 
-              type="text" 
-              value={imageAlt}
-              onChange={(e) => setImageAlt(e.target.value)}
-              className={`w-full border px-3 py-2 rounded-lg outline-none transition-all text-sm ${
-                isDarkMode 
-                  ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
-                  : 'bg-white border-[#c1c6d7] focus:border-blue-600'
-              }`}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">이미지 설명 (Alt)</label>
+              <input 
+                type="text" 
+                value={imageAlt}
+                onChange={(e) => setImageAlt(e.target.value)}
+                className={`w-full border px-3 py-2 rounded-lg outline-none transition-all text-sm ${
+                  isDarkMode 
+                    ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
+                    : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+                }`}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">가로 크기 (선택, 예: 300px, 50%)</label>
+              <input 
+                type="text" 
+                value={imageWidth}
+                onChange={(e) => setImageWidth(e.target.value)}
+                placeholder="지정 안 함 (기본 600px)"
+                className={`w-full border px-3 py-2 rounded-lg outline-none transition-all text-sm ${
+                  isDarkMode 
+                    ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
+                    : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+                }`}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

@@ -182,10 +182,10 @@ body {
   color: #60a5fa !important;
 }
 
-/* 프리뷰 내의 iframe 플레이어 디자인 시스템 강화 (가운데 정렬, 둥근 모서리, 부드러운 그림자) */
+/* 프리뷰 내의 iframe 플레이어 디자인 시스템 강화 (왼쪽 정렬, 둥근 모서리, 부드러운 그림자) */
 .prose iframe {
   display: block;
-  margin: 1.5rem auto !important;
+  margin: 1.5rem 0 !important;
   border-radius: 12px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   max-width: 100%;
@@ -231,20 +231,26 @@ body {
   content: none !important;
 }
 
-/* 🛡️ 리스트의 마크다운 계층 중첩으로 인한 자동 들여쓰기 패딩/마진 강제 초기화 */
-.prose ul, .prose ol {
-  padding-left: 0 !important;
-  margin-left: 0 !important;
-}
-.prose li {
-  padding-left: 0 !important;
-  margin-left: 0;
-}
-
 /* 🛡️ 인용문(blockquote) 박스 내부의 시작과 끝 빈 여백 소거 */
 .prose blockquote p:first-of-type {
   margin-top: 0 !important;
 }
 .prose blockquote p:last-of-type {
   margin-bottom: 0 !important;
+}
+
+/* 📺 모든 멀티미디어(수식, 이미지, 비디오) 왼쪽 정렬 글로벌 보정 */
+.katex-display {
+  text-align: left !important;
+  margin: 1em 0 !important;
+}
+.katex-display > .katex {
+  text-align: left !important;
+  display: inline-block !important;
+}
+
+.prose img, .prose video {
+  display: block !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
 }

@@ -150,6 +150,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
 
   return (
     <ReactMarkdown
+      urlTransform={(uri) => uri}
       remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
       rehypePlugins={[
         [rehypeKatex, { strict: false }],
@@ -158,6 +159,40 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
         rehypeSourceLinesPlugin,
       ]}
       components={{
+        img: ({ node, src, alt, style, ...props }: any) => {
+          if (!src) return <img alt={alt} {...props} />;
+          
+          let width: string | undefined = undefined;
+          let height: string | undefined = undefined;
+          
+          try {
+            const wMatch = src.match(/[?&](?:width|w)=([^&#]+)/);
+            const hMatch = src.match(/[?&](?:height|h)=([^&#]+)/);
+            if (wMatch) width = decodeURIComponent(wMatch[1]);
+            if (hMatch) height = decodeURIComponent(hMatch[1]);
+          } catch (e) {}
+
+          const imgStyle: React.CSSProperties = {
+            ...style,
+            maxWidth: '100%',
+            height: height ? height : 'auto',
+          };
+          if (width) {
+            imgStyle.width = width;
+          } else {
+            imgStyle.maxWidth = '600px'; // 이미지 폭 폭탄 방지
+          }
+
+          return (
+            <img 
+              src={src} 
+              alt={alt} 
+              style={imgStyle} 
+              className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3"
+              {...props} 
+            />
+          );
+        },
         a: ({ node, ...props }) => (
           <a {...props} target="_blank" rel="noopener noreferrer" />
         ),
@@ -217,22 +252,6 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           return <h6 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
         },
         input: ({ node, ...props }: any) => {
-          if (props.type === 'checkbox') {
-            const line = (node as any).position?.start?.line;
-            const origLine = line ? (lineMap[line - 1] || line) : undefined;
-            return (
-              <input
-                {...props}
-                disabled={false}
-                className="w-4 h-4 rounded border-emerald-500/20 text-emerald-600 focus:ring-emerald-500 cursor-pointer mr-2 align-middle"
-                onChange={(e) => {
-                  if (origLine && onCheckboxToggle) {
-                    onCheckboxToggle(origLine, e.target.checked);
-                  }
-                }}
-              />
-            );
-          }
           return <input {...props} />;
         },
         p: ({ node, children, style, ...props }) => {
@@ -246,7 +265,25 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           return <ol style={style} {...props}>{children}</ol>;
         },
         li: ({ node, children, style, ...props }) => {
-          return <li style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</li>;
+          const line = (node as any).position?.start?.line;
+          const origLine = line ? (lineMap[line - 1] || line) : undefined;
+          
+          const modifiedChildren = React.Children.map(children, (child) => {
+            if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
+              return React.cloneElement(child as React.ReactElement<any>, {
+                disabled: false,
+                className: "w-4 h-4 rounded border-emerald-500/20 text-emerald-600 focus:ring-emerald-500 cursor-pointer mr-2 align-middle",
+                onChange: (e: any) => {
+                  if (origLine && onCheckboxToggle) {
+                    onCheckboxToggle(origLine, e.target.checked);
+                  }
+                }
+              });
+            }
+            return child;
+          });
+
+          return <li style={style} {...props}>{modifiedChildren}</li>;
         },
         blockquote: ({ node, children, style, ...props }) => {
           return (

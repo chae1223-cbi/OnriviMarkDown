@@ -1697,6 +1697,14 @@ export default function Home() {
             setCurrentFileName(file.name);
             setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
             setIsSidebarOpen(true);
+            
+            if (editorRef.current) {
+              editorRef.current.revealLine(1);
+              editorRef.current.setScrollPosition({ scrollTop: 0 });
+            }
+            if (previewRef.current) {
+              previewRef.current.scrollTop = 0;
+            }
             // 선택한 파일의 부모 폴더를 워크스페이스로 자동 설정
             const normalizedPath = file.path.replace(/\\/g, '/');
             const parentPath = normalizedPath.includes('/')
@@ -2507,7 +2515,95 @@ export default function Home() {
                       }]);
                     });
 
-                    // 🛡️ 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리
+                    // 🛡️ Tab 키 입력 시 리스트 들여쓰기(Indent) 지능형 처리
+                    editor.addCommand(monaco.KeyCode.Tab, () => {
+                      const selection = editor.getSelection();
+                      const model = editor.getModel();
+                      if (!model || !selection) return;
+
+                      const startLine = selection.startLineNumber;
+                      const endLine = selection.endLineNumber;
+
+                      let hasList = false;
+                      for (let i = startLine; i <= endLine; i++) {
+                        const lineContent = model.getLineContent(i);
+                        if (/^[ \t]*([-*+]|\d+\.)/.test(lineContent)) {
+                          hasList = true;
+                          break;
+                        }
+                      }
+
+                      if (hasList) {
+                        editor.pushUndoStop();
+                        const edits: any[] = [];
+                        for (let i = startLine; i <= endLine; i++) {
+                          edits.push({
+                            range: new monaco.Range(i, 1, i, 1),
+                            text: "  " // 공백 2칸 추가
+                          });
+                        }
+                        editor.executeEdits("indentList", edits);
+                        editor.pushUndoStop();
+                        return;
+                      }
+
+                      editor.trigger('keyboard', 'tab', null);
+                    });
+
+                    // 🛡️ Shift + Tab 키 입력 시 리스트 내어쓰기(Outdent) 지능형 처리
+                    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
+                      const selection = editor.getSelection();
+                      const model = editor.getModel();
+                      if (!model || !selection) return;
+
+                      const startLine = selection.startLineNumber;
+                      const endLine = selection.endLineNumber;
+
+                      let hasList = false;
+                      for (let i = startLine; i <= endLine; i++) {
+                        const lineContent = model.getLineContent(i);
+                        if (/^[ \t]*([-*+]|\d+\.)/.test(lineContent)) {
+                          hasList = true;
+                          break;
+                        }
+                      }
+
+                      if (hasList) {
+                        editor.pushUndoStop();
+                        const edits: any[] = [];
+                        for (let i = startLine; i <= endLine; i++) {
+                          const lineContent = model.getLineContent(i);
+                          const indentMatch = lineContent.match(/^([ \t]+)/);
+                          if (indentMatch) {
+                            const indentStr = indentMatch[1];
+                            let removeCount = 0;
+                            if (indentStr.startsWith("  ")) {
+                              removeCount = 2;
+                            } else if (indentStr.startsWith("\t")) {
+                              removeCount = 1;
+                            } else if (indentStr.startsWith(" ")) {
+                              removeCount = 1;
+                            }
+
+                            if (removeCount > 0) {
+                              edits.push({
+                                range: new monaco.Range(i, 1, i, removeCount + 1),
+                                text: ""
+                              });
+                            }
+                          }
+                        }
+                        if (edits.length > 0) {
+                          editor.executeEdits("outdentList", edits);
+                        }
+                        editor.pushUndoStop();
+                        return;
+                      }
+
+                      editor.trigger('keyboard', 'outdent', null);
+                    });
+
+                    // 🛡️ 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
                     editor.addCommand(monaco.KeyCode.Enter, () => {
                       const position = editor.getPosition();
                       if (!position) return;
@@ -2517,6 +2613,7 @@ export default function Home() {
                       const lineNumber = position.lineNumber;
                       const lineContent = model.getLineContent(lineNumber);
                       const beforeCursor = lineContent.substring(0, position.column - 1);
+                      const afterCursor = lineContent.substring(position.column - 1);
 
                       const taskRegex = /^([ \t]*)([-*+])[ \t]+\[([ xX])\](?:[ \t]+(.*)|)$/;
                       const orderRegex = /^([ \t]*)(\d+)\.(?:[ \t]+(.*)|)$/;
@@ -2531,19 +2628,23 @@ export default function Home() {
                         const marker = match[2];
                         const checked = match[3];
                         const text = match[4] || '';
-                        if (text.trim() === '') {
+                        
+                        if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
-                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column),
+                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
                             text: indent,
                             forceMoveMarkers: true
                           }]);
                         } else {
-                          const insertText = `\n${indent}${marker} [ ] `;
+                          const insertText = `\n${indent}${marker} [ ] ${afterCursor}`;
                           editor.executeEdits("insertBullet", [{
-                            range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                            range: new monaco.Range(lineNumber, position.column, lineNumber, lineContent.length + 1),
                             text: insertText,
                             forceMoveMarkers: true
                           }]);
+                          const nextLine = lineNumber + 1;
+                          const nextColumn = indent.length + marker.length + 6 + 1;
+                          editor.setPosition({ lineNumber: nextLine, column: nextColumn });
                         }
                         return;
                       }
@@ -2553,20 +2654,24 @@ export default function Home() {
                         const indent = match[1];
                         const numStr = match[2];
                         const text = match[3] || '';
-                        if (text.trim() === '') {
+                        
+                        if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
-                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column),
+                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
                             text: indent,
                             forceMoveMarkers: true
                           }]);
                         } else {
                           const nextNum = parseInt(numStr, 10) + 1;
-                          const insertText = `\n${indent}${nextNum}. `;
+                          const insertText = `\n${indent}${nextNum}. ${afterCursor}`;
                           editor.executeEdits("insertBullet", [{
-                            range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                            range: new monaco.Range(lineNumber, position.column, lineNumber, lineContent.length + 1),
                             text: insertText,
                             forceMoveMarkers: true
                           }]);
+                          const nextLine = lineNumber + 1;
+                          const nextColumn = indent.length + String(nextNum).length + 2 + 1;
+                          editor.setPosition({ lineNumber: nextLine, column: nextColumn });
                         }
                         return;
                       }
@@ -2576,19 +2681,23 @@ export default function Home() {
                         const indent = match[1];
                         const marker = match[2];
                         const text = match[3] || '';
-                        if (text.trim() === '') {
+                        
+                        if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
-                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column),
+                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
                             text: indent,
                             forceMoveMarkers: true
                           }]);
                         } else {
-                          const insertText = `\n${indent}${marker} `;
+                          const insertText = `\n${indent}${marker} ${afterCursor}`;
                           editor.executeEdits("insertBullet", [{
-                            range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                            range: new monaco.Range(lineNumber, position.column, lineNumber, lineContent.length + 1),
                             text: insertText,
                             forceMoveMarkers: true
                           }]);
+                          const nextLine = lineNumber + 1;
+                          const nextColumn = indent.length + marker.length + 1 + 1;
+                          editor.setPosition({ lineNumber: nextLine, column: nextColumn });
                         }
                         return;
                       }
@@ -2598,19 +2707,23 @@ export default function Home() {
                         const indent = match[1];
                         const quote = match[2];
                         const text = match[3] || '';
-                        if (text.trim() === '') {
+                        
+                        if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
-                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column),
+                            range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
                             text: indent,
                             forceMoveMarkers: true
                           }]);
                         } else {
-                          const insertText = `\n${indent}${quote} `;
+                          const insertText = `\n${indent}${quote} ${afterCursor}`;
                           editor.executeEdits("insertBullet", [{
-                            range: new monaco.Range(lineNumber, position.column, lineNumber, position.column),
+                            range: new monaco.Range(lineNumber, position.column, lineNumber, lineContent.length + 1),
                             text: insertText,
                             forceMoveMarkers: true
                           }]);
+                          const nextLine = lineNumber + 1;
+                          const nextColumn = indent.length + quote.length + 1 + 1;
+                          editor.setPosition({ lineNumber: nextLine, column: nextColumn });
                         }
                         return;
                       }
