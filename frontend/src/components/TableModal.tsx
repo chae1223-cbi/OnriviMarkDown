@@ -98,12 +98,14 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
               onInsert(`\n${header}${divider}${body}\n`);
               onClose();
             }}
+            onMouseDown={(e) => e.preventDefault()}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
           >
             <Plus size={16} />
             {selectedPos.c} x {selectedPos.r} 표 삽입하기
           </button>
           <button 
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onClose}
             className={`w-full py-2 text-[11px] font-medium transition-colors ${
               isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'

@@ -119,23 +119,23 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
           <div className="space-y-2">
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">미리보기</label>
             <div className={`mt-4 rounded-xl border border-dashed flex items-center justify-center overflow-hidden bg-black/5 dark:bg-white/5 ${
-            isDarkMode ? 'border-[#444755]' : 'border-[#c1c6d7]'
-          }`} style={{ minHeight: '200px' }}>
-            {imagePath && (imagePath.startsWith('http') || imagePath.startsWith('/') || imagePath.startsWith('blob:')) ? (
-              <img 
-                src={imagePath} 
-                alt="미리보기" 
-                className="max-w-full max-h-[300px] object-contain"
-                onError={(e) => (e.currentTarget.style.display = 'none')}
-                onLoad={(e) => (e.currentTarget.style.display = 'block')}
-              />
-            ) : (
-              <div className="text-center p-6 text-gray-400">
-                <ImageIcon size={48} className="mx-auto mb-2 opacity-20" />
-                <p className="text-xs">유효한 이미지 주소를 입력하면<br/>여기에 미리보기가 표시됩니다.</p>
-              </div>
-            )}
-          </div>
+              isDarkMode ? 'border-[#444755]' : 'border-[#c1c6d7]'
+            }`} style={{ minHeight: '200px' }}>
+              {imagePath && (imagePath.startsWith('http') || imagePath.startsWith('/') || imagePath.startsWith('blob:')) ? (
+                <img 
+                  src={imagePath} 
+                  alt="미리보기" 
+                  className="max-w-full max-h-[300px] object-contain"
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                  onLoad={(e) => (e.currentTarget.style.display = 'block')}
+                />
+              ) : (
+                <div className="text-center p-6 text-gray-400">
+                  <ImageIcon size={48} className="mx-auto mb-2 opacity-20" />
+                  <p className="text-xs">유효한 이미지 주소를 입력하면<br/>여기에 미리보기가 표시됩니다.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -144,6 +144,7 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
           isDarkMode ? 'border-[#44474e] bg-[#1d2024]' : 'border-[#c1c6d7] bg-[#f1f4f9]'
         }`}>
           <button 
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onClose}
             className={`px-6 py-2 border rounded-lg text-xs font-medium transition-all active:scale-95 ${
               isDarkMode 
@@ -154,6 +155,7 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
             취소
           </button>
           <button 
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleInsert}
             disabled={!cleanImagePath}
             className={`px-6 py-2 rounded-lg text-xs font-bold transition-all active:scale-95 flex items-center gap-2 ${
@@ -163,7 +165,7 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
             }`}
           >
             <LinkIcon size={14} />
-              마크다운 코드 삽입
+            마크다운 코드 삽입
           </button>
         </div>
       </div>

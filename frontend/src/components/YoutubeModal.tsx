@@ -255,6 +255,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
           isDarkMode ? 'border-[#44474e] bg-[#1d2024]' : 'border-[#c1c6d7] bg-[#f1f4f9]'
         }`}>
           <button 
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onClose}
             className={`px-6 py-2 border rounded-lg text-xs font-medium transition-all active:scale-95 ${
               isDarkMode 
@@ -265,6 +266,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
             취소
           </button>
           <button 
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleInsert}
             disabled={!videoId}
             className={`px-6 py-2 rounded-lg text-xs font-bold transition-all active:scale-95 flex items-center gap-2 ${

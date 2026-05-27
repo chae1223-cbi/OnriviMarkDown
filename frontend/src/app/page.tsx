@@ -895,7 +895,10 @@ export default function Home() {
   const insertAtCursor = (text: string) => {
     if (editorRef.current) {
       const editor = editorRef.current;
-      const selection = editor.getSelection();
+      let selection = editor.getSelection();
+      if (!selection || (selection.isEmpty() && lastSelectionRef.current)) {
+        selection = lastSelectionRef.current;
+      }
       if (selection) {
         const range = new (window as any).monaco.Range(
           selection.startLineNumber,
@@ -2311,18 +2314,62 @@ export default function Home() {
                     });
 
                     editor.onMouseDown((e) => {
-                      if (e.target && e.target.position) {
-                        const clickedLine = e.target.position.lineNumber;
+                      setTimeout(() => {
+                        const position = editor.getPosition();
+                        if (!position) return;
+                        const clickedLine = position.lineNumber;
+                        
                         if (previewRef.current && isScrollingRef.current !== 'editor') {
+                          const totalLines = editor.getModel()?.getLineCount() || 1;
+                          
+                          // 맨 위(첫 줄) 클릭 시 최상단 스크롤
+                          if (clickedLine === 1) {
+                            previewRef.current.scrollTo({
+                              top: 0,
+                              behavior: 'smooth'
+                            });
+                            return;
+                          }
+                          
+                          // 맨 아래(끝 줄) 클릭 시 최하단 스크롤
+                          if (clickedLine === totalLines) {
+                            previewRef.current.scrollTo({
+                              top: previewRef.current.scrollHeight,
+                              behavior: 'smooth'
+                            });
+                            return;
+                          }
+
                           const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`);
                           if (targetElement) {
                             targetElement.scrollIntoView({
                               behavior: 'smooth',
                               block: 'center'
                             });
+                          } else {
+                            // 일치하는 엘리먼트가 없으면, 클릭한 라인보다 작거나 같은 가장 가까운 상위 엘리먼트를 찾아 스크롤
+                            const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
+                            let targetEl: HTMLElement | null = null;
+                            let maxLine = -1;
+                            for (const el of elements) {
+                              const lineStr = el.getAttribute('data-line');
+                              if (lineStr) {
+                                const line = parseInt(lineStr, 10);
+                                if (line <= clickedLine && line > maxLine) {
+                                  maxLine = line;
+                                  targetEl = el;
+                                }
+                              }
+                            }
+                            if (targetEl) {
+                              targetEl.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center'
+                              });
+                            }
                           }
                         }
-                      }
+                      }, 10);
                     });
                     editor.onDidChangeCursorSelection((e) => {
                       lastSelectionRef.current = e.selection;
@@ -2439,7 +2486,8 @@ export default function Home() {
                     suggestOnTriggerCharacters: true,
                     tabSize: 4,
                     detectIndentation: false,
-                    insertSpaces: true
+                    insertSpaces: true,
+                    autoIndent: 'none'
                   }}
                 />
                 {floatingToolbar.visible && (
@@ -2477,7 +2525,7 @@ export default function Home() {
               <div 
                 ref={previewRef}
                 className={`flex-1 h-[calc(100vh-64px)] px-8 py-10 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none ${
-                  previewMode === 'both' ? 'overflow-y-hidden' : 'overflow-y-auto'
+                  previewMode === 'both' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
                 }`}
                 style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
                 onWheel={(e) => {

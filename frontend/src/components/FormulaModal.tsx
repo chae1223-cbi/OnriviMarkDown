@@ -175,6 +175,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
                     <button 
                       key={i} 
                       onClick={() => insertLatex(t.code)}
+                      onMouseDown={(e) => e.preventDefault()}
                       className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all hover:scale-105 active:scale-95 ${
                         isDarkMode ? 'bg-[#2d3135] border-[#44474e] hover:border-blue-500/50' : 'bg-white border-[#c1c6d7] hover:border-blue-500 shadow-sm'
                       }`}
@@ -197,6 +198,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
                             key={i} 
                             onClick={() => insertLatex(sym)}
                             title={sym}
+                            onMouseDown={(e) => e.preventDefault()}
                             className={`aspect-square flex items-center justify-center text-sm rounded-lg border transition-all hover:border-blue-500 ${
                               isDarkMode ? 'bg-[#2d3135] border-[#44474e]' : 'bg-white border-[#c1c6d7]'
                             }`}
@@ -217,6 +219,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
                       <button 
                         key={i} 
                         onClick={() => setLatex(h)}
+                        onMouseDown={(e) => e.preventDefault()}
                         className={`w-full flex items-center justify-start text-left font-bold gap-3 p-3 rounded-xl border transition-all hover:border-blue-500 group ${
                           isDarkMode 
                             ? 'bg-blue-500/10 border-blue-500/20 text-white' 
@@ -314,6 +317,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
           isDarkMode ? 'border-[#44474e] bg-[#1d2024]' : 'border-[#c1c6d7] bg-[#f1f4f9]'
         }`}>
           <button 
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onClose}
             className={`px-6 py-2.5 rounded-xl text-xs font-medium transition-all active:scale-95 ${
               isDarkMode 
@@ -324,6 +328,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
             취소
           </button>
           <button 
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleInsertToEditor}
             disabled={!latex.trim()}
             className={`px-8 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 ${
