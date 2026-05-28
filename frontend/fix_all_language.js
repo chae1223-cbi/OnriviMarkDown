@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // 모든 컴포넌트 파일에서 language 관련 잔재 제거
-const srcDir = 'd:/developer/OnriviMarkDown/frontend/src';
+const srcDir = __dirname + '/src';
 
 function walkDir(dir) {
   const files = [];

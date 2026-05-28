@@ -23,7 +23,7 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     ],
     colors: {
       'editor.background': '#F7F9FF',
-      'editor.lineHighlightBackground': 'rgba(59,130,246,0.08)',
+      'editor.lineHighlightBackground': 'rgba(251,146,60,0.12)',
     }
   },
   {
@@ -40,7 +40,7 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     ],
     colors: {
       'editor.background': '#131313',
-      'editor.lineHighlightBackground': 'rgba(96,165,250,0.12)',
+      'editor.lineHighlightBackground': 'rgba(251,146,60,0.18)',
     }
   },
   {

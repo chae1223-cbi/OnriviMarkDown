@@ -1,9 +1,10 @@
 const fs = require('fs');
-let content = fs.readFileSync('d:/developer/OnriviMarkDown/frontend/src/lib/exportHandlers.ts', 'utf8');
+const target = __dirname + '/src/lib/exportHandlers.ts';
+let content = fs.readFileSync(target, 'utf8');
 
 // language 변수를 'ko'로 교체
 content = content.replace(/\$\{language\}/g, 'ko');
 content = content.replace(/`\${language}`/g, "'ko'");
 
-fs.writeFileSync('d:/developer/OnriviMarkDown/frontend/src/lib/exportHandlers.ts', content, 'utf8');
+fs.writeFileSync(target, content, 'utf8');
 console.log('Done');

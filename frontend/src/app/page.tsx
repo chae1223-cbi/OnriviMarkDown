@@ -1,81 +1,144 @@
-"use client";
+/**
+ * 프로그램명 : OnriviAuthor 
+ * 버전 정보 : 1.0.1
+ * 프로그램 ID : oaar-001
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026.05.29> 최초작성
+ * 작성자 : 채병익
+ * 기능 설명 : 전체 시스템의 컨트롤 타워.
+ * 모든 전역 상태 및 화면 분할 레이아웃 조립.
+ * 메뉴바 , 툴바, 상태바, 사이드바 등 모든 컴포넌트의 렌더링을 책임짐.
+ * -----------------------------------------------------------------------
+ */
 
-import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import Editor, { loader } from '@monaco-editor/react';
-import MarkdownViewer from '../components/MarkdownViewer';
-import Script from 'next/script';
-import 'katex/dist/katex.min.css';
+// @ts-nocheck
+
+"use client"; // next.js의 규칙, 이 페이지는 client side에서 렌더링됨. 
+//지시어 종류실행 및 렌더링 위치설명 및 아키텍처적 역할"use client";
+//최종 유저의 웹 브라우저자바스크립트 Hooks(useState, useEffect)를 허용하고, 마우스 클릭·키보드 타이핑 등 실시간 UI 인터랙션을 처리할 때 선언합니다.
+//"use server";백엔드 Node.js 서버프론트엔드(브라우저)에서 백엔드 서버의 함수를 마치 API 호출하듯이 다이렉트로 안전하게 원격 실행할 수 있게 만드는 서버 
+//액션(Server Actions) 전용 지시어입니다. (보안 키 검증, DB 직접 CRUD 시 사용)
+
+/** ======================================================================== 
+ * 참고 
+ *  src/lib/api.ts -> api 서버 경로
+ * =========================================================================
+*/
+
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
+import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
+import MarkdownViewer from '../components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
+import Script from 'next/script'; // 넥스트 스크립트 - 
+import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더링
+
+/**
+ * ==================================================================================
+ * 아이콘 라이브러리 - lucide-react 
+ * PanelLeft as SidebarIcon, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2,
+  ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2,
+  Layers, X
+ * ==================================================================================
+ */
 import {
   PanelLeft as SidebarIcon, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2,
   ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2,
   Layers, X
 } from 'lucide-react';
 
-import { useToast } from '@/components/ToastProvider';
-import { msg } from '@/lib/msg';
-import { getApiUrl } from '@/lib/api';
-import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers';
-
-import { idb, FileNode, scanDirectory, getFileIcon } from '@/lib/helper';
-import { preprocessMarkdownForPreview } from "@/lib/editorUtils";
-import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig";
-import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes";
-import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/vfsHelper';
-import ColorText from '@/components/ColorText';
-import FileTreeItem from '@/components/FileTreeItem';
-import CopyButton from '@/components/CopyButton';
-import ExportModal from '@/components/ExportModal';
-import OAIcon from './icon_onriveauther.png';
+/**
+ * ==================================================================================
+ * 프로젝트 내부 모듈 @가 있는 내부 components 참조선언
+ * ==================================================================================
+ */
+import { useToast } from '@/components/ToastProvider';  // 토스트 메시지
+import { msg } from '@/lib/msg'; // 메시지
+import { getApiUrl } from '@/lib/api'; // api 서버 경로
+import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers'; // 파일 내보내기 핸들러
+import { idb, FileNode, scanDirectory, getFileIcon } from '@/lib/helper'; // indexedDB 헬퍼
+import { preprocessMarkdownForPreview } from "@/lib/editorUtils"; // 마크다운 프리뷰
+import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig"; // 툴바 설정
+import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes"; // 에디터 테마
+import { CssProfile } from "@/types/cssProfile"; // css 프로필 타입
+import { DEFAULT_PROFILE } from "@/constants/cssProfile"; // 기본 프로필
+import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
+import CssStyleForm from "@/components/CssStyleForm"; // css 스타일 폼
+import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/vfsHelper'; // 가상 파일 시스템 헬퍼
+import ColorText from '@/components/ColorText'; // 컬러 텍스트
+import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
+import CopyButton from '@/components/CopyButton'; // 버튼
+import ExportModal from '@/components/ExportModal'; // 모달
+import OAIcon from './icon_onriveauther.png'; // 아이콘 
 
 // 분리된 컴포넌트들 임포트
-import MenuBar from '@/components/MenuBar';
-import Toolbar from '@/components/Toolbar';
-import StatusBar from '@/components/StatusBar';
-import ImageModal from '@/components/ImageModal';
-import MapModal from '@/components/MapModal';
-import TableModal from '@/components/TableModal';
-import SettingsModal from '@/components/SettingsModal';
-import PromptModal from '@/components/PromptModal';
-import GlobalSearch from '@/components/GlobalSearch';
-import LeftSidebar from '@/components/LeftSidebar';
-import ConfirmModal from '@/components/ConfirmModal';
-import FormulaModal from '@/components/FormulaModal';
-import MergeModal from '@/components/MergeModal';
-import YoutubeModal from '@/components/YoutubeModal';
-import AboutModal from '@/components/AboutModal';
-import AIGeneratorPanel from '@/components/AIGeneratorPanel';
-import WritingAssistant from '@/components/WritingAssistant';
+import MenuBar from '@/components/MenuBar'; // 메뉴바
+import Toolbar from '@/components/Toolbar'; // 툴바
+import StatusBar from '@/components/StatusBar'; // 상태바
+import ImageModal from '@/components/ImageModal'; // 모달
+import MapModal from '@/components/MapModal'; // 모달
+import TableModal from '@/components/TableModal'; // 모달
+import SettingsModal from '@/components/SettingsModal'; // 모달
+import PromptModal from '@/components/PromptModal'; // 모달
+import GlobalSearch from '@/components/GlobalSearch'; // 모달
+import LeftSidebar from '@/components/LeftSidebar'; // 모달
+import ConfirmModal from '@/components/ConfirmModal'; // 모달
+import FormulaModal from '@/components/FormulaModal'; // 모달
+import MergeModal from '@/components/MergeModal'; // 모달
+import YoutubeModal from '@/components/YoutubeModal'; // 모달
+import AboutModal from '@/components/AboutModal'; // 모달
+import AIGeneratorPanel from '@/components/AIGeneratorPanel'; // 모달
+import WritingAssistant from '@/components/WritingAssistant'; // 모달
+
+/**
+ * ==================================================================================
+ * 타입 선언
+ * ==================================================================================
+ */
+
+/**
+ * @fileType 
+ *  @File 
+ *  @Description 
+ *  @Link https://onrivi.com/documentation/workflow/workflow/20240320123456-editorcommandtypes
+ *  @note @/app/page.tsx에서 명령어를 직접 사용하는 대신 @/lib/editorCommandType.ts에서 정의된 명령어 타입을 사용  
+ *        모나코 에디터의 명령어를 @/lib/editorCommandType.ts에 정의된 명령어 타입으로 매핑하여 사용  
+ *        @/lib/editorCommandType.ts는 @/app/page.tsx에서 사용되는 모나코 에디터의 명령어를 정의한 파일   
+ */
 
 export type EditorCommandType =
-  | 'NEW_FILE' | 'OPEN_FILE' | 'OPEN_WORKSPACE' | 'SAVE' | 'SAVE_AS'
-  | 'EXPORT_PDF' | 'EXPORT_HTML' | 'EXPORT_EPUB' | 'EXPORT_PNG' | 'EXIT'
-  | 'UNDO' | 'REDO' | 'FIND' | 'REPLACE' | 'ZOOM_IN' | 'ZOOM_OUT'
-  | 'GLOBAL_SEARCH' | 'TOGGLE_HELP' | 'ERASER' | 'BOLD' | 'ITALIC' 
-  | 'STRIKETHROUGH' | 'INLINE_CODE' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6'
-  | 'HR' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'QUOTE' | 'CHECKLIST'
-  | 'LINK' | 'IMAGE' | 'VIDEO' | 'MAP' | 'TABLE' | 'CODE' | 'LATEX' | 'CLEAN_DOC'
-  | 'YOUTUBE' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'
-  | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'
-  | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME'
-  | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE';
+  | 'NEW_FILE' | 'OPEN_FILE' | 'OPEN_WORKSPACE' | 'SAVE' | 'SAVE_AS'                   //① 파일 시스템 및 입출력 제어 (OS I/O Message)
+  | 'EXPORT_PDF' | 'EXPORT_HTML' | 'EXPORT_EPUB' | 'EXPORT_PNG' | 'EXIT'                    //② 출력(Export) 및 종료  
+  | 'UNDO' | 'REDO' | 'FIND' | 'REPLACE' | 'ZOOM_IN' | 'ZOOM_OUT'                      //③ 편집 및 보기 제어
+  | 'GLOBAL_SEARCH' | 'TOGGLE_HELP' | 'ERASER' | 'BOLD' | 'ITALIC'                       //④ 스타일 적용
+  | 'STRIKETHROUGH' | 'INLINE_CODE' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6'                 //⑤ 스타일 적용
+  | 'HR' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'QUOTE' | 'CHECKLIST'                   //⑥ 스타일 적용
+  | 'LINK' | 'IMAGE' | 'VIDEO' | 'MAP' | 'TABLE' | 'CODE' | 'LATEX' | 'CLEAN_DOC'       //⑦ 스타일 적용
+  | 'YOUTUBE' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'                  //⑧ 스타일 적용
+  | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'  //⑨ 스타일 적용
+  | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME'                  //⑩ 스타일 적용 
+  | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE'                       // ⑪ 스타일 적용 
+  | 'TOGGLE_CSS_STYLE';                                                               // ⑫ 스타일 적용 
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
-if (typeof window !== 'undefined') {
-  const addonQuery = new URLSearchParams(window.location.search).get('env') === 'addon';
-  const addonRuntime = !!((window as any).chrome?.runtime?.id);
-  if (addonQuery || addonRuntime) {
-    const getExtensionUrl = (relativePath: string) => {
-      if (typeof (window as any).chrome?.runtime?.getURL === 'function') {
-        return (window as any).chrome.runtime.getURL(relativePath);
+if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
+  const addonQuery = new URLSearchParams(window.location.search).get('env') === 'addon'; // @addonQuery : 환경 변수 
+  const addonRuntime = !!((window as any).chrome?.runtime?.id); // @addonRuntime : 환경 변수 
+
+  // 크롬 확장 프로그램 환경에서만 Monaco loader 경로를 설정 (레이스 컨디션 방지)
+  if (addonQuery || addonRuntime) { // @addonQuery : 환경 변수, @addonRuntime : 환경 변수 
+    const getExtensionUrl = (relativePath: string) => { // @getExtensionUrl : 환경 변수 
+      if (typeof (window as any).chrome?.runtime?.getURL === 'function') { // @getExtensionUrl : 환경 변수 
+        return (window as any).chrome.runtime.getURL(relativePath); // @getExtensionUrl : 환경 변수 
       }
-      return relativePath;
+      return relativePath; // @getExtensionUrl : 환경 변수 
     };
     (window as any).MonacoEnvironment = {
-      getWorkerUrl: function (_moduleId: string, label: string) {
-        if (label === 'json') return getExtensionUrl('/monaco-editor/min/vs/language/json/json.worker.js');
-        if (label === 'css') return getExtensionUrl('/monaco-editor/min/vs/language/css/css.worker.js');
-        if (label === 'html') return getExtensionUrl('/monaco-editor/min/vs/language/html/html.worker.js');
-        if (label === 'typescript' || label === 'javascript') return getExtensionUrl('/monaco-editor/min/vs/language/typescript/ts.worker.js');
+      getWorkerUrl: function (_moduleId: string, label: string) { // @getWorkerUrl : 환경 변수 
+        if (label === 'json') return getExtensionUrl('/monaco-editor/min/vs/language/json/json.worker.js'); // @getExtensionUrl : 환경 변수 
+        if (label === 'css') return getExtensionUrl('/monaco-editor/min/vs/language/css/css.worker.js'); // @getExtensionUrl : 환경 변수 
+        if (label === 'html') return getExtensionUrl('/monaco-editor/min/vs/language/html/html.worker.js'); // @getExtensionUrl : 환경 변수 
+        if (label === 'typescript' || label === 'javascript') return getExtensionUrl('/monaco-editor/min/vs/language/typescript/ts.worker.js'); // @getExtensionUrl : 환경 변수 
         return getExtensionUrl('/monaco-editor/min/vs/editor/editor.worker.js');
       }
     };
@@ -88,102 +151,107 @@ if (typeof window !== 'undefined') {
   }
 }
 
-const INITIAL_TEXT = `# Onrivi Author: 일상의 기록이 출판이 되고 가치가 되는 순간
 
-> "당신의 생각은 소중합니다. 우리는 그 생각을 가장 아름답고 머물 만한 공간으로 만듭니다."
-
-![Hero Image](./hero.png)
-
-### 따뜻하고 포근한 햇살 아래, 당신만의 기록 보관소
-**Onrivi Author**는 복잡한 기술을 넘어, 당신의 아이디어가 방해받지 않고 기록될 수 있는 평화롭고 포근한 집안 환경을 지향합니다.
-
----
-
-### 영혼을 담은 글쓰기 (Writing with Heart and Soul)
-
-#### 하나. 편안한 집안 경험
-가장 친숙하고 강력한 편집기를 통해, 마치 종이 위에 펜을 굴리듯 매끄럽게 당신의 생각을 써 내려가 보세요. 당신의 손끝에서 태어나는 모든 단어는 실시간으로 아름다운 문서가 됩니다.
-
-#### 둘. 시간의 흐름을 따르는 동기화
-당신의 글을 쓰는 리듬에 맞춰 미리보기 창이 부드럽게 따라옵니다. 기술은 뒤로 숨고, 오직 당신의 글과 결과물과의 대화에만 시간을 선물합니다.
-
-#### 셋. 잊힌 기억을 찾아주는 지능형 검색
-수개월 전에 적어두었던 한 줄의 생각이나 단어가 떠오르지 않을 때, \`Ctrl + Shift + F\`를 눌러보세요. 당신의 워크스페이스 전체를 샅샅이 뒤져 잊고 있던 소중한 기록을 찾아드립니다.
-
----
-
-![Lifestyle Workspace](https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1200&q=80)
-
-### 당신의 진심을 세상에 전하는 방법
-정성스럽게 작성한 글을 **PDF, HTML, 이미지**로 깔끔하게 담아보세요. 소중한 사람에게, 혹은 더 넓은 세상으로 당신의 목소리를 전할 준비가 되었습니다.
-
----
-
-#### 시작하는 방법
-왼쪽 **탐색기**에서 당신의 기록들을 담을 폴더를 선택하거나, **새 파일**을 만들어 오늘의 첫 문장을 열어보세요.
-
----
-© 2026 Onrivi Studio. *Crafting tools for human expression.*
-`;
+/**
+ * @file 
+ * @description 초기 마크다운 텍스트 
+ * @note @/app/page.tsx에서 사용되는 초기 마크다운 텍스트 정의  
+ *       모나코 에디터의 초기 마크다운 텍스트로 사용됨
+ */
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
-  if (!srcPath) return "";
+  if (!srcPath) return "";   // @srcPath : 이미지 경로 
 
   if (srcPath.startsWith('http://') || srcPath.startsWith('https://') || srcPath.startsWith('data:') || srcPath.startsWith('blob:')) {
-    return srcPath;
+    return srcPath;   // @srcPath : 절대 경로 (외부 링크, data URI, blob URI 등) 
   }
 
+  // @currentFileNodePath : 현재 파일의 노드 경로 
   let baseFolder = "";
   if (currentFileNodePath) {
-    const normalizedFile = currentFileNodePath.replace(/\\/g, '/');
-    const lastSlash = normalizedFile.lastIndexOf('/');
+    const normalizedFile = currentFileNodePath.replace(/\\/g, '/'); // @normalizedFile : 현재 파일의 노드 경로 (정규화)
+    const lastSlash = normalizedFile.lastIndexOf('/'); // @lastSlash : 현재 파일의 노드 경로에서 마지막 슬래시의 위치 
     if (lastSlash !== -1) {
-      baseFolder = normalizedFile.substring(0, lastSlash);
+      baseFolder = normalizedFile.substring(0, lastSlash); // @baseFolder : 현재 파일의 노드 경로에서 마지막 슬래시 이전의 경로 
     }
   }
 
-  let cleanSrc = srcPath.replace(/\\/g, '/');
+  // @cleanSrc : 이미지 경로 (정규화) 
+  let cleanSrc = srcPath.replace(/\\/g, '/'); // @cleanSrc : 이미지 경로 (정규화) 
   if (cleanSrc.startsWith('/')) {
-    cleanSrc = cleanSrc.substring(1);
-  }
-  if (cleanSrc.startsWith('./')) {
-    cleanSrc = cleanSrc.substring(2);
+    cleanSrc = cleanSrc.substring(1); // @cleanSrc : 이미지 경로 (정규화) 
   }
 
+  if (cleanSrc.startsWith('./')) {
+    cleanSrc = cleanSrc.substring(2); // @cleanSrc : 이미지 경로 (정규화) 
+  }
+
+  // @finalPath : 이미지 경로 (절대 경로) 
   let finalPath = "";
   if (baseFolder) {
-    finalPath = baseFolder + '/' + cleanSrc;
+    finalPath = baseFolder + '/' + cleanSrc; // @finalPath : 이미지 경로 (절대 경로) 
   } else {
-    finalPath = cleanSrc;
+    finalPath = cleanSrc; // @finalPath : 이미지 경로 (절대 경로) 
   }
 
+  // @segments : 이미지 경로 (분석된 경로) 
   const segments = finalPath.split('/');
   const stack: string[] = [];
   for (const seg of segments) {
-    if (seg === '.' || seg === '') continue;
+    if (seg === '.' || seg === '') continue; // @seg : 이미지 경로 (분석된 경로) 
     if (seg === '..') {
-      stack.pop();
+      stack.pop(); // @stack : 이미지 경로 (분석된 경로) 
     } else {
-      stack.push(seg);
+      stack.push(seg); // @stack : 이미지 경로 (분석된 경로) 
     }
   }
 
-  return stack.join('/');
+  return stack.join('/'); // @stack : 이미지 경로 (분석된 경로) 
 };
 
-export default function Home() {
-  const { showToast } = useToast();
-  const [mounted, setMounted] = useState(false);
-  const [content, setContent] = useState(INITIAL_TEXT);
-  const [activeLine, setActiveLine] = useState<number | null>(null);
-  const lastSelectionRef = useRef<any>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isToolbarOpen, setIsToolbarOpen] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(280);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [themePalette, setThemePalette] = useState<string>('onrivi-light');
+/**
+ * @file 
+ * @description Home component  
+ * @returns Home component
+ */
+export default function Home() {                  // @Home : Home component  
+  const { showToast } = useToast();             // @showToast : Toast component  
+  const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
+  const [content, setContent] = useState('');   // @content : content state 
+  const [activeLine, setActiveLine] = useState<number | null>(null); // @activeLine : active line state 
+  const lastSelectionRef = useRef<any>(null);    // @lastSelectionRef : last selection state 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // @isSidebarOpen : sidebar open state 
+  const [isToolbarOpen, setIsToolbarOpen] = useState(true); // @isToolbarOpen : toolbar open state 
+  const [sidebarWidth, setSidebarWidth] = useState(280); // @sidebarWidth : sidebar width state 
+  const [isDarkMode, setIsDarkMode] = useState(false); // @isDarkMode : dark mode state 
+  const [themePalette, setThemePalette] = useState<string>('onrivi-light'); // @themePalette : theme palette state 
+  /*
+   * profiles state — CssProfile 배열 (루셋 기반 CSS 서식 프로필)
+   *
+   * localStorage['cssProfiles']에서 초기화:
+   * - 저장값이 없으면 [DEFAULT_PROFILE]로 시작
+   * - 오래된 포맷(parsed[0].rules 없음) 감지 시 [DEFAULT_PROFILE]로 안전 리셋
+   * - 파싱 실패 시에도 [DEFAULT_PROFILE] fallback
+   */
+  const [profiles, setProfiles] = useState<CssProfile[]>(() => { // @profiles : profiles state 
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('cssProfiles') : null; // @saved : cssProfiles state 
+      if (!saved) return [DEFAULT_PROFILE]; // @saved : cssProfiles state 
+      const parsed = JSON.parse(saved); // @parsed : cssProfiles state 
+      if (!Array.isArray(parsed)) return [DEFAULT_PROFILE]; // @parsed : cssProfiles state
+      /*
+       * 마이그레이션 감지: tagClasses 포맷(문자열 값) 기존 프로필 감지 시
+       * -> CssRuleSet 포맷(객체)로 바뀌었으므로 완전 리셋
+       */
+      if (parsed.length > 0 && !parsed[0].rules) return [DEFAULT_PROFILE]; // @parsed : cssProfiles state 
+      return parsed as CssProfile[]; // @parsed : cssProfiles state 
+    } catch { return [DEFAULT_PROFILE]; } // @DEFAULT_PROFILE : cssProfiles state 
+  });
+  const [activeProfileId, setActiveProfileId] = useState<string>(
+    () => DEFAULT_PROFILE.id
+  );
   const [isAddonEnv, setIsAddonEnv] = useState(false);
-  const [previewMode, setPreviewMode] = useState<'edit' | 'both' | 'preview'>('both');
+  const [previewMode, setPreviewMode] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
   const previewModeRef = useRef(previewMode);
   useEffect(() => {
     previewModeRef.current = previewMode;
@@ -236,7 +304,7 @@ export default function Home() {
     onConfirm: () => void;
   }>({ isOpen: false, title: "", message: "", onConfirm: () => { } });
 
-  
+
   const [isEditorReady, setIsEditorReady] = useState(false);
 
   const [isMergeMode, setIsMergeMode] = useState(false);
@@ -267,7 +335,7 @@ export default function Home() {
 
 
 
-  
+
 
   const editorRef = useRef<any>(null);
   const decorationsCollectionRef = useRef<any>(null);
@@ -289,7 +357,7 @@ export default function Home() {
       const [_, prefix, currentStatus, suffix] = match;
       const newStatus = checked ? 'x' : ' ';
       const newLineContent = `${prefix}${newStatus}${suffix}`;
-      
+
       const Range = (window as any).monaco.Range;
       editor.pushUndoStop();
       editor.executeEdits("checkboxToggle", [
@@ -307,14 +375,14 @@ export default function Home() {
     if (!editor || typeof window === 'undefined' || !(window as any).monaco) return;
     const model = editor.getModel();
     if (!model) return;
-    
+
     const lines = model.getLinesContent();
     const newDecorations: any[] = [];
     const Range = (window as any).monaco.Range;
-    
+
     lines.forEach((line: string, i: number) => {
       const lineNumber = i + 1;
-      
+
       // Heading
       const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
       if (headingMatch) {
@@ -330,7 +398,7 @@ export default function Home() {
           options: { inlineClassName: cName }
         });
       }
-      
+
       // Bold
       const boldRegex = /\*\*(.*?)\*\*/g;
       let match;
@@ -350,7 +418,7 @@ export default function Home() {
           options: { inlineClassName: 'monaco-bold-text' }
         });
       }
-      
+
       // Italic
       const italicRegex = /(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g;
       while ((match = italicRegex.exec(line)) !== null) {
@@ -389,14 +457,14 @@ export default function Home() {
         });
       }
     });
-    
+
     if (decorationsCollectionRef.current) {
       decorationsCollectionRef.current.set(newDecorations);
     }
   }, []);
   const previewRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
-  const lastSavedContentRef = useRef<string>(INITIAL_TEXT);
+  const lastSavedContentRef = useRef<string>('');
   const isScrollingRef = useRef<'editor' | 'preview' | null>(null);
   const scrollTimeoutRef = useRef<any>(null);
   const completionProviderRef = useRef<any>(null);
@@ -432,6 +500,8 @@ export default function Home() {
       if (savedTheme === 'dark') setIsDarkMode(true);
       const savedPalette = localStorage.getItem('themePalette');
       if (savedPalette) setThemePalette(savedPalette);
+      const savedProfileId = localStorage.getItem('activeCssProfileId');
+      if (savedProfileId) setActiveProfileId(savedProfileId);
 
       // 애드온 환경 감지 (동기 처리)
       const detectedAddon = typeof window !== 'undefined' && (
@@ -475,8 +545,8 @@ export default function Home() {
               const folder = JSON.parse(savedFolder);
               // 🛡️ 윈도우 파일 시스템상 금지 문자(?, \uFFFD 등)가 포함된 깨진 한글 경로 캐시 자동 치료 작동
               const hasInvalidChar = folder.name && (
-                folder.name.includes('?') || 
-                folder.name.includes('\uFFFD') || 
+                folder.name.includes('?') ||
+                folder.name.includes('\uFFFD') ||
                 folder.name.includes('')
               );
               if (hasInvalidChar) {
@@ -551,6 +621,18 @@ export default function Home() {
     }
   }, [themePalette, mounted]);
 
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('cssProfiles', JSON.stringify(profiles));
+    }
+  }, [profiles, mounted]);
+
+  useEffect(() => {
+    if (mounted && activeProfileId) {
+      localStorage.setItem('activeCssProfileId', activeProfileId);
+    }
+  }, [activeProfileId, mounted]);
+
   const handleThemeChange = useCallback((themeId: string) => {
     const theme = THEME_MAP[themeId];
     if (!theme) return;
@@ -571,7 +653,7 @@ export default function Home() {
       api.onOpenFileRequested(() => handlers.openFolder());
       api.onSaveFileRequested(() => handlers.save());
       api.onSaveFileAsRequested(() => handlers.saveAs());
-      
+
       return () => {
         api.removeListeners();
       };
@@ -579,6 +661,18 @@ export default function Home() {
   }, [mounted, content, currentFileNode]);
 
   // 애드온 모드: 클립보드 내용 읽어서 에디터에 붙여넣기
+  useEffect(() => {
+    if (!mounted) return;
+    const welcome = getWelcomeContent();
+    if (!currentFileNode || currentFileName === '새 파일.md') {
+      setContent(welcome);
+      lastSavedContentRef.current = welcome;
+      if (editorRef.current) {
+        editorRef.current.setValue(welcome);
+      }
+    }
+  }, [mounted]);
+
   useEffect(() => {
     if (mounted && isAddonEnv && typeof navigator !== 'undefined' && navigator.clipboard) {
       (async () => {
@@ -771,9 +865,9 @@ export default function Home() {
       }
     } else if (type === 'local') {
       await idb.set('rootFolderHandle', null);
-      
+
       const hasElectronAPI = typeof window !== 'undefined' && !!(window as any).electronAPI;
-      
+
       if (hasElectronAPI) {
         // Electron: OS 탐색기 다이얼로그 (현재 rootFolder 경로 전달)
         try {
@@ -787,7 +881,7 @@ export default function Home() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ newRoot: finalRoot })
               });
-            } catch (_) {}
+            } catch (_) { }
             setRootFolder({ name: finalRoot });
             setWorkspaceType('local');
             localStorage.setItem('rootFolder', JSON.stringify({ name: finalRoot }));
@@ -836,8 +930,9 @@ export default function Home() {
     if (!node) {
       setCurrentFileNode(null);
       setCurrentFileName('새 파일.md');
-      setContent(INITIAL_TEXT);
-      lastSavedContentRef.current = INITIAL_TEXT;
+      const welcome = getWelcomeContent();
+      setContent(welcome);
+      lastSavedContentRef.current = welcome;
       setSaveStatus('saved');
       return;
     }
@@ -895,7 +990,7 @@ export default function Home() {
       }
       setCurrentFileName(node.name);
       setCurrentFileNode(node);
-      
+
       // 📌 파일 열기 완료 후 에디터 및 미리보기 스크롤을 맨 위로 초기화
       if (editorRef.current) {
         editorRef.current.revealLine(1);  // 에디터 첫 번째 줄로 이동
@@ -904,7 +999,7 @@ export default function Home() {
       if (previewRef.current) {
         previewRef.current.scrollTop = 0;  // 미리보기 패널도 맨 위로 초기화
       }
-      
+
       const openedMsg = `${node.name} 파일을 열었습니다.`;
       showToast(openedMsg, "info");
       if (isSearchOpen) setIsSearchOpen(false);
@@ -1247,21 +1342,21 @@ export default function Home() {
           let inner = cell.innerHTML;
           inner = inner.replace(/<br\s*\/?>/gi, ' <br> ');
           inner = inner.replace(/<\/(p|div)>/gi, ' <br> ');
-          
+
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = inner;
           let text = tempDiv.textContent || tempDiv.innerText || '';
-          
+
           text = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
           text = text.replace(/(<br>\s*)+/g, '<br>');
           if (text.startsWith('<br>')) text = text.substring(4).trim();
           if (text.endsWith('<br>')) text = text.substring(0, text.length - 4).trim();
-          
+
           return text;
         });
-        
+
         mdTable += '| ' + cellTexts.join(' | ') + ' |\n';
-        
+
         if (isFirstRow) {
           mdTable += '|' + cellTexts.map(() => '---').join('|') + '|\n';
           isFirstRow = false;
@@ -1291,21 +1386,21 @@ export default function Home() {
     sanitized = sanitized.replace(/<br\s*\/?>\s*[\r\n]+\s*<br\s*\/?>/gi, '<br><br>');
     sanitized = sanitized.replace(/<br\s*\/?>\s*[\r\n]+/gi, '<br>');
     sanitized = sanitized.replace(/[\r\n]+\s*<br\s*\/?>/gi, '<br>');
-    
+
     // 불필요한 다중 줄바꿈 정리 (3개 이상의 줄바꿈을 2개로)
     sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
-    
+
     // Auto-convert TSV to Markdown Table
     if (sanitized.includes('\t') && sanitized.includes('\n') && !sanitized.includes('|')) {
       const lines = sanitized.split('\n');
       const isTable = lines.some(line => line.includes('\t'));
-      
+
       if (isTable) {
         const mdLines = lines.map((line, index) => {
           if (!line.trim()) return line;
           const cells = line.split('\t').map(cell => cell.trim());
           const row = '| ' + cells.join(' | ') + ' |';
-          
+
           if (index === 0) {
             const separator = '|' + cells.map(() => '---').join('|') + '|';
             return row + '\n' + separator;
@@ -1315,13 +1410,13 @@ export default function Home() {
         sanitized = mdLines.join('\n');
       }
     }
-    
+
     return sanitized;
   };
 
   const fixMarkdownTable = (text: string) => {
     if (!text.includes('|')) return text;
-    
+
     const lines = text.split('\n');
     const result: string[] = [];
     let currentRow = '';
@@ -1329,31 +1424,31 @@ export default function Home() {
 
     for (const line of lines) {
       const trimmed = line.trim();
-      
+
       if (!inTable && trimmed.startsWith('|')) {
         inTable = true;
       }
-      
+
       if (inTable) {
         if (trimmed === '' && currentRow === '') {
           inTable = false;
           result.push(line);
           continue;
         }
-        
+
         if (currentRow === '') {
           currentRow = line;
         } else {
           if (trimmed === '') {
-             currentRow += ' ';
+            currentRow += ' ';
           } else {
-             if (!currentRow.trim().endsWith(' ')) {
-               currentRow += ' ';
-             }
-             currentRow += line;
+            if (!currentRow.trim().endsWith(' ')) {
+              currentRow += ' ';
+            }
+            currentRow += line;
           }
         }
-        
+
         if (currentRow.trim().endsWith('|')) {
           result.push(currentRow);
           currentRow = '';
@@ -1362,11 +1457,11 @@ export default function Home() {
         result.push(line);
       }
     }
-    
+
     if (currentRow !== '') {
       result.push(currentRow);
     }
-    
+
     return result.join('\n');
   };
 
@@ -1377,7 +1472,7 @@ export default function Home() {
     let imageItem = null;
     let hasText = false;
     let hasHtml = false;
-    
+
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
         imageItem = items[i];
@@ -1457,11 +1552,11 @@ export default function Home() {
       const text = e.clipboardData.getData('text/plain');
       if (text) {
         let processedText = sanitizePastedText(text);
-        
+
         if (processedText.includes('|')) {
           processedText = fixMarkdownTable(processedText);
         }
-        
+
         if (processedText !== text) {
           e.preventDefault();
           insertAtCursor(processedText);
@@ -1637,6 +1732,43 @@ export default function Home() {
     };
   }, [content]);
 
+  /*
+   * dynamicCssString — 선택한 프로필의 CssRuleSet을 실제 CSS 문자열로 변환
+   *
+   * 동작 방식:
+   * 1. DEFAULT_PROFILE(id='default')이면 빈 문자열 반환 (<style> 미주입)
+   * 2. 전역 타이포그래피(.custom-preview-container) CSS 생성
+   * 3. 각 태그별 rules를 순회하며 CSS 셀렉터 생성
+   *    - taskList → .task-list-item
+   *    - codeBlock → pre, code
+   *    - 그 외 태그명 그대로
+   * 4. 모든 값에 !important를 붙여 prose 클래스 기본 스타일 오버라이드
+   */
+  const dynamicCssString = useMemo(() => {
+    if (activeProfileId === 'default') return '';
+    const prof = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+    let css = `
+.custom-preview-container {
+  font-family: ${prof.pageStyle.fontFamily} !important;
+  font-size: ${prof.pageStyle.fontSize} !important;
+  line-height: ${prof.pageStyle.lineHeight} !important;
+  letter-spacing: ${prof.pageStyle.letterSpacing} !important;
+}
+`;
+    Object.entries(prof.rules).forEach(([tag, ruleObj]) => {
+      const entries = Object.entries(ruleObj).filter(([, v]) => v !== '');
+      if (entries.length === 0) return;
+      const selector = tag === 'taskList' ? '.task-list-item' :
+        tag === 'codeBlock' ? 'pre, code' : tag;
+      css += `.custom-preview-container ${selector} {\n`;
+      entries.forEach(([prop, val]) => {
+        css += `  ${prop}: ${val} !important;\n`;
+      });
+      css += `}\n`;
+    });
+    return css;
+  }, [profiles, activeProfileId]);
+
   const quickWrap = (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => {
     if (!editorRef.current) return;
     const editor = editorRef.current;
@@ -1703,15 +1835,15 @@ export default function Home() {
         try {
           const html = previewRef.current.innerHTML;
           const text = previewRef.current.textContent || "";
-          
+
           const blobHtml = new Blob([html], { type: 'text/html' });
           const blobText = new Blob([text], { type: 'text/plain' });
-          
+
           const data = [new ClipboardItem({
             'text/html': blobHtml,
             'text/plain': blobText
           })];
-          
+
           await navigator.clipboard.write(data);
           showToast("미리보기 내용이 서식이 있는 텍스트로 복사되었습니다.", "success");
         } catch (err) {
@@ -1747,7 +1879,7 @@ export default function Home() {
             setCurrentFileName(file.name);
             setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
             setIsSidebarOpen(true);
-            
+
             if (editorRef.current) {
               editorRef.current.revealLine(1);
               editorRef.current.setScrollPosition({ scrollTop: 0 });
@@ -1781,28 +1913,28 @@ export default function Home() {
           });
           const file = await fileHandle.getFile();
           const text = await file.text();
-      setContent(text);
-            lastSavedContentRef.current = text;
-            if (editorRef.current) {
-              editorRef.current.setValue(text);
-            }
-            setCurrentFileName(file.name);
-            setCurrentFileNode({ name: file.name, kind: 'file', path: file.name, handle: fileHandle });
-            setIsSidebarOpen(true);
-            showToast(`'${file.name}' 파일을 열었습니다.`, 'success');
-          } catch (err: any) {
-            if (err.name !== 'AbortError' && err.name !== 'SecurityError') {
-              showToast("파일 열기 실패: " + err, 'error');
-            }
+          setContent(text);
+          lastSavedContentRef.current = text;
+          if (editorRef.current) {
+            editorRef.current.setValue(text);
           }
-        } else {
-          showToast("데스크톱 모드(또는 최신 Chrome 브라우저)에서만 사용 가능한 기능입니다.", "warning");
+          setCurrentFileName(file.name);
+          setCurrentFileNode({ name: file.name, kind: 'file', path: file.name, handle: fileHandle });
+          setIsSidebarOpen(true);
+          showToast(`'${file.name}' 파일을 열었습니다.`, 'success');
+        } catch (err: any) {
+          if (err.name !== 'AbortError' && err.name !== 'SecurityError') {
+            showToast("파일 열기 실패: " + err, 'error');
+          }
         }
-      },
-      openWorkspace: () => {
-        selectRootFolder('local', null);
-      },
-      save: async () => {
+      } else {
+        showToast("데스크톱 모드(또는 최신 Chrome 브라우저)에서만 사용 가능한 기능입니다.", "warning");
+      }
+    },
+    openWorkspace: () => {
+      selectRootFolder('local', null);
+    },
+    save: async () => {
       const isNewDocument = !currentFileNode || !currentFileNode.path || currentFileName === '새 파일.md';
       const api = (window as any).electronAPI;
       const hasFilePicker = typeof window !== 'undefined' && 'showSaveFilePicker' in window;
@@ -1891,73 +2023,73 @@ export default function Home() {
           showToast("저장 실패: " + e, 'error');
         }
       } else if (workspaceType === 'local') {
+        try {
+          const res = await fetch(getApiUrl('/api/save'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: currentFileNode.path, content })
+          });
+          if (res.ok) {
+            lastSavedContentRef.current = content;
+            setSaveStatus('saved');
+            showToast("저장되었습니다.", "success");
+          } else {
+            setSaveStatus('unsaved');
+            showToast("저장 실패", 'error');
+          }
+        } catch (e: any) {
+          setSaveStatus('unsaved');
+          showToast("저장 실패: " + e.message, 'error');
+        }
+      } else if (workspaceType === 'browser') {
+        if (currentFileNode?.handle) {
           try {
-            const res = await fetch(getApiUrl('/api/save'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: currentFileNode.path, content })
-            });
-            if (res.ok) {
-              lastSavedContentRef.current = content;
-              setSaveStatus('saved');
-              showToast("저장되었습니다.", "success");
-            } else {
-              setSaveStatus('unsaved');
-              showToast("저장 실패", 'error');
-            }
+            const writable = await currentFileNode.handle.createWritable();
+            await writable.write(content);
+            await writable.close();
+            lastSavedContentRef.current = content;
+            setSaveStatus('saved');
+            showToast("저장되었습니다.", "success");
           } catch (e: any) {
             setSaveStatus('unsaved');
             showToast("저장 실패: " + e.message, 'error');
           }
-        } else if (workspaceType === 'browser') {
-          if (currentFileNode?.handle) {
+        } else if (currentFileNode?.path) {
+          // VFS 파일 → showSaveFilePicker로 내PC 저장소로 마이그레이션
+          if (hasFilePicker) {
             try {
-              const writable = await currentFileNode.handle.createWritable();
-              await writable.write(content);
-              await writable.close();
+              const fh = await (window as any).showSaveFilePicker({
+                suggestedName: currentFileNode.path,
+                startIn: rootFolder?.handle || 'documents',
+                types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown', '.txt'] } }],
+              });
+              const w = await fh.createWritable();
+              await w.write(content);
+              await w.close();
+              setCurrentFileName(fh.name);
+              setCurrentFileNode({ name: fh.name, kind: 'file', path: fh.name, handle: fh });
               lastSavedContentRef.current = content;
               setSaveStatus('saved');
               showToast("저장되었습니다.", "success");
             } catch (e: any) {
-              setSaveStatus('unsaved');
-              showToast("저장 실패: " + e.message, 'error');
-            }
-          } else if (currentFileNode?.path) {
-            // VFS 파일 → showSaveFilePicker로 내PC 저장소로 마이그레이션
-            if (hasFilePicker) {
-              try {
-                const fh = await (window as any).showSaveFilePicker({
-                  suggestedName: currentFileNode.path,
-                  startIn: rootFolder?.handle || 'documents',
-                  types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown', '.txt'] } }],
-                });
-                const w = await fh.createWritable();
-                await w.write(content);
-                await w.close();
-                setCurrentFileName(fh.name);
-                setCurrentFileNode({ name: fh.name, kind: 'file', path: fh.name, handle: fh });
-                lastSavedContentRef.current = content;
-                setSaveStatus('saved');
-                showToast("저장되었습니다.", "success");
-              } catch (e: any) {
-                if (e.name !== 'AbortError') {
-                  setSaveStatus('unsaved');
-                } else {
-                  setSaveStatus('unsaved');
-                }
+              if (e.name !== 'AbortError') {
+                setSaveStatus('unsaved');
+              } else {
+                setSaveStatus('unsaved');
               }
-            } else {
-              vfsWriteFile(currentFileNode.path, content);
-              lastSavedContentRef.current = content;
-              setSaveStatus('saved');
-              showToast("저장되었습니다.", "success");
             }
           } else {
-            showToast("데스크톱 모드(또는 로컬 서버 연동)에서만 사용 가능한 기능입니다.", "warning");
+            vfsWriteFile(currentFileNode.path, content);
+            lastSavedContentRef.current = content;
+            setSaveStatus('saved');
+            showToast("저장되었습니다.", "success");
           }
         } else {
           showToast("데스크톱 모드(또는 로컬 서버 연동)에서만 사용 가능한 기능입니다.", "warning");
         }
+      } else {
+        showToast("데스크톱 모드(또는 로컬 서버 연동)에서만 사용 가능한 기능입니다.", "warning");
+      }
     },
 
     saveAs: async () => {
@@ -2143,9 +2275,18 @@ export default function Home() {
       case 'TOGGLE_TOOLBAR': setIsToolbarOpen(prev => !prev); return;
       case 'TOGGLE_SIDEBAR': setIsSidebarOpen(prev => !prev); return;
       case 'TOGGLE_MODE':
-        setPreviewMode(prev => prev === 'both' ? 'edit' : prev === 'edit' ? 'preview' : 'both');
+        setPreviewMode(prev => prev === 'both' ? 'edit' : prev === 'edit' ? 'preview' : prev === 'preview' ? 'both' : 'both');
         return;
       case 'TOGGLE_THEME': setIsDarkMode(prev => !prev); return;
+      /*
+       * TOGGLE_CSS_STYLE — CssStyleForm 패널 토글 (Ctrl+Shift+S)
+       *
+       * - css-style 모드: 좌측 50%가 CssStyleForm(서식 정의), 우측 50%가 미리보기
+       * - 다시 누르면 'both'(편집+미리보기 분할)로 복귀
+       */
+      case 'TOGGLE_CSS_STYLE':
+        setPreviewMode(prev => prev === 'css-style' ? 'both' : 'css-style');
+        return;
     }
 
     // 2. 에디터 본문 서식 조작 명령어 (포커스 가드 강제 추적)
@@ -2216,38 +2357,39 @@ export default function Home() {
     // 🔑 명시적 매핑 테이블: TOOLBAR_ITEMS id → EditorCommandType
     // (id ≠ commandType 인 항목들을 수동으로 정의하여 싱크 보장)
     const EXPLICIT_MAP: Record<string, EditorCommandType> = {
-      bold:                  'BOLD',
-      italic:                'ITALIC',
-      inlineCode:            'INLINE_CODE',
-      strikethrough:         'STRIKETHROUGH',
+      bold: 'BOLD',
+      italic: 'ITALIC',
+      inlineCode: 'INLINE_CODE',
+      strikethrough: 'STRIKETHROUGH',
       h1: 'H1', h2: 'H2', h3: 'H3', h4: 'H4', h5: 'H5', h6: 'H6',
-      divider:               'HR',        // id는 divider이지만 커맨드는 HR
-      orderedList:           'ORDERED_LIST',
-      list:                  'LIST',
-      quote:                 'QUOTE',
-      checklist:             'CHECKLIST',
-      clear:                 'REMOVE_PREFIX',  // id는 clear이지만 커맨드는 REMOVE_PREFIX
-      cleanDoc:              'CLEAN_DOC',
-      link:                  'LINK',
-      image:                 'IMAGE',
-      video:                 'VIDEO',
-      calendar:              'NOW',       // id는 calendar이지만 커맨드는 NOW(날짜 삽입)
+      divider: 'HR',        // id는 divider이지만 커맨드는 HR
+      orderedList: 'ORDERED_LIST',
+      list: 'LIST',
+      quote: 'QUOTE',
+      checklist: 'CHECKLIST',
+      clear: 'REMOVE_PREFIX',  // id는 clear이지만 커맨드는 REMOVE_PREFIX
+      cleanDoc: 'CLEAN_DOC',
+      link: 'LINK',
+      image: 'IMAGE',
+      video: 'VIDEO',
+      calendar: 'NOW',       // id는 calendar이지만 커맨드는 NOW(날짜 삽입)
 
-      map:                   'MAP',
-      chart:                 'CHART',
-      codeblock:             'CODE_BLOCK',
-      math:                  'MATH',
-      table:                 'TABLE',
+      map: 'MAP',
+      chart: 'CHART',
+      codeblock: 'CODE_BLOCK',
+      math: 'MATH',
+      table: 'TABLE',
       toggleFloatingToolbar: 'TOGGLE_FLOATING_TOOLBAR',
-      toggleToolbar:         'TOGGLE_TOOLBAR',
-      toggleSidebar:         'TOGGLE_SIDEBAR',
-      toggleMode:            'TOGGLE_MODE',
-      toggleTheme:           'TOGGLE_THEME',
-      'wrap-h1':             'WRAP_H1',
-      'wrap-h2':             'WRAP_H2',
-      'wrap-h3':             'WRAP_H3',
-      'wrap-quote':          'WRAP_QUOTE',
-      'wrap-code':           'WRAP_CODE',
+      toggleToolbar: 'TOGGLE_TOOLBAR',
+      toggleSidebar: 'TOGGLE_SIDEBAR',
+      toggleMode: 'TOGGLE_MODE',
+      toggleTheme: 'TOGGLE_THEME',
+      'wrap-h1': 'WRAP_H1',
+      'wrap-h2': 'WRAP_H2',
+      'wrap-h3': 'WRAP_H3',
+      'wrap-quote': 'WRAP_QUOTE',
+      'wrap-code': 'WRAP_CODE',
+      'css-style': 'TOGGLE_CSS_STYLE',
     };
     if (EXPLICIT_MAP[id]) return EXPLICIT_MAP[id];
     // 명시적 매핑이 없으면 camelCase → UPPER_SNAKE_CASE 자동 변환으로 폴백
@@ -2279,7 +2421,7 @@ export default function Home() {
       if (parts.includes('SHIFT')) binding |= monaco.KeyMod.Shift;
       if (parts.includes('ALT')) binding |= monaco.KeyMod.Alt;
       if (parts.includes('WIN') || parts.includes('META')) binding |= monaco.KeyMod.WinCtrl;
-      
+
       const keyPart = parts[parts.length - 1];
       if (keyPart.length === 1 && keyPart >= 'A' && keyPart <= 'Z') {
         binding |= monaco.KeyCode[`Key${keyPart}`];
@@ -2344,7 +2486,7 @@ export default function Home() {
       const isAlt = e.altKey;
 
       let key = e.key.toUpperCase();
-      
+
       // 1. Shift 눌림에 의한 숫자 키의 기호 변조 보정 (& -> 7, * -> 8)
       if (e.code.startsWith('Digit')) {
         key = e.code.substring(5); // 'Digit7' -> '7'
@@ -2381,7 +2523,7 @@ export default function Home() {
           // 단축키 매치 성공: 브라우저 기본 및 이벤트 전파 강제 억제
           e.preventDefault();
           e.stopPropagation();
-          
+
           const cmdType = mapIdToCommandType(item.id);
           dispatchCommand(cmdType);
           break;
@@ -2427,22 +2569,22 @@ export default function Home() {
 
   return (
     <div className={`flex h-screen flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
-      
+
       <MenuBar
-            isDarkMode={isDarkMode}
-            setIsDarkMode={setIsDarkMode}
-            isSidebarOpen={isSidebarOpen}
-            setIsSidebarOpen={setIsSidebarOpen}
-            isToolbarOpen={isToolbarOpen}
-            setIsToolbarOpen={setIsToolbarOpen}
-            previewMode={previewMode}
-            setPreviewMode={setPreviewMode}
-            dispatch={dispatchCommand}
-            setContent={setContent}
-            isSearchOpen={isSearchOpen}
-            isAddonEnv={isAddonEnv}
-          />
-      
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        isToolbarOpen={isToolbarOpen}
+        setIsToolbarOpen={setIsToolbarOpen}
+        previewMode={previewMode}
+        setPreviewMode={setPreviewMode}
+        dispatch={dispatchCommand}
+        setContent={setContent}
+        isSearchOpen={isSearchOpen}
+        isAddonEnv={isAddonEnv}
+      />
+
       <div className="flex flex-1 overflow-hidden relative">
         <LeftSidebar
           isSidebarOpen={isSidebarOpen}
@@ -2471,14 +2613,14 @@ export default function Home() {
           openFile={handleFileClick}
           currentFileNode={currentFileNode}
           refreshFileList={refreshFileList}
-         
+
           askConfirm={(config) => setConfirmConfig({ isOpen: true, ...config })}
           isMergeMode={isMergeMode}
           selectedMergeNodes={selectedMergeNodes}
           toggleMergeNodeSelect={toggleMergeNodeSelect}
           onSelectRootFolder={() => selectRootFolder('local', null)}
         />
-        
+
         <main className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-zinc-950">
           {isToolbarOpen && (
             <Toolbar
@@ -2493,11 +2635,49 @@ export default function Home() {
               wordWrap={wordWrap}
               setWordWrap={setWordWrap}
               dispatch={dispatchCommand}
-             
+
             />
           )}
           <div className="flex flex-1 overflow-hidden">
-            {previewMode !== 'preview' && (
+            {previewMode === 'css-style' ? (
+              <CssStyleForm
+                profiles={profiles}
+                activeProfileId={activeProfileId}
+                onSelectProfile={setActiveProfileId}
+                onUpdateProfile={(updated) => setProfiles(prev =>
+                  prev.map(p => p.id === updated.id ? updated : p)
+                )}
+                /*
+                 * onAddProfile — 새 CssProfile 생성:
+                 * DEFAULT_PROFILE의 구조를 복제하되 id/id/name/rules를 재할당
+                 * (rules는 JSON parse/stringify로 깊은 복사하여 참조 분리)
+                 * 생성 직후 새 프로필로 자동 전환
+                 */
+                onAddProfile={() => {
+                  const newId = 'profile-' + Date.now();
+                  const count = profiles.filter(p => p.id !== 'default').length + 1;
+                  setProfiles(prev => [...prev, {
+                    ...DEFAULT_PROFILE,
+                    id: newId,
+                    name: `나만의 서식 ${count}`,
+                    rules: JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
+                  }]);
+                  setActiveProfileId(newId);
+                }}
+                /*
+                 * onDeleteProfile — 프로필 삭제:
+                 * profiles 배열에서 해당 id 제거
+                 * 현재 보고 있던 프로필이 삭제되면 DEFAULT_PROFILE로 전환
+                 */
+                onDeleteProfile={(id) => {
+                  setProfiles(prev => prev.filter(p => p.id !== id));
+                  if (activeProfileId === id) {
+                    setActiveProfileId(DEFAULT_PROFILE.id);
+                  }
+                }}
+                onClose={() => setPreviewMode('both')}
+              />
+            ) : previewMode !== 'preview' && (
               <div className="flex-1 min-w-0 h-full relative border-r border-black/5 dark:border-white/5">
                 <Editor
                   height="100%"
@@ -2536,7 +2716,7 @@ export default function Home() {
                         editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
                       }
                     });
-                    
+
                     // Shift + Enter 를 누르면 실제 엔터(\n) 대신 <br> 태그를 삽입 (표 내부 줄바꿈 용도)
                     editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
                       const position = editor.getPosition();
@@ -2549,9 +2729,24 @@ export default function Home() {
                     });
 
                     // 🛡️ [한글 주석 탑재] Tab 키 입력 시 리스트 들여쓰기(Indent) 지능형 처리
-                    // 현재 선택한 행 영역에 마크다운 목록 기호가 감지되면, Monaco 에디터 기본 탭 문자 대신
-                    // 2칸의 인덴트 공백을 기호 앞에 삽입하여 하위 목록으로 한 단계 내려가게 조절합니다.
-                    editor.addCommand(monaco.KeyCode.Tab, () => {
+                    // 자동완성(Suggest Widget)이 열려 있으면 Tab → 자동완성 수락에 양보
+                    // 그 외에는 마크다운 목록 기호가 감지되면 2칸 들여쓰기를 삽입합니다.
+                    editor.addAction({
+                      id: 'custom-tab-list-indent',
+                      label: '리스트 들여쓰기 (Tab)',
+                      keybindings: [monaco.KeyCode.Tab],
+                      // suggestWidgetVisible = true 일 때는 이 액션 실행 안됨 → Monaco 기본 Tab 동작(자동완성 수락)에 양보
+                      precondition: '!suggestWidgetVisible && !editorReadonly',
+                      run: () => {
+                      // ① 자동완성 위젯이 열려 있으면 Tab = 자동완성 항목 수락
+                      try {
+                        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
+                        if (suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.()) {
+                          editor.trigger('keyboard', 'acceptSelectedSuggestion', {});
+                          return;
+                        }
+                      } catch (_) { /* 위젯 접근 실패 시 무시 */ }
+
                       const selection = editor.getSelection();
                       const model = editor.getModel();
                       if (!model || !selection) return;
@@ -2571,12 +2766,12 @@ export default function Home() {
 
                       // 목록 기호가 1개라도 있다면 들여쓰기 연산(indentList) 집행
                       if (hasList) {
-                        editor.pushUndoStop(); // 실행 취소(Undo) 시 단일 트랜잭션으로 묶이게 함
+                        editor.pushUndoStop();
                         const edits: any[] = [];
                         for (let i = startLine; i <= endLine; i++) {
                           edits.push({
                             range: new monaco.Range(i, 1, i, 1),
-                            text: "  " // 영롱한 공백 2칸 들여쓰기 주입
+                            text: "  "
                           });
                         }
                         editor.executeEdits("indentList", edits);
@@ -2585,7 +2780,8 @@ export default function Home() {
                       }
 
                       // 목록이 아니라면 브라우저 기본의 탭 이동을 트리거
-                      editor.trigger('keyboard', 'tab', null);
+                                              editor.trigger('keyboard', 'tab', null);
+                      }
                     });
 
                     // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 리스트 내어쓰기(Outdent) 지능형 처리
@@ -2648,9 +2844,24 @@ export default function Home() {
                     });
 
                     // 🛡️ [한글 주석 탑재] 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
-                    // 사용자가 리스트 상태에서 엔터를 탁 치면, 이전 행의 인덴트 깊이와 불릿 기호를 분석하고 번호를 +1 가산하여
-                    // 다음 줄에 자동으로 양식을 자동완성 주입합니다. 아무 내용도 적지 않고 빈 줄에서 연속으로 엔터를 누르면 리스트를 폭파 탈출합니다.
-                    editor.addCommand(monaco.KeyCode.Enter, () => {
+                    // 자동완성(Suggest Widget)이 열려 있으면 Enter → 자동완성 수락에 양보
+                    // 그 외에는 리스트 상태에서 엔터를 치면 다음 줄에 불릿 기호를 자동 주입합니다.
+                    editor.addAction({
+                      id: 'custom-enter-list-auto',
+                      label: '리스트 자동완성 (Enter)',
+                      keybindings: [monaco.KeyCode.Enter],
+                      // suggestWidgetVisible = true 이면 이 액션 발동 안됨 → Monaco 기본 Enter(자동완성 수락)에 양보
+                      precondition: '!suggestWidgetVisible && !editorReadonly',
+                      run: () => {
+                      // ① 자동완성 위젯이 열려 있으면 Enter = 자동완성 항목 수락
+                      try {
+                        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
+                        if (suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.()) {
+                          editor.trigger('keyboard', 'acceptSelectedSuggestion', {});
+                          return;
+                        }
+                      } catch (_) { /* 위젯 접근 실패 시 무시 */ }
+
                       const position = editor.getPosition();
                       if (!position) return;
                       const model = editor.getModel();
@@ -2676,7 +2887,7 @@ export default function Home() {
                         const marker = match[2];
                         const checked = match[3];
                         const text = match[4] || '';
-                        
+
                         // 사용자가 아무것도 적지 않고 연속 엔터를 칠 경우 불릿 기호 말끔히 삭제 (리스트 탈출)
                         if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
@@ -2704,7 +2915,7 @@ export default function Home() {
                         const indent = match[1];
                         const numStr = match[2];
                         const text = match[3] || '';
-                        
+
                         // 연속 엔터 시 번호 기호 자동 철거
                         if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
@@ -2733,7 +2944,7 @@ export default function Home() {
                         const indent = match[1];
                         const marker = match[2];
                         const text = match[3] || '';
-                        
+
                         // 연속 엔터 시 리스트 불릿 소거
                         if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
@@ -2761,7 +2972,7 @@ export default function Home() {
                         const indent = match[1];
                         const quote = match[2];
                         const text = match[3] || '';
-                        
+
                         // 연속 엔터 시 인용구 기호 소거
                         if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
@@ -2792,6 +3003,8 @@ export default function Home() {
                         text: `\n${indent}`,
                         forceMoveMarkers: true
                       }]);
+                    
+                      }
                     });
 
                     // Ctrl+Space: 커서 위치에서 플로팅 툴바 토글
@@ -2805,7 +3018,7 @@ export default function Home() {
                         return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
                       });
                     });
-                    
+
                     decorationsCollectionRef.current = editor.createDecorationsCollection();
                     updateDecorations(editor);
                     setIsEditorReady(true);
@@ -2822,10 +3035,10 @@ export default function Home() {
                         const position = editor.getPosition();
                         if (!position) return;
                         const clickedLine = position.lineNumber;
-                        
+
                         if (previewRef.current && isScrollingRef.current !== 'editor') {
                           const totalLines = editor.getModel()?.getLineCount() || 1;
-                          
+
                           // 맨 위(첫 줄) 클릭 시 최상단 스크롤
                           if (clickedLine === 1) {
                             previewRef.current.scrollTo({
@@ -2834,7 +3047,7 @@ export default function Home() {
                             });
                             return;
                           }
-                          
+
                           // 맨 아래(끝 줄) 클릭 시 최하단 스크롤
                           if (clickedLine === totalLines) {
                             previewRef.current.scrollTo({
@@ -2856,42 +3069,43 @@ export default function Home() {
                             let targetEl: HTMLElement | null = null;
                             let maxLine = -1;
                             for (const el of elements) {
-                              const lineStr = el.getAttribute('data-line');
-                              if (lineStr) {
-                                const line = parseInt(lineStr, 10);
-                                if (line <= clickedLine && line > maxLine) {
-                                  maxLine = line;
-                                  targetEl = el;
-                                }
-                              }
-                            }
-                            if (targetEl) {
-                              targetEl.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center'
-                              });
-                            }
-                          }
-                        }
-                      }, 10);
-                    });
-                    editor.onDidChangeCursorSelection((e) => {
-                      lastSelectionRef.current = e.selection;
-                      if (!e.selection.isEmpty() && editor.hasTextFocus()) {
-                        const position = editor.getScrolledVisiblePosition(e.selection.getStartPosition());
-                        if (position) {
-                          setFloatingToolbar({ visible: true, top: Math.max(0, position.top - 10), left: position.left });
-                        }
-                      } else {
-                        setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
-                      }
-                    });
+                               const lineStr = el.getAttribute('data-line');
+                               if (lineStr) {
+                                 const line = parseInt(lineStr, 10);
+                                 if (line <= clickedLine && line > maxLine) {
+                                   maxLine = line;
+                                   targetEl = el;
+                                 }
+                               }
+                             }
+                             if (targetEl) {
+                               targetEl.scrollIntoView({
+                                 behavior: 'smooth',
+                                 block: 'center'
+                               });
+                             }
+                           }
+                         }
+                       }, 10);
+                     });
+                     editor.onDidChangeCursorSelection((e) => {
+                       lastSelectionRef.current = e.selection;
+                       if (!e.selection.isEmpty() && editor.hasTextFocus()) {
+                         const position = editor.getScrolledVisiblePosition(e.selection.getStartPosition());
+                         if (position) {
+                           setFloatingToolbar({ visible: true, top: Math.max(0, position.top - 10), left: position.left });
+                         }
+                       } else {
+                         setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+                       }
+                     });
 
                     if (completionProviderRef.current) {
                       completionProviderRef.current.dispose();
                     }
                     completionProviderRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
-                      triggerCharacters: ['/'],
+                      // 슬래시(/)와 일반 문자 모두에서 자동완성 트리거
+                      triggerCharacters: ['/'],  // '/' 입력 시에만 슬래시 커맨드 팝업
                       provideCompletionItems: (model: any, position: any) => {
                         const textUntilPosition = model.getValueInRange({
                           startLineNumber: position.lineNumber,
@@ -2899,21 +3113,47 @@ export default function Home() {
                           endLineNumber: position.lineNumber,
                           endColumn: position.column
                         });
-                        
-                        const match = textUntilPosition.match(/(^|\s)\/$/);
-                        if (!match) {
+
+                        // 현재 줄에서 마지막 '/' 부터 커서까지를 슬래시 단어로 추출
+                        // 예) 'hello /bold' → slashWord = '/bold'
+                        const slashMatch = textUntilPosition.match(/(^|\s)(\/\S*)$/);
+                        if (!slashMatch) {
                           return { suggestions: [] };
                         }
 
+                        const slashWord = slashMatch[2]; // '/bold', '/', '/im' 등
+                        // '/' 하나만 있거나, '/단어' 형태일 때만 제안
+                        if (!slashWord.startsWith('/')) {
+                          return { suggestions: [] };
+                        }
+
+                        // 슬래시 단어 시작 컬럼 (교체 범위 시작)
+                        const startColumn = position.column - slashWord.length;
+
                         const suggestions = getSlashCommands(monaco, customSlashCommands);
 
+                        // 입력한 단어로 필터링 (/ 이후 글자 기준)
+                        const filterWord = slashWord.slice(1).toLowerCase(); // 'bold', 'im' 등
+
+                        const filtered = filterWord.length === 0
+                          ? suggestions  // '/' 만 입력 → 전체 표시
+                          : suggestions.filter(s => {
+                              const labelStr = typeof s.label === 'string' ? s.label : '';
+                              const filterStr = typeof s.filterText === 'string' ? s.filterText : '';
+                              return (
+                                labelStr.toLowerCase().includes(filterWord) ||
+                                filterStr.toLowerCase().includes(filterWord)
+                              );
+                            });
+
                         return {
-                          suggestions: suggestions.map(s => ({
+                          suggestions: filtered.map(s => ({
                             ...s,
+                            // '/bold' 전체를 교체하여 '/bold' → '**텍스트**' 로 올바르게 변환
                             range: {
                               startLineNumber: position.lineNumber,
                               endLineNumber: position.lineNumber,
-                              startColumn: position.column - 1,
+                              startColumn: startColumn,
                               endColumn: position.column
                             }
                           }))
@@ -2923,7 +3163,7 @@ export default function Home() {
 
                     editor.onDidScrollChange(() => {
                       if (isScrollingRef.current === 'preview' || previewModeRef.current !== 'both' || !previewRef.current) return;
-                      
+
                       isScrollingRef.current = 'editor';
                       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                       scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
@@ -2953,7 +3193,7 @@ export default function Home() {
                       const visibleRanges = editor.getVisibleRanges();
                       if (visibleRanges.length > 0) {
                         const topVisibleLine = visibleRanges[0].startLineNumber;
-                        
+
                         const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
                         let targetEl: HTMLElement | null = null;
                         let nextEl: HTMLElement | null = null;
@@ -2971,7 +3211,7 @@ export default function Home() {
                             }
                           }
                         }
-                        
+
                         if (targetEl) {
                           const getRelativeOffsetTop = (el: HTMLElement, container: HTMLElement): number => {
                             let offsetTop = 0;
@@ -3000,7 +3240,7 @@ export default function Home() {
                       }
                     });
                   }}
-                  options={{
+                    options={{
                     padding: { top: 24, bottom: 96 },
                     scrollBeyondLastLine: true,
                     fontSize,
@@ -3008,8 +3248,12 @@ export default function Home() {
                     lineNumbers: 'on',
                     minimap: { enabled: false },
                     scrollbar: { vertical: 'visible', horizontal: 'visible' },
-                    quickSuggestions: { other: true, comments: true, strings: true },
+                    // 슬래시(/) 입력 시에만 자동완성 트리거 (일반 타이핑 시 팝업 방지)
+                    quickSuggestions: { other: false, comments: false, strings: false },
                     suggestOnTriggerCharacters: true,
+                    // Enter/Tab 수락은 커스텀 핸들러에서 처리 (리스트 자동완성과 충돌 방지)
+                    acceptSuggestionOnEnter: 'off',
+                    tabCompletion: 'off',
                     renderLineHighlight: 'all',
                     tabSize: 4,
                     detectIndentation: true,
@@ -3019,7 +3263,7 @@ export default function Home() {
                   }}
                 />
                 {floatingToolbar.visible && (
-                  <div 
+                  <div
                     className="absolute z-50 flex items-center bg-white dark:bg-zinc-800 shadow-lg rounded-md border border-gray-200 dark:border-zinc-700 px-1 py-1 gap-0.5 animate-in fade-in zoom-in-95 duration-100 flex-wrap max-w-[500px] -translate-y-full"
                     style={{ top: floatingToolbar.top, left: floatingToolbar.left }}
                     onMouseDown={(e) => e.preventDefault()}
@@ -3029,10 +3273,10 @@ export default function Home() {
                       return (
                         <React.Fragment key={item.id}>
                           {isNewGroup && <div className="w-px h-4 bg-gray-300 dark:bg-zinc-600 mx-1" />}
-                          <button 
+                          <button
                             className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-zinc-700 text-[13px] font-medium"
-                            title={`${item.name} (${customHotkeys[item.id] || ''})`} 
-                            onMouseDown={(e) => { 
+                            title={`${item.name} (${customHotkeys[item.id] || ''})`}
+                            onMouseDown={(e) => {
                               e.preventDefault(); // 🎯 드래그 셀렉션이 풀리는 현상 차단
                               // 🚀 handlers 직접 호출 대신 dispatchCommand 단일 파이프라인으로 일원화
                               const cmdType = mapIdToCommandType(item.id);
@@ -3050,22 +3294,21 @@ export default function Home() {
             )}
 
             {previewMode !== 'edit' && (
-              <div 
+              <div
                 ref={previewRef}
-                className={`flex-1 h-[calc(100vh-64px)] px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none ${
-                  previewMode === 'both' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
-                }`}
+                className={`flex-1 h-[calc(100vh-64px)] px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
+                  }`}
                 style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
                 onScroll={(e) => {
                   if (isScrollingRef.current === 'editor' || previewModeRef.current !== 'both' || !editorRef.current) return;
-                  
+
                   isScrollingRef.current = 'preview';
                   if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                   scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
 
                   const target = e.target as HTMLElement;
                   const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
-                  
+
                   let targetLine = -1;
                   for (const el of elements) {
                     const rect = el.getBoundingClientRect();
@@ -3078,23 +3321,33 @@ export default function Home() {
                       }
                     }
                   }
-                  
+
                   if (targetLine !== -1) {
                     editorRef.current.revealLineAtTop(targetLine);
                   }
                 }}
               >
-                <MarkdownViewer 
-                  content={processedContent} 
-                  originalContent={content} 
-                  lineMap={lineMap} 
-                  onCheckboxToggle={handleCheckboxToggle} 
+                <MarkdownViewer
+                  content={processedContent}
+                  originalContent={content}
+                  lineMap={lineMap}
+                  onCheckboxToggle={handleCheckboxToggle}
                 />
+                {/*
+                 * 동적 CSS 스타일 인젝션:
+                 * custom-preview-container 내부의 태그들에 CssRuleSet을 적용합니다.
+                 * activeProfileId === 'default'면 dynamicCssString이 빈 문자열이므로
+                 * 이 <style> 태그는 자동으로 생략됩니다.
+                 * 모든 값에 !important가 붙어 prose 클래스 스타일을 오버라이드합니다.
+                 */}
+                {dynamicCssString && (
+                  <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
+                )}
               </div>
             )}
           </div>
-          
-          <StatusBar 
+
+          <StatusBar
             content={content}
             fileName={currentFileName}
             folderName={rootFolder?.name}
@@ -3119,8 +3372,8 @@ export default function Home() {
         </main>
       </div>
 
-      <SettingsModal 
-        isOpen={isSettingsModalOpen} 
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
         fontSize={fontSize} setFontSize={setFontSize}
@@ -3132,7 +3385,7 @@ export default function Home() {
         cloudProvider={null}
         previewMode={previewMode} setPreviewMode={setPreviewMode}
         quoteStyle={quoteStyle} setQuoteStyle={setQuoteStyle}
-       
+
         customHotkeys={customHotkeys} setCustomHotkeys={setCustomHotkeys}
         customSlashCommands={customSlashCommands} setCustomSlashCommands={setCustomSlashCommands}
       />
@@ -3147,7 +3400,7 @@ export default function Home() {
           else if (format === 'epub') handlers.exportEPUB();
         }}
         isDarkMode={isDarkMode}
-       
+
       />
       {promptConfig.isOpen && (
         <PromptModal
@@ -3280,7 +3533,7 @@ export default function Home() {
         workspaceType={workspaceType}
         refreshParent={refreshFileList}
         openFile={handleFileClick}
-       
+
       />
       <AboutModal
         isOpen={isAboutModalOpen}

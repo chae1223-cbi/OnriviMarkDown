@@ -4,7 +4,7 @@ const path = require('path');
 const brainsDir = 'C:\\Users\\채병익\\.gemini\\antigravity\\brain';
 const convDirs = fs.readdirSync(brainsDir).filter(d => fs.statSync(path.join(brainsDir, d)).isDirectory());
 
-const outDir = 'd:/developer/OnriviMarkDown/frontend/recovered';
+const outDir = __dirname + '/recovered';
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, {recursive: true});
 
 for (const convDir of convDirs) {

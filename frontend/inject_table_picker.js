@@ -1,6 +1,7 @@
 const fs = require('fs');
 
-let content = fs.readFileSync('d:/developer/OnriviMarkDown/frontend/src/components/Toolbar.tsx', 'utf8');
+const target = __dirname + '/src/components/Toolbar.tsx';
+let content = fs.readFileSync(target, 'utf8');
 
 if (!content.includes('import TablePicker')) {
   content = content.replace("import { useToast } from '@/components/ToastProvider';", "import { useToast } from '@/components/ToastProvider';\nimport TablePicker from './TablePicker';");
@@ -41,4 +42,4 @@ if (content.match(tableBtnMatch)) {
   content = content.replace(tableBtnMatch, replacement);
 }
 
-fs.writeFileSync('d:/developer/OnriviMarkDown/frontend/src/components/Toolbar.tsx', content, 'utf8');
+fs.writeFileSync(target, content, 'utf8');

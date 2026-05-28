@@ -47,7 +47,10 @@ export const TOOLBAR_ITEMS = [
   { id: 'wrap-h2', icon: 'H2#', name: '퀵 H2', group: '퀵래핑', tagFormat: '## 선택', defaultHotkey: 'Ctrl+Shift+2', defaultCommand: 'wrap-h2', insertText: '', kind: 17 },
   { id: 'wrap-h3', icon: 'H3#', name: '퀵 H3', group: '퀵래핑', tagFormat: '### 선택', defaultHotkey: 'Ctrl+Shift+3', defaultCommand: 'wrap-h3', insertText: '', kind: 17 },
   { id: 'wrap-quote', icon: '>"', name: '퀵 인용', group: '퀵래핑', tagFormat: '> 선택', defaultHotkey: 'Ctrl+Shift+Q', defaultCommand: 'wrap-quote', insertText: '', kind: 17 },
-  { id: 'wrap-code', icon: '{}', name: '퀵 코드', group: '퀵래핑', tagFormat: '```선택```', defaultHotkey: 'Ctrl+Shift+9', defaultCommand: 'wrap-code', insertText: '', kind: 17 }
+  { id: 'wrap-code', icon: '{}', name: '퀵 코드', group: '퀵래핑', tagFormat: '```선택```', defaultHotkey: 'Ctrl+Shift+9', defaultCommand: 'wrap-code', insertText: '', kind: 17 },
+
+  // ★ 서식 정의 (Style Profile)
+  { id: 'css-style', icon: '🏛️', name: '서식 정의', group: '푸터', tagFormat: '관보 서식', defaultHotkey: 'Ctrl+Shift+S', defaultCommand: 'css-style', insertText: '', kind: 17 }
 ];
 
 export const getDefaultHotkeys = () => {
@@ -67,79 +70,104 @@ export const getDefaultCommands = () => {
 };
 
 export const getSlashCommands = (monaco: any, customCommands: Record<string, string> = {}) => {
-  return TOOLBAR_ITEMS.map(item => {
-    const cmdStr = customCommands[item.id] || item.defaultCommand;
-    if (!cmdStr) return null;
+  // 슬래시 자동완성에서 제외할 항목 (UI 토글/래핑 류는 에디터에서 쓸 일 없음)
+  const EXCLUDED_FROM_SLASH = new Set([
+    'toggleFloatingToolbar', 'toggleToolbar', 'toggleSidebar',
+    'toggleMode', 'toggleTheme',
+    'wrap-h1', 'wrap-h2', 'wrap-h3', 'wrap-quote', 'wrap-code',
+    'css-style'
+  ]);
 
-    let insertText = item.insertText;
-    let insertTextRules = undefined;
+  return TOOLBAR_ITEMS
+    .filter(item => !EXCLUDED_FROM_SLASH.has(item.id))
+    .map(item => {
+      const cmdStr = customCommands[item.id] || item.defaultCommand;
+      if (!cmdStr) return null;
 
-    // Convert plain text insertions to Monaco Snippets for proper cursor placement
-    if (item.kind === 15 || item.kind === 17) {
-      if (insertText.includes('텍스트')) {
-        insertText = insertText.replace('텍스트', '${1:텍스트}');
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText.includes('URL')) {
-        insertText = insertText.replace('URL', '${1:URL}');
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText.includes('이미지_URL')) {
-        insertText = insertText.replace('이미지_URL', '${1:이미지_URL}');
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '```javascript\n\n```') {
-        insertText = '```javascript\n${1:코드}\n```';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '```mermaid\n\n```') {
-        insertText = '```mermaid\n${1:그래프}\n```';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '$$수식$$') {
-        insertText = '$$${1:수식}$$';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '# ') {
-        insertText = '# ${1:제목}';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '## ') {
-        insertText = '## ${1:제목}';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '### ') {
-        insertText = '### ${1:제목}';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '#### ') {
-        insertText = '#### ${1:제목}';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '##### ') {
-        insertText = '##### ${1:제목}';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-      } else if (insertText === '###### ') {
-        insertText = '###### ${1:제목}';
-        insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+      let insertText = item.insertText;
+      let insertTextRules = undefined;
+
+      // 스니펫 변환: 커서 위치 자동 설정
+      if (item.kind === 15 || item.kind === 17) {
+        if (insertText.includes('텍스트')) {
+          insertText = insertText.replace('텍스트', '${1:텍스트}');
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText.includes('이미지_URL')) {
+          insertText = insertText.replace('이미지_URL', '${1:이미지_URL}');
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText.includes('URL')) {
+          insertText = insertText.replace('URL', '${1:URL}');
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '```javascript\n\n```') {
+          insertText = '```javascript\n${1:코드}\n```';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '```mermaid\n\n```') {
+          insertText = '```mermaid\n${1:내용}\n```';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '$$수식$$') {
+          insertText = '$$${1:수식}$$';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '# ') {
+          insertText = '# ${1:제목}';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '## ') {
+          insertText = '## ${1:제목}';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '### ') {
+          insertText = '### ${1:제목}';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '#### ') {
+          insertText = '#### ${1:제목}';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '##### ') {
+          insertText = '##### ${1:제목}';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText === '###### ') {
+          insertText = '###### ${1:제목}';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        }
       }
-    }
 
-    let command: any = undefined;
+      let command: any = undefined;
 
-    const modalKeys = ['image', 'video', 'map', 'table', 'math'];
-    const otherActionKeys = ['toggleFloatingToolbar', 'toggleToolbar', 'toggleSidebar', 'toggleMode', 'toggleTheme', 'cleanDoc'];
+      // 모달이 필요한 항목: 삽입 후 모달도 열기
+      const modalKeys = ['image', 'video', 'map', 'table', 'math'];
+      // 텍스트 없이 액션만 실행하는 항목
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar'];
 
-    if (modalKeys.includes(item.id) || otherActionKeys.includes(item.id)) {
-      // For actions and modals, don't insert text. Just run the action.
-      insertText = '';
-      insertTextRules = undefined;
-      command = {
-        id: 'trigger-custom-action',
-        title: item.name,
-        arguments: [item.id]
+      if (modalKeys.includes(item.id)) {
+        command = {
+          id: 'trigger-custom-action',
+          title: item.name,
+          arguments: [item.id]
+        };
+      }
+      if (actionOnlyKeys.includes(item.id)) {
+        insertText = '';
+        insertTextRules = undefined;
+        command = {
+          id: 'trigger-custom-action',
+          title: item.name,
+          arguments: [item.id]
+        };
+      }
+
+      // 레이블: 이모지 아이콘 + 명령어 + 한국어 이름
+      const iconStr = item.icon && item.icon.length <= 4 ? `${item.icon} ` : '';
+      const label = `${iconStr}/${cmdStr}   ${item.name}`;
+      // filterText: 영어 커맨드 + 한국어 이름 조합 → 어느 쪽으로 타이핑해도 검색됨
+      const filterText = `/${cmdStr} ${item.name} ${item.group}`;
+
+      return {
+        id: item.id,
+        label,
+        kind: item.kind === 17 ? monaco.languages.CompletionItemKind.Keyword : monaco.languages.CompletionItemKind.Snippet,
+        insertText: insertText,
+        insertTextRules: insertTextRules,
+        detail: `${item.group}  ·  ${item.tagFormat}`,
+        filterText,
+        sortText: cmdStr,  // 알파벳 순 정렬
+        command: command
       };
-    }
-
-    return {
-      id: item.id,
-      label: `/${cmdStr} - ${item.name}`,
-      kind: item.kind === 17 ? monaco.languages.CompletionItemKind.Keyword : monaco.languages.CompletionItemKind.Snippet,
-      insertText: insertText,
-      insertTextRules: insertTextRules,
-      detail: item.tagFormat,
-      filterText: `/${cmdStr} ${item.name}`,
-      command: command
-    };
-  }).filter((item) => item !== null) as any[];
+    }).filter((item) => item !== null) as any[];
 };

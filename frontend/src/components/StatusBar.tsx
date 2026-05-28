@@ -18,7 +18,7 @@ interface StatusBarProps {
   setIsToolbarOpen?: (v: boolean) => void;
   isSidebarOpen?: boolean;
   setIsSidebarOpen?: (v: boolean) => void;
-  previewMode?: 'edit' | 'both' | 'preview';
+  previewMode?: 'edit' | 'both' | 'preview' | 'css-style';
   setPreviewMode?: (v: 'edit' | 'both' | 'preview') => void;
   isDarkMode?: boolean;
   setIsDarkMode?: (v: boolean) => void;

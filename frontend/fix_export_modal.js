@@ -1,6 +1,7 @@
 const fs = require('fs');
 
-let content = fs.readFileSync('d:/developer/OnriviMarkDown/frontend/src/components/ExportModal.tsx', 'utf8');
+const target = __dirname + '/src/components/ExportModal.tsx';
+let content = fs.readFileSync(target, 'utf8');
 
 // The replace tool accidentally deleted a bunch of code. Let's restore it and properly fix the 'language' bug.
 // It seems the diff shows it removed from line 71 to 86. Let's recreate `ExportModal` export correctly.

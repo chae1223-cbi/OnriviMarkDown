@@ -10,7 +10,7 @@ interface MenuBarProps {
   setIsSidebarOpen: (v: boolean) => void;
   isToolbarOpen: boolean;
   setIsToolbarOpen: (v: boolean) => void;
-  previewMode: 'edit' | 'both' | 'preview';
+  previewMode: 'edit' | 'both' | 'preview' | 'css-style';
   setPreviewMode: (v: 'edit' | 'both' | 'preview') => void;
   dispatch: (type: any, payload?: any) => void;
   setContent: (v: string) => void;
@@ -198,6 +198,7 @@ export default function MenuBar({
             ]
           },
           { label: isDarkMode ? t('toLightMode') : t('toDarkMode'), icon: isDarkMode ? <span>☀️</span> : <span>🌙</span>, onClick: () => setIsDarkMode(!isDarkMode) },
+          { label: "🏛️ 서식 정의", shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('TOGGLE_CSS_STYLE') },
           { divider: true },
           { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <span>📋</span>, onClick: () => dispatch('COPY_ALL') },

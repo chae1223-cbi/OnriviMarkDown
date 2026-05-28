@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const dir = 'd:/developer/OnriviMarkDown/frontend/src/components';
+const dir = __dirname + '/src/components';
 const files = ['ImageModal.tsx', 'YoutubeModal.tsx', 'FormulaModal.tsx', 'MapModal.tsx', 'TableModal.tsx', 'ConfirmModal.tsx', 'ExportModal.tsx', 'MergeModal.tsx'];
 
 for (const file of files) {

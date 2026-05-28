@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const srcDir = 'd:/developer/OnriviMarkDown/frontend/src';
+const srcDir = __dirname + '/src';
 
 function walkDir(dir) {
   const files = [];

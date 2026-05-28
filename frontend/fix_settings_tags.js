@@ -1,6 +1,6 @@
 const fs = require('fs');
-const path = 'd:/developer/OnriviMarkDown/frontend/src/components/SettingsModal.tsx';
-let content = fs.readFileSync(path, 'utf8');
+const filePath = __dirname + '/src/components/SettingsModal.tsx';
+let content = fs.readFileSync(filePath, 'utf8');
 
 const correctSidebar = `        {/* 좌측 사이드바 */}
         <div className="w-48 border-r flex flex-col" style={{ backgroundColor: colors.container, borderColor: colors.border }}>
@@ -17,5 +17,5 @@ const correctSidebar = `        {/* 좌측 사이드바 */}
 content = content.replace(/\{\/\* 좌측 사이드바 \*\/\}\s+icon=\{<Type size=\{16\}\/>\}/, correctSidebar);
 content = content.replace(/\{\/\* \?정 본문 \*\/\}/g, '{/* 설정 본문 */}');
 
-fs.writeFileSync(path, content, 'utf8');
+fs.writeFileSync(filePath, content, 'utf8');
 console.log('Fixed SettingsModal formatting');

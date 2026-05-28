@@ -1,11 +1,13 @@
 const fs = require('fs');
 
-let content = fs.readFileSync('d:/developer/OnriviMarkDown/frontend/src/app/page.tsx', 'utf8');
+const pageTarget = __dirname + '/src/app/page.tsx';
+const handlersTarget = __dirname + '/src/lib/exportHandlers.ts';
+let content = fs.readFileSync(pageTarget, 'utf8');
 content = content.replace(/,\s*language/g, '');
 content = content.replace(/language\s*:\s*'ko',/g, '');
-fs.writeFileSync('d:/developer/OnriviMarkDown/frontend/src/app/page.tsx', content, 'utf8');
+fs.writeFileSync(pageTarget, content, 'utf8');
 
-let exportHandlers = fs.readFileSync('d:/developer/OnriviMarkDown/frontend/src/lib/exportHandlers.ts', 'utf8');
+let exportHandlers = fs.readFileSync(handlersTarget, 'utf8');
 exportHandlers = exportHandlers.replace(/,\s*language/g, '');
 exportHandlers = exportHandlers.replace(/language\s*:\s*Language/g, '');
 exportHandlers = exportHandlers.replace(/import\s*\{\s*getTranslation[^}]*\}\s*from\s*['"]@\/lib\/i18n['"];?\n?/g, '');
@@ -19,4 +21,4 @@ exportHandlers = exportHandlers.replace(/t\(['"]toastEpubExportSuccess['"]\)/g, 
 exportHandlers = exportHandlers.replace(/t\(['"]pngExportMsg['"]\)/g, "'이미지 내보내기 준비 중...'");
 exportHandlers = exportHandlers.replace(/t\(['"]toastPngExportSuccess['"]\)/g, "'이미지 내보내기가 완료되었습니다.'");
 exportHandlers = exportHandlers.replace(/t\(['"]error['"]\)/g, "'오류'");
-fs.writeFileSync('d:/developer/OnriviMarkDown/frontend/src/lib/exportHandlers.ts', exportHandlers, 'utf8');
+fs.writeFileSync(handlersTarget, exportHandlers, 'utf8');

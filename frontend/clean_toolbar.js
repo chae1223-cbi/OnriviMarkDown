@@ -1,6 +1,7 @@
 const fs = require('fs');
 
-let content = fs.readFileSync('d:/developer/OnriviMarkDown/frontend/src/components/Toolbar.tsx', 'utf8');
+const target = __dirname + '/src/components/Toolbar.tsx';
+let content = fs.readFileSync(target, 'utf8');
 
 // Remove localTranslations object completely
 content = content.replace(/const localTranslations[^=]*=\s*\{[\s\S]*?\n\s*\};\n/m, '');
@@ -12,4 +13,4 @@ content = content.replace(/const t = \(key: string\) => localTranslations\[langu
 content = content.replace(/language\s*:\s*Language;/g, '');
 
 // The easiest way is to rewrite Toolbar.tsx's localized parts to hardcoded, but wait! The Toolbar items come from `toolbarConfig.ts`!
-fs.writeFileSync('d:/developer/OnriviMarkDown/frontend/src/components/Toolbar.tsx', content, 'utf8');
+fs.writeFileSync(target, content, 'utf8');

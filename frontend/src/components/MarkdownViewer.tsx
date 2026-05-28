@@ -163,67 +163,33 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
         rehypeSourceLinesPlugin,
       ]}
       components={{
-        // 🛡️ [지능형 이미지 렌더러] src 쿼리스트링에 width/w 매개변수가 감지되면 폭을 자동 조절하며, 미지정 시 최대 600px로 폭주를 제한합니다.
         img: ({ node, src, alt, style, ...props }: any) => {
           if (!src) return <img alt={alt} {...props} />;
-          
-          let width: string | undefined = undefined;
-          let height: string | undefined = undefined;
-          
+          let width: string | undefined;
+          let height: string | undefined;
           try {
             const wMatch = src.match(/[?&](?:width|w)=([^&#]+)/);
             const hMatch = src.match(/[?&](?:height|h)=([^&#]+)/);
             if (wMatch) width = decodeURIComponent(wMatch[1]);
             if (hMatch) height = decodeURIComponent(hMatch[1]);
           } catch (e) {}
-
           const imgStyle: React.CSSProperties = {
-            ...style,
-            maxWidth: '100%',
-            height: height ? height : 'auto',
+            ...style, maxWidth: '100%', height: height || 'auto',
           };
-          if (width) {
-            imgStyle.width = width;
-          } else {
-            imgStyle.maxWidth = '600px'; // 초대형 이미지 화면 가림 방지선 (기본 최대 600px 제한)
-          }
-
-          return (
-            <img 
-              src={src} 
-              alt={alt} 
-              style={imgStyle} 
-              className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3"
-              {...props} 
-            />
-          );
+          imgStyle.width = width || undefined;
+          if (!width) imgStyle.maxWidth = '600px';
+          return <img src={src} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" {...props} />;
         },
-        a: ({ node, ...props }) => (
-          <a {...props} target="_blank" rel="noopener noreferrer" />
-        ),
-        pre: ({ node, children, ...props }: any) => {
-          return <div className="not-prose">{children}</div>;
-        },
+        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+        pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
         code: ({ node, className, children, ...props }: any) => {
           const match = /language-(\w+)/.exec(className || '');
           const lang = match ? match[1] : '';
           const codeContent = getTextFromChildren(children).replace(/\n$/, '');
-          
-          // react-markdown v9에서는 inline prop이 제공되지 않으므로
-          // className 유무(language-xxx) 및 줄바꿈 문자로 인라인 여부를 식별합니다.
           const isInline = !match && !getTextFromChildren(children).includes('\n');
-
           if (isInline) {
-            return (
-              <code 
-                className="px-1.5 py-0.5 mx-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-mono text-[0.9em] border border-blue-200 dark:border-blue-800" 
-                {...props}
-              >
-                {children}
-              </code>
-            );
+            return <code className="px-1.5 py-0.5 mx-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-mono text-[0.9em] border border-blue-200 dark:border-blue-800" {...props}>{children}</code>;
           }
-
           return <CodeBlock lang={lang} code={codeContent} className={className} {...props} />;
         },
         h1: ({ node, children, style, ...props }) => {
@@ -256,23 +222,16 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           const origLine = line ? (lineMap[line - 1] || line) : undefined;
           return <h6 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
         },
-        input: ({ node, ...props }: any) => {
-          return <input {...props} />;
-        },
+        input: ({ node, ...props }: any) => <input {...props} />,
         p: ({ node, children, style, ...props }) => {
           if (!children) return <p />;
           return <p style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</p>;
         },
-        ul: ({ node, children, style, ...props }) => {
-          return <ul style={style} {...props}>{children}</ul>;
-        },
-        ol: ({ node, children, style, ...props }) => {
-          return <ol style={style} {...props}>{children}</ol>;
-        },
+        ul: ({ node, children, style, ...props }) => <ul style={style} {...props}>{children}</ul>,
+        ol: ({ node, children, style, ...props }) => <ol style={style} {...props}>{children}</ol>,
         li: ({ node, children, style, ...props }) => {
           const line = (node as any).position?.start?.line;
           const origLine = line ? (lineMap[line - 1] || line) : undefined;
-          
           const modifiedChildren = React.Children.map(children, (child) => {
             if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
               return React.cloneElement(child as React.ReactElement<any>, {
@@ -287,14 +246,13 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
             }
             return child;
           });
-
           return <li style={style} {...props}>{modifiedChildren}</li>;
         },
         blockquote: ({ node, children, style, ...props }) => {
           return (
-            <blockquote 
-              style={{ ...style, ...getIndentStyle(node) }} 
-              className="my-4 p-4 rounded-r-lg border-l-4 border-blue-500 bg-blue-50/30 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300 font-normal not-italic" 
+            <blockquote
+              style={{ ...style, ...getIndentStyle(node) }}
+              className="my-4 p-4 rounded-r-lg border-l-4 border-blue-500 bg-blue-50/30 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300 font-normal not-italic"
               {...props}
             >
               {children}

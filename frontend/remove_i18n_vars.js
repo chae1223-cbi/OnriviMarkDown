@@ -73,4 +73,4 @@ function processDir(dir) {
   }
 }
 
-processDir('d:/developer/OnriviMarkDown/frontend/src');
+processDir(__dirname + '/src');

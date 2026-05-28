@@ -34,7 +34,7 @@ for (const convDir of convDirs) {
   }
 }
 
-const targetDir = 'd:/developer/OnriviMarkDown/frontend/src/components';
+const targetDir = __dirname + '/src/components';
 for (const basename of Object.keys(fileContents)) {
   const targetPath = path.join(targetDir, basename);
   fs.writeFileSync(targetPath, fileContents[basename], 'utf8');

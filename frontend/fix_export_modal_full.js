@@ -96,4 +96,4 @@ export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: E
 }
 `;
 
-fs.writeFileSync('d:/developer/OnriviMarkDown/frontend/src/components/ExportModal.tsx', content, 'utf8');
+fs.writeFileSync(__dirname + '/src/components/ExportModal.tsx', content, 'utf8');

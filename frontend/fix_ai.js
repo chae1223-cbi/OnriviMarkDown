@@ -1,6 +1,7 @@
 const fs = require('fs');
 
-let content = fs.readFileSync('d:/developer/OnriviMarkDown/frontend/src/components/AIGeneratorPanel.tsx', 'utf8');
+const target = __dirname + '/src/components/AIGeneratorPanel.tsx';
+let content = fs.readFileSync(target, 'utf8');
 
 // The `t` function in AIGeneratorPanel takes just `key`. Wait, if it takes `key` then why was `language` passed?
 // Let's look at how `t` is defined in AIGeneratorPanel.tsx.
@@ -11,4 +12,4 @@ content = content.replace(/t\(([^,]+),\s*language\)/g, '$1'); // actually, just 
 content = content.replace(/t\('([^']+)',\s*language\)/g, "t('$1')");
 content = content.replace(/,\s*language/g, ''); // maybe? No, that could break things.
 
-fs.writeFileSync('d:/developer/OnriviMarkDown/frontend/src/components/AIGeneratorPanel.tsx', content, 'utf8');
+fs.writeFileSync(target, content, 'utf8');

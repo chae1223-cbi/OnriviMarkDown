@@ -1,20 +1,22 @@
+/*
+ * vfsHelper.ts — Virtual File System (가상 파일 시스템)
+ *
+ * 브라우저 localStorage를 기반으로 한 단순한 가상 파일 시스템입니다.
+ * 실제 파일 I/O 없이도 .md 파일을 생성/수정/삭제/이름변경할 수 있습니다.
+ *
+ * 구조:
+ * - 파일 목록: localStorage['onrivi_vfs_files'] (FileNode[] 직렬화)
+ * - 파일 내용: localStorage['onrivi_vfs_content_<path>'] (원문 문자열)
+ *
+ * 초기화 시 Welcome.md 파일이 자동 생성되며, 내용은 constants/welcomeContent.ts의
+ * DEFAULT_WELCOME_MD를 사용합니다.
+ */
+
 import { FileNode } from './helper';
 import { msg } from './msg';
+import { DEFAULT_WELCOME_MD } from '@/constants/welcomeContent';
 
-// 초기 환영 문구
-const DEFAULT_WELCOME_TEXT = `# 브라우저 스토리지 워크스페이스에 오신 것을 환영합니다!
-
-이 문서는 웹 브라우저의 로컬 스토리지(\`localStorage\`)에 안전하게 저장됩니다.
-별도의 백엔드 서버나 폴더 지정 없이도 문서를 작성하고 저장할 수 있습니다.
-
-### 주요 기능
-1. **자동 저장**: 문서를 작성하면 브라우저 캐시에 자동으로 저장됩니다.
-2. **트리 관리**: 왼쪽 탐색기를 통해 새 파일 및 새 폴더를 생성하고 구성할 수 있습니다.
-3. **영구 보관**: 브라우저 캐시를 완전히 삭제하지 않는 한, 작성하신 기록이 유지됩니다.
-
----
-오늘의 첫 아이디어를 이곳에 자유롭게 기록해 보세요!
-`;
+const DEFAULT_WELCOME_TEXT = DEFAULT_WELCOME_MD;
 
 // 파일 목록 스토리지 키
 const VFS_FILES_KEY = 'onrivi_vfs_files';

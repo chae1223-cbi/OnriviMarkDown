@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const componentsDir = 'd:/developer/OnriviMarkDown/frontend/src/components';
+const componentsDir = __dirname + '/src/components';
 const files = fs.readdirSync(componentsDir).filter(f => f.endsWith('.tsx'));
 
 for (const file of files) {

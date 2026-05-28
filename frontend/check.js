@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const dir = 'd:/developer/OnriviMarkDown/frontend/src/components';
+const dir = __dirname + '/src/components';
 const files = ['FormulaModal.tsx', 'ImageModal.tsx', 'MapModal.tsx', 'SettingsModal.tsx', 'YoutubeModal.tsx'];
 for (const file of files) {
   const content = fs.readFileSync(path.join(dir, file), 'utf8');

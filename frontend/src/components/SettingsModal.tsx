@@ -22,8 +22,8 @@ interface SettingsModalProps {
   workspaceType: 'local' | 'cloud' | 'browser';
   setWorkspaceType: (v: 'local' | 'cloud' | 'browser') => void;
   cloudProvider: string | null;
-  previewMode: 'edit' | 'both' | 'preview';
-  setPreviewMode: (v: 'edit' | 'both' | 'preview') => void;
+  previewMode: 'edit' | 'both' | 'preview' | 'css-style';
+  setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
   quoteStyle: 'modern' | 'clean' | 'none';
   setQuoteStyle: (v: 'modern' | 'clean' | 'none') => void;
   customHotkeys: Record<string, string>;

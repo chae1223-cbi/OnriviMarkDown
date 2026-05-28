@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const i18nContent = fs.readFileSync('d:/developer/OnriviMarkDown/frontend/src/lib/i18n.ts', 'utf8');
+const i18nContent = fs.readFileSync(__dirname + '/src/lib/i18n.ts', 'utf8');
 const koMatch = i18nContent.match(/ko:\s*\{([\s\S]*?)\n\s*\}\n\};/);
 let dict = {};
 
@@ -81,4 +81,4 @@ function processDir(dir) {
   }
 }
 
-processDir('d:/developer/OnriviMarkDown/frontend/src');
+processDir(__dirname + '/src');
