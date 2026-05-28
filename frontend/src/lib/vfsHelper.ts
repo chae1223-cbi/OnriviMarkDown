@@ -1,4 +1,5 @@
 import { FileNode } from './helper';
+import { msg } from './msg';
 
 // 초기 환영 문구
 const DEFAULT_WELCOME_TEXT = `# 브라우저 스토리지 워크스페이스에 오신 것을 환영합니다!
@@ -46,7 +47,7 @@ export function getVfsFiles(): FileNode[] {
   try {
     return JSON.parse(saved);
   } catch (e) {
-    console.error('가상 파일 트리 파싱 오류:', e);
+    msg.error('가상 파일 트리 파싱 오류', e);
     return [];
   }
 }

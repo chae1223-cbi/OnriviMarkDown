@@ -1,4 +1,5 @@
 import { getApiUrl } from '@/lib/api';
+import { msg } from '@/lib/msg';
 
 interface ExportOptions {
   previewEl: HTMLElement;
@@ -33,7 +34,7 @@ function restoreMapsInClone(clone: HTMLElement) {
           }
         }
       } catch (e) {
-        console.error("Map restoration URL parse error:", e);
+        msg.error("Map restoration URL parse error", e);
       }
 
       const img = document.createElement('img');
@@ -152,7 +153,7 @@ async function inlineLocalImages(clone: HTMLElement): Promise<void> {
         reader.readAsDataURL(blob);
       });
     } catch (err) {
-      console.error(`Failed to inline image: ${src}`, err);
+      msg.error(`Failed to inline image: ${src}`, err);
     }
   }));
 }
@@ -208,7 +209,7 @@ export async function exportPDF({ previewEl, currentFileName, isDarkMode, showTo
     };
     reader.readAsDataURL(pdfBlob);
   } catch (err: any) {
-    console.error('PDF export error:', err);
+    msg.error('PDF export error', err);
     showToast('PDF 내보내기 실패: ' + err.message, 'error');
   }
 }
@@ -263,7 +264,7 @@ export async function exportHTML({ previewEl, currentFileName, isDarkMode, showT
     const ok = await saveToDownloads(filename, finalHtml, 'text');
     showToast(ok ? '다운로드 폴더에 HTML이 생성되었습니다.' : 'HTML 내보내기가 완료되었습니다.', 'success');
   } catch (err: any) {
-    console.error('HTML export error:', err);
+    msg.error('HTML export error', err);
     showToast('HTML 내보내기 실패: ' + err.message, 'error');
   }
 }
@@ -293,7 +294,7 @@ export async function exportEPUB({ previewEl, currentFileName, showToast }: Expo
     };
     reader.readAsDataURL(blob);
   } catch (err: any) {
-    console.error('EPUB export error:', err);
+    msg.error('EPUB export error', err);
     showToast('EPUB 내보내기 실패: ' + err.message, 'error');
   }
 }
@@ -394,7 +395,7 @@ export async function exportPNG({ previewEl, currentFileName, isDarkMode, showTo
     const ok = await saveToDownloads(filename, dataUrl, 'base64');
     showToast(ok ? '다운로드 폴더에 PNG가 생성되었습니다.' : '이미지 내보내기가 완료되었습니다.', 'success');
   } catch (err: any) {
-    console.error('PNG export error:', err);
+    msg.error('PNG export error', err);
     showToast('PNG 내보내기 실패: ' + err.message, 'error');
   }
 }

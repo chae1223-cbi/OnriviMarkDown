@@ -1,9 +1,36 @@
+/**
+ * *********************************************************************
+ * 시스템명 : Onrivi Author
+ * 프로그램명 : Onrivi Author 
+ * 프로그램ID : ONRIVI_AUTHOR_01
+ * 프로그램 위치 : D:\developer\OnriviMarkDown\backend\index.js
+ * 프로그램버전 : 2.0.0
+ * 작성자 : 채병익
+ * 작성일 : 2025-11-27
+ * 프로그램설명 : Onrivi Author는 Electron으로 만든 웹 앱의 웹서버 파일이다. 
+ ------------------------------------------------------------------------------
+                 PROGRAM 변경내역
+  성  명      :  일     자    : 근거자료          : 내용
+  ------------------------------------------------------------------------------
+  채병익      : 2026.05.28    : 최초작성
+***************************************************************************
+*/
+
+
+/*******************************************************************************
+함수명        : 상수 정의
+리턴값        : 없음
+목적          : express, cors, fs, path, os, iconExtractor를 상수로 정의한다.
+참고사항      : 상수 정의
+설명          : express, cors, fs, path, os, iconExtractor를 상수로 정의한다.
+*******************************************************************************/
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs/promises');
 const path = require('path');
-const os = require('os'); // OS 정보 획득을 위해 추가
+const os = require('os');
 const { extractPngFromIco } = require('./utils/iconExtractor');
+
 // 🩹 [ page.tsx 한글 깨짐 및 빌드 오류 자동 정밀 치료 엔진 ]
 try {
   const fsSync = require('fs');
@@ -12,7 +39,7 @@ try {
   const targetPagePath = pathSync.join(__dirname, '../frontend/src/app/page.tsx');
   if (false && fsSync.existsSync(targetPagePath)) {
     let content = fsSync.readFileSync(targetPagePath, 'utf8');
-    
+
     // [비상 Git 복원 시스템 가동]
     if (content.length < 98000 || !content.includes('return (') || !content.includes('UpdatesModal')) {
       console.log('🩹 page.tsx 파괴 감지: Git Checkout으로 원형 복원 시도 중...');
@@ -25,7 +52,7 @@ try {
         console.log('Git 복구 실패 (Git 저장소가 아니거나 파일이 커밋되지 않음):', gitErr.message);
       }
     }
-    
+
     // [비상 로컬 히스토리 자동 복원 시스템 가동]
     if (content.length < 98000 || !content.includes('return (') || !content.includes('UpdatesModal') || (content.match(/\/\//g) || []).length > 500) {
       console.log('🩹 page.tsx 오염 감지: VS Code History에서 최신 무결점 백업 자동 수색 중...');
@@ -39,7 +66,7 @@ try {
           if (fsSync.existsSync(p1)) historyDirs.push(p1);
           if (fsSync.existsSync(p2)) historyDirs.push(p2);
         }
-      } catch (e) {}
+      } catch (e) { }
       try {
         const home = osSync.homedir();
         if (home) {
@@ -48,7 +75,7 @@ try {
           if (fsSync.existsSync(p1) && !historyDirs.includes(p1)) historyDirs.push(p1);
           if (fsSync.existsSync(p2) && !historyDirs.includes(p2)) historyDirs.push(p2);
         }
-      } catch (e) {}
+      } catch (e) { }
       if (process.env.APPDATA) {
         const p1 = pathSync.join(process.env.APPDATA, 'Code/User/History');
         const p2 = pathSync.join(process.env.APPDATA, 'Cursor/User/History');
@@ -57,7 +84,7 @@ try {
       }
       let latestFile = null;
       let latestMtime = 0;
-      
+
       function traverse(currentDir) {
         if (!fsSync.existsSync(currentDir)) return;
         try {
@@ -76,12 +103,12 @@ try {
                     latestFile = fullPath;
                   }
                 }
-              } catch (e) {}
+              } catch (e) { }
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       }
-      
+
       for (const dir of historyDirs) {
         traverse(dir);
       }
@@ -92,101 +119,101 @@ try {
         fsSync.writeFileSync(targetPagePath, content, 'utf8');
       }
     }
-    
+
     // 1. 라인 단위 강제 복구 (인코딩 및 빌드 오류 100% 돌파!)
     let lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       // PDF 내보내기 괄호 꼬임(1154라인 부근) 복구
       if (lines[i].includes('console.error("PDF export error:", err);')) {
-        if (lines[i+2] && lines[i+2].includes('}')) {
-          lines[i+2] = '      }';
+        if (lines[i + 2] && lines[i + 2].includes('}')) {
+          lines[i + 2] = '      }';
         }
-        if (lines[i+3] && lines[i+3].includes('}')) {
-          lines[i+3] = '    },';
+        if (lines[i + 3] && lines[i + 3].includes('}')) {
+          lines[i + 3] = '    },';
         }
-        if (lines[i+4] && lines[i+4].includes('},')) {
-          lines[i+4] = ''; // 중복 중괄호 제거
+        if (lines[i + 4] && lines[i + 4].includes('},')) {
+          lines[i + 4] = ''; // 중복 중괄호 제거
         }
       }
-      
+
       // 웰컴 페이지 저장 불가 알림 다국어 완전 제거 및 한국어 일원화! (Lean & MVP 영구 보장 적용)
       if (lines[i].includes("save: async () => {") && i > 1100 && i < 1125) {
-        lines[i]   = `    save: async () => {`;
-        lines[i+1] = `      if (!currentFileNode) {`;
-        lines[i+2] = `        showToast("웰컴 페이지는 저장할 수 없습니다.", "warning");`;
-        lines[i+3] = `        return;`;
-        lines[i+4] = `      }`;
-        lines[i+5] = `      const success = await saveFile(content, currentFileNode);`;
-        lines[i+6] = `      if (success) showToast("저장되었습니다.", "success");`;
-        lines[i+7] = `      else showToast("저장 중 오류가 발생했습니다.", "error");`;
-        lines[i+8] = `    },`;
-        
+        lines[i] = `    save: async () => {`;
+        lines[i + 1] = `      if (!currentFileNode) {`;
+        lines[i + 2] = `        showToast("웰컴 페이지는 저장할 수 없습니다.", "warning");`;
+        lines[i + 3] = `        return;`;
+        lines[i + 4] = `      }`;
+        lines[i + 5] = `      const success = await saveFile(content, currentFileNode);`;
+        lines[i + 6] = `      if (success) showToast("저장되었습니다.", "success");`;
+        lines[i + 7] = `      else showToast("저장 중 오류가 발생했습니다.", "error");`;
+        lines[i + 8] = `    },`;
+
         let j = i + 9;
         while (j < lines.length && !lines[j].includes("openExport")) {
           lines[j] = `    //`;
           j++;
         }
       }
-      
+
       // 파일 열기 토스트 알림 다국어 완전 제거 및 한국어 일원화! (Lean & MVP 적용)
       if (lines[i].includes("const openedMsg = language === 'ko' ?")) {
         lines[i] = `      const openedMsg = \`\${node.name} 파일을 열었습니다.\`;`;
-        if (lines[i+1]) lines[i+1] = `      //`;
-        if (lines[i+2]) lines[i+2] = `      //`;
-        if (lines[i+3]) lines[i+3] = `      //`;
+        if (lines[i + 1]) lines[i + 1] = `      //`;
+        if (lines[i + 2]) lines[i + 2] = `      //`;
+        if (lines[i + 3]) lines[i + 3] = `      //`;
       }
-      
+
       // 이미지 내보내기 고품질 2배 해상도 및 CORS 패치 (Lean & MVP 영구 보장)
       if (lines[i].includes("exportPNG: async () => {")) {
-        lines[i]   = `    exportPNG: async () => {`;
-        lines[i+1] = `      if (!previewRef.current) return;`;
-        lines[i+2] = `      try {`;
-        lines[i+3] = `        showToast("이미지 내보내기 준비 중...", "info");`;
-        lines[i+4] = `        const htmlToImage = await import('html-to-image');`;
-        lines[i+5] = `        const filename = \`\${currentFileName.replace(/\\.[^/.]+$/, "")}.png\`;`;
-        lines[i+6] = `        `;
-        lines[i+7] = `        const clone = previewRef.current.cloneNode(true) as HTMLElement;`;
-        lines[i+8] = `        clone.querySelectorAll('button, .copy-btn, [title*="복사"]').forEach(el => el.remove());`;
-        lines[i+9] = `        `;
+        lines[i] = `    exportPNG: async () => {`;
+        lines[i + 1] = `      if (!previewRef.current) return;`;
+        lines[i + 2] = `      try {`;
+        lines[i + 3] = `        showToast("이미지 내보내기 준비 중...", "info");`;
+        lines[i + 4] = `        const htmlToImage = await import('html-to-image');`;
+        lines[i + 5] = `        const filename = \`\${currentFileName.replace(/\\.[^/.]+$/, "")}.png\`;`;
+        lines[i + 6] = `        `;
+        lines[i + 7] = `        const clone = previewRef.current.cloneNode(true) as HTMLElement;`;
+        lines[i + 8] = `        clone.querySelectorAll('button, .copy-btn, [title*="복사"]').forEach(el => el.remove());`;
+        lines[i + 9] = `        `;
         // CORS 방지를 위해 클론 내 모든 이미지 태그에 crossOrigin="anonymous" 강제 주입
-        lines[i+10] = `        clone.querySelectorAll('img').forEach(img => {`;
-        lines[i+11] = `          img.setAttribute('crossOrigin', 'anonymous');`;
-        lines[i+12] = `        });`;
-        lines[i+13] = `        `;
-        lines[i+14] = `        if (typeof restoreMapsInClone === 'function') {`;
-        lines[i+15] = `          restoreMapsInClone(clone);`;
-        lines[i+16] = `        }`;
-        lines[i+17] = `        `;
-        lines[i+18] = `        const wrapper = document.createElement('div');`;
-        lines[i+19] = `        wrapper.style.position = 'absolute';`;
-        lines[i+20] = `        wrapper.style.left = '-9999px';`;
-        lines[i+21] = `        wrapper.style.width = '800px';`;
-        lines[i+22] = `        wrapper.style.backgroundColor = isDarkMode ? '#0d1117' : '#ffffff';`;
-        lines[i+23] = `        wrapper.className = \`p-10 prose \${isDarkMode ? 'prose-invert' : ''}\`;`;
-        lines[i+24] = `        wrapper.appendChild(clone);`;
-        lines[i+25] = `        document.body.appendChild(wrapper);`;
-        lines[i+26] = `        `;
-        lines[i+27] = `        const dataUrl = await htmlToImage.toPng(wrapper, {`;
-        lines[i+28] = `          backgroundColor: isDarkMode ? '#0d1117' : '#ffffff',`;
-        lines[i+29] = `          style: { transform: 'none' },`;
-        lines[i+30] = `          cacheBust: true,`;
-        lines[i+31] = `          pixelRatio: 2`;
-        lines[i+32] = `        });`;
-        lines[i+33] = `        `;
-        lines[i+34] = `        document.body.removeChild(wrapper);`;
-        lines[i+35] = `        `;
-        lines[i+36] = `        const link = document.createElement('a');`;
-        lines[i+37] = `        link.download = filename;`;
-        lines[i+38] = `        link.href = dataUrl;`;
-        lines[i+39] = `        link.click();`;
-        lines[i+40] = `        `;
-        lines[i+41] = `        showToast("이미지 내보내기가 완료되었습니다.", "success");`;
-        lines[i+42] = `      } catch (err: any) {`;
-        lines[i+43] = `        console.error("PNG export error:", err);`;
-        lines[i+44] = `        showToast("PNG 내보내기 실패: " + err.message, "error");`;
-        lines[i+45] = `      }`;
-        lines[i+46] = `    },`;
-        
+        lines[i + 10] = `        clone.querySelectorAll('img').forEach(img => {`;
+        lines[i + 11] = `          img.setAttribute('crossOrigin', 'anonymous');`;
+        lines[i + 12] = `        });`;
+        lines[i + 13] = `        `;
+        lines[i + 14] = `        if (typeof restoreMapsInClone === 'function') {`;
+        lines[i + 15] = `          restoreMapsInClone(clone);`;
+        lines[i + 16] = `        }`;
+        lines[i + 17] = `        `;
+        lines[i + 18] = `        const wrapper = document.createElement('div');`;
+        lines[i + 19] = `        wrapper.style.position = 'absolute';`;
+        lines[i + 20] = `        wrapper.style.left = '-9999px';`;
+        lines[i + 21] = `        wrapper.style.width = '800px';`;
+        lines[i + 22] = `        wrapper.style.backgroundColor = isDarkMode ? '#0d1117' : '#ffffff';`;
+        lines[i + 23] = `        wrapper.className = \`p-10 prose \${isDarkMode ? 'prose-invert' : ''}\`;`;
+        lines[i + 24] = `        wrapper.appendChild(clone);`;
+        lines[i + 25] = `        document.body.appendChild(wrapper);`;
+        lines[i + 26] = `        `;
+        lines[i + 27] = `        const dataUrl = await htmlToImage.toPng(wrapper, {`;
+        lines[i + 28] = `          backgroundColor: isDarkMode ? '#0d1117' : '#ffffff',`;
+        lines[i + 29] = `          style: { transform: 'none' },`;
+        lines[i + 30] = `          cacheBust: true,`;
+        lines[i + 31] = `          pixelRatio: 2`;
+        lines[i + 32] = `        });`;
+        lines[i + 33] = `        `;
+        lines[i + 34] = `        document.body.removeChild(wrapper);`;
+        lines[i + 35] = `        `;
+        lines[i + 36] = `        const link = document.createElement('a');`;
+        lines[i + 37] = `        link.download = filename;`;
+        lines[i + 38] = `        link.href = dataUrl;`;
+        lines[i + 39] = `        link.click();`;
+        lines[i + 40] = `        `;
+        lines[i + 41] = `        showToast("이미지 내보내기가 완료되었습니다.", "success");`;
+        lines[i + 42] = `      } catch (err: any) {`;
+        lines[i + 43] = `        console.error("PNG export error:", err);`;
+        lines[i + 44] = `        showToast("PNG 내보내기 실패: " + err.message, "error");`;
+        lines[i + 45] = `      }`;
+        lines[i + 46] = `    },`;
+
         // [비상 응급 복구 엔진 기동] 오버플로우로 날아갔던 원래의 모든 툴바 소스코드를 100% 무결하게 강제 재구축!
         let toolbarLines = [
           `    exit: () => window.confirm(t('exitConfirmMsg')) && window.close(),`,
@@ -235,29 +262,29 @@ try {
           lines[i + 47 + m] = toolbarLines[m];
         }
       }
-      
+
       // 로컬 파일/폴더 생성 성공 토스트 복구
       if (lines[i].includes("promptConfig.type === 'createFile' ? 'create-file'")) {
-        if (lines[i+7] && lines[i+7].includes("showToast")) {
-          lines[i+7] = `          showToast(\`\${finalName} 생성 완료\`, "success");`;
+        if (lines[i + 7] && lines[i + 7].includes("showToast")) {
+          lines[i + 7] = `          showToast(\`\${finalName} 생성 완료\`, "success");`;
         }
       }
       // 브라우저 파일 생성 성공 토스트 복구
       if (lines[i].includes("rootFolder.handle.getFileHandle(finalName")) {
-        if (lines[i+1] && lines[i+1].includes("showToast")) {
-          lines[i+1] = `          showToast(\`\${finalName} 파일 생성 완료\`, "success");`;
+        if (lines[i + 1] && lines[i + 1].includes("showToast")) {
+          lines[i + 1] = `          showToast(\`\${finalName} 파일 생성 완료\`, "success");`;
         }
       }
       // 브라우저 폴더 생성 성공 토스트 복구
       if (lines[i].includes("rootFolder.handle.getDirectoryHandle(finalName")) {
-        if (lines[i+1] && lines[i+1].includes("showToast")) {
-          lines[i+1] = `          showToast(\`\${finalName} 폴더 생성 완료\`, "success");`;
+        if (lines[i + 1] && lines[i + 1].includes("showToast")) {
+          lines[i + 1] = `          showToast(\`\${finalName} 폴더 생성 완료\`, "success");`;
         }
       }
       // 생성 실패 토스트 복구
       if (lines[i].includes("} catch (e) {") && i > 1300 && i < 1400) {
-        if (lines[i+1] && lines[i+1].includes("showToast")) {
-          lines[i+1] = `      showToast("생성 실패", "error");`;
+        if (lines[i + 1] && lines[i + 1].includes("showToast")) {
+          lines[i + 1] = `      showToast("생성 실패", "error");`;
         }
       }
       // 동기화 지연 갱신 주석 제거/복구
@@ -265,16 +292,16 @@ try {
         lines[i] = lines[i].split('//')[0] + "// 인덱스 데이터 동기화 지연 갱신 안전장치";
       }
     }
-    
+
     // [1324라인 이하의 모든 주석 강제 해제 및 코드 활성화 치유엔진]
     for (let k = 1323; k < lines.length; k++) {
       if (lines[k] && lines[k].trim().startsWith('//')) {
         lines[k] = lines[k].replace(/^\s*\/\/\s*/, '');
       }
     }
-    
+
     content = lines.join('\n').replace(/\n\n\n+/g, '\n\n'); // 불필요한 줄바꿈 정리
-    
+
     // 2. 깨진 INITIAL_TEXT 상수를 깨끗하고 아름다운 오리지널 한글 마크다운으로 완전히 새로고침!
     const cleanWelcomeMarkdown = `const INITIAL_TEXT = \`# Onrivi Author: 일상의 기록이 출판이 되고 가치가 되는 순간
 
@@ -315,7 +342,7 @@ try {
 \`;`;
 
     content = content.replace(/const INITIAL_TEXT = `[^]*?`;/g, cleanWelcomeMarkdown);
-    
+
     // 3. 다른 깨진 메시지 리터럴 복구
     const replacements = [
       { target: / 대吏€瑜\s*„œ踰„濡œ\s*—…濡œ“œ•˜Š”\s*以‘\.\.\./g, replacement: '이미지를 서버로 업로드하는 중...' },
@@ -333,17 +360,18 @@ try {
       { target: /“œž˜洹\s*ž\s*“œ濡\(Drop\)\s*\s*대깽Š\s*•몃“ㅻŸ/g, replacement: '드래그 앤 드롭(Drop) 이벤트 핸들러' },
       { target: /遺™—щ„ｊ린\(Paste\)\s*\s*대깽Š\s*•몃“ㅻŸ/g, replacement: '붙여넣기(Paste) 이벤트 핸들러' }
     ];
-    
+
     replacements.forEach(pair => {
       content = content.replace(pair.target, pair.replacement);
     });
-    
+
     fsSync.writeFileSync(targetPagePath, content, 'utf8');
     console.log("🩹 [자동 치료 완료] page.tsx의 모든 깨진 한글과 빌드 오류가 기적처럼 완치되었습니다!");
   }
 } catch (e) {
   console.error("🩹 page.tsx 자동 치료 실패:", e.message);
 }
+
 
 const app = express();
 // 동적 포트 할당 지원 (일렉트론 포트 충돌 방지용으로 전달된 환경변수 우선)
@@ -364,17 +392,17 @@ async function loadConfig() {
   } catch (e) {
     await saveConfig(WORKSPACE_ROOT);
   }
-  
+
   // 워크스페이스 폴더가 존재하지 않는 경우 자동으로 생성하여 첫 구동 시 에러를 방지합니다.
   try {
     await fs.mkdir(WORKSPACE_ROOT, { recursive: true });
-  } catch (err) {}
+  } catch (err) { }
 }
 
 async function saveConfig(rootPath) {
   try {
     await fs.writeFile(CONFIG_PATH, JSON.stringify({ ROOT: rootPath }, null, 2), 'utf-8');
-  } catch (e) {}
+  } catch (e) { }
 }
 
 app.get('/api/restore-backup', async (req, res) => {
@@ -383,7 +411,7 @@ app.get('/api/restore-backup', async (req, res) => {
     const pathSync = require('path');
     const osSync = require('os');
     const targetPagePath = pathSync.join(__dirname, '../frontend/src/app/page.tsx');
-    
+
     const historyDirs = [];
     try {
       const users = fsSync.readdirSync('C:\\Users');
@@ -394,7 +422,7 @@ app.get('/api/restore-backup', async (req, res) => {
         if (fsSync.existsSync(p1)) historyDirs.push(p1);
         if (fsSync.existsSync(p2)) historyDirs.push(p2);
       }
-    } catch (e) {}
+    } catch (e) { }
     try {
       const home = osSync.homedir();
       if (home) {
@@ -403,19 +431,19 @@ app.get('/api/restore-backup', async (req, res) => {
         if (fsSync.existsSync(p1) && !historyDirs.includes(p1)) historyDirs.push(p1);
         if (fsSync.existsSync(p2) && !historyDirs.includes(p2)) historyDirs.push(p2);
       }
-    } catch (e) {}
+    } catch (e) { }
     if (process.env.APPDATA) {
       const p1 = pathSync.join(process.env.APPDATA, 'Code/User/History');
       const p2 = pathSync.join(process.env.APPDATA, 'Cursor/User/History');
       if (fsSync.existsSync(p1) && !historyDirs.includes(p1)) historyDirs.push(p1);
       if (fsSync.existsSync(p2) && !historyDirs.includes(p2)) historyDirs.push(p2);
     }
-    
+
     let latestFile = null;
     let scanCount = 0;
     let matchCount = 0;
     let candidates = [];
-    
+
     function traverse(currentDir) {
       if (!fsSync.existsSync(currentDir)) return;
       try {
@@ -432,16 +460,16 @@ app.get('/api/restore-backup', async (req, res) => {
             }
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
-    
+
     for (const dir of historyDirs) {
       traverse(dir);
     }
-    
+
     // 최근 수정일 기준 내림차순 정렬!
     candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
-    
+
     // Top 30 파일만 기어 들어가 내용 검증 스캔!
     for (const cand of candidates.slice(0, 30)) {
       try {
@@ -451,30 +479,30 @@ app.get('/api/restore-backup', async (req, res) => {
           matchCount = candidates.length; // 통계 전달
           break;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
-    
+
     if (latestFile) {
       fsSync.writeFileSync(pathSync.join(__dirname, 'latest_backup_path.txt'), latestFile, 'utf8');
       let content = fsSync.readFileSync(latestFile, 'utf8');
-      
+
       let lines = content.split('\n');
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].includes('console.error("PDF export error:", err);')) {
-          if (lines[i+2] && lines[i+2].includes('}')) lines[i+2] = '      }';
-          if (lines[i+3] && lines[i+3].includes('}')) lines[i+3] = '    }';
+          if (lines[i + 2] && lines[i + 2].includes('}')) lines[i + 2] = '      }';
+          if (lines[i + 3] && lines[i + 3].includes('}')) lines[i + 3] = '    }';
         }
         if (lines[i].includes("promptConfig.type === 'createFile' ? 'create-file'")) {
-          if (lines[i+7] && lines[i+7].includes("showToast")) lines[i+7] = `          showToast(\`\${finalName} 생성 완료\`, "success");`;
+          if (lines[i + 7] && lines[i + 7].includes("showToast")) lines[i + 7] = `          showToast(\`\${finalName} 생성 완료\`, "success");`;
         }
         if (lines[i].includes("rootFolder.handle.getFileHandle(finalName")) {
-          if (lines[i+1] && lines[i+1].includes("showToast")) lines[i+1] = `          showToast(\`\${finalName} 파일 생성 완료\`, "success");`;
+          if (lines[i + 1] && lines[i + 1].includes("showToast")) lines[i + 1] = `          showToast(\`\${finalName} 파일 생성 완료\`, "success");`;
         }
         if (lines[i].includes("rootFolder.handle.getDirectoryHandle(finalName")) {
-          if (lines[i+1] && lines[i+1].includes("showToast")) lines[i+1] = `          showToast(\`\${finalName} 폴더 생성 완료\`, "success");`;
+          if (lines[i + 1] && lines[i + 1].includes("showToast")) lines[i + 1] = `          showToast(\`\${finalName} 폴더 생성 완료\`, "success");`;
         }
         if (lines[i].includes("} catch (e) {") && i > 1300 && i < 1400) {
-          if (lines[i+1] && lines[i+1].includes("showToast")) lines[i+1] = `      showToast("생성 실패", "error");`;
+          if (lines[i + 1] && lines[i + 1].includes("showToast")) lines[i + 1] = `      showToast("생성 실패", "error");`;
         }
       }
       for (let k = 1323; k < lines.length; k++) {
@@ -483,7 +511,7 @@ app.get('/api/restore-backup', async (req, res) => {
         }
       }
       content = lines.join('\n').replace(/\n\n\n+/g, '\n\n');
-      
+
       fsSync.writeFileSync(targetPagePath, content, 'utf8');
       return res.json({ status: "success", file: latestFile, scanCount, matchCount });
     }
@@ -577,7 +605,7 @@ app.post('/api/select-folder', async (req, res) => {
       // 2. 비-Electron(일반 Node) 환경 또는 fallback인 경우 Windows PowerShell 다이얼로그 사용 (한글 인코딩 깨짐 방지 장치 주입)
       const { exec } = require('child_process');
       const powershellCmd = `powershell -NoProfile -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = '워크스페이스 폴더 선택'; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }"`;
-      
+
       chosenPath = await new Promise((resolve) => {
         exec(powershellCmd, (err, stdout) => {
           if (err) {
@@ -613,11 +641,11 @@ app.post('/api/open-external', async (req, res) => {
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
     }
-    
+
     const { exec } = require('child_process');
     const os = require('os');
     const platform = os.platform();
-    
+
     if (platform === 'win32') {
       exec(`start "" "${url.replace(/&/g, '^&')}"`);
     } else if (platform === 'darwin') {
@@ -625,7 +653,7 @@ app.post('/api/open-external', async (req, res) => {
     } else {
       exec(`xdg-open "${url}"`);
     }
-    
+
     res.json({ status: 'success' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -639,7 +667,7 @@ app.post('/api/upload-pasted-image', async (req, res) => {
     if (!base64Data) {
       return res.status(400).json({ error: 'Image data is required' });
     }
-    
+
     // 1. 저장할 폴더 (WORKSPACE_ROOT/assets) 확인 및 자동 생성
     const targetDir = path.join(WORKSPACE_ROOT, 'assets');
     try {
@@ -647,22 +675,22 @@ app.post('/api/upload-pasted-image', async (req, res) => {
     } catch {
       await fs.mkdir(targetDir, { recursive: true });
     }
-    
+
     // 2. 파일명 고유화 (타임스탬프 기반 유니크 ID 결합)
     const timeStamp = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
     const uniqueFilename = `paste_${timeStamp}.png`;
     const fullPath = path.join(targetDir, uniqueFilename);
-    
+
     // 3. Base64 헤더 스트립 및 바이너리 변환
     const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(cleanBase64, 'base64');
-    
+
     // 4. 로컬 파일 영구 저장!
     await fs.writeFile(fullPath, buffer);
-    
+
     // 5. 에디터에 삽입할 워크스페이스 상대 경로 반환!
-    res.json({ 
-      status: 'success', 
+    res.json({
+      status: 'success',
       relativePath: `assets/${uniqueFilename}`,
       fullPath
     });
@@ -694,7 +722,7 @@ app.get('/api/drives', (req, res) => {
           if (fsSync.existsSync(letter)) {
             drives.push({ name: letter, kind: 'directory', path: letter, children: [] });
           }
-        } catch (ex) {}
+        } catch (ex) { }
       }
       res.json(drives);
     } catch (e2) {
@@ -739,24 +767,24 @@ app.get('/api/file-content', async (req, res) => {
   try {
     const filePath = getSafePath(req.query.path);
     const buffer = await fs.readFile(filePath);
-    
+
     // 단순하고 신뢰할 수 있는 UTF-8 판별식
     function isUtf8(buf) {
       let i = 0;
       while (i < buf.length) {
         if (buf[i] <= 0x7F) { i += 1; continue; }
         if (buf[i] >= 0xC2 && buf[i] <= 0xDF) {
-          if (i + 1 < buf.length && buf[i+1] >= 0x80 && buf[i+1] <= 0xBF) { i += 2; continue; }
+          if (i + 1 < buf.length && buf[i + 1] >= 0x80 && buf[i + 1] <= 0xBF) { i += 2; continue; }
         } else if (buf[i] >= 0xE0 && buf[i] <= 0xEF) {
-          if (i + 2 < buf.length && buf[i+1] >= 0x80 && buf[i+1] <= 0xBF && buf[i+2] >= 0x80 && buf[i+2] <= 0xBF) { i += 3; continue; }
+          if (i + 2 < buf.length && buf[i + 1] >= 0x80 && buf[i + 1] <= 0xBF && buf[i + 2] >= 0x80 && buf[i + 2] <= 0xBF) { i += 3; continue; }
         } else if (buf[i] >= 0xF0 && buf[i] <= 0xF4) {
-          if (i + 3 < buf.length && buf[i+1] >= 0x80 && buf[i+1] <= 0xBF && buf[i+2] >= 0x80 && buf[i+2] <= 0xBF && buf[i+3] >= 0x80 && buf[i+3] <= 0xBF) { i += 4; continue; }
+          if (i + 3 < buf.length && buf[i + 1] >= 0x80 && buf[i + 1] <= 0xBF && buf[i + 2] >= 0x80 && buf[i + 2] <= 0xBF && buf[i + 3] >= 0x80 && buf[i + 3] <= 0xBF) { i += 4; continue; }
         }
         return false;
       }
       return true;
     }
-    
+
     let content = '';
     if (isUtf8(buffer)) {
       content = buffer.toString('utf8');
@@ -768,7 +796,7 @@ app.get('/api/file-content', async (req, res) => {
         content = buffer.toString('utf8');
       }
     }
-    
+
     res.json({ content });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -783,9 +811,9 @@ app.post('/api/save', async (req, res) => {
     await fs.writeFile(filePath, content || '', 'utf-8');
     console.log(`💾 [실시간 디스크 I/O 완료] 물리 경로: ${filePath}`);
     res.json({ success: true, status: 'success', savedAt: new Date().toISOString() });
-  } catch (e) { 
+  } catch (e) {
     console.error(`❌ [로컬 파일 저장 실패]: ${e.message}`);
-    res.status(500).json({ error: e.message }); 
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -842,15 +870,15 @@ app.post('/api/merge-files', async (req, res) => {
     }
 
     const resolvedTargetPath = getSafePath(targetPath);
-    
+
     // 소스 내용들을 차례로 읽음
     const contents = [];
     for (const src of sourcePaths) {
       const resolvedSrcPath = getSafePath(src);
       const fileContent = await fs.readFile(resolvedSrcPath, 'utf-8');
-      
+
       const fileName = path.basename(src);
-      
+
       let formattedContent = fileContent;
       if (separator === 'title') {
         // H2 제목으로 파일명 삽입
@@ -871,7 +899,7 @@ app.post('/api/merge-files', async (req, res) => {
     }
 
     const mergedContent = contents.join(joinSeparator);
-    
+
     // 대상 경로의 디렉토리가 존재하는지 확인 및 자동 생성
     const targetDir = path.dirname(resolvedTargetPath);
     await fs.mkdir(targetDir, { recursive: true });
@@ -913,18 +941,18 @@ app.post('/api/save-processed-icon', async (req, res) => {
   try {
     const { image } = req.body;
     if (!image) return res.status(400).json({ error: 'Missing image data' });
-    
+
     const base64Data = image.replace(/^data:image\/png;base64,/, "");
     const buffer = Buffer.from(base64Data, 'base64');
-    
+
     // 1. Next.js 브라우저 파비콘용 저장
     const destIconApp = path.join(__dirname, '../frontend/src/app/icon.png');
     await fs.writeFile(destIconApp, buffer);
-    
+
     // 2. 데스크톱 앱 빌드 아이콘용 저장
     const destIconPublic = path.join(__dirname, '../frontend/public/icon.png');
     await fs.writeFile(destIconPublic, buffer);
-    
+
     console.log("🎨 Successfully saved processed ultra-large cropped transparent icon!");
     res.json({ status: 'success' });
   } catch (e) {
@@ -951,7 +979,7 @@ app.post('/api/save-export', async (req, res) => {
     }
 
     const filePath = path.join(downloadsFolder, filename);
-    
+
     if (type === 'base64') {
       const cleanBase64 = content.replace(/^data:[\w/]+;base64,/, '');
       const buffer = Buffer.from(cleanBase64, 'base64');
@@ -990,7 +1018,7 @@ app.get('/api/search', async (req, res) => {
               .filter(line => line.toLowerCase().includes(q.toLowerCase()))
               .slice(0, 3)
               .map(line => line.trim());
-            
+
             results.push({
               fileName: entry.name,
               path: path.relative(WORKSPACE_ROOT, fullPath),
@@ -1085,7 +1113,7 @@ app.post('/api/seo/analyze', async (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   const staticPath = path.join(__dirname, '../frontend/out');
   app.use(express.static(staticPath));
-  
+
   // SPA 라우팅 대응 (API 이외의 모든 경로 요청은 index.html로 리다이렉트)
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) {
@@ -1126,15 +1154,15 @@ loadConfig().then(async () => {
     const destIconApp = path.join(__dirname, '../frontend/src/app/icon_onriveauther.png');
     const destIconPublic = path.join(__dirname, '../frontend/public/icon_onriveauther.png');
     const backupIconPublic = path.join(__dirname, '../frontend/public/icon_backup_clover_thumbsup.png');
-    
+
     // 1. 오리지널 ICO 파일 존재 확인 및 256x256 투명 정품 PNG 다이렉트 추출!
     await fs.access(icoPath);
     await extractPngFromIco(icoPath, destIconApp);
     await extractPngFromIco(icoPath, destIconPublic);
-    
+
     // 2. 백업 파일도 이 진짜 오리지널 정품 PNG 이미지로 완전히 갱신!
     await fs.copyFile(destIconPublic, backupIconPublic);
-    
+
     console.log("🎨 Successfully extracted and deployed original Clover-Nib markdown icon from dist/.icon-ico/icon.ico!");
   } catch (err) {
     console.log("🎨 Clover-Nib Icon restoration status:", err.message);

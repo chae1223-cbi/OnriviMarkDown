@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { FileText, FileCode, FileJson, FileType, File, Folder } from 'lucide-react';
+import { msg } from './msg';
 
 // IndexedDB 헬퍼 (핸들 저장을 위해 필요)
 export const idb = {
@@ -54,7 +55,7 @@ export async function scanDirectory(dirHandle: any): Promise<FileNode[]> {
       }
     }
   } catch (e) {
-    console.error("Directory scan error:", e);
+    msg.error("Directory scan error", e);
   }
   return entries.sort((a, b) => {
     if (a.kind === b.kind) {

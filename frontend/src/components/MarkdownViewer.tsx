@@ -47,7 +47,7 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('복사 실패:', err);
+      console.error('[온리비 어서] 복사 실패', err);
     }
   };
 
@@ -74,8 +74,9 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
   );
 }
 
+// 🛡️ [한글 주석 완벽 탑재] MarkdownViewer는 마크다운 원본 문법을 아름다운 HTML 구조로 파싱 및 시각화하는 핵심 뷰어 컴포넌트입니다.
 export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle }: MarkdownViewerProps) {
-  // 🛡️ 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
+  // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
   const getIndentStyle = (node: any) => {
     const line = node?.position?.start?.line;
     const origLine = line ? (lineMap[line - 1] || line) : undefined;
@@ -90,9 +91,9 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
     let marginLeft = 0;
     for (const char of indentStr) {
       if (char === '\t') {
-        marginLeft += 24; // 탭 1개당 24px
+        marginLeft += 24; // 탭 1개당 24px 여백
       } else if (char === ' ') {
-        marginLeft += 6;  // 공백 1개당 6px
+        marginLeft += 6;  // 공백 1개당 6px 여백
       }
     }
 
@@ -102,6 +103,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
     return {};
   };
 
+  // 🛡️ [마크다운 물리 줄번호 매핑 플러그인] 마크다운 노드가 화면에 렌더링될 때 data-line 속성에 원본 줄 번호를 매핑합니다.
   const rehypeSourceLinesPlugin = useMemo(() => {
     return () => (tree: any) => {
       const visit = (node: any) => {
@@ -121,6 +123,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
     };
   }, [lineMap]);
 
+  // 🛡️ [강제 수동 개행 플러그인] <br> 태그가 날것의 HTML로 들어올 때, Next.js의 rehypeRaw 삼킴 우려 없이 안전하게 br 엘리먼트로 교체합니다.
   const rehypeBrRaw = useMemo(() => {
     return () => (tree: any) => {
       const walk = (node: any) => {
@@ -150,6 +153,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
 
   return (
     <ReactMarkdown
+      // 🛡️ [보안 필터 우회] blob: 및 chrome-extension: 프로토콜 이미지/동영상 리소스가 유실되지 않도록 주소를 그대로 변환 허용합니다.
       urlTransform={(uri) => uri}
       remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
       rehypePlugins={[
@@ -159,6 +163,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
         rehypeSourceLinesPlugin,
       ]}
       components={{
+        // 🛡️ [지능형 이미지 렌더러] src 쿼리스트링에 width/w 매개변수가 감지되면 폭을 자동 조절하며, 미지정 시 최대 600px로 폭주를 제한합니다.
         img: ({ node, src, alt, style, ...props }: any) => {
           if (!src) return <img alt={alt} {...props} />;
           
@@ -180,7 +185,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           if (width) {
             imgStyle.width = width;
           } else {
-            imgStyle.maxWidth = '600px'; // 이미지 폭 폭탄 방지
+            imgStyle.maxWidth = '600px'; // 초대형 이미지 화면 가림 방지선 (기본 최대 600px 제한)
           }
 
           return (

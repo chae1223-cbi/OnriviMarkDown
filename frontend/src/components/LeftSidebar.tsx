@@ -7,6 +7,7 @@ import { FileNode } from '@/lib/helper';
 import { getApiUrl } from '@/lib/api';
 import PromptModal from '@/components/PromptModal';
 import { Plus, FolderPlus } from 'lucide-react';
+import { msg } from '@/lib/msg';
 
 interface TocItem {
   id: string;
@@ -200,7 +201,7 @@ export default function LeftSidebar({
         }
       }
     } catch (err) {
-      console.warn('드라이브 목록 조회 실패:', err);
+      msg.warn('드라이브 목록 조회 실패', err);
     } finally {
       setIsDrivesLoading(false);
     }
@@ -223,7 +224,7 @@ export default function LeftSidebar({
         return await res.json();
       }
     } catch (err) {
-      console.warn('폴더 목록 조회 실패:', err);
+      msg.warn('폴더 목록 조회 실패', err);
     }
     return [];
   };

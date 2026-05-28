@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { msg } from './msg';
 
 /**
  * 파일 확장자 기반으로 올바른 이미지 MIME 타입을 결정해주는 헬퍼
@@ -175,7 +176,7 @@ export async function generateEpub({
             img.setAttribute('src', `../images/${filename}`);
           }
         } catch (err) {
-          console.warn(`[EPUB Builder] 이미지 동봉 실패: ${srcUrl}`, err);
+          msg.warn(`이미지 동봉 실패: ${srcUrl}`, err);
         }
       }
     }

@@ -49,7 +49,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
         showToast("검색 결과를 찾을 수 없습니다. 다른 검색어를 입력해보세요.", 'error');
       }
     } catch (error) {
-      console.error("Search error:", error);
+      console.error("[온리비 어서] Search error", error);
       showToast("검색 중 오류가 발생했습니다.", 'error');
     } finally {
       setIsLoading(false);

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { useToast } from '@/components/ToastProvider';
+import { msg } from '@/lib/msg';
 import { getApiUrl } from '@/lib/api';
 import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers';
 
@@ -38,7 +39,6 @@ import GlobalSearch from '@/components/GlobalSearch';
 import LeftSidebar from '@/components/LeftSidebar';
 import ConfirmModal from '@/components/ConfirmModal';
 import FormulaModal from '@/components/FormulaModal';
-import EmojiPicker from '@/components/EmojiPicker';
 import MergeModal from '@/components/MergeModal';
 import YoutubeModal from '@/components/YoutubeModal';
 import AboutModal from '@/components/AboutModal';
@@ -53,7 +53,7 @@ export type EditorCommandType =
   | 'STRIKETHROUGH' | 'INLINE_CODE' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6'
   | 'HR' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'QUOTE' | 'CHECKLIST'
   | 'LINK' | 'IMAGE' | 'VIDEO' | 'MAP' | 'TABLE' | 'CODE' | 'LATEX' | 'CLEAN_DOC'
-  | 'YOUTUBE' | 'EMOJI' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'
+  | 'YOUTUBE' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'
   | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'
   | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME';
 
@@ -81,7 +81,7 @@ if (typeof window !== 'undefined') {
       const vsPath = getExtensionUrl('/monaco-editor/min/vs');
       loader.config({ paths: { vs: vsPath } });
     } catch (err) {
-      console.error("Monaco loader configuration error:", err);
+      msg.error("Monaco loader configuration error", err);
     }
   }
 }
@@ -455,7 +455,7 @@ export default function Home() {
               }
             }
           } catch (err) {
-            console.warn('Backend root 조회 실패:', err);
+            msg.warn('Backend root 조회 실패', err);
           }
         }
 
@@ -475,7 +475,7 @@ export default function Home() {
                 folder.name.includes('')
               );
               if (hasInvalidChar) {
-                console.warn("🩹 깨진 워크스페이스 캐시 자가 치료 작동: 캐시를 강제 파괴합니다.");
+                msg.warn("깨진 워크스페이스 캐시 자가 치료 작동: 캐시를 강제 파괴합니다.");
                 localStorage.removeItem('rootFolder');
                 localStorage.removeItem('workspaceType');
                 setRootFolder(null);
@@ -665,7 +665,7 @@ export default function Home() {
           const list = await scanDirectory(rootFolder.handle);
           setFileList(list);
         } catch (e) {
-          console.error("브라우저 디렉토리 스캔 오류:", e);
+          msg.error("브라우저 디렉토리 스캔 오류", e);
           // 🛡️ 오류 발생 시 기존 목록 유지 (UI 붕괴 방지)
         }
       } else {
@@ -679,7 +679,7 @@ export default function Home() {
           const list = await api.listDirectory(rootFolder.name);
           if (list) setFileList(list);
         } catch (e: any) {
-          console.error("refreshFileList api.listDirectory 오류:", e);
+          msg.error("refreshFileList api.listDirectory 오류", e);
           // 🛡️ 핵심 방어선: 에러가 났더라도 기존 파일 목록을 []로 밀지 않고 기존 리스트를 유지하여 탐색기 UI 붕괴 방지
           showToast(`워크스페이스 파일 목록을 갱신하지 못했습니다: ${e?.message || e}`, 'warning');
         }
@@ -691,7 +691,7 @@ export default function Home() {
             setFileList(list);
           }
         } catch (err) {
-          console.error("Local file fetch error:", err);
+          msg.error("Local file fetch error", err);
         }
       }
     }
@@ -740,7 +740,7 @@ export default function Home() {
           showToast("로컬 스토리지 워크스페이스가 연결되었습니다.", "success");
         }
       } catch (err) {
-        console.error(err);
+        msg.error("워크스페이스 선택 오류", err);
         // 에러 또는 거부 시 로컬스토리지로 대체
         const folder = { name: '브라우저 스토리지' };
         await idb.set('rootFolderHandle', null);
@@ -796,7 +796,7 @@ export default function Home() {
           showToast("워크스페이스 폴더가 연결되었습니다.", "success");
         } catch (err) {
           if ((err as any)?.name !== 'AbortError' && (err as any)?.name !== 'SecurityError') {
-            console.error(err);
+            msg.error("폴더 선택 오류", err);
           }
           showToast("폴더 선택이 취소되었습니다.", "info");
         }
@@ -929,7 +929,7 @@ export default function Home() {
         }
       }
     } catch (e) {
-      console.error("Save failed:", e);
+      msg.error("Save failed", e);
     }
     return false;
   }, [workspaceType]);
@@ -1251,7 +1251,7 @@ export default function Home() {
       });
       return mdTable.trim() + '\n';
     } catch (err) {
-      console.error('HTML Table parsing error', err);
+      msg.error('HTML Table parsing error', err);
       return null;
     }
   };
@@ -1410,7 +1410,7 @@ export default function Home() {
             }
           }
         } catch (err) {
-          console.error("클립보드 이미지 업로드 실패:", err);
+          msg.error("클립보드 이미지 업로드 실패", err);
         }
       };
       reader.readAsDataURL(file);
@@ -2025,20 +2025,6 @@ export default function Home() {
     video: () => setIsYoutubeModalOpen(true),
     youtube: () => setIsYoutubeModalOpen(true),
     now: () => insertAtCursor(new Date().toLocaleString()),
-    emoji: () => {
-      if (editorRef.current) {
-        editorRef.current.focus();
-        if (lastSelectionRef.current) {
-          editorRef.current.setSelection(lastSelectionRef.current);
-        }
-      }
-      setTimeout(() => {
-        const api = (window as any).electronAPI;
-        if (api && api.showEmojiPicker) {
-          api.showEmojiPicker();
-        }
-      }, 80);
-    },
     map: () => setIsMapModalOpen(true),
     table: () => setIsTableModalOpen(true),
     code: () => insertBlockTag('```javascript', '```', '코드'),
@@ -2102,7 +2088,6 @@ export default function Home() {
       case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
       case 'CLEAN_DOC': handlers.cleanDoc(); return;
       case 'COPY_ALL': handlers.copyAll(); return;
-      case 'EMOJI': handlers.emoji(); return;
       // 🎯 TOOLBAR_ITEMS '푸터' 그룹 토글 명령어 (handlers에 없으므로 직접 상태 변환)
       case 'TOGGLE_TOOLBAR': setIsToolbarOpen(prev => !prev); return;
       case 'TOGGLE_SIDEBAR': setIsSidebarOpen(prev => !prev); return;
@@ -2155,12 +2140,12 @@ export default function Home() {
       case 'MATH': handlers.math(); break;
 
       default:
-        console.warn(`미매핑 커맨드 유입: ${type}`);
+        msg.warn(`미매핑 커맨드 유입: ${type}`);
         break;
     }
 
     // 🛡️ 모달이 팝업되는 명령어는 에디터로 포커스를 뺏기지 않도록 예외 처리
-    // (IMAGE, VIDEO, MAP, TABLE, LATEX, MATH, EMOJI, LINK 계열은 모달 입력 필드가 포커스를 가져야 함)
+    // (IMAGE, VIDEO, MAP, TABLE, LATEX, MATH, LINK 계열은 모달 입력 필드가 포커스를 가져야 함)
     const MODAL_COMMANDS: EditorCommandType[] = ['IMAGE', 'VIDEO', 'YOUTUBE', 'MAP', 'TABLE', 'LATEX', 'MATH', 'LINK'];
     if (!MODAL_COMMANDS.includes(type)) {
       editor.focus();
@@ -2189,7 +2174,7 @@ export default function Home() {
       image:                 'IMAGE',
       video:                 'VIDEO',
       calendar:              'NOW',       // id는 calendar이지만 커맨드는 NOW(날짜 삽입)
-      emoji:                 'EMOJI',
+
       map:                   'MAP',
       chart:                 'CHART',
       codeblock:             'CODE_BLOCK',
@@ -2515,7 +2500,9 @@ export default function Home() {
                       }]);
                     });
 
-                    // 🛡️ Tab 키 입력 시 리스트 들여쓰기(Indent) 지능형 처리
+                    // 🛡️ [한글 주석 탑재] Tab 키 입력 시 리스트 들여쓰기(Indent) 지능형 처리
+                    // 현재 선택한 행 영역에 마크다운 목록 기호가 감지되면, Monaco 에디터 기본 탭 문자 대신
+                    // 2칸의 인덴트 공백을 기호 앞에 삽입하여 하위 목록으로 한 단계 내려가게 조절합니다.
                     editor.addCommand(monaco.KeyCode.Tab, () => {
                       const selection = editor.getSelection();
                       const model = editor.getModel();
@@ -2524,6 +2511,7 @@ export default function Home() {
                       const startLine = selection.startLineNumber;
                       const endLine = selection.endLineNumber;
 
+                      // 선택 범위 내의 모든 행을 조사하여 목록 기호로 시작하는 줄이 있는지 판별
                       let hasList = false;
                       for (let i = startLine; i <= endLine; i++) {
                         const lineContent = model.getLineContent(i);
@@ -2533,13 +2521,14 @@ export default function Home() {
                         }
                       }
 
+                      // 목록 기호가 1개라도 있다면 들여쓰기 연산(indentList) 집행
                       if (hasList) {
-                        editor.pushUndoStop();
+                        editor.pushUndoStop(); // 실행 취소(Undo) 시 단일 트랜잭션으로 묶이게 함
                         const edits: any[] = [];
                         for (let i = startLine; i <= endLine; i++) {
                           edits.push({
                             range: new monaco.Range(i, 1, i, 1),
-                            text: "  " // 공백 2칸 추가
+                            text: "  " // 영롱한 공백 2칸 들여쓰기 주입
                           });
                         }
                         editor.executeEdits("indentList", edits);
@@ -2547,10 +2536,13 @@ export default function Home() {
                         return;
                       }
 
+                      // 목록이 아니라면 브라우저 기본의 탭 이동을 트리거
                       editor.trigger('keyboard', 'tab', null);
                     });
 
-                    // 🛡️ Shift + Tab 키 입력 시 리스트 내어쓰기(Outdent) 지능형 처리
+                    // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 리스트 내어쓰기(Outdent) 지능형 처리
+                    // 현재 줄이 목록 기호로 시작할 때, 맨 앞에 존재하는 2칸 공백 또는 1칸 탭 문자를 안전하게 소거하여
+                    // 목록 계층을 한 수준 상위로 당겨서 정렬해 줍니다.
                     editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
                       const selection = editor.getSelection();
                       const model = editor.getModel();
@@ -2559,6 +2551,7 @@ export default function Home() {
                       const startLine = selection.startLineNumber;
                       const endLine = selection.endLineNumber;
 
+                      // 범위 내에 목록 기호 유무 검사
                       let hasList = false;
                       for (let i = startLine; i <= endLine; i++) {
                         const lineContent = model.getLineContent(i);
@@ -2568,6 +2561,7 @@ export default function Home() {
                         }
                       }
 
+                      // 목록 기호 발견 시 맨 앞 여백 제거 연산(outdentList) 집행
                       if (hasList) {
                         editor.pushUndoStop();
                         const edits: any[] = [];
@@ -2577,6 +2571,7 @@ export default function Home() {
                           if (indentMatch) {
                             const indentStr = indentMatch[1];
                             let removeCount = 0;
+                            // 공백 2칸 혹은 단일 공백/탭 분별 처리
                             if (indentStr.startsWith("  ")) {
                               removeCount = 2;
                             } else if (indentStr.startsWith("\t")) {
@@ -2600,10 +2595,13 @@ export default function Home() {
                         return;
                       }
 
+                      // 일반 문장이면 기본 아웃덴트 기능 트리거
                       editor.trigger('keyboard', 'outdent', null);
                     });
 
-                    // 🛡️ 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
+                    // 🛡️ [한글 주석 탑재] 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
+                    // 사용자가 리스트 상태에서 엔터를 탁 치면, 이전 행의 인덴트 깊이와 불릿 기호를 분석하고 번호를 +1 가산하여
+                    // 다음 줄에 자동으로 양식을 자동완성 주입합니다. 아무 내용도 적지 않고 빈 줄에서 연속으로 엔터를 누르면 리스트를 폭파 탈출합니다.
                     editor.addCommand(monaco.KeyCode.Enter, () => {
                       const position = editor.getPosition();
                       if (!position) return;
@@ -2612,9 +2610,11 @@ export default function Home() {
 
                       const lineNumber = position.lineNumber;
                       const lineContent = model.getLineContent(lineNumber);
+                      // 커서를 기점으로 앞과 뒤의 텍스트 조각을 안전하게 분리
                       const beforeCursor = lineContent.substring(0, position.column - 1);
                       const afterCursor = lineContent.substring(position.column - 1);
 
+                      // 목록 판단용 웅장한 정규식 엔진 모음
                       const taskRegex = /^([ \t]*)([-*+])[ \t]+\[([ xX])\](?:[ \t]+(.*)|)$/;
                       const orderRegex = /^([ \t]*)(\d+)\.(?:[ \t]+(.*)|)$/;
                       const listRegex = /^([ \t]*)([-*+])(?:[ \t]+(.*)|)$/;
@@ -2622,13 +2622,14 @@ export default function Home() {
 
                       let match: RegExpMatchArray | null = null;
 
-                      // 1. 태스크 리스트 판별
+                      // 1. 태스크 리스트 판단 가드 (예: - [ ] 작업)
                       if ((match = beforeCursor.match(taskRegex))) {
                         const indent = match[1];
                         const marker = match[2];
                         const checked = match[3];
                         const text = match[4] || '';
                         
+                        // 사용자가 아무것도 적지 않고 연속 엔터를 칠 경우 불릿 기호 말끔히 삭제 (리스트 탈출)
                         if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
                             range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
@@ -2636,6 +2637,7 @@ export default function Home() {
                             forceMoveMarkers: true
                           }]);
                         } else {
+                          // 작성 내용이 있다면 다음 줄에 태스크 불릿(- [ ]) 자동 연속 생성 및 커서 정밀 이전
                           const insertText = `\n${indent}${marker} [ ] ${afterCursor}`;
                           editor.executeEdits("insertBullet", [{
                             range: new monaco.Range(lineNumber, position.column, lineNumber, lineContent.length + 1),
@@ -2649,12 +2651,13 @@ export default function Home() {
                         return;
                       }
 
-                      // 2. 순번 리스트 판별
+                      // 2. 숫자로 나열된 순번 리스트 판단 가드 (예: 1. 첫 번째 작업)
                       if ((match = beforeCursor.match(orderRegex))) {
                         const indent = match[1];
                         const numStr = match[2];
                         const text = match[3] || '';
                         
+                        // 연속 엔터 시 번호 기호 자동 철거
                         if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
                             range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
@@ -2662,6 +2665,7 @@ export default function Home() {
                             forceMoveMarkers: true
                           }]);
                         } else {
+                          // 작성 내용 발견 시 다음 숫자를 계산(+1)하여 자동 연속 기입 수행
                           const nextNum = parseInt(numStr, 10) + 1;
                           const insertText = `\n${indent}${nextNum}. ${afterCursor}`;
                           editor.executeEdits("insertBullet", [{
@@ -2676,12 +2680,13 @@ export default function Home() {
                         return;
                       }
 
-                      // 3. 일반 리스트 판별
+                      // 3. 일반 동그라미/대시 불릿 리스트 판단 가드 (예: - 내용)
                       if ((match = beforeCursor.match(listRegex))) {
                         const indent = match[1];
                         const marker = match[2];
                         const text = match[3] || '';
                         
+                        // 연속 엔터 시 리스트 불릿 소거
                         if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
                             range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
@@ -2689,6 +2694,7 @@ export default function Home() {
                             forceMoveMarkers: true
                           }]);
                         } else {
+                          // 다음 줄 불릿 기호 자동 확장
                           const insertText = `\n${indent}${marker} ${afterCursor}`;
                           editor.executeEdits("insertBullet", [{
                             range: new monaco.Range(lineNumber, position.column, lineNumber, lineContent.length + 1),
@@ -2702,12 +2708,13 @@ export default function Home() {
                         return;
                       }
 
-                      // 4. 인용구 판별
+                      // 4. 인용구 블록 판단 가드 (예: > 내용)
                       if ((match = beforeCursor.match(quoteRegex))) {
                         const indent = match[1];
                         const quote = match[2];
                         const text = match[3] || '';
                         
+                        // 연속 엔터 시 인용구 기호 소거
                         if (text.trim() === '' && afterCursor.trim() === '') {
                           editor.executeEdits("removeBullet", [{
                             range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
@@ -2715,6 +2722,7 @@ export default function Home() {
                             forceMoveMarkers: true
                           }]);
                         } else {
+                          // 다음 줄 > 기호 연속 생성
                           const insertText = `\n${indent}${quote} ${afterCursor}`;
                           editor.executeEdits("insertBullet", [{
                             range: new monaco.Range(lineNumber, position.column, lineNumber, lineContent.length + 1),
@@ -2728,7 +2736,7 @@ export default function Home() {
                         return;
                       }
 
-                      // 5. 일반 개행 (인덴트 유지)
+                      // 5. 일반 문장 개행 처리 (기본 들여쓰기 탭 깊이 자동 보존 개행)
                       const indentMatch = beforeCursor.match(/^([ \t]*)/);
                       const indent = indentMatch ? indentMatch[1] : '';
                       editor.executeEdits("insertNewline", [{

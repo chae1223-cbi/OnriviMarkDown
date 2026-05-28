@@ -6,6 +6,7 @@ import { FileNode, getFileIcon } from '@/lib/helper';
 import { getApiUrl } from '@/lib/api';
 import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/vfsHelper';
 import PromptModal from '@/components/PromptModal';
+import { msg } from '@/lib/msg';
 import { useToast } from '@/components/ToastProvider';
 
 interface FileTreeItemProps {
@@ -52,7 +53,7 @@ const FileTreeItem = ({
       const children = await onLazyLoad(node);
       setLocalChildren(children);
     } catch (err) {
-      console.warn('폴더 재갱신 실패:', err);
+      msg.warn('폴더 재갱신 실패', err);
     } finally {
       setIsLoading(false);
     }

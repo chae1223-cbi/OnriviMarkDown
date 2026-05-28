@@ -203,7 +203,6 @@ export default function Toolbar({
               <ToolbarButton label="🖼️" title={t('image')} onAction={() => dispatch('IMAGE')} />
               <ToolbarButton label="🎥" title={t('youtube')} onAction={() => dispatch('YOUTUBE')} />
               <ToolbarButton label="📅" title={t('now')} onAction={() => dispatch('NOW')} />
-              <ToolbarButton label="😊" title={t('emoji')} onAction={(e) => dispatch('EMOJI', e)} />
             </ToolbarGroup>
 
             {/* 고급 */}

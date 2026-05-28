@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Sigma, Plus, History, Info, ChevronRight, Calculator, AlignCenter, AlignLeft } from 'lucide-react';
 import { wrapMathWithBold } from "@/lib/editorUtils";
+import { msg } from '@/lib/msg';
 import katex from 'katex';
 
 interface FormulaModalProps {
@@ -28,7 +29,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
       try {
         setHistory(JSON.parse(saved));
       } catch (e) {
-        console.error("Failed to load history", e);
+        msg.error("Failed to load history", e);
       }
     } else {
       // 초기 기본 공식 세트
@@ -63,7 +64,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
             strict: false
           });
         } catch (e) {
-          console.error("KaTeX Live Preview Render Error:", e);
+          msg.error("KaTeX Live Preview Render Error", e);
         }
       } else if (previewEl) {
         // KaTeX가 아직 다 불러와지지 않은 경우
@@ -392,7 +393,7 @@ const SymbolPreview = React.memo(({
             displayMode: false
           });
         } catch (e) {
-          console.error("SymbolPreview render error", e);
+          msg.error("SymbolPreview render error", e);
         }
       } else if (containerRef.current) {
         containerRef.current.innerHTML = `<span style="font-size: 11px; opacity: 0.85; font-family: monospace; font-weight: bold; text-align: left; display: block; word-break: break-all;">${latex}</span>`;

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, CaseSensitive, FileText } from 'lucide-react';
 import { scanDirectory } from '@/lib/helper';
+import { msg } from '@/lib/msg';
 
 interface SearchResult {
   fileName: string;
@@ -37,10 +38,10 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
         if (result?.status === 'success' && result.path) {
           setSearchFolder(result.path);
         } else if (result?.status === 'canceled') {
-          console.log("폴더 선택이 취소되었습니다.");
+          msg.info("폴더 선택이 취소되었습니다.");
         }
       } catch (e) {
-        console.error("폴더 선택 오류:", e);
+        msg.error("폴더 선택 오류", e);
       }
     }
   };
@@ -102,7 +103,7 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
                 results.push({ fileName: file.name, path: file.name, count: 0, snippets: [], lineNumbers: [], fileNameMatch: true });
               }
             } catch (e) {
-              console.error('파일 검색 오류:', file.name, e);
+              msg.error('파일 검색 오류', file.name, e);
             }
           }
           setResults(results);
@@ -137,7 +138,7 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
           }
         }
       } catch (e) {
-        console.error("검색 처리 오류:", e);
+        msg.error("검색 처리 오류", e);
       } finally {
         setIsLoading(false);
       }

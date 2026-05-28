@@ -27,7 +27,6 @@ export const TOOLBAR_ITEMS = [
   { id: 'image', icon: '🖼', name: '이미지', group: '삽입', tagFormat: '![대체 텍스트](URL)', defaultHotkey: 'Ctrl+Shift+I', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
   { id: 'video', icon: '🎥', name: '비디오', group: '삽입', tagFormat: '비디오 삽입', defaultHotkey: '', defaultCommand: 'video', insertText: '비디오 삽입', kind: 15 },
   { id: 'calendar', icon: '📅', name: '달력', group: '삽입', tagFormat: '날짜', defaultHotkey: '', defaultCommand: 'date', insertText: '2026-05-26', kind: 15 },
-  { id: 'emoji', icon: '😊', name: '이모지', group: '삽입', tagFormat: '이모지', defaultHotkey: 'Win+.', defaultCommand: 'emoji', insertText: '😊', kind: 15 },
   
   // 5. 고급 (Advanced)
   { id: 'map', icon: '🗺', name: '지도', group: '고급', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
@@ -111,7 +110,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
 
     let command: any = undefined;
 
-    const modalKeys = ['image', 'video', 'map', 'table', 'emoji', 'math'];
+    const modalKeys = ['image', 'video', 'map', 'table', 'math'];
     const otherActionKeys = ['toggleFloatingToolbar', 'toggleToolbar', 'toggleSidebar', 'toggleMode', 'toggleTheme', 'cleanDoc'];
 
     if (modalKeys.includes(item.id) || otherActionKeys.includes(item.id)) {
