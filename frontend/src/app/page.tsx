@@ -19,6 +19,7 @@ import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandle
 import { idb, FileNode, scanDirectory, getFileIcon } from '@/lib/helper';
 import { preprocessMarkdownForPreview } from "@/lib/editorUtils";
 import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig";
+import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes";
 import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/vfsHelper';
 import ColorText from '@/components/ColorText';
 import FileTreeItem from '@/components/FileTreeItem';
@@ -55,7 +56,8 @@ export type EditorCommandType =
   | 'LINK' | 'IMAGE' | 'VIDEO' | 'MAP' | 'TABLE' | 'CODE' | 'LATEX' | 'CLEAN_DOC'
   | 'YOUTUBE' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'
   | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'
-  | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME';
+  | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME'
+  | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE';
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') {
@@ -179,6 +181,7 @@ export default function Home() {
   const [isToolbarOpen, setIsToolbarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [themePalette, setThemePalette] = useState<string>('onrivi-light');
   const [isAddonEnv, setIsAddonEnv] = useState(false);
   const [previewMode, setPreviewMode] = useState<'edit' | 'both' | 'preview'>('both');
   const previewModeRef = useRef(previewMode);
@@ -427,6 +430,8 @@ export default function Home() {
     const restoreSettings = async () => {
       const savedTheme = localStorage.getItem('theme');
       if (savedTheme === 'dark') setIsDarkMode(true);
+      const savedPalette = localStorage.getItem('themePalette');
+      if (savedPalette) setThemePalette(savedPalette);
 
       // 애드온 환경 감지 (동기 처리)
       const detectedAddon = typeof window !== 'undefined' && (
@@ -539,6 +544,19 @@ export default function Home() {
       localStorage.setItem('theme', 'light');
     }
   }, [isDarkMode, mounted]);
+
+  useEffect(() => {
+    if (mounted && themePalette) {
+      localStorage.setItem('themePalette', themePalette);
+    }
+  }, [themePalette, mounted]);
+
+  const handleThemeChange = useCallback((themeId: string) => {
+    const theme = THEME_MAP[themeId];
+    if (!theme) return;
+    setThemePalette(themeId);
+    setIsDarkMode(theme.isDark);
+  }, []);
 
   useEffect(() => {
     if (mounted) {
@@ -1619,7 +1637,39 @@ export default function Home() {
     };
   }, [content]);
 
+  const quickWrap = (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => {
+    if (!editorRef.current) return;
+    const editor = editorRef.current;
+    let selection = editor.getSelection();
+    if (!selection) return;
+    const model = editor.getModel();
+    if (!model) return;
+    const monaco = (window as any).monaco;
+    if (!monaco) return;
 
+    // No selection → auto-select entire current line
+    if (selection.isEmpty()) {
+      const pos = editor.getPosition();
+      if (!pos) return;
+      const lineNum = pos.lineNumber;
+      const lineContent = model.getLineContent(lineNum);
+      editor.setSelection(new monaco.Selection(
+        lineNum, 1,
+        lineNum, lineContent.length + 1
+      ));
+      selection = editor.getSelection();
+      if (!selection || selection.isEmpty()) return;
+    }
+
+    switch (format) {
+      case 'h1': wrapSelection('# ', '', ''); break;
+      case 'h2': wrapSelection('## ', '', ''); break;
+      case 'h3': wrapSelection('### ', '', ''); break;
+      case 'quote': applyLinePrefix('quote'); break;
+      case 'code': insertBlockTag('```', '```', ''); break;
+    }
+    editor.focus();
+  };
 
   const handlers = {
     insertText: (text: string) => {
@@ -2052,6 +2102,7 @@ export default function Home() {
         return { visible: true, top: 100, left: 100 }; // fallback
       });
     },
+    quickWrap: (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => quickWrap(format),
   };
 
   handlersRef.current = handlers;
@@ -2139,6 +2190,13 @@ export default function Home() {
       case 'LATEX':
       case 'MATH': handlers.math(); break;
 
+      // ★ 퀵 래핑 (Quick Transform)
+      case 'WRAP_H1': handlers.quickWrap('h1'); break;
+      case 'WRAP_H2': handlers.quickWrap('h2'); break;
+      case 'WRAP_H3': handlers.quickWrap('h3'); break;
+      case 'WRAP_QUOTE': handlers.quickWrap('quote'); break;
+      case 'WRAP_CODE': handlers.quickWrap('code'); break;
+
       default:
         msg.warn(`미매핑 커맨드 유입: ${type}`);
         break;
@@ -2185,6 +2243,11 @@ export default function Home() {
       toggleSidebar:         'TOGGLE_SIDEBAR',
       toggleMode:            'TOGGLE_MODE',
       toggleTheme:           'TOGGLE_THEME',
+      'wrap-h1':             'WRAP_H1',
+      'wrap-h2':             'WRAP_H2',
+      'wrap-h3':             'WRAP_H3',
+      'wrap-quote':          'WRAP_QUOTE',
+      'wrap-code':           'WRAP_CODE',
     };
     if (EXPLICIT_MAP[id]) return EXPLICIT_MAP[id];
     // 명시적 매핑이 없으면 camelCase → UPPER_SNAKE_CASE 자동 변환으로 폴백
@@ -2366,20 +2429,19 @@ export default function Home() {
     <div className={`flex h-screen flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
       
       <MenuBar
-        isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode}
-        isSidebarOpen={isSidebarOpen}
-        setIsSidebarOpen={setIsSidebarOpen}
-        isToolbarOpen={isToolbarOpen}
-        setIsToolbarOpen={setIsToolbarOpen}
-        previewMode={previewMode}
-        setPreviewMode={setPreviewMode}
-        dispatch={dispatchCommand}
-        setContent={setContent}
-        isSearchOpen={isSearchOpen}
-       
-        isAddonEnv={isAddonEnv}
-      />
+            isDarkMode={isDarkMode}
+            setIsDarkMode={setIsDarkMode}
+            isSidebarOpen={isSidebarOpen}
+            setIsSidebarOpen={setIsSidebarOpen}
+            isToolbarOpen={isToolbarOpen}
+            setIsToolbarOpen={setIsToolbarOpen}
+            previewMode={previewMode}
+            setPreviewMode={setPreviewMode}
+            dispatch={dispatchCommand}
+            setContent={setContent}
+            isSearchOpen={isSearchOpen}
+            isAddonEnv={isAddonEnv}
+          />
       
       <div className="flex flex-1 overflow-hidden relative">
         <LeftSidebar
@@ -2440,34 +2502,20 @@ export default function Home() {
                 <Editor
                   height="100%"
                   language="markdown"
-                  theme={isDarkMode ? "onrivi-dark" : "onrivi-light"}
+                  theme={themePalette}
                   value={content}
                   onChange={(val) => {
                     setContent(val || '');
                     updateDecorations(editorRef.current);
                   }}
                   beforeMount={(monaco) => {
-                    monaco.editor.defineTheme('onrivi-light', {
-                      base: 'vs',
-                      inherit: true,
-                      rules: [
-                        { token: 'keyword.md', fontStyle: 'bold', foreground: '0055CC' },
-                        { token: 'strong.md', fontStyle: 'bold', foreground: '000000' },
-                        { token: 'emphasis.md', fontStyle: 'italic', foreground: '000000' },
-                        { token: 'string.link.md', fontStyle: 'bold', foreground: '0066CC' }
-                      ],
-                      colors: {}
-                    });
-                    monaco.editor.defineTheme('onrivi-dark', {
-                      base: 'vs-dark',
-                      inherit: true,
-                      rules: [
-                        { token: 'keyword.md', fontStyle: 'bold', foreground: '569CD6' },
-                        { token: 'strong.md', fontStyle: 'bold', foreground: 'FFFFFF' },
-                        { token: 'emphasis.md', fontStyle: 'italic', foreground: 'FFFFFF' },
-                        { token: 'string.link.md', fontStyle: 'bold', foreground: '4FC1FF' }
-                      ],
-                      colors: {}
+                    EDITOR_THEMES.forEach(t => {
+                      monaco.editor.defineTheme(t.id, {
+                        base: t.base,
+                        inherit: true,
+                        rules: t.rules,
+                        colors: t.colors
+                      });
                     });
                   }}
                   onMount={(editor, monaco) => {
@@ -2962,6 +3010,7 @@ export default function Home() {
                     scrollbar: { vertical: 'visible', horizontal: 'visible' },
                     quickSuggestions: { other: true, comments: true, strings: true },
                     suggestOnTriggerCharacters: true,
+                    renderLineHighlight: 'all',
                     tabSize: 4,
                     detectIndentation: true,
                     insertSpaces: false,
@@ -3064,7 +3113,8 @@ export default function Home() {
             setPreviewMode={setPreviewMode}
             isDarkMode={isDarkMode}
             setIsDarkMode={setIsDarkMode}
-           
+            themePalette={themePalette}
+            onThemeChange={handleThemeChange}
           />
         </main>
       </div>

@@ -106,36 +106,39 @@ body {
   pointer-events: auto !important; /* 버튼 자체는 클릭 가능해야 함 */
 }
 
-/* 프리뷰 라인 클릭/동기화 하이라이트 효과 (레이아웃 흔들림 방지 소프트 하이라이트) */
+/* 프리뷰 라인 클릭/동기화 하이라이트 효과 — 좌측 네온 마커 + 소프트 블루 배경 */
 .preview-highlight-line {
-  background-color: rgba(59, 130, 246, 0.07) !important; /* 소프트 블루 배경 */
-  transition: background-color 0.2s ease;
-  border-radius: 6px;
+  background-color: rgba(59, 130, 246, 0.06) !important;
+  border-left: 3px solid rgba(59, 130, 246, 0.45) !important;
+  box-shadow: inset 0 0 12px rgba(59, 130, 246, 0.05) !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 4px;
 }
 
 /* 다크모드 프리뷰 하이라이트 대응 */
 .dark .preview-highlight-line {
-  background-color: rgba(59, 130, 246, 0.12) !important;
+  background-color: rgba(96, 165, 250, 0.10) !important;
+  border-left: 3px solid rgba(96, 165, 250, 0.50) !important;
+  box-shadow: inset 0 0 12px rgba(96, 165, 250, 0.08) !important;
 }
 
-/* 모나코 에디터 현재 행(액티브 행) 하이라이트 배경색 회색(Gray)으로 강제 적용 */
+/* Monaco 에디터 현재 행 하이라이트 — 테마와 무관하게 항상 블루 계열 유지 */
 .monaco-editor .current-line {
-  background-color: rgba(120, 120, 120, 0.06) !important;
+  background-color: rgba(59, 130, 246, 0.08) !important;
   border: none !important;
 }
 
 .monaco-editor .margin-view-overlays .current-line-margin {
-  background-color: rgba(120, 120, 120, 0.03) !important;
+  background-color: rgba(59, 130, 246, 0.12) !important;
   border: none !important;
 }
 
-/* 모나코 에디터 다크모드(vs-dark) 현재 행 하이라이트 대응 */
 .vs-dark .monaco-editor .current-line {
-  background-color: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(96, 165, 250, 0.12) !important;
 }
 
 .vs-dark .monaco-editor .margin-view-overlays .current-line-margin {
-  background-color: rgba(255, 255, 255, 0.02) !important;
+  background-color: rgba(96, 165, 250, 0.18) !important;
 }
 
 /* 스크롤바 숨기기 유틸리티 */
@@ -145,6 +148,34 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none !important;  /* IE/Edge */
   scrollbar-width: none !important;  /* Firefox */
+}
+
+/* 불투명 스크롤바 — 뒤에 글씨가 비치지 않도록 트랙 배경을 완전 불투명으로 처리 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(247, 249, 255) !important;
+  border-left: 1px solid rgba(0, 0, 0, 0.06);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.20) !important;
+  border-radius: 4px;
+  min-height: 40px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.30) !important;
+}
+.dark ::-webkit-scrollbar-track {
+  background: rgb(19, 19, 19) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18) !important;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
 }
 
 /* 리스트 항목(li) 및 리스트 자체의 상하 간격을 대폭 축소하여 많은 글을 담을 수 있게 보정 */

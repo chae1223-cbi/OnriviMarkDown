@@ -1,6 +1,7 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
+import { EDITOR_THEMES } from '@/lib/editorThemes';
 
 interface StatusBarProps {
   content: string;
@@ -21,12 +22,17 @@ interface StatusBarProps {
   setPreviewMode?: (v: 'edit' | 'both' | 'preview') => void;
   isDarkMode?: boolean;
   setIsDarkMode?: (v: boolean) => void;
+  themePalette?: string;
+  onThemeChange?: (themeId: string) => void;
 }
 
 const localTranslations: Record<string, Record<string, string>> = {
   ko: {
     charCount: "글자 수",
     wordCount: "단어 수",
+    manuscript: "원고지",
+    page: "매",
+    target: "목표",
     path: "경로",
     saved: "저장됨",
     saving: "저장 중...",
@@ -43,6 +49,9 @@ const localTranslations: Record<string, Record<string, string>> = {
   en: {
     charCount: "Characters",
     wordCount: "Words",
+    manuscript: "Ms.",
+    page: "p",
+    target: "Target",
     path: "Path",
     saved: "Saved",
     saving: "Saving...",
@@ -59,6 +68,9 @@ const localTranslations: Record<string, Record<string, string>> = {
   ja: {
     charCount: "文字数",
     wordCount: "単語数",
+    manuscript: "原稿用紙",
+    page: "枚",
+    target: "目標",
     path: "パス",
     saved: "保存済み",
     saving: "保存中...",
@@ -75,6 +87,9 @@ const localTranslations: Record<string, Record<string, string>> = {
   zh: {
     charCount: "字数",
     wordCount: "词数",
+    manuscript: "原稿纸",
+    page: "张",
+    target: "目标",
     path: "路径",
     saved: "已保存",
     saving: "保存中...",
@@ -96,10 +111,16 @@ export default function StatusBar({
   isToolbarOpen, setIsToolbarOpen,
   isSidebarOpen, setIsSidebarOpen,
   previewMode, setPreviewMode,
-  isDarkMode, setIsDarkMode
+  isDarkMode, setIsDarkMode,
+  themePalette, onThemeChange
 }: StatusBarProps) {
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const currentTheme = EDITOR_THEMES.find(t => t.id === themePalette) || EDITOR_THEMES[0];
   const charCount = content.length;
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const manuscriptPages = Math.ceil(charCount / 200);
+  const targetCharCount = 2000;
+  const progressPercent = Math.min(100, Math.round((charCount / targetCharCount) * 100));
 
   const t = (key: string) => {
     const dict = localTranslations["ko"] || localTranslations['en'];
@@ -130,6 +151,23 @@ export default function StatusBar({
         <span>{t('charCount')}: {charCount.toLocaleString()}</span>
         <span>|</span>
         <span>{t('wordCount')}: {wordCount.toLocaleString()}</span>
+        <span>|</span>
+        <span>{t('manuscript')}: {manuscriptPages}{t('page')}</span>
+        <span>|</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-16 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${progressPercent}%`,
+                backgroundColor: progressPercent >= 100 ? '#10b981' : '#3b82f6'
+              }}
+            />
+          </div>
+          <span className="tabular-nums">
+            {Math.min(charCount, targetCharCount).toLocaleString()}/{targetCharCount.toLocaleString()} ({progressPercent}%)
+          </span>
+        </div>
         <span>|</span>
         <span>{t('path')}: {getFullPath()}</span>
         {saveStatusText && (
@@ -186,15 +224,45 @@ export default function StatusBar({
             <span className="text-[11px] leading-none">{previewMode === 'edit' ? '✍️' : previewMode === 'both' ? '📳' : '📜'}</span>
           </button>
         )}
-        {/* 테마전환 */}
-        {setIsDarkMode && (
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-0.5 rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 text-gray-400 dark:text-zinc-500"
-            title={t('theme')}
+        {/* 테마 팔레트 선택기 */}
+        {onThemeChange && (
+          <div
+            className="relative"
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setThemeDropdownOpen(false);
+              }
+            }}
           >
-            <span className="text-[11px] leading-none">{isDarkMode ? '☀️' : '🌙'}</span>
-          </button>
+            <button
+              onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+              className="p-0.5 rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 text-gray-400 dark:text-zinc-500 flex items-center gap-1"
+              title={t('theme')}
+            >
+              <span className="text-[11px] leading-none">{currentTheme.icon}</span>
+              <span className="text-[10px] leading-none max-w-[60px] truncate">{currentTheme.name}</span>
+              <span className="text-[8px] opacity-60">▼</span>
+            </button>
+            {themeDropdownOpen && (
+              <div className="absolute bottom-full right-0 mb-1 w-40 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
+                {EDITOR_THEMES.map(theme => (
+                  <button
+                    key={theme.id}
+                    onMouseDown={(e) => { e.preventDefault(); onThemeChange(theme.id); setThemeDropdownOpen(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors ${
+                      theme.id === themePalette
+                        ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30'
+                        : 'text-gray-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
+                    }`}
+                  >
+                    <span>{theme.icon}</span>
+                    <span className="truncate">{theme.name}</span>
+                    {theme.id === themePalette && <span className="ml-auto text-[9px]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
         <span className="text-gray-300 dark:text-zinc-600 mx-0.5">|</span>
         <span className="hover:text-[#0058bc] cursor-default">UTF-8</span>

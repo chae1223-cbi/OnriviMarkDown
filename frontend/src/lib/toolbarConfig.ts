@@ -40,7 +40,14 @@ export const TOOLBAR_ITEMS = [
   { id: 'toggleToolbar', icon: '♻️', name: '툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+T', defaultCommand: 'toggle_toolbar', insertText: '', kind: 17 },
   { id: 'toggleSidebar', icon: '🗃️', name: '사이드바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+B', defaultCommand: 'toggle_sidebar', insertText: '', kind: 17 },
   { id: 'toggleMode', icon: '📜', name: '모드 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+P', defaultCommand: 'toggle_mode', insertText: '', kind: 17 },
-  { id: 'toggleTheme', icon: '🌙', name: '테마 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+D', defaultCommand: 'toggle_theme', insertText: '', kind: 17 }
+  { id: 'toggleTheme', icon: '🌙', name: '테마 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+D', defaultCommand: 'toggle_theme', insertText: '', kind: 17 },
+
+  // ★ 퀵 래핑 (Quick Transform) — 선택 영역/전체 문단을 한 번에 변환
+  { id: 'wrap-h1', icon: 'H1#', name: '퀵 H1', group: '퀵래핑', tagFormat: '# 선택', defaultHotkey: 'Ctrl+Shift+1', defaultCommand: 'wrap-h1', insertText: '', kind: 17 },
+  { id: 'wrap-h2', icon: 'H2#', name: '퀵 H2', group: '퀵래핑', tagFormat: '## 선택', defaultHotkey: 'Ctrl+Shift+2', defaultCommand: 'wrap-h2', insertText: '', kind: 17 },
+  { id: 'wrap-h3', icon: 'H3#', name: '퀵 H3', group: '퀵래핑', tagFormat: '### 선택', defaultHotkey: 'Ctrl+Shift+3', defaultCommand: 'wrap-h3', insertText: '', kind: 17 },
+  { id: 'wrap-quote', icon: '>"', name: '퀵 인용', group: '퀵래핑', tagFormat: '> 선택', defaultHotkey: 'Ctrl+Shift+Q', defaultCommand: 'wrap-quote', insertText: '', kind: 17 },
+  { id: 'wrap-code', icon: '{}', name: '퀵 코드', group: '퀵래핑', tagFormat: '```선택```', defaultHotkey: 'Ctrl+Shift+9', defaultCommand: 'wrap-code', insertText: '', kind: 17 }
 ];
 
 export const getDefaultHotkeys = () => {

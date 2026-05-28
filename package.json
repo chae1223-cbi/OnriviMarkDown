@@ -15,7 +15,8 @@
     "dist": "npm run build && npm run build:electron"
   },
   "dependencies": {
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "concurrently": "^8.2.1",
