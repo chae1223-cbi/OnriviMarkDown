@@ -165,6 +165,12 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
       components={{
         img: ({ node, src, alt, style, ...props }: any) => {
           if (!src) return <img alt={alt} {...props} />;
+          
+          let finalSrc = src;
+          if (typeof window !== 'undefined' && (window as any).electronAPI) {
+            finalSrc = `media://local/serve?url=${encodeURIComponent(src)}`;
+          }
+
           let width: string | undefined;
           let height: string | undefined;
           try {
@@ -178,9 +184,40 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           };
           imgStyle.width = width || undefined;
           if (!width) imgStyle.maxWidth = '600px';
-          return <img src={src} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" {...props} />;
+          return <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" {...props} />;
         },
-        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+        a: ({ node, href, children, ...props }: any) => {
+          const isAnchor = href && href.startsWith('#');
+          if (isAnchor) {
+            const handleClick = (e: React.MouseEvent) => {
+              e.preventDefault();
+              const targetId = decodeURIComponent(href.slice(1));
+              
+              // 1. 직접 ID로 엘리먼트 매칭 검색
+              let targetEl = document.getElementById(targetId);
+              
+              // 2. 제목(Heading) 엘리먼트들의 텍스트 내용과 유연하게 매칭 검색
+              if (!targetEl) {
+                const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '');
+                for (const h of Array.from(headings)) {
+                  const headingText = h.textContent?.trim() || '';
+                  const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '');
+                  if (cleanHeading === cleanTarget || h.id === targetId) {
+                    targetEl = h as HTMLElement;
+                    break;
+                  }
+                }
+              }
+
+              if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            };
+            return <a href={href} onClick={handleClick} {...props}>{children}</a>;
+          }
+          return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+        },
         pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
         code: ({ node, className, children, ...props }: any) => {
           const match = /language-(\w+)/.exec(className || '');
@@ -246,7 +283,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
             }
             return child;
           });
-          return <li style={style} {...props}>{modifiedChildren}</li>;
+          return <li style={{ ...style, ...getIndentStyle(node) }} {...props}>{modifiedChildren}</li>;
         },
         blockquote: ({ node, children, style, ...props }) => {
           return (

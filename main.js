@@ -1,7 +1,13 @@
-const { app, BrowserWindow, session, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, session, ipcMain, dialog, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const net = require('net'); // 빈 포트를 찾기 위한 네이티브 모듈 추가
+
+// 🌐 [ media 프로토콜 Privilege 등록 - app.ready 이전에 호출되어야 함 ]
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'media', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true } }
+]);
+
 
 // 앱 이름 및 Taskbar 그룹 아이디 설정 (우클릭 메뉴 및 알림 이름 변경)
 app.name = "Onrivi Author";
@@ -65,6 +71,7 @@ function createWindow(port) {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      webSecurity: false, // 🛡️ 외부 웹 이미지(https) 및 로컬 미디어 원활한 서빙을 위한 보안 정책 완화
     },
     // Windows 11 스타일의 깔끔한 프레임 디자인
     titleBarStyle: 'default',
@@ -108,6 +115,41 @@ function createWindow(port) {
 
 // 앱 구동 생명주기 시작
 app.on('ready', async () => {
+  // 🌐 [ 로컬 이미지 및 미디어 서빙을 위한 media 프로토콜 핸들러 등록 ]
+  protocol.handle('media', (request) => {
+    try {
+      const parsedUrl = new URL(request.url);
+      const decodedPath = parsedUrl.searchParams.get('url');
+      if (!decodedPath) {
+        return new Response('URL parameter missing', { status: 400 });
+      }
+      
+      // 🛡️ [웹 리소스 프록시 분기] 만약 http/https 외부 자원 주소인 경우, 오리진 CORS 제약 우회를 위해 메인 프로세스에서 fetch 대리 처리
+      if (decodedPath.startsWith('http://') || decodedPath.startsWith('https://')) {
+        return net.fetch(decodedPath, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+      }
+
+      let filePath = decodedPath;
+      if (process.platform === 'win32' && filePath.startsWith('/')) {
+        filePath = filePath.slice(1);
+      }
+      const normalizedPath = path.normalize(filePath).normalize('NFC');
+      
+      if (!fs.existsSync(normalizedPath)) {
+        return new Response('File not found', { status: 404 });
+      }
+      
+      return net.fetch(`file:///${normalizedPath}`);
+    } catch (err) {
+      console.error('media protocol serve error:', err);
+      return new Response('Error serving file', { status: 500 });
+    }
+  });
+
   // 백엔드 Express 서버 기동 생략 (순수 데스크톱 전환)
   createWindow(activePort);
 });
@@ -202,19 +244,34 @@ ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir) 
 //    기본 경로는 사용자 Documents 폴더 혹은 전달받은 defaultPath
 ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
   if (!mainWindow) return { status: 'canceled' };
-  const cleanDefault = defaultPath ? defaultPath.normalize('NFC') : undefined;
-  const startDir = cleanDefault && fs.existsSync(cleanDefault) && fs.statSync(cleanDefault).isDirectory()
+  
+  // 💡 [요구사항 2] 전달받은 경로 문자열을 윈도우 파일 시스템 표준 경로구분자(path.sep)로 정밀 변환 및 NFC 노멀라이징 수행
+  let cleanDefault = defaultPath ? defaultPath.normalize('NFC') : undefined;
+  if (cleanDefault) {
+    cleanDefault = path.resolve(cleanDefault.replace(/\//g, path.sep));
+  }
+  
+  let startDir = cleanDefault && fs.existsSync(cleanDefault) && fs.statSync(cleanDefault).isDirectory()
     ? cleanDefault
     : app.getPath('documents');
+
+  // 💡 [요구사항 2] 윈도우 OS 표준 다이얼로그의 폴더 입력란에 현재 폴더명이 자동으로 입력되게 하기 위한 보정
+  // 윈도우 OS에서는 openDirectory와 openFile을 동시에 주면 부모 폴더가 열리면서 폴더명이 입력창에 pre-fill되게 할 수 있습니다.
+  let properties = ['openDirectory', 'createDirectory'];
+  if (process.platform === 'win32') {
+    properties = ['openDirectory', 'openFile', 'createDirectory'];
+  }
+
   const result = await dialog.showOpenDialog(mainWindow, {
     title: defaultPath ? `워크스페이스 폴더 선택 - ${defaultPath}` : '워크스페이스 폴더 선택',
     defaultPath: startDir,
-    properties: ['openDirectory', 'createDirectory']
+    properties: properties
   });
   if (result.canceled || result.filePaths.length === 0) {
     return { status: 'canceled' };
   }
-  return { status: 'success', path: result.filePaths[0] };
+  const finalPath = result.filePaths[0];
+  return { status: 'success', path: finalPath };
 });
 
 // 5. 절대 경로를 지정하여 직접 파일 내용 읽기

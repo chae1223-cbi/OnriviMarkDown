@@ -75,6 +75,11 @@ const FileTreeItem = ({
     e.dataTransfer.setData("sourceName", node.name);
     e.dataTransfer.setData("sourceKind", node.kind);
     e.dataTransfer.effectAllowed = "move";
+    // 💡 FileSystem API 등에서 복잡한 핸들 복사 이동을 위해 드래그 중인 원본 노드 참조 저장
+    if (typeof window !== 'undefined') {
+      (window as any)._draggedNode = node;
+      (window as any)._draggedNodeParentHandle = parentHandle;
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -102,8 +107,17 @@ const FileTreeItem = ({
     const sourcePath = e.dataTransfer.getData("sourcePath");
     const sourceName = e.dataTransfer.getData("sourceName");
     const sourceKind = e.dataTransfer.getData("sourceKind");
+    const draggedNode = typeof window !== 'undefined' ? (window as any)._draggedNode : null;
+    const draggedNodeParent = typeof window !== 'undefined' ? (window as any)._draggedNodeParentHandle : null;
 
     if (sourcePath === node.path) return; // 자기 자신에게 드롭 방지
+    // 드롭 대상이 드래그 중인 원본 폴더 하위에 위치하는지 방지 (재귀 루프 방지)
+    if (draggedNode && draggedNode.kind === 'directory' && node.path && draggedNode.path) {
+      if (node.path.startsWith(draggedNode.path + '/')) {
+        showToast("하위 폴더로는 이동할 수 없습니다.", "warning");
+        return;
+      }
+    }
 
     try {
       if (workspaceType === 'local') {
@@ -127,12 +141,66 @@ const FileTreeItem = ({
           }
         }
       } else if (workspaceType === 'browser') {
-        const browserMoveMsg = "브라우저 모드에서는 드래그 이동을 준비 중입니다.";
-        showToast(browserMoveMsg, 'info');
+        if (draggedNode && draggedNode.handle) {
+          // FileSystem API 환경
+          const targetDirHandle = node.handle;
+          if (!targetDirHandle) return;
+
+          if (draggedNode.kind === 'file') {
+            // 파일 이동: 새 파일 생성 후 복사 및 기존 파일 엔트리 제거
+            const file = await draggedNode.handle.getFile();
+            const text = await file.text();
+            const newFileHandle = await targetDirHandle.getFileHandle(draggedNode.name, { create: true });
+            const writable = await newFileHandle.createWritable();
+            await writable.write(text);
+            await writable.close();
+            if (draggedNodeParent) {
+              await draggedNodeParent.removeEntry(draggedNode.name);
+            }
+          } else if (draggedNode.kind === 'directory') {
+            // 폴더 이동: 새 폴더를 생성하고 하위 파일/폴더들을 재귀적으로 복사한 뒤 원본 폴더 엔트리 제거
+            const newDirHandle = await targetDirHandle.getDirectoryHandle(draggedNode.name, { create: true });
+            
+            const copyDirectory = async (srcDir: FileSystemDirectoryHandle, destDir: FileSystemDirectoryHandle) => {
+              for await (const entry of (srcDir as any).values()) {
+                if (entry.kind === 'file') {
+                  const file = await entry.getFile();
+                  const text = await file.text();
+                  const newFileHandle = await destDir.getFileHandle(entry.name, { create: true });
+                  const writable = await newFileHandle.createWritable();
+                  await writable.write(text);
+                  await writable.close();
+                } else if (entry.kind === 'directory') {
+                  const newSubDir = await destDir.getDirectoryHandle(entry.name, { create: true });
+                  await copyDirectory(entry, newSubDir);
+                }
+              }
+            };
+            
+            await copyDirectory(draggedNode.handle, newDirHandle);
+            if (draggedNodeParent) {
+              await draggedNodeParent.removeEntry(draggedNode.name, { recursive: true });
+            }
+          }
+          showToast(`'${draggedNode.name}' 이동 완료`, 'success');
+          refreshParent();
+          await refreshThisDirectory();
+        } else if (sourcePath) {
+          // LocalStorage 가상 파일/폴더 이동
+          const oldPath = sourcePath;
+          const normalizedPath = oldPath.replace(/\\/g, '/');
+          const lastSlashIndex = normalizedPath.lastIndexOf('/');
+          const filename = lastSlashIndex !== -1 ? normalizedPath.substring(lastSlashIndex + 1) : normalizedPath;
+          const newPath = node.path ? `${node.path}/${filename}` : filename;
+          
+          vfsRename(oldPath, newPath);
+          showToast(`'${filename}' 이동 완료`, 'success');
+          refreshParent();
+          await refreshThisDirectory();
+        }
       }
     } catch (e) {
-      const moveFailedMsg = "이동 실패: ";
-      showToast(moveFailedMsg + e, 'error');
+      showToast("이동 실패: " + e, 'error');
     }
   };
 
@@ -208,15 +276,46 @@ const FileTreeItem = ({
         setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
         if (workspaceType === 'browser') {
           if (node.handle) {
-            const file = await node.handle.getFile();
-            const text = await file.text();
-            const newHandle = await parentHandle.getFileHandle(finalName, { create: true });
-            const writable = await newHandle.createWritable();
-            await writable.write(text);
-            await writable.close();
-            await parentHandle.removeEntry(node.name);
-            refreshParent();
-            if (currentFileName === node.name) openFile({ name: finalName, kind: 'file', handle: newHandle });
+            if (node.kind === 'file') {
+              // 파일 이름 변경: 새 파일을 만들어 쓰고 기존 파일 삭제
+              const file = await node.handle.getFile();
+              const text = await file.text();
+              const newHandle = await parentHandle.getFileHandle(finalName, { create: true });
+              const writable = await newHandle.createWritable();
+              await writable.write(text);
+              await writable.close();
+              await parentHandle.removeEntry(node.name);
+              refreshParent();
+              if (currentFileName === node.name) openFile({ name: finalName, kind: 'file', handle: newHandle });
+            } else if (node.kind === 'directory') {
+              // 폴더 이름 변경: 새 폴더를 만들고 하위 항목들을 재귀적으로 복사한 뒤 기존 폴더 삭제
+              const newDirHandle = await parentHandle.getDirectoryHandle(finalName, { create: true });
+              
+              const copyDirectory = async (srcDir: FileSystemDirectoryHandle, destDir: FileSystemDirectoryHandle) => {
+                for await (const entry of (srcDir as any).values()) {
+                  if (entry.kind === 'file') {
+                    const file = await entry.getFile();
+                    const text = await file.text();
+                    const newFileHandle = await destDir.getFileHandle(entry.name, { create: true });
+                    const writable = await newFileHandle.createWritable();
+                    await writable.write(text);
+                    await writable.close();
+                  } else if (entry.kind === 'directory') {
+                    const newSubDir = await destDir.getDirectoryHandle(entry.name, { create: true });
+                    await copyDirectory(entry, newSubDir);
+                  }
+                }
+              };
+              
+              await copyDirectory(node.handle, newDirHandle);
+              await parentHandle.removeEntry(node.name, { recursive: true });
+              
+              // 메모리 내 노드 핸들과 이름 즉시 업데이트
+              node.handle = newDirHandle;
+              node.name = finalName;
+              refreshParent();
+              setTimeout(() => refreshParent(), 300);
+            }
           } else if (node.path) {
             // LocalStorage 가상 파일/폴더 이름 변경
             const oldPath = node.path;
@@ -242,9 +341,27 @@ const FileTreeItem = ({
 
           if (api?.renameFile) {
             await api.renameFile(node.path, newPath);
+            // 💡 [요구사항 1] 이름 변경 시 노드 메모리 정보 즉시 갱신하여 하위 목록의 404 경로 유실 에러 원천 차단
+            node.path = newPath;
+            node.name = finalName;
             refreshParent();
-            setTimeout(() => refreshParent(), 500); // 🛡️ OS 파일 락 타임아웃 감안 300ms → 500ms 상향
-            if (currentFileName === node.name) openFile({ name: finalName, kind: 'file', path: newPath });
+            // 🛡️ [요구사항 1] 지연 새로고침을 800ms로 상향하여 OS 파일 인덱싱 락 완벽 방어
+            setTimeout(() => refreshParent(), 800); 
+
+            // 💡 [요구사항 1] 파일 혹은 폴더 이름 변경 시 현재 열려 있는 문서의 경로가 이 영향을 받으면 즉각 갱신
+            if (node.path && currentFilePath) {
+              const normCurrent = currentFilePath.replace(/\\/g, '/');
+              const normOld = node.path.replace(/\\/g, '/');
+              const normNew = newPath.replace(/\\/g, '/');
+              if (normCurrent === normOld) {
+                openFile({ name: finalName, kind: node.kind, path: newPath });
+              } else if (normCurrent.startsWith(normOld + '/')) {
+                const updatedPath = currentFilePath.substring(node.path.length);
+                openFile({ name: currentFileName, kind: 'file', path: newPath + updatedPath });
+              }
+            } else if (currentFileName === node.name) {
+              openFile({ name: finalName, kind: node.kind, path: newPath });
+            }
           } else {
             const res = await fetch(getApiUrl('/api/rename'), {
               method: 'POST',
@@ -252,9 +369,24 @@ const FileTreeItem = ({
               body: JSON.stringify({ oldPath: node.path, newPath })
             });
             if (res.ok) {
+              // 💡 [요구사항 1] 이름 변경 시 노드 메모리 정보 즉시 갱신하여 하위 목록의 404 경로 유실 에러 원천 차단
+              node.path = newPath;
+              node.name = finalName;
               refreshParent();
-              setTimeout(() => refreshParent(), 500); // 🛡️ OS 파일 락 타임아웃 감안 300ms → 500ms 상향
-              if (currentFileName === node.name) openFile({ name: finalName, kind: 'file', path: newPath });
+              setTimeout(() => refreshParent(), 800);
+              if (node.path && currentFilePath) {
+                const normCurrent = currentFilePath.replace(/\\/g, '/');
+                const normOld = node.path.replace(/\\/g, '/');
+                const normNew = newPath.replace(/\\/g, '/');
+                if (normCurrent === normOld) {
+                  openFile({ name: finalName, kind: node.kind, path: newPath });
+                } else if (normCurrent.startsWith(normOld + '/')) {
+                  const updatedPath = currentFilePath.substring(node.path.length);
+                  openFile({ name: currentFileName, kind: 'file', path: newPath + updatedPath });
+                }
+              } else if (currentFileName === node.name) {
+                openFile({ name: finalName, kind: node.kind, path: newPath });
+              }
             }
           }
         }

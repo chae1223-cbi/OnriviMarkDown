@@ -14,7 +14,7 @@ export default function AboutModal({ isOpen, onClose, isDarkMode }: AboutModalPr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
       <div
         className={`relative w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border animate-in zoom-in-95 duration-200 ${
           isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-black/5'

@@ -137,7 +137,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
       <div className={`relative w-full max-w-[800px] h-[600px] shadow-2xl rounded-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${

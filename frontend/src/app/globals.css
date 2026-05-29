@@ -245,15 +245,16 @@ body {
 }
 
 /* Monaco WYSIWYG Decorations */
-.monaco-h1-text { font-weight: 800 !important; color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; }
-.monaco-h2-text { font-weight: 700 !important; color: #059669 !important; }
-.monaco-h3-text { font-weight: 700 !important; color: #34d399 !important; }
-.monaco-bold-text { font-weight: bold !important; }
-.monaco-italic-text { font-style: italic !important; }
+.monaco-h1-text { color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; background-color: rgba(16, 185, 129, 0.05) !important; }
+.monaco-h2-text { color: #059669 !important; background-color: rgba(5, 150, 105, 0.05) !important; }
+.monaco-h3-text { color: #34d399 !important; background-color: rgba(52, 211, 153, 0.05) !important; }
+.monaco-bold-text { color: #1d4ed8 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
+.dark .monaco-bold-text { color: #60a5fa !important; background-color: rgba(96, 165, 250, 0.12) !important; }
+.monaco-italic-text { text-decoration: underline dotted !important; color: #7c3aed !important; }
+.dark .monaco-italic-text { color: #a78bfa !important; }
 .monaco-strikethrough-text { text-decoration: line-through !important; }
 .monaco-md-syntax { 
   color: #3b82f6 !important; 
-  font-weight: 700 !important; 
   font-size: 1em !important; 
   opacity: 0.8 !important;
 }
@@ -319,11 +320,12 @@ body {
 }
 
 .monaco-editor .mtkb {
-  font-weight: 700 !important;
-  letter-spacing: -0.02em !important;
+  color: #1d4ed8 !important;
+  letter-spacing: 0px !important;
 }
 
 .monaco-editor .mtki {
-  font-style: italic !important;
-  letter-spacing: -0.01em !important;
+  text-decoration: underline dotted !important;
+  color: #7c3aed !important;
+  letter-spacing: 0px !important;
 }

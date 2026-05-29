@@ -218,6 +218,39 @@ export default function Home() {                  // @Home : Home component
   const { showToast } = useToast();             // @showToast : Toast component  
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
   const [content, setContent] = useState('');   // @content : content state 
+  
+  // 💡 [CORE-02 / 요구사항 4] Stale 클로저 완벽 격리를 위해 content Ref 백업 도입
+  const contentRef = useRef(content);
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  // 💡 미리보기 업데이트 지연 디바운스 타이머 Ref (타이핑 시 번쩍거림/깜빡거림 방쇄)
+  const previewDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 💡 [IME-01] 에디터 비제어(Uncontrolled) 컴포넌트 전환을 위한 상태 동기화 도우미
+  // 에디터 내부의 onChange 변경인 경우 setValue를 호출하지 않아 한글 IME composition 깨짐 및 중복 입력을 원천 방어합니다.
+  const updateContent = useCallback((newValue: string, fromEditor: boolean = false) => {
+    if (fromEditor) {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+      previewDebounceRef.current = setTimeout(() => {
+        setContent(newValue);
+      }, 250); // 250ms 최적의 지연 시간 설정으로 깜빡임 현상을 완전히 해소합니다.
+    } else {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+      setContent(newValue);
+      if (editorRef.current && editorRef.current.getValue() !== newValue) {
+        editorRef.current.setValue(newValue);
+      }
+    }
+  }, []);
+
+  // 💡 [SYNC-03 / 요구사항 3] 양방향 스크롤 관성 튕김 루프 원천 차단을 위해 호버 감지 Ref 도입
+  const isEditorHovered = useRef(false);
+  const isPreviewHovered = useRef(false);
+
+
+
   const [activeLine, setActiveLine] = useState<number | null>(null); // @activeLine : active line state 
   const lastSelectionRef = useRef<any>(null);    // @lastSelectionRef : last selection state 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // @isSidebarOpen : sidebar open state 
@@ -339,7 +372,19 @@ export default function Home() {                  // @Home : Home component
 
 
   const editorRef = useRef<any>(null);
+  
+  // 💡 [WBS CORE-02 / 요구사항 4] State Stale Closure 방지를 위한 Ref 백업 시스템 도입
+  const currentFileNodeRef = useRef(currentFileNode);
+  const currentFileNameRef = useRef(currentFileName);
+  const workspaceTypeRef = useRef(workspaceType);
+  const rootFolderRef = useRef(rootFolder);
+
+  useEffect(() => { currentFileNodeRef.current = currentFileNode; }, [currentFileNode]);
+  useEffect(() => { currentFileNameRef.current = currentFileName; }, [currentFileName]);
+  useEffect(() => { workspaceTypeRef.current = workspaceType; }, [workspaceType]);
+  useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
   const decorationsCollectionRef = useRef<any>(null);
+  const decorationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 🛡️ 미리보기 체크박스 클릭 시 에디터 본문의 상태를 동기화하는 함수
   const handleCheckboxToggle = useCallback((lineNumber: number, checked: boolean) => {
@@ -471,6 +516,9 @@ export default function Home() {                  // @Home : Home component
   const contentChangeTimeoutRef = useRef<any>(null);
   const completionProviderRef = useRef<any>(null);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
+
+
+
   const cursorPositionRef = useRef<any>(null);
   const cursorSelectionRef = useRef<any>(null);
   const handlersRef = useRef<any>(null);
@@ -667,11 +715,8 @@ export default function Home() {                  // @Home : Home component
     if (!mounted) return;
     const welcome = getWelcomeContent();
     if (!currentFileNode || currentFileName === '새 파일.md') {
-      setContent(welcome);
+      updateContent(welcome);
       lastSavedContentRef.current = welcome;
-      if (editorRef.current) {
-        editorRef.current.setValue(welcome);
-      }
     }
   }, [mounted]);
 
@@ -681,11 +726,8 @@ export default function Home() {                  // @Home : Home component
         try {
           const text = await navigator.clipboard.readText();
           if (text) {
-            setContent(text);
+            updateContent(text);
             lastSavedContentRef.current = text;
-            if (editorRef.current) {
-              editorRef.current.setValue(text);
-            }
           }
         } catch (e) {
           // 클립보드 읽기 실패 (권한 없음 등) - 무시
@@ -871,9 +913,20 @@ export default function Home() {                  // @Home : Home component
       const hasElectronAPI = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
       if (hasElectronAPI) {
-        // Electron: OS 탐색기 다이얼로그 (현재 rootFolder 경로 전달)
         try {
-          const result = await (window as any).electronAPI.selectFolder(rootFolder?.name);
+          let currentLocalPath: string | undefined = undefined;
+          try {
+            const savedRoot = localStorage.getItem('rootFolder');
+            if (savedRoot) {
+              const parsed = JSON.parse(savedRoot);
+              if (parsed && parsed.name && parsed.name !== '브라우저 스토리지') {
+                currentLocalPath = parsed.name;
+              }
+            }
+          } catch (_) {}
+
+          const targetPath = currentLocalPath || rootFolderRef.current?.name;
+          const result = await (window as any).electronAPI.selectFolder(targetPath);
           if (result.status === 'success') {
             const finalRoot = result.path;
             // 백엔드에 저장 (실패해도 로컬에는 저장)
@@ -933,7 +986,7 @@ export default function Home() {                  // @Home : Home component
       setCurrentFileNode(null);
       setCurrentFileName('새 파일.md');
       const welcome = getWelcomeContent();
-      setContent(welcome);
+      updateContent(welcome);
       lastSavedContentRef.current = welcome;
       setSaveStatus('saved');
       return;
@@ -953,19 +1006,13 @@ export default function Home() {                  // @Home : Home component
         if (node.handle) {
           const file = await node.handle.getFile();
           const text = await file.text();
-          setContent(text);
+          updateContent(text);
           lastSavedContentRef.current = text;
-          if (editorRef.current) {
-            editorRef.current.setValue(text);
-          }
         } else if (node.path) {
           // LocalStorage 가상 파일 읽기
           const text = vfsReadFile(node.path);
-          setContent(text);
+          updateContent(text);
           lastSavedContentRef.current = text;
-          if (editorRef.current) {
-            editorRef.current.setValue(text);
-          }
         }
       } else if (activeMode === 'local' && node.path) {
         const api = (window as any).electronAPI;
@@ -973,9 +1020,8 @@ export default function Home() {                  // @Home : Home component
           try {
             const file = await api.readFromPath(node.path);
             if (file) {
-              setContent(file.content);
+              updateContent(file.content);
               lastSavedContentRef.current = file.content;
-              if (editorRef.current) editorRef.current.setValue(file.content);
             }
           } catch (e) {
             showToast('파일 읽기 실패', 'error');
@@ -984,9 +1030,8 @@ export default function Home() {                  // @Home : Home component
           const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
           if (res.ok) {
             const data = await res.json();
-            setContent(data.content);
+            updateContent(data.content);
             lastSavedContentRef.current = data.content;
-            if (editorRef.current) editorRef.current.setValue(data.content);
           }
         }
       }
@@ -1182,7 +1227,42 @@ export default function Home() {                  // @Home : Home component
       }
       if (!selection) return;
       const model = editor.getModel();
-      const text = model.getValueInRange(selection);
+
+      let startLine = selection.startLineNumber;
+      let startCol = selection.startColumn;
+      let endLine = selection.endLineNumber;
+      let endCol = selection.endColumn;
+      let text = model.getValueInRange(selection);
+
+      // 💡 [개행 트리밍 보정] 선택 영역 앞뒤의 개행 문자를 파싱하여 범위를 안쪽으로 좁힙니다.
+      // 이를 통해 태그 주입 시 중간에 뜬금없는 줄바꿈이 삽입되는 버그를 원천 차단합니다.
+      let adjusted = false;
+      while (text.length > 0 && (text[0] === '\r' || text[0] === '\n')) {
+        adjusted = true;
+        if (text[0] === '\n') {
+          startLine++;
+          startCol = 1;
+        } else {
+          startCol++;
+        }
+        text = text.slice(1);
+      }
+      while (text.length > 0 && (text[text.length - 1] === '\r' || text[text.length - 1] === '\n')) {
+        adjusted = true;
+        const lastChar = text[text.length - 1];
+        if (lastChar === '\n') {
+          endLine--;
+          endCol = model.getLineMaxColumn(endLine);
+        } else {
+          endCol = Math.max(1, endCol - 1);
+        }
+        text = text.slice(0, -1);
+      }
+
+      if (adjusted) {
+        selection = new (window as any).monaco.Selection(startLine, startCol, endLine, endCol);
+      }
+
       const isEmpty = !text || text.length === 0;
       const textToWrap = (isEmpty && defaultText) ? defaultText : text;
 
@@ -1531,7 +1611,7 @@ export default function Home() {                  // @Home : Home component
               editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
 
               const newValue = editor.getValue();
-              setContent(newValue);
+              updateContent(newValue, true);
             }
           }
         } catch (err) {
@@ -1551,7 +1631,7 @@ export default function Home() {                  // @Home : Home component
           e.preventDefault();
           insertAtCursor(mdTable);
           if (editorRef.current) {
-            setContent(editorRef.current.getValue());
+            updateContent(editorRef.current.getValue(), true);
           }
           showToast("웹 표 데이터가 마크다운으로 완벽하게 변환되었습니다.", "success");
           return;
@@ -1573,7 +1653,7 @@ export default function Home() {                  // @Home : Home component
           e.preventDefault();
           insertAtCursor(processedText);
           if (editorRef.current) {
-            setContent(editorRef.current.getValue());
+            updateContent(editorRef.current.getValue(), true);
           }
           showToast("붙여넣은 텍스트가 자동으로 정제(교정)되었습니다.", "success");
         }
@@ -1868,13 +1948,10 @@ export default function Home() {                  // @Home : Home component
       }
     },
     newFile: () => {
-      setContent('');
+      updateContent('');
       setCurrentFileName('새 파일.md');
       setCurrentFileNode(null);
       lastSavedContentRef.current = '';
-      if (editorRef.current) {
-        editorRef.current.setValue('');
-      }
       setIsSidebarOpen(true);
       showToast("새 문서를 시작합니다.", "info");
     },
@@ -1883,11 +1960,8 @@ export default function Home() {                  // @Home : Home component
         try {
           const file = await (window as any).electronAPI.openFile(rootFolder?.name);
           if (file) {
-            setContent(file.content);
+            updateContent(file.content);
             lastSavedContentRef.current = file.content;
-            if (editorRef.current) {
-              editorRef.current.setValue(file.content);
-            }
             setCurrentFileName(file.name);
             setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
             setIsSidebarOpen(true);
@@ -1926,11 +2000,8 @@ export default function Home() {                  // @Home : Home component
           });
           const file = await fileHandle.getFile();
           const text = await file.text();
-          setContent(text);
+          updateContent(text);
           lastSavedContentRef.current = text;
-          if (editorRef.current) {
-            editorRef.current.setValue(text);
-          }
           setCurrentFileName(file.name);
           setCurrentFileNode({ name: file.name, kind: 'file', path: file.name, handle: fileHandle });
           setIsSidebarOpen(true);
@@ -1948,160 +2019,140 @@ export default function Home() {                  // @Home : Home component
       selectRootFolder('local', null);
     },
     save: async () => {
-      const isNewDocument = !currentFileNode || !currentFileNode.path || currentFileName === '새 파일.md';
       const api = (window as any).electronAPI;
-      const hasFilePicker = typeof window !== 'undefined' && 'showSaveFilePicker' in window;
       setSaveStatus('saving');
-      if (isNewDocument) {
+
+      // 💡 [WBS CORE-02 / 요구사항 4] Ref 백업값을 활용하여 Stale 클로저 덮어쓰기 버그 완벽 방어
+      const fileNode = currentFileNodeRef.current;
+      const fileName = currentFileNameRef.current;
+      const wType = workspaceTypeRef.current;
+      const currentVal = contentRef.current; // content 상태 대신 Ref 사용
+
+      // 1. 기존 파일이 이미 디스크/스토리지에 매핑되어 있는 경우 (명확한 덮어쓰기 저장)
+      if (fileNode && fileNode.path && fileName !== '새 파일.md') {
         if (api) {
-          // === Desktop: OS 저장 대화상자 하나로 파일명+폴더 선택 ===
           try {
-            const suggestedName = currentFileName !== '새 파일.md' ? currentFileName : undefined;
-            const defaultDir = rootFolder?.name && rootFolder.name !== '브라우저 스토리지' ? rootFolder.name : undefined;
-            const file = await api.saveFileAs(content, suggestedName, defaultDir);
-            if (file) {
-              const normalizedPath = file.path.replace(/\\/g, '/');
-              const parentPath = normalizedPath.includes('/')
-                ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/'))
-                : '';
-              const osParentPath = parentPath.replace(/\//g, '\\');
-              setRootFolder({ name: osParentPath });
-              setWorkspaceType('local');
-              localStorage.setItem('rootFolder', JSON.stringify({ name: osParentPath }));
-              localStorage.setItem('workspaceType', 'local');
-              setCurrentFileName(file.name);
-              setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-              lastSavedContentRef.current = content;
+            const success = await api.saveFile(fileNode.path, currentVal);
+            if (success) {
+              lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
-              await refreshFileList();
-              showToast(`'${file.name}' 저장 완료 · 워크스페이스 → ${osParentPath}`, 'success');
-            } else {
-              setSaveStatus('unsaved');
+              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              return;
             }
           } catch (e) {
             setSaveStatus('unsaved');
             showToast("저장 실패: " + e, 'error');
+            return;
           }
-        } else if (typeof (window as any).showDirectoryPicker === 'function') {
-          // === Addon/Browser: 폴더 선택 = 워크스페이스 → 파일명 입력 → 저장 ===
+        } else if (wType === 'local') {
           try {
-            const dirHandle = await (window as any).showDirectoryPicker();
-            const folderName = dirHandle.name;
-            setRootFolder({ name: folderName, handle: dirHandle });
-            setWorkspaceType('browser');
-            localStorage.setItem('rootFolder', JSON.stringify({ name: folderName }));
-            localStorage.setItem('workspaceType', 'browser');
-            setSaveStatus('unsaved');
-            showToast(`워크스페이스가 '${folderName}'(으)로 설정됨`, 'success');
-            setPromptConfig({
-              isOpen: true,
-              title: '파일명 입력',
-              defaultValue: '',
-              type: 'createFile',
-              error: ""
+            const res = await fetch(getApiUrl('/api/save'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: fileNode.path, content: currentVal })
             });
-          } catch (e: any) {
-            if (e.name !== 'AbortError') {
-              setSaveStatus('unsaved');
-              showToast("폴더 선택 실패", 'error');
-            } else {
-              setSaveStatus('unsaved');
+            if (res.ok) {
+              lastSavedContentRef.current = currentVal;
+              setSaveStatus('saved');
+              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              return;
             }
+          } catch (e: any) {
+            setSaveStatus('unsaved');
+            showToast("저장 실패: " + e.message, 'error');
+            return;
           }
-        } else {
-          // VFS fallback: PromptModal
-          setPromptConfig({
-            isOpen: true,
-            title: '새 파일 생성',
-            defaultValue: currentFileName,
-            type: 'createFile',
-            error: ""
-          });
-          setSaveStatus('unsaved');
-        }
-      } else if (api) {
-        // === Desktop: 기존 파일 저장 ===
-        try {
-          const success = await api.saveFile(currentFileNode.path, content);
-          if (success) {
-            lastSavedContentRef.current = content;
+        } else if (wType === 'browser') {
+          if (fileNode.handle) {
+            try {
+              const writable = await fileNode.handle.createWritable();
+              await writable.write(currentVal);
+              await writable.close();
+              lastSavedContentRef.current = currentVal;
+              setSaveStatus('saved');
+              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              return;
+            } catch (e: any) {
+              setSaveStatus('unsaved');
+              showToast("저장 실패: " + e.message, 'error');
+              return;
+            }
+          } else {
+            vfsWriteFile(fileNode.path, currentVal);
+            lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
-            showToast("저장되었습니다.", "success");
+            showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+            return;
+          }
+        }
+      }
+
+      // 2. 새 파일이거나 경로가 매핑되지 않은 완전한 신규 문서인 경우 (대화상자 호출)
+      if (api) {
+        // === Desktop: OS 저장 대화상자 하나로 파일명+폴더 선택 ===
+        try {
+          const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
+          const defaultDir = rootFolderRef.current?.name && rootFolderRef.current.name !== '브라우저 스토리지' ? rootFolderRef.current.name : undefined;
+          const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
+          if (file) {
+            const normalizedPath = file.path.replace(/\\/g, '/');
+            const parentPath = normalizedPath.includes('/')
+              ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/'))
+              : '';
+            const osParentPath = parentPath.replace(/\//g, '\\');
+            setRootFolder({ name: osParentPath });
+            setWorkspaceType('local');
+            localStorage.setItem('rootFolder', JSON.stringify({ name: osParentPath }));
+            localStorage.setItem('workspaceType', 'local');
+            setCurrentFileName(file.name);
+            setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
+            lastSavedContentRef.current = currentVal;
+            setSaveStatus('saved');
+            await refreshFileList();
+            showToast(`'${file.name}' 저장 완료 · 워크스페이스 → ${osParentPath}`, 'success');
           } else {
             setSaveStatus('unsaved');
-            showToast("저장 실패", 'error');
           }
         } catch (e) {
           setSaveStatus('unsaved');
           showToast("저장 실패: " + e, 'error');
         }
-      } else if (workspaceType === 'local') {
+      } else if (typeof (window as any).showDirectoryPicker === 'function') {
+        // === Addon/Browser: 폴더 선택 = 워크스페이스 → 파일명 입력 → 저장 ===
         try {
-          const res = await fetch(getApiUrl('/api/save'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: currentFileNode.path, content })
-          });
-          if (res.ok) {
-            lastSavedContentRef.current = content;
-            setSaveStatus('saved');
-            showToast("저장되었습니다.", "success");
-          } else {
-            setSaveStatus('unsaved');
-            showToast("저장 실패", 'error');
-          }
-        } catch (e: any) {
+          const dirHandle = await (window as any).showDirectoryPicker();
+          const folderName = dirHandle.name;
+          setRootFolder({ name: folderName, handle: dirHandle });
+          setWorkspaceType('browser');
+          localStorage.setItem('rootFolder', JSON.stringify({ name: folderName }));
+          localStorage.setItem('workspaceType', 'browser');
           setSaveStatus('unsaved');
-          showToast("저장 실패: " + e.message, 'error');
-        }
-      } else if (workspaceType === 'browser') {
-        if (currentFileNode?.handle) {
-          try {
-            const writable = await currentFileNode.handle.createWritable();
-            await writable.write(content);
-            await writable.close();
-            lastSavedContentRef.current = content;
-            setSaveStatus('saved');
-            showToast("저장되었습니다.", "success");
-          } catch (e: any) {
+          showToast(`워크스페이스가 '${folderName}'(으)로 설정됨`, 'success');
+          setPromptConfig({
+            isOpen: true,
+            title: '파일명 입력',
+            defaultValue: '',
+            type: 'createFile',
+            error: ""
+          });
+        } catch (e: any) {
+          if (e.name !== 'AbortError') {
             setSaveStatus('unsaved');
-            showToast("저장 실패: " + e.message, 'error');
-          }
-        } else if (currentFileNode?.path) {
-          // VFS 파일 → showSaveFilePicker로 내PC 저장소로 마이그레이션
-          if (hasFilePicker) {
-            try {
-              const fh = await (window as any).showSaveFilePicker({
-                suggestedName: currentFileNode.path,
-                startIn: rootFolder?.handle || 'documents',
-                types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown', '.txt'] } }],
-              });
-              const w = await fh.createWritable();
-              await w.write(content);
-              await w.close();
-              setCurrentFileName(fh.name);
-              setCurrentFileNode({ name: fh.name, kind: 'file', path: fh.name, handle: fh });
-              lastSavedContentRef.current = content;
-              setSaveStatus('saved');
-              showToast("저장되었습니다.", "success");
-            } catch (e: any) {
-              if (e.name !== 'AbortError') {
-                setSaveStatus('unsaved');
-              } else {
-                setSaveStatus('unsaved');
-              }
-            }
+            showToast("폴더 선택 실패", 'error');
           } else {
-            vfsWriteFile(currentFileNode.path, content);
-            lastSavedContentRef.current = content;
-            setSaveStatus('saved');
-            showToast("저장되었습니다.", "success");
+            setSaveStatus('unsaved');
           }
-        } else {
-          showToast("데스크톱 모드(또는 로컬 서버 연동)에서만 사용 가능한 기능입니다.", "warning");
         }
       } else {
-        showToast("데스크톱 모드(또는 로컬 서버 연동)에서만 사용 가능한 기능입니다.", "warning");
+        // VFS fallback: PromptModal
+        setPromptConfig({
+          isOpen: true,
+          title: '새 파일 생성',
+          defaultValue: fileName,
+          type: 'createFile',
+          error: ""
+        });
+        setSaveStatus('unsaved');
       }
     },
 
@@ -2236,9 +2287,12 @@ export default function Home() {                  // @Home : Home component
       setFloatingToolbar(prev => {
         if (prev.visible) return { ...prev, visible: false };
         if (editorRef.current) {
-          const position = editorRef.current.getPosition();
+          const editor = editorRef.current;
+          // 💡 데스크톱 모드(Electron) 등에서 포커스 유실로 인한 1행 1열(최상단) 좌표 리셋을 방어하기 위해 포커스 강제 복구
+          editor.focus();
+          const position = editor.getPosition();
           if (position) {
-            const visiblePos = editorRef.current.getScrolledVisiblePosition(position);
+            const visiblePos = editor.getScrolledVisiblePosition(position);
             if (visiblePos) {
               return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
             }
@@ -2305,6 +2359,13 @@ export default function Home() {                  // @Home : Home component
     // 2. 에디터 본문 서식 조작 명령어 (포커스 가드 강제 추적)
     if (!editorRef.current) return;
     const editor = editorRef.current;
+
+    // [WBS SYNC-01] 본문 서식 수정 명령 실행 전 에디터에 포커스를 강제로 주입하여 제어권 씹힘 방지
+    const MODAL_COMMANDS: EditorCommandType[] = ['IMAGE', 'VIDEO', 'YOUTUBE', 'MAP', 'TABLE', 'LATEX', 'MATH', 'LINK'];
+    if (!MODAL_COMMANDS.includes(type)) {
+      editor.focus();
+    }
+
     const selection = editor.getSelection();
     const model = editor.getModel();
     if (!model || !selection) return;
@@ -2358,10 +2419,24 @@ export default function Home() {                  // @Home : Home component
 
     // 🛡️ 모달이 팝업되는 명령어는 에디터로 포커스를 뺏기지 않도록 예외 처리
     // (IMAGE, VIDEO, MAP, TABLE, LATEX, MATH, LINK 계열은 모달 입력 필드가 포커스를 가져야 함)
-    const MODAL_COMMANDS: EditorCommandType[] = ['IMAGE', 'VIDEO', 'YOUTUBE', 'MAP', 'TABLE', 'LATEX', 'MATH', 'LINK'];
-    if (!MODAL_COMMANDS.includes(type)) {
-      editor.focus();
-    }
+    // [WBS SYNC-02] 50ms 비동기 지연을 두어 에디터 버퍼의 완전 기록 후 토큰 리프레시 및 레이아웃 재적용으로 글자 겹침 완벽 해결
+    try {
+      setTimeout(() => {
+        if (editorRef.current) {
+          const editor = editorRef.current;
+          const model = editor.getModel();
+          const selection = editor.getSelection();
+          if (model && selection) {
+            const startLine = selection.startLineNumber;
+            const endLine = selection.endLineNumber;
+            for (let i = startLine; i <= endLine; i++) {
+              model.forceTokenization(i);
+            }
+            editor.layout();
+          }
+        }
+      }, 50);
+    } catch (_) {}
   }, [handlers]);
 
   // 🎯 툴바 아이템 ID(camelCase)를 EditorCommandType(UPPER_SNAKE_CASE)으로 변환하는 헬퍼
@@ -2505,6 +2580,22 @@ export default function Home() {                  // @Home : Home component
       const isCtrl = e.ctrlKey || e.metaKey;
       const isShift = e.shiftKey;
       const isAlt = e.altKey;
+
+      // 💡 [IME-02] 브라우저 환경에서 Ctrl+S 저장 시 웹페이지 저장(HTML) 다이얼로그가 강제 노출되는 이벤트를 차단하고 
+      // 우리 에디터 고유의 저장 커맨드를 실행하도록 원천 차단합니다.
+      if (isCtrl && !isAlt) {
+        const keyUpper = e.key.toUpperCase();
+        if (keyUpper === 'S') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (isShift) {
+            dispatchCommand('SAVE_AS');
+          } else {
+            dispatchCommand('SAVE');
+          }
+          return;
+        }
+      }
 
       let key = e.key.toUpperCase();
 
@@ -2704,10 +2795,17 @@ export default function Home() {                  // @Home : Home component
                   height="100%"
                   language="markdown"
                   theme={themePalette}
-                  value={content}
+                  // 💡 value={content} 속성을 배제하고 defaultValue를 적용하여
+                  // React 상태 갱신 시 모나코 내부의 불필요한 setValue 호출로 인한 한글 composition 깨짐 및 중복 입력을 원천 방어합니다.
+                  defaultValue={content}
                   onChange={(val) => {
-                    setContent(val || '');
-                    updateDecorations(editorRef.current);
+                    updateContent(val || '', true);
+                    if (decorationTimeoutRef.current) {
+                      clearTimeout(decorationTimeoutRef.current);
+                    }
+                    decorationTimeoutRef.current = setTimeout(() => {
+                      updateDecorations(editorRef.current);
+                    }, 150);
                   }}
                   beforeMount={(monaco) => {
                     EDITOR_THEMES.forEach(t => {
@@ -2721,6 +2819,8 @@ export default function Home() {                  // @Home : Home component
                   }}
                   onMount={(editor, monaco) => {
                     editorRef.current = editor;
+                    // 마운트 시 최신 content 내용을 에디터 버퍼에 안전하게 동기화
+                    editor.setValue(contentRef.current);
                     if (typeof window !== 'undefined') {
                       (window as any).monaco = monaco;
                     }
@@ -2732,6 +2832,20 @@ export default function Home() {                  // @Home : Home component
                         }
                       });
                     }
+                    // 대용량 문서 엔터 키 입력 시 자동 스크롤 패치 (CORE-01)
+                    editor.onKeyDown((e) => {
+                      if (e.keyCode === monaco.KeyCode.Enter) {
+                        // 엔터가 입력되어 행이 추가된 직후, 커널 스케줄러를 한 틱 늦춰서 최신 좌표 추출
+                        setTimeout(() => {
+                          const position = editor.getPosition();
+                          if (position) {
+                            // 커서가 뷰포트 바깥으로 나가면 무조건 화면 중앙이나 하단으로 스크롤 강제 이송
+                            editor.revealPositionInCenterIfOutsideViewport(position);
+                          }
+                        }, 10);
+                      }
+                    });
+
                     editor.onKeyUp((e) => {
                       if (e.browserEvent.key === '/') {
                         editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
@@ -2749,16 +2863,11 @@ export default function Home() {                  // @Home : Home component
                       }]);
                     });
 
-                    // 🛡️ [한글 주석 탑재] Tab 키 입력 시 리스트 들여쓰기(Indent) 지능형 처리
-                    // 자동완성(Suggest Widget)이 열려 있으면 Tab → 자동완성 수락에 양보
-                    // 그 외에는 마크다운 목록 기호가 감지되면 2칸 들여쓰기를 삽입합니다.
-                    editor.addAction({
-                      id: 'custom-tab-list-indent',
-                      label: '리스트 들여쓰기 (Tab)',
-                      keybindings: [monaco.KeyCode.Tab],
-                      // suggestWidgetVisible = true 일 때는 이 액션 실행 안됨 → Monaco 기본 Tab 동작(자동완성 수락)에 양보
-                      precondition: '!suggestWidgetVisible && !editorReadonly',
-                      run: () => {
+                    // 🛡️ [한글 주석 탑재] Tab 키 입력 시 리스트 및 인용문 들여쓰기(Indent) 지능형 처리
+                    // 자동완성(Suggest Widget)이 열려 있으면 Tab → 자동완성 수락에 양보하고,
+                    // 그 외에는 마크다운 목록(글머리, 넘버링, 체크박스) 또는 인용문(>)이 감지되면 2칸 들여쓰기를 삽입합니다.
+                    // addCommand를 사용하여 모나코 기본 내장 Tab 키 동작을 오버라이딩하여 확실하게 작동시킵니다.
+                    editor.addCommand(monaco.KeyCode.Tab, () => {
                       // ① 자동완성 위젯이 열려 있으면 Tab = 자동완성 항목 수락
                       try {
                         const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
@@ -2770,22 +2879,26 @@ export default function Home() {                  // @Home : Home component
 
                       const selection = editor.getSelection();
                       const model = editor.getModel();
-                      if (!model || !selection) return;
+                      if (!model || !selection) {
+                        editor.trigger('keyboard', 'tab', null);
+                        return;
+                      }
 
                       const startLine = selection.startLineNumber;
                       const endLine = selection.endLineNumber;
 
-                      // 선택 범위 내의 모든 행을 조사하여 목록 기호로 시작하는 줄이 있는지 판별
+                      // 선택 범위 내의 모든 행을 조사하여 목록 기호 또는 인용구로 시작하는 줄이 있는지 판별
                       let hasList = false;
                       for (let i = startLine; i <= endLine; i++) {
                         const lineContent = model.getLineContent(i);
-                        if (/^[ \t]*([-*+]|\d+\.)/.test(lineContent)) {
+                        // 글머리(-*+), 넘버링(\d+.), 인용구(>) 정규식 확장 감지
+                        if (/^[ \t]*([-*+]|\d+\.|>)/.test(lineContent)) {
                           hasList = true;
                           break;
                         }
                       }
 
-                      // 목록 기호가 1개라도 있다면 들여쓰기 연산(indentList) 집행
+                      // 목록 기호 또는 인용구가 1개라도 있다면 들여쓰기 연산(indentList) 집행
                       if (hasList) {
                         editor.pushUndoStop();
                         const edits: any[] = [];
@@ -2801,12 +2914,11 @@ export default function Home() {                  // @Home : Home component
                       }
 
                       // 목록이 아니라면 브라우저 기본의 탭 이동을 트리거
-                                              editor.trigger('keyboard', 'tab', null);
-                      }
+                      editor.trigger('keyboard', 'tab', null);
                     });
 
-                    // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 리스트 내어쓰기(Outdent) 지능형 처리
-                    // 현재 줄이 목록 기호로 시작할 때, 맨 앞에 존재하는 2칸 공백 또는 1칸 탭 문자를 안전하게 소거하여
+                    // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 리스트 및 인용문 내어쓰기(Outdent) 지능형 처리
+                    // 현재 줄이 목록 기호 혹은 인용구로 시작할 때, 맨 앞에 존재하는 2칸 공백 또는 1칸 탭 문자를 안전하게 소거하여
                     // 목록 계층을 한 수준 상위로 당겨서 정렬해 줍니다.
                     editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
                       const selection = editor.getSelection();
@@ -2816,17 +2928,18 @@ export default function Home() {                  // @Home : Home component
                       const startLine = selection.startLineNumber;
                       const endLine = selection.endLineNumber;
 
-                      // 범위 내에 목록 기호 유무 검사
+                      // 범위 내에 목록 기호 또는 인용구 유무 검사
                       let hasList = false;
                       for (let i = startLine; i <= endLine; i++) {
                         const lineContent = model.getLineContent(i);
-                        if (/^[ \t]*([-*+]|\d+\.)/.test(lineContent)) {
+                        // 글머리, 넘버링, 인용구 정규식 확장 감지
+                        if (/^[ \t]*([-*+]|\d+\.|>)/.test(lineContent)) {
                           hasList = true;
                           break;
                         }
                       }
 
-                      // 목록 기호 발견 시 맨 앞 여백 제거 연산(outdentList) 집행
+                      // 목록 기호 혹은 인용구 발견 시 맨 앞 여백 제거 연산(outdentList) 집행
                       if (hasList) {
                         editor.pushUndoStop();
                         const edits: any[] = [];
@@ -3028,13 +3141,18 @@ export default function Home() {                  // @Home : Home component
                       }
                     });
 
-                    // Ctrl+Space: 커서 위치에서 플로팅 툴바 토글
+                    // Ctrl+Space: 커서 위치 또는 드래그 선택 영역 기준 플로팅 툴바 토글
                     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
                       setFloatingToolbar(prev => {
                         if (prev.visible) return { ...prev, visible: false };
-                        const position = editor.getPosition();
-                        if (!position) return prev;
-                        const visiblePos = editor.getScrolledVisiblePosition(position);
+                        let targetPosition = editor.getPosition();
+                        const selection = editor.getSelection();
+                        const activeSelection = (selection && !selection.isEmpty()) ? selection : lastSelectionRef.current;
+                        if (activeSelection && !activeSelection.isEmpty()) {
+                          targetPosition = activeSelection.getStartPosition();
+                        }
+                        if (!targetPosition) return prev;
+                        const visiblePos = editor.getScrolledVisiblePosition(targetPosition);
                         if (!visiblePos) return prev;
                         return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
                       });
@@ -3045,10 +3163,24 @@ export default function Home() {                  // @Home : Home component
                     setIsEditorReady(true);
                     const container = editor.getContainerDomNode();
                     container.addEventListener('paste', handleEditorPaste, true);
+                    container.addEventListener('mouseenter', () => { isEditorHovered.current = true; });
+                    container.addEventListener('mouseleave', () => { isEditorHovered.current = false; });
                     editor.onDidChangeCursorPosition((e) => {
                       setActiveLine(e.position.lineNumber);
                       setCursorLine(e.position.lineNumber);
                       setCursorColumn(e.position.column);
+
+                      // [WBS CORE-03] 마우스 클릭 등으로 명시적인 커서 행 강제 이동 감지 시 자동완성 팝업 강제 파괴
+                      if (e.reason === 3) {
+                        try {
+                          const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
+                          if (suggestCtrl && suggestCtrl.widget && suggestCtrl.widget.value) {
+                            suggestCtrl.widget.value.hide();
+                          }
+                        } catch (_) {
+                          editor.trigger('keyboard', 'hideSuggestWidget', {});
+                        }
+                      }
                     });
 
                     editor.onMouseDown((e) => {
@@ -3114,19 +3246,17 @@ export default function Home() {                  // @Home : Home component
                        }, 10);
                      });
                      editor.onDidChangeCursorSelection((e) => {
-                       // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)
-                       if (!e.selection.isEmpty()) {
-                         lastSelectionRef.current = e.selection;
-                       }
-                       if (!e.selection.isEmpty() && editor.hasTextFocus()) {
-                         const position = editor.getScrolledVisiblePosition(e.selection.getStartPosition());
-                         if (position) {
-                           setFloatingToolbar({ visible: true, top: Math.max(0, position.top - 10), left: position.left });
-                         }
-                       } else {
-                         setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
-                       }
-                     });
+                        // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)
+                        if (!e.selection.isEmpty()) {
+                          lastSelectionRef.current = e.selection;
+                        } else {
+                          lastSelectionRef.current = null;
+                        }
+                        // 사장님 요청으로 텍스트 멀티선택 시 자동 노출은 완전 차단하되, 선택 영역이 지워지면(isEmpty) 플로팅 툴바를 자동으로 닫습니다.
+                        if (e.selection.isEmpty()) {
+                          setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+                        }
+                      });
 
                     if (completionProviderRef.current) {
                       completionProviderRef.current.dispose();
@@ -3190,16 +3320,24 @@ export default function Home() {                  // @Home : Home component
                     });
 
                     editor.onDidScrollChange((scrollEvent) => {
-                      if (isScrollingRef.current === 'preview' || previewModeRef.current !== 'both' || !previewRef.current) return;
-
+                      if (!previewRef.current) return;
                       const editor = editorRef.current;
                       if (!editor) return;
+
+                      const scrollTop = editor.getScrollTop();
+
+                      // [WBS SYNC-03] 스크롤탑이 절대 영점(0)인 경우 락 상태에 영향받지 않고 preview 0점 스냅 자석 연동
+                      if (scrollTop === 0) {
+                        previewRef.current.scrollTo({ top: 0, behavior: 'auto' });
+                      }
+
+                      // 💡 [요구사항 3 / SYNC-03] 에디터 마우스 오버 상태이거나 에디터가 키보드 포커싱된 상황일 때만 스크롤 송신 허용 (관성 튕김 방지)
+                      const isSender = isEditorHovered.current || editor.hasTextFocus();
+                      if (!isSender || previewModeRef.current !== 'both') return;
 
                       isScrollingRef.current = 'editor';
                       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                       scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
-
-                      const scrollTop = editor.getScrollTop();
                       const scrollHeight = editor.getScrollHeight();
                       const layoutInfo = editor.getLayoutInfo();
                       const visibleRanges = editor.getVisibleRanges();
@@ -3210,8 +3348,10 @@ export default function Home() {                  // @Home : Home component
                         return;
                       }
 
-                      // 2. 최하단 감지 (5px 마진)
-                      if (scrollTop + layoutInfo.height >= scrollHeight - 5) {
+                      // 2. 최하단 감지 (30px 마진 또는 스크롤 비율 98% 이상일 때 강제 하단 스냅하여 대용량 문서 스냅 깨짐 해결)
+                      const isAtBottom = (scrollTop + layoutInfo.height >= scrollHeight - 30) || 
+                                         (scrollHeight - layoutInfo.height > 0 && scrollTop / (scrollHeight - layoutInfo.height) >= 0.98);
+                      if (isAtBottom) {
                         previewRef.current.scrollTo({ top: previewRef.current.scrollHeight, behavior: 'auto' });
                         return;
                       }
@@ -3251,26 +3391,6 @@ export default function Home() {                  // @Home : Home component
                       });
                       });
 
-                      // 콘텐츠 변경 시 preview DOM 갱신 후 스크롤 싱크 (자동완성/툴바 태그 삽입 등)
-                      editor.onDidChangeModelContent(() => {
-                        if (previewModeRef.current !== 'both' || !previewRef.current || !editorRef.current) return;
-                        if (contentChangeTimeoutRef.current) clearTimeout(contentChangeTimeoutRef.current);
-                        contentChangeTimeoutRef.current = setTimeout(() => {
-                          if (!editorRef.current || !previewRef.current) return;
-                          const ed = editorRef.current;
-                          const pv = previewRef.current;
-                          const vr = ed.getVisibleRanges();
-                          if (vr.length === 0) return;
-                          const topVisibleLine = vr[0].startLineNumber;
-                          const targetElement = pv.querySelector(`[data-line="${topVisibleLine}"]`) as HTMLElement | null;
-                          if (targetElement) {
-                            const containerTop = pv.getBoundingClientRect().top;
-                            const elementTop = targetElement.getBoundingClientRect().top;
-                            const targetScrollTop = pv.scrollTop + (elementTop - containerTop) - 20;
-                            pv.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'auto' });
-                          }
-                        }, 300);
-                      });
                     }}
                       options={{
                     padding: { top: 0, bottom: 96 },
@@ -3308,7 +3428,27 @@ export default function Home() {                  // @Home : Home component
                   }
                   return (
                    <div
-                     className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl rounded-xl border border-gray-200 dark:border-zinc-700 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100"
+                      id="floating-toolbar"
+                      tabIndex={-1}
+                      onKeyDown={(e) => {
+                        const buttons = Array.from(e.currentTarget.querySelectorAll('button')) as HTMLButtonElement[];
+                        const activeEl = document.activeElement as HTMLButtonElement;
+                        const currentIndex = buttons.indexOf(activeEl);
+                        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          const nextIndex = (currentIndex + 1) % buttons.length;
+                          buttons[nextIndex]?.focus();
+                        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          const prevIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+                          buttons[prevIndex]?.focus();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                          editorRef.current?.focus();
+                        }
+                      }}
+                      className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl rounded-xl border border-gray-200 dark:border-zinc-700 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none"
                      style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
                     onMouseDown={(e) => e.preventDefault()}
                   >
@@ -3372,14 +3512,23 @@ export default function Home() {                  // @Home : Home component
                 className={`flex-1 h-[calc(100vh-64px)] px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
                   }`}
                 style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
+                onMouseEnter={() => { isPreviewHovered.current = true; }}
+                onMouseLeave={() => { isPreviewHovered.current = false; }}
                 onScroll={(e) => {
-                  if (isScrollingRef.current === 'editor' || previewModeRef.current !== 'both' || !editorRef.current) return;
+                  const target = e.target as HTMLElement;
+
+                  // 💡 [요구사항 3 / SYNC-03] 미리보기 최상단(0점) 복귀 시 스크롤 락에 관계없이 에디터를 자석처럼 최상단 영점으로 복구
+                  if (target.scrollTop === 0 && editorRef.current) {
+                    editorRef.current.setScrollTop(0);
+                  }
+
+                  // 💡 [요구사항 3 / SYNC-03] 미리보기 마우스 오버 상태일 때만 에디터로 스크롤 송신 허용 (관성 튕김 루프 원천 방쇄)
+                  if (!isPreviewHovered.current || previewModeRef.current !== 'both' || !editorRef.current) return;
 
                   isScrollingRef.current = 'preview';
                   if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                   scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
 
-                  const target = e.target as HTMLElement;
                   const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
 
                   let targetLine = -1;

@@ -64,7 +64,7 @@ export default function SettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         className="relative w-full max-w-5xl h-[780px] flex overflow-hidden rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
         style={{ backgroundColor: colors.surface, borderColor: colors.border }}
