@@ -125,23 +125,29 @@ body {
   box-shadow: inset 0 0 12px rgba(96, 165, 250, 0.08) !important;
 }
 
-/* Monaco 에디터 현재 행 하이라이트 — 연한 주황색 계열 */
+/* Monaco 에디터 현재 행 하이라이트 — 단정한 주황색 계열 */
 .monaco-editor .current-line {
-  background-color: rgba(251, 146, 60, 0.10) !important;
+  background-color: #ff980015 !important;
   border: none !important;
 }
 
 .monaco-editor .margin-view-overlays .current-line-margin {
-  background-color: rgba(251, 146, 60, 0.14) !important;
+  background-color: #ff980022 !important;
   border: none !important;
 }
 
 .vs-dark .monaco-editor .current-line {
-  background-color: rgba(251, 146, 60, 0.16) !important;
+  background-color: #ff980026 !important;
 }
 
 .vs-dark .monaco-editor .margin-view-overlays .current-line-margin {
-  background-color: rgba(251, 146, 60, 0.22) !important;
+  background-color: #ff980033 !important;
+}
+
+/* 현재 행 줄번호 주황색 강조 */
+.monaco-editor .current-line ~ .line-numbers.active-line-number {
+  color: #ff9800 !important;
+  font-weight: bold !important;
 }
 
 /* 스크롤바 숨기기 유틸리티 */
@@ -302,4 +308,22 @@ body {
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* Monaco 폰트 렌더링 가드 — Bold/Italic 자간 충돌 방지 */
+.monaco-editor, .monaco-editor .view-lines, .monaco-editor .mtk {
+  font-variant-ligatures: none !important;
+  letter-spacing: 0px !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+}
+
+.monaco-editor .mtkb {
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.monaco-editor .mtki {
+  font-style: italic !important;
+  letter-spacing: -0.01em !important;
 }

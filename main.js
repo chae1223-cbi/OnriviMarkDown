@@ -128,9 +128,14 @@ app.on('activate', function () {
 // 🔒 [ 순수 데스크톱 파일 제어 IPC 핸들러 등록 ]
 
 // 1. 네이티브 파일 열기 대화상자 핸들러
-ipcMain.handle('dialog:openFile', async () => {
+ipcMain.handle('dialog:openFile', async (event, defaultPath) => {
+  const cleanDefault = defaultPath ? defaultPath.normalize('NFC') : undefined;
+  const startDir = cleanDefault && fs.existsSync(cleanDefault) && fs.statSync(cleanDefault).isDirectory()
+    ? cleanDefault
+    : app.getPath('documents');
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: '파일 열기',
+    title: defaultPath ? `파일 열기 - ${defaultPath}` : '파일 열기',
+    defaultPath: startDir,
     properties: ['openFile'],
     filters: [{ name: 'Markdown Files', extensions: ['md', 'markdown', 'txt'] }]
   });
@@ -202,7 +207,7 @@ ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
     ? cleanDefault
     : app.getPath('documents');
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: '워크스페이스 폴더 선택',
+    title: defaultPath ? `워크스페이스 폴더 선택 - ${defaultPath}` : '워크스페이스 폴더 선택',
     defaultPath: startDir,
     properties: ['openDirectory', 'createDirectory']
   });

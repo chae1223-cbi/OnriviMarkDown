@@ -44,7 +44,7 @@ import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더
 import {
   PanelLeft as SidebarIcon, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2,
   ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2,
-  Layers, X
+  Layers, X, Eraser
 } from 'lucide-react';
 
 /**
@@ -313,6 +313,7 @@ export default function Home() {                  // @Home : Home component
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorColumn, setCursorColumn] = useState(1);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | ''>('');
+  const [floatingHeadingLevel, setFloatingHeadingLevel] = useState(3);
 
   const toggleMergeNodeSelect = (node: FileNode) => {
     setSelectedMergeNodes(prev => {
@@ -467,6 +468,7 @@ export default function Home() {                  // @Home : Home component
   const lastSavedContentRef = useRef<string>('');
   const isScrollingRef = useRef<'editor' | 'preview' | null>(null);
   const scrollTimeoutRef = useRef<any>(null);
+  const contentChangeTimeoutRef = useRef<any>(null);
   const completionProviderRef = useRef<any>(null);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
   const cursorPositionRef = useRef<any>(null);
@@ -992,12 +994,14 @@ export default function Home() {                  // @Home : Home component
       setCurrentFileNode(node);
 
       // 📌 파일 열기 완료 후 에디터 및 미리보기 스크롤을 맨 위로 초기화
+      // (requestAnimationFrame: Monaco가 content 렌더링을 완료한 후 scroll position이 React 리렌더링에 덮어써지는 것을 방지)
       if (editorRef.current) {
-        editorRef.current.revealLine(1);  // 에디터 첫 번째 줄로 이동
-        editorRef.current.setScrollPosition({ scrollTop: 0 });
+        requestAnimationFrame(() => {
+          editorRef.current?.revealLineAtTop(1, 0);
+        });
       }
       if (previewRef.current) {
-        previewRef.current.scrollTop = 0;  // 미리보기 패널도 맨 위로 초기화
+        previewRef.current.scrollTop = 0;
       }
 
       const openedMsg = `${node.name} 파일을 열었습니다.`;
@@ -1263,6 +1267,14 @@ export default function Home() {                  // @Home : Home component
             selectStart,
             endLine,
             selectEnd
+          ));
+        } else {
+          // 멀티행 선택: 태그 적용 후에도 선택 범위 유지
+          editor.setSelection(new (window as any).monaco.Selection(
+            startLine,
+            startCol,
+            endLine,
+            endCol + after.length
           ));
         }
       }, 10);
@@ -1869,7 +1881,7 @@ export default function Home() {                  // @Home : Home component
     openFolder: async () => {
       if (typeof window !== 'undefined' && (window as any).electronAPI) {
         try {
-          const file = await (window as any).electronAPI.openFile();
+          const file = await (window as any).electronAPI.openFile(rootFolder?.name);
           if (file) {
             setContent(file.content);
             lastSavedContentRef.current = file.content;
@@ -1881,8 +1893,9 @@ export default function Home() {                  // @Home : Home component
             setIsSidebarOpen(true);
 
             if (editorRef.current) {
-              editorRef.current.revealLine(1);
-              editorRef.current.setScrollPosition({ scrollTop: 0 });
+              requestAnimationFrame(() => {
+                editorRef.current?.revealLineAtTop(1, 0);
+              });
             }
             if (previewRef.current) {
               previewRef.current.scrollTop = 0;
@@ -2478,6 +2491,14 @@ export default function Home() {                  // @Home : Home component
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Escape: 플로팅 툴바 숨김 (에디터 포커스 무관)
+      if (e.key === 'Escape' && floatingToolbar.visible) {
+        e.preventDefault();
+        e.stopPropagation();
+        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+        return;
+      }
+
       // 에디터 포커스가 활성화되어 있을 때만 에디터 단축키 인터셉터 작동
       if (!editorRef.current || !editorRef.current.hasTextFocus()) return;
 
@@ -2534,7 +2555,7 @@ export default function Home() {                  // @Home : Home component
     // 캡처(true) 모드로 등록하여 최우선순위로 가로챕니다.
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
-  }, [customHotkeys, dispatchCommand, mapIdToCommandType]);
+  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar]);
 
   const toc = useMemo(() => {
     // 윈도우 스타일의 개행(\r\n)과 일반 개행(\n) 모두를 안전하게 분리
@@ -3031,6 +3052,10 @@ export default function Home() {                  // @Home : Home component
                     });
 
                     editor.onMouseDown((e) => {
+                      // 🔥 마우스 클릭 시 자동완성 팝업 즉시 닫기
+                      // 다른 행 클릭 시 이전 입력 버퍼 잔재로 팝업이 엉뚱한 위치에 뜨는 현상 방지
+                      editor.trigger('mouse', 'hideSuggestWidget', {});
+
                       setTimeout(() => {
                         const position = editor.getPosition();
                         if (!position) return;
@@ -3089,7 +3114,10 @@ export default function Home() {                  // @Home : Home component
                        }, 10);
                      });
                      editor.onDidChangeCursorSelection((e) => {
-                       lastSelectionRef.current = e.selection;
+                       // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)
+                       if (!e.selection.isEmpty()) {
+                         lastSelectionRef.current = e.selection;
+                       }
                        if (!e.selection.isEmpty() && editor.hasTextFocus()) {
                          const position = editor.getScrolledVisiblePosition(e.selection.getStartPosition());
                          if (position) {
@@ -3161,8 +3189,11 @@ export default function Home() {                  // @Home : Home component
                       }
                     });
 
-                    editor.onDidScrollChange(() => {
+                    editor.onDidScrollChange((scrollEvent) => {
                       if (isScrollingRef.current === 'preview' || previewModeRef.current !== 'both' || !previewRef.current) return;
+
+                      const editor = editorRef.current;
+                      if (!editor) return;
 
                       isScrollingRef.current = 'editor';
                       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
@@ -3171,79 +3202,81 @@ export default function Home() {                  // @Home : Home component
                       const scrollTop = editor.getScrollTop();
                       const scrollHeight = editor.getScrollHeight();
                       const layoutInfo = editor.getLayoutInfo();
-
-                      // 1. 최상단(시작) 정밀 밀착 동기화
-                      if (scrollTop === 0) {
-                        previewRef.current.scrollTo({
-                          top: 0,
-                          behavior: 'auto'
-                        });
-                        return;
-                      }
-
-                      // 2. 최하단(끝) 정밀 밀착 동기화 (5px 마진 허용)
-                      if (scrollTop + layoutInfo.height >= scrollHeight - 5) {
-                        previewRef.current.scrollTo({
-                          top: previewRef.current.scrollHeight,
-                          behavior: 'auto'
-                        });
-                        return;
-                      }
-
                       const visibleRanges = editor.getVisibleRanges();
-                      if (visibleRanges.length > 0) {
-                        const topVisibleLine = visibleRanges[0].startLineNumber;
 
-                        const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
-                        let targetEl: HTMLElement | null = null;
-                        let nextEl: HTMLElement | null = null;
-                        let maxLine = -1;
+                      // 1. 에디터 스크롤바가 절대 영점(0)이면 무조건 preview도 맨 위로
+                      if (scrollTop === 0) {
+                        previewRef.current.scrollTo({ top: 0, behavior: 'auto' });
+                        return;
+                      }
 
-                        for (let i = 0; i < elements.length; i++) {
-                          const el = elements[i];
-                          const lineStr = el.getAttribute('data-line');
-                          if (lineStr) {
-                            const line = parseInt(lineStr, 10);
-                            if (line <= topVisibleLine && line > maxLine) {
-                              maxLine = line;
-                              targetEl = el;
-                              nextEl = elements[i + 1] || null;
+                      // 2. 최하단 감지 (5px 마진)
+                      if (scrollTop + layoutInfo.height >= scrollHeight - 5) {
+                        previewRef.current.scrollTo({ top: previewRef.current.scrollHeight, behavior: 'auto' });
+                        return;
+                      }
+
+                      // 3. 중간범위: requestAnimationFrame으로 preview DOM 갱신 대기 후 data-line 정합
+                      requestAnimationFrame(() => {
+                        if (!previewRef.current || !editorRef.current) return;
+                        const pv = previewRef.current;
+                        const ed = editorRef.current;
+                        const vr = ed.getVisibleRanges();
+                        if (vr.length === 0) return;
+
+                        const topVisibleLine = vr[0].startLineNumber;
+                        const targetElement = pv.querySelector(`[data-line="${topVisibleLine}"]`) as HTMLElement | null;
+
+                        if (targetElement) {
+                          if (topVisibleLine <= 3 && scrollEvent.scrollTopChanged) {
+                            pv.scrollTo({ top: 0, behavior: 'auto' });
+                          } else {
+                            const containerTop = pv.getBoundingClientRect().top;
+                            const elementTop = targetElement.getBoundingClientRect().top;
+                            const targetScrollTop = pv.scrollTop + (elementTop - containerTop) - 20;
+                            pv.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'auto' });
+                          }
+                        } else {
+                          if (topVisibleLine <= 3) {
+                            pv.scrollTo({ top: 0, behavior: 'auto' });
+                          } else {
+                            const editorContentHeight = scrollHeight - layoutInfo.height;
+                            if (editorContentHeight > 0) {
+                              const pct = scrollTop / editorContentHeight;
+                              const previewContentHeight = pv.scrollHeight - pv.clientHeight;
+                              pv.scrollTo({ top: Math.min(pct * previewContentHeight, pv.scrollHeight), behavior: 'auto' });
                             }
                           }
                         }
+                      });
+                      });
 
-                        if (targetEl) {
-                          const getRelativeOffsetTop = (el: HTMLElement, container: HTMLElement): number => {
-                            let offsetTop = 0;
-                            let current: HTMLElement | null = el;
-                            while (current && current !== container) {
-                              offsetTop += current.offsetTop;
-                              current = current.offsetParent as HTMLElement | null;
-                            }
-                            return offsetTop;
-                          };
-
-                          const t1 = editor.getTopForLineNumber(maxLine);
-                          const t2 = editor.getTopForLineNumber(maxLine + 1);
-                          const scrollTop = editor.getScrollTop();
-                          const ratio = (t2 > t1) ? Math.max(0, Math.min(1, (scrollTop - t1) / (t2 - t1))) : 0;
-
-                          const relativeTop1 = getRelativeOffsetTop(targetEl, previewRef.current);
-                          const relativeTop2 = nextEl ? getRelativeOffsetTop(nextEl, previewRef.current) : relativeTop1 + 24;
-                          const interpolatedTop = relativeTop1 + (relativeTop2 - relativeTop1) * ratio;
-
-                          previewRef.current.scrollTo({
-                            top: Math.max(0, interpolatedTop - 20),
-                            behavior: 'auto'
-                          });
-                        }
-                      }
-                    });
-                  }}
-                    options={{
-                    padding: { top: 24, bottom: 96 },
+                      // 콘텐츠 변경 시 preview DOM 갱신 후 스크롤 싱크 (자동완성/툴바 태그 삽입 등)
+                      editor.onDidChangeModelContent(() => {
+                        if (previewModeRef.current !== 'both' || !previewRef.current || !editorRef.current) return;
+                        if (contentChangeTimeoutRef.current) clearTimeout(contentChangeTimeoutRef.current);
+                        contentChangeTimeoutRef.current = setTimeout(() => {
+                          if (!editorRef.current || !previewRef.current) return;
+                          const ed = editorRef.current;
+                          const pv = previewRef.current;
+                          const vr = ed.getVisibleRanges();
+                          if (vr.length === 0) return;
+                          const topVisibleLine = vr[0].startLineNumber;
+                          const targetElement = pv.querySelector(`[data-line="${topVisibleLine}"]`) as HTMLElement | null;
+                          if (targetElement) {
+                            const containerTop = pv.getBoundingClientRect().top;
+                            const elementTop = targetElement.getBoundingClientRect().top;
+                            const targetScrollTop = pv.scrollTop + (elementTop - containerTop) - 20;
+                            pv.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'auto' });
+                          }
+                        }, 300);
+                      });
+                    }}
+                      options={{
+                    padding: { top: 0, bottom: 96 },
                     scrollBeyondLastLine: true,
                     fontSize,
+                    fontLigatures: false,
                     wordWrap,
                     lineNumbers: 'on',
                     minimap: { enabled: false },
@@ -3264,34 +3297,72 @@ export default function Home() {                  // @Home : Home component
                     links: false
                   }}
                 />
-                {floatingToolbar.visible && (
-                  <div
-                    className="absolute z-50 flex items-center bg-white dark:bg-zinc-800 shadow-lg rounded-md border border-gray-200 dark:border-zinc-700 px-1 py-1 gap-0.5 animate-in fade-in zoom-in-95 duration-100 flex-wrap max-w-[500px] -translate-y-full"
-                    style={{ top: floatingToolbar.top, left: floatingToolbar.left }}
+                {floatingToolbar.visible && (() => {
+                  const editorDom = editorRef.current?.getContainerDomNode();
+                  let fixedTop = floatingToolbar.top;
+                  let fixedLeft = floatingToolbar.left;
+                  if (editorDom) {
+                    const rect = editorDom.getBoundingClientRect();
+                    fixedTop += rect.top;
+                    fixedLeft += rect.left;
+                  }
+                  return (
+                   <div
+                     className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl rounded-xl border border-gray-200 dark:border-zinc-700 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100"
+                     style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
                     onMouseDown={(e) => e.preventDefault()}
                   >
-                    {TOOLBAR_ITEMS.filter(item => item.group !== '푸터').map((item, idx, arr) => {
-                      const isNewGroup = idx > 0 && arr[idx - 1].group !== item.group;
+                    {(() => {
                       return (
-                        <React.Fragment key={item.id}>
-                          {isNewGroup && <div className="w-px h-4 bg-gray-300 dark:bg-zinc-600 mx-1" />}
-                          <button
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-zinc-700 text-[13px] font-medium"
-                            title={`${item.name} (${customHotkeys[item.id] || ''})`}
-                            onMouseDown={(e) => {
-                              e.preventDefault(); // 🎯 드래그 셀렉션이 풀리는 현상 차단
-                              // 🚀 handlers 직접 호출 대신 dispatchCommand 단일 파이프라인으로 일원화
-                              const cmdType = mapIdToCommandType(item.id);
-                              dispatchCommand(cmdType);
-                            }}
-                          >
-                            {item.icon}
-                          </button>
-                        </React.Fragment>
+                        <div className="flex flex-row items-center gap-3 min-w-max">
+                          {/* 서식 */}
+                          <div className="flex flex-row items-center gap-0.5">
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('BOLD'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-black" title="굵게">B</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ITALIC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] italic font-serif" title="기울임">I</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('INLINE_CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="인라인 코드">{'</>'}</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="취소선"><span className="line-through">S</span></button>
+                          </div>
+                          <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
+                          {/* 제목 */}
+                          <div className="flex flex-row items-center gap-0.5">
+                            <div className="flex items-center border border-emerald-500/20 dark:border-emerald-500/30 rounded bg-emerald-500/5 dark:bg-emerald-500/10 py-0.5 px-1.5 gap-1.5">
+                              <button onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.max(1, floatingHeadingLevel - 1)); }} disabled={floatingHeadingLevel === 1} className="w-5 h-6 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[9px]" title="제목 크기 키우기 (H1 방향)">▲</button>
+                              <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand(`H${floatingHeadingLevel}`); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-6 flex items-center justify-center font-bold text-[11px] hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0" title={`제목 ${floatingHeadingLevel} 적용`}>H{floatingHeadingLevel}</button>
+                              <button onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.min(6, floatingHeadingLevel + 1)); }} disabled={floatingHeadingLevel === 6} className="w-5 h-6 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[9px]" title="제목 크기 줄이기 (H6 방향)">▼</button>
+                            </div>
+                          </div>
+                          <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
+                          {/* 문단 */}
+                          <div className="flex flex-row items-center gap-0.5">
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('HR'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="구분선">—</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ORDERED_LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="숫자 목록">1.</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="글머리 기호">☰</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="인용구">❝</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CHECK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="체크리스트">☑️</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="태그 취소"><Eraser size={14} className="text-red-500 opacity-80 hover:opacity-100" /></button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="문서 서식 일괄 정리">✨</button>
+                          </div>
+                          <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
+                          {/* 삽입 */}
+                          <div className="flex flex-row items-center gap-0.5">
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LINK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="링크">🔗</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('IMAGE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="이미지">🖼️</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('YOUTUBE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="유튜브 동영상 삽입">🎥</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('NOW'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="현재 날짜/시간">📅</button>
+                          </div>
+                          <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
+                          {/* 고급 */}
+                          <div className="flex flex-row items-center gap-0.5">
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('MAP'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="지도 삽입">🗺️</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('TABLE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="표 생성">📊</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="코드 블록">💻</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LATEX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="수식(LaTeX)">Σ</button>
+                          </div>
+                        </div>
                       );
-                    })}
+                    })()}
                   </div>
-                )}
+                  )})()}
               </div>
             )}
 

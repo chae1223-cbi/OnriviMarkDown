@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // 렌더러 프로세스(Next.js)에 노출할 안전한 API 정의
 contextBridge.exposeInMainWorld('electronAPI', {
   // 1. 파일 열기 대화상자를 띄우고 파일 데이터 로드
-  openFile: () => ipcRenderer.invoke('dialog:openFile'),
+  openFile: (defaultPath) => ipcRenderer.invoke('dialog:openFile', defaultPath),
   
   // 2. 현재 열린 파일 경로에 덮어쓰기 저장
   saveFile: (filePath, content) => ipcRenderer.invoke('file:save', filePath, content),
