@@ -89,21 +89,24 @@ body {
   }
 }
 
-/* Monaco Find Widget 및 모든 UI 요소의 부동 툴팁(풍선 도움말) 강력 억제 */
-.monaco-hover,
-.monaco-editor .find-widget .monaco-hover,
-.monaco-editor-overlay .monaco-hover,
-[class*="monaco-hover"] {
+/* Monaco Find Widget 내부의 불필요한 풍선 도움말(hover tooltip) 억제 */
+/* ⚠️ .monaco-hover 전체 억제는 금지 — suggest-widget의 팝업 클릭이 막힘! */
+.monaco-editor .find-widget .monaco-hover {
   display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  z-index: -1 !important;
 }
 
 /* Monaco 내장 버튼의 title 속성 툴팁 억제 */
 .monaco-editor .find-widget [title] {
   pointer-events: auto !important; /* 버튼 자체는 클릭 가능해야 함 */
+}
+
+/* 🔥 자동완성(Suggest Widget) 팝업 레이어 — 클릭 이벤트 완전 보장 */
+.monaco-editor .suggest-widget {
+  z-index: 9999 !important;
+  pointer-events: auto !important;  /* 마우스 클릭이 자동완성 팝업에 정상 도달 */
+}
+.monaco-editor .suggest-widget * {
+  pointer-events: auto !important;
 }
 
 /* 프리뷰 라인 클릭/동기화 하이라이트 효과 — 좌측 네온 마커 + 소프트 블루 배경 */

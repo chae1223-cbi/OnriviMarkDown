@@ -1,0 +1,13 @@
+﻿Total msg.* calls: 12
+  L~149: 'msg.error("Monaco loader configuration error", err)'
+  L~533: "msg.warn('Backend root 조회 실패', err)"
+  L~553: 'msg.warn("깨진 워크스페이스 캐시 자가 치료 작동: 캐시를 강제 파괴합니다.")'
+  L~780: 'msg.error("브라우저 디렉토리 스캔 오류", e)'
+  L~794: 'msg.error("refreshFileList api.listDirectory 오류", e)'
+  L~806: 'msg.error("Local file fetch error", err)'
+  L~855: 'msg.error("워크스페이스 선택 오류", err)'
+  L~911: 'msg.error("폴더 선택 오류", err)'
+  L~1045: 'msg.error("Save failed", e)'
+  L~1367: "msg.error('HTML Table parsing error', err)"
+  L~1526: 'msg.error("클립보드 이미지 업로드 실패", err)'
+  L~2342: 'msg.warn(`미매핑 커맨드 유입: ${type}`)'
