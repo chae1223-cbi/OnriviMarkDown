@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -117,6 +117,420 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
           {code}
         </code>
       </pre>
+    </div>
+  );
+}
+
+// 🛡️ [한글 주석 완벽 탑재] TableWrapper는 렌더링된 표 위에 마우스 오버 시 '표 복사' 버튼을 표시하고, 
+// 클릭하면 MS 오피스(워드, 엑셀) 및 한글 프로그램 등에 표 형태로 바로 붙여넣어지도록 HTML과 탭 구분 텍스트(TSV)로 클립보드에 적재해 주는 컴포넌트입니다.
+function TableWrapper({ children }: { children: React.ReactElement }) {
+  const [copied, setCopied] = useState(false);
+  const tableRef = React.useRef<HTMLDivElement>(null);
+
+  const handleCopy = async () => {
+    if (!tableRef.current) return;
+    const tableEl = tableRef.current.querySelector('table');
+    if (!tableEl) return;
+
+    try {
+      // 1. HTML 데이터 추출 (복제하여 복사 버튼 등 외부 UI 태그가 들어가는 것 차단)
+      const clone = tableEl.cloneNode(true) as HTMLTableElement;
+      clone.removeAttribute('class');
+      const tableHtml = clone.outerHTML;
+
+      // 2. Plain Text (탭 구분 텍스트) 추출 (엑셀 등에 깔끔하게 붙여넣을 수 있도록 TSV 구성)
+      const rows = Array.from(tableEl.querySelectorAll('tr'));
+      const textLines = rows.map(row => {
+        const cells = Array.from(row.querySelectorAll('th, td'));
+        return cells.map(cell => cell.textContent?.trim() || '').join('\t');
+      });
+      const tableText = textLines.join('\n');
+
+      // 3. 클립보드 다중 타입 데이터 적재
+      if (navigator.clipboard && window.ClipboardItem) {
+        const htmlBlob = new Blob([tableHtml], { type: 'text/html' });
+        const plainBlob = new Blob([tableText], { type: 'text/plain' });
+        
+        const data = new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': plainBlob
+        });
+        await navigator.clipboard.write([data]);
+      } else {
+        await navigator.clipboard.writeText(tableText);
+      }
+
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('[온리비 어서] 표 복사 실패', err);
+    }
+  };
+
+  return (
+    <div ref={tableRef} className="relative group my-6 border border-zinc-200/60 dark:border-zinc-800/60 rounded-lg overflow-x-auto shadow-sm bg-white dark:bg-zinc-900 select-text">
+      {/* 마우스 호버 시 우측 상단에 노출되는 미려한 표 복사 단추 */}
+      <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+        <button
+          onClick={handleCopy}
+          className="text-xs px-2.5 py-1.5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-md font-semibold flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>{copied ? '✓' : '📋'}</span>
+          <span>{copied ? '표 복사 완료' : '표 복사'}</span>
+        </button>
+      </div>
+      <div className="p-4">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// 🛡️ [한글 주석 완벽 탑재] 비동기 글로벌 Mermaid 스크립트 로더
+// Next.js SSR 및 정적 배포 번들의 컴파일 문제를 방지하기 위해 클라이언트단에서 CDN 스크립트를 동적으로 로드합니다.
+let mermaidPromise: Promise<any> | null = null;
+const loadMermaidScript = (): Promise<any> => {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  if ((window as any).mermaid) {
+    return Promise.resolve((window as any).mermaid);
+  }
+  if (mermaidPromise) {
+    return mermaidPromise;
+  }
+
+  mermaidPromise = new Promise((resolve) => {
+    const script = document.createElement('script');
+    const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    script.src = isElectron ? './mermaid.min.js' : '/mermaid.min.js';
+    script.async = true;
+    script.onload = () => {
+      const mermaidObj = (window as any).mermaid;
+      if (mermaidObj) {
+        mermaidObj.initialize({
+          startOnLoad: false,
+          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+          securityLevel: 'loose',
+        });
+      }
+      resolve(mermaidObj);
+    };
+    script.onerror = () => {
+      mermaidPromise = null;
+      resolve(null);
+    };
+    document.body.appendChild(script);
+  });
+  return mermaidPromise;
+};
+
+// 🛡️ [한글 주석 완벽 탑재] MermaidBlock은 머메이드 차트 원본 텍스트를 파싱하여 SVG 다이어그램 이미지로 실시간 변환 렌더링하고,
+// 이미지 저장(PNG 다운로드) 및 이미지 복사(클립보드 기입) 툴바를 제공해 오피스 프로그램에 바로 붙여넣게 도와주는 컴포넌트입니다.
+function MermaidBlock({ code }: { code: string }) {
+  const [svgHtml, setSvgHtml] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [imageCopied, setImageCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 다크모드 상태 추적
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      setIsDark(document.documentElement.classList.contains('dark'));
+      
+      const observer = new MutationObserver(() => {
+        setIsDark(document.documentElement.classList.contains('dark'));
+      });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+      return () => observer.disconnect();
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    // 💡 [디바운스 가드] 300ms 대기 후 렌더링하여 타이핑 중 연속 파싱/렌더링으로 인한 화면 굳음 현상 방지
+    const debounceTimer = setTimeout(() => {
+      const renderChart = async () => {
+        const mermaidObj = await loadMermaidScript();
+        if (!mermaidObj) {
+          if (active) {
+            setError('Mermaid 라이브러리를 로드하지 못했습니다.');
+            setLoading(false);
+          }
+          return;
+        }
+
+        // 🛡️ 매 렌더링마다 유일한 임시 ID를 생성하여 Mermaid 렌더러 간 캐시 충돌을 원천 차단 (무한 펜딩 방지)
+        const renderId = `mermaid-temp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+        try {
+          // 💡 [문법 무결성 사전 검증 가드] 타이핑 도중의 미완성 문법을 컴포넌트 락 없이 우회 유치
+          let isValid = false;
+          try {
+            // v10+ parse API는 Promise를 반환하거나 에러를 throw할 수 있으므로 안전하게 처리
+            const parseResult = mermaidObj.parse(code);
+            if (parseResult instanceof Promise) {
+              await parseResult;
+            }
+            isValid = true;
+          } catch (parseErr) {
+            isValid = false;
+          }
+
+          if (!isValid) {
+            if (active) {
+              setError('🎨 온리비 아서: 다이어그램 문법을 입력하는 중이거나 문법이 불완전합니다.');
+              setLoading(false);
+            }
+            return;
+          }
+
+          mermaidObj.initialize({
+            startOnLoad: false,
+            theme: isDark ? 'dark' : 'default',
+            securityLevel: 'loose',
+            suppressErrors: true, // 에러 팝업 억제
+          });
+
+          // 비동기 렌더링을 통한 SVG 생성
+          const { svg } = await mermaidObj.render(renderId, code);
+          if (active) {
+            setSvgHtml(svg);
+            setLoading(false);
+          }
+        } catch (err: any) {
+          console.warn('[온리비 어서] Mermaid 렌더링 실패 가드 가동', err);
+          if (active) {
+            setError('🎨 온리비 어서: 다이어그램 렌더링 중 오류를 복구했습니다.');
+            setLoading(false);
+          }
+          const badEl = document.getElementById(renderId);
+          if (badEl) badEl.remove();
+        }
+      };
+
+      renderChart();
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(debounceTimer);
+    };
+  }, [code, isDark]);
+
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(`\`\`\`mermaid\n${code}\n\`\`\``);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {}
+  };
+
+  const handleDownloadPng = () => {
+    if (!containerRef.current) return;
+    const svgEl = containerRef.current.querySelector('svg');
+    if (!svgEl) return;
+
+    try {
+      const svgString = new XMLSerializer().serializeToString(svgEl);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const URL = window.URL || window.webkitURL || window;
+      const blobURL = URL.createObjectURL(svgBlob);
+      
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        
+        // 🛡️ [안전장치 폴백 적용] SVG 실제 물리 크기 측정 강인성 확보
+        const rect = svgEl.getBoundingClientRect();
+        let width = rect.width;
+        let height = rect.height;
+
+        if (!width || !height) {
+          try {
+            const bbox = svgEl.getBBox();
+            width = bbox.width;
+            height = bbox.height;
+          } catch (e) {}
+        }
+
+        if (!width || !height) {
+          const viewBoxAttr = svgEl.getAttribute('viewBox');
+          if (viewBoxAttr) {
+            const parts = viewBoxAttr.split(/\s+/).map(Number);
+            if (parts.length === 4) {
+              width = parts[2];
+              height = parts[3];
+            }
+          }
+        }
+
+        if (!width || !height) {
+          const wAttr = svgEl.getAttribute('width');
+          const hAttr = svgEl.getAttribute('height');
+          if (wAttr && hAttr) {
+            width = parseFloat(wAttr);
+            height = parseFloat(hAttr);
+          }
+        }
+
+        // 최종 폴백 기본 크기 지정
+        const finalWidth = (width && width > 0) ? width : 600;
+        const finalHeight = (height && height > 0) ? height : 400;
+
+        canvas.width = finalWidth + 30;
+        canvas.height = finalHeight + 30;
+        const context = canvas.getContext('2d');
+        if (context) {
+          context.fillStyle = isDark ? '#1e1e1e' : '#ffffff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 15, 15, finalWidth, finalHeight);
+          
+          const pngUrl = canvas.toDataURL('image/png');
+          const downloadLink = document.createElement('a');
+          downloadLink.href = pngUrl;
+          downloadLink.download = 'chart.png';
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+        }
+      };
+      image.src = blobURL;
+    } catch (e) {
+      console.error('[온리비 어서] PNG 다운로드 에러', e);
+    }
+  };
+
+  const handleCopyImage = () => {
+    if (!containerRef.current) return;
+    const svgEl = containerRef.current.querySelector('svg');
+    if (!svgEl) return;
+
+    try {
+      const svgString = new XMLSerializer().serializeToString(svgEl);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const URL = window.URL || window.webkitURL || window;
+      const blobURL = URL.createObjectURL(svgBlob);
+      
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        
+        // 🛡️ [안전장치 폴백 적용] SVG 실제 물리 크기 측정 강인성 확보
+        const rect = svgEl.getBoundingClientRect();
+        let width = rect.width;
+        let height = rect.height;
+
+        if (!width || !height) {
+          try {
+            const bbox = svgEl.getBBox();
+            width = bbox.width;
+            height = bbox.height;
+          } catch (e) {}
+        }
+
+        if (!width || !height) {
+          const viewBoxAttr = svgEl.getAttribute('viewBox');
+          if (viewBoxAttr) {
+            const parts = viewBoxAttr.split(/\s+/).map(Number);
+            if (parts.length === 4) {
+              width = parts[2];
+              height = parts[3];
+            }
+          }
+        }
+
+        if (!width || !height) {
+          const wAttr = svgEl.getAttribute('width');
+          const hAttr = svgEl.getAttribute('height');
+          if (wAttr && hAttr) {
+            width = parseFloat(wAttr);
+            height = parseFloat(hAttr);
+          }
+        }
+
+        // 최종 폴백 기본 크기 지정
+        const finalWidth = (width && width > 0) ? width : 600;
+        const finalHeight = (height && height > 0) ? height : 400;
+
+        canvas.width = finalWidth + 30;
+        canvas.height = finalHeight + 30;
+        const context = canvas.getContext('2d');
+        if (context) {
+          context.fillStyle = isDark ? '#1e1e1e' : '#ffffff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 15, 15, finalWidth, finalHeight);
+          
+          canvas.toBlob(async (blob) => {
+            if (blob && navigator.clipboard && window.ClipboardItem) {
+              const data = new ClipboardItem({ 'image/png': blob });
+              await navigator.clipboard.write([data]);
+              setImageCopied(true);
+              setTimeout(() => setImageCopied(false), 2000);
+            }
+          }, 'image/png');
+        }
+      };
+      image.src = blobURL;
+    } catch (e) {
+      console.error('[온리비 어서] 이미지 복사 에러', e);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative group my-6 border border-zinc-200/60 dark:border-zinc-800/60 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-zinc-900 select-text">
+      <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200/60 dark:border-zinc-800/60">
+        <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+          📊 다이어그램 (Mermaid)
+        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleCopyCode}
+            className="text-[11px] px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+            title="마크다운 소스 복사"
+          >
+            {copied ? '✓ 코드 복사됨' : '코드 복사'}
+          </button>
+          {!error && !loading && (
+            <>
+              <button
+                onClick={handleCopyImage}
+                className="text-[11px] px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+                title="차트 이미지를 클립보드에 복사해 워드나 한글에 바로 붙여넣기"
+              >
+                {imageCopied ? '✓ 이미지 복사됨' : '이미지 복사'}
+              </button>
+              <button
+                onClick={handleDownloadPng}
+                className="text-[11px] px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+                title="차트를 PNG 파일로 저장"
+              >
+                💾 저장
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="p-6 flex justify-center items-center overflow-x-auto min-h-[100px]">
+        {loading && <div className="text-sm text-zinc-400 dark:text-zinc-500 flex items-center gap-2">🔄 차트를 렌더링하는 중...</div>}
+        {error && (
+          <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-md p-3 w-full font-mono whitespace-pre-wrap">
+            ⚠️ 렌더링 에러:<br />
+            {error}
+          </div>
+        )}
+        {!loading && !error && (
+          <div 
+            className="w-full flex justify-center mermaid-svg-container"
+            dangerouslySetInnerHTML={{ __html: svgHtml }} 
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -275,6 +689,15 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           }
           return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
         },
+        table: ({ node, children, ...props }: any) => {
+          return (
+            <TableWrapper>
+              <table {...props}>
+                {children}
+              </table>
+            </TableWrapper>
+          );
+        },
         pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
         code: ({ node, className, children, ...props }: any) => {
           const match = /language-(\S+)/.exec(className || '');
@@ -283,6 +706,9 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           const isInline = !match && !getTextFromChildren(children).includes('\n');
           if (isInline) {
             return <code className="px-1.5 py-0.5 mx-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-mono text-[0.9em] border border-blue-200 dark:border-blue-800" {...props}>{children}</code>;
+          }
+          if (lang === 'mermaid') {
+            return <MermaidBlock code={codeContent} />;
           }
           return <CodeBlock lang={lang} code={codeContent} className={className} {...props} />;
         },

@@ -14,7 +14,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'h6', icon: 'H6', name: '제목 6', group: '제목', tagFormat: '###### 제목', defaultHotkey: 'Ctrl+6', defaultCommand: 'h6', insertText: '###### ', kind: 17 },
   
   // 3. 문단 (Paragraph)
-  { id: 'divider', icon: 'ㅡ', name: '구분선', group: '문단', tagFormat: '---', defaultHotkey: 'Ctrl+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
+  { id: 'divider', icon: 'ㅡ', name: '구분선', group: '문단', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
   { id: 'orderedList', icon: '1.', name: '숫자 목록', group: '문단', tagFormat: '1. ', defaultHotkey: 'Ctrl+Shift+7', defaultCommand: 'ol', insertText: '1. ', kind: 17 },
   { id: 'list', icon: '≡', name: '글머리 기호', group: '문단', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
   { id: 'quote', icon: '“', name: '인용구', group: '문단', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> ', kind: 17 },

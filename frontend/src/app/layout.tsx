@@ -22,6 +22,7 @@ export default function RootLayout({
     <html lang="ko" className="light" suppressHydrationWarning>
       <head>
         <link rel="icon" href="./icon_onriveauther.png?v=1" type="image/png" />
+        <script src="./mermaid.min.js" defer></script>
       </head>
       <body suppressHydrationWarning>
         <ToastProvider>

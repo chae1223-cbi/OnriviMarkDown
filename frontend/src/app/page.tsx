@@ -514,6 +514,7 @@ export default function Home() {                  // @Home : Home component
   const lastSavedContentRef = useRef<string>('');
   const isScrollingRef = useRef<'editor' | 'preview' | null>(null);
   const scrollTimeoutRef = useRef<any>(null);
+  const prevCursorLineRef = useRef<number | null>(null);
   const contentChangeTimeoutRef = useRef<any>(null);
   const completionProviderRef = useRef<any>(null);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
@@ -2018,28 +2019,16 @@ export default function Home() {                  // @Home : Home component
       }
     },
     copyAll: async () => {
-      if (previewRef.current) {
+      const rawMarkdown = contentRef.current || "";
+      if (rawMarkdown) {
         try {
-          const html = previewRef.current.innerHTML;
-          const text = previewRef.current.textContent || "";
-
-          const blobHtml = new Blob([html], { type: 'text/html' });
-          const blobText = new Blob([text], { type: 'text/plain' });
-
-          const data = [new ClipboardItem({
-            'text/html': blobHtml,
-            'text/plain': blobText
-          })];
-
-          await navigator.clipboard.write(data);
-          showToast("미리보기 내용이 서식이 있는 텍스트로 복사되었습니다.", "success");
+          await navigator.clipboard.writeText(rawMarkdown);
+          showToast("에디터의 원본 마크다운 전체 내용이 클립보드에 복사되었습니다.", "success");
         } catch (err) {
-          // 리치 텍스트 복사 실패 시 일반 텍스트 복사로 Fallback
-          navigator.clipboard.writeText(previewRef.current.textContent || "");
-          showToast("미리보기 내용이 일반 텍스트로 복사되었습니다.", "success");
+          showToast("마크다운 복사에 실패했습니다.", "error");
         }
       } else {
-        showToast("미리보기 창이 활성화되어 있지 않습니다.", "warning");
+        showToast("복사할 마크다운 내용이 없습니다.", "info");
       }
     },
     newFile: () => {
@@ -2516,8 +2505,8 @@ export default function Home() {                  // @Home : Home component
     // 🛡️ 모달이 팝업되는 명령어는 에디터로 포커스를 뺏기지 않도록 예외 처리
     // (IMAGE, VIDEO, MAP, TABLE, LATEX, MATH, LINK 계열은 모달 입력 필드가 포커스를 가져야 함)
     // [WBS SYNC-02] 50ms 비동기 지연을 두어 에디터 버퍼의 완전 기록 후 토큰 리프레시 및 레이아웃 재적용으로 글자 겹침 완벽 해결
-    try {
-      setTimeout(() => {
+    setTimeout(() => {
+      try {
         if (editorRef.current) {
           const editor = editorRef.current;
           const model = editor.getModel();
@@ -2526,13 +2515,15 @@ export default function Home() {                  // @Home : Home component
             const startLine = selection.startLineNumber;
             const endLine = selection.endLineNumber;
             for (let i = startLine; i <= endLine; i++) {
-              model.forceTokenization(i);
+              if (model && typeof model.forceTokenization === 'function') {
+                model.forceTokenization(i);
+              }
             }
             editor.layout();
           }
         }
-      }, 50);
-    } catch (_) {}
+      } catch (_) {}
+    }, 50);
   }, [handlers]);
 
   // 🎯 툴바 아이템 ID(camelCase)를 EditorCommandType(UPPER_SNAKE_CASE)으로 변환하는 헬퍼
@@ -2978,10 +2969,217 @@ export default function Home() {                  // @Home : Home component
                       }]);
                     });
 
-                    // 🛡️ [한글 주석 탑재] Tab 키 입력 시 리스트 및 인용문 들여쓰기(Indent) 지능형 처리
+                    // 🛡️ [한글 주석 탑재] 표(Table) 자동 정렬 및 너비 계산 헬퍼 함수 정의
+                    const getVisualLength = (str: string): number => {
+                      let len = 0;
+                      for (let i = 0; i < str.length; i++) {
+                        const code = str.charCodeAt(i);
+                        if (code >= 0x2e80 || (code >= 0xac00 && code <= 0xd7a3)) {
+                          len += 2;
+                        } else {
+                          len += 1;
+                        }
+                      }
+                      return len;
+                    };
+
+                    const padVisual = (str: string, targetVisualLen: number): string => {
+                      const currentLen = getVisualLength(str);
+                      const needed = targetVisualLen - currentLen;
+                      if (needed <= 0) return str;
+                      return str + ' '.repeat(needed);
+                    };
+
+                    const formatTableBlock = (editorInstance: any, targetLineNumber: number) => {
+                      const model = editorInstance.getModel();
+                      if (!model) return;
+
+                      const lineCount = model.getLineCount();
+                      let startLine = targetLineNumber;
+                      let endLine = targetLineNumber;
+
+                      // 위쪽 표 영역 시작점 찾기
+                      while (startLine > 1) {
+                        const prevLineContent = model.getLineContent(startLine - 1);
+                        if (isTableLine(prevLineContent)) {
+                          startLine--;
+                        } else {
+                          break;
+                        }
+                      }
+
+                      // 아래쪽 표 영역 끝점 찾기
+                      while (endLine < lineCount) {
+                        const nextLineContent = model.getLineContent(endLine + 1);
+                        if (isTableLine(nextLineContent)) {
+                          endLine++;
+                        } else {
+                          break;
+                        }
+                      }
+
+                      const rows: { lineNumber: number; content: string; isDivider: boolean; cells: string[] }[] = [];
+                      let maxCols = 0;
+
+                      for (let i = startLine; i <= endLine; i++) {
+                        const content = model.getLineContent(i);
+                        const isDivider = isTableDividerLine(content);
+                        const trimmed = content.trim();
+                        const inner = trimmed.substring(1, trimmed.length - 1);
+                        
+                        const cells: string[] = [];
+                        let currentCell = "";
+                        for (let j = 0; j < inner.length; j++) {
+                          if (inner[j] === '|') {
+                            if (j > 0 && inner[j - 1] === '\\') {
+                              currentCell += '|';
+                            } else {
+                              cells.push(currentCell);
+                              currentCell = "";
+                            }
+                          } else {
+                            currentCell += inner[j];
+                          }
+                        }
+                        cells.push(currentCell);
+                        
+                        const trimmedCells = cells.map(c => c.trim());
+                        maxCols = Math.max(maxCols, trimmedCells.length);
+                        
+                        rows.push({
+                          lineNumber: i,
+                          content,
+                          isDivider,
+                          cells: trimmedCells
+                        });
+                      }
+
+                      if (rows.length === 0 || maxCols === 0) return;
+
+                      // 각 열별 비주얼 너비 최댓값 계산 (구분행은 배제)
+                      const colWidths = Array(maxCols).fill(0);
+                      for (const row of rows) {
+                        if (row.isDivider) continue;
+                        for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+                          const cellText = row.cells[colIdx] || "";
+                          const visualLen = getVisualLength(cellText);
+                          colWidths[colIdx] = Math.max(colWidths[colIdx], visualLen);
+                        }
+                      }
+
+                      // 최소 너비 3 보장
+                      for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+                        colWidths[colIdx] = Math.max(3, colWidths[colIdx]);
+                      }
+
+                      const edits: any[] = [];
+                      for (const row of rows) {
+                        let formattedLine = "|";
+                        for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+                          const cellText = row.cells[colIdx] || "";
+                          const width = colWidths[colIdx];
+                          if (row.isDivider) {
+                            const text = cellText.trim();
+                            const alignLeft = text.startsWith(':');
+                            const alignRight = text.endsWith(':');
+                            let dividerStr = "";
+                            if (alignLeft && alignRight) {
+                              dividerStr = ":" + "-".repeat(Math.max(1, width - 2)) + ":";
+                            } else if (alignLeft) {
+                              dividerStr = ":" + "-".repeat(Math.max(2, width - 1));
+                            } else if (alignRight) {
+                              dividerStr = "-".repeat(Math.max(2, width - 1)) + ":";
+                            } else {
+                              dividerStr = "-".repeat(Math.max(3, width));
+                            }
+                            formattedLine += ` ${dividerStr} |`;
+                          } else {
+                            const padded = padVisual(cellText, width);
+                            formattedLine += ` ${padded} |`;
+                          }
+                        }
+                        const originalLine = model.getLineContent(row.lineNumber);
+                        const indentMatch = originalLine.match(/^([ \t]*)/);
+                        const indent = indentMatch ? indentMatch[1] : '';
+                        const finalLineText = indent + formattedLine;
+
+                        if (finalLineText !== originalLine) {
+                          edits.push({
+                            range: new monaco.Range(row.lineNumber, 1, row.lineNumber, originalLine.length + 1),
+                            text: finalLineText
+                          });
+                        }
+                      }
+
+                      if (edits.length > 0) {
+                        editorInstance.pushUndoStop();
+                        editorInstance.executeEdits("formatTable", edits);
+                        editorInstance.pushUndoStop();
+                      }
+                    };
+
+                    // 🛡️ [한글 주석 탑재] 표(Table) 여부 및 구분행 판별 헬퍼 함수 정의
+                    const isTableLine = (text: string): boolean => {
+                      const trimmed = text.trim();
+                      return trimmed.startsWith('|') && trimmed.endsWith('|') && (trimmed.match(/\|/g) || []).length >= 2;
+                    };
+
+                    const isTableDividerLine = (text: string): boolean => {
+                      const trimmed = text.trim();
+                      if (!isTableLine(trimmed)) return false;
+                      const inner = trimmed.substring(1, trimmed.length - 1);
+                      const parts = inner.split('|');
+                      return parts.every(part => /^[ \t]*:?-+:?[ \t]*$/.test(part));
+                    };
+
+                    const getCellRanges = (lineContent: string, lineNumber: number) => {
+                      const ranges: { lineNumber: number; startColumn: number; endColumn: number; isEmpty: boolean }[] = [];
+                      const pipeIndices: number[] = [];
+                      for (let i = 0; i < lineContent.length; i++) {
+                        if (lineContent[i] === '|') {
+                          if (i > 0 && lineContent[i - 1] === '\\') continue;
+                          pipeIndices.push(i);
+                        }
+                      }
+                      if (pipeIndices.length < 2) return { ranges: [], pipeIndices: [] };
+                      for (let i = 0; i < pipeIndices.length - 1; i++) {
+                        const startIdx = pipeIndices[i] + 1;
+                        const endIdx = pipeIndices[i + 1];
+                        const rawText = lineContent.substring(startIdx, endIdx);
+                        const hasLeftSpace = rawText.startsWith(' ');
+                        const hasRightSpace = rawText.endsWith(' ');
+                        const trimLeft = hasLeftSpace ? 1 : 0;
+                        const trimRight = hasRightSpace ? 1 : 0;
+                        const cellStartCol = startIdx + 1 + trimLeft;
+                        const cellEndCol = endIdx + 1 - trimRight;
+                        const coreText = rawText.substring(trimLeft, rawText.length - trimRight);
+                        const isEmpty = coreText.trim().length === 0;
+
+                        if (isEmpty) {
+                          // 빈 셀: 파이프 사이 공백들의 정중앙 컬럼에 크기 0의 셀 범위를 생성 (타이핑 시 양옆 공백 1칸 보존)
+                          const centerCol = startIdx + 1 + Math.max(1, Math.floor(rawText.length / 2));
+                          ranges.push({
+                            lineNumber,
+                            startColumn: centerCol,
+                            endColumn: centerCol,
+                            isEmpty: true
+                          });
+                        } else {
+                          ranges.push({
+                            lineNumber,
+                            startColumn: cellStartCol,
+                            endColumn: cellEndCol,
+                            isEmpty: false
+                          });
+                        }
+                      }
+                      return { ranges, pipeIndices };
+                    };
+
+                    // 🛡️ [한글 주석 탑재] Tab 키 입력 시 마크다운 표 셀 내비게이션 / 행 생성 및 목록 들여쓰기(Indent) 통합 처리
                     // 자동완성(Suggest Widget)이 열려 있으면 Tab → 자동완성 수락에 양보하고,
-                    // 그 외에는 마크다운 목록(글머리, 넘버링, 체크박스) 또는 인용문(>)이 감지되면 2칸 들여쓰기를 삽입합니다.
-                    // addCommand를 사용하여 모나코 기본 내장 Tab 키 동작을 오버라이딩하여 확실하게 작동시킵니다.
+                    // 표 안이라면 다음 셀 이동 및 끝 셀에서 행 자동 생성을 수행하며,
+                    // 그 외 마크다운 목록 또는 인용문이 감지되면 2칸 들여쓰기를 삽입합니다.
                     editor.addCommand(monaco.KeyCode.Tab, () => {
                       // ① 자동완성 위젯이 열려 있으면 Tab = 자동완성 항목 수락
                       try {
@@ -3000,21 +3198,128 @@ export default function Home() {                  // @Home : Home component
                         return;
                       }
 
+                      // ② 마크다운 표 영역인지 검사 및 표 내비게이션 / 행 추가 처리
+                      const position = editor.getPosition();
+                      if (position) {
+                        const lineContent = model.getLineContent(position.lineNumber);
+                        if (isTableLine(lineContent) && !isTableDividerLine(lineContent)) {
+                          const { ranges, pipeIndices } = getCellRanges(lineContent, position.lineNumber);
+                          if (ranges.length > 0) {
+                            let currentCellIdx = -1;
+                            for (let i = 0; i < pipeIndices.length - 1; i++) {
+                              const leftCol = pipeIndices[i] + 1;
+                              const rightCol = pipeIndices[i + 1] + 2;
+                              if (position.column >= leftCol && position.column <= rightCol) {
+                                currentCellIdx = i;
+                                break;
+                              }
+                            }
+
+                            if (currentCellIdx !== -1) {
+                              if (currentCellIdx < ranges.length - 1) {
+                                // 다음 셀로 이동
+                                const nextCell = ranges[currentCellIdx + 1];
+                                editor.setSelection(new monaco.Selection(
+                                  nextCell.lineNumber, nextCell.startColumn,
+                                  nextCell.lineNumber, nextCell.endColumn
+                                ));
+                                return;
+                              } else {
+                                // 현재 행이 마지막 셀인 경우 -> 다음 행으로 이동 또는 신규 행 삽입
+                                let targetLine = position.lineNumber + 1;
+                                const lineCount = model.getLineCount();
+                                if (targetLine <= lineCount) {
+                                  let nextLineContent = model.getLineContent(targetLine);
+                                  if (isTableLine(nextLineContent) && isTableDividerLine(nextLineContent)) {
+                                    targetLine++;
+                                    if (targetLine <= lineCount) {
+                                      nextLineContent = model.getLineContent(targetLine);
+                                    } else {
+                                      nextLineContent = "";
+                                    }
+                                  }
+
+                                  if (isTableLine(nextLineContent)) {
+                                    const nextLineRanges = getCellRanges(nextLineContent, targetLine).ranges;
+                                    if (nextLineRanges.length > 0) {
+                                      const firstCell = nextLineRanges[0];
+                                      editor.setSelection(new monaco.Selection(
+                                        firstCell.lineNumber, firstCell.startColumn,
+                                        firstCell.lineNumber, firstCell.endColumn
+                                      ));
+
+                                      // 💡 다음 행으로 이동 시 스크롤 튀는 현상 방지 락 및 강제 동기화
+                                      isScrollingRef.current = 'editor';
+                                      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                                      scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 200);
+                                      setTimeout(() => {
+                                        if (previewRef.current) {
+                                          const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`);
+                                          if (targetElement) {
+                                            targetElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+                                          }
+                                        }
+                                      }, 50);
+                                      return;
+                                    }
+                                  }
+                                }
+
+                                // 다음 행이 없거나 표 행이 아니라면 -> 신규 행 자동 추가
+                                const cellCount = ranges.length;
+                                const newRowText = "\n|" + "  |".repeat(cellCount);
+                                const lastLineMaxCol = model.getLineMaxColumn(position.lineNumber);
+                                editor.pushUndoStop();
+                                editor.executeEdits("insertTableRow", [{
+                                  range: new monaco.Range(position.lineNumber, lastLineMaxCol, position.lineNumber, lastLineMaxCol),
+                                  text: newRowText,
+                                  forceMoveMarkers: true
+                                }]);
+                                editor.pushUndoStop();
+
+                                const newRowNumber = position.lineNumber + 1;
+                                const newRowContent = model.getLineContent(newRowNumber);
+                                const newRowRanges = getCellRanges(newRowContent, newRowNumber).ranges;
+                                if (newRowRanges.length > 0) {
+                                  const firstCell = newRowRanges[0];
+                                  editor.setSelection(new monaco.Selection(
+                                    firstCell.lineNumber, firstCell.startColumn,
+                                    firstCell.lineNumber, firstCell.endColumn
+                                  ));
+                                }
+
+                                // 💡 행 추가 후 스크롤 튀는 현상 방지 락 및 강제 동기화
+                                isScrollingRef.current = 'editor';
+                                if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                                scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 300);
+                                setTimeout(() => {
+                                  if (previewRef.current) {
+                                    const targetElement = previewRef.current.querySelector(`[data-line="${newRowNumber}"]`);
+                                    if (targetElement) {
+                                      targetElement.scrollIntoView({ behavior: 'auto', block: 'center' });
+                                    }
+                                  }
+                                }, 80);
+                                return;
+                              }
+                            }
+                          }
+                        }
+                      }
+
+                      // ③ 기존 리스트 및 인용문 들여쓰기(Indent) 처리
                       const startLine = selection.startLineNumber;
                       const endLine = selection.endLineNumber;
 
-                      // 선택 범위 내의 모든 행을 조사하여 목록 기호 또는 인용구로 시작하는 줄이 있는지 판별
                       let hasList = false;
                       for (let i = startLine; i <= endLine; i++) {
                         const lineContent = model.getLineContent(i);
-                        // 글머리(-*+), 넘버링(\d+.), 인용구(>) 정규식 확장 감지
                         if (/^[ \t]*([-*+]|\d+\.|>)/.test(lineContent)) {
                           hasList = true;
                           break;
                         }
                       }
 
-                      // 목록 기호 또는 인용구가 1개라도 있다면 들여쓰기 연산(indentList) 집행
                       if (hasList) {
                         editor.pushUndoStop();
                         const edits: any[] = [];
@@ -3029,64 +3334,87 @@ export default function Home() {                  // @Home : Home component
                         return;
                       }
 
-                      // 목록이 아니라면 브라우저 기본의 탭 이동을 트리거
+                      // 목록이 아니라면 기본의 탭 이동을 트리거
                       editor.trigger('keyboard', 'tab', null);
                     });
 
-                    // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 리스트 및 인용문 내어쓰기(Outdent) 지능형 처리
-                    // 현재 줄이 목록 기호 혹은 인용구로 시작할 때, 맨 앞에 존재하는 2칸 공백 또는 1칸 탭 문자를 안전하게 소거하여
-                    // 목록 계층을 한 수준 상위로 당겨서 정렬해 줍니다.
+                    // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 마크다운 표 역방향 셀 이동 및 목록 내어쓰기(Outdent) 통합 처리
+                    // 현재 커서가 표 내부이면 이전 셀로 커서를 이동하고,
+                    // 목록 계층에 있으면 맨 앞에 존재하는 2칸 공백 또는 1칸 탭 문자를 소거하여 아웃덴트 정렬합니다.
                     editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
                       const selection = editor.getSelection();
                       const model = editor.getModel();
                       if (!model || !selection) return;
 
-                      const startLine = selection.startLineNumber;
-                      const endLine = selection.endLineNumber;
-
-                      // 범위 내에 목록 기호 또는 인용구 유무 검사
-                      let hasList = false;
-                      for (let i = startLine; i <= endLine; i++) {
-                        const lineContent = model.getLineContent(i);
-                        // 글머리, 넘버링, 인용구 정규식 확장 감지
-                        if (/^[ \t]*([-*+]|\d+\.|>)/.test(lineContent)) {
-                          hasList = true;
-                          break;
-                        }
-                      }
-
-                      // 목록 기호 혹은 인용구 발견 시 맨 앞 여백 제거 연산(outdentList) 집행
-                      if (hasList) {
-                        editor.pushUndoStop();
-                        const edits: any[] = [];
-                        for (let i = startLine; i <= endLine; i++) {
-                          const lineContent = model.getLineContent(i);
-                          const indentMatch = lineContent.match(/^([ \t]+)/);
-                          if (indentMatch) {
-                            const indentStr = indentMatch[1];
-                            let removeCount = 0;
-                            // 공백 2칸 혹은 단일 공백/탭 분별 처리
-                            if (indentStr.startsWith("  ")) {
-                              removeCount = 2;
-                            } else if (indentStr.startsWith("\t")) {
-                              removeCount = 1;
-                            } else if (indentStr.startsWith(" ")) {
-                              removeCount = 1;
+                      // ① 마크다운 표 영역인지 검사 및 표 역방향 셀 이동 처리
+                      const position = editor.getPosition();
+                      if (position) {
+                        const lineContent = model.getLineContent(position.lineNumber);
+                        if (isTableLine(lineContent) && !isTableDividerLine(lineContent)) {
+                          const { ranges, pipeIndices } = getCellRanges(lineContent, position.lineNumber);
+                          if (ranges.length > 0) {
+                            let currentCellIdx = -1;
+                            for (let i = 0; i < pipeIndices.length - 1; i++) {
+                              const leftCol = pipeIndices[i] + 1;
+                              const rightCol = pipeIndices[i + 1] + 2;
+                              if (position.column >= leftCol && position.column <= rightCol) {
+                                currentCellIdx = i;
+                                break;
+                              }
                             }
 
-                            if (removeCount > 0) {
-                              edits.push({
-                                range: new monaco.Range(i, 1, i, removeCount + 1),
-                                text: ""
-                              });
+                            if (currentCellIdx !== -1) {
+                              if (currentCellIdx > 0) {
+                                // 이전 셀로 이동
+                                const prevCell = ranges[currentCellIdx - 1];
+                                editor.setSelection(new monaco.Selection(
+                                  prevCell.lineNumber, prevCell.startColumn,
+                                  prevCell.lineNumber, prevCell.endColumn
+                                ));
+                                return;
+                              } else {
+                                // 첫 번째 셀에서 Shift+Tab -> 이전 행의 마지막 셀로 이동
+                                let targetLine = position.lineNumber - 1;
+                                if (targetLine >= 1) {
+                                  let prevLineContent = model.getLineContent(targetLine);
+                                  if (isTableLine(prevLineContent) && isTableDividerLine(prevLineContent)) {
+                                    targetLine--;
+                                    if (targetLine >= 1) {
+                                      prevLineContent = model.getLineContent(targetLine);
+                                    } else {
+                                      prevLineContent = "";
+                                    }
+                                  }
+
+                                  if (isTableLine(prevLineContent)) {
+                                    const prevLineRanges = getCellRanges(prevLineContent, targetLine).ranges;
+                                    if (prevLineRanges.length > 0) {
+                                      const lastCell = prevLineRanges[prevLineRanges.length - 1];
+                                      editor.setSelection(new monaco.Selection(
+                                        lastCell.lineNumber, lastCell.startColumn,
+                                        lastCell.lineNumber, lastCell.endColumn
+                                      ));
+
+                                      // 💡 이전 행으로 이동 시 스크롤 튀는 현상 방지 락 및 강제 동기화
+                                      isScrollingRef.current = 'editor';
+                                      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                                      scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 200);
+                                      setTimeout(() => {
+                                        if (previewRef.current) {
+                                          const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`);
+                                          if (targetElement) {
+                                            targetElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+                                          }
+                                        }
+                                      }, 50);
+                                      return;
+                                    }
+                                  }
+                                }
+                              }
                             }
                           }
                         }
-                        if (edits.length > 0) {
-                          editor.executeEdits("outdentList", edits);
-                        }
-                        editor.pushUndoStop();
-                        return;
                       }
 
                       // 일반 문장이면 기본 아웃덴트 기능 트리거
@@ -3257,6 +3585,67 @@ export default function Home() {                  // @Home : Home component
                       }
                     });
 
+                    // 🛡️ [한글 주석 탑재] Ctrl + Shift + = (즉, Ctrl+Shift++) 입력 시 표 행 삽입
+                    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Equal, () => {
+                      const position = editor.getPosition();
+                      const model = editor.getModel();
+                      if (!position || !model) return;
+                      const lineContent = model.getLineContent(position.lineNumber);
+                      if (isTableLine(lineContent)) {
+                        const { ranges } = getCellRanges(lineContent, position.lineNumber);
+                        const cellCount = ranges.length;
+                        if (cellCount > 0) {
+                          const newRowText = "|" + "  |".repeat(cellCount) + "\n";
+                          editor.pushUndoStop();
+                          editor.executeEdits("insertTableRowAbove", [{
+                            range: new monaco.Range(position.lineNumber, 1, position.lineNumber, 1),
+                            text: newRowText,
+                            forceMoveMarkers: false
+                          }]);
+                          editor.pushUndoStop();
+                          
+                          // 삽입된 행의 첫 셀로 포커싱
+                          const newRanges = getCellRanges(model.getLineContent(position.lineNumber), position.lineNumber).ranges;
+                          if (newRanges.length > 0) {
+                            editor.setSelection(new monaco.Selection(
+                              position.lineNumber, newRanges[0].startColumn,
+                              position.lineNumber, newRanges[0].endColumn
+                            ));
+                          }
+                        }
+                      }
+                    });
+
+                    // 🛡️ [한글 주석 탑재] Ctrl + Shift + - 입력 시 표 행 삭제 (구분행은 삭제 방지 가드 처리)
+                    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Minus, () => {
+                      const position = editor.getPosition();
+                      const model = editor.getModel();
+                      if (!position || !model) return;
+                      const lineContent = model.getLineContent(position.lineNumber);
+                      if (isTableLine(lineContent)) {
+                        // 구분행(| --- | --- |)인 경우 표 붕괴를 막기 위해 삭제 완전 차단
+                        if (isTableDividerLine(lineContent)) {
+                          return;
+                        }
+                        editor.pushUndoStop();
+                        const lineMaxCol = model.getLineMaxColumn(position.lineNumber);
+                        let range: any;
+                        if (position.lineNumber < model.getLineCount()) {
+                          range = new monaco.Range(position.lineNumber, 1, position.lineNumber + 1, 1);
+                        } else if (position.lineNumber > 1) {
+                          const prevMaxCol = model.getLineMaxColumn(position.lineNumber - 1);
+                          range = new monaco.Range(position.lineNumber - 1, prevMaxCol, position.lineNumber, lineMaxCol);
+                        } else {
+                          range = new monaco.Range(position.lineNumber, 1, position.lineNumber, lineMaxCol);
+                        }
+                        editor.executeEdits("deleteTableRow", [{
+                          range,
+                          text: ""
+                        }]);
+                        editor.pushUndoStop();
+                      }
+                    });
+
                     // Ctrl+Space: 커서 위치 또는 드래그 선택 영역 기준 플로팅 툴바 토글
                     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
                       setFloatingToolbar(prev => {
@@ -3318,6 +3707,25 @@ export default function Home() {                  // @Home : Home component
                       setActiveLine(e.position.lineNumber);
                       setCursorLine(e.position.lineNumber);
                       setCursorColumn(e.position.column);
+
+                      // 💡 표(Table) 영역 이탈 시 자동 정렬 수행
+                      const currentLine = e.position.lineNumber;
+                      const prevLine = prevCursorLineRef.current;
+                      prevCursorLineRef.current = currentLine;
+
+                      if (prevLine && prevLine !== currentLine) {
+                        const model = editor.getModel();
+                        if (model) {
+                          const prevLineContent = model.getLineContent(prevLine);
+                          const currentLineContent = model.getLineContent(currentLine);
+                          if (isTableLine(prevLineContent) && (!isTableLine(currentLineContent) || Math.abs(currentLine - prevLine) > 1)) {
+                            // 스크롤 및 렌더링 간섭을 차단하기 위해 비동기 틱으로 정렬 수행
+                            setTimeout(() => {
+                              formatTableBlock(editor, prevLine);
+                            }, 50);
+                          }
+                        }
+                      }
 
                       // [WBS CORE-03] 마우스 클릭 등으로 명시적인 커서 행 강제 이동 감지 시 자동완성 팝업 강제 파괴
                       if (e.reason === 3) {
@@ -3727,7 +4135,7 @@ export default function Home() {                  // @Home : Home component
                   }
 
                   if (targetLine !== -1) {
-                    editorRef.current.revealLineAtTop(targetLine);
+                    editorRef.current?.revealLineAtTop(targetLine);
                   }
                 }}
               >
