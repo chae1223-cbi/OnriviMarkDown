@@ -5,6 +5,7 @@ import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
+import DOMPurify from 'dompurify';
 
 const getTextFromChildren = (children: React.ReactNode): string => {
   if (children === null || children === undefined) return '';
@@ -537,6 +538,21 @@ function MermaidBlock({ code }: { code: string }) {
 
 // 🛡️ [한글 주석 완벽 탑재] MarkdownViewer는 마크다운 원본 문법을 아름다운 HTML 구조로 파싱 및 시각화하는 핵심 뷰어 컴포넌트입니다.
 export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath }: MarkdownViewerProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const cleanContent = useMemo(() => {
+    if (!mounted || typeof window === 'undefined') {
+      return content;
+    }
+    return DOMPurify.sanitize(content, {
+      FORBID_TAGS: ['script', 'iframe', 'embed', 'object', 'style'],
+      FORBID_ATTR: ['onerror', 'onload', 'onmouseover', 'onclick', 'onfocus', 'onchange'],
+    });
+  }, [content, mounted]);
+
   // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
   const getIndentStyle = (node: any) => {
     const line = node?.position?.start?.line;
@@ -544,6 +560,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
     if (!origLine) return {};
 
     const targetContent = originalContent || content;
+    if (!targetContent || typeof targetContent !== 'string') return {};
     const lines = targetContent.split('\n');
     const lineText = lines[origLine - 1] || '';
     const indentMatch = lineText.match(/^([ \t]*)/);
@@ -781,7 +798,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
         }
       }}
     >
-      {content}
+      {cleanContent}
     </ReactMarkdown>
   );
 }

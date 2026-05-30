@@ -2787,6 +2787,7 @@ export default function Home() {                  // @Home : Home component
   }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar]);
 
   const toc = useMemo(() => {
+    if (typeof content !== 'string') return [];
     // 윈도우 스타일의 개행(\r\n)과 일반 개행(\n) 모두를 안전하게 분리
     const lines = content.split(/\r?\n/);
     const items: { id: string, text: string, level: number, lineNumber: number }[] = [];

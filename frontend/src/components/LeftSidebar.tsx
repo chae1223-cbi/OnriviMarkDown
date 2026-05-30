@@ -68,7 +68,7 @@ export default function LeftSidebar({
   lastSavedContentRef,
   editorRef,
   previewRef,
-  toc,
+  toc = [],
   scrollToLine,
   showToast,
   fileList,
@@ -403,7 +403,7 @@ export default function LeftSidebar({
         ) : sidebarTab === 'toc' ? (
           <div className="flex-1 overflow-y-auto p-3">
             <div className="space-y-1 text-xs">
-              {toc.length === 0 ? (
+              {!toc || toc.length === 0 ? (
                 <div className="text-zinc-400 dark:text-zinc-500 text-center py-8">목차가 없습니다.</div>
               ) : (
                 toc.map((item, i) => (
