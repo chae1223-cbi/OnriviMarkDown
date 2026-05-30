@@ -34,6 +34,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'codeblock', icon: '💻', name: '코드 블록', group: '고급', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\n\n```', kind: 15 },
   { id: 'math', icon: 'Σ', name: '수식', group: '고급', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
   { id: 'table', icon: '표', name: '표', group: '고급', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
+  { id: 'quickTable', icon: '📋', name: '빠른 표 삽입', group: '고급', tagFormat: '| 빠른 표 |', defaultHotkey: 'Ctrl+Alt+T', defaultCommand: '표', insertText: '| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |', kind: 15 },
 
   // 푸터 및 기타 액션
   { id: 'toggleFloatingToolbar', icon: '🪟', name: '플로팅 툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F', defaultCommand: 'floating_toolbar', insertText: '', kind: 17 },
@@ -124,6 +125,9 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
           insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
         } else if (insertText === '###### ') {
           insertText = '###### ${1:제목}';
+          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+        } else if (insertText.startsWith('| 구분 |')) {
+          insertText = '| 구분 | ${1:데이터 1} | ${2:데이터 2} |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |';
           insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
         }
       }
