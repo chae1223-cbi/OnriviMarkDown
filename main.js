@@ -527,3 +527,31 @@ ipcMain.handle('system:showEmojiPicker', () => {
   }
 });
 
+// 15. 라이선스 키 로드 핸들러 (데스크탑 영구 저장 연동)
+ipcMain.handle('license:load', async () => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const licenseFilePath = path.join(userDataPath, '.license');
+    if (fs.existsSync(licenseFilePath)) {
+      return fs.readFileSync(licenseFilePath, 'utf-8').trim();
+    }
+    return null;
+  } catch (e) {
+    console.error('라이선스 키 로드 실패:', e);
+    return null;
+  }
+});
+
+// 16. 라이선스 키 저장 핸들러 (데스크탑 영구 저장 연동)
+ipcMain.handle('license:save', async (event, licenseKey) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const licenseFilePath = path.join(userDataPath, '.license');
+    fs.writeFileSync(licenseFilePath, licenseKey, 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('라이선스 키 저장 실패:', e);
+    return false;
+  }
+});
+

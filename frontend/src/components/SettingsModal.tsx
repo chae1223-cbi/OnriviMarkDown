@@ -30,6 +30,8 @@ interface SettingsModalProps {
   setCustomHotkeys: (v: Record<string, string>) => void;
   customSlashCommands: Record<string, string>;
   setCustomSlashCommands: (v: Record<string, string>) => void;
+  licenseKey: string;
+  setLicenseKey: (v: string) => void;
 }
 
 export default function SettingsModal({
@@ -41,9 +43,29 @@ export default function SettingsModal({
   previewMode, setPreviewMode,
   quoteStyle, setQuoteStyle,
   customHotkeys, setCustomHotkeys,
-  customSlashCommands, setCustomSlashCommands
+  customSlashCommands, setCustomSlashCommands,
+  licenseKey, setLicenseKey
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<'editor' | 'workspace' | 'app' | 'shortcuts'>('editor');
+
+  const handleSaveLicense = (key: string) => {
+    setLicenseKey(key);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('onrivi_license_key', key);
+      
+      // 크롬 익스텐션 스토리지 저장
+      const chromeStorage = (window as any).chrome?.storage?.local;
+      if (chromeStorage) {
+        chromeStorage.set({ onrivi_license_key: key });
+      }
+
+      // 데스크탑 Electron 로컬 디스크 저장
+      const api = (window as any).electronAPI;
+      if (api && typeof api.saveLicense === 'function') {
+        api.saveLicense(key);
+      }
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -239,6 +261,21 @@ export default function SettingsModal({
                     <ModeButton active={previewMode === 'both'} onClick={() => setPreviewMode('both')} label={"분할 화면"} colors={colors} />
                     <ModeButton active={previewMode === 'preview'} onClick={() => setPreviewMode('preview')} label={"미리보기"} colors={colors} />
                   </div>
+                </SettingItem>
+
+                <SettingItem
+                  title={"정품 인증 라이선스 키"}
+                  desc={"온리비 어서 프로그램의 정품 인증 라이선스 키를 등록합니다."}
+                  colors={colors}
+                >
+                  <input
+                    type="text"
+                    value={licenseKey}
+                    onChange={(e) => handleSaveLicense(e.target.value)}
+                    className="px-3 py-1.5 text-xs font-mono rounded border outline-none focus:ring-1 focus:ring-blue-500 w-64 shadow-sm"
+                    style={{ backgroundColor: colors.container, borderColor: colors.border, color: colors.onSurface }}
+                    placeholder="인증 키를 입력하세요"
+                  />
                 </SettingItem>
               </section>
             )}

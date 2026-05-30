@@ -8,9 +8,19 @@ interface AboutModalProps {
   isOpen: boolean;
   onClose: () => void;
   isDarkMode: boolean;
+  licenseKey: string;
+  setLicenseKey: (v: string) => void;
+  isActivated: boolean;
 }
 
-export default function AboutModal({ isOpen, onClose, isDarkMode }: AboutModalProps) {
+export default function AboutModal({
+  isOpen,
+  onClose,
+  isDarkMode,
+  licenseKey,
+  setLicenseKey,
+  isActivated
+}: AboutModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -31,8 +41,8 @@ export default function AboutModal({ isOpen, onClose, isDarkMode }: AboutModalPr
           </button>
         </div>
 
-        <div className="p-6 text-center space-y-4">
-          <div className="flex items-center justify-center gap-3 mb-2">
+        <div className="p-6 text-center space-y-5">
+          <div className="flex items-center justify-center gap-3">
             <img src={OAIcon.src} alt="온리비 어서 브랜드 아이콘" className="w-12 h-12 object-contain" />
             <h3 className="text-xl font-bold">온리비 어서</h3>
           </div>
@@ -42,7 +52,56 @@ export default function AboutModal({ isOpen, onClose, isDarkMode }: AboutModalPr
           }`}>
             v1.2.0-beta
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">© 2024 Onrivi. All rights reserved.</p>
+
+          <div className="pt-4 border-t border-black/5 dark:border-white/10 space-y-3">
+            <div className="flex items-center justify-between text-xs px-2">
+              <span className="opacity-70">라이선스 상태:</span>
+              {isActivated ? (
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                  정품 인증됨
+                </span>
+              ) : (
+                <span className="text-[10px] text-rose-600 dark:text-rose-400 font-extrabold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 animate-pulse">
+                  체험판 (인증 필요)
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-1 text-left px-2">
+              <label className="text-[10px] opacity-60 font-bold">정품 라이선스 키 등록</label>
+              <input
+                type="text"
+                value={licenseKey}
+                onChange={(e) => {
+                  setLicenseKey(e.target.value);
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('onrivi_license_key', e.target.value);
+                    const chromeStorage = (window as any).chrome?.storage?.local;
+                    if (chromeStorage) {
+                      chromeStorage.set({ onrivi_license_key: e.target.value });
+                    }
+                    const api = (window as any).electronAPI;
+                    if (api && typeof api.saveLicense === 'function') {
+                      api.saveLicense(e.target.value);
+                    }
+                  }
+                }}
+                className={`w-full px-3 py-1.5 text-xs font-mono rounded border outline-none focus:ring-1 focus:ring-blue-500 shadow-sm ${
+                  isDarkMode 
+                    ? 'bg-zinc-800 border-white/10 text-white' 
+                    : 'bg-zinc-50 border-black/10 text-black'
+                }`}
+                placeholder="인증 키를 입력하세요"
+              />
+              <p className="text-[9px] opacity-50 mt-1">
+                * 올바른 정품 라이선스 키를 입력하시면 고급 내보내기 등 모든 기능이 즉시 활성화됩니다.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 pt-2 border-t border-black/5 dark:border-white/10">
+            © 2024 Onrivi. All rights reserved.
+          </p>
         </div>
       </div>
     </div>

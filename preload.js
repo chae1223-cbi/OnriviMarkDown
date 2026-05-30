@@ -47,6 +47,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 14. 시스템 네이티브 이모지 피커 호출
   showEmojiPicker: () => ipcRenderer.invoke('system:showEmojiPicker'),
 
+  // 15. 라이선스 키 로드 (데스크탑 영구 저장 연동)
+  loadLicense: () => ipcRenderer.invoke('license:load'),
+
+  // 16. 라이선스 키 저장 (데스크탑 영구 저장 연동)
+  saveLicense: (licenseKey) => ipcRenderer.invoke('license:save', licenseKey),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');

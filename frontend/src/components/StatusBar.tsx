@@ -24,6 +24,7 @@ interface StatusBarProps {
   setIsDarkMode?: (v: boolean) => void;
   themePalette?: string;
   onThemeChange?: (themeId: string) => void;
+  isActivated?: boolean;
 }
 
 const localTranslations: Record<string, Record<string, string>> = {
@@ -112,7 +113,8 @@ export default function StatusBar({
   isSidebarOpen, setIsSidebarOpen,
   previewMode, setPreviewMode,
   isDarkMode, setIsDarkMode,
-  themePalette, onThemeChange
+  themePalette, onThemeChange,
+  isActivated
 }: StatusBarProps) {
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
   const currentTheme = EDITOR_THEMES.find(t => t.id === themePalette) || EDITOR_THEMES[0];
@@ -148,6 +150,17 @@ export default function StatusBar({
   return (
     <footer className="h-8 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[11px] font-bold text-gray-700 dark:text-zinc-300 relative z-40 whitespace-nowrap select-none">
       <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+        {/* 💡 [인증 키 가드] 라이선스 활성화 마크 */}
+        {isActivated ? (
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+            정품 인증됨
+          </span>
+        ) : (
+          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-extrabold px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 shrink-0 animate-pulse">
+            체험판 (인증 필요)
+          </span>
+        )}
+        <span className="shrink-0">|</span>
         <span className="shrink-0">{t('charCount')}: {charCount.toLocaleString()}</span>
         <span className="shrink-0">|</span>
         <span className="shrink-0">{t('wordCount')}: {wordCount.toLocaleString()}</span>

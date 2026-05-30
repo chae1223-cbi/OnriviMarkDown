@@ -327,6 +327,57 @@ export default function Home() {                  // @Home : Home component
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [licenseKey, setLicenseKey] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('onrivi_license_key') || 'chae6^jung1!jang3#&';
+    }
+    return 'chae6^jung1!jang3#&';
+  });
+  const isActivated = licenseKey === 'chae6^jung1!jang3#&';
+
+  // 💡 [애드온/데스크탑 연동] 라이선스 키가 변경될 때 스토리지 동기화 및 최초 로드 시 크롬/데스크탑 스토리지 조회
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // 1. 크롬 익스텐션 스토리지 조회
+      const chromeStorage = (window as any).chrome?.storage?.local;
+      if (chromeStorage) {
+        chromeStorage.get(['onrivi_license_key'], (result: any) => {
+          if (result.onrivi_license_key) {
+            setLicenseKey(result.onrivi_license_key);
+          }
+        });
+      }
+
+      // 2. 데스크탑 Electron 스토리지 조회
+      const api = (window as any).electronAPI;
+      if (api && typeof api.loadLicense === 'function') {
+        api.loadLicense().then((savedKey: string | null) => {
+          if (savedKey) {
+            setLicenseKey(savedKey);
+          }
+        });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('onrivi_license_key', licenseKey);
+      
+      // 크롬 익스텐션 스토리지에 동시 저장
+      const chromeStorage = (window as any).chrome?.storage?.local;
+      if (chromeStorage) {
+        chromeStorage.set({ onrivi_license_key: licenseKey });
+      }
+
+      // 데스크탑 Electron 로컬 디스크에 동시 저장
+      const api = (window as any).electronAPI;
+      if (api && typeof api.saveLicense === 'function') {
+        api.saveLicense(licenseKey);
+      }
+    }
+  }, [licenseKey]);
+
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
@@ -4181,6 +4232,7 @@ export default function Home() {                  // @Home : Home component
             setIsDarkMode={setIsDarkMode}
             themePalette={themePalette}
             onThemeChange={handleThemeChange}
+            isActivated={isActivated}
           />
         </main>
       </div>
@@ -4201,19 +4253,23 @@ export default function Home() {                  // @Home : Home component
 
         customHotkeys={customHotkeys} setCustomHotkeys={setCustomHotkeys}
         customSlashCommands={customSlashCommands} setCustomSlashCommands={setCustomSlashCommands}
+        licenseKey={licenseKey} setLicenseKey={setLicenseKey}
       />
 
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         onExport={(format) => {
+          if (!isActivated) {
+            showToast("정품 라이선스 키 등록이 필요합니다. (설정 -> 애플리케이션 탭에서 등록)", 'error');
+            return;
+          }
           if (format === 'pdf') handlers.exportPDF();
           else if (format === 'html') handlers.exportHTML();
           else if (format === 'png') handlers.exportPNG();
           else if (format === 'epub') handlers.exportEPUB();
         }}
         isDarkMode={isDarkMode}
-
       />
       {promptConfig.isOpen && (
         <PromptModal
@@ -4352,6 +4408,9 @@ export default function Home() {                  // @Home : Home component
         isOpen={isAboutModalOpen}
         onClose={() => setIsAboutModalOpen(false)}
         isDarkMode={isDarkMode}
+        licenseKey={licenseKey}
+        setLicenseKey={setLicenseKey}
+        isActivated={isActivated}
       />
       <ImageModal
         isOpen={isImageModalOpen}
