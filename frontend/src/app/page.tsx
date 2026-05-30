@@ -118,7 +118,8 @@ export type EditorCommandType =
   | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'  //⑨ 스타일 적용
   | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME'                  //⑩ 스타일 적용 
   | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE'                       // ⑪ 스타일 적용 
-  | 'TOGGLE_CSS_STYLE';                                                               // ⑫ 스타일 적용 
+  | 'TOGGLE_CSS_STYLE'                                                                // ⑫ 스타일 적용 
+  | 'FOOTNOTE';                                                                       // ⑬ 각주 삽입 
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -596,8 +597,7 @@ export default function Home() {                  // @Home : Home component
               // 🛡️ 윈도우 파일 시스템상 금지 문자(?, \uFFFD 등)가 포함된 깨진 한글 경로 캐시 자동 치료 작동
               const hasInvalidChar = folder.name && (
                 folder.name.includes('?') ||
-                folder.name.includes('\uFFFD') ||
-                folder.name.includes('')
+                folder.name.includes('\uFFFD')
               );
               if (hasInvalidChar) {
                 showToast('워크스페이스 캐시가 유효하지 않아 초기화합니다.', 'warning');
@@ -671,6 +671,30 @@ export default function Home() {                  // @Home : Home component
     }
   }, [themePalette, mounted]);
 
+  // 💡 [테마 연동 가드] themePalette 변경 시 모나코 에디터 테마 수동 강제 갱신
+  useEffect(() => {
+    if (mounted && editorRef.current && (window as any).monaco) {
+      const monaco = (window as any).monaco;
+      monaco.editor.setTheme(themePalette);
+    }
+  }, [themePalette, mounted]);
+
+  // 💡 [다크모드 상태 - 테마 팰릿 동기화 가드] 다크모드 토글 시 에디터 테마 팰릿도 세트로 강제 자동 연동 스위칭
+  useEffect(() => {
+    if (!mounted) return;
+    if (isDarkMode) {
+      const currentTheme = THEME_MAP[themePalette];
+      if (!currentTheme || !currentTheme.isDark) {
+        setThemePalette('onrivi-dark');
+      }
+    } else {
+      const currentTheme = THEME_MAP[themePalette];
+      if (!currentTheme || currentTheme.isDark) {
+        setThemePalette('onrivi-light');
+      }
+    }
+  }, [isDarkMode, mounted, themePalette]);
+
   useEffect(() => {
     if (mounted) {
       localStorage.setItem('cssProfiles', JSON.stringify(profiles));
@@ -720,21 +744,22 @@ export default function Home() {                  // @Home : Home component
     }
   }, [mounted]);
 
-  useEffect(() => {
-    if (mounted && isAddonEnv && typeof navigator !== 'undefined' && navigator.clipboard) {
-      (async () => {
-        try {
-          const text = await navigator.clipboard.readText();
-          if (text) {
-            updateContent(text);
-            lastSavedContentRef.current = text;
-          }
-        } catch (e) {
-          // 클립보드 읽기 실패 (권한 없음 등) - 무시
-        }
-      })();
-    }
-  }, [mounted]);
+  // 💡 [조치 완료] 애드온 구동 시 사용자의 클립보드 내용을 동의 없이 강제 읽기 하여 첫 웰컴페이지를 무조건 덮어쓰던 로직을 제거(주석 처리)하여 웰컴 페이지 노출을 보장합니다.
+  // useEffect(() => {
+  //   if (mounted && isAddonEnv && typeof navigator !== 'undefined' && navigator.clipboard) {
+  //     (async () => {
+  //       try {
+  //         const text = await navigator.clipboard.readText();
+  //         if (text) {
+  //           updateContent(text);
+  //           lastSavedContentRef.current = text;
+  //         }
+  //       } catch (e) {
+  //         // 클립보드 읽기 실패 (권한 없음 등) - 무시
+  //       }
+  //     })();
+  //   }
+  // }, [mounted]);
 
   // 동적 타이틀바 세팅 (온리비 어서 - 파일명.md)
   useEffect(() => {
@@ -830,14 +855,17 @@ export default function Home() {                  // @Home : Home component
       }
     } else if (activeType === 'local') {
       const api = (window as any).electronAPI;
-      if (api?.readFromPath && rootFolder?.name) {
-        try {
-          const list = await api.listDirectory(rootFolder.name);
-          if (list) setFileList(list);
-        } catch (e: any) {
-          showToast('파일 목록 조회 실패. 잠시 후 다시 시도해 주세요.', 'error');
-          // 🛡️ 핵심 방어선: 에러가 났더라도 기존 파일 목록을 []로 밀지 않고 기존 리스트를 유지하여 탐색기 UI 붕괴 방지
-          showToast(`워크스페이스 파일 목록을 갱신하지 못했습니다: ${e?.message || e}`, 'warning');
+      if (api?.readFromPath) {
+        if (rootFolder?.name) {
+          try {
+            const list = await api.listDirectory(rootFolder.name);
+            if (list) setFileList(list);
+          } catch (e: any) {
+            showToast('파일 목록 조회 실패. 잠시 후 다시 시도해 주세요.', 'error');
+            showToast(`워크스페이스 파일 목록을 갱신하지 못했습니다: ${e?.message || e}`, 'warning');
+          }
+        } else {
+          setFileList([]);
         }
       } else {
         try {
@@ -1896,6 +1924,73 @@ export default function Home() {                  // @Home : Home component
   };
 
   const handlers = {
+    footnote: () => {
+      if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
+      const editor = editorRef.current;
+      const model = editor.getModel();
+      if (!model) return;
+
+      const selection = editor.getSelection();
+      const position = editor.getPosition();
+      if (!position || !selection) return;
+
+      const fullText = model.getValue();
+      const footnoteRegex = /\[\^(\d+)\]/g;
+      let maxNumber = 0;
+      let match;
+      while ((match = footnoteRegex.exec(fullText)) !== null) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+      const nextNumber = maxNumber + 1;
+      const footnoteRef = `[^${nextNumber}]`;
+      const footnoteDef = `\n\n[^${nextNumber}]: `;
+
+      editor.pushUndoStop();
+      const Range = (window as any).monaco.Range;
+      
+      const range = new Range(
+        selection.startLineNumber,
+        selection.startColumn,
+        selection.endLineNumber,
+        selection.endColumn
+      );
+      
+      const lineCount = model.getLineCount();
+      const lastLineLength = model.getLineLength(lineCount);
+      const lastLineRange = new Range(
+        lineCount,
+        lastLineLength + 1,
+        lineCount,
+        lastLineLength + 1
+      );
+
+      editor.executeEdits("insertFootnote", [
+        {
+          range: range,
+          text: footnoteRef,
+          forceMoveMarkers: true
+        },
+        {
+          range: lastLineRange,
+          text: footnoteDef,
+          forceMoveMarkers: true
+        }
+      ]);
+      editor.pushUndoStop();
+
+      setTimeout(() => {
+        const newLineCount = model.getLineCount();
+        const newLastLineLength = model.getLineLength(newLineCount);
+        editor.setPosition({
+          lineNumber: newLineCount,
+          column: newLastLineLength + 1
+        });
+        editor.focus();
+      }, 20);
+    },
     insertText: (text: string) => {
       if (!editorRef.current) return;
       const position = editorRef.current.getPosition();
@@ -2373,6 +2468,7 @@ export default function Home() {                  // @Home : Home component
     switch (type) {
       // 서식 관련
       case 'BOLD': handlers.bold(); break;
+      case 'FOOTNOTE': handlers.footnote(); break;
       case 'ITALIC': handlers.italic(); break;
       case 'INLINE_CODE': handlers.inlineCode(); break;
       case 'STRIKETHROUGH': handlers.strikethrough(); break;
@@ -2800,12 +2896,6 @@ export default function Home() {                  // @Home : Home component
                   defaultValue={content}
                   onChange={(val) => {
                     updateContent(val || '', true);
-                    if (decorationTimeoutRef.current) {
-                      clearTimeout(decorationTimeoutRef.current);
-                    }
-                    decorationTimeoutRef.current = setTimeout(() => {
-                      updateDecorations(editorRef.current);
-                    }, 150);
                   }}
                   beforeMount={(monaco) => {
                     EDITOR_THEMES.forEach(t => {
@@ -2824,6 +2914,31 @@ export default function Home() {                  // @Home : Home component
                     if (typeof window !== 'undefined') {
                       (window as any).monaco = monaco;
                     }
+
+                    // 💡 브라우저 맞춤법 검사(빨간 물결선)가 잘려 잔상/찌꺼기처럼 보이는 현상 차단
+                    try {
+                      const textarea = editor.getDomNode()?.querySelector('textarea');
+                      if (textarea) textarea.setAttribute('spellcheck', 'false');
+                    } catch (_) {}
+                    
+                    // 💡 [IME-blur] 포커스 아웃 시 작성 중이던 마지막 글자 유실 버그 방어 (이중 입력 방지 가드 탑재)
+                    editor.onDidBlurEditorText(() => {
+                      if (previewDebounceRef.current) {
+                        clearTimeout(previewDebounceRef.current);
+                        previewDebounceRef.current = null;
+                        const latestVal = editor.getValue();
+                        setContent(latestVal);
+                      }
+                    });
+
+                    // 💡 에디터 내용이 바뀔 때마다(타이핑 및 setValue 포함) 다음 렌더링 프레임에서 데코레이션 즉시 업데이트
+                    // 모나코 에디터의 자체 뷰 렌더러가 화면을 새로 그린 직후에 데코레이션을 덮어씌워 파란색 뒤집힘 버그 방지
+                    editor.onDidChangeModelContent(() => {
+                      requestAnimationFrame(() => {
+                        updateDecorations(editor);
+                      });
+                    });
+
                     if (!(monaco.editor as any)._customActionCommandRegistered) {
                       (monaco.editor as any)._customActionCommandRegistered = true;
                       (monaco.editor as any).registerCommand('trigger-custom-action', (accessor: any, actionId: string) => {
@@ -2870,8 +2985,9 @@ export default function Home() {                  // @Home : Home component
                     editor.addCommand(monaco.KeyCode.Tab, () => {
                       // ① 자동완성 위젯이 열려 있으면 Tab = 자동완성 항목 수락
                       try {
-                        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
-                        if (suggestCtrl?.widget?.value?.suggestWidgetVisible?.get?.()) {
+                        const contextKeyService = (editor as any)._contextKeyService;
+                        const isSuggestVisible = contextKeyService?.getContextKeyValue('suggestWidgetVisible') === true;
+                        if (isSuggestVisible) {
                           editor.trigger('keyboard', 'acceptSelectedSuggestion', {});
                           return;
                         }
@@ -3158,11 +3274,44 @@ export default function Home() {                  // @Home : Home component
                       });
                     });
 
+                    // 💡 [테마 적용 안전장치] 마운트 시점에 수동으로 모든 테마를 다시 정의하고 강제 적용
+                    EDITOR_THEMES.forEach(t => {
+                      monaco.editor.defineTheme(t.id, {
+                        base: t.base,
+                        inherit: true,
+                        rules: t.rules,
+                        colors: t.colors
+                      });
+                    });
+                    monaco.editor.setTheme(themePalette);
+
                     decorationsCollectionRef.current = editor.createDecorationsCollection();
                     updateDecorations(editor);
                     setIsEditorReady(true);
                     const container = editor.getContainerDomNode();
                     container.addEventListener('paste', handleEditorPaste, true);
+                    
+                    // 💡 다른 문서에서 글을 마우스로 드래그앤드롭(Drag & Drop)하여 옮길 때 끝에 $0이 붙는 버그 방지 커스텀 핸들러
+                    container.addEventListener('drop', (e: DragEvent) => {
+                      const text = e.dataTransfer?.getData('text');
+                      if (text) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
+                        const position = target?.position || editor.getPosition();
+                        
+                        if (position) {
+                          editor.executeEdits('dragDropText', [{
+                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                            text: text,
+                            forceMoveMarkers: true
+                          }]);
+                          editor.focus();
+                        }
+                      }
+                    }, true);
+
                     container.addEventListener('mouseenter', () => { isEditorHovered.current = true; });
                     container.addEventListener('mouseleave', () => { isEditorHovered.current = false; });
                     editor.onDidChangeCursorPosition((e) => {
@@ -3393,10 +3542,13 @@ export default function Home() {                  // @Home : Home component
 
                     }}
                       options={{
-                    padding: { top: 0, bottom: 96 },
+                    padding: { top: 20, bottom: 96 },
                     scrollBeyondLastLine: true,
                     fontSize,
+                    fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace",
                     fontLigatures: false,
+                    letterSpacing: 0,
+                    'semanticHighlighting.enabled': true,
                     wordWrap,
                     lineNumbers: 'on',
                     minimap: { enabled: false },
@@ -3426,6 +3578,36 @@ export default function Home() {                  // @Home : Home component
                     fixedTop += rect.top;
                     fixedLeft += rect.left;
                   }
+                  const handleDragStart = (dragEvent: React.MouseEvent) => {
+                    const target = dragEvent.target as HTMLElement;
+                    if (target.closest('button') || target.closest('input')) {
+                      return;
+                    }
+                    dragEvent.preventDefault();
+                    const startX = dragEvent.clientX;
+                    const startY = dragEvent.clientY;
+                    const startLeft = floatingToolbar.left;
+                    const startTop = floatingToolbar.top;
+
+                    const handleDragMove = (moveEvent: MouseEvent) => {
+                      const deltaX = moveEvent.clientX - startX;
+                      const deltaY = moveEvent.clientY - startY;
+                      setFloatingToolbar(prev => ({
+                        ...prev,
+                        left: startLeft + deltaX,
+                        top: startTop + deltaY
+                      }));
+                    };
+
+                    const handleDragEnd = () => {
+                      document.removeEventListener('mousemove', handleDragMove);
+                      document.removeEventListener('mouseup', handleDragEnd);
+                    };
+
+                    document.addEventListener('mousemove', handleDragMove);
+                    document.addEventListener('mouseup', handleDragEnd);
+                  };
+
                   return (
                    <div
                       id="floating-toolbar"
@@ -3448,9 +3630,9 @@ export default function Home() {                  // @Home : Home component
                           editorRef.current?.focus();
                         }
                       }}
-                      className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl rounded-xl border border-gray-200 dark:border-zinc-700 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none"
+                      className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl rounded-xl border border-gray-200 dark:border-zinc-700 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
                      style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
-                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseDown={handleDragStart}
                   >
                     {(() => {
                       return (
@@ -3554,6 +3736,7 @@ export default function Home() {                  // @Home : Home component
                   originalContent={content}
                   lineMap={lineMap}
                   onCheckboxToggle={handleCheckboxToggle}
+                  currentFilePath={currentFileNode?.path}
                 />
                 {/*
                  * 동적 CSS 스타일 인젝션:

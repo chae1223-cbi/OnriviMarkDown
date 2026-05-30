@@ -211,12 +211,22 @@ export default function Toolbar({
               <ToolbarButton label="📊" title={t('table')} onAction={() => dispatch('TABLE')} />
               <ToolbarButton label="💻" title={t('code')} onAction={() => dispatch('CODE')} />
               <ToolbarButton label="Σ" title={t('latex')} onAction={() => dispatch('LATEX')} />
+              <ToolbarButton label="📌" title={"각주 삽입"} onAction={() => dispatch('FOOTNOTE')} />
             </ToolbarGroup>
           </div>
         )}
         
         {/* 여백 (좌측 정렬용) */}
         <div className="flex-1" />
+
+        {/* 💡 [요구사항] 현재 활성화된 화면 모드 실시간 시각적 배지 표시 */}
+        <div className="flex items-center bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 dark:border-blue-500/30 rounded-full px-3.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 select-none shadow-sm shrink-0">
+          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 animate-pulse" />
+          {previewMode === 'edit' && '편집 모드'}
+          {previewMode === 'both' && '편집/미리보기 반반모드'}
+          {previewMode === 'preview' && '미리보기 모드'}
+          {previewMode === 'css-style' && '스타일 서식 모드'}
+        </div>
 
         {/* 제어/보기 등 */}
         <div className="flex flex-row items-center gap-4 h-full">

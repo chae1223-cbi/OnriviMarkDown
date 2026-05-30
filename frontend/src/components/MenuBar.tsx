@@ -151,7 +151,7 @@ export default function MenuBar({
   ];
 
   return (
-    <nav ref={menuRef} className="h-8 bg-zinc-100 dark:bg-zinc-900 border-b border-black/5 dark:border-white/10 flex items-center px-1 text-xs font-medium relative z-[100] text-zinc-700 dark:text-zinc-300">
+    <nav ref={menuRef} className="h-8 bg-zinc-100 dark:bg-zinc-900 border-b border-black/5 dark:border-white/10 flex items-center px-1 text-xs font-medium relative z-[100] text-zinc-700 dark:text-zinc-300 whitespace-nowrap select-none shrink-0">
       <MenuDropdown 
         label={t('file')} 
         isOpen={activeMenu === 'file'} 

@@ -130,6 +130,17 @@ app.on('ready', async () => {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
           }
+        }).then(response => {
+          const headers = new Headers(response.headers);
+          headers.set('Access-Control-Allow-Origin', '*');
+          return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: headers
+          });
+        }).catch(err => {
+          console.error('External media proxy error:', err);
+          return new Response('External image load failed', { status: 502 });
         });
       }
 
@@ -137,13 +148,39 @@ app.on('ready', async () => {
       if (process.platform === 'win32' && filePath.startsWith('/')) {
         filePath = filePath.slice(1);
       }
-      const normalizedPath = path.normalize(filePath).normalize('NFC');
+      let normalizedPath = path.normalize(filePath).normalize('NFC');
       
       if (!fs.existsSync(normalizedPath)) {
-        return new Response('File not found', { status: 404 });
+        const fallbackOutPath = path.join(__dirname, 'frontend/out', normalizedPath);
+        const fallbackPublicPath = path.join(__dirname, 'frontend/public', normalizedPath);
+        if (fs.existsSync(fallbackOutPath)) {
+          normalizedPath = fallbackOutPath;
+        } else if (fs.existsSync(fallbackPublicPath)) {
+          normalizedPath = fallbackPublicPath;
+        } else {
+          return new Response('File not found', { status: 404 });
+        }
       }
       
-      return net.fetch(`file:///${normalizedPath}`);
+      const ext = path.extname(normalizedPath).toLowerCase();
+      const mimeTypes = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp',
+        '.mp4': 'video/mp4',
+        '.mp3': 'audio/mpeg'
+      };
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      const fileStream = fs.createReadStream(normalizedPath);
+      return new Response(fileStream, {
+        headers: { 
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*' 
+        }
+      });
     } catch (err) {
       console.error('media protocol serve error:', err);
       return new Response('Error serving file', { status: 500 });

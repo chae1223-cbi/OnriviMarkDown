@@ -25,7 +25,54 @@ interface MarkdownViewerProps {
   originalContent?: string;
   lineMap?: number[];
   onCheckboxToggle?: (lineNumber: number, checked: boolean) => void;
+  currentFilePath?: string;
 }
+
+const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
+  if (!srcPath) return "";
+
+  if (srcPath.startsWith('http://') || srcPath.startsWith('https://') || srcPath.startsWith('data:') || srcPath.startsWith('blob:')) {
+    return srcPath;
+  }
+
+  let baseFolder = "";
+  if (currentFileNodePath) {
+    const normalizedFile = currentFileNodePath.replace(/\\/g, '/');
+    const lastSlash = normalizedFile.lastIndexOf('/');
+    if (lastSlash !== -1) {
+      baseFolder = normalizedFile.substring(0, lastSlash);
+    }
+  }
+
+  let cleanSrc = srcPath.replace(/\\/g, '/');
+  if (cleanSrc.startsWith('/')) {
+    cleanSrc = cleanSrc.substring(1);
+  }
+
+  if (cleanSrc.startsWith('./')) {
+    cleanSrc = cleanSrc.substring(2);
+  }
+
+  let finalPath = "";
+  if (baseFolder) {
+    finalPath = baseFolder + '/' + cleanSrc;
+  } else {
+    finalPath = cleanSrc;
+  }
+
+  const segments = finalPath.split('/');
+  const stack: string[] = [];
+  for (const seg of segments) {
+    if (seg === '.' || seg === '') continue;
+    if (seg === '..') {
+      stack.pop();
+    } else {
+      stack.push(seg);
+    }
+  }
+
+  return stack.join('/');
+};
 
 // 🛡️ 들여쓰기 4칸/탭 입력 시 코드블록으로 인식되는 것을 완전히 차단하는 플러그인
 function remarkDisableIndentedCode(this: any) {
@@ -75,7 +122,7 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
 }
 
 // 🛡️ [한글 주석 완벽 탑재] MarkdownViewer는 마크다운 원본 문법을 아름다운 HTML 구조로 파싱 및 시각화하는 핵심 뷰어 컴포넌트입니다.
-export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle }: MarkdownViewerProps) {
+export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath }: MarkdownViewerProps) {
   // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
   const getIndentStyle = (node: any) => {
     const line = node?.position?.start?.line;
@@ -167,8 +214,18 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           if (!src) return <img alt={alt} {...props} />;
           
           let finalSrc = src;
-          if (typeof window !== 'undefined' && (window as any).electronAPI) {
-            finalSrc = `media://local/serve?url=${encodeURIComponent(src)}`;
+          const isExternal = src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('blob:');
+
+          if (!isExternal && typeof window !== 'undefined' && (window as any).electronAPI) {
+            let absolutePath = src;
+            const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(src);
+            const isAbsoluteUnix = src.startsWith('/');
+            const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
+
+            if (!isAbsolute && currentFilePath) {
+              absolutePath = resolveRelativeImagePath(src, currentFilePath);
+            }
+            finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
           }
 
           let width: string | undefined;
@@ -220,7 +277,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
         },
         pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
         code: ({ node, className, children, ...props }: any) => {
-          const match = /language-(\w+)/.exec(className || '');
+          const match = /language-(\S+)/.exec(className || '');
           const lang = match ? match[1] : '';
           const codeContent = getTextFromChildren(children).replace(/\n$/, '');
           const isInline = !match && !getTextFromChildren(children).includes('\n');

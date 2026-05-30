@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -244,24 +246,51 @@ body {
   content: none !important;
 }
 
-/* Monaco WYSIWYG Decorations */
+/* Monaco WYSIWYG Decorations - 글자 가로 겹침 현상 방지 고정폭 리셋 */
+.monaco-h1-text,
+.monaco-h2-text,
+.monaco-h3-text,
+.monaco-bold-text,
+.monaco-italic-text,
+.monaco-strikethrough-text,
+.monaco-md-syntax {
+  display: inline !important;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+}
+
+/* 모나코 에디터 내부의 모든 글자에 대해 한글 고정폭 폰트 강제 적용 (해상도 및 브라우저 애드온 환경 오차 방지) */
+.monaco-editor, 
+.monaco-editor .view-lines, 
+.monaco-editor .view-line, 
+.monaco-editor .view-line * {
+  font-family: 'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace !important;
+}
+
+/* 에디터 실시간 입력(IME 한글 조합) 시 브라우저 기본 textarea에 나타나는 원본 텍스트 잔상 투명화 */
+.monaco-editor textarea.inputarea {
+  color: transparent !important;
+  background: transparent !important;
+  font-family: 'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace !important;
+  caret-color: transparent !important; /* 커서는 모나코 에디터가 별도 레이어로 그리므로 깜빡임 중복 방지 */
+}
+
 .monaco-h1-text { color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; background-color: rgba(16, 185, 129, 0.05) !important; }
 .monaco-h2-text { color: #059669 !important; background-color: rgba(5, 150, 105, 0.05) !important; }
 .monaco-h3-text { color: #34d399 !important; background-color: rgba(52, 211, 153, 0.05) !important; }
-.monaco-bold-text { color: #1d4ed8 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
-.dark .monaco-bold-text { color: #60a5fa !important; background-color: rgba(96, 165, 250, 0.12) !important; }
-.monaco-italic-text { text-decoration: underline dotted !important; color: #7c3aed !important; }
-.dark .monaco-italic-text { color: #a78bfa !important; }
-.monaco-strikethrough-text { text-decoration: line-through !important; }
-.monaco-md-syntax { 
-  color: #3b82f6 !important; 
-  font-size: 1em !important; 
-  opacity: 0.8 !important;
-}
+/* 에디터 라이트 테마 (vs) 적용 시 강조 스타일 */
+.vs .monaco-bold-text { color: #1d4ed8 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
+.vs .monaco-italic-text { text-decoration: underline dotted !important; color: #7c3aed !important; }
+.vs .monaco-md-syntax { color: #3b82f6 !important; opacity: 0.8 !important; }
 
-.dark .monaco-md-syntax { 
-  color: #60a5fa !important; 
-}
+/* 에디터 다크 테마 (vs-dark) 적용 시 강조 스타일 (형광 연두 / 회색 조합) */
+.vs-dark .monaco-bold-text { color: #A6E22E !important; background-color: rgba(255, 255, 255, 0.05) !important; }
+.vs-dark .monaco-italic-text { color: #A6E22E !important; font-style: italic !important; }
+.vs-dark .monaco-md-syntax { color: #9ca3af !important; }
+
+.monaco-strikethrough-text { text-decoration: line-through !important; }
 
 /* 🛡️ 태스크 리스트 아이템의 중복 불릿 기호 제거 및 여백 보정 */
 .prose li.task-list-item {
@@ -319,13 +348,18 @@ body {
   -webkit-font-smoothing: antialiased !important;
 }
 
-.monaco-editor .mtkb {
-  color: #1d4ed8 !important;
-  letter-spacing: 0px !important;
+/* 볼드 텍스트 자간 고정 */
+.monaco-editor .mtkb,
+.monaco-editor .strong {
+  font-weight: bold !important;
+  font-variant-ligatures: none !important;
+  letter-spacing: -0.01em !important; /* 💡 미세하게 자간을 압착하여 픽셀 이탈을 원천 차단 */
 }
 
-.monaco-editor .mtki {
-  text-decoration: underline dotted !important;
-  color: #7c3aed !important;
-  letter-spacing: 0px !important;
+/* 이탤릭 텍스트 자간 고정 */
+.monaco-editor .mtki,
+.monaco-editor .emphasis {
+  font-style: italic !important;
+  font-variant-ligatures: none !important;
+  letter-spacing: -0.005em !important;
 }

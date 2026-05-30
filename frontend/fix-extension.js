@@ -66,31 +66,21 @@ function extractInlineScripts(dir) {
     } else if (stat.isFile() && filePath.endsWith('.html')) {
       let content = fs.readFileSync(filePath, 'utf8');
       let inlineScriptCount = 0;
+      const baseName = path.basename(filePath, '.html');
+      const dirPath = path.dirname(filePath);
 
       const scriptRegex = /<script(?![^>]*src\s*=)[^>]*>([\s\S]*?)<\/script>/gi;
-      let match;
-      let newContent = content;
-
-      const matches = [];
-      while ((match = scriptRegex.exec(content)) !== null) {
-        matches.push({
-          fullTag: match[0],
-          scriptCode: match[1]
-        });
-      }
-
-      for (const item of matches) {
-        const scriptCode = item.scriptCode;
-        if (scriptCode.trim()) {
-          inlineScriptCount++;
-          const baseName = path.basename(filePath, '.html');
-          const inlineJsName = `${baseName}-inline-${inlineScriptCount}.js`;
-          const inlineJsPath = path.join(path.dirname(filePath), inlineJsName);
-
-          fs.writeFileSync(inlineJsPath, scriptCode, 'utf8');
-          newContent = newContent.replace(item.fullTag, `<script src="${inlineJsName}"></script>`);
+      const newContent = content.replace(scriptRegex, (match, scriptCode) => {
+        if (!scriptCode.trim()) {
+          return match;
         }
-      }
+        inlineScriptCount++;
+        const inlineJsName = `${baseName}-inline-${inlineScriptCount}.js`;
+        const inlineJsPath = path.join(dirPath, inlineJsName);
+
+        fs.writeFileSync(inlineJsPath, scriptCode, 'utf8');
+        return `<script src="${inlineJsName}"></script>`;
+      });
 
       if (inlineScriptCount > 0) {
         fs.writeFileSync(filePath, newContent, 'utf8');

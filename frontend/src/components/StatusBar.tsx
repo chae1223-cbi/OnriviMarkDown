@@ -146,15 +146,15 @@ export default function StatusBar({
   const saveStatusColor = saveStatus === 'saved' ? 'text-green-600' : saveStatus === 'saving' ? 'text-blue-500' : saveStatus === 'unsaved' ? 'text-amber-500' : '';
 
   return (
-    <footer className="h-8 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[11px] font-medium text-gray-500 relative z-40">
-      <div className="flex items-center gap-3">
-        <span>{t('charCount')}: {charCount.toLocaleString()}</span>
-        <span>|</span>
-        <span>{t('wordCount')}: {wordCount.toLocaleString()}</span>
-        <span>|</span>
-        <span>{t('manuscript')}: {manuscriptPages}{t('page')}</span>
-        <span>|</span>
-        <div className="flex items-center gap-1.5">
+    <footer className="h-8 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[11px] font-bold text-gray-700 dark:text-zinc-300 relative z-40 whitespace-nowrap select-none">
+      <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+        <span className="shrink-0">{t('charCount')}: {charCount.toLocaleString()}</span>
+        <span className="shrink-0">|</span>
+        <span className="shrink-0">{t('wordCount')}: {wordCount.toLocaleString()}</span>
+        <span className="hidden md:inline shrink-0">|</span>
+        <span className="hidden md:inline shrink-0">{t('manuscript')}: {manuscriptPages}{t('page')}</span>
+        <span className="hidden lg:inline shrink-0">|</span>
+        <div className="hidden lg:flex items-center gap-1.5 shrink-0">
           <div className="w-16 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-300"
@@ -168,16 +168,18 @@ export default function StatusBar({
             {Math.min(charCount, targetCharCount).toLocaleString()}/{targetCharCount.toLocaleString()} ({progressPercent}%)
           </span>
         </div>
-        <span>|</span>
-        <span>{t('path')}: {getFullPath()}</span>
+        <span className="hidden sm:inline shrink-0">|</span>
+        <span className="hidden sm:inline truncate max-w-[120px] md:max-w-[240px] lg:max-w-[400px]" title={getFullPath()}>
+          {t('path')}: {getFullPath()}
+        </span>
         {saveStatusText && (
           <>
-            <span>|</span>
-            <span className={`${saveStatusColor} font-semibold`}>{saveStatusText}</span>
+            <span className="shrink-0">|</span>
+            <span className={`${saveStatusColor} font-semibold shrink-0`}>{saveStatusText}</span>
           </>
         )}
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 shrink-0 ml-2">
         {/* 툴바 숨기기/보이기 */}
         {setIsToolbarOpen && (
           <button

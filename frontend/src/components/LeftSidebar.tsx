@@ -215,6 +215,44 @@ export default function LeftSidebar({
 
   const handleLazyLoad = async (node: FileNode): Promise<FileNode[]> => {
     try {
+      if (workspaceType === 'browser') {
+        if (node.handle) {
+          const children: FileNode[] = [];
+          for await (const entry of node.handle.values()) {
+            const kind = entry.kind === 'directory' ? 'directory' : 'file';
+            const path = node.path ? `${node.path}/${entry.name}` : entry.name;
+            children.push({
+              name: entry.name,
+              kind,
+              path,
+              handle: entry
+            });
+          }
+          children.sort((a, b) => {
+            if (a.kind !== b.kind) {
+              return a.kind === 'directory' ? -1 : 1;
+            }
+            return a.name.localeCompare(b.name);
+          });
+          return children;
+        } else {
+          // LocalStorage VFS용 폴백
+          const { getVfsFiles } = await import('@/lib/vfsHelper');
+          const allVfs = getVfsFiles();
+          const findChildren = (nodes: FileNode[]): FileNode[] => {
+            for (const n of nodes) {
+              if (n.path === node.path) return n.children || [];
+              if (n.kind === 'directory' && n.children) {
+                const found = findChildren(n.children);
+                if (found.length > 0 || n.path === node.path) return found;
+              }
+            }
+            return [];
+          };
+          return findChildren(allVfs);
+        }
+      }
+
       const api = (window as any).electronAPI;
       if (api?.listDirectory) {
         return await api.listDirectory(node.path);

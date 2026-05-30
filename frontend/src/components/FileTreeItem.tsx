@@ -285,8 +285,32 @@ const FileTreeItem = ({
               await writable.write(text);
               await writable.close();
               await parentHandle.removeEntry(node.name);
-              refreshParent();
-              if (currentFileName === node.name) openFile({ name: finalName, kind: 'file', handle: newHandle });
+
+              // 💡 파일의 새 경로 계산
+              const oldPath = node.path || "";
+              const oldName = node.name;
+              const normalizedPath = oldPath.replace(/\\/g, '/');
+              const lastSlashIndex = normalizedPath.lastIndexOf('/');
+              const parentPath = lastSlashIndex !== -1 ? normalizedPath.substring(0, lastSlashIndex) : "";
+              const newPath = parentPath ? `${parentPath}/${finalName}` : finalName;
+
+              node.handle = newHandle;
+              node.name = finalName;
+              node.path = newPath;
+
+              setTimeout(() => {
+                refreshParent();
+              }, 800);
+              // 💡 경로 기반 및 백업된 이름을 비교하여 에디터에 열려있는 활성 파일 정보 갱신
+              if (oldPath && currentFilePath) {
+                const normCurrent = currentFilePath.replace(/\\/g, '/');
+                const normOld = oldPath.replace(/\\/g, '/');
+                if (normCurrent === normOld) {
+                  openFile({ name: finalName, kind: 'file', path: newPath, handle: newHandle });
+                }
+              } else if (currentFileName === oldName) {
+                openFile({ name: finalName, kind: 'file', path: newPath, handle: newHandle });
+              }
             } else if (node.kind === 'directory') {
               // 폴더 이름 변경: 새 폴더를 만들고 하위 항목들을 재귀적으로 복사한 뒤 기존 폴더 삭제
               const newDirHandle = await parentHandle.getDirectoryHandle(finalName, { create: true });
@@ -310,11 +334,26 @@ const FileTreeItem = ({
               await copyDirectory(node.handle, newDirHandle);
               await parentHandle.removeEntry(node.name, { recursive: true });
               
-              // 메모리 내 노드 핸들과 이름 즉시 업데이트
+              // 💡 폴더의 새 경로 계산
+              const oldPath = node.path || "";
+              const normalizedPath = oldPath.replace(/\\/g, '/');
+              const lastSlashIndex = normalizedPath.lastIndexOf('/');
+              const parentPath = lastSlashIndex !== -1 ? normalizedPath.substring(0, lastSlashIndex) : "";
+              const newPath = parentPath ? `${parentPath}/${finalName}` : finalName;
+
+              // 메모리 내 노드 핸들과 이름 및 경로 즉시 업데이트
               node.handle = newDirHandle;
               node.name = finalName;
-              refreshParent();
-              setTimeout(() => refreshParent(), 300);
+              node.path = newPath;
+
+              // 💡 이전 자식 노드 캐시 리셋
+              node.children = [];
+              setLocalChildren(null);
+
+              setTimeout(() => {
+                refreshParent();
+                refreshThisDirectory();
+              }, 800);
             }
           } else if (node.path) {
             // LocalStorage 가상 파일/폴더 이름 변경
