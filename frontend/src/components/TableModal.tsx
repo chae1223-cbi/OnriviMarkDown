@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Table as TableIcon, Plus } from 'lucide-react';
 
 interface TableModalProps {
@@ -13,8 +14,14 @@ interface TableModalProps {
 export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: TableModalProps) {
   const [hoverPos, setHoverPos] = useState({ r: 3, c: 2 });
   const [selectedPos, setSelectedPos] = useState({ r: 3, c: 2 });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   const handleInsert = () => {
     const { r, c } = selectedPos;
@@ -27,8 +34,8 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
       <div className={`relative w-full max-w-[320px] shadow-2xl rounded-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
@@ -115,6 +122,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

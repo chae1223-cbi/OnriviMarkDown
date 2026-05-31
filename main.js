@@ -370,7 +370,14 @@ ipcMain.handle('file:listDirectory', async (event, dirPath) => {
     const cleanPath = dirPath.normalize('NFC');
     const entries = fs.readdirSync(cleanPath, { withFileTypes: true });
     const nodes = entries
-      .filter(entry => !['node_modules', '.git', '.next', '.vscode'].includes(entry.name))
+      .filter(entry => {
+        if (['node_modules', '.git', '.next', '.vscode'].includes(entry.name)) return false;
+        if (entry.isFile()) {
+          const nameLower = entry.name.toLowerCase();
+          return nameLower.endsWith('.md') || nameLower.endsWith('.markdown');
+        }
+        return true;
+      })
       .map(entry => {
         const fullPath = path.join(cleanPath, entry.name);
         if (entry.isDirectory()) {
@@ -551,6 +558,34 @@ ipcMain.handle('license:save', async (event, licenseKey) => {
     return true;
   } catch (e) {
     console.error('라이선스 키 저장 실패:', e);
+    return false;
+  }
+});
+
+// 17. 환경설정 로드 핸들러 (데스크탑 영구 저장 연동)
+ipcMain.handle('settings:load', async () => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const settingsFilePath = path.join(userDataPath, 'settings.json');
+    if (fs.existsSync(settingsFilePath)) {
+      return JSON.parse(fs.readFileSync(settingsFilePath, 'utf-8'));
+    }
+    return null;
+  } catch (e) {
+    console.error('환경설정 로드 실패:', e);
+    return null;
+  }
+});
+
+// 18. 환경설정 저장 핸들러 (데스크탑 영구 저장 연동)
+ipcMain.handle('settings:save', async (event, settings) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const settingsFilePath = path.join(userDataPath, 'settings.json');
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('환경설정 저장 실패:', e);
     return false;
   }
 });

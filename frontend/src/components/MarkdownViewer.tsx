@@ -27,6 +27,7 @@ interface MarkdownViewerProps {
   lineMap?: number[];
   onCheckboxToggle?: (lineNumber: number, checked: boolean) => void;
   currentFilePath?: string;
+  onFileOpen?: (resolvedPath: string) => void;
 }
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
@@ -122,7 +123,7 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
   );
 }
 
-// 🛡️ [한글 주석 완벽 탑재] TableWrapper는 렌더링된 표 위에 마우스 오버 시 '표 복사' 버튼을 표시하고, 
+// 🛡️ [한글 주석 완벽 탑재] TableWrapper는 렌더링된 표 위에 마우스 오버 시 '시트/표형식 복사' 버튼을 표시하고, 
 // 클릭하면 MS 오피스(워드, 엑셀) 및 한글 프로그램 등에 표 형태로 바로 붙여넣어지도록 HTML과 탭 구분 텍스트(TSV)로 클립보드에 적재해 주는 컴포넌트입니다.
 function TableWrapper({ children }: { children: React.ReactElement }) {
   const [copied, setCopied] = useState(false);
@@ -164,20 +165,20 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('[온리비 어서] 표 복사 실패', err);
+      console.error('[온리비 어서] 시트/표형식 복사 실패', err);
     }
   };
 
   return (
     <div ref={tableRef} className="relative group my-6 border border-zinc-200/60 dark:border-zinc-800/60 rounded-lg overflow-x-auto shadow-sm bg-white dark:bg-zinc-900 select-text">
-      {/* 마우스 호버 시 우측 상단에 노출되는 미려한 표 복사 단추 */}
+      {/* 마우스 호버 시 우측 상단에 노출되는 미려한 시트/표형식 복사 단추 */}
       <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
         <button
           onClick={handleCopy}
           className="text-xs px-2.5 py-1.5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-md font-semibold flex items-center gap-1.5 cursor-pointer"
         >
           <span>{copied ? '✓' : '📋'}</span>
-          <span>{copied ? '표 복사 완료' : '표 복사'}</span>
+          <span>{copied ? '시트/표형식 복사 완료' : '시트/표형식 복사'}</span>
         </button>
       </div>
       <div className="p-4">
@@ -269,23 +270,49 @@ function MermaidBlock({ code }: { code: string }) {
         // 🛡️ 매 렌더링마다 유일한 임시 ID를 생성하여 Mermaid 렌더러 간 캐시 충돌을 원천 차단 (무한 펜딩 방지)
         const renderId = `mermaid-temp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
+        // 💡 [Mermaid 전처리 가드] 큰따옴표 안쪽의 대괄호([, ]) 및 소괄호((, )) 문법이 파싱 에러를 유발하는 현상을
+        // 렌더링 전에 자동으로 전각 문자(［, ］, （, ）)로 자동 보정하여 구문 에러를 원천 예방합니다.
+        // 또한 마크다운 파서로 인해 HTML 이스케이프된 기호(&gt;, &lt; 등)를 본래의 코드로 복구합니다.
+        let cleanCode = code;
+        try {
+          cleanCode = cleanCode
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"');
+        } catch (_) {}
+
+        try {
+          cleanCode = cleanCode.replace(/"([^"]*)"/g, (match, p1) => {
+            const sanitized = p1
+              .replace(/\[/g, '［')
+              .replace(/\]/g, '］')
+              .replace(/\(/g, '（')
+              .replace(/\)/g, '）');
+            return `"${sanitized}"`;
+          });
+        } catch (_) {}
+
         try {
           // 💡 [문법 무결성 사전 검증 가드] 타이핑 도중의 미완성 문법을 컴포넌트 락 없이 우회 유치
           let isValid = false;
+          let parserErrorMsg = '';
           try {
             // v10+ parse API는 Promise를 반환하거나 에러를 throw할 수 있으므로 안전하게 처리
-            const parseResult = mermaidObj.parse(code);
+            const parseResult = mermaidObj.parse(cleanCode);
             if (parseResult instanceof Promise) {
               await parseResult;
             }
             isValid = true;
-          } catch (parseErr) {
+          } catch (parseErr: any) {
+            console.error('[Onrivi Author] Mermaid parse error:', parseErr);
+            parserErrorMsg = parseErr?.message || String(parseErr);
             isValid = false;
           }
 
           if (!isValid) {
             if (active) {
-              setError('🎨 온리비 아서: 다이어그램 문법을 입력하는 중이거나 문법이 불완전합니다.');
+              setError(`🎨 온리비 아서: 다이어그램 문법을 입력하는 중이거나 문법이 불완전합니다. (${parserErrorMsg.substring(0, 100)})`);
               setLoading(false);
             }
             return;
@@ -299,7 +326,7 @@ function MermaidBlock({ code }: { code: string }) {
           });
 
           // 비동기 렌더링을 통한 SVG 생성
-          const { svg } = await mermaidObj.render(renderId, code);
+          const { svg } = await mermaidObj.render(renderId, cleanCode);
           if (active) {
             setSvgHtml(svg);
             setLoading(false);
@@ -537,21 +564,24 @@ function MermaidBlock({ code }: { code: string }) {
 }
 
 // 🛡️ [한글 주석 완벽 탑재] MarkdownViewer는 마크다운 원본 문법을 아름다운 HTML 구조로 파싱 및 시각화하는 핵심 뷰어 컴포넌트입니다.
-export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath }: MarkdownViewerProps) {
+export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath, onFileOpen }: MarkdownViewerProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // 🛡️ [마크다운 원본 우회] 마크다운 본문의 HTML 이스케이프 깨짐 방지를 위해 원본 내용을 직접 컴포넌트에 공급합니다.
+  // 💡 [한글 주석] 마크다운 링크 주소 내부에 소괄호()가 포함되어 파싱이 깨지는 현상 방지 필터 (부등호 <> 래핑 처리)
   const cleanContent = useMemo(() => {
-    if (!mounted || typeof window === 'undefined') {
-      return content;
-    }
-    return DOMPurify.sanitize(content, {
-      FORBID_TAGS: ['script', 'iframe', 'embed', 'object', 'style'],
-      FORBID_ATTR: ['onerror', 'onload', 'onmouseover', 'onclick', 'onfocus', 'onchange'],
+    if (!content) return "";
+    const mdLinkRegex = /\[([^\]]+)\]\(((?:[^()]+|\([^()]*\))+)\)/g;
+    return content.replace(mdLinkRegex, (match, text, url) => {
+      if (url.startsWith('<') && url.endsWith('>')) {
+        return match;
+      }
+      return `[${text}](<${url}>)`;
     });
-  }, [content, mounted]);
+  }, [content]);
 
   // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
   const getIndentStyle = (node: any) => {
@@ -675,11 +705,13 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
           return <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" {...props} />;
         },
         a: ({ node, href, children, ...props }: any) => {
-          const isAnchor = href && href.startsWith('#');
+          const isWebLink = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:'));
+          const isAnchor = href && (href.startsWith('#') || href.startsWith('.#'));
+          
           if (isAnchor) {
             const handleClick = (e: React.MouseEvent) => {
               e.preventDefault();
-              const targetId = decodeURIComponent(href.slice(1));
+              const targetId = decodeURIComponent(href.startsWith('.#') ? href.slice(2) : href.slice(1));
               
               // 1. 직접 ID로 엘리먼트 매칭 검색
               let targetEl = document.getElementById(targetId);
@@ -704,6 +736,44 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
             };
             return <a href={href} onClick={handleClick} {...props}>{children}</a>;
           }
+
+          // 💡 [한글 주석] 상대 경로 파일 링크(.md, .markdown)인 경우 브라우저 탭을 열지 않고 에디터 내부 파일 열기로 가로챔
+          if (href && !isWebLink && (href.endsWith('.md') || href.endsWith('.markdown') || href.includes('.md#') || href.includes('.markdown#'))) {
+            const handleClick = (e: React.MouseEvent) => {
+              e.preventDefault();
+              if (onFileOpen) {
+                const cleanHref = href.split('#')[0];
+                const resolved = resolveRelativeImagePath(cleanHref, currentFilePath);
+                onFileOpen(resolved);
+
+                // 해시(#) 앵커 이동 처리 추가 연동
+                const hashPart = href.split('#')[1];
+                if (hashPart) {
+                  setTimeout(() => {
+                    const targetId = decodeURIComponent(hashPart);
+                    let targetEl = document.getElementById(targetId);
+                    if (!targetEl) {
+                      const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                      const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '');
+                      for (const h of Array.from(headings)) {
+                        const headingText = h.textContent?.trim() || '';
+                        const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '');
+                        if (cleanHeading === cleanTarget || h.id === targetId) {
+                          targetEl = h as HTMLElement;
+                          break;
+                        }
+                      }
+                    }
+                    if (targetEl) {
+                      targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }, 300); // 파일 로딩 시차를 커버하기 위해 300ms 지연 후 기동
+                }
+              }
+            };
+            return <a href={href} onClick={handleClick} {...props}>{children}</a>;
+          }
+
           return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
         },
         table: ({ node, children, ...props }: any) => {

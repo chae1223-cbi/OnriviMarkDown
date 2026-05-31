@@ -213,7 +213,7 @@ export default function MenuBar({
         isDarkMode={isDarkMode}
         items={[
           { label: t('userManual'), icon: <span>📖</span> },
-          { label: t('shortcuts'), icon: <span>⌨️</span> },
+          { label: t('shortcuts'), icon: <span>⌨️</span>, onClick: () => dispatch('SETTINGS_SHORTCUTS') },
           { label: t('updates'), icon: <span>🚀</span>, onClick: () => dispatch('UPDATES') },
           { divider: true },
           { label: t('about'), icon: <span>🍀</span>, onClick: () => dispatch('ABOUT') },

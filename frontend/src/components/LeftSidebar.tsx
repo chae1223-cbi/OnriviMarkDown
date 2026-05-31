@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import GlobalSearch from './GlobalSearch';
 import FileTreeItem from './FileTreeItem';
 import { FileNode } from '@/lib/helper';
@@ -40,7 +41,7 @@ interface LeftSidebarProps {
   fileList: FileNode[];
   rootFolder: { name: string; handle?: any } | null;
   workspaceType: string;
-  openFile: (node: FileNode | null) => void;
+  openFile: (node: FileNode | null, parentHandle?: any) => void;
   currentFileNode: FileNode | null;
   refreshFileList: () => void;
   askConfirm: (config: { title: string; message: string; onConfirm: () => void; isDanger?: boolean }) => void;
@@ -48,6 +49,7 @@ interface LeftSidebarProps {
   selectedMergeNodes?: FileNode[];
   toggleMergeNodeSelect?: (node: FileNode) => void;
   onSelectRootFolder?: () => void;
+  onRestoreFolder?: () => void;
 }
 
 export default function LeftSidebar({
@@ -82,7 +84,8 @@ export default function LeftSidebar({
   isMergeMode = false,
   selectedMergeNodes = [],
   toggleMergeNodeSelect,
-  onSelectRootFolder
+  onSelectRootFolder,
+  onRestoreFolder
 }: LeftSidebarProps) {
   const [drives, setDrives] = useState<FileNode[]>([]);
   const [isDrivesLoading, setIsDrivesLoading] = useState(false);
@@ -119,7 +122,7 @@ export default function LeftSidebar({
           if (rootFolder?.handle) {
             const handle = await rootFolder.handle.getFileHandle(finalName, { create: true });
             refreshFileList();
-            openFile({ name: finalName, kind: 'file', handle });
+            openFile({ name: finalName, kind: 'file', handle }, rootFolder?.handle);
           } else {
             // LocalStorage 가상 파일 생성
             const { vfsCreateFile } = await import('@/lib/vfsHelper');
@@ -221,6 +224,12 @@ export default function LeftSidebar({
           for await (const entry of node.handle.values()) {
             const kind = entry.kind === 'directory' ? 'directory' : 'file';
             const path = node.path ? `${node.path}/${entry.name}` : entry.name;
+            if (kind === 'file') {
+              const nameLower = entry.name.toLowerCase();
+              if (!nameLower.endsWith('.md') && !nameLower.endsWith('.markdown')) {
+                continue;
+              }
+            }
             children.push({
               name: entry.name,
               kind,
@@ -323,7 +332,25 @@ export default function LeftSidebar({
       <div className="flex-1 min-h-0 relative flex flex-col">
         {sidebarTab === 'explorer' ? (
           <div className="flex-1 overflow-y-auto p-2">
-            {rootFolder?.handle || (isDesktop && rootFolder?.name) ? (
+            {(rootFolder as any)?.needPermission ? (
+              // 이전 워크스페이스 권한 복구 안내
+              <div className="text-zinc-500 dark:text-zinc-400 text-xs text-center py-8 space-y-4 px-4">
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2 text-left">
+                  <p className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    ⚠️ 이전 폴더 연결 대기
+                  </p>
+                  <p className="text-[11px] leading-relaxed opacity-90">
+                    브라우저 보안 제약으로 인해 새로고침 후 폴더 권한 승인이 필요합니다. 아래 버튼을 눌러 이전 폴더(<strong>{rootFolder?.name}</strong>)의 복구를 승인하세요.
+                  </p>
+                </div>
+                <button
+                  onClick={onRestoreFolder}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-amber-500/20"
+                >
+                  🔄 워크스페이스 복구
+                </button>
+              </div>
+            ) : rootFolder?.handle || (isDesktop && rootFolder?.name) || rootFolder?.name === '브라우저 스토리지' ? (
               // 폴더 연결됨 → 파일 트리 표시
               fileList.length === 0 ? (
                 <div className="text-zinc-400 dark:text-zinc-500 text-xs text-center py-8">
@@ -425,7 +452,19 @@ export default function LeftSidebar({
                     }}
                   >
                     <span className="text-zinc-400 dark:text-zinc-500 mr-2 select-none font-bold">•</span>
-                    <span className="truncate">{item.text}</span>
+                    <span className="truncate flex-1">
+                      <ReactMarkdown
+                        components={{
+                          p: ({ children }) => <span className="inline">{children}</span>,
+                          strong: ({ children }) => <strong className="font-bold text-zinc-900 dark:text-white">{children}</strong>,
+                          em: ({ children }) => <em className="italic">{children}</em>,
+                          code: ({ children }) => <code className="bg-zinc-150 dark:bg-zinc-800/80 px-1 py-0.5 rounded text-[10px] font-mono text-blue-600 dark:text-blue-400">{children}</code>,
+                          del: ({ children }) => <del className="line-through opacity-60">{children}</del>
+                        }}
+                      >
+                        {item.text}
+                      </ReactMarkdown>
+                    </span>
                   </div>
                 ))
               )}
@@ -438,6 +477,7 @@ export default function LeftSidebar({
             currentFileName={currentFileName}
             workspacePath={rootFolder?.name && rootFolder.name !== '브라우저 스토리지' ? rootFolder.name : undefined}
             rootFolderHandle={rootFolder?.handle}
+            onSelectFolder={onSelectRootFolder}
             onFileOpenAndJump={async (filePath, lineNumber) => {
               if (filePath === 'current') {
                 scrollToLine(lineNumber);
@@ -465,7 +505,47 @@ export default function LeftSidebar({
                     showToast("파일을 열지 못했습니다: " + err, 'error');
                   }
                 } else {
-                  showToast("데스크톱 환경에서만 지원되는 기능입니다.", "warning");
+                  // === Addon/Browser 환경: 파일 노드 재귀 탐색 및 오픈 후 줄 이동 ===
+                  const findNodeRecursively = (nodes: FileNode[], targetName: string): FileNode | null => {
+                    for (const n of nodes) {
+                      if (n.kind === 'file' && (n.name === targetName || n.path === targetName)) {
+                        return n;
+                      }
+                      if (n.kind === 'directory' && n.children) {
+                        const found = findNodeRecursively(n.children, targetName);
+                        if (found) return found;
+                      }
+                    }
+                    return null;
+                  };
+
+                  const targetNode = findNodeRecursively(fileList, filePath);
+                  if (targetNode) {
+                    openFile(targetNode);
+                    setTimeout(() => {
+                      scrollToLine(lineNumber);
+                    }, 150);
+                    setIsSearchOpen(false);
+                    showToast(`'${targetNode.name}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
+                  } else if (rootFolder?.handle) {
+                    // lazy load로 인해 트리에 없는 경우 디렉토리 핸들에서 직접 취득하여 폴백 가동
+                    try {
+                      const fileHandle = await rootFolder.handle.getFileHandle(filePath);
+                      if (fileHandle) {
+                        const tempNode = { name: filePath, kind: 'file' as const, handle: fileHandle };
+                        openFile(tempNode, rootFolder.handle);
+                        setTimeout(() => {
+                          scrollToLine(lineNumber);
+                        }, 150);
+                        setIsSearchOpen(false);
+                        showToast(`'${filePath}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
+                      }
+                    } catch (e) {
+                      showToast("파일을 찾지 못했습니다.", "error");
+                    }
+                  } else {
+                    showToast("파일을 찾지 못했습니다.", "error");
+                  }
                 }
               }
             }}

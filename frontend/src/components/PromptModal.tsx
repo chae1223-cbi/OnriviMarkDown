@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface PromptModalProps {
@@ -23,7 +24,12 @@ export default function PromptModal({
   onCancel 
 }: PromptModalProps) {
   const [value, setValue] = useState(defaultValue);
+  const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -36,6 +42,7 @@ export default function PromptModal({
   }, [isOpen, defaultValue]);
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +53,8 @@ export default function PromptModal({
     if (e.key === 'Escape') onCancel();
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden animate-in zoom-in-95 duration-200"
         onKeyDown={handleKeyDown}
@@ -100,6 +107,7 @@ export default function PromptModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

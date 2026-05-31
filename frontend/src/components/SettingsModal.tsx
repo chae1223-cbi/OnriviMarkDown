@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Moon, Sun, Type, Layout, Folder, Settings, Command } from 'lucide-react';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
+import { EDITOR_THEMES } from '@/lib/editorThemes';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -32,6 +34,9 @@ interface SettingsModalProps {
   setCustomSlashCommands: (v: Record<string, string>) => void;
   licenseKey: string;
   setLicenseKey: (v: string) => void;
+  initialTab?: 'editor' | 'app' | 'shortcuts';
+  themePalette: string;
+  onThemeChange: (themeId: string) => void;
 }
 
 export default function SettingsModal({
@@ -44,9 +49,24 @@ export default function SettingsModal({
   quoteStyle, setQuoteStyle,
   customHotkeys, setCustomHotkeys,
   customSlashCommands, setCustomSlashCommands,
-  licenseKey, setLicenseKey
+  licenseKey, setLicenseKey,
+  initialTab = 'editor',
+  themePalette,
+  onThemeChange
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<'editor' | 'workspace' | 'app' | 'shortcuts'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'app' | 'shortcuts'>(initialTab);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 모달이 열릴 때마다 부모에서 지정한 initialTab이 있으면 해당 탭으로 리셋
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   const handleSaveLicense = (key: string) => {
     setLicenseKey(key);
@@ -68,6 +88,7 @@ export default function SettingsModal({
   };
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   const colors = isDarkMode ? {
     surface: '#1e1e1e',
@@ -85,8 +106,8 @@ export default function SettingsModal({
     border: '#e0e0e0',
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         className="relative w-full max-w-5xl h-[780px] flex overflow-hidden rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
         style={{ backgroundColor: colors.surface, borderColor: colors.border }}
@@ -101,7 +122,7 @@ export default function SettingsModal({
           </div>
           <nav className="flex-1 p-2 space-y-1">
             <TabButton active={activeTab === 'editor'} onClick={() => setActiveTab('editor')} icon={<Type size={16}/>} label={"에디터"} colors={colors} />
-            <TabButton active={activeTab === 'workspace'} onClick={() => setActiveTab('workspace')} icon={<Folder size={16}/>} label={"워크스페이스"} colors={colors} />
+
             <TabButton active={activeTab === 'app'} onClick={() => setActiveTab('app')} icon={<Settings size={16}/>} label={"애플리케이션"} colors={colors} />
             <TabButton active={activeTab === 'shortcuts'} onClick={() => setActiveTab('shortcuts')} icon={<Command size={16}/>} label={"단축키/명령어"} colors={colors} />
           </nav>
@@ -172,83 +193,27 @@ export default function SettingsModal({
               </section>
             )}
 
-            {activeTab === 'workspace' && (
-              <section className="space-y-6">
-                {/* 로컬 드라이브 */}
-                <div
-                  onClick={() => setWorkspaceType('local')}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${workspaceType === 'local' ? 'ring-2 ring-blue-500/20' : 'opacity-60'}`}
-                  style={{ backgroundColor: colors.container, borderColor: workspaceType === 'local' ? colors.primary : colors.border }}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${workspaceType === 'local' ? 'border-blue-500' : 'border-zinc-400'}`}>
-                      {workspaceType === 'local' && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                    </div>
-                    <h4 className="text-xs font-bold" style={{ color: colors.onSurface }}>💾 로컬 드라이브</h4>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-[11px] opacity-70" style={{ color: colors.onSurface }}>HDD, SSD, USB 메모리 등 로컬 장치</p>
-                      {workspaceType === 'local' && rootFolder && (
-                        <div className="mt-1 inline-flex items-center px-2 py-0.5 bg-blue-500/10 text-blue-500 rounded text-[10px] font-bold border border-blue-500/20">
-                          📍 {rootFolder.name}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onSelectRootFolder('local', null); }}
-                      className="px-4 py-1.5 text-[11px] font-bold rounded bg-blue-500 text-white hover:bg-blue-600 transition-all shrink-0"
-                    >
-                      폴더 열기
-                    </button>
-                  </div>
-                </div>
 
-                {/* 클라우드 */}
-                <div
-                  onClick={() => setWorkspaceType('cloud')}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${workspaceType === 'cloud' ? 'ring-2 ring-blue-500/20' : 'opacity-60'}`}
-                  style={{ backgroundColor: colors.container, borderColor: workspaceType === 'cloud' ? colors.primary : colors.border }}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${workspaceType === 'cloud' ? 'border-blue-500' : 'border-zinc-400'}`}>
-                      {workspaceType === 'cloud' && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                    </div>
-                    <h4 className="text-xs font-bold" style={{ color: colors.onSurface }}>☁️ 클라우드 동기화</h4>
-                  </div>
-                  <p className="text-[11px] opacity-70 mb-3" style={{ color: colors.onSurface }}>OneDrive, Google Drive 등 클라우드 폴더 연결</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['OneDrive', 'Google Drive', 'Dropbox'].map((provider) => (
-                      <button
-                        key={provider}
-                        onClick={(e) => { e.stopPropagation(); onSelectRootFolder('cloud', provider); }}
-                        className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${workspaceType === 'cloud' && cloudProvider === provider ? 'border-blue-500 bg-blue-500/10 text-blue-500' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
-                        style={{ borderColor: workspaceType === 'cloud' && cloudProvider === provider ? colors.primary : colors.border, color: colors.onSurface }}
-                      >
-                        {provider}
-                      </button>
-                    ))}
-                  </div>
-                  {workspaceType === 'cloud' && rootFolder && (
-                    <div className="mt-2 text-[10px] text-blue-500 font-bold px-2 py-1 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-500/20">
-                      연결됨: {cloudProvider} - {rootFolder.name}
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
 
             {activeTab === 'app' && (
               <section className="space-y-8">
                 <SettingItem
                   title={"테마 설정"}
-                  desc={"앱의 전체적인 색상 테마를 선택합니다."}
+                  desc={"앱 및 에디터의 전체적인 색상 테마를 선택합니다."}
                   colors={colors}
                 >
-                  <div className="flex bg-zinc-200 dark:bg-zinc-800 p-1 rounded-lg gap-1">
-                    <ThemeButton active={!isDarkMode} onClick={() => setIsDarkMode(false)} icon={<Sun size={14}/>} label={"라이트"} colors={colors} />
-                    <ThemeButton active={isDarkMode} onClick={() => setIsDarkMode(true)} icon={<Moon size={14}/>} label={"다크"} colors={colors} />
-                  </div>
+                  <select
+                    value={themePalette}
+                    onChange={(e) => onThemeChange(e.target.value)}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border outline-none focus:ring-1 focus:ring-blue-500 w-48 shadow-sm transition-all cursor-pointer"
+                    style={{ backgroundColor: colors.container, borderColor: colors.border, color: colors.onSurface }}
+                  >
+                    {EDITOR_THEMES.map((theme) => (
+                      <option key={theme.id} value={theme.id} style={{ backgroundColor: colors.surface, color: colors.onSurface }}>
+                        {theme.icon} {theme.name}
+                      </option>
+                    ))}
+                  </select>
                 </SettingItem>
 
                 <SettingItem
@@ -373,7 +338,8 @@ export default function SettingsModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

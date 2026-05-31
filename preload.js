@@ -53,6 +53,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 16. 라이선스 키 저장 (데스크탑 영구 저장 연동)
   saveLicense: (licenseKey) => ipcRenderer.invoke('license:save', licenseKey),
 
+  // 17. 환경설정 로드 (데스크탑 영구 저장 연동)
+  loadSettings: () => ipcRenderer.invoke('settings:load'),
+
+  // 18. 환경설정 저장 (데스크탑 영구 저장 연동)
+  saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');

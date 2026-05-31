@@ -544,6 +544,10 @@ async function scanDir(dir) {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     const nodes = await Promise.all(entries.map(async entry => {
       if (['node_modules', '.git', '.next', '.vscode'].includes(entry.name)) return null;
+      if (entry.isFile()) {
+        const nameLower = entry.name.toLowerCase();
+        if (!nameLower.endsWith('.md') && !nameLower.endsWith('.markdown')) return null;
+      }
       const fullPath = path.join(dir, entry.name);
       const relativePath = path.relative(WORKSPACE_ROOT, fullPath);
       if (entry.isDirectory()) {
@@ -738,6 +742,10 @@ app.get('/api/list-files', async (req, res) => {
     const entries = await fs.readdir(targetPath, { withFileTypes: true });
     const nodes = await Promise.all(entries.map(async entry => {
       if (['node_modules', '.git', '.next', '.vscode'].includes(entry.name)) return null;
+      if (entry.isFile()) {
+        const nameLower = entry.name.toLowerCase();
+        if (!nameLower.endsWith('.md') && !nameLower.endsWith('.markdown')) return null;
+      }
       const fullPath = path.join(targetPath, entry.name);
       if (entry.isDirectory()) {
         return { name: entry.name, kind: 'directory', path: fullPath, children: [] };

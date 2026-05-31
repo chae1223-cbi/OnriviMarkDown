@@ -118,8 +118,9 @@ export type EditorCommandType =
   | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'  //⑨ 스타일 적용
   | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME'                  //⑩ 스타일 적용 
   | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE'                       // ⑪ 스타일 적용 
-  | 'TOGGLE_CSS_STYLE'                                                                // ⑫ 스타일 적용 
-  | 'FOOTNOTE';                                                                       // ⑬ 각주 삽입 
+  | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS'                                                                // ⑫ 스타일 적용 
+  | 'FOOTNOTE'                                                                         // ⑬ 각주 삽입 
+  | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW';                                               // ⑭ 표 행 편집 명령
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -306,6 +307,13 @@ export default function Home() {                  // @Home : Home component
   const [fontSize, setFontSize] = useState<number>(14);
   const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>(getDefaultHotkeys());
   const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>(getDefaultCommands());
+  
+  // 💡 [한글 주석] 슬래시 명령어 변경 시 Monaco Editor Completion Provider가 Stale 클로저에 갇혀 실시간 갱신되지 않는 문제를 방어하기 위해 Ref 객체 도입
+  const customSlashCommandsRef = useRef<Record<string, string>>(customSlashCommands);
+  useEffect(() => {
+    customSlashCommandsRef.current = customSlashCommands;
+  }, [customSlashCommands]);
+
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
   const [driveLetter, setDriveLetter] = useState('D:');
   const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
@@ -326,6 +334,7 @@ export default function Home() {                  // @Home : Home component
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
   const [licenseKey, setLicenseKey] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('onrivi_license_key') || 'chae6^jung1!jang3#&';
@@ -426,6 +435,7 @@ export default function Home() {                  // @Home : Home component
   
   // 💡 [WBS CORE-02 / 요구사항 4] State Stale Closure 방지를 위한 Ref 백업 시스템 도입
   const currentFileNodeRef = useRef(currentFileNode);
+  const currentFileParentHandleRef = useRef<any>(null); // 💡 저장 시 startIn으로 활용하기 위한 부모 폴더 핸들 레퍼런스
   const currentFileNameRef = useRef(currentFileName);
   const workspaceTypeRef = useRef(workspaceType);
   const rootFolderRef = useRef(rootFolder);
@@ -598,31 +608,215 @@ export default function Home() {                  // @Home : Home component
 
   useEffect(() => {
     const restoreSettings = async () => {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme === 'dark') setIsDarkMode(true);
-      const savedPalette = localStorage.getItem('themePalette');
-      if (savedPalette) setThemePalette(savedPalette);
+      // 1. 기본 설정 및 복원용 임시 구조체 정의
+      let baseSettings = {
+        isDarkMode: false,
+        fontSize: 15,
+        wordWrap: 'on' as 'on' | 'off',
+        autoSave: true,
+        previewMode: 'both' as 'edit' | 'both' | 'preview' | 'css-style',
+        quoteStyle: 'modern' as 'modern' | 'clean' | 'none',
+        customHotkeys: getDefaultHotkeys(),
+        customSlashCommands: getDefaultCommands(),
+        themePalette: 'onrivi-light',
+        licenseKey: 'chae6^jung1!jang3#&'
+      };
+
+      // 2. 브라우저 로컬 스토리지 복원 시도
+      try {
+        const localData = localStorage.getItem('onrivi_settings');
+        if (localData) {
+          Object.assign(baseSettings, JSON.parse(localData));
+        } else {
+          // 하위 호환용 개별 로드
+          const legacyFontSize = localStorage.getItem('fontSize');
+          if (legacyFontSize) baseSettings.fontSize = parseInt(legacyFontSize);
+          const legacyWordWrap = localStorage.getItem('wordWrap');
+          if (legacyWordWrap) baseSettings.wordWrap = legacyWordWrap as any;
+          const legacyQuoteStyle = localStorage.getItem('quoteStyle');
+          if (legacyQuoteStyle) baseSettings.quoteStyle = legacyQuoteStyle as any;
+          const legacyTheme = localStorage.getItem('theme');
+          if (legacyTheme) baseSettings.isDarkMode = legacyTheme === 'dark';
+          const legacyThemePalette = localStorage.getItem('themePalette');
+          if (legacyThemePalette) baseSettings.themePalette = legacyThemePalette;
+          const legacyAutoSave = localStorage.getItem('autoSave');
+          if (legacyAutoSave) baseSettings.autoSave = legacyAutoSave === 'true';
+          const legacyPreviewMode = localStorage.getItem('previewMode');
+          if (legacyPreviewMode) baseSettings.previewMode = legacyPreviewMode as any;
+
+          const savedHotkeys = localStorage.getItem('customHotkeys');
+          if (savedHotkeys) {
+            Object.assign(baseSettings.customHotkeys, JSON.parse(savedHotkeys));
+          }
+          const savedSlashCmds = localStorage.getItem('customSlashCommands');
+          if (savedSlashCmds) {
+            Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
+          }
+        }
+      } catch (e) {
+        console.error('로컬스토리지 로드 실패:', e);
+      }
+
+      // 3. 크롬 익스텐션(애드온) 스토리지 복원 시도
+      const chromeStorage = (window as any).chrome?.storage?.local;
+      if (chromeStorage) {
+        try {
+          const result = await new Promise<any>((resolve) => {
+            chromeStorage.get(['onrivi_settings'], (res: any) => resolve(res || {}));
+          });
+          if (result && result.onrivi_settings) {
+            Object.assign(baseSettings, result.onrivi_settings);
+          }
+        } catch (e) {
+          console.error('크롬 스토리지 로드 실패:', e);
+        }
+      }
+
+      // 4. 데스크탑 Electron 로컬 디스크 복원 시도
+      const api = (window as any).electronAPI;
+      if (api && typeof api.loadSettings === 'function') {
+        try {
+          const desktopData = await api.loadSettings();
+          if (desktopData) {
+            Object.assign(baseSettings, desktopData);
+          }
+        } catch (e) {
+          console.error('데스크탑 스토리지 로드 실패:', e);
+        }
+      }
+
+      // 단축키 마이그레이션 적용 (이전 패치의 결함 값 자동 교정)
+      if (baseSettings.customHotkeys['css-style'] === 'Ctrl+Shift+S') {
+        baseSettings.customHotkeys['css-style'] = 'Ctrl+Alt+S';
+      }
+      if (baseSettings.customSlashCommands['quickTable'] === '표') {
+        baseSettings.customSlashCommands['quickTable'] = 'qtable';
+      }
+      if (baseSettings.customSlashCommands['cleanDoc'] === 'cleanDoc') {
+        baseSettings.customSlashCommands['cleanDoc'] = 'cleandoc';
+      }
+
+      // 구버전 단축키 보정용 정규화 헬퍼 함수
+      const normalizeKeyForMig = (val?: string) => {
+        if (!val) return '';
+        return val.replace(/\s+/g, '').toUpperCase().replace('CTRLCMD', 'CTRL');
+      };
+
+      // 표 행 추가/삭제의 구버전 기본 단축키를 신규 기본 단축키(Ctrl+Alt+I, Ctrl+Alt+D)로 보정 (사용자 커스텀 예외, 공백 대응)
+      if (normalizeKeyForMig(baseSettings.customHotkeys['insertTableRow']) === 'CTRL+ALT+ENTER') {
+        baseSettings.customHotkeys['insertTableRow'] = 'Ctrl+Alt+I';
+      }
+      if (normalizeKeyForMig(baseSettings.customHotkeys['deleteTableRow']) === 'CTRL+ALT+DELETE') {
+        baseSettings.customHotkeys['deleteTableRow'] = 'Ctrl+Alt+D';
+      }
+      // 이미지 단축키의 구버전 기본값(Ctrl+Alt+I)이 남아있는 경우 충돌 방지를 위해 공란으로 보정
+      if (normalizeKeyForMig(baseSettings.customHotkeys['image']) === 'CTRL+ALT+I') {
+        baseSettings.customHotkeys['image'] = '';
+      }
+
+      // 푸터 토글류 구버전 기본 단축키(Ctrl+Shift+F/T/B/P/D)를 신규 기본 단축키(Ctrl+Shift+F1 ~ F5)로 보정 (사용자 커스텀 예외, 공백 대응)
+      if (normalizeKeyForMig(baseSettings.customHotkeys['toggleFloatingToolbar']) === 'CTRL+SHIFT+F') {
+        baseSettings.customHotkeys['toggleFloatingToolbar'] = 'Ctrl+Shift+F1';
+      }
+      if (normalizeKeyForMig(baseSettings.customHotkeys['toggleToolbar']) === 'CTRL+SHIFT+T') {
+        baseSettings.customHotkeys['toggleToolbar'] = 'Ctrl+Shift+F2';
+      }
+      if (normalizeKeyForMig(baseSettings.customHotkeys['toggleSidebar']) === 'CTRL+SHIFT+B') {
+        baseSettings.customHotkeys['toggleSidebar'] = 'Ctrl+Shift+F3';
+      }
+      if (normalizeKeyForMig(baseSettings.customHotkeys['toggleMode']) === 'CTRL+SHIFT+P') {
+        baseSettings.customHotkeys['toggleMode'] = 'Ctrl+Shift+F4';
+      }
+      if (normalizeKeyForMig(baseSettings.customHotkeys['toggleTheme']) === 'CTRL+SHIFT+D') {
+        baseSettings.customHotkeys['toggleTheme'] = 'Ctrl+Shift+F5';
+      }
+
+      // 신규 단축키 및 명령어 주입 (기존 사용자 설정 온전 보존)
+      const defaultHotkeys = getDefaultHotkeys();
+      const defaultCommands = getDefaultCommands();
+
+      Object.keys(defaultHotkeys).forEach((key) => {
+        if (baseSettings.customHotkeys[key] === undefined) {
+          baseSettings.customHotkeys[key] = defaultHotkeys[key];
+        }
+      });
+
+      Object.keys(defaultCommands).forEach((key) => {
+        if (baseSettings.customSlashCommands[key] === undefined) {
+          baseSettings.customSlashCommands[key] = defaultCommands[key];
+        }
+      });
+
+      // 5. 기본 상태 세팅
+      setIsDarkMode(baseSettings.isDarkMode);
+      setFontSize(baseSettings.fontSize);
+      setWordWrap(baseSettings.wordWrap);
+      setAutoSave(baseSettings.autoSave);
+      setPreviewMode(baseSettings.previewMode);
+      setQuoteStyle(baseSettings.quoteStyle);
+      setCustomHotkeys(baseSettings.customHotkeys);
+      setCustomSlashCommands(baseSettings.customSlashCommands);
+      setThemePalette(baseSettings.themePalette);
+      setLicenseKey(baseSettings.licenseKey);
+
+      // DOM 다크모드 적용
+      if (baseSettings.isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+
+      // 모나코 테마 수동 세팅
+      if (editorRef.current && (window as any).monaco) {
+        const monaco = (window as any).monaco;
+        monaco.editor.setTheme(baseSettings.themePalette);
+      }
+
+      // 사이드바 너비 로드
+      const savedWidth = localStorage.getItem('sidebarWidth');
+      if (savedWidth) setSidebarWidth(parseInt(savedWidth));
+
       const savedProfileId = localStorage.getItem('activeCssProfileId');
       if (savedProfileId) setActiveProfileId(savedProfileId);
 
-      // 애드온 환경 감지 (동기 처리)
+      // 6. 애드온 환경 감지 및 폴더 연결 복원
       const detectedAddon = typeof window !== 'undefined' && (
         new URLSearchParams(window.location.search).get('env') === 'addon' ||
         !!((window as any).chrome?.runtime?.id)
       );
       setIsAddonEnv(detectedAddon);
 
-      // 애드온 모드: File System Access API 사용, 백엔드 불필요
-      if (detectedAddon) {
-        setWorkspaceType('browser');
-        setRootFolder(null);
-        setPreviewMode('preview');
+      // 로컬스토리지에 저장된 워크스페이스 타입 복원
+      const savedWorkspaceType = localStorage.getItem('workspaceType') || 'local';
+      const activeWorkspaceType = detectedAddon ? 'browser' : savedWorkspaceType;
+      setWorkspaceType(activeWorkspaceType as any);
+
+      // 브라우저/애드온(browser) 모드: File System Access API 사용, 백엔드 불필요
+      if (activeWorkspaceType === 'browser') {
+        setPreviewMode(baseSettings.previewMode);
+
+        // 🛡️ [브라우저/애드온 폴더 자동 연결 가드] IndexedDB에서 이전 폴더 핸들을 가져와 복원 시도
+        try {
+          const savedHandle = await idb.get('rootFolderHandle');
+          if (savedHandle) {
+            const isPermissionGranted = (await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted';
+            if (isPermissionGranted) {
+              setRootFolder({ name: savedHandle.name, handle: savedHandle });
+            } else {
+              setRootFolder({ name: savedHandle.name, handle: savedHandle, needPermission: true } as any);
+            }
+          } else {
+            setRootFolder(null);
+          }
+        } catch (idbErr) {
+          console.warn('[Onrivi Author] IndexedDB 폴더 핸들 복구 실패:', idbErr);
+          setRootFolder(null);
+        }
       } else {
         const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
         let rootPath: string | null = null;
 
         if (!isElectron) {
-          // 백엔드에서 현재 ROOT 조회 (웹 환경 우선)
           try {
             const res = await fetch(getApiUrl('/api/get-root'));
             if (res.ok) {
@@ -640,12 +834,10 @@ export default function Home() {                  // @Home : Home component
           setRootFolder({ name: rootPath });
           localStorage.setItem('rootFolder', JSON.stringify({ name: rootPath }));
         } else {
-          // 저장된 폴더가 있으면 사용, 없으면 기본값 없이 빈 상태로 시작
           const savedFolder = localStorage.getItem('rootFolder');
           if (savedFolder) {
             try {
               const folder = JSON.parse(savedFolder);
-              // 🛡️ 윈도우 파일 시스템상 금지 문자(?, \uFFFD 등)가 포함된 깨진 한글 경로 캐시 자동 치료 작동
               const hasInvalidChar = folder.name && (
                 folder.name.includes('?') ||
                 folder.name.includes('\uFFFD')
@@ -658,7 +850,6 @@ export default function Home() {                  // @Home : Home component
               } else if (folder.name && folder.name !== '브라우저 스토리지' && folder.name !== 'C:\\') {
                 setRootFolder(folder);
               } else {
-                // 유효하지 않은 기본값 삭제
                 localStorage.removeItem('rootFolder');
                 localStorage.removeItem('workspaceType');
               }
@@ -669,68 +860,99 @@ export default function Home() {                  // @Home : Home component
         }
       }
 
-      const savedWidth = localStorage.getItem('sidebarWidth');
-      if (savedWidth) setSidebarWidth(parseInt(savedWidth));
-
-      const savedQuoteStyle = localStorage.getItem('quoteStyle') as any;
-      if (savedQuoteStyle) setQuoteStyle(savedQuoteStyle);
-
-      const savedHotkeys = localStorage.getItem('customHotkeys');
-      if (savedHotkeys) {
-        setCustomHotkeys({ ...getDefaultHotkeys(), ...JSON.parse(savedHotkeys) });
-      }
-
-      const savedSlashCmds = localStorage.getItem('customSlashCommands');
-      if (savedSlashCmds) {
-        setCustomSlashCommands({ ...getDefaultCommands(), ...JSON.parse(savedSlashCmds) });
-      }
-
-      const savedFontSize = localStorage.getItem('fontSize');
-      if (savedFontSize) setFontSize(parseInt(savedFontSize));
-
-      const savedWordWrap = localStorage.getItem('wordWrap') as any;
-      if (savedWordWrap) setWordWrap(savedWordWrap);
-
-
-
       setMounted(true);
     };
 
     restoreSettings();
   }, []);
 
-
-
+  // 💡 [환경설정 통합 영구 저장 가드]
+  // 모든 개별 설정값 중 하나라도 변경되면 localStorage, 크롬 익스텐션 스토리지, 데스크탑 스토리지에 동시 영구 저장합니다.
   useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('quoteStyle', quoteStyle);
-    }
-  }, [quoteStyle, mounted]);
+    if (!mounted) return;
 
+    const settings = {
+      isDarkMode,
+      fontSize,
+      wordWrap,
+      autoSave,
+      previewMode,
+      quoteStyle,
+      customHotkeys,
+      customSlashCommands,
+      licenseKey,
+      themePalette
+    };
+
+    // 1. 브라우저 로컬 스토리지 저장
+    localStorage.setItem('onrivi_settings', JSON.stringify(settings));
+    // 개별 레거시 키 호환 유지
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    localStorage.setItem('fontSize', fontSize.toString());
+    localStorage.setItem('wordWrap', wordWrap);
+    localStorage.setItem('quoteStyle', quoteStyle);
+    localStorage.setItem('customHotkeys', JSON.stringify(customHotkeys));
+    localStorage.setItem('customSlashCommands', JSON.stringify(customSlashCommands));
+    localStorage.setItem('themePalette', themePalette);
+    localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
+    localStorage.setItem('previewMode', previewMode);
+
+    // 2. 크롬 익스텐션(애드온) 스토리지 동시 저장
+    const chromeStorage = (window as any).chrome?.storage?.local;
+    if (chromeStorage) {
+      chromeStorage.set({ onrivi_settings: settings });
+    }
+
+    // 3. 데스크탑 Electron 로컬 디스크 동시 저장
+    const api = (window as any).electronAPI;
+    if (api && typeof api.saveSettings === 'function') {
+      api.saveSettings(settings);
+    }
+  }, [
+    mounted,
+    isDarkMode,
+    fontSize,
+    wordWrap,
+    autoSave,
+    previewMode,
+    quoteStyle,
+    customHotkeys,
+    customSlashCommands,
+    licenseKey,
+    themePalette
+  ]);
+
+
+
+  // 💡 [다크모드 DOM 스타일 바인딩]
   useEffect(() => {
     if (!mounted) return;
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
     }
   }, [isDarkMode, mounted]);
 
+  // 💡 [에디터 설정 및 테마 연동 가드] themePalette, fontSize, wordWrap 변경 시 또는 에디터 마운트 완료 시 모나코 에디터 옵션 및 테마 수동 강제 갱신 (레이스 컨디션 및 시차 방지)
   useEffect(() => {
-    if (mounted && themePalette) {
-      localStorage.setItem('themePalette', themePalette);
+    if (mounted && isEditorReady && editorRef.current) {
+      // 1. 테마 강제 적용
+      if ((window as any).monaco) {
+        const monaco = (window as any).monaco;
+        monaco.editor.setTheme(themePalette);
+      }
+      // 2. 에디터 옵션(폰트 크기, 줄 바꿈) 강제 동기화
+      editorRef.current.updateOptions({
+        fontSize: fontSize,
+        wordWrap: wordWrap,
+      });
+      // 3. 레이아웃 리플로우 강제 트리거 (찌그러짐 방지)
+      requestAnimationFrame(() => {
+        editorRef.current?.layout();
+      });
     }
-  }, [themePalette, mounted]);
-
-  // 💡 [테마 연동 가드] themePalette 변경 시 모나코 에디터 테마 수동 강제 갱신
-  useEffect(() => {
-    if (mounted && editorRef.current && (window as any).monaco) {
-      const monaco = (window as any).monaco;
-      monaco.editor.setTheme(themePalette);
-    }
-  }, [themePalette, mounted]);
+  }, [themePalette, fontSize, wordWrap, mounted, isEditorReady]);
 
   // 💡 [다크모드 상태 - 테마 팰릿 동기화 가드] 다크모드 토글 시 에디터 테마 팰릿도 세트로 강제 자동 연동 스위칭
   useEffect(() => {
@@ -767,11 +989,7 @@ export default function Home() {                  // @Home : Home component
     setIsDarkMode(theme.isDark);
   }, []);
 
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('workspaceType', workspaceType);
-    }
-  }, [workspaceType, mounted]);
+  // workspaceType 변경 시 로컬스토리지 저장은 통합 저장 이펙트 또는 워크스페이스 직접 마운트 로직에서 담당
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
@@ -862,17 +1080,7 @@ export default function Home() {                  // @Home : Home component
     }
   }, []);
 
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('fontSize', fontSize.toString());
-    }
-  }, [fontSize, mounted]);
-
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('wordWrap', wordWrap);
-    }
-  }, [wordWrap, mounted]);
+  // fontSize 및 wordWrap 저장은 통합 환경설정 저장 가드에서 처리
 
   const stopResizing = useCallback(() => {
     isResizing.current = false;
@@ -894,13 +1102,16 @@ export default function Home() {                  // @Home : Home component
     let activeType = workspaceType;
 
     if (activeType === 'browser') {
-      if (rootFolder?.handle) {
+      if (rootFolder?.handle && !(rootFolder as any)?.needPermission) {
         try {
           const list = await scanDirectory(rootFolder.handle);
           setFileList(list);
         } catch (e) {
-          showToast('파일 목록을 불러오는 중 오류가 발생했습니다.', 'error');
-          // 🛡️ 오류 발생 시 기존 목록 유지 (UI 붕괴 방지)
+          if (rootFolder) {
+            setRootFolder({ ...rootFolder, needPermission: true } as any);
+          }
+          const list = getVfsFiles();
+          setFileList(list);
         }
       } else {
         const list = getVfsFiles();
@@ -1031,7 +1242,7 @@ export default function Home() {                  // @Home : Home component
           showToast("폴더 선택 오류: " + err.message, "error");
         }
       } else if (typeof (window as any).showDirectoryPicker === 'function') {
-        // 브라우저/애드온: File System Access API (OS 탐색기)
+        // 브라우저: File System Access API (OS 탐색기)
         try {
           const handle = await (window as any).showDirectoryPicker();
           const folder = { name: handle.name, handle };
@@ -1062,7 +1273,70 @@ export default function Home() {                  // @Home : Home component
     }
   };
 
-  const handleFileClick = async (node: FileNode | null) => {
+  const restoreFolderPermission = async () => {
+    if (!rootFolder?.handle) return;
+    try {
+      const status = await rootFolder.handle.requestPermission({ mode: 'readwrite' });
+      if (status === 'granted') {
+        const restoredFolder = { name: rootFolder.handle.name, handle: rootFolder.handle };
+        setRootFolder(restoredFolder);
+        showToast("이전 워크스페이스 폴더가 정상 복구되었습니다.", "success");
+        // 상태 갱신 반영을 유도
+        setTimeout(() => refreshFileList(), 100);
+      } else {
+        showToast("폴더 읽기/쓰기 권한 승인이 거부되었습니다.", "warning");
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        showToast(`권한 복구 실패: ${err.message}`, "error");
+      }
+    }
+  };
+
+  const handleFileOpenByPath = async (resolvedPath: string) => {
+    // 💡 [한글 주석] 전체 fileList 트리 구조에서 resolvedPath와 일치하는 파일 노드를 재귀 탐색
+    const findNodeByPath = (nodes: FileNode[], targetPath: string): { node: FileNode, parent: any } | null => {
+      const normalizedTarget = targetPath.replace(/\\/g, '/').toLowerCase();
+      for (const node of nodes) {
+        const normalizedNodePath = (node.path || '').replace(/\\/g, '/').toLowerCase();
+        if (normalizedNodePath === normalizedTarget && node.kind === 'file') {
+          return { node, parent: rootFolder?.handle || null };
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findNodeByPath(node.children, targetPath);
+          if (found) {
+            return { node: found.node, parent: found.parent || node.handle };
+          }
+        }
+      }
+      return null;
+    };
+
+    const foundResult = findNodeByPath(fileList, resolvedPath);
+    if (foundResult) {
+      await handleFileClick(foundResult.node, foundResult.parent);
+      return;
+    }
+
+    // 💡 [한글 주석] 로컬 모드에서 트리에 아직 편입되지 않은 절대 경로가 넘어왔을 때의 폴백 구조
+    if (workspaceType !== 'browser') {
+      const filename = resolvedPath.split('/').pop() || '파일.md';
+      const dummyNode: FileNode = {
+        name: filename,
+        path: resolvedPath,
+        kind: 'file'
+      };
+      await handleFileClick(dummyNode);
+      return;
+    }
+
+    showToast('해당 파일 노드를 찾을 수 없습니다.', 'error');
+  };
+
+  const handleFileClick = async (node: FileNode | null, parentHandle?: any) => {
+    // 💡 부모 폴더 핸들을 레퍼런스에 저장하여 저장 시 startIn 경로로 활용
+    currentFileParentHandleRef.current = parentHandle || null;
+
     if (!node) {
       setCurrentFileNode(null);
       setCurrentFileName('새 파일.md');
@@ -1224,6 +1498,20 @@ export default function Home() {                  // @Home : Home component
           selection.endColumn
         );
         editor.executeEdits("insert", [{ range, text, forceMoveMarkers: true }]);
+        
+        // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
+        try {
+          const model = editor.getModel();
+          if (model && typeof model.forceTokenization === 'function') {
+            const startLine = selection.startLineNumber;
+            const lineCount = text.split('\n').length;
+            for (let i = startLine; i <= startLine + lineCount; i++) {
+              model.forceTokenization(i);
+            }
+          }
+          editor.layout();
+        } catch (_) {}
+
         editor.focus();
       }
     }
@@ -1303,12 +1591,38 @@ export default function Home() {                  // @Home : Home component
         });
       }
     }
+    // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
+    try {
+      const model = editor.getModel();
+      if (model && typeof model.forceTokenization === 'function') {
+        const startLine = selection.startLineNumber;
+        const endLine = selection.endLineNumber;
+        const linesAdded = startTag.split('\n').length + endTag.split('\n').length + 2;
+        for (let i = startLine; i <= endLine + linesAdded; i++) {
+          model.forceTokenization(i);
+        }
+      }
+      editor.layout();
+    } catch (_) {}
+
     editor.focus();
   };
 
   const wrapSelection = (before: string, after: string = before, defaultText: string = "") => {
     if (editorRef.current) {
       const editor = editorRef.current;
+      const refreshTokens = (start: number, end: number) => {
+        try {
+          const model = editor.getModel();
+          if (model && typeof model.forceTokenization === 'function') {
+            for (let i = start; i <= end; i++) {
+              model.forceTokenization(i);
+            }
+          }
+          editor.layout();
+        } catch (_) {}
+      };
+
       let selection = editor.getSelection();
       if ((!selection || selection.isEmpty()) && lastSelectionRef.current && !lastSelectionRef.current.isEmpty()) {
         selection = lastSelectionRef.current;
@@ -1375,6 +1689,7 @@ export default function Home() {                  // @Home : Home component
             startLine,
             startCol + stripped.length
           ));
+          refreshTokens(startLine, startLine);
         }, 10);
         editor.focus();
         return;
@@ -1405,6 +1720,7 @@ export default function Home() {                  // @Home : Home component
                 endLine,
                 startCol - before.length + text.length
               ));
+              refreshTokens(startLine, endLine);
             }, 10);
             editor.focus();
             return;
@@ -1445,6 +1761,7 @@ export default function Home() {                  // @Home : Home component
             endCol + after.length
           ));
         }
+        refreshTokens(startLine, endLine);
       }, 10);
       editor.focus();
     }
@@ -1846,6 +2163,18 @@ export default function Home() {                  // @Home : Home component
     }
 
     editor.executeEdits("applyPrefix", edits);
+
+    // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
+    try {
+      const model = editor.getModel();
+      if (model && typeof model.forceTokenization === 'function') {
+        for (let i = startLine; i <= endLine; i++) {
+          model.forceTokenization(i);
+        }
+      }
+      editor.layout();
+    } catch (_) {}
+
     editor.focus();
   };
 
@@ -1882,7 +2211,7 @@ export default function Home() {                  // @Home : Home component
       const leadingSpaces = line.match(/^(\s*)/)?.[1] || "";
       const trimmed = line.trim();
 
-      const match = trimmed.match(/^(#{1,6}|[-*+]|\d+\.|>+|- \[[ xX]\])(?:\s+(.*))?$/);
+      const match = trimmed.match(/^(#{1,6}|[-*+]\s+\[[ xX]\]|[-*+]|\d+\.|>+)(?:\s+(.*))?$/);
       if (match) {
         return leadingSpaces + (match[2] || "");
       }
@@ -1898,6 +2227,19 @@ export default function Home() {                  // @Home : Home component
         forceMoveMarkers: true
       }
     ]);
+
+    // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
+    try {
+      const model = editor.getModel();
+      if (model && typeof model.forceTokenization === 'function') {
+        const startLine = rangeToProcess.startLineNumber;
+        const endLine = rangeToProcess.endLineNumber;
+        for (let i = startLine; i <= endLine; i++) {
+          model.forceTokenization(i);
+        }
+      }
+      editor.layout();
+    } catch (_) {}
 
     editor.focus();
   };
@@ -2179,7 +2521,8 @@ export default function Home() {                  // @Home : Home component
       const currentVal = contentRef.current; // content 상태 대신 Ref 사용
 
       // 1. 기존 파일이 이미 디스크/스토리지에 매핑되어 있는 경우 (명확한 덮어쓰기 저장)
-      if (fileNode && fileNode.path && fileName !== '새 파일.md') {
+      const hasPathOrHandle = fileNode && (fileNode.path || fileNode.handle);
+      if (hasPathOrHandle && fileName !== '새 파일.md') {
         if (api) {
           try {
             const success = await api.saveFile(fileNode.path, currentVal);
@@ -2267,8 +2610,54 @@ export default function Home() {                  // @Home : Home component
           setSaveStatus('unsaved');
           showToast("저장 실패: " + e, 'error');
         }
+      } else if (typeof (window as any).showSaveFilePicker === 'function') {
+        // === Addon/Browser: OS 표준 파일 저장 대화상자 (사용자가 직접 폴더 이동 및 파일명 설정) ===
+        try {
+          const suggestedName = fileName !== '새 파일.md' ? fileName : 'untitled.md';
+
+          // 💡 현재 파일의 부모 핸들이 존재한다면 해당 경로에서 대화상자가 시작되도록 startIn 속성 결속
+          let startIn: any = undefined;
+          if (currentFileParentHandleRef.current) {
+            startIn = currentFileParentHandleRef.current;
+          } else if (fileNode?.handle) {
+            startIn = fileNode.handle;
+          } else if (rootFolderRef.current?.handle) {
+            startIn = rootFolderRef.current.handle;
+          }
+
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName,
+            excludeAcceptAllOption: true,
+            startIn,
+            types: [{
+              description: 'Markdown Files (*.md)',
+              accept: {
+                'text/markdown': ['.md', '.markdown'],
+                'text/plain': ['.md', '.markdown']
+              }
+            }]
+          });
+
+          const writable = await fileHandle.createWritable();
+          await writable.write(currentVal);
+          await writable.close();
+
+          setCurrentFileName(fileHandle.name);
+          setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
+          lastSavedContentRef.current = currentVal;
+          setSaveStatus('saved');
+          await refreshFileList();
+          showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
+        } catch (e: any) {
+          if (e.name !== 'AbortError') {
+            setSaveStatus('unsaved');
+            showToast("저장 실패: " + e.message, 'error');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        }
       } else if (typeof (window as any).showDirectoryPicker === 'function') {
-        // === Addon/Browser: 폴더 선택 = 워크스페이스 → 파일명 입력 → 저장 ===
+        // === Fallback: showDirectoryPicker (showSaveFilePicker 미지원 시) ===
         try {
           const dirHandle = await (window as any).showDirectoryPicker();
           const folderName = dirHandle.name;
@@ -2281,7 +2670,7 @@ export default function Home() {                  // @Home : Home component
           setPromptConfig({
             isOpen: true,
             title: '파일명 입력',
-            defaultValue: '',
+            defaultValue: fileName === '새 파일.md' ? 'untitled.md' : fileName,
             type: 'createFile',
             error: ""
           });
@@ -2308,15 +2697,20 @@ export default function Home() {                  // @Home : Home component
 
     saveAs: async () => {
       const api = (window as any).electronAPI;
-      const suggestedName = currentFileName !== '새 파일.md' ? currentFileName : undefined;
-      const defaultDir = rootFolder?.name && rootFolder.name !== '브라우저 스토리지' ? rootFolder.name : undefined;
+      const fileName = currentFileNameRef.current;
+      const fileNode = currentFileNodeRef.current;
+      const rootFld = rootFolderRef.current;
+      const currentVal = contentRef.current; // Stale 클로저 버그 방어
+
+      const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
+      const defaultDir = rootFld?.name && rootFld.name !== '브라우저 스토리지' ? rootFld.name : undefined;
 
       setSaveStatus('saving');
 
       if (api) {
         // === Desktop (Electron): showSaveDialog (워크스페이스 폴더부터 열림) → 워크스페이스 변경 ===
         try {
-          const file = await api.saveFileAs(content, suggestedName, defaultDir);
+          const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
           if (file) {
             const normalizedPath = file.path.replace(/\\/g, '/');
             const parentPath = normalizedPath.includes('/')
@@ -2329,7 +2723,7 @@ export default function Home() {                  // @Home : Home component
             localStorage.setItem('workspaceType', 'local');
             setCurrentFileName(file.name);
             setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-            lastSavedContentRef.current = content;
+            lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
             await refreshFileList();
             showToast(`'${file.name}' 저장 완료`, 'success');
@@ -2340,8 +2734,52 @@ export default function Home() {                  // @Home : Home component
           setSaveStatus('unsaved');
           showToast("저장 실패: " + e, 'error');
         }
+      } else if (typeof (window as any).showSaveFilePicker === 'function') {
+        // === Addon/Browser: 다른 이름으로 저장 (OS 표준 대화상자) ===
+        try {
+          // 💡 현재 파일의 부모 핸들이 존재한다면 해당 경로에서 대화상자가 시작되도록 startIn 속성 결속
+          let startIn: any = undefined;
+          if (currentFileParentHandleRef.current) {
+            startIn = currentFileParentHandleRef.current;
+          } else if (fileNode?.handle) {
+            startIn = fileNode.handle;
+          } else if (rootFld?.handle) {
+            startIn = rootFld.handle;
+          }
+
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: suggestedName || 'untitled.md',
+            excludeAcceptAllOption: true,
+            startIn,
+            types: [{
+              description: 'Markdown Files (*.md)',
+              accept: {
+                'text/markdown': ['.md', '.markdown'],
+                'text/plain': ['.md', '.markdown']
+              }
+            }]
+          });
+
+          const writable = await fileHandle.createWritable();
+          await writable.write(currentVal);
+          await writable.close();
+
+          setCurrentFileName(fileHandle.name);
+          setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
+          lastSavedContentRef.current = currentVal;
+          setSaveStatus('saved');
+          await refreshFileList();
+          showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
+        } catch (e: any) {
+          if (e.name !== 'AbortError') {
+            setSaveStatus('unsaved');
+            showToast("저장 실패: " + e.message, 'error');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        }
       } else if (typeof (window as any).showDirectoryPicker === 'function') {
-        // === Addon/Browser: 폴더 선택 → 파일명 입력 → 저장 ===
+        // === Fallback: showDirectoryPicker ===
         try {
           const dirHandle = await (window as any).showDirectoryPicker();
           const folderName = dirHandle.name;
@@ -2371,7 +2809,7 @@ export default function Home() {                  // @Home : Home component
         setPromptConfig({
           isOpen: true,
           title: "다른 이름으로 저장",
-          defaultValue: currentFileName,
+          defaultValue: fileName,
           type: 'createFile',
           error: ""
         });
@@ -2423,6 +2861,87 @@ export default function Home() {                  // @Home : Home component
     now: () => insertAtCursor(new Date().toLocaleString()),
     map: () => setIsMapModalOpen(true),
     table: () => setIsTableModalOpen(true),
+    quickTable: () => insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n'),
+    insertTableRow: () => {
+      // 💡 [한글 주석] 현재 커서가 위치한 표 아래에 새 빈 행 추가 및 포커스 이동
+      if (!editorRef.current) return;
+      const editor = editorRef.current;
+      const position = editor.getPosition();
+      if (!position) return;
+      const model = editor.getModel();
+      if (!model) return;
+
+      const lineText = model.getLineContent(position.lineNumber);
+      const trimmed = lineText.trim();
+      if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+        showToast("커서가 표 행에 위치해야 행을 추가할 수 있습니다.", "warning");
+        return;
+      }
+
+      const cells = trimmed.split(/(?<!\\)\|/);
+      const cellCount = cells.length - 2;
+
+      if (cellCount < 1) return;
+
+      const newRowText = '\n|' + '  |'.repeat(cellCount);
+      const lineMaxColumn = model.getLineMaxColumn(position.lineNumber);
+      const Range = (window as any).monaco.Range;
+      const Selection = (window as any).monaco.Selection;
+
+      editor.executeEdits("insertTableRow", [{
+        range: new Range(position.lineNumber, lineMaxColumn, position.lineNumber, lineMaxColumn),
+        text: newRowText,
+        forceMoveMarkers: true
+      }]);
+
+      const nextLineNumber = position.lineNumber + 1;
+      editor.setSelection(new Selection(
+        nextLineNumber, 3,
+        nextLineNumber, 3
+      ));
+      editor.focus();
+      showToast("표 행이 추가되었습니다.", "info");
+    },
+    deleteTableRow: () => {
+      // 💡 [한글 주석] 현재 커서가 위치한 표 행 삭제
+      if (!editorRef.current) return;
+      const editor = editorRef.current;
+      const position = editor.getPosition();
+      if (!position) return;
+      const model = editor.getModel();
+      if (!model) return;
+
+      const lineText = model.getLineContent(position.lineNumber);
+      const trimmed = lineText.trim();
+      if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+        showToast("커서가 표 행에 위치해야 행을 삭제할 수 있습니다.", "warning");
+        return;
+      }
+
+      const maxColumn = model.getLineMaxColumn(position.lineNumber);
+      let startLine = position.lineNumber;
+      let startColumn = 1;
+      let endLine = position.lineNumber;
+      let endColumn = maxColumn;
+
+      if (position.lineNumber < model.getLineCount()) {
+        endLine = position.lineNumber + 1;
+        endColumn = 1;
+      } else if (position.lineNumber > 1) {
+        startLine = position.lineNumber - 1;
+        startColumn = model.getLineMaxColumn(startLine);
+      }
+
+      const Range = (window as any).monaco.Range;
+      editor.executeEdits("deleteTableRow", [{
+        range: new Range(startLine, startColumn, endLine, endColumn),
+        text: "",
+        forceMoveMarkers: true
+      }]);
+
+      editor.focus();
+      showToast("표 행이 삭제되었습니다.", "info");
+    },
     code: () => insertBlockTag('```javascript', '```', '코드'),
     chart: () => insertBlockTag('```mermaid', '```', '그래프'),
     math: () => setIsFormulaModalOpen(true),
@@ -2430,7 +2949,10 @@ export default function Home() {                  // @Home : Home component
     zoomIn: () => setFontSize(prev => Math.min(prev + 2, 32)),
     zoomOut: () => setFontSize(prev => Math.max(prev - 2, 12)),
     globalSearch: () => setIsSearchOpen(true),
-    settings: () => setIsSettingsModalOpen(true),
+    settings: (tab: 'editor' | 'app' | 'shortcuts' = 'editor') => {
+      setSettingsModalInitialTab(tab);
+      setIsSettingsModalOpen(true);
+    },
     about: () => setIsAboutModalOpen(true),
     updates: () => setIsUpdatesModalOpen(true),
     toggleFloatingToolbar: () => {
@@ -2457,6 +2979,14 @@ export default function Home() {                  // @Home : Home component
   handlersRef.current = handlers;
 
   const dispatchCommand = useCallback((type: EditorCommandType, payload?: any) => {
+    // [WBS SYNC-01] 명령어 실행 초입 단계에 반드시 editor.focus()를 강제 격발하여 브라우저 포커스 뺏김 방지 및 포지션 최우선 확보
+    let editorPosition = null;
+    if (editorRef.current) {
+      const editor = editorRef.current;
+      editor.focus();
+      editorPosition = editor.getPosition();
+    }
+
     // 1. 에디터 텍스트 비조작 명령어 (상태 제어 및 파일 입출력 위임)
     switch (type) {
       // 파일 관련
@@ -2482,7 +3012,8 @@ export default function Home() {                  // @Home : Home component
       case 'FIND': handlers.find(); return;
       case 'REPLACE': handlers.replace(); return;
       case 'GLOBAL_SEARCH': handlers.globalSearch(); return;
-      case 'SETTINGS': handlers.settings(); return;
+      case 'SETTINGS': handlers.settings('editor'); return;
+      case 'SETTINGS_SHORTCUTS': handlers.settings('shortcuts'); return;
       case 'ABOUT': handlers.about(); return;
       case 'UPDATES': handlers.updates(); return;
       case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
@@ -2492,9 +3023,21 @@ export default function Home() {                  // @Home : Home component
       case 'TOGGLE_TOOLBAR': setIsToolbarOpen(prev => !prev); return;
       case 'TOGGLE_SIDEBAR': setIsSidebarOpen(prev => !prev); return;
       case 'TOGGLE_MODE':
-        setPreviewMode(prev => prev === 'both' ? 'edit' : prev === 'edit' ? 'preview' : prev === 'preview' ? 'both' : 'both');
+        setPreviewMode(prev => {
+          if (prev === 'edit') return 'both';
+          if (prev === 'both') return 'preview';
+          if (prev === 'preview') return 'css-style';
+          return 'edit';
+        });
         return;
-      case 'TOGGLE_THEME': setIsDarkMode(prev => !prev); return;
+      case 'TOGGLE_THEME': {
+        const currentIndex = EDITOR_THEMES.findIndex(t => t.id === themePalette);
+        const nextIndex = (currentIndex + 1) % EDITOR_THEMES.length;
+        const nextTheme = EDITOR_THEMES[nextIndex];
+        setThemePalette(nextTheme.id);
+        setIsDarkMode(nextTheme.isDark);
+        return;
+      }
       /*
        * TOGGLE_CSS_STYLE — CssStyleForm 패널 토글 (Ctrl+Shift+S)
        *
@@ -2510,11 +3053,8 @@ export default function Home() {                  // @Home : Home component
     if (!editorRef.current) return;
     const editor = editorRef.current;
 
-    // [WBS SYNC-01] 본문 서식 수정 명령 실행 전 에디터에 포커스를 강제로 주입하여 제어권 씹힘 방지
+    // [WBS SYNC-01] 이미 초입부에서 editor.focus() 및 getPosition()을 최우선 확보하였으므로 중복 호출 제거
     const MODAL_COMMANDS: EditorCommandType[] = ['IMAGE', 'VIDEO', 'YOUTUBE', 'MAP', 'TABLE', 'LATEX', 'MATH', 'LINK'];
-    if (!MODAL_COMMANDS.includes(type)) {
-      editor.focus();
-    }
 
     const selection = editor.getSelection();
     const model = editor.getModel();
@@ -2550,6 +3090,9 @@ export default function Home() {                  // @Home : Home component
       case 'NOW': handlers.now(); break;
       case 'MAP': handlers.map(); break;
       case 'TABLE': handlers.table(); break;
+      case 'QUICK_TABLE': handlers.quickTable(); break;
+      case 'INSERT_TABLE_ROW': handlers.insertTableRow(); break;
+      case 'DELETE_TABLE_ROW': handlers.deleteTableRow(); break;
       case 'CODE':
       case 'CODE_BLOCK': handlers.code(); break;
       case 'CHART': handlers.chart(); break;
@@ -2613,13 +3156,17 @@ export default function Home() {                  // @Home : Home component
       link: 'LINK',
       image: 'IMAGE',
       video: 'VIDEO',
-      calendar: 'NOW',       // id는 calendar이지만 커맨드는 NOW(날짜 삽입)
-
+      youtube: 'YOUTUBE',
+      calendar: 'NOW',
+      now: 'NOW',
       map: 'MAP',
       chart: 'CHART',
       codeblock: 'CODE_BLOCK',
       math: 'MATH',
       table: 'TABLE',
+      quickTable: 'QUICK_TABLE',
+      insertTableRow: 'INSERT_TABLE_ROW',
+      deleteTableRow: 'DELETE_TABLE_ROW',
       toggleFloatingToolbar: 'TOGGLE_FLOATING_TOOLBAR',
       toggleToolbar: 'TOGGLE_TOOLBAR',
       toggleSidebar: 'TOGGLE_SIDEBAR',
@@ -2692,6 +3239,19 @@ export default function Home() {                  // @Home : Home component
         binding |= monaco.KeyCode.Space;
       } else if (keyPart === 'ENTER') {
         binding |= monaco.KeyCode.Enter;
+      } else if (keyPart === 'DELETE') {
+        binding |= monaco.KeyCode.Delete;
+      } else if (keyPart === 'BACKSPACE') {
+        binding |= monaco.KeyCode.Backspace;
+      } else if (keyPart === 'TAB') {
+        binding |= monaco.KeyCode.Tab;
+      } else if (keyPart === 'ESCAPE' || keyPart === 'ESC') {
+        binding |= monaco.KeyCode.Escape;
+      } else if (keyPart.length >= 2 && keyPart.startsWith('F')) {
+        const fNum = parseInt(keyPart.substring(1));
+        if (fNum >= 1 && fNum <= 12) {
+          binding |= monaco.KeyCode[`F${fNum}`];
+        }
       }
       return binding;
     };
@@ -2715,6 +3275,27 @@ export default function Home() {                  // @Home : Home component
       });
       hotkeyDisposablesRef.current.push(disposable);
     });
+
+    // 💡 Monaco Editor 인스턴스에 Ctrl+S 및 Ctrl+Shift+S 저장 액션 바인딩
+    const saveAction = editor.addAction({
+      id: 'custom-action-save',
+      label: '저장 (Save)',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => {
+        dispatchCommand('SAVE');
+      }
+    });
+    hotkeyDisposablesRef.current.push(saveAction);
+
+    const saveAsAction = editor.addAction({
+      id: 'custom-action-save-as',
+      label: '다른 이름으로 저장 (Save As)',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS],
+      run: () => {
+        dispatchCommand('SAVE_AS');
+      }
+    });
+    hotkeyDisposablesRef.current.push(saveAsAction);
   }, [customHotkeys, isEditorReady, dispatchCommand, mapIdToCommandType]);
 
   useEffect(() => {
@@ -2727,15 +3308,12 @@ export default function Home() {                  // @Home : Home component
         return;
       }
 
-      // 에디터 포커스가 활성화되어 있을 때만 에디터 단축키 인터셉터 작동
-      if (!editorRef.current || !editorRef.current.hasTextFocus()) return;
-
       const isCtrl = e.ctrlKey || e.metaKey;
       const isShift = e.shiftKey;
       const isAlt = e.altKey;
 
       // 💡 [IME-02] 브라우저 환경에서 Ctrl+S 저장 시 웹페이지 저장(HTML) 다이얼로그가 강제 노출되는 이벤트를 차단하고 
-      // 우리 에디터 고유의 저장 커맨드를 실행하도록 원천 차단합니다.
+      // 우리 에디터 고유의 저장 커맨드를 실행하도록 원천 차단합니다. (에디터 포커스 여부와 관계없이 전역 방어)
       if (isCtrl && !isAlt) {
         const keyUpper = e.key.toUpperCase();
         if (keyUpper === 'S') {
@@ -2749,6 +3327,41 @@ export default function Home() {                  // @Home : Home component
           return;
         }
       }
+
+      // 💡 [글로벌 푸터 제어 단축키 예외 가드]
+      // 플로팅 툴바, 툴바, 사이드바, 모드, 테마 전환 단축키(Ctrl+Shift+F1 ~ F5)는
+      // 에디터 포커스 유무와 관계없이 브라우저 기본 동작(예: F5 새로고침, F3 검색 등)과 충돌하여 오작동하는 것을 원천 차단하기 위해
+      // 포커스 체크 전에 전역적으로 이벤트를 가로채서 수동 격발시킵니다.
+      const combinationPartsForGlobal: string[] = [];
+      if (isCtrl) combinationPartsForGlobal.push('CTRL');
+      if (isShift) combinationPartsForGlobal.push('SHIFT');
+      if (isAlt) combinationPartsForGlobal.push('ALT');
+      combinationPartsForGlobal.push(e.key.toUpperCase());
+      const combinationStrForGlobal = combinationPartsForGlobal.join('+');
+
+      const globalOnlyKeys = ['toggleFloatingToolbar', 'toggleToolbar', 'toggleSidebar', 'toggleMode', 'toggleTheme'];
+      let handledGlobal = false;
+      for (const keyId of globalOnlyKeys) {
+        const configuredHotkey = customHotkeys[keyId] || (TOOLBAR_ITEMS.find(item => item.id === keyId)?.defaultHotkey);
+        if (!configuredHotkey) continue;
+        const normalizedConfig = configuredHotkey
+          .replace(/\s+/g, '')
+          .toUpperCase()
+          .replace('CTRLCMD', 'CTRL');
+
+        if (combinationStrForGlobal === normalizedConfig) {
+          e.preventDefault();
+          e.stopPropagation();
+          const cmdType = mapIdToCommandType(keyId);
+          dispatchCommand(cmdType);
+          handledGlobal = true;
+          break;
+        }
+      }
+      if (handledGlobal) return;
+
+      // 에디터 포커스가 활성화되어 있을 때만 에디터 단축키 인터셉터 작동
+      if (!editorRef.current || !editorRef.current.hasTextFocus()) return;
 
       let key = e.key.toUpperCase();
 
@@ -2885,6 +3498,7 @@ export default function Home() {                  // @Home : Home component
           selectedMergeNodes={selectedMergeNodes}
           toggleMergeNodeSelect={toggleMergeNodeSelect}
           onSelectRootFolder={() => selectRootFolder('local', null)}
+          onRestoreFolder={restoreFolderPermission}
         />
 
         <main className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-zinc-950">
@@ -2971,6 +3585,11 @@ export default function Home() {                  // @Home : Home component
                     editor.setValue(contentRef.current);
                     if (typeof window !== 'undefined') {
                       (window as any).monaco = monaco;
+                    }
+
+                    // 💡 [테마 연동 가드] 비동기 세션 복원(restoreSettings)과 에디터 마운트 시차로 인한 테마 미적용 레이스 컨디션 방지
+                    if (themePalette) {
+                      monaco.editor.setTheme(themePalette);
                     }
 
                     // 💡 브라우저 맞춤법 검사(빨간 물결선)가 잘려 잔상/찌꺼기처럼 보이는 현상 차단
@@ -3713,8 +4332,21 @@ export default function Home() {                  // @Home : Home component
                       }
                     });
 
-                    // Ctrl+Space: 커서 위치 또는 드래그 선택 영역 기준 플로팅 툴바 토글
+                    // Ctrl+Space: 슬래시 명령어 입력 중인 경우 제안 팝업 트리거, 그렇지 않으면 플로팅 툴바 토글
                     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
+                      const position = editor.getPosition();
+                      const model = editor.getModel();
+                      if (position && model) {
+                        const lineContent = model.getLineContent(position.lineNumber);
+                        const beforeCursor = lineContent.substring(0, position.column - 1);
+                        // 커서 바로 직전이 / 이거나, / 뒤에 공백 없이 영문/숫자가 연속되는 슬래시 입력 패턴인 경우
+                        const slashMatch = beforeCursor.match(/\/([a-zA-Z0-9]*)$/);
+                        if (slashMatch) {
+                          editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+                          return;
+                        }
+                      }
+
                       setFloatingToolbar(prev => {
                         if (prev.visible) return { ...prev, visible: false };
                         let targetPosition = editor.getPosition();
@@ -3912,7 +4544,7 @@ export default function Home() {                  // @Home : Home component
                         // 슬래시 단어 시작 컬럼 (교체 범위 시작)
                         const startColumn = position.column - slashWord.length;
 
-                        const suggestions = getSlashCommands(monaco, customSlashCommands);
+                        const suggestions = getSlashCommands(monaco, customSlashCommandsRef.current);
 
                         // 입력한 단어로 필터링 (/ 이후 글자 기준)
                         const filterWord = slashWord.slice(1).toLowerCase(); // 'bold', 'im' 등
@@ -3950,9 +4582,11 @@ export default function Home() {                  // @Home : Home component
 
                       const scrollTop = editor.getScrollTop();
 
-                      // [WBS SYNC-03] 스크롤탑이 절대 영점(0)인 경우 락 상태에 영향받지 않고 preview 0점 스냅 자석 연동
+                      // [WBS SYNC-03] 스크롤탑이 절대 영점(0)인 경우, 락 상태나 isSender 분기 이전에 
+                      // 0점 스냅 자석 연동을 최우선 실행하고 조기 종료하여 1줄 잘림을 원천 차단
                       if (scrollTop === 0) {
                         previewRef.current.scrollTo({ top: 0, behavior: 'auto' });
+                        return; // 최우선 실행 후 즉시 복귀
                       }
 
                       // 💡 [요구사항 3 / SYNC-03] 에디터 마우스 오버 상태이거나 에디터가 키보드 포커싱된 상황일 때만 스크롤 송신 허용 (관성 튕김 방지)
@@ -3965,12 +4599,6 @@ export default function Home() {                  // @Home : Home component
                       const scrollHeight = editor.getScrollHeight();
                       const layoutInfo = editor.getLayoutInfo();
                       const visibleRanges = editor.getVisibleRanges();
-
-                      // 1. 에디터 스크롤바가 절대 영점(0)이면 무조건 preview도 맨 위로
-                      if (scrollTop === 0) {
-                        previewRef.current.scrollTo({ top: 0, behavior: 'auto' });
-                        return;
-                      }
 
                       // 2. 최하단 감지 (30px 마진 또는 스크롤 비율 98% 이상일 때 강제 하단 스냅하여 대용량 문서 스냅 깨짐 해결)
                       const isAtBottom = (scrollTop + layoutInfo.height >= scrollHeight - 30) || 
@@ -4213,13 +4841,16 @@ export default function Home() {                  // @Home : Home component
                   }
                 }}
               >
-                <MarkdownViewer
-                  content={processedContent}
-                  originalContent={content}
-                  lineMap={lineMap}
-                  onCheckboxToggle={handleCheckboxToggle}
-                  currentFilePath={currentFileNode?.path}
-                />
+                <div className="max-w-4xl mx-auto w-full">
+                  <MarkdownViewer
+                    content={processedContent}
+                    originalContent={content}
+                    lineMap={lineMap}
+                    onCheckboxToggle={handleCheckboxToggle}
+                    currentFilePath={currentFileNode?.path}
+                    onFileOpen={handleFileOpenByPath}
+                  />
+                </div>
                 {/*
                  * 동적 CSS 스타일 인젝션:
                  * custom-preview-container 내부의 태그들에 CssRuleSet을 적용합니다.
@@ -4263,6 +4894,7 @@ export default function Home() {                  // @Home : Home component
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
+        initialTab={settingsModalInitialTab}
         isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
         fontSize={fontSize} setFontSize={setFontSize}
         wordWrap={wordWrap} setWordWrap={setWordWrap}
@@ -4277,6 +4909,8 @@ export default function Home() {                  // @Home : Home component
         customHotkeys={customHotkeys} setCustomHotkeys={setCustomHotkeys}
         customSlashCommands={customSlashCommands} setCustomSlashCommands={setCustomSlashCommands}
         licenseKey={licenseKey} setLicenseKey={setLicenseKey}
+        themePalette={themePalette}
+        onThemeChange={handleThemeChange}
       />
 
       <ExportModal

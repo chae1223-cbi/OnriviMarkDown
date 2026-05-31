@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Sigma, Plus, History, Info, ChevronRight, Calculator, AlignCenter, AlignLeft } from 'lucide-react';
 import { wrapMathWithBold } from "@/lib/editorUtils";
 import { msg } from '@/lib/msg';
@@ -21,6 +22,11 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [katexLoaded, setKatexLoaded] = useState(true);
   const [history, setHistory] = useState<string[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 최근 사용된 수식 로드
   useEffect(() => {
@@ -79,6 +85,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   }, [latex, katexLoaded, isOpen]);
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   const symbols = [
     { name: 'Greek', items: ['\\alpha', '\\beta', '\\gamma', '\\delta', '\\epsilon', '\\zeta', '\\eta', '\\theta', '\\iota', '\\kappa', '\\lambda', '\\mu', '\\nu', '\\xi', '\\pi', '\\rho', '\\sigma', '\\tau', '\\phi', '\\chi', '\\psi', '\\omega'] },
@@ -136,8 +143,8 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
       <div className={`relative w-full max-w-[800px] h-[600px] shadow-2xl rounded-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
@@ -343,7 +350,8 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

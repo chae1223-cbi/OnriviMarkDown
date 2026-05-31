@@ -13,7 +13,7 @@ interface FileTreeItemProps {
   node: FileNode;
   parentHandle: any;
   level: number;
-  openFile: (node: FileNode | null) => void;
+  openFile: (node: FileNode | null, parentHandle?: any) => void;
   currentFileName: string;
   currentFilePath?: string;
   workspaceType: string;
@@ -223,7 +223,7 @@ const FileTreeItem = ({
         setIsOpen(willOpen);
       }
     } else if (node.kind === 'file') {
-      openFile(node);
+      openFile(node, parentHandle);
     }
   };
 
@@ -306,10 +306,10 @@ const FileTreeItem = ({
                 const normCurrent = currentFilePath.replace(/\\/g, '/');
                 const normOld = oldPath.replace(/\\/g, '/');
                 if (normCurrent === normOld) {
-                  openFile({ name: finalName, kind: 'file', path: newPath, handle: newHandle });
+                  openFile({ name: finalName, kind: 'file', path: newPath, handle: newHandle }, parentHandle);
                 }
               } else if (currentFileName === oldName) {
-                openFile({ name: finalName, kind: 'file', path: newPath, handle: newHandle });
+                openFile({ name: finalName, kind: 'file', path: newPath, handle: newHandle }, parentHandle);
               }
             } else if (node.kind === 'directory') {
               // 폴더 이름 변경: 새 폴더를 만들고 하위 항목들을 재귀적으로 복사한 뒤 기존 폴더 삭제
@@ -366,7 +366,7 @@ const FileTreeItem = ({
             vfsRename(oldPath, newPath);
             refreshParent();
             if (currentFileName === node.name) {
-              openFile({ name: finalName, kind: node.kind, path: newPath });
+              openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
             }
           }
         } else {
@@ -393,13 +393,13 @@ const FileTreeItem = ({
               const normOld = node.path.replace(/\\/g, '/');
               const normNew = newPath.replace(/\\/g, '/');
               if (normCurrent === normOld) {
-                openFile({ name: finalName, kind: node.kind, path: newPath });
+                openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
               } else if (normCurrent.startsWith(normOld + '/')) {
                 const updatedPath = currentFilePath.substring(node.path.length);
-                openFile({ name: currentFileName, kind: 'file', path: newPath + updatedPath });
+                openFile({ name: currentFileName, kind: 'file', path: newPath + updatedPath }, parentHandle);
               }
             } else if (currentFileName === node.name) {
-              openFile({ name: finalName, kind: node.kind, path: newPath });
+              openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
             }
           } else {
             const res = await fetch(getApiUrl('/api/rename'), {
@@ -418,13 +418,13 @@ const FileTreeItem = ({
                 const normOld = node.path.replace(/\\/g, '/');
                 const normNew = newPath.replace(/\\/g, '/');
                 if (normCurrent === normOld) {
-                  openFile({ name: finalName, kind: node.kind, path: newPath });
+                  openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
                 } else if (normCurrent.startsWith(normOld + '/')) {
                   const updatedPath = currentFilePath.substring(node.path.length);
-                  openFile({ name: currentFileName, kind: 'file', path: newPath + updatedPath });
+                  openFile({ name: currentFileName, kind: 'file', path: newPath + updatedPath }, parentHandle);
                 }
               } else if (currentFileName === node.name) {
-                openFile({ name: finalName, kind: node.kind, path: newPath });
+                openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
               }
             }
           }
@@ -445,13 +445,13 @@ const FileTreeItem = ({
           if (node.handle) {
             const handle = await node.handle.getFileHandle(finalName, { create: true });
             refreshParent();
-            openFile({ name: finalName, kind: 'file', handle });
+            openFile({ name: finalName, kind: 'file', handle }, node.handle);
           } else if (node.path) {
             // LocalStorage 가상 파일 생성
             vfsCreateFile(node.path, finalName);
             refreshParent();
             const filePath = `${node.path}/${finalName}`;
-            openFile({ name: finalName, kind: 'file', path: filePath });
+            openFile({ name: finalName, kind: 'file', path: filePath }, node.handle);
           }
         } else {
           const api = (window as any).electronAPI;
@@ -459,7 +459,7 @@ const FileTreeItem = ({
             const result = await api.createFile(node.path, finalName);
             if (result.success) {
               await refreshThisDirectory();
-              openFile({ name: finalName, kind: 'file', path: result.path });
+              openFile({ name: finalName, kind: 'file', path: result.path }, node.handle);
             }
           } else {
             const res = await fetch(getApiUrl('/api/create-file'), {
@@ -470,7 +470,7 @@ const FileTreeItem = ({
             if (res.ok) {
               const data = await res.json();
               await refreshThisDirectory();
-              openFile({ name: finalName, kind: 'file', path: data.path });
+              openFile({ name: finalName, kind: 'file', path: data.path }, node.handle);
             }
           }
         }

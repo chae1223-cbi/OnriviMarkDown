@@ -21,9 +21,10 @@ interface GlobalSearchProps {
   onFileOpenAndJump: (filePath: string, lineNumber: number) => void; // 파일 열기 및 줄 이동 콜백
   workspacePath?: string; // 워크스페이스 루트 경로 (desktop)
   rootFolderHandle?: any; // FileSystemDirectoryHandle (addon/browser)
+  onSelectFolder?: () => void; // 💡 폴더 선택 트리거 콜백 (addon/browser 대응)
 }
 
-export default function GlobalSearch({ isDarkMode, content, currentFileName, onFileOpenAndJump, workspacePath, rootFolderHandle }: GlobalSearchProps) {
+export default function GlobalSearch({ isDarkMode, content, currentFileName, onFileOpenAndJump, workspacePath, rootFolderHandle, onSelectFolder }: GlobalSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchFolder, setSearchFolder] = useState<string | null>(null); // 검색 대상 폴더 경로
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -43,6 +44,9 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
       } catch (e) {
         msg.error("폴더 선택 오류", e);
       }
+    } else if (onSelectFolder) {
+      // 💡 Addon/Browser 환경: 상위에서 정의된 selectRootFolder 기능 기동
+      onSelectFolder();
     }
   };
 

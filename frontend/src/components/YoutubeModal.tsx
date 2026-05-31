@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Youtube, Code, Play, Check } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 
@@ -17,6 +18,11 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
   const [width, setWidth] = useState("100%");
   const [height, setHeight] = useState("400");
   const [insertType, setInsertType] = useState<'iframe' | 'thumbnail'>('iframe');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 유튜브 URL 또는 iframe 코드에서 비디오 ID 추출하는 정규식 함수
   const videoId = useMemo(() => {
@@ -77,9 +83,10 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
   };
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" 
@@ -289,6 +296,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

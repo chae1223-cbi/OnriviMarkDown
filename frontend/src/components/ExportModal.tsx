@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Download, FileText, Globe, Image as ImageIcon, X, Check, BookOpen } from 'lucide-react';
 
 interface ExportModalProps {
@@ -12,8 +13,14 @@ interface ExportModalProps {
 
 export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: ExportModalProps) {
   const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'html' | 'png' | 'epub'>('pdf');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   const formats = [
     { id: 'pdf', label: "PDF 문서", desc: "고품질 인쇄 및 문서 보관용", icon: <FileText size={20} className="text-red-500" /> },
@@ -22,8 +29,8 @@ export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: E
     { id: 'png', label: "PNG 이미지", desc: "SNS 공유 및 프리젠테이션용", icon: <ImageIcon size={20} className="text-green-500" /> },
   ];
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className={`w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border ${
           isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-black/5 text-zinc-900'
@@ -89,6 +96,7 @@ export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: E
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

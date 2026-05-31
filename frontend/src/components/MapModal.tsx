@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Map as MapIcon, Search, Plus, Minus, MapPin, Terminal, Code, Loader } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 
@@ -18,6 +19,11 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   const [placeName, setPlaceName] = useState("서울시청");
   const [zoom, setZoom] = useState(15);
   const [isLoading, setIsLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 지도 검색 함수 - Nominatim(OpenStreetMap) 기반 주소/장소명 검색
   const handleSearch = async (e?: React.FormEvent) => {
@@ -67,6 +73,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   }, [cleanCoords, zoom, isDarkMode]);
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   // 삽입할 코드 (Google Maps iframe embed - API 키 불필요)
   const [lat, lng] = cleanCoords.split(',').map(s => s.trim());
@@ -77,8 +84,8 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
       <div className={`relative w-full max-w-[640px] rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
@@ -205,6 +212,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

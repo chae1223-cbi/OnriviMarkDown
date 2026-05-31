@@ -277,9 +277,9 @@ body {
   caret-color: transparent !important; /* 커서는 모나코 에디터가 별도 레이어로 그리므로 깜빡임 중복 방지 */
 }
 
-.monaco-h1-text { color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; background-color: rgba(16, 185, 129, 0.05) !important; }
-.monaco-h2-text { color: #059669 !important; background-color: rgba(5, 150, 105, 0.05) !important; }
-.monaco-h3-text { color: #34d399 !important; background-color: rgba(52, 211, 153, 0.05) !important; }
+.monaco-h1-text { color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; }
+.monaco-h2-text { color: #059669 !important; }
+.monaco-h3-text { color: #34d399 !important; }
 /* 에디터 라이트 테마 (vs) 적용 시 강조 스타일 */
 .vs .monaco-bold-text { color: #1d4ed8 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
 .vs .monaco-italic-text { text-decoration: underline dotted !important; color: #7c3aed !important; }

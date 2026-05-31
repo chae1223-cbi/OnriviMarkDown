@@ -42,16 +42,20 @@ export type FileNode = {
   children?: FileNode[];
 };
 
-// 폴더를 재귀적으로 스캔하는 함수
-export async function scanDirectory(dirHandle: any): Promise<FileNode[]> {
+// 폴더를 재귀적으로 스캔하는 함수 (상대 경로인 parentPath를 인자로 받아 노드별 path 가상 경로 부여)
+export async function scanDirectory(dirHandle: any, parentPath: string = ""): Promise<FileNode[]> {
   const entries: FileNode[] = [];
   try {
     for await (const [name, handle] of dirHandle.entries()) {
+      const currentPath = parentPath ? `${parentPath}/${name}` : name;
       if (handle.kind === 'directory') {
-        const children = await scanDirectory(handle);
-        entries.push({ name, kind: 'directory', handle, children });
+        const children = await scanDirectory(handle, currentPath);
+        entries.push({ name, kind: 'directory', handle, children, path: currentPath });
       } else if (handle.kind === 'file') {
-        entries.push({ name, kind: 'file', handle });
+        const nameLower = name.toLowerCase();
+        if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown')) {
+          entries.push({ name, kind: 'file', handle, path: currentPath });
+        }
       }
     }
   } catch (e) {

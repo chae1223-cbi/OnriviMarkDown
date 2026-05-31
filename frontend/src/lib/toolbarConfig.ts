@@ -14,34 +14,36 @@ export const TOOLBAR_ITEMS = [
   { id: 'h6', icon: 'H6', name: '제목 6', group: '제목', tagFormat: '###### 제목', defaultHotkey: 'Ctrl+6', defaultCommand: 'h6', insertText: '###### ', kind: 17 },
   
   // 3. 문단 (Paragraph)
-  { id: 'divider', icon: 'ㅡ', name: '구분선', group: '문단', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
+  { id: 'divider', icon: '—', name: '구분선', group: '문단', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
   { id: 'orderedList', icon: '1.', name: '숫자 목록', group: '문단', tagFormat: '1. ', defaultHotkey: 'Ctrl+Shift+7', defaultCommand: 'ol', insertText: '1. ', kind: 17 },
-  { id: 'list', icon: '≡', name: '글머리 기호', group: '문단', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
-  { id: 'quote', icon: '“', name: '인용구', group: '문단', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> ', kind: 17 },
-  { id: 'checklist', icon: '☑', name: '체크리스트', group: '문단', tagFormat: '- [ ] ', defaultHotkey: 'Ctrl+Shift+C', defaultCommand: 'check', insertText: '- [ ] ', kind: 17 },
-  { id: 'clear', icon: '🧹', name: '서식 지우기', group: '문단', tagFormat: '없음', defaultHotkey: 'Ctrl+\\', defaultCommand: 'clear', insertText: '', kind: 17 },
-  { id: 'cleanDoc', icon: '✨', name: '문서 서식 일괄 정리', group: '문단', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleanDoc', insertText: '', kind: 17 },
+  { id: 'list', icon: '☰', name: '글머리 기호', group: '문단', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
+  { id: 'quote', icon: '❝', name: '인용구', group: '문단', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> ', kind: 17 },
+  { id: 'checklist', icon: '☑️', name: '체크리스트', group: '문단', tagFormat: '- [ ] ', defaultHotkey: 'Ctrl+Shift+C', defaultCommand: 'check', insertText: '- [ ] ', kind: 17 },
+  { id: 'clear', icon: '🧼', name: '태그 취소 (서식 지우기)', group: '문단', tagFormat: '없음', defaultHotkey: 'Ctrl+\\', defaultCommand: 'clear', insertText: '', kind: 17 },
+  { id: 'cleanDoc', icon: '✨', name: '문서 서식 일괄 정리', group: '문단', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleandoc', insertText: '', kind: 17 },
   
   // 4. 삽입 (Insert)
   { id: 'link', icon: '🔗', name: '링크', group: '삽입', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
-  { id: 'image', icon: '🖼', name: '이미지', group: '삽입', tagFormat: '![대체 텍스트](URL)', defaultHotkey: 'Ctrl+Alt+I', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
-  { id: 'video', icon: '🎥', name: '비디오', group: '삽입', tagFormat: '비디오 삽입', defaultHotkey: '', defaultCommand: 'video', insertText: '비디오 삽입', kind: 15 },
-  { id: 'calendar', icon: '📅', name: '달력', group: '삽입', tagFormat: '날짜', defaultHotkey: '', defaultCommand: 'date', insertText: '2026-05-26', kind: 15 },
+  { id: 'image', icon: '🖼️', name: '이미지', group: '삽입', tagFormat: '![대체 텍스트](URL)', defaultHotkey: '', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
+  { id: 'youtube', icon: '🎥', name: '유튜브 동영상 삽입', group: '삽입', tagFormat: '동영상 삽입', defaultHotkey: '', defaultCommand: 'youtube', insertText: '유튜브 동영상 삽입', kind: 15 },
+  { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '삽입', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },
   
   // 5. 고급 (Advanced)
-  { id: 'map', icon: '🗺', name: '지도', group: '고급', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
-  { id: 'chart', icon: '📊', name: '차트', group: '고급', tagFormat: '```mermaid', defaultHotkey: '', defaultCommand: 'chart', insertText: '```mermaid\n\n```', kind: 15 },
+  { id: 'map', icon: '🗺️', name: '지도', group: '고급', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
+  { id: 'chart', icon: '📈', name: '차트', group: '고급', tagFormat: '```mermaid', defaultHotkey: '', defaultCommand: 'chart', insertText: '```mermaid\n\n```', kind: 15 },
   { id: 'codeblock', icon: '💻', name: '코드 블록', group: '고급', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\n\n```', kind: 15 },
   { id: 'math', icon: 'Σ', name: '수식', group: '고급', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
-  { id: 'table', icon: '표', name: '표', group: '고급', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
-  { id: 'quickTable', icon: '📋', name: '빠른 표 삽입', group: '고급', tagFormat: '| 빠른 표 |', defaultHotkey: 'Ctrl+Alt+T', defaultCommand: '표', insertText: '| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |', kind: 15 },
+  { id: 'table', icon: '📊', name: '표', group: '고급', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
+  { id: 'quickTable', icon: '📋', name: '빠른 표 삽입', group: '고급', tagFormat: '| 빠른 표 |', defaultHotkey: 'Ctrl+Alt+T', defaultCommand: 'qtable', insertText: '| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |', kind: 15 },
+  { id: 'insertTableRow', icon: '➕', name: '표 행 추가', group: '고급', tagFormat: '표 행 추가', defaultHotkey: 'Ctrl+Alt+I', defaultCommand: 'addrow', insertText: '', kind: 17 },
+  { id: 'deleteTableRow', icon: '➖', name: '표 행 삭제', group: '고급', tagFormat: '표 행 삭제', defaultHotkey: 'Ctrl+Alt+D', defaultCommand: 'delrow', insertText: '', kind: 17 },
 
   // 푸터 및 기타 액션
-  { id: 'toggleFloatingToolbar', icon: '🪟', name: '플로팅 툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F', defaultCommand: 'floating_toolbar', insertText: '', kind: 17 },
-  { id: 'toggleToolbar', icon: '♻️', name: '툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+T', defaultCommand: 'toggle_toolbar', insertText: '', kind: 17 },
-  { id: 'toggleSidebar', icon: '🗃️', name: '사이드바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+B', defaultCommand: 'toggle_sidebar', insertText: '', kind: 17 },
-  { id: 'toggleMode', icon: '📜', name: '모드 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+P', defaultCommand: 'toggle_mode', insertText: '', kind: 17 },
-  { id: 'toggleTheme', icon: '🌙', name: '테마 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+D', defaultCommand: 'toggle_theme', insertText: '', kind: 17 },
+  { id: 'toggleFloatingToolbar', icon: '🪟', name: '플로팅 툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F1', defaultCommand: 'floating_toolbar', insertText: '', kind: 17 },
+  { id: 'toggleToolbar', icon: '♻️', name: '툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F2', defaultCommand: 'toggle_toolbar', insertText: '', kind: 17 },
+  { id: 'toggleSidebar', icon: '🗃️', name: '사이드바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F3', defaultCommand: 'toggle_sidebar', insertText: '', kind: 17 },
+  { id: 'toggleMode', icon: '📜', name: '모드 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F4', defaultCommand: 'toggle_mode', insertText: '', kind: 17 },
+  { id: 'toggleTheme', icon: '🌙', name: '테마 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F5', defaultCommand: 'toggle_theme', insertText: '', kind: 17 },
 
   // ★ 퀵 래핑 (Quick Transform) — 선택 영역/전체 문단을 한 번에 변환
   { id: 'wrap-h1', icon: 'H1#', name: '퀵 H1', group: '퀵래핑', tagFormat: '# 선택', defaultHotkey: 'Ctrl+Shift+1', defaultCommand: 'wrap-h1', insertText: '', kind: 17 },
@@ -51,7 +53,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'wrap-code', icon: '{}', name: '퀵 코드', group: '퀵래핑', tagFormat: '```선택```', defaultHotkey: 'Ctrl+Shift+9', defaultCommand: 'wrap-code', insertText: '', kind: 17 },
 
   // ★ 서식 정의 (Style Profile)
-  { id: 'css-style', icon: '🏛️', name: '서식 정의', group: '푸터', tagFormat: '관보 서식', defaultHotkey: 'Ctrl+Shift+S', defaultCommand: 'css-style', insertText: '', kind: 17 }
+  { id: 'css-style', icon: '🏛️', name: '서식 정의', group: '푸터', tagFormat: '관보 서식', defaultHotkey: 'Ctrl+Alt+S', defaultCommand: 'css-style', insertText: '', kind: 17 }
 ];
 
 export const getDefaultHotkeys = () => {
@@ -134,10 +136,10 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
 
       let command: any = undefined;
 
-      // 모달이 필요한 항목: 삽입 후 모달도 열기
-      const modalKeys = ['image', 'video', 'map', 'table', 'math'];
-      // 텍스트 없이 액션만 실행하는 항목
-      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar'];
+      // 💡 [한글 주석] 모달이 필요한 항목 (youtube 추가)
+      const modalKeys = ['image', 'video', 'youtube', 'map', 'table', 'math'];
+      // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 표 행 편집 이관)
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow'];
 
       if (modalKeys.includes(item.id)) {
         command = {

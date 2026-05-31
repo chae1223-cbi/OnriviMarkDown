@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
 
 interface ImageModalProps {
@@ -14,7 +15,12 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
   const [imagePath, setImagePath] = React.useState("");
   const [imageAlt, setImageAlt] = React.useState("이미지 설명");
   const [imageWidth, setImageWidth] = React.useState(""); // 📏 이미지 가로폭 상태 추가
+  const [mounted, setMounted] = React.useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 실제 이미지 주소 추출
   const cleanImagePath = React.useMemo(() => {
@@ -28,6 +34,7 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
   }, [imagePath]);
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   const handleInsert = () => {
     if (cleanImagePath) {
@@ -53,8 +60,8 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
       <div className={`relative w-full max-w-[520px] shadow-2xl rounded-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
@@ -192,6 +199,7 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

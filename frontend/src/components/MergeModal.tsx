@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowUp, ArrowDown, X, Layers, Trash2, ArrowUpDown } from 'lucide-react';
 import { FileNode } from '@/lib/helper';
 import { getApiUrl } from '@/lib/api';
@@ -27,11 +28,16 @@ const MergeModal: React.FC<MergeModalProps> = ({
   const [separator, setSeparator] = useState('line'); // 'none' | 'line' | 'divider' | 'title'
   const [deleteSources, setDeleteSources] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       setNodes([...selectedNodes]);
-      // 기본 병합 ?�일�??�안 (�?번째 ?�일�??�에 _merged 추�?)
+      // 기본 병합 파일명 제안 (첫번째 파일명 뒤에 _merged 추가)
       if (selectedNodes.length > 0) {
         const first = selectedNodes[0].name;
         const extIndex = first.lastIndexOf('.');
@@ -42,6 +48,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
   }, [isOpen, selectedNodes]);
 
   if (!isOpen) return null;
+  if (!mounted) return null;
 
   const moveUp = (index: number) => {
     if (index === 0) return;
@@ -81,7 +88,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
     setLoading(true);
 
     try {
-      // ?���??�리미엄 ?�전�? 꼬임 방�?�??�해 ?�드 ?�이?�의 ?�질 ?�태???�라 병합 모드�??�동 결정?�니??
       const hasPaths = nodes.some(n => !!n.path);
       const hasHandles = nodes.some(n => !!n.handle);
       
@@ -95,7 +101,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
       if (activeMode === 'local') {
         const sourcePaths = nodes.map(n => n.path);
         
-        // ?????�일???�렉?�리 경로 (�?번째 ?�스 ?�일�??�일???�렉?�리?????�하거나 루트??????
         const firstPath = nodes[0].path || "";
         const lastSlash = firstPath.lastIndexOf('\\');
         const parentDir = lastSlash !== -1 ? firstPath.substring(0, lastSlash) : "";
@@ -116,17 +121,14 @@ const MergeModal: React.FC<MergeModalProps> = ({
           const result = await res.json();
           showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
           refreshParent();
-          setTimeout(() => refreshParent(), 300); // 파일 시스템 인덱스 동기화 갱신
+          setTimeout(() => refreshParent(), 300);
           onClose();
-          // 병합?????�일 ?�기
-          // 병합?????일 ?기
           openFile({ name: finalName, kind: 'file', path: result.path });
         } else {
           const errData = await res.json();
           showToast("글 병합 중 오류가 발생했습니다: " + errData.error, 'error');
         }
       } else if (activeMode === 'browser') {
-        // 브라우저 모드: File System Access API
         const contents = [];
         for (const node of nodes) {
           if (!node.handle) throw new Error('File handle missing in browser mode');
@@ -147,7 +149,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
         
         const mergedText = contents.join(joinSep);
 
-        // ???�일 ?�성 �??�기
         if (!rootFolder || !rootFolder.handle) {
           throw new Error('Root folder handle is not open');
         }
@@ -157,7 +158,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
         await writable.write(mergedText);
         await writable.close();
 
-        // ?�스 ??��
         if (deleteSources) {
           for (const node of nodes) {
             if (node.name !== finalName) {
@@ -168,7 +168,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
 
         showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
         refreshParent();
-        setTimeout(() => refreshParent(), 300); // 파일 시스템 인덱스 동기화 갱신
+        setTimeout(() => refreshParent(), 300);
         onClose();
         openFile({ name: finalName, kind: 'file', handle: newFileHandle });
       }
@@ -179,14 +179,14 @@ const MergeModal: React.FC<MergeModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-opacity duration-300">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md transition-opacity duration-300">
       <div className="w-full max-w-lg bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#30363d] rounded-2xl shadow-2xl overflow-hidden flex flex-col scale-[1.01] transition-transform duration-300">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-[#30363d] bg-gray-50/50 dark:bg-[#0d1117]/30">
           <div className="flex items-center gap-2">
-            <span className="text-lg leading-none">?��</span>
+            <span className="text-lg leading-none">?</span>
             <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">{"글 통폐합 (병합)"}</h3>
           </div>
           <button 
@@ -308,7 +308,8 @@ const MergeModal: React.FC<MergeModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
