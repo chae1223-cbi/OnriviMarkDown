@@ -24,7 +24,7 @@ export const TOOLBAR_ITEMS = [
   
   // 4. 삽입 (Insert)
   { id: 'link', icon: '🔗', name: '링크', group: '삽입', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
-  { id: 'image', icon: '🖼', name: '이미지', group: '삽입', tagFormat: '![대체 텍스트](URL)', defaultHotkey: 'Ctrl+Shift+I', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
+  { id: 'image', icon: '🖼', name: '이미지', group: '삽입', tagFormat: '![대체 텍스트](URL)', defaultHotkey: 'Ctrl+Alt+I', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
   { id: 'video', icon: '🎥', name: '비디오', group: '삽입', tagFormat: '비디오 삽입', defaultHotkey: '', defaultCommand: 'video', insertText: '비디오 삽입', kind: 15 },
   { id: 'calendar', icon: '📅', name: '달력', group: '삽입', tagFormat: '날짜', defaultHotkey: '', defaultCommand: 'date', insertText: '2026-05-26', kind: 15 },
   

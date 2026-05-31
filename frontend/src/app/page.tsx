@@ -136,11 +136,10 @@ if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용�
     };
     (window as any).MonacoEnvironment = {
       getWorkerUrl: function (_moduleId: string, label: string) { // @getWorkerUrl : 환경 변수 
-        if (label === 'json') return getExtensionUrl('/monaco-editor/min/vs/language/json/json.worker.js'); // @getExtensionUrl : 환경 변수 
-        if (label === 'css') return getExtensionUrl('/monaco-editor/min/vs/language/css/css.worker.js'); // @getExtensionUrl : 환경 변수 
-        if (label === 'html') return getExtensionUrl('/monaco-editor/min/vs/language/html/html.worker.js'); // @getExtensionUrl : 환경 변수 
-        if (label === 'typescript' || label === 'javascript') return getExtensionUrl('/monaco-editor/min/vs/language/typescript/ts.worker.js'); // @getExtensionUrl : 환경 변수 
-        return getExtensionUrl('/monaco-editor/min/vs/editor/editor.worker.js');
+        // 🛡️ 크롬 확장 프로그램 MV3의 CSP(script-src 'self') 제약 하에서는
+        // 동일 origin인 로컬 패키지 내의 vs/base/worker/workerMain.js 경로를 다이렉트로 반환하여
+        // 동일 origin(chrome-extension://) 하에 워커 컨텍스트를 생성해야 내부 importScripts 로드가 차단되지 않습니다.
+        return getExtensionUrl('/monaco-editor/min/vs/base/worker/workerMain.js');
       }
     };
     try {
@@ -700,6 +699,8 @@ export default function Home() {                  // @Home : Home component
     restoreSettings();
   }, []);
 
+
+
   useEffect(() => {
     if (mounted) {
       localStorage.setItem('quoteStyle', quoteStyle);
@@ -1122,7 +1123,14 @@ export default function Home() {                  // @Home : Home component
       // (requestAnimationFrame: Monaco가 content 렌더링을 완료한 후 scroll position이 React 리렌더링에 덮어써지는 것을 방지)
       if (editorRef.current) {
         requestAnimationFrame(() => {
-          editorRef.current?.revealLineAtTop(1, 0);
+          const editor = editorRef.current;
+          if (editor) {
+            if (typeof editor.setScrollTop === 'function') {
+              editor.setScrollTop(0);
+            } else if (typeof editor.revealLine === 'function') {
+              editor.revealLine(1);
+            }
+          }
         });
       }
       if (previewRef.current) {
@@ -2103,7 +2111,14 @@ export default function Home() {                  // @Home : Home component
 
             if (editorRef.current) {
               requestAnimationFrame(() => {
-                editorRef.current?.revealLineAtTop(1, 0);
+                const editor = editorRef.current;
+                if (editor) {
+                  if (typeof editor.setScrollTop === 'function') {
+                    editor.setScrollTop(0);
+                  } else if (typeof editor.revealLine === 'function') {
+                    editor.revealLine(1);
+                  }
+                }
               });
             }
             if (previewRef.current) {
@@ -4186,8 +4201,15 @@ export default function Home() {                  // @Home : Home component
                     }
                   }
 
-                  if (targetLine !== -1) {
-                    editorRef.current?.revealLineAtTop(targetLine);
+                  if (targetLine !== -1 && editorRef.current) {
+                    const editor = editorRef.current;
+                    if (typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
+                      editor.setScrollPosition({
+                        scrollTop: editor.getTopForLineNumber(targetLine)
+                      });
+                    } else if (typeof editor.revealLine === 'function') {
+                      editor.revealLine(targetLine);
+                    }
                   }
                 }}
               >

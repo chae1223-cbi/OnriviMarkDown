@@ -19,7 +19,12 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "monaco-editor/*",
+        "monaco-editor/min/vs/loader.js",
+        "monaco-editor/min/vs/base/worker/workerMain.js",
+        "monaco-editor/min/vs/language/json/jsonWorker.js",
+        "monaco-editor/min/vs/language/css/cssWorker.js",
+        "monaco-editor/min/vs/language/html/htmlWorker.js",
+        "monaco-editor/min/vs/language/typescript/tsWorker.js",
         "next/*"
       ],
       "matches": ["<all_urls>"]
