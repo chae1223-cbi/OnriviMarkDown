@@ -44,6 +44,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSaveFileRequested: (callback) => ipcRenderer.on('menu:save-file', (_, value) => callback(value)),
   onSaveFileAsRequested: (callback) => ipcRenderer.on('menu:save-file-as', (_, value) => callback(value)),
 
+  // 8. 윈도우 파일 연결(더블클릭)로 외부 .md 파일 열기 요청 수신 (두 번째 실행부터)
+  onReceiveFile: (callback) => {
+    const handler = (_event, filePath) => callback(filePath);
+    ipcRenderer.on('open-external-md', handler);
+    return () => {
+      ipcRenderer.removeListener('open-external-md', handler);
+    };
+  },
+
+  // 9. 최초 실행 시 filePathToOpen 조회 (pull 방식, 경합 조건 없음)
+  getInitialFilePath: () => ipcRenderer.invoke('get-initial-file-path'),
+
   // 14. 시스템 네이티브 이모지 피커 호출
   showEmojiPicker: () => ipcRenderer.invoke('system:showEmojiPicker'),
 
@@ -59,11 +71,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 18. 환경설정 저장 (데스크탑 영구 저장 연동)
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
 
+  // 19. OS 네이티브 글꼴 선택 대화상자 호출
+  openFontDialog: () => ipcRenderer.invoke('dialog:openFontPicker'),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');
     ipcRenderer.removeAllListeners('menu:open-file');
     ipcRenderer.removeAllListeners('menu:save-file');
     ipcRenderer.removeAllListeners('menu:save-file-as');
+    ipcRenderer.removeAllListeners('open-external-md');
+    ipcRenderer.removeAllListeners('dialog:openFontPicker');
   }
 });

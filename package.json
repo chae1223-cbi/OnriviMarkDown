@@ -35,7 +35,21 @@
         "nsis",
         "portable"
       ],
-      "icon": "frontend/public/icon.png"
+      "icon": "frontend/public/icon.png",
+      "fileAssociations": [
+        {
+          "ext": "md",
+          "name": "Markdown Document",
+          "description": "온리비 어서 마크다운 문서",
+          "role": "Editor"
+        },
+        {
+          "ext": "markdown",
+          "name": "Markdown Document",
+          "description": "온리비 어서 마크다운 문서",
+          "role": "Editor"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,

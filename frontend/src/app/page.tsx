@@ -120,7 +120,8 @@ export type EditorCommandType =
   | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE'                       // ⑪ 스타일 적용 
   | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS'                                                                // ⑫ 스타일 적용 
   | 'FOOTNOTE'                                                                         // ⑬ 각주 삽입 
-  | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW';                                               // ⑭ 표 행 편집 명령
+  | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW'                                               // ⑭ 표 행 편집 명령
+  | 'TAGLINK';                                                                          // ⑮ 태그링크
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -315,6 +316,7 @@ export default function Home() {                  // @Home : Home component
   }, [customSlashCommands]);
 
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
+  const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
   const [driveLetter, setDriveLetter] = useState('D:');
   const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -333,6 +335,7 @@ export default function Home() {                  // @Home : Home component
   const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+  const [showTagLinkPicker, setShowTagLinkPicker] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
   const [licenseKey, setLicenseKey] = useState<string>(() => {
@@ -860,6 +863,18 @@ export default function Home() {                  // @Home : Home component
         }
       }
 
+      // 윈도우 파일 연결: 초기 파일 경로를 pull (마운트 전에 확보)
+      if (typeof window !== 'undefined' && !!(window as any).electronAPI) {
+        try {
+          const pendingPath = await (window as any).electronAPI.getInitialFilePath();
+          if (pendingPath) {
+            pendingExternalFileRef.current = pendingPath;
+          }
+        } catch (e) {
+          // getInitialFilePath 미지원 환경 → 조용히 무시
+        }
+      }
+
       setMounted(true);
     };
 
@@ -999,15 +1014,55 @@ export default function Home() {                  // @Home : Home component
       api.onSaveFileRequested(() => handlers.save());
       api.onSaveFileAsRequested(() => handlers.saveAs());
 
+      // 윈도우 파일 연결(더블클릭)로 외부 .md 파일 열기 요청 수신 (두 번째 실행부터)
+      let unsubscribeReceiveFile: (() => void) | undefined;
+      if (api.onReceiveFile) {
+        unsubscribeReceiveFile = api.onReceiveFile((filePath: string) => {
+          openExternalFile(filePath);
+        });
+      }
+
+      // restoreSettings에서 확보해 둔 pending 파일 경로 처리
+      if (pendingExternalFileRef.current) {
+        const path = pendingExternalFileRef.current;
+        pendingExternalFileRef.current = null;
+        openExternalFile(path);
+      }
+
       return () => {
         api.removeListeners();
+        if (unsubscribeReceiveFile) unsubscribeReceiveFile();
       };
     }
   }, [mounted, content, currentFileNode]);
 
-  // 애드온 모드: 클립보드 내용 읽어서 에디터에 붙여넣기
+  // 외부 파일 연결(더블클릭) 전용 핸들러: fileList/workspaceType 무관하게 직접 읽어서 표시
+  const openExternalFile = async (filePath: string) => {
+    try {
+      const api = (window as any).electronAPI;
+      if (api?.readFromPath) {
+        const file = await api.readFromPath(filePath);
+        if (file) {
+          updateContent(file.content);
+          lastSavedContentRef.current = file.content;
+          setCurrentFileName(file.name);
+          setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
+          showToast(`📂 ${file.name}`, "info");
+          return;
+        }
+      }
+      // fallback: handleFileOpenByPath 시도
+      await handleFileOpenByPath(filePath);
+    } catch (e) {
+      showToast('파일을 열 수 없습니다.', 'error');
+    }
+  };
+
+  // 최초 마운트 시 웰컴 콘텐츠 로드 (단, 외부 파일 연결 pending이면 skip)
   useEffect(() => {
     if (!mounted) return;
+    // 윈도우 파일 연결로 열 파일이 대기 중이면 웰컴을 덮어쓰지 않음
+    if (pendingExternalFileRef.current) return;
     const welcome = getWelcomeContent();
     if (!currentFileNode || currentFileName === '새 파일.md') {
       updateContent(welcome);
@@ -1820,6 +1875,47 @@ export default function Home() {                  // @Home : Home component
     }
   };
 
+  const insertTagLink = () => {
+    setShowTagLinkPicker(true);
+  };
+
+  const handleTagLinkSelect = (headingText: string) => {
+    setShowTagLinkPicker(false);
+    if (!editorRef.current || !headingText) return;
+    const editor = editorRef.current;
+    editor.focus();
+
+    let selection = editor.getSelection();
+    if ((!selection || selection.isEmpty()) && lastSelectionRef.current && !lastSelectionRef.current.isEmpty()) {
+      selection = lastSelectionRef.current;
+    }
+    if (!selection) return;
+    const model = editor.getModel();
+    const selectedText = model.getValueInRange(selection);
+
+    const headingTarget = headingText.replace(/\s+/g, ' ').trim();
+    if (selectedText) {
+      const textToInsert = `[${selectedText}](<#${headingTarget}>)`;
+      const range = {
+        startLineNumber: selection.startLineNumber,
+        startColumn: selection.startColumn,
+        endLineNumber: selection.endLineNumber,
+        endColumn: selection.endColumn
+      };
+      editor.executeEdits("insertTagLink", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+    } else {
+      const textToInsert = `[${headingTarget}](<#${headingTarget}>)`;
+      const range = {
+        startLineNumber: selection.startLineNumber,
+        startColumn: selection.startColumn,
+        endLineNumber: selection.endLineNumber,
+        endColumn: selection.endColumn
+      };
+      editor.executeEdits("insertTagLink", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+    }
+    editor.focus();
+  };
+
   const parseHtmlTableToMarkdown = (html: string) => {
     try {
       const parser = new DOMParser();
@@ -2269,16 +2365,40 @@ export default function Home() {                  // @Home : Home component
   const dynamicCssString = useMemo(() => {
     if (activeProfileId === 'default') return '';
     const prof = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+    const ps = prof.pageStyle;
+    
+    // 💡 다크모드인 경우 뒤의 흰색 배경을 다크모드 전용 배경(#09090b)으로 교체하고, 기본 글자색을 흰색 계통(#e4e4e7)으로 강제 적용합니다.
+    const bg = isDarkMode ? '#09090b' : '#ffffff';
+    const fg = isDarkMode ? '#e4e4e7' : 'inherit';
+
     let css = `
 .custom-preview-container {
-  font-family: ${prof.pageStyle.fontFamily} !important;
-  font-size: ${prof.pageStyle.fontSize} !important;
-  line-height: ${prof.pageStyle.lineHeight} !important;
-  letter-spacing: ${prof.pageStyle.letterSpacing} !important;
+  background: ${bg} !important;
+  color: ${fg} !important;
+  font-family: ${ps.fontFamily} !important;
+  font-size: ${ps.fontSize} !important;
+  line-height: ${ps.lineHeight} !important;
+  letter-spacing: ${ps.letterSpacing} !important;
 }
 `;
+    /* H2~H6 자동 크기 계산 (headingSizeOffset 기반) */
+    const h1SizeVal = (prof.rules.h1 && prof.rules.h1['font-size']) || '28px';
+    const h1Size = parseFloat(h1SizeVal) || 28;
+    const offset = parseFloat(ps.headingSizeOffset) || 4;
+    for (let level = 2; level <= 6; level++) {
+      const calcSize = Math.max(10, h1Size - (level - 1) * offset);
+      css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}px !important;\n}\n`;
+    }
     Object.entries(prof.rules).forEach(([tag, ruleObj]) => {
-      const entries = Object.entries(ruleObj).filter(([, v]) => v !== '');
+      /* h2~h6의 font-size는 headingSizeOffset 자동 계산으로 대체 */
+      const skipFontSize = ['h2','h3','h4','h5','h6'].includes(tag);
+      const entries = Object.entries(ruleObj).filter(([prop, v]) => {
+        if (v === '') return false;
+        if (skipFontSize && prop === 'font-size') return false;
+        // 💡 다크모드일 경우 개별 규칙의 글자색(color) 설정을 무시(생략)하여 강제 지정된 흰색 계통이 원활히 표시되도록 가드합니다.
+        if (isDarkMode && prop === 'color') return false;
+        return true;
+      });
       if (entries.length === 0) return;
       const selector = tag === 'taskList' ? '.task-list-item' :
         tag === 'codeBlock' ? 'pre, code' : tag;
@@ -2289,7 +2409,7 @@ export default function Home() {                  // @Home : Home component
       css += `}\n`;
     });
     return css;
-  }, [profiles, activeProfileId]);
+  }, [profiles, activeProfileId, isDarkMode]);
 
   const quickWrap = (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => {
     if (!editorRef.current) return;
@@ -2855,6 +2975,7 @@ export default function Home() {                  // @Home : Home component
     check: () => applyLinePrefix('check'),
     removePrefix: () => removePrefix(),
     link: () => insertLink(),
+    taglink: () => setShowTagLinkPicker(prev => !prev),
     image: () => setIsImageModalOpen(true),
     video: () => setIsYoutubeModalOpen(true),
     youtube: () => setIsYoutubeModalOpen(true),
@@ -3084,6 +3205,7 @@ export default function Home() {                  // @Home : Home component
 
       // 삽입 관련
       case 'LINK': handlers.link(); break;
+      case 'TAGLINK': handlers.taglink(); break;
       case 'IMAGE': handlers.image(); break;
       case 'YOUTUBE':
       case 'VIDEO': handlers.video(); break;
@@ -3154,6 +3276,7 @@ export default function Home() {                  // @Home : Home component
       clear: 'REMOVE_PREFIX',  // id는 clear이지만 커맨드는 REMOVE_PREFIX
       cleanDoc: 'CLEAN_DOC',
       link: 'LINK',
+      taglink: 'TAGLINK',
       image: 'IMAGE',
       video: 'VIDEO',
       youtube: 'YOUTUBE',
@@ -3300,12 +3423,20 @@ export default function Home() {                  // @Home : Home component
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Escape: 플로팅 툴바 숨김 (에디터 포커스 무관)
-      if (e.key === 'Escape' && floatingToolbar.visible) {
-        e.preventDefault();
-        e.stopPropagation();
-        setFloatingToolbar(prev => ({ ...prev, visible: false }));
-        return;
+      // Escape: 플로팅 툴바 숨김 또는 태그링크 선택기 닫기 (에디터 포커스 무관)
+      if (e.key === 'Escape') {
+        if (showTagLinkPicker) {
+          e.preventDefault();
+          e.stopPropagation();
+          setShowTagLinkPicker(false);
+          return;
+        }
+        if (floatingToolbar.visible) {
+          e.preventDefault();
+          e.stopPropagation();
+          setFloatingToolbar(prev => ({ ...prev, visible: false }));
+          return;
+        }
       }
 
       const isCtrl = e.ctrlKey || e.metaKey;
@@ -3412,7 +3543,7 @@ export default function Home() {                  // @Home : Home component
     // 캡처(true) 모드로 등록하여 최우선순위로 가로챕니다.
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
-  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar]);
+  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, showTagLinkPicker, setShowTagLinkPicker]);
 
   const toc = useMemo(() => {
     if (typeof content !== 'string') return [];
@@ -3462,6 +3593,8 @@ export default function Home() {                  // @Home : Home component
         setContent={setContent}
         isSearchOpen={isSearchOpen}
         isAddonEnv={isAddonEnv}
+        themePalette={themePalette}
+        onThemeChange={handleThemeChange}
       />
 
       <div className="flex flex-1 overflow-hidden relative">
@@ -3587,6 +3720,25 @@ export default function Home() {                  // @Home : Home component
                       (window as any).monaco = monaco;
                     }
 
+                    // 🔒 [에디터 레이아웃 영점 가드] 하단 공백 소멸 및 상단 짤림 버그 진압
+                    editor.updateOptions({
+                      scrollBeyondLastLine: false,
+                      padding: { top: 4, bottom: 4 },
+                      automaticLayout: true,
+                      
+                      // 🔒 [하단 클릭 시 에디터 붕 뜸 및 상단 유실 방어 3대 마스터 가드]
+                      cursorSurroundingLines: 0,
+                      cursorSurroundingLinesStyle: 'all',
+                      occurrencesHighlight: 'off',
+                      scrollbar: {
+                        vertical: 'visible',
+                        horizontal: 'auto',
+                        useShadows: false,
+                        verticalHasArrows: false,
+                        horizontalHasArrows: false
+                      }
+                    });
+
                     // 💡 [테마 연동 가드] 비동기 세션 복원(restoreSettings)과 에디터 마운트 시차로 인한 테마 미적용 레이스 컨디션 방지
                     if (themePalette) {
                       monaco.editor.setTheme(themePalette);
@@ -3597,6 +3749,17 @@ export default function Home() {                  // @Home : Home component
                       const textarea = editor.getDomNode()?.querySelector('textarea');
                       if (textarea) textarea.setAttribute('spellcheck', 'false');
                     } catch (_) {}
+
+                    // 💡 [추가 하드닝] 사이드바 신설/닫힘 시 에디터 굳음 방어: 50ms 후 강제 레이아웃 리프레시
+                    setTimeout(() => { editor.layout(); }, 50);
+
+                    // 🤝 [레이스 컨디션 진압 트리거] 
+                    // 유저가 하단을 클릭하여 가상 스크롤 컨텍스트가 임의로 깨졌을 때를 대비해,
+                    // 포커스 이벤트가 격발되는 순간 에디터의 레이아웃 좌표계를 강제로 제자리로 스냅(Snap) 백 시킵니다.
+                    editor.onDidFocusEditorText(() => {
+                      // 0.01초 만에 뒤틀린 레이아웃 좌표를 수평 정렬하여 상단 짤림을 영구 방어합니다.
+                      editor.layout(); 
+                    });
                     
                     // 💡 [IME-blur] 포커스 아웃 시 작성 중이던 마지막 글자 유실 버그 방어 (이중 입력 방지 가드 탑재)
                     editor.onDidBlurEditorText(() => {
@@ -4402,6 +4565,25 @@ export default function Home() {                  // @Home : Home component
 
                     container.addEventListener('mouseenter', () => { isEditorHovered.current = true; });
                     container.addEventListener('mouseleave', () => { isEditorHovered.current = false; });
+
+                    // 💡 [고속/역방향 드래그 가드] Monaco anchor 리셋 방어 — 마우스 다운 위치를 anchor로 고정
+                    let editorMouseDown = false;
+                    let editorMouseAnchor: { lineNumber: number; column: number } | null = null;
+
+                    editor.onMouseDown((e: any) => {
+                      editorMouseDown = true;
+                      if (e.target?.position) {
+                        editorMouseAnchor = {
+                          lineNumber: e.target.position.lineNumber,
+                          column: e.target.position.column
+                        };
+                      }
+                    });
+
+                    editor.onMouseUp(() => {
+                      editorMouseDown = false;
+                      editorMouseAnchor = null;
+                    });
                     editor.onDidChangeCursorPosition((e) => {
                       setActiveLine(e.position.lineNumber);
                       setCursorLine(e.position.lineNumber);
@@ -4501,18 +4683,35 @@ export default function Home() {                  // @Home : Home component
                          }
                        }, 10);
                      });
-                     editor.onDidChangeCursorSelection((e) => {
-                        // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)
-                        if (!e.selection.isEmpty()) {
-                          lastSelectionRef.current = e.selection;
-                        } else {
-                          lastSelectionRef.current = null;
-                        }
-                        // 사장님 요청으로 텍스트 멀티선택 시 자동 노출은 완전 차단하되, 선택 영역이 지워지면(isEmpty) 플로팅 툴바를 자동으로 닫습니다.
-                        if (e.selection.isEmpty()) {
-                          setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
-                        }
-                      });
+                      editor.onDidChangeCursorSelection((e) => {
+                         // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)
+                         if (!e.selection.isEmpty()) {
+                           lastSelectionRef.current = e.selection;
+                         } else {
+                           lastSelectionRef.current = null;
+                         }
+                         // 사장님 요청으로 텍스트 멀티선택 시 자동 노출은 완전 차단하되, 선택 영역이 지워지면(isEmpty) 플로팅 툴바를 자동으로 닫습니다.
+                         if (e.selection.isEmpty()) {
+                           setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+                         }
+                         // 💡 [고속 드래그 anchor 리셋 보정] Monaco가 mousemove 이벤트 간격 중 anchor를 잃으면 선택이 리셋되는 현상 방어
+                         if (editorMouseDown && editorMouseAnchor && e.source === 'mouse') {
+                           const sel = e.selection;
+                           const anchorMatchStart = sel.startLineNumber === editorMouseAnchor.lineNumber && sel.startColumn === editorMouseAnchor.column;
+                           const anchorMatchEnd = sel.endLineNumber === editorMouseAnchor.lineNumber && sel.endColumn === editorMouseAnchor.column;
+                           if (!anchorMatchStart && !anchorMatchEnd) {
+                             const aL = editorMouseAnchor.lineNumber, aC = editorMouseAnchor.column;
+                             const fL = sel.positionLineNumber, fC = sel.positionColumn;
+                             const forward = aL < fL || (aL === fL && aC < fC);
+                             editor.setSelection({
+                               startLineNumber: forward ? aL : fL,
+                               startColumn: forward ? aC : fC,
+                               endLineNumber: forward ? fL : aL,
+                               endColumn: forward ? fC : aC
+                             });
+                           }
+                         }
+                       });
 
                     if (completionProviderRef.current) {
                       completionProviderRef.current.dispose();
@@ -4645,8 +4844,9 @@ export default function Home() {                  // @Home : Home component
 
                     }}
                       options={{
-                    padding: { top: 20, bottom: 96 },
-                    scrollBeyondLastLine: true,
+                    padding: { top: 4, bottom: 4 },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
                     fontSize,
                     fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace",
                     fontLigatures: false,
@@ -4663,6 +4863,8 @@ export default function Home() {                  // @Home : Home component
                     acceptSuggestionOnEnter: 'on',
                     tabCompletion: 'on',
                     fixedOverflowWidgets: true,
+                    renderValidationDecorations: 'on',
+                    matchBrackets: 'always',
                     wordBasedSuggestions: "allDocuments",  // 현재 문서의 모든 단어를 학습해 추천 풀 생성  // 자동완성 팝업을 최상위 레이어로 올려서 클릭 이벤트 정상 전달
                     renderLineHighlight: 'all',
                     tabSize: 4,
@@ -4771,6 +4973,7 @@ export default function Home() {                  // @Home : Home component
                           {/* 삽입 */}
                           <div className="flex flex-row items-center gap-0.5">
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LINK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="링크">🔗</button>
+                            <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('TAGLINK'); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="태그링크">🔖</button>
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('IMAGE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="이미지">🖼️</button>
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('YOUTUBE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="유튜브 동영상 삽입">🎥</button>
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('NOW'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="현재 날짜/시간">📅</button>
@@ -4791,10 +4994,42 @@ export default function Home() {                  // @Home : Home component
               </div>
             )}
 
+            {showTagLinkPicker && toc.length > 0 && (
+              <>
+                <div
+                  className="fixed inset-0 z-[9998]"
+                  onMouseDown={() => setShowTagLinkPicker(false)}
+                />
+                <div
+                  className="fixed z-[9999] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-600 rounded-lg shadow-xl py-1 min-w-[200px] max-h-[300px] overflow-y-auto"
+                  style={{ top: floatingToolbar.top + 60, left: floatingToolbar.left }}
+                >
+                  <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 border-b border-slate-200 dark:border-zinc-700">
+                    헤딩 선택
+                  </div>
+                  {toc.map((h) => (
+                    <button
+                      key={h.id}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleTagLinkSelect(h.text);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-[13px] hover:bg-slate-100 dark:hover:bg-zinc-700 flex items-center gap-2"
+                    >
+                      <span className="text-slate-400 dark:text-zinc-500 font-mono text-[10px] shrink-0">
+                        {'#'.repeat(h.level)}
+                      </span>
+                      <span className="truncate">{h.text}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
             {previewMode !== 'edit' && (
               <div
                 ref={previewRef}
-                className={`flex-1 h-[calc(100vh-64px)] px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
+                className={`flex-1 h-[calc(100vh-64px)] px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container bg-white dark:bg-zinc-950 ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
                   }`}
                 style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
                 onMouseEnter={() => { isPreviewHovered.current = true; }}
@@ -4841,16 +5076,27 @@ export default function Home() {                  // @Home : Home component
                   }
                 }}
               >
-                <div className="max-w-4xl mx-auto w-full">
-                  <MarkdownViewer
-                    content={processedContent}
-                    originalContent={content}
-                    lineMap={lineMap}
-                    onCheckboxToggle={handleCheckboxToggle}
-                    currentFilePath={currentFileNode?.path}
-                    onFileOpen={handleFileOpenByPath}
-                  />
-                </div>
+                {(() => {
+                  const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+                  const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
+                  return (
+                    <div className={`${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
+                      <MarkdownViewer
+                        content={processedContent}
+                        originalContent={content}
+                        lineMap={lineMap}
+                        onCheckboxToggle={handleCheckboxToggle}
+                        currentFilePath={currentFileNode?.path}
+                        onFileOpen={handleFileOpenByPath}
+                        orientation={activeProfile.pageStyle.orientation as 'portrait' | 'landscape'}
+                        marginTop={activeProfile.pageStyle.marginTop}
+                        marginBottom={activeProfile.pageStyle.marginBottom}
+                        marginLeft={activeProfile.pageStyle.marginLeft}
+                        marginRight={activeProfile.pageStyle.marginRight}
+                      />
+                    </div>
+                  );
+                })()}
                 {/*
                  * 동적 CSS 스타일 인젝션:
                  * custom-preview-container 내부의 태그들에 CssRuleSet을 적용합니다.

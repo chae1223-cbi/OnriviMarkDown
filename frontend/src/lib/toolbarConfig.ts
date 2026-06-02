@@ -24,6 +24,7 @@ export const TOOLBAR_ITEMS = [
   
   // 4. 삽입 (Insert)
   { id: 'link', icon: '🔗', name: '링크', group: '삽입', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
+  { id: 'taglink', icon: '🔖', name: '태그링크', group: '삽입', tagFormat: '[텍스트](<#제목명>)', defaultHotkey: 'Ctrl+Shift+K', defaultCommand: 'linktext', insertText: '[\${1:텍스트}](<#\${2:제목명}>)', kind: 15 },
   { id: 'image', icon: '🖼️', name: '이미지', group: '삽입', tagFormat: '![대체 텍스트](URL)', defaultHotkey: '', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
   { id: 'youtube', icon: '🎥', name: '유튜브 동영상 삽입', group: '삽입', tagFormat: '동영상 삽입', defaultHotkey: '', defaultCommand: 'youtube', insertText: '유튜브 동영상 삽입', kind: 15 },
   { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '삽입', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },
@@ -139,7 +140,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       // 💡 [한글 주석] 모달이 필요한 항목 (youtube 추가)
       const modalKeys = ['image', 'video', 'youtube', 'map', 'table', 'math'];
       // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 표 행 편집 이관)
-      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow'];
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink'];
 
       if (modalKeys.includes(item.id)) {
         command = {

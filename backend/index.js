@@ -825,26 +825,65 @@ app.post('/api/save', async (req, res) => {
   }
 });
 
-// 새 파일 생성
+// 새 파일 생성 (with empty folder safety validation)
 app.post('/api/create-file', async (req, res) => {
   try {
     const { parentPath, name } = req.body;
-    const dirPath = getSafePath(parentPath);
-    const filePath = path.join(dirPath, name);
-    await fs.writeFile(filePath, '', 'utf-8');
+    if (!name) return res.status(400).json({ success: false, error: "파일명이 누락되었습니다." });
+
+    const dirPath = getSafePath(parentPath || '');
+
+    // parentPath가 지정된 경우, 실제 디스크에 존재하는 디렉토리인지 검증
+    if (parentPath) {
+      if (fs.existsSync(dirPath)) {
+        const stat = await fs.promises.stat(dirPath);
+        if (!stat.isDirectory()) {
+          return res.status(400).json({ success: false, error: "지정된 부모 경로가 폴더가 아닙니다." });
+        }
+      } else {
+        return res.status(404).json({ success: false, error: "선택한 부모 폴더를 찾을 수 없습니다." });
+      }
+    }
+
+    const filePath = path.join(dirPath, name.trim());
+    if (fs.existsSync(filePath)) {
+      return res.status(409).json({ success: false, error: "이미 동일한 이름의 파일이 존재합니다." });
+    }
+
+    const defaultTemplate = `# ${name.replace('.md', '')}\n\n원고 작성을 시작해 보셔요.\n`;
+    await fs.promises.writeFile(filePath, defaultTemplate, 'utf-8');
     res.json({ status: 'success', path: path.relative(WORKSPACE_ROOT, filePath) });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// 새 폴더 생성
+// 새 폴더 생성 (with empty folder safety validation)
 app.post('/api/create-folder', async (req, res) => {
   try {
     const { parentPath, name } = req.body;
-    const dirPath = getSafePath(parentPath);
-    const newDirPath = path.join(dirPath, name);
-    await fs.mkdir(newDirPath, { recursive: true });
+    if (!name) return res.status(400).json({ success: false, error: "폴더명이 누락되었습니다." });
+
+    const dirPath = getSafePath(parentPath || '');
+
+    // parentPath가 지정된 경우, 실제 디스크에 존재하는 디렉토리인지 검증
+    if (parentPath) {
+      if (fs.existsSync(dirPath)) {
+        const stat = await fs.promises.stat(dirPath);
+        if (!stat.isDirectory()) {
+          return res.status(400).json({ success: false, error: "지정된 부모 경로가 폴더가 아닙니다." });
+        }
+      } else {
+        return res.status(404).json({ success: false, error: "선택한 부모 폴더를 찾을 수 없습니다." });
+      }
+    }
+
+    const newDirPath = path.join(dirPath, name.trim());
+    if (fs.existsSync(newDirPath)) {
+      return res.status(409).json({ success: false, error: "이미 동일한 이름의 폴더가 존재합니다." });
+    }
+
+    await fs.promises.mkdir(newDirPath, { recursive: true });
     res.json({ status: 'success', path: path.relative(WORKSPACE_ROOT, newDirPath) });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 // 삭제

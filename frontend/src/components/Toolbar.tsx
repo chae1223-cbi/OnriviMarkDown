@@ -51,6 +51,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     check: "체크리스트",
     eraser: "태그 취소 (Ctrl+Shift+X)",
     link: "링크",
+    taglink: "태그링크",
     image: "이미지",
     now: "현재 날짜/시간",
     emoji: "이모지 피커",
@@ -103,6 +104,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     check: "Task List",
     eraser: "Clear formatting (Ctrl+Shift+X)",
     link: "Insert Link",
+    taglink: "Tag Link",
     image: "Insert Image",
     now: "Current Date/Time",
     emoji: "Emoji Picker",
@@ -200,6 +202,7 @@ export default function Toolbar({
             {/* 삽입 */}
             <ToolbarGroup label={t('groupInsert')}>
               <ToolbarButton label="🔗" title={t('link')} onAction={() => dispatch('LINK')} />
+              <ToolbarButton label="🔖" title={t('taglink')} onAction={() => dispatch('TAGLINK')} />
               <ToolbarButton label="🖼️" title={t('image')} onAction={() => dispatch('IMAGE')} />
               <ToolbarButton label="🎥" title={t('youtube')} onAction={() => dispatch('YOUTUBE')} />
               <ToolbarButton label="📅" title={t('now')} onAction={() => dispatch('NOW')} />

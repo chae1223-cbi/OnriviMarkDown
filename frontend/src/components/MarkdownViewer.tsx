@@ -21,6 +21,12 @@ const getTextFromChildren = (children: React.ReactNode): string => {
   return '';
 };
 
+const mmToRem = (mm: string): string => {
+  const v = parseInt(mm);
+  if (isNaN(v)) return '1.5rem';
+  return (v * 0.236).toFixed(2) + 'rem';
+};
+
 interface MarkdownViewerProps {
   content: string;
   originalContent?: string;
@@ -28,6 +34,11 @@ interface MarkdownViewerProps {
   onCheckboxToggle?: (lineNumber: number, checked: boolean) => void;
   currentFilePath?: string;
   onFileOpen?: (resolvedPath: string) => void;
+  orientation?: 'portrait' | 'landscape';
+  marginTop?: string;
+  marginBottom?: string;
+  marginLeft?: string;
+  marginRight?: string;
 }
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
@@ -564,7 +575,7 @@ function MermaidBlock({ code }: { code: string }) {
 }
 
 // 🛡️ [한글 주석 완벽 탑재] MarkdownViewer는 마크다운 원본 문법을 아름다운 HTML 구조로 파싱 및 시각화하는 핵심 뷰어 컴포넌트입니다.
-export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath, onFileOpen }: MarkdownViewerProps) {
+export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath, onFileOpen, orientation = 'portrait', marginTop, marginBottom, marginLeft, marginRight }: MarkdownViewerProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -659,216 +670,230 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
     };
   }, []);
 
+  const isLandscape = orientation === 'landscape';
+
   return (
-    <ReactMarkdown
-      // 🛡️ [보안 필터 우회] blob: 및 chrome-extension: 프로토콜 이미지/동영상 리소스가 유실되지 않도록 주소를 그대로 변환 허용합니다.
-      urlTransform={(uri) => uri}
-      remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
-      rehypePlugins={[
-        [rehypeKatex, { strict: false }],
-        rehypeBrRaw,
-        rehypeRaw,
-        rehypeSourceLinesPlugin,
-      ]}
-      components={{
-        img: ({ node, src, alt, style, ...props }: any) => {
-          if (!src) return <img alt={alt} {...props} />;
-          
-          let finalSrc = src;
-          const isExternal = src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('blob:');
-
-          if (!isExternal && typeof window !== 'undefined' && (window as any).electronAPI) {
-            let absolutePath = src;
-            const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(src);
-            const isAbsoluteUnix = src.startsWith('/');
-            const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
-
-            if (!isAbsolute && currentFilePath) {
-              absolutePath = resolveRelativeImagePath(src, currentFilePath);
-            }
-            finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
-          }
-
-          let width: string | undefined;
-          let height: string | undefined;
-          try {
-            const wMatch = src.match(/[?&](?:width|w)=([^&#]+)/);
-            const hMatch = src.match(/[?&](?:height|h)=([^&#]+)/);
-            if (wMatch) width = decodeURIComponent(wMatch[1]);
-            if (hMatch) height = decodeURIComponent(hMatch[1]);
-          } catch (e) {}
-          const imgStyle: React.CSSProperties = {
-            ...style, maxWidth: '100%', height: height || 'auto',
-          };
-          imgStyle.width = width || undefined;
-          if (!width) imgStyle.maxWidth = '600px';
-          return <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" {...props} />;
-        },
-        a: ({ node, href, children, ...props }: any) => {
-          const isWebLink = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:'));
-          const isAnchor = href && (href.startsWith('#') || href.startsWith('.#'));
-          
-          if (isAnchor) {
-            const handleClick = (e: React.MouseEvent) => {
-              e.preventDefault();
-              const targetId = decodeURIComponent(href.startsWith('.#') ? href.slice(2) : href.slice(1));
-              
-              // 1. 직접 ID로 엘리먼트 매칭 검색
-              let targetEl = document.getElementById(targetId);
-              
-              // 2. 제목(Heading) 엘리먼트들의 텍스트 내용과 유연하게 매칭 검색
-              if (!targetEl) {
-                const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '');
-                for (const h of Array.from(headings)) {
-                  const headingText = h.textContent?.trim() || '';
-                  const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '');
-                  if (cleanHeading === cleanTarget || h.id === targetId) {
-                    targetEl = h as HTMLElement;
-                    break;
-                  }
-                }
-              }
-
-              if (targetEl) {
-                targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }
-            };
-            return <a href={href} onClick={handleClick} {...props}>{children}</a>;
-          }
-
-          // 💡 [한글 주석] 상대 경로 파일 링크(.md, .markdown)인 경우 브라우저 탭을 열지 않고 에디터 내부 파일 열기로 가로챔
-          if (href && !isWebLink && (href.endsWith('.md') || href.endsWith('.markdown') || href.includes('.md#') || href.includes('.markdown#'))) {
-            const handleClick = (e: React.MouseEvent) => {
-              e.preventDefault();
-              if (onFileOpen) {
-                const cleanHref = href.split('#')[0];
-                const resolved = resolveRelativeImagePath(cleanHref, currentFilePath);
-                onFileOpen(resolved);
-
-                // 해시(#) 앵커 이동 처리 추가 연동
-                const hashPart = href.split('#')[1];
-                if (hashPart) {
-                  setTimeout(() => {
-                    const targetId = decodeURIComponent(hashPart);
-                    let targetEl = document.getElementById(targetId);
-                    if (!targetEl) {
-                      const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                      const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '');
-                      for (const h of Array.from(headings)) {
-                        const headingText = h.textContent?.trim() || '';
-                        const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '');
-                        if (cleanHeading === cleanTarget || h.id === targetId) {
-                          targetEl = h as HTMLElement;
-                          break;
-                        }
-                      }
-                    }
-                    if (targetEl) {
-                      targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }, 300); // 파일 로딩 시차를 커버하기 위해 300ms 지연 후 기동
-                }
-              }
-            };
-            return <a href={href} onClick={handleClick} {...props}>{children}</a>;
-          }
-
-          return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
-        },
-        table: ({ node, children, ...props }: any) => {
-          return (
-            <TableWrapper>
-              <table {...props}>
-                {children}
-              </table>
-            </TableWrapper>
-          );
-        },
-        pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
-        code: ({ node, className, children, ...props }: any) => {
-          const match = /language-(\S+)/.exec(className || '');
-          const lang = match ? match[1] : '';
-          const codeContent = getTextFromChildren(children).replace(/\n$/, '');
-          const isInline = !match && !getTextFromChildren(children).includes('\n');
-          if (isInline) {
-            return <code className="px-1.5 py-0.5 mx-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-mono text-[0.9em] border border-blue-200 dark:border-blue-800" {...props}>{children}</code>;
-          }
-          if (lang === 'mermaid') {
-            return <MermaidBlock code={codeContent} />;
-          }
-          return <CodeBlock lang={lang} code={codeContent} className={className} {...props} />;
-        },
-        h1: ({ node, children, style, ...props }) => {
-          const line = (node as any).position?.start?.line;
-          const origLine = line ? (lineMap[line - 1] || line) : undefined;
-          return <h1 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h1>;
-        },
-        h2: ({ node, children, style, ...props }) => {
-          const line = (node as any).position?.start?.line;
-          const origLine = line ? (lineMap[line - 1] || line) : undefined;
-          return <h2 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h2>;
-        },
-        h3: ({ node, children, style, ...props }) => {
-          const line = (node as any).position?.start?.line;
-          const origLine = line ? (lineMap[line - 1] || line) : undefined;
-          return <h3 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h3>;
-        },
-        h4: ({ node, children, style, ...props }) => {
-          const line = (node as any).position?.start?.line;
-          const origLine = line ? (lineMap[line - 1] || line) : undefined;
-          return <h4 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h4>;
-        },
-        h5: ({ node, children, style, ...props }) => {
-          const line = (node as any).position?.start?.line;
-          const origLine = line ? (lineMap[line - 1] || line) : undefined;
-          return <h5 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h5>;
-        },
-        h6: ({ node, children, style, ...props }) => {
-          const line = (node as any).position?.start?.line;
-          const origLine = line ? (lineMap[line - 1] || line) : undefined;
-          return <h6 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
-        },
-        input: ({ node, ...props }: any) => <input {...props} />,
-        p: ({ node, children, style, ...props }) => {
-          if (!children) return <p />;
-          return <p style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</p>;
-        },
-        ul: ({ node, children, style, ...props }) => <ul style={style} {...props}>{children}</ul>,
-        ol: ({ node, children, style, ...props }) => <ol style={style} {...props}>{children}</ol>,
-        li: ({ node, children, style, ...props }) => {
-          const line = (node as any).position?.start?.line;
-          const origLine = line ? (lineMap[line - 1] || line) : undefined;
-          const modifiedChildren = React.Children.map(children, (child) => {
-            if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
-              return React.cloneElement(child as React.ReactElement<any>, {
-                disabled: false,
-                className: "w-4 h-4 rounded border-emerald-500/20 text-emerald-600 focus:ring-emerald-500 cursor-pointer mr-2 align-middle",
-                onChange: (e: any) => {
-                  if (origLine && onCheckboxToggle) {
-                    onCheckboxToggle(origLine, e.target.checked);
-                  }
-                }
-              });
-            }
-            return child;
-          });
-          return <li style={{ ...style, ...getIndentStyle(node) }} {...props}>{modifiedChildren}</li>;
-        },
-        blockquote: ({ node, children, style, ...props }) => {
-          return (
-            <blockquote
-              style={{ ...style, ...getIndentStyle(node) }}
-              className="my-4 p-4 rounded-r-lg border-l-4 border-blue-500 bg-blue-50/30 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300 font-normal not-italic"
-              {...props}
-            >
-              {children}
-            </blockquote>
-          );
-        }
+    <div
+      className="bg-transparent mx-auto transition-all duration-200"
+      style={{
+        width: '100%',
+        minHeight: isLandscape ? '60vh' : '100vh',
+        boxShadow: 'none',
+        borderRadius: '0px',
+        paddingTop: mmToRem(marginTop || ''),
+        paddingBottom: mmToRem(marginBottom || ''),
+        paddingLeft: mmToRem(marginLeft || ''),
+        paddingRight: mmToRem(marginRight || ''),
       }}
     >
-      {cleanContent}
-    </ReactMarkdown>
+      <div className="print:!block">
+        <ReactMarkdown
+          // 🛡️ [보안 필터 우회] blob: 및 chrome-extension: 프로토콜 이미지/동영상 리소스가 유실되지 않도록 주소를 그대로 변환 허용합니다.
+          urlTransform={(uri) => uri}
+          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
+          rehypePlugins={[
+            [rehypeKatex, { strict: false }],
+            rehypeBrRaw,
+            rehypeRaw,
+            rehypeSourceLinesPlugin,
+          ]}
+          components={{
+            img: ({ node, src, alt, style, ...props }: any) => {
+              if (!src) return <img alt={alt} {...props} />;
+              
+              let finalSrc = src;
+              const isExternal = src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('blob:');
+
+              if (!isExternal && typeof window !== 'undefined' && (window as any).electronAPI) {
+                let absolutePath = src;
+                const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(src);
+                const isAbsoluteUnix = src.startsWith('/');
+                const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
+
+                if (!isAbsolute && currentFilePath) {
+                  absolutePath = resolveRelativeImagePath(src, currentFilePath);
+                }
+                finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
+              }
+
+              let width: string | undefined;
+              let height: string | undefined;
+              try {
+                const wMatch = src.match(/[?&](?:width|w)=([^&#]+)/);
+                const hMatch = src.match(/[?&](?:height|h)=([^&#]+)/);
+                if (wMatch) width = decodeURIComponent(wMatch[1]);
+                if (hMatch) height = decodeURIComponent(hMatch[1]);
+              } catch (e) {}
+              const imgStyle: React.CSSProperties = {
+                ...style, maxWidth: '100%', height: height || 'auto',
+              };
+              imgStyle.width = width || undefined;
+              if (!width) imgStyle.maxWidth = '600px';
+              return <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" {...props} />;
+            },
+            a: ({ node, href, children, ...props }: any) => {
+              const isWebLink = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:'));
+              const isAnchor = href && (href.startsWith('#') || href.startsWith('.#'));
+              
+              if (isAnchor) {
+                const handleClick = (e: React.MouseEvent) => {
+                  e.preventDefault();
+                  const targetId = decodeURIComponent(href.startsWith('.#') ? href.slice(2) : href.slice(1));
+                  
+                  let targetEl = document.getElementById(targetId);
+                  
+                  if (!targetEl) {
+                    const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                    const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '').normalize('NFC');
+                    for (const h of Array.from(headings)) {
+                      const headingText = h.textContent?.trim() || '';
+                      const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '').normalize('NFC');
+                      if (cleanHeading === cleanTarget || h.id === targetId || (cleanTarget.length > 2 && cleanHeading.includes(cleanTarget))) {
+                        targetEl = h as HTMLElement;
+                        break;
+                      }
+                    }
+                  }
+
+                  if (targetEl) {
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                };
+                return <a href={href} onClick={handleClick} {...props}>{children}</a>;
+              }
+
+              if (href && !isWebLink && (href.endsWith('.md') || href.endsWith('.markdown') || href.includes('.md#') || href.includes('.markdown#'))) {
+                const handleClick = (e: React.MouseEvent) => {
+                  e.preventDefault();
+                  if (onFileOpen) {
+                    const cleanHref = href.split('#')[0];
+                    const resolved = resolveRelativeImagePath(cleanHref, currentFilePath);
+                    onFileOpen(resolved);
+
+                    const hashPart = href.split('#')[1];
+                    if (hashPart) {
+                      setTimeout(() => {
+                        const targetId = decodeURIComponent(hashPart);
+                        let targetEl = document.getElementById(targetId);
+                        if (!targetEl) {
+                          const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                          const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '').normalize('NFC');
+                          for (const h of Array.from(headings)) {
+                            const headingText = h.textContent?.trim() || '';
+                            const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '').normalize('NFC');
+                            if (cleanHeading === cleanTarget || h.id === targetId || (cleanTarget.length > 2 && cleanHeading.includes(cleanTarget))) {
+                              targetEl = h as HTMLElement;
+                              break;
+                            }
+                          }
+                        }
+                        if (targetEl) {
+                          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }, 300);
+                    }
+                  }
+                };
+                return <a href={href} onClick={handleClick} {...props}>{children}</a>;
+              }
+
+              return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+            },
+            table: ({ node, children, ...props }: any) => {
+              return (
+                <TableWrapper>
+                  <table {...props}>
+                    {children}
+                  </table>
+                </TableWrapper>
+              );
+            },
+            pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
+            code: ({ node, className, children, ...props }: any) => {
+              const match = /language-(\S+)/.exec(className || '');
+              const lang = match ? match[1] : '';
+              const codeContent = getTextFromChildren(children).replace(/\n$/, '');
+              const isInline = !match && !getTextFromChildren(children).includes('\n');
+              if (isInline) {
+                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-mono text-[0.9em] border border-blue-200 dark:border-blue-800" {...props}>{children}</code>;
+              }
+              if (lang === 'mermaid') {
+                return <MermaidBlock code={codeContent} />;
+              }
+              return <CodeBlock lang={lang} code={codeContent} className={className} {...props} />;
+            },
+            h1: ({ node, children, style, ...props }) => {
+              const line = (node as any).position?.start?.line;
+              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              return <h1 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h1>;
+            },
+            h2: ({ node, children, style, ...props }) => {
+              const line = (node as any).position?.start?.line;
+              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              return <h2 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h2>;
+            },
+            h3: ({ node, children, style, ...props }) => {
+              const line = (node as any).position?.start?.line;
+              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              return <h3 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h3>;
+            },
+            h4: ({ node, children, style, ...props }) => {
+              const line = (node as any).position?.start?.line;
+              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              return <h4 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h4>;
+            },
+            h5: ({ node, children, style, ...props }) => {
+              const line = (node as any).position?.start?.line;
+              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              return <h5 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h5>;
+            },
+            h6: ({ node, children, style, ...props }) => {
+              const line = (node as any).position?.start?.line;
+              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              return <h6 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
+            },
+            input: ({ node, ...props }: any) => <input {...props} />,
+            p: ({ node, children, style, ...props }) => {
+              if (!children) return <p />;
+              return <p style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</p>;
+            },
+            ul: ({ node, children, style, ...props }) => <ul style={style} {...props}>{children}</ul>,
+            ol: ({ node, children, style, start, ...props }) => <ol start={start} style={style} {...props}>{children}</ol>,
+            li: ({ node, children, style, ...props }) => {
+              const line = (node as any).position?.start?.line;
+              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              const modifiedChildren = React.Children.map(children, (child) => {
+                if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
+                  return React.cloneElement(child as React.ReactElement<any>, {
+                    disabled: false,
+                    className: "w-4 h-4 rounded border-emerald-500/20 text-emerald-600 focus:ring-emerald-500 cursor-pointer mr-2 align-middle",
+                    onChange: (e: any) => {
+                      if (origLine && onCheckboxToggle) {
+                        onCheckboxToggle(origLine, e.target.checked);
+                      }
+                    }
+                  });
+                }
+                return child;
+              });
+              return <li style={{ ...style, ...getIndentStyle(node) }} {...props}>{modifiedChildren}</li>;
+            },
+            blockquote: ({ node, children, style, ...props }) => {
+              return (
+                <blockquote
+                  style={{ ...style, ...getIndentStyle(node) }}
+                  className="my-4 p-4 rounded-r-lg border-l-4 border-blue-500 bg-blue-50/30 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300 font-normal not-italic"
+                  {...props}
+                >
+                  {children}
+                </blockquote>
+              );
+            }
+          }}
+        >
+          {cleanContent}
+        </ReactMarkdown>
+      </div>
+    </div>
   );
 }

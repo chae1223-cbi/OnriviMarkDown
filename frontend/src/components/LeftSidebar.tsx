@@ -352,48 +352,49 @@ export default function LeftSidebar({
               </div>
             ) : rootFolder?.handle || (isDesktop && rootFolder?.name) || rootFolder?.name === '브라우저 스토리지' ? (
               // 폴더 연결됨 → 파일 트리 표시
-              fileList.length === 0 ? (
-                <div className="text-zinc-400 dark:text-zinc-500 text-xs text-center py-8">
-                  <p>연결된 폴더에 파일이 없습니다.</p>
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  <div className="group relative flex items-center justify-between px-1 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
-                    <span className="truncate">📁 {rootFolder.name}</span>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPromptConfig({
-                            isOpen: true,
-                            title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요:",
-                            defaultValue: "untitled.md",
-                            type: 'createFile'
-                          });
-                        }} 
-                        className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
-                        title="새 파일"
-                      >
-                        <Plus size={11} />
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPromptConfig({
-                            isOpen: true,
-                            title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요:",
-                            defaultValue: "",
-                            type: 'createFolder'
-                          });
-                        }} 
-                        className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
-                        title="새 폴더"
-                      >
-                        <FolderPlus size={11} />
-                      </button>
-                    </div>
+              // 🛡️ [빈 폴더 방어] fileList가 비어있어도 루트 폴더 헤더(풀경로+버튼)를 항상 유지
+              <div className="space-y-0.5">
+                <div className="group relative flex items-center justify-between px-1 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
+                  <span className="truncate">📁 {rootFolder.name}</span>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPromptConfig({
+                          isOpen: true,
+                          title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요:",
+                          defaultValue: "untitled.md",
+                          type: 'createFile'
+                        });
+                      }} 
+                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      title="새 파일"
+                    >
+                      <Plus size={11} />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPromptConfig({
+                          isOpen: true,
+                          title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요:",
+                          defaultValue: "",
+                          type: 'createFolder'
+                        });
+                      }} 
+                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      title="새 폴더"
+                    >
+                      <FolderPlus size={11} />
+                    </button>
                   </div>
-                  {fileList.map((node, i) => (
+                </div>
+                {fileList.length === 0 ? (
+                  <div className="text-zinc-400 dark:text-zinc-500 text-xs text-center py-8">
+                    <p>연결된 폴더에 파일이 없습니다.</p>
+                  </div>
+                ) : (
+                  fileList.map((node, i) => (
                     <FileTreeItem
                       key={node.path || node.name + i}
                       node={node}
@@ -410,11 +411,9 @@ export default function LeftSidebar({
                       toggleMergeNodeSelect={toggleMergeNodeSelect}
                       onLazyLoad={handleLazyLoad}
                     />
-                  ))}
+                  )))}
                 </div>
-              )
             ) : (
-              // 폴더 미연결 → 폴더 선택 안내
               <div className="text-zinc-400 dark:text-zinc-500 text-xs text-center py-8 space-y-4">
                 <p className="font-medium">연결된 워크스페이스 폴더가 없습니다.</p>
                 <button

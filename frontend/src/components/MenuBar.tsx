@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { EDITOR_THEMES } from '@/lib/editorThemes';
 
 interface MenuBarProps {
   isDarkMode: boolean;
@@ -16,6 +17,8 @@ interface MenuBarProps {
   setContent: (v: string) => void;
   isSearchOpen: boolean;
   isAddonEnv?: boolean;
+  themePalette?: string;
+  onThemeChange?: (themeId: string) => void;
 }
 
 const localTranslations: Record<string, Record<string, string>> = {
@@ -48,8 +51,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     modeEdit: "✍️편집 전용 모드",
     modeSplit: "📖분할 화면 모드",
     modePreview: "👁️미리보기 전용 모드",
-    toLightMode: "☀️라이트 모드 전환",
-    toDarkMode: "🌙다크 모드 전환",
+    themeSwitch: "테마 전환",
     globalSearch: "전역 검색",
     copyPreview: "미리보기 복사",
     toolbarToggle: "툴바 표시/숨김",
@@ -88,8 +90,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     modeEdit: "Editor Only Mode",
     modeSplit: "Split View Mode",
     modePreview: "Preview Only Mode",
-    toLightMode: "Switch to Light Mode",
-    toDarkMode: "Switch to Dark Mode",
+    themeSwitch: "Theme Switch",
     globalSearch: "Global Search",
     copyPreview: "Copy Preview",
     toolbarToggle: "Show/Hide Toolbar",
@@ -108,10 +109,18 @@ export default function MenuBar({
   previewMode, setPreviewMode, 
   dispatch, setContent,
   isSearchOpen,
-  isAddonEnv
+  isAddonEnv,
+  themePalette,
+  onThemeChange
  }: MenuBarProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const handleThemeSelect = (themeId: string) => {
+    if (onThemeChange) {
+      onThemeChange(themeId);
+    }
+  };
 
   const t = (key: string) => {
     const dict = localTranslations["ko"] || localTranslations['en'];
@@ -197,8 +206,17 @@ export default function MenuBar({
               { label: "미리보기", onClick: () => setPreviewMode('preview') },
             ]
           },
-          { label: isDarkMode ? t('toLightMode') : t('toDarkMode'), icon: isDarkMode ? <span>☀️</span> : <span>🌙</span>, onClick: () => setIsDarkMode(!isDarkMode) },
-          { label: "🏛️ 서식 정의", shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('TOGGLE_CSS_STYLE') },
+          {
+            label: t('themeSwitch'),
+            icon: <span>🎨</span>,
+            subItems: EDITOR_THEMES.map(theme => ({
+              label: theme.name,
+              icon: <span>{theme.icon}</span>,
+              onClick: () => handleThemeSelect(theme.id),
+              isActive: theme.id === themePalette,
+            }))
+          },
+          { label: "서식 정의", icon: <span>🏛️</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('TOGGLE_CSS_STYLE') },
           { divider: true },
           { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <span>📋</span>, onClick: () => dispatch('COPY_ALL') },
@@ -284,9 +302,17 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                           sub.onClick?.(); 
                           onClose(); 
                         }}
-                        className="w-full flex items-center px-3 py-1.5 hover:bg-blue-600 hover:text-white transition-colors text-left"
+                        className={`w-full flex items-center justify-between px-3 py-1.5 transition-colors text-left ${
+                          sub.isActive
+                            ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30'
+                            : 'hover:bg-blue-600 hover:text-white'
+                        }`}
                       >
-                        <span>{sub.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="w-4 flex justify-center">{sub.icon}</span>
+                          <span>{sub.label}</span>
+                        </div>
+                        {sub.isActive && <span className="text-[9px]">✓</span>}
                       </button>
                     ))}
                   </div>

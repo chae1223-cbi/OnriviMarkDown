@@ -28,10 +28,16 @@ export const DEFAULT_PROFILE: CssProfile = {
   id: 'default',
   name: '일반 Onrivi 기본 스타일 (기본 웹진 규격)',
   pageStyle: {
-    fontFamily: 'inherit',    // 부모 요소의 폰트를 그대로 계승
-    fontSize: '15px',         // 웹진 기준 가독성 좋은 중간 크기
-    lineHeight: '1.8',        // 넉넉한 행간으로 가독성 확보
-    letterSpacing: '-0.02em', // 약간 좁힌 자간으로 모던한 느낌
+    fontFamily: 'inherit',
+    fontSize: '15px',
+    lineHeight: '1.8',
+    letterSpacing: '-0.02em',
+    marginTop: '20mm',
+    marginBottom: '20mm',
+    marginLeft: '20mm',
+    marginRight: '20mm',
+    orientation: 'portrait',
+    headingSizeOffset: '4',
   },
   rules: {
     // --- 제목(Heading) ---
@@ -46,6 +52,7 @@ export const DEFAULT_PROFILE: CssProfile = {
     // --- 인라인 서식 (빈 객체 = prose 기본값 사용) ---
     strong: {},
     em: {},
+    u: {},
     del: {},
     // --- 목록 ---
     ul: {},
@@ -75,7 +82,7 @@ export function createEmptyProfile(): CssProfile {
   return {
     id: '',
     name: '',
-    pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '' },
+    pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '' },
     rules: JSON.parse(JSON.stringify(EMPTY_RULES)),
   };
 }

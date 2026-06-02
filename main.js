@@ -23,6 +23,7 @@ if (app.isPackaged) {
 
 let mainWindow;
 let activePort = 4000; // 기본 백엔드 포트
+let filePathToOpen = null; // 윈도우 파일 연결(더블클릭)로 전달된 .md 경로 임시 저장
 
 // 🔒 [ 중복 실행 방지 (Single Instance Lock) 설정 ]
 const gotTheLock = app.requestSingleInstanceLock();
@@ -31,11 +32,20 @@ if (!gotTheLock) {
   // 이미 실행 중인 앱이 있으면 이 실행 프로세스를 즉각 폭파 종료
   app.quit();
 } else {
-  // 사용자가 이미 앱이 켜진 상태에서 또 exe를 더블 클릭하면 기존 창을 포커싱
+  // 사용자가 이미 앱이 켜진 상태에서 또 exe를 더블 클릭하면 기존 창을 포커싱 + 파일 연결 경로 전달
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
+
+      // commandLine에서 .md 파일 경로 추출하여 프론트엔드로 전달
+      const fileArg = commandLine.find(arg => {
+        const lower = arg.toLowerCase();
+        return lower.endsWith('.md') || lower.endsWith('.markdown');
+      });
+      if (fileArg && fs.existsSync(fileArg)) {
+        mainWindow.webContents.send('open-external-md', fileArg);
+      }
     }
   });
 }
@@ -54,6 +64,17 @@ function getFreePort(startPort = 4000) {
   });
 }
 
+// 최초 실행 시 커맨드라인 인수에 .md 파일이 있는지 검사 (윈도우 파일 연결)
+function checkFileArgument() {
+  const fileArg = process.argv.find(arg => {
+    const lower = arg.toLowerCase();
+    return lower.endsWith('.md') || lower.endsWith('.markdown');
+  });
+  if (fileArg && fs.existsSync(fileArg)) {
+    filePathToOpen = fileArg;
+  }
+}
+
 function createWindow(port) {
   // 🧹 [ 일렉트론 Chromium 캐시 강제 소탕 (로컬 스토리지는 유지) ]
   try {
@@ -67,12 +88,13 @@ function createWindow(port) {
     height: 900,
     title: "온리비 어서",
     icon: path.join(__dirname, 'frontend/public/icon_onriveauther.png'),
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false, // 🛡️ 외부 웹 이미지(https) 및 로컬 미디어 원활한 서빙을 위한 보안 정책 완화
-    },
+       webPreferences: {
+         nodeIntegration: false,
+         contextIsolation: true,
+         preload: path.join(__dirname, 'preload.js'),
+         webSecurity: false, // 🛡️ 외부 웹 이미지(https) 및 로컬 미디어 원활한 서빙을 위한 보안 정책 완화
+         allowRunningInsecureContent: false,
+       },
     // Windows 11 스타일의 깔끔한 프레임 디자인
     titleBarStyle: 'default',
     autoHideMenuBar: true, // 메뉴 바 자동 숨김으로 몰입도 극대화
@@ -187,6 +209,9 @@ app.on('ready', async () => {
     }
   });
 
+  // 윈도우 파일 연결 인수 검사
+  checkFileArgument();
+
   // 백엔드 Express 서버 기동 생략 (순수 데스크톱 전환)
   createWindow(activePort);
 });
@@ -205,6 +230,13 @@ app.on('activate', function () {
 });
 
 // 🔒 [ 순수 데스크톱 파일 제어 IPC 핸들러 등록 ]
+
+// 0. 초기 파일 연결 경로 조회 (renderer가 준비된 후 pull 방식으로 가져감)
+ipcMain.handle('get-initial-file-path', () => {
+  const path = filePathToOpen;
+  filePathToOpen = null;
+  return path;
+});
 
 // 1. 네이티브 파일 열기 대화상자 핸들러
 ipcMain.handle('dialog:openFile', async (event, defaultPath) => {
@@ -523,7 +555,27 @@ ipcMain.handle('file:searchInFolder', async (event, { folderPath, searchTerm, ma
   }
 });
 
-// 14. Windows/macOS 네이티브 시스템 이모지 피커 호출 핸들러
+// 14. OS 네이티브 폰트 공통 대화상자 호출 핸들러 (PowerShell 활용)
+ipcMain.handle('dialog:openFontPicker', async () => {
+  return new Promise((resolve) => {
+    // 🔒 PowerShell을 사용하여 윈도우 순정 FontDialog 호출
+    // Win32 API SetThreadPreferredUILanguages 및 SetThreadUILanguage를 결합하여
+    // 영문 윈도우 OS나 시스템 로케일에 상관없이 대화상자 리소스를 '한국어'로 완전 강제 로드하도록 수술합니다.
+    const command = `powershell -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; [void][System.Reflection.Assembly]::LoadWithPartialName('System.Drawing'); [void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); Add-Type -MemberDefinition ('[DllImport(' + [char]34 + 'kernel32.dll' + [char]34 + ', CharSet=System.Runtime.InteropServices.CharSet.Unicode)] public static extern bool SetThreadPreferredUILanguages(uint dwFlags, string pwszLanguagesBuffer, ref uint pulNumLanguages);') -Name 'Mui' -Namespace 'Win32' -PassThru | Out-Null; $n = 0; [Win32.Mui]::SetThreadPreferredUILanguages(8, 'ko-KR' + [char]0, [ref]$n); [System.Threading.Thread]::CurrentThread.CurrentCulture = New-Object System.Globalization.CultureInfo('ko-KR'); [System.Threading.Thread]::CurrentThread.CurrentUICulture = New-Object System.Globalization.CultureInfo('ko-KR'); Add-Type -MemberDefinition ('[DllImport(' + [char]34 + 'kernel32.dll' + [char]34 + ')] public static extern ushort SetThreadUILanguage(ushort LangId);') -Name 'Kernel32' -Namespace 'Win32' -PassThru | Out-Null; [Win32.Kernel32]::SetThreadUILanguage(1042); $d = New-Object System.Windows.Forms.FontDialog; $d.Font = New-Object System.Drawing.Font('맑은 고딕', 10); $d.ShowColor = $false; if($d.ShowDialog() -eq 'OK') { Write-Output ($d.Font.Name + '|' + $d.Font.Size) } else { Write-Output 'cancel' }"`
+    
+    const { exec } = require('child_process');
+    exec(command, (error, stdout) => {
+      if (error || !stdout || stdout.trim() === 'cancel') {
+        resolve(null);
+        return;
+      }
+      const [family, size] = stdout.trim().split('|');
+      resolve(JSON.stringify({ family, size: parseFloat(size) || 13 }));
+    });
+  });
+});
+
+// 15. Windows/macOS 네이티브 시스템 이모지 피커 호출 핸들러
 ipcMain.handle('system:showEmojiPicker', () => {
   try {
     app.showEmojiPanel();

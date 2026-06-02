@@ -9,7 +9,7 @@ export interface CssProfile {
   id: string;
   /** 프로필 표시 이름 (사용자 지정 가능) */
   name: string;
-  /** A4 용지 전역 타이포그래피 설정 */
+  /** A4 용지 전역 타이포그래피 및 페이지 설정 */
   pageStyle: {
     /** 인쇄 대표 서체 (예: "휴먼명조", serif) */
     fontFamily: string;
@@ -19,6 +19,18 @@ export interface CssProfile {
     lineHeight: string;
     /** 기본 자간 조절 (예: '-0.02em') */
     letterSpacing: string;
+    /** 위쪽 여백 (예: '20mm') */
+    marginTop: string;
+    /** 아래쪽 여백 (예: '20mm') */
+    marginBottom: string;
+    /** 왼쪽 여백 (예: '20mm') */
+    marginLeft: string;
+    /** 오른쪽 여백 (예: '20mm') */
+    marginRight: string;
+    /** 용지 방향: 'portrait' | 'landscape' */
+    orientation: string;
+    /** H1→H6 단계별 크기 감소폭 (px) */
+    headingSizeOffset: string;
   };
   /** 각 마크다운 요소별 CSS 룰셋 (빈 객체면 해당 요소는 기본 스타일 사용) */
   rules: {
@@ -31,6 +43,7 @@ export interface CssProfile {
     p: CssRuleSet;        // P 기본 본문 문단
     strong: CssRuleSet;   // STRONG 굵게
     em: CssRuleSet;       // EM 기울임
+    u: CssRuleSet;        // U 밑줄
     del: CssRuleSet;      // DEL 취소선
     ul: CssRuleSet;       // UL 순서 없는 목록
     ol: CssRuleSet;       // OL 순서 있는 목록

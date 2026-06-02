@@ -152,6 +152,17 @@ body {
   font-weight: bold !important;
 }
 
+/* Monaco 에디터 선택영역 — 역방향/정방향 드래그 모두 일관된 남색 하이라이트로 강제 통일 */
+.monaco-editor .selected-text {
+  background-color: rgba(38, 132, 255, 0.3) !important;
+  border-radius: 2px !important;
+}
+
+.monaco-editor ::selection {
+  background: rgba(38, 132, 255, 0.4) !important;
+  color: inherit !important;
+}
+
 /* 스크롤바 숨기기 유틸리티 */
 .no-scrollbar::-webkit-scrollbar {
   display: none !important;
@@ -203,6 +214,28 @@ body {
 .prose li p {
   display: inline !important;
   margin: 0 !important;
+}
+
+/* 중첩 리스트 여백 2배 증폭 방지: 부모 패딩이 중첩되어 누적되는 현상 차단 */
+.prose ol ol, .prose ol ul, .prose ul ol, .prose ul ul,
+.prose li ol, .prose li ul {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-left: 1.5rem !important;
+}
+
+/* 빈 줄(br) 물리 높이 보장: whitespace collapsing으로 빈 줄이 압착 소멸되는 현상 방어 */
+.prose br {
+  display: inline !important; /* 블록에서 인라인으로 원상 복구 */
+  content: none !important;
+  margin-top: 0 !important; /* 🔒 엔터 1번에 빈 줄이 생기던 마진 버그 완전 소멸 */
+  height: auto !important;
+}
+
+/* 💡 진짜 유저가 엔터를 두 번 쳐서 만든 '완전한 빈 줄'만 높이를 보장하는 가드 */
+.prose p:empty::before {
+  content: "\00a0" !important;
+  display: block !important;
 }
 
 /* 미리보기(Preview) 뷰어 패널 내부에 떠다니던 중복된 전체 복사(Copy All) 툴바 완벽 제거 */
@@ -430,6 +463,22 @@ body {
 /* 마우스 호버 시 행 은은한 하이라이트 효과 */
 .prose tbody tr:hover {
   background-color: rgba(59, 130, 246, 0.02) !important;
+}
+.dark .prose tbody tr:hover {
+  background-color: rgba(96, 165, 250, 0.03) !important;
+}
+
+/* 🔒 하단 클릭 시 에디터 내부의 뷰포트 컨테이너가 transform이나 margin으로 위로 밀려 올라가는 오작동 제어 */
+.monaco-editor .view-lines {
+  top: 0 !important; /* 💡 렌더링 라인 축의 절대 상단 영점을 0px로 강제 고정 */
+}
+
+/* 포커스가 들어왔을 때 외부 가상 스크롤 박스가 늘어나거나 수축하는 유동성 뒤틀림 원천 가드 */
+.monaco-editor-container {
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  height: 100% !important;
 }
 
 .dark .prose tbody tr:hover {
