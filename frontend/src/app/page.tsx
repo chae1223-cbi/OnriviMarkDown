@@ -2390,6 +2390,11 @@ export default function Home() {                  // @Home : Home component
       css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}px !important;\n}\n`;
     }
     Object.entries(prof.rules).forEach(([tag, ruleObj]) => {
+      // 💡 다크모드일 때 인용구(blockquote)는 사용자 정의 서식을 무시하고 다크모드 테마의 기본 스타일을 유지합니다.
+      if (tag === 'blockquote' && isDarkMode) return;
+      // 💡 다크모드일 때 구분선(hr)은 사용자 정의 서식을 무시하고 선명한 다크모드 전용 고정 색상을 사용합니다.
+      if (tag === 'hr' && isDarkMode) return;
+
       /* h2~h6의 font-size는 headingSizeOffset 자동 계산으로 대체 */
       const skipFontSize = ['h2','h3','h4','h5','h6'].includes(tag);
       const entries = Object.entries(ruleObj).filter(([prop, v]) => {
@@ -2408,6 +2413,63 @@ export default function Home() {                  // @Home : Home component
       });
       css += `}\n`;
     });
+
+    // 🧰 구조제어: 구분선 규칙 (HR) 동적 인젝션
+    if (prof.hrStructure) {
+      const hrRules = prof.rules.hr || {};
+      const hrStyle = hrRules['border-top-style'] || hrRules['border-style'] || prof.hrStructure.borderTopStyle || 'solid';
+      const hrWidth = hrRules['border-top-width'] || hrRules['border-width'] || prof.hrStructure.borderTopWidth || '1px';
+      const hrMargin = hrRules['margin-top'] || hrRules['margin-bottom'] || hrRules['margin'] || prof.hrStructure.marginTopBottom || '32px';
+      const hrLen = hrRules['width'] || prof.hrStructure.lineWidth || '100%';
+      // 💡 다크모드계열이면 구분선의 색상을 선명한 전용 색상(rgba(255,255,255,0.35))으로 고정하고,
+      // 라이트모드는 서식정의(border-top-color, border-color 또는 color)가 있으면 그 색상을, 없으면 은은한 회색(#e5e7eb)을 사용합니다.
+      const hrColor = isDarkMode
+        ? 'rgba(255, 255, 255, 0.35)'
+        : (hrRules['border-top-color'] || hrRules['border-color'] || hrRules['color'] || '#e5e7eb');
+      css += `
+.custom-preview-container hr {
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-top-width: ${hrWidth} !important;
+  border-top-style: ${hrStyle} !important;
+  border-top-color: ${hrColor} !important;
+  margin-top: ${hrMargin} !important;
+  margin-bottom: ${hrMargin} !important;
+  width: ${hrLen} !important;
+  ${hrLen !== '100%' ? 'margin-left: auto !important;\n  margin-right: auto !important;' : ''}
+}
+`;
+    }
+
+    // 🧰 구조제어: 체크박스 규칙 (Task List) 동적 인젝션
+    if (prof.checkboxStructure) {
+      const cbSize = prof.checkboxStructure.boxSize || '16px';
+      const cbGap = prof.checkboxStructure.textGap || '10px';
+      const cbEffect = prof.checkboxStructure.checkedEffect || 'line-through-and-dim';
+      css += `
+.custom-preview-container input[type="checkbox"] {
+  width: ${cbSize} !important;
+  height: ${cbSize} !important;
+  margin-right: ${cbGap} !important;
+}
+`;
+      if (cbEffect === 'line-through-and-dim') {
+        css += `
+.custom-preview-container .task-list-item:has(input:checked) {
+  text-decoration: line-through !important;
+  opacity: 0.5 !important;
+}
+`;
+      } else if (cbEffect === 'dim-only') {
+        css += `
+.custom-preview-container .task-list-item:has(input:checked) {
+  opacity: 0.5 !important;
+}
+`;
+      }
+    }
+
     return css;
   }, [profiles, activeProfileId, isDarkMode]);
 
@@ -3577,6 +3639,8 @@ export default function Home() {                  // @Home : Home component
     return items;
   }, [content]);
 
+  const heightClass = isToolbarOpen ? 'h-[calc(100vh-112px)]' : 'h-[calc(100vh-64px)]';
+
   return (
     <div className={`flex h-screen flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
 
@@ -3691,7 +3755,7 @@ export default function Home() {                  // @Home : Home component
                 onClose={() => setPreviewMode('both')}
               />
             ) : previewMode !== 'preview' && (
-              <div className="flex-1 min-w-0 h-full relative border-r border-black/5 dark:border-white/5">
+              <div className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5`}>
                 <Editor
                   height="100%"
                   language="markdown"
@@ -4631,7 +4695,11 @@ export default function Home() {                  // @Home : Home component
                         if (!position) return;
                         const clickedLine = position.lineNumber;
 
-                        if (previewRef.current && isScrollingRef.current !== 'editor') {
+                        if (previewRef.current) {
+                          // 💡 반반(both) 모드이고 미리보기가 한 페이지를 초과하는 경우에만 연동 진행
+                          const isNotScrollable = previewRef.current.scrollHeight <= previewRef.current.clientHeight;
+                          if (previewModeRef.current !== 'both' || isNotScrollable) return;
+
                           const totalLines = editor.getModel()?.getLineCount() || 1;
 
                           // 맨 위(첫 줄) 클릭 시 최상단 스크롤
@@ -4778,6 +4846,10 @@ export default function Home() {                  // @Home : Home component
                       if (!previewRef.current) return;
                       const editor = editorRef.current;
                       if (!editor) return;
+
+                      // 💡 반반(both) 모드이고 미리보기가 한 페이지를 초과하는 경우에만 연동 진행
+                      const isNotScrollable = previewRef.current.scrollHeight <= previewRef.current.clientHeight;
+                      if (previewModeRef.current !== 'both' || isNotScrollable) return;
 
                       const scrollTop = editor.getScrollTop();
 
@@ -5029,7 +5101,7 @@ export default function Home() {                  // @Home : Home component
             {previewMode !== 'edit' && (
               <div
                 ref={previewRef}
-                className={`flex-1 h-[calc(100vh-64px)] px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container bg-white dark:bg-zinc-950 ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
+                className={`flex-1 ${heightClass} px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container bg-white dark:bg-zinc-950 ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
                   }`}
                 style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
                 onMouseEnter={() => { isPreviewHovered.current = true; }}
@@ -5093,6 +5165,7 @@ export default function Home() {                  // @Home : Home component
                         marginBottom={activeProfile.pageStyle.marginBottom}
                         marginLeft={activeProfile.pageStyle.marginLeft}
                         marginRight={activeProfile.pageStyle.marginRight}
+                        listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left']}
                       />
                     </div>
                   );

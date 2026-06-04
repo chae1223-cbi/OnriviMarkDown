@@ -1084,48 +1084,7 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-// AI 블로그 글 생성 API
-const aiGenerator = require('./services/aiGenerator');
 
-app.post('/api/ai/generate', async (req, res) => {
-  try {
-    const { keyword, category, tone, length } = req.body;
-    if (!keyword) return res.status(400).json({ error: '키워드를 입력하세요.' });
-
-    const result = await aiGenerator.generatePost({ keyword, category, tone, length });
-    res.json({ status: 'success', ...result });
-  } catch (err) {
-    console.error('AI generation error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// AI 블로그 배치 생성 API (config.json 기반)
-const BLOG_CONFIG_PATH = path.join(__dirname, 'blog_config.json');
-
-app.get('/api/ai/batch-config', async (req, res) => {
-  try {
-    const fsSync = require('fs');
-    if (!fsSync.existsSync(BLOG_CONFIG_PATH)) {
-      return res.json({ status: 'success', config: { domain: '', topics: [] } });
-    }
-    const raw = await fs.readFile(BLOG_CONFIG_PATH, 'utf-8');
-    const config = JSON.parse(raw);
-    res.json({ status: 'success', config });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/ai/batch-config', async (req, res) => {
-  try {
-    const { config } = req.body;
-    await fs.writeFile(BLOG_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
-    res.json({ status: 'success' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // 맞춤법 검사 API
 const spellChecker = require('./services/spellChecker');

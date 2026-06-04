@@ -173,8 +173,11 @@ app.on('ready', async () => {
       let normalizedPath = path.normalize(filePath).normalize('NFC');
       
       if (!fs.existsSync(normalizedPath)) {
-        const fallbackOutPath = path.join(__dirname, 'frontend/out', normalizedPath);
-        const fallbackPublicPath = path.join(__dirname, 'frontend/public', normalizedPath);
+        // 🛡️ [에셋 폴백 강인성 보강] 로컬 절대 경로 파일이 존재하지 않는 경우, 
+        // 경로 전체를 더하지 않고 파일명만 추출하여 frontend/out 또는 frontend/public 하위의 에셋을 탐색합니다.
+        const fileNameOnly = path.basename(normalizedPath);
+        const fallbackOutPath = path.join(__dirname, 'frontend/out', fileNameOnly);
+        const fallbackPublicPath = path.join(__dirname, 'frontend/public', fileNameOnly);
         if (fs.existsSync(fallbackOutPath)) {
           normalizedPath = fallbackOutPath;
         } else if (fs.existsSync(fallbackPublicPath)) {

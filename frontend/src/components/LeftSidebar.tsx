@@ -452,17 +452,7 @@ export default function LeftSidebar({
                   >
                     <span className="text-zinc-400 dark:text-zinc-500 mr-2 select-none font-bold">•</span>
                     <span className="truncate flex-1">
-                      <ReactMarkdown
-                        components={{
-                          p: ({ children }) => <span className="inline">{children}</span>,
-                          strong: ({ children }) => <strong className="font-bold text-zinc-900 dark:text-white">{children}</strong>,
-                          em: ({ children }) => <em className="italic">{children}</em>,
-                          code: ({ children }) => <code className="bg-zinc-150 dark:bg-zinc-800/80 px-1 py-0.5 rounded text-[10px] font-mono text-blue-600 dark:text-blue-400">{children}</code>,
-                          del: ({ children }) => <del className="line-through opacity-60">{children}</del>
-                        }}
-                      >
-                        {item.text}
-                      </ReactMarkdown>
+                      {item.text}
                     </span>
                   </div>
                 ))

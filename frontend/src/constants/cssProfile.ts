@@ -8,7 +8,7 @@ import { CssProfile } from '../types/cssProfile';
 const EMPTY_RULES = {
   h1: {}, h2: {}, h3: {}, h4: {}, h5: {}, h6: {},
   p: {}, strong: {}, em: {}, del: {},
-  ul: {}, ol: {}, taskList: {}, hr: {},
+  ul: {}, ol: {}, li: {}, taskList: {}, hr: {},
   table: {}, th: {}, td: {}, blockquote: {}, codeBlock: {},
   a: {}, img: {},
 };
@@ -57,6 +57,7 @@ export const DEFAULT_PROFILE: CssProfile = {
     // --- 목록 ---
     ul: {},
     ol: {},
+    li: {},
     taskList: {},
     // --- 수평선 ---
     hr: {},
@@ -70,6 +71,17 @@ export const DEFAULT_PROFILE: CssProfile = {
     a: {},
     img: {},
   },
+  hrStructure: {
+    borderTopStyle: "solid",
+    borderTopWidth: "1px",
+    marginTopBottom: "32px",
+    lineWidth: "100%"
+  },
+  checkboxStructure: {
+    boxSize: "16px",
+    checkedEffect: "line-through-and-dim",
+    textGap: "10px"
+  }
 };
 
 /**
@@ -84,5 +96,16 @@ export function createEmptyProfile(): CssProfile {
     name: '',
     pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '' },
     rules: JSON.parse(JSON.stringify(EMPTY_RULES)),
+    hrStructure: {
+      borderTopStyle: 'solid',
+      borderTopWidth: '1px',
+      marginTopBottom: '32px',
+      lineWidth: '100%'
+    },
+    checkboxStructure: {
+      boxSize: '16px',
+      checkedEffect: 'line-through-and-dim',
+      textGap: '10px'
+    }
   };
 }

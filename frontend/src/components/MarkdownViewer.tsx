@@ -39,6 +39,7 @@ interface MarkdownViewerProps {
   marginBottom?: string;
   marginLeft?: string;
   marginRight?: string;
+  listIndent?: string;
 }
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
@@ -575,7 +576,7 @@ function MermaidBlock({ code }: { code: string }) {
 }
 
 // 🛡️ [한글 주석 완벽 탑재] MarkdownViewer는 마크다운 원본 문법을 아름다운 HTML 구조로 파싱 및 시각화하는 핵심 뷰어 컴포넌트입니다.
-export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath, onFileOpen, orientation = 'portrait', marginTop, marginBottom, marginLeft, marginRight }: MarkdownViewerProps) {
+export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath, onFileOpen, orientation = 'portrait', marginTop, marginBottom, marginLeft, marginRight, listIndent }: MarkdownViewerProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -607,12 +608,23 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
     const indentMatch = lineText.match(/^([ \t]*)/);
     const indentStr = indentMatch ? indentMatch[1] : '';
 
+    // 💡 [목록 들여쓰기 동적 연동]
+    // listIndent prop이 전달되면 (예: '16px'), 그 값을 파싱하여 탭/공백당 들여쓰기 px 단위를 조정합니다.
+    // 기본값은 16px (탭 1개당 16px, 공백 1개당 4px) 입니다.
+    let baseIndentPx = 16;
+    if (listIndent) {
+      const parsed = parseInt(listIndent, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        baseIndentPx = parsed;
+      }
+    }
+
     let marginLeft = 0;
     for (const char of indentStr) {
       if (char === '\t') {
-        marginLeft += 24; // 탭 1개당 24px 여백
+        marginLeft += baseIndentPx; // 탭 1개당 baseIndentPx 여백 (예: 16px)
       } else if (char === ' ') {
-        marginLeft += 6;  // 공백 1개당 6px 여백
+        marginLeft += (baseIndentPx / 4);  // 공백 1개당 baseIndentPx / 4 여백 (예: 4px)
       }
     }
 
@@ -677,7 +689,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
       className="bg-transparent mx-auto transition-all duration-200"
       style={{
         width: '100%',
-        minHeight: isLandscape ? '60vh' : '100vh',
+        minHeight: '100%',
         boxShadow: 'none',
         borderRadius: '0px',
         paddingTop: mmToRem(marginTop || ''),
@@ -710,8 +722,22 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
                 const isAbsoluteUnix = src.startsWith('/');
                 const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
 
-                if (!isAbsolute && currentFilePath) {
+                // 🛡️ [웰컴 페이지 예외 가드] 웰컴 페이지 내장 이미지는 로컬 워크스페이스 경로로 강제 확장하지 않고,
+                // 원래의 상대경로 그대로 에셋 폴백 서빙을 탈 수 있도록 우회합니다.
+                const isWelcomePage = currentFilePath && (
+                  currentFilePath.endsWith('Welcome.md') || 
+                  currentFilePath.endsWith('Welcome.markdown') || 
+                  currentFilePath === 'Welcome.md'
+                );
+
+                const isWelcomeAsset = src === './hero.png' || src === 'hero.png' || isWelcomePage;
+
+                if (!isAbsolute && currentFilePath && !isWelcomeAsset) {
                   absolutePath = resolveRelativeImagePath(src, currentFilePath);
+                } else if (isWelcomeAsset) {
+                  // 웰컴 에셋인 경우, './hero.png' 에서 './'를 제거하여 'hero.png' 로 안전하게 전송합니다.
+                  // 이를 통해 URL 내 상대경로 문자 정규화 꼬임으로 인한 이미지 엑스박스 결함을 영구 방지합니다.
+                  absolutePath = src.startsWith('./') ? src.slice(2) : src;
                 }
                 finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
               }
@@ -858,8 +884,43 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
               return <p style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</p>;
             },
             ul: ({ node, children, style, ...props }) => <ul style={style} {...props}>{children}</ul>,
-            ol: ({ node, children, style, start, ...props }) => <ol start={start} style={style} {...props}>{children}</ol>,
+            ol: ({ node, children, style, start, ...props }) => {
+              // 🛡️ ol 자식 중에 num-list-item이 있으면 ol 자체의 list-style-type을 none으로 설정하여
+              // 부모 ol의 스타일이 li::marker에 상속되어 이중 마커가 노출되는 현상을 원천 차단합니다.
+              const hasNumListChild = React.Children.toArray(children).some((child) => {
+                if (React.isValidElement(child)) {
+                  const cls = (child.props as any)?.className || '';
+                  return cls.includes('num-list-item');
+                }
+                return false;
+              });
+              const olStyle = hasNumListChild
+                ? { ...style, listStyleType: 'none' }
+                : style;
+              return <ol start={start} style={olStyle} {...props}>{children}</ol>;
+            },
             li: ({ node, children, style, ...props }) => {
+              const textContent = getTextFromChildren(children).trim();
+              const isEmptyRow = textContent.includes("onrivi-empty-row");
+
+              if (isEmptyRow) {
+                const liStyle = {
+                  ...style,
+                  listStyleType: 'none',
+                  listStyle: 'none',
+                  height: '12px',
+                  maxHeight: '12px',
+                  lineHeight: '12px',
+                  overflow: 'hidden',
+                  background: 'transparent',
+                  margin: '0',
+                  padding: '0',
+                  pointerEvents: 'none'
+                } as React.CSSProperties;
+
+                return <li style={liStyle} className="onrivi-empty-list-row" {...props} />;
+              }
+
               const line = (node as any).position?.start?.line;
               const origLine = line ? (lineMap[line - 1] || line) : undefined;
               const modifiedChildren = React.Children.map(children, (child) => {
@@ -876,7 +937,8 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
                 }
                 return child;
               });
-              return <li style={{ ...style, ...getIndentStyle(node) }} {...props}>{modifiedChildren}</li>;
+
+              return <li style={style} className={props.className} {...props}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
               return (

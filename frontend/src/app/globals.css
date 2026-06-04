@@ -40,6 +40,7 @@
 }
 
 [class~="dark"] {
+  color-scheme: dark;
   --foreground-rgb: 229, 226, 225;
   --background-start-rgb: 19, 19, 19;
   --background-end-rgb: 19, 19, 19;
@@ -68,6 +69,17 @@
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));
+}
+
+/* select 드롭다운 다크모드 강제 — option 팝업 레이어가 흰색으로 튀지 않도록 */
+.dark select,
+.dark option {
+  background-color: #1f1f23 !important;
+  color: #e3e2e6 !important;
+  border-color: #3f3f46 !important;
+}
+option {
+  text-align: left;
 }
 
 @layer utilities {
@@ -202,26 +214,30 @@ body {
 
 /* 리스트 항목(li) 및 리스트 자체의 상하 간격을 대폭 축소하여 많은 글을 담을 수 있게 보정 */
 .prose ul, .prose ol {
-  margin-top: 0.5em !important;
-  margin-bottom: 0.5em !important;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 .prose li {
-  margin-top: 0.2em !important;
-  margin-bottom: 0.2em !important;
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
 }
 
-/* 리스트 아이템(li) 하위의 p 태그가 기호 옆에 inline으로 나란히 착 달라붙게 강제 보정 */
+/* 리스트 아이템(li) 하위의 p 태그 마진 누적 폭발 차단:
+   loose list 파싱 시 각 li 안에 <p>가 생기면서 margin 0.45em이 중첩되어 높이가 폭발하는 현상 완전 압착 */
 .prose li p {
   display: inline !important;
   margin: 0 !important;
+  margin-left: 0 !important;
+  padding: 0 !important;
 }
 
 /* 중첩 리스트 여백 2배 증폭 방지: 부모 패딩이 중첩되어 누적되는 현상 차단 */
+/* 💡 padding-left는 !important 고정 대신 사용자 정의 들여쓰기가 그대로 반영되도록 inherit 사용 */
 .prose ol ol, .prose ol ul, .prose ul ol, .prose ul ul,
 .prose li ol, .prose li ul {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  padding-left: 1.5rem !important;
+  padding-left: 1.25rem;
 }
 
 /* 빈 줄(br) 물리 높이 보장: whitespace collapsing으로 빈 줄이 압착 소멸되는 현상 방어 */
@@ -232,11 +248,6 @@ body {
   height: auto !important;
 }
 
-/* 💡 진짜 유저가 엔터를 두 번 쳐서 만든 '완전한 빈 줄'만 높이를 보장하는 가드 */
-.prose p:empty::before {
-  content: "\00a0" !important;
-  display: block !important;
-}
 
 /* 미리보기(Preview) 뷰어 패널 내부에 떠다니던 중복된 전체 복사(Copy All) 툴바 완벽 제거 */
 .notranslate .sticky.top-0.z-20 {
@@ -249,12 +260,12 @@ body {
 
 /* 프리뷰 영역 내의 제목 태그 파란색 테마 적용 */
 .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-  color: #005bc1 !important;
+  color: #005bc1;
 }
 
 /* 다크모드 프리뷰 제목 태그 대응 */
 .dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4, .dark .prose h5, .dark .prose h6 {
-  color: #60a5fa !important;
+  color: #60a5fa;
 }
 
 /* 프리뷰 내의 iframe 플레이어 디자인 시스템 강화 (왼쪽 정렬, 둥근 모서리, 부드러운 그림자) */
@@ -266,10 +277,10 @@ body {
   max-width: 100%;
 }
 
-/* 일반 본문 문단의 상하 여백 및 줄간격을 컴팩트하게 조정 */
+/* 일반 본문 문단의 상하 여백 및 줄간격을 컴팩트하게 조정 (단정 개행 /n 1줄 실현) */
 .prose p {
-  margin-top: 1.2em !important;
-  margin-bottom: 1.2em !important;
+  margin-top: 0.45em !important;
+  margin-bottom: 0.45em !important;
   line-height: 1.7 !important;
 }
 
@@ -332,6 +343,14 @@ body {
 }
 .prose li.task-list-item::before {
   content: none !important;
+}
+
+/* 🛡️ 태스크 리스트가 포함된 ul의 기본 padding-left 축소 및 정렬 보정 */
+.prose ul.contains-task-list {
+  padding-left: 0.8rem !important; /* 최상위 태스크 리스트 패딩 보정 */
+}
+.prose li ul.contains-task-list {
+  padding-left: 1.5rem !important; /* 중첩된 태스크 리스트는 적절한 깊이의 들여쓰기 보장 */
 }
 
 /* 🛡️ 인용문(blockquote) 박스 내부의 시작과 끝 빈 여백 소거 */
@@ -481,6 +500,95 @@ body {
   height: 100% !important;
 }
 
-.dark .prose tbody tr:hover {
-  background-color: rgba(96, 165, 250, 0.03) !important;
+/* 🛡️ 인용구(blockquote) 내부에 목록(ul/ol)이 포함될 경우, 왼쪽 강조선과 목록 마커가 겹치지 않도록 충분한 패딩 안전거리 확보 */
+.custom-preview-container blockquote ul,
+.custom-preview-container blockquote ol {
+  padding-left: 2.25rem !important;
+}
+
+/* 🛡️ 숫자 목록 간 물리적 여백 공간 확보: 파서 훼손 없이 안전한 CSS 마진 적용 */
+.custom-preview-container ul,
+.custom-preview-container ol {
+  margin-bottom: 0.4rem !important;
+}
+
+/* 🛡️ 리스트 내부 투명 빈 줄 아이템 (ul/ol 안에서 유일하게 합법적인 li 태그로 빈 행 구현) */
+.prose li.onrivi-empty-list-row,
+.prose ul > li.onrivi-empty-list-row,
+.prose ol > li.onrivi-empty-list-row,
+li.onrivi-empty-list-row {
+  list-style-type: none !important;
+  list-style: none !important;
+  height: 12px !important;
+  max-height: 12px !important;
+  line-height: 12px !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+}
+.prose li.onrivi-empty-list-row::before,
+.prose li.onrivi-empty-list-row::marker,
+li.onrivi-empty-list-row::before,
+li.onrivi-empty-list-row::marker {
+  content: none !important;
+  display: none !important;
+}
+
+/* 🛡️ 숫자 목록 텍스트 마킹 겹침 방지: num-list-item 클래스에 대해 기본 불릿 기호 및 브라우저 마커 완전 소거 */
+/* 핵심 전략: list-style-type: none + ::marker { content: '' + font-size: 0 } 이중 방어 */
+/* 부모 ol에 list-style-type이 !important로 선언되어도 자식 li.num-list-item에 전파되지 않도록 차단 */
+.prose ul > li.num-list-item,
+.prose ol > li.num-list-item,
+.custom-preview-container ul > li.num-list-item,
+.custom-preview-container ol > li.num-list-item,
+.custom-preview-container ul li.num-list-item,
+.custom-preview-container ol li.num-list-item,
+.custom-preview-container li.num-list-item,
+.prose li.num-list-item,
+li.num-list-item {
+  list-style-type: none !important;
+  list-style: none !important;
+  padding-left: 0 !important;
+}
+
+.prose ul > li.num-list-item::before,
+.prose ol > li.num-list-item::before,
+.custom-preview-container ul > li.num-list-item::before,
+.custom-preview-container ol > li.num-list-item::before,
+.custom-preview-container ul li.num-list-item::before,
+.custom-preview-container ol li.num-list-item::before,
+.custom-preview-container li.num-list-item::before,
+.prose li.num-list-item::before,
+li.num-list-item::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* ::marker 완전 소거 — content: none 단독으로는 부모 ol의 list-style-type 상속을 막지 못하므로
+   content: '' (빈 문자열) + font-size: 0 + display: none 의 3중 방어를 사용합니다. */
+.prose ul > li.num-list-item::marker,
+.prose ol > li.num-list-item::marker,
+.custom-preview-container ul > li.num-list-item::marker,
+.custom-preview-container ol > li.num-list-item::marker,
+.custom-preview-container ul li.num-list-item::marker,
+.custom-preview-container ol li.num-list-item::marker,
+.custom-preview-container li.num-list-item::marker,
+li.num-list-item::marker {
+  content: '' !important;
+  font-size: 0 !important;
+  display: none !important;
+  width: 0 !important;
+}
+
+/* 🛡️ 리스트 및 문단 사이의 정밀 12px 스페이서 영역 */
+.onrivi-list-spacer,
+div.onrivi-list-spacer {
+  height: 12px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  content: "" !important;
+  background: transparent !important;
 }

@@ -47,6 +47,7 @@ export interface CssProfile {
     del: CssRuleSet;      // DEL 취소선
     ul: CssRuleSet;       // UL 순서 없는 목록
     ol: CssRuleSet;       // OL 순서 있는 목록
+    li: CssRuleSet;       // LI 목록 아이템 (margin-bottom, padding-inline-start 등)
     taskList: CssRuleSet; // TASKLIST 체크리스트
     hr: CssRuleSet;       // HR 수평선
     table: CssRuleSet;    // TABLE 표
@@ -56,5 +57,16 @@ export interface CssProfile {
     codeBlock: CssRuleSet;  // CODE BLOCK 코드 블록
     a: CssRuleSet;        // A 링크
     img: CssRuleSet;      // IMG 이미지
+  };
+  hrStructure?: {
+    borderTopStyle: string;
+    borderTopWidth: string;
+    marginTopBottom: string;
+    lineWidth: string;
+  };
+  checkboxStructure?: {
+    boxSize: string;
+    checkedEffect: string;
+    textGap: string;
   };
 }

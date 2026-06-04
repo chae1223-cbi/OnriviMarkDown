@@ -16,18 +16,20 @@
 import React, { useState, useEffect } from 'react';
 import { CssProfile, CssRuleSet } from '@/types/cssProfile';
 import { DEFAULT_PROFILE } from '@/constants/cssProfile';
+import FontSelectorModal from './FontSelectorModal';
 
 /**
  * CssStyleForm 최상위 props
  */
 interface CssStyleFormProps {
-  profiles: CssProfile[];          // 전체 프로필 목록 (상태 끌어올림)
-  activeProfileId: string;         // 현재 선택된 프로필 ID
-  onSelectProfile: (id: string) => void;   // 프로필 선택 핸들러
-  onUpdateProfile: (profile: CssProfile) => void;  // 프로필 업데이트 핸들러
-  onAddProfile?: () => void;       // 새 프로필 생성 핸들러 (선택)
-  onDeleteProfile?: (id: string) => void;  // 프로필 삭제 핸들러 (선택)
-  onClose: () => void;             // css-style 모드 종료 → 에디터 복귀
+  profiles: CssProfile[];
+  activeProfileId: string;
+  onSelectProfile: (id: string) => void;
+  onUpdateProfile: (profile: CssProfile) => void;
+  onAddProfile?: () => void;
+  onDeleteProfile?: (id: string) => void;
+  onClose: () => void;
+  isDarkMode?: boolean;
 }
 
 /**
@@ -102,13 +104,6 @@ function TagRuleEditor({ tag, label, rules, isDefault, onUpdateRule, onRemoveRul
           />
         </div>
       ) : (
-        /*
-         * 위젯 편집 모드 (기본):
-         * - 각 CSS 속성을 개별 input으로 표시
-         * - 값이 비어있으면 "지정된 CSS 규칙 없음" 안내
-         * - "+ 속성 추가" 버튼으로 새 속성 추가 가능
-         * - 각 속성 우측 X 버튼으로 삭제 가능
-         */
         <div className="space-y-1.5">
           {entries.length === 0 && (
             <span className="text-[10px] text-zinc-400 italic">지정된 CSS 규칙 없음 (기본값 사용)</span>
@@ -175,7 +170,7 @@ function TagRuleEditor({ tag, label, rules, isDefault, onUpdateRule, onRemoveRul
  * └─────────────────────────────────────────────┘
  */
 export default function CssStyleForm({
-  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onClose
+  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onClose, isDarkMode
 }: CssStyleFormProps) {
   /* 현재 선택된 프로필 (없으면 DEFAULT) */
   const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
@@ -183,6 +178,7 @@ export default function CssStyleForm({
 
   /* ─── 폰트 선택 상태 ─── */
   const [isFontDialogOpen, setIsFontDialogOpen] = useState(false);
+  const [isFontModalOpen, setIsFontModalOpen] = useState(false);
 
   /* ─── H2~H6 탭 선택 상태 ─── */
   const [activeHeadingTab, setActiveHeadingTab] = useState(2);
@@ -208,6 +204,7 @@ export default function CssStyleForm({
    */
   const updateCssRule = (tag: string, property: string, value: string) => {
     if (isDefault) return;
+    console.log(`[CssStyleForm] Updating ${tag}: ${property} = ${value}`); // 로그 추가
     const tagKey = tag as keyof CssProfile['rules'];
     onUpdateProfile({
       ...currentProfile,
@@ -233,37 +230,10 @@ export default function CssStyleForm({
     });
   };
 
-  /** h1 위아래 여백 동시 업데이트 (두 번의 updateCssRule 호출로 인한 stale state 덮어쓰기 버그 방지) */
-  const updateH1Margin = (top: string, bot: string) => {
-    if (isDefault) return;
-    const tagKey = 'h1' as keyof CssProfile['rules'];
-    const current = getTagRules('h1');
-    onUpdateProfile({
-      ...currentProfile,
-      rules: {
-        ...currentProfile.rules,
-        [tagKey]: { ...current, 'margin-top': top, 'margin-bottom': bot },
-      },
-    });
-  };
-
-  /** 임의 태그 위아래 여백 동시 업데이트 (stale state 방지) */
-  const updateTagMargin = (tag: string, top: string, bot: string) => {
-    if (isDefault) return;
-    const tagKey = tag as keyof CssProfile['rules'];
-    const current = getTagRules(tag);
-    onUpdateProfile({
-      ...currentProfile,
-      rules: {
-        ...currentProfile.rules,
-        [tagKey]: { ...current, 'margin-top': top, 'margin-bottom': bot },
-      },
-    });
-  };
-
   /** 전역 타이포그래피 및 페이지 설정 변경 */
   const handlePageStyleChange = (key: keyof CssProfile['pageStyle'], value: string) => {
     if (isDefault) return;
+    console.log(`[CssStyleForm] Updating PageStyle: ${key} = ${value}`); // 🔍 추가
     onUpdateProfile({
       ...currentProfile,
       pageStyle: { ...currentProfile.pageStyle, [key]: value },
@@ -274,6 +244,42 @@ export default function CssStyleForm({
   const handleNameChange = (name: string) => {
     if (isDefault) return;
     onUpdateProfile({ ...currentProfile, name });
+  };
+
+  /* ─── 구조제어 데이터 모델 동기화 ─── */
+  const hrStructure = currentProfile.hrStructure || {
+    borderTopStyle: 'solid',
+    borderTopWidth: '1px',
+    marginTopBottom: '32px',
+    lineWidth: '100%'
+  };
+
+  const checkboxStructure = currentProfile.checkboxStructure || {
+    boxSize: '16px',
+    checkedEffect: 'line-through-and-dim',
+    textGap: '10px'
+  };
+
+  const updateHrStructure = (key: string, value: string) => {
+    if (isDefault) return;
+    onUpdateProfile({
+      ...currentProfile,
+      hrStructure: {
+        ...hrStructure,
+        [key]: value
+      }
+    });
+  };
+
+  const updateCheckboxStructure = (key: string, value: string) => {
+    if (isDefault) return;
+    onUpdateProfile({
+      ...currentProfile,
+      checkboxStructure: {
+        ...checkboxStructure,
+        [key]: value
+      }
+    });
   };
 
   /* ─── 파생 상태 ─── */
@@ -303,9 +309,10 @@ export default function CssStyleForm({
   ] as const;
 
   const marginOptions = [
-    { label: '좁게', top: '12px', bot: '12px' },
-    { label: '기본', top: '24px', bot: '24px' },
-    { label: '넓게', top: '40px', bot: '40px' },
+    { label: '여백 없음', value: '0px' },
+    { label: '좁게', value: '12px' },
+    { label: '기본', value: '24px' },
+    { label: '넓게', value: '40px' },
   ] as const;
 
   return (
@@ -316,7 +323,7 @@ export default function CssStyleForm({
           <select
             value={activeProfileId}
             onChange={(e) => onSelectProfile(e.target.value)}
-            className="p-1 border border-zinc-300 dark:border-zinc-700 rounded bg-transparent font-medium text-[11px]"
+            className="p-1 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-medium text-[11px]"
           >
             {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -364,43 +371,15 @@ export default function CssStyleForm({
               />
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   if (isDefault) return;
-                  setIsFontDialogOpen(true);
-                  try {
-                    const api = (window as any).electronAPI;
-                    if (api && typeof api.openFontDialog === 'function') {
-                      const result = await api.openFontDialog();
-                      if (result) {
-                        const parsed = typeof result === 'string' ? JSON.parse(result) : result;
-                        if (parsed.family) {
-                          handlePageStyleChange('fontFamily', '"' + parsed.family + '", serif');
-                        }
-                      }
-                    } else if ('queryLocalFonts' in window) {
-                      const availableFonts = await (window as any).queryLocalFonts();
-                      if (availableFonts && availableFonts.length > 0) {
-                        const families = Array.from(new Set(availableFonts.map((f: any) => f.family))) as string[];
-                        const picked = families[0];
-                        if (picked) {
-                          handlePageStyleChange('fontFamily', '"' + picked + '", serif');
-                        }
-                      }
-                    } else {
-                      const picked = window.prompt('글꼴 이름을 입력하세요:', '');
-                      if (picked) {
-                        handlePageStyleChange('fontFamily', '"' + picked + '", serif');
-                      }
-                    }
-                  } finally {
-                    setIsFontDialogOpen(false);
-                  }
+                  setIsFontModalOpen(true);
                 }}
                 className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-md transition-colors flex items-center gap-1 shrink-0"
                 disabled={isDefault}
               >
                 <span>📝</span>
-                글꼴 선택
+                글꼴 변경 (OS)...
               </button>
             </div>
           </div>
@@ -586,14 +565,25 @@ export default function CssStyleForm({
                   </span>
                 </div>
               </div>
-              {/* H1 위아래 여백 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded shadow-sm space-y-1.5">
-                <span className="text-xs font-medium text-zinc-400 block">위아래 여백</span>
+              {/* H1 위아래 여백 (분리) */}
+              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded shadow-sm space-y-2">
+                <span className="text-xs font-medium text-zinc-400 block">위 여백 (margin-top)</span>
                 <div className="flex gap-1 flex-wrap">
-                  {marginOptions.map(({ label, top }) => (
+                  {marginOptions.map(({ label, value }) => (
                     <button key={label} type="button" disabled={isDefault}
-                      onClick={() => updateH1Margin(top, top)}
-                      className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (h1Rules['margin-top'] === top
+                      onClick={() => updateCssRule('h1', 'margin-top', value)}
+                      className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (h1Rules['margin-top'] === value
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
+                        : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
+                    >{label}</button>
+                  ))}
+                </div>
+                <span className="text-xs font-medium text-zinc-400 block">아래 여백 (margin-bottom)</span>
+                <div className="flex gap-1 flex-wrap">
+                  {marginOptions.map(({ label, value }) => (
+                    <button key={label} type="button" disabled={isDefault}
+                      onClick={() => updateCssRule('h1', 'margin-bottom', value)}
+                      className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (h1Rules['margin-bottom'] === value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                     >{label}</button>
@@ -665,18 +655,33 @@ export default function CssStyleForm({
                         ))}
                       </div>
                     </div>
-                    {/* 위아래 여백 */}
-                    <div className="flex items-center">
-                      <span className="w-28 shrink-0 text-xs text-zinc-400 font-medium">위아래 여백</span>
-                      <div className="flex gap-1 flex-wrap">
-                        {marginOptions.map(({ label, top }) => (
-                          <button key={label} type="button" disabled={isDefault}
-                            onClick={() => updateTagMargin(tag, top, top)}
-                            className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (tagRules['margin-top'] === top
-                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                              : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                          >{label}</button>
-                        ))}
+                    {/* 위아래 여백 (분리) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <span className="w-28 shrink-0 text-xs text-zinc-400 font-medium">위 여백</span>
+                        <div className="flex gap-1 flex-wrap">
+                          {marginOptions.map(({ label, value }) => (
+                            <button key={label} type="button" disabled={isDefault}
+                              onClick={() => updateCssRule(tag, 'margin-top', value)}
+                              className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (tagRules['margin-top'] === value
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
+                                : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
+                            >{label}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="w-28 shrink-0 text-xs text-zinc-400 font-medium">아래 여백</span>
+                        <div className="flex gap-1 flex-wrap">
+                          {marginOptions.map(({ label, value }) => (
+                            <button key={label} type="button" disabled={isDefault}
+                              onClick={() => updateCssRule(tag, 'margin-bottom', value)}
+                              className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (tagRules['margin-bottom'] === value
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
+                                : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
+                            >{label}</button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -710,7 +715,7 @@ export default function CssStyleForm({
                 </div>
               ) : (() => {
                 const pRules = currentProfile.rules.p || {};
-                const knownPProps = ['text-align', 'margin-bottom', 'text-indent', 'line-height', 'color'];
+                const knownPProps = ['text-align', 'margin-top', 'margin-bottom', 'text-indent', 'line-height', 'color'];
                 const customPProps = Object.entries(pRules).filter(([k, v]) => v !== '' && !knownPProps.includes(k));
                 return (
                   <div className="space-y-1.5">
@@ -731,7 +736,19 @@ export default function CssStyleForm({
                       </select>
                     </div>
 
-                    {/* 2. margin-bottom: number + px */}
+                    {/* 2. margin-top: number + px (제목 밑 밀착용) */}
+                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+                      <span className="font-mono text-[12px] w-24 text-zinc-500">위 여백</span>
+                      <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+                        <input type="number" min="0" max="48"
+                          value={parseInt(pRules['margin-top']) || 0} disabled={isDefault}
+                          onChange={(e) => updateCssRule('p', 'margin-top', (parseInt(e.target.value) || 0) + 'px')}
+                          className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold" />
+                        <span className="text-[11px] text-zinc-400 font-normal">px</span>
+                      </div>
+                    </div>
+
+                    {/* 3. margin-bottom: number + px */}
                     <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
                       <span className="font-mono text-[12px] w-24 text-zinc-500">하단 여백</span>
                       <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
@@ -743,7 +760,7 @@ export default function CssStyleForm({
                       </div>
                     </div>
 
-                    {/* 3. text-indent: number + px */}
+                    {/* 4. text-indent: number + px */}
                     <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
                       <span className="font-mono text-[12px] w-24 text-zinc-500">첫줄 들여쓰기</span>
                       <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
@@ -755,7 +772,7 @@ export default function CssStyleForm({
                       </div>
                     </div>
 
-                    {/* 4. line-height: number step 0.1 + 배수 */}
+                    {/* 5. line-height: number step 0.1 + 배수 */}
                     <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
                       <span className="font-mono text-[12px] w-24 text-zinc-500">줄 간격</span>
                       <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
@@ -767,7 +784,7 @@ export default function CssStyleForm({
                       </div>
                     </div>
 
-                    {/* 5. color: select */}
+                    {/* 6. color: select */}
                     <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
                       <span className="font-mono text-[12px] w-24 text-zinc-500">글자 색상</span>
                       <select value={pRules['color'] || '#1b1b23'} disabled={isDefault}
@@ -779,7 +796,7 @@ export default function CssStyleForm({
                       </select>
                     </div>
 
-                    {/* 나머지 사용자 정의 속성 (5개 외) */}
+                    {/* 나머지 사용자 정의 속성 (6개 외) */}
                     {customPProps.map(([prop, val]) => (
                       <div key={prop} className="flex items-center gap-1.5">
                         <input value={prop} disabled={isDefault}
@@ -953,15 +970,310 @@ export default function CssStyleForm({
           </div>
         </div>
 
-        <div className="space-y-4">
-          <h4 className="font-bold text-blue-600 dark:text-blue-400 border-b border-zinc-200 dark:border-zinc-700 pb-1 uppercase tracking-wider text-[13px]">
-            목록화 및 구조 제어
-          </h4>
-          <TagRuleEditor tag="ul" label="UL - 순서 없는 목록" rules={currentProfile.rules.ul || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="ol" label="OL - 순서 있는 목록" rules={currentProfile.rules.ol || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="taskList" label="TASKLIST - 체크리스트" rules={currentProfile.rules.taskList || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="hr" label="HR - 수평선" rules={currentProfile.rules.hr || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
+        {/* ═══════════════════════════════════════════════════════
+            🧰 목록화 및 구조제어 전용 위젯 패널
+            ═══════════════════════════════════════════════════ */}
+        <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2">
+            <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[13px]">목록화 및 구조제어 가드</span>
+            {!isDefault && <span className="text-xs px-2.5 py-0.5 bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 font-bold rounded">규칙 적용 중</span>}
+          </div>
+
+          {/* 1️⃣ 글머리 마커 종류 (list-style-type → ul 적용) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">글머리 마커 종류</span>
+            <select
+              value={(currentProfile.rules.ul || {})['list-style-type'] || 'disc'}
+              disabled={isDefault}
+              onChange={(e) => updateCssRule('ul', 'list-style-type', e.target.value)}
+              className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+            >
+              <option value="disc">채워진 점 (disc)</option>
+              <option value="circle">비어있는 원 (circle)</option>
+              <option value="square">사각형 (square)</option>
+              <option value="none">마커 없음 (none)</option>
+            </select>
+          </div>
+
+          {/* 1-2️⃣ 숫자 마커 종류 (list-style-type → ol 적용) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">숫자 마커 종류</span>
+            <select
+              value={(currentProfile.rules.ol || {})['list-style-type'] || 'decimal'}
+              disabled={isDefault}
+              onChange={(e) => updateCssRule('ol', 'list-style-type', e.target.value)}
+              className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+            >
+              <option value="decimal">아라비아 숫자 (1, 2, 3)</option>
+              <option value="none">마커 없음 (none)</option>
+            </select>
+          </div>
+
+          {/* 2️⃣ 목록 줄 간격 (li margin-bottom) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">목록 줄 간격</span>
+            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+              <input
+                type="number" min={0} max={32}
+                value={parseInt((currentProfile.rules.li || {})['margin-bottom'] || '6') || 6}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('li', 'margin-bottom', (parseInt(e.target.value) || 0) + 'px')}
+                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+              />
+              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+            </div>
+          </div>
+
+          {/* 3️⃣ 목록 전체 들여쓰기 (ul + ol padding-left 동기화) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">목록 들여쓰기</span>
+            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+              <input
+                type="number" min={0} max={60}
+                value={parseInt((currentProfile.rules.ul || {})['padding-left'] || '16') || 16}
+                disabled={isDefault}
+                onChange={(e) => {
+                  if (isDefault) return;
+                  const v = (parseInt(e.target.value) || 0) + 'px';
+                  // ul과 ol을 단일 onUpdateProfile 호출로 동기화 (stale closure 방지)
+                  onUpdateProfile({
+                    ...currentProfile,
+                    rules: {
+                      ...currentProfile.rules,
+                      ul: { ...(currentProfile.rules.ul || {}), 'padding-left': v },
+                      ol: { ...(currentProfile.rules.ol || {}), 'padding-left': v },
+                    }
+                  });
+                }}
+                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+              />
+              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+            </div>
+          </div>
+
+          {/* 4️⃣ 마커-글자 간격 (li padding-inline-start) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">마커-글자 간격</span>
+            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+              <input
+                type="number" min={0} max={32}
+                value={parseInt((currentProfile.rules.li || {})['padding-inline-start'] || '8') || 8}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('li', 'padding-inline-start', (parseInt(e.target.value) || 0) + 'px')}
+                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+              />
+              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+            </div>
+          </div>
+
+          {/* 5️⃣ 구분선 (HR) 규칙 */}
+          <div className="border-t border-zinc-100 dark:border-zinc-900 pt-3 mt-3 space-y-3">
+            <div className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 font-mono flex items-center gap-1">
+              <span>🧰 구조제어: 구분선 규칙 (HR)</span>
+            </div>
+            
+            {/* 선 종류 및 두께 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+              <span className="font-mono text-[12px] w-32 text-zinc-500">선 종류 및 두께</span>
+              <div className="flex items-center gap-2">
+                <select
+                  value={hrStructure.borderTopStyle}
+                  disabled={isDefault}
+                  onChange={(e) => updateHrStructure('borderTopStyle', e.target.value)}
+                  className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+                >
+                  <option value="solid">실선 (solid)</option>
+                  <option value="dotted">점선 (dotted)</option>
+                  <option value="dashed">대시선 (dashed)</option>
+                </select>
+                <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400 border-l border-zinc-200 dark:border-zinc-800 pl-2">
+                  <input
+                    type="number" min={1} max={10}
+                    value={parseInt(hrStructure.borderTopWidth) || 1}
+                    disabled={isDefault}
+                    onChange={(e) => updateHrStructure('borderTopWidth', (parseInt(e.target.value) || 1) + 'px')}
+                    className="w-8 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+                  />
+                  <span className="text-[11px] text-zinc-400 font-normal">px</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 위아래 바깥 여백 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+              <span className="font-mono text-[12px] w-32 text-zinc-500">구분선 위아래 여백</span>
+              <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+                <input
+                  type="number" min={0} max={100}
+                  value={parseInt(hrStructure.marginTopBottom) || 32}
+                  disabled={isDefault}
+                  onChange={(e) => updateHrStructure('marginTopBottom', (parseInt(e.target.value) || 0) + 'px')}
+                  className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+                />
+                <span className="text-[11px] text-zinc-400 font-normal">px</span>
+              </div>
+            </div>
+
+            {/* 선 가로 길이 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+              <span className="font-mono text-[12px] w-32 text-zinc-500">선 가로 길이</span>
+              <select
+                value={hrStructure.lineWidth}
+                disabled={isDefault}
+                onChange={(e) => updateHrStructure('lineWidth', e.target.value)}
+                className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="100%">전체 (100%)</option>
+                <option value="50%">중앙 정렬 (50%)</option>
+                <option value="30%">짧은 선 (30%)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* 6️⃣ 체크박스 규칙 */}
+          <div className="border-t border-zinc-100 dark:border-zinc-900 pt-3 mt-3 space-y-3">
+            <div className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 font-mono flex items-center gap-1">
+              <span>🧰 구조제어: 체크박스 규칙 (Task List)</span>
+            </div>
+
+            {/* 완료 항목 효과 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+              <span className="font-mono text-[12px] w-32 text-zinc-500">완료 항목 효과</span>
+              <select
+                value={checkboxStructure.checkedEffect}
+                disabled={isDefault}
+                onChange={(e) => updateCheckboxStructure('checkedEffect', e.target.value)}
+                className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="line-through-and-dim">취소선 + 흐리게 (50%)</option>
+                <option value="dim-only">흐리게만</option>
+                <option value="none">스타일 변화 없음</option>
+              </select>
+            </div>
+
+            {/* 박스 물리 크기 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+              <span className="font-mono text-[12px] w-32 text-zinc-500">박스 물리 크기</span>
+              <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+                <input
+                  type="number" min={8} max={32}
+                  value={parseInt(checkboxStructure.boxSize) || 16}
+                  disabled={isDefault}
+                  onChange={(e) => updateCheckboxStructure('boxSize', (parseInt(e.target.value) || 8) + 'px')}
+                  className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+                />
+                <span className="text-[11px] text-zinc-400 font-normal">px</span>
+              </div>
+            </div>
+
+            {/* 박스-글자 간격 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+              <span className="font-mono text-[12px] w-32 text-zinc-500">박스-글자 간격</span>
+              <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+                <input
+                  type="number" min={0} max={32}
+                  value={parseInt(checkboxStructure.textGap) || 10}
+                  disabled={isDefault}
+                  onChange={(e) => updateCheckboxStructure('textGap', (parseInt(e.target.value) || 0) + 'px')}
+                  className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+                />
+                <span className="text-[11px] text-zinc-400 font-normal">px</span>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* ═══════════════════════════════════════════════════════
+            🧰 인용구(Blockquote) 구조제어 위젯 패널
+            ═══════════════════════════════════════════════════ */}
+        <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2">
+            <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[13px]">인용구 서식 제어 ( &gt; )</span>
+            {isDarkMode ? (
+              <span className="text-[11px] px-2 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 font-bold rounded">다크모드 미적용</span>
+            ) : (
+              !isDefault && <span className="text-xs px-2.5 py-0.5 bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 font-bold rounded">규칙 적용 중</span>
+            )}
+          </div>
+
+          {/* 1️⃣ 인용구 배경색 (background-color → blockquote) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">인용구 배경색</span>
+            <select
+              value={(currentProfile.rules.blockquote || {})['background-color'] || '#f8f7ff'}
+              disabled={isDefault}
+              onChange={(e) => updateCssRule('blockquote', 'background-color', e.target.value)}
+              className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+            >
+              <option value="#f8f7ff">은은한 연보라 (#f8f7ff)</option>
+              <option value="#f1f5f9">클래식 슬레이트 그레이 (#f1f5f9)</option>
+              <option value="#eff6ff">소프트 멜론 블루 (#eff6ff)</option>
+              <option value="#f0fdf4">에메랄드 민트 (#f0fdf4)</option>
+              <option value="#fffbeb">웜 앰버 골드 (#fffbeb)</option>
+              <option value="transparent">투명 (transparent)</option>
+            </select>
+          </div>
+
+          {/* 2️⃣ 강조선 굵기 (border-left-width → blockquote) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">강조선 굵기</span>
+            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+              <input
+                type="number" min={0} max={20}
+                value={parseInt((currentProfile.rules.blockquote || {})['border-left-width'] || '4') || 4}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('blockquote', 'border-left-width', (parseInt(e.target.value) || 0) + 'px')}
+                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+              />
+              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+            </div>
+          </div>
+
+          {/* 3️⃣ 인용구 바깥 여백 (margin-top & margin-bottom 동기화) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">인용구 바깥 여백</span>
+            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+              <input
+                type="number" min={0} max={80}
+                value={parseInt((currentProfile.rules.blockquote || {})['margin-top'] || '24') || 24}
+                disabled={isDefault}
+                onChange={(e) => {
+                  if (isDefault) return;
+                  const v = (parseInt(e.target.value) || 0) + 'px';
+                  onUpdateProfile({
+                    ...currentProfile,
+                    rules: {
+                      ...currentProfile.rules,
+                      blockquote: {
+                        ...(currentProfile.rules.blockquote || {}),
+                        'margin-top': v,
+                        'margin-bottom': v
+                      }
+                    }
+                  });
+                }}
+                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+              />
+              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+            </div>
+          </div>
+
+          {/* 4️⃣ 인용구 내부 여백 (padding) */}
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
+            <span className="font-mono text-[12px] w-32 text-zinc-500">인용구 내부 여백</span>
+            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
+              <input
+                type="number" min={0} max={64}
+                value={parseInt((currentProfile.rules.blockquote || {})['padding'] || '16') || 16}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('blockquote', 'padding', (parseInt(e.target.value) || 0) + 'px')}
+                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+              />
+              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+            </div>
+          </div>
+        </div>
+
 
         <div className="space-y-4">
           <h4 className="font-bold text-blue-600 dark:text-blue-400 border-b border-zinc-200 dark:border-zinc-700 pb-1 uppercase tracking-wider text-[13px]">
@@ -970,13 +1282,22 @@ export default function CssStyleForm({
           <TagRuleEditor tag="table" label="TABLE - 표 전체" rules={currentProfile.rules.table || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
           <TagRuleEditor tag="th" label="TH - 헤더 셀" rules={currentProfile.rules.th || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
           <TagRuleEditor tag="td" label="TD - 데이터 셀" rules={currentProfile.rules.td || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="blockquote" label="BLOCKQUOTE - 인용 상자" rules={currentProfile.rules.blockquote || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
           <TagRuleEditor tag="codeBlock" label="CODE BLOCK - 코드 블록" rules={currentProfile.rules.codeBlock || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
           <TagRuleEditor tag="a" label="A - 링크" rules={currentProfile.rules.a || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
           <TagRuleEditor tag="img" label="IMG - 이미지" rules={currentProfile.rules.img || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
         </div>
 
       </div>
+
+      <FontSelectorModal
+        isOpen={isFontModalOpen}
+        onClose={() => setIsFontModalOpen(false)}
+        currentFont={currentProfile.pageStyle.fontFamily}
+        onSelectFont={(font) => {
+          handlePageStyleChange('fontFamily', '"' + font + '", serif');
+        }}
+        isDarkMode={isDarkMode || false}
+      />
     </div>
   );
 }
