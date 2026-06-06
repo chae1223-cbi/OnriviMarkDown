@@ -186,24 +186,98 @@ export async function generateEpub({
   // 4. XHTML 본문 데이터 변환 및 하이퍼링크 표준 조율
   const sanitizedBody = sanitizeToXHTML(processedHtml, title);
 
-  // 5. OEBPS/text/section1.xhtml (실제 책 본문)
-  const sectionHtml = `<?xml version="1.0" encoding="utf-8"?>
+  // 5. 📄 [EPUB 페이지 분할 코어] 페이지나누기 기호(.page-break, .page-break-line-before) 기준으로 복수의 챕터 분리
+  const sections: { id: string; html: string; title: string }[] = [];
+  
+  if (typeof window !== 'undefined') {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<body>${sanitizedBody}</body>`, 'text/html');
+    const childNodes = Array.from(doc.body.childNodes);
+    
+    let currentSectionNodes: Node[] = [];
+    let secIdx = 1;
+    
+    // 섹션 생성 헬퍼 함수
+    const finalizeSection = () => {
+      if (currentSectionNodes.length === 0) return;
+      const tempDiv = doc.createElement('div');
+      currentSectionNodes.forEach(n => tempDiv.appendChild(n));
+      
+      const innerHtml = tempDiv.innerHTML.trim();
+      if (innerHtml) {
+        // 섹션 내 제목 자동 탐색 (H1, H2, H3 우선)
+        const secDoc = parser.parseFromString(innerHtml, 'text/html');
+        const header = secDoc.querySelector('h1, h2, h3');
+        const secTitle = header ? (header.textContent || '').trim() : `페이지 ${secIdx}`;
+        
+        sections.push({
+          id: `section${secIdx}`,
+          html: innerHtml,
+          title: secTitle || `페이지 ${secIdx}`
+        });
+        secIdx++;
+      }
+      currentSectionNodes = [];
+    };
+    
+    for (const node of childNodes) {
+      let isBreak = false;
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        // 사용자 수동 나누기 또는 자동 A4 용지 나누기 경계를 split point로 인식
+        if (el.classList.contains('page-break') || el.classList.contains('page-break-line-before')) {
+          isBreak = true;
+        }
+      }
+      
+      if (isBreak) {
+        finalizeSection(); // 구분선 도달 시 이전 내용으로 챕터 구성 및 리셋
+      } else {
+        currentSectionNodes.push(node);
+      }
+    }
+    finalizeSection(); // 남은 노드들로 최종 챕터 구성
+  }
+
+  // 예외 상황 방어 fallback
+  if (sections.length === 0) {
+    sections.push({
+      id: 'section1',
+      html: sanitizedBody,
+      title: title
+    });
+  }
+
+  // 6. 각 분 분할된 챕터(XHTML) 파일 개별 생성 및 매니페스트/스파인 리스트 빌드
+  const manifestSectionItems: string[] = [];
+  const spineSectionItems: string[] = [];
+  
+  sections.forEach((sec) => {
+    const sectionHtml = `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${language}" lang="${language}">
   <head>
     <meta charset="utf-8" />
-    <title>${title}</title>
+    <title>${sec.title}</title>
     <link rel="stylesheet" type="text/css" href="../styles/style.css" />
   </head>
   <body>
     <section class="epub-body">
-      ${sanitizedBody}
+      ${sec.html}
     </section>
   </body>
 </html>`;
-  zip.folder('OEBPS/text')?.file('section1.xhtml', sectionHtml);
+    zip.folder('OEBPS/text')?.file(`${sec.id}.xhtml`, sectionHtml);
+    
+    manifestSectionItems.push(`<item id="${sec.id}" href="text/${sec.id}.xhtml" media-type="application/xhtml+xml"/>`);
+    spineSectionItems.push(`<itemref idref="${sec.id}"/>`);
+  });
 
-  // 6. OEBPS/text/toc.xhtml (EPUB3 표준 네비게이션 목차 문서)
+  // 7. OEBPS/text/toc.xhtml (EPUB3 표준 네비게이션 목차 문서에 쪼개진 챕터 자동 매핑)
+  const tocItems = sections.map(sec => 
+    `<li><a href="${sec.id}.xhtml">${sec.title}</a></li>`
+  ).join('\n        ');
+
   const tocHtml = `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${language}" lang="${language}">
@@ -216,14 +290,14 @@ export async function generateEpub({
     <nav epub:type="toc" id="toc">
       <h1 class="toc-title">목차 (Table of Contents)</h1>
       <ol>
-        <li><a href="section1.xhtml">${title}</a></li>
+        ${tocItems}
       </ol>
     </nav>
   </body>
 </html>`;
   zip.folder('OEBPS/text')?.file('toc.xhtml', tocHtml);
 
-  // 7. OEBPS/styles/style.css (EPUB 가독성 최적화 스타일 시트)
+  // 8. OEBPS/styles/style.css (EPUB 가독성 최적화 스타일 시트)
   const styleCss = `body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   line-height: 1.62;
@@ -329,13 +403,27 @@ a:hover {
   font-size: 1.6em;
   border-bottom: 2px solid #0058bc;
   padding-bottom: 0.4em;
+}
+/* 📄 EPUB 리더기 화면 가이드 숨김 및 강제 페이징 속성 */
+.page-break-line-before::before,
+.page-break::before,
+tr.table-page-break-line-before > td:first-child::before {
+  display: none !important;
+}
+.page-break-line-before, .page-break {
+  page-break-before: always !important;
+  break-before: page !important;
+  margin-top: 0 !important;
 }`;
   zip.folder('OEBPS/styles')?.file('style.css', styleCss);
 
-  // 8. OEBPS/content.opf (메타데이터 및 리소스 목록 매니페스트 동적 생성)
-  const manifestItems = embeddedImages.map(img => 
+  // 9. OEBPS/content.opf (메타데이터 및 리소스 목록 매니페스트 동적 생성)
+  const imageManifestItems = embeddedImages.map(img => 
     `<item id="${img.id}" href="${img.href}" media-type="${img.mimeType}"/>`
   ).join('\n    ');
+
+  const sectionManifestItems = manifestSectionItems.join('\n    ');
+  const sectionSpineItems = spineSectionItems.join('\n    ');
 
   const contentOpf = `<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="3.0">
@@ -349,18 +437,18 @@ a:hover {
   </metadata>
   <manifest>
     <item id="toc" href="text/toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="section1" href="text/section1.xhtml" media-type="application/xhtml+xml"/>
+    ${sectionManifestItems}
     <item id="style" href="styles/style.css" media-type="text/css"/>
-    ${manifestItems}
+    ${imageManifestItems}
   </manifest>
   <spine>
     <itemref idref="toc"/>
-    <itemref idref="section1"/>
+    ${sectionSpineItems}
   </spine>
 </package>`;
   zip.file('OEBPS/content.opf', contentOpf);
 
-  // 9. ZIP 파일 생성 및 Blob 반환
+  // 10. ZIP 파일 생성 및 Blob 반환
   return await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' });
 }
 

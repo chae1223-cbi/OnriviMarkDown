@@ -1,26 +1,107 @@
 'use client';
 
 /*
- * CssStyleForm.tsx — 서식 정의 제어판 (관보 서식 규격 지정)
+ * CssStyleForm.tsx — 사용자 친화적 서식 정의 제어판 (관보 서식 규격 지정)
  *
- * 좌측 50% 영역을 차지하는 패널로, 사용자가 선택한 CssProfile의
+ * 좌측 영역을 차지하는 패널로, 사용자가 선택한 CssProfile의
  * 전역 타이포그래피와 각 HTML 태그별 CSS 룰셋(CssRuleSet)을 편집합니다.
  *
  * 편집 모드는 두 가지:
- *   1. 위젯 편집 모드 (기본) — CSS 속성명/값을 개별 input으로 수정
+ *   1. 위젯 편집 모드 (기본) — 슬라이더와 컬러 피커를 통해 비개발자도 직관적으로 편집
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  *
  * DEFAULT_PROFILE(id='default') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CssProfile, CssRuleSet } from '@/types/cssProfile';
 import { DEFAULT_PROFILE } from '@/constants/cssProfile';
 import FontSelectorModal from './FontSelectorModal';
 
 /**
- * CssStyleForm 최상위 props
+ * 🎯 원클릭 서식 프리셋 템플릿 데이터 모델
  */
+const PRESETS = [
+  {
+    name: '모던 웹진 스타일',
+    desc: '트렌디하고 시원시원한 가독성의 블로그/웹진 스타일',
+    pageStyle: {
+      fontFamily: '"Pretendard", sans-serif',
+      fontSize: '16px',
+      lineHeight: '1.8',
+      letterSpacing: '-0.01em',
+      marginTop: '15mm',
+      marginBottom: '15mm',
+      marginLeft: '15mm',
+      marginRight: '15mm',
+      orientation: 'portrait',
+      headingSizeOffset: '5',
+    },
+    rules: {
+      h1: { "text-align": "left", "font-weight": "bold", "margin-top": "2rem", "margin-bottom": "1.2rem", "font-size": "32px", "color": "#1e40af" },
+      h2: { "text-align": "left", "font-weight": "bold", "margin-top": "1.5rem", "margin-bottom": "1rem", "font-size": "26px", "border-bottom": "1px solid" },
+      h3: { "text-align": "left", "font-weight": "bold", "margin-top": "1.2rem", "margin-bottom": "0.8rem", "font-size": "21px" },
+      p: { "text-align": "left", "margin-bottom": "1.2rem", "text-indent": "0px", "line-height": "1.8", "color": "#1f2937" },
+      ul: { "list-style-type": "disc", "padding-left": "24px" },
+      ol: { "list-style-type": "decimal", "padding-left": "24px" },
+      li: { "margin-bottom": "8px" },
+      blockquote: { "background-color": "#eff6ff", "border-left-width": "4px", "padding": "16px", "margin-top": "24px" }
+    }
+  },
+  {
+    name: '학술 보고서 스타일',
+    desc: '논문이나 격식 있는 공문서 형태의 정갈하고 촘촘한 스타일',
+    pageStyle: {
+      fontFamily: '"Batang", "Gungsuh", serif',
+      fontSize: '14px',
+      lineHeight: '1.6',
+      letterSpacing: '-0.02em',
+      marginTop: '25mm',
+      marginBottom: '25mm',
+      marginLeft: '25mm',
+      marginRight: '25mm',
+      orientation: 'portrait',
+      headingSizeOffset: '3',
+    },
+    rules: {
+      h1: { "text-align": "center", "font-weight": "bold", "margin-top": "1.5rem", "margin-bottom": "1.5rem", "font-size": "24px" },
+      h2: { "text-align": "left", "font-weight": "bold", "margin-top": "1.2rem", "margin-bottom": "0.8rem", "font-size": "20px" },
+      h3: { "text-align": "left", "font-weight": "bold", "margin-top": "1rem", "margin-bottom": "0.6rem", "font-size": "17px" },
+      p: { "text-align": "justify", "margin-bottom": "1rem", "text-indent": "10px", "line-height": "1.6", "color": "#000000" },
+      ul: { "list-style-type": "circle", "padding-left": "24px" },
+      ol: { "list-style-type": "decimal", "padding-left": "24px" },
+      li: { "margin-bottom": "4px" },
+      blockquote: { "background-color": "#f1f5f9", "border-left-width": "6px", "padding": "12px", "margin-top": "16px" }
+    }
+  },
+  {
+    name: '단정한 관보 스타일',
+    desc: '전형적인 규격 문서 양식에 어울리는 단정한 관보 스타일',
+    pageStyle: {
+      fontFamily: 'inherit',
+      fontSize: '15px',
+      lineHeight: '1.8',
+      letterSpacing: '-0.02em',
+      marginTop: '20mm',
+      marginBottom: '20mm',
+      marginLeft: '20mm',
+      marginRight: '20mm',
+      orientation: 'portrait',
+      headingSizeOffset: '4',
+    },
+    rules: {
+      h1: { "text-align": "left", "font-weight": "bold", "margin-top": "1.5rem", "margin-bottom": "1rem", "font-size": "28px" },
+      h2: { "text-align": "left", "font-weight": "bold", "margin-top": "1.3rem", "margin-bottom": "0.8rem", "font-size": "24px" },
+      h3: { "text-align": "left", "font-weight": "bold", "margin-top": "1rem", "margin-bottom": "0.6rem", "font-size": "20px" },
+      p: { "text-align": "left", "margin-bottom": "1rem", "text-indent": "0px", "line-height": "1.8" },
+      ul: { "list-style-type": "disc", "padding-left": "24px" },
+      ol: { "list-style-type": "decimal", "padding-left": "24px" },
+      li: { "margin-bottom": "6px" },
+      blockquote: { "background-color": "#f8f7ff", "border-left-width": "4px", "padding": "16px", "margin-top": "24px" }
+    }
+  }
+];
+
 interface CssStyleFormProps {
   profiles: CssProfile[];
   activeProfileId: string;
@@ -28,225 +109,413 @@ interface CssStyleFormProps {
   onUpdateProfile: (profile: CssProfile) => void;
   onAddProfile?: () => void;
   onDeleteProfile?: (id: string) => void;
+  onImportProfile?: (profile: CssProfile) => void;
   onClose: () => void;
   isDarkMode?: boolean;
 }
 
-/**
- * TagRuleEditor — 개별 태그(h1, p, table 등)의 CSS 룰셋을 편집하는 서브 컴포넌트
- *
- * 두 가지 뷰 모드를 제공합니다:
- * - 간편 모드: 등록된 CSS 속성을 input 목록으로 표시, "+ 속성 추가" 가능
- * - JSON 모드: 전체 CssRuleSet을 JSON 문자열로 직접 편집
- */
-interface TagRuleEditorProps {
-  tag: string;       // 태그명 (예: 'h1', 'table')
-  label: string;     // UI에 표시할 설명
-  rules: CssRuleSet; // 현재 CssRuleSet 객체
-  isDefault: boolean; // DEFAULT_PROFILE 여부 (true면 모든 입력 disabled)
-  onUpdateRule: (tag: string, property: string, value: string) => void;
-  onRemoveRule: (tag: string, property: string) => void;
+/* ────────────────────────────────────────────────────────
+   🧩 [서브 위젯 컴포넌트]
+   ──────────────────────────────────────────────────────── */
+
+// 1. 아코디언 섹션 래퍼 (글씨 크기를 시원하게 상향)
+interface AccordionSectionProps {
+  id: string;
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
 }
 
-function TagRuleEditor({ tag, label, rules, isDefault, onUpdateRule, onRemoveRule }: TagRuleEditorProps) {
-  const [showJson, setShowJson] = useState(false);
-  const [jsonText, setJsonText] = useState('');
-
-  /* rules가 바뀔 때마다 JSON 미러링 */
-  useEffect(() => {
-    setJsonText(JSON.stringify(rules, null, 2));
-  }, [rules]);
-
-  /* 값이 비어있지 않은 항목만 목록에 표시 */
-  const entries = Object.entries(rules).filter(([, v]) => v !== '');
-
+function AccordionSection({ title, isOpen, onToggle, children }: AccordionSectionProps) {
   return (
-    <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 bg-white dark:bg-zinc-950 shadow-sm">
-      {/* 헤더: 태그명 + 뷰 전환 버튼 */}
-      <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2 mb-2">
-        <span className="font-semibold text-zinc-700 dark:text-zinc-300 text-[11px]">{label}</span>
-        <button
-          type="button"
-          onClick={() => setShowJson(!showJson)}
-          className="text-[10px] text-zinc-400 hover:text-blue-500 font-medium"
-        >
-          {showJson ? '위젯 편집' : 'CSS 직접 편집'}
-        </button>
-      </div>
-
-      {showJson ? (
-        /*
-         * JSON 편집 모드:
-         * - 텍스트를 직접 수정하면 실시간으로 파싱하여 rules에 반영
-         * - JSON 파싱 실패 시 무시(기존 rules 유지)
-         * - 제거된 속성은 onRemoveRule로 정리
-         */
-        <div className="space-y-1">
-          <span className="text-[10px] text-zinc-400 block font-mono">CSS RuleSet JSON</span>
-          <textarea
-            disabled={isDefault}
-            value={jsonText}
-            onChange={(e) => {
-              setJsonText(e.target.value);
-              try {
-                const parsed = JSON.parse(e.target.value);
-                for (const [prop, val] of Object.entries(parsed)) {
-                  onUpdateRule(tag, prop, val as string);
-                }
-                for (const existingProp of Object.keys(rules)) {
-                  if (!(existingProp in parsed)) {
-                    onRemoveRule(tag, existingProp);
-                  }
-                }
-              } catch {}
-            }}
-            className="w-full h-24 p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-900 text-emerald-400 font-mono text-[11px] leading-relaxed"
-          />
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {entries.length === 0 && (
-            <span className="text-[10px] text-zinc-400 italic">지정된 CSS 규칙 없음 (기본값 사용)</span>
-          )}
-          {entries.map(([prop, val]) => (
-            <div key={prop} className="flex items-center gap-1.5">
-              <span className="text-zinc-500 font-mono text-[10px] w-28 shrink-0">{prop}:</span>
-              <input
-                type="text"
-                value={val}
-                onChange={(e) => onUpdateRule(tag, prop, e.target.value)}
-                className="flex-1 p-1 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 font-mono text-[11px] text-blue-600 dark:text-blue-400"
-                disabled={isDefault}
-              />
-              {!isDefault && (
-                <button
-                  onClick={() => onRemoveRule(tag, prop)}
-                  className="text-zinc-300 hover:text-red-400 text-[11px] px-1"
-                >
-                  X
-                </button>
-              )}
-            </div>
-          ))}
-          {!isDefault && (
-            <button
-              onClick={() => {
-                const key = prompt('추가할 CSS 속성명 (예: color):');
-                if (key) onUpdateRule(tag, key.trim(), '');
-              }}
-              className="text-[10px] text-blue-500 hover:text-blue-600 font-medium mt-1"
-            >
-              + 속성 추가
-            </button>
-          )}
+    <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-950 shadow-sm transition-all duration-200">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full px-5 py-4 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors text-left"
+      >
+        <span className="font-bold text-[16px] text-zinc-800 dark:text-zinc-200">{title}</span>
+        <span className={`text-[13px] text-zinc-400 transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
+          ▼
+        </span>
+      </button>
+      {isOpen && (
+        <div className="p-5 border-t border-zinc-100 dark:border-zinc-900 space-y-5">
+          {children}
         </div>
       )}
     </div>
   );
 }
 
-/*
- * CssStyleForm 메인 컴포넌트
- *
- * 전체 레이아웃:
- * ┌─────────────────────────────────────────────┐
- * │  🏛️ 관보 서식 규격 지정  [select] [+] [✕]  │  <- 헤더 (프로필 선택)
- * │                         [에디터로 복귀]     │
- * ├─────────────────────────────────────────────┤
- * │  프로필 이름 (DEFAULT 제외)                  │
- * ├─────────────────────────────────────────────┤
- * │  [섹션 1] 전역 타이포그래피                  │
- * │  - 폰트 검색 피커 + 글자크기/줄간격/자간     │
- * ├─────────────────────────────────────────────┤
- * │  [섹션 2] H1 위젯 (정렬/굵기/테두리/여백)    │
- * ├─────────────────────────────────────────────┤
- * │  [섹션 3] 제목 요소 (H1~H6 TagRuleEditor)    │
- * ├─────────────────────────────────────────────┤
- * │  [섹션 4] 본문 및 인라인 서식                │
- * ├─────────────────────────────────────────────┤
- * │  [섹션 5] 목록화 및 구조 제어                │
- * ├─────────────────────────────────────────────┤
- * │  [섹션 6] 복합 객체 정의                     │
- * └─────────────────────────────────────────────┘
- */
+// 0 또는 '0' 값(Falsy)을 누락시키지 않고 기본값을 안전하게 처리하는 헬퍼 함수
+const getNumValue = (val: string | number | undefined | null, defaultVal: number): number => {
+  if (val === undefined || val === null || val === '') return defaultVal;
+  const parsed = typeof val === 'number' ? val : parseFloat(val);
+  return isNaN(parsed) ? defaultVal : parsed;
+};
+
+// 2. HTML5 표준 슬라이더 위젯 (가독성 높은 폰트 크기 및 두툼한 슬라이더 적용)
+interface SliderWidgetProps {
+  label: string;
+  min: number;
+  max: number;
+  step?: number;
+  value: number | string;
+  unit: string;
+  disabled: boolean;
+  onChange: (val: string) => void;
+}
+
+function SliderWidget({ label, min, max, step = 1, value, unit, disabled, onChange }: SliderWidgetProps) {
+  const numVal = getNumValue(value, min);
+  return (
+    <div className="space-y-2.5 bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+      <div className="flex items-center justify-between">
+        <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px]">{label}</span>
+        <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">
+          {numVal}{unit}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={numVal}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-650 disabled:opacity-50 disabled:cursor-not-allowed"
+      />
+    </div>
+  );
+}
+
+// 3. 브라우저 내장 컬러 피커 연동 위젯
+interface ColorPickerWidgetProps {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (val: string) => void;
+}
+
+function ColorPickerWidget({ label, value, disabled, onChange }: ColorPickerWidgetProps) {
+  const hexValue = value && value.startsWith('#') ? value : '#000000';
+  return (
+    <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+      <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px]">{label}</span>
+      <div className="flex items-center gap-2.5">
+        <input
+          type="text"
+          value={value || ''}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="inherit"
+          className="w-28 p-2 text-center font-mono text-sm text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-950 border border-zinc-250 dark:border-zinc-800 rounded outline-none"
+        />
+        <div className="relative w-8 h-8 rounded-full border border-zinc-250 dark:border-zinc-700 overflow-hidden cursor-pointer shrink-0 shadow-sm">
+          <input
+            type="color"
+            value={hexValue}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+            style={{ transform: 'scale(2)' }}
+          />
+          <div
+            className="w-full h-full rounded-full transition-transform hover:scale-105"
+            style={{ backgroundColor: value || 'transparent' }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 4. 복합 태그용 간편 편집 에디터
+interface TagRuleEditorProps {
+  tag: string;
+  label: string;
+  rules: CssRuleSet;
+  isDefault: boolean;
+  onUpdateRule: (tag: string, property: string, value: string) => void;
+  onRemoveRule: (tag: string, property: string) => void;
+}
+
+function TagRuleEditor({ tag, label, rules, isDefault, onUpdateRule, onRemoveRule }: TagRuleEditorProps) {
+  const entries = Object.entries(rules).filter(([, v]) => v !== '');
+
+  return (
+    <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3.5 bg-white dark:bg-zinc-950 shadow-sm">
+      <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2 mb-2.5">
+        <span className="font-bold text-zinc-700 dark:text-zinc-300 text-sm">{label}</span>
+      </div>
+
+      <div className="space-y-2">
+        {entries.length === 0 && (
+          <span className="text-xs text-zinc-450 italic block font-semibold">지정된 CSS 규칙 없음 (기본값 사용)</span>
+        )}
+        {entries.map(([prop, val]) => (
+          <div key={prop} className="flex items-center gap-2">
+            <span className="text-zinc-650 font-mono text-xs w-36 shrink-0">{prop}:</span>
+            <input
+              type="text"
+              value={val}
+              onChange={(e) => onUpdateRule(tag, prop, e.target.value)}
+              className="flex-1 p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 font-mono text-sm text-blue-600 dark:text-blue-400"
+              disabled={isDefault}
+            />
+            {!isDefault && (
+              <button
+                onClick={() => onRemoveRule(tag, prop)}
+                className="text-zinc-400 hover:text-red-400 text-sm px-1.5"
+              >
+                X
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────
+   🏛️ [메인 CssStyleForm 컴포넌트]
+   ──────────────────────────────────────────────────────── */
+
 export default function CssStyleForm({
-  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onClose, isDarkMode
+  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, isDarkMode
 }: CssStyleFormProps) {
-  /* 현재 선택된 프로필 (없으면 DEFAULT) */
   const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
   const isDefault = currentProfile.id === 'default';
 
-  /* ─── 폰트 선택 상태 ─── */
-  const [isFontDialogOpen, setIsFontDialogOpen] = useState(false);
+  /* ─── 아코디언 상태 관리 ─── */
+  const [openAccordion, setOpenAccordion] = useState<string | null>('typography');
+
+  /* ─── 폰트 선택 및 위계 탭 관리 ─── */
   const [isFontModalOpen, setIsFontModalOpen] = useState(false);
-
-  /* ─── H2~H6 탭 선택 상태 ─── */
   const [activeHeadingTab, setActiveHeadingTab] = useState(2);
-
-  /* ─── 인라인 서식 탭 선택 상태 (좌측 P 고정, 우측 STRONG/EM/U/DEL 전환) ─── */
   const [activeInlineTab, setActiveInlineTab] = useState<'strong' | 'em' | 'u' | 'del'>('strong');
-
-  /* ─── CSS 직접 편집 토글 상태 (TagRuleEditor에서 분리) ─── */
   const [showJson, setShowJson] = useState<string | null>(null);
 
-  /* ─── CssRuleSet 조작 헬퍼 ─── */
+  /* ─── 가져오기/내보내기 상태 ─── */
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  /** 특정 태그의 CssRuleSet을 안전하게 반환 (undefined 방어) */
+  /* ─── 인라인 이름 변경 상태 ─── */
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState('');
+
+  /* ─── ⚡ [고속 업데이트 최적화 가드] ─── */
+  const rafIdRef = useRef<number | null>(null);
+  const pendingProfileRef = useRef<CssProfile | null>(null);
+
+  const triggerUpdate = (updated: CssProfile) => {
+    pendingProfileRef.current = updated;
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (pendingProfileRef.current) {
+          onUpdateProfile(pendingProfileRef.current);
+        }
+        rafIdRef.current = null;
+      });
+    }
+  };
+
+  /* ─── 📤 📥 가져오기/내보내기 비즈니스 로직 ─── */
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const exportCurrentProfile = () => {
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentProfile, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `${currentProfile.name || 'onrivi_style'}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast("서식 파일(.json)이 다운로드되었습니다.");
+    } catch (e) {
+      showToast("서식 내보내기 실패!");
+    }
+  };
+
+  const copyProfileToClipboard = () => {
+    try {
+      navigator.clipboard.writeText(JSON.stringify(currentProfile, null, 2));
+      showToast("서식이 클립보드에 복사되었습니다.");
+    } catch (e) {
+      showToast("클립보드 복사 실패!");
+    }
+  };
+
+  const importProfileString = (jsonStr: string): boolean => {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (!parsed.name || !parsed.pageStyle || !parsed.rules) {
+        alert("올바른 Onrivi 서식 양식이 아닙니다. name, pageStyle, rules 속성이 필수입니다.");
+        return false;
+      }
+      if (onImportProfile) {
+        onImportProfile(parsed);
+        showToast("서식이 성공적으로 추가되었습니다.");
+        setShowImportModal(false);
+        setImportJsonText('');
+        return true;
+      }
+    } catch (e) {
+      alert("JSON 문법 에러! 형식을 확인해 주세요.");
+    }
+    return false;
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      importProfileString(text);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  /* ─── CssRuleSet 조작 헬퍼 ─── */
   const getTagRules = (tag: string): CssRuleSet => {
     const tagKey = tag as keyof CssProfile['rules'];
     return currentProfile.rules[tagKey] || {};
   };
 
-  /**
-   * 특정 태그의 CSS 속성 값을 설정합니다.
-   * 내부적으로 onUpdateProfile을 호출하여 profiles 상태를 갱신합니다.
-   * DEFAULT_PROFILE에서는 동작하지 않습니다.
-   */
   const updateCssRule = (tag: string, property: string, value: string) => {
     if (isDefault) return;
-    console.log(`[CssStyleForm] Updating ${tag}: ${property} = ${value}`); // 로그 추가
     const tagKey = tag as keyof CssProfile['rules'];
-    onUpdateProfile({
+    const updated = {
       ...currentProfile,
       rules: {
         ...currentProfile.rules,
         [tagKey]: { ...getTagRules(tag), [property]: value },
       },
-    });
+    };
+    triggerUpdate(updated);
   };
 
-  /**
-   * 특정 태그에서 CSS 속성을 제거합니다.
-   * 구조 분해 할당으로 해당 key를 제외한 나머지를 복사합니다.
-   */
   const removeCssRule = (tag: string, property: string) => {
     if (isDefault) return;
     const tagKey = tag as keyof CssProfile['rules'];
     const current = getTagRules(tag);
     const { [property]: _, ...rest } = current;
-    onUpdateProfile({
+    const updated = {
       ...currentProfile,
       rules: { ...currentProfile.rules, [tagKey]: rest },
-    });
+    };
+    triggerUpdate(updated);
   };
 
-  /** 전역 타이포그래피 및 페이지 설정 변경 */
+  /* ─── 표 테두리 묶음 업데이트 ─── */
+  const updateTableBorder = (property: string, value: string) => {
+    if (isDefault) return;
+    const tableRules = getTagRules('table');
+    const thRules = getTagRules('th');
+    const tdRules = getTagRules('td');
+    const updated = {
+      ...currentProfile,
+      rules: {
+        ...currentProfile.rules,
+        table: { ...tableRules, [property]: value },
+        th: { ...thRules, [property]: value },
+        td: { ...tdRules, [property]: value },
+      }
+    };
+    triggerUpdate(updated);
+  };
+
+  /* ─── 표 셀 여백 묶음 업데이트 ─── */
+  const updateCellPadding = (value: string) => {
+    if (isDefault) return;
+    const thRules = getTagRules('th');
+    const tdRules = getTagRules('td');
+    const updated = {
+      ...currentProfile,
+      rules: {
+        ...currentProfile.rules,
+        th: { ...thRules, 'padding': value },
+        td: { ...tdRules, 'padding': value },
+      }
+    };
+    triggerUpdate(updated);
+  };
+
+  /* ─── 표 글자 크기 묶음 업데이트 ─── */
+  const updateTableFontSize = (value: string) => {
+    if (isDefault) return;
+    const tableRules = getTagRules('table');
+    const thRules = getTagRules('th');
+    const tdRules = getTagRules('td');
+    const updatedRules = { ...currentProfile.rules };
+    if (!value) {
+      const { 'font-size': _, ...restTable } = tableRules;
+      const { 'font-size': __, ...restTh } = thRules;
+      const { 'font-size': ___, ...restTd } = tdRules;
+      updatedRules.table = restTable;
+      updatedRules.th = restTh;
+      updatedRules.td = restTd;
+    } else {
+      updatedRules.table = { ...tableRules, 'font-size': value };
+      updatedRules.th = { ...thRules, 'font-size': value };
+      updatedRules.td = { ...tdRules, 'font-size': value };
+    }
+    const updated = {
+      ...currentProfile,
+      rules: updatedRules
+    };
+    triggerUpdate(updated);
+  };
+
   const handlePageStyleChange = (key: keyof CssProfile['pageStyle'], value: string) => {
     if (isDefault) return;
-    console.log(`[CssStyleForm] Updating PageStyle: ${key} = ${value}`); // 🔍 추가
-    onUpdateProfile({
+    const updated = {
       ...currentProfile,
       pageStyle: { ...currentProfile.pageStyle, [key]: value },
-    });
+    };
+    triggerUpdate(updated);
   };
 
-  /** 프로필 이름 변경 */
   const handleNameChange = (name: string) => {
     if (isDefault) return;
     onUpdateProfile({ ...currentProfile, name });
   };
 
-  /* ─── 구조제어 데이터 모델 동기화 ─── */
+  const handleRenameClick = () => {
+    if (isDefault) return;
+    setTempName(currentProfile.name);
+    setIsEditingName(true);
+  };
+
+  const handleRenameSave = () => {
+    if (isDefault) return;
+    const trimmed = tempName.trim();
+    if (trimmed !== '') {
+      handleNameChange(trimmed);
+    }
+    setIsEditingName(false);
+  };
+
+  const handleDeleteClick = () => {
+    if (!canDelete || !onDeleteProfile) return;
+    if (window.confirm(`서식 "${currentProfile.name}"을(를) 정말로 삭제하시겠습니까?`)) {
+      onDeleteProfile(currentProfile.id);
+    }
+  };
+
+
+  /* ─── 구조제어 데이터 ─── */
   const hrStructure = currentProfile.hrStructure || {
     borderTopStyle: 'solid',
     borderTopWidth: '1px',
@@ -262,33 +531,58 @@ export default function CssStyleForm({
 
   const updateHrStructure = (key: string, value: string) => {
     if (isDefault) return;
-    onUpdateProfile({
+    const updated = {
       ...currentProfile,
-      hrStructure: {
-        ...hrStructure,
-        [key]: value
-      }
-    });
+      hrStructure: { ...hrStructure, [key]: value }
+    };
+    triggerUpdate(updated);
   };
 
   const updateCheckboxStructure = (key: string, value: string) => {
     if (isDefault) return;
-    onUpdateProfile({
+    const updated = {
       ...currentProfile,
-      checkboxStructure: {
-        ...checkboxStructure,
-        [key]: value
-      }
-    });
+      checkboxStructure: { ...checkboxStructure, [key]: value }
+    };
+    triggerUpdate(updated);
   };
 
-  /* ─── 파생 상태 ─── */
+  /* ─── 프리셋 일괄 적용 ─── */
+  const applyPreset = (preset: typeof PRESETS[0]) => {
+    if (isDefault) return;
+    const updated: CssProfile = {
+      ...currentProfile,
+      pageStyle: {
+        ...currentProfile.pageStyle,
+        ...preset.pageStyle,
+      },
+      rules: {
+        ...currentProfile.rules,
+        ...preset.rules as any,
+      }
+    };
+    onUpdateProfile(updated);
+  };
+
+  /* ─── 공장 초기 설정 복구 ─── */
+  const resetToDefault = () => {
+    if (isDefault) return;
+    if (window.confirm('현재 서식을 공장 초기 기본값으로 완전히 복구하시겠습니까?')) {
+      const updated: CssProfile = {
+        ...currentProfile,
+        pageStyle: { ...DEFAULT_PROFILE.pageStyle },
+        rules: { ...DEFAULT_PROFILE.rules },
+        hrStructure: DEFAULT_PROFILE.hrStructure ? { ...DEFAULT_PROFILE.hrStructure } : undefined,
+        checkboxStructure: DEFAULT_PROFILE.checkboxStructure ? { ...DEFAULT_PROFILE.checkboxStructure } : undefined,
+      };
+      onUpdateProfile(updated);
+    }
+  };
+
   const nonDefaultProfiles = profiles.filter(p => p.id !== 'default').length;
   const canDelete = !isDefault && nonDefaultProfiles > 0;
 
-  /* H1 위젯 버튼 옵션 */
   const h1Rules = currentProfile.rules.h1 || {};
-
   const alignOptions = [
     { label: '왼쪽', value: 'left' },
     { label: '중앙', value: 'center' },
@@ -316,231 +610,414 @@ export default function CssStyleForm({
   ] as const;
 
   return (
-    <div className="w-1/2 h-full bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col select-none text-xs">
-      <div className="h-11 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 px-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-zinc-700 dark:text-zinc-300">🏛️ 서식 정의</span>
-          <select
-            value={activeProfileId}
-            onChange={(e) => onSelectProfile(e.target.value)}
-            className="p-1 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-medium text-[11px]"
-          >
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          {onAddProfile && (
-            <button onClick={onAddProfile} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500" title="새 프로필 만들기">
-              <span className="text-[13px] leading-none">+</span>
-            </button>
+    <div className="w-[420px] shrink-0 h-full bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col select-none text-sm animate-fadeIn">
+      {/* 상단 헤더 (글자 크기 상향) */}
+      <div className="h-14 bg-white dark:bg-zinc-850 border-b border-zinc-200 dark:border-zinc-850 px-4 flex items-center justify-between shrink-0 gap-2">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {isEditingName ? (
+            <input
+              type="text"
+              value={tempName}
+              onChange={(e) => setTempName(e.target.value)}
+              onBlur={handleRenameSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameSave();
+                if (e.key === 'Escape') setIsEditingName(false);
+              }}
+              autoFocus
+              className="p-1 border border-blue-500 rounded bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 font-bold text-sm outline-none w-full max-w-[200px]"
+            />
+          ) : (
+            <>
+              <span className="font-bold text-zinc-700 dark:text-zinc-300 text-base shrink-0 whitespace-nowrap">🏛️ 서식 정의</span>
+              <select
+                value={activeProfileId}
+                onChange={(e) => onSelectProfile(e.target.value)}
+                className="p-1 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 font-semibold text-sm outline-none cursor-pointer max-w-[120px] truncate"
+              >
+                {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </>
           )}
-          {canDelete && onDeleteProfile && (
-            <button onClick={() => onDeleteProfile(currentProfile.id)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-zinc-400 hover:text-red-500" title="프로필 삭제">
-              <span className="text-[13px] leading-none">X</span>
+          
+          <div className="flex items-center gap-1 shrink-0">
+            {onAddProfile && (
+              <button onClick={onAddProfile} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-blue-500 transition-colors shrink-0" title="새 서식 추가">
+                <span className="text-[15px] font-bold leading-none">➕</span>
+              </button>
+            )}
+            {!isDefault && (
+              <button onClick={handleRenameClick} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-blue-500 transition-colors shrink-0" title="서식 이름 변경">
+                <span className="text-[15px] font-bold leading-none">✏️</span>
+              </button>
+            )}
+            {canDelete && onDeleteProfile && (
+              <button onClick={handleDeleteClick} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-zinc-400 hover:text-red-500 transition-colors shrink-0" title="서식 삭제">
+                <span className="text-[15px] font-bold leading-none">🗑️</span>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                exportCurrentProfile();
+                copyProfileToClipboard();
+              }}
+              className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-blue-500 transition-colors shrink-0"
+              title="서식 데이터 내보내기 (.json 파일 다운로드 & 클립보드 복사)"
+            >
+              <span className="text-[14px] font-bold leading-none">📤</span>
             </button>
-          )}
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-green-500 transition-colors shrink-0"
+              title="외부 서식 업로드 / 가져오기 (JSON 직접 붙여넣기 가능)"
+            >
+              <span className="text-[14px] font-bold leading-none">📥</span>
+            </button>
+          </div>
         </div>
-        <button onClick={onClose} className="bg-zinc-800 hover:bg-zinc-700 text-white dark:bg-zinc-700 dark:hover:bg-zinc-600 px-2.5 py-1 rounded font-medium transition-colors">
-          에디터로 복귀
-        </button>
       </div>
 
+      {/* 프로필 이름 지정 (인풋 크기 상향) */}
       {!isDefault && (
-        <div className="px-4 pt-3 pb-1">
-          <label className="block text-zinc-400 mb-1">서식 이름</label>
-          <input type="text" value={currentProfile.name} onChange={(e) => handleNameChange(e.target.value)} className="w-full p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 font-medium text-[12px] text-zinc-700 dark:text-zinc-300" placeholder="예: 정부표준_보고서_양식" />
+        <div className="px-4 py-3 shrink-0 bg-white dark:bg-zinc-850 border-b border-zinc-150 dark:border-zinc-800">
+          <label className="block text-zinc-500 dark:text-zinc-400 text-sm font-semibold mb-1.5">서식 명칭</label>
+          <input type="text" value={currentProfile.name} onChange={(e) => handleNameChange(e.target.value)} className="w-full p-2.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 font-bold text-base text-zinc-750 dark:text-zinc-300 outline-none focus:border-blue-500 transition-colors" placeholder="예: 정부표준_보고서_양식" />
         </div>
       )}
 
+      {/* 스크롤 가능한 본문 영역 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
 
-        <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm space-y-4">
-          <h4 className="font-bold text-blue-600 dark:text-blue-400 border-b border-zinc-100 dark:border-zinc-900 pb-1.5 text-[13px]">
-            가상 A4 용지 전역 타이포그래피
-          </h4>
-
-          {/* 페이지 글꼴 — 읽기 전용 + [글꼴 선택] 버튼 */}
-          <div>
-            <label className="block text-zinc-400 mb-1">페이지 글꼴</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={isFontDialogOpen ? '글꼴 선택 중...' : currentProfile.pageStyle.fontFamily}
-                readOnly
-                placeholder="시스템 글꼴 선택"
-                className="flex-1 p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-100 dark:bg-zinc-900 font-mono text-blue-600 dark:text-blue-400 font-bold text-[11px] cursor-not-allowed"
-                disabled={isDefault}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (isDefault) return;
-                  setIsFontModalOpen(true);
-                }}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-md transition-colors flex items-center gap-1 shrink-0"
-                disabled={isDefault}
-              >
-                <span>📝</span>
-                글꼴 변경 (OS)...
-              </button>
+        {/* 🎨 1. 원클릭 서식 프리셋 카드 (DEFAULT가 아닐 때 노출, 카드 텍스트 크기 상향) */}
+        {!isDefault && (
+          <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm space-y-3.5">
+            <div className="text-sm font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+              <span>🎨 원클릭 간편 프리셋</span>
+              <span className="text-xs font-normal text-zinc-400">(일괄 적용)</span>
             </div>
-          </div>
-
-          {/* 기본 크기 + 줄 간격 + 자간 */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-zinc-400 mb-1">기본 크기</label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={parseInt(currentProfile.pageStyle.fontSize) || 15}
-                  onChange={(e) => handlePageStyleChange('fontSize', e.target.value + 'px')}
-                  className="w-full p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 font-mono text-center text-[11px]"
-                  disabled={isDefault}
-                  min="10" max="36"
-                />
-                <span className="text-[10px] text-zinc-400 shrink-0">px</span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-zinc-400 mb-1">줄 간격</label>
-              <input type="text" value={currentProfile.pageStyle.lineHeight} onChange={(e) => handlePageStyleChange('lineHeight', e.target.value)} className="w-full p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 font-mono text-center text-[11px]" disabled={isDefault} placeholder="1.8" />
-            </div>
-            <div>
-              <label className="block text-zinc-400 mb-1">자간 간격</label>
-              <div className="flex flex-col items-center gap-1">
-                <input
-                  type="range" min="-0.05" max="0.05" step="0.01"
-                  value={parseFloat(currentProfile.pageStyle.letterSpacing) || 0}
-                  onChange={(e) => handlePageStyleChange('letterSpacing', e.target.value + 'em')}
-                  className="w-full accent-blue-500"
-                  disabled={isDefault}
-                />
-                <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400 font-bold">
-                  {(() => {
-                    const v = parseFloat(currentProfile.pageStyle.letterSpacing) || 0;
-                    return (v > 0 ? '+' : '') + v.toFixed(2) + ' em';
-                  })()}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 용지 여백 */}
-          <div>
-            <label className="block text-zinc-400 mb-1.5">용지 여백 (mm)</label>
-            <div className="grid grid-cols-4 gap-2">
-              {(['marginTop', 'marginBottom', 'marginLeft', 'marginRight'] as const).map((key) => (
-                <div key={key}>
-                  <label className="block text-[10px] text-zinc-400 mb-0.5 text-center">
-                    {key === 'marginTop' ? '위' : key === 'marginBottom' ? '아래' : key === 'marginLeft' ? '왼쪽' : '오른쪽'}
-                  </label>
-                  <input
-                    type="number"
-                    value={parseInt(currentProfile.pageStyle[key]) || 20}
-                    onChange={(e) => handlePageStyleChange(key, e.target.value + 'mm')}
-                    className="w-full p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 font-mono text-center text-[11px]"
-                    disabled={isDefault}
-                    min="5" max="50"
-                  />
-                </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {PRESETS.map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() => applyPreset(preset)}
+                  className="flex flex-col text-left p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/20 dark:hover:bg-blue-950/10 transition-all cursor-pointer"
+                >
+                  <span className="font-bold text-xs text-blue-600 dark:text-blue-400 truncate w-full">{preset.name.split(' ')[0]}</span>
+                  <span className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug truncate w-full">{preset.desc.substring(0, 10)}...</span>
+                </button>
               ))}
             </div>
           </div>
+        )}
 
-          {/* 용지 방향 */}
-          <div>
-            <label className="block text-zinc-400 mb-1.5">용지 방향</label>
-            <div className="flex gap-3">
-              <label className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px] cursor-pointer border transition-all ${
-                currentProfile.pageStyle.orientation === 'portrait'
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                  : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400'
-              } ${isDefault ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                <input type="radio" name="orientation" value="portrait"
-                  checked={currentProfile.pageStyle.orientation === 'portrait'}
-                  onChange={() => handlePageStyleChange('orientation', 'portrait')}
-                  className="sr-only" disabled={isDefault} />
-                <span>📄</span>
-                <span>세로</span>
-              </label>
-              <label className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px] cursor-pointer border transition-all ${
-                currentProfile.pageStyle.orientation === 'landscape'
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                  : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400'
-              } ${isDefault ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                <input type="radio" name="orientation" value="landscape"
-                  checked={currentProfile.pageStyle.orientation === 'landscape'}
-                  onChange={() => handlePageStyleChange('orientation', 'landscape')}
-                  className="sr-only" disabled={isDefault} />
-                <span>📃</span>
-                <span>가로</span>
-              </label>
+        {/* ─── 접이식 아코디언 그룹 시작 ─── */}
+
+        {/* 🟢 아코디언 [1]: 글꼴 및 본문 문단 */}
+        <AccordionSection
+          id="typography"
+          title="✍️ 전역 글꼴 및 본문 문단"
+          isOpen={openAccordion === 'typography'}
+          onToggle={() => setOpenAccordion(openAccordion === 'typography' ? null : 'typography')}
+        >
+          {/* 가상 A4 용지 기본 서식 */}
+          <div className="space-y-4.5">
+            <div className="text-sm font-bold text-zinc-550 dark:text-zinc-400 uppercase tracking-wider">용지 레이아웃 & 전역 타이포</div>
+            
+            {/* 글꼴 선택 */}
+            <div className="flex gap-2.5 items-end">
+              <div className="flex-1">
+                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm block mb-1.5">용지 기본 글꼴</span>
+                <input
+                  type="text"
+                  value={isFontModalOpen ? '글꼴 선택 중...' : currentProfile.pageStyle.fontFamily}
+                  readOnly
+                  className="w-full p-2.5 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-100 dark:bg-zinc-900 font-mono text-blue-600 dark:text-blue-400 font-bold text-sm cursor-not-allowed"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => { if (!isDefault) setIsFontModalOpen(true); }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-md transition-colors shrink-0 h-[40px] disabled:opacity-50 shadow-sm"
+                disabled={isDefault}
+              >
+                변경...
+              </button>
+            </div>
+
+            {/* 기본 크기 슬라이더 */}
+            <SliderWidget
+              label="기본 글자 크기"
+              min={10}
+              max={36}
+              value={parseInt(currentProfile.pageStyle.fontSize) || 15}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => handlePageStyleChange('fontSize', v + 'px')}
+            />
+
+            {/* 줄 간격 슬라이더 */}
+            <SliderWidget
+              label="기본 줄 간격"
+              min={1.0}
+              max={3.0}
+              step={0.1}
+              value={parseFloat(currentProfile.pageStyle.lineHeight) || 1.8}
+              unit="배"
+              disabled={isDefault}
+              onChange={(v) => handlePageStyleChange('lineHeight', v)}
+            />
+
+            {/* 자간 간격 슬라이더 */}
+            <SliderWidget
+              label="자간 간격 (Letter Spacing)"
+              min={-0.05}
+              max={0.05}
+              step={0.01}
+              value={parseFloat(currentProfile.pageStyle.letterSpacing) || 0}
+              unit="em"
+              disabled={isDefault}
+              onChange={(v) => handlePageStyleChange('letterSpacing', v + 'em')}
+            />
+
+            {/* 용지 방향 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">용지 방향</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={isDefault}
+                  onClick={() => handlePageStyleChange('orientation', 'portrait')}
+                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${
+                    currentProfile.pageStyle.orientation === 'portrait'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
+                  }`}
+                >
+                  세로
+                </button>
+                <button
+                  type="button"
+                  disabled={isDefault}
+                  onClick={() => handlePageStyleChange('orientation', 'landscape')}
+                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${
+                    currentProfile.pageStyle.orientation === 'landscape'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
+                  }`}
+                >
+                  가로
+                </button>
+              </div>
+            </div>
+
+            {/* 용지 여백 설정 */}
+            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 space-y-2">
+              <span className="text-zinc-650 dark:text-zinc-350 font-bold text-sm block">용지 마진 여백 (mm)</span>
+              <div className="grid grid-cols-2 gap-2.5">
+                <SliderWidget
+                  label="위 여백"
+                  min={5}
+                  max={50}
+                  value={parseInt(currentProfile.pageStyle.marginTop) || 20}
+                  unit="mm"
+                  disabled={isDefault}
+                  onChange={(v) => handlePageStyleChange('marginTop', v + 'mm')}
+                />
+                <SliderWidget
+                  label="아래 여백"
+                  min={5}
+                  max={50}
+                  value={parseInt(currentProfile.pageStyle.marginBottom) || 20}
+                  unit="mm"
+                  disabled={isDefault}
+                  onChange={(v) => handlePageStyleChange('marginBottom', v + 'mm')}
+                />
+                <SliderWidget
+                  label="왼쪽 여백"
+                  min={5}
+                  max={50}
+                  value={parseInt(currentProfile.pageStyle.marginLeft) || 20}
+                  unit="mm"
+                  disabled={isDefault}
+                  onChange={(v) => handlePageStyleChange('marginLeft', v + 'mm')}
+                />
+                <SliderWidget
+                  label="오른쪽 여백"
+                  min={5}
+                  max={50}
+                  value={parseInt(currentProfile.pageStyle.marginRight) || 20}
+                  unit="mm"
+                  disabled={isDefault}
+                  onChange={(v) => handlePageStyleChange('marginRight', v + 'mm')}
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2">
-            <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[13px]">
-              통합 제목 서식 가드
-            </span>
-            {!isDefault && (
-              <span className="text-xs px-2.5 py-0.5 bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 font-bold rounded">규칙 적용 중</span>
+          {/* 本문 문단 (P) 설정 */}
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">기본 본문 문단 (P) 스타일</span>
+              <button
+                type="button"
+                onClick={() => setShowJson(showJson === 'p' ? null : 'p')}
+                className="text-xs text-blue-500 hover:text-blue-600 font-bold"
+              >
+                {showJson === 'p' ? '위젯 보기' : 'JSON 직접 편집'}
+              </button>
+            </div>
+
+            {showJson === 'p' ? (
+              <textarea
+                value={JSON.stringify(currentProfile.rules.p || {}, null, 2)}
+                disabled={isDefault}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value);
+                    onUpdateProfile({
+                      ...currentProfile,
+                      rules: { ...currentProfile.rules, p: parsed }
+                    });
+                  } catch {}
+                }}
+                className="w-full h-32 p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-900 text-emerald-400 font-mono text-sm leading-relaxed"
+              />
+            ) : (
+              <div className="space-y-3">
+                {/* 1. 글자 정렬 */}
+                <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+                  <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">본문 글자 정렬</span>
+                  <select
+                    value={(currentProfile.rules.p || {})['text-align'] || 'left'}
+                    disabled={isDefault}
+                    onChange={(e) => updateCssRule('p', 'text-align', e.target.value)}
+                    className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+                  >
+                    <option value="left">왼쪽 정렬</option>
+                    <option value="center">가운데 정렬</option>
+                    <option value="right">오른쪽 정렬</option>
+                    <option value="justify">양끝 정렬 (Justify)</option>
+                  </select>
+                </div>
+
+                {/* 2. 위 여백 */}
+                <SliderWidget
+                  label="문단 위 여백"
+                  min={0}
+                  max={48}
+                  value={parseInt((currentProfile.rules.p || {})['margin-top'] || '0') || 0}
+                  unit="px"
+                  disabled={isDefault}
+                  onChange={(v) => updateCssRule('p', 'margin-top', v + 'px')}
+                />
+
+                {/* 3. 하단 여백 */}
+                <SliderWidget
+                  label="문단 아래 여백"
+                  min={0}
+                  max={48}
+                  value={parseInt((currentProfile.rules.p || {})['margin-bottom'] || '16') || 16}
+                  unit="px"
+                  disabled={isDefault}
+                  onChange={(v) => updateCssRule('p', 'margin-bottom', v + 'px')}
+                />
+
+                {/* 4. 들여쓰기 */}
+                <SliderWidget
+                  label="첫 줄 들여쓰기 (Text Indent)"
+                  min={0}
+                  max={48}
+                  value={parseInt((currentProfile.rules.p || {})['text-indent'] || '0') || 0}
+                  unit="px"
+                  disabled={isDefault}
+                  onChange={(v) => updateCssRule('p', 'text-indent', v + 'px')}
+                />
+
+                {/* 5. 줄간격 */}
+                <SliderWidget
+                  label="문단 줄 간격 (Line Height)"
+                  min={1.0}
+                  max={3.0}
+                  step={0.1}
+                  value={parseFloat((currentProfile.rules.p || {})['line-height'] || '1.8') || 1.8}
+                  unit="배"
+                  disabled={isDefault}
+                  onChange={(v) => updateCssRule('p', 'line-height', v)}
+                />
+
+                {/* 6. 글자 색상 (컬러 피커 연동) */}
+                <ColorPickerWidget
+                  label="본문 글자 색상"
+                  value={(currentProfile.rules.p || {})['color'] || ''}
+                  disabled={isDefault}
+                  onChange={(v) => updateCssRule('p', 'color', v)}
+                />
+              </div>
             )}
           </div>
-          <div className="grid grid-cols-10 gap-4">
-            {/* 🟢 좌측 5열: H1 마스터 기둥 */}
-            <div className="col-span-5 bg-zinc-100 dark:bg-zinc-800/50 p-3 rounded-lg space-y-3">
-              <div className="text-[13px] font-bold text-blue-600 dark:text-blue-400">H1 마스터 기둥</div>
+        </AccordionSection>
+
+        {/* 🟢 아코디언 [2]: 제목 스타일 H1 ~ H6 */}
+        <AccordionSection
+          id="headings"
+          title="👑 제목 위계 스타일 (H1 ~ H6)"
+          isOpen={openAccordion === 'headings'}
+          onToggle={() => setOpenAccordion(openAccordion === 'headings' ? null : 'headings')}
+        >
+          <div className="space-y-4">
+            <div className="bg-zinc-100 dark:bg-zinc-800/40 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3.5">
+              <div className="text-sm font-bold text-blue-600 dark:text-blue-400 border-b border-zinc-200 dark:border-zinc-700 pb-1.5">
+                H1 마스터 설정
+              </div>
+
               {/* H1 정렬 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded shadow-sm space-y-1.5">
-                <span className="text-xs font-medium text-zinc-400 block">정렬</span>
-                <div className="flex gap-1 flex-wrap">
+              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
+                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">정렬</span>
+                <div className="flex gap-1.5 flex-wrap">
                   {alignOptions.map(({ label, value }) => (
                     <button key={value} type="button" disabled={isDefault}
                       onClick={() => updateCssRule('h1', 'text-align', value)}
-                      className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (h1Rules['text-align'] === value
+                      className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (h1Rules['text-align'] === value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                     >{label}</button>
                   ))}
                 </div>
               </div>
-              {/* H1 기준 크기 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded shadow-sm space-y-1.5">
-                <span className="text-xs font-medium text-zinc-400 block">H1 기준 크기</span>
-                <div className="flex items-center gap-1">
-                  <input type="number"
-                    value={parseInt(h1Rules['font-size']) || 28}
-                    onChange={(e) => updateCssRule('h1', 'font-size', e.target.value + 'px')}
-                    className="w-14 p-1 border border-zinc-200 dark:border-zinc-700 rounded bg-transparent font-mono text-center text-[13px] font-bold text-blue-600"
-                    disabled={isDefault} min="16" max="48"
-                  />
-                  <span className="text-xs text-zinc-400">px</span>
-                </div>
-              </div>
-              {/* 단계별 감소폭 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded shadow-sm space-y-1.5">
-                <span className="text-xs font-medium text-zinc-400 block">단계별 감소폭</span>
-                <div className="flex items-center gap-1">
-                  <input type="number"
-                    value={parseInt(currentProfile.pageStyle.headingSizeOffset) || 4}
-                    onChange={(e) => handlePageStyleChange('headingSizeOffset', e.target.value)}
-                    className="w-14 p-1 border border-zinc-200 dark:border-zinc-700 rounded bg-transparent font-mono text-center text-[13px] font-bold text-blue-600"
-                    disabled={isDefault} min="0" max="10"
-                  />
-                  <span className="text-xs text-zinc-400">px</span>
-                </div>
-              </div>
-              {/* H1 서식 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded shadow-sm space-y-1.5">
-                <span className="text-xs font-medium text-zinc-400 block">서식</span>
-                <div className="flex gap-1 flex-wrap">
+
+              {/* H1 크기 (슬라이더화) */}
+              <SliderWidget
+                label="H1 기준 글자 크기"
+                min={16}
+                max={48}
+                value={parseInt(h1Rules['font-size']) || 28}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('h1', 'font-size', v + 'px')}
+              />
+
+              {/* H2~H6 크기 감소폭 (슬라이더화) */}
+              <SliderWidget
+                label="단계별 크기 감소폭"
+                min={0}
+                max={10}
+                value={parseInt(currentProfile.pageStyle.headingSizeOffset) || 4}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => handlePageStyleChange('headingSizeOffset', v)}
+              />
+
+              {/* 서식 */}
+              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
+                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">기본 스타일 효과</span>
+                <div className="flex gap-1.5 flex-wrap">
                   {styleOptions.map(({ label, property, onVal, offVal }) => {
                     const isActive = h1Rules[property] === onVal;
                     return (
                       <button key={property} type="button" disabled={isDefault}
                         onClick={() => updateCssRule('h1', property, isActive ? offVal : onVal)}
-                        className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (isActive
+                        className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isActive
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                           : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                       >{label}</button>
@@ -548,42 +1025,57 @@ export default function CssStyleForm({
                   })}
                 </div>
               </div>
-              {/* H1 자간 */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded shadow-sm space-y-1.5">
-                <span className="text-xs font-medium text-zinc-400 block">자간</span>
-                <div className="flex items-center gap-2">
-                  <input type="range" min="-0.05" max="0.05" step="0.01"
-                    value={parseFloat(h1Rules['letter-spacing']) || 0}
-                    onChange={(e) => updateCssRule('h1', 'letter-spacing', e.target.value + 'em')}
-                    className="flex-1 accent-blue-500 h-1" disabled={isDefault}
-                  />
-                  <span className="font-mono text-xs text-blue-600 font-bold w-14 text-right">
-                    {(() => {
-                      const v = parseFloat(h1Rules['letter-spacing']) || 0;
-                      return (v > 0 ? '+' : '') + v.toFixed(2) + 'em';
-                    })()}
-                  </span>
-                </div>
-              </div>
-              {/* H1 위아래 여백 (분리) */}
-              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded shadow-sm space-y-2">
-                <span className="text-xs font-medium text-zinc-400 block">위 여백 (margin-top)</span>
-                <div className="flex gap-1 flex-wrap">
-                  {marginOptions.map(({ label, value }) => (
+
+              {/* H1 자간 (슬라이더화) */}
+              <SliderWidget
+                label="H1 자간 간격"
+                min={-0.05}
+                max={0.05}
+                step={0.01}
+                value={parseFloat(h1Rules['letter-spacing']) || 0}
+                unit="em"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('h1', 'letter-spacing', v + 'em')}
+              />
+
+              {/* 위 여백 */}
+              <SliderWidget
+                label="H1 위 여백"
+                min={0}
+                max={80}
+                value={parseInt(h1Rules['margin-top']) || 24}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('h1', 'margin-top', v + 'px')}
+              />
+
+              {/* 아래 여백 */}
+              <SliderWidget
+                label="H1 아래 여백"
+                min={0}
+                max={80}
+                value={parseInt(h1Rules['margin-bottom']) || 16}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('h1', 'margin-bottom', v + 'px')}
+              />
+
+              {/* H1 글자 색상 (컬러 피커 연동) */}
+              <ColorPickerWidget
+                label="H1 글자 색상"
+                value={h1Rules['color'] || ''}
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('h1', 'color', v)}
+              />
+
+              {/* H1 하단 밑줄 테두리 */}
+              <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
+                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">하단 밑줄</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {borderOptions.map(({ label, value }) => (
                     <button key={label} type="button" disabled={isDefault}
-                      onClick={() => updateCssRule('h1', 'margin-top', value)}
-                      className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (h1Rules['margin-top'] === value
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                        : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                    >{label}</button>
-                  ))}
-                </div>
-                <span className="text-xs font-medium text-zinc-400 block">아래 여백 (margin-bottom)</span>
-                <div className="flex gap-1 flex-wrap">
-                  {marginOptions.map(({ label, value }) => (
-                    <button key={label} type="button" disabled={isDefault}
-                      onClick={() => updateCssRule('h1', 'margin-bottom', value)}
-                      className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (h1Rules['margin-bottom'] === value
+                      onClick={() => updateCssRule('h1', 'border-bottom', value)}
+                      className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (h1Rules['border-bottom'] === value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                     >{label}</button>
@@ -592,24 +1084,22 @@ export default function CssStyleForm({
               </div>
             </div>
 
-            {/* 🎨 우측 5열: H2~H6 탭 기반 압착 구역 */}
-            <div className="col-span-5 space-y-3">
-              {/* 탭 바 */}
-              <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg">
-                <span className="text-xs font-bold text-zinc-400 pl-2">세부 위계 선택</span>
-                <div className="inline-flex bg-zinc-200/60 dark:bg-zinc-700/60 p-0.5 rounded-md text-xs font-medium">
-                  {[2, 3, 4, 5, 6].map((level) => {
-                    const tag = 'h' + level;
-                    return (
-                      <button key={level}
-                        onClick={() => setActiveHeadingTab(level)}
-                        className={'px-3 py-1 rounded transition-all ' + (activeHeadingTab === level ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700')}
-                      >H{level}</button>
-                    );
-                  })}
+            {/* H2~H6 세부 설정 구역 */}
+            <div className="space-y-3">
+              {/* 위계 선택 탭 바 */}
+              <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800/40 p-2 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <span className="text-sm font-bold text-zinc-650 dark:text-zinc-400 pl-2">세부 H 위계</span>
+                <div className="inline-flex bg-zinc-200/60 dark:bg-zinc-700/60 p-0.5 rounded-md text-sm font-semibold">
+                  {[2, 3, 4, 5, 6].map((level) => (
+                    <button key={level}
+                      onClick={() => setActiveHeadingTab(level)}
+                      className={'px-3 py-1.5 rounded transition-all ' + (activeHeadingTab === level ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700')}
+                    >H{level}</button>
+                  ))}
                 </div>
               </div>
-              {/* 활성 탭 스타일 팩 */}
+
+              {/* 활성 H{n} 스타일 구성 */}
               {(() => {
                 const tag = 'h' + activeHeadingTab;
                 const tagRules = currentProfile.rules[tag as keyof typeof currentProfile.rules] || {};
@@ -617,23 +1107,24 @@ export default function CssStyleForm({
                 const h1Size = parseInt(h1Rules['font-size']) || 28;
                 const calculatedSize = Math.max(10, h1Size - (activeHeadingTab - 1) * offset);
                 return (
-                  <div className="bg-zinc-100 dark:bg-zinc-800/50 p-4 rounded-lg space-y-3">
+                  <div className="bg-zinc-100 dark:bg-zinc-800/40 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
                     <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700 pb-2">
-                      <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">H{activeHeadingTab} 세부 설정</span>
-                      <span className="font-mono text-xs text-blue-600 dark:text-blue-400 font-bold">
-                        계산 크기: {calculatedSize}px
+                      <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">H{activeHeadingTab} 설정</span>
+                      <span className="font-mono text-sm text-blue-600 dark:text-blue-400 font-bold">
+                        {calculatedSize}px
                       </span>
                     </div>
-                    {/* 서식 */}
-                    <div className="flex items-center">
-                      <span className="w-28 shrink-0 text-xs text-zinc-400 font-medium">서식</span>
-                      <div className="flex gap-1 flex-wrap">
+
+                    {/* 서식 선택 */}
+                    <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
+                      <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">효과</span>
+                      <div className="flex gap-1.5 flex-wrap">
                         {styleOptions.map(({ label, property, onVal, offVal }) => {
                           const isActive = tagRules[property] === onVal;
                           return (
                             <button key={property} type="button" disabled={isDefault}
                               onClick={() => updateCssRule(tag, property, isActive ? offVal : onVal)}
-                              className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (isActive
+                              className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isActive
                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                                 : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                             >{label}</button>
@@ -641,651 +1132,957 @@ export default function CssStyleForm({
                         })}
                       </div>
                     </div>
+
                     {/* 하단 테두리 */}
-                    <div className="flex items-center">
-                      <span className="w-28 shrink-0 text-xs text-zinc-400 font-medium">하단 테두리</span>
-                      <div className="flex gap-1 flex-wrap">
+                    <div className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm space-y-1.5">
+                      <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">하단 밑줄</span>
+                      <div className="flex gap-1.5 flex-wrap">
                         {borderOptions.map(({ label, value }) => (
                           <button key={label} type="button" disabled={isDefault}
                             onClick={() => updateCssRule(tag, 'border-bottom', value)}
-                            className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (tagRules['border-bottom'] === value
+                            className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (tagRules['border-bottom'] === value
                               ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                               : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                           >{label}</button>
                         ))}
                       </div>
                     </div>
-                    {/* 위아래 여백 (분리) */}
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <span className="w-28 shrink-0 text-xs text-zinc-400 font-medium">위 여백</span>
-                        <div className="flex gap-1 flex-wrap">
-                          {marginOptions.map(({ label, value }) => (
-                            <button key={label} type="button" disabled={isDefault}
-                              onClick={() => updateCssRule(tag, 'margin-top', value)}
-                              className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (tagRules['margin-top'] === value
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                                : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                            >{label}</button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="w-28 shrink-0 text-xs text-zinc-400 font-medium">아래 여백</span>
-                        <div className="flex gap-1 flex-wrap">
-                          {marginOptions.map(({ label, value }) => (
-                            <button key={label} type="button" disabled={isDefault}
-                              onClick={() => updateCssRule(tag, 'margin-bottom', value)}
-                              className={'px-2 py-1 rounded text-xs font-medium border transition-all ' + (tagRules['margin-bottom'] === value
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                                : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
-                            >{label}</button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+
+                    {/* 위 여백 */}
+                    <SliderWidget
+                      label="위 여백"
+                      min={0}
+                      max={80}
+                      value={parseInt(tagRules['margin-top']) || 16}
+                      unit="px"
+                      disabled={isDefault}
+                      onChange={(v) => updateCssRule(tag, 'margin-top', v + 'px')}
+                    />
+
+                    {/* 아래 여백 */}
+                    <SliderWidget
+                      label="아래 여백"
+                      min={0}
+                      max={80}
+                      value={parseInt(tagRules['margin-bottom']) || 8}
+                      unit="px"
+                      disabled={isDefault}
+                      onChange={(v) => updateCssRule(tag, 'margin-bottom', v + 'px')}
+                    />
+
+                    {/* 글자 색상 (컬러 피커 연동) */}
+                    <ColorPickerWidget
+                      label="글자 색상"
+                      value={tagRules['color'] || ''}
+                      disabled={isDefault}
+                      onChange={(v) => updateCssRule(tag, 'color', v)}
+                    />
                   </div>
                 );
               })()}
             </div>
           </div>
-        </div>
 
-        <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2">
-            <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[13px]">본문 및 인라인 서식 통합 가드</span>
-            {!isDefault && <span className="text-xs px-2.5 py-0.5 bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 font-bold rounded">규칙 적용 중</span>}
-          </div>
-          <div className="grid grid-cols-10 gap-4">
-            {/* 🟢 좌측 5열: P - 기본 본문 문단 고정 */}
-            <div className="col-span-5 bg-zinc-100 dark:bg-zinc-800/50 p-3 rounded-lg space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[13px] font-bold text-blue-600 dark:text-blue-400">P - 기본 본문 문단</span>
-                <button onClick={() => setShowJson(prev => prev === 'p' ? null : 'p')}
-                  className="text-xs text-blue-500 hover:text-blue-600 font-bold">{showJson === 'p' ? '위젯 보기' : '직접 편집'}</button>
+          {/* 인라인 서식 (Strong, Em, U, Del) 설정 */}
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
+            <div className="flex items-center justify-between animate-fadeIn">
+              <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">본문 내 인라인 강조 요소</span>
+              <div className="inline-flex bg-zinc-200/60 dark:bg-zinc-700/60 p-0.5 rounded-md text-sm font-semibold">
+                {(['strong', 'em', 'u', 'del'] as const).map((tab) => (
+                  <button key={tab} onClick={() => setActiveInlineTab(tab)}
+                    className={'px-3.5 py-1.5 rounded transition-all ' + (activeInlineTab === tab ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-sm' : 'text-zinc-500 hover:text-zinc-700')}>
+                    {tab.toUpperCase()}
+                  </button>
+                ))}
               </div>
-              {(showJson === 'p') ? (
-                <div className="space-y-1">
-                  <textarea value={JSON.stringify(currentProfile.rules.p || {}, null, 2)}
-                    disabled={isDefault}
-                    onChange={(e) => {
-                      try { const parsed = JSON.parse(e.target.value); Object.entries(parsed).forEach(([prop, val]) => updateCssRule('p', prop, val as string)); } catch {}
-                    }}
-                    className="w-full h-24 p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-900 text-emerald-400 font-mono text-[11px] leading-relaxed" />
-                </div>
-              ) : (() => {
-                const pRules = currentProfile.rules.p || {};
-                const knownPProps = ['text-align', 'margin-top', 'margin-bottom', 'text-indent', 'line-height', 'color'];
-                const customPProps = Object.entries(pRules).filter(([k, v]) => v !== '' && !knownPProps.includes(k));
-                return (
-                  <div className="space-y-1.5">
-                    {customPProps.length === 0 && Object.entries(pRules).filter(([, v]) => v !== '').length === 0 && (
-                      <span className="text-xs text-zinc-400 italic block">지정된 CSS 규칙 없음 (기본값 사용)</span>
-                    )}
+            </div>
 
-                    {/* 1. text-align: select */}
-                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-                      <span className="font-mono text-[12px] w-24 text-zinc-500">글자 정렬</span>
-                      <select value={pRules['text-align'] || 'left'} disabled={isDefault}
-                        onChange={(e) => updateCssRule('p', 'text-align', e.target.value)}
-                        className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
-                        <option value="left">왼쪽 정렬</option>
-                        <option value="center">가운데 정렬</option>
-                        <option value="right">오른쪽 정렬</option>
-                        <option value="justify">양끝 정렬</option>
-                      </select>
-                    </div>
+            <div className="bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 space-y-3.5">
+              {(() => {
+                const tag = activeInlineTab;
+                const tagRules = currentProfile.rules[tag] || {};
 
-                    {/* 2. margin-top: number + px (제목 밑 밀착용) */}
-                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-                      <span className="font-mono text-[12px] w-24 text-zinc-500">위 여백</span>
-                      <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-                        <input type="number" min="0" max="48"
-                          value={parseInt(pRules['margin-top']) || 0} disabled={isDefault}
-                          onChange={(e) => updateCssRule('p', 'margin-top', (parseInt(e.target.value) || 0) + 'px')}
-                          className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold" />
-                        <span className="text-[11px] text-zinc-400 font-normal">px</span>
-                      </div>
-                    </div>
-
-                    {/* 3. margin-bottom: number + px */}
-                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-                      <span className="font-mono text-[12px] w-24 text-zinc-500">하단 여백</span>
-                      <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-                        <input type="number" min="0" max="48"
-                          value={parseInt(pRules['margin-bottom']) || 0} disabled={isDefault}
-                          onChange={(e) => updateCssRule('p', 'margin-bottom', (parseInt(e.target.value) || 0) + 'px')}
-                          className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold" />
-                        <span className="text-[11px] text-zinc-400 font-normal">px</span>
-                      </div>
-                    </div>
-
-                    {/* 4. text-indent: number + px */}
-                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-                      <span className="font-mono text-[12px] w-24 text-zinc-500">첫줄 들여쓰기</span>
-                      <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-                        <input type="number" min="0" max="32"
-                          value={parseInt(pRules['text-indent']) || 0} disabled={isDefault}
-                          onChange={(e) => updateCssRule('p', 'text-indent', (parseInt(e.target.value) || 0) + 'px')}
-                          className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold" />
-                        <span className="text-[11px] text-zinc-400 font-normal">px</span>
-                      </div>
-                    </div>
-
-                    {/* 5. line-height: number step 0.1 + 배수 */}
-                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-                      <span className="font-mono text-[12px] w-24 text-zinc-500">줄 간격</span>
-                      <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-                        <input type="number" step="0.1" min="1.2" max="2.5"
-                          value={parseFloat(pRules['line-height']) || 1.7} disabled={isDefault}
-                          onChange={(e) => updateCssRule('p', 'line-height', (parseFloat(e.target.value) || 1.7).toString())}
-                          className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold" />
-                        <span className="text-[11px] text-zinc-400 font-normal">배수</span>
-                      </div>
-                    </div>
-
-                    {/* 6. color: select */}
-                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-                      <span className="font-mono text-[12px] w-24 text-zinc-500">글자 색상</span>
-                      <select value={pRules['color'] || '#1b1b23'} disabled={isDefault}
-                        onChange={(e) => updateCssRule('p', 'color', e.target.value)}
-                        className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
-                        <option value="#1b1b23">소프트 블랙</option>
-                        <option value="#2b2d35">미드나잇 차콜</option>
-                        <option value="#3c342a">에디토리얼 브라운</option>
-                      </select>
-                    </div>
-
-                    {/* 나머지 사용자 정의 속성 (6개 외) */}
-                    {customPProps.map(([prop, val]) => (
-                      <div key={prop} className="flex items-center gap-1.5">
-                        <input value={prop} disabled={isDefault}
-                          onChange={(e) => { const old = prop; const np = e.target.value; if (np && np !== old) { removeCssRule('p', old); updateCssRule('p', np, val); } }}
-                          className="w-24 p-1 border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 font-mono text-xs text-zinc-500" />
-                        <span className="text-zinc-300">:</span>
-                        <input value={val} disabled={isDefault}
-                          onChange={(e) => updateCssRule('p', prop, e.target.value)}
-                          className="flex-1 p-1 border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 font-mono text-xs text-blue-600 dark:text-blue-400" />
-                        {!isDefault && (
-                          <button onClick={() => removeCssRule('p', prop)} className="text-zinc-300 hover:text-red-400 text-xs px-1">X</button>
-                        )}
-                      </div>
-                    ))}
-                    {!isDefault && (
-                      <button onClick={() => { const k = prompt('추가할 CSS 속성명 (예: font-size):'); if (k) updateCssRule('p', k.trim(), ''); }}
-                        className="text-xs text-blue-500 hover:text-blue-600 font-medium">+ 속성 추가</button>
-                    )}
-                  </div>
-                );
+                switch (tag) {
+                  case 'strong':
+                    return (
+                      <>
+                        <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
+                          <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">굵기</span>
+                          <select value={tagRules['font-weight'] || 'bold'} disabled={isDefault}
+                            onChange={(e) => updateCssRule('strong', 'font-weight', e.target.value)}
+                            className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
+                            <option value="normal">일반 (normal)</option>
+                            <option value="bold">굵게 (bold)</option>
+                            <option value="900">최대 굵게 (900)</option>
+                          </select>
+                        </div>
+                        <ColorPickerWidget label="강조 글자 색상" value={tagRules['color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('strong', 'color', v)} />
+                        <ColorPickerWidget label="강조 배경 색상" value={tagRules['background-color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('strong', 'background-color', v)} />
+                      </>
+                    );
+                  case 'em':
+                    return (
+                      <>
+                        <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
+                          <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">기울임 모양</span>
+                          <select value={tagRules['font-style'] || 'italic'} disabled={isDefault}
+                            onChange={(e) => updateCssRule('em', 'font-style', e.target.value)}
+                            className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
+                            <option value="normal">정체</option>
+                            <option value="italic">이탤릭</option>
+                            <option value="oblique">기울임</option>
+                          </select>
+                        </div>
+                        <ColorPickerWidget label="기울임 글자 색상" value={tagRules['color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('em', 'color', v)} />
+                      </>
+                    );
+                  case 'u':
+                    return (
+                      <>
+                        <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
+                          <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">밑줄 모양</span>
+                          <select value={tagRules['text-decoration-style'] || 'solid'} disabled={isDefault}
+                            onChange={(e) => updateCssRule('u', 'text-decoration-style', e.target.value)}
+                            className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
+                            <option value="solid">실선</option>
+                            <option value="dashed">대시선</option>
+                            <option value="dotted">점선</option>
+                            <option value="wavy">물결선</option>
+                          </select>
+                        </div>
+                        <ColorPickerWidget label="밑줄 색상" value={tagRules['text-decoration-color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('u', 'text-decoration-color', v)} />
+                        <SliderWidget label="밑줄 간격" min={0} max={12} value={parseInt(tagRules['text-underline-offset']) || 2} unit="px" disabled={isDefault} onChange={(v) => updateCssRule('u', 'text-underline-offset', v + 'px')} />
+                      </>
+                    );
+                  case 'del':
+                    return (
+                      <>
+                        <ColorPickerWidget label="취소선 색상" value={tagRules['text-decoration-color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('del', 'text-decoration-color', v)} />
+                        <SliderWidget label="취소선 굵기" min={1} max={8} value={parseInt(tagRules['text-decoration-thickness']) || 1} unit="px" disabled={isDefault} onChange={(v) => updateCssRule('del', 'text-decoration-thickness', v + 'px')} />
+                        <SliderWidget label="투명도" min={10} max={100} step={5} value={parseFloat(tagRules['opacity']) * 100 || 60} unit="%" disabled={isDefault} onChange={(v) => updateCssRule('del', 'opacity', (parseFloat(v) / 100).toString())} />
+                      </>
+                    );
+                  default:
+                    return null;
+                }
               })()}
             </div>
+          </div>
+        </AccordionSection>
 
-            {/* 🎨 우측 5열: STRONG / EM / U / DEL 인라인 서식 탭 압착 */}
-            <div className="col-span-5 space-y-3">
-              <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg">
-                <span className="text-xs font-bold text-zinc-400 pl-2">인라인 요소 선택</span>
-                <div className="inline-flex bg-zinc-200/60 dark:bg-zinc-700/60 p-0.5 rounded-md text-xs font-medium">
-                  {(['strong', 'em', 'u', 'del'] as const).map((tab) => (
-                    <button key={tab} onClick={() => setActiveInlineTab(tab)}
-                      className={'px-3 py-1 rounded transition-all ' + (activeInlineTab === tab ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700')}>
-                      {tab === 'strong' ? 'STRONG' : tab === 'em' ? 'EM' : tab === 'u' ? 'U' : 'DEL'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-zinc-100 dark:bg-zinc-800/50 p-4 rounded-lg space-y-3 min-h-[160px] flex flex-col justify-between">
-                {(() => {
-                  const tag = activeInlineTab;
-                  const tagRules = currentProfile.rules[tag] || {};
-                  const showJsonKey = 'inline_json_' + tag;
+        {/* 🟢 아코디언 [3]: 목록 및 체크박스 */}
+        <AccordionSection
+          id="lists"
+          title="📋 목록 및 태스크 체크박스"
+          isOpen={openAccordion === 'lists'}
+          onToggle={() => setOpenAccordion(openAccordion === 'lists' ? null : 'lists')}
+        >
+          <div className="space-y-3.5">
+            <div className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">글머리 & 숫자 목록 설정</div>
 
-                  /* 탭별 전용 제어기 정의 */
-                  type ControlDef = { label: string; prop: string; widget: 'select' | 'spin'; options?: { label: string; value: string }[]; min?: number; max?: number; step?: number; unit?: string; def?: string };
-                  const controls: ControlDef[] = (() => {
-                    switch (tag) {
-                      case 'strong': return [
-                        { label: '글자 굵기', prop: 'font-weight', widget: 'select', options: [
-                          { label: '굵게 (700)', value: '700' }, { label: '아주 굵게 (800)', value: '800' }, { label: '최대 굵게 (900)', value: '900' },
-                        ], def: '700' },
-                        { label: '글자 색상', prop: 'color', widget: 'select', options: [
-                          { label: '사용 안 함', value: '' }, { label: '브랜드 블루', value: '#2563eb' }, { label: '파이어 브릭', value: '#b22222' },
-                        ], def: '' },
-                        { label: '배경색', prop: 'background-color', widget: 'select', options: [
-                          { label: '사용 안 함', value: '' }, { label: '노랑 형광펜', value: '#fef08a' }, { label: '보라 형광펜', value: '#e9d5ff' },
-                        ], def: '' },
-                      ];
-                      case 'em': return [
-                        { label: '글자 스타일', prop: 'font-style', widget: 'select', options: [
-                          { label: '이탤릭', value: 'italic' }, { label: '오블리크', value: 'oblique' },
-                        ], def: 'italic' },
-                        { label: '글자 색상', prop: 'color', widget: 'select', options: [
-                          { label: '사용 안 함', value: '' }, { label: '차분한 차콜', value: '#374151' }, { label: '뮤트 그레이', value: '#6b7280' },
-                        ], def: '' },
-                      ];
-                      case 'u': return [
-                        { label: '줄 종류', prop: 'text-decoration-line', widget: 'select', options: [
-                          { label: '밑줄', value: 'underline' },
-                        ], def: 'underline' },
-                        { label: '줄 색상', prop: 'text-decoration-color', widget: 'select', options: [
-                          { label: '기본값', value: 'inherit' }, { label: '블루', value: '#3b82f6' }, { label: '오렌지', value: '#f97316' },
-                        ], def: 'inherit' },
-                        { label: '줄 모양', prop: 'text-decoration-style', widget: 'select', options: [
-                          { label: '실선', value: 'solid' }, { label: '점선', value: 'dashed' }, { label: '물결', value: 'wavy' },
-                        ], def: 'solid' },
-                        { label: '밑줄 간격', prop: 'text-underline-offset', widget: 'spin', min: 0, max: 8, unit: 'px', def: '3px' },
-                      ];
-                      case 'del': return [
-                        { label: '줄 종류', prop: 'text-decoration-line', widget: 'select', options: [
-                          { label: '취소선', value: 'line-through' },
-                        ], def: 'line-through' },
-                        { label: '줄 색상', prop: 'text-decoration-color', widget: 'select', options: [
-                          { label: '기본값', value: 'inherit' }, { label: '빨간색', value: '#ef4444' }, { label: '다크 레드', value: '#b91c1c' },
-                        ], def: 'inherit' },
-                        { label: '취소선 굵기', prop: 'text-decoration-thickness', widget: 'spin', min: 1, max: 5, unit: 'px', def: '2px' },
-                        { label: '투명도', prop: 'opacity', widget: 'spin', min: 0, max: 100, unit: '%', def: '50' },
-                      ];
-                      default: return [];
-                    }
-                  })();
-                  const knownProps = controls.map(c => c.prop);
-                  const customProps = Object.entries(tagRules).filter(([k, v]) => v !== '' && !knownProps.includes(k));
-
-                  /* 셀렉트 위젯 렌더 */
-                  const renderSelect = (c: ControlDef) => {
-                    const val = tagRules[c.prop] || c.def || '';
-                    return (
-                      <div key={c.prop} className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-                        <span className="font-mono text-[12px] w-28 text-zinc-500">{c.label}</span>
-                        <select value={val} disabled={isDefault}
-                          onChange={(e) => updateCssRule(tag, c.prop, e.target.value)}
-                          className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
-                          {(c.options || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                      </div>
-                    );
-                  };
-
-                  /* 스핀 위젯 렌더 */
-                  const renderSpin = (c: ControlDef) => {
-                    const currentVal = tagRules[c.prop] || c.def || '0';
-                    const numVal = c.unit === '%' ? parseInt(currentVal) : parseFloat(currentVal);
-                    return (
-                      <div key={c.prop} className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-                        <span className="font-mono text-[12px] w-28 text-zinc-500">{c.label}</span>
-                        <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-                          <input type="number" min={c.min} max={c.max} step={c.step ?? 1}
-                            value={numVal || 0} disabled={isDefault}
-                            onChange={(e) => {
-                              const raw = parseFloat(e.target.value) || 0;
-                              const clamped = Math.min(Math.max(raw, c.min ?? 0), c.max ?? 100);
-                              updateCssRule(tag, c.prop, c.unit === '%' ? clamped.toString() : clamped + (c.unit || ''));
-                            }}
-                            className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold" />
-                          <span className="text-[11px] text-zinc-400 font-normal">{c.unit}</span>
-                        </div>
-                      </div>
-                    );
-                  };
-
-                  return (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700 pb-2">
-                        <span className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200">{tag.toUpperCase()} 서식 규칙</span>
-                        <button onClick={() => setShowJson(prev => prev === showJsonKey ? null : showJsonKey)}
-                          className="text-[10px] text-blue-500 hover:text-blue-600 font-bold">{showJson === showJsonKey ? '위젯 편집' : 'CSS 직접 편집'}</button>
-                      </div>
-                      {showJson === showJsonKey ? (
-                        <textarea value={JSON.stringify(tagRules, null, 2)}
-                          disabled={isDefault}
-                          onChange={(e) => { try { const parsed = JSON.parse(e.target.value); Object.entries(parsed).forEach(([prop, val]) => updateCssRule(tag, prop, val as string)); } catch {} }}
-                          className="w-full h-24 p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-900 text-emerald-400 font-mono text-[11px] leading-relaxed" />
-                      ) : (
-                        <div className="space-y-1.5">
-                          {controls.length === 0 && customProps.length === 0 && (
-                            <span className="text-[10px] text-zinc-400 italic block">지정된 CSS 규칙 없음 (기본값 사용)</span>
-                          )}
-                          {controls.map(c => c.widget === 'select' ? renderSelect(c) : renderSpin(c))}
-                           {customProps.map(([prop, val]) => (
-                             <div key={prop} className="flex items-center gap-1.5">
-                               <span className="font-mono text-xs w-24 shrink-0 break-all">{prop}</span>
-                               <input value={val} disabled={isDefault}
-                                 onChange={(e) => updateCssRule(tag, prop, e.target.value)}
-                                 className="flex-1 p-1 border border-zinc-200 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 font-mono text-xs text-blue-600 dark:text-blue-400" />
-                               {!isDefault && (
-                                 <button onClick={() => removeCssRule(tag, prop)} className="text-zinc-300 hover:text-red-400 text-xs px-1">X</button>
-                               )}
-                             </div>
-                           ))}
-                           {!isDefault && (
-                             <button onClick={() => { const k = prompt('추가할 CSS 속성명 (예: color):'); if (k) updateCssRule(tag, k.trim(), ''); }}
-                               className="text-xs text-blue-500 hover:text-blue-600 font-medium">+ 속성 추가</button>
-                           )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
+            {/* 글머리 마커 종류 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">글머리 마커</span>
+              <select
+                value={(currentProfile.rules.ul || {})['list-style-type'] || 'disc'}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('ul', 'list-style-type', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="disc">채워진 원</option>
+                <option value="circle">비어있는 원</option>
+                <option value="square">정사각형</option>
+                <option value="none">없음</option>
+              </select>
             </div>
-          </div>
-        </div>
 
-        {/* ═══════════════════════════════════════════════════════
-            🧰 목록화 및 구조제어 전용 위젯 패널
-            ═══════════════════════════════════════════════════ */}
-        <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2">
-            <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[13px]">목록화 및 구조제어 가드</span>
-            {!isDefault && <span className="text-xs px-2.5 py-0.5 bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 font-bold rounded">규칙 적용 중</span>}
-          </div>
+            {/* 숫자 마커 종류 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">숫자 목록 마커</span>
+              <select
+                value={(currentProfile.rules.ol || {})['list-style-type'] || 'decimal'}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('ol', 'list-style-type', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="decimal">1, 2, 3</option>
+                <option value="decimal-leading-zero">01, 02, 03</option>
+                <option value="lower-roman">i, ii, iii</option>
+                <option value="upper-roman">I, II, III</option>
+                <option value="none">없음</option>
+              </select>
+            </div>
 
-          {/* 1️⃣ 글머리 마커 종류 (list-style-type → ul 적용) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">글머리 마커 종류</span>
-            <select
-              value={(currentProfile.rules.ul || {})['list-style-type'] || 'disc'}
+            {/* 목록 줄 간격 슬라이더 */}
+            <SliderWidget
+              label="목록 항목 간 줄 여백"
+              min={0}
+              max={32}
+              value={getNumValue((currentProfile.rules.li || {})['margin-bottom'], 6)}
+              unit="px"
               disabled={isDefault}
-              onChange={(e) => updateCssRule('ul', 'list-style-type', e.target.value)}
-              className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-            >
-              <option value="disc">채워진 점 (disc)</option>
-              <option value="circle">비어있는 원 (circle)</option>
-              <option value="square">사각형 (square)</option>
-              <option value="none">마커 없음 (none)</option>
-            </select>
-          </div>
+              onChange={(v) => updateCssRule('li', 'margin-bottom', v + 'px')}
+            />
 
-          {/* 1-2️⃣ 숫자 마커 종류 (list-style-type → ol 적용) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">숫자 마커 종류</span>
-            <select
-              value={(currentProfile.rules.ol || {})['list-style-type'] || 'decimal'}
+            {/* 목록 전체 들여쓰기 슬라이더 */}
+            <SliderWidget
+              label="목록 기본 들여쓰기 너비"
+              min={0}
+              max={60}
+              value={getNumValue((currentProfile.rules.ul || {})['padding-left'], 16)}
+              unit="px"
               disabled={isDefault}
-              onChange={(e) => updateCssRule('ol', 'list-style-type', e.target.value)}
-              className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-            >
-              <option value="decimal">아라비아 숫자 (1, 2, 3)</option>
-              <option value="none">마커 없음 (none)</option>
-            </select>
-          </div>
+              onChange={(v) => {
+                const pxVal = v + 'px';
+                onUpdateProfile({
+                  ...currentProfile,
+                  rules: {
+                    ...currentProfile.rules,
+                    ul: { ...(currentProfile.rules.ul || {}), 'padding-left': pxVal },
+                    ol: { ...(currentProfile.rules.ol || {}), 'padding-left': pxVal },
+                  }
+                });
+              }}
+            />
 
-          {/* 2️⃣ 목록 줄 간격 (li margin-bottom) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">목록 줄 간격</span>
-            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-              <input
-                type="number" min={0} max={32}
-                value={parseInt((currentProfile.rules.li || {})['margin-bottom'] || '6') || 6}
-                disabled={isDefault}
-                onChange={(e) => updateCssRule('li', 'margin-bottom', (parseInt(e.target.value) || 0) + 'px')}
-                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-              />
-              <span className="text-[11px] text-zinc-400 font-normal">px</span>
-            </div>
-          </div>
+            {/* 마커-글자 간격 슬라이더 */}
+            <SliderWidget
+              label="기호 마커와 글자 간격"
+              min={0}
+              max={32}
+              value={getNumValue((currentProfile.rules.li || {})['padding-inline-start'], 8)}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('li', 'padding-inline-start', v + 'px')}
+            />
 
-          {/* 3️⃣ 목록 전체 들여쓰기 (ul + ol padding-left 동기화) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">목록 들여쓰기</span>
-            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-              <input
-                type="number" min={0} max={60}
-                value={parseInt((currentProfile.rules.ul || {})['padding-left'] || '16') || 16}
-                disabled={isDefault}
-                onChange={(e) => {
-                  if (isDefault) return;
-                  const v = (parseInt(e.target.value) || 0) + 'px';
-                  // ul과 ol을 단일 onUpdateProfile 호출로 동기화 (stale closure 방지)
-                  onUpdateProfile({
-                    ...currentProfile,
-                    rules: {
-                      ...currentProfile.rules,
-                      ul: { ...(currentProfile.rules.ul || {}), 'padding-left': v },
-                      ol: { ...(currentProfile.rules.ol || {}), 'padding-left': v },
-                    }
-                  });
-                }}
-                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-              />
-              <span className="text-[11px] text-zinc-400 font-normal">px</span>
-            </div>
-          </div>
+            {/* 태스크 체크박스 규칙 */}
+            <div className="border-t border-zinc-150 dark:border-zinc-800 pt-3.5 space-y-3.5">
+              <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">태스크 리스트 체크박스</span>
 
-          {/* 4️⃣ 마커-글자 간격 (li padding-inline-start) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">마커-글자 간격</span>
-            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-              <input
-                type="number" min={0} max={32}
-                value={parseInt((currentProfile.rules.li || {})['padding-inline-start'] || '8') || 8}
-                disabled={isDefault}
-                onChange={(e) => updateCssRule('li', 'padding-inline-start', (parseInt(e.target.value) || 0) + 'px')}
-                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-              />
-              <span className="text-[11px] text-zinc-400 font-normal">px</span>
-            </div>
-          </div>
-
-          {/* 5️⃣ 구분선 (HR) 규칙 */}
-          <div className="border-t border-zinc-100 dark:border-zinc-900 pt-3 mt-3 space-y-3">
-            <div className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 font-mono flex items-center gap-1">
-              <span>🧰 구조제어: 구분선 규칙 (HR)</span>
-            </div>
-            
-            {/* 선 종류 및 두께 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-              <span className="font-mono text-[12px] w-32 text-zinc-500">선 종류 및 두께</span>
-              <div className="flex items-center gap-2">
+              {/* 완료 항목 효과 */}
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">완료 항목 스타일</span>
                 <select
-                  value={hrStructure.borderTopStyle}
+                  value={checkboxStructure.checkedEffect}
                   disabled={isDefault}
-                  onChange={(e) => updateHrStructure('borderTopStyle', e.target.value)}
-                  className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+                  onChange={(e) => updateCheckboxStructure('checkedEffect', e.target.value)}
+                  className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
                 >
-                  <option value="solid">실선 (solid)</option>
-                  <option value="dotted">점선 (dotted)</option>
-                  <option value="dashed">대시선 (dashed)</option>
+                  <option value="line-through-and-dim">취소선 + 반투명</option>
+                  <option value="dim-only">반투명 효과만</option>
+                  <option value="none">효과 없음</option>
                 </select>
-                <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400 border-l border-zinc-200 dark:border-zinc-800 pl-2">
-                  <input
-                    type="number" min={1} max={10}
-                    value={parseInt(hrStructure.borderTopWidth) || 1}
-                    disabled={isDefault}
-                    onChange={(e) => updateHrStructure('borderTopWidth', (parseInt(e.target.value) || 1) + 'px')}
-                    className="w-8 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-                  />
-                  <span className="text-[11px] text-zinc-400 font-normal">px</span>
-                </div>
               </div>
+
+              {/* 박스 크기 슬라이더 */}
+              <SliderWidget
+                label="체크박스 물리 크기"
+                min={8}
+                max={32}
+                value={getNumValue(checkboxStructure.boxSize, 16)}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCheckboxStructure('boxSize', v + 'px')}
+              />
+
+              {/* 체크박스-글자 간격 슬라이더 */}
+              <SliderWidget
+                label="체크박스와 텍스트 간격"
+                min={0}
+                max={32}
+                value={getNumValue(checkboxStructure.textGap, 10)}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCheckboxStructure('textGap', v + 'px')}
+              />
+            </div>
+          </div>
+        </AccordionSection>
+
+        {/* 🟢 아코디언 [4]: 구분선 규칙 (HR) */}
+        <AccordionSection
+          id="hr"
+          title="➖ 수평 구분선 (HR) 규격"
+          isOpen={openAccordion === 'hr'}
+          onToggle={() => setOpenAccordion(openAccordion === 'hr' ? null : 'hr')}
+        >
+          <div className="space-y-3.5">
+            {/* 선 모양 종류 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">선 스타일</span>
+              <select
+                value={hrStructure.borderTopStyle}
+                disabled={isDefault}
+                onChange={(e) => updateHrStructure('borderTopStyle', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="solid">실선</option>
+                <option value="dotted">점선</option>
+                <option value="dashed">대시선</option>
+                <option value="double">이중선</option>
+              </select>
             </div>
 
-            {/* 위아래 바깥 여백 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-              <span className="font-mono text-[12px] w-32 text-zinc-500">구분선 위아래 여백</span>
-              <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-                <input
-                  type="number" min={0} max={100}
-                  value={parseInt(hrStructure.marginTopBottom) || 32}
-                  disabled={isDefault}
-                  onChange={(e) => updateHrStructure('marginTopBottom', (parseInt(e.target.value) || 0) + 'px')}
-                  className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-                />
-                <span className="text-[11px] text-zinc-400 font-normal">px</span>
-              </div>
-            </div>
+            {/* 선 두께 슬라이더 */}
+            <SliderWidget
+              label="구분선 선 두께"
+              min={1}
+              max={10}
+              value={parseInt(hrStructure.borderTopWidth) || 1}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateHrStructure('borderTopWidth', v + 'px')}
+            />
 
-            {/* 선 가로 길이 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-              <span className="font-mono text-[12px] w-32 text-zinc-500">선 가로 길이</span>
+            {/* 위아래 여백 슬라이더 */}
+            <SliderWidget
+              label="구분선 상하 여백 너비"
+              min={0}
+              max={100}
+              value={parseInt(hrStructure.marginTopBottom) || 32}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateHrStructure('marginTopBottom', v + 'px')}
+            />
+
+            {/* 가로 길이 비율 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">구분선 너비</span>
               <select
                 value={hrStructure.lineWidth}
                 disabled={isDefault}
                 onChange={(e) => updateHrStructure('lineWidth', e.target.value)}
-                className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
-                <option value="100%">전체 (100%)</option>
-                <option value="50%">중앙 정렬 (50%)</option>
-                <option value="30%">짧은 선 (30%)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 6️⃣ 체크박스 규칙 */}
-          <div className="border-t border-zinc-100 dark:border-zinc-900 pt-3 mt-3 space-y-3">
-            <div className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 font-mono flex items-center gap-1">
-              <span>🧰 구조제어: 체크박스 규칙 (Task List)</span>
-            </div>
-
-            {/* 완료 항목 효과 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-              <span className="font-mono text-[12px] w-32 text-zinc-500">완료 항목 효과</span>
-              <select
-                value={checkboxStructure.checkedEffect}
-                disabled={isDefault}
-                onChange={(e) => updateCheckboxStructure('checkedEffect', e.target.value)}
-                className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-              >
-                <option value="line-through-and-dim">취소선 + 흐리게 (50%)</option>
-                <option value="dim-only">흐리게만</option>
-                <option value="none">스타일 변화 없음</option>
+                <option value="100%">100% (전체)</option>
+                <option value="75%">75% (중앙)</option>
+                <option value="50%">50% (중앙)</option>
+                <option value="30%">30% (짧은 선)</option>
               </select>
             </div>
 
-            {/* 박스 물리 크기 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-              <span className="font-mono text-[12px] w-32 text-zinc-500">박스 물리 크기</span>
-              <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-                <input
-                  type="number" min={8} max={32}
-                  value={parseInt(checkboxStructure.boxSize) || 16}
-                  disabled={isDefault}
-                  onChange={(e) => updateCheckboxStructure('boxSize', (parseInt(e.target.value) || 8) + 'px')}
-                  className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-                />
-                <span className="text-[11px] text-zinc-400 font-normal">px</span>
-              </div>
-            </div>
-
-            {/* 박스-글자 간격 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-              <span className="font-mono text-[12px] w-32 text-zinc-500">박스-글자 간격</span>
-              <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-                <input
-                  type="number" min={0} max={32}
-                  value={parseInt(checkboxStructure.textGap) || 10}
-                  disabled={isDefault}
-                  onChange={(e) => updateCheckboxStructure('textGap', (parseInt(e.target.value) || 0) + 'px')}
-                  className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-                />
-                <span className="text-[11px] text-zinc-400 font-normal">px</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════
-            🧰 인용구(Blockquote) 구조제어 위젯 패널
-            ═══════════════════════════════════════════════════ */}
-        <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900 pb-2">
-            <span className="font-bold text-zinc-800 dark:text-zinc-200 text-[13px]">인용구 서식 제어 ( &gt; )</span>
-            {isDarkMode ? (
-              <span className="text-[11px] px-2 py-0.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 font-bold rounded">다크모드 미적용</span>
-            ) : (
-              !isDefault && <span className="text-xs px-2.5 py-0.5 bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 font-bold rounded">규칙 적용 중</span>
-            )}
-          </div>
-
-          {/* 1️⃣ 인용구 배경색 (background-color → blockquote) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">인용구 배경색</span>
-            <select
-              value={(currentProfile.rules.blockquote || {})['background-color'] || '#f8f7ff'}
+            {/* 선 색상 (컬러 피커 연동) */}
+            <ColorPickerWidget
+              label="구분선 색상"
+              value={(currentProfile.rules.hr || {})['border-top-color'] || ''}
               disabled={isDefault}
-              onChange={(e) => updateCssRule('blockquote', 'background-color', e.target.value)}
-              className="bg-transparent border-none outline-none text-[13px] text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-            >
-              <option value="#f8f7ff">은은한 연보라 (#f8f7ff)</option>
-              <option value="#f1f5f9">클래식 슬레이트 그레이 (#f1f5f9)</option>
-              <option value="#eff6ff">소프트 멜론 블루 (#eff6ff)</option>
-              <option value="#f0fdf4">에메랄드 민트 (#f0fdf4)</option>
-              <option value="#fffbeb">웜 앰버 골드 (#fffbeb)</option>
-              <option value="transparent">투명 (transparent)</option>
-            </select>
+              onChange={(v) => updateCssRule('hr', 'border-top-color', v)}
+            />
+          </div>
+        </AccordionSection>
+
+        {/* 🟢 아코디언 [5]: 표, 하이퍼링크, 소스코드, 인용구 */}
+        <AccordionSection
+          id="others"
+          title="🏺 표, 하이퍼링크, 소스코드, 인용구"
+          isOpen={openAccordion === 'others'}
+          onToggle={() => setOpenAccordion(openAccordion === 'others' ? null : 'others')}
+        >
+          {/* 인용구 (Blockquote) 설정 */}
+          <div className="space-y-3.5">
+            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💬 인용구 (Blockquote) 스타일</span>
+
+            {/* 인용구 배경 색상 (컬러 피커 연동) */}
+            <ColorPickerWidget
+              label="인용구 채우기 배경색"
+              value={(currentProfile.rules.blockquote || {})['background-color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('blockquote', 'background-color', v)}
+            />
+
+            {/* 강조선 색상 (컬러 피커 연동) */}
+            <ColorPickerWidget
+              label="왼쪽 강조선 테두리 색상"
+              value={(currentProfile.rules.blockquote || {})['border-left-color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('blockquote', 'border-left-color', v)}
+            />
+
+            {/* 강조선 두께 슬라이더 */}
+            <SliderWidget
+              label="왼쪽 강조선 두께"
+              min={0}
+              max={20}
+              value={getNumValue((currentProfile.rules.blockquote || {})['border-left-width'], 4)}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('blockquote', 'border-left-width', v + 'px')}
+            />
+
+            {/* 바깥 상하 여백 슬라이더 */}
+            <SliderWidget
+              label="인용 상하 바깥 여백"
+              min={0}
+              max={80}
+              value={getNumValue((currentProfile.rules.blockquote || {})['margin-top'], 24)}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => {
+                const pxVal = v + 'px';
+                onUpdateProfile({
+                  ...currentProfile,
+                  rules: {
+                    ...currentProfile.rules,
+                    blockquote: {
+                      ...(currentProfile.rules.blockquote || {}),
+                      'margin-top': pxVal,
+                      'margin-bottom': pxVal
+                    }
+                  }
+                });
+              }}
+            />
+
+            {/* 내부 패딩 슬라이더 */}
+            <SliderWidget
+              label="인용 내부 패딩 여백"
+              min={0}
+              max={64}
+              value={getNumValue((currentProfile.rules.blockquote || {})['padding'], 16)}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('blockquote', 'padding', v + 'px')}
+            />
           </div>
 
-          {/* 2️⃣ 강조선 굵기 (border-left-width → blockquote) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">강조선 굵기</span>
-            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-              <input
-                type="number" min={0} max={20}
-                value={parseInt((currentProfile.rules.blockquote || {})['border-left-width'] || '4') || 4}
+          {/* 표 (Table) 설정 */}
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
+            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📊 표 (Table) 스타일</span>
+            
+            {/* 표 전체 너비 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표 전체 너비</span>
+              <select
+                value={getTagRules('table')['width'] || '100%'}
                 disabled={isDefault}
-                onChange={(e) => updateCssRule('blockquote', 'border-left-width', (parseInt(e.target.value) || 0) + 'px')}
-                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-              />
-              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+                onChange={(e) => updateCssRule('table', 'width', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="100%">100% (최대)</option>
+                <option value="auto">auto (콘텐츠 맞춤)</option>
+                <option value="50%">50% (반 너비)</option>
+              </select>
+            </div>
+
+            {/* 표 테두리 스타일 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표 테두리 모양</span>
+              <select
+                value={getTagRules('table')['border-style'] || 'solid'}
+                disabled={isDefault}
+                onChange={(e) => updateTableBorder('border-style', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="solid">실선</option>
+                <option value="double">이중선</option>
+                <option value="dotted">점선</option>
+                <option value="dashed">대시선</option>
+                <option value="none">없음</option>
+              </select>
+            </div>
+
+            {/* 표 테두리 두께 */}
+            <SliderWidget
+              label="표 테두리 두께"
+              min={0}
+              max={8}
+              value={parseInt(getTagRules('table')['border-width']) || 1}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateTableBorder('border-width', v + 'px')}
+            />
+
+            {/* 표 테두리 색상 */}
+            <ColorPickerWidget
+              label="표 테두리 색상"
+              value={getTagRules('table')['border-color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateTableBorder('border-color', v)}
+            />
+
+            {/* 헤더 배경색 */}
+            <ColorPickerWidget
+              label="표 헤더(TH) 배경색"
+              value={getTagRules('th')['background-color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('th', 'background-color', v)}
+            />
+
+            {/* 행 배경색 */}
+            <ColorPickerWidget
+              label="표 본문(TD) 배경색"
+              value={getTagRules('td')['background-color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('td', 'background-color', v)}
+            />
+
+            {/* 셀 패딩 (여백) */}
+            <SliderWidget
+              label="표 셀 내부 여백 (Padding)"
+              min={0}
+              max={24}
+              value={parseInt(getTagRules('th')['padding']) || 8}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCellPadding(v + 'px')}
+            />
+
+            {/* 표 글자 크기 */}
+            <SliderWidget
+              label="표 글자 크기 (0인 경우 페이지 기본 크기 사용)"
+              min={0}
+              max={36}
+              value={parseInt(getTagRules('table')['font-size']) || 0}
+              unit={parseInt(getTagRules('table')['font-size']) === 0 || !getTagRules('table')['font-size'] ? "기본값" : "px"}
+              disabled={isDefault}
+              onChange={(v) => {
+                if (v === '0') {
+                  updateTableFontSize('');
+                } else {
+                  updateTableFontSize(v + 'px');
+                }
+              }}
+            />
+          </div>
+
+          {/* 하이퍼링크 (A) 설정 */}
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
+            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🔗 하이퍼링크 (Link) 스타일</span>
+            
+            <ColorPickerWidget
+              label="링크 글자 색상"
+              value={getTagRules('a')['color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('a', 'color', v)}
+            />
+            
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 밑줄 여부</span>
+              <select
+                value={getTagRules('a')['text-decoration'] || 'underline'}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('a', 'text-decoration', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="underline">밑줄 노출</option>
+                <option value="none">밑줄 소거</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 글자 굵기</span>
+              <select
+                value={getTagRules('a')['font-weight'] || 'normal'}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('a', 'font-weight', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="normal">보통</option>
+                <option value="bold">굵게</option>
+              </select>
             </div>
           </div>
 
-          {/* 3️⃣ 인용구 바깥 여백 (margin-top & margin-bottom 동기화) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">인용구 바깥 여백</span>
-            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-              <input
-                type="number" min={0} max={80}
-                value={parseInt((currentProfile.rules.blockquote || {})['margin-top'] || '24') || 24}
+          {/* 소스코드 및 코드 블록 설정 */}
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
+            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 소스코드 및 코드 블록</span>
+            <SliderWidget
+              label="코드 글자 크기"
+              min={10}
+              max={24}
+              value={parseInt(getTagRules('codeBlock')['font-size']) || 13}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('codeBlock', 'font-size', v + 'px')}
+            />
+            
+            <SliderWidget
+              label="코드 블록 내부 패딩"
+              min={0}
+              max={32}
+              value={parseInt(getTagRules('codeBlock')['padding']) || 12}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('codeBlock', 'padding', v + 'px')}
+            />
+            
+            <SliderWidget
+              label="코드 블록 테두리 둥글기"
+              min={0}
+              max={16}
+              value={parseInt(getTagRules('codeBlock')['border-radius']) || 6}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('codeBlock', 'border-radius', v + 'px')}
+            />
+          </div>
+
+          {/* 미디어 및 기타 제어 */}
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-4">
+            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🛠️ 미디어, 인라인 소스 및 수식 코드 제어</span>
+            
+            {/* 이미지 객체 (Image) 설정 */}
+            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🖼️ IMG - 이미지 객체 규격 조작</span>
+              <SliderWidget
+                label="이미지 가로 너비"
+                min={50}
+                max={800}
+                value={parseInt(getTagRules('img')['width']) || 400}
+                unit="px"
                 disabled={isDefault}
-                onChange={(e) => {
-                  if (isDefault) return;
-                  const v = (parseInt(e.target.value) || 0) + 'px';
-                  onUpdateProfile({
-                    ...currentProfile,
-                    rules: {
-                      ...currentProfile.rules,
-                      blockquote: {
-                        ...(currentProfile.rules.blockquote || {}),
-                        'margin-top': v,
-                        'margin-bottom': v
+                onChange={(v) => updateCssRule('img', 'width', v + 'px')}
+              />
+              <SliderWidget
+                label="이미지 세로 높이"
+                min={50}
+                max={600}
+                value={parseInt(getTagRules('img')['height']) || 300}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('img', 'height', v + 'px')}
+              />
+              <SliderWidget
+                label="이미지 상하 바깥 여백"
+                min={0}
+                max={80}
+                value={parseInt(getTagRules('img')['margin-top']) || 16}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => {
+                  const px = v + 'px';
+                  if (!isDefault) {
+                    onUpdateProfile({
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        img: {
+                          ...(currentProfile.rules.img || {}),
+                          'margin-top': px,
+                          'margin-bottom': px,
+                          'display': 'block',
+                          'margin-left': 'auto',
+                          'margin-right': 'auto'
+                        }
+                      }
+                    });
+                  }
+                }}
+              />
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">이미지 정렬 방식</span>
+                <select
+                  value={getTagRules('img')['float'] || 'none'}
+                  disabled={isDefault}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!isDefault) {
+                      const baseImg = currentProfile.rules.img || {};
+                      if (val === 'center') {
+                        onUpdateProfile({
+                          ...currentProfile,
+                          rules: {
+                            ...currentProfile.rules,
+                            img: {
+                              ...baseImg,
+                              'float': 'none',
+                              'display': 'block',
+                              'margin-left': 'auto',
+                              'margin-right': 'auto'
+                            }
+                          }
+                        });
+                      } else {
+                        onUpdateProfile({
+                          ...currentProfile,
+                          rules: {
+                            ...currentProfile.rules,
+                            img: {
+                              ...baseImg,
+                              'float': val,
+                              'display': 'inline',
+                              'margin-left': '',
+                              'margin-right': ''
+                            }
+                          }
+                        });
                       }
                     }
-                  });
-                }}
-                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
-              />
-              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+                  }}
+                  className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+                >
+                  <option value="none">정렬 없음</option>
+                  <option value="center">중앙 정렬</option>
+                  <option value="left">왼쪽 정렬 (Float)</option>
+                  <option value="right">오른쪽 정렬 (Float)</option>
+                </select>
+              </div>
             </div>
-          </div>
-
-          {/* 4️⃣ 인용구 내부 여백 (padding) */}
-          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg shadow-sm">
-            <span className="font-mono text-[12px] w-32 text-zinc-500">인용구 내부 여백</span>
-            <div className="flex items-center gap-1 font-mono text-[13px] font-bold text-blue-600 dark:text-blue-400">
-              <input
-                type="number" min={0} max={64}
-                value={parseInt((currentProfile.rules.blockquote || {})['padding'] || '16') || 16}
+            
+            {/* 인라인 코드 (Code) 설정 */}
+            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 CODE - 인라인 소스 코드 스타일</span>
+              <ColorPickerWidget
+                label="코드 글자 색상"
+                value={getTagRules('code')['color'] || ''}
                 disabled={isDefault}
-                onChange={(e) => updateCssRule('blockquote', 'padding', (parseInt(e.target.value) || 0) + 'px')}
-                className="w-12 text-center bg-transparent border-none outline-none font-mono text-[13px] text-blue-600 dark:text-blue-400 font-bold"
+                onChange={(v) => updateCssRule('code', 'color', v)}
               />
-              <span className="text-[11px] text-zinc-400 font-normal">px</span>
+              <ColorPickerWidget
+                label="코드 배경 색상"
+                value={getTagRules('code')['background-color'] || ''}
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('code', 'background-color', v)}
+              />
+              <SliderWidget
+                label="코드 글자 크기"
+                min={10}
+                max={24}
+                value={parseInt(getTagRules('code')['font-size']) || 13}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('code', 'font-size', v + 'px')}
+              />
+              <SliderWidget
+                label="코드 테두리 둥글기"
+                min={0}
+                max={16}
+                value={parseInt(getTagRules('code')['border-radius']) || 4}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('code', 'border-radius', v + 'px')}
+              />
+            </div>
+
+            {/* 동영상 객체 (Video) 설정 */}
+            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🎥 VIDEO - 동영상 객체 규격 조작</span>
+              <SliderWidget
+                label="동영상 가로 너비"
+                min={100}
+                max={800}
+                value={parseInt(getTagRules('video')['width']) || 560}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('video', 'width', v + 'px')}
+              />
+              <SliderWidget
+                label="동영상 세로 높이"
+                min={100}
+                max={600}
+                value={parseInt(getTagRules('video')['height']) || 315}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('video', 'height', v + 'px')}
+              />
+              <SliderWidget
+                label="동영상 상하 바깥 여백"
+                min={0}
+                max={80}
+                value={parseInt(getTagRules('video')['margin-top']) || 16}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => {
+                  const px = v + 'px';
+                  if (!isDefault) {
+                    onUpdateProfile({
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        video: {
+                          ...(currentProfile.rules.video || {}),
+                          'margin-top': px,
+                          'margin-bottom': px,
+                          'display': 'block',
+                          'margin-left': 'auto',
+                          'margin-right': 'auto'
+                        }
+                      }
+                    });
+                  }
+                }}
+              />
+            </div>
+
+            {/* 수식 블록 (Math) 설정 */}
+            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📐 MATH - KaTeX 수식 블록 스타일</span>
+              <ColorPickerWidget
+                label="수식 글자 색상"
+                value={getTagRules('math')['color'] || ''}
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('math', 'color', v)}
+              />
+              <SliderWidget
+                label="수식 글자 크기"
+                min={10}
+                max={32}
+                value={parseInt(getTagRules('math')['font-size']) || 16}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('math', 'font-size', v + 'px')}
+              />
+              <SliderWidget
+                label="수식 상하 바깥 여백"
+                min={0}
+                max={80}
+                value={parseInt(getTagRules('math')['margin-top']) || 16}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => {
+                  const px = v + 'px';
+                  if (!isDefault) {
+                    onUpdateProfile({
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        math: {
+                          ...(currentProfile.rules.math || {}),
+                          'margin-top': px,
+                          'margin-bottom': px
+                        }
+                      }
+                    });
+                  }
+                }}
+              />
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">수식 정렬 방식</span>
+                <select
+                  value={getTagRules('math')['text-align'] || 'center'}
+                  disabled={isDefault}
+                  onChange={(e) => updateCssRule('math', 'text-align', e.target.value)}
+                  className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+                >
+                  <option value="center">중앙 정렬</option>
+                  <option value="left">왼쪽 정렬</option>
+                  <option value="right">오른쪽 정렬</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 지도 객체 (Map) 설정 */}
+            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🗺️ MAP - 지도 객체 규격 조작</span>
+              <SliderWidget
+                label="지도 가로 너비"
+                min={100}
+                max={800}
+                value={parseInt(getTagRules('map')['width']) || 600}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('map', 'width', v + 'px')}
+              />
+              <SliderWidget
+                label="지도 세로 높이"
+                min={100}
+                max={600}
+                value={parseInt(getTagRules('map')['height']) || 450}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('map', 'height', v + 'px')}
+              />
+              <SliderWidget
+                label="지도 상하 바깥 여백"
+                min={0}
+                max={80}
+                value={parseInt(getTagRules('map')['margin-top']) || 16}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => {
+                  const px = v + 'px';
+                  if (!isDefault) {
+                    onUpdateProfile({
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        map: {
+                          ...(currentProfile.rules.map || {}),
+                          'margin-top': px,
+                          'margin-bottom': px,
+                          'display': 'block',
+                          'margin-left': 'auto',
+                          'margin-right': 'auto'
+                        }
+                      }
+                    });
+                  }
+                }}
+              />
+            </div>
+
+            {/* 각주 영역 (Footnote) 설정 */}
+            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📌 FOOTNOTE - 각주 영역 스타일 조작</span>
+              <ColorPickerWidget
+                label="각주 글자 색상"
+                value={getTagRules('footnote')['color'] || ''}
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('footnote', 'color', v)}
+              />
+              <SliderWidget
+                label="각주 글자 크기"
+                min={10}
+                max={20}
+                value={parseInt(getTagRules('footnote')['font-size']) || 12}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('footnote', 'font-size', v + 'px')}
+              />
+              <SliderWidget
+                label="각주 줄 간격"
+                min={1.0}
+                max={2.5}
+                step={0.1}
+                value={parseFloat(getTagRules('footnote')['line-height']) || 1.4}
+                unit="배"
+                disabled={isDefault}
+                onChange={(v) => updateCssRule('footnote', 'line-height', v)}
+              />
+              <SliderWidget
+                label="각주 상하 바깥 여백"
+                min={0}
+                max={60}
+                value={parseInt(getTagRules('footnote')['margin-top']) || 8}
+                unit="px"
+                disabled={isDefault}
+                onChange={(v) => {
+                  const px = v + 'px';
+                  if (!isDefault) {
+                    onUpdateProfile({
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        footnote: {
+                          ...(currentProfile.rules.footnote || {}),
+                          'margin-top': px,
+                          'margin-bottom': px
+                        }
+                      }
+                    });
+                  }
+                }}
+              />
             </div>
           </div>
-        </div>
+        </AccordionSection>
 
+        {/* ─── 접이식 아코디언 그룹 끝 ─── */}
 
-        <div className="space-y-4">
-          <h4 className="font-bold text-blue-600 dark:text-blue-400 border-b border-zinc-200 dark:border-zinc-700 pb-1 uppercase tracking-wider text-[13px]">
-            복합 객체 정의
-          </h4>
-          <TagRuleEditor tag="table" label="TABLE - 표 전체" rules={currentProfile.rules.table || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="th" label="TH - 헤더 셀" rules={currentProfile.rules.th || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="td" label="TD - 데이터 셀" rules={currentProfile.rules.td || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="codeBlock" label="CODE BLOCK - 코드 블록" rules={currentProfile.rules.codeBlock || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="a" label="A - 링크" rules={currentProfile.rules.a || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-          <TagRuleEditor tag="img" label="IMG - 이미지" rules={currentProfile.rules.img || {}} isDefault={isDefault} onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />
-        </div>
+        {/* 🚨 기본 서식 복구 엔진 (Reset to Default) - DEFAULT 프로필이 아닐 때 하단에 배치 */}
+        {!isDefault && (
+          <div className="pt-2 animate-fadeIn">
+            <button
+              type="button"
+              onClick={resetToDefault}
+              className="w-full py-3.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400 font-bold border border-red-200 dark:border-red-900/50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm text-base"
+            >
+              <span>🔄</span>
+              <span>현재 프로필 서식 초기화 (Reset to Default)</span>
+            </button>
+          </div>
+        )}
 
       </div>
 
@@ -1298,6 +2095,71 @@ export default function CssStyleForm({
         }}
         isDarkMode={isDarkMode || false}
       />
+
+      {/* ⚡ 실시간 알림 토스트 레이어 */}
+      {toastMessage && (
+        <div className="fixed bottom-4 left-4 z-[99999] px-4 py-3 rounded-lg bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xl border border-zinc-700 dark:border-zinc-200 text-sm font-bold animate-fadeIn flex items-center gap-2">
+          <span>🔔</span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* 📥 외부 서식 가져오기 (JSON 직접 붙여넣기 및 파일 드래그) 모달 */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-[480px] max-w-full shadow-2xl p-5 space-y-4 animate-scaleUp text-left">
+            <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-800 pb-3">
+              <span className="font-bold text-zinc-800 dark:text-zinc-200 text-base">📥 외부 서식 가져오기 / 업로드</span>
+              <button onClick={() => { setShowImportModal(false); setImportJsonText(''); }} className="text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 font-bold text-base leading-none">X</button>
+            </div>
+            
+            <div className="space-y-3.5">
+              {/* 파일 선택 방식 */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block">방법 1: 서식 파일(.json) 업로드</span>
+                <div className="relative border-2 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer transition-colors group">
+                  <input type="file" accept=".json" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                  <span className="text-zinc-500 dark:text-zinc-400 group-hover:text-blue-500 transition-colors text-sm font-bold block">📁 서식 JSON 파일 선택하기</span>
+                  <span className="text-xs text-zinc-400 mt-1 block">AI가 저장해 준 서식 JSON 파일을 로드합니다.</span>
+                </div>
+              </div>
+
+              {/* 텍스트 붙여넣기 방식 */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block">방법 2: AI 생성 JSON 텍스트 붙여넣기</span>
+                <textarea
+                  value={importJsonText}
+                  onChange={(e) => setImportJsonText(e.target.value)}
+                  placeholder="AI가 출력해 준 Onrivi 규격 JSON 텍스트를 여기에 붙여넣어 주세요..."
+                  className="w-full h-44 p-3 border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 rounded-xl font-mono text-xs leading-relaxed outline-none focus:border-blue-500 transition-colors resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                onClick={() => { setShowImportModal(false); setImportJsonText(''); }}
+                className="flex-1 py-2.5 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-bold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-950 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  if (!importJsonText.trim()) {
+                    alert("가져올 JSON 텍스트를 입력해 주세요!");
+                    return;
+                  }
+                  importProfileString(importJsonText);
+                }}
+                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                className="flex-1 py-2.5 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-bold text-sm transition-colors cursor-pointer"
+              >
+                가져오기 실행
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

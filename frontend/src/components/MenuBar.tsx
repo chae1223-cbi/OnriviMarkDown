@@ -139,7 +139,6 @@ export default function MenuBar({
 
   const fileItems = [
     { label: "새 파일", icon: <span>📝</span>, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
-    ...(isAddonEnv ? [] : [{ label: "파일 열기", icon: <span>📤</span>, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') } as const]),
     { label: t('openWorkspace'), icon: <span>📂</span>, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
     { divider: true },
     { label: t('saveFile'), icon: <span>💾</span>, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
@@ -206,16 +205,6 @@ export default function MenuBar({
               { label: "미리보기", onClick: () => setPreviewMode('preview') },
             ]
           },
-          {
-            label: t('themeSwitch'),
-            icon: <span>🎨</span>,
-            subItems: EDITOR_THEMES.map(theme => ({
-              label: theme.name,
-              icon: <span>{theme.icon}</span>,
-              onClick: () => handleThemeSelect(theme.id),
-              isActive: theme.id === themePalette,
-            }))
-          },
           { label: "서식 정의", icon: <span>🏛️</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('TOGGLE_CSS_STYLE') },
           { divider: true },
           { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
@@ -231,7 +220,6 @@ export default function MenuBar({
         isDarkMode={isDarkMode}
         items={[
           { label: t('userManual'), icon: <span>📖</span> },
-          { label: t('shortcuts'), icon: <span>⌨️</span>, onClick: () => dispatch('SETTINGS_SHORTCUTS') },
           { label: t('updates'), icon: <span>🚀</span>, onClick: () => dispatch('UPDATES') },
           { divider: true },
           { label: t('about'), icon: <span>🍀</span>, onClick: () => dispatch('ABOUT') },

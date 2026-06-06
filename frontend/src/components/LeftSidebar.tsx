@@ -354,7 +354,7 @@ export default function LeftSidebar({
               // 폴더 연결됨 → 파일 트리 표시
               // 🛡️ [빈 폴더 방어] fileList가 비어있어도 루트 폴더 헤더(풀경로+버튼)를 항상 유지
               <div className="space-y-0.5">
-                <div className="group relative flex items-center justify-between px-1 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
+                <div className="group relative flex items-center justify-between px-1 py-1.5 text-[13px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
                   <span className="truncate">📁 {rootFolder.name}</span>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button 

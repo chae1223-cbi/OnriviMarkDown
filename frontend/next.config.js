@@ -12,7 +12,7 @@ const nextConfig = {
       config.cache = false;
     }
 
-    // Fix relative font URLs in extracted CSS for static export
+    // 정적 내보내기를 위해 추출된 CSS 내의 상대 폰트 URL 수정
     if (!isServer) {
       class FixCssFontUrlsPlugin {
         apply(compiler) {
@@ -50,4 +50,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

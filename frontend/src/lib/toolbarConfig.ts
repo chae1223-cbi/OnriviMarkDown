@@ -2,6 +2,7 @@ export const TOOLBAR_ITEMS = [
   // 1. 서식 (Formatting)
   { id: 'bold', icon: 'B', name: '굵게', group: '서식', tagFormat: '**텍스트**', defaultHotkey: 'Ctrl+B', defaultCommand: 'bold', insertText: '**텍스트**', kind: 15 },
   { id: 'italic', icon: 'I', name: '기울임', group: '서식', tagFormat: '*텍스트*', defaultHotkey: 'Ctrl+I', defaultCommand: 'italic', insertText: '*텍스트*', kind: 15 },
+  { id: 'underline', icon: 'U', name: '밑줄', group: '서식', tagFormat: '<u>텍스트</u>', defaultHotkey: 'Ctrl+U', defaultCommand: 'underline', insertText: '<u>텍스트</u>', kind: 15 },
   { id: 'inlineCode', icon: '</>', name: '인라인 코드', group: '서식', tagFormat: '`텍스트`', defaultHotkey: 'Ctrl+E', defaultCommand: 'inlinecode', insertText: '`텍스트`', kind: 15 },
   { id: 'strikethrough', icon: 'S', name: '취소선', group: '서식', tagFormat: '~~텍스트~~', defaultHotkey: 'Ctrl+Shift+X', defaultCommand: 'strike', insertText: '~~텍스트~~', kind: 15 },
   
@@ -15,6 +16,7 @@ export const TOOLBAR_ITEMS = [
   
   // 3. 문단 (Paragraph)
   { id: 'divider', icon: '—', name: '구분선', group: '문단', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
+  { id: 'pageBreak', icon: '✂️', name: '페이지 나누기 (A4)', group: '문단', tagFormat: '<!-- [page-break] -->', defaultHotkey: 'Ctrl+Alt+P', defaultCommand: 'pagebreak', insertText: '<!-- [page-break] -->', kind: 15 },
   { id: 'orderedList', icon: '1.', name: '숫자 목록', group: '문단', tagFormat: '1. ', defaultHotkey: 'Ctrl+Shift+7', defaultCommand: 'ol', insertText: '1. ', kind: 17 },
   { id: 'list', icon: '☰', name: '글머리 기호', group: '문단', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
   { id: 'quote', icon: '❝', name: '인용구', group: '문단', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> ', kind: 17 },

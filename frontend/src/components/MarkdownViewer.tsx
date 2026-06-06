@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -33,6 +33,7 @@ interface MarkdownViewerProps {
   lineMap?: number[];
   onCheckboxToggle?: (lineNumber: number, checked: boolean) => void;
   currentFilePath?: string;
+  rootFolderPath?: string;
   onFileOpen?: (resolvedPath: string) => void;
   orientation?: 'portrait' | 'landscape';
   marginTop?: string;
@@ -40,6 +41,8 @@ interface MarkdownViewerProps {
   marginLeft?: string;
   marginRight?: string;
   listIndent?: string;
+  showPageBreaks?: boolean; // 💡 실시간 A4 페이지 경계선 표시 토글 프롭 추가
+  calcKey?: number; // 💡 페이지 경계선 강제 초기화 트리거 키
 }
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
@@ -575,19 +578,28 @@ function MermaidBlock({ code }: { code: string }) {
   );
 }
 
-// 🛡️ [한글 주석 완벽 탑재] MarkdownViewer는 마크다운 원본 문법을 아름다운 HTML 구조로 파싱 및 시각화하는 핵심 뷰어 컴포넌트입니다.
-export default function MarkdownViewer({ content, originalContent, lineMap = [], onCheckboxToggle, currentFilePath, onFileOpen, orientation = 'portrait', marginTop, marginBottom, marginLeft, marginRight, listIndent }: MarkdownViewerProps) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+export default function MarkdownViewer({
+  content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
+  onFileOpen, orientation, marginTop, marginBottom, marginLeft, marginRight, listIndent, showPageBreaks, calcKey
+}: MarkdownViewerProps) {
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevBreaksRef = useRef<string>("");
 
   // 🛡️ [마크다운 원본 우회] 마크다운 본문의 HTML 이스케이프 깨짐 방지를 위해 원본 내용을 직접 컴포넌트에 공급합니다.
   // 💡 [한글 주석] 마크다운 링크 주소 내부에 소괄호()가 포함되어 파싱이 깨지는 현상 방지 필터 (부등호 <> 래핑 처리)
   const cleanContent = useMemo(() => {
     if (!content) return "";
+    
+    let processed = content;
+    
+    // 🛡️ [목록 번호 변환 방어]
+    // 1) 웹 모드 처럼 숫자에 괄호 닫기 패턴(예: 1) )을 라인 시작 지점에 작성했을 때,
+    // 마크다운 파서가 이를 ordered list <ol> 목록으로 오해하여 1. 등으로 변환 렌더링하는 것을 방지하기 위해 괄호 앞에 백슬래시 이스케이프(\))를 자동 적용합니다.
+    processed = processed.replace(/(^\s*\d+)\)(?=\s)/gm, '$1\\)');
+
     const mdLinkRegex = /\[([^\]]+)\]\(((?:[^()]+|\([^()]*\))+)\)/g;
-    return content.replace(mdLinkRegex, (match, text, url) => {
+    return processed.replace(mdLinkRegex, (match, text, url) => {
       if (url.startsWith('<') && url.endsWith('>')) {
         return match;
       }
@@ -598,7 +610,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
   // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
   const getIndentStyle = (node: any) => {
     const line = node?.position?.start?.line;
-    const origLine = line ? (lineMap[line - 1] || line) : undefined;
+    const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
     if (!origLine) return {};
 
     const targetContent = originalContent || content;
@@ -643,7 +655,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
             node.properties = {};
           }
           const processedLine = node.position.start.line;
-          const originalLine = lineMap[processedLine - 1] || processedLine;
+          const originalLine = (lineMap || [])[processedLine - 1] || processedLine;
           node.properties['data-line'] = originalLine;
         }
         if (node.children) {
@@ -686,9 +698,10 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
 
   return (
     <div
-      className="bg-transparent mx-auto transition-all duration-200"
+      ref={containerRef}
+      className={`markdown-viewer-root bg-transparent mx-auto transition-all duration-200 relative ${showPageBreaks ? 'show-page-breaks-active' : ''}`}
       style={{
-        width: '100%',
+        width: showPageBreaks ? (isLandscape ? '1123px' : '794px') : '100%',
         minHeight: '100%',
         boxShadow: 'none',
         borderRadius: '0px',
@@ -713,13 +726,24 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
             img: ({ node, src, alt, style, ...props }: any) => {
               if (!src) return <img alt={alt} {...props} />;
               
-              let finalSrc = src;
-              const isExternal = src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('blob:');
+              // 💡 [쿼리 스트링 분리 가드]
+              // 이미지 URL 내에 ?width=300&height=200 등의 쿼리 파라미터가 덧붙여 있는 경우,
+              // 로컬 파일 경로 해석 시 이 쿼리가 포함되면 404 에러가 나므로 분리 처리합니다.
+              let pureSrc = src;
+              let queryString = '';
+              const qIndex = src.indexOf('?');
+              if (qIndex !== -1) {
+                pureSrc = src.substring(0, qIndex);
+                queryString = src.substring(qIndex);
+              }
+
+              let finalSrc = pureSrc;
+              const isExternal = pureSrc.startsWith('http://') || pureSrc.startsWith('https://') || pureSrc.startsWith('data:') || pureSrc.startsWith('blob:');
 
               if (!isExternal && typeof window !== 'undefined' && (window as any).electronAPI) {
-                let absolutePath = src;
-                const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(src);
-                const isAbsoluteUnix = src.startsWith('/');
+                let absolutePath = pureSrc;
+                const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(pureSrc);
+                const isAbsoluteUnix = pureSrc.startsWith('/');
                 const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
 
                 // 🛡️ [웰컴 페이지 예외 가드] 웰컴 페이지 내장 이미지는 로컬 워크스페이스 경로로 강제 확장하지 않고,
@@ -730,16 +754,26 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
                   currentFilePath === 'Welcome.md'
                 );
 
-                const isWelcomeAsset = src === './hero.png' || src === 'hero.png' || isWelcomePage;
+                const isWelcomeAsset = pureSrc === './hero.png' || pureSrc === 'hero.png' || isWelcomePage;
 
                 if (!isAbsolute && currentFilePath && !isWelcomeAsset) {
-                  absolutePath = resolveRelativeImagePath(src, currentFilePath);
+                  absolutePath = resolveRelativeImagePath(pureSrc, currentFilePath);
+                } else if (!isAbsolute && rootFolderPath && rootFolderPath !== '브라우저 스토리지' && !isWelcomeAsset) {
+                  // currentFilePath가 없는 새 파일인 경우, 활성화된 로컬 워크스페이스 디렉토리를 기준으로 상대경로를 해결합니다.
+                  const sep = rootFolderPath.includes('/') ? '/' : '\\';
+                  const folder = rootFolderPath.endsWith(sep) ? rootFolderPath : rootFolderPath + sep;
+                  absolutePath = folder + pureSrc;
                 } else if (isWelcomeAsset) {
                   // 웰컴 에셋인 경우, './hero.png' 에서 './'를 제거하여 'hero.png' 로 안전하게 전송합니다.
                   // 이를 통해 URL 내 상대경로 문자 정규화 꼬임으로 인한 이미지 엑스박스 결함을 영구 방지합니다.
-                  absolutePath = src.startsWith('./') ? src.slice(2) : src;
+                  absolutePath = pureSrc.startsWith('./') ? pureSrc.slice(2) : pureSrc;
                 }
+                
+                // 순수 경로에 대해서만 encodeURIComponent를 수행하고, 쿼리가 존재할 시 뒤에 덧붙입니다.
                 finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
+                if (queryString) {
+                  finalSrc += '&' + queryString.substring(1);
+                }
               }
 
               let width: string | undefined;
@@ -750,6 +784,13 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
                 if (wMatch) width = decodeURIComponent(wMatch[1]);
                 if (hMatch) height = decodeURIComponent(hMatch[1]);
               } catch (e) {}
+
+              // 💡 [단위 자동 보완 가드]
+              // 가로/세로 크기에 단위가 없는 순수 숫자가 들어오는 경우(예: 300), 
+              // 브라우저 CSS 스펙에 부합하도록 px 단위를 기본적으로 붙여 렌더링에 실질 반영되게 합니다.
+              if (width && /^\d+$/.test(width)) width = `${width}px`;
+              if (height && /^\d+$/.test(height)) height = `${height}px`;
+
               const imgStyle: React.CSSProperties = {
                 ...style, maxWidth: '100%', height: height || 'auto',
               };
@@ -826,13 +867,20 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
               return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
             },
             table: ({ node, children, ...props }: any) => {
-              return (
-                <TableWrapper>
-                  <table {...props}>
-                    {children}
-                  </table>
-                </TableWrapper>
-              );
+               return (
+                 <TableWrapper>
+                   <table {...props}>
+                     {children}
+                   </table>
+                 </TableWrapper>
+               );
+             },
+            div: ({ node, className, children, ...props }: any) => {
+              // 수동 페이지 나누기 div 태그가 화면에서 텍스트 노출되지 않고 실제 CSS 클래스를 먹도록 렌더링 보장
+              if (className === 'page-break') {
+                return <div className="page-break" {...props} />;
+              }
+              return <div className={className} {...props}>{children}</div>;
             },
             pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
             code: ({ node, className, children, ...props }: any) => {
@@ -850,32 +898,32 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
             },
             h1: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
               return <h1 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h1>;
             },
             h2: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
               return <h2 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h2>;
             },
             h3: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
               return <h3 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h3>;
             },
             h4: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
               return <h4 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h4>;
             },
             h5: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
               return <h5 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h5>;
             },
             h6: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
               return <h6 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
             },
             input: ({ node, ...props }: any) => <input {...props} />,
@@ -922,7 +970,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
               }
 
               const line = (node as any).position?.start?.line;
-              const origLine = line ? (lineMap[line - 1] || line) : undefined;
+              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
               const modifiedChildren = React.Children.map(children, (child) => {
                 if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
                   return React.cloneElement(child as React.ReactElement<any>, {
@@ -938,7 +986,7 @@ export default function MarkdownViewer({ content, originalContent, lineMap = [],
                 return child;
               });
 
-              return <li style={style} className={props.className} {...props}>{modifiedChildren}</li>;
+              return <li style={{ ...style, ...getIndentStyle(node) }} className={props.className} {...props}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
               return (

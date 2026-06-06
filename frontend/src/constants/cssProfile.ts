@@ -10,7 +10,8 @@ const EMPTY_RULES = {
   p: {}, strong: {}, em: {}, del: {},
   ul: {}, ol: {}, li: {}, taskList: {}, hr: {},
   table: {}, th: {}, td: {}, blockquote: {}, codeBlock: {},
-  a: {}, img: {},
+  a: {}, img: {}, code: {}, video: {}, math: {},
+  map: {}, footnote: {},
 };
 
 /**
@@ -30,7 +31,7 @@ export const DEFAULT_PROFILE: CssProfile = {
   pageStyle: {
     fontFamily: 'inherit',
     fontSize: '15px',
-    lineHeight: '1.8',
+    lineHeight: '1.7',
     letterSpacing: '-0.02em',
     marginTop: '20mm',
     marginBottom: '20mm',
@@ -48,16 +49,16 @@ export const DEFAULT_PROFILE: CssProfile = {
     h5: { "text-align": "left", "font-weight": "500", "margin-top": "0.6rem", "margin-bottom": "0.4rem" },
     h6: { "text-align": "left", "font-weight": "500", "margin-top": "0.5rem", "margin-bottom": "0.3rem" },
     // --- 본문 ---
-    p: { "text-align": "left", "margin-bottom": "1rem", "text-indent": "0px" },
+    p: { "text-align": "left", "margin-bottom": "8px", "text-indent": "0px" },
     // --- 인라인 서식 (빈 객체 = prose 기본값 사용) ---
     strong: {},
     em: {},
     u: {},
     del: {},
-    // --- 목록 ---
-    ul: {},
-    ol: {},
-    li: {},
+    // --- 목록 (초기 기본값을 조밀하고 명확히 기입) ---
+    ul: { "padding-left": "24px" },
+    ol: { "padding-left": "24px" },
+    li: { "margin-bottom": "3px", "padding-inline-start": "6px" },
     taskList: {},
     // --- 수평선 ---
     hr: {},
@@ -66,10 +67,15 @@ export const DEFAULT_PROFILE: CssProfile = {
     th: {},
     td: {},
     // --- 인용문, 코드, 링크, 이미지 ---
-    blockquote: { "border-left-width": "4px", "border-left-style": "solid", "padding-left": "1rem", "margin-top": "1rem", "margin-bottom": "1rem" },
+    blockquote: { "border-left-width": "4px", "border-left-style": "solid", "padding": "12px", "margin-top": "10px", "margin-bottom": "10px" },
     codeBlock: {},
     a: {},
     img: {},
+    code: { "padding-top": "1px", "padding-bottom": "1px", "line-height": "1" },
+    video: {},
+    math: {},
+    map: {},
+    footnote: {},
   },
   hrStructure: {
     borderTopStyle: "solid",

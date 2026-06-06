@@ -241,37 +241,6 @@ ipcMain.handle('get-initial-file-path', () => {
   return path;
 });
 
-// 1. 네이티브 파일 열기 대화상자 핸들러
-ipcMain.handle('dialog:openFile', async (event, defaultPath) => {
-  const cleanDefault = defaultPath ? defaultPath.normalize('NFC') : undefined;
-  const startDir = cleanDefault && fs.existsSync(cleanDefault) && fs.statSync(cleanDefault).isDirectory()
-    ? cleanDefault
-    : app.getPath('documents');
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title: defaultPath ? `파일 열기 - ${defaultPath}` : '파일 열기',
-    defaultPath: startDir,
-    properties: ['openFile'],
-    filters: [{ name: 'Markdown Files', extensions: ['md', 'markdown', 'txt'] }]
-  });
-
-  if (result.canceled || result.filePaths.length === 0) {
-    return null;
-  }
-
-  const filePath = result.filePaths[0];
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    return {
-      name: path.basename(filePath),
-      path: filePath,
-      content: content
-    };
-  } catch (e) {
-    console.error('로컬 파일 읽기 실패:', e);
-    throw e;
-  }
-});
-
 // 2. 현재 파일 덮어쓰기 저장 핸들러
 ipcMain.handle('file:save', async (event, filePath, content) => {
   try {
@@ -284,15 +253,17 @@ ipcMain.handle('file:save', async (event, filePath, content) => {
   }
 });
 
-// 3. 다른 이름으로 저장 핸들러 (워크스페이스 폴더 우선, suggestedName 지원)
-ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir) => {
+// 3. 다른 이름으로 저장 핸들러 (워크스페이스 폴더 우선, suggestedName 및 커스텀 필터 지원)
+ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir, filters) => {
   const defaultName = suggestedName || 'untitled.md';
   const cleanDefaultDir = defaultDir ? defaultDir.normalize('NFC') : undefined;
   const startDir = cleanDefaultDir && fs.existsSync(cleanDefaultDir) ? cleanDefaultDir : app.getPath('documents');
+  const targetFilters = filters || [{ name: 'Markdown Files', extensions: ['md'] }];
+  
   const result = await dialog.showSaveDialog(mainWindow, {
     title: '다른 이름으로 저장',
     defaultPath: path.join(startDir, defaultName),
-    filters: [{ name: 'Markdown Files', extensions: ['md'] }]
+    filters: targetFilters
   });
 
   if (result.canceled || !result.filePath) {
@@ -301,7 +272,12 @@ ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir) 
 
   const filePath = result.filePath.normalize('NFC');
   try {
-    fs.writeFileSync(filePath, content, 'utf-8');
+    if (content.startsWith('data:') && content.includes(';base64,')) {
+      const base64Data = content.split(';base64,')[1];
+      fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+    } else {
+      fs.writeFileSync(filePath, content, 'utf-8');
+    }
     return {
       name: path.basename(filePath),
       path: filePath
@@ -644,4 +620,96 @@ ipcMain.handle('settings:save', async (event, settings) => {
     return false;
   }
 });
+
+// 19. 이미지 파일 저장 핸들러 (붙여넣기 대응)
+ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileName) => {
+  try {
+    let destFolder = targetFolder ? targetFolder.normalize('NFC') : '';
+    let isRelative = false;
+    
+    if (destFolder && fs.existsSync(destFolder)) {
+      // 대상 워크스페이스/파일 디렉토리 하위에 'assets' 폴더를 생성 및 타겟팅
+      const assetsFolder = path.join(destFolder, 'assets');
+      if (!fs.existsSync(assetsFolder)) {
+        fs.mkdirSync(assetsFolder, { recursive: true });
+      }
+      destFolder = assetsFolder;
+      isRelative = true;
+    } else {
+      // 대상 폴더가 유효하지 않은 경우 사용자 문서 디렉토리 하위의 'OnriviAuthorAssets'에 임시 저장
+      const documentsPath = app.getPath('documents');
+      const tempAssetsFolder = path.join(documentsPath, 'OnriviAuthorAssets');
+      if (!fs.existsSync(tempAssetsFolder)) {
+        fs.mkdirSync(tempAssetsFolder, { recursive: true });
+      }
+      destFolder = tempAssetsFolder;
+      isRelative = false;
+    }
+
+    const absolutePath = path.join(destFolder, fileName);
+    const buffer = Buffer.from(base64Data, 'base64');
+    fs.writeFileSync(absolutePath, buffer);
+
+    return {
+      success: true,
+      absolutePath: absolutePath,
+      isRelative: isRelative
+    };
+  } catch (e) {
+    console.error('이미지 저장 실패 (Electron):', e);
+    return { success: false, error: e.message };
+  }
+});
+
+// 21. PDF 인쇄 (webContents.printToPDF API 연동)
+ipcMain.handle('pdf:printToPDF', async (event, options) => {
+  if (!mainWindow) throw new Error("메인 윈도우 인스턴스가 존재하지 않습니다.");
+  try {
+    const pdfBuffer = await mainWindow.webContents.printToPDF(options);
+    return pdfBuffer;
+  } catch (e) {
+    console.error('Electron printToPDF 에러:', e);
+    throw e;
+  }
+});
+
+// 22. 로컬 이미지를 Base64 Data URI로 직접 읽기 (CORS 및 fetch 우회용)
+ipcMain.handle('file:readImageAsBase64', async (event, filePath) => {
+  try {
+    const cleanPath = filePath.normalize('NFC');
+    let targetPath = cleanPath;
+    
+    if (!fs.existsSync(cleanPath)) {
+      // 🛡️ [에셋 폴백 탐색] 로컬 절대 경로 파일이 존재하지 않는 경우
+      const fileNameOnly = path.basename(cleanPath);
+      const fallbackOutPath = path.join(__dirname, 'frontend/out', fileNameOnly);
+      const fallbackPublicPath = path.join(__dirname, 'frontend/public', fileNameOnly);
+      if (fs.existsSync(fallbackOutPath)) {
+        targetPath = fallbackOutPath;
+      } else if (fs.existsSync(fallbackPublicPath)) {
+        targetPath = fallbackPublicPath;
+      } else {
+        throw new Error(`File not found: ${cleanPath}`);
+      }
+    }
+    
+    const buffer = fs.readFileSync(targetPath);
+    const ext = path.extname(targetPath).toLowerCase();
+    const mimeTypes = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.webp': 'image/webp'
+    };
+    const contentType = mimeTypes[ext] || 'image/png';
+    return `data:${contentType};base64,${buffer.toString('base64')}`;
+  } catch (e) {
+    console.error('file:readImageAsBase64 에러:', e);
+    throw e;
+  }
+});
+
+
 

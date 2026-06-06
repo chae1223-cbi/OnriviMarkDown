@@ -57,6 +57,11 @@ export interface CssProfile {
     codeBlock: CssRuleSet;  // CODE BLOCK 코드 블록
     a: CssRuleSet;        // A 링크
     img: CssRuleSet;      // IMG 이미지
+    code?: CssRuleSet;     // CODE 인라인 코드
+    video?: CssRuleSet;    // VIDEO 동영상
+    math?: CssRuleSet;     // MATH 수식 (KaTeX)
+    map?: CssRuleSet;      // MAP 지도
+    footnote?: CssRuleSet; // FOOTNOTE 각주
   };
   hrStructure?: {
     borderTopStyle: string;

@@ -7,14 +7,32 @@ import { X, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
 interface ImageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInsert: (path: string, alt: string) => void;
+  onInsert: (path: string, alt: string, range?: any) => void;
   isDarkMode: boolean;
+  initialData?: {
+    alt: string;
+    path: string;
+    width: string;
+    height: string;
+    range: any;
+  } | null;
+  targetFolder?: string;
+  showToast?: (message: string, type: 'success' | 'error') => void;
 }
 
-export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: ImageModalProps) {
+export default function ImageModal({ 
+  isOpen, 
+  onClose, 
+  onInsert, 
+  isDarkMode, 
+  initialData, 
+  targetFolder, 
+  showToast 
+}: ImageModalProps) {
   const [imagePath, setImagePath] = React.useState("");
   const [imageAlt, setImageAlt] = React.useState("이미지 설명");
   const [imageWidth, setImageWidth] = React.useState(""); // 📏 이미지 가로폭 상태 추가
+  const [imageHeight, setImageHeight] = React.useState(""); // 📏 이미지 세로폭 상태 추가
   const [mounted, setMounted] = React.useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -22,16 +40,138 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
     setMounted(true);
   }, []);
 
+  // 💡 모달이 열릴 때 이전 데이터가 존재하면 매핑해 줍니다.
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setImagePath(initialData.path);
+        setImageAlt(initialData.alt);
+        setImageWidth(initialData.width);
+        setImageHeight(initialData.height || "");
+      } else {
+        setImagePath("");
+        setImageAlt("이미지 설명");
+        setImageWidth("");
+        setImageHeight("");
+      }
+    }
+  }, [isOpen, initialData]);
+
+  // 📸 [클립보드 붙여넣기(Paste) 공통 처리 함수]
+  const handlePasteEvent = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        e.stopPropagation();
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const result = reader.result as string;
+          const base64Data = result.split(',')[1];
+          const api = (window as any).electronAPI;
+          if (api) {
+            const fileName = `image_${Date.now()}.png`;
+            const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
+            if (saveResult && saveResult.success) {
+              let finalPath = '';
+              if (saveResult.isRelative) {
+                finalPath = `assets/${fileName}`;
+              } else {
+                const encodedUrl = encodeURIComponent(saveResult.absolutePath);
+                finalPath = `media://local/serve?url=${encodedUrl}`;
+              }
+              setImagePath(finalPath);
+              if (showToast) {
+                showToast("클립보드 이미지가 로컬 assets 폴더에 저장되었습니다.", 'success');
+              }
+            } else {
+              if (showToast) {
+                showToast("이미지 저장 실패", 'error');
+              }
+            }
+          }
+        };
+        reader.readAsDataURL(file);
+        break; // 첫 번째 파일만 처리
+      }
+    }
+  };
+
   // 실제 이미지 주소 추출
   const cleanImagePath = React.useMemo(() => {
     let raw = imagePath.trim();
     const srcMatch = raw.match(/src=["']([^"']+)["']/);
-    const mdMatch = raw.match(/!\[.*\]\((.*)\)/);
+    const mdMatch = raw.match(/!\[[^\]]*\]\(([^)]*)\)/);
     let url = raw;
     if (srcMatch) url = srcMatch[1];
     else if (mdMatch) url = mdMatch[1];
-    return url.replace(/^[\("'\s]+|[\)"'\s]+$/g, '');
+    
+    // 외곽 괄호 및 따옴표 제거
+    url = url.replace(/^[\("'\s]+|[\)"'\s]+$/g, '');
+    
+    // 이미지 주소 뒤의 width, height 파라미터(?width=... 나 ?height=... 등)를 제거하여 순수 경로 리턴
+    url = url.replace(/[\?&](?:width|height|w|h)=[^&]*/gi, '');
+    
+    // 💡 [미디어 프로토콜 래퍼 제거 가드]
+    // 만약 주소가 media://local/serve?url=... 형태로 감싸져 있는 상태라면,
+    // 내부의 순수 상대경로(또는 절대경로)를 추출하여 뷰어 및 미리보기가 정상적으로 경로 조합을 수행하게 합니다.
+    if (url.startsWith('media://')) {
+      try {
+        const parsedUrl = new URL(url);
+        const extracted = parsedUrl.searchParams.get('url');
+        if (extracted) {
+          url = extracted;
+        }
+      } catch (e) {
+        const m = url.match(/[?&]url=([^&]+)/);
+        if (m) {
+          url = decodeURIComponent(m[1]);
+        }
+      }
+    }
+    
+    return url;
   }, [imagePath]);
+
+  // 🛡️ [미리보기 이미지 URL 안전 동적 매핑]
+  // assets/로 시작하는 상대 경로 및 일반 경로를 뷰어가 404 없이 로드할 수 있도록 media:// 로컬 프록시 주소로 변환
+  const previewSrc = React.useMemo(() => {
+    if (!cleanImagePath) return "";
+    
+    // 외부 URL이나 blob인 경우는 그대로 사용
+    const isExternal = cleanImagePath.startsWith('http://') || cleanImagePath.startsWith('https://') || cleanImagePath.startsWith('data:') || cleanImagePath.startsWith('blob:');
+    if (isExternal) return cleanImagePath;
+
+    // 이미 media:// 프로토콜 형식을 취하고 있는 경우
+    if (cleanImagePath.startsWith('media://')) {
+      if (cleanImagePath.startsWith('media://?url=')) {
+        return cleanImagePath.replace('media://?url=', 'media://local/serve?url=');
+      }
+      return cleanImagePath;
+    }
+
+    // 로컬 절대경로 또는 상대경로인 경우
+    let absolutePath = cleanImagePath;
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(cleanImagePath);
+      const isAbsoluteUnix = cleanImagePath.startsWith('/');
+      const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
+
+      if (!isAbsolute && targetFolder) {
+        const sep = targetFolder.includes('/') ? '/' : '\\';
+        const folder = targetFolder.endsWith(sep) ? targetFolder : targetFolder + sep;
+        absolutePath = folder + cleanImagePath;
+      }
+      return `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
+    }
+
+    return cleanImagePath;
+  }, [cleanImagePath, targetFolder]);
 
   if (!isOpen) return null;
   if (!mounted) return null;
@@ -39,14 +179,21 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
   const handleInsert = () => {
     if (cleanImagePath) {
       let finalPath = cleanImagePath;
+      const params: string[] = [];
       if (imageWidth.trim()) {
-        const widthVal = imageWidth.trim();
-        finalPath += (finalPath.includes('?') ? '&' : '?') + `width=${encodeURIComponent(widthVal)}`;
+        params.push(`width=${encodeURIComponent(imageWidth.trim())}`);
       }
-      onInsert(finalPath, imageAlt);
+      if (imageHeight.trim()) {
+        params.push(`height=${encodeURIComponent(imageHeight.trim())}`);
+      }
+      if (params.length > 0) {
+        finalPath += (finalPath.includes('?') ? '&' : '?') + params.join('&');
+      }
+      onInsert(finalPath, imageAlt, initialData?.range);
       setImagePath("");
       setImageAlt("이미지 설명");
       setImageWidth("");
+      setImageHeight("");
       onClose(); // 삽입 후 모달 닫기 추가
     }
   };
@@ -116,20 +263,42 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">이미지 설명 (Alt)</label>
-              <input 
-                type="text" 
-                value={imageAlt}
-                onChange={(e) => setImageAlt(e.target.value)}
-                className={`w-full border px-3 py-2 rounded-lg outline-none transition-all text-sm ${
-                  isDarkMode 
-                    ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
-                    : 'bg-white border-[#c1c6d7] focus:border-blue-600'
-                }`}
-              />
+          {/* 📋 클립보드 이미지 붙여넣기 전용 란 */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">
+              클립보드 이미지 붙여넣기 상자 (이 상자를 클릭한 후 Ctrl+V)
+            </label>
+            <div
+              tabIndex={0}
+              onPaste={handlePasteEvent}
+              className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-all focus:ring-2 focus:ring-blue-500 outline-none ${
+                isDarkMode 
+                  ? 'border-[#44474e] bg-[#282a2f] hover:border-blue-400 text-gray-400 focus:border-blue-400' 
+                  : 'border-[#c1c6d7] bg-gray-50 hover:border-blue-600 text-gray-500 focus:border-blue-600'
+              }`}
+            >
+              <p className="text-xs font-semibold">여기를 마우스로 클릭하고 Ctrl+V 키를 누르세요</p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">클립보드 안의 이미지가 로컬 assets 폴더에 저장 및 주입됩니다.</p>
             </div>
+          </div>
+
+          {/* 이미지 설명 (Alt) - 전체 너비 */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">이미지 설명 (Alt)</label>
+            <input 
+              type="text" 
+              value={imageAlt}
+              onChange={(e) => setImageAlt(e.target.value)}
+              className={`w-full border px-3 py-2 rounded-lg outline-none transition-all text-sm ${
+                isDarkMode 
+                  ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
+                  : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+              }`}
+            />
+          </div>
+
+          {/* 이미지 크기 정의 (가로 / 세로) - 반반 나눔 */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">가로 크기 (선택, 예: 300px, 50%)</label>
               <input 
@@ -144,6 +313,20 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
                 }`}
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">세로 크기 (선택, 예: 200px, auto)</label>
+              <input 
+                type="text" 
+                value={imageHeight}
+                onChange={(e) => setImageHeight(e.target.value)}
+                placeholder="지정 안 함 (기본 auto)"
+                className={`w-full border px-3 py-2 rounded-lg outline-none transition-all text-sm ${
+                  isDarkMode 
+                    ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
+                    : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+                }`}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -151,11 +334,17 @@ export default function ImageModal({ isOpen, onClose, onInsert, isDarkMode }: Im
             <div className={`mt-4 rounded-xl border border-dashed flex items-center justify-center overflow-hidden bg-black/5 dark:bg-white/5 ${
               isDarkMode ? 'border-[#444755]' : 'border-[#c1c6d7]'
             }`} style={{ minHeight: '200px' }}>
-              {imagePath && (imagePath.startsWith('http') || imagePath.startsWith('/') || imagePath.startsWith('blob:')) ? (
+              {previewSrc ? (
                 <img 
-                  src={imagePath} 
+                  src={previewSrc} 
                   alt="미리보기" 
-                  className="max-w-full max-h-[300px] object-contain"
+                  style={{
+                    width: imageWidth && /^\d+$/.test(imageWidth) ? `${imageWidth}px` : (imageWidth || undefined),
+                    height: imageHeight && /^\d+$/.test(imageHeight) ? `${imageHeight}px` : (imageHeight || undefined),
+                    maxWidth: '100%',
+                    maxHeight: '300px',
+                    objectFit: 'contain'
+                  }}
                   onError={(e) => (e.currentTarget.style.display = 'none')}
                   onLoad={(e) => (e.currentTarget.style.display = 'block')}
                 />

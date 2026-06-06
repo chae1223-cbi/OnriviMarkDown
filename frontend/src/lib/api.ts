@@ -7,7 +7,7 @@
  */
 export const getApiUrl = (path: string): string => {
   if (typeof window !== 'undefined') {
-    if (window.location.protocol === 'chrome-extension:') {
+    if (window.location.protocol === 'chrome-extension:' || window.location.protocol === 'file:') {
       return `http://localhost:4000${path}`;
     }
     const port = parseInt(window.location.port, 10);

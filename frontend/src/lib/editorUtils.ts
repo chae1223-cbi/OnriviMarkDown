@@ -57,6 +57,23 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
   originalLines.forEach((line, index) => {
     const originalLineNumber = index + 1;
     
+    // ✂️ [수동 페이지 분할 문법 사전 지원] [page-break], <!-- [page-break] --> 또는 <!-- [auto-page-break] --> 를 미리 HTML div 태그로 변환하여 
+    // 라인 매핑 정보(lineMap)가 뒤틀리거나 어긋나는 현상을 방지합니다.
+    const isPageBreak = /^(?:\[page-break\]|<!--\s*\[?(?:auto-)?page-break\]?\s*-->)\s*$/.test(line.trim());
+    if (isPageBreak) {
+      expandedLines.push("");
+      expandedLineMap.push(originalLineNumber);
+      expandedLines.push("");
+      expandedLineMap.push(originalLineNumber);
+      expandedLines.push('<div class="page-break"></div>');
+      expandedLineMap.push(originalLineNumber);
+      expandedLines.push("");
+      expandedLineMap.push(originalLineNumber);
+      expandedLines.push("");
+      expandedLineMap.push(originalLineNumber);
+      return;
+    }
+    
     // 수식 기호 정규화 및 볼드 수식 분리
     let processedLine = line.replace(/\\/g, '\\');
     const replaced = processedLine.replace(/(\*\*|__)\$\$(.*?)\$\$(\*\*|__)/g, (match, p1, p2, p3) => {
@@ -80,6 +97,10 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
   const correctedLines = expandedLines.map((line, index) => {
     const trimmed = line.trim();
     
+    if (trimmed === '<div class="page-break"></div>') {
+      return line; // 💡 수동 페이지 분할용 특수 HTML 태그는 이스케이프 및 들여쓰기 공백 정규화에서 완전히 스킵합니다.
+    }
+    
     if (trimmed.startsWith("```")) {
       insideCodeBlock = !insideCodeBlock;
       insideParagraph = false;
@@ -96,15 +117,8 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       return line;
     }
 
-    // 💡 숫자 목록(Ordered List)의 리스트 채번 오작동(번호 밀림, 결합)을 차단하고 
-    // 에디터에 작성한 숫자 텍스트를 "있는 그대로" 렌더링하기 위해,
-    // 숫자 접두사 뒤에 제로 너비 공백(\u200B)을 임시 주입하여 일반 단락(p)으로 강제 파싱을 유도합니다.
-    const isOrderedList = /^\s*(\d+)([\.\)])(?:\s|$)/.test(line);
-    if (isOrderedList) {
-      const leadingSpaces = line.match(/^([ \t]*)/)?.[0] || "";
-      const escaped = trimmed.replace(/^(\d+)([\.\)])(?:\s|$)/, '$1$2\u200B ');
-      return `${leadingSpaces}${escaped}`;
-    }
+    // 💡 숫자 목록(Ordered List) 및 다른 마크다운 요소들은 파서의 AST 분석 후 
+    // 커스텀 렌더러에서 직접 가공하므로, 이전의 제로 너비 공백(\u200B) 주입 우회 처리는 필요가 없어 삭제합니다.
     
     let processedLine = line.replace(/\t/g, "    ");
     
@@ -116,7 +130,7 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       processedLine = processedLine.replace(openRegex, '&lt;$1&gt;').replace(closeRegex, '&lt;/$1&gt;');
     });
 
-    const isSpecial = /^(?:\s*#+\s|\s*[-*+]\s|\s*\d+\.\s|\s*>|\s*---|\s*\||\s*\$\$|\s*<[a-zA-Z])/.test(processedLine);
+    const isSpecial = /^(?:\s*#+\s|\s*[-*+]\s|\s*\d+[\.\)]\s|\s*>|\s*---|\s*\||\s*\$\$|\s*<[a-zA-Z]|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767])/.test(processedLine);
     
     if (isSpecial) {
       insideParagraph = false;
@@ -248,8 +262,8 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     if (i < correctedLines.length - 1) {
       const next = correctedLines[i + 1];
       
-      const isCurrSpecial = /^(?:\s*[-*+]\s|\s*\d+\.\s|\s*#+\s|---|\s*\||\s*\$\$)/.test(curr.trim());
-      const isNextSpecial = /^(?:\s*[-*+]\s|\s*\d+\.\s|\s*#+\s|---|\s*\||\s*\$\$)/.test(next.trim());
+      const isCurrSpecial = /^(?:\s*[-*+]\s|\s*\d+[\.\)]\s|\s*#+\s|---|\s*\||\s*\$\$|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767])/.test(curr.trim());
+      const isNextSpecial = /^(?:\s*[-*+]\s|\s*\d+[\.\)]\s|\s*#+\s|---|\s*\||\s*\$\$|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767])/.test(next.trim());
       
       const getLineIndent = (line: string): string => {
         const processed = line.replace(/\t/g, "  ");
@@ -259,7 +273,7 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       
       const isListLine = (line: string): boolean => {
         const trimmed = line.trim();
-        return /^(?:[-*+]\s|\d+\.\s|\[[ xX]?\])/.test(trimmed);
+        return /^(?:[-*+]\s|\d+[\.\)]\s|\[[ xX]?\]|[①-⑩❶-❿\u2460-\u2469\u2756-\u2767])/.test(trimmed);
       };
       
       const currIndent = getLineIndent(curr);

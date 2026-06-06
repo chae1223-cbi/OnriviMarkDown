@@ -224,7 +224,8 @@ option {
 
 /* 리스트 아이템(li) 하위의 p 태그 마진 누적 폭발 차단:
    loose list 파싱 시 각 li 안에 <p>가 생기면서 margin 0.45em이 중첩되어 높이가 폭발하는 현상 완전 압착 */
-.prose li p {
+.prose li p,
+.custom-preview-container li p {
   display: inline !important;
   margin: 0 !important;
   margin-left: 0 !important;
@@ -237,7 +238,7 @@ option {
 .prose li ol, .prose li ul {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  padding-left: 1.25rem;
+  padding-left: var(--list-indent, 1.25rem) !important;
 }
 
 /* 빈 줄(br) 물리 높이 보장: whitespace collapsing으로 빈 줄이 압착 소멸되는 현상 방어 */
@@ -347,17 +348,19 @@ option {
 
 /* 🛡️ 태스크 리스트가 포함된 ul의 기본 padding-left 축소 및 정렬 보정 */
 .prose ul.contains-task-list {
-  padding-left: 0.8rem !important; /* 최상위 태스크 리스트 패딩 보정 */
+  padding-left: calc(var(--list-indent, 16px) * 0.5) !important; /* 최상위 태스크 리스트 패딩 보정 */
 }
 .prose li ul.contains-task-list {
-  padding-left: 1.5rem !important; /* 중첩된 태스크 리스트는 적절한 깊이의 들여쓰기 보장 */
+  padding-left: var(--list-indent, 16px) !important; /* 중첩된 태스크 리스트는 적절한 깊이의 들여쓰기 보장 */
 }
 
 /* 🛡️ 인용문(blockquote) 박스 내부의 시작과 끝 빈 여백 소거 */
-.prose blockquote p:first-of-type {
+.prose blockquote p:first-of-type,
+.custom-preview-container blockquote p:first-of-type {
   margin-top: 0 !important;
 }
-.prose blockquote p:last-of-type {
+.prose blockquote p:last-of-type,
+.custom-preview-container blockquote p:last-of-type {
   margin-bottom: 0 !important;
 }
 
@@ -592,3 +595,327 @@ div.onrivi-list-spacer {
   content: "" !important;
   background: transparent !important;
 }
+
+/* 🛡️ 폰트 세이프티 가드: 사용자 PC에 존재하지 않는 폰트 명칭 오인으로 인한 레이아웃 깨짐을 방지하는 표준 폴백 스키마 */
+.custom-preview-container,
+.custom-preview-container * {
+  font-family: var(--page-font-family, inherit), 'Nanum Gothic Coding', 'NanumGothicCoding', 'Nanum Gothic', 'NanumGothic', '맑은 고딕', 'Malgun Gothic', 'Clear Sans', '돋움체', Dotum, 'Apple SD Gothic Neo', sans-serif;
+}
+
+/* 🚀 코드블록 내부 행간 겹침 진압 패치 */
+
+/* ❶ 일반 인라인 코드 및 소스코드 블록의 상속 오염 전면 차단 */
+.prose pre, 
+.prose code, 
+.prose .codeBlock,
+.prose pre code,
+.custom-preview-container pre,
+.custom-preview-container code,
+.custom-preview-container pre *,
+.custom-preview-container code * {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Nanum Gothic Coding', 'D2Coding', '맑은 고딕', 'Malgun Gothic', monospace !important;
+  /* 🌟 [영점 회복]: 본문 줄간격 변수에 오염되지 않도록 개발자 폰트 규격에 맞는 고정 가드선 투입 */
+  line-height: 1.6 !important; 
+  letter-spacing: 0px !important; /* 고정폭 자간 유지 */
+}
+
+/* ❶-1 인라인 코드(pre 태그 내부에 있지 않은 code 태그)의 높이 및 수직 정렬 정밀 보정 */
+.prose :not(pre) > code,
+.custom-preview-container :not(pre) > code {
+  display: inline-block !important;
+  vertical-align: -1.5px !important; /* 원문 베이스라인 기준 한글 폰트 정밀 정렬 */
+  line-height: 1.35 !important;
+  padding: 1px 4.5px !important;
+  margin: 0 2px !important;
+}
+
+/* ❷ 코드블록 내부에서 이중으로 발생하는 p 태그 마진 폭발 및 행간 진압 */
+.prose pre p,
+.prose .codeBlock p,
+.prose pre span,
+.custom-preview-container pre p,
+.custom-preview-container pre span {
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  /* 🌟 코드블록 내부의 모든 하위 문장 요소들도 1.6 배율로 강제 동기화 */
+  line-height: 1.6 !important; 
+  font-size: inherit !important;
+}
+
+/* ❸ 소스코드 상자 사방 숨통 패딩 확보 */
+.prose pre {
+  padding: 16px !important;
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  overflow-x: auto !important;
+  background-color: #f8fafc !important; /* 라이트모드 족보 기준 */
+  border-radius: 6px !important;
+}
+
+.dark .prose pre {
+  background-color: #0f172a !important; /* 다크모드 족보 기준 */
+}
+
+/* 🛡️ [에디터 라인 넘버 영역 시각적 차별화 패치]
+   라인 넘버 영역(회색 배경)을 콤팩트하게 줄이고, 경계선과 본문 사이의 가로 여백을 확실히 늘려 
+   에디터 라인 넘버와 본문이 명확하게 영역별로 인지 및 차별화되도록 개선합니다. */
+.monaco-editor .margin {
+  background-color: transparent !important;
+  border-right: none !important;
+}
+.monaco-editor .margin::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 40px; /* 💡 회색 라인 넘버 영역의 폭을 40px로 늘려 가독성 확보 */
+  background-color: #f7f9fc !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+  z-index: 1;
+}
+.monaco-editor .margin-view-overlays {
+  z-index: 2 !important;
+}
+.monaco-editor .line-numbers {
+  color: #8b949e !important;
+  z-index: 3 !important;
+}
+
+/* 다크모드 전용 라인 넘버 마진 스타일 */
+.dark .monaco-editor .margin::before {
+  background-color: #151719 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.dark .monaco-editor .line-numbers {
+  color: #6e7681 !important;
+}
+
+/* 🛡️ [에디터 우측 본문 여백 패치]
+   본문 글자가 세로 스크롤바 영역 뒤로 넘어가거나 겹쳐서 가려지지 않도록 
+   에디터 본문 콘텐츠 렌더링 영역의 가로폭 자체를 16px 축소하여 우측에 안전 여백 통로를 확보합니다. */
+.monaco-editor .lines-content {
+  width: calc(100% - 16px) !important;
+}
+
+/* 📄 [자동 페이지 나누기 뷰어 전용 스타일] */
+.page-view-container {
+  width: 100% !important;
+  height: 100% !important;
+  background-color: #e4e4e7 !important; /* 라이트모드 회색 바탕 */
+  padding: 1.5rem !important;
+  overflow-y: auto !important;
+}
+
+.dark .page-view-container {
+  background-color: #18181b !important; /* 다크모드 회색 바탕 */
+}
+
+.page-view-paper {
+  background-color: #ffffff !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  margin-bottom: 2rem !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.dark .page-view-paper {
+  background-color: #09090b !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 용지 페이지 번호 배지 */
+.page-view-badge {
+  position: absolute !important;
+  right: -55px !important;
+  top: 10px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #71717a !important;
+  background-color: #f4f4f5 !important;
+  border: 1px solid #e4e4e7 !important;
+  padding: 2px 8px !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+  pointer-events: none !important;
+}
+
+.dark .page-view-badge {
+  color: #a1a1aa !important;
+  background-color: #27272a !important;
+  border: 1px solid #3f3f46 !important;
+}
+
+/* 인쇄 모드 최적화: 인쇄 시에는 회색 바탕, 그림자, 마진을 제거하고 강제로 페이지를 나눕니다. */
+@media print {
+  .page-view-container {
+    background-color: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  .page-view-paper {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  .page-view-badge {
+    display: none !important;
+  }
+}
+
+/* 📄 [실시간 페이지 경계선 표시용 스타일 - 오버랩 방지 분리형] */
+.page-break-indicator {
+  display: block !important;
+  width: 100% !important;
+  clear: both !important;
+  margin-top: 2rem !important;
+  margin-bottom: 2rem !important;
+  user-select: none !important;
+  pointer-events: none !important;
+}
+.page-break-indicator-line {
+  width: 100% !important;
+  border-top: 1px dashed rgba(239, 68, 68, 0.4) !important; /* 빨간색 점선 */
+}
+.page-break-indicator-text {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #ef4444 !important;
+  padding: 6px 16px !important;
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  letter-spacing: 0.05em !important;
+}
+.dark .page-break-indicator-text {
+  background-color: rgba(9, 9, 11, 0.95) !important;
+  color: #f87171 !important;
+}
+
+@media print {
+  .page-break-indicator {
+    display: none !important;
+  }
+  .page-break-line-before {
+    page-break-before: always !important;
+    break-before: page !important;
+    margin-top: 0 !important;
+  }
+}
+
+/* 📊 [테이블 내부 행(Row) 단위 A4 페이지 경계선 스타일] */
+tr.table-page-break-line-before > td {
+  border-top: 2px dashed #f87171 !important; /* 빨간색 점선 */
+  padding-top: 24px !important; /* 안내 문구 공간 확보 */
+}
+
+tr.table-page-break-line-before > td:first-child {
+  position: relative !important;
+}
+
+tr.table-page-break-line-before > td:first-child::before {
+  content: "✂️ [ A4 인쇄 페이지 경계선 - Page " attr(data-page-num) " 시작 지점 ]";
+  position: absolute !important;
+  top: 4px !important;
+  left: 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #ef4444 !important;
+  white-space: nowrap !important;
+  user-select: none !important;
+  pointer-events: none !important;
+  opacity: 0.85 !important;
+  font-family: sans-serif !important;
+}
+
+/* 인쇄 시 테이블 자동 분할 및 가상 구분선 제거 최적화 */
+@media print {
+  /* 테이블 행 쪼개짐 방지 및 헤더 반복 설정 */
+  table {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* 테이블 내부 가상 구분선 위치에서 실제 용지 강제 분할 제거 (tr에 always 부여 시 테이블 레이아웃 붕괴 유발) */
+  tr.table-page-break-line-before > td {
+    border-top: none !important;
+    padding-top: 12px !important; /* 기본 패딩 값 수준으로 복구 */
+  }
+  tr.table-page-break-line-before > td:first-child::before {
+    display: none !important;
+  }
+}
+
+/* 🛡️ [마크다운 미리보기 전용 카운터 리셋] */
+.custom-preview-container {
+  counter-reset: page-counter 1 !important;
+}
+
+/* ✂️ [사용자 지정 수동 페이지 분할(Page Break)용 스타일] */
+.page-break {
+  page-break-before: always !important;
+  break-before: page !important;
+  position: relative !important;
+  margin-top: 2rem !important;
+  margin-bottom: 2rem !important;
+  display: block !important;
+  clear: both !important;
+  counter-increment: page-counter !important;
+}
+
+.page-break::before {
+  content: "✂️ [ A4 인쇄 페이지 경계선 - Page " counter(page-counter) " 시작 지점 ] ----------------------------------------------------" !important;
+  display: block !important;
+  width: 100% !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #ef4444 !important; /* 빨간색 */
+  border-top: 1px dashed rgba(239, 68, 68, 0.4) !important; /* 빨간색 점선 */
+  padding-top: 0.75rem !important;
+  margin-bottom: 1.5rem !important;
+  user-select: none !important;
+  pointer-events: none !important;
+  letter-spacing: 0.05em !important;
+  opacity: 0.85 !important;
+}
+
+.dark .page-break::before {
+  color: #f87171 !important;
+}
+
+/* 인쇄 시 수동 구분선 숨김 및 실제 인쇄 분할 유도 */
+@media print {
+  .page-break::before {
+    display: none !important;
+  }
+  .page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+    margin-top: 0 !important;
+    height: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+}
+
+/* 실시간 A4 페이지 경계선 표시 활성화 시, 수동 구분선의 기본 초록색 가상선을 숨겨 중복 방지 */
+.show-page-breaks-active .page-break::before {
+  display: none !important;
+}
+

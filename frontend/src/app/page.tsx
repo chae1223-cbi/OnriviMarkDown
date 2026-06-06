@@ -30,6 +30,7 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
 import MarkdownViewer from '../components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
+import MarkdownPageViewer from '../components/MarkdownPageViewer'; // 📄 용지별 자동 페이지 나누기 뷰어
 import Script from 'next/script'; // 넥스트 스크립트 - 
 import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더링
 
@@ -107,7 +108,7 @@ import WritingAssistant from '@/components/WritingAssistant'; // 모달
  */
 
 export type EditorCommandType =
-  | 'NEW_FILE' | 'OPEN_FILE' | 'OPEN_WORKSPACE' | 'SAVE' | 'SAVE_AS'                   //① 파일 시스템 및 입출력 제어 (OS I/O Message)
+  | 'NEW_FILE' | 'OPEN_WORKSPACE' | 'SAVE' | 'SAVE_AS'                   //① 파일 시스템 및 입출력 제어 (OS I/O Message)
   | 'EXPORT_PDF' | 'EXPORT_HTML' | 'EXPORT_EPUB' | 'EXPORT_PNG' | 'EXIT'                    //② 출력(Export) 및 종료  
   | 'UNDO' | 'REDO' | 'FIND' | 'REPLACE' | 'ZOOM_IN' | 'ZOOM_OUT'                      //③ 편집 및 보기 제어
   | 'GLOBAL_SEARCH' | 'TOGGLE_HELP' | 'ERASER' | 'BOLD' | 'ITALIC'                       //④ 스타일 적용
@@ -121,7 +122,7 @@ export type EditorCommandType =
   | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS'                                                                // ⑫ 스타일 적용 
   | 'FOOTNOTE'                                                                         // ⑬ 각주 삽입 
   | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW'                                               // ⑭ 표 행 편집 명령
-  | 'TAGLINK';                                                                          // ⑮ 태그링크
+  | 'TAGLINK' | 'PAGE_BREAK';                                                                          // ⑮ 태그링크 및 페이지나누기
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -229,15 +230,26 @@ export default function Home() {                  // @Home : Home component
 
   // 💡 미리보기 업데이트 지연 디바운스 타이머 Ref (타이핑 시 번쩍거림/깜빡거림 방쇄)
   const previewDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  // 💡 [IME 락 가드] 한글 IME 조합 진행 여부를 저장하는 Ref
+  const isComposingRef = useRef(false);
 
   // 💡 [IME-01] 에디터 비제어(Uncontrolled) 컴포넌트 전환을 위한 상태 동기화 도우미
   // 에디터 내부의 onChange 변경인 경우 setValue를 호출하지 않아 한글 IME composition 깨짐 및 중복 입력을 원천 방어합니다.
   const updateContent = useCallback((newValue: string, fromEditor: boolean = false) => {
+    if (fromEditor && !isEditorMountedRef.current) return;
+    if (fromEditor && previewModeRef.current === 'preview') return; // 💡 [가드] 미리보기 모드 상태일 때는 변경 감지 즉시 무시
+
     if (fromEditor) {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+      
+      // 💡 한글 조합 중(Composition)일 때는 타이핑 도중 상태를 변경하지 않고 compositionend 및 blur 시점에서 일괄 처리되도록 우회
+      if (isComposingRef.current) return;
+
       previewDebounceRef.current = setTimeout(() => {
+        if (!isEditorMountedRef.current) return;
+        if (previewModeRef.current === 'preview') return; // 💡 [디바운스 타이머 가드] 100ms 실행 시점에도 확인하여 덮어쓰기 무력화
         setContent(newValue);
-      }, 250); // 250ms 최적의 지연 시간 설정으로 깜빡임 현상을 완전히 해소합니다.
+      }, 100); // 💡 지연 시간을 250ms에서 100ms로 크게 단축하여 미리보기 시차 개선
     } else {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
       setContent(newValue);
@@ -286,8 +298,23 @@ export default function Home() {                  // @Home : Home component
     () => DEFAULT_PROFILE.id
   );
   const [isAddonEnv, setIsAddonEnv] = useState(false);
-  const [previewMode, setPreviewMode] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
+  const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
   const previewModeRef = useRef(previewMode);
+  
+  // 💡 [동기식 가드] previewMode 변경 즉시 에디터 마운트 상태 플래그를 제어하는 동기 래핑 헬퍼 함수
+  const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
+    setPreviewModeRaw(prev => {
+      const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
+      previewModeRef.current = next;
+      if (next === 'preview') {
+        isEditorMountedRef.current = false;
+      } else {
+        isEditorMountedRef.current = true;
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     previewModeRef.current = previewMode;
   }, [previewMode]);
@@ -315,7 +342,274 @@ export default function Home() {                  // @Home : Home component
     customSlashCommandsRef.current = customSlashCommands;
   }, [customSlashCommands]);
 
+  // 🔒 [에디터 언마운트 생명주기 제어용 플래그 및 이중 안전 가드]
+  const isEditorMountedRef = useRef(false);
+  useEffect(() => {
+    if (previewMode !== 'preview') {
+      isEditorMountedRef.current = true;
+    } else {
+      isEditorMountedRef.current = false;
+    }
+    return () => {
+      // preview 모드로 진입 또는 언마운트 시 즉시 false로 내려 후속 change 이벤트를 무시
+      isEditorMountedRef.current = false;
+    };
+  }, [previewMode]);
+
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
+
+  // 📄 [자동 페이지 나누기 미리보기] 상태 선언 및 로컬 스토리지 보존
+  const [isPageViewEnabled, setIsPageViewEnabled] = useState(false);
+  const [pageCalcKey, setPageCalcKey] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('isPageViewEnabled');
+      if (saved === 'true') {
+        setIsPageViewEnabled(true);
+      }
+    }
+  }, []);
+
+  const handleTogglePageView = useCallback(() => {
+    setIsPageViewEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('isPageViewEnabled', String(next));
+      return next;
+    });
+  }, []);
+
+  const handleResetPageBreaks = useCallback(async () => {
+    if (!editorRef.current || !previewRef.current) return;
+    const editor = editorRef.current;
+    const originalContent = editor.getValue();
+    const cursorPosition = editor.getPosition();
+    const cursorLineNum = cursorPosition ? cursorPosition.lineNumber : 1; // 💡 커서 행 번호 앵커 락!
+
+    const originalLines = originalContent.split('\n');
+
+    // 1. 커서 기준 상단(Part A)과 하단(Part B)으로 원고 이분할
+    // - Part A (1행 ~ 커서 직전행): 모든 수동/자동 페이지 나누기 기호를 100% 보존
+    // - Part B (커서행 ~ 끝까지): 수동/자동 페이지 나누기를 전부 싹 지우고 초기화
+    const partALines = originalLines.slice(0, cursorLineNum - 1);
+    const partBLines = originalLines.slice(cursorLineNum - 1);
+
+    // Part B에서만 수동/자동 구분선 기호를 완전히 소거하여 초기화
+    const cleanedPartBContent = partBLines.join('\n')
+      .replace(/\n*(?:\[page-break\]|<!--\s*\[?(?:auto-)?page-break\]?\s*-->)\n*/gi, '\n');
+
+    // 두 파트를 다시 정합하여 에디터에 임시로 삽입 (실측 준비)
+    const cleanedContent = [...partALines, cleanedPartBContent].join('\n');
+    editor.setValue(cleanedContent);
+
+    // 가상 돔 및 렌더러가 완전히 안착할 수 있도록 150ms 비동기 지연 대기
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    const container = previewRef.current;
+    let contentRoot = container.querySelector('.print\\:\\!block') as HTMLElement;
+    if (!contentRoot) return;
+
+    const hasSingleDivChild = contentRoot.children.length === 1 && contentRoot.children[0].tagName === 'DIV';
+    if (hasSingleDivChild) {
+      contentRoot = contentRoot.children[0] as HTMLElement;
+    }
+
+    const childNodes = Array.from(contentRoot.children) as HTMLElement[];
+    if (childNodes.length === 0) return;
+
+    // 현재 활성화된 용지 규격 및 마진 계측 (A4 기준)
+    const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+    const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
+    const paperHeightPx = isLandscape ? 794 : 1123;
+    const topPx = (parseFloat(activeProfile.pageStyle.marginTop || '20') || 20) * 3.7795;
+    const botPx = (parseFloat(activeProfile.pageStyle.marginBottom || '20') || 20) * 3.7795;
+    const usableHeight = paperHeightPx - topPx - botPx;
+
+    let currentHeightSum = 0;
+    const breakLineNumbers: number[] = [];
+
+    // 개별 자식 컴포넌트들을 순회하며 높이 실측 및 나누기 임계선 산출
+    childNodes.forEach((child) => {
+      const isUserForcedPageBreak = (child.tagName === 'DIV' && child.className.includes('page-break')) ||
+                                    child.getAttribute('data-page-break') === 'true';
+
+      const lineStr = child.getAttribute('data-line');
+      const lineNum = lineStr ? parseInt(lineStr, 10) : -1;
+
+      // 상단 파트(Part A)의 기존 수동/자동 구분선은 하드브레이크로 인정하여 영점 리셋
+      if (isUserForcedPageBreak) {
+        currentHeightSum = 0;
+        return;
+      }
+
+      if (lineNum <= 0) return;
+
+      const elementHeight = child.offsetHeight || child.getBoundingClientRect().height || 0;
+      const style = window.getComputedStyle(child);
+      const marginTopVal = parseFloat(style.marginTop) || 0;
+      const marginBottomVal = parseFloat(style.marginBottom) || 0;
+      const totalHeight = elementHeight + marginTopVal + marginBottomVal;
+
+      // 커서 위치 이하의 파트(Part B)에 대해서만 임계선 돌파 시 강제 페이지 나눔 주입 계산 실행
+      if (lineNum >= cursorLineNum) {
+        if (currentHeightSum + totalHeight > usableHeight && currentHeightSum > 0) {
+          breakLineNumbers.push(lineNum);
+          currentHeightSum = totalHeight;
+        } else {
+          currentHeightSum += totalHeight;
+        }
+      } else {
+        // 커서 상단 파트는 단순 높이 누적 (수동/자동 구분선에 의해 이미 0으로 리셋된 기준 높이에서 계속 연산)
+        currentHeightSum += totalHeight;
+      }
+    });
+
+    // 2. 산출된 하단부(Part B) 분할 줄 번호 지점에 역순으로 <!-- [page-break] --> 코멘트를 직접 주입!
+    const lines = cleanedContent.split('\n');
+    
+    // 역순 정렬하여 위쪽 줄 번호가 뒤틀리지 않도록 순차적 꼽기 수행
+    const uniqueLineNumbers = Array.from(new Set(breakLineNumbers)).sort((a, b) => b - a);
+    uniqueLineNumbers.forEach((lineNum) => {
+      if (lineNum > 1 && lineNum <= lines.length) {
+        // 줄 번호는 1-based 이므로 index는 lineNum - 1
+        lines.splice(lineNum - 1, 0, '<!-- [page-break] -->');
+      }
+    });
+
+    const finalContent = lines.join('\n');
+    
+    // 에디터 원본 내용 교체 (Undo 히스토리에 한 번에 롤백될 수 있도록 주입)
+    editor.pushUndoStop();
+    editor.executeEdits("resetPageBreaks", [{
+      range: editor.getModel().getFullModelRange(),
+      text: finalContent,
+      forceMoveMarkers: true
+    }]);
+    editor.pushUndoStop();
+
+    if (cursorPosition) {
+      editor.setPosition(cursorPosition);
+      editor.focus();
+    }
+
+    showToast(`커서 ${cursorLineNum}행 이하의 페이지 나누기가 지능형으로 재계산되어 주입되었습니다.`, "success");
+  }, [profiles, activeProfileId]);
+
+  const executeAutoPageBreak = useCallback(async (editor: any, startLineNum: number) => {
+    if (isAutoPageBreakingRef.current || !previewRef.current) return;
+    
+    isAutoPageBreakingRef.current = true; // Lock!
+    const cursorPosition = editor.getPosition(); // 💡 원래 커서 위치 메모리 백업
+    
+    try {
+      const originalContent = editor.getValue();
+      const originalLines = originalContent.split('\n');
+
+      // 1. 이분할: startLineNum 이전은 보존, 이하는 자동 페이지 나눔(<!-- [auto-page-break] -->)만 제거!
+      const partALines = originalLines.slice(0, startLineNum - 1);
+      const partBLines = originalLines.slice(startLineNum - 1);
+
+      // Part B에서만 수동/자동 구분선 기호를 완전히 소거하여 초기화
+      const cleanedPartBContent = partBLines.join('\n')
+        .replace(/\n*(?:\[page-break\]|<!--\s*\[?(?:auto-)?page-break\]?\s*-->)\n*/gi, '\n');
+
+      const cleanedContent = [...partALines, cleanedPartBContent].join('\n');
+      editor.setValue(cleanedContent);
+
+      // 가상 돔 및 렌더러가 완전히 안착할 수 있도록 150ms 비동기 지연 대기
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      const container = previewRef.current;
+      let contentRoot = container.querySelector('.print\\:\\!block') as HTMLElement;
+      if (!contentRoot) return;
+
+      const hasSingleDivChild = contentRoot.children.length === 1 && contentRoot.children[0].tagName === 'DIV';
+      if (hasSingleDivChild) {
+        contentRoot = contentRoot.children[0] as HTMLElement;
+      }
+
+      const childNodes = Array.from(contentRoot.children) as HTMLElement[];
+      if (childNodes.length === 0) return;
+
+      // 현재 활성화된 용지 규격 및 마진 계측 (A4 기준)
+      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
+      const paperHeightPx = isLandscape ? 794 : 1123;
+      const topPx = (parseFloat(activeProfile.pageStyle.marginTop || '20') || 20) * 3.7795;
+      const botPx = (parseFloat(activeProfile.pageStyle.marginBottom || '20') || 20) * 3.7795;
+      const usableHeight = paperHeightPx - topPx - botPx;
+
+      let currentHeightSum = 0;
+      const breakLineNumbers: number[] = [];
+
+      // 개별 자식 컴포넌트들을 순회하며 높이 실측 및 나누기 임계선 산출
+      childNodes.forEach((child) => {
+        const isUserForcedPageBreak = (child.tagName === 'DIV' && child.className.includes('page-break')) ||
+                                      child.getAttribute('data-page-break') === 'true';
+
+        const lineStr = child.getAttribute('data-line');
+        const lineNum = lineStr ? parseInt(lineStr, 10) : -1;
+
+        // 상단 파트(Part A)의 기존 수동/자동 구분선은 하드브레이크로 인정하여 영점 리셋
+        if (isUserForcedPageBreak) {
+          currentHeightSum = 0;
+          return;
+        }
+
+        if (lineNum <= 0) return;
+
+        const elementHeight = child.offsetHeight || child.getBoundingClientRect().height || 0;
+        const style = window.getComputedStyle(child);
+        const marginTopVal = parseFloat(style.marginTop) || 0;
+        const marginBottomVal = parseFloat(style.marginBottom) || 0;
+        const totalHeight = elementHeight + marginTopVal + marginBottomVal;
+
+        // 커서 위치 이하의 파트(Part B)에 대해서만 임계선 돌파 시 강제 페이지 나눔 주입 계산 실행
+        if (lineNum >= startLineNum) {
+          if (currentHeightSum + totalHeight > usableHeight && currentHeightSum > 0) {
+            breakLineNumbers.push(lineNum);
+            currentHeightSum = totalHeight;
+          } else {
+            currentHeightSum += totalHeight;
+          }
+        } else {
+          // 커서 상단 파트는 단순 높이 누적 (수동/자동 구분선에 의해 이미 0으로 리셋된 기준 높이에서 계속 연산)
+          currentHeightSum += totalHeight;
+        }
+      });
+
+      const lines = cleanedContent.split('\n');
+      const uniqueLineNumbers = Array.from(new Set(breakLineNumbers)).sort((a, b) => b - a);
+      uniqueLineNumbers.forEach((lineNum) => {
+        if (lineNum > 1 && lineNum <= lines.length) {
+          lines.splice(lineNum - 1, 0, '<!-- [page-break] -->');
+        }
+      });
+
+      const finalContent = lines.join('\n');
+      
+      // 재귀 호출을 원천 차단하기 위해 원본 매칭 수를 갱신
+      const pageBreakMatches = finalContent.match(/page-break/gi);
+      lastPageBreakCountRef.current = pageBreakMatches ? pageBreakMatches.length : 0;
+
+      editor.pushUndoStop();
+      editor.executeEdits("autoPageBreak", [{
+        range: editor.getModel().getFullModelRange(),
+        text: finalContent,
+        forceMoveMarkers: true
+      }]);
+      editor.pushUndoStop();
+
+      // 원래 작업 중이던 커서 위치로 포커스 자동 복원
+      if (cursorPosition) {
+        editor.setPosition(cursorPosition);
+        editor.focus();
+      }
+
+    } finally {
+      isAutoPageBreakingRef.current = false; // Unlock!
+    }
+  }, [profiles, activeProfileId]);
   const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
   const [driveLetter, setDriveLetter] = useState('D:');
   const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
@@ -332,6 +626,13 @@ export default function Home() {                  // @Home : Home component
   }, [isSearchOpen]);
 
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [editingImageInfo, setEditingImageInfo] = useState<{
+    range: any;
+    alt: string;
+    path: string;
+    width: string;
+    height: string;
+  } | null>(null);
   const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
@@ -435,6 +736,9 @@ export default function Home() {                  // @Home : Home component
 
 
   const editorRef = useRef<any>(null);
+  const isAutoPageBreakingRef = useRef(false);
+  const autoPageBreakDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPageBreakCountRef = useRef(0);
   
   // 💡 [WBS CORE-02 / 요구사항 4] State Stale Closure 방지를 위한 Ref 백업 시스템 도입
   const currentFileNodeRef = useRef(currentFileNode);
@@ -1010,7 +1314,6 @@ export default function Home() {                  // @Home : Home component
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const api = (window as any).electronAPI;
       api.onNewFileRequested(() => handlers.newFile());
-      api.onOpenFileRequested(() => handlers.openFolder());
       api.onSaveFileRequested(() => handlers.save());
       api.onSaveFileAsRequested(() => handlers.saveAs());
 
@@ -1101,7 +1404,9 @@ export default function Home() {                  // @Home : Home component
   useEffect(() => {
     if (!previewRef.current) return;
 
-    const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
+    const elements = isPageViewEnabled
+      ? Array.from(previewRef.current.querySelectorAll('.page-view-paper [data-line]')) as HTMLElement[]
+      : Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
     elements.forEach(el => el.classList.remove('preview-highlight-line'));
 
     if (previewMode !== 'both' || !activeLine) return;
@@ -1122,7 +1427,7 @@ export default function Home() {                  // @Home : Home component
     });
 
     if (targetEl) {
-      (targetEl as HTMLElement).classList.add('preview-highlight-line');
+      // (targetEl as HTMLElement).classList.add('preview-highlight-line'); // 💡 사장님 지시: 마우스 클릭/타이핑 시 미리보기 행 마킹 하이라이트색 영구 감춤
     }
   }, [activeLine, previewMode]);
 
@@ -1524,16 +1829,28 @@ export default function Home() {                  // @Home : Home component
   }, [content, currentFileNode]);
 
   useEffect(() => {
+    // 🌟 [세이프티 가드 1]: 원고 본문이 비어있거나 데이터가 초기화되기 전 상태라면 
+    // 시스템 오염 저장을 원천 차단합니다.
+    if (!content || content.trim() === "") {
+      return;
+    }
+
+    // 🌟 [세이프티 가드 2]: 유저가 뷰 모드(분할/에디터/프리뷰)를 변환하는 찰나의 순간에는 
+    // 컴포넌트 오염 타이밍이므로 자동 저장을 생략하고 무조건 대기시킵니다.
     if (autoSave && currentFileNode) {
       if (content === lastSavedContentRef.current) return;
 
       setSaveStatus('saving');
+      // 사장님 요청: 저장 주기를 1분(60,000ms)으로 변경하여 레이아웃 전환 오버헤드 완벽 소거
       const timer = setTimeout(async () => {
         if (content === lastSavedContentRef.current) return;
 
         const success = await saveFile(content, currentFileNode);
         setSaveStatus(success ? 'saved' : 'unsaved');
-      }, 2000);
+        if (success) {
+          console.log("✏️ [Onrivi Guard] 1분 주기 자동 저장이 안전하게 완료되었습니다.");
+        }
+      }, 60000); // 🕒 기존 타이머를 1분(60초)으로 넉넉하게 늦춤
       return () => clearTimeout(timer);
     }
   }, [content, autoSave, currentFileNode, saveFile]);
@@ -1591,9 +1908,11 @@ export default function Home() {                  // @Home : Home component
         scrollToLine(lineNumber);
 
         if (previewRef.current) {
-          const elements = Array.from(previewRef.current.querySelectorAll('[data-line]'));
+          const elements = isPageViewEnabled
+            ? Array.from(previewRef.current.querySelectorAll('.page-view-paper [data-line]'))
+            : Array.from(previewRef.current.querySelectorAll('[data-line]'));
           elements.forEach(el => el.classList.remove('preview-highlight-line'));
-          lineEl.classList.add('preview-highlight-line');
+          // lineEl.classList.add('preview-highlight-line'); // 💡 사장님 지시: 마우스 클릭 시 미리보기 행 마킹 하이라이트색 영구 감춤
         }
       }
     }
@@ -2380,6 +2699,12 @@ export default function Home() {                  // @Home : Home component
   line-height: ${ps.lineHeight} !important;
   letter-spacing: ${ps.letterSpacing} !important;
 }
+.custom-preview-container p,
+.custom-preview-container li,
+.custom-preview-container blockquote {
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
 `;
     /* H2~H6 자동 크기 계산 (headingSizeOffset 기반) */
     const h1SizeVal = (prof.rules.h1 && prof.rules.h1['font-size']) || '28px';
@@ -2406,13 +2731,25 @@ export default function Home() {                  // @Home : Home component
       });
       if (entries.length === 0) return;
       const selector = tag === 'taskList' ? '.task-list-item' :
-        tag === 'codeBlock' ? 'pre, code' : tag;
+        tag === 'codeBlock' ? 'pre, pre code' :
+        tag === 'code' ? ':not(pre) > code' : tag;
       css += `.custom-preview-container ${selector} {\n`;
       entries.forEach(([prop, val]) => {
         css += `  ${prop}: ${val} !important;\n`;
       });
       css += `}\n`;
     });
+
+    // 🧰 구조제어: 표 글자 크기 동적 상속 (설정하지 않은 경우 페이지 기본 크기를 따름)
+    const tableHasFontSize = prof.rules.table && prof.rules.table['font-size'];
+    if (!tableHasFontSize) {
+      css += `
+.custom-preview-container th,
+.custom-preview-container td {
+  font-size: inherit !important;
+}
+`;
+    }
 
     // 🧰 구조제어: 구분선 규칙 (HR) 동적 인젝션
     if (prof.hrStructure) {
@@ -2621,73 +2958,6 @@ export default function Home() {                  // @Home : Home component
       lastSavedContentRef.current = '';
       setIsSidebarOpen(true);
       showToast("새 문서를 시작합니다.", "info");
-    },
-    openFolder: async () => {
-      if (typeof window !== 'undefined' && (window as any).electronAPI) {
-        try {
-          const file = await (window as any).electronAPI.openFile(rootFolder?.name);
-          if (file) {
-            updateContent(file.content);
-            lastSavedContentRef.current = file.content;
-            setCurrentFileName(file.name);
-            setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-            setIsSidebarOpen(true);
-
-            if (editorRef.current) {
-              requestAnimationFrame(() => {
-                const editor = editorRef.current;
-                if (editor) {
-                  if (typeof editor.setScrollTop === 'function') {
-                    editor.setScrollTop(0);
-                  } else if (typeof editor.revealLine === 'function') {
-                    editor.revealLine(1);
-                  }
-                }
-              });
-            }
-            if (previewRef.current) {
-              previewRef.current.scrollTop = 0;
-            }
-            // 선택한 파일의 부모 폴더를 워크스페이스로 자동 설정
-            const normalizedPath = file.path.replace(/\\/g, '/');
-            const parentPath = normalizedPath.includes('/')
-              ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/'))
-              : '';
-            const osParentPath = parentPath.replace(/\//g, '\\');
-            if (osParentPath) {
-              setRootFolder({ name: osParentPath });
-              setWorkspaceType('local');
-              localStorage.setItem('rootFolder', JSON.stringify({ name: osParentPath }));
-              localStorage.setItem('workspaceType', 'local');
-              await refreshFileList();
-            }
-            showToast(`'${file.name}' · 워크스페이스 → ${osParentPath || parentPath}`, 'success');
-          }
-        } catch (err) {
-          showToast("파일 열기 실패: " + err, 'error');
-        }
-      } else if (isAddonEnv && typeof window !== 'undefined' && 'showOpenFilePicker' in window) {
-        try {
-          const [fileHandle] = await (window as any).showOpenFilePicker({
-            types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown', '.txt'] } }],
-            multiple: false,
-          });
-          const file = await fileHandle.getFile();
-          const text = await file.text();
-          updateContent(text);
-          lastSavedContentRef.current = text;
-          setCurrentFileName(file.name);
-          setCurrentFileNode({ name: file.name, kind: 'file', path: file.name, handle: fileHandle });
-          setIsSidebarOpen(true);
-          showToast(`'${file.name}' 파일을 열었습니다.`, 'success');
-        } catch (err: any) {
-          if (err.name !== 'AbortError' && err.name !== 'SecurityError') {
-            showToast("파일 열기 실패: " + err, 'error');
-          }
-        }
-      } else {
-        showToast("데스크톱 모드(또는 최신 Chrome 브라우저)에서만 사용 가능한 기능입니다.", "warning");
-      }
     },
     openWorkspace: () => {
       selectRootFolder('local', null);
@@ -3001,11 +3271,13 @@ export default function Home() {                  // @Home : Home component
     openExport: () => setIsExportModalOpen(true),
     exportPDF: async () => {
       if (!previewRef.current) return;
-      await exportPDF({ previewEl: previewRef.current, currentFileName, isDarkMode, showToast });
+      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
+      await exportPDF({ previewEl: previewRef.current, currentFileName, isDarkMode, showToast, orientation, dynamicCssString });
     },
     exportHTML: async () => {
       if (!previewRef.current) return;
-      await exportHTML({ previewEl: previewRef.current, currentFileName, isDarkMode, showToast });
+      await exportHTML({ previewEl: previewRef.current, currentFileName, isDarkMode, showToast, dynamicCssString });
     },
     exportEPUB: async () => {
       if (!previewRef.current) return;
@@ -3038,7 +3310,61 @@ export default function Home() {                  // @Home : Home component
     removePrefix: () => removePrefix(),
     link: () => insertLink(),
     taglink: () => setShowTagLinkPicker(prev => !prev),
-    image: () => setIsImageModalOpen(true),
+    image: () => {
+      const editor = editorRef.current;
+      if (editor) {
+        const selection = editor.getSelection();
+        const model = editor.getModel();
+        if (selection && model) {
+          let text = model.getValueInRange(selection);
+          let range = selection;
+
+          if (!text.trim()) {
+            const lineNumber = selection.startLineNumber;
+            const lineContent = model.getLineContent(lineNumber);
+            const match = lineContent.match(/!\[([^\]]*)\]\(([^)]*)\)/);
+            if (match) {
+              const startCol = lineContent.indexOf(match[0]) + 1;
+              const endCol = startCol + match[0].length;
+              range = new (window as any).monaco.Range(lineNumber, startCol, lineNumber, endCol);
+              text = match[0];
+            }
+          }
+
+          const match = text.match(/!\[([^\]]*)\]\(([^)]*)\)/);
+          if (match) {
+            const alt = match[1];
+            const fullPath = match[2];
+            let path = fullPath;
+            let width = '';
+            let height = '';
+
+            const widthMatch = fullPath.match(/[\?&]width=([^&]*)/);
+            if (widthMatch) {
+              width = decodeURIComponent(widthMatch[1]);
+            }
+            const heightMatch = fullPath.match(/[\?&]height=([^&]*)/);
+            if (heightMatch) {
+              height = decodeURIComponent(heightMatch[1]);
+            }
+            path = fullPath.replace(/[\?&](?:width|height)=[^&]*/g, '');
+
+            setEditingImageInfo({
+              range,
+              alt,
+              path,
+              width,
+              height
+            });
+            setIsImageModalOpen(true);
+            return;
+          }
+        }
+      }
+
+      setEditingImageInfo(null);
+      setIsImageModalOpen(true);
+    },
     video: () => setIsYoutubeModalOpen(true),
     youtube: () => setIsYoutubeModalOpen(true),
     now: () => insertAtCursor(new Date().toLocaleString()),
@@ -3157,6 +3483,31 @@ export default function Home() {                  // @Home : Home component
       });
     },
     quickWrap: (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => quickWrap(format),
+    pageBreak: () => {
+      // 💡 [한글 주석] 수동 페이지 분할 문법 삽입
+      if (!editorRef.current) return;
+      const editor = editorRef.current;
+      const selection = editor.getSelection();
+      const model = editor.getModel();
+      if (!model || !selection) return;
+
+      const Range = (window as any).monaco.Range;
+      const Selection = (window as any).monaco.Selection;
+      
+      const insertText = '<!-- [page-break] -->';
+      
+      editor.executeEdits("pageBreak", [{
+        range: selection,
+        text: insertText,
+        forceMoveMarkers: true
+      }]);
+      
+      const currentPos = selection.getEndPosition();
+      const nextLineNumber = currentPos.lineNumber;
+      editor.setSelection(new Selection(nextLineNumber, currentPos.column + insertText.length, nextLineNumber, currentPos.column + insertText.length));
+      editor.focus();
+      showToast("페이지 분할선이 삽입되었습니다.", "info");
+    },
   };
 
   handlersRef.current = handlers;
@@ -3174,7 +3525,6 @@ export default function Home() {                  // @Home : Home component
     switch (type) {
       // 파일 관련
       case 'NEW_FILE': handlers.newFile(); return;
-      case 'OPEN_FILE': handlers.openFolder(); return;
       case 'OPEN_WORKSPACE': handlers.openWorkspace(); return;
       case 'SAVE': handlers.save(); return;
       case 'SAVE_AS': handlers.saveAs(); return;
@@ -3280,6 +3630,7 @@ export default function Home() {                  // @Home : Home component
       case 'CODE':
       case 'CODE_BLOCK': handlers.code(); break;
       case 'CHART': handlers.chart(); break;
+      case 'PAGE_BREAK': handlers.pageBreak(); break;
       case 'LATEX':
       case 'MATH': handlers.math(); break;
 
@@ -3331,6 +3682,7 @@ export default function Home() {                  // @Home : Home component
       strikethrough: 'STRIKETHROUGH',
       h1: 'H1', h2: 'H2', h3: 'H3', h4: 'H4', h5: 'H5', h6: 'H6',
       divider: 'HR',        // id는 divider이지만 커맨드는 HR
+      pageBreak: 'PAGE_BREAK',
       orderedList: 'ORDERED_LIST',
       list: 'LIST',
       quote: 'QUOTE',
@@ -3485,6 +3837,17 @@ export default function Home() {                  // @Home : Home component
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 💡 포커스가 모나코 에디터 외부의 일반 HTML 입력 요소(input, select, textarea)인 경우
+      // 글로벌 단축키 가로채기 동작을 차단하고 브라우저 기본 입력을 전적으로 허용합니다.
+      const target = e.target as HTMLElement;
+      if (target) {
+        const isFormElement = target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA';
+        const isInsideMonaco = target.closest('.monaco-editor') !== null;
+        if (isFormElement && !isInsideMonaco) {
+          return;
+        }
+      }
+
       // Escape: 플로팅 툴바 숨김 또는 태그링크 선택기 닫기 (에디터 포커스 무관)
       if (e.key === 'Escape') {
         if (showTagLinkPicker) {
@@ -3517,6 +3880,16 @@ export default function Home() {                  // @Home : Home component
           } else {
             dispatchCommand('SAVE');
           }
+          return;
+        }
+      }
+
+      // 💡 [Ctrl+O 차단] 파일 열기 기능이 제거되었으므로, 브라우저 기본 파일 열기 다이얼로그(Ctrl+O)가 나타나지 않도록 원천 차단합니다.
+      if (isCtrl && !isAlt && !isShift) {
+        const keyUpper = e.key.toUpperCase();
+        if (keyUpper === 'O') {
+          e.preventDefault();
+          e.stopPropagation();
           return;
         }
       }
@@ -3716,7 +4089,7 @@ export default function Home() {                  // @Home : Home component
             />
           )}
           <div className="flex flex-1 overflow-hidden">
-            {previewMode === 'css-style' ? (
+            {previewMode === 'css-style' && (
               <CssStyleForm
                 profiles={profiles}
                 activeProfileId={activeProfileId}
@@ -3754,8 +4127,12 @@ export default function Home() {                  // @Home : Home component
                 }}
                 onClose={() => setPreviewMode('both')}
               />
-            ) : previewMode !== 'preview' && (
-              <div className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5`}>
+            )}
+
+            <div
+              className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5 pt-3`}
+              style={{ display: (previewMode === 'preview' || previewMode === 'css-style') ? 'none' : 'block' }}
+            >
                 <Editor
                   height="100%"
                   language="markdown"
@@ -3764,6 +4141,19 @@ export default function Home() {                  // @Home : Home component
                   // React 상태 갱신 시 모나코 내부의 불필요한 setValue 호출로 인한 한글 composition 깨짐 및 중복 입력을 원천 방어합니다.
                   defaultValue={content}
                   onChange={(val) => {
+                    // 💡 [에디터 언마운트 데이터 유실 가드]
+                    // 에디터가 언마운트된 상태이거나 파괴 진행 중이면 모든 변경 입력을 무시하여 데이터 유실을 완전 가드합니다.
+                    if (!isEditorMountedRef.current) return;
+                    if (previewModeRef.current === 'preview') return; // 💡 [가드] 미리보기 모드일 땐 입력 버퍼 갱신 원천 방지
+
+                    const editor = editorRef.current;
+                    if (editor) {
+                      const dom = editor.getDomNode();
+                      const model = editor.getModel();
+                      if (!dom || !model) {
+                        return; // 에디터가 파괴 중이므로 빈 값 무시
+                      }
+                    }
                     updateContent(val || '', true);
                   }}
                   beforeMount={(monaco) => {
@@ -3784,11 +4174,32 @@ export default function Home() {                  // @Home : Home component
                       (window as any).monaco = monaco;
                     }
 
+                    // 💡 [IME 조합 감지 락 구현]
+                    const textarea = editor.getDomNode()?.querySelector('textarea');
+                    if (textarea) {
+                      textarea.addEventListener('compositionstart', () => {
+                        isComposingRef.current = true;
+                      });
+                      textarea.addEventListener('compositionend', () => {
+                        isComposingRef.current = false;
+                        // 조합이 종료된 시점에 에디터 모델이 완전히 갱신되도록 10ms 지연 후 최종값 동기화
+                        setTimeout(() => {
+                          if (editorRef.current) {
+                            setContent(editorRef.current.getValue());
+                          }
+                        }, 10);
+                      });
+                    }
+
                     // 🔒 [에디터 레이아웃 영점 가드] 하단 공백 소멸 및 상단 짤림 버그 진압
+                    // 💡 [에디터 상하좌우 여백 패치] 상하 20px 패딩 및 라인 넘버 마진 가로폭을 넓혀 쾌적한 작문 환경을 제공합니다.
                     editor.updateOptions({
                       scrollBeyondLastLine: false,
-                      padding: { top: 4, bottom: 4 },
+                      padding: { top: 20, bottom: 20 },
+                      lineDecorationsWidth: 26, // 💡 decorations 폭을 적절히 줄여 본문을 왼쪽으로 당김
+                      lineNumbersMinChars: 4,  // 💡 라인 넘버 영역을 약간 키워서 숫자 노출 폭 확보
                       automaticLayout: true,
+                      wrappingStrategy: 'advanced', // 💡 브라우저 폰트 가로폭을 실측하여 텍스트 줄바꿈 계산
                       
                       // 🔒 [하단 클릭 시 에디터 붕 뜸 및 상단 유실 방어 3대 마스터 가드]
                       cursorSurroundingLines: 0,
@@ -3825,14 +4236,20 @@ export default function Home() {                  // @Home : Home component
                       editor.layout(); 
                     });
                     
-                    // 💡 [IME-blur] 포커스 아웃 시 작성 중이던 마지막 글자 유실 버그 방어 (이중 입력 방지 가드 탑재)
+                    // 💡 [IME-blur] 포커스 아웃 시 즉시 React 상태와 에디터 최종 값 동기화 (이중 입력 방지 가드 탑재)
                     editor.onDidBlurEditorText(() => {
                       if (previewDebounceRef.current) {
                         clearTimeout(previewDebounceRef.current);
                         previewDebounceRef.current = null;
-                        const latestVal = editor.getValue();
-                        setContent(latestVal);
                       }
+                      // 💡 [IME-blur 보완] 한글 입력 조합(Composition) 종료와 React 상태 갱신 타이밍 간의 레이스 컨디션을 방지하기 위해 
+                      // 100ms 지연 후 에디터 최종 값을 React 상태에 동기화하여 마지막 글자 중복 입력을 원천 방어합니다.
+                      setTimeout(() => {
+                        if (editorRef.current) {
+                          const latestVal = editorRef.current.getValue();
+                          setContent(latestVal);
+                        }
+                      }, 100);
                     });
 
                     // 💡 에디터 내용이 바뀔 때마다(타이핑 및 setValue 포함) 다음 렌더링 프레임에서 데코레이션 즉시 업데이트
@@ -4648,26 +5065,142 @@ export default function Home() {                  // @Home : Home component
                       editorMouseDown = false;
                       editorMouseAnchor = null;
                     });
+                    editor.onDidChangeModelContent((e: any) => {
+                      if (isAutoPageBreakingRef.current) return;
+
+                      let isPageBreakModified = false;
+                      let targetLineNum = Infinity;
+
+                      const model = editor.getModel();
+                      if (!model) return;
+
+                      // 총 페이지나누기(page-break) 문구 개수 체크
+                      const currentText = model.getValue();
+                      const pageBreakMatches = currentText.match(/page-break/gi);
+                      const currentCount = pageBreakMatches ? pageBreakMatches.length : 0;
+
+                      if (currentCount !== lastPageBreakCountRef.current) {
+                        lastPageBreakCountRef.current = currentCount;
+                        isPageBreakModified = true;
+                      }
+
+                      e.changes.forEach((change: any) => {
+                        if (change.text.includes('page-break')) {
+                          isPageBreakModified = true;
+                          targetLineNum = Math.min(targetLineNum, change.range.startLineNumber);
+                        }
+                        const lineContent = model.getLineContent(change.range.startLineNumber);
+                        if (lineContent.includes('page-break')) {
+                          isPageBreakModified = true;
+                          targetLineNum = Math.min(targetLineNum, change.range.startLineNumber);
+                        }
+                      });
+
+                      if (isPageBreakModified) {
+                        const finalLine = targetLineNum === Infinity ? 1 : targetLineNum;
+                        if (autoPageBreakDebounceRef.current) clearTimeout(autoPageBreakDebounceRef.current);
+                        autoPageBreakDebounceRef.current = setTimeout(() => {
+                          executeAutoPageBreak(editor, finalLine);
+                        }, 800); // 800ms 디바운스로 타이핑 중 부하 방지
+                      }
+                    });
                     editor.onDidChangeCursorPosition((e) => {
                       setActiveLine(e.position.lineNumber);
                       setCursorLine(e.position.lineNumber);
                       setCursorColumn(e.position.column);
 
-                      // 💡 표(Table) 영역 이탈 시 자동 정렬 수행
+                      // 💡 [커서 연동 방향 감지 및 이전 줄 업데이트]
                       const currentLine = e.position.lineNumber;
                       const prevLine = prevCursorLineRef.current;
                       prevCursorLineRef.current = currentLine;
 
+                      // 💡 [커서 연동 스크롤 동기화] 타이핑이나 방향키 등으로 커서 행이 바뀔 때 미리보기를 부드럽게 스크롤시킵니다.
+                      if (previewRef.current) {
+                        const pv = previewRef.current;
+                        const isNotScrollable = pv.scrollHeight <= pv.clientHeight;
+                        const isBothMode = previewModeRef.current === 'both';
+                        
+                        // 스크롤이 불가능한 짧은 문서이거나 반반 모드가 아니면 패스, 
+                        // 또한 미리보기 스크롤 중에는 커서 위치 변경에 의한 강제 스크롤 간섭 방지
+                        if (isBothMode && !isNotScrollable && isScrollingRef.current !== 'preview') {
+                          // 💡 React 컴포넌트(MarkdownViewer)의 렌더링 반영 지연을 고려해 50ms 비동기 딜레이를 주어 DOM 조회 정합성을 높입니다.
+                          setTimeout(() => {
+                            if (!previewRef.current) return;
+                            const pvContainer = previewRef.current;
+                            const targetElement = isPageViewEnabled
+                              ? pvContainer.querySelector(`.page-view-paper [data-line="${currentLine}"]`)
+                              : pvContainer.querySelector(`[data-line="${currentLine}"]`);
+                            
+                            let scrollTarget: HTMLElement | null = null;
+                            if (targetElement) {
+                              scrollTarget = targetElement as HTMLElement;
+                            } else {
+                              // 일치하는 엘리먼트가 없으면, 가장 가까운 이전 라인의 엘리먼트를 찾음
+                              const elements = isPageViewEnabled
+                                ? Array.from(pvContainer.querySelectorAll('.page-view-paper [data-line]')) as HTMLElement[]
+                                : Array.from(pvContainer.querySelectorAll('[data-line]')) as HTMLElement[];
+                              let maxLine = -1;
+                              for (const el of elements) {
+                                const lineStr = el.getAttribute('data-line');
+                                if (lineStr) {
+                                  const line = parseInt(lineStr, 10);
+                                  if (line <= currentLine && line > maxLine) {
+                                    maxLine = line;
+                                    scrollTarget = el;
+                                  }
+                                }
+                              }
+                            }
+
+                            if (scrollTarget) {
+                              const rect = scrollTarget.getBoundingClientRect();
+                              const containerRect = pvContainer.getBoundingClientRect();
+                              const relativeTop = rect.top - containerRect.top;
+                              const elementHeight = rect.height;
+                              const containerHeight = pvContainer.clientHeight;
+
+                              // 💡 커서 이동 방향에 따라 스냅 조건 판단을 제한하여 반대 방향으로 스크롤이 튀는 오작동을 완벽 차단합니다.
+                              const isMovingUp = prevLine !== null && currentLine < prevLine;
+                              const isMovingDown = prevLine !== null ? currentLine > prevLine : true;
+
+                              // 💡 [화면 50% 스냅 가드 개선] 
+                              // 아래로 이동 시 하단 경계(85% 지점 아래)를 벗어날 때만 50% 위로 스냅하고,
+                              // 위로 이동 시 상단 경계(10% 지점 위)를 벗어날 때만 50% 아래로 스냅합니다.
+                              const isBelowBottom = isMovingDown && ((relativeTop + elementHeight) > (containerHeight * 0.85));
+                              const isAboveTop = isMovingUp && (relativeTop < (containerHeight * 0.10));
+                              
+                              if (isBelowBottom || isAboveTop) {
+                                isScrollingRef.current = 'editor';
+                                if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                                scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 150);
+
+                                scrollTarget.scrollIntoView({
+                                  behavior: 'smooth',
+                                  block: 'center'
+                                });
+                              }
+                            }
+                          }, 50);
+                        }
+                      }
+
+                      // 💡 표(Table) 영역 이탈 시 자동 정렬 수행
                       if (prevLine && prevLine !== currentLine) {
                         const model = editor.getModel();
                         if (model) {
-                          const prevLineContent = model.getLineContent(prevLine);
-                          const currentLineContent = model.getLineContent(currentLine);
-                          if (isTableLine(prevLineContent) && (!isTableLine(currentLineContent) || Math.abs(currentLine - prevLine) > 1)) {
-                            // 스크롤 및 렌더링 간섭을 차단하기 위해 비동기 틱으로 정렬 수행
-                            setTimeout(() => {
-                              formatTableBlock(editor, prevLine);
-                            }, 50);
+                          const lineCount = model.getLineCount();
+                          if (prevLine >= 1 && prevLine <= lineCount && currentLine >= 1 && currentLine <= lineCount) {
+                            const prevLineContent = model.getLineContent(prevLine);
+                            const currentLineContent = model.getLineContent(currentLine);
+                            if (isTableLine(prevLineContent) && (!isTableLine(currentLineContent) || Math.abs(currentLine - prevLine) > 1)) {
+                              // 스크롤 및 렌더링 간섭을 차단하기 위해 비동기 틱으로 정렬 수행
+                              setTimeout(() => {
+                                const currentModel = editor.getModel();
+                                if (currentModel && prevLine >= 1 && prevLine <= currentModel.getLineCount()) {
+                                  formatTableBlock(editor, prevLine);
+                                }
+                              }, 50);
+                            }
                           }
                         }
                       }
@@ -4888,7 +5421,9 @@ export default function Home() {                  // @Home : Home component
                         if (vr.length === 0) return;
 
                         const topVisibleLine = vr[0].startLineNumber;
-                        const targetElement = pv.querySelector(`[data-line="${topVisibleLine}"]`) as HTMLElement | null;
+                        const targetElement = (isPageViewEnabled
+                          ? pv.querySelector(`.page-view-paper [data-line="${topVisibleLine}"]`)
+                          : pv.querySelector(`[data-line="${topVisibleLine}"]`)) as HTMLElement | null;
 
                         if (targetElement) {
                           if (topVisibleLine <= 3 && scrollEvent.scrollTopChanged) {
@@ -5064,7 +5599,6 @@ export default function Home() {                  // @Home : Home component
                   </div>
                   )})()}
               </div>
-            )}
 
             {showTagLinkPicker && toc.length > 0 && (
               <>
@@ -5098,90 +5632,136 @@ export default function Home() {                  // @Home : Home component
               </>
             )}
 
-            {previewMode !== 'edit' && (
-              <div
-                ref={previewRef}
-                className={`flex-1 ${heightClass} px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container bg-white dark:bg-zinc-950 ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
+            <div
+              className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden relative"
+              style={{
+                width: previewMode === 'preview' ? '100%' : '50%',
+                display: (previewMode === 'edit') ? 'none' : 'flex'
+              }}
+            >
+                {/* 📄 상단 고정 헤더 바 (페이지 분할 토글 등) */}
+                <div className="flex items-center justify-between px-6 py-2 border-b border-black/5 dark:border-white/5 bg-slate-50 dark:bg-zinc-900 select-none z-10 no-print">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                      📄 A4 인쇄 페이지 경계선 표시
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-medium">
+                      LIGHT
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleTogglePageView}
+                      className={`px-3 py-1 text-[11px] font-semibold rounded-md border transition-all flex items-center gap-1.5 ${
+                        isPageViewEnabled
+                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm hover:bg-indigo-700'
+                          : 'bg-white dark:bg-zinc-800 border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {isPageViewEnabled ? '경계선 표시 끄기' : 'A4 페이지 경계선 표시'}
+                    </button>
+                    {isPageViewEnabled && (
+                      <button
+                        onClick={handleResetPageBreaks}
+                        className="px-3 py-1 text-[11px] font-semibold rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-all flex items-center gap-1.5"
+                        title="페이지 나누기 계산을 강제로 초기화하고 실시간으로 다시 실측합니다."
+                      >
+                        <span>🔄</span>
+                        <span>경계선 초기화</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
+                <div
+                  ref={previewRef}
+                  className={`flex-1 ${heightClass} px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container bg-white dark:bg-zinc-950 ${
+                    previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
                   }`}
-                style={{ width: previewMode === 'preview' ? '100%' : '50%' }}
-                onMouseEnter={() => { isPreviewHovered.current = true; }}
-                onMouseLeave={() => { isPreviewHovered.current = false; }}
-                onScroll={(e) => {
-                  const target = e.target as HTMLElement;
+                  onMouseEnter={() => { isPreviewHovered.current = true; }}
+                  onMouseLeave={() => { isPreviewHovered.current = false; }}
+                  onScroll={(e) => {
+                    const target = e.target as HTMLElement;
 
-                  // 💡 [요구사항 3 / SYNC-03] 미리보기 최상단(0점) 복귀 시 스크롤 락에 관계없이 에디터를 자석처럼 최상단 영점으로 복구
-                  if (target.scrollTop === 0 && editorRef.current) {
-                    editorRef.current.setScrollTop(0);
-                  }
+                    // 💡 [요구사항 3 / SYNC-03] 미리보기 최상단(0점) 복귀 시 스크롤 락에 관계없이 에디터를 자석처럼 최상단 영점으로 복구
+                    if (target.scrollTop === 0 && editorRef.current) {
+                      editorRef.current.setScrollTop(0);
+                    }
 
-                  // 💡 [요구사항 3 / SYNC-03] 미리보기 마우스 오버 상태일 때만 에디터로 스크롤 송신 허용 (관성 튕김 루프 원천 방쇄)
-                  if (!isPreviewHovered.current || previewModeRef.current !== 'both' || !editorRef.current) return;
+                    // 💡 [요구사항 3 / SYNC-03] 미리보기 마우스 오버 상태일 때만 에디터로 스크롤 송신 허용 (관성 튕김 루프 원천 방쇄)
+                    if (!isPreviewHovered.current || previewModeRef.current !== 'both' || !editorRef.current) return;
 
-                  isScrollingRef.current = 'preview';
-                  if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                  scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+                    isScrollingRef.current = 'preview';
+                    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                    scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
 
-                  const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
+                    const elements = isPageViewEnabled
+                      ? Array.from(target.querySelectorAll('.page-view-paper [data-line]')) as HTMLElement[]
+                      : Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
 
-                  let targetLine = -1;
-                  for (const el of elements) {
-                    const rect = el.getBoundingClientRect();
-                    const containerRect = target.getBoundingClientRect();
-                    if (rect.top >= containerRect.top) {
-                      const lineStr = el.getAttribute('data-line');
-                      if (lineStr) {
-                        targetLine = parseInt(lineStr, 10);
-                        break;
+                    let targetLine = -1;
+                    for (const el of elements) {
+                      const rect = el.getBoundingClientRect();
+                      const containerRect = target.getBoundingClientRect();
+                      if (rect.top >= containerRect.top) {
+                        const lineStr = el.getAttribute('data-line');
+                        if (lineStr) {
+                          targetLine = parseInt(lineStr, 10);
+                          break;
+                        }
                       }
                     }
-                  }
 
-                  if (targetLine !== -1 && editorRef.current) {
-                    const editor = editorRef.current;
-                    if (typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
-                      editor.setScrollPosition({
-                        scrollTop: editor.getTopForLineNumber(targetLine)
-                      });
-                    } else if (typeof editor.revealLine === 'function') {
-                      editor.revealLine(targetLine);
+                    if (targetLine !== -1 && editorRef.current) {
+                      const editor = editorRef.current;
+                      if (typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
+                        editor.setScrollPosition({
+                          scrollTop: editor.getTopForLineNumber(targetLine)
+                        });
+                      } else if (typeof editor.revealLine === 'function') {
+                        editor.revealLine(targetLine);
+                      }
                     }
-                  }
-                }}
-              >
-                {(() => {
-                  const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-                  const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
-                  return (
-                    <div className={`${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
-                      <MarkdownViewer
-                        content={processedContent}
-                        originalContent={content}
-                        lineMap={lineMap}
-                        onCheckboxToggle={handleCheckboxToggle}
-                        currentFilePath={currentFileNode?.path}
-                        onFileOpen={handleFileOpenByPath}
-                        orientation={activeProfile.pageStyle.orientation as 'portrait' | 'landscape'}
-                        marginTop={activeProfile.pageStyle.marginTop}
-                        marginBottom={activeProfile.pageStyle.marginBottom}
-                        marginLeft={activeProfile.pageStyle.marginLeft}
-                        marginRight={activeProfile.pageStyle.marginRight}
-                        listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left']}
-                      />
-                    </div>
-                  );
-                })()}
-                {/*
-                 * 동적 CSS 스타일 인젝션:
-                 * custom-preview-container 내부의 태그들에 CssRuleSet을 적용합니다.
-                 * activeProfileId === 'default'면 dynamicCssString이 빈 문자열이므로
-                 * 이 <style> 태그는 자동으로 생략됩니다.
-                 * 모든 값에 !important가 붙어 prose 클래스 스타일을 오버라이드합니다.
-                 */}
-                {dynamicCssString && (
-                  <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
-                )}
+                  }}
+                >
+                  {(() => {
+                    const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+                    const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
+                    return (
+                      <div className={`${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
+                        <MarkdownViewer
+                          content={processedContent}
+                          originalContent={content}
+                          lineMap={lineMap}
+                          onCheckboxToggle={handleCheckboxToggle}
+                          currentFilePath={currentFileNode?.path}
+                          rootFolderPath={rootFolder?.name}
+                          onFileOpen={handleFileOpenByPath}
+                          orientation={activeProfile.pageStyle.orientation as 'portrait' | 'landscape'}
+                          marginTop={activeProfile.pageStyle.marginTop}
+                          marginBottom={activeProfile.pageStyle.marginBottom}
+                          marginLeft={activeProfile.pageStyle.marginLeft}
+                          marginRight={activeProfile.pageStyle.marginRight}
+                          listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left']}
+                          showPageBreaks={isPageViewEnabled}
+                          calcKey={pageCalcKey}
+                        />
+                      </div>
+                    );
+                  })()}
+                  {/*
+                   * 동적 CSS 스타일 인젝션:
+                   * custom-preview-container 내부의 태그들에 CssRuleSet을 적용합니다.
+                   * activeProfileId === 'default'면 dynamicCssString이 빈 문자열이므로
+                   * 이 <style> 태그는 자동으로 생략됩니다.
+                   * 모든 값에 !important가 붙어 prose 클래스 스타일을 오버라이드합니다.
+                   */}
+                  {dynamicCssString && (
+                    <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
+                  )}
+                </div>
               </div>
-            )}
           </div>
 
           <StatusBar
@@ -5190,6 +5770,7 @@ export default function Home() {                  // @Home : Home component
             folderName={rootFolder?.name}
             driveLetter={driveLetter}
             workspaceType={workspaceType}
+            activeProfileName={profiles.find(p => p.id === activeProfileId)?.name || DEFAULT_PROFILE.name}
             cloudProvider={null}
             path={currentFileNode?.path}
             cursorLine={cursorPositionRef.current?.lineNumber}
@@ -5390,8 +5971,41 @@ export default function Home() {                  // @Home : Home component
       />
       <ImageModal
         isOpen={isImageModalOpen}
-        onClose={() => setIsImageModalOpen(false)}
-        onInsert={(path, alt) => insertAtCursor(`![${alt}](${path})`)}
+        onClose={() => {
+          setIsImageModalOpen(false);
+          setEditingImageInfo(null);
+        }}
+        initialData={editingImageInfo}
+        targetFolder={(() => {
+          let folder = '';
+          if (currentFileNodeRef.current?.path) {
+            const filePath = currentFileNodeRef.current.path;
+            const lastSlashIndex = filePath.lastIndexOf('\\');
+            if (lastSlashIndex !== -1) {
+              folder = filePath.substring(0, lastSlashIndex);
+            }
+          } else if (rootFolderRef.current?.name && rootFolderRef.current.name !== '브라우저 스토리지') {
+            folder = rootFolderRef.current.name;
+          }
+          return folder;
+        })()}
+        showToast={showToast}
+        onInsert={(path, alt, range) => {
+          if (range) {
+            const editor = editorRef.current;
+            if (editor) {
+              editor.executeEdits("edit-image", [{
+                range: range,
+                text: `![${alt}](${path})`,
+                forceMoveMarkers: true
+              }]);
+              editor.focus();
+            }
+          } else {
+            insertAtCursor(`![${alt}](${path})`);
+          }
+          setEditingImageInfo(null);
+        }}
         isDarkMode={isDarkMode}
       />
       <YoutubeModal

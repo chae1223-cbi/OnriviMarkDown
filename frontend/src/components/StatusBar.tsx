@@ -25,6 +25,7 @@ interface StatusBarProps {
   themePalette?: string;
   onThemeChange?: (themeId: string) => void;
   isActivated?: boolean;
+  activeProfileName?: string;
 }
 
 const localTranslations: Record<string, Record<string, string>> = {
@@ -114,7 +115,8 @@ export default function StatusBar({
   previewMode, setPreviewMode,
   isDarkMode, setIsDarkMode,
   themePalette, onThemeChange,
-  isActivated
+  isActivated,
+  activeProfileName
 }: StatusBarProps) {
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
   const currentTheme = EDITOR_THEMES.find(t => t.id === themePalette) || EDITOR_THEMES[0];
@@ -185,6 +187,14 @@ export default function StatusBar({
         <span className="hidden sm:inline truncate max-w-[120px] md:max-w-[240px] lg:max-w-[400px]" title={getFullPath()}>
           {t('path')}: {getFullPath()}
         </span>
+        {activeProfileName && (
+          <>
+            <span className="hidden md:inline shrink-0">|</span>
+            <span className="hidden md:inline truncate max-w-[150px] text-blue-600 dark:text-blue-400 font-semibold" title={`현재 서식: ${activeProfileName}`}>
+              서식: {activeProfileName}
+            </span>
+          </>
+        )}
         {saveStatusText && (
           <>
             <span className="shrink-0">|</span>
@@ -239,46 +249,7 @@ export default function StatusBar({
             <span className="text-[11px] leading-none">{previewMode === 'edit' ? '✍️' : previewMode === 'both' ? '📳' : '📜'}</span>
           </button>
         )}
-        {/* 테마 팔레트 선택기 */}
-        {onThemeChange && (
-          <div
-            className="relative"
-            onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                setThemeDropdownOpen(false);
-              }
-            }}
-          >
-            <button
-              onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
-              className="p-0.5 rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 text-gray-400 dark:text-zinc-500 flex items-center gap-1"
-              title={t('theme')}
-            >
-              <span className="text-[11px] leading-none">{currentTheme.icon}</span>
-              <span className="text-[10px] leading-none max-w-[60px] truncate">{currentTheme.name}</span>
-              <span className="text-[8px] opacity-60">▼</span>
-            </button>
-            {themeDropdownOpen && (
-              <div className="absolute bottom-full right-0 mb-1 w-40 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-xl z-50 py-1 max-h-64 overflow-y-auto">
-                {EDITOR_THEMES.map(theme => (
-                  <button
-                    key={theme.id}
-                    onMouseDown={(e) => { e.preventDefault(); onThemeChange(theme.id); setThemeDropdownOpen(false); }}
-                    className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors ${
-                      theme.id === themePalette
-                        ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30'
-                        : 'text-gray-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
-                    }`}
-                  >
-                    <span>{theme.icon}</span>
-                    <span className="truncate">{theme.name}</span>
-                    {theme.id === themePalette && <span className="ml-auto text-[9px]">✓</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+
         <span className="text-gray-300 dark:text-zinc-600 mx-0.5">|</span>
         <span className="hover:text-[#0058bc] cursor-default">UTF-8</span>
         <span className="hover:text-[#0058bc] cursor-default">.md</span>

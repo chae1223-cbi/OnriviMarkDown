@@ -2,14 +2,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // 렌더러 프로세스(Next.js)에 노출할 안전한 API 정의
 contextBridge.exposeInMainWorld('electronAPI', {
-  // 1. 파일 열기 대화상자를 띄우고 파일 데이터 로드
-  openFile: (defaultPath) => ipcRenderer.invoke('dialog:openFile', defaultPath),
-  
   // 2. 현재 열린 파일 경로에 덮어쓰기 저장
   saveFile: (filePath, content) => ipcRenderer.invoke('file:save', filePath, content),
   
   // 3. 다른 이름으로 저장 대화상자를 띄워 파일 기록 (워크스페이스 경로 지원)
-  saveFileAs: (content, suggestedName, defaultDir) => ipcRenderer.invoke('file:saveAs', content, suggestedName, defaultDir),
+  saveFileAs: (content, suggestedName, defaultDir, filters) => ipcRenderer.invoke('file:saveAs', content, suggestedName, defaultDir, filters),
 
   // 4. 경로를 지정하여 직접 파일 읽기 (검색 결과 파일 로드용)
   readFromPath: (filePath) => ipcRenderer.invoke('file:readFromPath', filePath),
@@ -40,7 +37,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 7. 단축키 및 상단 시스템 메뉴 이벤트에 반응할 이벤트 리스너 등록
   onNewFileRequested: (callback) => ipcRenderer.on('menu:new-file', (_, value) => callback(value)),
-  onOpenFileRequested: (callback) => ipcRenderer.on('menu:open-file', (_, value) => callback(value)),
   onSaveFileRequested: (callback) => ipcRenderer.on('menu:save-file', (_, value) => callback(value)),
   onSaveFileAsRequested: (callback) => ipcRenderer.on('menu:save-file-as', (_, value) => callback(value)),
 
@@ -74,10 +70,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 19. OS 네이티브 글꼴 선택 대화상자 호출
   openFontDialog: () => ipcRenderer.invoke('dialog:openFontPicker'),
 
+  // 20. 클립보드 이미지 복사 및 로컬 파일 쓰기 핸들러 연동
+  saveImage: (targetFolder, base64Data, fileName) => ipcRenderer.invoke('file:saveImage', targetFolder, base64Data, fileName),
+
+  // 21. 일렉트론 네이티브 PDF 인쇄 API
+  printToPDF: (options) => ipcRenderer.invoke('pdf:printToPDF', options),
+
+  // 22. 로컬 이미지 파일 Base64 변환 읽기 API
+  readImageAsBase64: (filePath) => ipcRenderer.invoke('file:readImageAsBase64', filePath),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');
-    ipcRenderer.removeAllListeners('menu:open-file');
     ipcRenderer.removeAllListeners('menu:save-file');
     ipcRenderer.removeAllListeners('menu:save-file-as');
     ipcRenderer.removeAllListeners('open-external-md');

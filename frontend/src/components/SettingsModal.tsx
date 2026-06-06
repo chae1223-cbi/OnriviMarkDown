@@ -216,38 +216,6 @@ export default function SettingsModal({
             </div>
           </section>
 
-          {/* ---------- 테마 전환 ---------- */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
-              <Palette size={16} />
-              <span>테마 전환</span>
-            </div>
-            <div className="pl-6">
-              <div className="relative w-full max-w-xs">
-                <select
-                  value={selectedTheme}
-                  onChange={(e) => handleThemeSelect(e.target.value)}
-                  className="w-full px-4 py-2.5 text-sm font-medium rounded-md appearance-none cursor-pointer outline-none transition-colors"
-                  style={{
-                    backgroundColor: isDarkMode ? '#333' : '#f5f2ff',
-                    color: colors.onSurface,
-                  }}
-                >
-                  {SEVEN_THEMES.map((theme) => (
-                    <option key={theme.id} value={theme.id}>{theme.name}</option>
-                  ))}
-                </select>
-                <span
-                  className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-sm"
-                  style={{ color: colors.onSurfaceVariant }}
-                >▼</span>
-              </div>
-              <p className="text-xs mt-2" style={{ color: colors.onSurfaceVariant }}>
-                선택한 테마가 온리비 아서 전역에 즉시 적용됩니다.
-              </p>
-            </div>
-          </section>
-
           {/* ---------- 서식 가드 설정 ---------- */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>

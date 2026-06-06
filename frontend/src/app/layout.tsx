@@ -21,6 +21,10 @@ export default function RootLayout({
   return (
     <html lang="ko" className="light" suppressHydrationWarning>
       <head>
+        <meta 
+          httpEquiv="Content-Security-Policy" 
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: https: blob:; connect-src 'self' http://localhost:4000 http://localhost:3000; child-src 'self' blob:;"
+        />
         <link rel="icon" href="./icon_onriveauther.png?v=1" type="image/png" />
         <script src="./mermaid.min.js" defer></script>
       </head>

@@ -36,6 +36,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     groupOther: "기타",
     bold: "굵게",
     italic: "기울임",
+    underline: "밑줄",
     inlineCode: "인라인 코드",
     strikethrough: "취소선",
     h1: "제목 1",
@@ -89,6 +90,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     groupOther: "Other",
     bold: "Bold",
     italic: "Italic",
+    underline: "Underline",
     inlineCode: "Inline Code",
     strikethrough: "Strikethrough",
     h1: "Heading 1",
@@ -171,6 +173,7 @@ export default function Toolbar({
             <ToolbarGroup label={t('groupFormatting')}>
               <ToolbarButton label="B" title={t('bold')} onAction={() => dispatch('BOLD')} bold />
               <ToolbarButton label="I" title={t('italic')} onAction={() => dispatch('ITALIC')} italic />
+              <ToolbarButton label={<span className="underline">U</span>} title={t('underline')} onAction={() => dispatch('UNDERLINE')} />
               <ToolbarButton label="</>" title={t('inlineCode')} onAction={() => dispatch('INLINE_CODE')} />
               <ToolbarButton label={<span className="line-through">S</span>} title={t('strikethrough')} onAction={() => dispatch('STRIKETHROUGH')} />
             </ToolbarGroup>
