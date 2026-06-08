@@ -446,6 +446,8 @@ option {
   padding: 10px 14px !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
   text-align: left;
+  vertical-align: middle !important; /* 세로 정렬 보정 (가운데 정렬) */
+  word-break: keep-all !important; /* 단어 단위 줄바꿈으로 가독성 보정 */
 }
 
 .dark .prose th {
@@ -461,6 +463,8 @@ option {
   color: #4b5563 !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
   transition: background-color 0.15s ease;
+  vertical-align: middle !important; /* 세로 정렬 보정 (가운데 정렬) */
+  word-break: keep-all !important; /* 단어 단위 줄바꿈으로 가독성 보정 */
 }
 
 .dark .prose td {
@@ -623,7 +627,7 @@ div.onrivi-list-spacer {
 .prose :not(pre) > code,
 .custom-preview-container :not(pre) > code {
   display: inline-block !important;
-  vertical-align: -1.5px !important; /* 원문 베이스라인 기준 한글 폰트 정밀 정렬 */
+  vertical-align: 0 !important;
   line-height: 1.35 !important;
   padding: 1px 4.5px !important;
   margin: 0 2px !important;
@@ -648,12 +652,12 @@ div.onrivi-list-spacer {
   margin-top: 0px !important;
   margin-bottom: 0px !important;
   overflow-x: auto !important;
-  background-color: #f8fafc !important; /* 라이트모드 족보 기준 */
-  border-radius: 6px !important;
 }
 
-.dark .prose pre {
-  background-color: #0f172a !important; /* 다크모드 족보 기준 */
+/* 💡 [수정] codeblock-area 내부의 pre 태그는 투명하게 처리하여 이중 박스 현상을 방지합니다. */
+.prose .codeblock-area pre {
+  background-color: transparent !important;
+  border: none !important;
 }
 
 /* 🛡️ [에디터 라인 넘버 영역 시각적 차별화 패치]

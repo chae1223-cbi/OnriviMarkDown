@@ -24,6 +24,8 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
   if (srcPath.startsWith('http://') || srcPath.startsWith('https://') || srcPath.startsWith('data:') || srcPath.startsWith('blob:')) {
     return srcPath;
   }
+  let decoded = srcPath;
+  try { decoded = decodeURIComponent(srcPath); } catch { decoded = srcPath; }
   let baseFolder = "";
   if (currentFileNodePath) {
     const normalizedFile = currentFileNodePath.replace(/\\/g, '/');
@@ -32,7 +34,7 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
       baseFolder = normalizedFile.substring(0, lastSlash);
     }
   }
-  let cleanSrc = srcPath.replace(/\\/g, '/');
+  let cleanSrc = decoded.replace(/\\/g, '/');
   if (cleanSrc.startsWith('/')) cleanSrc = cleanSrc.substring(1);
   if (cleanSrc.startsWith('./')) cleanSrc = cleanSrc.substring(2);
 
@@ -67,10 +69,10 @@ export default function MarkdownPageViewer({
   rootFolderPath,
   onFileOpen,
   orientation = 'portrait',
-  marginTop = '20',
-  marginBottom = '20',
-  marginLeft = '20',
-  marginRight = '20',
+  marginTop = '10',
+  marginBottom = '10',
+  marginLeft = '10',
+  marginRight = '10',
   listIndent,
   onPreviewClick // 💡 클릭 콜백 프롭 추가
 }: MarkdownPageViewerProps) {

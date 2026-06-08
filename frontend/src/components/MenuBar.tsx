@@ -12,7 +12,7 @@ interface MenuBarProps {
   isToolbarOpen: boolean;
   setIsToolbarOpen: (v: boolean) => void;
   previewMode: 'edit' | 'both' | 'preview' | 'css-style';
-  setPreviewMode: (v: 'edit' | 'both' | 'preview') => void;
+  setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
   dispatch: (type: any, payload?: any) => void;
   setContent: (v: string) => void;
   isSearchOpen: boolean;
@@ -53,7 +53,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     modePreview: "👁️미리보기 전용 모드",
     themeSwitch: "테마 전환",
     globalSearch: "전역 검색",
-    copyPreview: "미리보기 복사",
+    copyPreview: "마크다운 복사",
     toolbarToggle: "툴바 표시/숨김",
     settings: "환경 설정",
     userManual: "사용 설명서",
@@ -138,9 +138,7 @@ export default function MenuBar({
   }, []);
 
   const fileItems = [
-    { label: "새 파일", icon: <span>📝</span>, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
-    { label: t('openWorkspace'), icon: <span>📂</span>, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
-    { divider: true },
+  { label: "새 파일", icon: <span>📝</span>, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
     { label: t('saveFile'), icon: <span>💾</span>, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
     { label: t('saveFileAs'), icon: <span>💿</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
     { divider: true },
@@ -203,9 +201,9 @@ export default function MenuBar({
               { label: "편집 전용", onClick: () => setPreviewMode('edit') },
               { label: "분할 화면", onClick: () => setPreviewMode('both') },
               { label: "미리보기", onClick: () => setPreviewMode('preview') },
+              { label: "서식 정의", onClick: () => setPreviewMode('css-style') },
             ]
           },
-          { label: "서식 정의", icon: <span>🏛️</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('TOGGLE_CSS_STYLE') },
           { divider: true },
           { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <span>📋</span>, onClick: () => dispatch('COPY_ALL') },
@@ -218,12 +216,12 @@ export default function MenuBar({
         onClick={() => setActiveMenu(activeMenu === 'help' ? null : 'help')}
         onClose={() => setActiveMenu(null)}
         isDarkMode={isDarkMode}
-        items={[
-          { label: t('userManual'), icon: <span>📖</span> },
-          { label: t('updates'), icon: <span>🚀</span>, onClick: () => dispatch('UPDATES') },
-          { divider: true },
-          { label: t('about'), icon: <span>🍀</span>, onClick: () => dispatch('ABOUT') },
-        ]}
+          items={[
+            { label: "사용 설명서", icon: <span>📖</span>, onClick: () => dispatch('HELP') },
+            { label: t('updates'), icon: <span>🚀</span>, onClick: () => dispatch('UPDATES') },
+            { divider: true },
+            { label: t('about'), icon: <span>🍀</span>, onClick: () => dispatch('ABOUT') },
+          ]}
       />
     </nav>
   );

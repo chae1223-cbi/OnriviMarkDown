@@ -19,7 +19,7 @@ interface StatusBarProps {
   isSidebarOpen?: boolean;
   setIsSidebarOpen?: (v: boolean) => void;
   previewMode?: 'edit' | 'both' | 'preview' | 'css-style';
-  setPreviewMode?: (v: 'edit' | 'both' | 'preview') => void;
+  setPreviewMode?: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
   isDarkMode?: boolean;
   setIsDarkMode?: (v: boolean) => void;
   themePalette?: string;
@@ -236,7 +236,7 @@ export default function StatusBar({
               else setPreviewMode('edit');
             }}
             className={`p-0.5 rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
-              previewMode === 'both' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
+              previewMode === 'both' || previewMode === 'css-style' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
             }`}
             title={
               previewMode === 'edit'

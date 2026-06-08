@@ -92,7 +92,7 @@ function createWindow(port) {
          nodeIntegration: false,
          contextIsolation: true,
          preload: path.join(__dirname, 'preload.js'),
-         webSecurity: false, // 🛡️ 외부 웹 이미지(https) 및 로컬 미디어 원활한 서빙을 위한 보안 정책 완화
+         webSecurity: false, // 🛡️ Monaco 워커(CDN) 및 미디어 CORS를 위한 보안 정책 완화 (패키징 시 경고 사라짐)
          allowRunningInsecureContent: false,
        },
     // Windows 11 스타일의 깔끔한 프레임 디자인
@@ -103,24 +103,48 @@ function createWindow(port) {
   // 🌐 [ 외부 링크 클릭 시 기본 웹 브라우저 새창으로 오픈하는 설정 ]
   // 1) target="_blank" 등으로 새 창을 띄우려는 시도를 가로채 시스템 브라우저로 실행
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    const isLocalApp = url.includes('localhost') || url.includes('127.0.0.1') || url.startsWith('file://');
+    if (!isLocalApp && (url.startsWith('http:') || url.startsWith('https:'))) {
+      const { shell } = require('electron');
+      shell.openExternal(url);
+    }
+    return { action: 'deny' }; // 일렉트론 내부에서 새 창이 뜨는 것을 강제 차단
+  });
+
+  // 2) 내비게이션 인터셉터: 외부 링크는 시스템 브라우저로, 로컬 경로는 차단 (파일 탐색기 노출 방지)
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // 로컬 앱 URL (localhost 개발서버, file:// 프로덕션 번들) 허용
+    const isLocalApp = url.includes('localhost') || url.includes('127.0.0.1') || url.startsWith('file://');
+    if (isLocalApp) {
+      return; // 허용
+    }
+    event.preventDefault();
     if (url.startsWith('http:') || url.startsWith('https:')) {
       const { shell } = require('electron');
       shell.openExternal(url);
-      return { action: 'deny' }; // 일렉트론 내부에서 창이 추가로 뜨는 것을 강제 차단
     }
-    return { action: 'allow' };
   });
 
-  // 2) 현재 화면 내에서 외부 링크로 주소가 이동되는 시도를 가로채 시스템 브라우저로 실행
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith('http:') || url.startsWith('https:')) {
-      const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
-      if (!isLocalhost) {
-        event.preventDefault(); // 일렉트론 내부 내비게이션 중단
-        const { shell } = require('electron');
-        shell.openExternal(url);
+  // 🛡️ [ Content-Security-Policy 설정 ]
+  // Monaco Editor가 eval()과 blob: 워커를 사용하므로 필요한 권한만 허용
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://maps.gstatic.com https://maps.googleapis.com",
+    "worker-src 'self' blob:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: http: https: file: media:",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "connect-src 'self' ws: https://maps.googleapis.com",
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
+    "media-src 'self' media:"
+  ];
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [cspDirectives.join('; ')]
       }
-    }
+    });
   });
 
   // 프로덕션 빌드(패키징 완료)이거나 NO_SERVER 환경변수가 활성화된 경우 로컬 정적 HTML 로드
@@ -325,7 +349,25 @@ ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
 // 5. 절대 경로를 지정하여 직접 파일 내용 읽기
 ipcMain.handle('file:readFromPath', async (event, filePath) => {
   try {
-    const cleanPath = filePath.normalize('NFC');
+    // 💡 개발 환경(app.getAppPath)과 운영 환경(process.resourcesPath)을 모두 고려한 경로 탐색
+    const pathsToTry = [
+      path.join(app.getAppPath(), filePath),         // 개발/번들 내부
+      path.join(process.resourcesPath, filePath)     // 설치된 환경 외부 리소스 (앱 루트)
+    ];
+    
+    let cleanPath = '';
+    for (const p of pathsToTry) {
+      const normalizedP = p.normalize('NFC');
+      if (fs.existsSync(normalizedP)) {
+        cleanPath = normalizedP;
+        break;
+      }
+    }
+    
+    if (!cleanPath) {
+      throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
+    }
+      
     const content = fs.readFileSync(cleanPath, 'utf-8');
     return {
       name: path.basename(cleanPath),

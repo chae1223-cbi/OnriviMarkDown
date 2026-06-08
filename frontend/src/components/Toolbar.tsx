@@ -13,7 +13,7 @@ interface ToolbarProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (v: boolean) => void;
   previewMode: 'edit' | 'both' | 'preview' | 'css-style';
-  setPreviewMode: (v: 'edit' | 'both' | 'preview') => void;
+  setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
   fontSize: number;
   setFontSize: (v: number) => void;
   wordWrap: 'on' | 'off';
@@ -169,17 +169,8 @@ export default function Toolbar({
       <div className="flex flex-row items-center gap-6 w-full h-full min-w-max">
         {previewMode !== 'preview' && (
           <div className="flex flex-row items-center gap-6 h-full animate-in fade-in slide-in-from-left-2 duration-300">
-            {/* 서식 */}
-            <ToolbarGroup label={t('groupFormatting')}>
-              <ToolbarButton label="B" title={t('bold')} onAction={() => dispatch('BOLD')} bold />
-              <ToolbarButton label="I" title={t('italic')} onAction={() => dispatch('ITALIC')} italic />
-              <ToolbarButton label={<span className="underline">U</span>} title={t('underline')} onAction={() => dispatch('UNDERLINE')} />
-              <ToolbarButton label="</>" title={t('inlineCode')} onAction={() => dispatch('INLINE_CODE')} />
-              <ToolbarButton label={<span className="line-through">S</span>} title={t('strikethrough')} onAction={() => dispatch('STRIKETHROUGH')} />
-            </ToolbarGroup>
-
             {/* 제목 */}
-            <ToolbarGroup label={t('groupHeading')}>
+            <ToolbarGroup label="제목">
               <HeadingSpinButton 
                 headingLevel={headingLevel} 
                 handleHeadingUp={handleHeadingUp} 
@@ -191,33 +182,42 @@ export default function Toolbar({
               />
             </ToolbarGroup>
 
-            {/* 문단 */}
-            <ToolbarGroup label={t('groupParagraph')}>
-              <ToolbarButton label="—" title={t('hr')} onAction={() => dispatch('HR')} />
+            {/* 서식 */}
+            <ToolbarGroup label="서식">
+              <ToolbarButton label="B" title={t('bold')} onAction={() => dispatch('BOLD')} bold />
+              <ToolbarButton label="I" title={t('italic')} onAction={() => dispatch('ITALIC')} italic />
+              <ToolbarButton label={<span className="line-through">S</span>} title={t('strikethrough')} onAction={() => dispatch('STRIKETHROUGH')} />
+              <ToolbarButton label="</>" title={t('inlineCode')} onAction={() => dispatch('INLINE_CODE')} />
+            </ToolbarGroup>
+
+            {/* 목록 */}
+            <ToolbarGroup label="목록">
               <ToolbarButton label="1." title={t('orderedList')} onAction={() => dispatch('ORDERED_LIST')} />
               <ToolbarButton label="☰" title={t('list')} onAction={() => dispatch('LIST')} />
               <ToolbarButton label="❝" title={t('quote')} onAction={() => dispatch('QUOTE')} />
               <ToolbarButton label="☑️" title={t('check')} onAction={() => dispatch('CHECK')} />
-              <ToolbarButton label={<Eraser size={14} className="text-red-500 opacity-80 hover:opacity-100" />} title={t('eraser')} onAction={() => dispatch('REMOVE_PREFIX')} />
-              <ToolbarButton label="✨" title={t('cleanDoc')} onAction={() => dispatch('CLEAN_DOC')} />
             </ToolbarGroup>
 
-            {/* 삽입 */}
-            <ToolbarGroup label={t('groupInsert')}>
+            {/* 미디어 */}
+            <ToolbarGroup label="미디어">
               <ToolbarButton label="🔗" title={t('link')} onAction={() => dispatch('LINK')} />
-              <ToolbarButton label="🔖" title={t('taglink')} onAction={() => dispatch('TAGLINK')} />
               <ToolbarButton label="🖼️" title={t('image')} onAction={() => dispatch('IMAGE')} />
               <ToolbarButton label="🎥" title={t('youtube')} onAction={() => dispatch('YOUTUBE')} />
-              <ToolbarButton label="📅" title={t('now')} onAction={() => dispatch('NOW')} />
+              <ToolbarButton label="🗺️" title={t('map')} onAction={() => dispatch('MAP')} />
             </ToolbarGroup>
 
-            {/* 고급 */}
-            <ToolbarGroup label={t('groupAdvanced')}>
-              <ToolbarButton label="🗺️" title={t('map')} onAction={() => dispatch('MAP')} />
-              <ToolbarButton label="📊" title={t('table')} onAction={() => dispatch('TABLE')} />
+            {/* 코드 */}
+            <ToolbarGroup label="코드">
               <ToolbarButton label="💻" title={t('code')} onAction={() => dispatch('CODE')} />
+              <ToolbarButton label="📊" title={t('table')} onAction={() => dispatch('TABLE')} />
               <ToolbarButton label="Σ" title={t('latex')} onAction={() => dispatch('LATEX')} />
-              <ToolbarButton label="📌" title={"각주 삽입"} onAction={() => dispatch('FOOTNOTE')} />
+            </ToolbarGroup>
+
+            {/* 문서 */}
+            <ToolbarGroup label="문서">
+              <ToolbarButton label="—" title={t('hr')} onAction={() => dispatch('HR')} />
+              <ToolbarButton label="📅" title={t('now')} onAction={() => dispatch('NOW')} />
+              <ToolbarButton label="✨" title={t('cleanDoc')} onAction={() => dispatch('CLEAN_DOC')} />
             </ToolbarGroup>
           </div>
         )}
@@ -231,27 +231,15 @@ export default function Toolbar({
           {previewMode === 'edit' && '편집 모드'}
           {previewMode === 'both' && '편집/미리보기 반반모드'}
           {previewMode === 'preview' && '미리보기 모드'}
-          {previewMode === 'css-style' && '스타일 서식 모드'}
+          {previewMode === 'css-style' && '서식 정의 모드'}
         </div>
 
-        {/* 제어/보기 등 */}
+        {/* 부가기능 */}
         <div className="flex flex-row items-center gap-4 h-full">
-          <ToolbarGroup label={t('groupText')}>
-            <ToolbarButton label={<span className="font-bold">A-</span>} title={t('fontSmaller')} onAction={() => setFontSize(Math.max(10, fontSize - 1))} />
-            <ToolbarButton label={<span className="font-bold text-xs">A+</span>} title={t('fontLarger')} onAction={() => setFontSize(Math.min(24, fontSize + 1))} />
-            <ToolbarButton label={<span className={`text-[10px] font-bold ${wordWrap === 'on' ? 'text-blue-500' : ''}`}>Wrap</span>} title={t('wordWrap')} onAction={() => setWordWrap(wordWrap === 'on' ? 'off' : 'on')} />
-          </ToolbarGroup>
-
-          <ToolbarGroup label={t('groupSettings')}>
-            <ToolbarButton label="⚙️" title={"환경 설정"} onAction={() => dispatch('SETTINGS')} />
-            <ToolbarButton label="❓" title={t('help')} onAction={() => dispatch('ABOUT')} />
-          </ToolbarGroup>
-
-          <ToolbarGroup label={t('groupOther')} showDivider={false}>
-            <CopyPreviewButton 
-              onAction={() => dispatch('COPY_ALL')} 
-              title={"전체 복사"} 
-            />
+          <ToolbarGroup label="부가기능" showDivider={false}>
+            <ToolbarButton label={<span className="font-bold">🗃️</span>} title={t('sidebarShow')} onAction={() => setIsSidebarOpen(!isSidebarOpen)} />
+            <ToolbarButton label={<span className="font-bold">♻️</span>} title={t('toolbarToggle')} onAction={() => dispatch('TOGGLE_TOOLBAR')} />
+            <ToolbarButton label={<span className="font-bold">📜</span>} title={t('toEditMode')} onAction={() => dispatch('TOGGLE_MODE')} />
           </ToolbarGroup>
         </div>
       </div>

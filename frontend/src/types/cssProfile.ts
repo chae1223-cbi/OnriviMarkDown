@@ -19,6 +19,8 @@ export interface CssProfile {
     lineHeight: string;
     /** 기본 자간 조절 (예: '-0.02em') */
     letterSpacing: string;
+    /** 페이지 배경색 (예: '#ffffff') */
+    backgroundColor: string;
     /** 위쪽 여백 (예: '20mm') */
     marginTop: string;
     /** 아래쪽 여백 (예: '20mm') */
@@ -31,6 +33,8 @@ export interface CssProfile {
     orientation: string;
     /** H1→H6 단계별 크기 감소폭 (px) */
     headingSizeOffset: string;
+    /** 탭 문자 렌더링 폭 (기본 4 = 공백 4개) */
+    tabSize: string;
   };
   /** 각 마크다운 요소별 CSS 룰셋 (빈 객체면 해당 요소는 기본 스타일 사용) */
   rules: {
@@ -55,6 +59,7 @@ export interface CssProfile {
     td: CssRuleSet;       // TD 표 데이터 셀
     blockquote: CssRuleSet; // BLOCKQUOTE 인용 상자
     codeBlock: CssRuleSet;  // CODE BLOCK 코드 블록
+    codeBlockTitle: CssRuleSet;  // CODE BLOCK TITLE 코드 블록 타이틀
     a: CssRuleSet;        // A 링크
     img: CssRuleSet;      // IMG 이미지
     code?: CssRuleSet;     // CODE 인라인 코드

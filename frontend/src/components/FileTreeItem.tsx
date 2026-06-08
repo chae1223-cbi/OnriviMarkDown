@@ -14,6 +14,8 @@ interface FileTreeItemProps {
   parentHandle: any;
   level: number;
   openFile: (node: FileNode | null, parentHandle?: any) => void;
+  previewMode: 'edit' | 'both' | 'preview' | 'css-style';
+  setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
   currentFileName: string;
   currentFilePath?: string;
   workspaceType: string;
@@ -27,7 +29,7 @@ interface FileTreeItemProps {
 }
 
 const FileTreeItem = ({ 
-  node: rawNode, parentHandle, level, openFile, currentFileName, currentFilePath, workspaceType, refreshParent, askConfirm, siblings,
+  node: rawNode, parentHandle, level, openFile, previewMode, setPreviewMode, currentFileName, currentFilePath, workspaceType, refreshParent, askConfirm, siblings,
   isMergeMode = false, selectedMergeNodes = [], toggleMergeNodeSelect, onLazyLoad
 }: FileTreeItemProps) => {
   const { showToast } = useToast();
@@ -224,6 +226,9 @@ const FileTreeItem = ({
       }
     } else if (node.kind === 'file') {
       openFile(node, parentHandle);
+      if (previewMode === 'css-style') {
+        setPreviewMode('both');
+      }
     }
   };
 
@@ -639,6 +644,8 @@ const FileTreeItem = ({
                 parentHandle={node.handle}
                 level={level + 1}
                 openFile={openFile}
+                previewMode={previewMode}
+                setPreviewMode={setPreviewMode}
                 currentFileName={currentFileName}
                 currentFilePath={currentFilePath}
                 workspaceType={workspaceType}

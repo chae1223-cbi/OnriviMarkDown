@@ -9,7 +9,7 @@ const EMPTY_RULES = {
   h1: {}, h2: {}, h3: {}, h4: {}, h5: {}, h6: {},
   p: {}, strong: {}, em: {}, del: {},
   ul: {}, ol: {}, li: {}, taskList: {}, hr: {},
-  table: {}, th: {}, td: {}, blockquote: {}, codeBlock: {},
+  table: {}, th: {}, td: {}, blockquote: {}, codeBlock: {}, codeBlockTitle: {},
   a: {}, img: {}, code: {}, video: {}, math: {},
   map: {}, footnote: {},
 };
@@ -33,12 +33,14 @@ export const DEFAULT_PROFILE: CssProfile = {
     fontSize: '15px',
     lineHeight: '1.7',
     letterSpacing: '-0.02em',
-    marginTop: '20mm',
-    marginBottom: '20mm',
-    marginLeft: '20mm',
-    marginRight: '20mm',
+    backgroundColor: '#ffffff',
+    marginTop: '10mm',
+    marginBottom: '10mm',
+    marginLeft: '10mm',
+    marginRight: '10mm',
     orientation: 'portrait',
     headingSizeOffset: '4',
+    tabSize: '4',
   },
   rules: {
     // --- 제목(Heading) ---
@@ -69,6 +71,7 @@ export const DEFAULT_PROFILE: CssProfile = {
     // --- 인용문, 코드, 링크, 이미지 ---
     blockquote: { "border-left-width": "4px", "border-left-style": "solid", "padding": "12px", "margin-top": "10px", "margin-bottom": "10px" },
     codeBlock: {},
+    codeBlockTitle: {},
     a: {},
     img: {},
     code: { "padding-top": "1px", "padding-bottom": "1px", "line-height": "1" },
@@ -100,7 +103,7 @@ export function createEmptyProfile(): CssProfile {
   return {
     id: '',
     name: '',
-    pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '' },
+    pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', backgroundColor: '#ffffff', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '', tabSize: '4' },
     rules: JSON.parse(JSON.stringify(EMPTY_RULES)),
     hrStructure: {
       borderTopStyle: 'solid',

@@ -45,6 +45,8 @@ interface LeftSidebarProps {
   currentFileNode: FileNode | null;
   refreshFileList: () => void;
   askConfirm: (config: { title: string; message: string; onConfirm: () => void; isDanger?: boolean }) => void;
+  previewMode: 'edit' | 'both' | 'preview' | 'css-style';
+  setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
   isMergeMode?: boolean;
   selectedMergeNodes?: FileNode[];
   toggleMergeNodeSelect?: (node: FileNode) => void;
@@ -85,7 +87,9 @@ export default function LeftSidebar({
   selectedMergeNodes = [],
   toggleMergeNodeSelect,
   onSelectRootFolder,
-  onRestoreFolder
+  onRestoreFolder,
+  previewMode,
+  setPreviewMode
 }: LeftSidebarProps) {
   const [drives, setDrives] = useState<FileNode[]>([]);
   const [isDrivesLoading, setIsDrivesLoading] = useState(false);
@@ -400,8 +404,10 @@ export default function LeftSidebar({
                       node={node}
                        parentHandle={rootFolder?.handle || null}
                       level={0}
-                      openFile={openFile}
-                      currentFileName={currentFileName}
+                       openFile={openFile}
+                       previewMode={previewMode}
+                       setPreviewMode={setPreviewMode}
+                       currentFileName={currentFileName}
                       currentFilePath={currentFileNode?.path}
                       workspaceType={workspaceType}
                       refreshParent={refreshFileList}

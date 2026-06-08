@@ -1,12 +1,5 @@
 export const TOOLBAR_ITEMS = [
-  // 1. 서식 (Formatting)
-  { id: 'bold', icon: 'B', name: '굵게', group: '서식', tagFormat: '**텍스트**', defaultHotkey: 'Ctrl+B', defaultCommand: 'bold', insertText: '**텍스트**', kind: 15 },
-  { id: 'italic', icon: 'I', name: '기울임', group: '서식', tagFormat: '*텍스트*', defaultHotkey: 'Ctrl+I', defaultCommand: 'italic', insertText: '*텍스트*', kind: 15 },
-  { id: 'underline', icon: 'U', name: '밑줄', group: '서식', tagFormat: '<u>텍스트</u>', defaultHotkey: 'Ctrl+U', defaultCommand: 'underline', insertText: '<u>텍스트</u>', kind: 15 },
-  { id: 'inlineCode', icon: '</>', name: '인라인 코드', group: '서식', tagFormat: '`텍스트`', defaultHotkey: 'Ctrl+E', defaultCommand: 'inlinecode', insertText: '`텍스트`', kind: 15 },
-  { id: 'strikethrough', icon: 'S', name: '취소선', group: '서식', tagFormat: '~~텍스트~~', defaultHotkey: 'Ctrl+Shift+X', defaultCommand: 'strike', insertText: '~~텍스트~~', kind: 15 },
-  
-  // 2. 제목 (Title)
+  // 1. 제목 (Title)
   { id: 'h1', icon: 'H1', name: '제목 1', group: '제목', tagFormat: '# 제목', defaultHotkey: 'Ctrl+1', defaultCommand: 'h1', insertText: '# ', kind: 17 },
   { id: 'h2', icon: 'H2', name: '제목 2', group: '제목', tagFormat: '## 제목', defaultHotkey: 'Ctrl+2', defaultCommand: 'h2', insertText: '## ', kind: 17 },
   { id: 'h3', icon: 'H3', name: '제목 3', group: '제목', tagFormat: '### 제목', defaultHotkey: 'Ctrl+3', defaultCommand: 'h3', insertText: '### ', kind: 17 },
@@ -14,49 +7,47 @@ export const TOOLBAR_ITEMS = [
   { id: 'h5', icon: 'H5', name: '제목 5', group: '제목', tagFormat: '##### 제목', defaultHotkey: 'Ctrl+5', defaultCommand: 'h5', insertText: '##### ', kind: 17 },
   { id: 'h6', icon: 'H6', name: '제목 6', group: '제목', tagFormat: '###### 제목', defaultHotkey: 'Ctrl+6', defaultCommand: 'h6', insertText: '###### ', kind: 17 },
   
-  // 3. 문단 (Paragraph)
-  { id: 'divider', icon: '—', name: '구분선', group: '문단', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
-  { id: 'pageBreak', icon: '✂️', name: '페이지 나누기 (A4)', group: '문단', tagFormat: '<!-- [page-break] -->', defaultHotkey: 'Ctrl+Alt+P', defaultCommand: 'pagebreak', insertText: '<!-- [page-break] -->', kind: 15 },
-  { id: 'orderedList', icon: '1.', name: '숫자 목록', group: '문단', tagFormat: '1. ', defaultHotkey: 'Ctrl+Shift+7', defaultCommand: 'ol', insertText: '1. ', kind: 17 },
-  { id: 'list', icon: '☰', name: '글머리 기호', group: '문단', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
-  { id: 'quote', icon: '❝', name: '인용구', group: '문단', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> ', kind: 17 },
-  { id: 'checklist', icon: '☑️', name: '체크리스트', group: '문단', tagFormat: '- [ ] ', defaultHotkey: 'Ctrl+Shift+C', defaultCommand: 'check', insertText: '- [ ] ', kind: 17 },
-  { id: 'clear', icon: '🧼', name: '태그 취소 (서식 지우기)', group: '문단', tagFormat: '없음', defaultHotkey: 'Ctrl+\\', defaultCommand: 'clear', insertText: '', kind: 17 },
-  { id: 'cleanDoc', icon: '✨', name: '문서 서식 일괄 정리', group: '문단', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleandoc', insertText: '', kind: 17 },
+  // 2. 서식 (Formatting)
+  { id: 'bold', icon: 'B', name: '굵게', group: '서식', tagFormat: '**텍스트**', defaultHotkey: 'Ctrl+B', defaultCommand: 'bold', insertText: '**텍스트**', kind: 15 },
+  { id: 'italic', icon: 'I', name: '기울임', group: '서식', tagFormat: '*텍스트*', defaultHotkey: 'Ctrl+I', defaultCommand: 'italic', insertText: '*텍스트*', kind: 15 },
+  { id: 'strikethrough', icon: 'S', name: '취소선', group: '서식', tagFormat: '~~텍스트~~', defaultHotkey: 'Ctrl+Shift+X', defaultCommand: 'strike', insertText: '~~텍스트~~', kind: 15 },
+  { id: 'inlineCode', icon: '</>', name: '인라인 코드', group: '서식', tagFormat: '`텍스트`', defaultHotkey: 'Ctrl+E', defaultCommand: 'inlinecode', insertText: '`텍스트`', kind: 15 },
+
+  // 3. 목록 (목록)
+  { id: 'list', icon: '☰', name: '글머리 기호', group: '목록', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
+  { id: 'orderedList', icon: '1.', name: '숫자 목록', group: '목록', tagFormat: '1. ', defaultHotkey: 'Ctrl+Shift+7', defaultCommand: 'ol', insertText: '1. ', kind: 17 },
+  { id: 'quote', icon: '❝', name: '인용구', group: '목록', tagFormat: '> ', defaultHotkey: 'Ctrl+Q', defaultCommand: 'quote', insertText: '> ', kind: 17 },
+  { id: 'checklist', icon: '☑️', name: '체크리스트', group: '목록', tagFormat: '- [ ] ', defaultHotkey: 'Ctrl+Shift+C', defaultCommand: 'check', insertText: '- [ ] ', kind: 17 },
   
-  // 4. 삽입 (Insert)
-  { id: 'link', icon: '🔗', name: '링크', group: '삽입', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
-  { id: 'taglink', icon: '🔖', name: '태그링크', group: '삽입', tagFormat: '[텍스트](<#제목명>)', defaultHotkey: 'Ctrl+Shift+K', defaultCommand: 'linktext', insertText: '[\${1:텍스트}](<#\${2:제목명}>)', kind: 15 },
-  { id: 'image', icon: '🖼️', name: '이미지', group: '삽입', tagFormat: '![대체 텍스트](URL)', defaultHotkey: '', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
-  { id: 'youtube', icon: '🎥', name: '유튜브 동영상 삽입', group: '삽입', tagFormat: '동영상 삽입', defaultHotkey: '', defaultCommand: 'youtube', insertText: '유튜브 동영상 삽입', kind: 15 },
-  { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '삽입', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },
+  // 4. 미디어 (Media)
+  { id: 'link', icon: '🔗', name: '링크', group: '미디어', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
+  { id: 'image', icon: '🖼️', name: '이미지', group: '미디어', tagFormat: '![대체 텍스트](URL)', defaultHotkey: '', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
+  { id: 'youtube', icon: '🎥', name: '유튜브 동영상 삽입', group: '미디어', tagFormat: '동영상 삽입', defaultHotkey: '', defaultCommand: 'youtube', insertText: '유튜브 동영상 삽입', kind: 15 },
+  { id: 'map', icon: '🗺️', name: '지도', group: '미디어', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
   
-  // 5. 고급 (Advanced)
-  { id: 'map', icon: '🗺️', name: '지도', group: '고급', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
-  { id: 'chart', icon: '📈', name: '차트', group: '고급', tagFormat: '```mermaid', defaultHotkey: '', defaultCommand: 'chart', insertText: '```mermaid\n\n```', kind: 15 },
-  { id: 'codeblock', icon: '💻', name: '코드 블록', group: '고급', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\n\n```', kind: 15 },
-  { id: 'math', icon: 'Σ', name: '수식', group: '고급', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
-  { id: 'table', icon: '📊', name: '표', group: '고급', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
-  { id: 'quickTable', icon: '📋', name: '빠른 표 삽입', group: '고급', tagFormat: '| 빠른 표 |', defaultHotkey: 'Ctrl+Alt+T', defaultCommand: 'qtable', insertText: '| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |', kind: 15 },
-  { id: 'insertTableRow', icon: '➕', name: '표 행 추가', group: '고급', tagFormat: '표 행 추가', defaultHotkey: 'Ctrl+Alt+I', defaultCommand: 'addrow', insertText: '', kind: 17 },
-  { id: 'deleteTableRow', icon: '➖', name: '표 행 삭제', group: '고급', tagFormat: '표 행 삭제', defaultHotkey: 'Ctrl+Alt+D', defaultCommand: 'delrow', insertText: '', kind: 17 },
-
-  // 푸터 및 기타 액션
-  { id: 'toggleFloatingToolbar', icon: '🪟', name: '플로팅 툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F1', defaultCommand: 'floating_toolbar', insertText: '', kind: 17 },
-  { id: 'toggleToolbar', icon: '♻️', name: '툴바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F2', defaultCommand: 'toggle_toolbar', insertText: '', kind: 17 },
-  { id: 'toggleSidebar', icon: '🗃️', name: '사이드바 토글', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F3', defaultCommand: 'toggle_sidebar', insertText: '', kind: 17 },
-  { id: 'toggleMode', icon: '📜', name: '모드 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F4', defaultCommand: 'toggle_mode', insertText: '', kind: 17 },
-  { id: 'toggleTheme', icon: '🌙', name: '테마 전환', group: '푸터', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+F5', defaultCommand: 'toggle_theme', insertText: '', kind: 17 },
-
-  // ★ 퀵 래핑 (Quick Transform) — 선택 영역/전체 문단을 한 번에 변환
-  { id: 'wrap-h1', icon: 'H1#', name: '퀵 H1', group: '퀵래핑', tagFormat: '# 선택', defaultHotkey: 'Ctrl+Shift+1', defaultCommand: 'wrap-h1', insertText: '', kind: 17 },
-  { id: 'wrap-h2', icon: 'H2#', name: '퀵 H2', group: '퀵래핑', tagFormat: '## 선택', defaultHotkey: 'Ctrl+Shift+2', defaultCommand: 'wrap-h2', insertText: '', kind: 17 },
-  { id: 'wrap-h3', icon: 'H3#', name: '퀵 H3', group: '퀵래핑', tagFormat: '### 선택', defaultHotkey: 'Ctrl+Shift+3', defaultCommand: 'wrap-h3', insertText: '', kind: 17 },
-  { id: 'wrap-quote', icon: '>"', name: '퀵 인용', group: '퀵래핑', tagFormat: '> 선택', defaultHotkey: 'Ctrl+Shift+Q', defaultCommand: 'wrap-quote', insertText: '', kind: 17 },
-  { id: 'wrap-code', icon: '{}', name: '퀵 코드', group: '퀵래핑', tagFormat: '```선택```', defaultHotkey: 'Ctrl+Shift+9', defaultCommand: 'wrap-code', insertText: '', kind: 17 },
-
-  // ★ 서식 정의 (Style Profile)
-  { id: 'css-style', icon: '🏛️', name: '서식 정의', group: '푸터', tagFormat: '관보 서식', defaultHotkey: 'Ctrl+Alt+S', defaultCommand: 'css-style', insertText: '', kind: 17 }
+  // 5. 코드 (Code)
+  { id: 'codeblock', icon: '💻', name: '코드 블록', group: '코드', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\n\n```', kind: 15 },
+  { id: 'table', icon: '📊', name: '표', group: '코드', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
+  { id: 'math', icon: 'Σ', name: '수식', group: '코드', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
+  
+  // 6. 문서 (Document)
+  { id: 'divider', icon: '—', name: '구분선', group: '문서', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
+  { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '문서', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },
+  { id: 'cleanDoc', icon: '✨', name: '문서 서식 일괄 정리', group: '문서', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleandoc', insertText: '', kind: 17 },
+  
+  // 7. 부가기능 (Extra)
+  { id: 'newFile', icon: '📝', name: '새 파일', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+N', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'save', icon: '💾', name: '저장', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+S', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'saveAs', icon: '💿', name: '다른 이름으로 저장', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+S', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'undo', icon: '↩️', name: '실행 취소', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Z', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'redo', icon: '↪️', name: '다시 실행', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Y', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'find', icon: '🔍', name: '찾기', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+F', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'replace', icon: '🔄', name: '바꾸기', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+H', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'globalSearch', icon: '🔎', name: '전체 검색', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+F', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'toggleToolbar', icon: '♻️', name: '툴바 토글', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'toggleSidebar', icon: '🗃️', name: '사이드바 토글', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+B', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'toggleMode', icon: '📜', name: '모드 전환', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+M', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'underline', icon: 'U', name: '밑줄', group: '서식', tagFormat: '<u>텍스트</u>', defaultHotkey: 'Ctrl+U', defaultCommand: 'underline', insertText: '<u>텍스트</u>', kind: 15 }
 ];
 
 export const getDefaultHotkeys = () => {
@@ -80,8 +71,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
   const EXCLUDED_FROM_SLASH = new Set([
     'toggleFloatingToolbar', 'toggleToolbar', 'toggleSidebar',
     'toggleMode', 'toggleTheme',
-    'wrap-h1', 'wrap-h2', 'wrap-h3', 'wrap-quote', 'wrap-code',
-    'css-style'
+    'wrap-h1', 'wrap-h2', 'wrap-h3', 'wrap-quote', 'wrap-code'
   ]);
 
   return TOOLBAR_ITEMS

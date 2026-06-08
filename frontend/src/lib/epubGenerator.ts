@@ -1,6 +1,11 @@
 import JSZip from 'jszip';
 import { msg } from './msg';
 
+/** XML/EPUB에서 literal 텍스트를 XHTML에 안전하게 삽입하기 위한 XML 이스케이프 헬퍼 */
+function escapeXml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
 /**
  * 파일 확장자 기반으로 올바른 이미지 MIME 타입을 결정해주는 헬퍼
  */
@@ -96,6 +101,8 @@ interface EpubOptions {
   creator?: string;
   language?: string;
   contentHtml: string;
+  dynamicCssString?: string;
+  fontFamily?: string;
 }
 
 interface EmbeddedImage {
@@ -108,7 +115,9 @@ export async function generateEpub({
   title,
   creator = 'Onrivi Author',
   language = 'ko',
-  contentHtml
+  contentHtml,
+  dynamicCssString,
+  fontFamily
 }: EpubOptions): Promise<Blob> {
   const zip = new JSZip();
   const uuid = typeof crypto !== 'undefined' && crypto.randomUUID 
@@ -127,7 +136,7 @@ export async function generateEpub({
     <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
   </rootfiles>
 </container>`;
-  zip.folder('META-INF')?.file('container.xml', containerXml);
+  zip.file('META-INF/container.xml', containerXml);
 
   // 3. 🖼️ 본문 내 이미지 탐색, 다운로드 및 EPUB 동봉(Embedding) 파이프라인
   const embeddedImages: EmbeddedImage[] = [];
@@ -157,8 +166,11 @@ export async function generateEpub({
           const filename = `image_${idx}.${ext}`;
           const epubImgPath = `OEBPS/images/${filename}`;
           
-          // 브라우저 Fetch를 이용해 이미지 바이너리(ArrayBuffer) 획득
-          const response = await fetch(srcUrl);
+          // 브라우저 Fetch를 이용해 이미지 바이너리(ArrayBuffer) 획득 (5초 타임아웃)
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const response = await fetch(srcUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
           if (response.ok) {
             const buffer = await response.arrayBuffer();
             
@@ -205,14 +217,19 @@ export async function generateEpub({
       
       const innerHtml = tempDiv.innerHTML.trim();
       if (innerHtml) {
-        // 섹션 내 제목 자동 탐색 (H1, H2, H3 우선)
+        // innerHtml을 XHTML로 재변환 (XMLSerializer가 void elements를 <br/> 등으로 자동 변환, & → &amp; etc.)
         const secDoc = parser.parseFromString(innerHtml, 'text/html');
         const header = secDoc.querySelector('h1, h2, h3');
         const secTitle = header ? (header.textContent || '').trim() : `페이지 ${secIdx}`;
+
+        const xhtmlSerializer = new XMLSerializer();
+        let xhtmlContent = xhtmlSerializer.serializeToString(secDoc.body);
+        // <body ...>...</body> 래퍼 제거
+        xhtmlContent = xhtmlContent.replace(/^<body[^>]*>/, '').replace(/<\/body>$/, '');
         
         sections.push({
           id: `section${secIdx}`,
-          html: innerHtml,
+          html: xhtmlContent,
           title: secTitle || `페이지 ${secIdx}`
         });
         secIdx++;
@@ -253,12 +270,13 @@ export async function generateEpub({
   const spineSectionItems: string[] = [];
   
   sections.forEach((sec) => {
+    const safeTitle = escapeXml(sec.title);
     const sectionHtml = `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${language}" lang="${language}">
   <head>
     <meta charset="utf-8" />
-    <title>${sec.title}</title>
+    <title>${safeTitle}</title>
     <link rel="stylesheet" type="text/css" href="../styles/style.css" />
   </head>
   <body>
@@ -267,7 +285,7 @@ export async function generateEpub({
     </section>
   </body>
 </html>`;
-    zip.folder('OEBPS/text')?.file(`${sec.id}.xhtml`, sectionHtml);
+    zip.file(`OEBPS/text/${sec.id}.xhtml`, sectionHtml);
     
     manifestSectionItems.push(`<item id="${sec.id}" href="text/${sec.id}.xhtml" media-type="application/xhtml+xml"/>`);
     spineSectionItems.push(`<itemref idref="${sec.id}"/>`);
@@ -275,7 +293,7 @@ export async function generateEpub({
 
   // 7. OEBPS/text/toc.xhtml (EPUB3 표준 네비게이션 목차 문서에 쪼개진 챕터 자동 매핑)
   const tocItems = sections.map(sec => 
-    `<li><a href="${sec.id}.xhtml">${sec.title}</a></li>`
+    `<li><a href="${sec.id}.xhtml">${escapeXml(sec.title)}</a></li>`
   ).join('\n        ');
 
   const tocHtml = `<?xml version="1.0" encoding="utf-8"?>
@@ -295,11 +313,33 @@ export async function generateEpub({
     </nav>
   </body>
 </html>`;
-  zip.folder('OEBPS/text')?.file('toc.xhtml', tocHtml);
+  zip.file('OEBPS/text/toc.xhtml', tocHtml);
 
-  // 8. OEBPS/styles/style.css (EPUB 가독성 최적화 스타일 시트)
-  const styleCss = `body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  // 8. OEBPS/styles/style.css (EPUB 가독성 최적화 스타일 시트 + 사용자 CSS 프로필 반영)
+  const bodyFontFamily = fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  
+  // 🌟 구글 웹폰트 자동 연동 (미리보기/프로필의 한국어 폰트가 리더기 환경에서도 다운로드되어 동일하게 렌더링되도록 처리)
+  let fontImports = '';
+  if (bodyFontFamily) {
+    const fontFamilyLower = bodyFontFamily.toLowerCase();
+    if (fontFamilyLower.includes('nanum gothic coding') || fontFamilyLower.includes('nanumgothiccoding')) {
+      fontImports += `@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&display=swap');\n`;
+    } else if (fontFamilyLower.includes('nanum gothic') || fontFamilyLower.includes('nanumgothic')) {
+      fontImports += `@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap');\n`;
+    }
+    if (fontFamilyLower.includes('nanum myeongjo') || fontFamilyLower.includes('nanummyeongjo')) {
+      fontImports += `@import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap');\n`;
+    }
+    if (fontFamilyLower.includes('noto sans kr') || fontFamilyLower.includes('notosanskr')) {
+      fontImports += `@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');\n`;
+    }
+    if (fontFamilyLower.includes('noto serif kr') || fontFamilyLower.includes('notoserifkr')) {
+      fontImports += `@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap');\n`;
+    }
+  }
+
+  let styleCss = `${fontImports}body {
+  font-family: ${bodyFontFamily};
   line-height: 1.62;
   color: #333333;
   margin: 1.5em;
@@ -354,6 +394,8 @@ pre {
   overflow: auto;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
   font-size: 0.9em;
+  tab-size: 4;
+  -moz-tab-size: 4;
 }
 code {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
@@ -361,14 +403,16 @@ code {
   border-radius: 3px;
   font-size: 0.9em;
   padding: 0.2em 0.4em;
+  tab-size: 4;
+  -moz-tab-size: 4;
 }
 ul, ol {
   margin-top: 0;
-  margin-bottom: 1em;
-  padding-left: 2em;
+  margin-bottom: 0.8em;
+  padding-left: 1.5em;
 }
 li {
-  margin-bottom: 0.3em;
+  margin-bottom: 0.2em;
 }
 table {
   border-collapse: collapse;
@@ -380,6 +424,8 @@ th, td {
   border: 1px solid #eaeaea;
   padding: 0.6em 1em;
   text-align: left;
+  vertical-align: middle;
+  word-break: keep-all;
 }
 th {
   background-color: #f6f8fa;
@@ -399,12 +445,25 @@ a {
 a:hover {
   color: #003a80;
 }
+/* 인라인 강조: EPUB 리더기가 기본 스타일을 생략하는 경우 대비 명시적 선언 */
+strong {
+  font-weight: bold;
+}
+em {
+  font-style: italic;
+}
+u {
+  text-decoration: underline;
+}
+del {
+  text-decoration: line-through;
+}
 .toc-title {
   font-size: 1.6em;
   border-bottom: 2px solid #0058bc;
   padding-bottom: 0.4em;
 }
-/* 📄 EPUB 리더기 화면 가이드 숨김 및 강제 페이징 속성 */
+/* EPUB 리더기 화면 가이드 숨김 및 강제 페이징 속성 */
 .page-break-line-before::before,
 .page-break::before,
 tr.table-page-break-line-before > td:first-child::before {
@@ -415,7 +474,42 @@ tr.table-page-break-line-before > td:first-child::before {
   break-before: page !important;
   margin-top: 0 !important;
 }`;
-  zip.folder('OEBPS/styles')?.file('style.css', styleCss);
+
+  // 사용자 CSS 프로필이 있으면 EPUB 스타일시트에 추가
+  // (dynamicCssString의 .custom-preview-container 선택자를 EPUB용 body로 치환하여 전체 폰트 및 배경색 완벽 일치)
+  if (dynamicCssString) {
+    const epubCss = dynamicCssString
+      .replace(/\.custom-preview-container\s/g, 'body ')
+      .replace(/\.custom-preview-container/g, 'body');
+    styleCss += `\n\n/* 사용자 지정 CSS 프로필 */\n${epubCss}`;
+  }
+  zip.file('OEBPS/styles/style.css', styleCss);
+
+  // 8.5. OEBPS/toc.ncx (EPUB2 호환성 목차 파일 생성 - 교보문고, 예스24, 리디북스 등 국내외 이북 리더기 필수 하위 호환 규격)
+  const ncxNavPoints = sections.map((sec, idx) => `
+    <navPoint id="num_${idx + 1}" playOrder="${idx + 1}">
+      <navLabel>
+        <text>${escapeXml(sec.title)}</text>
+      </navLabel>
+      <content src="text/${sec.id}.xhtml"/>
+    </navPoint>`).join('');
+
+  const tocNcx = `<?xml version="1.0" encoding="utf-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:${uuid}"/>
+    <meta name="dtb:depth" content="1"/>
+    <meta name="dtb:totalPageCount" content="0"/>
+    <meta name="dtb:maxPageNumber" content="0"/>
+  </head>
+  <docTitle>
+    <text>${escapeXml(title)}</text>
+  </docTitle>
+  <navMap>
+    ${ncxNavPoints}
+  </navMap>
+</ncx>`;
+  zip.file('OEBPS/toc.ncx', tocNcx);
 
   // 9. OEBPS/content.opf (메타데이터 및 리소스 목록 매니페스트 동적 생성)
   const imageManifestItems = embeddedImages.map(img => 
@@ -429,27 +523,31 @@ tr.table-page-break-line-before > td:first-child::before {
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="BookId">urn:uuid:${uuid}</dc:identifier>
-    <dc:title>${title}</dc:title>
+    <dc:title>${escapeXml(title)}</dc:title>
     <dc:language>${language}</dc:language>
-    <dc:creator id="creator">${creator}</dc:creator>
+    <dc:creator id="creator">${escapeXml(creator)}</dc:creator>
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
     <meta property="dcterms:modified">${modifiedTime}</meta>
   </metadata>
   <manifest>
     <item id="toc" href="text/toc.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     ${sectionManifestItems}
     <item id="style" href="styles/style.css" media-type="text/css"/>
     ${imageManifestItems}
   </manifest>
-  <spine>
+  <spine toc="ncx">
     <itemref idref="toc"/>
     ${sectionSpineItems}
   </spine>
 </package>`;
   zip.file('OEBPS/content.opf', contentOpf);
 
-  // 10. ZIP 파일 생성 및 Blob 반환
-  return await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' });
+  // 10. ZIP 파일 생성 및 Blob 반환 (arraybuffer로 생성 후 Blob으로 수동 래핑하여 mimetype이 첫 바이트임을 보장)
+  // mimetype은 압축하지 않고(STORE), 나머지 리소스는 표준대로 효율적으로 압축(DEFLATE) 처리합니다!
+  const arrayBuffer = await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
+  return new Blob([arrayBuffer], { type: 'application/epub+zip' });
+  return new Blob([arrayBuffer], { type: 'application/epub+zip' });
 }
 
 /**

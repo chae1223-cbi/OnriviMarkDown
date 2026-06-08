@@ -26,8 +26,6 @@ interface SettingsModalProps {
   cloudProvider: string | null;
   previewMode: 'edit' | 'both' | 'preview' | 'css-style';
   setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
-  quoteStyle: 'modern' | 'clean' | 'none';
-  setQuoteStyle: (v: 'modern' | 'clean' | 'none') => void;
   customHotkeys: Record<string, string>;
   setCustomHotkeys: (v: Record<string, string>) => void;
   customSlashCommands: Record<string, string>;
@@ -63,7 +61,6 @@ export default function SettingsModal({
   fontSize, setFontSize, wordWrap, setWordWrap,
   autoSave, setAutoSave,
   previewMode, setPreviewMode,
-  quoteStyle, setQuoteStyle,
   customHotkeys, setCustomHotkeys,
   customSlashCommands, setCustomSlashCommands,
   licenseKey, setLicenseKey,
@@ -212,24 +209,6 @@ export default function SettingsModal({
                     }}
                   ></div>
                 </label>
-              </div>
-            </div>
-          </section>
-
-          {/* ---------- 서식 가드 설정 ---------- */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
-              <Pen size={16} />
-              <span>서식 가드 설정</span>
-            </div>
-            <div className="pl-8 space-y-4 border-l-2" style={{ borderColor: isDarkMode ? '#333' : '#f0ecf8' }}>
-              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>인용문 스타일 (Quote Style)</span>
-                <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
-                  <ThemeButton active={quoteStyle === 'modern'} onClick={() => setQuoteStyle('modern')} label="강조형" colors={colors} />
-                  <ThemeButton active={quoteStyle === 'clean'} onClick={() => setQuoteStyle('clean')} label="기본형" colors={colors} />
-                  <ThemeButton active={quoteStyle === 'none'} onClick={() => setQuoteStyle('none')} label="숨김형" colors={colors} />
-                </div>
               </div>
 
               <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>

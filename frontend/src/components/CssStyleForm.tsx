@@ -21,86 +21,7 @@ import FontSelectorModal from './FontSelectorModal';
 /**
  * 🎯 원클릭 서식 프리셋 템플릿 데이터 모델
  */
-const PRESETS = [
-  {
-    name: '모던 웹진 스타일',
-    desc: '트렌디하고 시원시원한 가독성의 블로그/웹진 스타일',
-    pageStyle: {
-      fontFamily: '"Pretendard", sans-serif',
-      fontSize: '16px',
-      lineHeight: '1.8',
-      letterSpacing: '-0.01em',
-      marginTop: '15mm',
-      marginBottom: '15mm',
-      marginLeft: '15mm',
-      marginRight: '15mm',
-      orientation: 'portrait',
-      headingSizeOffset: '5',
-    },
-    rules: {
-      h1: { "text-align": "left", "font-weight": "bold", "margin-top": "2rem", "margin-bottom": "1.2rem", "font-size": "32px", "color": "#1e40af" },
-      h2: { "text-align": "left", "font-weight": "bold", "margin-top": "1.5rem", "margin-bottom": "1rem", "font-size": "26px", "border-bottom": "1px solid" },
-      h3: { "text-align": "left", "font-weight": "bold", "margin-top": "1.2rem", "margin-bottom": "0.8rem", "font-size": "21px" },
-      p: { "text-align": "left", "margin-bottom": "1.2rem", "text-indent": "0px", "line-height": "1.8", "color": "#1f2937" },
-      ul: { "list-style-type": "disc", "padding-left": "24px" },
-      ol: { "list-style-type": "decimal", "padding-left": "24px" },
-      li: { "margin-bottom": "8px" },
-      blockquote: { "background-color": "#eff6ff", "border-left-width": "4px", "padding": "16px", "margin-top": "24px" }
-    }
-  },
-  {
-    name: '학술 보고서 스타일',
-    desc: '논문이나 격식 있는 공문서 형태의 정갈하고 촘촘한 스타일',
-    pageStyle: {
-      fontFamily: '"Batang", "Gungsuh", serif',
-      fontSize: '14px',
-      lineHeight: '1.6',
-      letterSpacing: '-0.02em',
-      marginTop: '25mm',
-      marginBottom: '25mm',
-      marginLeft: '25mm',
-      marginRight: '25mm',
-      orientation: 'portrait',
-      headingSizeOffset: '3',
-    },
-    rules: {
-      h1: { "text-align": "center", "font-weight": "bold", "margin-top": "1.5rem", "margin-bottom": "1.5rem", "font-size": "24px" },
-      h2: { "text-align": "left", "font-weight": "bold", "margin-top": "1.2rem", "margin-bottom": "0.8rem", "font-size": "20px" },
-      h3: { "text-align": "left", "font-weight": "bold", "margin-top": "1rem", "margin-bottom": "0.6rem", "font-size": "17px" },
-      p: { "text-align": "justify", "margin-bottom": "1rem", "text-indent": "10px", "line-height": "1.6", "color": "#000000" },
-      ul: { "list-style-type": "circle", "padding-left": "24px" },
-      ol: { "list-style-type": "decimal", "padding-left": "24px" },
-      li: { "margin-bottom": "4px" },
-      blockquote: { "background-color": "#f1f5f9", "border-left-width": "6px", "padding": "12px", "margin-top": "16px" }
-    }
-  },
-  {
-    name: '단정한 관보 스타일',
-    desc: '전형적인 규격 문서 양식에 어울리는 단정한 관보 스타일',
-    pageStyle: {
-      fontFamily: 'inherit',
-      fontSize: '15px',
-      lineHeight: '1.8',
-      letterSpacing: '-0.02em',
-      marginTop: '20mm',
-      marginBottom: '20mm',
-      marginLeft: '20mm',
-      marginRight: '20mm',
-      orientation: 'portrait',
-      headingSizeOffset: '4',
-    },
-    rules: {
-      h1: { "text-align": "left", "font-weight": "bold", "margin-top": "1.5rem", "margin-bottom": "1rem", "font-size": "28px" },
-      h2: { "text-align": "left", "font-weight": "bold", "margin-top": "1.3rem", "margin-bottom": "0.8rem", "font-size": "24px" },
-      h3: { "text-align": "left", "font-weight": "bold", "margin-top": "1rem", "margin-bottom": "0.6rem", "font-size": "20px" },
-      p: { "text-align": "left", "margin-bottom": "1rem", "text-indent": "0px", "line-height": "1.8" },
-      ul: { "list-style-type": "disc", "padding-left": "24px" },
-      ol: { "list-style-type": "decimal", "padding-left": "24px" },
-      li: { "margin-bottom": "6px" },
-      blockquote: { "background-color": "#f8f7ff", "border-left-width": "4px", "padding": "16px", "margin-top": "24px" }
-    }
-  }
-];
+
 
 interface CssStyleFormProps {
   profiles: CssProfile[];
@@ -393,6 +314,41 @@ export default function CssStyleForm({
     return currentProfile.rules[tagKey] || {};
   };
 
+  const getMediaAlign = (tag: string): string => {
+    const rules = getTagRules(tag);
+    if (rules['margin-left'] === '0px' && rules['margin-right'] === 'auto') return 'left';
+    if (rules['margin-left'] === 'auto' && rules['margin-right'] === '0px') return 'right';
+    return 'center';
+  };
+
+  const updateMediaAlign = (tag: string, align: string) => {
+    if (isDefault) return;
+    const tagKey = tag as keyof CssProfile['rules'];
+    const baseRule = getTagRules(tag);
+    let newRules: CssRuleSet = { ...baseRule, 'display': 'block', 'float': 'none' };
+    
+    if (align === 'left') {
+      newRules['margin-left'] = '0px';
+      newRules['margin-right'] = 'auto';
+    } else if (align === 'right') {
+      newRules['margin-left'] = 'auto';
+      newRules['margin-right'] = '0px';
+    } else {
+      // center
+      newRules['margin-left'] = 'auto';
+      newRules['margin-right'] = 'auto';
+    }
+    
+    const updated = {
+      ...currentProfile,
+      rules: {
+        ...currentProfile.rules,
+        [tagKey]: newRules
+      }
+    };
+    triggerUpdate(updated);
+  };
+
   const updateCssRule = (tag: string, property: string, value: string) => {
     if (isDefault) return;
     const tagKey = tag as keyof CssProfile['rules'];
@@ -547,35 +503,11 @@ export default function CssStyleForm({
     triggerUpdate(updated);
   };
 
-  /* ─── 프리셋 일괄 적용 ─── */
-  const applyPreset = (preset: typeof PRESETS[0]) => {
-    if (isDefault) return;
-    const updated: CssProfile = {
-      ...currentProfile,
-      pageStyle: {
-        ...currentProfile.pageStyle,
-        ...preset.pageStyle,
-      },
-      rules: {
-        ...currentProfile.rules,
-        ...preset.rules as any,
-      }
-    };
-    onUpdateProfile(updated);
-  };
-
   /* ─── 공장 초기 설정 복구 ─── */
   const resetToDefault = () => {
     if (isDefault) return;
-    if (window.confirm('현재 서식을 공장 초기 기본값으로 완전히 복구하시겠습니까?')) {
-      const updated: CssProfile = {
-        ...currentProfile,
-        pageStyle: { ...DEFAULT_PROFILE.pageStyle },
-        rules: { ...DEFAULT_PROFILE.rules },
-        hrStructure: DEFAULT_PROFILE.hrStructure ? { ...DEFAULT_PROFILE.hrStructure } : undefined,
-        checkboxStructure: DEFAULT_PROFILE.checkboxStructure ? { ...DEFAULT_PROFILE.checkboxStructure } : undefined,
-      };
-      onUpdateProfile(updated);
+    if (window.confirm('기본 서식(Onrivi 기본값)으로 전환하시겠습니까?')) {
+      onSelectProfile(DEFAULT_PROFILE.id);
     }
   };
 
@@ -688,29 +620,6 @@ export default function CssStyleForm({
       {/* 스크롤 가능한 본문 영역 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
 
-        {/* 🎨 1. 원클릭 서식 프리셋 카드 (DEFAULT가 아닐 때 노출, 카드 텍스트 크기 상향) */}
-        {!isDefault && (
-          <div className="bg-white dark:bg-zinc-950 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm space-y-3.5">
-            <div className="text-sm font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-              <span>🎨 원클릭 간편 프리셋</span>
-              <span className="text-xs font-normal text-zinc-400">(일괄 적용)</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2.5">
-              {PRESETS.map((preset) => (
-                <button
-                  key={preset.name}
-                  type="button"
-                  onClick={() => applyPreset(preset)}
-                  className="flex flex-col text-left p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/20 dark:hover:bg-blue-950/10 transition-all cursor-pointer"
-                >
-                  <span className="font-bold text-xs text-blue-600 dark:text-blue-400 truncate w-full">{preset.name.split(' ')[0]}</span>
-                  <span className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-snug truncate w-full">{preset.desc.substring(0, 10)}...</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ─── 접이식 아코디언 그룹 시작 ─── */}
 
         {/* 🟢 아코디언 [1]: 글꼴 및 본문 문단 */}
@@ -811,6 +720,13 @@ export default function CssStyleForm({
               </div>
             </div>
 
+            {/* 페이지 배경색 */}
+            <ColorPickerWidget
+              label="페이지 배경색"
+              value={currentProfile.pageStyle.backgroundColor || '#ffffff'}
+              disabled={isDefault}
+              onChange={(v) => handlePageStyleChange('backgroundColor', v)}
+            />
             {/* 용지 여백 설정 */}
             <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 space-y-2">
               <span className="text-zinc-650 dark:text-zinc-350 font-bold text-sm block">용지 마진 여백 (mm)</span>
@@ -819,7 +735,7 @@ export default function CssStyleForm({
                   label="위 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginTop) || 20}
+                  value={parseInt(currentProfile.pageStyle.marginTop) || 10}
                   unit="mm"
                   disabled={isDefault}
                   onChange={(v) => handlePageStyleChange('marginTop', v + 'mm')}
@@ -828,7 +744,7 @@ export default function CssStyleForm({
                   label="아래 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginBottom) || 20}
+                  value={parseInt(currentProfile.pageStyle.marginBottom) || 10}
                   unit="mm"
                   disabled={isDefault}
                   onChange={(v) => handlePageStyleChange('marginBottom', v + 'mm')}
@@ -837,7 +753,7 @@ export default function CssStyleForm({
                   label="왼쪽 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginLeft) || 20}
+                  value={parseInt(currentProfile.pageStyle.marginLeft) || 10}
                   unit="mm"
                   disabled={isDefault}
                   onChange={(v) => handlePageStyleChange('marginLeft', v + 'mm')}
@@ -846,12 +762,26 @@ export default function CssStyleForm({
                   label="오른쪽 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginRight) || 20}
+                  value={parseInt(currentProfile.pageStyle.marginRight) || 10}
                   unit="mm"
                   disabled={isDefault}
                   onChange={(v) => handlePageStyleChange('marginRight', v + 'mm')}
                 />
               </div>
+            </div>
+
+            {/* 탭 간격(Tab Size) 슬라이더 */}
+            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3">
+              <SliderWidget
+                label="탭 간격 (Tab Size)"
+                min={1}
+                max={10}
+                step={1}
+                value={parseInt(currentProfile.pageStyle.tabSize) || 4}
+                unit="칸"
+                disabled={isDefault}
+                onChange={(v) => handlePageStyleChange('tabSize', String(v))}
+              />
             </div>
           </div>
 
@@ -1687,6 +1617,32 @@ export default function CssStyleForm({
           {/* 소스코드 및 코드 블록 설정 */}
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
             <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 소스코드 및 코드 블록</span>
+            
+            <ColorPickerWidget
+              label="코드 블록 타이틀 배경색"
+              value={getTagRules('codeBlockTitle')['background-color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('codeBlockTitle', 'background-color', v)}
+            />
+            <ColorPickerWidget
+              label="코드 블록 타이틀 글자색"
+              value={getTagRules('codeBlockTitle')['color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('codeBlockTitle', 'color', v)}
+            />
+
+            <ColorPickerWidget
+              label="코드 블록 배경색"
+              value={getTagRules('codeBlock')['background-color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('codeBlock', 'background-color', v)}
+            />
+            <ColorPickerWidget
+              label="코드 블록 글자색"
+              value={getTagRules('codeBlock')['color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('codeBlock', 'color', v)}
+            />
             <SliderWidget
               label="코드 글자 크기"
               min={10}
@@ -1718,359 +1674,353 @@ export default function CssStyleForm({
             />
           </div>
 
-          {/* 미디어 및 기타 제어 */}
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-4">
-            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🛠️ 미디어, 인라인 소스 및 수식 코드 제어</span>
-            
-            {/* 이미지 객체 (Image) 설정 */}
-            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
-              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🖼️ IMG - 이미지 객체 규격 조작</span>
-              <SliderWidget
-                label="이미지 가로 너비"
-                min={50}
-                max={800}
-                value={parseInt(getTagRules('img')['width']) || 400}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('img', 'width', v + 'px')}
-              />
-              <SliderWidget
-                label="이미지 세로 높이"
-                min={50}
-                max={600}
-                value={parseInt(getTagRules('img')['height']) || 300}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('img', 'height', v + 'px')}
-              />
-              <SliderWidget
-                label="이미지 상하 바깥 여백"
-                min={0}
-                max={80}
-                value={parseInt(getTagRules('img')['margin-top']) || 16}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => {
-                  const px = v + 'px';
-                  if (!isDefault) {
-                    onUpdateProfile({
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        img: {
-                          ...(currentProfile.rules.img || {}),
-                          'margin-top': px,
-                          'margin-bottom': px,
-                          'display': 'block',
-                          'margin-left': 'auto',
-                          'margin-right': 'auto'
-                        }
-                      }
-                    });
-                  }
-                }}
-              />
-              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">이미지 정렬 방식</span>
-                <select
-                  value={getTagRules('img')['float'] || 'none'}
-                  disabled={isDefault}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (!isDefault) {
-                      const baseImg = currentProfile.rules.img || {};
-                      if (val === 'center') {
-                        onUpdateProfile({
-                          ...currentProfile,
-                          rules: {
-                            ...currentProfile.rules,
-                            img: {
-                              ...baseImg,
-                              'float': 'none',
-                              'display': 'block',
-                              'margin-left': 'auto',
-                              'margin-right': 'auto'
-                            }
-                          }
-                        });
-                      } else {
-                        onUpdateProfile({
-                          ...currentProfile,
-                          rules: {
-                            ...currentProfile.rules,
-                            img: {
-                              ...baseImg,
-                              'float': val,
-                              'display': 'inline',
-                              'margin-left': '',
-                              'margin-right': ''
-                            }
-                          }
-                        });
+          {/* 인라인 코드 (Code) 설정 */}
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
+            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 CODE - 인라인 소스 코드 스타일</span>
+            <ColorPickerWidget
+              label="코드 글자 색상"
+              value={getTagRules('code')['color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('code', 'color', v)}
+            />
+            <ColorPickerWidget
+              label="코드 배경 색상"
+              value={getTagRules('code')['background-color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('code', 'background-color', v)}
+            />
+            <SliderWidget
+              label="코드 글자 크기"
+              min={10}
+              max={24}
+              value={parseInt(getTagRules('code')['font-size']) || 13}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('code', 'font-size', v + 'px')}
+            />
+            <SliderWidget
+              label="코드 테두리 둥글기"
+              min={0}
+              max={16}
+              value={parseInt(getTagRules('code')['border-radius']) || 4}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('code', 'border-radius', v + 'px')}
+            />
+          </div>
+
+          {/* 각주 영역 (Footnote) 설정 */}
+          <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📌 FOOTNOTE - 각주 영역 스타일 조작</span>
+            <ColorPickerWidget
+              label="각주 글자 색상"
+              value={getTagRules('footnote')['color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('footnote', 'color', v)}
+            />
+            <SliderWidget
+              label="각주 글자 크기"
+              min={10}
+              max={20}
+              value={parseInt(getTagRules('footnote')['font-size']) || 12}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('footnote', 'font-size', v + 'px')}
+            />
+            <SliderWidget
+              label="각주 줄 간격"
+              min={1.0}
+              max={2.5}
+              step={0.1}
+              value={parseFloat(getTagRules('footnote')['line-height']) || 1.4}
+              unit="배"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('footnote', 'line-height', v)}
+            />
+            <SliderWidget
+              label="각주 상하 바깥 여백"
+              min={0}
+              max={60}
+              value={parseInt(getTagRules('footnote')['margin-top']) || 8}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => {
+                const px = v + 'px';
+                if (!isDefault) {
+                  onUpdateProfile({
+                    ...currentProfile,
+                    rules: {
+                      ...currentProfile.rules,
+                      footnote: {
+                        ...(currentProfile.rules.footnote || {}),
+                        'margin-top': px,
+                        'margin-bottom': px
                       }
                     }
-                  }}
-                  className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-                >
-                  <option value="none">정렬 없음</option>
-                  <option value="center">중앙 정렬</option>
-                  <option value="left">왼쪽 정렬 (Float)</option>
-                  <option value="right">오른쪽 정렬 (Float)</option>
-                </select>
-              </div>
-            </div>
-            
-            {/* 인라인 코드 (Code) 설정 */}
-            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
-              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 CODE - 인라인 소스 코드 스타일</span>
-              <ColorPickerWidget
-                label="코드 글자 색상"
-                value={getTagRules('code')['color'] || ''}
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('code', 'color', v)}
-              />
-              <ColorPickerWidget
-                label="코드 배경 색상"
-                value={getTagRules('code')['background-color'] || ''}
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('code', 'background-color', v)}
-              />
-              <SliderWidget
-                label="코드 글자 크기"
-                min={10}
-                max={24}
-                value={parseInt(getTagRules('code')['font-size']) || 13}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('code', 'font-size', v + 'px')}
-              />
-              <SliderWidget
-                label="코드 테두리 둥글기"
-                min={0}
-                max={16}
-                value={parseInt(getTagRules('code')['border-radius']) || 4}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('code', 'border-radius', v + 'px')}
-              />
-            </div>
+                  });
+                }
+              }}
+            />
+          </div>
+        </AccordionSection>
 
-            {/* 동영상 객체 (Video) 설정 */}
-            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
-              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🎥 VIDEO - 동영상 객체 규격 조작</span>
-              <SliderWidget
-                label="동영상 가로 너비"
-                min={100}
-                max={800}
-                value={parseInt(getTagRules('video')['width']) || 560}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('video', 'width', v + 'px')}
-              />
-              <SliderWidget
-                label="동영상 세로 높이"
-                min={100}
-                max={600}
-                value={parseInt(getTagRules('video')['height']) || 315}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('video', 'height', v + 'px')}
-              />
-              <SliderWidget
-                label="동영상 상하 바깥 여백"
-                min={0}
-                max={80}
-                value={parseInt(getTagRules('video')['margin-top']) || 16}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => {
-                  const px = v + 'px';
-                  if (!isDefault) {
-                    onUpdateProfile({
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        video: {
-                          ...(currentProfile.rules.video || {}),
-                          'margin-top': px,
-                          'margin-bottom': px,
-                          'display': 'block',
-                          'margin-left': 'auto',
-                          'margin-right': 'auto'
-                        }
+        {/* 🎬 아코디언 [6]: 미디어 (이미지, 동영상, 지도, 수식) */}
+        <AccordionSection
+          id="media"
+          title="🎬 미디어 (이미지, 동영상, 지도, 수식)"
+          isOpen={openAccordion === 'media'}
+          onToggle={() => setOpenAccordion(openAccordion === 'media' ? null : 'media')}
+        >
+          {/* 이미지 객체 (Image) 설정 */}
+          <div className="space-y-3.5">
+            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🖼️ IMG - 이미지 객체 규격 조작</span>
+            <SliderWidget
+              label="이미지 가로 너비"
+              min={50}
+              max={800}
+              value={parseInt(getTagRules('img')['width']) || 400}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('img', 'width', v + 'px')}
+            />
+            <SliderWidget
+              label="이미지 세로 높이"
+              min={50}
+              max={600}
+              value={parseInt(getTagRules('img')['height']) || 300}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('img', 'height', v + 'px')}
+            />
+            <SliderWidget
+              label="이미지 상하 바깥 여백"
+              min={0}
+              max={80}
+              value={parseInt(getTagRules('img')['margin-top']) || 16}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => {
+                const px = v + 'px';
+                if (!isDefault) {
+                  onUpdateProfile({
+                    ...currentProfile,
+                    rules: {
+                      ...currentProfile.rules,
+                      img: {
+                        ...(currentProfile.rules.img || {}),
+                        'margin-top': px,
+                        'margin-bottom': px,
+                        'display': 'block',
+                        'margin-left': 'auto',
+                        'margin-right': 'auto'
                       }
-                    });
-                  }
-                }}
-              />
+                    }
+                  });
+                }
+              }}
+            />
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">이미지 정렬 방식</span>
+              <select
+                value={getMediaAlign('img')}
+                disabled={isDefault}
+                onChange={(e) => updateMediaAlign('img', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="center">중앙 정렬</option>
+                <option value="left">왼쪽 정렬</option>
+                <option value="right">오른쪽 정렬</option>
+              </select>
             </div>
+          </div>
 
-            {/* 수식 블록 (Math) 설정 */}
-            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
-              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📐 MATH - KaTeX 수식 블록 스타일</span>
-              <ColorPickerWidget
-                label="수식 글자 색상"
-                value={getTagRules('math')['color'] || ''}
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('math', 'color', v)}
-              />
-              <SliderWidget
-                label="수식 글자 크기"
-                min={10}
-                max={32}
-                value={parseInt(getTagRules('math')['font-size']) || 16}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('math', 'font-size', v + 'px')}
-              />
-              <SliderWidget
-                label="수식 상하 바깥 여백"
-                min={0}
-                max={80}
-                value={parseInt(getTagRules('math')['margin-top']) || 16}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => {
-                  const px = v + 'px';
-                  if (!isDefault) {
-                    onUpdateProfile({
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        math: {
-                          ...(currentProfile.rules.math || {}),
-                          'margin-top': px,
-                          'margin-bottom': px
-                        }
+          {/* 동영상 객체 (Video) 설정 */}
+          <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🎥 VIDEO - 동영상 객체 규격 조작</span>
+            <SliderWidget
+              label="동영상 가로 너비"
+              min={100}
+              max={800}
+              value={parseInt(getTagRules('video')['width']) || 560}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('video', 'width', v + 'px')}
+            />
+            <SliderWidget
+              label="동영상 세로 높이"
+              min={100}
+              max={600}
+              value={parseInt(getTagRules('video')['height']) || 315}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('video', 'height', v + 'px')}
+            />
+            <SliderWidget
+              label="동영상 상하 바깥 여백"
+              min={0}
+              max={80}
+              value={parseInt(getTagRules('video')['margin-top']) || 16}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => {
+                const px = v + 'px';
+                if (!isDefault) {
+                  onUpdateProfile({
+                    ...currentProfile,
+                    rules: {
+                      ...currentProfile.rules,
+                      video: {
+                        ...(currentProfile.rules.video || {}),
+                        'margin-top': px,
+                        'margin-bottom': px,
+                        'display': 'block',
+                        'margin-left': 'auto',
+                        'margin-right': 'auto'
                       }
-                    });
-                  }
-                }}
-              />
-              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">수식 정렬 방식</span>
-                <select
-                  value={getTagRules('math')['text-align'] || 'center'}
-                  disabled={isDefault}
-                  onChange={(e) => updateCssRule('math', 'text-align', e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
-                >
-                  <option value="center">중앙 정렬</option>
-                  <option value="left">왼쪽 정렬</option>
-                  <option value="right">오른쪽 정렬</option>
-                </select>
-              </div>
+                    }
+                  });
+                }
+              }}
+            />
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">동영상 정렬 방식</span>
+              <select
+                value={getMediaAlign('video')}
+                disabled={isDefault}
+                onChange={(e) => updateMediaAlign('video', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="center">중앙 정렬</option>
+                <option value="left">왼쪽 정렬</option>
+                <option value="right">오른쪽 정렬</option>
+              </select>
             </div>
+          </div>
 
-            {/* 지도 객체 (Map) 설정 */}
-            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
-              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🗺️ MAP - 지도 객체 규격 조작</span>
-              <SliderWidget
-                label="지도 가로 너비"
-                min={100}
-                max={800}
-                value={parseInt(getTagRules('map')['width']) || 600}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('map', 'width', v + 'px')}
-              />
-              <SliderWidget
-                label="지도 세로 높이"
-                min={100}
-                max={600}
-                value={parseInt(getTagRules('map')['height']) || 450}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('map', 'height', v + 'px')}
-              />
-              <SliderWidget
-                label="지도 상하 바깥 여백"
-                min={0}
-                max={80}
-                value={parseInt(getTagRules('map')['margin-top']) || 16}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => {
-                  const px = v + 'px';
-                  if (!isDefault) {
-                    onUpdateProfile({
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        map: {
-                          ...(currentProfile.rules.map || {}),
-                          'margin-top': px,
-                          'margin-bottom': px,
-                          'display': 'block',
-                          'margin-left': 'auto',
-                          'margin-right': 'auto'
-                        }
+          {/* 지도 객체 (Map) 설정 */}
+          <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🗺️ MAP - 지도 객체 규격 조작</span>
+            <SliderWidget
+              label="지도 가로 너비"
+              min={100}
+              max={800}
+              value={parseInt(getTagRules('map')['width']) || 600}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('map', 'width', v + 'px')}
+            />
+            <SliderWidget
+              label="지도 세로 높이"
+              min={100}
+              max={600}
+              value={parseInt(getTagRules('map')['height']) || 450}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('map', 'height', v + 'px')}
+            />
+            <SliderWidget
+              label="지도 상하 바깥 여백"
+              min={0}
+              max={80}
+              value={parseInt(getTagRules('map')['margin-top']) || 16}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => {
+                const px = v + 'px';
+                if (!isDefault) {
+                  onUpdateProfile({
+                    ...currentProfile,
+                    rules: {
+                      ...currentProfile.rules,
+                      map: {
+                        ...(currentProfile.rules.map || {}),
+                        'margin-top': px,
+                        'margin-bottom': px,
+                        'display': 'block',
+                        'margin-left': 'auto',
+                        'margin-right': 'auto'
                       }
-                    });
-                  }
-                }}
-              />
+                    }
+                  });
+                }
+              }}
+            />
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">지도 정렬 방식</span>
+              <select
+                value={getMediaAlign('map')}
+                disabled={isDefault}
+                onChange={(e) => updateMediaAlign('map', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="center">중앙 정렬</option>
+                <option value="left">왼쪽 정렬</option>
+                <option value="right">오른쪽 정렬</option>
+              </select>
             </div>
+          </div>
 
-            {/* 각주 영역 (Footnote) 설정 */}
-            <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
-              <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📌 FOOTNOTE - 각주 영역 스타일 조작</span>
-              <ColorPickerWidget
-                label="각주 글자 색상"
-                value={getTagRules('footnote')['color'] || ''}
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('footnote', 'color', v)}
-              />
-              <SliderWidget
-                label="각주 글자 크기"
-                min={10}
-                max={20}
-                value={parseInt(getTagRules('footnote')['font-size']) || 12}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('footnote', 'font-size', v + 'px')}
-              />
-              <SliderWidget
-                label="각주 줄 간격"
-                min={1.0}
-                max={2.5}
-                step={0.1}
-                value={parseFloat(getTagRules('footnote')['line-height']) || 1.4}
-                unit="배"
-                disabled={isDefault}
-                onChange={(v) => updateCssRule('footnote', 'line-height', v)}
-              />
-              <SliderWidget
-                label="각주 상하 바깥 여백"
-                min={0}
-                max={60}
-                value={parseInt(getTagRules('footnote')['margin-top']) || 8}
-                unit="px"
-                disabled={isDefault}
-                onChange={(v) => {
-                  const px = v + 'px';
-                  if (!isDefault) {
-                    onUpdateProfile({
-                      ...currentProfile,
-                      rules: {
-                        ...currentProfile.rules,
-                        footnote: {
-                          ...(currentProfile.rules.footnote || {}),
-                          'margin-top': px,
-                          'margin-bottom': px
-                        }
+          {/* 수식 블록 (Math) 설정 */}
+          <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+            <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📐 MATH - KaTeX 수식 블록 스타일</span>
+            <ColorPickerWidget
+              label="수식 글자 색상"
+              value={getTagRules('math')['color'] || ''}
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('math', 'color', v)}
+            />
+            <SliderWidget
+              label="수식 글자 크기"
+              min={10}
+              max={32}
+              value={parseInt(getTagRules('math')['font-size']) || 16}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => updateCssRule('math', 'font-size', v + 'px')}
+            />
+            <SliderWidget
+              label="수식 상하 바깥 여백"
+              min={0}
+              max={80}
+              value={parseInt(getTagRules('math')['margin-top']) || 16}
+              unit="px"
+              disabled={isDefault}
+              onChange={(v) => {
+                const px = v + 'px';
+                if (!isDefault) {
+                  onUpdateProfile({
+                    ...currentProfile,
+                    rules: {
+                      ...currentProfile.rules,
+                      math: {
+                        ...(currentProfile.rules.math || {}),
+                        'margin-top': px,
+                        'margin-bottom': px
                       }
-                    });
-                  }
-                }}
-              />
+                    }
+                  });
+                }
+              }}
+            />
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">수식 정렬 방식</span>
+              <select
+                value={getTagRules('math')['text-align'] || 'center'}
+                disabled={isDefault}
+                onChange={(e) => updateCssRule('math', 'text-align', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="center">중앙 정렬</option>
+                <option value="left">왼쪽 정렬</option>
+                <option value="right">오른쪽 정렬</option>
+              </select>
             </div>
           </div>
         </AccordionSection>
 
         {/* ─── 접이식 아코디언 그룹 끝 ─── */}
 
-        {/* 🚨 기본 서식 복구 엔진 (Reset to Default) - DEFAULT 프로필이 아닐 때 하단에 배치 */}
+        {/* 🚨 기본 서식 복구 버튼 - DEFAULT 프로필이 아닐 때 하단에 배치 */}
         {!isDefault && (
           <div className="pt-2 animate-fadeIn">
             <button
@@ -2079,7 +2029,7 @@ export default function CssStyleForm({
               className="w-full py-3.5 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-400 font-bold border border-red-200 dark:border-red-900/50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm text-base"
             >
               <span>🔄</span>
-              <span>현재 프로필 서식 초기화 (Reset to Default)</span>
+              <span>기본 서식(Onrivi Default)으로 전환</span>
             </button>
           </div>
         )}

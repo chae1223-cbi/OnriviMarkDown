@@ -52,6 +52,14 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
     return srcPath;
   }
 
+  // URL 디코딩: 마크다운 파서가 한글/특수문자를 퍼센트 인코딩한 경우 파일시스템 경로로 복원
+  let decoded = srcPath;
+  try {
+    decoded = decodeURIComponent(srcPath);
+  } catch {
+    decoded = srcPath;
+  }
+
   let baseFolder = "";
   if (currentFileNodePath) {
     const normalizedFile = currentFileNodePath.replace(/\\/g, '/');
@@ -61,7 +69,7 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
     }
   }
 
-  let cleanSrc = srcPath.replace(/\\/g, '/');
+  let cleanSrc = decoded.replace(/\\/g, '/');
   if (cleanSrc.startsWith('/')) {
     cleanSrc = cleanSrc.substring(1);
   }
@@ -115,22 +123,23 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
     }
   };
 
+
   return (
-    <div className="my-4 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50/20 dark:bg-blue-950/15 overflow-hidden shadow-sm select-text">
+    <div className="codeblock-area my-4 rounded-lg bg-blue-50/20 dark:bg-blue-950/15 overflow-hidden shadow-sm select-text">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-blue-100/50 dark:bg-blue-950/40 border-b border-blue-200/60 dark:border-blue-900/40">
-        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 dark:bg-blue-950/40">
+        <span className="codeblock-header-text text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
           {lang || 'plaintext'}
         </span>
         <button
           onClick={handleCopy}
-          className="text-xs px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-blue-200 dark:border-zinc-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium"
+          className="text-xs px-2.5 py-1 rounded bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium"
         >
           {copied ? '✓ 복사됨' : '복사'}
         </button>
       </div>
       <pre className="m-0 p-4 overflow-x-auto font-mono text-sm leading-relaxed bg-transparent text-blue-700 dark:text-blue-300">
-        <code className={`${className || ''} text-blue-700 dark:text-blue-300`} {...props}>
+        <code className={`${className || ''} block text-blue-700 dark:text-blue-300`} {...props}>
           {code}
         </code>
       </pre>
@@ -249,6 +258,60 @@ function MermaidBlock({ code }: { code: string }) {
   const [imageCopied, setImageCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleCopyImage = async () => {
+    if (!containerRef.current) return;
+    const svgElement = containerRef.current.querySelector('svg');
+    if (!svgElement) return;
+
+    const canvas = document.createElement('canvas');
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const img = new Image();
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    
+    await new Promise((resolve) => img.onload = resolve);
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        setImageCopied(true);
+        setTimeout(() => setImageCopied(false), 2000);
+      }
+    }, 'image/png');
+  };
+
+  const handleSaveImage = async () => {
+    if (!containerRef.current) return;
+    const svgElement = containerRef.current.querySelector('svg');
+    if (!svgElement) return;
+
+    const canvas = document.createElement('canvas');
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const img = new Image();
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    
+    await new Promise((resolve) => img.onload = resolve);
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const api = (window as any).electronAPI;
+    if (api && api.saveAs) {
+      await api.saveAs(dataUrl, 'diagram.png', null, [{ name: 'PNG Image', extensions: ['png'] }]);
+    }
+  };
 
   // 다크모드 상태 추적
   const [isDark, setIsDark] = useState(false);
@@ -374,159 +437,9 @@ function MermaidBlock({ code }: { code: string }) {
     } catch (err) {}
   };
 
-  const handleDownloadPng = () => {
-    if (!containerRef.current) return;
-    const svgEl = containerRef.current.querySelector('svg');
-    if (!svgEl) return;
-
-    try {
-      const svgString = new XMLSerializer().serializeToString(svgEl);
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const URL = window.URL || window.webkitURL || window;
-      const blobURL = URL.createObjectURL(svgBlob);
-      
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement('canvas');
-        
-        // 🛡️ [안전장치 폴백 적용] SVG 실제 물리 크기 측정 강인성 확보
-        const rect = svgEl.getBoundingClientRect();
-        let width = rect.width;
-        let height = rect.height;
-
-        if (!width || !height) {
-          try {
-            const bbox = svgEl.getBBox();
-            width = bbox.width;
-            height = bbox.height;
-          } catch (e) {}
-        }
-
-        if (!width || !height) {
-          const viewBoxAttr = svgEl.getAttribute('viewBox');
-          if (viewBoxAttr) {
-            const parts = viewBoxAttr.split(/\s+/).map(Number);
-            if (parts.length === 4) {
-              width = parts[2];
-              height = parts[3];
-            }
-          }
-        }
-
-        if (!width || !height) {
-          const wAttr = svgEl.getAttribute('width');
-          const hAttr = svgEl.getAttribute('height');
-          if (wAttr && hAttr) {
-            width = parseFloat(wAttr);
-            height = parseFloat(hAttr);
-          }
-        }
-
-        // 최종 폴백 기본 크기 지정
-        const finalWidth = (width && width > 0) ? width : 600;
-        const finalHeight = (height && height > 0) ? height : 400;
-
-        canvas.width = finalWidth + 30;
-        canvas.height = finalHeight + 30;
-        const context = canvas.getContext('2d');
-        if (context) {
-          context.fillStyle = isDark ? '#1e1e1e' : '#ffffff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(image, 15, 15, finalWidth, finalHeight);
-          
-          const pngUrl = canvas.toDataURL('image/png');
-          const downloadLink = document.createElement('a');
-          downloadLink.href = pngUrl;
-          downloadLink.download = 'chart.png';
-          document.body.appendChild(downloadLink);
-          downloadLink.click();
-          document.body.removeChild(downloadLink);
-        }
-      };
-      image.src = blobURL;
-    } catch (e) {
-      console.error('[온리비 어서] PNG 다운로드 에러', e);
-    }
-  };
-
-  const handleCopyImage = () => {
-    if (!containerRef.current) return;
-    const svgEl = containerRef.current.querySelector('svg');
-    if (!svgEl) return;
-
-    try {
-      const svgString = new XMLSerializer().serializeToString(svgEl);
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const URL = window.URL || window.webkitURL || window;
-      const blobURL = URL.createObjectURL(svgBlob);
-      
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement('canvas');
-        
-        // 🛡️ [안전장치 폴백 적용] SVG 실제 물리 크기 측정 강인성 확보
-        const rect = svgEl.getBoundingClientRect();
-        let width = rect.width;
-        let height = rect.height;
-
-        if (!width || !height) {
-          try {
-            const bbox = svgEl.getBBox();
-            width = bbox.width;
-            height = bbox.height;
-          } catch (e) {}
-        }
-
-        if (!width || !height) {
-          const viewBoxAttr = svgEl.getAttribute('viewBox');
-          if (viewBoxAttr) {
-            const parts = viewBoxAttr.split(/\s+/).map(Number);
-            if (parts.length === 4) {
-              width = parts[2];
-              height = parts[3];
-            }
-          }
-        }
-
-        if (!width || !height) {
-          const wAttr = svgEl.getAttribute('width');
-          const hAttr = svgEl.getAttribute('height');
-          if (wAttr && hAttr) {
-            width = parseFloat(wAttr);
-            height = parseFloat(hAttr);
-          }
-        }
-
-        // 최종 폴백 기본 크기 지정
-        const finalWidth = (width && width > 0) ? width : 600;
-        const finalHeight = (height && height > 0) ? height : 400;
-
-        canvas.width = finalWidth + 30;
-        canvas.height = finalHeight + 30;
-        const context = canvas.getContext('2d');
-        if (context) {
-          context.fillStyle = isDark ? '#1e1e1e' : '#ffffff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(image, 15, 15, finalWidth, finalHeight);
-          
-          canvas.toBlob(async (blob) => {
-            if (blob && navigator.clipboard && window.ClipboardItem) {
-              const data = new ClipboardItem({ 'image/png': blob });
-              await navigator.clipboard.write([data]);
-              setImageCopied(true);
-              setTimeout(() => setImageCopied(false), 2000);
-            }
-          }, 'image/png');
-        }
-      };
-      image.src = blobURL;
-    } catch (e) {
-      console.error('[온리비 어서] 이미지 복사 에러', e);
-    }
-  };
-
   return (
     <div ref={containerRef} className="relative group my-6 border border-zinc-200/60 dark:border-zinc-800/60 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-zinc-900 select-text">
+
       <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200/60 dark:border-zinc-800/60">
         <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
           📊 다이어그램 (Mermaid)
@@ -549,7 +462,7 @@ function MermaidBlock({ code }: { code: string }) {
                 {imageCopied ? '✓ 이미지 복사됨' : '이미지 복사'}
               </button>
               <button
-                onClick={handleDownloadPng}
+                onClick={handleSaveImage}
                 className="text-[11px] px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
                 title="차트를 PNG 파일로 저장"
               >
@@ -679,7 +592,7 @@ export default function MarkdownViewer({
                 if (/^<br\s*\/?>$/i.test(part)) {
                   newChildren.push({ type: 'element', tagName: 'br', properties: {}, children: [] });
                 } else if (part) {
-                  newChildren.push({ type: 'text', value: part });
+                  newChildren.push({ type: 'raw', value: part });
                 }
               }
             } else {
@@ -705,10 +618,10 @@ export default function MarkdownViewer({
         minHeight: '100%',
         boxShadow: 'none',
         borderRadius: '0px',
-        paddingTop: mmToRem(marginTop || ''),
-        paddingBottom: mmToRem(marginBottom || ''),
-        paddingLeft: mmToRem(marginLeft || ''),
-        paddingRight: mmToRem(marginRight || ''),
+        paddingTop: showPageBreaks ? mmToRem(marginTop || '') : '1.5rem',
+        paddingBottom: showPageBreaks ? mmToRem(marginBottom || '') : '1.5rem',
+        paddingLeft: showPageBreaks ? mmToRem(marginLeft || '') : '1.5rem',
+        paddingRight: showPageBreaks ? mmToRem(marginRight || '') : '1.5rem',
       }}
     >
       <div className="print:!block">
@@ -933,19 +846,7 @@ export default function MarkdownViewer({
             },
             ul: ({ node, children, style, ...props }) => <ul style={style} {...props}>{children}</ul>,
             ol: ({ node, children, style, start, ...props }) => {
-              // 🛡️ ol 자식 중에 num-list-item이 있으면 ol 자체의 list-style-type을 none으로 설정하여
-              // 부모 ol의 스타일이 li::marker에 상속되어 이중 마커가 노출되는 현상을 원천 차단합니다.
-              const hasNumListChild = React.Children.toArray(children).some((child) => {
-                if (React.isValidElement(child)) {
-                  const cls = (child.props as any)?.className || '';
-                  return cls.includes('num-list-item');
-                }
-                return false;
-              });
-              const olStyle = hasNumListChild
-                ? { ...style, listStyleType: 'none' }
-                : style;
-              return <ol start={start} style={olStyle} {...props}>{children}</ol>;
+              return <ol start={start} style={style} {...props}>{children}</ol>;
             },
             li: ({ node, children, style, ...props }) => {
               const textContent = getTextFromChildren(children).trim();
