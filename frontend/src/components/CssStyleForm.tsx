@@ -10,12 +10,13 @@
  *   1. 위젯 편집 모드 (기본) — 슬라이더와 컬러 피커를 통해 비개발자도 직관적으로 편집
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  *
- * DEFAULT_PROFILE(id='default') 선택 시 모든 입력이 비활성화(disabled)됩니다.
+ * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CssProfile, CssRuleSet } from '@/types/cssProfile';
-import { DEFAULT_PROFILE } from '@/constants/cssProfile';
+import { DEFAULT_PROFILE, isSystemProfileId } from '@/constants/cssProfile';
+import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide';
 import FontSelectorModal from './FontSelectorModal';
 
 /**
@@ -159,12 +160,12 @@ interface TagRuleEditorProps {
   tag: string;
   label: string;
   rules: CssRuleSet;
-  isDefault: boolean;
+  isSystemProfile: boolean;
   onUpdateRule: (tag: string, property: string, value: string) => void;
   onRemoveRule: (tag: string, property: string) => void;
 }
 
-function TagRuleEditor({ tag, label, rules, isDefault, onUpdateRule, onRemoveRule }: TagRuleEditorProps) {
+function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRemoveRule }: TagRuleEditorProps) {
   const entries = Object.entries(rules).filter(([, v]) => v !== '');
 
   return (
@@ -185,9 +186,9 @@ function TagRuleEditor({ tag, label, rules, isDefault, onUpdateRule, onRemoveRul
               value={val}
               onChange={(e) => onUpdateRule(tag, prop, e.target.value)}
               className="flex-1 p-1.5 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-50 dark:bg-zinc-900 font-mono text-sm text-blue-600 dark:text-blue-400"
-              disabled={isDefault}
+              disabled={isSystemProfile}
             />
-            {!isDefault && (
+            {!isSystemProfile && (
               <button
                 onClick={() => onRemoveRule(tag, prop)}
                 className="text-zinc-400 hover:text-red-400 text-sm px-1.5"
@@ -210,7 +211,7 @@ export default function CssStyleForm({
   profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, isDarkMode
 }: CssStyleFormProps) {
   const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-  const isDefault = currentProfile.id === 'default';
+  const isSystemProfile = isSystemProfileId(currentProfile.id);
 
   /* ─── 아코디언 상태 관리 ─── */
   const [openAccordion, setOpenAccordion] = useState<string | null>('typography');
@@ -250,6 +251,21 @@ export default function CssStyleForm({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const downloadGuideSpec = () => {
+    try {
+      const dataStr = "data:text/markdown;charset=utf-8," + encodeURIComponent(CSS_PROFILE_GUIDE_MD);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "Onrivi_CSS_Profile_명세서.md");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast("서식 작성 가이드가 다운로드되었습니다.");
+    } catch (e) {
+      showToast("가이드 다운로드 실패!");
+    }
   };
 
   const exportCurrentProfile = () => {
@@ -322,7 +338,7 @@ export default function CssStyleForm({
   };
 
   const updateMediaAlign = (tag: string, align: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
     const baseRule = getTagRules(tag);
     let newRules: CssRuleSet = { ...baseRule, 'display': 'block', 'float': 'none' };
@@ -350,7 +366,7 @@ export default function CssStyleForm({
   };
 
   const updateCssRule = (tag: string, property: string, value: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
     const updated = {
       ...currentProfile,
@@ -363,7 +379,7 @@ export default function CssStyleForm({
   };
 
   const removeCssRule = (tag: string, property: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
     const current = getTagRules(tag);
     const { [property]: _, ...rest } = current;
@@ -376,7 +392,7 @@ export default function CssStyleForm({
 
   /* ─── 표 테두리 묶음 업데이트 ─── */
   const updateTableBorder = (property: string, value: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const tableRules = getTagRules('table');
     const thRules = getTagRules('th');
     const tdRules = getTagRules('td');
@@ -394,7 +410,7 @@ export default function CssStyleForm({
 
   /* ─── 표 셀 여백 묶음 업데이트 ─── */
   const updateCellPadding = (value: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const thRules = getTagRules('th');
     const tdRules = getTagRules('td');
     const updated = {
@@ -410,7 +426,7 @@ export default function CssStyleForm({
 
   /* ─── 표 글자 크기 묶음 업데이트 ─── */
   const updateTableFontSize = (value: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const tableRules = getTagRules('table');
     const thRules = getTagRules('th');
     const tdRules = getTagRules('td');
@@ -435,7 +451,7 @@ export default function CssStyleForm({
   };
 
   const handlePageStyleChange = (key: keyof CssProfile['pageStyle'], value: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const updated = {
       ...currentProfile,
       pageStyle: { ...currentProfile.pageStyle, [key]: value },
@@ -444,18 +460,18 @@ export default function CssStyleForm({
   };
 
   const handleNameChange = (name: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     onUpdateProfile({ ...currentProfile, name });
   };
 
   const handleRenameClick = () => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     setTempName(currentProfile.name);
     setIsEditingName(true);
   };
 
   const handleRenameSave = () => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const trimmed = tempName.trim();
     if (trimmed !== '') {
       handleNameChange(trimmed);
@@ -486,7 +502,7 @@ export default function CssStyleForm({
   };
 
   const updateHrStructure = (key: string, value: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const updated = {
       ...currentProfile,
       hrStructure: { ...hrStructure, [key]: value }
@@ -495,7 +511,7 @@ export default function CssStyleForm({
   };
 
   const updateCheckboxStructure = (key: string, value: string) => {
-    if (isDefault) return;
+    if (isSystemProfile) return;
     const updated = {
       ...currentProfile,
       checkboxStructure: { ...checkboxStructure, [key]: value }
@@ -505,14 +521,14 @@ export default function CssStyleForm({
 
   /* ─── 공장 초기 설정 복구 ─── */
   const resetToDefault = () => {
-    if (isDefault) return;
-    if (window.confirm('기본 서식(Onrivi 기본값)으로 전환하시겠습니까?')) {
-      onSelectProfile(DEFAULT_PROFILE.id);
+    if (isSystemProfile) return;
+    if (window.confirm('시스템 기본 서식으로 전환하시겠습니까?')) {
+      onSelectProfile(DEFAULT_PROFILE.id); // DEFAULT_PROFILE = system-gov
     }
   };
 
-  const nonDefaultProfiles = profiles.filter(p => p.id !== 'default').length;
-  const canDelete = !isDefault && nonDefaultProfiles > 0;
+  const nonDefaultProfiles = profiles.filter(p => !isSystemProfileId(p.id)).length;
+  const canDelete = !isSystemProfile && nonDefaultProfiles > 0;
 
   const h1Rules = currentProfile.rules.h1 || {};
   const alignOptions = [
@@ -578,7 +594,7 @@ export default function CssStyleForm({
                 <span className="text-[15px] font-bold leading-none">➕</span>
               </button>
             )}
-            {!isDefault && (
+            {!isSystemProfile && (
               <button onClick={handleRenameClick} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-blue-500 transition-colors shrink-0" title="서식 이름 변경">
                 <span className="text-[15px] font-bold leading-none">✏️</span>
               </button>
@@ -605,12 +621,19 @@ export default function CssStyleForm({
             >
               <span className="text-[14px] font-bold leading-none">📥</span>
             </button>
+            <button
+              onClick={downloadGuideSpec}
+              className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-amber-500 transition-colors shrink-0"
+              title="서식 작성 표준 명세서 다운로드 (AI에게 요청할 때 활용)"
+            >
+              <span className="text-[14px] font-bold leading-none">📖</span>
+            </button>
           </div>
         </div>
       </div>
 
       {/* 프로필 이름 지정 (인풋 크기 상향) */}
-      {!isDefault && (
+      {!isSystemProfile && (
         <div className="px-4 py-3 shrink-0 bg-white dark:bg-zinc-850 border-b border-zinc-150 dark:border-zinc-800">
           <label className="block text-zinc-500 dark:text-zinc-400 text-sm font-semibold mb-1.5">서식 명칭</label>
           <input type="text" value={currentProfile.name} onChange={(e) => handleNameChange(e.target.value)} className="w-full p-2.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 font-bold text-base text-zinc-750 dark:text-zinc-300 outline-none focus:border-blue-500 transition-colors" placeholder="예: 정부표준_보고서_양식" />
@@ -646,9 +669,9 @@ export default function CssStyleForm({
               </div>
               <button
                 type="button"
-                onClick={() => { if (!isDefault) setIsFontModalOpen(true); }}
+                onClick={() => { if (!isSystemProfile) setIsFontModalOpen(true); }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-md transition-colors shrink-0 h-[40px] disabled:opacity-50 shadow-sm"
-                disabled={isDefault}
+                disabled={isSystemProfile}
               >
                 변경...
               </button>
@@ -661,7 +684,7 @@ export default function CssStyleForm({
               max={36}
               value={parseInt(currentProfile.pageStyle.fontSize) || 15}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => handlePageStyleChange('fontSize', v + 'px')}
             />
 
@@ -673,7 +696,7 @@ export default function CssStyleForm({
               step={0.1}
               value={parseFloat(currentProfile.pageStyle.lineHeight) || 1.8}
               unit="배"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => handlePageStyleChange('lineHeight', v)}
             />
 
@@ -685,7 +708,7 @@ export default function CssStyleForm({
               step={0.01}
               value={parseFloat(currentProfile.pageStyle.letterSpacing) || 0}
               unit="em"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => handlePageStyleChange('letterSpacing', v + 'em')}
             />
 
@@ -695,7 +718,7 @@ export default function CssStyleForm({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onClick={() => handlePageStyleChange('orientation', 'portrait')}
                   className={`px-4 py-2 rounded text-sm font-bold border transition-all ${
                     currentProfile.pageStyle.orientation === 'portrait'
@@ -707,7 +730,7 @@ export default function CssStyleForm({
                 </button>
                 <button
                   type="button"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onClick={() => handlePageStyleChange('orientation', 'landscape')}
                   className={`px-4 py-2 rounded text-sm font-bold border transition-all ${
                     currentProfile.pageStyle.orientation === 'landscape'
@@ -724,7 +747,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="페이지 배경색"
               value={currentProfile.pageStyle.backgroundColor || '#ffffff'}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => handlePageStyleChange('backgroundColor', v)}
             />
             {/* 용지 여백 설정 */}
@@ -737,7 +760,7 @@ export default function CssStyleForm({
                   max={50}
                   value={parseInt(currentProfile.pageStyle.marginTop) || 10}
                   unit="mm"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginTop', v + 'mm')}
                 />
                 <SliderWidget
@@ -746,7 +769,7 @@ export default function CssStyleForm({
                   max={50}
                   value={parseInt(currentProfile.pageStyle.marginBottom) || 10}
                   unit="mm"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginBottom', v + 'mm')}
                 />
                 <SliderWidget
@@ -755,7 +778,7 @@ export default function CssStyleForm({
                   max={50}
                   value={parseInt(currentProfile.pageStyle.marginLeft) || 10}
                   unit="mm"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginLeft', v + 'mm')}
                 />
                 <SliderWidget
@@ -764,7 +787,7 @@ export default function CssStyleForm({
                   max={50}
                   value={parseInt(currentProfile.pageStyle.marginRight) || 10}
                   unit="mm"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginRight', v + 'mm')}
                 />
               </div>
@@ -779,7 +802,7 @@ export default function CssStyleForm({
                 step={1}
                 value={parseInt(currentProfile.pageStyle.tabSize) || 4}
                 unit="칸"
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => handlePageStyleChange('tabSize', String(v))}
               />
             </div>
@@ -801,7 +824,7 @@ export default function CssStyleForm({
             {showJson === 'p' ? (
               <textarea
                 value={JSON.stringify(currentProfile.rules.p || {}, null, 2)}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => {
                   try {
                     const parsed = JSON.parse(e.target.value);
@@ -820,7 +843,7 @@ export default function CssStyleForm({
                   <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">본문 글자 정렬</span>
                   <select
                     value={(currentProfile.rules.p || {})['text-align'] || 'left'}
-                    disabled={isDefault}
+                    disabled={isSystemProfile}
                     onChange={(e) => updateCssRule('p', 'text-align', e.target.value)}
                     className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
                   >
@@ -838,7 +861,7 @@ export default function CssStyleForm({
                   max={48}
                   value={parseInt((currentProfile.rules.p || {})['margin-top'] || '0') || 0}
                   unit="px"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => updateCssRule('p', 'margin-top', v + 'px')}
                 />
 
@@ -849,7 +872,7 @@ export default function CssStyleForm({
                   max={48}
                   value={parseInt((currentProfile.rules.p || {})['margin-bottom'] || '16') || 16}
                   unit="px"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => updateCssRule('p', 'margin-bottom', v + 'px')}
                 />
 
@@ -860,7 +883,7 @@ export default function CssStyleForm({
                   max={48}
                   value={parseInt((currentProfile.rules.p || {})['text-indent'] || '0') || 0}
                   unit="px"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => updateCssRule('p', 'text-indent', v + 'px')}
                 />
 
@@ -872,7 +895,7 @@ export default function CssStyleForm({
                   step={0.1}
                   value={parseFloat((currentProfile.rules.p || {})['line-height'] || '1.8') || 1.8}
                   unit="배"
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => updateCssRule('p', 'line-height', v)}
                 />
 
@@ -880,7 +903,7 @@ export default function CssStyleForm({
                 <ColorPickerWidget
                   label="본문 글자 색상"
                   value={(currentProfile.rules.p || {})['color'] || ''}
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(v) => updateCssRule('p', 'color', v)}
                 />
               </div>
@@ -906,7 +929,7 @@ export default function CssStyleForm({
                 <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">정렬</span>
                 <div className="flex gap-1.5 flex-wrap">
                   {alignOptions.map(({ label, value }) => (
-                    <button key={value} type="button" disabled={isDefault}
+                    <button key={value} type="button" disabled={isSystemProfile}
                       onClick={() => updateCssRule('h1', 'text-align', value)}
                       className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (h1Rules['text-align'] === value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
@@ -923,7 +946,7 @@ export default function CssStyleForm({
                 max={48}
                 value={parseInt(h1Rules['font-size']) || 28}
                 unit="px"
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'font-size', v + 'px')}
               />
 
@@ -934,7 +957,7 @@ export default function CssStyleForm({
                 max={10}
                 value={parseInt(currentProfile.pageStyle.headingSizeOffset) || 4}
                 unit="px"
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => handlePageStyleChange('headingSizeOffset', v)}
               />
 
@@ -945,7 +968,7 @@ export default function CssStyleForm({
                   {styleOptions.map(({ label, property, onVal, offVal }) => {
                     const isActive = h1Rules[property] === onVal;
                     return (
-                      <button key={property} type="button" disabled={isDefault}
+                      <button key={property} type="button" disabled={isSystemProfile}
                         onClick={() => updateCssRule('h1', property, isActive ? offVal : onVal)}
                         className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isActive
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
@@ -964,7 +987,7 @@ export default function CssStyleForm({
                 step={0.01}
                 value={parseFloat(h1Rules['letter-spacing']) || 0}
                 unit="em"
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'letter-spacing', v + 'em')}
               />
 
@@ -975,7 +998,7 @@ export default function CssStyleForm({
                 max={80}
                 value={parseInt(h1Rules['margin-top']) || 24}
                 unit="px"
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'margin-top', v + 'px')}
               />
 
@@ -986,7 +1009,7 @@ export default function CssStyleForm({
                 max={80}
                 value={parseInt(h1Rules['margin-bottom']) || 16}
                 unit="px"
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'margin-bottom', v + 'px')}
               />
 
@@ -994,7 +1017,7 @@ export default function CssStyleForm({
               <ColorPickerWidget
                 label="H1 글자 색상"
                 value={h1Rules['color'] || ''}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'color', v)}
               />
 
@@ -1003,7 +1026,7 @@ export default function CssStyleForm({
                 <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">하단 밑줄</span>
                 <div className="flex gap-1.5 flex-wrap">
                   {borderOptions.map(({ label, value }) => (
-                    <button key={label} type="button" disabled={isDefault}
+                    <button key={label} type="button" disabled={isSystemProfile}
                       onClick={() => updateCssRule('h1', 'border-bottom', value)}
                       className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (h1Rules['border-bottom'] === value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
@@ -1052,7 +1075,7 @@ export default function CssStyleForm({
                         {styleOptions.map(({ label, property, onVal, offVal }) => {
                           const isActive = tagRules[property] === onVal;
                           return (
-                            <button key={property} type="button" disabled={isDefault}
+                            <button key={property} type="button" disabled={isSystemProfile}
                               onClick={() => updateCssRule(tag, property, isActive ? offVal : onVal)}
                               className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isActive
                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
@@ -1068,7 +1091,7 @@ export default function CssStyleForm({
                       <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">하단 밑줄</span>
                       <div className="flex gap-1.5 flex-wrap">
                         {borderOptions.map(({ label, value }) => (
-                          <button key={label} type="button" disabled={isDefault}
+                          <button key={label} type="button" disabled={isSystemProfile}
                             onClick={() => updateCssRule(tag, 'border-bottom', value)}
                             className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (tagRules['border-bottom'] === value
                               ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
@@ -1085,7 +1108,7 @@ export default function CssStyleForm({
                       max={80}
                       value={parseInt(tagRules['margin-top']) || 16}
                       unit="px"
-                      disabled={isDefault}
+                      disabled={isSystemProfile}
                       onChange={(v) => updateCssRule(tag, 'margin-top', v + 'px')}
                     />
 
@@ -1096,7 +1119,7 @@ export default function CssStyleForm({
                       max={80}
                       value={parseInt(tagRules['margin-bottom']) || 8}
                       unit="px"
-                      disabled={isDefault}
+                      disabled={isSystemProfile}
                       onChange={(v) => updateCssRule(tag, 'margin-bottom', v + 'px')}
                     />
 
@@ -1104,7 +1127,7 @@ export default function CssStyleForm({
                     <ColorPickerWidget
                       label="글자 색상"
                       value={tagRules['color'] || ''}
-                      disabled={isDefault}
+                      disabled={isSystemProfile}
                       onChange={(v) => updateCssRule(tag, 'color', v)}
                     />
                   </div>
@@ -1138,7 +1161,7 @@ export default function CssStyleForm({
                       <>
                         <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
                           <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">굵기</span>
-                          <select value={tagRules['font-weight'] || 'bold'} disabled={isDefault}
+                          <select value={tagRules['font-weight'] || 'bold'} disabled={isSystemProfile}
                             onChange={(e) => updateCssRule('strong', 'font-weight', e.target.value)}
                             className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
                             <option value="normal">일반 (normal)</option>
@@ -1146,8 +1169,8 @@ export default function CssStyleForm({
                             <option value="900">최대 굵게 (900)</option>
                           </select>
                         </div>
-                        <ColorPickerWidget label="강조 글자 색상" value={tagRules['color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('strong', 'color', v)} />
-                        <ColorPickerWidget label="강조 배경 색상" value={tagRules['background-color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('strong', 'background-color', v)} />
+                        <ColorPickerWidget label="강조 글자 색상" value={tagRules['color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('strong', 'color', v)} />
+                        <ColorPickerWidget label="강조 배경 색상" value={tagRules['background-color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('strong', 'background-color', v)} />
                       </>
                     );
                   case 'em':
@@ -1155,7 +1178,7 @@ export default function CssStyleForm({
                       <>
                         <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
                           <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">기울임 모양</span>
-                          <select value={tagRules['font-style'] || 'italic'} disabled={isDefault}
+                          <select value={tagRules['font-style'] || 'italic'} disabled={isSystemProfile}
                             onChange={(e) => updateCssRule('em', 'font-style', e.target.value)}
                             className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
                             <option value="normal">정체</option>
@@ -1163,7 +1186,7 @@ export default function CssStyleForm({
                             <option value="oblique">기울임</option>
                           </select>
                         </div>
-                        <ColorPickerWidget label="기울임 글자 색상" value={tagRules['color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('em', 'color', v)} />
+                        <ColorPickerWidget label="기울임 글자 색상" value={tagRules['color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('em', 'color', v)} />
                       </>
                     );
                   case 'u':
@@ -1171,7 +1194,7 @@ export default function CssStyleForm({
                       <>
                         <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2.5 rounded-lg shadow-sm">
                           <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">밑줄 모양</span>
-                          <select value={tagRules['text-decoration-style'] || 'solid'} disabled={isDefault}
+                          <select value={tagRules['text-decoration-style'] || 'solid'} disabled={isSystemProfile}
                             onChange={(e) => updateCssRule('u', 'text-decoration-style', e.target.value)}
                             className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right">
                             <option value="solid">실선</option>
@@ -1180,16 +1203,16 @@ export default function CssStyleForm({
                             <option value="wavy">물결선</option>
                           </select>
                         </div>
-                        <ColorPickerWidget label="밑줄 색상" value={tagRules['text-decoration-color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('u', 'text-decoration-color', v)} />
-                        <SliderWidget label="밑줄 간격" min={0} max={12} value={parseInt(tagRules['text-underline-offset']) || 2} unit="px" disabled={isDefault} onChange={(v) => updateCssRule('u', 'text-underline-offset', v + 'px')} />
+                        <ColorPickerWidget label="밑줄 색상" value={tagRules['text-decoration-color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('u', 'text-decoration-color', v)} />
+                        <SliderWidget label="밑줄 간격" min={0} max={12} value={parseInt(tagRules['text-underline-offset']) || 2} unit="px" disabled={isSystemProfile} onChange={(v) => updateCssRule('u', 'text-underline-offset', v + 'px')} />
                       </>
                     );
                   case 'del':
                     return (
                       <>
-                        <ColorPickerWidget label="취소선 색상" value={tagRules['text-decoration-color'] || ''} disabled={isDefault} onChange={(v) => updateCssRule('del', 'text-decoration-color', v)} />
-                        <SliderWidget label="취소선 굵기" min={1} max={8} value={parseInt(tagRules['text-decoration-thickness']) || 1} unit="px" disabled={isDefault} onChange={(v) => updateCssRule('del', 'text-decoration-thickness', v + 'px')} />
-                        <SliderWidget label="투명도" min={10} max={100} step={5} value={parseFloat(tagRules['opacity']) * 100 || 60} unit="%" disabled={isDefault} onChange={(v) => updateCssRule('del', 'opacity', (parseFloat(v) / 100).toString())} />
+                        <ColorPickerWidget label="취소선 색상" value={tagRules['text-decoration-color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'text-decoration-color', v)} />
+                        <SliderWidget label="취소선 굵기" min={1} max={8} value={parseInt(tagRules['text-decoration-thickness']) || 1} unit="px" disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'text-decoration-thickness', v + 'px')} />
+                        <SliderWidget label="투명도" min={10} max={100} step={5} value={parseFloat(tagRules['opacity']) * 100 || 60} unit="%" disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'opacity', (parseFloat(v) / 100).toString())} />
                       </>
                     );
                   default:
@@ -1215,7 +1238,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">글머리 마커</span>
               <select
                 value={(currentProfile.rules.ul || {})['list-style-type'] || 'disc'}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('ul', 'list-style-type', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1231,7 +1254,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">숫자 목록 마커</span>
               <select
                 value={(currentProfile.rules.ol || {})['list-style-type'] || 'decimal'}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('ol', 'list-style-type', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1250,7 +1273,7 @@ export default function CssStyleForm({
               max={32}
               value={getNumValue((currentProfile.rules.li || {})['margin-bottom'], 6)}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('li', 'margin-bottom', v + 'px')}
             />
 
@@ -1261,7 +1284,7 @@ export default function CssStyleForm({
               max={60}
               value={getNumValue((currentProfile.rules.ul || {})['padding-left'], 16)}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => {
                 const pxVal = v + 'px';
                 onUpdateProfile({
@@ -1282,7 +1305,7 @@ export default function CssStyleForm({
               max={32}
               value={getNumValue((currentProfile.rules.li || {})['padding-inline-start'], 8)}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('li', 'padding-inline-start', v + 'px')}
             />
 
@@ -1295,7 +1318,7 @@ export default function CssStyleForm({
                 <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">완료 항목 스타일</span>
                 <select
                   value={checkboxStructure.checkedEffect}
-                  disabled={isDefault}
+                  disabled={isSystemProfile}
                   onChange={(e) => updateCheckboxStructure('checkedEffect', e.target.value)}
                   className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
                 >
@@ -1312,7 +1335,7 @@ export default function CssStyleForm({
                 max={32}
                 value={getNumValue(checkboxStructure.boxSize, 16)}
                 unit="px"
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => updateCheckboxStructure('boxSize', v + 'px')}
               />
 
@@ -1323,7 +1346,7 @@ export default function CssStyleForm({
                 max={32}
                 value={getNumValue(checkboxStructure.textGap, 10)}
                 unit="px"
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(v) => updateCheckboxStructure('textGap', v + 'px')}
               />
             </div>
@@ -1343,7 +1366,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">선 스타일</span>
               <select
                 value={hrStructure.borderTopStyle}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateHrStructure('borderTopStyle', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1361,7 +1384,7 @@ export default function CssStyleForm({
               max={10}
               value={parseInt(hrStructure.borderTopWidth) || 1}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateHrStructure('borderTopWidth', v + 'px')}
             />
 
@@ -1372,7 +1395,7 @@ export default function CssStyleForm({
               max={100}
               value={parseInt(hrStructure.marginTopBottom) || 32}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateHrStructure('marginTopBottom', v + 'px')}
             />
 
@@ -1381,7 +1404,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">구분선 너비</span>
               <select
                 value={hrStructure.lineWidth}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateHrStructure('lineWidth', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1396,7 +1419,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="구분선 색상"
               value={(currentProfile.rules.hr || {})['border-top-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('hr', 'border-top-color', v)}
             />
           </div>
@@ -1417,7 +1440,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="인용구 채우기 배경색"
               value={(currentProfile.rules.blockquote || {})['background-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('blockquote', 'background-color', v)}
             />
 
@@ -1425,7 +1448,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="왼쪽 강조선 테두리 색상"
               value={(currentProfile.rules.blockquote || {})['border-left-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('blockquote', 'border-left-color', v)}
             />
 
@@ -1436,7 +1459,7 @@ export default function CssStyleForm({
               max={20}
               value={getNumValue((currentProfile.rules.blockquote || {})['border-left-width'], 4)}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('blockquote', 'border-left-width', v + 'px')}
             />
 
@@ -1447,7 +1470,7 @@ export default function CssStyleForm({
               max={80}
               value={getNumValue((currentProfile.rules.blockquote || {})['margin-top'], 24)}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => {
                 const pxVal = v + 'px';
                 onUpdateProfile({
@@ -1471,7 +1494,7 @@ export default function CssStyleForm({
               max={64}
               value={getNumValue((currentProfile.rules.blockquote || {})['padding'], 16)}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('blockquote', 'padding', v + 'px')}
             />
           </div>
@@ -1485,7 +1508,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표 전체 너비</span>
               <select
                 value={getTagRules('table')['width'] || '100%'}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('table', 'width', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1500,7 +1523,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표 테두리 모양</span>
               <select
                 value={getTagRules('table')['border-style'] || 'solid'}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateTableBorder('border-style', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1519,7 +1542,7 @@ export default function CssStyleForm({
               max={8}
               value={parseInt(getTagRules('table')['border-width']) || 1}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateTableBorder('border-width', v + 'px')}
             />
 
@@ -1527,7 +1550,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="표 테두리 색상"
               value={getTagRules('table')['border-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateTableBorder('border-color', v)}
             />
 
@@ -1535,7 +1558,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="표 헤더(TH) 배경색"
               value={getTagRules('th')['background-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('th', 'background-color', v)}
             />
 
@@ -1543,7 +1566,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="표 본문(TD) 배경색"
               value={getTagRules('td')['background-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('td', 'background-color', v)}
             />
 
@@ -1554,7 +1577,7 @@ export default function CssStyleForm({
               max={24}
               value={parseInt(getTagRules('th')['padding']) || 8}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCellPadding(v + 'px')}
             />
 
@@ -1565,7 +1588,7 @@ export default function CssStyleForm({
               max={36}
               value={parseInt(getTagRules('table')['font-size']) || 0}
               unit={parseInt(getTagRules('table')['font-size']) === 0 || !getTagRules('table')['font-size'] ? "기본값" : "px"}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => {
                 if (v === '0') {
                   updateTableFontSize('');
@@ -1583,7 +1606,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="링크 글자 색상"
               value={getTagRules('a')['color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('a', 'color', v)}
             />
             
@@ -1591,7 +1614,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 밑줄 여부</span>
               <select
                 value={getTagRules('a')['text-decoration'] || 'underline'}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('a', 'text-decoration', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1604,7 +1627,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 글자 굵기</span>
               <select
                 value={getTagRules('a')['font-weight'] || 'normal'}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('a', 'font-weight', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1621,26 +1644,26 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="코드 블록 타이틀 배경색"
               value={getTagRules('codeBlockTitle')['background-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlockTitle', 'background-color', v)}
             />
             <ColorPickerWidget
               label="코드 블록 타이틀 글자색"
               value={getTagRules('codeBlockTitle')['color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlockTitle', 'color', v)}
             />
 
             <ColorPickerWidget
               label="코드 블록 배경색"
               value={getTagRules('codeBlock')['background-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'background-color', v)}
             />
             <ColorPickerWidget
               label="코드 블록 글자색"
               value={getTagRules('codeBlock')['color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'color', v)}
             />
             <SliderWidget
@@ -1649,7 +1672,7 @@ export default function CssStyleForm({
               max={24}
               value={parseInt(getTagRules('codeBlock')['font-size']) || 13}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'font-size', v + 'px')}
             />
             
@@ -1659,7 +1682,7 @@ export default function CssStyleForm({
               max={32}
               value={parseInt(getTagRules('codeBlock')['padding']) || 12}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'padding', v + 'px')}
             />
             
@@ -1669,7 +1692,7 @@ export default function CssStyleForm({
               max={16}
               value={parseInt(getTagRules('codeBlock')['border-radius']) || 6}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'border-radius', v + 'px')}
             />
           </div>
@@ -1680,13 +1703,13 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="코드 글자 색상"
               value={getTagRules('code')['color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('code', 'color', v)}
             />
             <ColorPickerWidget
               label="코드 배경 색상"
               value={getTagRules('code')['background-color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('code', 'background-color', v)}
             />
             <SliderWidget
@@ -1695,7 +1718,7 @@ export default function CssStyleForm({
               max={24}
               value={parseInt(getTagRules('code')['font-size']) || 13}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('code', 'font-size', v + 'px')}
             />
             <SliderWidget
@@ -1704,7 +1727,7 @@ export default function CssStyleForm({
               max={16}
               value={parseInt(getTagRules('code')['border-radius']) || 4}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('code', 'border-radius', v + 'px')}
             />
           </div>
@@ -1715,7 +1738,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="각주 글자 색상"
               value={getTagRules('footnote')['color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('footnote', 'color', v)}
             />
             <SliderWidget
@@ -1724,7 +1747,7 @@ export default function CssStyleForm({
               max={20}
               value={parseInt(getTagRules('footnote')['font-size']) || 12}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('footnote', 'font-size', v + 'px')}
             />
             <SliderWidget
@@ -1734,7 +1757,7 @@ export default function CssStyleForm({
               step={0.1}
               value={parseFloat(getTagRules('footnote')['line-height']) || 1.4}
               unit="배"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('footnote', 'line-height', v)}
             />
             <SliderWidget
@@ -1743,10 +1766,10 @@ export default function CssStyleForm({
               max={60}
               value={parseInt(getTagRules('footnote')['margin-top']) || 8}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => {
                 const px = v + 'px';
-                if (!isDefault) {
+                if (!isSystemProfile) {
                   onUpdateProfile({
                     ...currentProfile,
                     rules: {
@@ -1780,7 +1803,7 @@ export default function CssStyleForm({
               max={800}
               value={parseInt(getTagRules('img')['width']) || 400}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('img', 'width', v + 'px')}
             />
             <SliderWidget
@@ -1789,7 +1812,7 @@ export default function CssStyleForm({
               max={600}
               value={parseInt(getTagRules('img')['height']) || 300}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('img', 'height', v + 'px')}
             />
             <SliderWidget
@@ -1798,10 +1821,10 @@ export default function CssStyleForm({
               max={80}
               value={parseInt(getTagRules('img')['margin-top']) || 16}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => {
                 const px = v + 'px';
-                if (!isDefault) {
+                if (!isSystemProfile) {
                   onUpdateProfile({
                     ...currentProfile,
                     rules: {
@@ -1823,7 +1846,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">이미지 정렬 방식</span>
               <select
                 value={getMediaAlign('img')}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateMediaAlign('img', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1843,7 +1866,7 @@ export default function CssStyleForm({
               max={800}
               value={parseInt(getTagRules('video')['width']) || 560}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('video', 'width', v + 'px')}
             />
             <SliderWidget
@@ -1852,7 +1875,7 @@ export default function CssStyleForm({
               max={600}
               value={parseInt(getTagRules('video')['height']) || 315}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('video', 'height', v + 'px')}
             />
             <SliderWidget
@@ -1861,10 +1884,10 @@ export default function CssStyleForm({
               max={80}
               value={parseInt(getTagRules('video')['margin-top']) || 16}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => {
                 const px = v + 'px';
-                if (!isDefault) {
+                if (!isSystemProfile) {
                   onUpdateProfile({
                     ...currentProfile,
                     rules: {
@@ -1886,7 +1909,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">동영상 정렬 방식</span>
               <select
                 value={getMediaAlign('video')}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateMediaAlign('video', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1906,7 +1929,7 @@ export default function CssStyleForm({
               max={800}
               value={parseInt(getTagRules('map')['width']) || 600}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('map', 'width', v + 'px')}
             />
             <SliderWidget
@@ -1915,7 +1938,7 @@ export default function CssStyleForm({
               max={600}
               value={parseInt(getTagRules('map')['height']) || 450}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('map', 'height', v + 'px')}
             />
             <SliderWidget
@@ -1924,10 +1947,10 @@ export default function CssStyleForm({
               max={80}
               value={parseInt(getTagRules('map')['margin-top']) || 16}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => {
                 const px = v + 'px';
-                if (!isDefault) {
+                if (!isSystemProfile) {
                   onUpdateProfile({
                     ...currentProfile,
                     rules: {
@@ -1949,7 +1972,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">지도 정렬 방식</span>
               <select
                 value={getMediaAlign('map')}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateMediaAlign('map', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -1966,7 +1989,7 @@ export default function CssStyleForm({
             <ColorPickerWidget
               label="수식 글자 색상"
               value={getTagRules('math')['color'] || ''}
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('math', 'color', v)}
             />
             <SliderWidget
@@ -1975,7 +1998,7 @@ export default function CssStyleForm({
               max={32}
               value={parseInt(getTagRules('math')['font-size']) || 16}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => updateCssRule('math', 'font-size', v + 'px')}
             />
             <SliderWidget
@@ -1984,10 +2007,10 @@ export default function CssStyleForm({
               max={80}
               value={parseInt(getTagRules('math')['margin-top']) || 16}
               unit="px"
-              disabled={isDefault}
+              disabled={isSystemProfile}
               onChange={(v) => {
                 const px = v + 'px';
-                if (!isDefault) {
+                if (!isSystemProfile) {
                   onUpdateProfile({
                     ...currentProfile,
                     rules: {
@@ -2006,7 +2029,7 @@ export default function CssStyleForm({
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">수식 정렬 방식</span>
               <select
                 value={getTagRules('math')['text-align'] || 'center'}
-                disabled={isDefault}
+                disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('math', 'text-align', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
@@ -2021,7 +2044,7 @@ export default function CssStyleForm({
         {/* ─── 접이식 아코디언 그룹 끝 ─── */}
 
         {/* 🚨 기본 서식 복구 버튼 - DEFAULT 프로필이 아닐 때 하단에 배치 */}
-        {!isDefault && (
+        {!isSystemProfile && (
           <div className="pt-2 animate-fadeIn">
             <button
               type="button"

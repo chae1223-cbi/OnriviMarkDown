@@ -349,23 +349,42 @@ ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
 // 5. 절대 경로를 지정하여 직접 파일 내용 읽기
 ipcMain.handle('file:readFromPath', async (event, filePath) => {
   try {
-    // 💡 개발 환경(app.getAppPath)과 운영 환경(process.resourcesPath)을 모두 고려한 경로 탐색
-    const pathsToTry = [
-      path.join(app.getAppPath(), filePath),         // 개발/번들 내부
-      path.join(process.resourcesPath, filePath)     // 설치된 환경 외부 리소스 (앱 루트)
-    ];
+    // 💡 [경로 가드] docs/help/ 로 시작하는 상대 경로는 프로젝트 루트(OnriviMarkDown 루트) 기준으로 절대 경로 재조합
+    let cleanPath = filePath.normalize('NFC');
     
-    let cleanPath = '';
-    for (const p of pathsToTry) {
-      const normalizedP = p.normalize('NFC');
-      if (fs.existsSync(normalizedP)) {
-        cleanPath = normalizedP;
-        break;
+    if (!path.isAbsolute(filePath) && filePath.startsWith('docs/help/')) {
+      // app.getAppPath()가 frontend/를 가리키므로 상위('..')로 탈출하여 프로젝트 루트(OnriviMarkDown) 확보
+      const projectRoot = path.join(app.getAppPath(), '..');
+      cleanPath = path.join(projectRoot, filePath).normalize('NFC');
+    } else if (!path.isAbsolute(filePath)) {
+      // 기존 로직: 개발/번들 내부, 설치된 환경 외부 리소스 순서로 탐색
+      const pathsToTry = [
+        path.join(app.getAppPath(), filePath),
+        path.join(process.resourcesPath, filePath)
+      ];
+      
+      let foundPath = '';
+      for (const p of pathsToTry) {
+        const normalizedP = p.normalize('NFC');
+        if (fs.existsSync(normalizedP)) {
+          cleanPath = normalizedP;
+          break;
+        }
+      }
+      if (!cleanPath && !path.isAbsolute(filePath)) {
+         throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
       }
     }
-    
-    if (!cleanPath) {
-      throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
+
+    // 최종 검증
+    if (!fs.existsSync(cleanPath)) {
+      // 최후의 수단: 하드코딩된 프로젝트 루트에서 시도 (빌드 환경 대비)
+      const fallbackPath = path.join('D:\\developer\\OnriviMarkDown', filePath).normalize('NFC');
+      if (fs.existsSync(fallbackPath)) {
+        cleanPath = fallbackPath;
+      } else {
+        throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
+      }
     }
       
     const content = fs.readFileSync(cleanPath, 'utf-8');
@@ -753,5 +772,30 @@ ipcMain.handle('file:readImageAsBase64', async (event, filePath) => {
   }
 });
 
+// ──────────────────────────────────────────────
+// 사용자 서식 프로필 저장소 (Desktop 환경)
+// ──────────────────────────────────────────────
+ipcMain.handle('file:readProfiles', async () => {
+  try {
+    const profilePath = path.join(app.getPath('userData'), 'userCssProfiles.json');
+    if (!fs.existsSync(profilePath)) return [];
+    const raw = fs.readFileSync(profilePath, 'utf-8');
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('프로필 읽기 실패:', e);
+    return [];
+  }
+});
+
+ipcMain.handle('file:saveProfiles', async (event, profiles) => {
+  try {
+    const profilePath = path.join(app.getPath('userData'), 'userCssProfiles.json');
+    fs.writeFileSync(profilePath, JSON.stringify(profiles, null, 2), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('프로필 저장 실패:', e);
+    return false;
+  }
+});
 
 

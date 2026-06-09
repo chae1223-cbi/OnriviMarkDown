@@ -1,6 +1,16 @@
 import { CssProfile } from '../types/cssProfile';
 
 /**
+ * 시스템 프로필 식별자 목록 — 이 ID를 가진 프로필은 수정/삭제 불가
+ */
+export const SYSTEM_PROFILE_IDS = ['system-gov', 'system-press', 'system-report'] as const;
+export type SystemProfileId = typeof SYSTEM_PROFILE_IDS[number];
+
+export function isSystemProfileId(id: string): boolean {
+  return (SYSTEM_PROFILE_IDS as readonly string[]).includes(id);
+}
+
+/**
  * 모든 태그가 빈 CssRuleSet을 가진 템플릿 객체입니다.
  * createEmptyProfile()에서 깊은 복사(deep clone)하여 사용합니다.
  * @see createEmptyProfile
@@ -25,73 +35,194 @@ const EMPTY_RULES = {
  * @remarks 사용자 정의 프로필을 생성할 때도 이 객체를 얕은 복사한 뒤
  * rules만 깊은 복사하여 사용합니다. (page.tsx onAddProfile 참고)
  */
-export const DEFAULT_PROFILE: CssProfile = {
-  id: 'default',
-  name: '일반 Onrivi 기본 스타일 (기본 웹진 규격)',
+/**
+ * 시스템 기본 프로필 목록 (4개)
+ * - 앱에 내장되어 배포되며 수정/삭제 불가
+ * - id는 'system-*' 접두사 사용
+ */
+export const SYSTEM_PROFILES: CssProfile[] = [
+  {
+    id: 'system-gov',
+    name: '공공기관_행정_표준_문서_프로필',
   pageStyle: {
-    fontFamily: 'inherit',
-    fontSize: '15px',
-    lineHeight: '1.7',
-    letterSpacing: '-0.02em',
+    fontFamily: '"Noto Serif KR", serif',
+    fontSize: '14px',
+    lineHeight: '1.8',
+    letterSpacing: '0px',
     backgroundColor: '#ffffff',
-    marginTop: '10mm',
-    marginBottom: '10mm',
-    marginLeft: '10mm',
-    marginRight: '10mm',
+    marginTop: '25mm',
+    marginBottom: '20mm',
+    marginLeft: '25mm',
+    marginRight: '25mm',
     orientation: 'portrait',
-    headingSizeOffset: '4',
+    headingSizeOffset: '3',
     tabSize: '4',
   },
   rules: {
     // --- 제목(Heading) ---
-    h1: { "text-align": "left", "font-weight": "bold", "margin-top": "1.5rem", "margin-bottom": "1rem" },
-    h2: { "text-align": "left", "font-weight": "bold", "margin-top": "1.3rem", "margin-bottom": "0.8rem" },
-    h3: { "text-align": "left", "font-weight": "bold", "margin-top": "1rem", "margin-bottom": "0.6rem" },
-    h4: { "text-align": "left", "font-weight": "600", "margin-top": "0.8rem", "margin-bottom": "0.5rem" },
-    h5: { "text-align": "left", "font-weight": "500", "margin-top": "0.6rem", "margin-bottom": "0.4rem" },
-    h6: { "text-align": "left", "font-weight": "500", "margin-top": "0.5rem", "margin-bottom": "0.3rem" },
+    h1: { "text-align": "center", "font-weight": "bold", "font-size": "26px", "margin-top": "32px", "margin-bottom": "20px", "letter-spacing": "0.05em" },
+    h2: { "text-align": "left", "font-weight": "bold", "font-size": "20px", "margin-top": "28px", "margin-bottom": "14px", "border-bottom": "1px solid", "padding-bottom": "6px" },
+    h3: { "text-align": "left", "font-weight": "bold", "font-size": "17px", "margin-top": "20px", "margin-bottom": "10px" },
+    h4: { "text-align": "left", "font-weight": "bold", "font-size": "15px", "margin-top": "16px", "margin-bottom": "8px" },
+    h5: { "text-align": "left", "font-weight": "600", "font-size": "14px", "margin-top": "12px", "margin-bottom": "6px" },
+    h6: { "text-align": "left", "font-weight": "600", "font-size": "13px", "margin-top": "10px", "margin-bottom": "4px" },
     // --- 본문 ---
-    p: { "text-align": "left", "margin-bottom": "8px", "text-indent": "0px" },
-    // --- 인라인 서식 (빈 객체 = prose 기본값 사용) ---
-    strong: {},
-    em: {},
+    p: { "text-align": "justify", "margin-top": "0px", "margin-bottom": "10px", "text-indent": "10px", "line-height": "1.8", "word-break": "keep-all" },
+    // --- 인라인 서식 ---
+    strong: { "font-weight": "bold" },
+    em: { "font-style": "italic" },
     u: {},
-    del: {},
-    // --- 목록 (초기 기본값을 조밀하고 명확히 기입) ---
-    ul: { "padding-left": "24px" },
-    ol: { "padding-left": "24px" },
-    li: { "margin-bottom": "3px", "padding-inline-start": "6px" },
+    del: { "text-decoration-color": "#9ca3af" },
+    // --- 목록 ---
+    ul: { "padding-left": "24px", "list-style-type": "disc" },
+    ol: { "padding-left": "24px", "list-style-type": "decimal" },
+    li: { "margin-bottom": "4px", "padding-inline-start": "6px" },
     taskList: {},
     // --- 수평선 ---
-    hr: {},
+    hr: { "border-top-color": "#d1d5db" },
     // --- 표 ---
-    table: { "width": "100%", "border-collapse": "collapse" },
-    th: {},
-    td: {},
+    table: { "width": "100%", "border-collapse": "collapse", "border-style": "solid", "border-width": "1px", "border-color": "#9ca3af", "font-size": "13px" },
+    th: { "background-color": "#f3f4f6", "padding": "8px", "border-style": "solid", "border-width": "1px", "border-color": "#9ca3af", "text-align": "center", "font-weight": "bold" },
+    td: { "padding": "6px 8px", "border-style": "solid", "border-width": "1px", "border-color": "#9ca3af" },
     // --- 인용문, 코드, 링크, 이미지 ---
-    blockquote: { "border-left-width": "4px", "border-left-style": "solid", "padding": "12px", "margin-top": "10px", "margin-bottom": "10px" },
-    codeBlock: {},
-    codeBlockTitle: {},
-    a: {},
-    img: {},
-    code: { "padding-top": "1px", "padding-bottom": "1px", "line-height": "1" },
-    video: {},
-    math: {},
-    map: {},
-    footnote: {},
+    blockquote: { "border-left-width": "4px", "border-left-style": "solid", "border-left-color": "#2563eb", "padding": "12px 16px", "margin-top": "16px", "margin-bottom": "16px", "background-color": "#f8fafc", "color": "#374151" },
+    codeBlock: { "background-color": "#1e293b", "color": "#e2e8f0", "font-size": "13px", "padding": "16px", "border-radius": "6px" },
+    codeBlockTitle: { "background-color": "#0f172a", "color": "#94a3b8" },
+    a: { "color": "#2563eb", "text-decoration": "underline" },
+    img: { "display": "block", "margin-left": "auto", "margin-right": "auto", "width": "500px", "margin-top": "20px", "margin-bottom": "20px" },
+    code: { "background-color": "#f1f5f9", "color": "#dc2626", "font-size": "0.85em", "padding-top": "1px", "padding-bottom": "1px", "padding-left": "4px", "padding-right": "4px", "border-radius": "3px", "line-height": "1" },
+    video: { "width": "560px", "height": "315px", "display": "block", "margin-left": "auto", "margin-right": "auto", "margin-top": "16px", "margin-bottom": "16px" },
+    math: { "color": "#1e3a8a", "font-size": "16px", "text-align": "center", "margin-top": "16px", "margin-bottom": "16px" },
+    map: { "width": "600px", "height": "450px", "display": "block", "margin-left": "auto", "margin-right": "auto", "margin-top": "16px", "margin-bottom": "16px" },
+    footnote: { "color": "#6b7280", "font-size": "11px", "line-height": "1.4", "margin-top": "8px", "margin-bottom": "8px" },
   },
   hrStructure: {
     borderTopStyle: "solid",
     borderTopWidth: "1px",
-    marginTopBottom: "32px",
+    marginTopBottom: "28px",
     lineWidth: "100%"
   },
-  checkboxStructure: {
+    checkboxStructure: {
     boxSize: "16px",
     checkedEffect: "line-through-and-dim",
     textGap: "10px"
   }
-};
+},
+  // ──────────────────────────────────────────────
+  // 시스템 프로필 ❷: 언론사_보도자료_표준
+  // ──────────────────────────────────────────────
+  {
+    id: 'system-press',
+    name: '언론사_보도자료_표준',
+    pageStyle: {
+      fontFamily: '"Noto Serif KR", serif',
+      fontSize: '14px',
+      lineHeight: '1.9',
+      letterSpacing: '0px',
+      backgroundColor: '#ffffff',
+      marginTop: '20mm',
+      marginBottom: '20mm',
+      marginLeft: '20mm',
+      marginRight: '20mm',
+      orientation: 'portrait',
+      headingSizeOffset: '4',
+      tabSize: '4',
+    },
+    rules: {
+      h1: { "text-align": "center", "font-weight": "bold", "font-size": "30px", "margin-top": "40px", "margin-bottom": "8px", "letter-spacing": "0.08em" },
+      h2: { "text-align": "left", "font-weight": "bold", "font-size": "20px", "margin-top": "32px", "margin-bottom": "12px", "border-bottom": "2px solid #1e40af", "padding-bottom": "8px", "color": "#1e40af" },
+      h3: { "text-align": "left", "font-weight": "bold", "font-size": "17px", "margin-top": "24px", "margin-bottom": "8px" },
+      h4: { "text-align": "left", "font-weight": "600", "font-size": "15px", "margin-top": "16px", "margin-bottom": "6px" },
+      h5: { "text-align": "left", "font-weight": "600", "font-size": "14px", "margin-top": "12px", "margin-bottom": "4px" },
+      h6: { "text-align": "left", "font-weight": "600", "font-size": "13px", "margin-top": "10px", "margin-bottom": "4px" },
+      p: { "text-align": "justify", "margin-top": "0px", "margin-bottom": "12px", "text-indent": "0px", "line-height": "1.9" },
+      strong: { "color": "#1e40af" },
+      em: { "font-style": "italic" },
+      u: {},
+      del: {},
+      ul: { "padding-left": "24px", "list-style-type": "disc" },
+      ol: { "padding-left": "24px", "list-style-type": "decimal" },
+      li: { "margin-bottom": "4px", "padding-inline-start": "6px" },
+      taskList: {},
+      hr: { "border-top-color": "#1e40af", "border-top-width": "2px" },
+      table: { "width": "100%", "border-collapse": "collapse", "border-style": "solid", "border-width": "1px", "border-color": "#cbd5e1", "font-size": "13px" },
+      th: { "background-color": "#1e40af", "color": "#ffffff", "padding": "10px", "border-style": "solid", "border-width": "1px", "border-color": "#cbd5e1", "text-align": "center", "font-weight": "bold" },
+      td: { "padding": "8px 10px", "border-style": "solid", "border-width": "1px", "border-color": "#cbd5e1" },
+      blockquote: { "border-left-width": "4px", "border-left-style": "solid", "border-left-color": "#1e40af", "padding": "12px 16px", "margin-top": "16px", "margin-bottom": "16px", "background-color": "#eff6ff", "color": "#1e3a5f", "font-style": "italic" },
+      codeBlock: { "background-color": "#0f172a", "color": "#e2e8f0", "font-size": "13px", "padding": "16px", "border-radius": "6px" },
+      codeBlockTitle: { "background-color": "#020617", "color": "#64748b" },
+      a: { "color": "#1e40af", "text-decoration": "underline", "font-weight": "bold" },
+      img: { "display": "block", "margin-left": "auto", "margin-right": "auto", "width": "500px", "margin-top": "20px", "margin-bottom": "20px" },
+      code: { "background-color": "#f1f5f9", "color": "#b91c1c", "font-size": "0.85em", "padding-top": "1px", "padding-bottom": "1px", "padding-left": "4px", "padding-right": "4px", "border-radius": "3px", "line-height": "1" },
+      video: { "width": "560px", "height": "315px", "display": "block", "margin-left": "auto", "margin-right": "auto", "margin-top": "16px", "margin-bottom": "16px" },
+      math: { "color": "#1e3a8a", "font-size": "16px", "text-align": "center", "margin-top": "16px", "margin-bottom": "16px" },
+      map: { "width": "600px", "height": "450px", "display": "block", "margin-left": "auto", "margin-right": "auto", "margin-top": "16px", "margin-bottom": "16px" },
+      footnote: { "color": "#64748b", "font-size": "11px", "line-height": "1.4", "margin-top": "8px", "margin-bottom": "8px" },
+    },
+    hrStructure: { borderTopStyle: "solid", borderTopWidth: "2px", marginTopBottom: "32px", lineWidth: "75%" },
+    checkboxStructure: { boxSize: "16px", checkedEffect: "line-through-and-dim", textGap: "10px" }
+  },
+  // ──────────────────────────────────────────────
+  // 시스템 프로필 ❸: 회의록_및_보고서_프로필
+  // ──────────────────────────────────────────────
+  {
+    id: 'system-report',
+    name: '회의록_및_보고서_프로필',
+    pageStyle: {
+      fontFamily: '"Noto Sans KR", sans-serif',
+      fontSize: '13px',
+      lineHeight: '1.6',
+      letterSpacing: '0px',
+      backgroundColor: '#ffffff',
+      marginTop: '15mm',
+      marginBottom: '15mm',
+      marginLeft: '20mm',
+      marginRight: '20mm',
+      orientation: 'portrait',
+      headingSizeOffset: '2',
+      tabSize: '4',
+    },
+    rules: {
+      h1: { "text-align": "left", "font-weight": "bold", "font-size": "22px", "margin-top": "24px", "margin-bottom": "16px", "border-bottom": "3px double #374151", "padding-bottom": "10px" },
+      h2: { "text-align": "left", "font-weight": "bold", "font-size": "18px", "margin-top": "20px", "margin-bottom": "10px", "color": "#374151" },
+      h3: { "text-align": "left", "font-weight": "bold", "font-size": "16px", "margin-top": "16px", "margin-bottom": "8px" },
+      h4: { "text-align": "left", "font-weight": "600", "font-size": "14px", "margin-top": "12px", "margin-bottom": "6px" },
+      h5: { "text-align": "left", "font-weight": "600", "font-size": "13px", "margin-top": "10px", "margin-bottom": "4px" },
+      h6: { "text-align": "left", "font-weight": "600", "font-size": "12px", "margin-top": "8px", "margin-bottom": "4px" },
+      p: { "text-align": "justify", "margin-top": "0px", "margin-bottom": "8px", "text-indent": "0px", "line-height": "1.6" },
+      strong: { "color": "#111827" },
+      em: { "font-style": "italic", "color": "#4b5563" },
+      u: {},
+      del: { "opacity": "0.5" },
+      ul: { "padding-left": "20px", "list-style-type": "disc" },
+      ol: { "padding-left": "20px", "list-style-type": "decimal" },
+      li: { "margin-bottom": "3px", "padding-inline-start": "4px" },
+      taskList: {},
+      hr: { "border-top-color": "#d1d5db" },
+      table: { "width": "100%", "border-collapse": "collapse", "border-style": "solid", "border-width": "1px", "border-color": "#d1d5db", "font-size": "12px" },
+      th: { "background-color": "#374151", "color": "#ffffff", "padding": "6px 8px", "border-style": "solid", "border-width": "1px", "border-color": "#d1d5db", "text-align": "center", "font-weight": "bold" },
+      td: { "padding": "5px 8px", "border-style": "solid", "border-width": "1px", "border-color": "#d1d5db" },
+      blockquote: { "border-left-width": "3px", "border-left-style": "solid", "border-left-color": "#9ca3af", "padding": "8px 12px", "margin-top": "12px", "margin-bottom": "12px", "background-color": "#f9fafb", "color": "#4b5563" },
+      codeBlock: { "background-color": "#1e293b", "color": "#e2e8f0", "font-size": "12px", "padding": "12px", "border-radius": "4px" },
+      codeBlockTitle: { "background-color": "#0f172a", "color": "#94a3b8" },
+      a: { "color": "#2563eb", "text-decoration": "underline" },
+      img: { "display": "block", "margin-left": "auto", "margin-right": "auto", "width": "450px", "margin-top": "16px", "margin-bottom": "16px" },
+      code: { "background-color": "#f1f5f9", "color": "#dc2626", "font-size": "0.85em", "padding-top": "1px", "padding-bottom": "1px", "padding-left": "3px", "padding-right": "3px", "border-radius": "3px", "line-height": "1" },
+      video: { "width": "560px", "height": "315px", "display": "block", "margin-left": "auto", "margin-right": "auto", "margin-top": "16px", "margin-bottom": "16px" },
+      math: { "color": "#1e3a8a", "font-size": "15px", "text-align": "center", "margin-top": "12px", "margin-bottom": "12px" },
+      map: { "width": "600px", "height": "450px", "display": "block", "margin-left": "auto", "margin-right": "auto", "margin-top": "16px", "margin-bottom": "16px" },
+      footnote: { "color": "#6b7280", "font-size": "10px", "line-height": "1.3", "margin-top": "6px", "margin-bottom": "6px" },
+    },
+    hrStructure: { borderTopStyle: "solid", borderTopWidth: "1px", marginTopBottom: "24px", lineWidth: "100%" },
+    checkboxStructure: { boxSize: "14px", checkedEffect: "dim-only", textGap: "8px" }
+  }
+];
+
+/**
+ * DEFAULT_PROFILE: 사용자 정의 프로필 생성/가져오기 시 템플릿으로 사용합니다.
+ * (시스템 프로필이 아니므로 가져온 스타일로 덮어쓸 수 있습니다)
+ */
+export const DEFAULT_PROFILE: CssProfile = SYSTEM_PROFILES[0]; // system-gov
 
 /**
  * 새로운 빈 프로필을 생성합니다.

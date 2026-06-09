@@ -8,11 +8,16 @@
 function isAnyListLine(line: string): boolean {
   if (!line) return false;
   const trimmed = line.trim();
-  // 1. 순서 있는 목록 — 아라비아 숫자(1. 2.) 만 감지 (로마자·원문자·전각 기호 제외)
   const isOrdered = /^\d+[\.\)]\s/.test(trimmed);
-  // 2. 순서 없는 목록 및 체크리스트 감지
   const isUnordered = /^(?:[-*+]\s|\[[ xX]?\])/.test(trimmed);
   return isOrdered || isUnordered;
+}
+
+/**
+ * 마크다운 텍스트에서 YAML frontmatter(---로 둘러싸인 블록)를 제거합니다.
+ */
+export function stripFrontmatter(markdown: string): string {
+  return markdown.replace(/^---[\s\S]*?---\s*\n*/, '');
 }
 
 /**
@@ -49,7 +54,8 @@ export interface ProcessedMarkdown {
 export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown {
   if (!content) return { text: "", lineMap: [] };
 
-  // Step 1: 볼드 수식($$) 개행 분리 및 초기 1-based 라인 매핑 생성
+  // Step 0: YAML frontmatter 제거
+  content = stripFrontmatter(content);
   const originalLines = content.split("\n");
   let expandedLines: string[] = [];
   let expandedLineMap: number[] = []; // 각 확장 라인이 원본의 몇 번째 줄(1-based)인지 기록

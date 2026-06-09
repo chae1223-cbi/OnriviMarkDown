@@ -70,7 +70,9 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
   }
 
   let cleanSrc = decoded.replace(/\\/g, '/');
+  let isRootRelative = false;
   if (cleanSrc.startsWith('/')) {
+    isRootRelative = true;
     cleanSrc = cleanSrc.substring(1);
   }
 
@@ -79,7 +81,9 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
   }
 
   let finalPath = "";
-  if (baseFolder) {
+  if (isRootRelative) {
+    finalPath = cleanSrc;
+  } else if (baseFolder) {
     finalPath = baseFolder + '/' + cleanSrc;
   } else {
     finalPath = cleanSrc;

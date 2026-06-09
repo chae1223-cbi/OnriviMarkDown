@@ -59,11 +59,11 @@ import { getApiUrl } from '@/lib/api'; // api 서버 경로
 import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers'; // 파일 내보내기 핸들러
 import { configureMonacoEnvironment } from '@/lib/monacoEnv'; // Monaco 환경 설정
 import { idb, FileNode, scanDirectory, getFileIcon } from '@/lib/helper'; // indexedDB 헬퍼
-import { preprocessMarkdownForPreview } from "@/lib/editorUtils"; // 마크다운 프리뷰
+import { preprocessMarkdownForPreview, stripFrontmatter } from "@/lib/editorUtils"; // 마크다운 프리뷰
 import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig"; // 툴바 설정
 import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes"; // 에디터 테마
 import { CssProfile } from "@/types/cssProfile"; // css 프로필 타입
-import { DEFAULT_PROFILE } from "@/constants/cssProfile"; // 기본 프로필
+import { DEFAULT_PROFILE, SYSTEM_PROFILES, isSystemProfileId } from "@/constants/cssProfile"; // 기본 프로필
 import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import CssStyleForm from "@/components/CssStyleForm"; // css 스타일 폼
@@ -90,7 +90,6 @@ import FormulaModal from '@/components/FormulaModal'; // 모달
 import MergeModal from '@/components/MergeModal'; // 모달
 import YoutubeModal from '@/components/YoutubeModal'; // 모달
 import AboutModal from '@/components/AboutModal'; // 모달
-import HelpModal from '@/components/HelpModal'; // 💡 헬프 모달 임포트
 
 
 /**
@@ -278,37 +277,66 @@ export default function Home() {                  // @Home : Home component
   const [isDarkMode, setIsDarkMode] = useState(false); // @isDarkMode : dark mode state 
   const [themePalette, setThemePalette] = useState<string>('onrivi-light'); // @themePalette : theme palette state 
   /*
-   * profiles state — CssProfile 배열 (루셋 기반 CSS 서식 프로필)
-   *
-   * localStorage['cssProfiles']에서 초기화:
-   * - 저장값이 없으면 [DEFAULT_PROFILE]로 시작
-   * - 오래된 포맷(parsed[0].rules 없음) 감지 시 [DEFAULT_PROFILE]로 안전 리셋
-   * - 파싱 실패 시에도 [DEFAULT_PROFILE] fallback
+   * profiles state — CssProfile 배열
+   * - 시스템 프로필(SYSTEM_PROFILES)은 항상 앞에 고정
+   * - 사용자 프로필: Addon → localStorage, Desktop → electronAPI(userData)
    */
-  const [profiles, setProfiles] = useState<CssProfile[]>(() => { // @profiles : profiles state 
-    try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('cssProfiles') : null; // @saved : cssProfiles state 
-      if (!saved) return [DEFAULT_PROFILE]; // @saved : cssProfiles state 
-      const parsed = JSON.parse(saved); // @parsed : cssProfiles state 
-      if (!Array.isArray(parsed)) return [DEFAULT_PROFILE]; // @parsed : cssProfiles state
-      /*
-       * 마이그레이션 감지: tagClasses 포맷(문자열 값) 기존 프로필 감지 시
-       * -> CssRuleSet 포맷(객체)로 바뀌었으므로 완전 리셋
-       */
-      if (parsed.length > 0 && !parsed[0].rules) return [DEFAULT_PROFILE]; // @parsed : cssProfiles state 
-      return parsed as CssProfile[]; // @parsed : cssProfiles state 
-    } catch { return [DEFAULT_PROFILE]; } // @DEFAULT_PROFILE : cssProfiles state 
+  const [profiles, setProfiles] = useState<CssProfile[]>(() => {
+    if (typeof window === 'undefined') return [...SYSTEM_PROFILES];
+    // SSR 이후: 시스템 프로필만 우선 세팅, 사용자 프로필은 useEffect에서 비동기 로드
+    return [...SYSTEM_PROFILES];
   });
+  // 사용자 프로필 로드 (환경별)
+  useEffect(() => {
+    if (!mounted) return;
+    const api = (window as any).electronAPI;
+    const loadUserProfiles = async () => {
+      let userProfiles: CssProfile[] = [];
+      if (api) {
+        // Desktop: electronAPI
+        userProfiles = await api.readProfiles();
+      } else {
+        // Addon/Browser: localStorage
+        try {
+          const saved = localStorage.getItem('userCssProfiles');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) userProfiles = parsed;
+          } else {
+            // 구버전 마이그레이션
+            const oldSaved = localStorage.getItem('cssProfiles');
+            if (oldSaved) {
+              const parsed = JSON.parse(oldSaved);
+              if (Array.isArray(parsed)) {
+                userProfiles = (parsed as CssProfile[]).filter(p => !isSystemProfileId(p.id) && p.id !== 'default');
+              }
+              localStorage.removeItem('cssProfiles');
+            }
+          }
+        } catch {}
+      }
+      setProfiles(prev => {
+        const systemPart = prev.filter(p => isSystemProfileId(p.id));
+        return [...systemPart, ...userProfiles];
+      });
+    };
+    loadUserProfiles();
+  }, [mounted]);
   const [activeProfileId, setActiveProfileId] = useState<string>(
-    () => DEFAULT_PROFILE.id
+    () => SYSTEM_PROFILES[0].id
   );
   const [isAddonEnv, setIsAddonEnv] = useState(false);
   const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
   const previewModeRef = useRef(previewMode);
+  const [helpContent, setHelpContent] = useState<string | null>(null);
+  const [helpTitle, setHelpTitle] = useState('');
+  const helpContentRef = useRef(helpContent);
+  helpContentRef.current = helpContent;
   
   // 💡 [동기식 가드] previewMode 변경 즉시 에디터 마운트 상태 플래그를 제어하는 동기 래핑 헬퍼 함수
   const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
     setPreviewModeRaw(prev => {
+      if (helpContentRef.current) return prev;
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
       previewModeRef.current = next;
       if (next === 'preview') {
@@ -323,6 +351,15 @@ export default function Home() {                  // @Home : Home component
   useEffect(() => {
     previewModeRef.current = previewMode;
   }, [previewMode]);
+
+  // helpContent 설정 시 previewMode를 'preview'로 강제 전환
+  useEffect(() => {
+    if (helpContent) {
+      setPreviewModeRaw('preview');
+      previewModeRef.current = 'preview';
+      isEditorMountedRef.current = false;
+    }
+  }, [helpContent]);
 
   const [promptConfig, setPromptConfig] = useState<{
     isOpen: boolean;
@@ -698,7 +735,6 @@ export default function Home() {                  // @Home : Home component
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
-  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
@@ -1257,8 +1293,15 @@ export default function Home() {                  // @Home : Home component
   }, [isDarkMode, mounted, themePalette]);
 
   useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('cssProfiles', JSON.stringify(profiles));
+    if (!mounted) return;
+    const userProfiles = profiles.filter(p => !isSystemProfileId(p.id));
+    const api = (window as any).electronAPI;
+    if (api) {
+      // Desktop: electronAPI 저장
+      api.saveProfiles(userProfiles);
+    } else {
+      // Addon/Browser: localStorage
+      try { localStorage.setItem('userCssProfiles', JSON.stringify(userProfiles)); } catch {}
     }
   }, [profiles, mounted]);
 
@@ -1621,6 +1664,31 @@ export default function Home() {                  // @Home : Home component
   };
 
   const handleFileOpenByPath = async (resolvedPath: string) => {
+    // 💡 도움말 보기 중이면 도움말 파일 간 이동으로 처리
+    if (helpContentRef.current) {
+      const api = (window as any).electronAPI;
+      const helpPath = resolvedPath.startsWith('docs/') ? resolvedPath : 'docs/help/' + resolvedPath.replace(/^\//, '');
+      if (api?.readFromPath) {
+        try {
+          const file = await api.readFromPath(helpPath);
+          setHelpContent(stripFrontmatter(file.content));
+          // 파일명으로 제목 추정
+          const fileName = helpPath.split('/').pop()?.replace('.md', '') || '';
+          const titleMap: Record<string, string> = {
+            '00_시작하기': '시작하기', '01_마크다운에디트란': '마크다운 에디트란',
+            '02_에디터-기본': '에디터 기본 사용법', '03_파일-관리': '파일 관리',
+            '04_미리보기-모드': '미리보기 모드', '05_서식-정의': '서식 정의',
+            '06_내보내기': '내보내기', '07_표-체크리스트': '표 및 체크리스트',
+            '08_다이어그램-수식': '다이어그램 및 수식', '09_슬래시-명령어': '슬래시 명령어 및 단축키',
+            '10_한글-입력': '한글 입력', '11_미디어-삽입': '미디어 삽입',
+            '12_내보내기-고급': '내보내기 고급', '13_설정': '설정 및 커스터마이징'
+          };
+          setHelpTitle(titleMap[fileName] || fileName);
+        } catch { setHelpContent('## 문서를 불러올 수 없습니다.'); }
+      }
+      return;
+    }
+
     // 💡 [한글 주석] 전체 fileList 트리 구조에서 resolvedPath와 일치하는 파일 노드를 재귀 탐색
     const findNodeByPath = (nodes: FileNode[], targetPath: string): { node: FileNode, parent: any } | null => {
       const normalizedTarget = targetPath.replace(/\\/g, '/').toLowerCase();
@@ -1661,6 +1729,10 @@ export default function Home() {                  // @Home : Home component
   };
 
   const handleFileClick = async (node: FileNode | null, parentHandle?: any) => {
+    // 💡 사용자가 파일을 선택하면 도움말 종료
+    setHelpContent(null);
+    setHelpTitle('');
+
     // 💡 부모 폴더 핸들을 레퍼런스에 저장하여 저장 시 startIn 경로로 활용
     currentFileParentHandleRef.current = parentHandle || null;
 
@@ -3508,7 +3580,22 @@ export default function Home() {                  // @Home : Home component
       setIsSettingsModalOpen(true);
     },
     about: () => setIsAboutModalOpen(true),
-    help: () => setIsHelpModalOpen(true),
+    help: async () => {
+      const api = (window as any).electronAPI;
+      if (api?.readFromPath) {
+        try {
+          const file = await api.readFromPath('docs/help/00_시작하기.md');
+          setHelpTitle('시작하기');
+          setHelpContent(stripFrontmatter(file.content));
+        } catch (e) {
+          setHelpContent('## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.');
+          setHelpTitle('오류');
+        }
+      } else {
+        setHelpContent('## 문서를 불러올 수 없습니다.\n\n이 기능은 데스크탑 환경에서만 지원됩니다.');
+        setHelpTitle('오류');
+      }
+    },
     updates: () => setIsUpdatesModalOpen(true),
     toggleFloatingToolbar: () => {
       setFloatingToolbar(prev => {
@@ -4148,14 +4235,13 @@ export default function Home() {                  // @Home : Home component
                   prev.map(p => p.id === updated.id ? updated : p)
                 )}
                 /*
-                 * onAddProfile — 새 CssProfile 생성:
-                 * DEFAULT_PROFILE의 구조를 복제하되 id/id/name/rules를 재할당
-                 * (rules는 JSON parse/stringify로 깊은 복사하여 참조 분리)
+                 * onAddProfile — 새 사용자 프로필 생성:
+                 * DEFAULT_PROFILE을 템플릿으로 복제
                  * 생성 직후 새 프로필로 자동 전환
                  */
                 onAddProfile={() => {
                   const newId = 'profile-' + Date.now();
-                  const count = profiles.filter(p => p.id !== 'default').length + 1;
+                  const count = profiles.filter(p => !isSystemProfileId(p.id)).length + 1;
                   setProfiles(prev => [...prev, {
                     ...DEFAULT_PROFILE,
                     id: newId,
@@ -4165,14 +4251,15 @@ export default function Home() {                  // @Home : Home component
                   setActiveProfileId(newId);
                 }}
                 /*
-                 * onDeleteProfile — 프로필 삭제:
-                 * profiles 배열에서 해당 id 제거
-                 * 현재 보고 있던 프로필이 삭제되면 DEFAULT_PROFILE로 전환
+                 * onDeleteProfile — 사용자 프로필 삭제:
+                 * 시스템 프로필은 삭제 불가
+                 * 현재 보고 있던 프로필이 삭제되면 첫 번째 시스템 프로필로 전환
                  */
                 onDeleteProfile={(id) => {
+                  if (isSystemProfileId(id)) return;
                   setProfiles(prev => prev.filter(p => p.id !== id));
                   if (activeProfileId === id) {
-                    setActiveProfileId(DEFAULT_PROFILE.id);
+                    setActiveProfileId(SYSTEM_PROFILES[0].id);
                   }
                 }}
                 onImportProfile={(imported) => {
@@ -5486,7 +5573,22 @@ export default function Home() {                  // @Home : Home component
                      style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
                     onMouseDown={handleDragStart}
                   >
-                    {(() => {
+                  {helpContent && (
+                    <div className="flex items-center justify-between px-5 py-2.5 mb-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-lg mx-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">📖</span>
+                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{helpTitle || '사용 설명서'}</span>
+                        <span className="text-xs text-blue-400 dark:text-blue-500 ml-1">(서식 설정이 적용된 미리보기)</span>
+                      </div>
+                      <button
+                        onClick={() => { setHelpContent(null); setHelpTitle(''); }}
+                        className="text-xs px-3 py-1.5 rounded-md bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 font-semibold transition-colors"
+                      >
+                        닫기
+                      </button>
+                    </div>
+                  )}
+                  {(() => {
                       return (
                         <div className="flex flex-row items-center gap-3 min-w-max">
                           {/* 서식 */}
@@ -5672,10 +5774,10 @@ export default function Home() {                  // @Home : Home component
                     return (
                       <div className={`${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
                         <MarkdownViewer
-                          content={previewMode === 'css-style' ? WELCOME_CONTENT : processedContent}
-                          originalContent={previewMode === 'css-style' ? WELCOME_CONTENT : content}
-                          lineMap={previewMode === 'css-style' ? undefined : lineMap}
-                          onCheckboxToggle={previewMode === 'css-style' ? undefined : handleCheckboxToggle}
+                          content={helpContent || (previewMode === 'css-style' ? WELCOME_CONTENT : processedContent)}
+                          originalContent={helpContent || (previewMode === 'css-style' ? WELCOME_CONTENT : content)}
+                          lineMap={helpContent ? undefined : (previewMode === 'css-style' ? undefined : lineMap)}
+                          onCheckboxToggle={helpContent ? undefined : (previewMode === 'css-style' ? undefined : handleCheckboxToggle)}
                           currentFilePath={currentFileNode?.path}
                           rootFolderPath={rootFolder?.name}
                           onFileOpen={handleFileOpenByPath}
@@ -5908,11 +6010,7 @@ export default function Home() {                  // @Home : Home component
         setLicenseKey={setLicenseKey}
         isActivated={isActivated}
       />
-      <HelpModal
-        isOpen={isHelpModalOpen}
-        onClose={() => setIsHelpModalOpen(false)}
-        isDarkMode={isDarkMode}
-      />
+
       <ImageModal
         isOpen={isImageModalOpen}
         onClose={() => {

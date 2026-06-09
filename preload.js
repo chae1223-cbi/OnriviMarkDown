@@ -79,6 +79,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 22. 로컬 이미지 파일 Base64 변환 읽기 API
   readImageAsBase64: (filePath) => ipcRenderer.invoke('file:readImageAsBase64', filePath),
 
+  // 23. 사용자 서식 프로필 읽기 (Desktop — userData)
+  readProfiles: () => ipcRenderer.invoke('file:readProfiles'),
+
+  // 24. 사용자 서식 프로필 저장 (Desktop — userData)
+  saveProfiles: (profiles) => ipcRenderer.invoke('file:saveProfiles', profiles),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');
