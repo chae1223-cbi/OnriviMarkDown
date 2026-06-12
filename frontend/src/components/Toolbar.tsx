@@ -234,14 +234,30 @@ export default function Toolbar({
           {previewMode === 'css-style' && '서식 정의 모드'}
         </div>
 
-        {/* 부가기능 */}
+        {/* 부가기능 - 임시 주석 처리 (하단 상태바 버튼으로만 사용) */}
+        {/*
         <div className="flex flex-row items-center gap-4 h-full">
           <ToolbarGroup label="부가기능" showDivider={false}>
             <ToolbarButton label={<span className="font-bold">🗃️</span>} title={t('sidebarShow')} onAction={() => setIsSidebarOpen(!isSidebarOpen)} />
             <ToolbarButton label={<span className="font-bold">♻️</span>} title={t('toolbarToggle')} onAction={() => dispatch('TOGGLE_TOOLBAR')} />
-            <ToolbarButton label={<span className="font-bold">📜</span>} title={t('toEditMode')} onAction={() => dispatch('TOGGLE_MODE')} />
+            <ToolbarButton
+              label={
+                <span className="font-bold">
+                  {previewMode === 'edit' ? '✍️' : previewMode === 'both' ? '📳' : '📜'}
+                </span>
+              }
+              title={
+                previewMode === 'edit'
+                  ? t('toSplitMode')
+                  : previewMode === 'both'
+                    ? t('toPreviewMode')
+                    : t('toEditMode')
+              }
+              onAction={() => dispatch('TOGGLE_MODE')}
+            />
           </ToolbarGroup>
         </div>
+        */}
       </div>
     </div>
   );

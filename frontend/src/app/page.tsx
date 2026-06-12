@@ -335,9 +335,21 @@ export default function Home() {                  // @Home : Home component
   
   // 💡 [동기식 가드] previewMode 변경 즉시 에디터 마운트 상태 플래그를 제어하는 동기 래핑 헬퍼 함수
   const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
+    // 모드 전환 전 에디터 내용을 즉시 React 상태에 반영 (100ms 디바운스 손실 방지)
+    if (editorRef.current && previewModeRef.current !== 'preview') {
+      if (previewDebounceRef.current) {
+        clearTimeout(previewDebounceRef.current);
+        previewDebounceRef.current = null;
+      }
+      const latestVal = editorRef.current.getValue();
+      if (latestVal !== contentRef.current) {
+        setContent(latestVal);
+      }
+    }
     setPreviewModeRaw(prev => {
-      if (helpContentRef.current) return prev;
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
+      if (prev === 'css-style' && next !== 'css-style') return prev;
+      if (helpContentRef.current && next !== 'css-style') return prev;
       previewModeRef.current = next;
       if (next === 'preview') {
         isEditorMountedRef.current = false;
@@ -408,7 +420,8 @@ export default function Home() {                  // @Home : Home component
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('isPageViewEnabled');
       if (saved === 'true') {
-        setIsPageViewEnabled(true);
+        // 당분간 페이지 나누기 기능을 숨겨두기 위해 강제로 false 상태를 유지합니다.
+        // setIsPageViewEnabled(true);
       }
     }
   }, []);
@@ -674,6 +687,7 @@ export default function Home() {                  // @Home : Home component
     path: string;
     width: string;
     height: string;
+    align: string;
   } | null>(null);
   const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -983,6 +997,7 @@ export default function Home() {                  // @Home : Home component
         const localData = localStorage.getItem('onrivi_settings');
         if (localData) {
           Object.assign(baseSettings, JSON.parse(localData));
+          if (baseSettings.previewMode === 'css-style') baseSettings.previewMode = 'both';
         } else {
           // 하위 호환용 개별 로드
           const legacyFontSize = localStorage.getItem('fontSize');
@@ -1022,6 +1037,7 @@ export default function Home() {                  // @Home : Home component
           });
           if (result && result.onrivi_settings) {
             Object.assign(baseSettings, result.onrivi_settings);
+            if (baseSettings.previewMode === 'css-style') baseSettings.previewMode = 'both';
           }
         } catch (e) {
           console.error('크롬 스토리지 로드 실패:', e);
@@ -1206,7 +1222,7 @@ export default function Home() {                  // @Home : Home component
       themePalette
     };
 
-    // 1. 브라우저 로컬 스토리지 저장
+    // 1. 브라우저 로컬 스토리지 저장 (css-style은 일시 모드이므로 저장하지 않음)
     localStorage.setItem('onrivi_settings', JSON.stringify(settings));
     // 개별 레거시 키 호환 유지
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
@@ -1217,7 +1233,7 @@ export default function Home() {                  // @Home : Home component
     localStorage.setItem('customSlashCommands', JSON.stringify(customSlashCommands));
     localStorage.setItem('themePalette', themePalette);
     localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
-    localStorage.setItem('previewMode', previewMode);
+    if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
 
     // 2. 크롬 익스텐션(애드온) 스토리지 동시 저장
     const chromeStorage = (window as any).chrome?.storage?.local;
@@ -1668,22 +1684,30 @@ export default function Home() {                  // @Home : Home component
     if (helpContentRef.current) {
       const api = (window as any).electronAPI;
       const helpPath = resolvedPath.startsWith('docs/') ? resolvedPath : 'docs/help/' + resolvedPath.replace(/^\//, '');
+      const loadHelp = async (content: string) => {
+        setHelpContent(stripFrontmatter(content));
+        const fileName = helpPath.split('/').pop()?.replace('.md', '') || '';
+        const titleMap: Record<string, string> = {
+          '00_시작하기': '시작하기', '01_마크다운에디트란': '마크다운 에디트란',
+          '02_에디터-기본': '에디터 기본 사용법', '03_파일-관리': '파일 관리',
+          '04_미리보기-모드': '미리보기 모드', '05_서식-정의': '서식 정의',
+          '06_내보내기': '내보내기', '07_표-체크리스트': '표 및 체크리스트',
+          '08_다이어그램-수식': '다이어그램 및 수식', '09_슬래시-명령어': '슬래시 명령어 및 단축키',
+          '10_한글-입력': '한글 입력', '11_미디어-삽입': '미디어 삽입',
+          '12_내보내기-고급': '내보내기 고급', '13_설정': '설정 및 커스터마이징'
+        };
+        setHelpTitle(titleMap[fileName] || fileName);
+      };
       if (api?.readFromPath) {
         try {
           const file = await api.readFromPath(helpPath);
-          setHelpContent(stripFrontmatter(file.content));
-          // 파일명으로 제목 추정
-          const fileName = helpPath.split('/').pop()?.replace('.md', '') || '';
-          const titleMap: Record<string, string> = {
-            '00_시작하기': '시작하기', '01_마크다운에디트란': '마크다운 에디트란',
-            '02_에디터-기본': '에디터 기본 사용법', '03_파일-관리': '파일 관리',
-            '04_미리보기-모드': '미리보기 모드', '05_서식-정의': '서식 정의',
-            '06_내보내기': '내보내기', '07_표-체크리스트': '표 및 체크리스트',
-            '08_다이어그램-수식': '다이어그램 및 수식', '09_슬래시-명령어': '슬래시 명령어 및 단축키',
-            '10_한글-입력': '한글 입력', '11_미디어-삽입': '미디어 삽입',
-            '12_내보내기-고급': '내보내기 고급', '13_설정': '설정 및 커스터마이징'
-          };
-          setHelpTitle(titleMap[fileName] || fileName);
+          await loadHelp(file.content);
+        } catch { setHelpContent('## 문서를 불러올 수 없습니다.'); }
+      } else {
+        try {
+          const res = await fetch('./' + helpPath);
+          const text = await res.text();
+          await loadHelp(text);
         } catch { setHelpContent('## 문서를 불러올 수 없습니다.'); }
       }
       return;
@@ -1729,9 +1753,14 @@ export default function Home() {                  // @Home : Home component
   };
 
   const handleFileClick = async (node: FileNode | null, parentHandle?: any) => {
-    // 💡 사용자가 파일을 선택하면 도움말 종료
+    // 💡 사용자가 파일을 선택하면 도움말 종료 및 css-style 모드 해제
     setHelpContent(null);
     setHelpTitle('');
+    if (previewModeRef.current === 'css-style') {
+      setPreviewModeRaw('preview');
+      previewModeRef.current = 'preview';
+      isEditorMountedRef.current = false;
+    }
 
     // 💡 부모 폴더 핸들을 레퍼런스에 저장하여 저장 시 startIn 경로로 활용
     currentFileParentHandleRef.current = parentHandle || null;
@@ -2319,7 +2348,7 @@ export default function Home() {                  // @Home : Home component
     }
   };
 
-  const sanitizePastedText = (text: string) => {
+  const sanitizePastedText = (text: string, skipTsvConversion = false) => {
     let sanitized = text;
 
     // 1. 운영체제 간 줄바꿈 차이 통합 (\r\n -> \n)
@@ -2345,8 +2374,8 @@ export default function Home() {                  // @Home : Home component
     //    * 전방에 공백/별표가 아닌 문자가 있고, 후방에 공백이 아닌 문자가 있는 **/__/~~ 에만 적용
     sanitized = sanitized.replace(/(?<=[^\s*])(\*\*|__|~~)(?=\S)/g, '$1 ');
 
-    // Auto-convert TSV to Markdown Table
-    if (sanitized.includes('\t') && sanitized.includes('\n') && !sanitized.includes('|')) {
+    // Auto-convert TSV to Markdown Table (cleanDoc에서는 건너뜀 — 의도치 않은 전체 문서 변환 방지)
+    if (!skipTsvConversion && sanitized.includes('\t') && sanitized.includes('\n') && !sanitized.includes('|')) {
       const lines = sanitized.split('\n');
       const isTable = lines.some(line => line.includes('\t'));
 
@@ -3041,7 +3070,7 @@ export default function Home() {                  // @Home : Home component
       isComposingRef.current = false; // 조합 플래그 명시적 리셋
 
       const text = editor.getValue();
-      const cleanedText = sanitizePastedText(text);
+      const cleanedText = sanitizePastedText(text, true);
       if (text !== cleanedText) {
         editor.pushUndoStop();
         editor.executeEdits("cleanDoc", [{
@@ -3464,14 +3493,17 @@ export default function Home() {                  // @Home : Home component
             if (heightMatch) {
               height = decodeURIComponent(heightMatch[1]);
             }
-            path = fullPath.replace(/[\?&](?:width|height)=[^&]*/g, '');
+            const alignMatch = fullPath.match(/[\?&]align=([^&]*)/);
+            const align = alignMatch ? decodeURIComponent(alignMatch[1]) : 'center';
+            path = fullPath.replace(/[\?&](?:width|height|align)=[^&]*/g, '');
 
             setEditingImageInfo({
               range,
               alt,
               path,
               width,
-              height
+              height,
+              align
             });
             setIsImageModalOpen(true);
             return;
@@ -3592,8 +3624,15 @@ export default function Home() {                  // @Home : Home component
           setHelpTitle('오류');
         }
       } else {
-        setHelpContent('## 문서를 불러올 수 없습니다.\n\n이 기능은 데스크탑 환경에서만 지원됩니다.');
-        setHelpTitle('오류');
+        try {
+          const res = await fetch('./docs/help/00_시작하기.md');
+          const text = await res.text();
+          setHelpTitle('시작하기');
+          setHelpContent(stripFrontmatter(text));
+        } catch (e) {
+          setHelpContent('## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.');
+          setHelpTitle('오류');
+        }
       }
     },
     updates: () => setIsUpdatesModalOpen(true),
@@ -3690,6 +3729,7 @@ export default function Home() {                  // @Home : Home component
       case 'TOGGLE_SIDEBAR': setIsSidebarOpen(prev => !prev); return;
       case 'TOGGLE_MODE':
         setPreviewMode(prev => {
+          if (prev === 'css-style') return prev;
           if (prev === 'edit') return 'both';
           if (prev === 'both') return 'preview';
           return 'edit';
@@ -3710,7 +3750,7 @@ export default function Home() {                  // @Home : Home component
        * - 다시 누르면 'both'(편집+미리보기 분할)로 복귀
        */
       case 'TOGGLE_CSS_STYLE':
-        setPreviewMode(prev => prev === 'css-style' ? 'both' : 'css-style');
+        setPreviewMode(prev => prev === 'css-style' ? prev : 'css-style');
         return;
     }
 
@@ -4344,10 +4384,10 @@ export default function Home() {                  // @Home : Home component
                       });
                     }
 
-                    // 💡 [에디터 하단 여유 공간 확보] padding.bottom 250px로 쾌적한 작문 환경 제공
+                    // 💡 [에디터 하단 여유 공간 확보] scrollBeyondLastLine + padding.bottom 500px로 쾌적한 작문 환경 제공
                     editor.updateOptions({
-                      scrollBeyondLastLine: false,
-                      padding: { top: 20, bottom: 250 },
+                      scrollBeyondLastLine: true,
+                      padding: { top: 20, bottom: 500 },
                       lineDecorationsWidth: 26, // 💡 decorations 폭을 적절히 줄여 본문을 왼쪽으로 당김
                       lineNumbersMinChars: 4,  // 💡 라인 넘버 영역을 약간 키워서 숫자 노출 폭 확보
                       automaticLayout: true,
@@ -5266,6 +5306,14 @@ export default function Home() {                  // @Home : Home component
                       const prevLine = prevCursorLineRef.current;
                       prevCursorLineRef.current = currentLine;
 
+                      // 분할모드에서 커서가 새로운 행으로 이동 시 미리보기 동기화
+                      if (prevLine !== null && prevLine !== currentLine && previewModeRef.current === 'both' && previewRef.current) {
+                        const targetEl = previewRef.current.querySelector(`[data-line="${currentLine}"]`) as HTMLElement;
+                        if (targetEl) {
+                          targetEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                        }
+                      }
+
                       // 💡 표(Table) 영역 이탈 시 자동 정렬 수행
                       if (prevLine && prevLine !== currentLine) {
                         const model = editor.getModel();
@@ -5298,6 +5346,26 @@ export default function Home() {                  // @Home : Home component
                           editor.trigger('keyboard', 'hideSuggestWidget', {});
                         }
                       }
+                    });
+                    let scrollSyncRafId: number | null = null;
+                    editor.onDidScrollChange(() => {
+                      if (isScrollingRef.current === 'preview') return;
+                      if (previewModeRef.current !== 'both' || !previewRef.current) return;
+                      if (scrollSyncRafId !== null) return;
+                      scrollSyncRafId = requestAnimationFrame(() => {
+                        scrollSyncRafId = null;
+                        const range = editor.getVisibleRanges();
+                        if (range && range.length > 0) {
+                          const firstVisible = range[0].startLineNumber;
+                          const targetEl = previewRef.current!.querySelector(`[data-line="${firstVisible}"]`) as HTMLElement;
+                          if (targetEl) {
+                            isScrollingRef.current = 'editor';
+                            targetEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                            scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+                          }
+                        }
+                      });
                     });
 
                     // 💡 [Enter 즉시 저장] 엔터를 치면 곧바로 저장 — 5초 디바운스 기다림 없음
@@ -5478,8 +5546,8 @@ export default function Home() {                  // @Home : Home component
 
                     }}
                       options={{
-                    padding: { top: 20, bottom: 250 },
-                    scrollBeyondLastLine: false,
+                    padding: { top: 20, bottom: 500 },
+                    scrollBeyondLastLine: true,
                     automaticLayout: true,
                     fontSize,
                     fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace",
@@ -5682,7 +5750,8 @@ export default function Home() {                  // @Home : Home component
                 display: (previewMode === 'edit') ? 'none' : 'flex'
               }}
             >
-                {/* 📄 상단 고정 헤더 바 (페이지 분할 토글 등) */}
+                {/* 📄 상단 고정 헤더 바 (페이지 분할 토글 등) - 당분간 숨김 처리 */}
+                {false && (
                 <div className="flex items-center justify-between px-6 py-2 border-b border-black/5 dark:border-white/5 bg-slate-50 dark:bg-zinc-900 select-none z-10 no-print">
                   <div className="flex items-center gap-2">
                     <span className="text-[12px] font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
@@ -5715,11 +5784,12 @@ export default function Home() {                  // @Home : Home component
                     )}
                   </div>
                 </div>
+                )}
 
                 {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
                 <div
                   ref={previewRef}
-                  className={`flex-1 ${heightClass} pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container bg-white dark:bg-zinc-950 ${
+                  className={`flex-1 ${heightClass} px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container bg-white dark:bg-zinc-950 ${
                     previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
                   }`}
                   onMouseEnter={() => { isPreviewHovered.current = true; }}
@@ -5774,10 +5844,10 @@ export default function Home() {                  // @Home : Home component
                     return (
                       <div className={`${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
                         <MarkdownViewer
-                          content={helpContent || (previewMode === 'css-style' ? WELCOME_CONTENT : processedContent)}
-                          originalContent={helpContent || (previewMode === 'css-style' ? WELCOME_CONTENT : content)}
-                          lineMap={helpContent ? undefined : (previewMode === 'css-style' ? undefined : lineMap)}
-                          onCheckboxToggle={helpContent ? undefined : (previewMode === 'css-style' ? undefined : handleCheckboxToggle)}
+                          content={helpContent || processedContent}
+                          originalContent={helpContent || content}
+                          lineMap={helpContent ? undefined : lineMap}
+                          onCheckboxToggle={helpContent ? undefined : handleCheckboxToggle}
                           currentFilePath={currentFileNode?.path}
                           rootFolderPath={rootFolder?.name}
                           onFileOpen={handleFileOpenByPath}

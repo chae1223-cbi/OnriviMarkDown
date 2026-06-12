@@ -25,7 +25,8 @@
         "monaco-editor/min/vs/language/css/cssWorker.js",
         "monaco-editor/min/vs/language/html/htmlWorker.js",
         "monaco-editor/min/vs/language/typescript/tsWorker.js",
-        "next/*"
+        "next/*",
+        "docs/help/*"
       ],
       "matches": ["<all_urls>"]
     }

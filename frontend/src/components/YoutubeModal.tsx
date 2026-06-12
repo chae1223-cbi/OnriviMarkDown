@@ -18,6 +18,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
   const [width, setWidth] = useState("100%");
   const [height, setHeight] = useState("400");
   const [insertType, setInsertType] = useState<'iframe' | 'thumbnail'>('iframe');
+  const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -65,11 +66,11 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
   const generatedCode = useMemo(() => {
     if (!videoId) return "";
     if (insertType === 'iframe') {
-      return `<iframe width="${width}" height="${height}" src="${embedUrl}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>`;
+      return `<iframe width="${width}" height="${height}" src="${embedUrl}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen data-align="${align}"></iframe>`;
     } else {
       return `[![YouTube Video](https://img.youtube.com/vi/${videoId}/0.jpg)](https://www.youtube.com/watch?v=${videoId})`;
     }
-  }, [videoId, insertType, width, height, embedUrl]);
+  }, [videoId, insertType, width, height, embedUrl, align]);
 
   const handleInsert = () => {
     if (!videoId) {
@@ -167,7 +168,8 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
             </div>
           </div>
 
-          {insertType === 'iframe' && videoId && (
+          {insertType === 'iframe' && (
+            <>
             <div className="flex gap-4 items-center justify-between p-3 rounded-lg border border-dashed animate-in fade-in duration-200 text-xs text-gray-500 dark:text-gray-400 bg-black/5 dark:bg-white/5 border-zinc-200 dark:border-zinc-800">
               <span className="font-medium">플레이어 크기 지정</span>
               <div className="flex items-center gap-3">
@@ -199,6 +201,25 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
                 </div>
               </div>
             </div>
+            <div className="flex gap-2 p-3 rounded-lg border border-dashed animate-in fade-in duration-200 text-xs text-gray-500 dark:text-gray-400 bg-black/5 dark:bg-white/5 border-zinc-200 dark:border-zinc-800">
+              <span className="font-medium">정렬</span>
+              <div className="flex gap-1.5 ml-auto">
+                {([['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setAlign(val)}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                      align === val
+                        ? isDarkMode ? 'bg-[#33373b] text-blue-300' : 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            </>
           )}
 
           {/* Preview Area */}

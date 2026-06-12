@@ -226,9 +226,6 @@ const FileTreeItem = ({
       }
     } else if (node.kind === 'file') {
       openFile(node, parentHandle);
-      if (previewMode === 'css-style') {
-        setPreviewMode('both');
-      }
     }
   };
 

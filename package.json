@@ -49,7 +49,11 @@
           "description": "온리비 어서 마크다운 문서",
           "role": "Editor"
         }
-      ]
+      ],
+      "protocols": {
+        "name": "Onrivi Author Protocol",
+        "schemes": ["onriviauthor"]
+      }
     },
     "nsis": {
       "oneClick": false,

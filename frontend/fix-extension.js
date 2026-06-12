@@ -184,5 +184,34 @@ function copyKatexFonts() {
 
 copyKatexFonts();
 
+function copyDocsHelp() {
+  const docsSrc = path.join(__dirname, '..', 'docs', 'help');
+  const docsDest = path.join(outDir, 'docs', 'help');
+
+  if (!fs.existsSync(docsSrc)) {
+    log('docs/help not found, skipping', 'warn');
+    return;
+  }
+
+  fs.mkdirSync(docsDest, { recursive: true });
+  try {
+    const files = fs.readdirSync(docsSrc);
+    let count = 0;
+    for (const file of files) {
+      const srcPath = path.join(docsSrc, file);
+      const destPath = path.join(docsDest, file);
+      if (fs.statSync(srcPath).isFile()) {
+        fs.copyFileSync(srcPath, destPath);
+        count++;
+      }
+    }
+    log(`Docs help: ${count} files copied`);
+  } catch (err) {
+    log('Failed to copy docs/help', 'error');
+  }
+}
+
+copyDocsHelp();
+
 extractInlineScripts(outDir);
 log('Extension build complete');

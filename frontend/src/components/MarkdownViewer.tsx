@@ -231,7 +231,7 @@ const loadMermaidScript = (): Promise<any> => {
   mermaidPromise = new Promise((resolve) => {
     const script = document.createElement('script');
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    script.src = isElectron ? './mermaid.min.js' : '/mermaid.min.js';
+    script.src = isElectron ? 'media://local/serve?url=mermaid.min.js' : '/mermaid.min.js';
     script.async = true;
     script.onload = () => {
       const mermaidObj = (window as any).mermaid;

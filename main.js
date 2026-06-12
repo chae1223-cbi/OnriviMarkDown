@@ -28,6 +28,11 @@ let filePathToOpen = null; // 윈도우 파일 연결(더블클릭)로 전달된
 // 🔒 [ 중복 실행 방지 (Single Instance Lock) 설정 ]
 const gotTheLock = app.requestSingleInstanceLock();
 
+// 💡 onriviauthor:// 커스텀 프로토콜 등록 (윈도우 파일 연결 + URL 프로토콜)
+if (process.platform === 'win32') {
+  app.setAsDefaultProtocolClient('onriviauthor');
+}
+
 if (!gotTheLock) {
   // 이미 실행 중인 앱이 있으면 이 실행 프로세스를 즉각 폭파 종료
   app.quit();
@@ -38,17 +43,39 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
 
-      // commandLine에서 .md 파일 경로 추출하여 프론트엔드로 전달
+      // 1. commandLine에서 .md 파일 경로 추출하여 프론트엔드로 전달
       const fileArg = commandLine.find(arg => {
         const lower = arg.toLowerCase();
         return lower.endsWith('.md') || lower.endsWith('.markdown');
       });
       if (fileArg && fs.existsSync(fileArg)) {
         mainWindow.webContents.send('open-external-md', fileArg);
+        return;
+      }
+      // 2. onriviauthor:// 프로토콜 URL 처리
+      const protocolArg = commandLine.find(arg =>
+        arg.toLowerCase().startsWith('onriviauthor://')
+      );
+      if (protocolArg) {
+        try {
+          const url = new URL(protocolArg);
+          const filePath = url.searchParams.get('path') || decodeURIComponent(url.pathname.replace(/^\//, ''));
+          if (filePath && fs.existsSync(filePath)) {
+            mainWindow.webContents.send('open-external-md', filePath);
+          }
+        } catch {}
       }
     }
   });
 }
+
+// macOS: 파일을 앱 아이콘에 드래그&드롭하거나 더블클릭
+app.on('open-file', (event, path) => {
+  event.preventDefault();
+  if (mainWindow && (path.toLowerCase().endsWith('.md') || path.toLowerCase().endsWith('.markdown'))) {
+    mainWindow.webContents.send('open-external-md', path);
+  }
+});
 
 // 포트 충돌을 막기 위한 동적 포트 탐색 헬퍼 (의존성 없음, 100% 안전)
 function getFreePort(startPort = 4000) {
@@ -64,7 +91,7 @@ function getFreePort(startPort = 4000) {
   });
 }
 
-// 최초 실행 시 커맨드라인 인수에 .md 파일이 있는지 검사 (윈도우 파일 연결)
+// 최초 실행 시 커맨드라인 인수에 .md 파일 또는 onriviauthor:// 프로토콜 URL이 있는지 검사
 function checkFileArgument() {
   const fileArg = process.argv.find(arg => {
     const lower = arg.toLowerCase();
@@ -72,6 +99,16 @@ function checkFileArgument() {
   });
   if (fileArg && fs.existsSync(fileArg)) {
     filePathToOpen = fileArg;
+    return;
+  }
+  const protocolArg = process.argv.find(arg =>
+    arg.toLowerCase().startsWith('onriviauthor://')
+  );
+  if (protocolArg) {
+    try {
+      const url = new URL(protocolArg);
+      filePathToOpen = url.searchParams.get('path') || decodeURIComponent(url.pathname.replace(/^\//, ''));
+    } catch {}
   }
 }
 

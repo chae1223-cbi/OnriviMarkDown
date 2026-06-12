@@ -14,6 +14,7 @@ interface ImageModalProps {
     path: string;
     width: string;
     height: string;
+    align: string;
     range: any;
   } | null;
   targetFolder?: string;
@@ -31,8 +32,9 @@ export default function ImageModal({
 }: ImageModalProps) {
   const [imagePath, setImagePath] = React.useState("");
   const [imageAlt, setImageAlt] = React.useState("이미지 설명");
-  const [imageWidth, setImageWidth] = React.useState(""); // 📏 이미지 가로폭 상태 추가
-  const [imageHeight, setImageHeight] = React.useState(""); // 📏 이미지 세로폭 상태 추가
+  const [imageWidth, setImageWidth] = React.useState("");
+  const [imageHeight, setImageHeight] = React.useState("");
+  const [imageAlign, setImageAlign] = React.useState("center");
   const [mounted, setMounted] = React.useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,11 +50,13 @@ export default function ImageModal({
         setImageAlt(initialData.alt);
         setImageWidth(initialData.width);
         setImageHeight(initialData.height || "");
+        setImageAlign(initialData.align || "center");
       } else {
         setImagePath("");
         setImageAlt("이미지 설명");
         setImageWidth("");
         setImageHeight("");
+        setImageAlign("center");
       }
     }
   }, [isOpen, initialData]);
@@ -186,6 +190,9 @@ export default function ImageModal({
       if (imageHeight.trim()) {
         params.push(`height=${encodeURIComponent(imageHeight.trim())}`);
       }
+      if (imageAlign && imageAlign !== 'left') {
+        params.push(`align=${imageAlign}`);
+      }
       if (params.length > 0) {
         finalPath += (finalPath.includes('?') ? '&' : '?') + params.join('&');
       }
@@ -194,6 +201,7 @@ export default function ImageModal({
       setImageAlt("이미지 설명");
       setImageWidth("");
       setImageHeight("");
+      setImageAlign("center");
       onClose(); // 삽입 후 모달 닫기 추가
     }
   };
@@ -326,6 +334,30 @@ export default function ImageModal({
                     : 'bg-white border-[#c1c6d7] focus:border-blue-600'
                 }`}
               />
+            </div>
+          </div>
+
+          {/* 이미지 정렬 */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">정렬</label>
+            <div className="flex gap-2">
+              {([['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setImageAlign(val)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all active:scale-[0.98] border ${
+                    imageAlign === val
+                      ? isDarkMode
+                        ? 'bg-[#33373b] text-blue-300 border-[#44474e] shadow-sm'
+                        : 'bg-white text-blue-600 border-[#c1c6d7] shadow-sm font-semibold'
+                      : isDarkMode
+                        ? 'bg-transparent text-gray-400 border-transparent hover:bg-[#282a2f]'
+                        : 'bg-transparent text-gray-500 border-transparent hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 

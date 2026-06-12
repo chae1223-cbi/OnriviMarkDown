@@ -18,6 +18,9 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   const [coords, setCoords] = useState("37.5665, 126.9780");
   const [placeName, setPlaceName] = useState("서울시청");
   const [zoom, setZoom] = useState(15);
+  const [mapWidth, setMapWidth] = useState("600");
+  const [mapHeight, setMapHeight] = useState("350");
+  const [mapAlign, setMapAlign] = useState<'left' | 'center' | 'right'>('center');
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -77,7 +80,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
 
   // 삽입할 코드 (Google Maps iframe embed - API 키 불필요)
   const [lat, lng] = cleanCoords.split(',').map(s => s.trim());
-  const mapCode = `<iframe src="https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&output=embed" width="600" height="350" style="border:0;border-radius:12px;" allowfullscreen loading="lazy"></iframe>`;
+  const mapCode = `<iframe src="https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&output=embed" width="${mapWidth}" height="${mapHeight}" style="border:0;border-radius:12px;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
 
   const handleInsert = () => {
     onInsert(`\n${mapCode}\n`);
@@ -189,6 +192,30 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 지도 크기 및 정렬 설정 */}
+          <div className="flex gap-4 items-center justify-between p-3 rounded-lg border border-dashed text-xs text-gray-500 dark:text-gray-400 bg-black/5 dark:bg-white/5 border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <span className="font-medium">크기</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px]">너비:</span>
+                <input type="text" value={mapWidth} onChange={(e) => setMapWidth(e.target.value)}
+                  className={`w-14 border px-2 py-1 rounded outline-none text-center text-xs transition-all ${isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white' : 'bg-white border-[#c1c6d7]'}`} />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px]">세로:</span>
+                <input type="text" value={mapHeight} onChange={(e) => setMapHeight(e.target.value)}
+                  className={`w-14 border px-2 py-1 rounded outline-none text-center text-xs transition-all ${isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white' : 'bg-white border-[#c1c6d7]'}`} />
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-medium">정렬</span>
+              {([['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']] as const).map(([val, label]) => (
+                <button key={val} onClick={() => setMapAlign(val)}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-all ${mapAlign === val ? (isDarkMode ? 'bg-[#33373b] text-blue-300' : 'bg-white text-blue-600 shadow-sm') : 'text-gray-400 hover:text-gray-600'}`}>{label}</button>
+              ))}
+            </div>
           </div>
 
           {/* 삽입될 코드 미리보기 */}

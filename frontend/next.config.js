@@ -1,18 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export', // 데스크톱 앱을 위한 정적 HTML 내보내기 활성화
-  assetPrefix: './', // 로컬 file:// 프로토콜에서 정적 리소스(CSS, JS 등)를 상대 경로로 참조하도록 설정
+  output: 'export', // 데스크톱/애드온을 위한 정적 HTML 내보내기 생성
+  assetPrefix: './', // 로컬 file:// 프로토콜에서 정적 리소스(CSS, JS 등)의 경로를 상대 참조하도록 설정
   images: {
-    unoptimized: true, // 정적 빌드 시 이미지 최적화 경고 방지
+    unoptimized: true, // ?�적 빌드 ???��?지 최적??경고 방�?
   },
-  reactStrictMode: false, // 잦은 새로고침 시 충돌 완화를 위해 잠시 비활성화
+  reactStrictMode: false, // ??? ?�로고침 ??충돌 ?�화�??�해 ?�시 비활?�화
   webpack: (config, { dev, isServer, webpack }) => {
-    // Windows 파일 잠금 이슈 완화를 위한 웹팩 캐시 비활성화 (개발 모드 전용)
+    // Windows ?�일 ?�금 ?�슈 ?�화�??�한 ?�팩 캐시 비활?�화 (개발 모드 ?�용)
     if (dev && !isServer) {
       config.cache = false;
     }
 
-    // 정적 내보내기를 위해 추출된 CSS 내의 상대 폰트 URL 수정
+    // ?�적 ?�보?�기�??�해 추출??CSS ?�의 ?��? ?�트 URL ?�정
     if (!isServer) {
       class FixCssFontUrlsPlugin {
         apply(compiler) {
@@ -51,3 +51,4 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
