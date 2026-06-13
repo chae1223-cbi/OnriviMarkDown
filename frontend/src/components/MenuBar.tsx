@@ -58,7 +58,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     settings: "환경 설정",
     userManual: "사용 설명서",
     shortcuts: "단축키 안내",
-    updates: "업데이트 확인",
+    license: "라이선스 등록",
     about: "프로그램 정보"
   },
   en: {
@@ -97,7 +97,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     settings: "Settings",
     userManual: "User Manual",
     shortcuts: "Keyboard Shortcuts",
-    updates: "Check for Updates",
+    license: "Register License",
     about: "About Onrivi Author"
   }
 };
@@ -218,7 +218,7 @@ export default function MenuBar({
         isDarkMode={isDarkMode}
           items={[
             { label: "사용 설명서", icon: <span>📖</span>, onClick: () => dispatch('HELP') },
-            { label: t('updates'), icon: <span>🚀</span>, onClick: () => dispatch('UPDATES') },
+            { label: t('license'), icon: <span>🔑</span>, onClick: () => dispatch('LICENSE') },
             { divider: true },
             { label: t('about'), icon: <span>🍀</span>, onClick: () => dispatch('ABOUT') },
           ]}

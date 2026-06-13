@@ -90,6 +90,9 @@ import FormulaModal from '@/components/FormulaModal'; // 모달
 import MergeModal from '@/components/MergeModal'; // 모달
 import YoutubeModal from '@/components/YoutubeModal'; // 모달
 import AboutModal from '@/components/AboutModal'; // 모달
+import LicenseModal from '@/components/LicenseModal'; // 라이선스 모달
+import { supabase } from '@/lib/supabaseClient';
+import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 
 
 /**
@@ -117,7 +120,7 @@ export type EditorCommandType =
   | 'HR' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'QUOTE' | 'CHECKLIST'                   //⑥ 스타일 적용
   | 'LINK' | 'IMAGE' | 'VIDEO' | 'MAP' | 'TABLE' | 'CODE' | 'LATEX' | 'CLEAN_DOC'       //⑦ 스타일 적용
   | 'YOUTUBE' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'                  //⑧ 스타일 적용
-  | 'ABOUT' | 'UPDATES' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'  //⑨ 스타일 적용
+  | 'ABOUT' | 'LICENSE' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'  //⑨ 스타일 적용
   | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME'                  //⑩ 스타일 적용 
   | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE'                       // ⑪ 스타일 적용 
   | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS'                                                                // ⑫ 스타일 적용 
@@ -695,61 +698,301 @@ export default function Home() {                  // @Home : Home component
   const [showTagLinkPicker, setShowTagLinkPicker] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
-  const [licenseKey, setLicenseKey] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('onrivi_license_key') || 'chae6^jung1!jang3#&';
-    }
-    return 'chae6^jung1!jang3#&';
+  const [licenseKey, setLicenseKey] = useState<string>('');
+  const [deviceId, setDeviceId] = useState<string>('');
+  const [licenseStatus, setLicenseStatus] = useState({
+    isActivated: false,
+    isExpired: false,
+    remainingDays: 14,
+    userId: '',
+    licenseKey: ''
   });
-  const isActivated = licenseKey === 'chae6^jung1!jang3#&';
 
-  // 💡 [애드온/데스크탑 연동] 라이선스 키가 변경될 때 스토리지 동기화 및 최초 로드 시 크롬/데스크탑 스토리지 조회
+  const isActivated = licenseStatus.isActivated;
+
+  // 1. 디바이스 고유 ID 수집 훅
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // 1. 크롬 익스텐션 스토리지 조회
-      const chromeStorage = (window as any).chrome?.storage?.local;
-      if (chromeStorage) {
-        chromeStorage.get(['onrivi_license_key'], (result: any) => {
-          if (result.onrivi_license_key) {
-            setLicenseKey(result.onrivi_license_key);
-          }
-        });
-      }
+    if (typeof window === 'undefined') return;
 
-      // 2. 데스크탑 Electron 스토리지 조회
+    const initDeviceId = async () => {
       const api = (window as any).electronAPI;
-      if (api && typeof api.loadLicense === 'function') {
-        api.loadLicense().then((savedKey: string | null) => {
-          if (savedKey) {
-            setLicenseKey(savedKey);
+      if (api && typeof api.getMachineId === 'function') {
+        // A. 데스크탑 Electron 실기기 ID 수집
+        const realId = await api.getMachineId();
+        setDeviceId(realId);
+      } else {
+        // B. 브라우저 애드온 환경
+        const chromeStorage = (window as any).chrome?.storage?.sync;
+        if (chromeStorage) {
+          chromeStorage.get(['onrivi_device_id'], (result: any) => {
+            if (result.onrivi_device_id) {
+              setDeviceId(result.onrivi_device_id);
+            } else {
+              const newId = crypto.randomUUID();
+              chromeStorage.set({ onrivi_device_id: newId }, () => {
+                setDeviceId(newId);
+              });
+            }
+          });
+        } else {
+          // 일반 브라우저 로컬 스토리지 Fallback
+          let localId = localStorage.getItem('onrivi_device_id');
+          if (!localId) {
+            localId = crypto.randomUUID();
+            localStorage.setItem('onrivi_device_id', localId);
           }
-        });
+          setDeviceId(localId);
+        }
       }
-    }
+    };
+    initDeviceId();
   }, []);
 
+  // 2. 라이선스 키 및 확인 인증키 로드 & 검증 훅 (deviceId 세팅 완료 후 실행)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('onrivi_license_key', licenseKey);
-      
-      // 크롬 익스텐션 스토리지에 동시 저장
-      const chromeStorage = (window as any).chrome?.storage?.local;
-      if (chromeStorage) {
-        chromeStorage.set({ onrivi_license_key: licenseKey });
+    if (typeof window === 'undefined' || !deviceId) return;
+
+    const loadAndVerifyLicense = async () => {
+      const api = (window as any).electronAPI;
+      let savedKey = '';
+      let savedVerifyKey = '';
+      let savedUserId = '';
+
+      // A. 스토리지 로드
+      if (api && typeof api.loadLicenseFull === 'function') {
+        // Electron
+        const fullData = await api.loadLicenseFull();
+        if (fullData) {
+          savedKey = fullData.licenseKey || '';
+          savedVerifyKey = fullData.verifyKey || '';
+          savedUserId = fullData.userId || '';
+        }
+      } else {
+        // 애드온 / 브라우저
+        const chromeStorage = (window as any).chrome?.storage?.local;
+        if (chromeStorage) {
+          const result = await new Promise<any>((resolve) => {
+            chromeStorage.get(['onrivi_license_key', 'onrivi_verify_key', 'onrivi_user_id'], resolve);
+          });
+          savedKey = result.onrivi_license_key || '';
+          savedVerifyKey = result.onrivi_verify_key || '';
+          savedUserId = result.onrivi_user_id || '';
+        } else {
+          savedKey = localStorage.getItem('onrivi_license_key') || '';
+          savedVerifyKey = localStorage.getItem('onrivi_verify_key') || '';
+          savedUserId = localStorage.getItem('onrivi_user_id') || '';
+        }
       }
 
-      // 데스크탑 Electron 로컬 디스크에 동시 저장
-      const api = (window as any).electronAPI;
-      if (api && typeof api.saveLicense === 'function') {
-        api.saveLicense(licenseKey);
+      // B. 라이선스 키가 없는 경우 최초 자체 생성 (로컬에만 키 생성)
+      if (!savedKey) {
+        try {
+          const randomSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
+          const textEncoder = new TextEncoder();
+          const hashBuffer = await window.crypto.subtle.digest('SHA-256', textEncoder.encode(`ANON|${deviceId}|${randomSeed}`));
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          savedKey = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase().substring(0, 24);
+
+          // 스토리지에 최초 저장
+          if (api && typeof api.saveLicenseFull === 'function') {
+            await api.saveLicenseFull({ licenseKey: savedKey });
+          } else {
+            const chromeStorage = (window as any).chrome?.storage?.local;
+            if (chromeStorage) {
+              chromeStorage.set({ onrivi_license_key: savedKey });
+            }
+            localStorage.setItem('onrivi_license_key', savedKey);
+          }
+        } catch (e) {
+          // 오프라인 대비 임시 로컬 키 생성
+          savedKey = `ANON-${deviceId.substring(0, 16)}`.toUpperCase();
+        }
       }
+
+      setLicenseKey(savedKey);
+
+      // C. Supabase DB 라이선스 검증 (실제 schema 조인 쿼리 검사)
+      if (savedVerifyKey) {
+        try {
+          const { data, error } = await supabase
+            .from('license_activations')
+            .select(`
+              activated_at,
+              software_licenses!inner (
+                is_active,
+                verify_key,
+                license_key,
+                subscription_id,
+                subscriptions (
+                  trial_end_at,
+                  current_period_end
+                )
+              )
+            `)
+            .eq('device_uuid', deviceId)
+            .eq('software_licenses.verify_key', savedVerifyKey)
+            .single();
+
+          if (!error && data) {
+            const license = (data as any).software_licenses;
+            const sub = license?.subscriptions;
+            const isActivated = license?.is_active === true;
+            
+            let trialEndMs = Date.now() + 14 * 24 * 60 * 60 * 1000;
+            if (sub) {
+              const targetDate = sub.current_period_end || sub.trial_end_at;
+              if (targetDate) trialEndMs = new Date(targetDate).getTime();
+            }
+            
+            const elapsed = Date.now() - trialEndMs;
+            const isExpired = !isActivated && elapsed > 0;
+            const remainingDays = isActivated ? 0 : Math.max(0, Math.ceil((trialEndMs - Date.now()) / (24 * 60 * 60 * 1000)));
+
+            setLicenseStatus({
+              isActivated: isActivated,
+              isExpired: isExpired,
+              remainingDays: remainingDays,
+              userId: savedUserId,
+              licenseKey: savedKey
+            });
+            
+            // 암호화 보안 캐시 갱신
+            saveSecureData('onrivi_license_status', { isActivated, isExpired, remainingDays, userId: savedUserId, licenseKey: savedKey, lastVerifiedAt: Date.now() });
+            return;
+          }
+        } catch (err) {}
+      }
+
+      // D. 로컬 암호화 보안 캐시 로드 및 오프라인 검증 (유예 기간 3일 체크)
+      const cached = loadSecureData<any>('onrivi_license_status');
+      if (cached && cached.licenseKey === savedKey && cached.userId === savedUserId) {
+        const elapsedSinceVerify = Date.now() - (cached.lastVerifiedAt || 0);
+        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+        if (elapsedSinceVerify < threeDaysMs) {
+          setLicenseStatus({
+            isActivated: cached.isActivated,
+            isExpired: cached.isExpired,
+            remainingDays: cached.remainingDays,
+            userId: cached.userId,
+            licenseKey: cached.licenseKey
+          });
+          return;
+        }
+      }
+
+      // E. 확인 인증키가 없거나 오프라인인 경우의 Fallback (최초 가입 시 14일 체험 보장)
+      let firstTime = localStorage.getItem('onrivi_first_run_time');
+      if (!firstTime) {
+        firstTime = Date.now().toString();
+        localStorage.setItem('onrivi_first_run_time', firstTime);
+      }
+      const elapsed = Date.now() - parseInt(firstTime, 10);
+      const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+      const isExpired = elapsed > fourteenDaysMs;
+      const remainingDays = Math.max(0, Math.ceil((fourteenDaysMs - elapsed) / (24 * 60 * 60 * 1000)));
+
+      setLicenseStatus({
+        isActivated: false,
+        isExpired: isExpired,
+        remainingDays: remainingDays,
+        userId: savedUserId,
+        licenseKey: savedKey
+      });
+    };
+
+    loadAndVerifyLicense();
+  }, [deviceId]);
+
+  // 3. Supabase Realtime 기반 결제/정품 실시간 반영 훅 + 데스크톱 프로토콜 수신
+  useEffect(() => {
+    if (!deviceId) return;
+
+    // A. Supabase 실시간 DB 상태 모니터링 구독 (license_activations 변경 감시)
+    const channel = supabase
+      .channel(`device-activation-${deviceId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT/UPDATE/DELETE 모두 감지
+          schema: 'public',
+          table: 'license_activations',
+          filter: `device_uuid=eq.${deviceId}`
+        },
+        async (payload: any) => {
+          const newRecord = payload.new;
+          if (newRecord && newRecord.license_id) {
+            // 연동된 software_licenses 테이블에서 verify_key 및 user 이메일을 직접 조회
+            const { data, error } = await supabase
+              .from('software_licenses')
+              .select(`
+                verify_key,
+                users (
+                  email
+                )
+              `)
+              .eq('id', newRecord.license_id)
+              .single();
+
+            if (!error && data && data.verify_key) {
+              const userEmail = (data as any).users?.email || licenseStatus.userId || 'user@onrivi.com';
+              handleSuccessActivation(data.verify_key, userEmail);
+              showToast("🎉 정품 라이선스가 결제 즉시 안전하게 승인되었습니다!", "success");
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // B. 데스크톱 기존 프로토콜 수신 백업
+    const api = (window as any).electronAPI;
+    let removeListener: any = null;
+    if (api && typeof api.onLicenseActivated === 'function') {
+      removeListener = api.onLicenseActivated((updatedData: any) => {
+        handleSuccessActivation(updatedData.verifyKey, updatedData.userId);
+        showToast("🎉 정품 라이선스가 자동으로 성공적으로 등록되었습니다!", "success");
+      });
     }
-  }, [licenseKey]);
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (typeof removeListener === 'function') removeListener();
+    };
+  }, [deviceId, licenseKey]);
+
+  // 💡 정품 인증 완료 성공 시 로컬 및 플랫폼 스토리지 영구 저장 핸들러
+  const handleSuccessActivation = async (verifyKey: string, userId: string) => {
+    const api = (window as any).electronAPI;
+
+    setLicenseStatus(prev => ({
+      ...prev,
+      isActivated: true,
+      isExpired: false,
+      userId: userId
+    }));
+
+    if (api && typeof api.saveLicenseFull === 'function') {
+      await api.saveLicenseFull({
+        licenseKey: licenseKey,
+        verifyKey: verifyKey,
+        userId: userId
+      });
+    } else {
+      const chromeStorage = (window as any).chrome?.storage?.local;
+      if (chromeStorage) {
+        chromeStorage.set({
+          onrivi_verify_key: verifyKey,
+          onrivi_user_id: userId
+        });
+      }
+      localStorage.setItem('onrivi_verify_key', verifyKey);
+      localStorage.setItem('onrivi_user_id', userId);
+    }
+  };
 
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
-  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -3635,7 +3878,7 @@ export default function Home() {                  // @Home : Home component
         }
       }
     },
-    updates: () => setIsUpdatesModalOpen(true),
+    license: () => setIsLicenseModalOpen(true),
     toggleFloatingToolbar: () => {
       setFloatingToolbar(prev => {
         if (prev.visible) return { ...prev, visible: false };
@@ -3720,7 +3963,7 @@ export default function Home() {                  // @Home : Home component
       case 'SETTINGS_SHORTCUTS': handlers.settings('shortcuts'); return;
       case 'ABOUT': handlers.about(); return;
       case 'HELP': handlers.help(); return;
-      case 'UPDATES': handlers.updates(); return;
+      case 'LICENSE': handlers.license(); return;
       case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
       case 'CLEAN_DOC': handlers.cleanDoc(); return;
       case 'COPY_ALL': handlers.copyAll(); return;
@@ -4250,20 +4493,24 @@ export default function Home() {                  // @Home : Home component
 
         <main className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-zinc-950">
           {isToolbarOpen && (
-            <Toolbar
-              isDarkMode={isDarkMode}
-              setIsDarkMode={setIsDarkMode}
-              isSidebarOpen={isSidebarOpen}
-              setIsSidebarOpen={setIsSidebarOpen}
-              previewMode={previewMode}
-              setPreviewMode={setPreviewMode}
-              fontSize={fontSize}
-              setFontSize={setFontSize}
-              wordWrap={wordWrap}
-              setWordWrap={setWordWrap}
-              dispatch={dispatchCommand}
-
-            />
+            <div className="relative">
+              <Toolbar
+                isDarkMode={isDarkMode}
+                setIsDarkMode={setIsDarkMode}
+                isSidebarOpen={isSidebarOpen}
+                setIsSidebarOpen={setIsSidebarOpen}
+                previewMode={previewMode}
+                setPreviewMode={setPreviewMode}
+                fontSize={fontSize}
+                setFontSize={setFontSize}
+                wordWrap={wordWrap}
+                setWordWrap={setWordWrap}
+                dispatch={dispatchCommand}
+              />
+              {licenseStatus.isExpired && (
+                <div className="absolute inset-0 bg-white/25 dark:bg-zinc-900/25 backdrop-blur-[0.5px] cursor-not-allowed z-30" title="라이선스 기간이 만료되어 도구 모음이 잠겨 있습니다." />
+              )}
+            </div>
           )}
           <div className="flex flex-1 overflow-hidden">
             {previewMode === 'css-style' && (
@@ -4330,6 +4577,10 @@ export default function Home() {                  // @Home : Home component
                   height="100%"
                   language="markdown"
                   theme={themePalette}
+                  options={{
+                    readOnly: licenseStatus.isExpired,
+                    domReadOnly: licenseStatus.isExpired,
+                  }}
                   // 💡 value={content} 속성을 배제하고 defaultValue를 적용하여
                   // React 상태 갱신 시 모나코 내부의 불필요한 setValue 호출로 인한 한글 composition 깨짐 및 중복 입력을 원천 방어합니다.
                   defaultValue={content}
@@ -6079,6 +6330,15 @@ export default function Home() {                  // @Home : Home component
         licenseKey={licenseKey}
         setLicenseKey={setLicenseKey}
         isActivated={isActivated}
+      />
+
+      <LicenseModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        deviceId={deviceId}
+        licenseStatus={licenseStatus}
+        onSuccessActivation={handleSuccessActivation}
+        isDarkMode={isDarkMode}
       />
 
       <ImageModal

@@ -61,6 +61,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 16. 라이선스 키 저장 (데스크탑 영구 저장 연동)
   saveLicense: (licenseKey) => ipcRenderer.invoke('license:save', licenseKey),
 
+  // 하이브리드 라이선스 정보 연동 API 추가
+  loadLicenseFull: () => ipcRenderer.invoke('license:load-full'),
+  saveLicenseFull: (data) => ipcRenderer.invoke('license:save-full', data),
+  getMachineId: () => ipcRenderer.invoke('license:get-device-id'),
+  openExternal: (url) => ipcRenderer.invoke('system:openExternal', url),
+  onLicenseActivated: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('license-activated', handler);
+    return () => {
+      ipcRenderer.removeListener('license-activated', handler);
+    };
+  },
+
   // 17. 환경설정 로드 (데스크탑 영구 저장 연동)
   loadSettings: () => ipcRenderer.invoke('settings:load'),
 

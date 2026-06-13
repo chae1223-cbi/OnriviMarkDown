@@ -59,9 +59,34 @@ if (!gotTheLock) {
       if (protocolArg) {
         try {
           const url = new URL(protocolArg);
-          const filePath = url.searchParams.get('path') || decodeURIComponent(url.pathname.replace(/^\//, ''));
-          if (filePath && fs.existsSync(filePath)) {
-            mainWindow.webContents.send('open-external-md', filePath);
+          if (url.host === 'activate') {
+            const verifyKey = url.searchParams.get('key');
+            const userId = url.searchParams.get('user');
+            if (verifyKey) {
+              const userDataPath = app.getPath('userData');
+              const licenseJsonPath = path.join(userDataPath, 'license.json');
+              let existingData = {};
+              try {
+                if (fs.existsSync(licenseJsonPath)) {
+                  existingData = JSON.parse(fs.readFileSync(licenseJsonPath, 'utf-8'));
+                }
+              } catch {}
+              
+              const updatedData = {
+                ...existingData,
+                verifyKey,
+                userId: userId || existingData.userId || ''
+              };
+              fs.writeFileSync(licenseJsonPath, JSON.stringify(updatedData, null, 2), 'utf-8');
+              
+              // 렌더러 프로세스에 이벤트 전송
+              mainWindow.webContents.send('license-activated', updatedData);
+            }
+          } else {
+            const filePath = url.searchParams.get('path') || decodeURIComponent(url.pathname.replace(/^\//, ''));
+            if (filePath && fs.existsSync(filePath)) {
+              mainWindow.webContents.send('open-external-md', filePath);
+            }
           }
         } catch {}
       }
@@ -107,7 +132,29 @@ function checkFileArgument() {
   if (protocolArg) {
     try {
       const url = new URL(protocolArg);
-      filePathToOpen = url.searchParams.get('path') || decodeURIComponent(url.pathname.replace(/^\//, ''));
+      if (url.host === 'activate') {
+        const verifyKey = url.searchParams.get('key');
+        const userId = url.searchParams.get('user');
+        if (verifyKey) {
+          const userDataPath = app.getPath('userData');
+          const licenseJsonPath = path.join(userDataPath, 'license.json');
+          let existingData = {};
+          try {
+            if (fs.existsSync(licenseJsonPath)) {
+              existingData = JSON.parse(fs.readFileSync(licenseJsonPath, 'utf-8'));
+            }
+          } catch {}
+          
+          const updatedData = {
+            ...existingData,
+            verifyKey,
+            userId: userId || existingData.userId || ''
+          };
+          fs.writeFileSync(licenseJsonPath, JSON.stringify(updatedData, null, 2), 'utf-8');
+        }
+      } else {
+        filePathToOpen = url.searchParams.get('path') || decodeURIComponent(url.pathname.replace(/^\//, ''));
+      }
     } catch {}
   }
 }
@@ -171,7 +218,7 @@ function createWindow(port) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: http: https: file: media:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' ws: https://maps.googleapis.com",
+    "connect-src 'self' ws: wss: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co",
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
     "media-src 'self' media:"
   ];
@@ -687,6 +734,70 @@ ipcMain.handle('license:save', async (event, licenseKey) => {
     return true;
   } catch (e) {
     console.error('라이선스 키 저장 실패:', e);
+    return false;
+  }
+});
+
+// 하이브리드 라이선스 전체 정보 로드 핸들러
+ipcMain.handle('license:load-full', async () => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const licenseJsonPath = path.join(userDataPath, 'license.json');
+    if (fs.existsSync(licenseJsonPath)) {
+      const raw = fs.readFileSync(licenseJsonPath, 'utf-8');
+      return JSON.parse(raw);
+    }
+    return null;
+  } catch (e) {
+    console.error('라이선스 전체 정보 로드 실패:', e);
+    return null;
+  }
+});
+
+// 하이브리드 라이선스 전체 정보 저장 핸들러
+ipcMain.handle('license:save-full', async (event, data) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const licenseJsonPath = path.join(userDataPath, 'license.json');
+    fs.writeFileSync(licenseJsonPath, JSON.stringify(data, null, 2), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('라이선스 전체 정보 저장 실패:', e);
+    return false;
+  }
+});
+
+// 물리 기기 고유 ID 수집 핸들러 (wmic/ioreg 활용)
+ipcMain.handle('license:get-device-id', async () => {
+  try {
+    const { execSync } = require('child_process');
+    if (process.platform === 'win32') {
+      const output = execSync('wmic csproduct get uuid', { encoding: 'utf-8' });
+      const parts = output.split('\n');
+      if (parts.length > 1) {
+        return parts[1].trim();
+      }
+    } else if (process.platform === 'darwin') {
+      const output = execSync("ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/ { split($0, line, \"\\\"\"); print line[4] }'", { encoding: 'utf-8' });
+      return output.trim();
+    } else {
+      const output = fs.readFileSync('/var/lib/dbus/machine-id', 'utf-8');
+      return output.trim();
+    }
+  } catch (err) {
+    console.error('물리 기기 ID 획득 실패:', err);
+  }
+  return 'fallback-machine-id-' + process.platform;
+});
+
+// 시스템 브라우저 외부 링크 실행 핸들러
+ipcMain.handle('system:openExternal', async (event, url) => {
+  try {
+    const { shell } = require('electron');
+    shell.openExternal(url);
+    return true;
+  } catch (e) {
+    console.error('외부 링크 기동 실패:', e);
     return false;
   }
 });
