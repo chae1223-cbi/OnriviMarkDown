@@ -4,6 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, FileText, Globe, Image as ImageIcon, X, Check, BookOpen } from 'lucide-react';
 
+/**
+ * [ONR-UI-011] ExportModalProps 인터페이스
+ * @description 완성된 마크다운을 타 포맷으로 내보내는 팝업창인 ExportModal에 주입되는 프롭 명세입니다.
+ */
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -11,6 +15,10 @@ interface ExportModalProps {
   isDarkMode: boolean;
 }
 
+/**
+ * [ONR-UI-012] ExportModal 컴포넌트 함수
+ * @description 에디터에서 완성된 문서를 PDF, HTML, EPUB 전자책, PNG 이미지 포맷 중 선택하여 다운로드 빌드를 요청하는 모달 창입니다.
+ */
 export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: ExportModalProps) {
   const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'html' | 'png' | 'epub'>('pdf');
   const [mounted, setMounted] = useState(false);

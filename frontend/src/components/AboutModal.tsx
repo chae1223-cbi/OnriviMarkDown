@@ -5,6 +5,10 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import OAIcon from '../app/icon_onriveauther.png';
 
+/**
+ * [ONR-UI-007] AboutModalProps 인터페이스
+ * @description 프로그램 정보 팝업창인 AboutModal에 전달되는 상태값들과 정품 라이선스 키 상태 명세입니다.
+ */
 interface AboutModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -14,6 +18,10 @@ interface AboutModalProps {
   isActivated: boolean;
 }
 
+/**
+ * [ONR-UI-008] AboutModal 컴포넌트 함수
+ * @description 현재 에디터 프로그램의 버전 정보, 정품 인증 여부, 제작사 저작권 정보를 띄워주는 포털 기반 모달 창입니다.
+ */
 export default function AboutModal({
   isOpen,
   onClose,

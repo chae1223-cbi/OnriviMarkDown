@@ -4,6 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, AlertCircle } from 'lucide-react';
 
+/**
+ * [ONR-UI-009] ConfirmModalProps 인터페이스
+ * @description 저장 안 하고 탭 닫기 등의 의사결정을 묻는 ConfirmModal 대화 상자 매개변수 명세입니다.
+ */
 interface ConfirmModalProps {
   isOpen: boolean;
   title: string;
@@ -15,6 +19,10 @@ interface ConfirmModalProps {
   isDanger?: boolean;
 }
 
+/**
+ * [ONR-UI-010] ConfirmModal 컴포넌트 함수
+ * @description 작업의 실행 여부를 예/아니오 단추와 위험성 경고 아이콘 등으로 확인받는 포털 기반 범용 컨펌 창입니다.
+ */
 export default function ConfirmModal({ 
   isOpen, 
   title, 

@@ -184,6 +184,7 @@ function copyKatexFonts() {
 
 copyKatexFonts();
 
+// [ONR-BLD-001] docs 폴더 재귀적 복사 로직: 빌드 시 docs 폴더 하위 가이드 문서 및 CSS 명세서 등 모든 정적 파일을 out 디렉토리에 복사하여 확장프로그램 내 포함되도록 처리합니다.
 function copyDocsHelp() {
   const docsSrc = path.join(__dirname, '..', 'docs');
   const docsDest = path.join(outDir, 'docs');

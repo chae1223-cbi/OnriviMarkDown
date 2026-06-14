@@ -63,6 +63,7 @@ export function saveVfsFiles(files: FileNode[]): void {
 }
 
 /**
+ * [ONR-IO-002] 가상 VFS 입출력 핸들러 (vfsReadFile / vfsWriteFile)
  * 가상 파일의 텍스트 내용을 가져옵니다.
  */
 export function vfsReadFile(path: string): string {

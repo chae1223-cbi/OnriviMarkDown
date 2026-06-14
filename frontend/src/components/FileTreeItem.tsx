@@ -207,6 +207,7 @@ const FileTreeItem = ({
   };
 
   const handleClick = (e: React.MouseEvent) => {
+    /* [ONR-UI-005] 파일 트리 노드 클릭 연동: 사용자가 좌측 파일 탐색기 트리의 특정 노드를 클릭 시 폴더인 경우 자식 노드 토글/지연로드를 처리하고, 파일인 경우 openFile 콜백을 트리거하여 탭을 열고 로드합니다. */
     e.stopPropagation();
     if (isMergeMode && node.kind === 'file' && node.name.toLowerCase().endsWith('.md')) {
       if (toggleMergeNodeSelect) toggleMergeNodeSelect(node);

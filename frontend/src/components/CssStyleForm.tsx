@@ -207,6 +207,7 @@ function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRem
    🏛️ [메인 CssStyleForm 컴포넌트]
    ──────────────────────────────────────────────────────── */
 
+// [ONR-MD-003] 서식설정 CSS 실시간 컴파일 및 주입: 사용자가 좌측 서식 정의 에디터 폼 위젯의 폰트 크기, 마진 등을 변경할 때마다 requestAnimationFrame 프레임 가드를 거쳐 CSS Profile을 실시간 갱신하고 미리보기에 자동 렌더링을 지시합니다.
 export default function CssStyleForm({
   profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, isDarkMode
 }: CssStyleFormProps) {

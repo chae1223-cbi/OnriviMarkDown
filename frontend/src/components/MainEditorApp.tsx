@@ -2690,6 +2690,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return 1;
   };
 
+  /**
+   * [ONR-01-010] scrollToLine 함수
+   * @description Monaco 에디터 내에서 특정 라인 번호로 스크롤하고 커서 위치를 해당 라인의 첫 번째 열로 이동한 뒤 포커스를 줍니다.
+   * @param lineNumber 에디터에서 이동하고자 하는 대상 라인 번호
+   */
   const scrollToLine = (lineNumber: number) => {
     if (editorRef.current) {
       const editor = editorRef.current;
@@ -2699,6 +2704,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
+  /**
+   * [ONR-01-013] handlePreviewClick 함수
+   * @description 미리보기 화면 클릭 시 해당 요소의 data-line 속성을 읽어 에디터의 동일 행으로 스크롤하고 하이라이트 효과를 부여합니다.
+   * @param e 마우스 클릭 이벤트 객체
+   */
   const handlePreviewClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const lineEl = target.closest('[data-line]');
@@ -2719,6 +2729,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
+  /**
+   * [ONR-01-014] insertBlockTag 함수
+   * @description 선택된 영역 또는 커서 위치를 HTML/마크다운 블록 태그(예: 코드 블록, 인용구 등)로 감싸주는 텍스트 에디팅 유틸리티입니다.
+   * @param startTag 시작 태그
+   * @param endTag 종료 태그
+   * @param defaultText 선택 영역이 없을 때 삽입할 기본 텍스트
+   */
   const insertBlockTag = (startTag: string, endTag: string, defaultText: string = "") => {
     if (!editorRef.current) return;
     const editor = editorRef.current;

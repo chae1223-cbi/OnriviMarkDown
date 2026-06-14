@@ -4,6 +4,7 @@ import CryptoJS from 'crypto-js';
 const SECRET_SALT = 'ONRIVI-AUTHOR-SECURE-KEY-SPEC-SALT';
 
 /**
+ * [ONR-IO-003] 안전 난독화 저장소 연동 (saveSecureData / loadSecureData)
  * 💡 [한글 주석] 주어진 키와 값 객체를 AES-256 알고리즘으로 강력하게 암호화하여 로컬 스토리지에 보관합니다.
  * @param key 로컬 스토리지 키 이름
  * @param value 암호화하여 보관할 객체 데이터

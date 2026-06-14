@@ -14,6 +14,10 @@ const MainEditorApp = dynamic(() => import('@/components/MainEditorApp'), {
   )
 });
 
+/**
+ * [ONR-02-001] Page 컴포넌트 함수
+ * @description Next.js의 클라이언트 진입 페이지 컴포넌트입니다. SSR 비활성화 모드 하에서 MainEditorApp을 동적으로 불러와 렌더링을 지시합니다.
+ */
 export default function Page() {
   return <MainEditorApp />;
 }

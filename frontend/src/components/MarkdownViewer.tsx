@@ -27,6 +27,10 @@ const mmToRem = (mm: string): string => {
   return (v * 0.236).toFixed(2) + 'rem';
 };
 
+/**
+ * [ONR-MD-005] MarkdownViewerProps 인터페이스
+ * @description 마크다운 렌더러 뷰어 컴포넌트에 주입되는 마크다운 원문(content), 여백 설정(margin), 페이지 가로/세로 방향(orientation), 체크박스 토글 핸들러 규격 명세입니다.
+ */
 interface MarkdownViewerProps {
   content: string;
   originalContent?: string;
@@ -115,6 +119,7 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
   return stack.join('/');
 };
 
+// [ONR-MD-001] 들여쓰기 코드 블록 인식 차단: 4칸 들여쓰기/탭 입력 시 코드블록으로 인식되는 기본 마크다운 규격을 차단하는 커스텀 remark 플러그인입니다.
 // 🛡️ 들여쓰기 4칸/탭 입력 시 코드블록으로 인식되는 것을 완전히 차단하는 플러그인
 function remarkDisableIndentedCode(this: any) {
   const data = this.data();
@@ -209,6 +214,7 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
     }
   };
 
+  // [ONR-MD-004] 표 데이터 래퍼 컴포넌트: 마크다운 렌더링 내의 표(table) 태그를 수신하여 가로 스크롤 레이아웃으로 감싸고, 마우스 오버 시 스프레드시트 호환 규격 복사 버튼을 제공하는 고기능 래퍼입니다.
   return (
     <div ref={tableRef} className="relative group my-6 border border-zinc-200/60 dark:border-zinc-800/60 rounded-lg overflow-x-auto shadow-sm bg-white dark:bg-zinc-900 select-text">
       {/* 마우스 호버 시 우측 상단에 노출되는 미려한 시트/표형식 복사 단추 */}

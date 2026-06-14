@@ -7,6 +7,10 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 
+/**
+ * [ONR-UI-006] ToolbarProps 인터페이스
+ * @description 에디터 상단 툴바(Toolbar)에 전달되는 상태값들과 테마/폰트 조절 콜백 함수 및 액션 디스패치 규격 명세입니다.
+ */
 interface ToolbarProps {
   isDarkMode: boolean;
   setIsDarkMode: (v: boolean) => void;
@@ -236,6 +240,7 @@ export default function Toolbar({
 
         {/* ⚙️ 오른쪽 영역: 설정 및 사용자설명서(도움말) 및 복사 */}
         <div className="flex items-center gap-2">
+          {/* [ONR-UI-001] 마크다운 복사 단추: 클릭 시 COPY_ALL 액션을 dispatch하여 현재 문서를 클립보드로 복사합니다. */}
           <button 
             onMouseDown={(e) => { e.preventDefault(); dispatch('COPY_ALL'); }}
             className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-sm font-semibold select-none border border-transparent hover:border-black/5 dark:hover:border-white/5"

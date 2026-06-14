@@ -158,6 +158,7 @@ export default function MenuBar({
     { label: t('exit'), icon: <span>📴</span>, onClick: () => dispatch('EXIT') },
   ];
 
+  /* [ONR-UI-003] 상단 메뉴바 이벤트 연동: 테마 스위칭, 내보내기 대화상자 등 전역 레이아웃 제어를 메뉴 트리거와 연결합니다. */
   return (
     <nav ref={menuRef} className="h-[36px] bg-zinc-100 dark:bg-zinc-900 border-b border-black/5 dark:border-white/10 flex items-center px-1 text-sm font-medium relative z-[100] text-zinc-700 dark:text-zinc-300 whitespace-nowrap select-none shrink-0">
       <MenuDropdown 

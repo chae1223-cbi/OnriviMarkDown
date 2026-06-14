@@ -581,6 +581,7 @@ export default function LeftSidebar({
             workspacePath={rootFolder?.name && rootFolder.name !== '브라우저 스토리지' ? rootFolder.name : undefined}
             rootFolderHandle={rootFolder?.handle}
             onSelectFolder={onSelectRootFolder}
+            /* [ONR-UI-002] 전체 검색 더블클릭 연동: 파일 내 특정 줄을 더블클릭할 때 해당 파일 노드를 찾아 오픈한 뒤 지정 줄로 즉시 화면을 포커스시킵니다. */
             onFileOpenAndJump={async (filePath, lineNumber) => {
               // 서식설정이 켜져 있다면 일반 뷰어로 강제 원복
               if (previewMode === 'css-style') {

@@ -74,6 +74,7 @@ const mmToPx = (mm: string | undefined, defaultValue: number): number => {
   return Math.round(parsed * 3.7795);
 };
 
+// [ONR-MD-002] 페이지 경계 및 강제 나누기 렌더링: 프린트 레이아웃 분할 기능과 페이지 높이 경계를 추적하여 강제 페이지 바인딩(Page Breaks) 처리를 수행하는 특수 뷰어 컴포넌트입니다.
 export default function MarkdownPageViewer({
   content,
   originalContent,
