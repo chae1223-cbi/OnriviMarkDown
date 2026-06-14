@@ -34,7 +34,7 @@ interface MarkdownViewerProps {
   onCheckboxToggle?: (lineNumber: number, checked: boolean) => void;
   currentFilePath?: string;
   rootFolderPath?: string;
-  onFileOpen?: (resolvedPath: string) => void;
+  onFileOpen?: (resolvedPath: string, hashPart?: string) => void;
   orientation?: 'portrait' | 'landscape';
   marginTop?: string;
   marginBottom?: string;
@@ -48,16 +48,28 @@ interface MarkdownViewerProps {
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
   if (!srcPath) return "";
 
-  if (srcPath.startsWith('http://') || srcPath.startsWith('https://') || srcPath.startsWith('data:') || srcPath.startsWith('blob:')) {
-    return srcPath;
+  // 앞뒤 꺾쇠 괄호 <> 제거 (경로 내 공백 처리를 위해 감싸진 경우 방어)
+  let cleanSrcPath = srcPath.trim();
+  if (cleanSrcPath.startsWith('<') && cleanSrcPath.endsWith('>')) {
+    cleanSrcPath = cleanSrcPath.slice(1, -1);
+  }
+
+  if (cleanSrcPath.startsWith('http://') || cleanSrcPath.startsWith('https://') || cleanSrcPath.startsWith('data:') || cleanSrcPath.startsWith('blob:')) {
+    return cleanSrcPath;
   }
 
   // URL 디코딩: 마크다운 파서가 한글/특수문자를 퍼센트 인코딩한 경우 파일시스템 경로로 복원
-  let decoded = srcPath;
+  let decoded = cleanSrcPath;
   try {
-    decoded = decodeURIComponent(srcPath);
+    decoded = decodeURIComponent(cleanSrcPath);
   } catch {
-    decoded = srcPath;
+    decoded = cleanSrcPath;
+  }
+
+  // 윈도우 절대경로 (예: D:/, C:\ 등) 판별 시 그대로 반환
+  const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(decoded.replace(/\\/g, '/'));
+  if (isAbsoluteWin) {
+    return decoded.replace(/\\/g, '/');
   }
 
   let baseFolder = "";
@@ -515,6 +527,16 @@ export default function MarkdownViewer({
     // 마크다운 파서가 이를 ordered list <ol> 목록으로 오해하여 1. 등으로 변환 렌더링하는 것을 방지하기 위해 괄호 앞에 백슬래시 이스케이프(\))를 자동 적용합니다.
     processed = processed.replace(/(^\s*\d+)\)(?=\s)/gm, '$1\\)');
 
+    // 💡 [옵시디언 위키링크 변환 필터]
+    // [[../relative/path.md#heading]] -> [path.md#heading](<../relative/path.md#heading>)
+    // [[../relative/path.md]] -> [path.md](<../relative/path.md>)
+    const wikiLinkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+    processed = processed.replace(wikiLinkRegex, (match, linkTarget, customText) => {
+      const trimmedTarget = linkTarget.trim();
+      const text = customText ? customText.trim() : trimmedTarget.split('/').pop() || trimmedTarget;
+      return `[${text}](<${trimmedTarget}>)`;
+    });
+
     const mdLinkRegex = /\[([^\]]+)\]\(((?:[^()]+|\([^()]*\))+)\)/g;
     return processed.replace(mdLinkRegex, (match, text, url) => {
       if (url.startsWith('<') && url.endsWith('>')) {
@@ -752,11 +774,14 @@ export default function MarkdownViewer({
                   if (onFileOpen) {
                     const cleanHref = href.split('#')[0];
                     const resolved = resolveRelativeImagePath(cleanHref, currentFilePath);
-                    onFileOpen(resolved);
+                    
+                    const normalizePath = (p: string | undefined) => (p || '').replace(/\\/g, '/').toLowerCase();
+                    const isSameFile = normalizePath(resolved) === normalizePath(currentFilePath);
 
-                    const hashPart = href.split('#')[1];
-                    if (hashPart) {
-                      setTimeout(() => {
+                    if (isSameFile) {
+                      // 💡 [동일 파일 가드] 같은 파일인 경우 파일을 다시 로드하지 않고 헤딩 위치로 즉시 스크롤 이동합니다.
+                      const hashPart = href.split('#')[1];
+                      if (hashPart) {
                         const targetId = decodeURIComponent(hashPart);
                         let targetEl = document.getElementById(targetId);
                         if (!targetEl) {
@@ -774,7 +799,11 @@ export default function MarkdownViewer({
                         if (targetEl) {
                           targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         }
-                      }, 300);
+                      }
+                    } else {
+                      // 다른 파일인 경우 파일을 열고 헤딩이 있다면 대기 후 이동합니다.
+                      const hashPart = href.split('#')[1];
+                      onFileOpen(resolved, hashPart || undefined);
                     }
                   }
                 };

@@ -123,10 +123,24 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       return line;
     }
 
-    // 💡 숫자 목록(Ordered List) 및 다른 마크다운 요소들은 파서의 AST 분석 후 
-    // 커스텀 렌더러에서 직접 가공하므로, 이전의 제로 너비 공백(\u200B) 주입 우회 처리는 필요가 없어 삭제합니다.
-    
     let processedLine = line.replace(/\t/g, "    ");
+
+    // 💡 [한글 붙여쓰기 강조 보정] 마크다운 표준 스펙으로 인해 **단어**한글 또는 한글**단어** 형태로 붙여 쓸 때 
+    // 강조가 깨지는 문제를 방지하기 위해 단어 경계 사이에 보이지 않는 제로 너비 공백(\u200B)을 동적 주입합니다.
+    // 1) **단어**한글 -> **단어**\u200B한글
+    processedLine = processedLine.replace(/(\*\*)([^\*]+?)(\*\*)([가-힣a-zA-Z0-9])/g, "$1$2$3\u200B$4");
+    // 2) 한글**단어** -> 한글\u200B**단어**
+    processedLine = processedLine.replace(/([가-힣a-zA-Z0-9])(\*\*)([^\*]+?)(\*\*)/g, "$1\u200B$2$3$4");
+
+    // 3) __단어__한글 -> __단어__\u200B한글
+    processedLine = processedLine.replace(/(__)([^_]+?)(__)([가-힣a-zA-Z0-9])/g, "$1$2$3\u200B$4");
+    // 4) 한글__단어__ -> 한글\u200B__단어__
+    processedLine = processedLine.replace(/([가-힣a-zA-Z0-9])(__)([^_]+?)(__)/g, "$1\u200B$2$3$4");
+
+    // 5) *단어*한글 -> *단어*\u200B한글
+    processedLine = processedLine.replace(/((?<!\*)\*)([^\*]+?)(\*)(?!\*)([가-힣a-zA-Z0-9])/g, "$1$2$3\u200B$4");
+    // 6) 한글*단어* -> 한글\u200B*단어*
+    processedLine = processedLine.replace(/([가-힣a-zA-Z0-9])((?<!\*)\*)([^\*]+?)(\*)(?!\*)/g, "$1\u200B$2$3$4");
     
     // 🛡️ 코드 블록 외 본문 텍스트 내 위험 HTML 구조 태그 이스케이프
     const dangerousTags = ['pre', 'code', 'div', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'tbody', 'thead', 'blockquote'];

@@ -34,7 +34,8 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
     "marginLeft": "용지_왼쪽여백_mm단위",
     "marginRight": "용지_오른쪽여백_mm단위",
     "orientation": "portrait_또는_landscape",
-    "headingSizeOffset": "제목단계별_감소폭_px단위"
+    "headingSizeOffset": "제목단계별_감소폭_px단위",
+    "tabSize": "탭_문자_렌더링_폭_정수"
   },
   "rules": {
     "h1": { "text-align": "left", "font-weight": "bold", "margin-top": "1.5rem", "margin-bottom": "1rem", "font-size": "28px" },
@@ -58,6 +59,7 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
     "td": {},
     "blockquote": { "border-left-width": "4px", "border-left-style": "solid", "padding": "12px", "margin-top": "10px", "margin-bottom": "10px" },
     "codeBlock": { "background-color": "#1e293b", "color": "#e2e8f0" },
+    "codeBlockTitle": {},
     "a": {},
     "img": { "width": "400px", "height": "300px", "margin-top": "16px", "margin-bottom": "16px", "display": "block", "margin-left": "auto", "margin-right": "auto" },
     "code": { "background-color": "#f1f5f9", "color": "#e11d48", "font-size": "0.9em", "padding-top": "1px", "padding-bottom": "1px", "padding-left": "4px", "padding-right": "4px", "border-radius": "4px", "line-height": "1" },
@@ -101,6 +103,7 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
 | `marginRight` | string | `"20mm"` | A4 인쇄/PDF 오른쪽 여백. **반드시 `mm` 단위** 사용 |
 | `orientation` | string | `"portrait"` | 용지 방향. `"portrait"`(세로) 또는 `"landscape"`(가로) 중 하나여야 함 |
 | `headingSizeOffset` | string | `"4"` | H1 크기 기준 H2~H6 단계별 감소폭(px). 단위 없는 숫자 문자열. 권장: `"2"` ~ `"6"` |
+| `tabSize` | string | `"4"` | 탭(Tab) 문자 렌더링 폭. 공백 개수 단위. 권장: `"1"` ~ `"10"` |
 
 #### pageStyle 예시 모음
 ```json
@@ -115,7 +118,8 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
   "marginLeft": "20mm",
   "marginRight": "20mm",
   "orientation": "portrait",
-  "headingSizeOffset": "4"
+  "headingSizeOffset": "4",
+  "tabSize": "4"
 }
 ```
 
@@ -145,6 +149,7 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
 | `td` | 표 데이터 셀 | — | `padding`, `text-align`, `border-bottom` |
 | `blockquote` | 인용 상자 | ○ (색상, 선굵기, 상하 여백 위젯) | `border-left-width`, `border-left-style`, `border-left-color`, `padding`, `margin-top`, `margin-bottom`, `background-color` |
 | `codeBlock` | 코드 블록 (`<pre><code>`) | ○ | `background-color`, `color`, `padding`, `border-radius`, `font-size` |
+| `codeBlockTitle` | 코드 블록 타이틀바 | ○ | `background-color`, `color`, `padding`, `font-size` |
 | `a` | 하이퍼링크 | — | `color`, `text-decoration` |
 | `img` | 이미지 | ○ (정렬 방식 선택 위젯) | `width`, `height`, `margin-top`, `margin-bottom`, `float`, `display`, `margin-left`, `margin-right` |
 | `code` | 인라인 코드 | ○ | `background-color`, `color`, `font-size`, `border-radius` |

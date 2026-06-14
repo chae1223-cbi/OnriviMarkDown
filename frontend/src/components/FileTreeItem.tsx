@@ -588,9 +588,9 @@ const FileTreeItem = ({
         style={{ paddingLeft: `${(level * 12) + 8}px` }}
         onClick={handleClick}
       >
-        <span className="w-4 h-4 flex items-center justify-center mr-0.5 opacity-60">
+        <span className="w-5 h-5 flex items-center justify-center mr-0.5 opacity-60">
           {node.kind === 'directory' ? (
-            isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+            isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
           ) : null}
         </span>
         
@@ -606,26 +606,27 @@ const FileTreeItem = ({
         
         {getFileIcon(node, isSelected)}
         
-        <span className="ml-1.5 truncate text-[13px] text-left flex-1">{node.name}</span>
+        <span className="ml-1.5 truncate text-[15px] text-left flex-1">{node.name}</span>
 
         {/* Hover Actions */}
         {!isMergeMode && (
           <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {node.kind === 'directory' && (
               <>
-                <button onClick={handleCreateFile} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 파일"}><Plus size={12} /></button>
-                <button onClick={handleCreateFolder} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 폴더"}><FolderPlus size={12} /></button>
+                <button onClick={handleCreateFile} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 파일"}><Plus size={14} /></button>
+                <button onClick={handleCreateFolder} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 폴더"}><FolderPlus size={14} /></button>
               </>
             )}
-            <button onClick={handleRename} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"이름 변경"}><Edit2 size={12} /></button>
-            <button onClick={handleDelete} className="p-1 hover:bg-red-500 hover:text-white rounded transition-colors" title={"삭제"}><Trash2 size={12} /></button>
+            <button onClick={handleRename} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"이름 변경"}><Edit2 size={14} /></button>
+            <button onClick={handleDelete} className="p-1 hover:bg-red-500 hover:text-white rounded transition-colors" title={"삭제"}><Trash2 size={14} /></button>
           </div>
         )}
       </div>
 
       {node.kind === 'directory' && isOpen && (() => {
-        const children = localChildren !== null ? localChildren : node.children;
-        if (!children) return null;
+        const rawChildren = localChildren !== null ? localChildren : node.children;
+        if (!rawChildren) return null;
+        const children = rawChildren.filter(child => child.kind === 'directory' || child.name.toLowerCase().endsWith('.md'));
         if (isLoading) {
           return <div className="text-[10px] text-zinc-400 pl-6 py-1 italic">불러오는 중...</div>;
         }

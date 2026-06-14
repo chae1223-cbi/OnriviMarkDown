@@ -52,7 +52,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     check: "체크리스트",
     eraser: "태그 취소 (Ctrl+Shift+X)",
     link: "링크",
-    taglink: "태그링크",
+    taglink: "문서링크",
+    doclink: "다른 문서 연결",
     image: "이미지",
     now: "현재 날짜/시간",
     emoji: "이모지 피커",
@@ -106,7 +107,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     check: "Task List",
     eraser: "Clear formatting (Ctrl+Shift+X)",
     link: "Insert Link",
-    taglink: "Tag Link",
+    taglink: "Doc Link",
+    doclink: "Link Other Doc",
     image: "Insert Image",
     now: "Current Date/Time",
     emoji: "Emoji Picker",
@@ -118,10 +120,10 @@ const localTranslations: Record<string, Record<string, string>> = {
     fontLarger: "Increase Font Size",
     wordWrap: "Toggle Word Wrap",
     search: "Global Search",
-    toSplitMode: "Switch to Split View",
-    toPreviewMode: "Switch to Preview Only",
-    toEditMode: "Switch to Editor Only",
-    theme: "Toggle Dark/Light Mode",
+    toSplitMode: "Switch to Split Mode",
+    toPreviewMode: "Switch to Preview Mode",
+    toEditMode: "Switch to Edit Mode",
+    theme: "Toggle Theme",
     settings: "Settings",
     help: "Syntax Help",
     save: "Save",
@@ -165,99 +167,100 @@ export default function Toolbar({
   };
 
   return (
-    <div className="w-full h-[60px] border-b border-emerald-500/10 dark:border-emerald-500/20 flex flex-row items-center px-4 bg-[#f3f9f4] dark:bg-[#0f1712] shadow-sm z-30 text-zinc-700 dark:text-zinc-300 overflow-x-auto overflow-y-hidden shrink-0">
-      <div className="flex flex-row items-center gap-6 w-full h-full min-w-max">
+    <div className="w-full h-[76px] border-b border-emerald-500/10 dark:border-emerald-500/20 flex flex-row items-center px-4 bg-[#f3f9f4] dark:bg-[#0f1712] shadow-sm z-30 text-zinc-700 dark:text-zinc-300 overflow-x-auto overflow-y-hidden shrink-0">
+      <div className="flex flex-row items-center justify-between w-full h-full min-w-max">
+        {/* 🎨 왼쪽 영역: 플로팅 툴바 디자인의 카드 모음 */}
         {previewMode !== 'preview' && (
-          <div className="flex flex-row items-center gap-6 h-full animate-in fade-in slide-in-from-left-2 duration-300">
-            {/* 제목 */}
-            <ToolbarGroup label="제목">
-              <HeadingSpinButton 
-                headingLevel={headingLevel} 
-                handleHeadingUp={handleHeadingUp} 
-                handleHeadingDown={handleHeadingDown} 
-                onHeadingSelect={(e) => {
-                  e.preventDefault();
-                  dispatch(`H${headingLevel}`);
-                }} 
-              />
-            </ToolbarGroup>
-
+          <div className="flex items-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-md rounded-2xl px-4 py-1.5 gap-3.5 select-none animate-in fade-in zoom-in-95 duration-100">
             {/* 서식 */}
-            <ToolbarGroup label="서식">
+            <div className="flex flex-row items-center gap-0.5">
               <ToolbarButton label="B" title={t('bold')} onAction={() => dispatch('BOLD')} bold />
               <ToolbarButton label="I" title={t('italic')} onAction={() => dispatch('ITALIC')} italic />
-              <ToolbarButton label={<span className="line-through">S</span>} title={t('strikethrough')} onAction={() => dispatch('STRIKETHROUGH')} />
               <ToolbarButton label="</>" title={t('inlineCode')} onAction={() => dispatch('INLINE_CODE')} />
-            </ToolbarGroup>
+              <ToolbarButton label="U" title={t('underline')} onAction={() => dispatch('UNDERLINE')} underline />
+              <ToolbarButton label={<span className="line-through">S</span>} title={t('strikethrough')} onAction={() => dispatch('STRIKETHROUGH')} />
+            </div>
+            
+            <div className="w-px h-6 bg-black/10 dark:bg-white/10" />
 
-            {/* 목록 */}
-            <ToolbarGroup label="목록">
+            {/* 제목 */}
+            <HeadingSpinButton 
+              headingLevel={headingLevel} 
+              handleHeadingUp={handleHeadingUp} 
+              handleHeadingDown={handleHeadingDown} 
+              onHeadingSelect={(e) => {
+                e.preventDefault();
+                dispatch(`H${headingLevel}`);
+              }} 
+            />
+
+            <div className="w-px h-6 bg-black/10 dark:bg-white/10" />
+
+            {/* 문서/구분선 */}
+            <div className="flex flex-row items-center gap-0.5">
+              <ToolbarButton label="—" title={t('hr')} onAction={() => dispatch('HR')} />
               <ToolbarButton label="1." title={t('orderedList')} onAction={() => dispatch('ORDERED_LIST')} />
               <ToolbarButton label="☰" title={t('list')} onAction={() => dispatch('LIST')} />
               <ToolbarButton label="❝" title={t('quote')} onAction={() => dispatch('QUOTE')} />
               <ToolbarButton label="☑️" title={t('check')} onAction={() => dispatch('CHECK')} />
-            </ToolbarGroup>
+              <ToolbarButton label={<Eraser size={16} className="text-red-500 opacity-80" />} title={t('eraser')} onAction={() => dispatch('REMOVE_PREFIX')} />
+              <ToolbarButton label="✨" title={t('cleanDoc')} onAction={() => dispatch('CLEAN_DOC')} />
+            </div>
 
-            {/* 미디어 */}
-            <ToolbarGroup label="미디어">
+            <div className="w-px h-6 bg-black/10 dark:bg-white/10" />
+
+            {/* 링크/미디어 */}
+            <div className="flex flex-row items-center gap-0.5">
               <ToolbarButton label="🔗" title={t('link')} onAction={() => dispatch('LINK')} />
+              <ToolbarButton label="🔖" title={t('taglink')} onAction={() => dispatch('TAGLINK')} />
+              <ToolbarButton label="📄" title={t('doclink')} onAction={() => dispatch('DOCLINK')} />
               <ToolbarButton label="🖼️" title={t('image')} onAction={() => dispatch('IMAGE')} />
               <ToolbarButton label="🎥" title={t('youtube')} onAction={() => dispatch('YOUTUBE')} />
-              <ToolbarButton label="🗺️" title={t('map')} onAction={() => dispatch('MAP')} />
-            </ToolbarGroup>
-
-            {/* 코드 */}
-            <ToolbarGroup label="코드">
-              <ToolbarButton label="💻" title={t('code')} onAction={() => dispatch('CODE')} />
-              <ToolbarButton label="📊" title={t('table')} onAction={() => dispatch('TABLE')} />
-              <ToolbarButton label="Σ" title={t('latex')} onAction={() => dispatch('LATEX')} />
-            </ToolbarGroup>
-
-            {/* 문서 */}
-            <ToolbarGroup label="문서">
-              <ToolbarButton label="—" title={t('hr')} onAction={() => dispatch('HR')} />
               <ToolbarButton label="📅" title={t('now')} onAction={() => dispatch('NOW')} />
-              <ToolbarButton label="✨" title={t('cleanDoc')} onAction={() => dispatch('CLEAN_DOC')} />
-            </ToolbarGroup>
+            </div>
+
+            <div className="w-px h-6 bg-black/10 dark:bg-white/10" />
+
+            {/* 고급/코드 */}
+            <div className="flex flex-row items-center gap-0.5">
+              <ToolbarButton label="🗺️" title={t('map')} onAction={() => dispatch('MAP')} />
+              <ToolbarButton label="📊" title={t('table')} onAction={() => dispatch('TABLE')} />
+              <ToolbarButton label="💻" title={t('code')} onAction={() => dispatch('CODE')} />
+              <ToolbarButton label="Σ" title={t('latex')} onAction={() => dispatch('LATEX')} />
+            </div>
           </div>
         )}
-        
-        {/* 여백 (좌측 정렬용) */}
-        <div className="flex-1" />
 
-        {/* 💡 [요구사항] 현재 활성화된 화면 모드 실시간 시각적 배지 표시 */}
-        <div className="flex items-center bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 dark:border-blue-500/30 rounded-full px-3.5 py-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 select-none shadow-sm shrink-0">
-          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 animate-pulse" />
-          {previewMode === 'edit' && '편집 모드'}
-          {previewMode === 'both' && '편집/미리보기 반반모드'}
-          {previewMode === 'preview' && '미리보기 모드'}
-          {previewMode === 'css-style' && '서식 정의 모드'}
-        </div>
+        {/* 여백 (분리용) */}
+        <div className="flex-1 min-w-[20px]" />
 
-        {/* 부가기능 - 임시 주석 처리 (하단 상태바 버튼으로만 사용) */}
-        {/*
-        <div className="flex flex-row items-center gap-4 h-full">
-          <ToolbarGroup label="부가기능" showDivider={false}>
-            <ToolbarButton label={<span className="font-bold">🗃️</span>} title={t('sidebarShow')} onAction={() => setIsSidebarOpen(!isSidebarOpen)} />
-            <ToolbarButton label={<span className="font-bold">♻️</span>} title={t('toolbarToggle')} onAction={() => dispatch('TOGGLE_TOOLBAR')} />
-            <ToolbarButton
-              label={
-                <span className="font-bold">
-                  {previewMode === 'edit' ? '✍️' : previewMode === 'both' ? '📳' : '📜'}
-                </span>
-              }
-              title={
-                previewMode === 'edit'
-                  ? t('toSplitMode')
-                  : previewMode === 'both'
-                    ? t('toPreviewMode')
-                    : t('toEditMode')
-              }
-              onAction={() => dispatch('TOGGLE_MODE')}
-            />
-          </ToolbarGroup>
+        {/* ⚙️ 오른쪽 영역: 설정 및 사용자설명서(도움말) 및 복사 */}
+        <div className="flex items-center gap-2">
+          <button 
+            onMouseDown={(e) => { e.preventDefault(); dispatch('COPY_ALL'); }}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-sm font-semibold select-none border border-transparent hover:border-black/5 dark:hover:border-white/5"
+            title={t('copyAll')}
+          >
+            <span className="text-zinc-500 dark:text-zinc-400">📋</span>
+            <span>마크다운 복사</span>
+          </button>
+          <button 
+            onMouseDown={(e) => { e.preventDefault(); dispatch('SETTINGS'); }}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-sm font-semibold select-none border border-transparent hover:border-black/5 dark:hover:border-white/5"
+            title={t('settings')}
+          >
+            <Settings size={18} className="text-zinc-500 dark:text-zinc-400" />
+            <span>설정</span>
+          </button>
+          <button 
+            onMouseDown={(e) => { e.preventDefault(); dispatch('HELP'); }}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-sm font-semibold select-none border border-transparent hover:border-black/5 dark:hover:border-white/5"
+            title="사용자 설명서 열기"
+          >
+            <HelpCircle size={18} className="text-zinc-500 dark:text-zinc-400" />
+            <span>사용자설명서</span>
+          </button>
         </div>
-        */}
       </div>
     </div>
   );
@@ -267,21 +270,21 @@ function ToolbarGroup({ label, children, showDivider = true }: { label: string, 
   return (
     <div className="flex flex-row items-center h-full">
       <div className="flex flex-col items-center justify-center h-full pt-1">
-        <div className="flex flex-row items-center gap-1 px-1">
+        <div className="flex flex-row items-center gap-1.5 px-1">
           {children}
         </div>
-        <span className="text-[9px] mt-0.5 font-semibold tracking-wider text-gray-500 dark:text-zinc-400">
+        <span className="text-[11px] mt-1 font-semibold tracking-wider text-gray-500 dark:text-zinc-400">
           {label}
         </span>
       </div>
       {showDivider && (
-        <div className="w-px h-8 bg-black/10 dark:bg-white/10 ml-4" />
+        <div className="w-px h-10 bg-black/10 dark:bg-white/10 ml-6" />
       )}
     </div>
   );
 }
 
-function ToolbarButton({ label, title, onAction, bold, italic }: { label: string | React.ReactNode, title: string, onAction?: (e: any) => void, bold?: boolean, italic?: boolean }) {
+function ToolbarButton({ label, title, onAction, bold, italic, underline, active }: { label: string | React.ReactNode, title: string, onAction?: (e: any) => void, bold?: boolean, italic?: boolean, underline?: boolean, active?: boolean }) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault(); // 포커스 유실 방지
     if (onAction) {
@@ -291,7 +294,11 @@ function ToolbarButton({ label, title, onAction, bold, italic }: { label: string
   return (
     <button 
       onMouseDown={handleMouseDown} 
-      className={`w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] ${bold ? 'font-black' : ''} ${italic ? 'italic font-serif' : ''}`} 
+      className={`w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[16px] ${bold ? 'font-black' : ''} ${italic ? 'italic font-serif' : ''} ${underline ? 'underline' : ''} ${
+        active 
+          ? 'bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20' 
+          : ''
+      }`} 
       title={title}
     >
       {label}
@@ -311,18 +318,18 @@ function HeadingSpinButton({
   onHeadingSelect: (e: any) => void;
 }) {
   return (
-    <div className="flex items-center border border-emerald-500/20 dark:border-emerald-500/30 rounded bg-emerald-500/5 dark:bg-emerald-500/10 py-0.5 px-1.5 gap-1.5">
+    <div className="flex items-center border border-emerald-500/20 dark:border-emerald-500/30 rounded bg-emerald-500/5 dark:bg-emerald-500/10 py-1 px-2 gap-2">
       <button 
         onMouseDown={handleHeadingUp}
         disabled={headingLevel === 1}
-        className="w-5 h-6 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[9px]"
+        className="w-6 h-8 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[11px]"
         title="제목 크기 키우기 (H1 방향)"
       >
         ▲
       </button>
       <button 
         onMouseDown={onHeadingSelect}
-        className="w-7 h-6 flex items-center justify-center font-bold text-[11px] hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0"
+        className="w-10 h-8 flex items-center justify-center font-bold text-[14px] hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0"
         title={`제목 ${headingLevel} 적용`}
       >
         H{headingLevel}
@@ -330,7 +337,7 @@ function HeadingSpinButton({
       <button 
         onMouseDown={handleHeadingDown}
         disabled={headingLevel === 6}
-        className="w-5 h-6 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[9px]"
+        className="w-6 h-8 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[11px]"
         title="제목 크기 줄이기 (H6 방향)"
       >
         ▼

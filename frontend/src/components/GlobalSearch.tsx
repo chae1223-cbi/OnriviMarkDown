@@ -155,31 +155,7 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
     <div className="w-full h-full flex flex-col min-h-0 select-none">
       {/* 검색 설정 패널 */}
       <div className={`p-3 border-b ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}>
-        {/* 검색 대상 폴더 경로 바 */}
-        <div className="flex items-center justify-between mb-3 gap-2">
-          <div className={`flex-1 px-2.5 py-1 text-[10px] rounded-lg border truncate ${
-            isDarkMode ? 'bg-zinc-900/50 border-white/5 text-gray-400' : 'bg-zinc-50 border-black/5 text-gray-500'
-          }`}>
-            {searchFolder ? `폴더: ${searchFolder}` : workspacePath ? `워크스페이스: ${workspacePath}` : rootFolderHandle ? "워크스페이스 전체 검색" : "범위: 현재 문서 내부"}
-          </div>
-          <button 
-            onClick={handleSelectFolder}
-            className="shrink-0 px-2.5 py-1 bg-blue-500 text-white rounded-lg text-[10px] font-bold hover:bg-blue-600 active:scale-95 transition-all shadow-md shadow-blue-500/20"
-          >
-            폴더 선택
-          </button>
-          {searchFolder && (
-            <button 
-              onClick={() => setSearchFolder(null)}
-              className={`shrink-0 p-1 rounded-lg border hover:bg-red-500 hover:text-white transition-colors ${
-                isDarkMode ? 'border-white/10 text-gray-400' : 'border-black/5 text-gray-500'
-              }`}
-              title="검색 범위 초기화 (워크스페이스 검색)"
-            >
-              <X size={10} />
-            </button>
-          )}
-        </div>
+        {/* 사용자 피드백에 의해 검색 대상 폴더 경로 바 및 폴더 선택 버튼 제거 */}
 
         <div className="relative mb-2">
           <input 
@@ -188,34 +164,34 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             autoFocus
-            className={`w-full pl-8 pr-12 py-1.5 text-xs rounded-lg border outline-none transition-all ${
+            className={`w-full pl-9 pr-12 py-2.5 text-base rounded-lg border outline-none transition-all ${
               isDarkMode 
                 ? 'bg-zinc-900 border-white/10 focus:ring-1 focus:ring-blue-500' 
                 : 'bg-zinc-100 border-black/5 focus:ring-2 focus:ring-blue-500/20'
             }`}
           />
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-30" />
-          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-40">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30" />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40">
             <button 
               onClick={() => setMatchCase(!matchCase)}
               className={`hover:text-blue-500 transition-colors ${matchCase ? 'text-blue-500 opacity-100' : ''}`}
               title="대소문자 구분"
             >
-              <CaseSensitive size={14} />
+              <CaseSensitive size={16} />
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-[10px] opacity-60">
-          <label className="flex items-center gap-1 cursor-pointer hover:opacity-100">
-            <input type="checkbox" checked={matchCase} onChange={() => setMatchCase(!matchCase)} className="rounded-sm w-2.5 h-2.5" />
+        <div className="flex items-center gap-3 text-sm opacity-60">
+          <label className="flex items-center gap-1.5 cursor-pointer hover:opacity-100">
+            <input type="checkbox" checked={matchCase} onChange={() => setMatchCase(!matchCase)} className="rounded-sm w-4 h-4" />
             <span>대소문자 구분</span>
           </label>
         </div>
       </div>
 
       {/* 검색 결과 현황 */}
-      <div className={`px-3 py-1.5 text-[10px] opacity-50 ${isDarkMode ? 'bg-zinc-900/50' : 'bg-zinc-50'}`}>
+      <div className={`px-3 py-2 text-sm opacity-60 font-bold ${isDarkMode ? 'bg-zinc-900/50' : 'bg-zinc-50'}`}>
         {searchFolder || workspacePath || rootFolderHandle ? `매칭된 파일: ${results.length}개` : `매칭된 줄: ${results.length > 0 ? results[0].count : 0}개`}
       </div>
 
@@ -226,26 +202,26 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
             key={idx} 
             className={`border-b ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}
           >
-            <div className={`px-3 py-1.5 flex items-center justify-between ${isDarkMode ? 'bg-white/5' : 'bg-black/5'}`}>
+            <div className={`px-3 py-2.5 flex items-center justify-between ${isDarkMode ? 'bg-white/5' : 'bg-black/5'}`}>
               <div className="flex items-center gap-1.5 min-w-0">
-                <FileText size={12} className="text-blue-500 shrink-0" />
-                <span className="text-[11px] font-bold opacity-80 truncate" title={result.path}>{result.fileName}</span>
+                <FileText size={16} className="text-blue-500 shrink-0" />
+                <span className="text-sm font-bold opacity-80 truncate" title={result.path}>{result.fileName}</span>
               </div>
               {searchFolder && !result.fileNameMatch && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-500 font-bold shrink-0">
+                <span className="text-sm px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-500 font-bold shrink-0">
                   {result.count}
                 </span>
               )}
               {result.fileNameMatch && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 font-bold shrink-0">
+                <span className="text-sm px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 font-bold shrink-0">
                   파일명
                 </span>
               )}
             </div>
             
-            <div className="px-3 py-2 space-y-1">
+            <div className="px-3 py-2 space-y-2">
               {result.fileNameMatch ? (
-                <div className="text-[11px] text-blue-500 dark:text-blue-400 font-semibold italic flex items-center gap-1">
+                <div className="text-sm text-blue-500 dark:text-blue-400 font-semibold italic flex items-center gap-1">
                   <span>📄</span> 파일명 일치
                 </div>
               ) : (
@@ -255,7 +231,7 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
                     <div 
                       key={i} 
                       onDoubleClick={() => lineNum && onFileOpenAndJump(result.path, lineNum)}
-                      className="text-[11px] opacity-70 font-mono leading-relaxed hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer py-0.5 border-b border-black/5 dark:border-white/5 last:border-0 truncate"
+                      className="text-sm opacity-80 font-mono leading-relaxed hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer py-1 border-b border-black/5 dark:border-white/5 last:border-0 truncate"
                       title="더블클릭 시 해당 파일의 줄로 이동합니다"
                     >
                       {snippet.split(new RegExp(`(${searchTerm})`, 'gi')).map((part, pi) => (
@@ -277,7 +253,7 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
           </div>
         ))}
         {searchTerm && results.length === 0 && !isLoading && (
-          <div className="text-[11px] opacity-40 text-center py-10">검색 결과가 없습니다.</div>
+          <div className="text-sm opacity-40 text-center py-10">검색 결과가 없습니다.</div>
         )}
       </div>
     </div>

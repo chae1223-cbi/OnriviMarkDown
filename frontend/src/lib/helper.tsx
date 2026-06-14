@@ -74,18 +74,18 @@ export const getFileIcon = (node: FileNode, isSelected: boolean) => {
   const baseClass = "shrink-0 transition-colors";
   
   if (node.kind === 'directory') {
-    return <Folder size={14} className={`${baseClass} text-yellow-500 fill-yellow-500/20`} />;
+    return <Folder size={16} className={`${baseClass} text-yellow-500 fill-yellow-500/20`} />;
   }
 
   const fileName = node.name;
   const ext = fileName.split('.').pop()?.toLowerCase();
   
-  if (ext === 'md') return <FileText size={14} className={`${baseClass} text-blue-500`} />;
-  if (ext === 'js' || ext === 'jsx') return <FileCode size={14} className={`${baseClass} text-yellow-500`} />;
-  if (ext === 'ts' || ext === 'tsx') return <FileCode size={14} className={`${baseClass} text-blue-400`} />;
-  if (ext === 'json') return <FileJson size={14} className={`${baseClass} text-orange-400`} />;
-  if (ext === 'css') return <FileType size={14} className={`${baseClass} text-blue-300`} />;
-  if (ext === 'html') return <FileCode size={14} className={`${baseClass} text-orange-500`} />;
+  if (ext === 'md') return <FileText size={16} className={`${baseClass} text-blue-500`} />;
+  if (ext === 'js' || ext === 'jsx') return <FileCode size={16} className={`${baseClass} text-yellow-500`} />;
+  if (ext === 'ts' || ext === 'tsx') return <FileCode size={16} className={`${baseClass} text-blue-400`} />;
+  if (ext === 'json') return <FileJson size={16} className={`${baseClass} text-orange-400`} />;
+  if (ext === 'css') return <FileType size={16} className={`${baseClass} text-blue-300`} />;
+  if (ext === 'html') return <FileCode size={16} className={`${baseClass} text-orange-500`} />;
   
-  return <File size={14} className={`${baseClass} ${isSelected ? "text-blue-500" : "text-gray-400"}`} />;
+  return <File size={16} className={`${baseClass} ${isSelected ? "text-blue-500" : "text-gray-400"}`} />;
 };

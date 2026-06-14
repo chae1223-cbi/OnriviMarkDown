@@ -185,29 +185,31 @@ function copyKatexFonts() {
 copyKatexFonts();
 
 function copyDocsHelp() {
-  const docsSrc = path.join(__dirname, '..', 'docs', 'help');
-  const docsDest = path.join(outDir, 'docs', 'help');
+  const docsSrc = path.join(__dirname, '..', 'docs');
+  const docsDest = path.join(outDir, 'docs');
 
   if (!fs.existsSync(docsSrc)) {
-    log('docs/help not found, skipping', 'warn');
+    log('docs directory not found, skipping', 'warn');
     return;
   }
 
-  fs.mkdirSync(docsDest, { recursive: true });
   try {
-    const files = fs.readdirSync(docsSrc);
-    let count = 0;
-    for (const file of files) {
-      const srcPath = path.join(docsSrc, file);
-      const destPath = path.join(docsDest, file);
-      if (fs.statSync(srcPath).isFile()) {
-        fs.copyFileSync(srcPath, destPath);
-        count++;
+    const copyRecursive = (src, dest) => {
+      if (fs.statSync(src).isDirectory()) {
+        fs.mkdirSync(dest, { recursive: true });
+        const entries = fs.readdirSync(src);
+        for (const entry of entries) {
+          copyRecursive(path.join(src, entry), path.join(dest, entry));
+        }
+      } else {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.copyFileSync(src, dest);
       }
-    }
-    log(`Docs help: ${count} files copied`);
+    };
+    copyRecursive(docsSrc, docsDest);
+    log('Docs folder and CSS spec copied recursively');
   } catch (err) {
-    log('Failed to copy docs/help', 'error');
+    log('Failed to copy docs directory', 'error');
   }
 }
 

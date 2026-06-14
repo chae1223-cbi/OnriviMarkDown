@@ -94,6 +94,7 @@ export default function LeftSidebar({
   const [drives, setDrives] = useState<FileNode[]>([]);
   const [isDrivesLoading, setIsDrivesLoading] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [collapsedH1s, setCollapsedH1s] = useState<Record<string, boolean>>({});
 
   // 📝 루트 디렉토리 생성을 위한 Prompt 상태 제어 및 비동기 처리
   const [promptConfig, setPromptConfig] = useState<{
@@ -288,14 +289,14 @@ export default function LeftSidebar({
         className="flex flex-col border-r border-zinc-200 dark:border-zinc-700/60 bg-zinc-100 dark:bg-zinc-900 select-none relative z-10"
       >
         {/* 탭 헤더 */}
-        <div className="h-9 border-b border-zinc-200 dark:border-zinc-700/60 flex items-center px-2 bg-zinc-200/70 dark:bg-zinc-800/50 justify-between">
-          <div className="flex gap-1">
+        <div className="h-11 border-b border-zinc-200 dark:border-zinc-700/60 flex items-center px-2 bg-zinc-200/70 dark:bg-zinc-800/50 justify-between">
+          <div className="flex gap-1.5 w-full">
             <button
               onClick={() => {
                 setSidebarTab('explorer');
                 setIsSearchOpen(false);
               }}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+              className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'explorer' 
                   ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-sm' 
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-white/50 dark:hover:bg-zinc-800'
@@ -308,26 +309,26 @@ export default function LeftSidebar({
                 setSidebarTab('toc');
                 setIsSearchOpen(false);
               }}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+              className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'toc' 
                   ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-sm' 
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-white/50 dark:hover:bg-zinc-800'
               }`}
             >
-              📝 문서 개요
+              📝 개요
             </button>
             <button
               onClick={() => {
                 setSidebarTab('search');
                 setIsSearchOpen(true);
               }}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+              className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'search' 
                   ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-sm' 
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-white/50 dark:hover:bg-zinc-800'
               }`}
             >
-              🔍 전체 검색
+              🔍 검색
             </button>
           </div>
         </div>
@@ -358,7 +359,7 @@ export default function LeftSidebar({
               // 폴더 연결됨 → 파일 트리 표시
               // 🛡️ [빈 폴더 방어] fileList가 비어있어도 루트 폴더 헤더(풀경로+버튼)를 항상 유지
               <div className="space-y-0.5">
-                <div className="group relative flex items-center justify-between px-1 py-1.5 text-[13px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
+                <div className="group relative flex items-center justify-between px-1 py-2 text-[15px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
                   <span className="truncate">📁 {rootFolder.name}</span>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button 
@@ -371,10 +372,10 @@ export default function LeftSidebar({
                           type: 'createFile'
                         });
                       }} 
-                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
                       title="새 파일"
                     >
-                      <Plus size={11} />
+                      <Plus size={14} />
                     </button>
                     <button 
                       onClick={(e) => {
@@ -386,10 +387,10 @@ export default function LeftSidebar({
                           type: 'createFolder'
                         });
                       }} 
-                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
                       title="새 폴더"
                     >
-                      <FolderPlus size={11} />
+                      <FolderPlus size={14} />
                     </button>
                   </div>
                 </div>
@@ -398,7 +399,9 @@ export default function LeftSidebar({
                     <p>연결된 폴더에 파일이 없습니다.</p>
                   </div>
                 ) : (
-                  fileList.map((node, i) => (
+                  fileList
+                    .filter(node => node.kind === 'directory' || node.name.toLowerCase().endsWith('.md'))
+                    .map((node, i) => (
                     <FileTreeItem
                       key={node.path || node.name + i}
                       node={node}
@@ -434,35 +437,140 @@ export default function LeftSidebar({
           </div>
         ) : sidebarTab === 'toc' ? (
           <div className="flex-1 overflow-y-auto p-3">
-            <div className="space-y-1 text-xs">
+            <div className="space-y-1.5 text-sm">
               {!toc || toc.length === 0 ? (
                 <div className="text-zinc-400 dark:text-zinc-500 text-center py-8">목차가 없습니다.</div>
-              ) : (
-                toc.map((item, i) => (
-                  <div 
-                    key={i} 
-                    style={{ paddingLeft: `${(item.level - 1) * 12}px` }}
-                    className="cursor-pointer py-1.5 px-2 rounded-md hover:bg-zinc-200/70 dark:hover:bg-zinc-800/50 hover:text-blue-600 dark:hover:text-blue-400 transition-all truncate text-zinc-600 dark:text-zinc-300 flex items-center"
-                    onClick={() => {
-                      const el = document.getElementById(item.id);
-                      if (el) {
-                        el.scrollIntoView({ behavior: 'smooth' });
-                        if (previewRef.current) {
-                          const elements = Array.from(previewRef.current.querySelectorAll('[data-line]'));
-                          elements.forEach(e => e.classList.remove('preview-highlight-line'));
-                          el.classList.add('preview-highlight-line');
+              ) : (() => {
+                let currentH1Id = '';
+                let currentH2Id = '';
+                let currentH3Id = '';
+                const processedToc = toc.map(item => {
+                  if (item.level === 1) {
+                    currentH1Id = item.id;
+                    currentH2Id = '';
+                    currentH3Id = '';
+                    return { ...item, parentH1Id: '', parentH2Id: '', parentH3Id: '' };
+                  } else if (item.level === 2) {
+                    currentH2Id = item.id;
+                    currentH3Id = '';
+                    return { ...item, parentH1Id: currentH1Id, parentH2Id: '', parentH3Id: '' };
+                  } else if (item.level === 3) {
+                    currentH3Id = item.id;
+                    return { ...item, parentH1Id: currentH1Id, parentH2Id: currentH2Id, parentH3Id: '' };
+                  } else {
+                    return { ...item, parentH1Id: currentH1Id, parentH2Id: currentH2Id, parentH3Id: currentH3Id };
+                  }
+                });
+
+                return processedToc.map((item, i) => {
+                  // 접힘 여부 판정 로직:
+                  // H1: 기본 펼침 (collapsedH1s[id] === true 이면 숨김)
+                  // H2: 기본 펼침 (H1이 접혀있으면 숨김)
+                  // H3: 기본 펼침 (H1 or H2가 접혀있으면 숨김)
+                  // H4 이하: 기본 접힘 (H1 or H2 or H3가 접혀있으면 숨김. H3은 기본이 접힘이므로 collapsedH1s[parentH3Id] !== false 이면 숨김)
+                  let isCollapsed = false;
+
+                  if (item.level === 2) {
+                    if (item.parentH1Id && collapsedH1s[item.parentH1Id] === true) {
+                      isCollapsed = true;
+                    }
+                  } else if (item.level === 3) {
+                    if (item.parentH1Id && collapsedH1s[item.parentH1Id] === true) {
+                      isCollapsed = true;
+                    } else if (item.parentH2Id && collapsedH1s[item.parentH2Id] !== false) {
+                      isCollapsed = true;
+                    }
+                  } else if (item.level >= 4) {
+                    if (item.parentH1Id && collapsedH1s[item.parentH1Id] === true) {
+                      isCollapsed = true;
+                    } else if (item.parentH2Id && collapsedH1s[item.parentH2Id] !== false) {
+                      isCollapsed = true;
+                    } else if (item.parentH3Id && collapsedH1s[item.parentH3Id] !== false) {
+                      isCollapsed = true;
+                    }
+                  }
+
+                  if (isCollapsed) return null;
+
+                  // 각 레벨별 자식 유무 체크
+                  const hasH1Children = item.level === 1 && processedToc.some(child => child.level >= 2 && child.parentH1Id === item.id);
+                  const hasH2Children = item.level === 2 && processedToc.some(child => child.level >= 3 && child.parentH2Id === item.id);
+                  const hasH3Children = item.level === 3 && processedToc.some(child => child.level >= 4 && child.parentH3Id === item.id);
+
+                  return (
+                    <div 
+                      key={i} 
+                      style={{ paddingLeft: `${(item.level - 1) * 16}px` }}
+                      className="cursor-pointer py-2 px-3 rounded-md hover:bg-zinc-200/70 dark:hover:bg-zinc-800/50 hover:text-blue-600 dark:hover:text-blue-400 transition-all truncate text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5"
+                      onClick={() => {
+                        const el = document.getElementById(item.id);
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth' });
+                          if (previewRef.current) {
+                            const elements = Array.from(previewRef.current.querySelectorAll('[data-line]'));
+                            elements.forEach(e => e.classList.remove('preview-highlight-line'));
+                            el.classList.add('preview-highlight-line');
+                          }
                         }
-                      }
-                      scrollToLine(item.lineNumber);
-                    }}
-                  >
-                    <span className="text-zinc-400 dark:text-zinc-500 mr-2 select-none font-bold">•</span>
-                    <span className="truncate flex-1">
-                      {item.text}
-                    </span>
-                  </div>
-                ))
-              )}
+                        scrollToLine(item.lineNumber);
+                      }}
+                    >
+                      {item.level === 1 ? (
+                        hasH1Children ? (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setCollapsedH1s(prev => ({ ...prev, [item.id]: !prev[item.id] })); 
+                            }}
+                            className="mr-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 w-5 h-5 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[10px]"
+                            title={collapsedH1s[item.id] === true ? "펼치기" : "접기"}
+                          >
+                            {collapsedH1s[item.id] === true ? '▶' : '▼'}
+                          </button>
+                        ) : (
+                          <div className="w-5 h-5 mr-1 shrink-0" />
+                        )
+                      ) : item.level === 2 ? (
+                        hasH2Children ? (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setCollapsedH1s(prev => ({ ...prev, [item.id]: prev[item.id] === false })); 
+                            }}
+                            className="mr-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 w-5 h-5 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[10px]"
+                            title={collapsedH1s[item.id] === false ? "접기" : "펼치기"}
+                          >
+                            {collapsedH1s[item.id] === false ? '▼' : '▶'}
+                          </button>
+                        ) : (
+                          <div className="w-5 h-5 mr-1 shrink-0" />
+                        )
+                      ) : item.level === 3 ? (
+                        hasH3Children ? (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              // H3은 기본 접힘(true)이므로 false(펼침) <-> true(접힘) 토글
+                              setCollapsedH1s(prev => ({ ...prev, [item.id]: prev[item.id] === false })); 
+                            }}
+                            className="mr-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 w-5 h-5 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[10px]"
+                            title={collapsedH1s[item.id] === false ? "접기" : "펼치기"}
+                          >
+                            {collapsedH1s[item.id] === false ? '▼' : '▶'}
+                          </button>
+                        ) : (
+                          <div className="w-5 h-5 mr-1 shrink-0" />
+                        )
+                      ) : (
+                        <div className="w-5 h-5 mr-1 shrink-0" />
+                      )}
+                      <span className="truncate flex-1 font-medium">
+                        {item.text}
+                      </span>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         ) : (
@@ -474,73 +582,68 @@ export default function LeftSidebar({
             rootFolderHandle={rootFolder?.handle}
             onSelectFolder={onSelectRootFolder}
             onFileOpenAndJump={async (filePath, lineNumber) => {
+              // 서식설정이 켜져 있다면 일반 뷰어로 강제 원복
+              if (previewMode === 'css-style') {
+                setPreviewMode('preview');
+              }
+
               if (filePath === 'current') {
                 scrollToLine(lineNumber);
                 setIsSearchOpen(false);
               } else {
-                if (typeof window !== 'undefined' && (window as any).electronAPI) {
+                // 1. 탐색기 트리에서 해당 노드 재귀 탐색
+                const findNodeRecursively = (nodes: FileNode[], targetPath: string): FileNode | null => {
+                  for (const n of nodes) {
+                    const normN = n.path ? n.path.replace(/\\/g, '/').toLowerCase() : '';
+                    const normT = targetPath.replace(/\\/g, '/').toLowerCase();
+                    if (n.kind === 'file' && (normN === normT || n.name.toLowerCase() === targetPath.toLowerCase())) {
+                      return n;
+                    }
+                    if (n.kind === 'directory' && n.children) {
+                      const found = findNodeRecursively(n.children, targetPath);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+
+                const targetNode = findNodeRecursively(fileList, filePath);
+
+                if (targetNode) {
+                  openFile(targetNode);
+                  setTimeout(() => {
+                    scrollToLine(lineNumber);
+                  }, 150);
+                  setIsSearchOpen(false);
+                  showToast(`'${targetNode.name}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
+                } else if (typeof window !== 'undefined' && (window as any).electronAPI) {
+                  // 로컬 환경이고 트리에 없는 경로인 경우 더미 노드를 생성해 openFile(handleFileClick)로 정상 위임
+                  const fileName = filePath.split(/[\\/]/).pop() || filePath;
+                  const dummyNode = { name: fileName, kind: 'file' as const, path: filePath };
+                  openFile(dummyNode);
+                  setTimeout(() => {
+                    scrollToLine(lineNumber);
+                  }, 200);
+                  setIsSearchOpen(false);
+                  showToast(`'${fileName}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
+                } else if (rootFolder?.handle) {
+                  // 브라우저 FileSystem API 환경에서 트리에 없는 lazy 노드인 경우
                   try {
-                    const file = await (window as any).electronAPI.readFromPath(filePath);
-                    if (file) {
-                      setContent(file.content);
-                      lastSavedContentRef.current = file.content;
-                      if (editorRef.current) {
-                        editorRef.current.setValue(file.content);
-                      }
-                      setCurrentFileName(file.name);
-                      setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-                      setIsSidebarOpen(true);
+                    const fileHandle = await rootFolder.handle.getFileHandle(filePath);
+                    if (fileHandle) {
+                      const tempNode = { name: filePath, kind: 'file' as const, handle: fileHandle };
+                      openFile(tempNode, rootFolder.handle);
                       setTimeout(() => {
                         scrollToLine(lineNumber);
-                      }, 100);
+                      }, 150);
                       setIsSearchOpen(false);
-                      showToast(`'${file.name}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
+                      showToast(`'${filePath}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
                     }
-                  } catch (err) {
-                    showToast("파일을 열지 못했습니다: " + err, 'error');
-                  }
-                } else {
-                  // === Addon/Browser 환경: 파일 노드 재귀 탐색 및 오픈 후 줄 이동 ===
-                  const findNodeRecursively = (nodes: FileNode[], targetName: string): FileNode | null => {
-                    for (const n of nodes) {
-                      if (n.kind === 'file' && (n.name === targetName || n.path === targetName)) {
-                        return n;
-                      }
-                      if (n.kind === 'directory' && n.children) {
-                        const found = findNodeRecursively(n.children, targetName);
-                        if (found) return found;
-                      }
-                    }
-                    return null;
-                  };
-
-                  const targetNode = findNodeRecursively(fileList, filePath);
-                  if (targetNode) {
-                    openFile(targetNode);
-                    setTimeout(() => {
-                      scrollToLine(lineNumber);
-                    }, 150);
-                    setIsSearchOpen(false);
-                    showToast(`'${targetNode.name}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
-                  } else if (rootFolder?.handle) {
-                    // lazy load로 인해 트리에 없는 경우 디렉토리 핸들에서 직접 취득하여 폴백 가동
-                    try {
-                      const fileHandle = await rootFolder.handle.getFileHandle(filePath);
-                      if (fileHandle) {
-                        const tempNode = { name: filePath, kind: 'file' as const, handle: fileHandle };
-                        openFile(tempNode, rootFolder.handle);
-                        setTimeout(() => {
-                          scrollToLine(lineNumber);
-                        }, 150);
-                        setIsSearchOpen(false);
-                        showToast(`'${filePath}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
-                      }
-                    } catch (e) {
-                      showToast("파일을 찾지 못했습니다.", "error");
-                    }
-                  } else {
+                  } catch (e) {
                     showToast("파일을 찾지 못했습니다.", "error");
                   }
+                } else {
+                  showToast("파일을 찾지 못했습니다.", "error");
                 }
               }
             }}

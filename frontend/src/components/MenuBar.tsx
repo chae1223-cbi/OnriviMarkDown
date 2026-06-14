@@ -138,7 +138,9 @@ export default function MenuBar({
   }, []);
 
   const fileItems = [
-  { label: "새 파일", icon: <span>📝</span>, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
+    { label: "새 파일", icon: <span>📝</span>, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
+    { label: t('openWorkspace'), icon: <span>📂</span>, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
+    { divider: true },
     { label: t('saveFile'), icon: <span>💾</span>, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
     { label: t('saveFileAs'), icon: <span>💿</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
     { divider: true },
@@ -157,7 +159,7 @@ export default function MenuBar({
   ];
 
   return (
-    <nav ref={menuRef} className="h-8 bg-zinc-100 dark:bg-zinc-900 border-b border-black/5 dark:border-white/10 flex items-center px-1 text-xs font-medium relative z-[100] text-zinc-700 dark:text-zinc-300 whitespace-nowrap select-none shrink-0">
+    <nav ref={menuRef} className="h-[36px] bg-zinc-100 dark:bg-zinc-900 border-b border-black/5 dark:border-white/10 flex items-center px-1 text-sm font-medium relative z-[100] text-zinc-700 dark:text-zinc-300 whitespace-nowrap select-none shrink-0">
       <MenuDropdown 
         label={t('file')} 
         isOpen={activeMenu === 'file'} 
@@ -260,14 +262,14 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                       onClose(); 
                     } 
                   }}
-                  className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-white transition-colors text-left"
+                  className="w-full flex items-center justify-between px-3 py-2 hover:bg-blue-600 hover:text-white transition-colors text-left text-sm"
                 >
                   <div className="flex items-center gap-2">
                     <span className="w-4 flex justify-center opacity-70">{item.icon}</span>
                     <span>{item.label}</span>
                   </div>
-                  {item.shortcut && <span className="text-[10px] opacity-50 ml-4 font-mono">{item.shortcut}</span>}
-                  {item.subItems && <ChevronRight size={12} className="opacity-50" />}
+                  {item.shortcut && <span className="text-xs opacity-50 ml-4 font-mono">{item.shortcut}</span>}
+                  {item.subItems && <ChevronRight size={14} className="opacity-50" />}
                 </button>
 
                 {/* Submenu */}
@@ -288,7 +290,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                           sub.onClick?.(); 
                           onClose(); 
                         }}
-                        className={`w-full flex items-center justify-between px-3 py-1.5 transition-colors text-left ${
+                        className={`w-full flex items-center justify-between px-3 py-2 transition-colors text-left text-sm ${
                           sub.isActive
                             ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30'
                             : 'hover:bg-blue-600 hover:text-white'
@@ -298,7 +300,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                           <span className="w-4 flex justify-center">{sub.icon}</span>
                           <span>{sub.label}</span>
                         </div>
-                        {sub.isActive && <span className="text-[9px]">✓</span>}
+                        {sub.isActive && <span className="text-xs">✓</span>}
                       </button>
                     ))}
                   </div>

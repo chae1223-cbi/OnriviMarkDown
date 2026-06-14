@@ -433,14 +433,19 @@ ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
 // 5. 절대 경로를 지정하여 직접 파일 내용 읽기
 ipcMain.handle('file:readFromPath', async (event, filePath) => {
   try {
-    // 💡 [경로 가드] docs/help/ 로 시작하는 상대 경로는 프로젝트 루트(OnriviMarkDown 루트) 기준으로 절대 경로 재조합
     let cleanPath = filePath.normalize('NFC');
     
-    if (!path.isAbsolute(filePath) && filePath.startsWith('docs/help/')) {
+    // 윈도우 슬래시 스타일 포함하여 절대 경로 정밀 판별
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    const isAbsolute = path.isAbsolute(filePath) || /^[a-zA-Z]:\//.test(normalizedPath) || filePath.startsWith('/');
+
+    if (isAbsolute) {
+      cleanPath = filePath;
+    } else if (filePath.startsWith('docs/help/')) {
       // app.getAppPath()가 frontend/를 가리키므로 상위('..')로 탈출하여 프로젝트 루트(OnriviMarkDown) 확보
       const projectRoot = path.join(app.getAppPath(), '..');
       cleanPath = path.join(projectRoot, filePath).normalize('NFC');
-    } else if (!path.isAbsolute(filePath)) {
+    } else {
       // 기존 로직: 개발/번들 내부, 설치된 환경 외부 리소스 순서로 탐색
       const pathsToTry = [
         path.join(app.getAppPath(), filePath),

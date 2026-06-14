@@ -21,11 +21,25 @@ interface MarkdownPageViewerProps {
 // 상대 경로 분석용 헬퍼 함수 복사
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
   if (!srcPath) return "";
-  if (srcPath.startsWith('http://') || srcPath.startsWith('https://') || srcPath.startsWith('data:') || srcPath.startsWith('blob:')) {
-    return srcPath;
+
+  // 앞뒤 꺾쇠 괄호 <> 제거 (경로 내 공백 처리를 위해 감싸진 경우 방어)
+  let cleanSrcPath = srcPath.trim();
+  if (cleanSrcPath.startsWith('<') && cleanSrcPath.endsWith('>')) {
+    cleanSrcPath = cleanSrcPath.slice(1, -1);
   }
-  let decoded = srcPath;
-  try { decoded = decodeURIComponent(srcPath); } catch { decoded = srcPath; }
+
+  if (cleanSrcPath.startsWith('http://') || cleanSrcPath.startsWith('https://') || cleanSrcPath.startsWith('data:') || cleanSrcPath.startsWith('blob:')) {
+    return cleanSrcPath;
+  }
+  let decoded = cleanSrcPath;
+  try { decoded = decodeURIComponent(cleanSrcPath); } catch { decoded = cleanSrcPath; }
+
+  // 윈도우 절대경로 (예: D:/, C:\ 등) 판별 시 그대로 반환
+  const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(decoded.replace(/\\/g, '/'));
+  if (isAbsoluteWin) {
+    return decoded.replace(/\\/g, '/');
+  }
+
   let baseFolder = "";
   if (currentFileNodePath) {
     const normalizedFile = currentFileNodePath.replace(/\\/g, '/');

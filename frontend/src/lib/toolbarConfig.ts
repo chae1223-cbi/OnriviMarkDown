@@ -21,6 +21,8 @@ export const TOOLBAR_ITEMS = [
   
   // 4. 미디어 (Media)
   { id: 'link', icon: '🔗', name: '링크', group: '미디어', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
+  { id: 'taglink', icon: '🔖', name: '문서링크', group: '미디어', tagFormat: '[제목](<#제목>)', defaultHotkey: '', defaultCommand: 'taglink', insertText: '', kind: 15 },
+  { id: 'doclink', icon: '📄', name: '다른 문서 연결', group: '미디어', tagFormat: '[[상대경로/파일명]]', defaultHotkey: '', defaultCommand: 'doclink', insertText: '', kind: 15 },
   { id: 'image', icon: '🖼️', name: '이미지', group: '미디어', tagFormat: '![대체 텍스트](URL)', defaultHotkey: '', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
   { id: 'youtube', icon: '🎥', name: '유튜브 동영상 삽입', group: '미디어', tagFormat: '동영상 삽입', defaultHotkey: '', defaultCommand: 'youtube', insertText: '유튜브 동영상 삽입', kind: 15 },
   { id: 'map', icon: '🗺️', name: '지도', group: '미디어', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
@@ -83,56 +85,16 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       let insertText = item.insertText;
       let insertTextRules = undefined;
 
-      // 스니펫 변환: 커서 위치 자동 설정
-      if (item.kind === 15 || item.kind === 17) {
-        if (insertText.includes('텍스트')) {
-          insertText = insertText.replace('텍스트', '${1:텍스트}');
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText.includes('이미지_URL')) {
-          insertText = insertText.replace('이미지_URL', '${1:이미지_URL}');
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText.includes('URL')) {
-          insertText = insertText.replace('URL', '${1:URL}');
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '```javascript\n\n```') {
-          insertText = '```javascript\n${1:코드}\n```';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '```mermaid\n\n```') {
-          insertText = '```mermaid\n${1:내용}\n```';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '$$수식$$') {
-          insertText = '$$${1:수식}$$';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '# ') {
-          insertText = '# ${1:제목}';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '## ') {
-          insertText = '## ${1:제목}';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '### ') {
-          insertText = '### ${1:제목}';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '#### ') {
-          insertText = '#### ${1:제목}';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '##### ') {
-          insertText = '##### ${1:제목}';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText === '###### ') {
-          insertText = '###### ${1:제목}';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        } else if (insertText.startsWith('| 구분 |')) {
-          insertText = '| 구분 | ${1:데이터 1} | ${2:데이터 2} |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |';
-          insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
-        }
-      }
+      // 💡 [하이라이트 방지] InsertAsSnippet 사용 시 Monaco가 삽입된 텍스트를 자동 선택(하이라이트)하므로,
+      //    스니펫 규칙을 제거하고 일반 텍스트로 삽입합니다.
+      //    (툴바/단축키와 동일한 방식: 삽입 후 커서가 텍스트 끝에 위치)
 
       let command: any = undefined;
 
       // 💡 [한글 주석] 모달이 필요한 항목 (youtube 추가)
       const modalKeys = ['image', 'video', 'youtube', 'map', 'table', 'math'];
       // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 표 행 편집 이관)
-      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink'];
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink', 'doclink'];
 
       if (modalKeys.includes(item.id)) {
         command = {
@@ -149,6 +111,37 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
           title: item.name,
           arguments: [item.id]
         };
+      }
+
+      // 💡 [툴바/단축키 동일 UX] 텍스트 삽입 후 플레이스홀더를 자동 선택하는 커맨드 설정
+      //    Monaco completion item의 command 필드는 삽입 완료 후 자동 실행됩니다.
+      //    actionOnlyKeys는 이미 trigger-custom-action이 설정되므로 제외합니다.
+      if (!command && insertText) {
+        // 플레이스홀더 후보 목록: 순서대로 검색 (우선순위 적용)
+        const PLACEHOLDER_CANDIDATES = ['이미지_URL', '텍스트', 'URL', '제목', '코드', '내용', '수식'];
+        let placeholder: string | null = null;
+        let placeholderOffset = 0;
+
+        // 단일 라인 insertText에서만 플레이스홀더 감지 (멀티라인은 플레이스홀더 없음)
+        if (insertText && !insertText.includes('\n')) {
+          for (const pw of PLACEHOLDER_CANDIDATES) {
+            const idx = insertText.indexOf(pw);
+            if (idx !== -1) {
+              placeholder = pw;
+              placeholderOffset = idx;
+              break;
+            }
+          }
+        }
+
+        if (placeholder) {
+          command = {
+            id: 'select-slash-placeholder',
+            title: '플레이스홀더 선택',
+            // insertText 전체 길이, 플레이스홀더 오프셋, 플레이스홀더 길이 전달
+            arguments: [insertText.length, placeholderOffset, placeholder.length]
+          };
+        }
       }
 
       // 레이블: 이모지 아이콘 + 명령어 + 한국어 이름
@@ -170,3 +163,4 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       };
     }).filter((item) => item !== null) as any[];
 };
+

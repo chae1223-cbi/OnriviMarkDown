@@ -150,15 +150,15 @@ export default function StatusBar({
   const saveStatusColor = saveStatus === 'saved' ? 'text-green-600' : saveStatus === 'saving' ? 'text-blue-500' : saveStatus === 'unsaved' ? 'text-amber-500' : '';
 
   return (
-    <footer className="h-8 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[11px] font-bold text-gray-700 dark:text-zinc-300 relative z-40 whitespace-nowrap select-none">
+    <footer className="h-12 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[12px] font-bold text-gray-700 dark:text-zinc-300 relative z-40 whitespace-nowrap select-none">
       <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
         {/* 💡 [인증 키 가드] 라이선스 활성화 마크 */}
         {isActivated ? (
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-extrabold px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 shrink-0">
             정품 인증됨
           </span>
         ) : (
-          <span className="text-[10px] text-rose-600 dark:text-rose-400 font-extrabold px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 shrink-0 animate-pulse">
+          <span className="text-[11px] text-rose-600 dark:text-rose-400 font-extrabold px-2 py-1 rounded-md bg-rose-500/10 border border-rose-500/20 shrink-0 animate-pulse">
             체험판 (인증 필요)
           </span>
         )}
@@ -202,58 +202,70 @@ export default function StatusBar({
           </>
         )}
       </div>
-      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+      <div className="flex items-center gap-2 shrink-0 ml-2">
         {/* 툴바 숨기기/보이기 */}
         {setIsToolbarOpen && (
           <button
             onClick={() => setIsToolbarOpen(!isToolbarOpen)}
-            className={`p-0.5 rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
+            className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
               isToolbarOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
             }`}
             title={isToolbarOpen ? t('toolbarHide') : t('toolbarShow')}
           >
-            <span className="text-[11px] leading-none">♻️</span>
+            <span className="leading-none">♻️</span>
           </button>
         )}
         {/* 사이드바 숨기기/보이기 */}
         {setIsSidebarOpen && (
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`p-0.5 rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
+            className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
               isSidebarOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
             }`}
             title={isSidebarOpen ? t('sidebarHide') : t('sidebarShow')}
           >
-            <span className="text-[11px] leading-none">🗃️</span>
+            <span className="leading-none">🗃️</span>
           </button>
         )}
-        {/* 모드전환 */}
+        {/* 모드 표시 세그먼트 (항상 표시) */}
         {setPreviewMode && (
-          <button
-            onClick={() => {
-              if (previewMode === 'edit') setPreviewMode('both');
-              else if (previewMode === 'both') setPreviewMode('preview');
-              else setPreviewMode('edit');
-            }}
-            className={`p-0.5 rounded transition-all hover:bg-black/10 dark:hover:bg-white/10 ${
-              previewMode === 'both' || previewMode === 'css-style' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-zinc-500'
-            }`}
-            title={
-              previewMode === 'edit'
-                ? t('toSplitMode')
-                : previewMode === 'both'
-                  ? t('toPreviewMode')
-                  : t('toEditMode')
-            }
-          >
-            <span className="text-[11px] leading-none">{previewMode === 'edit' ? '✍️' : previewMode === 'both' ? '📳' : '📜'}</span>
-          </button>
+          <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-lg overflow-hidden border border-black/10 dark:border-white/10">
+            <button
+              onClick={() => setPreviewMode('edit')}
+              title="편집보기 - 에디터만 표시"
+              className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
+                previewMode === 'edit'
+                  ? 'bg-emerald-500 text-white'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
+              }`}
+            >편집보기</button>
+            <div className="w-px h-4 bg-black/10 dark:bg-white/10" />
+            <button
+              onClick={() => setPreviewMode('both')}
+              title="분할모드 - 에디터와 미리보기 함께 표시"
+              className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
+                previewMode === 'both' || previewMode === 'css-style'
+                  ? 'bg-emerald-500 text-white'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
+              }`}
+            >분할모드</button>
+            <div className="w-px h-4 bg-black/10 dark:bg-white/10" />
+            <button
+              onClick={() => setPreviewMode('preview')}
+              title="미리보기 - 렌더링된 문서만 표시"
+              className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
+                previewMode === 'preview'
+                  ? 'bg-emerald-500 text-white'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
+              }`}
+            >미리보기</button>
+          </div>
         )}
 
-        <span className="text-gray-300 dark:text-zinc-600 mx-0.5">|</span>
-        <span className="hover:text-[#0058bc] cursor-default">UTF-8</span>
-        <span className="hover:text-[#0058bc] cursor-default">.md</span>
-        <span className="hover:text-[#0058bc] cursor-default">Ln {cursorLine || 1}, Col {cursorColumn || 1}</span>
+        <span className="text-gray-300 dark:text-zinc-600 mx-1">|</span>
+        <span className="hover:text-[#0058bc] cursor-default text-[12px]">UTF-8</span>
+        <span className="hover:text-[#0058bc] cursor-default text-[12px]">.md</span>
+        <span className="hover:text-[#0058bc] cursor-default text-[12px] tabular-nums">Ln {cursorLine || 1}, Col {cursorColumn || 1}</span>
       </div>
     </footer>
   );
