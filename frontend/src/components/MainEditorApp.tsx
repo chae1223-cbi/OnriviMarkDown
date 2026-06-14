@@ -96,6 +96,9 @@ import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import UnifiedTabBar, { EditorTab } from '@/components/UnifiedTabBar';
 import * as utilsPasteHandlers from '@/utils/pasteHandlers';
 import * as utilsEditorActions from '@/utils/editorActions';
+import { useEditorTabs } from '@/hooks/useEditorTabs';
+import { useEditorSettings } from '@/hooks/useEditorSettings';
+import { usePageBreak } from '@/hooks/usePageBreak';
 
 
 /**
@@ -323,115 +326,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const isComposingRef = useRef(false);
 
   // 💡 다중 탭 관련 상태 선언 및 백업 레퍼런스
-  const [tabs, setTabs] = useState<EditorTab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
-
-  const tabsRef = useRef<EditorTab[]>([]);
-  const activeTabIdRef = useRef<string | null>(null);
-
-  useEffect(() => { tabsRef.current = tabs; }, [tabs]);
-  useEffect(() => { activeTabIdRef.current = activeTabId; }, [activeTabId]);
-
-  // 💡 [IME-01] 에디터 비제어(Uncontrolled) 컴포넌트 전환을 위한 상태 동기화 도우미
-  // 에디터 내부의 onChange 변경인 경우 setValue를 호출하지 않아 한글 IME composition 깨짐 및 중복 입력을 원천 방어합니다.
-  const updateContent = useCallback((newValue: string, fromEditor: boolean = false) => {
-    if (fromEditor && !isEditorMountedRef.current) return;
-    if (fromEditor && previewModeRef.current === 'preview') return; // 💡 [가드] 미리보기 모드 상태일 때는 변경 감지 즉시 무시
-
-    if (fromEditor) {
-      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
-      
-      // 💡 한글 조합 중(Composition)일 때는 타이핑 도중 상태를 변경하지 않고 compositionend 및 blur 시점에서 일괄 처리되도록 우회
-      if (isComposingRef.current) return;
-
-      previewDebounceRef.current = setTimeout(() => {
-        if (!isEditorMountedRef.current) return;
-        if (previewModeRef.current === 'preview') return; // 💡 [디바운스 타이머 가드] 100ms 실행 시점에도 확인하여 덮어쓰기 무력화
-        setContent(newValue);
-        // 활성 탭 본문 내용 및 수정 상태 실시간 동기화
-        setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: newValue, isModified: true } : t));
-      }, 100); // 💡 지연 시간을 250ms에서 100ms로 크게 단축하여 미리보기 시차 개선
-    } else {
-      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
-      setContent(newValue);
-      setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: newValue } : t));
-      if (editorRef.current && editorRef.current.getValue() !== newValue) {
-        editorRef.current.setValue(newValue);
-      }
-    }
-  }, []);
-
-  // 💡 다중 탭 전환, 닫기, 새 탭 생성 헬퍼 구현
-  const switchTab = useCallback((tabId: string) => {
-    const monaco = (window as any).monaco;
-    const editor = editorRef.current;
-
-    if (editor && activeTabIdRef.current) {
-      const currentScrollTop = editor.getScrollTop();
-      setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, scrollTop: currentScrollTop } : t));
-    }
-
-    setActiveTabId(tabId);
-
-    const targetTab = tabsRef.current.find(t => t.id === tabId);
-    if (!targetTab) return;
-
-    setContent(targetTab.content);
-    setCurrentFileName(targetTab.name);
-    setCurrentFileNode(targetTab.node);
-
-    if (editor && monaco && targetTab.model) {
-      editor.setModel(targetTab.model);
-      if (targetTab.scrollTop !== undefined) {
-        requestAnimationFrame(() => {
-          editor.setScrollTop(targetTab.scrollTop || 0);
-        });
-      }
-    } else if (editor) {
-      editor.setValue(targetTab.content);
-    }
-  }, []);
-
-  const createNewTab = useCallback((initialContent?: string, name?: string) => {
-    const monaco = (window as any).monaco;
-    const contentVal = initialContent !== undefined ? initialContent : getWelcomeContent();
-    const tabName = name || '새 파일.md';
-    const tabId = 'new-tab-' + Date.now();
-
-    let model: any = null;
-    if (monaco) {
-      model = monaco.editor.createModel(contentVal, 'markdown');
-      model.onDidChangeContent(() => {
-        const val = model.getValue();
-        setContent(val);
-        setTabs(prev => prev.map(t => t.id === tabId ? { ...t, content: val, isModified: true } : t));
-      });
-    }
-
-    const newTab: EditorTab = {
-      id: tabId,
-      name: tabName,
-      path: null,
-      node: null,
-      content: contentVal,
-      isModified: false,
-      model: model
-    };
-
-    setTabs(prev => [...prev, newTab]);
-    setActiveTabId(tabId);
-
-    setContent(contentVal);
-    setCurrentFileName(tabName);
-    setCurrentFileNode(null);
-
-    if (editorRef.current && model) {
-      editorRef.current.setModel(model);
-      requestAnimationFrame(() => {
-        editorRef.current.setScrollTop(0);
-      });
-    }
-  }, []);
+  const {
+    tabs,
+    setTabs,
+    activeTabId,
+    setActiveTabId,
+    tabsRef,
+    activeTabIdRef,
+    updateContent,
+    switchTab,
+    createNewTab
+  } = useEditorTabs(
+    editorRef,
+    setContent,
+    setCurrentFileName,
+    setCurrentFileNode,
+    isEditorMountedRef,
+    previewModeRef,
+    previewDebounceRef,
+    isComposingRef,
+    workspaceType,
+    showToast,
+    getRelativePath
+  );
 
   const closeTab = useCallback((tabId: string, event?: React.MouseEvent) => {
     if (event) {
@@ -484,7 +401,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
 
     performClose();
-  }, [createNewTab, switchTab]);
+  }, [createNewTab, switchTab, setTabs]);
 
 
 
@@ -499,8 +416,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // @isSidebarOpen : sidebar open state 
   const [isToolbarOpen, setIsToolbarOpen] = useState(true); // @isToolbarOpen : toolbar open state 
   const [sidebarWidth, setSidebarWidth] = useState(340); // @sidebarWidth : sidebar width state 
-  const [isDarkMode, setIsDarkMode] = useState(false); // @isDarkMode : dark mode state 
-  const [themePalette, setThemePalette] = useState<string>('onrivi-light'); // @themePalette : theme palette state 
   /*
    * profiles state — CssProfile 배열
    * - 시스템 프로필(SYSTEM_PROFILES)은 항상 앞에 고정
@@ -614,6 +529,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [helpContent]);
 
+  const [rootFolder, setRootFolder] = useState<{ name: string, handle?: any } | null>(null);
+  const [fileList, setFileList] = useState<FileNode[]>([]);
+  const [currentFileName, setCurrentFileName] = useState<string>('새 파일.md');
+  const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
   const [promptConfig, setPromptConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -621,21 +540,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     type: 'createFile' | 'createFolder' | 'rename' | null;
     error: string;
   }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
-  const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on');
-  const [autoSave, setAutoSave] = useState(true);
-  const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
-  const [rootFolder, setRootFolder] = useState<{ name: string, handle?: any } | null>(null);
-  const [fileList, setFileList] = useState<FileNode[]>([]);
-  const [currentFileName, setCurrentFileName] = useState<string>('새 파일.md');
-  const [fontSize, setFontSize] = useState<number>(14);
-  const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>(getDefaultHotkeys());
-  const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>(getDefaultCommands());
-  
-  // 💡 [한글 주석] 슬래시 명령어 변경 시 Monaco Editor Completion Provider가 Stale 클로저에 갇혀 실시간 갱신되지 않는 문제를 방어하기 위해 Ref 객체 도입
-  const customSlashCommandsRef = useRef<Record<string, string>>(customSlashCommands);
-  useEffect(() => {
-    customSlashCommandsRef.current = customSlashCommands;
-  }, [customSlashCommands]);
+  const {
+    isDarkMode,
+    setIsDarkMode,
+    fontSize,
+    setFontSize,
+    wordWrap,
+    setWordWrap,
+    autoSave,
+    setAutoSave,
+    quoteStyle,
+    setQuoteStyle,
+    themePalette,
+    setThemePalette,
+    licenseKey,
+    setLicenseKey,
+    customHotkeys,
+    setCustomHotkeys,
+    customSlashCommands,
+    setCustomSlashCommands,
+    customSlashCommandsRef,
+    handleThemeChange
+  } = useEditorSettings(editorRef, mounted, previewMode, setPreviewMode);
 
   // 🔒 [에디터 언마운트 생명주기 제어용 플래그 및 이중 안전 가드]
   const isEditorMountedRef = useRef(false);
@@ -675,240 +601,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     });
   }, []);
 
-  const handleResetPageBreaks = useCallback(async () => {
-    if (!editorRef.current || !previewRef.current) return;
-    const editor = editorRef.current;
-    const originalContent = editor.getValue();
-    const cursorPosition = editor.getPosition();
-    const cursorLineNum = cursorPosition ? cursorPosition.lineNumber : 1; // 💡 커서 행 번호 앵커 락!
-
-    const originalLines = originalContent.split('\n');
-
-    // 1. 커서 기준 상단(Part A)과 하단(Part B)으로 원고 이분할
-    // - Part A (1행 ~ 커서 직전행): 모든 수동/자동 페이지 나누기 기호를 100% 보존
-    // - Part B (커서행 ~ 끝까지): 수동/자동 페이지 나누기를 전부 싹 지우고 초기화
-    const partALines = originalLines.slice(0, cursorLineNum - 1);
-    const partBLines = originalLines.slice(cursorLineNum - 1);
-
-    // Part B에서만 수동/자동 구분선 기호를 완전히 소거하여 초기화
-    const cleanedPartBContent = partBLines.join('\n')
-      .replace(/\n*(?:\[page-break\]|<!--\s*\[?(?:auto-)?page-break\]?\s*-->)\n*/gi, '\n');
-
-    // 두 파트를 다시 정합하여 에디터에 임시로 삽입 (실측 준비)
-    const cleanedContent = [...partALines, cleanedPartBContent].join('\n');
-    editor.setValue(cleanedContent);
-
-    // 가상 돔 및 렌더러가 완전히 안착할 수 있도록 150ms 비동기 지연 대기
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    const container = previewRef.current;
-    let contentRoot = container.querySelector('.print\\:\\!block') as HTMLElement;
-    if (!contentRoot) return;
-
-    const hasSingleDivChild = contentRoot.children.length === 1 && contentRoot.children[0].tagName === 'DIV';
-    if (hasSingleDivChild) {
-      contentRoot = contentRoot.children[0] as HTMLElement;
-    }
-
-    const childNodes = Array.from(contentRoot.children) as HTMLElement[];
-    if (childNodes.length === 0) return;
-
-    // 현재 활성화된 용지 규격 및 마진 계측 (A4 기준)
-    const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-    const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
-    const paperHeightPx = isLandscape ? 794 : 1123;
-    const topPx = (parseFloat(activeProfile.pageStyle.marginTop || '10') || 10) * 3.7795;
-    const botPx = (parseFloat(activeProfile.pageStyle.marginBottom || '10') || 10) * 3.7795;
-    const usableHeight = paperHeightPx - topPx - botPx;
-
-    let currentHeightSum = 0;
-    const breakLineNumbers: number[] = [];
-
-    // 개별 자식 컴포넌트들을 순회하며 높이 실측 및 나누기 임계선 산출
-    childNodes.forEach((child) => {
-      const isUserForcedPageBreak = (child.tagName === 'DIV' && child.className.includes('page-break')) ||
-                                    child.getAttribute('data-page-break') === 'true';
-
-      const lineStr = child.getAttribute('data-line');
-      const lineNum = lineStr ? parseInt(lineStr, 10) : -1;
-
-      // 상단 파트(Part A)의 기존 수동/자동 구분선은 하드브레이크로 인정하여 영점 리셋
-      if (isUserForcedPageBreak) {
-        currentHeightSum = 0;
-        return;
-      }
-
-      if (lineNum <= 0) return;
-
-      const elementHeight = child.offsetHeight || child.getBoundingClientRect().height || 0;
-      const style = window.getComputedStyle(child);
-      const marginTopVal = parseFloat(style.marginTop) || 0;
-      const marginBottomVal = parseFloat(style.marginBottom) || 0;
-      const totalHeight = elementHeight + marginTopVal + marginBottomVal;
-
-      // 커서 위치 이하의 파트(Part B)에 대해서만 임계선 돌파 시 강제 페이지 나눔 주입 계산 실행
-      if (lineNum >= cursorLineNum) {
-        if (currentHeightSum + totalHeight > usableHeight && currentHeightSum > 0) {
-          breakLineNumbers.push(lineNum);
-          currentHeightSum = totalHeight;
-        } else {
-          currentHeightSum += totalHeight;
-        }
-      } else {
-        // 커서 상단 파트는 단순 높이 누적 (수동/자동 구분선에 의해 이미 0으로 리셋된 기준 높이에서 계속 연산)
-        currentHeightSum += totalHeight;
-      }
-    });
-
-    // 2. 산출된 하단부(Part B) 분할 줄 번호 지점에 역순으로 <!-- [page-break] --> 코멘트를 직접 주입!
-    const lines = cleanedContent.split('\n');
-    
-    // 역순 정렬하여 위쪽 줄 번호가 뒤틀리지 않도록 순차적 꼽기 수행
-    const uniqueLineNumbers = Array.from(new Set(breakLineNumbers)).sort((a, b) => b - a);
-    uniqueLineNumbers.forEach((lineNum) => {
-      if (lineNum > 1 && lineNum <= lines.length) {
-        // 줄 번호는 1-based 이므로 index는 lineNum - 1
-        lines.splice(lineNum - 1, 0, '<!-- [page-break] -->');
-      }
-    });
-
-    const finalContent = lines.join('\n');
-    
-    // 에디터 원본 내용 교체 (Undo 히스토리에 한 번에 롤백될 수 있도록 주입)
-    editor.pushUndoStop();
-    editor.executeEdits("resetPageBreaks", [{
-      range: editor.getModel().getFullModelRange(),
-      text: finalContent,
-      forceMoveMarkers: true
-    }]);
-    editor.pushUndoStop();
-
-    if (cursorPosition) {
-      editor.setPosition(cursorPosition);
-      editor.focus();
-    }
-
-    showToast(`커서 ${cursorLineNum}행 이하의 페이지 나누기가 지능형으로 재계산되어 주입되었습니다.`, "success");
-  }, [profiles, activeProfileId]);
-
-  const executeAutoPageBreak = useCallback(async (editor: any, startLineNum: number) => {
-    if (isAutoPageBreakingRef.current || !previewRef.current) return;
-    
-    isAutoPageBreakingRef.current = true; // Lock!
-    const cursorPosition = editor.getPosition(); // 💡 원래 커서 위치 메모리 백업
-    
-    try {
-      const originalContent = editor.getValue();
-      const originalLines = originalContent.split('\n');
-
-      // 1. 이분할: startLineNum 이전은 보존, 이하는 자동 페이지 나눔(<!-- [auto-page-break] -->)만 제거!
-      const partALines = originalLines.slice(0, startLineNum - 1);
-      const partBLines = originalLines.slice(startLineNum - 1);
-
-      // Part B에서만 수동/자동 구분선 기호를 완전히 소거하여 초기화
-      const cleanedPartBContent = partBLines.join('\n')
-        .replace(/\n*(?:\[page-break\]|<!--\s*\[?(?:auto-)?page-break\]?\s*-->)\n*/gi, '\n');
-
-      const cleanedContent = [...partALines, cleanedPartBContent].join('\n');
-      editor.setValue(cleanedContent);
-
-      // 가상 돔 및 렌더러가 완전히 안착할 수 있도록 150ms 비동기 지연 대기
-      await new Promise(resolve => setTimeout(resolve, 150));
-
-      const container = previewRef.current;
-      let contentRoot = container.querySelector('.print\\:\\!block') as HTMLElement;
-      if (!contentRoot) return;
-
-      const hasSingleDivChild = contentRoot.children.length === 1 && contentRoot.children[0].tagName === 'DIV';
-      if (hasSingleDivChild) {
-        contentRoot = contentRoot.children[0] as HTMLElement;
-      }
-
-      const childNodes = Array.from(contentRoot.children) as HTMLElement[];
-      if (childNodes.length === 0) return;
-
-      // 현재 활성화된 용지 규격 및 마진 계측 (A4 기준)
-      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
-      const paperHeightPx = isLandscape ? 794 : 1123;
-      const topPx = (parseFloat(activeProfile.pageStyle.marginTop || '10') || 10) * 3.7795;
-      const botPx = (parseFloat(activeProfile.pageStyle.marginBottom || '10') || 10) * 3.7795;
-      const usableHeight = paperHeightPx - topPx - botPx;
-
-      let currentHeightSum = 0;
-      const breakLineNumbers: number[] = [];
-
-      // 개별 자식 컴포넌트들을 순회하며 높이 실측 및 나누기 임계선 산출
-      childNodes.forEach((child) => {
-        const isUserForcedPageBreak = (child.tagName === 'DIV' && child.className.includes('page-break')) ||
-                                      child.getAttribute('data-page-break') === 'true';
-
-        const lineStr = child.getAttribute('data-line');
-        const lineNum = lineStr ? parseInt(lineStr, 10) : -1;
-
-        // 상단 파트(Part A)의 기존 수동/자동 구분선은 하드브레이크로 인정하여 영점 리셋
-        if (isUserForcedPageBreak) {
-          currentHeightSum = 0;
-          return;
-        }
-
-        if (lineNum <= 0) return;
-
-        const elementHeight = child.offsetHeight || child.getBoundingClientRect().height || 0;
-        const style = window.getComputedStyle(child);
-        const marginTopVal = parseFloat(style.marginTop) || 0;
-        const marginBottomVal = parseFloat(style.marginBottom) || 0;
-        const totalHeight = elementHeight + marginTopVal + marginBottomVal;
-
-        // 커서 위치 이하의 파트(Part B)에 대해서만 임계선 돌파 시 강제 페이지 나눔 주입 계산 실행
-        if (lineNum >= startLineNum) {
-          if (currentHeightSum + totalHeight > usableHeight && currentHeightSum > 0) {
-            breakLineNumbers.push(lineNum);
-            currentHeightSum = totalHeight;
-          } else {
-            currentHeightSum += totalHeight;
-          }
-        } else {
-          // 커서 상단 파트는 단순 높이 누적 (수동/자동 구분선에 의해 이미 0으로 리셋된 기준 높이에서 계속 연산)
-          currentHeightSum += totalHeight;
-        }
-      });
-
-      const lines = cleanedContent.split('\n');
-      const uniqueLineNumbers = Array.from(new Set(breakLineNumbers)).sort((a, b) => b - a);
-      uniqueLineNumbers.forEach((lineNum) => {
-        if (lineNum > 1 && lineNum <= lines.length) {
-          lines.splice(lineNum - 1, 0, '<!-- [page-break] -->');
-        }
-      });
-
-      const finalContent = lines.join('\n');
-      
-      // 재귀 호출을 원천 차단하기 위해 원본 매칭 수를 갱신
-      const pageBreakMatches = finalContent.match(/page-break/gi);
-      lastPageBreakCountRef.current = pageBreakMatches ? pageBreakMatches.length : 0;
-
-      editor.pushUndoStop();
-      editor.executeEdits("autoPageBreak", [{
-        range: editor.getModel().getFullModelRange(),
-        text: finalContent,
-        forceMoveMarkers: true
-      }]);
-      editor.pushUndoStop();
-
-      // 원래 작업 중이던 커서 위치로 포커스 자동 복원
-      if (cursorPosition) {
-        editor.setPosition(cursorPosition);
-        editor.focus();
-      }
-
-    } finally {
-      isAutoPageBreakingRef.current = false; // Unlock!
-    }
-  }, [profiles, activeProfileId]);
+  const {
+    isAutoPageBreakingRef,
+    lastPageBreakCountRef,
+    handleResetPageBreaks,
+    executeAutoPageBreak
+  } = usePageBreak(editorRef, previewRef, profiles, activeProfileId, showToast);
   const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
   const [driveLetter, setDriveLetter] = useState('D:');
-  const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
 
   // 탭 메타데이터(파일명, 노드 정보, 경로) 변경 시 활성 탭 동기화
   useEffect(() => {
@@ -987,7 +687,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [showDocLinkPicker, workspaceType, fileList, rootFolder]);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
-  const [licenseKey, setLicenseKey] = useState<string>('');
   const [deviceId, setDeviceId] = useState<string>('');
   const [licenseStatus, setLicenseStatus] = useState({
     isActivated: false,
@@ -1328,9 +1027,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
 
   const editorRef = useRef<any>(null);
-  const isAutoPageBreakingRef = useRef(false);
   const autoPageBreakDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const lastPageBreakCountRef = useRef(0);
   
   // 💡 [WBS CORE-02 / 요구사항 4] State Stale Closure 방지를 위한 Ref 백업 시스템 도입
   const currentFileNodeRef = useRef(currentFileNode);
@@ -1862,13 +1559,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       localStorage.setItem('activeCssProfileId', activeProfileId);
     }
   }, [activeProfileId, mounted]);
-
-  const handleThemeChange = useCallback((themeId: string) => {
-    const theme = THEME_MAP[themeId];
-    if (!theme) return;
-    setThemePalette(themeId);
-    setIsDarkMode(theme.isDark);
-  }, []);
 
   // workspaceType 변경 시 로컬스토리지 저장은 통합 저장 이펙트 또는 워크스페이스 직접 마운트 로직에서 담당
 
@@ -4743,7 +4433,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         isSearchOpen={isSearchOpen}
         isAddonEnv={isAddonEnv}
         themePalette={themePalette}
-        onThemeChange={handleThemeChange}
+        onThemeChange={(themeId) => handleThemeChange(themeId, THEME_MAP)}
       />
 
       <div className="flex flex-1 overflow-hidden relative">
@@ -6723,7 +6413,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             isDarkMode={isDarkMode}
             setIsDarkMode={setIsDarkMode}
             themePalette={themePalette}
-            onThemeChange={handleThemeChange}
+            onThemeChange={(themeId) => handleThemeChange(themeId, THEME_MAP)}
             isActivated={isActivated}
           />
         </main>
@@ -6746,7 +6436,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         customSlashCommands={customSlashCommands} setCustomSlashCommands={setCustomSlashCommands}
         licenseKey={licenseKey} setLicenseKey={setLicenseKey}
         themePalette={themePalette}
-        onThemeChange={handleThemeChange}
+        onThemeChange={(themeId) => handleThemeChange(themeId, THEME_MAP)}
       />
 
       <ExportModal
