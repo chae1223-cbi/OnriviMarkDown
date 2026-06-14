@@ -94,6 +94,8 @@ import LicenseModal from '@/components/LicenseModal'; // 라이선스 모달
 import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import UnifiedTabBar, { EditorTab } from '@/components/UnifiedTabBar';
+import * as utilsPasteHandlers from '@/utils/pasteHandlers';
+import * as utilsEditorActions from '@/utils/editorActions';
 
 
 /**
@@ -2637,57 +2639,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [content, autoSave, currentFileNode, saveFile]);
 
+  /**
+   * [ONR-01-011] insertAtCursor 함수
+   * @description 에디터의 현재 커서 위치 또는 마지막으로 선택된 영역에 텍스트를 주입하고 Monaco 에디터 토크나이저를 강제로 갱신합니다.
+   * @param text 삽입할 텍스트 내용
+   */
   const insertAtCursor = (text: string) => {
-    if (editorRef.current) {
-      const editor = editorRef.current;
-      let selection = editor.getSelection();
-      if (!selection || (selection.isEmpty() && lastSelectionRef.current)) {
-        selection = lastSelectionRef.current;
-      }
-      if (selection) {
-        const range = new (window as any).monaco.Range(
-          selection.startLineNumber,
-          selection.startColumn,
-          selection.endLineNumber,
-          selection.endColumn
-        );
-        editor.executeEdits("insert", [{ range, text, forceMoveMarkers: true }]);
-        
-        // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
-        try {
-          const model = editor.getModel();
-          if (model && typeof model.forceTokenization === 'function') {
-            const startLine = selection.startLineNumber;
-            const lineCount = text.split('\n').length;
-            for (let i = startLine; i <= startLine + lineCount; i++) {
-              model.forceTokenization(i);
-            }
-          }
-          editor.layout();
-        } catch (_) {}
-
-        editor.focus();
-      }
-    }
+    utilsEditorActions.insertAtCursor(editorRef, lastSelectionRef, text);
   };
 
+  /**
+   * [ONR-01-012] findLineNumberByHeading 함수
+   * @description 문서 내에서 특정 제목(Heading) 텍스트가 위치한 라인 번호를 탐색합니다.
+   * @param content 전체 문서 내용
+   * @param heading 찾고자 하는 대상 제목 텍스트
+   * @returns 대상 제목이 발견된 라인 번호 (기본값: 1)
+   */
   const findLineNumberByHeading = (content: string, heading: string): number => {
-    if (!content || !heading) return 1;
-    const lines = content.split('\n');
-    const cleanTarget = heading.toLowerCase().replace(/\s+/g, '').normalize('NFC');
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      const match = line.match(/^#{1,6}\s+(.*)$/);
-      if (match) {
-        const headingText = match[1].trim();
-        const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '').normalize('NFC');
-        if (cleanHeading === cleanTarget) {
-          return i + 1;
-        }
-      }
-    }
-    return 1;
+    return utilsEditorActions.findLineNumberByHeading(content, heading);
   };
 
   /**
@@ -2696,12 +2665,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
    * @param lineNumber 에디터에서 이동하고자 하는 대상 라인 번호
    */
   const scrollToLine = (lineNumber: number) => {
-    if (editorRef.current) {
-      const editor = editorRef.current;
-      editor.revealLineInCenter(lineNumber);
-      editor.setPosition({ lineNumber, column: 1 });
-      editor.focus();
-    }
+    utilsEditorActions.scrollToLine(editorRef, lineNumber);
   };
 
   /**
@@ -2737,226 +2701,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
    * @param defaultText 선택 영역이 없을 때 삽입할 기본 텍스트
    */
   const insertBlockTag = (startTag: string, endTag: string, defaultText: string = "") => {
-    if (!editorRef.current) return;
-    const editor = editorRef.current;
-    let selection = editor.getSelection();
-    if (!selection) return;
-
-    const model = editor.getModel();
-    const text = model.getValueInRange(selection);
-
-    if (text) {
-      const newText = `${startTag}\n${text}\n${endTag}`;
-      editor.executeEdits("insertBlockTag", [{
-        range: selection,
-        text: newText,
-        forceMoveMarkers: true
-      }]);
-      const linesAdded = startTag.split('\n').length;
-      editor.setSelection(new (window as any).monaco.Selection(
-        selection.startLineNumber + linesAdded,
-        selection.startColumn,
-        selection.endLineNumber + linesAdded,
-        selection.endColumn
-      ));
-    } else {
-      const textToWrap = defaultText;
-      const newText = textToWrap ? `${startTag}\n${textToWrap}\n${endTag}` : `${startTag}\n\n${endTag}`;
-      editor.executeEdits("insertBlockTag", [{
-        range: selection,
-        text: newText,
-        forceMoveMarkers: true
-      }]);
-
-      const linesAdded = startTag.split('\n').length;
-      if (textToWrap) {
-        editor.setSelection(new (window as any).monaco.Selection(
-          selection.startLineNumber + linesAdded,
-          1,
-          selection.startLineNumber + linesAdded,
-          1 + textToWrap.length
-        ));
-      } else {
-        editor.setPosition({
-          lineNumber: selection.startLineNumber + linesAdded,
-          column: 1
-        });
-      }
-    }
-    // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
-    try {
-      const model = editor.getModel();
-      if (model && typeof model.forceTokenization === 'function') {
-        const startLine = selection.startLineNumber;
-        const endLine = selection.endLineNumber;
-        const linesAdded = startTag.split('\n').length + endTag.split('\n').length + 2;
-        for (let i = startLine; i <= endLine + linesAdded; i++) {
-          model.forceTokenization(i);
-        }
-      }
-      editor.layout();
-    } catch (_) {}
-
-    editor.focus();
+    utilsEditorActions.insertBlockTag(editorRef, startTag, endTag, defaultText);
   };
 
+  /**
+   * [ONR-01-015] wrapSelection 함수
+   * @description 현재 드래그 선택된 텍스트의 앞뒤를 지정된 문자열(예: bold의 경우 **, italic의 경우 * 등)로 감싸거나, 이미 감싸져 있는 경우 토글식으로 제거합니다.
+   * @param before 텍스트 앞에 감쌀 문자열
+   * @param after 텍스트 뒤에 감쌀 문자열 (기본값은 before와 동일)
+   * @param defaultText 선택 영역이 비어있을 때 입력될 기본 텍스트
+   */
   const wrapSelection = (before: string, after: string = before, defaultText: string = "") => {
-    if (editorRef.current) {
-      const editor = editorRef.current;
-      const refreshTokens = (start: number, end: number) => {
-        try {
-          const model = editor.getModel();
-          if (model && typeof model.forceTokenization === 'function') {
-            for (let i = start; i <= end; i++) {
-              model.forceTokenization(i);
-            }
-          }
-          editor.layout();
-        } catch (_) {}
-      };
-
-      let selection = editor.getSelection();
-      if ((!selection || selection.isEmpty()) && lastSelectionRef.current && !lastSelectionRef.current.isEmpty()) {
-        selection = lastSelectionRef.current;
-      }
-      if (!selection) return;
-      const model = editor.getModel();
-
-      let startLine = selection.startLineNumber;
-      let startCol = selection.startColumn;
-      let endLine = selection.endLineNumber;
-      let endCol = selection.endColumn;
-      let text = model.getValueInRange(selection);
-
-      // 💡 [개행 트리밍 보정] 선택 영역 앞뒤의 개행 문자를 파싱하여 범위를 안쪽으로 좁힙니다.
-      // 이를 통해 태그 주입 시 중간에 뜬금없는 줄바꿈이 삽입되는 버그를 원천 차단합니다.
-      let adjusted = false;
-      while (text.length > 0 && (text[0] === '\r' || text[0] === '\n')) {
-        adjusted = true;
-        if (text[0] === '\n') {
-          startLine++;
-          startCol = 1;
-        } else {
-          startCol++;
-        }
-        text = text.slice(1);
-      }
-      while (text.length > 0 && (text[text.length - 1] === '\r' || text[text.length - 1] === '\n')) {
-        adjusted = true;
-        const lastChar = text[text.length - 1];
-        if (lastChar === '\n') {
-          endLine--;
-          endCol = model.getLineMaxColumn(endLine);
-        } else {
-          endCol = Math.max(1, endCol - 1);
-        }
-        text = text.slice(0, -1);
-      }
-
-      if (adjusted) {
-        selection = new (window as any).monaco.Selection(startLine, startCol, endLine, endCol);
-      }
-
-      const isEmpty = !text || text.length === 0;
-      const textToWrap = (isEmpty && defaultText) ? defaultText : text;
-
-      if (before && after && text.startsWith(before) && text.endsWith(after) && text.length >= (before.length + after.length)) {
-        const stripped = text.slice(before.length, text.length - after.length);
-
-        const range = new (window as any).monaco.Range(
-          selection.startLineNumber,
-          selection.startColumn,
-          selection.endLineNumber,
-          selection.endColumn
-        );
-        editor.executeEdits("toggle-off-inside", [{ range, text: stripped, forceMoveMarkers: true }]);
-
-        setTimeout(() => {
-          if (!selection) return;
-          const startLine = selection.startLineNumber;
-          const startCol = selection.startColumn;
-          editor.setSelection(new (window as any).monaco.Selection(
-            startLine,
-            startCol,
-            startLine,
-            startCol + stripped.length
-          ));
-          refreshTokens(startLine, startLine);
-        }, 10);
-        editor.focus();
-        return;
-      }
-
-      if (before && after) {
-        const startLine = selection.startLineNumber;
-        const startCol = selection.startColumn;
-        const endLine = selection.endLineNumber;
-        const endCol = selection.endColumn;
-
-        if (startLine === endLine && startCol > before.length) {
-          const rangeBefore = new (window as any).monaco.Range(startLine, startCol - before.length, startLine, startCol);
-          const rangeAfter = new (window as any).monaco.Range(endLine, endCol, endLine, endCol + after.length);
-
-          const textBefore = model.getValueInRange(rangeBefore);
-          const textAfter = model.getValueInRange(rangeAfter);
-
-          if (textBefore === before && textAfter === after) {
-            const fullRange = new (window as any).monaco.Range(startLine, startCol - before.length, endLine, endCol + after.length);
-            editor.executeEdits("toggle-off-outside", [{ range: fullRange, text: text, forceMoveMarkers: true }]);
-
-            setTimeout(() => {
-              if (!selection) return;
-              editor.setSelection(new (window as any).monaco.Selection(
-                startLine,
-                startCol - before.length,
-                endLine,
-                startCol - before.length + text.length
-              ));
-              refreshTokens(startLine, endLine);
-            }, 10);
-            editor.focus();
-            return;
-          }
-        }
-      }
-
-      const range = new (window as any).monaco.Range(
-        selection.startLineNumber,
-        selection.startColumn,
-        selection.endLineNumber,
-        selection.endColumn
-      );
-      editor.executeEdits("toggle-on", [{ range, text: `${before}${textToWrap}${after}`, forceMoveMarkers: true }]);
-
-      setTimeout(() => {
-        if (!selection) return;
-        const startLine = selection.startLineNumber;
-        const startCol = selection.startColumn;
-        const endLine = selection.endLineNumber;
-        const endCol = selection.endColumn;
-
-        if (startLine === endLine) {
-          const selectStart = startCol + before.length;
-          const selectEnd = isEmpty && defaultText ? selectStart + defaultText.length : endCol + before.length;
-          editor.setSelection(new (window as any).monaco.Selection(
-            startLine,
-            selectStart,
-            endLine,
-            selectEnd
-          ));
-        } else {
-          // 멀티행 선택: 태그 적용 후에도 선택 범위 유지
-          editor.setSelection(new (window as any).monaco.Selection(
-            startLine,
-            startCol,
-            endLine,
-            endCol + after.length
-          ));
-        }
-        refreshTokens(startLine, endLine);
-      }, 10);
-      editor.focus();
-    }
+    utilsEditorActions.wrapSelection(editorRef, lastSelectionRef, before, after, defaultText);
   };
 
   const insertLink = () => {
@@ -3195,151 +2951,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     editor.focus();
   };
 
+  /**
+   * [ONR-01-024] parseHtmlTableToMarkdown 함수
+   * @description 웹에서 복사해 붙여넣어진 HTML 형식의 `<table>` 구문을 표준 마크다운 표 형식으로 변환합니다.
+   * @param html 붙여넣기 시도된 원본 HTML 문자열
+   * @returns 마크다운 표 문자열 또는 변환 실패 시 null
+   */
   const parseHtmlTableToMarkdown = (html: string) => {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const table = doc.querySelector('table');
-      if (!table) return null;
-
-      let mdTable = '';
-      const rows = table.querySelectorAll('tr');
-      let isFirstRow = true;
-
-      rows.forEach((row) => {
-        const cells = row.querySelectorAll('th, td');
-        if (cells.length === 0) return;
-
-        const cellTexts = Array.from(cells).map(cell => {
-          let inner = cell.innerHTML;
-          inner = inner.replace(/<br\s*\/?>/gi, ' <br> ');
-          inner = inner.replace(/<\/(p|div)>/gi, ' <br> ');
-
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = inner;
-          let text = tempDiv.textContent || tempDiv.innerText || '';
-
-          text = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-          text = text.replace(/(<br>\s*)+/g, '<br>');
-          if (text.startsWith('<br>')) text = text.substring(4).trim();
-          if (text.endsWith('<br>')) text = text.substring(0, text.length - 4).trim();
-
-          return text;
-        });
-
-        mdTable += '| ' + cellTexts.join(' | ') + ' |\n';
-
-        if (isFirstRow) {
-          mdTable += '|' + cellTexts.map(() => '---').join('|') + '|\n';
-          isFirstRow = false;
-        }
-      });
-      return mdTable.trim() + '\n';
-    } catch (err) {
-      showToast('HTML 표 파싱 중 오류가 발생했습니다.', 'error');
-      return null;
-    }
+    return utilsPasteHandlers.parseHtmlTableToMarkdown(html, showToast);
   };
 
+  /**
+   * [ONR-01-025] sanitizePastedText 함수
+   * @description 붙여넣기된 문자열에 대해 줄바꿈 통일, 특수문자 제거, 불필요한 HTML 태그 정리 등 마크다운에 적합한 데이터로 정제 및 살균합니다.
+   * @param text 원본 붙여넣기 텍스트
+   * @param skipTsvConversion TSV 표 변환 로직을 우회할지 여부
+   * @returns 위생 가공된 결과 텍스트
+   */
   const sanitizePastedText = (text: string, skipTsvConversion = false) => {
-    let sanitized = text;
-
-    // 1. 운영체제 간 줄바꿈 차이 통합 (\r\n -> \n)
-    sanitized = sanitized.replace(/\r\n/g, '\n');
-
-    // 2. 눈에 보이지 않는 유령 문자(Zero-width space 등) 제거
-    sanitized = sanitized.replace(/[\u200B-\u200D\uFEFF]/g, '');
-
-    // 3. 웹 복사 시 자주 딸려오는 지저분한 HTML 태그 찌꺼기 제거 (마크다운 포맷팅 방해 요소)
-    sanitized = sanitized.replace(/<\/?(span|div|font|style|script|meta)[^>]*>/gi, '');
-
-    // 4. 표 등에서 줄바꿈이 파괴되지 않도록 <br>과 섞인 실제 줄바꿈(\n)을 제거하고 <br>로 통일합니다.
-    // 사용자의 요청대로 <br>\n\n<br> 형태는 <br><br>로 보존하여 문단 간격을 유지합니다.
-    sanitized = sanitized.replace(/<br\s*\/?>\s*[\r\n]+\s*<br\s*\/?>/gi, '<br><br>');
-    sanitized = sanitized.replace(/<br\s*\/?>\s*[\r\n]+/gi, '<br>');
-    sanitized = sanitized.replace(/[\r\n]+\s*<br\s*\/?>/gi, '<br>');
-
-    // 불필요한 다중 줄바꿈 정리 (3개 이상의 줄바꿈을 2개로)
-    sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
-
-    // 5. 마크다운 강조 닫힘 태그 뒤에 글자/숫자가 바로 붙어있으면 공백 삽입 (CommonMark 호환성)
-    //    예: **90% 단축(6주 → 3일)**했으며 → **90% 단축(6주 → 3일)** 했으며
-    //    * 전방에 공백/별표가 아닌 문자가 있고, 후방에 공백이 아닌 문자가 있는 **/__/~~ 에만 적용
-    sanitized = sanitized.replace(/(?<=[^\s*])(\*\*|__|~~)(?=\S)/g, '$1 ');
-
-    // Auto-convert TSV to Markdown Table (cleanDoc에서는 건너뜀 — 의도치 않은 전체 문서 변환 방지)
-    if (!skipTsvConversion && sanitized.includes('\t') && sanitized.includes('\n') && !sanitized.includes('|')) {
-      const lines = sanitized.split('\n');
-      const isTable = lines.some(line => line.includes('\t'));
-
-      if (isTable) {
-        const mdLines = lines.map((line, index) => {
-          if (!line.trim()) return line;
-          const cells = line.split('\t').map(cell => cell.trim());
-          const row = '| ' + cells.join(' | ') + ' |';
-
-          if (index === 0) {
-            const separator = '|' + cells.map(() => '---').join('|') + '|';
-            return row + '\n' + separator;
-          }
-          return row;
-        });
-        sanitized = mdLines.join('\n');
-      }
-    }
-
-    return sanitized;
+    return utilsPasteHandlers.sanitizePastedText(text, skipTsvConversion);
   };
 
+  /**
+   * [ONR-01-026] fixMarkdownTable 함수
+   * @description 여러 줄로 쪼개진 마크다운 표 셀 데이터를 한 행으로 강제 병합하여 정합성 있는 마크다운 표 형태로 보정합니다.
+   * @param text 보정 대상 마크다운 표 텍스트
+   * @returns 정돈된 마크다운 표 텍스트
+   */
   const fixMarkdownTable = (text: string) => {
-    if (!text.includes('|')) return text;
-
-    const lines = text.split('\n');
-    const result: string[] = [];
-    let currentRow = '';
-    let inTable = false;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      if (!inTable && trimmed.startsWith('|')) {
-        inTable = true;
-      }
-
-      if (inTable) {
-        if (trimmed === '' && currentRow === '') {
-          inTable = false;
-          result.push(line);
-          continue;
-        }
-
-        if (currentRow === '') {
-          currentRow = line;
-        } else {
-          if (trimmed === '') {
-            currentRow += ' ';
-          } else {
-            if (!currentRow.trim().endsWith(' ')) {
-              currentRow += ' ';
-            }
-            currentRow += line;
-          }
-        }
-
-        if (currentRow.trim().endsWith('|')) {
-          result.push(currentRow);
-          currentRow = '';
-        }
-      } else {
-        result.push(line);
-      }
-    }
-
-    if (currentRow !== '') {
-      result.push(currentRow);
-    }
-
-    return result.join('\n');
+    return utilsPasteHandlers.fixMarkdownTable(text);
   };
 
   const handleEditorPaste = async (e: any) => {
