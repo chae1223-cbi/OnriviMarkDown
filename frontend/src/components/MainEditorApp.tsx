@@ -325,30 +325,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 💡 [IME 락 가드] 한글 IME 조합 진행 여부를 저장하는 Ref
   const isComposingRef = useRef(false);
 
-  // 💡 다중 탭 관련 상태 선언 및 백업 레퍼런스
-  const {
-    tabs,
-    setTabs,
-    activeTabId,
-    setActiveTabId,
-    tabsRef,
-    activeTabIdRef,
-    updateContent,
-    switchTab,
-    createNewTab
-  } = useEditorTabs(
-    editorRef,
-    setContent,
-    setCurrentFileName,
-    setCurrentFileNode,
-    isEditorMountedRef,
-    previewModeRef,
-    previewDebounceRef,
-    isComposingRef,
-    workspaceType,
-    showToast,
-    getRelativePath
-  );
+
 
   const closeTab = useCallback((tabId: string, event?: React.MouseEvent) => {
     if (event) {
@@ -1028,6 +1005,31 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const editorRef = useRef<any>(null);
   const autoPageBreakDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 💡 다중 탭 관련 상태 선언 및 백업 레퍼런스
+  const {
+    tabs,
+    setTabs,
+    activeTabId,
+    setActiveTabId,
+    tabsRef,
+    activeTabIdRef,
+    updateContent,
+    switchTab,
+    createNewTab
+  } = useEditorTabs(
+    editorRef,
+    setContent,
+    setCurrentFileName,
+    setCurrentFileNode,
+    isEditorMountedRef,
+    previewModeRef,
+    previewDebounceRef,
+    isComposingRef,
+    workspaceType,
+    showToast,
+    getRelativePath
+  );
   
   // 💡 [WBS CORE-02 / 요구사항 4] State Stale Closure 방지를 위한 Ref 백업 시스템 도입
   const currentFileNodeRef = useRef(currentFileNode);
