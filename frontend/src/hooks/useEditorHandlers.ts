@@ -1,0 +1,751 @@
+// @ts-nocheck
+import { useCallback } from 'react';
+import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers';
+import { DEFAULT_PROFILE } from "@/constants/cssProfile";
+import { vfsWriteFile } from '@/lib/vfsHelper';
+import { getApiUrl } from '@/lib/api';
+import { stripFrontmatter } from "@/lib/editorUtils";
+
+/**
+ * [ONR-16-004] useEditorHandlers 커스텀 훅
+ * @description 에디터의 주요 액션 핸들러(파일 저장, 내보내기, 서식 삽입 등)를 분리 관리합니다.
+ */
+export const useEditorHandlers = ({
+  editorRef,
+  contentRef,
+  currentFileNameRef,
+  currentFileNodeRef,
+  workspaceTypeRef,
+  rootFolderRef,
+  lastSavedContentRef,
+  currentFileParentHandleRef,
+  profiles,
+  activeProfileId,
+  isDarkMode,
+  dynamicCssString,
+  isPageViewEnabled,
+  setSaveStatus,
+  setCurrentFileName,
+  setCurrentFileNode,
+  setRootFolder,
+  setWorkspaceType,
+  setIsSidebarOpen,
+  setIsExportModalOpen,
+  setIsYoutubeModalOpen,
+  setIsMapModalOpen,
+  setIsTableModalOpen,
+  setIsFormulaModalOpen,
+  setIsSearchOpen,
+  setIsAboutModalOpen,
+  setIsLicenseModalOpen,
+  setSettingsModalInitialTab,
+  setFontSize,
+  setHelpTitle,
+  setHelpContent,
+  setFloatingToolbar,
+  setPromptConfig,
+  showToast,
+  refreshFileList,
+  updateContent,
+  wrapSelection,
+  insertAtCursor,
+  applyLinePrefix,
+  removePrefix,
+  insertLink,
+  quickWrap,
+  insertBlockTag,
+  setShowTagLinkPicker,
+  setShowDocLinkPicker,
+  sanitizePastedText,
+  isComposingRef
+}: any) => {
+
+  const handlers = {
+    footnote: () => {
+      if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
+      const editor = editorRef.current;
+      const model = editor.getModel();
+      if (!model) return;
+
+      const selection = editor.getSelection();
+      const position = editor.getPosition();
+      if (!position || !selection) return;
+
+      const fullText = model.getValue();
+      const footnoteRegex = /\[\^(\d+)\]/g;
+      let maxNumber = 0;
+      let match;
+      while ((match = footnoteRegex.exec(fullText)) !== null) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+      const nextNumber = maxNumber + 1;
+      const footnoteRef = `[^${nextNumber}]`;
+      const footnoteDef = `\n\n[^${nextNumber}]: `;
+
+      editor.pushUndoStop();
+      const Range = (window as any).monaco.Range;
+      
+      const range = new Range(
+        selection.startLineNumber,
+        selection.startColumn,
+        selection.endLineNumber,
+        selection.endColumn
+      );
+      
+      const lineCount = model.getLineCount();
+      const lastLineLength = model.getLineLength(lineCount);
+      const lastLineRange = new Range(
+        lineCount,
+        lastLineLength + 1,
+        lineCount,
+        lastLineLength + 1
+      );
+
+      editor.executeEdits("insertFootnote", [
+        {
+          range: range,
+          text: footnoteRef,
+          forceMoveMarkers: true
+        },
+        {
+          range: lastLineRange,
+          text: footnoteDef,
+          forceMoveMarkers: true
+        }
+      ]);
+      editor.pushUndoStop();
+
+      setTimeout(() => {
+        const newLineCount = model.getLineCount();
+        const newLastLineLength = model.getLineLength(newLineCount);
+        editor.setPosition({
+          lineNumber: newLineCount,
+          column: newLastLineLength + 1
+        });
+        editor.focus();
+      }, 20);
+    },
+    insertText: (text: string) => {
+      if (!editorRef.current) return;
+      const position = editorRef.current.getPosition();
+      editorRef.current.executeEdits("insertText", [{
+        range: new (window as any).monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+        text: text,
+        forceMoveMarkers: true
+      }]);
+      editorRef.current.focus();
+    },
+    cleanDoc: () => {
+      if (!editorRef.current) return;
+      const editor = editorRef.current;
+
+      const textarea = editor.getDomNode()?.querySelector('textarea');
+      if (textarea) {
+        textarea.blur();
+        textarea.focus();
+      }
+      isComposingRef.current = false;
+
+      const text = editor.getValue();
+      const cleanedText = sanitizePastedText(text, true);
+      if (text !== cleanedText) {
+        editor.pushUndoStop();
+        editor.executeEdits("cleanDoc", [{
+          range: editor.getModel().getFullModelRange(),
+          text: cleanedText
+        }]);
+        editor.pushUndoStop();
+        showToast("문서 내 서식(<br> 태그 등)이 일괄 정리되었습니다.", "success");
+      } else {
+        showToast("정리할 서식이 없습니다.", "info");
+      }
+    },
+    copyAll: async () => {
+      const rawMarkdown = contentRef.current || "";
+      if (rawMarkdown) {
+        try {
+          await navigator.clipboard.writeText(rawMarkdown);
+          showToast("에디터의 원본 마크다운 전체 내용이 클립보드에 복사되었습니다.", "success");
+        } catch (err) {
+          showToast("마크다운 복사에 실패했습니다.", "error");
+        }
+      } else {
+        showToast("복사할 마크다운 내용이 없습니다.", "info");
+      }
+    },
+    newFile: () => {
+      updateContent('');
+      setCurrentFileName('새 파일.md');
+      setCurrentFileNode(null);
+      lastSavedContentRef.current = '';
+      setIsSidebarOpen(true);
+      showToast("새 문서를 시작합니다.", "info");
+    },
+    save: async () => {
+      const api = (window as any).electronAPI;
+      setSaveStatus('saving');
+
+      const fileNode = currentFileNodeRef.current;
+      const fileName = currentFileNameRef.current;
+      const wType = workspaceTypeRef.current;
+      const currentVal = contentRef.current;
+
+      const hasPathOrHandle = fileNode && (fileNode.path || fileNode.handle);
+      if (hasPathOrHandle && fileName !== '새 파일.md') {
+        if (api) {
+          try {
+            const success = await api.saveFile(fileNode.path, currentVal);
+            if (success) {
+              lastSavedContentRef.current = currentVal;
+              setSaveStatus('saved');
+              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              return;
+            }
+          } catch (e) {
+            setSaveStatus('unsaved');
+            showToast("저장 실패: " + e, 'error');
+            return;
+          }
+        } else if (wType === 'local') {
+          try {
+            const res = await fetch(getApiUrl('/api/save'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: fileNode.path, content: currentVal })
+            });
+            if (res.ok) {
+              lastSavedContentRef.current = currentVal;
+              setSaveStatus('saved');
+              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              return;
+            }
+          } catch (e: any) {
+            setSaveStatus('unsaved');
+            showToast("저장 실패: " + e.message, 'error');
+            return;
+          }
+        } else if (wType === 'browser') {
+          if (fileNode.handle) {
+            try {
+              const writable = await fileNode.handle.createWritable();
+              await writable.write(currentVal);
+              await writable.close();
+              lastSavedContentRef.current = currentVal;
+              setSaveStatus('saved');
+              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              return;
+            } catch (e: any) {
+              setSaveStatus('unsaved');
+              showToast("저장 실패: " + e.message, 'error');
+              return;
+            }
+          } else {
+            vfsWriteFile(fileNode.path, currentVal);
+            lastSavedContentRef.current = currentVal;
+            setSaveStatus('saved');
+            showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+            return;
+          }
+        }
+      }
+
+      if (api) {
+        try {
+          const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
+          const defaultDir = rootFolderRef.current?.name && rootFolderRef.current.name !== '브라우저 스토리지' ? rootFolderRef.current.name : undefined;
+          const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
+          if (file) {
+            const normalizedPath = file.path.replace(/\\/g, '/');
+            const parentPath = normalizedPath.includes('/')
+              ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/'))
+              : '';
+            const osParentPath = parentPath.replace(/\//g, '\\');
+            setRootFolder({ name: osParentPath });
+            setWorkspaceType('local');
+            localStorage.setItem('rootFolder', JSON.stringify({ name: osParentPath }));
+            localStorage.setItem('workspaceType', 'local');
+            setCurrentFileName(file.name);
+            setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
+            lastSavedContentRef.current = currentVal;
+            setSaveStatus('saved');
+            await refreshFileList();
+            showToast(`'${file.name}' 저장 완료 · 워크스페이스 → ${osParentPath}`, 'success');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        } catch (e) {
+          setSaveStatus('unsaved');
+          showToast("저장 실패: " + e, 'error');
+        }
+      } else if (typeof (window as any).showSaveFilePicker === 'function') {
+        try {
+          const suggestedName = fileName !== '새 파일.md' ? fileName : 'untitled.md';
+
+          let startIn: any = undefined;
+          if (currentFileParentHandleRef.current) {
+            startIn = currentFileParentHandleRef.current;
+          } else if (fileNode?.handle) {
+            startIn = fileNode.handle;
+          } else if (rootFolderRef.current?.handle) {
+            startIn = rootFolderRef.current.handle;
+          }
+
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName,
+            excludeAcceptAllOption: true,
+            startIn,
+            types: [{
+              description: 'Markdown Files (*.md)',
+              accept: {
+                'text/markdown': ['.md', '.markdown'],
+                'text/plain': ['.md', '.markdown']
+              }
+            }]
+          });
+
+          const writable = await fileHandle.createWritable();
+          await writable.write(currentVal);
+          await writable.close();
+
+          setCurrentFileName(fileHandle.name);
+          setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
+          lastSavedContentRef.current = currentVal;
+          setSaveStatus('saved');
+          await refreshFileList();
+          showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
+        } catch (e: any) {
+          if (e.name !== 'AbortError') {
+            setSaveStatus('unsaved');
+            showToast("저장 실패: " + e.message, 'error');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        }
+      } else if (typeof (window as any).showDirectoryPicker === 'function') {
+        try {
+          const dirHandle = await (window as any).showDirectoryPicker();
+          const folderName = dirHandle.name;
+          setRootFolder({ name: folderName, handle: dirHandle });
+          setWorkspaceType('browser');
+          localStorage.setItem('rootFolder', JSON.stringify({ name: folderName }));
+          localStorage.setItem('workspaceType', 'browser');
+          setSaveStatus('unsaved');
+          showToast(`워크스페이스가 '${folderName}'(으)로 설정됨`, 'success');
+          setPromptConfig({
+            isOpen: true,
+            title: '파일명 입력',
+            defaultValue: fileName === '새 파일.md' ? 'untitled.md' : fileName,
+            type: 'createFile',
+            error: ""
+          });
+        } catch (e: any) {
+          if (e.name !== 'AbortError') {
+            setSaveStatus('unsaved');
+            showToast("폴더 선택 실패", 'error');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        }
+      } else {
+        setPromptConfig({
+          isOpen: true,
+          title: '새 파일 생성',
+          defaultValue: fileName,
+          type: 'createFile',
+          error: ""
+        });
+        setSaveStatus('unsaved');
+      }
+    },
+
+    saveAs: async () => {
+      const api = (window as any).electronAPI;
+      const fileName = currentFileNameRef.current;
+      const fileNode = currentFileNodeRef.current;
+      const rootFld = rootFolderRef.current;
+      const currentVal = contentRef.current;
+
+      const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
+      const defaultDir = rootFld?.name && rootFld.name !== '브라우저 스토리지' ? rootFld.name : undefined;
+
+      setSaveStatus('saving');
+
+      if (api) {
+        try {
+          const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
+          if (file) {
+            const normalizedPath = file.path.replace(/\\/g, '/');
+            const parentPath = normalizedPath.includes('/')
+              ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/'))
+              : '';
+            const osParentPath = parentPath.replace(/\//g, '\\');
+            setRootFolder({ name: osParentPath });
+            setWorkspaceType('local');
+            localStorage.setItem('rootFolder', JSON.stringify({ name: osParentPath }));
+            localStorage.setItem('workspaceType', 'local');
+            setCurrentFileName(file.name);
+            setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
+            lastSavedContentRef.current = currentVal;
+            setSaveStatus('saved');
+            await refreshFileList();
+            showToast(`'${file.name}' 저장 완료`, 'success');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        } catch (e) {
+          setSaveStatus('unsaved');
+          showToast("저장 실패: " + e, 'error');
+        }
+      } else if (typeof (window as any).showSaveFilePicker === 'function') {
+        try {
+          let startIn: any = undefined;
+          if (currentFileParentHandleRef.current) {
+            startIn = currentFileParentHandleRef.current;
+          } else if (fileNode?.handle) {
+            startIn = fileNode.handle;
+          } else if (rootFld?.handle) {
+            startIn = rootFld.handle;
+          }
+
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: suggestedName || 'untitled.md',
+            excludeAcceptAllOption: true,
+            startIn,
+            types: [{
+              description: 'Markdown Files (*.md)',
+              accept: {
+                'text/markdown': ['.md', '.markdown'],
+                'text/plain': ['.md', '.markdown']
+              }
+            }]
+          });
+
+          const writable = await fileHandle.createWritable();
+          await writable.write(currentVal);
+          await writable.close();
+
+          setCurrentFileName(fileHandle.name);
+          setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
+          lastSavedContentRef.current = currentVal;
+          setSaveStatus('saved');
+          await refreshFileList();
+          showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
+        } catch (e: any) {
+          if (e.name !== 'AbortError') {
+            setSaveStatus('unsaved');
+            showToast("저장 실패: " + e.message, 'error');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        }
+      } else if (typeof (window as any).showDirectoryPicker === 'function') {
+        try {
+          const dirHandle = await (window as any).showDirectoryPicker();
+          const folderName = dirHandle.name;
+          setRootFolder({ name: folderName, handle: dirHandle });
+          setWorkspaceType('browser');
+          localStorage.setItem('rootFolder', JSON.stringify({ name: folderName }));
+          localStorage.setItem('workspaceType', 'browser');
+          setSaveStatus('unsaved');
+          showToast(`워크스페이스가 '${folderName}'(으)로 변경됨`, 'info');
+          setPromptConfig({
+            isOpen: true,
+            title: '파일명 입력',
+            defaultValue: suggestedName || '',
+            type: 'createFile',
+            error: ""
+          });
+        } catch (e: any) {
+          if (e.name !== 'AbortError') {
+            setSaveStatus('unsaved');
+            showToast("저장 실패: " + (e.message || e), 'error');
+          } else {
+            setSaveStatus('unsaved');
+          }
+        }
+      } else {
+        setPromptConfig({
+          isOpen: true,
+          title: "다른 이름으로 저장",
+          defaultValue: fileName,
+          type: 'createFile',
+          error: ""
+        });
+        setSaveStatus('unsaved');
+      }
+    },
+    openExport: () => setIsExportModalOpen(true),
+    exportPDF: async () => {
+      if (!previewRef.current) return;
+      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
+      const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor } = activeProfile.pageStyle;
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, dynamicCssString, showPageBreaks: isPageViewEnabled, marginTop, marginBottom, marginLeft, marginRight, backgroundColor });
+    },
+    exportHTML: async () => {
+      if (!previewRef.current) return;
+      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      await exportHTML({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
+    },
+    exportEPUB: async () => {
+      if (!previewRef.current) return;
+      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      await exportEPUB({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
+    },
+    exportPNG: async () => {
+      if (!previewRef.current) return;
+      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      await exportPNG({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
+    },
+    exit: () => window.confirm("종료하시겠습니까?") && window.close(),
+    undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
+    redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
+    find: () => editorRef.current?.getAction('actions.find').run(),
+    replace: () => editorRef.current?.getAction('editor.action.startFindReplaceAction').run(),
+    bold: () => wrapSelection('**', '**', '텍스트'),
+    italic: () => wrapSelection('*', '*', '텍스트'),
+    inlineCode: () => wrapSelection('`', '`', '코드'),
+    underline: () => wrapSelection('<u>', '</u>', '텍스트'),
+    strikethrough: () => wrapSelection('~~', '~~', '텍스트'),
+    h1: () => wrapSelection('# ', '', '제목'),
+    h2: () => wrapSelection('## ', '', '제목'),
+    h3: () => wrapSelection('### ', '', '제목'),
+    h4: () => wrapSelection('#### ', '', '제목'),
+    h5: () => wrapSelection('##### ', '', '제목'),
+    h6: () => wrapSelection('###### ', '', '제목'),
+    hr: () => insertAtCursor('\n---\n'),
+    orderedList: () => applyLinePrefix('orderedList'),
+    list: () => applyLinePrefix('list'),
+    quote: () => applyLinePrefix('quote'),
+    check: () => applyLinePrefix('check'),
+    removePrefix: () => removePrefix(),
+    link: () => insertLink(),
+    taglink: () => setShowTagLinkPicker(prev => !prev),
+    doclink: () => setShowDocLinkPicker(prev => !prev),
+    image: () => {
+      const editor = editorRef.current;
+      if (editor) {
+        const selection = editor.getSelection();
+        const model = editor.getModel();
+        if (selection && model) {
+          let text = model.getValueInRange(selection);
+          let range = selection;
+
+          if (!text.trim()) {
+            const lineNumber = selection.startLineNumber;
+            const lineContent = model.getLineContent(lineNumber);
+            const match = lineContent.match(/!\[([^\]]*)\]\(([^)]*)\)/);
+            if (match) {
+              const startCol = lineContent.indexOf(match[0]) + 1;
+              const endCol = startCol + match[0].length;
+              range = new (window as any).monaco.Range(lineNumber, startCol, lineNumber, endCol);
+              text = match[0];
+            }
+          }
+
+          const match = text.match(/!\[([^\]]*)\]\(([^)]*)\)/);
+          if (match) {
+            const alt = match[1];
+            const fullPath = match[2];
+            let path = fullPath;
+            let width = '';
+            let height = '';
+
+            const widthMatch = fullPath.match(/[\?&]width=([^&]*)/);
+            if (widthMatch) {
+              width = decodeURIComponent(widthMatch[1]);
+            }
+            const heightMatch = fullPath.match(/[\?&]height=([^&]*)/);
+            if (heightMatch) {
+              height = decodeURIComponent(heightMatch[1]);
+            }
+            const alignMatch = fullPath.match(/[\?&]align=([^&]*)/);
+            const align = alignMatch ? decodeURIComponent(alignMatch[1]) : 'center';
+            path = fullPath.replace(/[\?&](?:width|height|align)=[^&]*/g, '');
+
+            setEditingImageInfo({
+              range,
+              alt,
+              path,
+              width,
+              height,
+              align
+            });
+            setIsImageModalOpen(true);
+            return;
+          }
+        }
+      }
+
+      setEditingImageInfo(null);
+      setIsImageModalOpen(true);
+    },
+    video: () => setIsYoutubeModalOpen(true),
+    youtube: () => setIsYoutubeModalOpen(true),
+    now: () => insertAtCursor(new Date().toLocaleString()),
+    map: () => setIsMapModalOpen(true),
+    table: () => setIsTableModalOpen(true),
+    quickTable: () => insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n'),
+    insertTableRow: () => {
+      if (!editorRef.current) return;
+      const editor = editorRef.current;
+      const position = editor.getPosition();
+      if (!position) return;
+      const model = editor.getModel();
+      if (!model) return;
+
+      const lineText = model.getLineContent(position.lineNumber);
+      const trimmed = lineText.trim();
+      if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+        showToast("커서가 표 행에 위치해야 행을 추가할 수 있습니다.", "warning");
+        return;
+      }
+
+      const cells = trimmed.split(/(?<!\\)\|/);
+      const cellCount = cells.length - 2;
+
+      if (cellCount < 1) return;
+
+      const newRowText = '\n|' + '  |'.repeat(cellCount);
+      const lineMaxColumn = model.getLineMaxColumn(position.lineNumber);
+      const Range = (window as any).monaco.Range;
+      const Selection = (window as any).monaco.Selection;
+
+      editor.executeEdits("insertTableRow", [{
+        range: new Range(position.lineNumber, lineMaxColumn, position.lineNumber, lineMaxColumn),
+        text: newRowText,
+        forceMoveMarkers: true
+      }]);
+
+      const nextLineNumber = position.lineNumber + 1;
+      editor.setSelection(new Selection(
+        nextLineNumber, 3,
+        nextLineNumber, 3
+      ));
+      editor.focus();
+      showToast("표 행이 추가되었습니다.", "info");
+    },
+    deleteTableRow: () => {
+      if (!editorRef.current) return;
+      const editor = editorRef.current;
+      const position = editor.getPosition();
+      if (!position) return;
+      const model = editor.getModel();
+      if (!model) return;
+
+      const lineText = model.getLineContent(position.lineNumber);
+      const trimmed = lineText.trim();
+      if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+        showToast("커서가 표 행에 위치해야 행을 삭제할 수 있습니다.", "warning");
+        return;
+      }
+
+      const maxColumn = model.getLineMaxColumn(position.lineNumber);
+      let startLine = position.lineNumber;
+      let startColumn = 1;
+      let endLine = position.lineNumber;
+      let endColumn = maxColumn;
+
+      if (position.lineNumber < model.getLineCount()) {
+        endLine = position.lineNumber + 1;
+        endColumn = 1;
+      } else if (position.lineNumber > 1) {
+        startLine = position.lineNumber - 1;
+        startColumn = model.getLineMaxColumn(startLine);
+      }
+
+      const Range = (window as any).monaco.Range;
+      editor.executeEdits("deleteTableRow", [{
+        range: new Range(startLine, startColumn, endLine, endColumn),
+        text: "",
+        forceMoveMarkers: true
+      }]);
+
+      editor.focus();
+      showToast("표 행이 삭제되었습니다.", "info");
+    },
+    code: () => insertBlockTag('```javascript', '```', '코드'),
+    chart: () => insertBlockTag('```mermaid', '```', '그래프'),
+    math: () => setIsFormulaModalOpen(true),
+    latex: () => setIsFormulaModalOpen(true),
+    zoomIn: () => setFontSize(prev => Math.min(prev + 2, 32)),
+    zoomOut: () => setFontSize(prev => Math.max(prev - 2, 12)),
+    globalSearch: () => setIsSearchOpen(true),
+    settings: (tab: 'editor' | 'app' | 'shortcuts' = 'editor') => {
+      setSettingsModalInitialTab(tab);
+      setIsSettingsModalOpen(true);
+    },
+    about: () => setIsAboutModalOpen(true),
+    help: async () => {
+      const api = (window as any).electronAPI;
+      if (api?.readFromPath) {
+        try {
+          const file = await api.readFromPath('docs/help/00_시작하기.md');
+          setHelpTitle('시작하기');
+          setHelpContent(stripFrontmatter(file.content));
+        } catch (e) {
+          setHelpContent('## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.');
+          setHelpTitle('오류');
+        }
+      } else {
+        try {
+          const res = await fetch('./docs/help/00_시작하기.md');
+          const text = await res.text();
+          setHelpTitle('시작하기');
+          setHelpContent(stripFrontmatter(text));
+        } catch (e) {
+          setHelpContent('## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.');
+          setHelpTitle('오류');
+        }
+      }
+    },
+    license: () => setIsLicenseModalOpen(true),
+    toggleFloatingToolbar: () => {
+      setFloatingToolbar(prev => {
+        if (prev.visible) return { ...prev, visible: false };
+        if (editorRef.current) {
+          const editor = editorRef.current;
+          editor.focus();
+          const position = editor.getPosition();
+          if (position) {
+            const visiblePos = editor.getScrolledVisiblePosition(position);
+            if (visiblePos) {
+              return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
+            }
+          }
+        }
+        return { visible: true, top: 100, left: 100 };
+      });
+    },
+    quickWrap: (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => quickWrap(format),
+    pageBreak: () => {
+      if (!editorRef.current) return;
+      const editor = editorRef.current;
+      const selection = editor.getSelection();
+      const model = editor.getModel();
+      if (!model || !selection) return;
+
+      const Range = (window as any).monaco.Range;
+      const Selection = (window as any).monaco.Selection;
+      
+      const insertText = '<!-- [page-break] -->';
+      
+      editor.executeEdits("pageBreak", [{
+        range: selection,
+        text: insertText,
+        forceMoveMarkers: true
+      }]);
+      
+      const currentPos = selection.getEndPosition();
+      const nextLineNumber = currentPos.lineNumber;
+      editor.setSelection(new Selection(nextLineNumber, currentPos.column + insertText.length, nextLineNumber, currentPos.column + insertText.length));
+      editor.focus();
+      showToast("페이지 분할선이 삽입되었습니다.", "info");
+    },
+  };
+
+  return handlers;
+};

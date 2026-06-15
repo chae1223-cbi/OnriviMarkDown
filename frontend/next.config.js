@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export', // 데스크톱/애드온을 위한 정적 HTML 내보내기 생성
+  productionBrowserSourceMaps: true, // 🔍 [임시] TDZ 에러 추적용 소스맵 활성화
   assetPrefix: './', // 로컬 file:// 프로토콜에서 정적 리소스(CSS, JS 등)의 경로를 상대 참조하도록 설정
   images: {
     unoptimized: true, // ?�적 빌드 ???��?지 최적??경고 방�?

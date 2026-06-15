@@ -1,0 +1,324 @@
+// @ts-nocheck
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { getDefaultHotkeys, getDefaultCommands } from "@/lib/toolbarConfig";
+import { THEME_MAP } from "@/lib/editorThemes";
+import { idb } from '@/lib/helper';
+import { getApiUrl } from '@/lib/api';
+
+/**
+ * [ONR-16-002] useEditorSettings 커스텀 훅
+ * @description 에디터의 각종 사용자 편의 설정(테마, 단축키, 줄바꿈, 폰트크기 등)을 관리하고 영구 저장소에 저장/동기화합니다.
+ */
+export const useEditorSettings = (
+  editorRef: any,
+  mounted: boolean,
+  setMounted: (val: boolean) => void,
+  previewMode: string,
+  setPreviewMode: any,
+  setSidebarWidth: (val: number) => void,
+  setActiveProfileId: (val: string) => void,
+  setWorkspaceType: (val: any) => void,
+  setRootFolder: (val: any) => void,
+  setIsAddonEnv: (val: boolean) => void,
+  showToast: (msg: string, type?: string) => void
+) => {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [fontSize, setFontSize] = useState<number>(14);
+  const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on');
+  const [autoSave, setAutoSave] = useState(true);
+  const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
+  const [themePalette, setThemePalette] = useState<string>('onrivi-light');
+  const [licenseKey, setLicenseKey] = useState<string>('');
+  
+  const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>({});
+  const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>({});
+
+  const customSlashCommandsRef = useRef<Record<string, string>>(customSlashCommands);
+  useEffect(() => {
+    customSlashCommandsRef.current = customSlashCommands;
+  }, [customSlashCommands]);
+
+  const handleThemeChange = useCallback((themeId: string, THEME_MAP_REF: any) => {
+    const theme = THEME_MAP_REF[themeId];
+    if (!theme) return;
+    setThemePalette(themeId);
+    setIsDarkMode(theme.isDark);
+  }, []);
+
+  // 1. 설정 로드 및 초기 복원
+  useEffect(() => {
+    const restoreSettings = async () => {
+      let baseSettings = {
+        isDarkMode: false,
+        fontSize: 15,
+        wordWrap: 'on' as 'on' | 'off',
+        autoSave: true,
+        previewMode: 'both' as 'edit' | 'both' | 'preview' | 'css-style',
+        quoteStyle: 'modern' as 'modern' | 'clean' | 'none',
+        customHotkeys: getDefaultHotkeys(),
+        customSlashCommands: getDefaultCommands(),
+        themePalette: 'onrivi-light',
+        licenseKey: 'chae6^jung1!jang3#&'
+      };
+
+      try {
+        const localData = localStorage.getItem('onrivi_settings');
+        if (localData) {
+          Object.assign(baseSettings, JSON.parse(localData));
+          if (baseSettings.previewMode === 'css-style') baseSettings.previewMode = 'both';
+        } else {
+          const legacyFontSize = localStorage.getItem('fontSize');
+          if (legacyFontSize) baseSettings.fontSize = parseInt(legacyFontSize);
+          const legacyWordWrap = localStorage.getItem('wordWrap');
+          if (legacyWordWrap) baseSettings.wordWrap = legacyWordWrap as any;
+          const legacyQuoteStyle = localStorage.getItem('quoteStyle');
+          if (legacyQuoteStyle) baseSettings.quoteStyle = legacyQuoteStyle as any;
+          const legacyTheme = localStorage.getItem('theme');
+          if (legacyTheme) baseSettings.isDarkMode = legacyTheme === 'dark';
+          const legacyThemePalette = localStorage.getItem('themePalette');
+          if (legacyThemePalette) baseSettings.themePalette = legacyThemePalette;
+          const legacyAutoSave = localStorage.getItem('autoSave');
+          if (legacyAutoSave) baseSettings.autoSave = legacyAutoSave === 'true';
+          const legacyPreviewMode = localStorage.getItem('previewMode');
+          if (legacyPreviewMode) baseSettings.previewMode = legacyPreviewMode as any;
+
+          const savedHotkeys = localStorage.getItem('customHotkeys');
+          if (savedHotkeys) {
+            Object.assign(baseSettings.customHotkeys, JSON.parse(savedHotkeys));
+          }
+          const savedSlashCmds = localStorage.getItem('customSlashCommands');
+          if (savedSlashCmds) {
+            Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
+          }
+        }
+      } catch (e) {
+        console.error('로컬스토리지 로드 실패:', e);
+      }
+
+      const chromeStorage = (window as any).chrome?.storage?.local;
+      if (chromeStorage) {
+        try {
+          const result = await new Promise<any>((resolve) => {
+            chromeStorage.get(['onrivi_settings'], (res: any) => resolve(res || {}));
+          });
+          if (result && result.onrivi_settings) {
+            Object.assign(baseSettings, result.onrivi_settings);
+            if (baseSettings.previewMode === 'css-style') baseSettings.previewMode = 'both';
+          }
+        } catch (e) {
+          console.error('크롬 스토리지 로드 실패:', e);
+        }
+      }
+
+      const api = (window as any).electronAPI;
+      if (api && typeof api.loadSettings === 'function') {
+        try {
+          const desktopData = await api.loadSettings();
+          if (desktopData) {
+            Object.assign(baseSettings, desktopData);
+          }
+        } catch (e) {
+          console.error('데스크탑 스토리지 로드 실패:', e);
+        }
+      }
+
+      const defaultHotkeys = getDefaultHotkeys();
+      const defaultCommands = getDefaultCommands();
+
+      Object.keys(defaultHotkeys).forEach((key) => {
+        if (baseSettings.customHotkeys[key] === undefined) {
+          baseSettings.customHotkeys[key] = defaultHotkeys[key];
+        }
+      });
+
+      Object.keys(defaultCommands).forEach((key) => {
+        if (baseSettings.customSlashCommands[key] === undefined) {
+          baseSettings.customSlashCommands[key] = defaultCommands[key];
+        }
+      });
+
+      setIsDarkMode(baseSettings.isDarkMode);
+      setFontSize(baseSettings.fontSize);
+      setWordWrap(baseSettings.wordWrap);
+      setAutoSave(baseSettings.autoSave);
+      setPreviewMode(baseSettings.previewMode);
+      setQuoteStyle(baseSettings.quoteStyle);
+      setCustomHotkeys(baseSettings.customHotkeys);
+      setCustomSlashCommands(baseSettings.customSlashCommands);
+      setThemePalette(baseSettings.themePalette);
+      setLicenseKey(baseSettings.licenseKey);
+
+      if (baseSettings.isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+
+      if (editorRef.current && (window as any).monaco) {
+        const monaco = (window as any).monaco;
+        monaco.editor.setTheme(baseSettings.themePalette);
+      }
+
+      const savedWidth = localStorage.getItem('sidebarWidth');
+      if (savedWidth) setSidebarWidth(parseInt(savedWidth));
+
+      const savedProfileId = localStorage.getItem('activeCssProfileId');
+      if (savedProfileId) setActiveProfileId(savedProfileId);
+
+      const detectedAddon = typeof window !== 'undefined' && (
+        new URLSearchParams(window.location.search).get('env') === 'addon' ||
+        !!((window as any).chrome?.runtime?.id)
+      );
+      setIsAddonEnv(detectedAddon);
+
+      const savedWorkspaceType = localStorage.getItem('workspaceType') || 'local';
+      const activeWorkspaceType = detectedAddon ? 'browser' : savedWorkspaceType;
+      setWorkspaceType(activeWorkspaceType as any);
+
+      if (activeWorkspaceType === 'browser') {
+        setPreviewMode(baseSettings.previewMode);
+
+        try {
+          const savedHandle = await idb.get('rootFolderHandle');
+          if (savedHandle) {
+            const isPermissionGranted = (await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted';
+            if (isPermissionGranted) {
+              setRootFolder({ name: savedHandle.name, handle: savedHandle });
+            } else {
+              setRootFolder({ name: savedHandle.name, handle: savedHandle, needPermission: true } as any);
+            }
+          } else {
+            setRootFolder(null);
+          }
+        } catch (idbErr) {
+          console.warn('[Onrivi Author] IndexedDB 폴더 핸들 복구 실패:', idbErr);
+          setRootFolder(null);
+        }
+      } else {
+        const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
+        let rootPath: string | null = null;
+
+        if (!isElectron) {
+          try {
+            const res = await fetch(getApiUrl('/api/get-root'));
+            if (res.ok) {
+              const data = await res.json();
+              if (data.currentRoot) {
+                rootPath = data.currentRoot;
+              }
+            }
+          } catch (err) {
+            showToast('백엔드 루트 경로 조회 실패.', 'warning');
+          }
+        }
+
+        if (rootPath) {
+          setRootFolder({ name: rootPath });
+          localStorage.setItem('rootFolder', JSON.stringify({ name: rootPath }));
+        } else {
+          const savedFolder = localStorage.getItem('rootFolder');
+          if (savedFolder) {
+            try {
+              const folder = JSON.parse(savedFolder);
+              const hasInvalidChar = folder.name && (
+                folder.name.includes('?') ||
+                folder.name.includes('\uFFFD')
+              );
+              if (hasInvalidChar) {
+                showToast('워크스페이스 캐시가 유효하지 않아 초기화합니다.', 'warning');
+                localStorage.removeItem('rootFolder');
+                localStorage.removeItem('workspaceType');
+                setRootFolder(null);
+              } else if (folder.name && folder.name !== '브라우저 스토리지' && folder.name !== 'C:\\') {
+                setRootFolder(folder);
+              } else {
+                localStorage.removeItem('rootFolder');
+                localStorage.removeItem('workspaceType');
+              }
+            } catch (e) {
+              localStorage.removeItem('rootFolder');
+            }
+          }
+        }
+      }
+
+      setMounted(true);
+    };
+
+    restoreSettings();
+  }, [editorRef]);
+
+  // 2. 설정 동기화 저장
+  useEffect(() => {
+    if (!mounted) return;
+
+    const settings = {
+      isDarkMode,
+      fontSize,
+      wordWrap,
+      autoSave,
+      previewMode,
+      quoteStyle,
+      customHotkeys,
+      customSlashCommands,
+      licenseKey,
+      themePalette
+    };
+
+    localStorage.setItem('onrivi_settings', JSON.stringify(settings));
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    localStorage.setItem('fontSize', fontSize.toString());
+    localStorage.setItem('wordWrap', wordWrap);
+    localStorage.setItem('quoteStyle', quoteStyle);
+    localStorage.setItem('customHotkeys', JSON.stringify(customHotkeys));
+    localStorage.setItem('customSlashCommands', JSON.stringify(customSlashCommands));
+    localStorage.setItem('themePalette', themePalette);
+    localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
+    if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
+
+    const chromeStorage = (window as any).chrome?.storage?.local;
+    if (chromeStorage) {
+      chromeStorage.set({ onrivi_settings: settings });
+    }
+
+    const api = (window as any).electronAPI;
+    if (api && typeof api.saveSettings === 'function') {
+      api.saveSettings(settings);
+    }
+  }, [
+    mounted,
+    isDarkMode,
+    fontSize,
+    wordWrap,
+    autoSave,
+    previewMode,
+    quoteStyle,
+    customHotkeys,
+    customSlashCommands,
+    licenseKey,
+    themePalette
+  ]);
+
+  return {
+    isDarkMode,
+    setIsDarkMode,
+    fontSize,
+    setFontSize,
+    wordWrap,
+    setWordWrap,
+    autoSave,
+    setAutoSave,
+    quoteStyle,
+    setQuoteStyle,
+    themePalette,
+    setThemePalette,
+    licenseKey,
+    setLicenseKey,
+    customHotkeys,
+    setCustomHotkeys,
+    customSlashCommands,
+    setCustomSlashCommands,
+    customSlashCommandsRef,
+    handleThemeChange
+  };
+};

@@ -99,6 +99,8 @@ import * as utilsEditorActions from '@/utils/editorActions';
 import { useEditorTabs } from '@/hooks/useEditorTabs';
 import { useEditorSettings } from '@/hooks/useEditorSettings';
 import { usePageBreak } from '@/hooks/usePageBreak';
+import { useEditorHandlers } from '@/hooks/useEditorHandlers';
+import { useFileExplorer } from '@/hooks/useFileExplorer';
 
 
 /**
@@ -304,81 +306,89 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
   return stack.join('/'); // @stack : 이미지 경로 (분석된 경로) 
 };
 
-/**
- * @file 
- * @description Home component  
- * @returns Home component
- */
+const getRelativePath = (fromPath: string | null | undefined, toPath: string): string => {
+  if (!fromPath) {
+    return toPath.startsWith('/') || toPath.startsWith('.') ? toPath : `./${toPath}`;
+  }
+  const normFrom = fromPath.replace(/\\/g, '/');
+  const normTo = toPath.replace(/\\/g, '/');
+  const fromParts = normFrom.split('/').filter(Boolean);
+  const toParts = normTo.split('/').filter(Boolean);
+  
+  // 파일명을 제외한 폴더 경로만 추출
+  fromParts.pop(); 
+  
+  let commonIndex = 0;
+  while (commonIndex < fromParts.length && commonIndex < toParts.length && fromParts[commonIndex] === toParts[commonIndex]) {
+    commonIndex++;
+  }
+  
+  const upCount = fromParts.length - commonIndex;
+  const upParts = Array(upCount).fill('..');
+  const downParts = toParts.slice(commonIndex);
+  
+  const relParts = [...upParts, ...downParts];
+  let relPath = relParts.join('/');
+  if (!relPath.startsWith('.') && !relPath.startsWith('/')) {
+    relPath = './' + relPath;
+  }
+  return relPath;
+};
+
 export default function MainEditorApp() {                  // @MainEditorApp : MainEditorApp component  
   const { showToast } = useToast();             // @showToast : Toast component  
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
   const [content, setContent] = useState('');   // @content : content state 
   
-  // 💡 [CORE-02 / 요구사항 4] Stale 클로저 완벽 격리를 위해 content Ref 백업 도입
   const contentRef = useRef(content);
   useEffect(() => {
     contentRef.current = content;
   }, [content]);
 
+  const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
+  const previewModeRef = useRef(previewMode);
+  const isEditorMountedRef = useRef(false);
+
+  // 💡 [TDZ 방어] 모든 상태를 즉시 const로 선언하여 Webpack 번들러의 TDZ 최적화 오류 방지
+  // 이후 useEditorSettings 훅 호출 시 해당 훅의 반환값으로 구조분해 재선언하지 않고,
+  // 컴포넌트 내에서 useEditorSettingsResult.xxx 형태로 직접 접근합니다.
+  const [_isDarkMode_init, _setIsDarkMode_init] = useState(false);
+  const [_fontSize_init, _setFontSize_init] = useState<number>(14);
+  const [_wordWrap_init, _setWordWrap_init] = useState<'on' | 'off'>('on');
+  const [_autoSave_init, _setAutoSave_init] = useState(true);
+  const [_quoteStyle_init, _setQuoteStyle_init] = useState<'modern' | 'clean' | 'none'>('modern');
+  const [_themePalette_init, _setThemePalette_init] = useState<string>('onrivi-light');
+  const [_licenseKey_init, _setLicenseKey_init] = useState<string>('');
+  const [_customHotkeys_init, _setCustomHotkeys_init] = useState<Record<string, string>>({});
+  const [_customSlashCommands_init, _setCustomSlashCommands_init] = useState<Record<string, string>>({});
+  const _customSlashCommandsRef_init = useRef<Record<string, string>>({});
+  const _handleThemeChange_init = () => {};
+
+  const _isAutoPageBreakingRef_init = useRef(false);
+  const _lastPageBreakCountRef_init = useRef(0);
+  const _handleResetPageBreaks_init = () => {};
+  const _executeAutoPageBreak_init = () => {};
+
+  // 💡 [초기화 순서 방어] 라이선스 및 디바이스 ID 상태 선행 선언
+  const [deviceId, setDeviceId] = useState<string>('');
+  const [licenseStatus, setLicenseStatus] = useState({
+    isActivated: false,
+    isExpired: false,
+    remainingDays: 14,
+    userId: '',
+    licenseKey: ''
+  });
+
+  // 💡 [초기화 순서 방어] useEditorTabs 반환 바인딩 전 하위 함수들이 참조하는 탭 관리 상태의 선행 선언
+  const [tabs, setTabs] = useState<any[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const tabsRef = useRef<any[]>([]);
+  const activeTabIdRef = useRef<string | null>(null);
+
   // 💡 미리보기 업데이트 지연 디바운스 타이머 Ref (타이핑 시 번쩍거림/깜빡거림 방쇄)
   const previewDebounceRef = useRef<NodeJS.Timeout | null>(null);
   // 💡 [IME 락 가드] 한글 IME 조합 진행 여부를 저장하는 Ref
   const isComposingRef = useRef(false);
-
-
-
-  const closeTab = useCallback((tabId: string, event?: React.MouseEvent) => {
-    if (event) {
-      event.stopPropagation();
-    }
-
-    const tabToClose = tabsRef.current.find(t => t.id === tabId);
-    if (!tabToClose) return;
-
-    const performClose = () => {
-      if (tabToClose.model) {
-        tabToClose.model.dispose();
-      }
-
-      // 💡 서식 설정 전용 '서식 정의 미리보기.md' 탭을 닫으면 서식 설정창(CssStyleForm) 패널도 함께 닫음 (기본 분할 화면 'both' 모드로 전환)
-      if (tabToClose.name === '서식 정의 미리보기.md') {
-        setPreviewModeRaw('both');
-        previewModeRef.current = 'both';
-        isEditorMountedRef.current = true;
-      }
-
-      const nextTabs = tabsRef.current.filter(t => t.id !== tabId);
-      setTabs(nextTabs);
-
-      if (activeTabIdRef.current === tabId) {
-        if (nextTabs.length > 0) {
-          const closeIndex = tabsRef.current.findIndex(t => t.id === tabId);
-          const nextActiveIndex = Math.max(0, closeIndex - 1);
-          const nextActiveTab = nextTabs[nextActiveIndex] || nextTabs[0];
-          switchTab(nextActiveTab.id);
-        } else {
-          createNewTab("");
-        }
-      }
-    };
-
-    if (tabToClose.isModified) {
-      setConfirmConfig({
-        isOpen: true,
-        title: "저장되지 않은 변경사항",
-        message: `'${tabToClose.name}' 파일의 변경사항이 저장되지 않았습니다. 저장하지 않고 닫으시겠습니까?`,
-        confirmText: "저장하지 않고 닫기",
-        cancelText: "취소",
-        isDanger: true,
-        onConfirm: () => {
-          performClose();
-        }
-      });
-      return;
-    }
-
-    performClose();
-  }, [createNewTab, switchTab, setTabs]);
 
 
 
@@ -443,55 +453,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     () => SYSTEM_PROFILES[0].id
   );
   const [isAddonEnv, setIsAddonEnv] = useState(false);
-  const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
-  const previewModeRef = useRef(previewMode);
   const [helpContent, setHelpContent] = useState<string | null>(null);
   const [helpTitle, setHelpTitle] = useState('');
   const helpContentRef = useRef(helpContent);
   helpContentRef.current = helpContent;
-  
-  // 💡 [동기식 가드] previewMode 변경 즉시 에디터 마운트 상태 플래그를 제어하는 동기 래핑 헬퍼 함수
-  const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
-    // 모드 전환 전 에디터 내용을 즉시 React 상태에 반영 (100ms 디바운스 손실 방지)
-    if (editorRef.current && previewModeRef.current !== 'preview') {
-      if (previewDebounceRef.current) {
-        clearTimeout(previewDebounceRef.current);
-        previewDebounceRef.current = null;
-      }
-      const latestVal = editorRef.current.getValue();
-      if (latestVal !== contentRef.current) {
-        setContent(latestVal);
-      }
-    }
-    setPreviewModeRaw(prev => {
-      const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
-      if (prev === 'css-style' && next !== 'css-style') return prev;
-      if (helpContentRef.current && next !== 'css-style') return prev;
-      
-      // 💡 서식 정의(css-style) 모드로 스위칭될 때, 대조할 웰컴페이지 샘플 마크다운 탭을 강제 신규 생성 및 포커싱
-      if (next === 'css-style' && prev !== 'css-style') {
-        // 💡 도움말이 켜져 있었다면 강제 종료하여 웰컴페이지 미리보기 화면이 보이도록 연동
-        setHelpContent(null);
-        setHelpTitle('');
-        
-        const hasWelcomeTab = tabsRef.current.some(t => t.name === '서식 정의 미리보기.md');
-        if (!hasWelcomeTab) {
-          createNewTab(getWelcomeContent(), '서식 정의 미리보기.md');
-        } else {
-          const welcomeTab = tabsRef.current.find(t => t.name === '서식 정의 미리보기.md');
-          if (welcomeTab) switchTab(welcomeTab.id);
-        }
-      }
-
-      previewModeRef.current = next;
-      if (next === 'preview') {
-        isEditorMountedRef.current = false;
-      } else {
-        isEditorMountedRef.current = true;
-      }
-      return next;
-    });
-  }, []);
 
   useEffect(() => {
     previewModeRef.current = previewMode;
@@ -508,6 +473,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const [rootFolder, setRootFolder] = useState<{ name: string, handle?: any } | null>(null);
   const [fileList, setFileList] = useState<FileNode[]>([]);
+  const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
   const [currentFileName, setCurrentFileName] = useState<string>('새 파일.md');
   const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
   const [promptConfig, setPromptConfig] = useState<{
@@ -517,44 +483,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     type: 'createFile' | 'createFolder' | 'rename' | null;
     error: string;
   }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
-  const {
-    isDarkMode,
-    setIsDarkMode,
-    fontSize,
-    setFontSize,
-    wordWrap,
-    setWordWrap,
-    autoSave,
-    setAutoSave,
-    quoteStyle,
-    setQuoteStyle,
-    themePalette,
-    setThemePalette,
-    licenseKey,
-    setLicenseKey,
-    customHotkeys,
-    setCustomHotkeys,
-    customSlashCommands,
-    setCustomSlashCommands,
-    customSlashCommandsRef,
-    handleThemeChange
-  } = useEditorSettings(editorRef, mounted, previewMode, setPreviewMode);
-
-  // 🔒 [에디터 언마운트 생명주기 제어용 플래그 및 이중 안전 가드]
-  const isEditorMountedRef = useRef(false);
-  useEffect(() => {
-    if (previewMode !== 'preview') {
-      isEditorMountedRef.current = true;
-    } else {
-      isEditorMountedRef.current = false;
-    }
-    return () => {
-      // preview 모드로 진입 또는 언마운트 시 즉시 false로 내려 후속 change 이벤트를 무시
-      isEditorMountedRef.current = false;
-    };
-  }, [previewMode]);
-
-  const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
 
   // 📄 [자동 페이지 나누기 미리보기] 상태 선언 및 로컬 스토리지 보존
   const [isPageViewEnabled, setIsPageViewEnabled] = useState(false);
@@ -578,12 +506,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     });
   }, []);
 
-  const {
-    isAutoPageBreakingRef,
-    lastPageBreakCountRef,
-    handleResetPageBreaks,
-    executeAutoPageBreak
-  } = usePageBreak(editorRef, previewRef, profiles, activeProfileId, showToast);
   const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
   const [driveLetter, setDriveLetter] = useState('D:');
 
@@ -664,16 +586,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [showDocLinkPicker, workspaceType, fileList, rootFolder]);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
-  const [deviceId, setDeviceId] = useState<string>('');
-  const [licenseStatus, setLicenseStatus] = useState({
-    isActivated: false,
-    isExpired: false,
-    remainingDays: 14,
-    userId: '',
-    licenseKey: ''
-  });
-
-  const isActivated = licenseStatus.isActivated;
 
   // 1. 디바이스 고유 ID 수집 훅
   useEffect(() => {
@@ -922,7 +834,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       supabase.removeChannel(channel);
       if (typeof removeListener === 'function') removeListener();
     };
-  }, [deviceId, licenseKey]);
+  }, [deviceId, _licenseKey_init]);
 
   // 💡 정품 인증 완료 성공 시 로컬 및 플랫폼 스토리지 영구 저장 핸들러
   const handleSuccessActivation = async (verifyKey: string, userId: string) => {
@@ -1003,21 +915,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
 
 
+  const previewRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
   const autoPageBreakDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // 💡 다중 탭 관련 상태 선언 및 백업 레퍼런스
-  const {
-    tabs,
-    setTabs,
-    activeTabId,
-    setActiveTabId,
-    tabsRef,
-    activeTabIdRef,
-    updateContent,
-    switchTab,
-    createNewTab
-  } = useEditorTabs(
+  const useEditorTabsResult = useEditorTabs(
     editorRef,
     setContent,
     setCurrentFileName,
@@ -1028,19 +931,34 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     isComposingRef,
     workspaceType,
     showToast,
-    getRelativePath
+    getRelativePath,
+    tabs,        // 💡 [TDZ 방어] 최상단에서 선언된 상태를 주입
+    setTabs,
+    activeTabId,
+    setActiveTabId
   );
-  
+
+  // 💡 [TDZ 방어] useEditorTabs 반환값 중 상단에서 선언되지 않은 것들만 추가 추출
+  const updateContent = useEditorTabsResult.updateContent;
+  const switchTab = useEditorTabsResult.switchTab;
+  const createNewTab = useEditorTabsResult.createNewTab;
+
+  // Ref를 공유 tabsRef/activeTabIdRef에 동기화
+  tabsRef.current = useEditorTabsResult.tabsRef.current;
+  activeTabIdRef.current = useEditorTabsResult.activeTabIdRef.current;
+
+  // 💡 [TDZ 방어] lastSavedContentRef는 useFileExplorer에서 먼저 참조되므로 상단에 선언
+  const lastSavedContentRef = useRef<string>('');
+
   // 💡 [WBS CORE-02 / 요구사항 4] State Stale Closure 방지를 위한 Ref 백업 시스템 도입
   const currentFileNodeRef = useRef(currentFileNode);
-  const currentFileParentHandleRef = useRef<any>(null); // 💡 저장 시 startIn으로 활용하기 위한 부모 폴더 핸들 레퍼런스
+  const currentFileParentHandleRef = useRef<any>(null);
   const currentFileNameRef = useRef(currentFileName);
   const workspaceTypeRef = useRef(workspaceType);
   const rootFolderRef = useRef(rootFolder);
   const tabSizeRef = useRef(4);
 
   useEffect(() => { currentFileNodeRef.current = currentFileNode; }, [currentFileNode]);
-  useEffect(() => { autoSaveRef.current = autoSave; }, [autoSave]);
   useEffect(() => { currentFileNameRef.current = currentFileName; }, [currentFileName]);
   useEffect(() => { workspaceTypeRef.current = workspaceType; }, [workspaceType]);
   useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
@@ -1048,6 +966,201 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
     tabSizeRef.current = parseInt(activeProfile.pageStyle.tabSize) || 4;
   }, [profiles, activeProfileId]);
+
+  const useFileExplorerResult = useFileExplorer({
+    editorRef,
+    contentRef,
+    currentFileNode,
+    currentFileName,
+    lastSavedContentRef,
+    currentFileParentHandleRef,
+    tabsRef,
+    isSearchOpen,
+    activeTabIdRef,
+    setContent,
+    setCurrentFileName,
+    setCurrentFileNode,
+    setTabs,
+    setActiveTabId,
+    setSaveStatus,
+    setIsSidebarOpen,
+    setIsSearchOpen,
+    setHelpContent,
+    setHelpTitle,
+    setPreviewModeRaw,
+    previewModeRef,
+    isEditorMountedRef,
+    showToast,
+    createNewTab,
+    switchTab,
+    rootFolder,
+    setRootFolder,
+    fileList,
+    setFileList,
+    workspaceType,
+    setWorkspaceType
+  });
+
+  // 💡 [TDZ 방어] useFileExplorer 반환값에서 즉시 구조분해 할당하여 참조 에러 방지
+  const {
+    refreshFileList,
+    saveFile,
+    handleFileClick,
+    selectRootFolder,
+    restoreFolderPermission,
+    handleFileOpenByPath
+  } = useFileExplorerResult;
+
+  // 💡 [동기식 가드] previewMode 변경 즉시 에디터 마운트 상태 플래그를 제어하는 동기 래핑 헬퍼 함수
+  const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
+    // 모드 전환 전 에디터 내용을 즉시 React 상태에 반영 (100ms 디바운스 손실 방지)
+    if (editorRef.current && previewModeRef.current !== 'preview') {
+      if (previewDebounceRef.current) {
+        clearTimeout(previewDebounceRef.current);
+        previewDebounceRef.current = null;
+      }
+      const latestVal = editorRef.current.getValue();
+      if (latestVal !== contentRef.current) {
+        setContent(latestVal);
+      }
+    }
+    setPreviewModeRaw(prev => {
+      const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
+      if (prev === 'css-style' && next !== 'css-style') return prev;
+      if (helpContentRef.current && next !== 'css-style') return prev;
+      
+      // 💡 서식 정의(css-style) 모드로 스위칭될 때, 대조할 웰컴페이지 샘플 마크다운 탭을 강제 신규 생성 및 포커싱
+      if (next === 'css-style' && prev !== 'css-style') {
+        // 💡 도움말이 켜져 있었다면 강제 종료하여 웰컴페이지 미리보기 화면이 보이도록 연동
+        setHelpContent(null);
+        setHelpTitle('');
+        
+        const hasWelcomeTab = tabsRef.current.some(t => t.name === '서식 정의 미리보기.md');
+        if (!hasWelcomeTab) {
+          createNewTab(getWelcomeContent(), '서식 정의 미리보기.md');
+        } else {
+          const welcomeTab = tabsRef.current.find(t => t.name === '서식 정의 미리보기.md');
+          if (welcomeTab) switchTab(welcomeTab.id);
+        }
+      }
+
+      previewModeRef.current = next;
+      if (next === 'preview') {
+        isEditorMountedRef.current = false;
+      } else {
+        isEditorMountedRef.current = true;
+      }
+      return next;
+    });
+  }, [setContent, createNewTab, switchTab]);
+
+  const closeTab = useCallback((tabId: string, event?: React.MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+    }
+
+    const tabToClose = tabsRef.current.find(t => t.id === tabId);
+    if (!tabToClose) return;
+
+    const performClose = () => {
+      if (tabToClose.model) {
+        tabToClose.model.dispose();
+      }
+
+      // 💡 서식 설정 전용 '서식 정의 미리보기.md' 탭을 닫으면 서식 설정창(CssStyleForm) 패널도 함께 닫음 (기본 분할 화면 'both' 모드로 전환)
+      if (tabToClose.name === '서식 정의 미리보기.md') {
+        setPreviewModeRaw('both');
+        previewModeRef.current = 'both';
+        isEditorMountedRef.current = true;
+      }
+
+      const nextTabs = tabsRef.current.filter(t => t.id !== tabId);
+      setTabs(nextTabs);
+
+      if (activeTabIdRef.current === tabId) {
+        if (nextTabs.length > 0) {
+          const closeIndex = tabsRef.current.findIndex(t => t.id === tabId);
+          const nextActiveIndex = Math.max(0, closeIndex - 1);
+          const nextActiveTab = nextTabs[nextActiveIndex] || nextTabs[0];
+          switchTab(nextActiveTab.id);
+        } else {
+          createNewTab("");
+        }
+      }
+    };
+
+    if (tabToClose.isModified) {
+      setConfirmConfig({
+        isOpen: true,
+        title: "저장되지 않은 변경사항",
+        message: `'${tabToClose.name}' 파일의 변경사항이 저장되지 않았습니다. 저장하지 않고 닫으시겠습니까?`,
+        confirmText: "저장하지 않고 닫기",
+        cancelText: "취소",
+        isDanger: true,
+        onConfirm: () => {
+          performClose();
+        }
+      });
+      return;
+    }
+
+    performClose();
+  }, [createNewTab, switchTab, setTabs]);
+  
+  const useEditorSettingsResult = useEditorSettings(
+    editorRef,
+    mounted,
+    setMounted,
+    previewMode,
+    setPreviewMode,
+    setSidebarWidth,
+    setActiveProfileId,
+    setWorkspaceType,
+    setRootFolder,
+    setIsAddonEnv,
+    showToast
+  );
+
+  // 💡 [TDZ 방어] useEditorSettings 반환값을 즉시 구조분해 할당하여 TDZ 에러 방지
+  const {
+    isDarkMode,
+    setIsDarkMode,
+    fontSize,
+    setFontSize,
+    wordWrap,
+    setWordWrap,
+    autoSave,
+    setAutoSave,
+    quoteStyle,
+    setQuoteStyle,
+    themePalette,
+    setThemePalette,
+    licenseKey,
+    setLicenseKey,
+    customHotkeys,
+    setCustomHotkeys,
+    customSlashCommands,
+    setCustomSlashCommands,
+    customSlashCommandsRef,
+    handleThemeChange
+  } = useEditorSettingsResult;
+
+  // 💡 [TDZ 방어] autoSaveRef: useEditorSettingsResult에서 autoSave를 확보한 후 선언
+  const autoSaveRef = useRef(autoSave);
+  useEffect(() => { autoSaveRef.current = autoSave; }, [autoSave]);
+
+  const isActivated = licenseStatus.isActivated;
+
+  const usePageBreakResult = usePageBreak(editorRef, previewRef, profiles, activeProfileId, showToast);
+
+  // 💡 [TDZ 방어] usePageBreak 반환값을 즉시 구조분해 할당
+  const {
+    isAutoPageBreakingRef,
+    lastPageBreakCountRef,
+    handleResetPageBreaks,
+    executeAutoPageBreak
+  } = usePageBreakResult;
+
   const decorationsCollectionRef = useRef<any>(null);
   const decorationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -1173,10 +1286,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       decorationsCollectionRef.current.set(newDecorations);
     }
   }, []);
-  const previewRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
-  const lastSavedContentRef = useRef<string>('');
-  const autoSaveRef = useRef(autoSave);
+  // autoSaveRef, lastSavedContentRef는 위(L1101)에서 이미 선언됨
   const isScrollingRef = useRef<'editor' | 'preview' | null>(null);
   const scrollTimeoutRef = useRef<any>(null);
   const prevCursorLineRef = useRef<number | null>(null);
@@ -1211,289 +1322,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     };
   }, [previewMode]);
 
-  useEffect(() => {
-    const restoreSettings = async () => {
-      // 1. 기본 설정 및 복원용 임시 구조체 정의
-      let baseSettings = {
-        isDarkMode: false,
-        fontSize: 15,
-        wordWrap: 'on' as 'on' | 'off',
-        autoSave: true,
-        previewMode: 'both' as 'edit' | 'both' | 'preview' | 'css-style',
-        quoteStyle: 'modern' as 'modern' | 'clean' | 'none',
-        customHotkeys: getDefaultHotkeys(),
-        customSlashCommands: getDefaultCommands(),
-        themePalette: 'onrivi-light',
-        licenseKey: 'chae6^jung1!jang3#&'
-      };
 
-      // 2. 브라우저 로컬 스토리지 복원 시도
-      try {
-        const localData = localStorage.getItem('onrivi_settings');
-        if (localData) {
-          Object.assign(baseSettings, JSON.parse(localData));
-          if (baseSettings.previewMode === 'css-style') baseSettings.previewMode = 'both';
-        } else {
-          // 하위 호환용 개별 로드
-          const legacyFontSize = localStorage.getItem('fontSize');
-          if (legacyFontSize) baseSettings.fontSize = parseInt(legacyFontSize);
-          const legacyWordWrap = localStorage.getItem('wordWrap');
-          if (legacyWordWrap) baseSettings.wordWrap = legacyWordWrap as any;
-          const legacyQuoteStyle = localStorage.getItem('quoteStyle');
-          if (legacyQuoteStyle) baseSettings.quoteStyle = legacyQuoteStyle as any;
-          const legacyTheme = localStorage.getItem('theme');
-          if (legacyTheme) baseSettings.isDarkMode = legacyTheme === 'dark';
-          const legacyThemePalette = localStorage.getItem('themePalette');
-          if (legacyThemePalette) baseSettings.themePalette = legacyThemePalette;
-          const legacyAutoSave = localStorage.getItem('autoSave');
-          if (legacyAutoSave) baseSettings.autoSave = legacyAutoSave === 'true';
-          const legacyPreviewMode = localStorage.getItem('previewMode');
-          if (legacyPreviewMode) baseSettings.previewMode = legacyPreviewMode as any;
-
-          const savedHotkeys = localStorage.getItem('customHotkeys');
-          if (savedHotkeys) {
-            Object.assign(baseSettings.customHotkeys, JSON.parse(savedHotkeys));
-          }
-          const savedSlashCmds = localStorage.getItem('customSlashCommands');
-          if (savedSlashCmds) {
-            Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
-          }
-        }
-      } catch (e) {
-        console.error('로컬스토리지 로드 실패:', e);
-      }
-
-      // 3. 크롬 익스텐션(애드온) 스토리지 복원 시도
-      const chromeStorage = (window as any).chrome?.storage?.local;
-      if (chromeStorage) {
-        try {
-          const result = await new Promise<any>((resolve) => {
-            chromeStorage.get(['onrivi_settings'], (res: any) => resolve(res || {}));
-          });
-          if (result && result.onrivi_settings) {
-            Object.assign(baseSettings, result.onrivi_settings);
-            if (baseSettings.previewMode === 'css-style') baseSettings.previewMode = 'both';
-          }
-        } catch (e) {
-          console.error('크롬 스토리지 로드 실패:', e);
-        }
-      }
-
-      // 4. 데스크탑 Electron 로컬 디스크 복원 시도
-      const api = (window as any).electronAPI;
-      if (api && typeof api.loadSettings === 'function') {
-        try {
-          const desktopData = await api.loadSettings();
-          if (desktopData) {
-            Object.assign(baseSettings, desktopData);
-          }
-        } catch (e) {
-          console.error('데스크탑 스토리지 로드 실패:', e);
-        }
-      }
-
-      // 신규 단축키 및 명령어 주입 (기존 사용자 설정 온전 보존)
-      const defaultHotkeys = getDefaultHotkeys();
-      const defaultCommands = getDefaultCommands();
-
-      Object.keys(defaultHotkeys).forEach((key) => {
-        if (baseSettings.customHotkeys[key] === undefined) {
-          baseSettings.customHotkeys[key] = defaultHotkeys[key];
-        }
-      });
-
-      Object.keys(defaultCommands).forEach((key) => {
-        if (baseSettings.customSlashCommands[key] === undefined) {
-          baseSettings.customSlashCommands[key] = defaultCommands[key];
-        }
-      });
-
-      // 5. 기본 상태 세팅
-      setIsDarkMode(baseSettings.isDarkMode);
-      setFontSize(baseSettings.fontSize);
-      setWordWrap(baseSettings.wordWrap);
-      setAutoSave(baseSettings.autoSave);
-      setPreviewMode(baseSettings.previewMode);
-      setQuoteStyle(baseSettings.quoteStyle);
-      setCustomHotkeys(baseSettings.customHotkeys);
-      setCustomSlashCommands(baseSettings.customSlashCommands);
-      setThemePalette(baseSettings.themePalette);
-      setLicenseKey(baseSettings.licenseKey);
-
-      // DOM 다크모드 적용
-      if (baseSettings.isDarkMode) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-
-      // 모나코 테마 수동 세팅
-      if (editorRef.current && (window as any).monaco) {
-        const monaco = (window as any).monaco;
-        monaco.editor.setTheme(baseSettings.themePalette);
-      }
-
-      // 사이드바 너비 로드
-      const savedWidth = localStorage.getItem('sidebarWidth');
-      if (savedWidth) setSidebarWidth(parseInt(savedWidth));
-
-      const savedProfileId = localStorage.getItem('activeCssProfileId');
-      if (savedProfileId) setActiveProfileId(savedProfileId);
-
-      // 6. 애드온 환경 감지 및 폴더 연결 복원
-      const detectedAddon = typeof window !== 'undefined' && (
-        new URLSearchParams(window.location.search).get('env') === 'addon' ||
-        !!((window as any).chrome?.runtime?.id)
-      );
-      setIsAddonEnv(detectedAddon);
-
-      // 로컬스토리지에 저장된 워크스페이스 타입 복원
-      const savedWorkspaceType = localStorage.getItem('workspaceType') || 'local';
-      const activeWorkspaceType = detectedAddon ? 'browser' : savedWorkspaceType;
-      setWorkspaceType(activeWorkspaceType as any);
-
-      // 브라우저/애드온(browser) 모드: File System Access API 사용, 백엔드 불필요
-      if (activeWorkspaceType === 'browser') {
-        setPreviewMode(baseSettings.previewMode);
-
-        // 🛡️ [브라우저/애드온 폴더 자동 연결 가드] IndexedDB에서 이전 폴더 핸들을 가져와 복원 시도
-        try {
-          const savedHandle = await idb.get('rootFolderHandle');
-          if (savedHandle) {
-            const isPermissionGranted = (await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted';
-            if (isPermissionGranted) {
-              setRootFolder({ name: savedHandle.name, handle: savedHandle });
-            } else {
-              setRootFolder({ name: savedHandle.name, handle: savedHandle, needPermission: true } as any);
-            }
-          } else {
-            setRootFolder(null);
-          }
-        } catch (idbErr) {
-          console.warn('[Onrivi Author] IndexedDB 폴더 핸들 복구 실패:', idbErr);
-          setRootFolder(null);
-        }
-      } else {
-        const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-        let rootPath: string | null = null;
-
-        if (!isElectron) {
-          try {
-            const res = await fetch(getApiUrl('/api/get-root'));
-            if (res.ok) {
-              const data = await res.json();
-              if (data.currentRoot) {
-                rootPath = data.currentRoot;
-              }
-            }
-          } catch (err) {
-            showToast('백엔드 루트 경로 조회 실패.', 'warning');
-          }
-        }
-
-        if (rootPath) {
-          setRootFolder({ name: rootPath });
-          localStorage.setItem('rootFolder', JSON.stringify({ name: rootPath }));
-        } else {
-          const savedFolder = localStorage.getItem('rootFolder');
-          if (savedFolder) {
-            try {
-              const folder = JSON.parse(savedFolder);
-              const hasInvalidChar = folder.name && (
-                folder.name.includes('?') ||
-                folder.name.includes('\uFFFD')
-              );
-              if (hasInvalidChar) {
-                showToast('워크스페이스 캐시가 유효하지 않아 초기화합니다.', 'warning');
-                localStorage.removeItem('rootFolder');
-                localStorage.removeItem('workspaceType');
-                setRootFolder(null);
-              } else if (folder.name && folder.name !== '브라우저 스토리지' && folder.name !== 'C:\\') {
-                setRootFolder(folder);
-              } else {
-                localStorage.removeItem('rootFolder');
-                localStorage.removeItem('workspaceType');
-              }
-            } catch (e) {
-              localStorage.removeItem('rootFolder');
-            }
-          }
-        }
-      }
-
-      // 윈도우 파일 연결: 초기 파일 경로를 pull (마운트 전에 확보)
-      if (typeof window !== 'undefined' && !!(window as any).electronAPI) {
-        try {
-          const pendingPath = await (window as any).electronAPI.getInitialFilePath();
-          if (pendingPath) {
-            pendingExternalFileRef.current = pendingPath;
-          }
-        } catch (e) {
-          // getInitialFilePath 미지원 환경 → 조용히 무시
-        }
-      }
-
-      setMounted(true);
-    };
-
-    restoreSettings();
-  }, []);
-
-  // 💡 [환경설정 통합 영구 저장 가드]
-  // 모든 개별 설정값 중 하나라도 변경되면 localStorage, 크롬 익스텐션 스토리지, 데스크탑 스토리지에 동시 영구 저장합니다.
-  useEffect(() => {
-    if (!mounted) return;
-
-    const settings = {
-      isDarkMode,
-      fontSize,
-      wordWrap,
-      autoSave,
-      previewMode,
-      quoteStyle,
-      customHotkeys,
-      customSlashCommands,
-      licenseKey,
-      themePalette
-    };
-
-    // 1. 브라우저 로컬 스토리지 저장 (css-style은 일시 모드이므로 저장하지 않음)
-    localStorage.setItem('onrivi_settings', JSON.stringify(settings));
-    // 개별 레거시 키 호환 유지
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-    localStorage.setItem('fontSize', fontSize.toString());
-    localStorage.setItem('wordWrap', wordWrap);
-    localStorage.setItem('quoteStyle', quoteStyle);
-    localStorage.setItem('customHotkeys', JSON.stringify(customHotkeys));
-    localStorage.setItem('customSlashCommands', JSON.stringify(customSlashCommands));
-    localStorage.setItem('themePalette', themePalette);
-    localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
-    if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
-
-    // 2. 크롬 익스텐션(애드온) 스토리지 동시 저장
-    const chromeStorage = (window as any).chrome?.storage?.local;
-    if (chromeStorage) {
-      chromeStorage.set({ onrivi_settings: settings });
-    }
-
-    // 3. 데스크탑 Electron 로컬 디스크 동시 저장
-    const api = (window as any).electronAPI;
-    if (api && typeof api.saveSettings === 'function') {
-      api.saveSettings(settings);
-    }
-  }, [
-    mounted,
-    isDarkMode,
-    fontSize,
-    wordWrap,
-    autoSave,
-    previewMode,
-    quoteStyle,
-    customHotkeys,
-    customSlashCommands,
-    licenseKey,
-    themePalette
-  ]);
 
 
 
@@ -1807,491 +1636,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     document.body.style.userSelect = 'none';
   }, [handleMouseMove, stopResizing]);
 
-  const refreshFileList = useCallback(async () => {
-    let activeType = workspaceType;
 
-    if (activeType === 'browser') {
-      if (rootFolder?.handle && !(rootFolder as any)?.needPermission) {
-        try {
-          const list = await scanDirectory(rootFolder.handle);
-          setFileList(list);
-        } catch (e) {
-          if (rootFolder) {
-            setRootFolder({ ...rootFolder, needPermission: true } as any);
-          }
-          const list = getVfsFiles();
-          setFileList(list);
-        }
-      } else {
-        const list = getVfsFiles();
-        setFileList(list);
-      }
-    } else if (activeType === 'local') {
-      const api = (window as any).electronAPI;
-      if (api?.readFromPath) {
-        if (rootFolder?.name) {
-          try {
-            const list = await api.listDirectory(rootFolder.name);
-            if (list) setFileList(list);
-          } catch (e: any) {
-            showToast('파일 목록 조회 실패. 잠시 후 다시 시도해 주세요.', 'error');
-            showToast(`워크스페이스 파일 목록을 갱신하지 못했습니다: ${e?.message || e}`, 'warning');
-          }
-        } else {
-          setFileList([]);
-        }
-      } else {
-        try {
-          const res = await fetch(getApiUrl(`/api/files?t=${Date.now()}`));
-          if (res.ok) {
-            const list = await res.json();
-            setFileList(list);
-          }
-        } catch (err) {
-          showToast('파일 목록 조회 실패. 잠시 후 다시 시도해 주세요.', 'error');
-        }
-      }
-    }
-  }, [rootFolder, workspaceType]);
 
-  useEffect(() => {
-    if (mounted) {
-      refreshFileList();
-    }
-  }, [refreshFileList, mounted]);
 
-  const selectRootFolder = async (type: 'local' | 'cloud' | 'browser', provider: string | null = null) => {
-    if (type === 'browser') {
-      try {
-        // 웹 브라우저 로컬스토리지 3번 선택 시 (provider가 없을 때)
-        if (!provider) {
-          const folder = { name: '브라우저 스토리지' };
-          await idb.set('rootFolderHandle', null); // 기존 디렉토리 핸들 클리어
-          setRootFolder(folder);
-          setWorkspaceType('browser');
-          localStorage.setItem('rootFolder', JSON.stringify({ name: '브라우저 스토리지' }));
-          localStorage.setItem('workspaceType', 'browser');
-          await refreshFileList();
-          showToast("로컬 스토리지 워크스페이스가 연결되었습니다.", "success");
-          return;
-        }
 
-        if (typeof (window as any).showDirectoryPicker === 'function') {
-          const handle = await (window as any).showDirectoryPicker();
-          const folder = { name: handle.name, handle };
-          await idb.set('rootFolderHandle', handle); // 새로고침 유지용 핸들 저장
-          setRootFolder(folder);
-          setWorkspaceType('browser');
-          localStorage.setItem('rootFolder', JSON.stringify({ name: handle.name }));
-          localStorage.setItem('workspaceType', 'browser');
-          await refreshFileList();
-          showToast("브라우저 워크스페이스가 연결되었습니다.", "success");
-        } else {
-          const folder = { name: '브라우저 스토리지' };
-          await idb.set('rootFolderHandle', null);
-          setRootFolder(folder);
-          setWorkspaceType('browser');
-          localStorage.setItem('rootFolder', JSON.stringify({ name: '브라우저 스토리지' }));
-          localStorage.setItem('workspaceType', 'browser');
-          await refreshFileList();
-          showToast("로컬 스토리지 워크스페이스가 연결되었습니다.", "success");
-        }
-      } catch (err) {
-        showToast('워크스페이스 선택 중 오류가 발생했습니다.', 'error');
-        // 에러 또는 거부 시 로컬스토리지로 대체
-        const folder = { name: '브라우저 스토리지' };
-        await idb.set('rootFolderHandle', null);
-        setRootFolder(folder);
-        setWorkspaceType('browser');
-        localStorage.setItem('rootFolder', JSON.stringify({ name: '브라우저 스토리지' }));
-        localStorage.setItem('workspaceType', 'browser');
-        await refreshFileList();
-        showToast("로컬 스토리지 워크스페이스로 전환되었습니다.", "info");
-      }
-    } else if (type === 'local') {
-      await idb.set('rootFolderHandle', null);
 
-      const hasElectronAPI = typeof window !== 'undefined' && !!(window as any).electronAPI;
-
-      if (hasElectronAPI) {
-        try {
-          let currentLocalPath: string | undefined = undefined;
-          try {
-            const savedRoot = localStorage.getItem('rootFolder');
-            if (savedRoot) {
-              const parsed = JSON.parse(savedRoot);
-              if (parsed && parsed.name && parsed.name !== '브라우저 스토리지') {
-                currentLocalPath = parsed.name;
-              }
-            }
-          } catch (_) {}
-
-          const targetPath = currentLocalPath || rootFolderRef.current?.name;
-          const result = await (window as any).electronAPI.selectFolder(targetPath);
-          if (result.status === 'success') {
-            const finalRoot = result.path;
-            // 백엔드에 저장 (실패해도 로컬에는 저장)
-            try {
-              await fetch(getApiUrl('/api/set-root'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newRoot: finalRoot })
-              });
-            } catch (_) { }
-            setRootFolder({ name: finalRoot });
-            setWorkspaceType('local');
-            localStorage.setItem('rootFolder', JSON.stringify({ name: finalRoot }));
-            localStorage.setItem('workspaceType', 'local');
-            await refreshFileList();
-            showToast(`워크스페이스가 ${finalRoot}(으)로 변경되었습니다.`, 'success');
-          } else if (result.status === 'canceled') {
-            showToast("폴더 선택이 취소되었습니다.", "info");
-          }
-        } catch (err: any) {
-          showToast("폴더 선택 오류: " + err.message, "error");
-        }
-      } else if (typeof (window as any).showDirectoryPicker === 'function') {
-        // 브라우저: File System Access API (OS 탐색기)
-        try {
-          const handle = await (window as any).showDirectoryPicker();
-          const folder = { name: handle.name, handle };
-          await idb.set('rootFolderHandle', handle);
-          setRootFolder(folder);
-          setWorkspaceType('browser');
-          localStorage.setItem('rootFolder', JSON.stringify({ name: handle.name }));
-          localStorage.setItem('workspaceType', 'browser');
-          await refreshFileList();
-          showToast("워크스페이스 폴더가 연결되었습니다.", "success");
-        } catch (err) {
-          if ((err as any)?.name !== 'AbortError' && (err as any)?.name !== 'SecurityError') {
-            showToast('워크스페이스 선택 중 오류가 발생했습니다.', 'error');
-          }
-          showToast("폴더 선택이 취소되었습니다.", "info");
-        }
-      } else {
-        // showDirectoryPicker 미지원 환경 → localStorage VFS
-        const folder = { name: '브라우저 스토리지' };
-        await idb.set('rootFolderHandle', null);
-        setRootFolder(folder);
-        setWorkspaceType('browser');
-        localStorage.setItem('rootFolder', JSON.stringify({ name: '브라우저 스토리지' }));
-        localStorage.setItem('workspaceType', 'browser');
-        await refreshFileList();
-        showToast("로컬 스토리지 워크스페이스가 연결되었습니다.", "success");
-      }
-    }
-  };
-
-  const restoreFolderPermission = async () => {
-    if (!rootFolder?.handle) return;
-    try {
-      const status = await rootFolder.handle.requestPermission({ mode: 'readwrite' });
-      if (status === 'granted') {
-        const restoredFolder = { name: rootFolder.handle.name, handle: rootFolder.handle };
-        setRootFolder(restoredFolder);
-        showToast("이전 워크스페이스 폴더가 정상 복구되었습니다.", "success");
-        // 상태 갱신 반영을 유도
-        setTimeout(() => refreshFileList(), 100);
-      } else {
-        showToast("폴더 읽기/쓰기 권한 승인이 거부되었습니다.", "warning");
-      }
-    } catch (err: any) {
-      if (err?.name !== 'AbortError') {
-        showToast(`권한 복구 실패: ${err.message}`, "error");
-      }
-    }
-  };
-
-  const handleFileOpenByPath = async (resolvedPath: string) => {
-    // 💡 도움말 보기 중이면 도움말 파일 간 이동으로 처리
-    if (helpContentRef.current) {
-      const api = (window as any).electronAPI;
-      const helpPath = resolvedPath.startsWith('docs/') ? resolvedPath : 'docs/help/' + resolvedPath.replace(/^\//, '');
-      const loadHelp = async (content: string) => {
-        setHelpContent(stripFrontmatter(content));
-        const fileName = helpPath.split('/').pop()?.replace('.md', '') || '';
-        const titleMap: Record<string, string> = {
-          '00_시작하기': '시작하기', '01_마크다운에디트란': '마크다운 에디트란',
-          '02_에디터-기본': '에디터 기본 사용법', '03_파일-관리': '파일 관리',
-          '04_미리보기-모드': '미리보기 모드', '05_서식-정의': '서식 정의',
-          '06_내보내기': '내보내기', '07_표-체크리스트': '표 및 체크리스트',
-          '08_다이어그램-수식': '다이어그램 및 수식', '09_슬래시-명령어': '슬래시 명령어 및 단축키',
-          '10_한글-입력': '한글 입력', '11_미디어-삽입': '미디어 삽입',
-          '12_내보내기-고급': '내보내기 고급', '13_설정': '설정 및 커스터마이징'
-        };
-        setHelpTitle(titleMap[fileName] || fileName);
-      };
-      if (api?.readFromPath) {
-        try {
-          const file = await api.readFromPath(helpPath);
-          await loadHelp(file.content);
-        } catch { setHelpContent('## 문서를 불러올 수 없습니다.'); }
-      } else {
-        try {
-          const res = await fetch('./' + helpPath);
-          const text = await res.text();
-          await loadHelp(text);
-        } catch { setHelpContent('## 문서를 불러올 수 없습니다.'); }
-      }
-      return;
-    }
-
-    // 💡 [한글 주석] 전체 fileList 트리 구조에서 resolvedPath와 일치하는 파일 노드를 재귀 탐색
-    const findNodeByPath = (nodes: FileNode[], targetPath: string): { node: FileNode, parent: any } | null => {
-      const normalizedTarget = targetPath.replace(/\\/g, '/').toLowerCase();
-      for (const node of nodes) {
-        const normalizedNodePath = (node.path || '').replace(/\\/g, '/').toLowerCase();
-        if (normalizedNodePath === normalizedTarget && node.kind === 'file') {
-          return { node, parent: rootFolder?.handle || null };
-        }
-        if (node.children && node.children.length > 0) {
-          const found = findNodeByPath(node.children, targetPath);
-          if (found) {
-            return { node: found.node, parent: found.parent || node.handle };
-          }
-        }
-      }
-      return null;
-    };
-
-    const findResult = findNodeByPath(fileList, resolvedPath);
-    if (findResult) {
-      await handleFileClick(findResult.node, findResult.parent);
-      return;
-    }
-
-    // 💡 [한글 주석/가드] API가 없는 브라우저/애드온 환경에서 트리 탐색 실패 시의 파일 fetch 및 탭 생성 폴백
-    const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isElectron) {
-      try {
-        let fetchPath = resolvedPath;
-        // 경로 안에 docs/ 가 포함되어 있다면 이를 정적 경로인 './docs/...' 로 매핑합니다.
-        const docsIndex = resolvedPath.replace(/\\/g, '/').indexOf('docs/');
-        if (docsIndex !== -1) {
-          fetchPath = './' + resolvedPath.replace(/\\/g, '/').substring(docsIndex);
-        } else if (resolvedPath.startsWith('docs/')) {
-          fetchPath = './' + resolvedPath;
-        }
-        
-        const res = await fetch(fetchPath);
-        if (res.ok) {
-          const text = await res.text();
-          const filename = resolvedPath.split(/[/\\]/).pop() || '문서.md';
-          
-          const existingTab = tabsRef.current.find(t => t.name === filename || t.path === resolvedPath);
-          if (existingTab) {
-            switchTab(existingTab.id);
-          } else {
-            createNewTab(text, filename);
-            // 생성된 새 탭에 경로 맵핑 주입
-            setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedPath } : t));
-          }
-          return;
-        }
-      } catch (err) {
-        console.error('[Browser Open Path Fallback Error]', err);
-      }
-    }
-
-    // 💡 [한글 주석] 로컬 모드에서 트리에 아직 편입되지 않은 절대 경로가 넘어왔을 때의 폴백 구조
-    if (workspaceType !== 'browser') {
-      const filename = resolvedPath.split('/').pop() || '파일.md';
-      const dummyNode: FileNode = {
-        name: filename,
-        path: resolvedPath,
-        kind: 'file'
-      };
-      await handleFileClick(dummyNode);
-      return;
-    }
-
-    showToast('해당 파일 노드를 찾을 수 없습니다.', 'error');
-  };
-
-  const handleFileClick = async (node: FileNode | null, parentHandle?: any) => {
-    // 💡 사용자가 파일을 선택하면 도움말 종료 및 css-style 모드 해제
-    setHelpContent(null);
-    setHelpTitle('');
-    if (previewModeRef.current === 'css-style') {
-      setPreviewModeRaw('preview');
-      previewModeRef.current = 'preview';
-      isEditorMountedRef.current = false;
-    }
-
-    // 💡 부모 폴더 핸들을 레퍼런스에 저장하여 저장 시 startIn 경로로 활용
-    currentFileParentHandleRef.current = parentHandle || null;
-
-    if (!node) {
-      createNewTab();
-      return;
-    }
-    if (node.kind === 'directory') return;
-
-    // 이미 열려 있는 탭 중 동일 파일이 있는지 검사
-    const existingTab = tabsRef.current.find(t => 
-      (node.path && t.path === node.path) || 
-      (node.handle && t.node?.handle === node.handle)
-    );
-
-    if (existingTab) {
-      switchTab(existingTab.id);
-      if (isSearchOpen) setIsSearchOpen(false);
-      setIsSidebarOpen(true);
-      return;
-    }
-
-    try {
-      let activeMode = workspaceType;
-      if (workspaceType === 'browser') {
-        activeMode = 'browser';
-      } else if (node.path && !node.handle) {
-        activeMode = 'local';
-      } else if (node.handle && !node.path) {
-        activeMode = 'browser';
-      }
-
-      let fileContent = '';
-      if (activeMode === 'browser') {
-        if (node.handle) {
-          const file = await node.handle.getFile();
-          fileContent = await file.text();
-        } else if (node.path) {
-          fileContent = vfsReadFile(node.path);
-        }
-      } else if (activeMode === 'local' && node.path) {
-        const api = (window as any).electronAPI;
-        if (api?.readFromPath) {
-          try {
-            const file = await api.readFromPath(node.path);
-            if (file) {
-              fileContent = file.content;
-            }
-          } catch (e) {
-            showToast('파일 읽기 실패', 'error');
-          }
-        } else {
-          const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
-          if (res.ok) {
-            const data = await res.json();
-            fileContent = data.content;
-          }
-        }
-      }
-
-      const monaco = (window as any).monaco;
-      let model: any = null;
-      const newTabId = node.path || node.handle?.name || 'tab-' + Date.now();
-
-      if (monaco) {
-        model = monaco.editor.createModel(fileContent, 'markdown');
-        model.onDidChangeContent(() => {
-          const val = model.getValue();
-          setContent(val);
-          setTabs(prev => prev.map(t => t.id === newTabId ? { ...t, content: val, isModified: true } : t));
-        });
-      }
-
-      const newTab: EditorTab = {
-        id: newTabId,
-        name: node.name,
-        path: node.path || null,
-        node: node,
-        content: fileContent,
-        isModified: false,
-        model: model
-      };
-
-      setTabs(prev => [...prev, newTab]);
-      setActiveTabId(newTabId);
-
-      setContent(fileContent);
-      setCurrentFileName(node.name);
-      setCurrentFileNode(node);
-
-      if (editorRef.current && model) {
-        editorRef.current.setModel(model);
-        requestAnimationFrame(() => {
-          editorRef.current.setScrollTop(0);
-        });
-      }
-      if (previewRef.current) {
-        previewRef.current.scrollTop = 0;
-      }
-
-      const openedMsg = `${node.name} 파일을 열었습니다.`;
-      showToast(openedMsg, "info");
-      if (isSearchOpen) setIsSearchOpen(false);
-      setIsSidebarOpen(true);
-    } catch (err) {
-      showToast("파일을 여는데 실패했습니다.", "error");
-    }
-  };
-
-  const saveFile = useCallback(async (targetContent: string, targetFile: FileNode | null) => {
-    if (!targetFile) return false;
-    try {
-      let success = false;
-      const api = typeof window !== 'undefined' && (window as any).electronAPI;
-      
-      // 애드온/브라우저 환경 판별 (electron API가 없는 경우)
-      const isWebOrAddon = !api;
-      const effectiveWorkspaceType = isWebOrAddon ? 'browser' : workspaceType;
-
-      if (api) {
-        success = await api.saveFile(targetFile.path, targetContent);
-        if (success) {
-          lastSavedContentRef.current = targetContent;
-        }
-      } else if (effectiveWorkspaceType === 'local') {
-        const res = await fetch(getApiUrl('/api/save'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: targetFile.path, content: targetContent })
-        });
-        if (res.ok) {
-          lastSavedContentRef.current = targetContent;
-          success = true;
-        }
-      } else if (effectiveWorkspaceType === 'browser') {
-        if (targetFile.handle) {
-          // 크롬 애드온 보안 가드: 핸들의 쓰기 권한이 허용된 상태인지 먼저 쿼리 후 안전하게 쓰기
-          const permissionMode = { mode: 'readwrite' as const };
-          let isGranted = (await targetFile.handle.queryPermission(permissionMode)) === 'granted';
-          if (!isGranted) {
-            isGranted = (await targetFile.handle.requestPermission(permissionMode)) === 'granted';
-          }
-          if (isGranted) {
-            const writable = await targetFile.handle.createWritable();
-            await writable.write(targetContent);
-            await writable.close();
-            lastSavedContentRef.current = targetContent;
-            success = true;
-          } else {
-            showToast("파일 쓰기 권한이 거부되었습니다.", "error");
-            return false;
-          }
-        } else if (targetFile.path) {
-          vfsWriteFile(targetFile.path, targetContent);
-          lastSavedContentRef.current = targetContent;
-          success = true;
-        }
-      }
-
-      if (success) {
-        setTabs(prev => prev.map(t => 
-          (targetFile.path && t.path === targetFile.path) || 
-          (targetFile.handle && t.node?.handle === targetFile.handle)
-            ? { ...t, isModified: false } 
-            : t
-        ));
-      }
-      return success;
-    } catch (e: any) {
-      console.error('[saveFile Error]', e);
-      showToast('파일 저장 중 오류가 발생했습니다. 권한을 확인해 주세요.', 'error');
-    }
-    return false;
-  }, [workspaceType]);
 
   useEffect(() => {
     if (currentFileNode) {
@@ -2499,35 +1848,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       editor.executeEdits("insertTagLink", [{ range, text: textToInsert, forceMoveMarkers: true }]);
     }
     editor.focus();
-  };
-
-  const getRelativePath = (fromPath: string | null | undefined, toPath: string): string => {
-    if (!fromPath) {
-      return toPath.startsWith('/') || toPath.startsWith('.') ? toPath : `./${toPath}`;
-    }
-    const normFrom = fromPath.replace(/\\/g, '/');
-    const normTo = toPath.replace(/\\/g, '/');
-    const fromParts = normFrom.split('/').filter(Boolean);
-    const toParts = normTo.split('/').filter(Boolean);
-    
-    // 파일명을 제외한 폴더 경로만 추출
-    fromParts.pop(); 
-    
-    let commonIndex = 0;
-    while (commonIndex < fromParts.length && commonIndex < toParts.length && fromParts[commonIndex] === toParts[commonIndex]) {
-      commonIndex++;
-    }
-    
-    const upCount = fromParts.length - commonIndex;
-    const upParts = Array(upCount).fill('..');
-    const downParts = toParts.slice(commonIndex);
-    
-    const relParts = [...upParts, ...downParts];
-    let relPath = relParts.join('/');
-    if (!relPath.startsWith('.') && !relPath.startsWith('/')) {
-      relPath = './' + relPath;
-    }
-    return relPath;
   };
 
   const readFileText = async (node: FileNode): Promise<string> => {
@@ -3202,711 +2522,55 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     editor.focus();
   };
 
-  const handlers = {
-    footnote: () => {
-      if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
-      const editor = editorRef.current;
-      const model = editor.getModel();
-      if (!model) return;
-
-      const selection = editor.getSelection();
-      const position = editor.getPosition();
-      if (!position || !selection) return;
-
-      const fullText = model.getValue();
-      const footnoteRegex = /\[\^(\d+)\]/g;
-      let maxNumber = 0;
-      let match;
-      while ((match = footnoteRegex.exec(fullText)) !== null) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNumber) {
-          maxNumber = num;
-        }
-      }
-      const nextNumber = maxNumber + 1;
-      const footnoteRef = `[^${nextNumber}]`;
-      const footnoteDef = `\n\n[^${nextNumber}]: `;
-
-      editor.pushUndoStop();
-      const Range = (window as any).monaco.Range;
-      
-      const range = new Range(
-        selection.startLineNumber,
-        selection.startColumn,
-        selection.endLineNumber,
-        selection.endColumn
-      );
-      
-      const lineCount = model.getLineCount();
-      const lastLineLength = model.getLineLength(lineCount);
-      const lastLineRange = new Range(
-        lineCount,
-        lastLineLength + 1,
-        lineCount,
-        lastLineLength + 1
-      );
-
-      editor.executeEdits("insertFootnote", [
-        {
-          range: range,
-          text: footnoteRef,
-          forceMoveMarkers: true
-        },
-        {
-          range: lastLineRange,
-          text: footnoteDef,
-          forceMoveMarkers: true
-        }
-      ]);
-      editor.pushUndoStop();
-
-      setTimeout(() => {
-        const newLineCount = model.getLineCount();
-        const newLastLineLength = model.getLineLength(newLineCount);
-        editor.setPosition({
-          lineNumber: newLineCount,
-          column: newLastLineLength + 1
-        });
-        editor.focus();
-      }, 20);
-    },
-    insertText: (text: string) => {
-      if (!editorRef.current) return;
-      const position = editorRef.current.getPosition();
-      editorRef.current.executeEdits("insertText", [{
-        range: new (window as any).monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-        text: text,
-        forceMoveMarkers: true
-      }]);
-      editorRef.current.focus();
-    },
-    cleanDoc: () => {
-      if (!editorRef.current) return;
-      const editor = editorRef.current;
-
-      // 🌟 [IME 조합 강제 종료 격발]
-      // 한글 입력(IME) 중에 버튼을 누르거나 단축키를 실행하면, 활성화된 조합 버퍼가 존재하여
-      // executeEdits 실행 직후 IME가 이전 조합 텍스트를 덮어씌워 변경 사항(띄어쓰기 등)이 롤백되는 현상을 완벽 방어합니다.
-      const textarea = editor.getDomNode()?.querySelector('textarea');
-      if (textarea) {
-        textarea.blur();
-        textarea.focus();
-      }
-      isComposingRef.current = false; // 조합 플래그 명시적 리셋
-
-      const text = editor.getValue();
-      const cleanedText = sanitizePastedText(text, true);
-      if (text !== cleanedText) {
-        editor.pushUndoStop();
-        editor.executeEdits("cleanDoc", [{
-          range: editor.getModel().getFullModelRange(),
-          text: cleanedText
-        }]);
-        editor.pushUndoStop();
-        showToast("문서 내 서식(<br> 태그 등)이 일괄 정리되었습니다.", "success");
-      } else {
-        showToast("정리할 서식이 없습니다.", "info");
-      }
-    },
-    copyAll: async () => {
-      const rawMarkdown = contentRef.current || "";
-      if (rawMarkdown) {
-        try {
-          await navigator.clipboard.writeText(rawMarkdown);
-          showToast("에디터의 원본 마크다운 전체 내용이 클립보드에 복사되었습니다.", "success");
-        } catch (err) {
-          showToast("마크다운 복사에 실패했습니다.", "error");
-        }
-      } else {
-        showToast("복사할 마크다운 내용이 없습니다.", "info");
-      }
-    },
-    newFile: () => {
-      updateContent('');
-      setCurrentFileName('새 파일.md');
-      setCurrentFileNode(null);
-      lastSavedContentRef.current = '';
-      setIsSidebarOpen(true);
-      showToast("새 문서를 시작합니다.", "info");
-    },    save: async () => {
-      const api = (window as any).electronAPI;
-      setSaveStatus('saving');
-
-      // 💡 [WBS CORE-02 / 요구사항 4] Ref 백업값을 활용하여 Stale 클로저 덮어쓰기 버그 완벽 방어
-      const fileNode = currentFileNodeRef.current;
-      const fileName = currentFileNameRef.current;
-      const wType = workspaceTypeRef.current;
-      const currentVal = contentRef.current; // content 상태 대신 Ref 사용
-
-      // 1. 기존 파일이 이미 디스크/스토리지에 매핑되어 있는 경우 (명확한 덮어쓰기 저장)
-      const hasPathOrHandle = fileNode && (fileNode.path || fileNode.handle);
-      if (hasPathOrHandle && fileName !== '새 파일.md') {
-        if (api) {
-          try {
-            const success = await api.saveFile(fileNode.path, currentVal);
-            if (success) {
-              lastSavedContentRef.current = currentVal;
-              setSaveStatus('saved');
-              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
-              return;
-            }
-          } catch (e) {
-            setSaveStatus('unsaved');
-            showToast("저장 실패: " + e, 'error');
-            return;
-          }
-        } else if (wType === 'local') {
-          try {
-            const res = await fetch(getApiUrl('/api/save'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: fileNode.path, content: currentVal })
-            });
-            if (res.ok) {
-              lastSavedContentRef.current = currentVal;
-              setSaveStatus('saved');
-              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
-              return;
-            }
-          } catch (e: any) {
-            setSaveStatus('unsaved');
-            showToast("저장 실패: " + e.message, 'error');
-            return;
-          }
-        } else if (wType === 'browser') {
-          if (fileNode.handle) {
-            try {
-              const writable = await fileNode.handle.createWritable();
-              await writable.write(currentVal);
-              await writable.close();
-              lastSavedContentRef.current = currentVal;
-              setSaveStatus('saved');
-              showToast("현재 파일에 안전하게 저장되었습니다.", "success");
-              return;
-            } catch (e: any) {
-              setSaveStatus('unsaved');
-              showToast("저장 실패: " + e.message, 'error');
-              return;
-            }
-          } else {
-            vfsWriteFile(fileNode.path, currentVal);
-            lastSavedContentRef.current = currentVal;
-            setSaveStatus('saved');
-            showToast("현재 파일에 안전하게 저장되었습니다.", "success");
-            return;
-          }
-        }
-      }
-
-      // 2. 새 파일이거나 경로가 매핑되지 않은 완전한 신규 문서인 경우 (대화상자 호출)
-      if (api) {
-        // === Desktop: OS 저장 대화상자 하나로 파일명+폴더 선택 ===
-        try {
-          const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
-          const defaultDir = rootFolderRef.current?.name && rootFolderRef.current.name !== '브라우저 스토리지' ? rootFolderRef.current.name : undefined;
-          const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
-          if (file) {
-            const normalizedPath = file.path.replace(/\\/g, '/');
-            const parentPath = normalizedPath.includes('/')
-              ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/'))
-              : '';
-            const osParentPath = parentPath.replace(/\//g, '\\');
-            setRootFolder({ name: osParentPath });
-            setWorkspaceType('local');
-            localStorage.setItem('rootFolder', JSON.stringify({ name: osParentPath }));
-            localStorage.setItem('workspaceType', 'local');
-            setCurrentFileName(file.name);
-            setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-            lastSavedContentRef.current = currentVal;
-            setSaveStatus('saved');
-            await refreshFileList();
-            showToast(`'${file.name}' 저장 완료 · 워크스페이스 → ${osParentPath}`, 'success');
-          } else {
-            setSaveStatus('unsaved');
-          }
-        } catch (e) {
-          setSaveStatus('unsaved');
-          showToast("저장 실패: " + e, 'error');
-        }
-      } else if (typeof (window as any).showSaveFilePicker === 'function') {
-        // === Addon/Browser: OS 표준 파일 저장 대화상자 (사용자가 직접 폴더 이동 및 파일명 설정) ===
-        try {
-          const suggestedName = fileName !== '새 파일.md' ? fileName : 'untitled.md';
-
-          // 💡 현재 파일의 부모 핸들이 존재한다면 해당 경로에서 대화상자가 시작되도록 startIn 속성 결속
-          let startIn: any = undefined;
-          if (currentFileParentHandleRef.current) {
-            startIn = currentFileParentHandleRef.current;
-          } else if (fileNode?.handle) {
-            startIn = fileNode.handle;
-          } else if (rootFolderRef.current?.handle) {
-            startIn = rootFolderRef.current.handle;
-          }
-
-          const fileHandle = await (window as any).showSaveFilePicker({
-            suggestedName,
-            excludeAcceptAllOption: true,
-            startIn,
-            types: [{
-              description: 'Markdown Files (*.md)',
-              accept: {
-                'text/markdown': ['.md', '.markdown'],
-                'text/plain': ['.md', '.markdown']
-              }
-            }]
-          });
-
-          const writable = await fileHandle.createWritable();
-          await writable.write(currentVal);
-          await writable.close();
-
-          setCurrentFileName(fileHandle.name);
-          setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
-          lastSavedContentRef.current = currentVal;
-          setSaveStatus('saved');
-          await refreshFileList();
-          showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
-        } catch (e: any) {
-          if (e.name !== 'AbortError') {
-            setSaveStatus('unsaved');
-            showToast("저장 실패: " + e.message, 'error');
-          } else {
-            setSaveStatus('unsaved');
-          }
-        }
-      } else if (typeof (window as any).showDirectoryPicker === 'function') {
-        // === Fallback: showDirectoryPicker (showSaveFilePicker 미지원 시) ===
-        try {
-          const dirHandle = await (window as any).showDirectoryPicker();
-          const folderName = dirHandle.name;
-          setRootFolder({ name: folderName, handle: dirHandle });
-          setWorkspaceType('browser');
-          localStorage.setItem('rootFolder', JSON.stringify({ name: folderName }));
-          localStorage.setItem('workspaceType', 'browser');
-          setSaveStatus('unsaved');
-          showToast(`워크스페이스가 '${folderName}'(으)로 설정됨`, 'success');
-          setPromptConfig({
-            isOpen: true,
-            title: '파일명 입력',
-            defaultValue: fileName === '새 파일.md' ? 'untitled.md' : fileName,
-            type: 'createFile',
-            error: ""
-          });
-        } catch (e: any) {
-          if (e.name !== 'AbortError') {
-            setSaveStatus('unsaved');
-            showToast("폴더 선택 실패", 'error');
-          } else {
-            setSaveStatus('unsaved');
-          }
-        }
-      } else {
-        // VFS fallback: PromptModal
-        setPromptConfig({
-          isOpen: true,
-          title: '새 파일 생성',
-          defaultValue: fileName,
-          type: 'createFile',
-          error: ""
-        });
-        setSaveStatus('unsaved');
-      }
-    },
-
-    saveAs: async () => {
-      const api = (window as any).electronAPI;
-      const fileName = currentFileNameRef.current;
-      const fileNode = currentFileNodeRef.current;
-      const rootFld = rootFolderRef.current;
-      const currentVal = contentRef.current; // Stale 클로저 버그 방어
-
-      const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
-      const defaultDir = rootFld?.name && rootFld.name !== '브라우저 스토리지' ? rootFld.name : undefined;
-
-      setSaveStatus('saving');
-
-      if (api) {
-        // === Desktop (Electron): showSaveDialog (워크스페이스 폴더부터 열림) → 워크스페이스 변경 ===
-        try {
-          const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
-          if (file) {
-            const normalizedPath = file.path.replace(/\\/g, '/');
-            const parentPath = normalizedPath.includes('/')
-              ? normalizedPath.substring(0, normalizedPath.lastIndexOf('/'))
-              : '';
-            const osParentPath = parentPath.replace(/\//g, '\\');
-            setRootFolder({ name: osParentPath });
-            setWorkspaceType('local');
-            localStorage.setItem('rootFolder', JSON.stringify({ name: osParentPath }));
-            localStorage.setItem('workspaceType', 'local');
-            setCurrentFileName(file.name);
-            setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-            lastSavedContentRef.current = currentVal;
-            setSaveStatus('saved');
-            await refreshFileList();
-            showToast(`'${file.name}' 저장 완료`, 'success');
-          } else {
-            setSaveStatus('unsaved');
-          }
-        } catch (e) {
-          setSaveStatus('unsaved');
-          showToast("저장 실패: " + e, 'error');
-        }
-      } else if (typeof (window as any).showSaveFilePicker === 'function') {
-        // === Addon/Browser: 다른 이름으로 저장 (OS 표준 대화상자) ===
-        try {
-          // 💡 현재 파일의 부모 핸들이 존재한다면 해당 경로에서 대화상자가 시작되도록 startIn 속성 결속
-          let startIn: any = undefined;
-          if (currentFileParentHandleRef.current) {
-            startIn = currentFileParentHandleRef.current;
-          } else if (fileNode?.handle) {
-            startIn = fileNode.handle;
-          } else if (rootFld?.handle) {
-            startIn = rootFld.handle;
-          }
-
-          const fileHandle = await (window as any).showSaveFilePicker({
-            suggestedName: suggestedName || 'untitled.md',
-            excludeAcceptAllOption: true,
-            startIn,
-            types: [{
-              description: 'Markdown Files (*.md)',
-              accept: {
-                'text/markdown': ['.md', '.markdown'],
-                'text/plain': ['.md', '.markdown']
-              }
-            }]
-          });
-
-          const writable = await fileHandle.createWritable();
-          await writable.write(currentVal);
-          await writable.close();
-
-          setCurrentFileName(fileHandle.name);
-          setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
-          lastSavedContentRef.current = currentVal;
-          setSaveStatus('saved');
-          await refreshFileList();
-          showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
-        } catch (e: any) {
-          if (e.name !== 'AbortError') {
-            setSaveStatus('unsaved');
-            showToast("저장 실패: " + e.message, 'error');
-          } else {
-            setSaveStatus('unsaved');
-          }
-        }
-      } else if (typeof (window as any).showDirectoryPicker === 'function') {
-        // === Fallback: showDirectoryPicker ===
-        try {
-          const dirHandle = await (window as any).showDirectoryPicker();
-          const folderName = dirHandle.name;
-          setRootFolder({ name: folderName, handle: dirHandle });
-          setWorkspaceType('browser');
-          localStorage.setItem('rootFolder', JSON.stringify({ name: folderName }));
-          localStorage.setItem('workspaceType', 'browser');
-          setSaveStatus('unsaved');
-          showToast(`워크스페이스가 '${folderName}'(으)로 변경됨`, 'info');
-          setPromptConfig({
-            isOpen: true,
-            title: '파일명 입력',
-            defaultValue: suggestedName || '',
-            type: 'createFile',
-            error: ""
-          });
-        } catch (e: any) {
-          if (e.name !== 'AbortError') {
-            setSaveStatus('unsaved');
-            showToast("저장 실패: " + (e.message || e), 'error');
-          } else {
-            setSaveStatus('unsaved');
-          }
-        }
-      } else {
-        // VFS fallback
-        setPromptConfig({
-          isOpen: true,
-          title: "다른 이름으로 저장",
-          defaultValue: fileName,
-          type: 'createFile',
-          error: ""
-        });
-        setSaveStatus('unsaved');
-      }
-    },
-    openExport: () => setIsExportModalOpen(true),
-    exportPDF: async () => {
-      if (!previewRef.current) return;
-      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
-      const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName, isDarkMode, showToast, orientation, dynamicCssString, showPageBreaks: isPageViewEnabled, marginTop, marginBottom, marginLeft, marginRight, backgroundColor });
-    },
-    exportHTML: async () => {
-      if (!previewRef.current) return;
-      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      await exportHTML({ previewEl: previewRef.current, currentFileName, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
-    },
-    exportEPUB: async () => {
-      if (!previewRef.current) return;
-      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      await exportEPUB({ previewEl: previewRef.current, currentFileName, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
-    },
-    exportPNG: async () => {
-      if (!previewRef.current) return;
-      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      await exportPNG({ previewEl: previewRef.current, currentFileName, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
-    },
-    exit: () => window.confirm("종료하시겠습니까?") && window.close(),
-    undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
-    redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
-    find: () => editorRef.current?.getAction('actions.find').run(),
-    replace: () => editorRef.current?.getAction('editor.action.startFindReplaceAction').run(),
-    bold: () => wrapSelection('**', '**', '텍스트'),
-    italic: () => wrapSelection('*', '*', '텍스트'),
-    inlineCode: () => wrapSelection('`', '`', '코드'),
-    underline: () => wrapSelection('<u>', '</u>', '텍스트'),
-    strikethrough: () => wrapSelection('~~', '~~', '텍스트'),
-    h1: () => wrapSelection('# ', '', '제목'),
-    h2: () => wrapSelection('## ', '', '제목'),
-    h3: () => wrapSelection('### ', '', '제목'),
-    h4: () => wrapSelection('#### ', '', '제목'),
-    h5: () => wrapSelection('##### ', '', '제목'),
-    h6: () => wrapSelection('###### ', '', '제목'),
-    hr: () => insertAtCursor('\n---\n'),
-    orderedList: () => applyLinePrefix('orderedList'),
-    list: () => applyLinePrefix('list'),
-    quote: () => applyLinePrefix('quote'),
-    check: () => applyLinePrefix('check'),
-    removePrefix: () => removePrefix(),
-    link: () => insertLink(),
-    taglink: () => setShowTagLinkPicker(prev => !prev),
-    doclink: () => setShowDocLinkPicker(prev => !prev),
-    image: () => {
-      const editor = editorRef.current;
-      if (editor) {
-        const selection = editor.getSelection();
-        const model = editor.getModel();
-        if (selection && model) {
-          let text = model.getValueInRange(selection);
-          let range = selection;
-
-          if (!text.trim()) {
-            const lineNumber = selection.startLineNumber;
-            const lineContent = model.getLineContent(lineNumber);
-            const match = lineContent.match(/!\[([^\]]*)\]\(([^)]*)\)/);
-            if (match) {
-              const startCol = lineContent.indexOf(match[0]) + 1;
-              const endCol = startCol + match[0].length;
-              range = new (window as any).monaco.Range(lineNumber, startCol, lineNumber, endCol);
-              text = match[0];
-            }
-          }
-
-          const match = text.match(/!\[([^\]]*)\]\(([^)]*)\)/);
-          if (match) {
-            const alt = match[1];
-            const fullPath = match[2];
-            let path = fullPath;
-            let width = '';
-            let height = '';
-
-            const widthMatch = fullPath.match(/[\?&]width=([^&]*)/);
-            if (widthMatch) {
-              width = decodeURIComponent(widthMatch[1]);
-            }
-            const heightMatch = fullPath.match(/[\?&]height=([^&]*)/);
-            if (heightMatch) {
-              height = decodeURIComponent(heightMatch[1]);
-            }
-            const alignMatch = fullPath.match(/[\?&]align=([^&]*)/);
-            const align = alignMatch ? decodeURIComponent(alignMatch[1]) : 'center';
-            path = fullPath.replace(/[\?&](?:width|height|align)=[^&]*/g, '');
-
-            setEditingImageInfo({
-              range,
-              alt,
-              path,
-              width,
-              height,
-              align
-            });
-            setIsImageModalOpen(true);
-            return;
-          }
-        }
-      }
-
-      setEditingImageInfo(null);
-      setIsImageModalOpen(true);
-    },
-    video: () => setIsYoutubeModalOpen(true),
-    youtube: () => setIsYoutubeModalOpen(true),
-    now: () => insertAtCursor(new Date().toLocaleString()),
-    map: () => setIsMapModalOpen(true),
-    table: () => setIsTableModalOpen(true),
-    quickTable: () => insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n'),
-    insertTableRow: () => {
-      // 💡 [한글 주석] 현재 커서가 위치한 표 아래에 새 빈 행 추가 및 포커스 이동
-      if (!editorRef.current) return;
-      const editor = editorRef.current;
-      const position = editor.getPosition();
-      if (!position) return;
-      const model = editor.getModel();
-      if (!model) return;
-
-      const lineText = model.getLineContent(position.lineNumber);
-      const trimmed = lineText.trim();
-      if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
-        showToast("커서가 표 행에 위치해야 행을 추가할 수 있습니다.", "warning");
-        return;
-      }
-
-      const cells = trimmed.split(/(?<!\\)\|/);
-      const cellCount = cells.length - 2;
-
-      if (cellCount < 1) return;
-
-      const newRowText = '\n|' + '  |'.repeat(cellCount);
-      const lineMaxColumn = model.getLineMaxColumn(position.lineNumber);
-      const Range = (window as any).monaco.Range;
-      const Selection = (window as any).monaco.Selection;
-
-      editor.executeEdits("insertTableRow", [{
-        range: new Range(position.lineNumber, lineMaxColumn, position.lineNumber, lineMaxColumn),
-        text: newRowText,
-        forceMoveMarkers: true
-      }]);
-
-      const nextLineNumber = position.lineNumber + 1;
-      editor.setSelection(new Selection(
-        nextLineNumber, 3,
-        nextLineNumber, 3
-      ));
-      editor.focus();
-      showToast("표 행이 추가되었습니다.", "info");
-    },
-    deleteTableRow: () => {
-      // 💡 [한글 주석] 현재 커서가 위치한 표 행 삭제
-      if (!editorRef.current) return;
-      const editor = editorRef.current;
-      const position = editor.getPosition();
-      if (!position) return;
-      const model = editor.getModel();
-      if (!model) return;
-
-      const lineText = model.getLineContent(position.lineNumber);
-      const trimmed = lineText.trim();
-      if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
-        showToast("커서가 표 행에 위치해야 행을 삭제할 수 있습니다.", "warning");
-        return;
-      }
-
-      const maxColumn = model.getLineMaxColumn(position.lineNumber);
-      let startLine = position.lineNumber;
-      let startColumn = 1;
-      let endLine = position.lineNumber;
-      let endColumn = maxColumn;
-
-      if (position.lineNumber < model.getLineCount()) {
-        endLine = position.lineNumber + 1;
-        endColumn = 1;
-      } else if (position.lineNumber > 1) {
-        startLine = position.lineNumber - 1;
-        startColumn = model.getLineMaxColumn(startLine);
-      }
-
-      const Range = (window as any).monaco.Range;
-      editor.executeEdits("deleteTableRow", [{
-        range: new Range(startLine, startColumn, endLine, endColumn),
-        text: "",
-        forceMoveMarkers: true
-      }]);
-
-      editor.focus();
-      showToast("표 행이 삭제되었습니다.", "info");
-    },
-    code: () => insertBlockTag('```javascript', '```', '코드'),
-    chart: () => insertBlockTag('```mermaid', '```', '그래프'),
-    math: () => setIsFormulaModalOpen(true),
-    latex: () => setIsFormulaModalOpen(true),
-    zoomIn: () => setFontSize(prev => Math.min(prev + 2, 32)),
-    zoomOut: () => setFontSize(prev => Math.max(prev - 2, 12)),
-    globalSearch: () => setIsSearchOpen(true),
-    settings: (tab: 'editor' | 'app' | 'shortcuts' = 'editor') => {
-      setSettingsModalInitialTab(tab);
-      setIsSettingsModalOpen(true);
-    },
-    about: () => setIsAboutModalOpen(true),
-    help: async () => {
-      const api = (window as any).electronAPI;
-      if (api?.readFromPath) {
-        try {
-          const file = await api.readFromPath('docs/help/00_시작하기.md');
-          setHelpTitle('시작하기');
-          setHelpContent(stripFrontmatter(file.content));
-        } catch (e) {
-          setHelpContent('## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.');
-          setHelpTitle('오류');
-        }
-      } else {
-        try {
-          const res = await fetch('./docs/help/00_시작하기.md');
-          const text = await res.text();
-          setHelpTitle('시작하기');
-          setHelpContent(stripFrontmatter(text));
-        } catch (e) {
-          setHelpContent('## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.');
-          setHelpTitle('오류');
-        }
-      }
-    },
-    license: () => setIsLicenseModalOpen(true),
-    toggleFloatingToolbar: () => {
-      setFloatingToolbar(prev => {
-        if (prev.visible) return { ...prev, visible: false };
-        if (editorRef.current) {
-          const editor = editorRef.current;
-          // 💡 데스크톱 모드(Electron) 등에서 포커스 유실로 인한 1행 1열(최상단) 좌표 리셋을 방어하기 위해 포커스 강제 복구
-          editor.focus();
-          const position = editor.getPosition();
-          if (position) {
-            const visiblePos = editor.getScrolledVisiblePosition(position);
-            if (visiblePos) {
-              return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
-            }
-          }
-        }
-        return { visible: true, top: 100, left: 100 }; // fallback
-      });
-    },
-    quickWrap: (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => quickWrap(format),
-    pageBreak: () => {
-      // 💡 [한글 주석] 수동 페이지 분할 문법 삽입
-      if (!editorRef.current) return;
-      const editor = editorRef.current;
-      const selection = editor.getSelection();
-      const model = editor.getModel();
-      if (!model || !selection) return;
-
-      const Range = (window as any).monaco.Range;
-      const Selection = (window as any).monaco.Selection;
-      
-      const insertText = '<!-- [page-break] -->';
-      
-      editor.executeEdits("pageBreak", [{
-        range: selection,
-        text: insertText,
-        forceMoveMarkers: true
-      }]);
-      
-      const currentPos = selection.getEndPosition();
-      const nextLineNumber = currentPos.lineNumber;
-      editor.setSelection(new Selection(nextLineNumber, currentPos.column + insertText.length, nextLineNumber, currentPos.column + insertText.length));
-      editor.focus();
-      showToast("페이지 분할선이 삽입되었습니다.", "info");
-    },
-  };
+  const handlers = useEditorHandlers({
+    editorRef,
+    contentRef,
+    currentFileNameRef,
+    currentFileNodeRef,
+    workspaceTypeRef,
+    rootFolderRef,
+    lastSavedContentRef,
+    currentFileParentHandleRef,
+    profiles,
+    activeProfileId,
+    isDarkMode,
+    dynamicCssString,
+    isPageViewEnabled,
+    setSaveStatus,
+    setCurrentFileName,
+    setCurrentFileNode,
+    setRootFolder,
+    setWorkspaceType,
+    setIsSidebarOpen,
+    setIsExportModalOpen,
+    setIsYoutubeModalOpen,
+    setIsMapModalOpen,
+    setIsTableModalOpen,
+    setIsFormulaModalOpen,
+    setIsSearchOpen,
+    setIsAboutModalOpen,
+    setIsLicenseModalOpen,
+    setSettingsModalInitialTab,
+    setFontSize,
+    setHelpTitle,
+    setHelpContent,
+    setFloatingToolbar,
+    setPromptConfig,
+    showToast,
+    refreshFileList,
+    updateContent,
+    wrapSelection,
+    insertAtCursor,
+    applyLinePrefix,
+    removePrefix,
+    insertLink,
+    quickWrap,
+    insertBlockTag,
+    setShowTagLinkPicker,
+    setShowDocLinkPicker,
+    sanitizePastedText,
+    isComposingRef
+  });
 
   handlersRef.current = handlers;
 
