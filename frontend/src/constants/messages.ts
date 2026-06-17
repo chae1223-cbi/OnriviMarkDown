@@ -4,11 +4,25 @@
 
 import type { ToastType } from '../utils/toast';
 
+// ====================================================================
+// 📊 [OMD-CORE-messages-0003] messages ➔ SystemMessage
+// 🎯 @KICK  : 시스템 메시지의 타입 구조를 정의한다
+// 🛡️ @GUARD : type은 ToastType, text는 문자열로 제한
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : ToastType
+// ====================================================================
 export interface SystemMessage {
   type: ToastType;
   text: string;
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-messages-0002] messages ➔ SYSTEM_MESSAGES
+// 🎯 @KICK  : 모든 사용자 알림 메시지를 SSoT로 관리하는 객체를 정의한다
+// 🛡️ @GUARD : 하드코딩된 문자열 대신 이 객체의 키를 사용하도록 강제
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : SystemMessageKey
+// ====================================================================
 export const SYSTEM_MESSAGES = {
   // ─── 에디터 / 모나코 ───────────────────────────────────────────────
   MONACO_LOAD_ERROR:    { type: 'warning', text: '에디터 로드 실패. 오프라인 모드로 안전 복구합니다.' },
@@ -49,4 +63,11 @@ export const SYSTEM_MESSAGES = {
   DOC_CLEAN_NONE:       { type: 'info',    text: '정리할 서식이 없습니다.' },
 } as const;
 
+// ====================================================================
+// 📊 [OMD-CORE-messages-0001] messages ➔ SystemMessageKey
+// 🎯 @KICK  : SYSTEM_MESSAGES 객체의 키를 유니온 타입으로 추출한다
+// 🛡️ @GUARD : typeof SYSTEM_MESSAGES의 키만 허용
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : SYSTEM_MESSAGES
+// ====================================================================
 export type SystemMessageKey = keyof typeof SYSTEM_MESSAGES;

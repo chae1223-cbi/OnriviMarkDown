@@ -107,6 +107,13 @@ const localTranslations: Record<string, Record<string, string>> = {
   }
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-StatusBar-0003] StatusBar ➔ StatusBar
+// 🎯 @KICK  : 상태 표시줄 컴포넌트 - 글자 수, 단어 수, 저장 상태, 라인/컬럼 정보, 테마, 프리뷰 모드 표시
+// 🛡️ @GUARD : StatusBarProps 인터페이스로 props 타입 검증
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : getFullPath, t
+// ====================================================================
 export default function StatusBar({ 
   content, folderName, fileName, driveLetter, 
   workspaceType, cloudProvider, path: relativePath, cursorLine, cursorColumn, saveStatus,
@@ -126,12 +133,26 @@ export default function StatusBar({
   const targetCharCount = 2000;
   const progressPercent = Math.min(100, Math.round((charCount / targetCharCount) * 100));
 
+// ====================================================================
+// 📊 [OMD-EDIT-StatusBar-0002] StatusBar ➔ t
+// 🎯 @KICK  : 다국어 키-값 조회 함수 - localTranslations에서 key에 해당하는 번역 문자열 반환
+// 🛡️ @GUARD : dict[key]가 없으면 key 자체를 fallback으로 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   const t = (key: string) => {
     const dict = localTranslations["ko"] || localTranslations['en'];
     return dict[key] || key;
   };
 
   // 전체 경로 계산
+// ====================================================================
+// 📊 [OMD-EDIT-StatusBar-0001] StatusBar ➔ getFullPath
+// 🎯 @KICK  : 전체 파일 경로를 workspaceType에 따라 조합하여 반환
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   const getFullPath = () => {
     if (workspaceType === 'browser') return folderName ? `${folderName} \\ ${fileName}` : `🌐 Browser Storage \\ ${fileName}`;
     if (workspaceType === 'cloud') return `[${cloudProvider || 'Cloud'}] \\ ${folderName || 'Sync'} \\ ${fileName}`;

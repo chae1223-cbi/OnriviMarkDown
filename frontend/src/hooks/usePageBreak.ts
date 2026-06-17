@@ -1,11 +1,19 @@
 // @ts-nocheck
 import { useCallback, useRef } from 'react';
 import { DEFAULT_PROFILE } from "@/constants/cssProfile";
+import { PAPER_SIZES, mmToPixels, DEFAULT_PAPER_SIZE } from '@/constants/paperSizes';
 
 /**
  * [ONR-16-003] usePageBreak 커스텀 훅
  * @description A4 용지 기준 지능형 페이지 나누기 계산 및 초기화 로직을 처리하는 커스텀 훅입니다.
  */
+// ====================================================================
+// 📊 [OMD-CORE-USEPAGEBREAK-0003] usePageBreak.ts ➔ usePageBreak
+// 🎯 @KICK  : 선택 용지 기준 지능형 페이지 나누기 계산 및 초기화 로직 처리
+// 🛡️ @GUARD : Lock 변수(isAutoPageBreakingRef)로 중복 자동 페이지 나누기 방지
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const usePageBreak = (
   editorRef: any,
   previewRef: any,
@@ -16,6 +24,13 @@ export const usePageBreak = (
   const isAutoPageBreakingRef = useRef(false);
   const lastPageBreakCountRef = useRef(0);
 
+  // ====================================================================
+// 📊 [OMD-CORE-USEPAGEBREAK-0002] usePageBreak.ts ➔ handleResetPageBreaks
+// 🎯 @KICK  : 커서 이하의 페이지 구분선을 지능형으로 재계산하여 재주입
+// 🛡️ @GUARD : editorRef/previewRef 미존재 시 early return
+// 🚨 @PATCH : A4 고정→PAPER_SIZES lookup으로 변경
+  // 🔗 @CALLS : showToast
+  // ====================================================================
   /**
    * 커서 이하의 수동/자동 페이지 구분선을 지능형으로 다시 계산하여 주입합니다.
    */
@@ -54,10 +69,11 @@ export const usePageBreak = (
     const childNodes = Array.from(contentRoot.children) as HTMLElement[];
     if (childNodes.length === 0) return;
 
-    // 현재 활성화된 용지 규격 및 마진 계측 (A4 기준)
+    // 현재 활성화된 용지 규격 및 마진 계측 (선택 용지 기준)
     const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+    const paperSpec = PAPER_SIZES[activeProfile.pageStyle.paperSize] || PAPER_SIZES[DEFAULT_PAPER_SIZE];
     const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
-    const paperHeightPx = isLandscape ? 794 : 1123;
+    const paperHeightPx = mmToPixels(isLandscape ? paperSpec.width : paperSpec.height);
     const topPx = (parseFloat(activeProfile.pageStyle.marginTop || '10') || 10) * 3.7795;
     const botPx = (parseFloat(activeProfile.pageStyle.marginBottom || '10') || 10) * 3.7795;
     const usableHeight = paperHeightPx - topPx - botPx;
@@ -127,6 +143,13 @@ export const usePageBreak = (
     showToast(`커서 ${cursorLineNum}행 이하의 페이지 나누기가 지능형으로 재계산되어 주입되었습니다.`, "success");
   }, [editorRef, previewRef, profiles, activeProfileId, showToast]);
 
+  // ====================================================================
+  // 📊 [OMD-CORE-USEPAGEBREAK-0001] usePageBreak.ts ➔ executeAutoPageBreak
+  // 🎯 @KICK  : 타이핑 시 선택 용지 기준 자동 페이지 나누기를 지능형으로 재계산하여 주입
+  // 🛡️ @GUARD : isAutoPageBreakingRef Lock으로 중복 실행 방지, previewRef 미존재 시 early return
+  // 🚨 @PATCH : A4 고정→PAPER_SIZES lookup으로 변경
+  // 🔗 @CALLS : showToast
+  // ====================================================================
   /**
    * 타이핑 시 지능형 자동 페이지 나눔을 실행합니다.
    */
@@ -164,8 +187,9 @@ export const usePageBreak = (
       if (childNodes.length === 0) return;
 
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      const paperSpec = PAPER_SIZES[activeProfile.pageStyle.paperSize] || PAPER_SIZES[DEFAULT_PAPER_SIZE];
       const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
-      const paperHeightPx = isLandscape ? 794 : 1123;
+      const paperHeightPx = mmToPixels(isLandscape ? paperSpec.width : paperSpec.height);
       const topPx = (parseFloat(activeProfile.pageStyle.marginTop || '10') || 10) * 3.7795;
       const botPx = (parseFloat(activeProfile.pageStyle.marginBottom || '10') || 10) * 3.7795;
       const usableHeight = paperHeightPx - topPx - botPx;

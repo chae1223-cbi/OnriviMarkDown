@@ -28,6 +28,13 @@ interface FileTreeItemProps {
   onLazyLoad?: (node: FileNode) => Promise<FileNode[]>;
 }
 
+// ====================================================================
+// 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
+// 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
+// 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
+// ====================================================================
 const FileTreeItem = ({ 
   node: rawNode, parentHandle, level, openFile, previewMode, setPreviewMode, currentFileName, currentFilePath, workspaceType, refreshParent, askConfirm, siblings,
   isMergeMode = false, selectedMergeNodes = [], toggleMergeNodeSelect, onLazyLoad
@@ -43,11 +50,25 @@ const FileTreeItem = ({
   const [isOpen, setIsOpen] = useState(false);
   const [localChildren, setLocalChildren] = useState<FileNode[] | null>(null);
 
+  // ====================================================================
+  // 📊 [OMD-FILE-FileTreeItem-0002] FileTreeItem ➔ useEffect (syncChildren)
+  // 🎯 @KICK  : node.children 변경 시 localChildren 상태 동기화
+  // 🛡️ @GUARD : undefined인 경우 동기화 생략
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : 없음
+  // ====================================================================
   React.useEffect(() => {
     if (node.children !== undefined) {
       setLocalChildren(node.children);
     }
   }, [node.children]);
+  // ====================================================================
+  // 📊 [OMD-FILE-FileTreeItem-0003] FileTreeItem ➔ refreshThisDirectory
+  // 🎯 @KICK  : 현재 디렉토리 노드의 자식 목록을 지연 로딩(onLazyLoad)으로 갱신
+  // 🛡️ @GUARD : 디렉토리가 아니거나 onLazyLoad 미존재 시 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onLazyLoad
+  // ====================================================================
   const refreshThisDirectory = async () => {
     if (node.kind !== 'directory' || !onLazyLoad) return;
     setIsLoading(true);
@@ -99,6 +120,13 @@ const FileTreeItem = ({
     setIsDragOver(false);
   };
 
+  // ====================================================================
+  // 📊 [OMD-FILE-FileTreeItem-0004] FileTreeItem ➔ handleDrop
+  // 🎯 @KICK  : 파일/폴더 드래그 앤 드롭 이동 처리 - Electron, File System API, VFS 세 환경 지원
+  // 🛡️ @GUARD : 자기 자신/하위 폴더 드롭 방지, 디렉토리만 드롭 대상 허용
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : refreshParent, refreshThisDirectory, vfsRename, showToast
+  // ====================================================================
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -206,6 +234,13 @@ const FileTreeItem = ({
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-FILE-FileTreeItem-0005] FileTreeItem ➔ handleClick
+  // 🎯 @KICK  : 파일 트리 노드 클릭 - 폴더 토글/지연 로드, 파일 열기, 병합 선택 처리
+  // 🛡️ @GUARD : isMergeMode 시 파일 선택 모드로 전환
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : toggleMergeNodeSelect, openFile, onLazyLoad
+  // ====================================================================
   const handleClick = (e: React.MouseEvent) => {
     /* [ONR-UI-005] 파일 트리 노드 클릭 연동: 사용자가 좌측 파일 탐색기 트리의 특정 노드를 클릭 시 폴더인 경우 자식 노드 토글/지연로드를 처리하고, 파일인 경우 openFile 콜백을 트리거하여 탭을 열고 로드합니다. */
     e.stopPropagation();
@@ -260,6 +295,13 @@ const FileTreeItem = ({
     });
   };
 
+  // ====================================================================
+  // 📊 [OMD-FILE-FileTreeItem-0006] FileTreeItem ➔ onPromptConfirm
+  // 🎯 @KICK  : 이름 변경/파일 생성/폴더 생성 프롬프트 확인 처리 - 브라우저 VFS 또는 Electron API 연동
+  // 🛡️ @GUARD : 중복 체크 및 빈 이름 방어
+  // 🚨 @PATCH : setTimeout 800ms 지연 새로고침으로 OS 파일 인덱싱 락 방어, NFC 경로 표준화로 한글 자소 분리 방지
+  // 🔗 @CALLS : vfsRename, vfsCreateFile, vfsCreateFolder, openFile, refreshParent, refreshThisDirectory
+  // ====================================================================
   const onPromptConfirm = async (name: string) => {
     const type = promptConfig.type;
     setPromptConfig({ ...promptConfig, isOpen: false });
@@ -511,6 +553,13 @@ const FileTreeItem = ({
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-FILE-FileTreeItem-0007] FileTreeItem ➔ handleDelete
+  // 🎯 @KICK  : 파일/폴더 삭제 처리 - 브라우저 VFS 또는 Electron API를 통해 삭제
+  // 🛡️ @GUARD : askConfirm으로 사용자 재확인 후 실행
+  // 🚨 @PATCH : setTimeout 300ms 지연 인덱싱 동기화 갱신으로 OS 파일 락 방어
+  // 🔗 @CALLS : askConfirm, refreshParent, vfsDelete, openFile
+  // ====================================================================
   const handleDelete = async (e: any) => {
     e.stopPropagation();
     

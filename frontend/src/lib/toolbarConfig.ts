@@ -21,8 +21,7 @@ export const TOOLBAR_ITEMS = [
   
   // 4. 미디어 (Media)
   { id: 'link', icon: '🔗', name: '링크', group: '미디어', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
-  { id: 'taglink', icon: '🔖', name: '문서링크', group: '미디어', tagFormat: '[제목](<#제목>)', defaultHotkey: '', defaultCommand: 'taglink', insertText: '', kind: 15 },
-  { id: 'doclink', icon: '📄', name: '다른 문서 연결', group: '미디어', tagFormat: '[[상대경로/파일명]]', defaultHotkey: '', defaultCommand: 'doclink', insertText: '', kind: 15 },
+  { id: 'taglink', icon: '🔖', name: '문서 연결', group: '미디어', tagFormat: '[[상대경로/파일명]]', defaultHotkey: '', defaultCommand: 'doclink', insertText: '', kind: 15 },
   { id: 'image', icon: '🖼️', name: '이미지', group: '미디어', tagFormat: '![대체 텍스트](URL)', defaultHotkey: '', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
   { id: 'youtube', icon: '🎥', name: '유튜브 동영상 삽입', group: '미디어', tagFormat: '동영상 삽입', defaultHotkey: '', defaultCommand: 'youtube', insertText: '유튜브 동영상 삽입', kind: 15 },
   { id: 'map', icon: '🗺️', name: '지도', group: '미디어', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
@@ -52,6 +51,13 @@ export const TOOLBAR_ITEMS = [
   { id: 'underline', icon: 'U', name: '밑줄', group: '서식', tagFormat: '<u>텍스트</u>', defaultHotkey: 'Ctrl+U', defaultCommand: 'underline', insertText: '<u>텍스트</u>', kind: 15 }
 ];
 
+// ====================================================================
+// 📊 [OMD-EDIT-toolbarConfig-0001] toolbarConfig.ts ➔ getDefaultHotkeys
+// 🎯 @KICK  : TOOLBAR_ITEMS에서 defaultHotkey 맵 생성
+// 🛡️ @GUARD : item.defaultHotkey 존재 여부 필터
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const getDefaultHotkeys = () => {
   const hotkeys: Record<string, string> = {};
   TOOLBAR_ITEMS.forEach(item => {
@@ -60,6 +66,13 @@ export const getDefaultHotkeys = () => {
   return hotkeys;
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-toolbarConfig-0002] toolbarConfig.ts ➔ getDefaultCommands
+// 🎯 @KICK  : TOOLBAR_ITEMS에서 defaultCommand 맵 생성
+// 🛡️ @GUARD : item.defaultCommand 존재 여부 필터
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const getDefaultCommands = () => {
   const commands: Record<string, string> = {};
   TOOLBAR_ITEMS.forEach(item => {
@@ -68,6 +81,13 @@ export const getDefaultCommands = () => {
   return commands;
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-toolbarConfig-0003] toolbarConfig.ts ➔ getSlashCommands
+// 🎯 @KICK  : TOOLBAR_ITEMS를 Monaco 슬래시 자동완성 항목으로 변환 (모달/액션/플레이스홀더 처리)
+// 🛡️ @GUARD : EXCLUDED_FROM_SLASH 필터, modalKeys/actionOnlyKeys 분기, 플레이스홀더 우선순위 매칭
+// 🚨 @PATCH : InsertAsSnippet 하이라이트 방지, filterText 한글/영문 검색 지원
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const getSlashCommands = (monaco: any, customCommands: Record<string, string> = {}) => {
   // 슬래시 자동완성에서 제외할 항목 (UI 토글/래핑 류는 에디터에서 쓸 일 없음)
   const EXCLUDED_FROM_SLASH = new Set([
@@ -94,7 +114,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       // 💡 [한글 주석] 모달이 필요한 항목 (youtube 추가)
       const modalKeys = ['image', 'video', 'youtube', 'map', 'table', 'math'];
       // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 표 행 편집 이관)
-      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink', 'doclink'];
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink'];
 
       if (modalKeys.includes(item.id)) {
         command = {

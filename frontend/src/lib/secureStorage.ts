@@ -9,6 +9,13 @@ const SECRET_SALT = 'ONRIVI-AUTHOR-SECURE-KEY-SPEC-SALT';
  * @param key 로컬 스토리지 키 이름
  * @param value 암호화하여 보관할 객체 데이터
  */
+// ====================================================================
+// 📊 [OMD-AUTH-secureStorage-0001] secureStorage.ts ➔ saveSecureData
+// 🎯 @KICK  : AES-256 암호화하여 로컬 스토리지에 보안 데이터 저장
+// 🛡️ @GUARD : window 부재, JSON.stringify 실패 시 catch
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const saveSecureData = (key: string, value: any): void => {
   if (typeof window === 'undefined') return;
   try {
@@ -25,6 +32,13 @@ export const saveSecureData = (key: string, value: any): void => {
  * @param key 로컬 스토리지 키 이름
  * @returns 복호화된 원본 데이터 객체 또는 null
  */
+// ====================================================================
+// 📊 [OMD-AUTH-secureStorage-0002] secureStorage.ts ➔ loadSecureData
+// 🎯 @KICK  : 로컬 스토리지 AES-256 암호화 데이터 복호화 및 JSON 파싱
+// 🛡️ @GUARD : window 부재, ciphertext null, 복호화 결과 유효성, 변조 의심 시 null 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const loadSecureData = <T = any>(key: string): T | null => {
   if (typeof window === 'undefined') return null;
   try {

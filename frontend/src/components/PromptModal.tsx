@@ -14,6 +14,13 @@ interface PromptModalProps {
   onCancel: () => void;
 }
 
+// ====================================================================
+// 📊 [OMD-IO-PromptModal-0004] PromptModal ➔ PromptModal
+// 🎯 @KICK  : 사용자 입력을 받는 모달 다이얼로그 - 파일명/폴더명 입력 등
+// 🛡️ @GUARD : isOpen/mounted false 시 null 반환; Escape 키로 취소
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleSubmit, handleKeyDown, onConfirm, onCancel
+// ====================================================================
 export default function PromptModal({ 
   isOpen, 
   title, 
@@ -27,10 +34,24 @@ export default function PromptModal({
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+// ====================================================================
+// 📊 [OMD-IO-PromptModal-0003] PromptModal ➔ useEffect (mounted)
+// 🎯 @KICK  : 클라이언트 마운트 완료 상태를 설정하여 hydration mismatch 방지
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setMounted
+// ====================================================================
   useEffect(() => {
     setMounted(true);
   }, []);
 
+// ====================================================================
+// 📊 [OMD-IO-PromptModal-0002] PromptModal ➔ useEffect (focus)
+// 🎯 @KICK  : 모달이 열릴 때 입력창에 defaultValue 설정 후 자동 포커스
+// 🛡️ @GUARD : isOpen이 true일 때만 실행
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setValue, inputRef.current.focus, inputRef.current.select
+// ====================================================================
   useEffect(() => {
     if (isOpen) {
       setValue(defaultValue);
@@ -44,6 +65,13 @@ export default function PromptModal({
   if (!isOpen) return null;
   if (!mounted) return null;
 
+// ====================================================================
+// 📊 [OMD-IO-PromptModal-0001] PromptModal ➔ handleSubmit
+// 🎯 @KICK  : 폼 제출 시 입력값을 onConfirm으로 전달
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onConfirm
+// ====================================================================
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onConfirm(value);

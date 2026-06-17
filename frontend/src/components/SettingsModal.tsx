@@ -56,6 +56,13 @@ const MONACO_TO_USER_THEME: Record<string, string> = {
   'solarized-light': 'vellum',
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-SettingsModal-0006] SettingsModal ➔ SettingsModal
+// 🎯 @KICK  : 환경 설정 모달 - 일반 설정, 정품 인증, 단축키/명령어 테이블, 테마 선택 제공
+// 🛡️ @GUARD : isOpen/mounted false 시 null 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleThemeSelect, handleSaveLicense, ThemeButton, ModeButton
+// ====================================================================
 export default function SettingsModal({
   isOpen, onClose, isDarkMode, setIsDarkMode,
   fontSize, setFontSize, wordWrap, setWordWrap,
@@ -80,6 +87,13 @@ export default function SettingsModal({
   })();
   const [selectedTheme, setSelectedTheme] = useState(initialTheme);
 
+// ====================================================================
+// 📊 [OMD-EDIT-SettingsModal-0005] SettingsModal ➔ useEffect (mounted)
+// 🎯 @KICK  : 마운트 시 마운트 상태 설정 및 세션 복원 설정 로드
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setMounted, setRestoreSession, localStorage.getItem
+// ====================================================================
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
@@ -91,6 +105,13 @@ export default function SettingsModal({
   if (!isOpen) return null;
   if (!mounted) return null;
 
+// ====================================================================
+// 📊 [OMD-EDIT-SettingsModal-0004] SettingsModal ➔ handleThemeSelect
+// 🎯 @KICK  : 테마 선택 시 DOM 클래스/로컬스토리지/다크모드/onThemeChange를 일괄 적용
+// 🛡️ @GUARD : 테마 ID가 SEVEN_THEMES에 존재하는지 확인
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setIsDarkMode, onThemeChange, localStorage.setItem
+// ====================================================================
   const handleThemeSelect = (themeId: string) => {
     setSelectedTheme(themeId);
     const theme = SEVEN_THEMES.find(t => t.id === themeId);
@@ -105,6 +126,13 @@ export default function SettingsModal({
     onThemeChange(theme.monaco);
   };
 
+// ====================================================================
+// 📊 [OMD-EDIT-SettingsModal-0003] SettingsModal ➔ handleSaveLicense
+// 🎯 @KICK  : 라이선스 키를 localStorage, chrome.storage, electronAPI에 동시 저장
+// 🛡️ @GUARD : 각 storage API 존재 여부 확인 후 저장
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setLicenseKey, localStorage.setItem, chrome.storage.local.set, api.saveLicense
+// ====================================================================
   const handleSaveLicense = (key: string) => {
     setLicenseKey(key);
     if (typeof window !== 'undefined') {
@@ -346,6 +374,13 @@ export default function SettingsModal({
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-SettingsModal-0002] SettingsModal ➔ ThemeButton
+// 🎯 @KICK  : 설정 창의 토글 버튼(켜기/끄기) 렌더링
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function ThemeButton({ active, onClick, label, colors }: { active: boolean; onClick: () => void; label: string; colors: any }) {
   return (
     <button
@@ -360,6 +395,13 @@ function ThemeButton({ active, onClick, label, colors }: { active: boolean; onCl
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-SettingsModal-0001] SettingsModal ➔ ModeButton
+// 🎯 @KICK  : 화면 보기 모드(편집/분할/미리보기) 전환 버튼 렌더링
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function ModeButton({ active, onClick, label, colors }: { active: boolean; onClick: () => void; label: string; colors: any }) {
   return (
     <button

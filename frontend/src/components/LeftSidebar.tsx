@@ -54,6 +54,13 @@ interface LeftSidebarProps {
   onRestoreFolder?: () => void;
 }
 
+// ====================================================================
+// 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
+// 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
+// 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
+// ====================================================================
 export default function LeftSidebar({
   isSidebarOpen,
   setIsSidebarOpen,
@@ -105,6 +112,13 @@ export default function LeftSidebar({
     error?: string;
   }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
 
+// ====================================================================
+// 📊 [OMD-FILE-LeftSidebar-0006] LeftSidebar ➔ onPromptConfirm
+// 🎯 @KICK  : PromptModal 확인 시 파일/폴더 생성 (브라우저/로컬/LocalStorage VFS 대응)
+// 🛡️ @GUARD : 이름 중복 체크 후 중복 시 에러 메시지 재표시
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : refreshFileList, openFile, vfsCreateFile, vfsCreateFolder, fetch, api.createFile, api.createFolder
+// ====================================================================
   const onPromptConfirm = async (name: string) => {
     const type = promptConfig.type;
     setPromptConfig({ ...promptConfig, isOpen: false });
@@ -191,10 +205,24 @@ export default function LeftSidebar({
     }
   };
 
+// ====================================================================
+// 📊 [OMD-FILE-LeftSidebar-0005] LeftSidebar ➔ useEffect (isDesktop)
+// 🎯 @KICK  : 클라이언트 환경이 데스크톱(electron)인지 감지하여 isDesktop 상태 설정
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setIsDesktop
+// ====================================================================
   useEffect(() => {
     setIsDesktop(typeof window !== 'undefined' && !!(window as any).electronAPI);
   }, []);
 
+// ====================================================================
+// 📊 [OMD-FILE-LeftSidebar-0004] LeftSidebar ➔ fetchDrives
+// 🎯 @KICK  : electronAPI 또는 REST API를 통해 시스템 드라이브 목록 조회
+// 🛡️ @GUARD : api 존재 여부에 따라 분기 처리
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : api.getDrives, fetch, msg.warn
+// ====================================================================
   const fetchDrives = async () => {
     setIsDrivesLoading(true);
     try {
@@ -215,12 +243,26 @@ export default function LeftSidebar({
     }
   };
 
+// ====================================================================
+// 📊 [OMD-FILE-LeftSidebar-0003] LeftSidebar ➔ useEffect (drives fetch)
+// 🎯 @KICK  : 탐색기 탭이 활성화되고 데스크톱 환경일 때 드라이브 목록 자동 조회
+// 🛡️ @GUARD : sidebarTab === 'explorer' && isDesktop 조건 검사
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : fetchDrives
+// ====================================================================
   useEffect(() => {
     if (sidebarTab === 'explorer' && isDesktop) {
       fetchDrives();
     }
   }, [sidebarTab, isDesktop]);
 
+// ====================================================================
+// 📊 [OMD-FILE-LeftSidebar-0002] LeftSidebar ➔ handleLazyLoad
+// 🎯 @KICK  : FileSystem API 또는 로컬 API로 폴더 내 .md 파일 목록을 지연 로딩
+// 🛡️ @GUARD : 파일 확장자가 .md/.markdown인 경우만 포함
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : fetch, getVfsFiles, listDirectory
+// ====================================================================
   const handleLazyLoad = async (node: FileNode): Promise<FileNode[]> => {
     try {
       if (workspaceType === 'browser') {
@@ -582,6 +624,13 @@ export default function LeftSidebar({
             rootFolderHandle={rootFolder?.handle}
             onSelectFolder={onSelectRootFolder}
             /* [ONR-UI-002] 전체 검색 더블클릭 연동: 파일 내 특정 줄을 더블클릭할 때 해당 파일 노드를 찾아 오픈한 뒤 지정 줄로 즉시 화면을 포커스시킵니다. */
+// ====================================================================
+// 📊 [OMD-FILE-LeftSidebar-0001] LeftSidebar ➔ onFileOpenAndJump
+// 🎯 @KICK  : 전역 검색 결과 파일을 열고 지정 줄로 이동
+// 🛡️ @GUARD : 파일 경로를 트리에서 재귀 탐색 후 없으면 dummy/브라우저 핸들로 fallback
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : scrollToLine, openFile, findNodeRecursively, showToast
+// ====================================================================
             onFileOpenAndJump={async (filePath, lineNumber) => {
               // 서식설정이 켜져 있다면 일반 뷰어로 강제 원복
               if (previewMode === 'css-style') {

@@ -56,8 +56,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     check: "체크리스트",
     eraser: "태그 취소 (Ctrl+Shift+X)",
     link: "링크",
-    taglink: "문서링크",
-    doclink: "다른 문서 연결",
+    taglink: "문서 연결",
     image: "이미지",
     now: "현재 날짜/시간",
     emoji: "이모지 피커",
@@ -111,8 +110,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     check: "Task List",
     eraser: "Clear formatting (Ctrl+Shift+X)",
     link: "Insert Link",
-    taglink: "Doc Link",
-    doclink: "Link Other Doc",
+    taglink: "Insert Doc Link",
     image: "Insert Image",
     now: "Current Date/Time",
     emoji: "Emoji Picker",
@@ -138,6 +136,13 @@ const localTranslations: Record<string, Record<string, string>> = {
   }
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0008] Toolbar ➔ Toolbar
+// 🎯 @KICK  : 에디터 상단 툴바 컴포넌트 - 서식/제목/문단/삽입/고급/보기/설정 그룹 제공
+// 🛡️ @GUARD : ToolbarProps 인터페이스로 props 타입 검증
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : ToolbarGroup, ToolbarButton, HeadingSpinButton, CopyPreviewButton, useToast
+// ====================================================================
 export default function Toolbar({ 
   isDarkMode, setIsDarkMode, 
   isSidebarOpen, setIsSidebarOpen, 
@@ -149,11 +154,25 @@ export default function Toolbar({
   const { showToast } = useToast();
   const [headingLevel, setHeadingLevel] = React.useState(3);
 
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0007] Toolbar ➔ t
+// 🎯 @KICK  : 다국어 키-값 조회 함수 - localTranslations에서 key에 해당하는 번역 문자열 반환
+// 🛡️ @GUARD : dict[key]가 없으면 key 자체를 fallback으로 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   const t = (key: string) => {
     const dict = localTranslations["ko"] || localTranslations['en'];
     return dict[key] || key;
   };
 
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0006] Toolbar ➔ handleHeadingUp
+// 🎯 @KICK  : 제목 레벨 증가 핸들러 - headingLevel 1 초과일 때 -1
+// 🛡️ @GUARD : headingLevel > 1 조건 검사
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setHeadingLevel
+// ====================================================================
   const handleHeadingUp = (e: React.MouseEvent) => {
     e.preventDefault();
     if (headingLevel > 1) {
@@ -162,6 +181,13 @@ export default function Toolbar({
     }
   };
 
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0005] Toolbar ➔ handleHeadingDown
+// 🎯 @KICK  : 제목 레벨 감소 핸들러 - headingLevel 6 미만일 때 +1
+// 🛡️ @GUARD : headingLevel < 6 조건 검사
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setHeadingLevel
+// ====================================================================
   const handleHeadingDown = (e: React.MouseEvent) => {
     e.preventDefault();
     if (headingLevel < 6) {
@@ -216,8 +242,7 @@ export default function Toolbar({
             {/* 링크/미디어 */}
             <div className="flex flex-row items-center gap-0.5">
               <ToolbarButton label="🔗" title={t('link')} onAction={() => dispatch('LINK')} />
-              <ToolbarButton label="🔖" title={t('taglink')} onAction={() => dispatch('TAGLINK')} />
-              <ToolbarButton label="📄" title={t('doclink')} onAction={() => dispatch('DOCLINK')} />
+              <ToolbarButton label="🔖" title={t('taglink')} onAction={() => dispatch('DOCLINK')} />
               <ToolbarButton label="🖼️" title={t('image')} onAction={() => dispatch('IMAGE')} />
               <ToolbarButton label="🎥" title={t('youtube')} onAction={() => dispatch('YOUTUBE')} />
               <ToolbarButton label="📅" title={t('now')} onAction={() => dispatch('NOW')} />
@@ -271,6 +296,13 @@ export default function Toolbar({
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0004] Toolbar ➔ ToolbarGroup
+// 🎯 @KICK  : 툴바 그룹 컨테이너 - 자식 버튼들과 하단 라벨 표시
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function ToolbarGroup({ label, children, showDivider = true }: { label: string, children: React.ReactNode, showDivider?: boolean }) {
   return (
     <div className="flex flex-row items-center h-full">
@@ -289,6 +321,13 @@ function ToolbarGroup({ label, children, showDivider = true }: { label: string, 
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0003] Toolbar ➔ ToolbarButton
+// 🎯 @KICK  : 툴바 개별 버튼 - bold/italic/underline/active 스타일링 및 마우스다운 이벤트 처리
+// 🛡️ @GUARD : e.preventDefault()로 포커스 유실 방지
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onAction
+// ====================================================================
 function ToolbarButton({ label, title, onAction, bold, italic, underline, active }: { label: string | React.ReactNode, title: string, onAction?: (e: any) => void, bold?: boolean, italic?: boolean, underline?: boolean, active?: boolean }) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault(); // 포커스 유실 방지
@@ -311,6 +350,13 @@ function ToolbarButton({ label, title, onAction, bold, italic, underline, active
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0002] Toolbar ➔ HeadingSpinButton
+// 🎯 @KICK  : 제목 레벨 조절 스핀 버튼 - ▲/▼ 버튼으로 headingLevel 조정 및 H 적용
+// 🛡️ @GUARD : headingLevel 1~6 범위 제한 (disabled 처리)
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleHeadingUp, handleHeadingDown, onHeadingSelect
+// ====================================================================
 function HeadingSpinButton({
   headingLevel,
   handleHeadingUp,
@@ -351,6 +397,13 @@ function HeadingSpinButton({
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0001] Toolbar ➔ CopyPreviewButton
+// 🎯 @KICK  : 미리보기 복사 버튼 - 클릭 시 onAction 콜백 실행
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onAction
+// ====================================================================
 function CopyPreviewButton({
   onAction,
   title,

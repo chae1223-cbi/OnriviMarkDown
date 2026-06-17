@@ -3,6 +3,13 @@ import { msg } from './msg';
 
 // [ONR-EXP-002] EPUB 규격 파일 어셈블링: 마크다운 렌더링된 XHTML 소스와 정적 스타일, OPF 메타데이터 파일을 JSZip을 통해 표준 e-book 구조로 빌드하고 내보내는 비동기 생성기입니다.
 /** XML/EPUB에서 literal 텍스트를 XHTML에 안전하게 삽입하기 위한 XML 이스케이프 헬퍼 */
+// ====================================================================
+// 📊 [OMD-IO-epubGenerator-0001] epubGenerator.ts ➔ escapeXml
+// 🎯 @KICK  : XML/EPUB용 literal 문자열 XHTML 안전 이스케이프
+// 🛡️ @GUARD : &, <, >, ", ' 문자 변환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function escapeXml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
@@ -10,6 +17,13 @@ function escapeXml(str: string): string {
 /**
  * 파일 확장자 기반으로 올바른 이미지 MIME 타입을 결정해주는 헬퍼
  */
+// ====================================================================
+// 📊 [OMD-IO-epubGenerator-0002] epubGenerator.ts ➔ getMimeType
+// 🎯 @KICK  : 파일 확장자 기반 MIME 타입 결정
+// 🛡️ @GUARD : 소문자 변환, 미등록 확장자 fallback
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function getMimeType(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase();
   if (ext === 'png') return 'image/png';
@@ -25,6 +39,13 @@ function getMimeType(filename: string): string {
  * 엔티티를 이스케이프하거나 속성을 보정해주는 정교한 XHTML 변환 헬퍼입니다.
  * 추가적으로 외부/내부 하이퍼링크의 e-reader 규격 보정 및 보안 처리를 실시간으로 자동 가공합니다!
  */
+// ====================================================================
+// 📊 [OMD-IO-epubGenerator-0003] epubGenerator.ts ➔ sanitizeToXHTML
+// 🎯 @KICK  : HTML 콘텐츠를 EPUB XHTML 규격으로 변환 — UI 요소 제거, 링크 보정, 앵커 삽입, 속성 정리
+// 🛡️ @GUARD : window 부재, data- 속성 필터링, 스키마 없는 외부 링크 자동 교정
+// 🚨 @PATCH : .md 내부 링크를 EPUB 앵커 해시로 재작성, 첫 헤더에 destination ID 강제 삽입
+// 🔗 @CALLS : 없음
+// ====================================================================
 function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
   if (typeof window === 'undefined') return htmlString;
   
@@ -112,6 +133,13 @@ interface EmbeddedImage {
   mimeType: string;
 }
 
+// ====================================================================
+// 📊 [OMD-IO-epubGenerator-0004] epubGenerator.ts ➔ generateEpub
+// 🎯 @KICK  : EPUB 규격 파일 어셈블링 — XHTML/OPF/NCX/TOC/CSS 생성, 이미지 임베딩, 페이지 분할
+// 🛡️ @GUARD : crypto.randomUUID 폴백, 이미지 fetch 5초 타임아웃, 빈 sections 방어 fallback
+// 🚨 @PATCH : mimetype STORE 압축, 한글/공백 파일명을 영숫자로 정규화, EPUB2/3 하위호환
+// 🔗 @CALLS : sanitizeToXHTML, escapeXml, getMimeType
+// ====================================================================
 export async function generateEpub({
   title,
   creator = 'Onrivi Author',
@@ -554,6 +582,13 @@ tr.table-page-break-line-before > td:first-child::before {
 /**
  * 생성된 EPUB Blob을 다운로드 다이얼로그로 내보내는 유틸리티 함수
  */
+// ====================================================================
+// 📊 [OMD-IO-epubGenerator-0005] epubGenerator.ts ➔ downloadBlob
+// 🎯 @KICK  : EPUB Blob을 브라우저 다운로드 다이얼로그로 내보내기
+// 🛡️ @GUARD : Blob URL 생성/해제, DOM 정리
+// 🚨 @PATCH : 100ms 지연 후 URL revoke로 메모리 누수 방지
+// 🔗 @CALLS : 없음
+// ====================================================================
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

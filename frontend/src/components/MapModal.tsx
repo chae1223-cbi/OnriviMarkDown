@@ -12,6 +12,13 @@ interface MapModalProps {
   isDarkMode: boolean;
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-MapModal-0006] MapModal ➔ MapModal
+// 🎯 @KICK  : Google Maps iframe 기반 지도 삽입 모달 - 주소 검색, 줌 제어, 크기/정렬 설정
+// 🛡️ @GUARD : isOpen/mounted false 시 null 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleSearch, handleInsert, setZoom, setMapAlign, showToast
+// ====================================================================
 export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapModalProps) {
   const { showToast } = useToast();
   const [address, setAddress] = useState("서울특별시 중구 세종대로 110");
@@ -24,10 +31,24 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+// ====================================================================
+// 📊 [OMD-CORE-MapModal-0005] MapModal ➔ useEffect (mounted)
+// 🎯 @KICK  : 클라이언트 마운트 완료 상태 설정으로 hydration mismatch 방지
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setMounted
+// ====================================================================
   useEffect(() => {
     setMounted(true);
   }, []);
 
+// ====================================================================
+// 📊 [OMD-CORE-MapModal-0004] MapModal ➔ handleSearch
+// 🎯 @KICK  : Nominatim API로 주소를 검색하여 좌표와 장소명 획득
+// 🛡️ @GUARD : address가 비어있으면 early return; 검색 결과가 없으면 에러 토스트
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : fetch, setCoords, setPlaceName, showToast
+// ====================================================================
   // 지도 검색 함수 - Nominatim(OpenStreetMap) 기반 주소/장소명 검색
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -65,10 +86,24 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
     }
   };
 
+// ====================================================================
+// 📊 [OMD-CORE-MapModal-0003] MapModal ➔ cleanCoords
+// 🎯 @KICK  : 입력된 좌표 문자열에서 외곽 괄호/따옴표 제거
+// 🛡️ @GUARD : trim + 정규식으로 좌표 정제
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   const cleanCoords = useMemo(() => {
     return coords.trim().replace(/^[\("'\s]+|[\)"'\s]+$/g, '');
   }, [coords]);
 
+// ====================================================================
+// 📊 [OMD-CORE-MapModal-0002] MapModal ➔ googleEmbedUrl
+// 🎯 @KICK  : 좌표와 줌 레벨로 Google Maps iframe embed URL 생성
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   // 구글 지도 Embed URL (API 키 없이 연동되는 방식)
   const googleEmbedUrl = useMemo(() => {
     const [lat, lng] = cleanCoords.split(',').map(s => s.trim());
@@ -82,6 +117,13 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   const [lat, lng] = cleanCoords.split(',').map(s => s.trim());
   const mapCode = `<iframe src="https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&output=embed" width="${mapWidth}" height="${mapHeight}" style="border:0;border-radius:12px;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
 
+// ====================================================================
+// 📊 [OMD-CORE-MapModal-0001] MapModal ➔ handleInsert
+// 🎯 @KICK  : Google Maps iframe HTML 코드를 생성하여 onInsert로 전달
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onInsert, onClose
+// ====================================================================
   const handleInsert = () => {
     onInsert(`\n${mapCode}\n`);
     onClose();

@@ -1,15 +1,36 @@
 import { CssProfile } from '../types/cssProfile';
 
+// ====================================================================
+// 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
+// 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🛡️ @GUARD : 이 ID를 가진 프로필은 수정/삭제 불가
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : isSystemProfileId
+// ====================================================================
 /**
  * 시스템 프로필 식별자 목록 — 이 ID를 가진 프로필은 수정/삭제 불가
  */
 export const SYSTEM_PROFILE_IDS = ['system-gov', 'system-press', 'system-report'] as const;
 export type SystemProfileId = typeof SYSTEM_PROFILE_IDS[number];
 
+// ====================================================================
+// 📊 [OMD-CORE-cssProfile-0005] cssProfile ➔ isSystemProfileId
+// 🎯 @KICK  : 주어진 id가 시스템 프로필 ID인지 검사한다
+// 🛡️ @GUARD : SYSTEM_PROFILE_IDS 배열에 포함된 값인지만 확인
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : SYSTEM_PROFILE_IDS
+// ====================================================================
 export function isSystemProfileId(id: string): boolean {
   return (SYSTEM_PROFILE_IDS as readonly string[]).includes(id);
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-cssProfile-0004] cssProfile ➔ EMPTY_RULES
+// 🎯 @KICK  : 모든 태그가 빈 객체인 CssRuleSet 템플릿을 제공한다
+// 🛡️ @GUARD : createEmptyProfile()에서 깊은 복사하여 사용되므로 직접 참조하지 않도록 주의
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : createEmptyProfile
+// ====================================================================
 /**
  * 모든 태그가 빈 CssRuleSet을 가진 템플릿 객체입니다.
  * createEmptyProfile()에서 깊은 복사(deep clone)하여 사용합니다.
@@ -35,6 +56,13 @@ const EMPTY_RULES = {
  * @remarks 사용자 정의 프로필을 생성할 때도 이 객체를 얕은 복사한 뒤
  * rules만 깊은 복사하여 사용합니다. (page.tsx onAddProfile 참고)
  */
+// ====================================================================
+// 📊 [OMD-CORE-cssProfile-0003] cssProfile ➔ SYSTEM_PROFILES
+// 🎯 @KICK  : 앱에 내장된 3개의 시스템 프로필 배열을 정의한다
+// 🛡️ @GUARD : system-* 접두사 id를 가지며 수정/삭제 불가
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * 시스템 기본 프로필 목록 (4개)
  * - 앱에 내장되어 배포되며 수정/삭제 불가
@@ -50,6 +78,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
     lineHeight: '1.8',
     letterSpacing: '0px',
     backgroundColor: '#ffffff',
+    paperSize: 'a4',
     marginTop: '25mm',
     marginBottom: '20mm',
     marginLeft: '25mm',
@@ -120,6 +149,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       lineHeight: '1.9',
       letterSpacing: '0px',
       backgroundColor: '#ffffff',
+      paperSize: 'a4',
       marginTop: '20mm',
       marginBottom: '20mm',
       marginLeft: '20mm',
@@ -174,6 +204,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       lineHeight: '1.6',
       letterSpacing: '0px',
       backgroundColor: '#ffffff',
+      paperSize: 'a4',
       marginTop: '15mm',
       marginBottom: '15mm',
       marginLeft: '20mm',
@@ -218,12 +249,26 @@ export const SYSTEM_PROFILES: CssProfile[] = [
   }
 ];
 
+// ====================================================================
+// 📊 [OMD-CORE-cssProfile-0002] cssProfile ➔ DEFAULT_PROFILE
+// 🎯 @KICK  : 시스템 기본 프로필(system-gov)을 기본값으로 내보낸다
+// 🛡️ @GUARD : SYSTEM_PROFILES[0]을 참조하며 시스템 프로필이므로 수정/삭제 불가
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : SYSTEM_PROFILES
+// ====================================================================
 /**
  * DEFAULT_PROFILE: 사용자 정의 프로필 생성/가져오기 시 템플릿으로 사용합니다.
  * (시스템 프로필이 아니므로 가져온 스타일로 덮어쓸 수 있습니다)
  */
 export const DEFAULT_PROFILE: CssProfile = SYSTEM_PROFILES[0]; // system-gov
 
+// ====================================================================
+// 📊 [OMD-CORE-cssProfile-0001] cssProfile ➔ createEmptyProfile
+// 🎯 @KICK  : 새로운 빈 CssProfile 객체를 생성하여 반환한다
+// 🛡️ @GUARD : EMPTY_RULES를 깊은 복사하여 여러 프로필이 동일 객체를 참조하지 않도록 방지한다
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * 새로운 빈 프로필을 생성합니다.
  * EMPTY_RULES를 JSON.parse(JSON.stringify(...))로 깊은 복사하여
@@ -234,7 +279,7 @@ export function createEmptyProfile(): CssProfile {
   return {
     id: '',
     name: '',
-    pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', backgroundColor: '#ffffff', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '', tabSize: '4' },
+    pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', backgroundColor: '#ffffff', paperSize: 'a4', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '', tabSize: '4' },
     rules: JSON.parse(JSON.stringify(EMPTY_RULES)),
     hrStructure: {
       borderTopStyle: 'solid',

@@ -16,6 +16,13 @@ const FALLBACK_FONTS = [
   'Courier New', 'Verdana', 'Tahoma', 'Impact', 'Comic Sans MS'
 ];
 
+// ====================================================================
+// 📊 [OMD-CORE-FontSelectorModal-0001] FontSelectorModal ➔ collectFonts
+// 🎯 @KICK  : queryLocalFonts API로 시스템 설치 폰트 수집, 실패 시 FALLBACK_FONTS 반환
+// 🛡️ @GUARD : queryLocalFonts 미지원 환경에서는 콘솔 경고 후 폴백 폰트 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 async function collectFonts(): Promise<string[]> {
   try {
     if (typeof window !== 'undefined' && 'queryLocalFonts' in window) {
@@ -31,11 +38,25 @@ async function collectFonts(): Promise<string[]> {
   return FALLBACK_FONTS;
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-FontSelectorModal-0002] FontSelectorModal ➔ FontSelectorModal
+// 🎯 @KICK  : 시스템 폰트 목록을 검색/선택하는 모달 창
+// 🛡️ @GUARD : isOpen이 false면 렌더링 생략
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : collectFonts
+// ====================================================================
 export default function FontSelectorModal({ isOpen, onClose, currentFont, onSelectFont, isDarkMode }: FontSelectorModalProps) {
   const [fonts, setFonts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // ====================================================================
+  // 📊 [OMD-CORE-FontSelectorModal-0003] FontSelectorModal ➔ useEffect (collectFonts)
+  // 🎯 @KICK  : 모달 열릴 때 시스템 폰트 목록을 수집하여 사용자에게 노출
+  // 🛡️ @GUARD : isOpen이 false면 실행 생략으로 불필요한 폰트 스캔 방지
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : collectFonts
+  // ====================================================================
   useEffect(() => {
     if (!isOpen) return;
     setLoading(true);

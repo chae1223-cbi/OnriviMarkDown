@@ -10,6 +10,13 @@ import { stripFrontmatter } from "@/lib/editorUtils";
  * [ONR-16-004] useEditorHandlers 커스텀 훅
  * @description 에디터의 주요 액션 핸들러(파일 저장, 내보내기, 서식 삽입 등)를 분리 관리합니다.
  */
+// ====================================================================
+// 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
+// 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🛡️ @GUARD : 각 핸들러별 editorRef/selection/model 방어 로직; previewRef 누락 시 export early return
+// 🚨 @PATCH : previewRef 매개변수 미전달로 인한 export 함수 ReferenceError 수정; setIsSettingsModalOpen 누락으로 settings 모달 미오픈 수정; print 핸들러 추가(PDF/HTML → OS 인쇄 통합)
+// 🔗 @CALLS : exportPDF, exportHTML, exportEPUB, exportPNG, vfsWriteFile, stripFrontmatter, sanitizePastedText, previewRef, setIsSettingsModalOpen
+// ====================================================================
 export const useEditorHandlers = ({
   editorRef,
   contentRef,
@@ -38,6 +45,9 @@ export const useEditorHandlers = ({
   setIsSearchOpen,
   setIsAboutModalOpen,
   setIsLicenseModalOpen,
+  setIsSettingsModalOpen,
+  setIsImageModalOpen,
+  setEditingImageInfo,
   setSettingsModalInitialTab,
   setFontSize,
   setHelpTitle,
@@ -54,13 +64,20 @@ export const useEditorHandlers = ({
   insertLink,
   quickWrap,
   insertBlockTag,
-  setShowTagLinkPicker,
   setShowDocLinkPicker,
   sanitizePastedText,
-  isComposingRef
+  isComposingRef,
+  previewRef,
 }: any) => {
 
   const handlers = {
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0013] useEditorHandlers.ts ➔ footnote
+    // 🎯 @KICK  : 각주 참조 및 정의를 문서 끝에 자동 생성하여 삽입
+    // 🛡️ @GUARD : editorRef, monaco, model, selection, position 존재 여부 확인
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : showToast
+    // ====================================================================
     footnote: () => {
       if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
       const editor = editorRef.current;
@@ -128,6 +145,13 @@ export const useEditorHandlers = ({
         editor.focus();
       }, 20);
     },
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0012] useEditorHandlers.ts ➔ insertText
+    // 🎯 @KICK  : 커서 위치에 임의 텍스트를 삽입 (슬래시 명령어 등에서 호출)
+    // 🛡️ @GUARD : editorRef 존재 여부 확인
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : 없음
+    // ====================================================================
     insertText: (text: string) => {
       if (!editorRef.current) return;
       const position = editorRef.current.getPosition();
@@ -138,6 +162,13 @@ export const useEditorHandlers = ({
       }]);
       editorRef.current.focus();
     },
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0011] useEditorHandlers.ts ➔ cleanDoc
+    // 🎯 @KICK  : 문서 내 HTML 브레이크 태그 등을 일괄 정리하여 순수 마크다운 유지
+    // 🛡️ @GUARD : editorRef 존재 여부, 정리할 내용이 없으면 안내 메시지
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : sanitizePastedText, showToast
+    // ====================================================================
     cleanDoc: () => {
       if (!editorRef.current) return;
       const editor = editorRef.current;
@@ -163,6 +194,13 @@ export const useEditorHandlers = ({
         showToast("정리할 서식이 없습니다.", "info");
       }
     },
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0010] useEditorHandlers.ts ➔ copyAll
+    // 🎯 @KICK  : 에디터 전체 마크다운 내용을 클립보드에 복사
+    // 🛡️ @GUARD : contentRef 존재 여부, 클립보드 API 실패 시 오류 토스트
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : showToast
+    // ====================================================================
     copyAll: async () => {
       const rawMarkdown = contentRef.current || "";
       if (rawMarkdown) {
@@ -176,6 +214,13 @@ export const useEditorHandlers = ({
         showToast("복사할 마크다운 내용이 없습니다.", "info");
       }
     },
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0009] useEditorHandlers.ts ➔ newFile
+    // 🎯 @KICK  : 새 빈 문서를 생성하고 워크스페이스 사이드바를 활성화
+    // 🛡️ @GUARD : 없음
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : updateContent, showToast
+    // ====================================================================
     newFile: () => {
       updateContent('');
       setCurrentFileName('새 파일.md');
@@ -184,6 +229,13 @@ export const useEditorHandlers = ({
       setIsSidebarOpen(true);
       showToast("새 문서를 시작합니다.", "info");
     },
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0008] useEditorHandlers.ts ➔ save
+    // 🎯 @KICK  : 현재 문서를 Electron/웹/브라우저 환경에 맞게 저장
+    // 🛡️ @GUARD : fileNode 경로/핸들 존재 여부, 저장 실패 시 fallback 처리
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : refreshFileList, showToast, vfsWriteFile, setPromptConfig
+    // ====================================================================
     save: async () => {
       const api = (window as any).electronAPI;
       setSaveStatus('saving');
@@ -361,6 +413,13 @@ export const useEditorHandlers = ({
       }
     },
 
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0007] useEditorHandlers.ts ➔ saveAs
+    // 🎯 @KICK  : 새 경로/파일명으로 문서를 다른 이름으로 저장
+    // 🛡️ @GUARD : Electron/File System Access/폴더 선택 각 환경별 예외 처리
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : refreshFileList, showToast, setPromptConfig
+    // ====================================================================
     saveAs: async () => {
       const api = (window as any).electronAPI;
       const fileName = currentFileNameRef.current;
@@ -478,12 +537,13 @@ export const useEditorHandlers = ({
       }
     },
     openExport: () => setIsExportModalOpen(true),
+    print: () => window.print(),
     exportPDF: async () => {
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
-      const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, dynamicCssString, showPageBreaks: isPageViewEnabled, marginTop, marginBottom, marginLeft, marginRight, backgroundColor });
+      const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, showPageBreaks: isPageViewEnabled, marginTop, marginBottom, marginLeft, marginRight, backgroundColor });
     },
     exportHTML: async () => {
       if (!previewRef.current) return;
@@ -523,8 +583,14 @@ export const useEditorHandlers = ({
     check: () => applyLinePrefix('check'),
     removePrefix: () => removePrefix(),
     link: () => insertLink(),
-    taglink: () => setShowTagLinkPicker(prev => !prev),
     doclink: () => setShowDocLinkPicker(prev => !prev),
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0006] useEditorHandlers.ts ➔ image
+    // 🎯 @KICK  : 이미지 마크다운 구문을 파싱하여 이미지 편집 모달 열기
+    // 🛡️ @GUARD : editorRef, selection, model 존재 여부 확인
+    // 🚨 @PATCH : setEditingImageInfo, setIsImageModalOpen 매개변수 누락으로 이미지 모달 미오픈 수정
+    // 🔗 @CALLS : setEditingImageInfo, setIsImageModalOpen
+    // ====================================================================
     image: () => {
       const editor = editorRef.current;
       if (editor) {
@@ -589,6 +655,13 @@ export const useEditorHandlers = ({
     map: () => setIsMapModalOpen(true),
     table: () => setIsTableModalOpen(true),
     quickTable: () => insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n'),
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0005] useEditorHandlers.ts ➔ insertTableRow
+    // 🎯 @KICK  : 편집 중인 표 아래에 새 행을 추가하여 데이터 입력 공간 확보
+    // 🛡️ @GUARD : editorRef, position, model 존재 여부 및 표 행 여부 확인
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : showToast
+    // ====================================================================
     insertTableRow: () => {
       if (!editorRef.current) return;
       const editor = editorRef.current;
@@ -628,6 +701,13 @@ export const useEditorHandlers = ({
       editor.focus();
       showToast("표 행이 추가되었습니다.", "info");
     },
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0004] useEditorHandlers.ts ➔ deleteTableRow
+    // 🎯 @KICK  : 편집 중인 표에서 현재 커서가 위치한 행을 삭제
+    // 🛡️ @GUARD : editorRef, position, model 존재 여부 및 표 행 여부 확인
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : showToast
+    // ====================================================================
     deleteTableRow: () => {
       if (!editorRef.current) return;
       const editor = editorRef.current;
@@ -679,6 +759,13 @@ export const useEditorHandlers = ({
       setIsSettingsModalOpen(true);
     },
     about: () => setIsAboutModalOpen(true),
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0003] useEditorHandlers.ts ➔ help
+    // 🎯 @KICK  : 도움말 문서를 Electron/웹 환경에서 읽어와 화면에 표시
+    // 🛡️ @GUARD : api.readFromPath / fetch 실패 시 오류 메시지 표시
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : stripFrontmatter, setHelpTitle, setHelpContent
+    // ====================================================================
     help: async () => {
       const api = (window as any).electronAPI;
       if (api?.readFromPath) {
@@ -703,6 +790,13 @@ export const useEditorHandlers = ({
       }
     },
     license: () => setIsLicenseModalOpen(true),
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0002] useEditorHandlers.ts ➔ toggleFloatingToolbar
+    // 🎯 @KICK  : 플로팅 툴바의 표시/숨김을 토글하고 커서 위치에 배치
+    // 🛡️ @GUARD : editorRef, position, visiblePos 존재 여부 확인
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : 없음
+    // ====================================================================
     toggleFloatingToolbar: () => {
       setFloatingToolbar(prev => {
         if (prev.visible) return { ...prev, visible: false };
@@ -721,6 +815,13 @@ export const useEditorHandlers = ({
       });
     },
     quickWrap: (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => quickWrap(format),
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0001] useEditorHandlers.ts ➔ pageBreak
+    // 🎯 @KICK  : 커서 위치에 페이지 분할선(<!-- [page-break] -->)을 삽입하여 PDF/인쇄 시 페이지 전환
+    // 🛡️ @GUARD : editorRef, selection, model 존재 여부 확인
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : showToast
+    // ====================================================================
     pageBreak: () => {
       if (!editorRef.current) return;
       const editor = editorRef.current;

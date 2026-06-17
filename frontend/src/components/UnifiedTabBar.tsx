@@ -2,6 +2,13 @@ import React from 'react';
 import { X, Plus } from 'lucide-react';
 import { FileNode } from '@/lib/helper';
 
+// ====================================================================
+// 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
+// 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export interface EditorTab {
   id: string;
   name: string;
@@ -22,6 +29,13 @@ interface UnifiedTabBarProps {
   isDarkMode: boolean;
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-UnifiedTabBar-0001] UnifiedTabBar ➔ UnifiedTabBar
+// 🎯 @KICK  : 통합 탭바 컴포넌트 - 열린 문서 탭 목록 표시, 탭 전환/닫기/추가 기능 제공
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onSwitchTab, onCloseTab, onCreateNewTab
+// ====================================================================
 export default function UnifiedTabBar({
   tabs,
   activeTabId,

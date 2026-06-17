@@ -33,7 +33,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     saveFile: "저장",
     saveFileAs: "다른 이름으로 저장",
     export: "내보내기",
-    pdf: "📚PDF 문서(.pdf)",
+    print: "🖨️인쇄/PDF",
     html: "📜HTML 파일 (.html)",
     epub: "📘EPUB 전자책(.epub)",
     png: "🖼️PNG 이미지(.png)",
@@ -72,7 +72,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     saveFile: "Save File",
     saveFileAs: "Save File As",
     export: "Export",
-    pdf: "PDF Document (.pdf)",
+    print: "🖨️Print/PDF",
     html: "HTML File (.html)",
     epub: "EPUB E-book (.epub)",
     png: "PNG Image (.png)",
@@ -102,6 +102,13 @@ const localTranslations: Record<string, Record<string, string>> = {
   }
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-MenuBar-0004] MenuBar ➔ MenuBar
+// 🎯 @KICK  : 상단 메뉴바 렌더링 - 파일/편집/도구/도움말 드롭다운 메뉴 제공
+// 🛡️ @GUARD : previewMode가 'preview'일 때 편집 메뉴 숨김
+// 🚨 @PATCH : PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
+// 🔗 @CALLS : MenuDropdown, dispatch, setIsSidebarOpen, setIsToolbarOpen, setPreviewMode
+// ====================================================================
 export default function MenuBar({ 
   isDarkMode, setIsDarkMode, 
   isSidebarOpen, setIsSidebarOpen, 
@@ -116,6 +123,13 @@ export default function MenuBar({
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+// ====================================================================
+// 📊 [OMD-EDIT-MenuBar-0003] MenuBar ➔ handleThemeSelect
+// 🎯 @KICK  : 테마 선택 시 onThemeChange 콜백 호출
+// 🛡️ @GUARD : onThemeChange가 존재할 때만 호출
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onThemeChange
+// ====================================================================
   const handleThemeSelect = (themeId: string) => {
     if (onThemeChange) {
       onThemeChange(themeId);
@@ -127,6 +141,13 @@ export default function MenuBar({
     return dict[key] || key;
   };
 
+// ====================================================================
+// 📊 [OMD-EDIT-MenuBar-0002] MenuBar ➔ useEffect (click outside)
+// 🎯 @KICK  : 메뉴 외부 클릭 시 activeMenu를 닫는 클릭 감지 리스너 설치
+// 🛡️ @GUARD : menuRef.contains로 클릭 대상이 메뉴 내부인지 확인
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setActiveMenu
+// ====================================================================
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -148,8 +169,9 @@ export default function MenuBar({
       label: t('export'), 
       icon: <span>📤</span>,
       subItems: [
-        { label: t('pdf'), onClick: () => dispatch('EXPORT_PDF') },
+        { label: t('print'), onClick: () => dispatch('PRINT') },
         { label: t('html'), onClick: () => dispatch('EXPORT_HTML') },
+        { divider: true },
         { label: t('epub'), onClick: () => dispatch('EXPORT_EPUB') },
         { label: t('png'), onClick: () => dispatch('EXPORT_PNG') },
       ]
@@ -230,6 +252,13 @@ export default function MenuBar({
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-MenuBar-0001] MenuBar ➔ MenuDropdown
+// 🎯 @KICK  : 상단 메뉴 드롭다운 렌더링 - 서브메뉴 호버 열림 및 단축키 표시
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { label: string, isOpen: boolean, onClick: () => void, onClose: () => void, items: any[], isDarkMode: boolean }) {
   const [activeSubMenu, setActiveSubMenu] = useState<string | null>(null);
 

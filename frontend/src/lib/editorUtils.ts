@@ -5,6 +5,13 @@
 /**
  * 🛡️ 해당 라인이 마크다운 리스트(순서 있는/없는 목록, 체크리스트 등)에 해당하는지 판별합니다.
  */
+// ====================================================================
+// 📊 [OMD-EDIT-editorUtils-0001] editorUtils.ts ➔ isAnyListLine
+// 🎯 @KICK  : 라인이 마크다운 리스트(순서형/비순서형/체크리스트)인지 판별
+// 🛡️ @GUARD : 빈 문자열, 정규식 매칭 (ordered/unordered/checkbox)
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function isAnyListLine(line: string): boolean {
   if (!line) return false;
   const trimmed = line.trim();
@@ -16,6 +23,13 @@ function isAnyListLine(line: string): boolean {
 /**
  * 마크다운 텍스트에서 YAML frontmatter(---로 둘러싸인 블록)를 제거합니다.
  */
+// ====================================================================
+// 📊 [OMD-EDIT-editorUtils-0002] editorUtils.ts ➔ stripFrontmatter
+// 🎯 @KICK  : YAML frontmatter(--- 블록)를 마크다운 텍스트에서 제거
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export function stripFrontmatter(markdown: string): string {
   return markdown.replace(/^---[\s\S]*?---\s*\n*/, '');
 }
@@ -23,6 +37,13 @@ export function stripFrontmatter(markdown: string): string {
 /**
  * 📏 해당 라인의 들여쓰기 수준(Indent Level)을 스페이스 개수 기준으로 계산합니다.
  */
+// ====================================================================
+// 📊 [OMD-EDIT-editorUtils-0003] editorUtils.ts ➔ getIndentLevel
+// 🎯 @KICK  : 라인의 들여쓰기 수준을 스페이스 개수 기준으로 계산 (탭=4)
+// 🛡️ @GUARD : 빈 문자열, 탭 문자 4칸 변환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function getIndentLevel(line: string): number {
   if (!line) return 0;
   const match = line.match(/^([ \t]*)/);
@@ -51,6 +72,13 @@ export interface ProcessedMarkdown {
  * @param content 원본 마크다운 텍스트
  * @returns 전처리된 텍스트 및 라인 매핑 배열
  */
+// ====================================================================
+// 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
+// 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
+// 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, page-break 특수 태그, ordered/unordered list indent
+// 🚨 @PATCH : 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정
+// 🔗 @CALLS : stripFrontmatter, isAnyListLine, getIndentLevel
+// ====================================================================
 export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown {
   if (!content) return { text: "", lineMap: [] };
 
@@ -333,6 +361,13 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
  * @param formula 원본 LaTeX 수식 문자열
  * @returns \boldsymbol{...}로 래핑되어 볼드 렌더링이 보장된 LaTeX 수식 문자열
  */
+// ====================================================================
+// 📊 [OMD-EDIT-editorUtils-0005] editorUtils.ts ➔ wrapMathWithBold
+// 🎯 @KICK  : KaTeX 수식에 \boldsymbol{...} 래핑하여 칠판 볼드체 렌더링 보장
+// 🛡️ @GUARD : 이미 \boldsymbol/\mathbf 포함 여부 체크, 빈 문자열 처리
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export function wrapMathWithBold(formula: string): string {
   if (!formula) return "";
   

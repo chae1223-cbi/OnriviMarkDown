@@ -21,6 +21,13 @@ interface ImageModalProps {
   showToast?: (message: string, type: 'success' | 'error') => void;
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-ImageModal-0007] ImageModal ➔ ImageModal
+// 🎯 @KICK  : 이미지 삽입 모달 - URL/파일/클립보드 이미지 경로 입력 및 크기/정렬 설정
+// 🛡️ @GUARD : isOpen/mounted false 시 null 반환; cleanImagePath가 없으면 삽입 버튼 비활성화
+// 🚨 @PATCH : media://?url= 접두사 정정; 클립보드 이미지 base64 저장 파이프라인
+// 🔗 @CALLS : handleInsert, handlePasteEvent, handleFileChange, cleanImagePath, previewSrc
+// ====================================================================
 export default function ImageModal({ 
   isOpen, 
   onClose, 
@@ -38,10 +45,24 @@ export default function ImageModal({
   const [mounted, setMounted] = React.useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+// ====================================================================
+// 📊 [OMD-EDIT-ImageModal-0006] ImageModal ➔ useEffect (mounted)
+// 🎯 @KICK  : 클라이언트 마운트 완료 상태 설정으로 포탈 렌더링 hydration mismatch 방지
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setMounted
+// ====================================================================
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
+// ====================================================================
+// 📊 [OMD-EDIT-ImageModal-0005] ImageModal ➔ useEffect (initialData mapping)
+// 🎯 @KICK  : 모달 열림 시 initialData가 있으면 각 필드에 매핑, 없으면 초기화
+// 🛡️ @GUARD : isOpen이 true일 때만 실행
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setImagePath, setImageAlt, setImageWidth, setImageHeight, setImageAlign
+// ====================================================================
   // 💡 모달이 열릴 때 이전 데이터가 존재하면 매핑해 줍니다.
   React.useEffect(() => {
     if (isOpen) {
@@ -61,6 +82,13 @@ export default function ImageModal({
     }
   }, [isOpen, initialData]);
 
+// ====================================================================
+// 📊 [OMD-EDIT-ImageModal-0004] ImageModal ➔ handlePasteEvent
+// 🎯 @KICK  : 클립보드 이미지를 로컬 assets 폴더에 저장하고 경로를 입력 필드에 설정
+// 🛡️ @GUARD : 클립보드에 이미지 타입 아이템이 없으면 early return
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : api.saveImage, showToast, setImagePath
+// ====================================================================
   // 📸 [클립보드 붙여넣기(Paste) 공통 처리 함수]
   const handlePasteEvent = async (e: React.ClipboardEvent<HTMLDivElement>) => {
     const items = e.clipboardData?.items;
@@ -106,6 +134,13 @@ export default function ImageModal({
     }
   };
 
+// ====================================================================
+// 📊 [OMD-EDIT-ImageModal-0003] ImageModal ➔ cleanImagePath
+// 🎯 @KICK  : 입력된 이미지 경로에서 순수 URL 추출 (마크다운/HTML 태그 래핑 제거)
+// 🛡️ @GUARD : media:// 프로토콜 래핑 해제; 외곽 괄호/따옴표 제거
+// 🚨 @PATCH : media://local/serve?url= 내부의 중첩 URL을 추출하는 fallback 로직
+// 🔗 @CALLS : 없음
+// ====================================================================
   // 실제 이미지 주소 추출
   const cleanImagePath = React.useMemo(() => {
     let raw = imagePath.trim();
@@ -142,6 +177,13 @@ export default function ImageModal({
     return url;
   }, [imagePath]);
 
+// ====================================================================
+// 📊 [OMD-EDIT-ImageModal-0002] ImageModal ➔ previewSrc
+// 🎯 @KICK  : cleanImagePath를 media:// 로컬 프록시 URL로 변환하여 미리보기 이미지 로드 보장
+// 🛡️ @GUARD : 외부 URL, blob, data URL은 원본 유지; 로컬 경로만 변환
+// 🚨 @PATCH : media://?url= 접두사를 media://local/serve?url=로 정정
+// 🔗 @CALLS : 없음
+// ====================================================================
   // 🛡️ [미리보기 이미지 URL 안전 동적 매핑]
   // assets/로 시작하는 상대 경로 및 일반 경로를 뷰어가 404 없이 로드할 수 있도록 media:// 로컬 프록시 주소로 변환
   const previewSrc = React.useMemo(() => {
@@ -180,6 +222,13 @@ export default function ImageModal({
   if (!isOpen) return null;
   if (!mounted) return null;
 
+// ====================================================================
+// 📊 [OMD-EDIT-ImageModal-0001] ImageModal ➔ handleInsert
+// 🎯 @KICK  : 이미지 경로와 크기/정렬 파라미터를 조합해 마크다운 코드로 삽입
+// 🛡️ @GUARD : cleanImagePath가 비어있으면 실행 차단
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onInsert, onClose
+// ====================================================================
   const handleInsert = () => {
     if (cleanImagePath) {
       let finalPath = cleanImagePath;

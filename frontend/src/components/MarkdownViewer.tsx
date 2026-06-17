@@ -119,6 +119,13 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
   return stack.join('/');
 };
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0009] MarkdownViewer ➔ remarkDisableIndentedCode
+// 🎯 @KICK  : 4칸 들여쓰기/탭의 코드블록 인식을 차단하는 remark 플러그인
+// 🛡️ @GUARD : micromarkExtensions에 codeIndented 비활성화 등록
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 // [ONR-MD-001] 들여쓰기 코드 블록 인식 차단: 4칸 들여쓰기/탭 입력 시 코드블록으로 인식되는 기본 마크다운 규격을 차단하는 커스텀 remark 플러그인입니다.
 // 🛡️ 들여쓰기 4칸/탭 입력 시 코드블록으로 인식되는 것을 완전히 차단하는 플러그인
 function remarkDisableIndentedCode(this: any) {
@@ -131,6 +138,13 @@ function remarkDisableIndentedCode(this: any) {
   });
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0008] MarkdownViewer ➔ CodeBlock
+// 🎯 @KICK  : 코드블록을 언어명 헤더 + 복사 버튼 + 모노스페이스 렌더링
+// 🛡️ @GUARD : navigator.clipboard.writeText API 존재 여부
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleCopy, navigator.clipboard.writeText
+// ====================================================================
 function CodeBlock({ lang, code, className, ...props }: { lang: string; code: string; className?: string; [key: string]: any }) {
   const [copied, setCopied] = useState(false);
 
@@ -168,6 +182,13 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
   );
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0007] MarkdownViewer ➔ TableWrapper
+// 🎯 @KICK  : 마크다운 표를 HTML + TSV 형식으로 클립보드에 복사하는 래퍼 컴포넌트
+// 🛡️ @GUARD : tableRef/tableEl 존재 여부 확인
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleCopy, ClipboardItem, navigator.clipboard.write
+// ====================================================================
 // 🛡️ [한글 주석 완벽 탑재] TableWrapper는 렌더링된 표 위에 마우스 오버 시 '시트/표형식 복사' 버튼을 표시하고, 
 // 클릭하면 MS 오피스(워드, 엑셀) 및 한글 프로그램 등에 표 형태로 바로 붙여넣어지도록 HTML과 탭 구분 텍스트(TSV)로 클립보드에 적재해 주는 컴포넌트입니다.
 function TableWrapper({ children }: { children: React.ReactElement }) {
@@ -234,6 +255,13 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
   );
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0006] MarkdownViewer ➔ loadMermaidScript
+// 🎯 @KICK  : Mermaid CDN 스크립트를 동적으로 로드하고 초기화 (SSR 번들 충돌 방지)
+// 🛡️ @GUARD : window.mermaid 존재 시 재사용; 중복 로딩 방지용 mermaidPromise 캐싱
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : mermaid.initialize
+// ====================================================================
 // 🛡️ [한글 주석 완벽 탑재] 비동기 글로벌 Mermaid 스크립트 로더
 // Next.js SSR 및 정적 배포 번들의 컴파일 문제를 방지하기 위해 클라이언트단에서 CDN 스크립트를 동적으로 로드합니다.
 let mermaidPromise: Promise<any> | null = null;
@@ -273,6 +301,13 @@ const loadMermaidScript = (): Promise<any> => {
 
 // 🛡️ [한글 주석 완벽 탑재] MermaidBlock은 머메이드 차트 원본 텍스트를 파싱하여 SVG 다이어그램 이미지로 실시간 변환 렌더링하고,
 // 이미지 저장(PNG 다운로드) 및 이미지 복사(클립보드 기입) 툴바를 제공해 오피스 프로그램에 바로 붙여넣게 도와주는 컴포넌트입니다.
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0005] MarkdownViewer ➔ MermaidBlock
+// 🎯 @KICK  : Mermaid 차트 텍스트를 SVG로 실시간 변환 렌더링 및 이미지 저장/복사 툴바 제공
+// 🛡️ @GUARD : Mermaid 라이브러리 로드 실패 시 에러 메시지 표시; 문법 무결성 사전 검증
+// 🚨 @PATCH : 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프
+// 🔗 @CALLS : loadMermaidScript, handleCopyImage, handleSaveImage, handleCopyCode
+// ====================================================================
 function MermaidBlock({ code }: { code: string }) {
   const [svgHtml, setSvgHtml] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -513,6 +548,13 @@ function MermaidBlock({ code }: { code: string }) {
   );
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0004] MarkdownViewer ➔ MarkdownViewer
+// 🎯 @KICK  : 마크다운 텍스트를 ReactMarkdown으로 렌더링 - 코드블록, 표, 머메이드, 이미지 경로 변환 등 고기능 뷰어
+// 🛡️ @GUARD : 이미지 경로는 media:// 프록시로 변환; HTML 이스케이프/위키링크 전처리
+// 🚨 @PATCH : 쿼리 스트링 분리 가드, 웰컴 페이지 예외 가드, 단위 자동 보완 가드
+// 🔗 @CALLS : CodeBlock, TableWrapper, MermaidBlock, rehypeSourceLinesPlugin, rehypeBrRaw, cleanContent
+// ====================================================================
 export default function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
   onFileOpen, orientation, marginTop, marginBottom, marginLeft, marginRight, listIndent, showPageBreaks, calcKey
@@ -521,6 +563,13 @@ export default function MarkdownViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const prevBreaksRef = useRef<string>("");
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0003] MarkdownViewer ➔ cleanContent
+// 🎯 @KICK  : 마크다운 원문 전처리 - 위키링크 변환, 괄호 링크 이스케이프, 목록 번호 방어
+// 🛡️ @GUARD : 숫자+괄호 패턴을 백슬래시 이스케이프로 목록 변환 방지
+// 🚨 @PATCH : 소괄호 포함 URL 파싱 깨짐 방지를 위해 <> 래핑 필터 적용
+// 🔗 @CALLS : 없음
+// ====================================================================
   // 🛡️ [마크다운 원본 우회] 마크다운 본문의 HTML 이스케이프 깨짐 방지를 위해 원본 내용을 직접 컴포넌트에 공급합니다.
   // 💡 [한글 주석] 마크다운 링크 주소 내부에 소괄호()가 포함되어 파싱이 깨지는 현상 방지 필터 (부등호 <> 래핑 처리)
   const cleanContent = useMemo(() => {
@@ -591,6 +640,13 @@ export default function MarkdownViewer({
     return {};
   };
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0002] MarkdownViewer ➔ rehypeSourceLinesPlugin
+// 🎯 @KICK  : 마크다운 노드에 data-line 속성으로 원본 줄 번호를 매핑
+// 🛡️ @GUARD : lineMap을 통해 processedLine을 originalLine으로 역매핑
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   // 🛡️ [마크다운 물리 줄번호 매핑 플러그인] 마크다운 노드가 화면에 렌더링될 때 data-line 속성에 원본 줄 번호를 매핑합니다.
   const rehypeSourceLinesPlugin = useMemo(() => {
     return () => (tree: any) => {
@@ -611,6 +667,13 @@ export default function MarkdownViewer({
     };
   }, [lineMap]);
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0001] MarkdownViewer ➔ rehypeBrRaw
+// 🎯 @KICK  : raw HTML <br> 태그를 안전하게 br 엘리먼트로 교체하는 rehype 플러그인
+// 🛡️ @GUARD : raw 노드를 분할하여 br 태그만 엘리먼트로, 나머지는 보존
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   // 🛡️ [강제 수동 개행 플러그인] <br> 태그가 날것의 HTML로 들어올 때, Next.js의 rehypeRaw 삼킴 우려 없이 안전하게 br 엘리먼트로 교체합니다.
   const rehypeBrRaw = useMemo(() => {
     return () => (tree: any) => {

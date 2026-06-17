@@ -7,11 +7,18 @@ import { vfsReadFile } from '@/lib/vfsHelper';
 import { getApiUrl } from '@/lib/api';
 
 /**
- * [ONR-16-001] useEditorTabs 커스텀 훅
+ * [OMD-HOOK-0003] useEditorTabs 커스텀 훅
  * @description Monaco Editor의 가상 모델 다중 탭 관리와 관련된 상태 및 로직을 통합 관리합니다.
  * @note tabs/setTabs/activeTabId/setActiveTabId는 외부(MainEditorApp)에서 주입받습니다.
  *       TDZ 방지를 위해 최상위 컴포넌트에서 상태를 선언하고 훅에 전달합니다.
  */
+// ====================================================================
+// 📊 [OMD-HOOK-0003] useEditorTabs.ts ➔ useEditorTabs
+// 🎯 @KICK  : Monaco 에디터 가상 모델 다중 탭 관리 — 탭 전환·생성·콘텐츠 동기화
+// 🛡️ @GUARD : tabs/setTabs/activeTabId/setActiveTabId 외부 주입으로 TDZ 원천 차단
+// 🚨 @PATCH : 내부 useState 제거 → 외부 주입 방식으로 전환 | 2026-06-15 | MainEditorApp L526 tabMetadata_sync가 useEditorTabs 선언 전에 setTabs/activeTabId 참조하여 rS TDZ 에러 발생
+// 🔗 @CALLS : getWelcomeContent, monaco.editor.createModel
+// ====================================================================
 export const useEditorTabs = (
   editorRef: any,
   setContent: (val: string) => void,
@@ -36,6 +43,13 @@ export const useEditorTabs = (
   useEffect(() => { tabsRef.current = tabs; }, [tabs]);
   useEffect(() => { activeTabIdRef.current = activeTabId; }, [activeTabId]);
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEEDITORTABS-0003] useEditorTabs.ts ➔ updateContent
+  // 🎯 @KICK  : 에디터/외부에서 콘텐츠 변경 시 탭 상태와 Monaco 모델을 디바운스하여 동기화
+  // 🛡️ @GUARD : isEditorMounted, previewMode, isComposing 상태에 따른 early return
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : setContent, setTabs
+  // ====================================================================
   const updateContent = useCallback((newValue: string, fromEditor: boolean = false) => {
     if (fromEditor && !isEditorMountedRef.current) return;
     if (fromEditor && previewModeRef.current === 'preview') return;
@@ -60,6 +74,13 @@ export const useEditorTabs = (
     }
   }, [setContent, isEditorMountedRef, previewModeRef, previewDebounceRef, isComposingRef, editorRef]);
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEEDITORTABS-0002] useEditorTabs.ts ➔ switchTab
+  // 🎯 @KICK  : 특정 탭으로 전환하며 스크롤 위치와 Monaco 모델을 복원
+  // 🛡️ @GUARD : 대상 탭 미존재 시 early return
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : setContent, setCurrentFileName, setCurrentFileNode
+  // ====================================================================
   const switchTab = useCallback((tabId: string) => {
     const monaco = (window as any).monaco;
     const editor = editorRef.current;
@@ -90,6 +111,13 @@ export const useEditorTabs = (
     }
   }, [editorRef, setContent, setCurrentFileName, setCurrentFileNode]);
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEEDITORTABS-0001] useEditorTabs.ts ➔ createNewTab
+  // 🎯 @KICK  : 새 탭을 생성하고 Monaco 모델을 만들어 에디터에 연결
+  // 🛡️ @GUARD : monaco 미존재 시 모델 없이 탭만 생성
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : getWelcomeContent, setContent, setTabs, setActiveTabId, setCurrentFileName, setCurrentFileNode
+  // ====================================================================
   const createNewTab = useCallback((initialContent?: string, name?: string) => {
     const monaco = (window as any).monaco;
     const contentVal = initialContent !== undefined ? initialContent : getWelcomeContent();

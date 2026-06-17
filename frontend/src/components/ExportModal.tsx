@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, FileText, Globe, Image as ImageIcon, X, Check, BookOpen } from 'lucide-react';
+import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen } from 'lucide-react';
 
 /**
  * [ONR-UI-011] ExportModalProps 인터페이스
@@ -11,16 +11,23 @@ import { Download, FileText, Globe, Image as ImageIcon, X, Check, BookOpen } fro
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'pdf' | 'html' | 'png' | 'epub') => void;
+  onExport: (format: 'print' | 'html' | 'png' | 'epub') => void;
   isDarkMode: boolean;
 }
 
 /**
  * [ONR-UI-012] ExportModal 컴포넌트 함수
- * @description 에디터에서 완성된 문서를 PDF, HTML, EPUB 전자책, PNG 이미지 포맷 중 선택하여 다운로드 빌드를 요청하는 모달 창입니다.
+ * @description 에디터에서 완성된 문서를 OS 인쇄(미리보기+PDF저장), HTML, EPUB 전자책, PNG 이미지 포맷 중 선택하여 내보내기 요청을 처리하는 모달 창입니다.
  */
+// ====================================================================
+// 📊 [OMD-IO-ExportModal-0001] ExportModal ➔ ExportModal
+// 🎯 @KICK  : OS 인쇄(미리보기+PDF저장)/HTML/EPUB/PNG 포맷 선택 및 내보내기 요청을 처리하는 모달 창
+// 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 포털 렌더링
+// 🚨 @PATCH : PDF/HTML → OS 인쇄(print) 통합 후 HTML 파일 저장 별도 추가; icon/label/desc 변경
+// 🔗 @CALLS : 없음
+// ====================================================================
 export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: ExportModalProps) {
-  const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'html' | 'png' | 'epub'>('pdf');
+  const [selectedFormat, setSelectedFormat] = useState<'print' | 'html' | 'png' | 'epub'>('print');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -31,8 +38,8 @@ export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: E
   if (!mounted) return null;
 
   const formats = [
-    { id: 'pdf', label: "PDF 문서", desc: "고품질 인쇄 및 문서 보관용", icon: <FileText size={20} className="text-red-500" /> },
-    { id: 'html', label: "HTML 파일", desc: "웹 브라우저에서 바로 열기용", icon: <Globe size={20} className="text-blue-500" /> },
+    { id: 'print', label: "인쇄 / PDF 출력", desc: "OS 인쇄 미리보기 후 프린터 출력 또는 PDF 저장", icon: <Printer size={20} className="text-red-500" /> },
+    { id: 'html', label: "HTML 파일", desc: "웹 브라우저에서 바로 열기용 (.html)", icon: <Globe size={20} className="text-blue-500" /> },
     { id: 'epub', label: "EPUB 전자책", desc: "eBook 리더 및 태블릿 기기용", icon: <BookOpen size={20} className="text-purple-500" /> },
     { id: 'png', label: "PNG 이미지", desc: "SNS 공유 및 프리젠테이션용", icon: <ImageIcon size={20} className="text-green-500" /> },
   ];
@@ -99,8 +106,8 @@ export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: E
             onClick={() => onExport(selectedFormat as any)}
             className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors flex items-center gap-2"
           >
-            <Download size={16} />
-            파일 생성 및 저장
+            {selectedFormat === 'print' ? <Printer size={16} /> : <Download size={16} />}
+            {selectedFormat === 'print' ? '인쇄 / PDF 저장' : '파일 생성 및 저장'}
           </button>
         </div>
       </div>

@@ -25,6 +25,13 @@ export const DEFAULT_SLASH_COMMANDS = [
 ];
 
 // Monaco가 없어도 사용할 수 있도록 초기화 함수 작성
+// ====================================================================
+// 📊 [OMD-EDIT-slashCommands-0001] slashCommands.ts ➔ getSlashCommands
+// 🎯 @KICK  : 기본 슬래시 명령어 배열을 Monaco CompletionItem 형식으로 변환
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const getSlashCommands = (monaco: any, customCommands = DEFAULT_SLASH_COMMANDS) => {
   return customCommands.map(cmd => ({
     ...cmd,

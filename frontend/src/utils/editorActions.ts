@@ -1,5 +1,12 @@
 // @ts-nocheck
 
+// ====================================================================
+// 📊 [OMD-EDIT-editorActions-0005] editorActions ➔ scrollToLine
+// 🎯 @KICK  : Monaco 에디터 내에서 특정 라인 번호로 스크롤하고 포커스를 이동시킨다
+// 🛡️ @GUARD : editorRef.current가 없으면 early return
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * [ONR-15-010] scrollToLine 함수 (추출된 유틸리티)
  * @description Monaco 에디터 내에서 특정 라인 번호로 스크롤하고 커서 위치를 해당 라인의 첫 번째 열로 이동한 뒤 포커스를 줍니다.
@@ -15,6 +22,13 @@ export const scrollToLine = (editorRef: any, lineNumber: number) => {
   }
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-editorActions-0004] editorActions ➔ insertAtCursor
+// 🎯 @KICK  : 현재 커서 위치 또는 마지막 선택 영역에 텍스트를 주입한다
+// 🛡️ @GUARD : editorRef.current가 없으면 early return, selection 검증 후 처리
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * [ONR-15-011] insertAtCursor 함수 (추출된 유틸리티)
  * @description 에디터의 현재 커서 위치 또는 마지막으로 선택된 영역에 텍스트를 주입하고 Monaco 에디터 토크나이저를 강제로 갱신합니다.
@@ -55,6 +69,13 @@ export const insertAtCursor = (editorRef: any, lastSelectionRef: any, text: stri
   }
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-editorActions-0003] editorActions ➔ findLineNumberByHeading
+// 🎯 @KICK  : 문서 내에서 특정 제목 텍스트가 위치한 라인 번호를 탐색한다
+// 🛡️ @GUARD : content나 heading이 falsy이면 1 반환, 매칭 실패 시에도 1 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * [ONR-15-012] findLineNumberByHeading 함수 (추출된 유틸리티)
  * @description 문서 내에서 특정 제목(Heading) 텍스트가 위치한 라인 번호를 탐색합니다.
@@ -81,6 +102,13 @@ export const findLineNumberByHeading = (content: string, heading: string): numbe
   return 1;
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-editorActions-0002] editorActions ➔ insertBlockTag
+// 🎯 @KICK  : 선택 영역 또는 커서 위치를 블록 태그로 감싼다
+// 🛡️ @GUARD : editorRef.current가 없으면 early return, selection이 없으면 return
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * [ONR-15-013] insertBlockTag 함수 (추출된 유틸리티)
  * @description 선택된 영역 또는 커서 위치를 HTML/마크다운 블록 태그(예: 코드 블록, 인용구 등)로 감싸줍니다.
@@ -152,6 +180,13 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
   editor.focus();
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-editorActions-0001] editorActions ➔ wrapSelection
+// 🎯 @KICK  : 선택된 텍스트를 지정된 문자열로 감싸거나 토글 방식으로 제거한다
+// 🛡️ @GUARD : 이전 선택 영역이 없거나 비어 있으면 early return
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * [ONR-15-014] wrapSelection 함수 (추출된 유틸리티)
  * @description 현재 드래그 선택된 텍스트의 앞뒤를 지정된 문자열로 감싸거나 토글식으로 제거합니다.

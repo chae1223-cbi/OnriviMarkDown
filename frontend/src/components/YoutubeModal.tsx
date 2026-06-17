@@ -12,6 +12,13 @@ interface YoutubeModalProps {
   isDarkMode: boolean;
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-YoutubeModal-0007] YoutubeModal ➔ YoutubeModal
+// 🎯 @KICK  : 유튜브 영상 삽입 모달 - URL 입력, ID 추출, iframe/썸네일 코드 생성, 미리보기 제공
+// 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : videoId, embedUrl, generatedCode, handleInsert, showToast, createPortal
+// ====================================================================
 export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: YoutubeModalProps) {
   const { showToast } = useToast();
   const [inputUrl, setInputUrl] = useState("");
@@ -21,10 +28,24 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
   const [mounted, setMounted] = useState(false);
 
+// ====================================================================
+// 📊 [OMD-EDIT-YoutubeModal-0006] YoutubeModal ➔ useEffect(mounted)
+// 🎯 @KICK  : 클라이언트 마운트 완료 시 mounted 상태 true 설정 (SSR 하이드레이션 보호)
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   useEffect(() => {
     setMounted(true);
   }, []);
 
+// ====================================================================
+// 📊 [OMD-EDIT-YoutubeModal-0005] YoutubeModal ➔ videoId
+// 🎯 @KICK  : 유튜브 URL/iframe에서 비디오 ID 추출 (정규식 기반 파싱)
+// 🛡️ @GUARD : inputUrl이 비어있으면 빈 문자열 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   // 유튜브 URL 또는 iframe 코드에서 비디오 ID 추출하는 정규식 함수
   const videoId = useMemo(() => {
     if (!inputUrl.trim()) return "";
@@ -46,6 +67,13 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
     return (match && match[2].length === 11) ? match[2] : "";
   }, [inputUrl]);
 
+// ====================================================================
+// 📊 [OMD-EDIT-YoutubeModal-0004] YoutubeModal ➔ useEffect(shorts)
+// 🎯 @KICK  : 유튜브 쇼츠 URL 감지 시 자동으로 플레이어 크기 315x560(세로 최적화) 설정
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setWidth, setHeight
+// ====================================================================
   // 쇼츠(Shorts) 동영상 입력 시 자동으로 세로 최적화 비율(315x560) 설정
   useEffect(() => {
     if (inputUrl.includes("/shorts/")) {
@@ -57,12 +85,26 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
     }
   }, [inputUrl]);
 
+// ====================================================================
+// 📊 [OMD-EDIT-YoutubeModal-0003] YoutubeModal ➔ embedUrl
+// 🎯 @KICK  : videoId로 YouTube iframe embed URL 생성 (관련 영상/로고 제거 옵션 포함)
+// 🛡️ @GUARD : videoId가 없으면 빈 문자열 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   const embedUrl = useMemo(() => {
     if (!videoId) return "";
     // origin 파라미터 추가 및 불필요한 관련 영상/로고 제거 옵션 적용
     return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
   }, [videoId]);
 
+// ====================================================================
+// 📊 [OMD-EDIT-YoutubeModal-0002] YoutubeModal ➔ generatedCode
+// 🎯 @KICK  : iframe 또는 썸네일 방식에 따른 최종 HTML/마크다운 코드 생성
+// 🛡️ @GUARD : videoId가 없으면 빈 문자열 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   const generatedCode = useMemo(() => {
     if (!videoId) return "";
     if (insertType === 'iframe') {
@@ -72,6 +114,13 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode }: 
     }
   }, [videoId, insertType, width, height, embedUrl, align]);
 
+// ====================================================================
+// 📊 [OMD-EDIT-YoutubeModal-0001] YoutubeModal ➔ handleInsert
+// 🎯 @KICK  : 생성된 유튜브 코드를 본문에 삽입하고 입력값 초기화 후 모달 닫기
+// 🛡️ @GUARD : videoId가 없으면 경고 토스트 표시 후 조기 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : showToast, onInsert, onClose
+// ====================================================================
   const handleInsert = () => {
     if (!videoId) {
       showToast("올바른 유튜브 링크나 소스코드를 입력해주세요.", "warning");

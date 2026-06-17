@@ -23,6 +23,13 @@ interface ConfirmModalProps {
  * [ONR-UI-010] ConfirmModal 컴포넌트 함수
  * @description 작업의 실행 여부를 예/아니오 단추와 위험성 경고 아이콘 등으로 확인받는 포털 기반 범용 컨펌 창입니다.
  */
+// ====================================================================
+// 📊 [OMD-CORE-ConfirmModal-0001] ConfirmModal ➔ ConfirmModal
+// 🎯 @KICK  : 확인/취소 선택과 위험 경고 아이콘을 표시하는 포털 기반 범용 컨펌 모달
+// 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 렌더링, isDanger에 따라 스타일 분기
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export default function ConfirmModal({ 
   isOpen, 
   title, 
@@ -40,6 +47,13 @@ export default function ConfirmModal({
   }, []);
   
   // Enter or Escape Key Down
+  // ====================================================================
+  // 📊 [OMD-CORE-ConfirmModal-0002] ConfirmModal ➔ useEffect (handleKeyDown)
+  // 🎯 @KICK  : Escape/Enter 키 입력 시 각각 취소/확인 콜백 자동 실행
+  // 🛡️ @GUARD : isOpen이 false면 이벤트 무시
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onCancel, onConfirm
+  // ====================================================================
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;

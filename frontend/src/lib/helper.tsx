@@ -5,6 +5,13 @@ import { FileText, FileCode, FileJson, FileType, File, Folder } from 'lucide-rea
 import { msg } from './msg';
 
 // IndexedDB 헬퍼 (핸들 저장을 위해 필요)
+// ====================================================================
+// 📊 [OMD-CORE-helper-0001] helper.tsx ➔ idb
+// 🎯 @KICK  : IndexedDB 기반 key-value 저장 헬퍼 (get/set)
+// 🛡️ @GUARD : onupgradeneeded 스토어 생성, objectStoreNames 존재 여부 체크
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const idb = {
   get: (key: string) => new Promise<any>((resolve, reject) => {
     const req = indexedDB.open('onrivi-author-db', 1);
@@ -43,6 +50,13 @@ export type FileNode = {
 };
 
 // 폴더를 재귀적으로 스캔하는 함수 (상대 경로인 parentPath를 인자로 받아 노드별 path 가상 경로 부여)
+// ====================================================================
+// 📊 [OMD-CORE-helper-0002] helper.tsx ➔ scanDirectory
+// 🎯 @KICK  : File System Access API로 폴더를 재귀 스캔하여 .md/.markdown 파일 트리 구축
+// 🛡️ @GUARD : directory/file kind 분기, 오류 시 빈 배열 반환, 파일명 필터링
+// 🚨 @PATCH : localeCompare로 폴더 우선 정렬
+// 🔗 @CALLS : msg.error
+// ====================================================================
 export async function scanDirectory(dirHandle: any, parentPath: string = ""): Promise<FileNode[]> {
   const entries: FileNode[] = [];
   try {
@@ -70,6 +84,13 @@ export async function scanDirectory(dirHandle: any, parentPath: string = ""): Pr
 }
 
 // 파일/폴더 확장자에 따른 아이콘 및 색상 반환 함수
+// ====================================================================
+// 📊 [OMD-CORE-helper-0003] helper.tsx ➔ getFileIcon
+// 🎯 @KICK  : 파일/폴더 확장자에 따른 Lucide 아이콘 및 색상 반환
+// 🛡️ @GUARD : directory/file 분기, 확장자 lowercase 매핑
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const getFileIcon = (node: FileNode, isSelected: boolean) => {
   const baseClass = "shrink-0 transition-colors";
   

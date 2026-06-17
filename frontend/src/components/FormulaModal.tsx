@@ -29,6 +29,13 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   }, []);
 
   // 최근 사용된 수식 로드
+  // ====================================================================
+  // 📊 [OMD-EDIT-FormulaModal-0001] FormulaModal ➔ useEffect (loadHistory)
+  // 🎯 @KICK  : localStorage에서 최근 사용한 수식 기록을 불러오거나 기본 공식 세트 초기화
+  // 🛡️ @GUARD : JSON 파싱 실패 시 에러 로그만 출력
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : 없음
+  // ====================================================================
   useEffect(() => {
     const saved = localStorage.getItem('onrivi-formula-history');
     if (saved) {
@@ -52,6 +59,13 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   }, []);
 
   // 실시간 미리보기 렌더링 useEffect (DOM 직접 접근으로 순서 및 상태 갱신 문제 100% 완전 해결!)
+  // ====================================================================
+  // 📊 [OMD-EDIT-FormulaModal-0002] FormulaModal ➔ useEffect (livePreview)
+  // 🎯 @KICK  : LaTeX 수식을 KaTeX로 실시간 렌더링하여 미리보기 영역에 표시
+  // 🛡️ @GUARD : isOpen이 false면 실행 생략, katex 미로드 시 로딩 메시지 표시
+  // 🚨 @PATCH : requestAnimationFrame으로 DOM 안전 타이밍 보장
+  // 🔗 @CALLS : katex.render
+  // ====================================================================
   useEffect(() => {
     if (!isOpen) return;
 
@@ -107,6 +121,13 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
     { name: '벡터', code: '\\vec{v}', icon: 'v' },
   ];
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-FormulaModal-0003] FormulaModal ➔ insertLatex
+  // 🎯 @KICK  : 템플릿/기호 버튼 클릭 시 LaTeX 코드를 텍스트 영역 커서 위치에 삽입
+  // 🛡️ @GUARD : textareaRef 존재 여부 확인 후 분기 처리
+  // 🚨 @PATCH : setTimeout 0ms으로 상태 업데이트 후 커서 위치 재설정
+  // 🔗 @CALLS : 없음
+  // ====================================================================
   const insertLatex = (code: string) => {
     if (textareaRef.current) {
       const textarea = textareaRef.current;
@@ -129,6 +150,13 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-FormulaModal-0004] FormulaModal ➔ handleInsertToEditor
+  // 🎯 @KICK  : 작성한 LaTeX 수식을 에디터에 삽입하고 최근 기록에 저장
+  // 🛡️ @GUARD : latex 미입력 시 실행 차단, displayMode에 따라 $$/$ 래핑 분기
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onInsert
+  // ====================================================================
   const handleInsertToEditor = () => {
     if (!latex.trim()) return;
     
@@ -355,6 +383,13 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-FormulaModal-0005] FormulaModal ➔ TabBtn
+// 🎯 @KICK  : 수식 에디터 좌측 패널의 탭 버튼 (템플릿/기호/최근) 컴포넌트
+// 🛡️ @GUARD : active 상태에 따라 활성화 스타일 및 그림자 효과 분기
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function TabBtn({ active, onClick, icon, label, isDarkMode }: any) {
   return (
     <button 
@@ -371,6 +406,13 @@ function TabBtn({ active, onClick, icon, label, isDarkMode }: any) {
   );
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-FormulaModal-0006] FormulaModal ➔ SymbolPreview
+// 🎯 @KICK  : LaTeX 기호 미리보기용 메모이즈드 컴포넌트 - RAF로 DOM 안전 렌더링
+// 🛡️ @GUARD : katex 미로드 시 폴백 텍스트 표시, throwOnError=false로 렌더링 오류 방어
+// 🚨 @PATCH : wrapMathWithBold 헬퍼로 기호 가독성 강화
+// 🔗 @CALLS : wrapMathWithBold, katex.render
+// ====================================================================
 const SymbolPreview = React.memo(({ 
   latex, 
   isDarkMode, 
@@ -384,6 +426,13 @@ const SymbolPreview = React.memo(({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-FormulaModal-0007] FormulaModal ➔ useEffect (SymbolPreview render)
+  // 🎯 @KICK  : LaTeX 기호를 KaTeX로 실시간 렌더링하여 SymbolPreview에 표시
+  // 🛡️ @GUARD : containerRef 및 katex 존재 여부 확인 후 안전하게 렌더링
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : katex.render
+  // ====================================================================
   useEffect(() => {
     let animId: number;
     

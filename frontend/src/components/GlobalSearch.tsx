@@ -24,6 +24,13 @@ interface GlobalSearchProps {
   onSelectFolder?: () => void; // 💡 폴더 선택 트리거 콜백 (addon/browser 대응)
 }
 
+// ====================================================================
+// 📊 [OMD-FILE-GlobalSearch-0001] GlobalSearch ➔ GlobalSearch
+// 🎯 @KICK  : 워크스페이스/폴더/단일 문서 전체를 검색하고 결과를 클릭 시 파일로 이동
+// 🛡️ @GUARD : 150ms 디바운스, 검색어 미입력 시 결과 초기화
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleSelectFolder, scanDirectory
+// ====================================================================
 export default function GlobalSearch({ isDarkMode, content, currentFileName, onFileOpenAndJump, workspacePath, rootFolderHandle, onSelectFolder }: GlobalSearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchFolder, setSearchFolder] = useState<string | null>(null); // 검색 대상 폴더 경로
@@ -32,6 +39,13 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
   const [matchCase, setMatchCase] = useState(false);
 
   // 폴더 선택 창 실행
+  // ====================================================================
+  // 📊 [OMD-FILE-GlobalSearch-0002] GlobalSearch ➔ handleSelectFolder
+  // 🎯 @KICK  : Electron 폴더 선택 다이얼로그 실행 또는 상위 onSelectFolder 콜백 호출
+  // 🛡️ @GUARD : electronAPI 존재 여부 확인 후 분기 처리
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onSelectFolder
+  // ====================================================================
   const handleSelectFolder = async () => {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       try {
@@ -51,6 +65,13 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
   };
 
   // 검색 연동
+  // ====================================================================
+  // 📊 [OMD-FILE-GlobalSearch-0003] GlobalSearch ➔ useEffect (searchLogic)
+  // 🎯 @KICK  : 검색어 입력 시 워크스페이스/폴더/단일 문서 전체를 재귀적으로 검색
+  // 🛡️ @GUARD : 150ms 디바운스 적용, 검색어 미입력 시 결과 초기화
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : scanDirectory, electronAPI.searchInFolder
+  // ====================================================================
   useEffect(() => {
     if (!searchTerm.trim()) {
       setResults([]);

@@ -1,5 +1,12 @@
 import { loader } from '@monaco-editor/react';
 
+// ====================================================================
+// 📊 [OMD-EDIT-monacoEnv-0001] monacoEnv.ts ➔ configureMonacoEnvironment
+// 🎯 @KICK  : Monaco Editor 워커/로더 경로를 로컬(Electron/Web) 또는 Extension 환경에 맞게 구성
+// 🛡️ @GUARD : window 부재, Extension 환경(chrome.runtime.id) 조기 반환
+// 🚨 @PATCH : loader.config try-catch로 미초기화 상태 무시
+// 🔗 @CALLS : 없음
+// ====================================================================
 export function configureMonacoEnvironment(): void {
   if (typeof window === 'undefined') return;
 

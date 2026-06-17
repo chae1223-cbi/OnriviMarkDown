@@ -9,6 +9,13 @@ import { getApiUrl } from '@/lib/api';
  * [ONR-16-002] useEditorSettings 커스텀 훅
  * @description 에디터의 각종 사용자 편의 설정(테마, 단축키, 줄바꿈, 폰트크기 등)을 관리하고 영구 저장소에 저장/동기화합니다.
  */
+// ====================================================================
+// 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
+// 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
+// 🛡️ @GUARD : 각 스토리지 로드 실패 시 기본값 fallback
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : getDefaultHotkeys, getDefaultCommands, idb.get, api.loadSettings, api.saveSettings
+// ====================================================================
 export const useEditorSettings = (
   editorRef: any,
   mounted: boolean,
@@ -38,6 +45,13 @@ export const useEditorSettings = (
     customSlashCommandsRef.current = customSlashCommands;
   }, [customSlashCommands]);
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-USEEDITORSETTINGS-0004] useEditorSettings.ts ➔ handleThemeChange
+  // 🎯 @KICK  : 테마 변경 시 팔레트 ID와 다크모드 여부를 동시에 갱신
+  // 🛡️ @GUARD : THEME_MAP_REF에 없는 themeId는 무시
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : 없음
+  // ====================================================================
   const handleThemeChange = useCallback((themeId: string, THEME_MAP_REF: any) => {
     const theme = THEME_MAP_REF[themeId];
     if (!theme) return;
@@ -45,8 +59,22 @@ export const useEditorSettings = (
     setIsDarkMode(theme.isDark);
   }, []);
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-USEEDITORSETTINGS-0003] useEditorSettings.ts ➔ restoreEffect
+  // 🎯 @KICK  : 마운트 시 restoreSettings를 호출하여 모든 사용자 설정 초기 복원
+  // 🛡️ @GUARD : editorRef/monaco 존재 시 Monaco 에디터 테마 적용
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : restoreSettings
+  // ====================================================================
   // 1. 설정 로드 및 초기 복원
   useEffect(() => {
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORSETTINGS-0002] useEditorSettings.ts ➔ restoreSettings
+    // 🎯 @KICK  : localStorage/chrome.storage/Electron에서 저장된 설정을 로드하여 복원
+    // 🛡️ @GUARD : 각 스토리지별 로드 실패 시 console.error 후 기본값 유지
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : getDefaultHotkeys, getDefaultCommands, idb.get, api.loadSettings
+    // ====================================================================
     const restoreSettings = async () => {
       let baseSettings = {
         isDarkMode: false,
@@ -248,6 +276,13 @@ export const useEditorSettings = (
     restoreSettings();
   }, [editorRef]);
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-USEEDITORSETTINGS-0001] useEditorSettings.ts ➔ settingsSyncEffect
+  // 🎯 @KICK  : isDarkMode/fontSize 등 설정 변경 시 localStorage/chrome/Electron에 동기화 저장
+  // 🛡️ @GUARD : mounted 상태 미달 시 early return
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : api.saveSettings, chrome.storage.local.set
+  // ====================================================================
   // 2. 설정 동기화 저장
   useEffect(() => {
     if (!mounted) return;

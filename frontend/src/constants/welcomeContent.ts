@@ -1,3 +1,10 @@
+// ====================================================================
+// 📊 [OMD-CORE-welcomeContent-0006] welcomeContent ➔ WELCOME_MD
+// 🎯 @KICK  : 웰컴 페이지 마크다운을 원시 문자열 상수로 정의한다
+// 🛡️ @GUARD : WELCOME_CONTENT, DEFAULT_WELCOME_MD가 이 값을 참조
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : WELCOME_CONTENT, DEFAULT_WELCOME_MD
+// ====================================================================
 const WELCOME_MD = `# ✨ 글쓰기가 10배 즐거워지는 마법! 온리비 어서(Onrivi Author)에 오신 것을 환영합니다! ✨
 
 안녕하세요! 온리비 어서와 함께 기분 좋은 첫걸음을 내딛게 된 것을 진심으로 환영합니다! 🥰
@@ -137,14 +144,42 @@ $$f(x) = \\int_{-\\infty}^{\\infty} \\hat{f}(\\xi)\\,e^{2\\pi i \\xi x}\\,d\\xi$
 [^1]: 테스트 11 : 슬림한 40% 구분선과 투명도 체크리스트 리스트 각주 입니다.
 `;
 
+// ====================================================================
+// 📊 [OMD-CORE-welcomeContent-0005] welcomeContent ➔ WELCOME_CONTENT
+// 🎯 @KICK  : 웰컴 페이지 마크다운을 외부에 내보낸다
+// 🛡️ @GUARD : DEFAULT_WELCOME_MD와 동일한 값을 참조
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : WELCOME_MD
+// ====================================================================
 export const WELCOME_CONTENT = WELCOME_MD;
+// ====================================================================
+// 📊 [OMD-CORE-welcomeContent-0004] welcomeContent ➔ DEFAULT_WELCOME_MD
+// 🎯 @KICK  : 기본 웰컴 페이지 마크다운을 내보낸다
+// 🛡️ @GUARD : WELCOME_MD를 참조하며 읽기 전용
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : WELCOME_MD
+// ====================================================================
 export const DEFAULT_WELCOME_MD = WELCOME_MD;
 
+// ====================================================================
+// 📊 [OMD-CORE-welcomeContent-0003] welcomeContent ➔ WELCOME_STORAGE_KEY
+// 🎯 @KICK  : localStorage 저장 키 이름을 정의한다
+// 🛡️ @GUARD : saveWelcomeContent/getWelcomeContent에서만 사용
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : saveWelcomeContent, getWelcomeContent
+// ====================================================================
 /**
  * localStorage에 웰컴 내용을 저장할 때 사용하는 키 이름입니다.
  */
 export const WELCOME_STORAGE_KEY = 'onrivi_welcome_content';
 
+// ====================================================================
+// 📊 [OMD-CORE-welcomeContent-0002] welcomeContent ➔ getWelcomeContent
+// 🎯 @KICK  : localStorage에서 웰컴 페이지 내용을 읽어온다
+// 🛡️ @GUARD : SSR 환경에서는 항상 DEFAULT_WELCOME_MD 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : DEFAULT_WELCOME_MD
+// ====================================================================
 /**
  * localStorage에서 웰컴 페이지 내용을 읽어옵니다.
  *
@@ -159,6 +194,13 @@ export function getWelcomeContent(): string {
   return DEFAULT_WELCOME_MD;
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-welcomeContent-0001] welcomeContent ➔ saveWelcomeContent
+// 🎯 @KICK  : 웰컴 페이지 내용을 localStorage에 저장한다
+// 🛡️ @GUARD : SSR 환경에서는 아무 동작도 하지 않음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : WELCOME_STORAGE_KEY
+// ====================================================================
 /**
  * 웰컴 페이지 내용을 localStorage에 저장합니다.
  * 사용자가 에디터에서 웰컴 페이지를 수정한 후 저장할 때 호출됩니다.

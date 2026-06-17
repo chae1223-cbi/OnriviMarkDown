@@ -18,6 +18,13 @@ interface LicenseModalProps {
   isDarkMode?: boolean;
 }
 
+// ====================================================================
+// 📊 [OMD-AUTH-LicenseModal-0004] LicenseModal ➔ LicenseModal
+// 🎯 @KICK  : 라이선스 정품 인증 UI - 대시보드 연동 및 Supabase 수동 인증 제공
+// 🛡️ @GUARD : isOpen이 false이면 null 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleOpenRegister, handleManualActivate, handleCopyText
+// ====================================================================
 export default function LicenseModal({
   isOpen,
   onClose,
@@ -33,6 +40,13 @@ export default function LicenseModal({
 
   if (!isOpen) return null;
 
+// ====================================================================
+// 📊 [OMD-AUTH-LicenseModal-0003] LicenseModal ➔ handleOpenRegister
+// 🎯 @KICK  : 백엔드 API로 일회성 티켓을 발급하고 대시보드 결제 페이지로 이동
+// 🛡️ @GUARD : 이메일 미입력/형식 오류 시 early return
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : fetch, window.open, api.openExternal
+// ====================================================================
   // 1. [정품 연동하러 가기] 핸들러 - 백엔드 API를 호출하여 티켓 발급 후 대시보드 기동 (방법 1)
   const handleOpenRegister = async () => {
     if (!inputUserId.trim()) {
@@ -111,6 +125,13 @@ export default function LicenseModal({
     }
   };
 
+// ====================================================================
+// 📊 [OMD-AUTH-LicenseModal-0002] LicenseModal ➔ handleManualActivate
+// 🎯 @KICK  : Supabase를 통해 라이선스 키+유저+verifyKey 일치 여부 검증 후 기기 등록
+// 🛡️ @GUARD : 이메일/verifyKey가 비어있으면 early return; Supabase 설정 미비 시 차단
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : supabase.from, onSuccessActivation, onClose
+// ====================================================================
   // 2. [인증하기] 수동 활성화 핸들러 (실제 schema 조인으로 수동 기기 검증 바인딩)
   const handleManualActivate = async () => {
     if (!inputUserId.trim()) {
@@ -196,6 +217,13 @@ export default function LicenseModal({
     }
   };
 
+// ====================================================================
+// 📊 [OMD-AUTH-LicenseModal-0001] LicenseModal ➔ handleCopyText
+// 🎯 @KICK  : 라이선스 키 텍스트를 클립보드에 복사하고 사용자 피드백 표시
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : clipboard.writeText, setMessage
+// ====================================================================
   // 클립보드 복사 헬퍼
   const handleCopyText = (text: string, label: string) => {
     navigator.clipboard.writeText(text);

@@ -9,7 +9,7 @@ export interface CssProfile {
   id: string;
   /** 프로필 표시 이름 (사용자 지정 가능) */
   name: string;
-  /** A4 용지 전역 타이포그래피 및 페이지 설정 */
+  /** 선택 용지 전역 타이포그래피 및 페이지 설정 */
   pageStyle: {
     /** 인쇄 대표 서체 (예: "휴먼명조", serif) */
     fontFamily: string;
@@ -21,6 +21,8 @@ export interface CssProfile {
     letterSpacing: string;
     /** 페이지 배경색 (예: '#ffffff') */
     backgroundColor: string;
+    /** 용지 크기 (예: 'a4', 'a3', 'letter' 등) */
+    paperSize: string;
     /** 위쪽 여백 (예: '20mm') */
     marginTop: string;
     /** 아래쪽 여백 (예: '20mm') */

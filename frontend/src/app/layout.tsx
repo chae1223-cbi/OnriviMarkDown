@@ -4,6 +4,13 @@ import 'katex/dist/katex.min.css';
 
 import { ToastProvider } from "@/components/ToastProvider";
 
+// ====================================================================
+// 📊 [OMD-CORE-layout-0002] layout ➔ metadata
+// 🎯 @KICK  : Next.js Metadata 객체 - 페이지 제목, 설명, 아이콘 경로 설정
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export const metadata: Metadata = {
   title: "온리비 어서 - 프로페셔널 마크다운 에디터",
   description: "Next-generation web based markdown editor",
@@ -13,6 +20,13 @@ export const metadata: Metadata = {
   }
 };
 
+// ====================================================================
+// 📊 [OMD-CORE-layout-0001] layout ➔ RootLayout
+// 🎯 @KICK  : Next.js 루트 레이아웃 - 전역 HTML 구조, CSP, 폰트, Mermaid 설정 및 ToastProvider 래핑
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : ToastProvider
+// ====================================================================
 export default function RootLayout({
   children,
 }: Readonly<{

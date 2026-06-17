@@ -17,6 +17,13 @@ interface MergeModalProps {
   openFile: (node: FileNode | null) => void;
 }
 
+// ====================================================================
+// 📊 [OMD-FILE-MergeModal-0007] MergeModal ➔ MergeModal
+// 🎯 @KICK  : 여러 파일을 선택 순서대로 병합하여 새 파일로 저장 (로컬/브라우저 모드 대응)
+// 🛡️ @GUARD : isOpen/mounted false 시 null 반환; 최소 2개 파일 필요
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleMerge, moveUp, moveDown, removeItem, showToast
+// ====================================================================
 const MergeModal: React.FC<MergeModalProps> = ({
   isOpen, onClose, selectedNodes, workspaceType, rootFolder, refreshParent, openFile
 }) => {
@@ -30,10 +37,24 @@ const MergeModal: React.FC<MergeModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+// ====================================================================
+// 📊 [OMD-FILE-MergeModal-0006] MergeModal ➔ useEffect (mounted)
+// 🎯 @KICK  : 클라이언트 마운트 완료 상태 설정으로 포탈 렌더링 hydration 방지
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setMounted
+// ====================================================================
   useEffect(() => {
     setMounted(true);
   }, []);
 
+// ====================================================================
+// 📊 [OMD-FILE-MergeModal-0005] MergeModal ➔ useEffect (isOpen)
+// 🎯 @KICK  : 모달이 열릴 때 선택된 노드 목록을 복사하고 기본 병합 파일명 제안
+// 🛡️ @GUARD : isOpen이 true일 때만 실행
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setNodes, setTargetName
+// ====================================================================
   useEffect(() => {
     if (isOpen) {
       setNodes([...selectedNodes]);
@@ -50,6 +71,13 @@ const MergeModal: React.FC<MergeModalProps> = ({
   if (!isOpen) return null;
   if (!mounted) return null;
 
+// ====================================================================
+// 📊 [OMD-FILE-MergeModal-0004] MergeModal ➔ moveUp
+// 🎯 @KICK  : 병합 목록에서 파일을 한 칸 위로 이동
+// 🛡️ @GUARD : 첫 번째 인덱스면 실행 차단
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setNodes
+// ====================================================================
   const moveUp = (index: number) => {
     if (index === 0) return;
     const nextNodes = [...nodes];
@@ -59,6 +87,13 @@ const MergeModal: React.FC<MergeModalProps> = ({
     setNodes(nextNodes);
   };
 
+// ====================================================================
+// 📊 [OMD-FILE-MergeModal-0003] MergeModal ➔ moveDown
+// 🎯 @KICK  : 병합 목록에서 파일을 한 칸 아래로 이동
+// 🛡️ @GUARD : 마지막 인덱스면 실행 차단
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : setNodes
+// ====================================================================
   const moveDown = (index: number) => {
     if (index === nodes.length - 1) return;
     const nextNodes = [...nodes];
@@ -68,6 +103,13 @@ const MergeModal: React.FC<MergeModalProps> = ({
     setNodes(nextNodes);
   };
 
+// ====================================================================
+// 📊 [OMD-FILE-MergeModal-0002] MergeModal ➔ removeItem
+// 🎯 @KICK  : 병합 목록에서 특정 파일을 제거
+// 🛡️ @GUARD : 남은 파일이 2개 미만이면 경고 후 제거 차단
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : showToast
+// ====================================================================
   const removeItem = (index: number) => {
     if (nodes.length <= 2) {
       showToast("병합하려면 최소 2개 이상의 파일을 선택해야 합니다.", 'warning');
@@ -78,6 +120,13 @@ const MergeModal: React.FC<MergeModalProps> = ({
     setNodes(nextNodes);
   };
 
+// ====================================================================
+// 📊 [OMD-FILE-MergeModal-0001] MergeModal ➔ handleMerge
+// 🎯 @KICK  : 선택한 파일들을 병합하여 새 파일로 저장 (로컬/브라우저 모드 대응)
+// 🛡️ @GUARD : targetName이 비어있으면 경고 후 early return
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : showToast, fetch, refreshParent, onClose, openFile
+// ====================================================================
   const handleMerge = async () => {
     if (!targetName.trim()) {
       showToast('최종 파일명을 입력해주세요.', 'warning');

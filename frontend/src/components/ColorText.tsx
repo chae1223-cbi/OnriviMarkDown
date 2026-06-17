@@ -3,6 +3,13 @@
 import React from 'react';
 
 // 텍스트에서 헥사코드를 찾아 컬러 박스와 함께 렌더링하는 컴포넌트
+// ====================================================================
+// 📊 [OMD-CORE-ColorText-0001] ColorText ➔ ColorText
+// 🎯 @KICK  : 텍스트에서 16진수 색상 코드를 감지하여 컬러 박스와 함께 시각적으로 렌더링
+// 🛡️ @GUARD : 정규식으로 유효한 헥사코드만 매칭하여 안전한 렌더링 보장
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 const ColorText = ({ text }: { text: string }) => {
   const hexRegex = /(#[A-Fa-f0-9]{6}|#[A-Fa-f0-9]{3})\b/g;
   const parts = text.split(hexRegex);

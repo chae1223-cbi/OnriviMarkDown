@@ -16,6 +16,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CssProfile, CssRuleSet } from '@/types/cssProfile';
 import { DEFAULT_PROFILE, isSystemProfileId } from '@/constants/cssProfile';
+import { PAPER_SIZES } from '@/constants/paperSizes';
 import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide';
 import FontSelectorModal from './FontSelectorModal';
 
@@ -40,6 +41,13 @@ interface CssStyleFormProps {
    🧩 [서브 위젯 컴포넌트]
    ──────────────────────────────────────────────────────── */
 
+// ====================================================================
+// 📊 [OMD-CORE-CssStyleForm-0001] CssStyleForm ➔ AccordionSection
+// 🎯 @KICK  : 접이식 아코디언 섹션 래퍼 컴포넌트 - 타이틀 클릭으로 열기/닫기 토글
+// 🛡️ @GUARD : isOpen 상태에 따라 자식 렌더링 조건 분기
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 // 1. 아코디언 섹션 래퍼 (글씨 크기를 시원하게 상향)
 interface AccordionSectionProps {
   id: string;
@@ -78,6 +86,13 @@ const getNumValue = (val: string | number | undefined | null, defaultVal: number
   return isNaN(parsed) ? defaultVal : parsed;
 };
 
+// ====================================================================
+// 📊 [OMD-CORE-CssStyleForm-0002] CssStyleForm ➔ SliderWidget
+// 🎯 @KICK  : HTML5 range 슬라이더로 숫자 값 실시간 조정 위젯
+// 🛡️ @GUARD : getNumValue로 falsy 값 안전 처리
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : getNumValue
+// ====================================================================
 // 2. HTML5 표준 슬라이더 위젯 (가독성 높은 폰트 크기 및 두툼한 슬라이더 적용)
 interface SliderWidgetProps {
   label: string;
@@ -114,6 +129,13 @@ function SliderWidget({ label, min, max, step = 1, value, unit, disabled, onChan
   );
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-CssStyleForm-0003] CssStyleForm ➔ ColorPickerWidget
+// 🎯 @KICK  : 브라우저 내장 컬러 피커와 텍스트 입력을 연동한 색상 선택 위젯
+// 🛡️ @GUARD : value가 #으로 시작하지 않으면 #000000 기본값 사용
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 // 3. 브라우저 내장 컬러 피커 연동 위젯
 interface ColorPickerWidgetProps {
   label: string;
@@ -155,6 +177,13 @@ function ColorPickerWidget({ label, value, disabled, onChange }: ColorPickerWidg
   );
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-CssStyleForm-0004] CssStyleForm ➔ TagRuleEditor
+// 🎯 @KICK  : 특정 HTML 태그의 CSS 룰셋을 키-값 쌍으로 편집하는 서브 에디터
+// 🛡️ @GUARD : isSystemProfile true면 모든 입력 비활성화
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onUpdateRule, onRemoveRule
+// ====================================================================
 // 4. 복합 태그용 간편 편집 에디터
 interface TagRuleEditorProps {
   tag: string;
@@ -208,6 +237,13 @@ function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRem
    ──────────────────────────────────────────────────────── */
 
 // [ONR-MD-003] 서식설정 CSS 실시간 컴파일 및 주입: 사용자가 좌측 서식 정의 에디터 폼 위젯의 폰트 크기, 마진 등을 변경할 때마다 requestAnimationFrame 프레임 가드를 거쳐 CSS Profile을 실시간 갱신하고 미리보기에 자동 렌더링을 지시합니다.
+// ====================================================================
+// 📊 [OMD-CORE-CssStyleForm-0005] CssStyleForm ➔ CssStyleForm
+// 🎯 @KICK  : 좌측 서식 정의 에디터 폼 - CSS 프로필 전역 타이포그래피 및 태그별 룰셋 편집
+// 🛡️ @GUARD : 시스템 프로필(isSystemProfileId) 선택 시 모든 입력 비활성화
+// 🚨 @PATCH : RAF 기반 triggerUpdate로 고속 업데이트 병합 최적화
+// 🔗 @CALLS : AccordionSection, SliderWidget, ColorPickerWidget, TagRuleEditor, FontSelectorModal
+// ====================================================================
 export default function CssStyleForm({
   profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, isDarkMode
 }: CssStyleFormProps) {
@@ -236,6 +272,13 @@ export default function CssStyleForm({
   const rafIdRef = useRef<number | null>(null);
   const pendingProfileRef = useRef<CssProfile | null>(null);
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0006] CssStyleForm ➔ triggerUpdate
+  // 🎯 @KICK  : requestAnimationFrame 기반 고속 업데이트 최적화 게이트 - 중복 호출 병합
+  // 🛡️ @GUARD : pendingProfileRef 및 rafIdRef로 중복 RAF 실행 방어
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onUpdateProfile
+  // ====================================================================
   const triggerUpdate = (updated: CssProfile) => {
     pendingProfileRef.current = updated;
     if (!rafIdRef.current) {
@@ -254,6 +297,13 @@ export default function CssStyleForm({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0007] CssStyleForm ➔ downloadGuideSpec
+  // 🎯 @KICK  : CSS 프로필 명세서 가이드 마크다운 파일을 다운로드
+  // 🛡️ @GUARD : try-catch로 다운로드 실패 시 토스트 메시지
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : showToast
+  // ====================================================================
   const downloadGuideSpec = () => {
     try {
       const dataStr = "data:text/markdown;charset=utf-8," + encodeURIComponent(CSS_PROFILE_GUIDE_MD);
@@ -284,6 +334,13 @@ export default function CssStyleForm({
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0009] CssStyleForm ➔ copyProfileToClipboard
+  // 🎯 @KICK  : 현재 서식 프로필을 JSON 문자열로 클립보드에 복사
+  // 🛡️ @GUARD : clipboard.writeText 실패 시 catch로 안전 처리
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : showToast
+  // ====================================================================
   const copyProfileToClipboard = () => {
     try {
       navigator.clipboard.writeText(JSON.stringify(currentProfile, null, 2));
@@ -293,6 +350,13 @@ export default function CssStyleForm({
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0010] CssStyleForm ➔ importProfileString
+  // 🎯 @KICK  : JSON 문자열을 파싱하여 유효성 검증 후 서식 프로필 가져오기
+  // 🛡️ @GUARD : name/pageStyle/rules 필수 속성 검증, JSON 파싱 실패 시 alert
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onImportProfile, showToast
+  // ====================================================================
   const importProfileString = (jsonStr: string): boolean => {
     try {
       const parsed = JSON.parse(jsonStr);
@@ -313,6 +377,13 @@ export default function CssStyleForm({
     return false;
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0011] CssStyleForm ➔ handleFileUpload
+  // 🎯 @KICK  : JSON 서식 파일을 FileReader로 읽어 importProfileString으로 가져오기
+  // 🛡️ @GUARD : 파일 미선택 시 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : importProfileString
+  // ====================================================================
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -338,6 +409,13 @@ export default function CssStyleForm({
     return 'center';
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0012] CssStyleForm ➔ updateMediaAlign
+  // 🎯 @KICK  : 이미지/동영상/지도 미디어 객체의 정렬 방식(좌/중/우) 업데이트
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : triggerUpdate, getTagRules, getMediaAlign
+  // ====================================================================
   const updateMediaAlign = (tag: string, align: string) => {
     if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
@@ -366,6 +444,13 @@ export default function CssStyleForm({
     triggerUpdate(updated);
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0013] CssStyleForm ➔ updateCssRule
+  // 🎯 @KICK  : 특정 HTML 태그의 단일 CSS 속성 값을 업데이트
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : triggerUpdate, getTagRules
+  // ====================================================================
   const updateCssRule = (tag: string, property: string, value: string) => {
     if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
@@ -379,6 +464,13 @@ export default function CssStyleForm({
     triggerUpdate(updated);
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0014] CssStyleForm ➔ removeCssRule
+  // 🎯 @KICK  : 특정 태그의 CSS 속성 하나를 제거
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : triggerUpdate, getTagRules
+  // ====================================================================
   const removeCssRule = (tag: string, property: string) => {
     if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
@@ -392,6 +484,13 @@ export default function CssStyleForm({
   };
 
   /* ─── 표 테두리 묶음 업데이트 ─── */
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0015] CssStyleForm ➔ updateTableBorder
+  // 🎯 @KICK  : 표(table/th/td) 테두리 스타일/두께/색상을 일괄 업데이트
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : triggerUpdate, getTagRules
+  // ====================================================================
   const updateTableBorder = (property: string, value: string) => {
     if (isSystemProfile) return;
     const tableRules = getTagRules('table');
@@ -410,6 +509,13 @@ export default function CssStyleForm({
   };
 
   /* ─── 표 셀 여백 묶음 업데이트 ─── */
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0016] CssStyleForm ➔ updateCellPadding
+  // 🎯 @KICK  : 표 th/td 셀 내부 여백을 일괄 업데이트
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : triggerUpdate, getTagRules
+  // ====================================================================
   const updateCellPadding = (value: string) => {
     if (isSystemProfile) return;
     const thRules = getTagRules('th');
@@ -426,6 +532,13 @@ export default function CssStyleForm({
   };
 
   /* ─── 표 글자 크기 묶음 업데이트 ─── */
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0017] CssStyleForm ➔ updateTableFontSize
+  // 🎯 @KICK  : 표(table/th/td) 글자 크기를 일괄 업데이트 또는 제거
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단, value가 비면 font-size 속성 제거
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : triggerUpdate, getTagRules
+  // ====================================================================
   const updateTableFontSize = (value: string) => {
     if (isSystemProfile) return;
     const tableRules = getTagRules('table');
@@ -451,6 +564,13 @@ export default function CssStyleForm({
     triggerUpdate(updated);
   };
 
+  // ====================================================================
+// 📊 [OMD-CORE-CssStyleForm-0018] CssStyleForm ➔ handlePageStyleChange
+// 🎯 @KICK  : 용지 레이아웃 속성(글꼴, 글자 크기, 줄 간격, 용지 크기, 여백 등) 업데이트
+// 🛡️ @GUARD : isSystemProfile true면 실행 차단
+// 🚨 @PATCH : paperSize(용지 크기) 선택 기능 추가
+// 🔗 @CALLS : triggerUpdate
+  // ====================================================================
   const handlePageStyleChange = (key: keyof CssProfile['pageStyle'], value: string) => {
     if (isSystemProfile) return;
     const updated = {
@@ -480,6 +600,13 @@ export default function CssStyleForm({
     setIsEditingName(false);
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0019] CssStyleForm ➔ handleDeleteClick
+  // 🎯 @KICK  : 현재 선택된 서식 프로필 삭제 처리
+  // 🛡️ @GUARD : canDelete 및 onDeleteProfile 존재 여부 확인, confirm 창으로 재확인
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onDeleteProfile
+  // ====================================================================
   const handleDeleteClick = () => {
     if (!canDelete || !onDeleteProfile) return;
     if (window.confirm(`서식 "${currentProfile.name}"을(를) 정말로 삭제하시겠습니까?`)) {
@@ -502,6 +629,13 @@ export default function CssStyleForm({
     textGap: '10px'
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0020] CssStyleForm ➔ updateHrStructure
+  // 🎯 @KICK  : 수평 구분선(HR) 스타일(선 스타일, 두께, 여백, 너비) 업데이트
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : triggerUpdate
+  // ====================================================================
   const updateHrStructure = (key: string, value: string) => {
     if (isSystemProfile) return;
     const updated = {
@@ -511,6 +645,13 @@ export default function CssStyleForm({
     triggerUpdate(updated);
   };
 
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0021] CssStyleForm ➔ updateCheckboxStructure
+  // 🎯 @KICK  : 체크박스 구조(완료 효과, 박스 크기, 텍스트 간격) 업데이트
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : triggerUpdate
+  // ====================================================================
   const updateCheckboxStructure = (key: string, value: string) => {
     if (isSystemProfile) return;
     const updated = {
@@ -521,6 +662,13 @@ export default function CssStyleForm({
   };
 
   /* ─── 공장 초기 설정 복구 ─── */
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0022] CssStyleForm ➔ resetToDefault
+  // 🎯 @KICK  : 시스템 기본 서식(DEFAULT_PROFILE)으로 즉시 전환
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단, confirm 창으로 재확인
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onSelectProfile
+  // ====================================================================
   const resetToDefault = () => {
     if (isSystemProfile) return;
     if (window.confirm('시스템 기본 서식으로 전환하시겠습니까?')) {
@@ -712,6 +860,23 @@ export default function CssStyleForm({
               disabled={isSystemProfile}
               onChange={(v) => handlePageStyleChange('letterSpacing', v + 'em')}
             />
+
+            {/* 용지 크기 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">용지 크기</span>
+              <select
+                disabled={isSystemProfile}
+                value={currentProfile.pageStyle.paperSize || 'a4'}
+                onChange={(e) => handlePageStyleChange('paperSize', e.target.value)}
+                className="px-3 py-2 rounded text-sm border bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-50"
+              >
+                {Object.entries(PAPER_SIZES).map(([key, spec]) => (
+                  <option key={key} value={key}>
+                    {spec.label} ({spec.width}×{spec.height}mm)
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* 용지 방향 */}
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">

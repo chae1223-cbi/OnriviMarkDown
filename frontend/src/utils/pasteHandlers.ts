@@ -1,6 +1,13 @@
 // @ts-nocheck
 import { FileNode } from '@/lib/helper';
 
+// ====================================================================
+// 📊 [OMD-EDIT-pasteHandlers-0003] pasteHandlers ➔ sanitizePastedText
+// 🎯 @KICK  : 붙여넣기 문자열을 마크다운에 적합하도록 정제한다
+// 🛡️ @GUARD : 줄바꿈 통일, 유령 문자 제거, HTML 찌꺼기 제거, TSV 자동 변환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * [ONR-15-001] sanitizePastedText 함수 (추출된 유틸리티)
  * @description 붙여넣기된 문자열에 대해 줄바꿈 통일, 특수문자 제거, 불필요한 HTML 태그 정리 등 마크다운에 적합한 데이터로 정제합니다.
@@ -55,6 +62,13 @@ export const sanitizePastedText = (text: string, skipTsvConversion = false) => {
   return sanitized;
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-pasteHandlers-0002] pasteHandlers ➔ fixMarkdownTable
+// 🎯 @KICK  : 여러 줄로 쪼개진 마크다운 표 셀을 한 행으로 병합하여 보정한다
+// 🛡️ @GUARD : text에 '|'가 없으면 early return, 현재 행이 '|'로 끝날 때까지 병합
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * [ONR-15-002] fixMarkdownTable 함수 (추출된 유틸리티)
  * @description 여러 줄로 쪼개진 마크다운 표 셀 데이터를 한 행으로 강제 병합하여 정합성 있는 마크다운 표 형태로 보정합니다.
@@ -112,6 +126,13 @@ export const fixMarkdownTable = (text: string) => {
   return result.join('\n');
 };
 
+// ====================================================================
+// 📊 [OMD-EDIT-pasteHandlers-0001] pasteHandlers ➔ parseHtmlTableToMarkdown
+// 🎯 @KICK  : HTML <table> 구문을 표준 마크다운 표 형식으로 변환한다
+// 🛡️ @GUARD : DOMParser로 파싱 실패 시 null 반환, table 요소 미존재 시 null 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 /**
  * [ONR-15-003] parseHtmlTableToMarkdown 함수 (추출된 유틸리티)
  * @description 웹에서 복사해 붙여넣어진 HTML 형식의 <table> 구문을 표준 마크다운 표 형식으로 변환합니다.

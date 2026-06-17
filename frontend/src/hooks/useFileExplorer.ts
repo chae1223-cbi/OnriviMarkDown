@@ -10,6 +10,13 @@ import { EditorTab } from '@/components/UnifiedTabBar';
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// ====================================================================
+// 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
+// 🎯 @KICK  : 워크스페이스 폴더 연결, 파일 트리 스캔, 파일 열기/저장 I/O 전담
+// 🛡️ @GUARD : 각 환경별 API 실패 시 예외 처리 및 fallback
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : scanDirectory, getVfsFiles, fetch, vfsReadFile, vfsWriteFile, stripFrontmatter, idb.get, api.saveFile, api.listDirectory, api.readFromPath
+// ====================================================================
 export const useFileExplorer = ({
   editorRef,
   contentRef,
@@ -47,6 +54,13 @@ export const useFileExplorer = ({
   const rootFolderRef = useRef(rootFolder);
   useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0009] useFileExplorer.ts ➔ refreshFileList
+  // 🎯 @KICK  : 브라우저/Electron/웹 환경별 파일 트리 목록을 새로고침
+  // 🛡️ @GUARD : 각 환경별 API 실패 시 console.error로 대응
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : scanDirectory, getVfsFiles, api.listDirectory, fetch, setFileList
+  // ====================================================================
   // 1. 파일 목록 리프레시 헬퍼 함수
   const refreshFileList = useCallback(async () => {
     const api = (window as any).electronAPI;
@@ -87,6 +101,13 @@ export const useFileExplorer = ({
     }
   }, [workspaceType, setFileList]);
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0008] useFileExplorer.ts ➔ selectRootFolder
+  // 🎯 @KICK  : 로컬/브라우저 워크스페이스 루트 폴더를 선택하고 연결
+  // 🛡️ @GUARD : Electron/file picker/로컬스토리지 각 환경별 예외 처리
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : scanDirectory, idb.set, showToast, setRootFolder, setWorkspaceType
+  // ====================================================================
   // 2. 워크스페이스 루트 폴더 선택 핸들러
   const selectRootFolder = async (type: 'local' | 'browser', initialPath?: string | null) => {
     const api = (window as any).electronAPI;
@@ -154,6 +175,13 @@ export const useFileExplorer = ({
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0007] useFileExplorer.ts ➔ restoreFolderPermission
+  // 🎯 @KICK  : 브라우저 File System Access 권한을 복구하여 워크스페이스 재연결
+  // 🛡️ @GUARD : rootFolder.handle 미존재 시 early return, 권한 거부/AbortError 처리
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : showToast, setRootFolder
+  // ====================================================================
   // 3. 브라우저 저장소 권한 복구 핸들러
   const restoreFolderPermission = async () => {
     if (!rootFolder?.handle) return;
@@ -173,11 +201,25 @@ export const useFileExplorer = ({
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0006] useFileExplorer.ts ➔ handleFileOpenByPath
+  // 🎯 @KICK  : 경로 문자열로 파일을 찾아 열거나 도움말 문서를 로드
+  // 🛡️ @GUARD : helpContentRef 존재 시 도움말 경로로 라우팅, 파일 미발견 시 fetch fallback
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : findNodeByPath, handleFileClick, createNewTab, switchTab, setTabs, showToast
+  // ====================================================================
   // 4. 경로를 기반으로 한 파일 열기 핸들러
   const handleFileOpenByPath = async (resolvedPath: string) => {
     if (helpContentRef?.current) {
       const api = (window as any).electronAPI;
       const helpPath = resolvedPath.startsWith('docs/') ? resolvedPath : 'docs/help/' + resolvedPath.replace(/^\//, '');
+      // ====================================================================
+      // 📊 [OMD-FILE-USEFILEEXPLORER-0005] useFileExplorer.ts ➔ loadHelp
+      // 🎯 @KICK  : 도움말 파일 내용을 파싱하여 화면에 표시
+      // 🛡️ @GUARD : 없음
+      // 🚨 @PATCH : 없음
+      // 🔗 @CALLS : stripFrontmatter, setHelpContent, setHelpTitle
+      // ====================================================================
       const loadHelp = async (content: string) => {
         setHelpContent(stripFrontmatter(content));
         const fileName = helpPath.split('/').pop()?.replace('.md', '') || '';
@@ -207,6 +249,13 @@ export const useFileExplorer = ({
       return;
     }
 
+    // ====================================================================
+    // 📊 [OMD-FILE-USEFILEEXPLORER-0004] useFileExplorer.ts ➔ findNodeByPath
+    // 🎯 @KICK  : 파일 경로로 파일 트리 노드를 재귀 탐색
+    // 🛡️ @GUARD : 경로 정규화 및 대소문자 무효화하여 비교
+    // 🚨 @PATCH : 없음
+    // 🔗 @CALLS : 없음
+    // ====================================================================
     const findNodeByPath = (nodes: FileNode[], targetPath: string): { node: FileNode, parent: any } | null => {
       const normalizedTarget = targetPath.replace(/\\/g, '/').toLowerCase();
       for (const node of nodes) {
@@ -274,6 +323,13 @@ export const useFileExplorer = ({
     showToast('해당 파일 노드를 찾을 수 없습니다.', 'error');
   };
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0003] useFileExplorer.ts ➔ handleFileClick
+  // 🎯 @KICK  : 파일 트리 노드 클릭 시 기존 탭 전환 또는 새 탭 생성 및 파일 내용 로딩
+  // 🛡️ @GUARD : node null/kind directory early return, 파일 읽기 실패 시 오류 토스트
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : createNewTab, switchTab, setContent, setTabs, setActiveTabId, showToast
+  // ====================================================================
   // 5. 파일 트리 클릭 시 파일 열기 및 신규 탭 로딩
   const handleFileClick = async (node: FileNode | null, parentHandle?: any) => {
     setHelpContent(null);
@@ -388,6 +444,13 @@ export const useFileExplorer = ({
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0002] useFileExplorer.ts ➔ saveFile
+  // 🎯 @KICK  : Electron/웹/브라우저 File System Access 환경에 파일을 물리적으로 저장
+  // 🛡️ @GUARD : targetFile null 시 false 반환, 권한 거부 시 오류 토스트
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : vfsWriteFile, api.saveFile, showToast, setTabs
+  // ====================================================================
   // 6. 물리적 스토리지 저장 로직
   const saveFile = useCallback(async (targetContent: string, targetFile: FileNode | null) => {
     if (!targetFile) return false;
@@ -452,6 +515,13 @@ export const useFileExplorer = ({
     return false;
   }, [workspaceType, setTabs, showToast]);
 
+  // ====================================================================
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0001] useFileExplorer.ts ➔ rootFolderRefreshEffect
+  // 🎯 @KICK  : rootFolder 변경 시 파일 목록 자동 새로고침 또는 초기화
+  // 🛡️ @GUARD : rootFolder null 시 fileList를 빈 배열로 초기화
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : refreshFileList, setFileList
+  // ====================================================================
   // 폴더가 바뀔 때 리스트 자동 리프레시 연동
   useEffect(() => {
     if (rootFolder) {

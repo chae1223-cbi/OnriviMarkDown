@@ -7,6 +7,7 @@ interface ExportOptions {
   isDarkMode: boolean;
   showToast: (msg: string, type?: any) => void;
   orientation?: 'portrait' | 'landscape';
+  paperSize?: string;
   dynamicCssString?: string;
   showPageBreaks?: boolean;
   marginTop?: string;
@@ -18,6 +19,13 @@ interface ExportOptions {
 
 // [ONR-EXP-001] 로컬 PDF / HTML 파일 출력 처리: 현재 문서 본문 DOM을 클론하여 지도/동영상 요소를 정적 변환하고 프린트 출력 스타일을 입혀 PDF/HTML 내보내기를 핸들링합니다.
 /** IME 조합 버퍼 강제 커밋: export 직전 한글 입력이 완성되지 않은 상태로 캡처되는 현상 차단 */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0001] exportHandlers.ts ➔ flushIME
+// 🎯 @KICK  : IME 조합 버퍼 강제 커밋 — export 전 한글 미완성 입력 캡처 차단
+// 🛡️ @GUARD : 임시 input 생성/포커스/blur/제거
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function flushIME(): void {
   const input = document.createElement('input');
   input.style.cssText = 'position:fixed;top:-9999px;opacity:0;pointer-events:none;';
@@ -29,6 +37,13 @@ function flushIME(): void {
 
 /** html2canvas 한계 완벽 우회: 인라인코드 높이 고정 및 상하 패딩 소거형 정렬
  *  (html2canvas의 inline-block 높이 오계산 및 글자 처짐 버그를 해결하는 가장 완벽하고 수학적인 해법) */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0002] exportHandlers.ts ➔ applyExportInlineStyles
+// 🎯 @KICK  : html2canvas 인라인코드 높이 오계산 버그 해결 — display/height/line-height 강제 지정
+// 🛡️ @GUARD : pre>code 블록 제외, closest('pre') 조합으로 100% 포착
+// 🚨 @PATCH : vertical-align:middle + padding 0으로 baseline 정렬 보정
+// 🔗 @CALLS : 없음
+// ====================================================================
 function applyExportInlineStyles(clone: HTMLElement): void {
   // 🌟 querySelectorAll('code') + closest('pre') 조합으로 복잡한 셀렉터 엔진 버그를 원천 차단하고 모든 인라인 코드를 100% 포착
   clone.querySelectorAll('code').forEach((code) => {
@@ -51,6 +66,13 @@ function applyExportInlineStyles(clone: HTMLElement): void {
 }
 
 /** Yandex/Google 지도 복원 */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0003] exportHandlers.ts ➔ restoreMapsInClone
+// 🎯 @KICK  : data-map-original-src 속성 기반 지도 복원 (Yandex 정적맵 fallback + Google Maps 링크)
+// 🛡️ @GUARD : URL 파싱 오류, API KEY 유효성, center/zoom 추출
+// 🚨 @PATCH : Yandex Static Maps로 API 키 없는 경우 fallback 이미지 제공
+// 🔗 @CALLS : msg.error
+// ====================================================================
 function restoreMapsInClone(clone: HTMLElement) {
   const mapContainers = clone.querySelectorAll('[data-map-original-src]');
   mapContainers.forEach((container) => {
@@ -102,6 +124,13 @@ function restoreMapsInClone(clone: HTMLElement) {
 }
 
 /** 모든 유튜브 iframe(임베드) 요소를 썸네일 하이퍼링크로 자동 변환 */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0004] exportHandlers.ts ➔ convertYoutubeIframeToLink
+// 🎯 @KICK  : YouTube iframe 임베드를 썸네일 + 하이퍼링크 컨테이너로 변환
+// 🛡️ @GUARD : youtube.com / youtube-nocookie.com embed 감지, videoId 추출
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 function convertYoutubeIframeToLink(clone: HTMLElement) {
   const iframes = clone.querySelectorAll('iframe');
   iframes.forEach((iframe) => {
@@ -153,6 +182,13 @@ function convertYoutubeIframeToLink(clone: HTMLElement) {
 }
 
 /** 미리보기 DOM 복제 + 버튼 요소 정리 + 지도 복원 */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0005] exportHandlers.ts ➔ clonePreview
+// 🎯 @KICK  : 미리보기 DOM 복제 + 버튼 정리 + 지도 복원 + 유튜브 변환
+// 🛡️ @GUARD : cloneNode(true)로 전체 트리 복제
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : restoreMapsInClone, convertYoutubeIframeToLink
+// ====================================================================
 function clonePreview(previewEl: HTMLElement): HTMLElement {
   const clone = previewEl.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('button, .copy-btn, [title*="복사"]').forEach(el => el.remove());
@@ -163,6 +199,13 @@ function clonePreview(previewEl: HTMLElement): HTMLElement {
 
 /** html2canvas가 ::before/::after/counter()를 지원하지 않아 목록 마커가 소실되는 문제 해결:
  *  export 전 clone DOM에 직접 숫자/불릿 마커를 주입 */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0006] exportHandlers.ts ➔ fixListMarkers
+// 🎯 @KICK  : html2canvas ::before/counter() 미지원 문제 해결 — DOM에 숫자/불릿 마커 직접 주입
+// 🛡️ @GUARD : onrivi-empty-list-row / task-list-item 제외, start 속성 반영
+// 🚨 @PATCH : export-style-element 클래스로 스타일 및 마커 일괄 관리
+// 🔗 @CALLS : 없음
+// ====================================================================
 function fixListMarkers(clone: HTMLElement): void {
   const style = document.createElement('style');
   style.className = 'export-style-element';
@@ -207,6 +250,13 @@ function fixListMarkers(clone: HTMLElement): void {
 }
 
 /** 상대 경로(/~) 및 media:// 프로토콜 이미지를 Base64 Data URI로 인라인 임베딩 (내보내기 시 이미지 깨짐 방지) */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0007] exportHandlers.ts ➔ inlineLocalImages
+// 🎯 @KICK  : 상대 경로 / media:// 이미지를 Base64 Data URI로 인라인 임베딩
+// 🛡️ @GUARD : Electron IPC, Data URI/http(s) 스킵, 백엔드 /api/view 2차 fallback
+// 🚨 @PATCH : Electron readImageAsBase64 IPC 우회, 백엔드 실패 시 프론트엔드 정적 서빙 재시도
+// 🔗 @CALLS : getApiUrl
+// ====================================================================
 async function inlineLocalImages(clone: HTMLElement): Promise<void> {
   const imgs = Array.from(clone.querySelectorAll('img'));
   const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
@@ -291,6 +341,13 @@ async function inlineLocalImages(clone: HTMLElement): Promise<void> {
  * 모든 export 포맷 공통: 복제된 DOM에 동적 CSS + 인쇄 스타일을 주입합니다.
  * hideIndicators: true 면 화면용 가상 페이지 구분선(빨간 점선/이모지)을 제거
  */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0008] exportHandlers.ts ➔ injectExportStyles
+// 🎯 @KICK  : export 전 clone DOM에 동적 CSS + 인쇄 스타일 + 페이지 구분선 숨김 주입
+// 🛡️ @GUARD : hideIndicators 옵션, dynamicCssString 존재 여부, pageBg 배경색
+// 🚨 @PATCH : custom-preview-container 클래스 추가로 사용자 CSS 우선 적용
+// 🔗 @CALLS : 없음
+// ====================================================================
 function injectExportStyles(
   clone: HTMLElement,
   dynamicCssString?: string,
@@ -352,6 +409,13 @@ tr.table-page-break-line-before > td:first-child::before {
 }
 
 /** 다운로드 폴더에 파일 백업 */
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0009] exportHandlers.ts ➔ saveToDownloads
+// 🎯 @KICK  : 백엔드 /api/save-export API를 통해 다운로드 폴더에 파일 저장
+// 🛡️ @GUARD : Electron 환경 조기 반환, API fetch 실패 시 false 반환
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : getApiUrl
+// ====================================================================
 async function saveToDownloads(filename: string, content: string, type: 'base64' | 'text') {
   // 💡 [일렉트론 환경 가드] 일렉트론 순수 데스크톱 모드에서는 Express 백엔드 포트 서빙이 실행되지 않으므로,
   // 불필요한 로컬 API fetch 시도를 즉시 스킵하여 콘솔의 ERR_CONNECTION_REFUSED 빨간색 에러 노출을 방지합니다.
@@ -375,7 +439,14 @@ async function saveToDownloads(filename: string, content: string, type: 'base64'
 // ─────────────────────────────────────────────
 // PDF 내보내기
 // ─────────────────────────────────────────────
-export async function exportPDF({ previewEl, currentFileName, isDarkMode, showToast, orientation, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor }: ExportOptions) {
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0010] exportHandlers.ts ➔ exportPDF
+// 🎯 @KICK  : 미리보기 DOM을 jsPDF로 선택 용지 PDF 내보내기 (html2canvas 캡처, 페이지 분할, 슬라이스)
+// 🛡️ @GUARD : Electron saveFileAs, orientation/paperSize/여백/배경색 설정, 폰트 로딩 대기
+// 🚨 @PATCH : A4 고정→선택용지 대응 (paperSize prop → jsPDF format)
+// 🔗 @CALLS : flushIME, clonePreview, inlineLocalImages, injectExportStyles, fixListMarkers, applyExportInlineStyles, saveToDownloads
+// ====================================================================
+export async function exportPDF({ previewEl, currentFileName, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor }: ExportOptions) {
   try {
     showToast('PDF 내보내기 준비 중...', 'info');
     flushIME();
@@ -427,7 +498,7 @@ export async function exportPDF({ previewEl, currentFileName, isDarkMode, showTo
 
     // 📄 jsPDF
     const { jsPDF } = await import('jspdf');
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: orientation || 'portrait' });
+    const pdf = new jsPDF({ unit: 'mm', format: paperSize || 'a4', orientation: orientation || 'portrait' });
     const pdfW = pdf.internal.pageSize.getWidth();
     const pdfH = pdf.internal.pageSize.getHeight();
     const contentW = pdfW - ml - mr;
@@ -620,6 +691,13 @@ export async function exportPDF({ previewEl, currentFileName, isDarkMode, showTo
 // ─────────────────────────────────────────────
 // HTML 내보내기
 // ─────────────────────────────────────────────
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0011] exportHandlers.ts ➔ exportHTML
+// 🎯 @KICK  : 미리보기 DOM을 독립 HTML 파일로 내보내기 (Tailwind CDN + computed font 포함)
+// 🛡️ @GUARD : Electron saveFileAs, computed fontFamily 반영
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : clonePreview, inlineLocalImages, injectExportStyles, saveToDownloads
+// ====================================================================
 export async function exportHTML({ previewEl, currentFileName, isDarkMode, showToast, dynamicCssString, showPageBreaks, backgroundColor }: ExportOptions) {
   try {
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
@@ -700,6 +778,13 @@ export async function exportHTML({ previewEl, currentFileName, isDarkMode, showT
 // ─────────────────────────────────────────────
 // EPUB 내보내기
 // ─────────────────────────────────────────────
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0012] exportHandlers.ts ➔ exportEPUB
+// 🎯 @KICK  : 미리보기 DOM을 EPUB으로 내보내기 (generateEpub 호출, 이미지 인라인)
+// 🛡️ @GUARD : Electron saveFileAs 브랜치, fontFamily computed 적용, export-style-element 제거
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : clonePreview, inlineLocalImages, injectExportStyles, generateEpub, downloadBlob, saveToDownloads
+// ====================================================================
 export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showToast, dynamicCssString, backgroundColor }: ExportOptions) {
   try {
     showToast('EPUB 내보내기 준비 중...', 'info');
@@ -777,6 +862,13 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
 // ─────────────────────────────────────────────
 // PNG 내보내기
 // ─────────────────────────────────────────────
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0013] exportHandlers.ts ➔ exportPNG
+// 🎯 @KICK  : 미리보기 DOM을 html-to-image로 PNG 캡처 및 저장 (Electron/브라우저)
+// 🛡️ @GUARD : Electron IPC saveFileAs, overflow visible 강제, scrollHeight 측정 fallback
+// 🚨 @PATCH : html2canvas ::before/counter() 누락 보정, 이미지 crossOrigin anonymous 설정
+// 🔗 @CALLS : flushIME, clonePreview, inlineLocalImages, injectExportStyles, fixListMarkers, applyExportInlineStyles, saveToDownloads
+// ====================================================================
 export async function exportPNG({ previewEl, currentFileName, isDarkMode, showToast, dynamicCssString, showPageBreaks, backgroundColor }: ExportOptions) {
   try {
     showToast('이미지 내보내기 준비 중...', 'info');

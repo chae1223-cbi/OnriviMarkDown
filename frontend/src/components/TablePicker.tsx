@@ -6,6 +6,13 @@ interface TablePickerProps {
   onClose: () => void;
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-TablePicker-0002] TablePicker ➔ TablePicker
+// 🎯 @KICK  : 표 크기 선택 드롭다운 컴포넌트 - 10x10 그리드 렌더링 및 사용자 인터랙션 처리
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleSelect
+// ====================================================================
 export default function TablePicker({ onSelect, isDarkMode, onClose }: TablePickerProps) {
   const [hoveredRow, setHoveredRow] = useState(-1);
   const [hoveredCol, setHoveredCol] = useState(-1);
@@ -13,6 +20,13 @@ export default function TablePicker({ onSelect, isDarkMode, onClose }: TablePick
   const maxRows = 10;
   const maxCols = 10;
 
+// ====================================================================
+// 📊 [OMD-EDIT-TablePicker-0001] TablePicker ➔ handleSelect
+// 🎯 @KICK  : hovered 행/열을 1-indexed로 변환하여 onSelect 콜백 호출 후 드롭다운 닫기
+// 🛡️ @GUARD : hoveredRow >= 0 && hoveredCol >= 0 조건 검증
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onSelect, onClose
+// ====================================================================
   const handleSelect = () => {
     if (hoveredRow >= 0 && hoveredCol >= 0) {
       onSelect(hoveredRow + 1, hoveredCol + 1);

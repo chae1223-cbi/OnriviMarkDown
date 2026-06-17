@@ -11,11 +11,25 @@ interface TableModalProps {
   isDarkMode: boolean;
 }
 
+// ====================================================================
+// 📊 [OMD-EDIT-TableModal-0003] TableModal ➔ TableModal
+// 🎯 @KICK  : 표 삽입 모달 - 10x10 그리드 UI로 마우스 표 크기 선택 후 마크다운 코드 생성
+// 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : handleInsert, createPortal
+// ====================================================================
 export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: TableModalProps) {
   const [hoverPos, setHoverPos] = useState({ r: 3, c: 2 });
   const [selectedPos, setSelectedPos] = useState({ r: 3, c: 2 });
   const [mounted, setMounted] = useState(false);
 
+// ====================================================================
+// 📊 [OMD-EDIT-TableModal-0001] TableModal ➔ useEffect(mounted)
+// 🎯 @KICK  : 클라이언트 마운트 완료 시 mounted 상태 true 설정 (SSR 하이드레이션 보호)
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -23,6 +37,13 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
   if (!isOpen) return null;
   if (!mounted) return null;
 
+// ====================================================================
+// 📊 [OMD-EDIT-TableModal-0002] TableModal ➔ handleInsert
+// 🎯 @KICK  : 선택된 행/열로 마크다운 표 문자열 생성 후 onInsert 콜백 전달 및 모달 닫기
+// 🛡️ @GUARD : 없음
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onInsert, onClose
+// ====================================================================
   const handleInsert = () => {
     const { r, c } = selectedPos;
     let header = "| " + Array(c).fill("제목").join(" | ") + " |\n";

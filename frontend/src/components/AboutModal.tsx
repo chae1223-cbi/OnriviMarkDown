@@ -22,6 +22,13 @@ interface AboutModalProps {
  * [ONR-UI-008] AboutModal 컴포넌트 함수
  * @description 현재 에디터 프로그램의 버전 정보, 정품 인증 여부, 제작사 저작권 정보를 띄워주는 포털 기반 모달 창입니다.
  */
+// ====================================================================
+// 📊 [OMD-AUTH-AboutModal-0001] AboutModal ➔ AboutModal
+// 🎯 @KICK  : 프로그램 정보, 정품 인증 상태, 저작권 정보를 표시하는 포털 기반 모달 창
+// 🛡️ @GUARD : isOpen 및 mounted 상태가 모두 true일 때만 렌더링
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
 export default function AboutModal({
   isOpen,
   onClose,

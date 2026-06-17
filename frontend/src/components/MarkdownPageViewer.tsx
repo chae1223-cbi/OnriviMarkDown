@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import MarkdownViewer from './MarkdownViewer';
+import { PAPER_SIZES, mmToPixels, DEFAULT_PAPER_SIZE } from '@/constants/paperSizes';
 
 interface MarkdownPageViewerProps {
   content: string;
@@ -10,6 +11,7 @@ interface MarkdownPageViewerProps {
   rootFolderPath?: string;
   onFileOpen?: (resolvedPath: string) => void;
   orientation?: 'portrait' | 'landscape';
+  paperSize?: string;
   marginTop?: string;
   marginBottom?: string;
   marginLeft?: string;
@@ -75,6 +77,13 @@ const mmToPx = (mm: string | undefined, defaultValue: number): number => {
 };
 
 // [ONR-MD-002] 페이지 경계 및 강제 나누기 렌더링: 프린트 레이아웃 분할 기능과 페이지 높이 경계를 추적하여 강제 페이지 바인딩(Page Breaks) 처리를 수행하는 특수 뷰어 컴포넌트입니다.
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownPageViewer-0006] MarkdownPageViewer ➔ MarkdownPageViewer
+// 🎯 @KICK  : 선택 용지 기반 페이지 분할 뷰어 - 오프스크린 측정 후 가상 페이지 렌더링
+// 🛡️ @GUARD : content/용지 설정 변경 시 200ms 디바운스 재계산; 빈 콘텐츠 처리
+// 🚨 @PATCH : cloneNode(true)로 React Virtual DOM 정합성 붕괴 우회
+// 🔗 @CALLS : calculatePagination, handlePageClick, MarkdownViewer, useLayoutEffect, useEffects
+// ====================================================================
 export default function MarkdownPageViewer({
   content,
   originalContent,
@@ -84,6 +93,7 @@ export default function MarkdownPageViewer({
   rootFolderPath,
   onFileOpen,
   orientation = 'portrait',
+  paperSize = DEFAULT_PAPER_SIZE,
   marginTop = '10',
   marginBottom = '10',
   marginLeft = '10',
@@ -99,10 +109,11 @@ export default function MarkdownPageViewer({
   const pageContainerRefs = useRef<HTMLDivElement[]>([]);
   const paginationDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 용지 방향 및 픽셀 규격 정의 (A4 기준: 210mm x 297mm)
+  // 용지 방향 및 픽셀 규격 정의 (선택한 용지 기준)
+  const paperSpec = PAPER_SIZES[paperSize] || PAPER_SIZES[DEFAULT_PAPER_SIZE];
   const isLandscape = orientation === 'landscape';
-  const paperWidthPx = isLandscape ? 1123 : 794;
-  const paperHeightPx = isLandscape ? 794 : 1123;
+  const paperWidthPx = mmToPixels(isLandscape ? paperSpec.height : paperSpec.width);
+  const paperHeightPx = mmToPixels(isLandscape ? paperSpec.width : paperSpec.height);
 
   // 여백 픽셀 변환
   const marginTopPx = mmToPx(marginTop, 76);
@@ -115,6 +126,13 @@ export default function MarkdownPageViewer({
   const usableWidth = paperWidthPx - (marginLeftPx + marginRightPx);
 
   // content, orientation, 여백 등이 바뀔 때마다 페이지 재계산 (200ms 디바운스 적용)
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownPageViewer-0005] MarkdownPageViewer ➔ useEffect (pagination)
+// 🎯 @KICK  : content/용지 설정 변경 시 200ms 디바운스 후 페이지 재분할
+// 🛡️ @GUARD : 이전 타이머를 clear하여 중복 실행 방지
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : calculatePagination, setIsCalculated
+// ====================================================================
   useEffect(() => {
     setIsCalculated(false);
     if (paginationDebounceRef.current) {
@@ -130,8 +148,15 @@ export default function MarkdownPageViewer({
         clearTimeout(paginationDebounceRef.current);
       }
     };
-  }, [content, orientation, marginTop, marginBottom, marginLeft, marginRight]);
+  }, [content, orientation, paperSize, marginTop, marginBottom, marginLeft, marginRight]);
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownPageViewer-0004] MarkdownPageViewer ➔ useEffect (ResizeObserver)
+// 🎯 @KICK  : 오프스크린 컨테이너 내부 요소 크기 변화를 감지하여 페이지 재분할 트리거
+// 🛡️ @GUARD : ResizeObserver API 존재 여부 확인; contentRoot 존재 검사
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : calculatePagination
+// ====================================================================
   // 💡 [ResizeObserver 동적 추적] offscreenContainer 내부의 이미지 로딩 등으로 인한 높이 변화 상시 감지
   useEffect(() => {
     if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return;
@@ -164,6 +189,13 @@ export default function MarkdownPageViewer({
     };
   }, [content, calcKey]);
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownPageViewer-0003] MarkdownPageViewer ➔ calculatePagination
+// 🎯 @KICK  : 오프스크린 렌더링 높이를 측정하여 선택 용지 단위로 페이지 분할
+// 🛡️ @GUARD : 테이블/리스트는 행 단위 심층 분할; 초대형 요소는 단일 페이지 처리
+// 🚨 @PATCH : cloneNode(true) 대신 직접 DOM 측정 후 분할 계산
+// 🔗 @CALLS : createTablePiece, createListPiece, setPages, setIsCalculated
+// ====================================================================
   const calculatePagination = () => {
     const offscreen = offscreenContainerRef.current;
     if (!offscreen) return;
@@ -365,6 +397,13 @@ export default function MarkdownPageViewer({
     setCalcKey(prev => prev + 1); // 렌더링용 키 리플래시
   };
 
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownPageViewer-0002] MarkdownPageViewer ➔ useLayoutEffect (DOM cloning)
+// 🎯 @KICK  : calculatePagination 결과를 실제 가상 용지 DOM에 복제 이식
+// 🛡️ @GUARD : cloneNode(true)로 원본 노드를 복제해 Virtual DOM 파괴 방지
+// 🚨 @PATCH : cloneNode(true)를 사용해 React Virtual DOM 정합성 붕괴 버그 우회
+// 🔗 @CALLS : cloneNode, appendChild
+// ====================================================================
   // 페이지 레이아웃이 렌더링된 직후, 각 가상 용지 카드의 본문 영역으로 DOM 노드를 복제하여 이식
   useLayoutEffect(() => {
     if (!isCalculated || pages.length === 0) return;
@@ -388,6 +427,13 @@ export default function MarkdownPageViewer({
 
   // 💡 [이벤트 위임 가드] 복제된(cloned) DOM 노드는 React의 직접적인 이벤트 바인딩이 유실되므로,
   // 컨테이너 레벨에서 클릭 이벤트를 감지하여 위임 처리합니다.
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownPageViewer-0001] MarkdownPageViewer ➔ handlePageClick
+// 🎯 @KICK  : 복제된 DOM에서 체크박스 토글, 앵커 링크 이동, 일반 클릭 이벤트 위임 처리
+// 🛡️ @GUARD : input/체크박스, 앵커 태그 분기 처리로 불필요한 이벤트 전파 차단
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : onCheckboxToggle, scrollIntoView, onFileOpen, resolveRelativeImagePath, onPreviewClick
+// ====================================================================
   const handlePageClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
 
