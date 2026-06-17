@@ -72,25 +72,24 @@ export default function UnifiedTabBar({
             >
               <span className="truncate max-w-[150px]">{tab.name}</span>
               
-              {/* 수정됨(미저장) 표시 */}
-              {tab.isModified && (
+              {/* 수정됨(미저장) → 노란색 도트, 저장됨 → 닫기버튼(X) */}
+              {tab.isModified ? (
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 animate-pulse" title="수정됨" />
+              ) : (
+                <button
+                  onClick={(e) => onCloseTab(tab.id, e)}
+                  className={`w-4.5 h-4.5 flex items-center justify-center rounded-full transition-all duration-150 p-0.5 ${
+                    isActive
+                      ? isDarkMode
+                        ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                        : 'hover:bg-slate-100 text-slate-400 hover:text-slate-600'
+                      : 'opacity-0 group-hover:opacity-100 hover:bg-slate-200/50 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
+                  }`}
+                  title="탭 닫기"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
-              
-              {/* 닫기 버튼 */}
-              <button
-                onClick={(e) => onCloseTab(tab.id, e)}
-                className={`w-4.5 h-4.5 flex items-center justify-center rounded-full transition-all duration-150 p-0.5 ${
-                  isActive
-                    ? isDarkMode
-                      ? 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
-                      : 'hover:bg-slate-100 text-slate-400 hover:text-slate-600'
-                    : 'opacity-0 group-hover:opacity-100 hover:bg-slate-200/50 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
-                }`}
-                title="탭 닫기"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
             </div>
           );
         })}

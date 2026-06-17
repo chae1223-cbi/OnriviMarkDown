@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 // 📊 [OMD-CORE-layout-0001] layout ➔ RootLayout
 // 🎯 @KICK  : Next.js 루트 레이아웃 - 전역 HTML 구조, CSP, 폰트, Mermaid 설정 및 ToastProvider 래핑
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : CSP script-src 'self' 차단으로 mermaid.min.js <script defer> 복원 (2026-06-18)
 // 🔗 @CALLS : ToastProvider
 // ====================================================================
 export default function RootLayout({

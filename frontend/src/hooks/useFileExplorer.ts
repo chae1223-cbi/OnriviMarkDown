@@ -332,12 +332,10 @@ export const useFileExplorer = ({
   // ====================================================================
   // 5. 파일 트리 클릭 시 파일 열기 및 신규 탭 로딩
   const handleFileClick = async (node: FileNode | null, parentHandle?: any) => {
-    setHelpContent(null);
-    setHelpTitle('');
     if (previewModeRef.current === 'css-style') {
-      setPreviewModeRaw('preview');
-      previewModeRef.current = 'preview';
-      isEditorMountedRef.current = false;
+      setPreviewModeRaw('both');
+      previewModeRef.current = 'both';
+      isEditorMountedRef.current = true;
     }
 
     currentFileParentHandleRef.current = parentHandle || null;
@@ -433,6 +431,12 @@ export const useFileExplorer = ({
         requestAnimationFrame(() => {
           editorRef.current.setScrollTop(0);
         });
+      }
+
+      if (node.name === '도움말.md' || node.name.startsWith('도움말 - ')) {
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
+        isEditorMountedRef.current = false;
       }
 
       const openedMsg = `${node.name} 파일을 열었습니다.`;

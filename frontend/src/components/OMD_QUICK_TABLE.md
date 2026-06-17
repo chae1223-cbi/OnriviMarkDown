@@ -69,7 +69,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-EDIT-0016 | MEA.tsx:1612 | handleMouseMove | setSidebarWidth, localStorage.setItem | 사이드바 리사이즈 드래그 처리 |
 | OMD-EDIT-0017 | MEA.tsx:1623 | stopResizing | document.removeEventListener | 사이드바 리사이즈 종료 |
 | OMD-EDIT-0018 | MEA.tsx:1631 | startResizing | document.addEventListener | 사이드바 리사이즈 시작 |
-| OMD-FILE-0008 | MEA.tsx:1645 | saveStatusSync | setSaveStatus, setTabs | 콘텐츠 vs lastSaved 비교로 저장 상태·탭 수정 여부 갱신 |
+| OMD-FILE-0008 ✅ FIXED | MEA.tsx:1645 | saveStatusSync | setSaveStatus, setTabs | 콘텐츠 vs lastSaved 비교로 저장 상태·탭 수정 여부 갱신 *(수정: 2026-06-17 — activeTabId deps 추가로 탭 전환 시 isModified 오염 방지)* |
 | OMD-FILE-0009 | MEA.tsx:1657 | autoSave | saveFile, setSaveStatus, setTimeout, clearTimeout | 5초 디바운스 자동 저장 |
 | OMD-EDIT-0019 | MEA.tsx:1688 | insertAtCursor | utilsEditorActions.insertAtCursor | 커서 위치에 텍스트 삽입 |
 | OMD-CORE-0016 | MEA.tsx:1699 | findLineNumberByHeading | utilsEditorActions.findLineNumberByHeading | 제목으로 라인 번호 탐색 |
@@ -102,7 +102,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-HOOK-0002 | useEditorSettings.ts:41 | handleThemeChange | setThemePalette, setIsDarkMode | 테마 전환 |
 | OMD-HOOK-0003 ✅ FIXED | useEditorTabs.ts:13 | useEditorTabs | tabs, setTabs, activeTabId, setActiveTabId (외부 주입), getWelcomeContent, monaco.editor.createModel | 다중 탭 관리 *(수정: 2026-06-15 — 내부 useState 제거→외부 주입 전환으로 rS TDZ 에러 해결)* |
 | OMD-HOOK-0004 | useEditorTabs.ts:35 | updateContent | setContent, setTabs | 콘텐츠 변경 탭 동기화(100ms 디바운스) |
-| OMD-HOOK-0005 | useEditorTabs.ts:59 | switchTab | editor.setModel, setActiveTabId | 탭 전환·스크롤 저장·모델 교체 |
+| OMD-HOOK-0005 ✅ FIXED | useEditorTabs.ts:59 | switchTab | editor.setModel, setActiveTabId | 탭 전환·스크롤 저장·모델 교체 *(수정: 2026-06-17 — css-style↔일반 탭 전환 시 모드 자동 전환, 도움말 탭 preview 모드 강제)* |
 | OMD-HOOK-0006 | useEditorTabs.ts:89 | createNewTab | monaco.editor.createModel, setTabs | 새 탭 생성 및 Monaco 모델 초기화 |
 | OMD-HOOK-0007 | useFileExplorer.ts | useFileExplorer | saveFile, refreshFileList, handleFileClick, selectRootFolder | 파일 탐색·열기·저장·워크스페이스 제어 |
 | OMD-HOOK-0008 | useEditorHandlers.ts | useEditorHandlers | 각종 핸들러 | 에디터 액션 로직 통합 핸들러 |

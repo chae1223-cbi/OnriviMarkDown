@@ -1,19 +1,47 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// 💡 [한글 주석] 빌드 시점에 환경변수가 제공되지 않아도 Prerendering 컴파일 오류로 붕괴하지 않도록 플레이스홀더 기본값을 부여합니다.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project-id.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-public-key';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-if (supabaseUrl.includes('placeholder-project-id')) {
-  console.warn(
-    '⚠️ Supabase 환경 변수 설정이 비어 있어 임시 플레이스홀더 키로 작동 중입니다. .env 파일을 확인해 주세요.'
-  );
+const isPlaceholder = !supabaseUrl || !supabaseAnonKey;
+
+function createNoopClient(): SupabaseClient {
+  const thenable = { then: (resolve: any) => resolve({ data: null, error: null }) };
+  const query: any = new Proxy(thenable, {
+    get: (target, prop) => {
+      if (prop === 'then') return target.then;
+      if (prop === 'select') return () => query;
+      if (prop === 'eq') return () => query;
+      if (prop === 'single') return () => query;
+      if (prop === 'limit') return () => query;
+      if (prop === 'order') return () => query;
+      if (prop === 'on') return () => channel;
+      if (prop === 'subscribe') return () => channel;
+      return () => query;
+    },
+  });
+  const channel: any = new Proxy({}, {
+    get: () => () => channel,
+  });
+  return {
+    channel: () => channel,
+    removeChannel: () => {},
+    from: () => query,
+    auth: { signInWithPassword: async () => ({ data: null, error: null }), signOut: async () => {} },
+    realtime: {} as any,
+    rpc: () => query,
+    schema: () => query,
+  } as any;
 }
 
-// 💡 [한글 주석] 어플리케이션 전역에서 공유할 Supabase Client 싱글톤 인스턴스 초기화 및 익스포트
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+const createSupabaseClient = () => {
+  if (isPlaceholder) return createNoopClient();
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  });
+};
+
+export const supabase = createSupabaseClient();

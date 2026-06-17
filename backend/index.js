@@ -707,7 +707,7 @@ app.post('/api/upload-pasted-image', async (req, res) => {
 app.get('/api/drives', (req, res) => {
   try {
     const { execSync } = require('child_process');
-    const output = execSync('wmic logicaldisk get caption').toString();
+    const output = execSync('wmic logicaldisk get caption 2>nul').toString();
     const drives = output.split('\n').slice(1).map(s => s.trim()).filter(s => s.length > 0);
     const nodes = drives.map(d => ({
       name: d,
@@ -900,7 +900,22 @@ app.post('/api/rename', async (req, res) => {
   try {
     const oldPath = getSafePath(req.body.oldPath);
     const newPath = getSafePath(req.body.newPath);
-    await fs.rename(oldPath, newPath);
+    const destDir = path.dirname(newPath);
+    if (!fs.existsSync(destDir)) {
+      await fs.mkdir(destDir, { recursive: true });
+    }
+    try {
+      await fs.rename(oldPath, newPath);
+    } catch (renameErr) {
+      const stat = await fs.stat(oldPath);
+      if (stat.isDirectory()) {
+        await fs.cp(oldPath, newPath, { recursive: true });
+        await fs.rm(oldPath, { recursive: true, force: true });
+      } else {
+        await fs.copyFile(oldPath, newPath);
+        await fs.unlink(oldPath);
+      }
+    }
     res.json({ status: 'success' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

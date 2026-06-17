@@ -442,8 +442,7 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
     if (isAbsolute) {
       cleanPath = filePath;
     } else if (filePath.startsWith('docs/help/')) {
-      // app.getAppPath()가 frontend/를 가리키므로 상위('..')로 탈출하여 프로젝트 루트(OnriviMarkDown) 확보
-      const projectRoot = path.join(app.getAppPath(), '..');
+      const projectRoot = app.getAppPath();
       cleanPath = path.join(projectRoot, filePath).normalize('NFC');
     } else {
       // 기존 로직: 개발/번들 내부, 설치된 환경 외부 리소스 순서로 탐색
@@ -511,7 +510,7 @@ function getAllMdFiles(dirPath, fileList = []) {
 ipcMain.handle('file:getDrives', async () => {
   try {
     const { execSync } = require('child_process');
-    const output = execSync('wmic logicaldisk get caption').toString();
+    const output = execSync('wmic logicaldisk get caption 2>nul').toString();
     return output.split('\n').slice(1).map(s => s.trim()).filter(s => s.length > 0);
   } catch (e) {
     const drives = [];
@@ -563,7 +562,22 @@ ipcMain.handle('file:rename', async (event, oldPath, newPath) => {
   try {
     const cleanOld = oldPath.normalize('NFC');
     const cleanNew = newPath.normalize('NFC');
-    fs.renameSync(cleanOld, cleanNew);
+    const destDir = path.dirname(cleanNew);
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    try {
+      fs.renameSync(cleanOld, cleanNew);
+    } catch (renameErr) {
+      const stat = fs.statSync(cleanOld);
+      if (stat.isDirectory()) {
+        fs.cpSync(cleanOld, cleanNew, { recursive: true });
+        fs.rmSync(cleanOld, { recursive: true, force: true });
+      } else {
+        fs.copyFileSync(cleanOld, cleanNew);
+        fs.unlinkSync(cleanOld);
+      }
+    }
     return { success: true };
   } catch (e) {
     console.error('파일 이름 변경 실패:', e);
@@ -772,16 +786,13 @@ ipcMain.handle('license:save-full', async (event, data) => {
   }
 });
 
-// 물리 기기 고유 ID 수집 핸들러 (wmic/ioreg 활용)
+// 물리 기기 고유 ID 수집 핸들러
 ipcMain.handle('license:get-device-id', async () => {
   try {
     const { execSync } = require('child_process');
     if (process.platform === 'win32') {
-      const output = execSync('wmic csproduct get uuid', { encoding: 'utf-8' });
-      const parts = output.split('\n');
-      if (parts.length > 1) {
-        return parts[1].trim();
-      }
+      const output = execSync('powershell -Command "Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID"', { encoding: 'utf-8' });
+      return output.trim();
     } else if (process.platform === 'darwin') {
       const output = execSync("ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/ { split($0, line, \"\\\"\"); print line[4] }'", { encoding: 'utf-8' });
       return output.trim();

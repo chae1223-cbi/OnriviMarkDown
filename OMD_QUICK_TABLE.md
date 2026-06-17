@@ -25,7 +25,7 @@
 | OMD-CORE-ColorText-0001 | ColorText | ColorText | 텍스트에서 16진수 색상 코드를 감지하여 컬러 박스와 함께 시각적으로 렌더링 | 정규식으로 유효한 헥사코드만 매칭하여 안전한 렌더링 보장 | 없음 | 없음 |
 | OMD-CORE-page-0001 | page | Page | Next.js 클라이언트 진입 페이지 - SSR 비활성화로 MainEditorApp 동적 로딩 | 없음 | 없음 | MainEditorApp |
 | OMD-CORE-USEPAGEBREAK-0001 | usePageBreak.ts | executeAutoPageBreak | 타이핑 시 선택 용지 기준 자동 페이지 나누기를 지능형으로 재계산하여 주입 | isAutoPageBreakingRef Lock으로 중복 실행 방지, previewRef 미존재 시 early return | A4 고정→PAPER_SIZES lookup으로 변경 | showToast |
-| OMD-CORE-layout-0001 | layout | RootLayout | Next.js 루트 레이아웃 - 전역 HTML 구조, CSP, 폰트, Mermaid 설정 및 ToastProvider 래핑 | 없음 | 없음 | ToastProvider |
+| OMD-CORE-layout-0001 ✅ FIXED | layout | RootLayout | Next.js 루트 레이아웃 - 전역 HTML 구조, CSP, 폰트, Mermaid 설정 및 ToastProvider 래핑 | 없음 | CSP script-src 'self' 차단으로 mermaid.min.js <script defer> 복원 (2026-06-18) | ToastProvider |
 | OMD-CORE-helper-0001 | helper.tsx | idb | IndexedDB 기반 key-value 저장 헬퍼 (get/set) | onupgradeneeded 스토어 생성, objectStoreNames 존재 여부 체크 | 없음 | 없음 |
 | OMD-CORE-layout-0002 | layout | metadata | Next.js Metadata 객체 - 페이지 제목, 설명, 아이콘 경로 설정 | 없음 | 없음 | 없음 |
 | OMD-CORE-FontSelectorModal-0002 | FontSelectorModal | FontSelectorModal | 시스템 폰트 목록을 검색/선택하는 모달 창 | isOpen이 false면 렌더링 생략 | 없음 | collectFonts |
@@ -59,13 +59,13 @@
 | OMD-CORE-welcomeContent-0004 | welcomeContent | DEFAULT_WELCOME_MD | 기본 웰컴 페이지 마크다운을 내보낸다 | WELCOME_MD를 참조하며 읽기 전용 | 없음 | WELCOME_MD |
 | OMD-CORE-cssProfile-0005 | cssProfile | isSystemProfileId | 주어진 id가 시스템 프로필 ID인지 검사한다 | SYSTEM_PROFILE_IDS 배열에 포함된 값인지만 확인 | 없음 | SYSTEM_PROFILE_IDS |
 | OMD-CORE-MarkdownPageViewer-0005 | MarkdownPageViewer | useEffect (pagination) | content/용지 설정(용지 크기 포함) 변경 시 200ms 디바운스 후 페이지 재분할 | 이전 타이머를 clear하여 중복 실행 방지 | paperSize 의존성 배열 추가 | calculatePagination, setIsCalculated |
-| OMD-CORE-MarkdownViewer-0005 | MarkdownViewer | MermaidBlock | Mermaid 차트 텍스트를 SVG로 실시간 변환 렌더링 및 이미지 저장/복사 툴바 제공 | Mermaid 라이브러리 로드 실패 시 에러 메시지 표시; 문법 무결성 사전 검증 | 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프 | loadMermaidScript, handleCopyImage, handleSaveImage, handleCopyCode |
+| OMD-CORE-MarkdownViewer-0005 | MarkdownViewer | MermaidBlock | Mermaid 차트 텍스트를 SVG로 실시간 변환 렌더링 및 이미지 저장/복사 툴바 제공 | Mermaid 라이브러리 로드 실패 시 에러 메시지 표시; 문법 무결성 사전 검증 | 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프; <br> → \n 전역 변환 (HTML 태그 파싱 충돌 방지) | loadMermaidScript, handleCopyImage, handleSaveImage, handleCopyCode |
 | OMD-CORE-MapModal-0005 | MapModal | useEffect (mounted) | 클라이언트 마운트 완료 상태 설정으로 hydration mismatch 방지 | 없음 | 없음 | setMounted |
 | OMD-CORE-MainEditorApp-0005 | MainEditorApp.tsx | MainEditorApp | 컨트롤 타워: 모든 전역 상태, 레이아웃 조립, Monaco 에디터, 미리보기, 사이드바, 메뉴 조정 | TDZ 선언 순서 방어, IME 조합 잠금, 스테일 클로저 Ref 백업, 마운트 시 레이스 컨디션 가드 | 아래 상세 하위 항목 참조 | useToast, useEditorTabs, useFileExplorer, useEditorSettings, usePageBreak, useEditorHandlers, getMdFiles, fetchAllMdFiles, resolveRelativeImagePath, getRelativePath, utilsEditorActions, utilsPasteHandlers, getSlashCommands, preprocessMarkdownForPreview, saveSecureData, loadSecureData, idb, getApiUrl |
 | OMD-CORE-welcomeContent-0005 | welcomeContent | WELCOME_CONTENT | 웰컴 페이지 마크다운을 외부에 내보낸다 | DEFAULT_WELCOME_MD와 동일한 값을 참조 | 없음 | WELCOME_MD |
 | OMD-CORE-CssStyleForm-0005 | CssStyleForm | CssStyleForm | 좌측 서식 정의 에디터 폼 - CSS 프로필 전역 타이포그래피 및 태그별 룰셋 편집 | 시스템 프로필(isSystemProfileId) 선택 시 모든 입력 비활성화 | RAF 기반 triggerUpdate로 고속 업데이트 병합 최적화 | AccordionSection, SliderWidget, ColorPickerWidget, TagRuleEditor, FontSelectorModal |
 | OMD-CORE-welcomeContent-0006 | welcomeContent | WELCOME_MD | 웰컴 페이지 마크다운을 원시 문자열 상수로 정의한다 | WELCOME_CONTENT, DEFAULT_WELCOME_MD가 이 값을 참조 | 없음 | WELCOME_CONTENT, DEFAULT_WELCOME_MD |
-| OMD-CORE-MarkdownViewer-0006 | MarkdownViewer | loadMermaidScript | Mermaid CDN 스크립트를 동적으로 로드하고 초기화 (SSR 번들 충돌 방지) | window.mermaid 존재 시 재사용; 중복 로딩 방지용 mermaidPromise 캐싱 | 없음 | mermaid.initialize |
+| OMD-CORE-MarkdownViewer-0006 ✅ FIXED | MarkdownViewer | loadMermaidScript | Mermaid CDN 스크립트를 동적으로 로드하고 초기화 (SSR 번들 충돌 방지) | window.mermaid 존재 시 재사용; 중복 로딩 방지용 mermaidPromise 캐싱 | CSP script-src 'self' 차단 우회: 동적 script 생성→window.mermaid 폴링(200ms×30회) 방식으로 전환; layout.tsx <script defer>에 의존 | mermaid.initialize |
 | OMD-CORE-CssStyleForm-0006 | CssStyleForm | triggerUpdate | requestAnimationFrame 기반 고속 업데이트 최적화 게이트 - 중복 호출 병합 | pendingProfileRef 및 rafIdRef로 중복 RAF 실행 방어 | 없음 | onUpdateProfile |
 | OMD-CORE-MapModal-0006 | MapModal | MapModal | Google Maps iframe 기반 지도 삽입 모달 - 주소 검색, 줌 제어, 크기/정렬 설정 | isOpen/mounted false 시 null 반환 | 없음 | handleSearch, handleInsert, setZoom, setMapAlign, showToast |
 | OMD-CORE-cssProfile-0006 | cssProfile | SYSTEM_PROFILE_IDS | 시스템 프로필 식별자 목록을 정의한다 | 이 ID를 가진 프로필은 수정/삭제 불가 | 없음 | isSystemProfileId |
@@ -120,7 +120,7 @@
 | OMD-EDIT-SettingsModal-0001 | SettingsModal | ModeButton | 화면 보기 모드(편집/분할/미리보기) 전환 버튼 렌더링 | 없음 | 없음 | 없음 |
 | OMD-EDIT-MenuBar-0001 | MenuBar | MenuDropdown | 상단 메뉴 드롭다운 렌더링 - 서브메뉴 호버 열림 및 단축키 표시 | 없음 | 없음 | 없음 |
 | OMD-EDIT-FormulaModal-0001 | FormulaModal | useEffect (loadHistory) | localStorage에서 최근 사용한 수식 기록을 불러오거나 기본 공식 세트 초기화 | JSON 파싱 실패 시 에러 로그만 출력 | 없음 | 없음 |
-| OMD-EDIT-UnifiedTabBar-0001 | UnifiedTabBar | UnifiedTabBar | 통합 탭바 컴포넌트 - 열린 문서 탭 목록 표시, 탭 전환/닫기/추가 기능 제공 | 없음 | 없음 | onSwitchTab, onCloseTab, onCreateNewTab |
+| OMD-EDIT-UnifiedTabBar-0001 ✅ FIXED | UnifiedTabBar | UnifiedTabBar | 통합 탭바 컴포넌트 - 열린 문서 탭 목록 표시, 탭 전환/닫기/추가 기능 제공 | 없음 | isModified 기반 도트/X 조건부 렌더링 (수정됨→도트, 저장됨→닫기) | onSwitchTab, onCloseTab, onCreateNewTab |
 | OMD-EDIT-Toolbar-0001 | Toolbar | CopyPreviewButton | 미리보기 복사 버튼 - 클릭 시 onAction 콜백 실행 | 없음 | 없음 | onAction |
 | OMD-EDIT-YoutubeModal-0001 | YoutubeModal | handleInsert | 생성된 유튜브 코드를 본문에 삽입하고 입력값 초기화 후 모달 닫기 | videoId가 없으면 경고 토스트 표시 후 조기 반환 | 없음 | showToast, onInsert, onClose |
 | OMD-EDIT-USEEDITORHANDLERS-0001 | useEditorHandlers.ts | pageBreak | 커서 위치에 페이지 분할선(<!-- [page-break] -->)을 삽입하여 PDF/인쇄 시 페이지 전환 | editorRef, selection, model 존재 여부 확인 | 없음 | showToast |
@@ -152,7 +152,7 @@
 | OMD-EDIT-toolbarConfig-0003 | toolbarConfig.ts | getSlashCommands | TOOLBAR_ITEMS를 Monaco 슬래시 자동완성 항목으로 변환 (모달/액션/플레이스홀더 처리) | EXCLUDED_FROM_SLASH 필터, modalKeys/actionOnlyKeys 분기, 플레이스홀더 우선순위 매칭 | InsertAsSnippet 하이라이트 방지, filterText 한글/영문 검색 지원 | 없음 |
 | OMD-EDIT-editorUtils-0003 | editorUtils.ts | getIndentLevel | 라인의 들여쓰기 수준을 스페이스 개수 기준으로 계산 (탭=4) | 빈 문자열, 탭 문자 4칸 변환 | 없음 | 없음 |
 | OMD-EDIT-ImageModal-0003 | ImageModal | cleanImagePath | 입력된 이미지 경로에서 순수 URL 추출 (마크다운/HTML 태그 래핑 제거) | media:// 프로토콜 래핑 해제; 외곽 괄호/따옴표 제거 | media://local/serve?url= 내부의 중첩 URL을 추출하는 fallback 로직 | 없음 |
-| OMD-EDIT-USEEDITORHANDLERS-0003 | useEditorHandlers.ts | help | 도움말 문서를 Electron/웹 환경에서 읽어와 화면에 표시 | api.readFromPath / fetch 실패 시 오류 메시지 표시 | 없음 | stripFrontmatter, setHelpTitle, setHelpContent |
+| OMD-EDIT-USEEDITORHANDLERS-0003 ✅ FIXED | useEditorHandlers.ts | help | 도움말 문서를 Electron/웹 환경에서 읽어와 별도 탭으로 표시 | api.readFromPath / fetch 실패 시 오류 메시지 표시 | helpContent 오버레이 대신 createNewTab으로 별도 탭 생성 (2026-06-17) | stripFrontmatter, createNewTab |
 | OMD-EDIT-StatusBar-0003 | StatusBar | StatusBar | 상태 표시줄 컴포넌트 - 글자 수, 단어 수, 저장 상태, 라인/컬럼 정보, 테마, 프리뷰 모드 표시 | StatusBarProps 인터페이스로 props 타입 검증 | 없음 | getFullPath, t |
 | OMD-EDIT-editorActions-0003 | editorActions | findLineNumberByHeading | 문서 내에서 특정 제목 텍스트가 위치한 라인 번호를 탐색한다 | content나 heading이 falsy이면 1 반환, 매칭 실패 시에도 1 반환 | 없음 | 없음 |
 | OMD-EDIT-pasteHandlers-0003 | pasteHandlers | sanitizePastedText | 붙여넣기 문자열을 마크다운에 적합하도록 정제한다 | 줄바꿈 통일, 유령 문자 제거, HTML 찌꺼기 제거, TSV 자동 변환 | 없음 | 없음 |
@@ -206,8 +206,8 @@
 | OMD-EDIT-MainEditorApp-0022 | MainEditorApp.tsx | currentFileNameRef_sync | 핸들러에서 스테일 클로저 방지를 위해 currentFileNameRef 동기화 | WBS CORE-02 스테일 클로저 방지의 일부 | None | None |
 | OMD-EDIT-MainEditorApp-0023 | MainEditorApp.tsx | workspaceTypeRef_sync | 핸들러에서 스테일 클로저 방지를 위해 workspaceTypeRef 동기화 | WBS CORE-02 스테일 클로저 방지의 일부 | None | None |
 | OMD-EDIT-MainEditorApp-0024 | MainEditorApp.tsx | rootFolderRef_sync | 핸들러에서 스테일 클로저 방지를 위해 rootFolderRef 동기화 | WBS CORE-02 스테일 클로저 방지의 일부 | None | None |
-| OMD-EDIT-MainEditorApp-0026 | MainEditorApp.tsx | setPreviewMode | 에디터 콘텐츠 보존, css-style 웰컴 탭 자동 생성 및 도움말 콘텐츠 가드와 함께 미리보기 모드 전환 | css-style 잠금 중 모드 변경 방지, 전환 전 에디터 콘텐츠 강제 동기화, helpContent 재정의 차단 | 콘텐츠 손실 방지를 위한 모드 전환 전 100ms 디바운스 드레인; isEditorMountedRef 원자적 제어 | editorRef.current.getValue, setContent, setPreviewModeRaw, setHelpContent, createNewTab, switchTab, clearTimeout |
-| OMD-EDIT-MainEditorApp-0027 | MainEditorApp.tsx | closeTab | 저장되지 않은 변경사항 확인, 모델 폐기 및 css-style 모드 자동 종료와 함께 탭 닫기 | 이벤트 stopPropagation, 수정된 탭 확인, Monaco 모델 폐기, 다음 탭으로 전환 또는 빈 탭 생성 | None | setTabs, switchTab, createNewTab, setConfirmConfig, tab.model.dispose |
+| OMD-EDIT-MainEditorApp-0026 ✅ FIXED | MainEditorApp.tsx | setPreviewMode | 에디터 콘텐츠 보존, css-style 웰컴 탭 자동 생성 및 도움말 콘텐츠 가드와 함께 미리보기 모드 전환 | css-style 잠금 중 모드 변경 방지, 전환 전 에디터 콘텐츠 강제 동기화, helpContent 재정의 차단, 도움말 탭('도움말.md') 모드 변경 차단 | 도움말 탭 읽기 전용 잠금 가드 추가 (2026-06-17) | editorRef.current.getValue, setContent, setPreviewModeRaw, setHelpContent, createNewTab, switchTab, clearTimeout |
+| OMD-EDIT-MainEditorApp-0027 ✅ FIXED | MainEditorApp.tsx | closeTab | 저장되지 않은 변경사항 확인, 모델 폐기 및 css-style/도움말 모드 자동 종료와 함께 탭 닫기 | 이벤트 stopPropagation, 수정된 탭 확인, Monaco 모델 폐기, 다음 탭으로 전환 또는 빈 탭 생성 | 도움말 탭 닫을 때 'both' 모드 복원 추가 (2026-06-17) | setTabs, switchTab, createNewTab, setConfirmConfig, tab.model.dispose |
 | OMD-EDIT-MainEditorApp-0028 | MainEditorApp.tsx | autoSaveRef_sync | 자동 저장 로직에서 스테일 클로저 방지를 위해 autoSaveRef를 autoSave 상태와 동기화 | 스테일 클로저 방지 시스템의 일부 | None | None |
 | OMD-EDIT-MainEditorApp-0031 | MainEditorApp.tsx | previewWheelSync | 분할 모드에서 미리보기 영역의 마우스 휠 이벤트를 에디터 스크롤로 전달 | 기본 스크롤 중지를 위해 passive:false로 e.preventDefault | None | editor.setScrollTop |
 | OMD-EDIT-MainEditorApp-0033 | MainEditorApp.tsx | editorSettingsSync | 설정 또는 에디터 마운트 변경 시 테마, 폰트 크기, 줄 바꿈 재적용 | 레이스 컨디션 방지를 위해 mounted && isEditorReady로 가드 | 테마 변경 후 찌그러짐 방지를 위한 requestAnimationFrame layout() | monaco.editor.setTheme, editor.updateOptions, requestAnimationFrame |
@@ -242,7 +242,7 @@
 | OMD-FILE-LeftSidebar-0001 | LeftSidebar | onFileOpenAndJump | 전역 검색 결과 파일을 열고 지정 줄로 이동 | 파일 경로를 트리에서 재귀 탐색 후 없으면 dummy/브라우저 핸들로 fallback | 없음 | scrollToLine, openFile, findNodeRecursively, showToast |
 | OMD-FILE-USEFILEEXPLORER-0002 | useFileExplorer.ts | saveFile | Electron/웹/브라우저 File System Access 환경에 파일을 물리적으로 저장 | targetFile null 시 false 반환, 권한 거부 시 오류 토스트 | 없음 | vfsWriteFile, api.saveFile, showToast, setTabs |
 | OMD-FILE-LeftSidebar-0002 | LeftSidebar | handleLazyLoad | FileSystem API 또는 로컬 API로 폴더 내 .md 파일 목록을 지연 로딩 | 파일 확장자가 .md/.markdown인 경우만 포함 | 없음 | fetch, getVfsFiles, listDirectory |
-| OMD-FILE-USEEDITORTABS-0002 | useEditorTabs.ts | switchTab | 특정 탭으로 전환하며 스크롤 위치와 Monaco 모델을 복원 | 대상 탭 미존재 시 early return | 없음 | setContent, setCurrentFileName, setCurrentFileNode |
+| OMD-FILE-USEEDITORTABS-0002 ✅ FIXED | useEditorTabs.ts | switchTab | 특정 탭으로 전환하며 스크롤 위치와 Monaco 모델을 복원. 탭 종류별 자동 모드 전환 (css-style↔both, help→preview) | 대상 탭 미존재 시 early return; 도움말 탭('도움말.md')은 preview 강제, css-style/도움말 탭 이탈 시 both 복원 | 도움말 탭 preview 모드 강제 + 모드 자동 전환 통합 (2026-06-17) | setContent, setCurrentFileName, setCurrentFileNode, setPreviewModeRaw |
 | OMD-FILE-MergeModal-0002 | MergeModal | removeItem | 병합 목록에서 특정 파일을 제거 | 남은 파일이 2개 미만이면 경고 후 제거 차단 | 없음 | showToast |
 | OMD-FILE-vfsHelper-0002 | vfsHelper.ts | saveVfsFiles | 가상 파일 목록을 localStorage에 JSON 직렬화하여 저장 | window 부재 | 없음 | 없음 |
 | OMD-FILE-FileTreeItem-0002 | FileTreeItem | useEffect (syncChildren) | node.children 변경 시 localChildren 상태 동기화 | undefined인 경우 동기화 생략 | 없음 | 없음 |
@@ -257,7 +257,7 @@
 | OMD-FILE-USEEDITORTABS-0003 | useEditorTabs.ts | updateContent | 에디터/외부에서 콘텐츠 변경 시 탭 상태와 Monaco 모델을 디바운스하여 동기화 | isEditorMounted, previewMode, isComposing 상태에 따른 early return | 없음 | setContent, setTabs |
 | OMD-FILE-FileTreeItem-0004 | FileTreeItem | handleDrop | 파일/폴더 드래그 앤 드롭 이동 처리 - Electron, File System API, VFS 세 환경 지원 | 자기 자신/하위 폴더 드롭 방지, 디렉토리만 드롭 대상 허용 | 없음 | refreshParent, refreshThisDirectory, vfsRename, showToast |
 | OMD-FILE-LeftSidebar-0004 | LeftSidebar | fetchDrives | electronAPI 또는 REST API를 통해 시스템 드라이브 목록 조회 | api 존재 여부에 따라 분기 처리 | 없음 | api.getDrives, fetch, msg.warn |
-| OMD-FILE-USEEDITORTABS-0004 | useEditorTabs.ts | useEditorTabs | Monaco 에디터의 가상 모델 다중 탭 관리 및 탭 전환/생성/컨텐츠 동기화 | TDZ 방지를 위해 외부에서 주입된 탭 상태 사용 | 없음 | getWelcomeContent |
+| OMD-FILE-USEEDITORTABS-0004 | useEditorTabs.ts | useEditorTabs | Monaco 에디터의 가상 모델 다중 탭 관리 및 탭 전환/생성/컨텐츠 동기화 | TDZ 방지를 위해 외부에서 주입된 탭 상태 사용 | css-style 모드 자동 해제를 위해 setPreviewModeRaw 파라미터 추가 (2026-06-17) | getWelcomeContent, setPreviewModeRaw |
 | OMD-FILE-MergeModal-0004 | MergeModal | moveUp | 병합 목록에서 파일을 한 칸 위로 이동 | 첫 번째 인덱스면 실행 차단 | 없음 | setNodes |
 | OMD-FILE-USEFILEEXPLORER-0004 | useFileExplorer.ts | findNodeByPath | 파일 경로로 파일 트리 노드를 재귀 탐색 | 경로 정규화 및 대소문자 무효화하여 비교 | 없음 | 없음 |
 | OMD-FILE-USEFILEEXPLORER-0005 | useFileExplorer.ts | loadHelp | 도움말 파일 내용을 파싱하여 화면에 표시 | 없음 | 없음 | stripFrontmatter, setHelpContent, setHelpTitle |
@@ -286,7 +286,7 @@
 | OMD-FILE-MainEditorApp-0020 | MainEditorApp.tsx | handleOpenMergeModal | 2개 이상의 파일이 선택된 경우에만 병합 모달 열기 | 모달 열기 전 최소 선택 개수(2) 검증 | None | showToast, setIsMergeModalOpen |
 | OMD-FILE-MainEditorApp-0038 | MainEditorApp.tsx | openExternalFile | OS 수준 더블클릭 또는 명령줄에서 파일 열기, Monaco 모델로 탭 생성 | 중복 방지를 위해 기존 탭 확인, 변경 리스너로 Monaco 모델 생성, handleFileOpenByPath로 폴백 | None | api.readFromPath, switchTab, monaco.editor.createModel, setTabs, setActiveTabId, setContent, setCurrentFileName, setCurrentFileNode, handleFileOpenByPath, showToast |
 | OMD-FILE-MainEditorApp-0039 | MainEditorApp.tsx | welcomeContentLoad | 첫 마운트 시 탭이 없고 보류 중인 외부 파일이 없으면 웰컴 콘텐츠 로드 | pendingExternalFileRef가 설정되어 있으면 건너뜀 (파일 열기로 연기) | None | getWelcomeContent, setTabs, setActiveTabId, setContent, setCurrentFileName |
-| OMD-FILE-MainEditorApp-0046 | MainEditorApp.tsx | saveStatusSync | 콘텐츠와 lastSavedContent를 비교하여 저장 상태 및 탭 isModified 플래그 업데이트 | currentFileNode가 존재할 때만 실행 (새 저장되지 않은 파일 제외) | None | setSaveStatus, setTabs |
+| OMD-FILE-MainEditorApp-0046 ✅ FIXED | MainEditorApp.tsx | saveStatusSync | 콘텐츠와 lastSavedContent를 비교하여 저장 상태 및 탭 isModified 플래그 업데이트 | currentFileNode가 존재할 때만 실행 (새 저장되지 않은 파일 제외); activeTabId 유효성 검사 추가 | activeTabId deps 추가 + state 직접 참조로 변경 (탭 전환 시 stale ref로 isModified 오염 방지) | setSaveStatus, setTabs |
 | OMD-FILE-MainEditorApp-0047 | MainEditorApp.tsx | autoSave | 콘텐츠 변경 및 autoSave 활성화 시 5초 디바운스 후 파일 자동 저장 | 콘텐츠가 비어있거나, 미리보기 모드가 변경 중이거나, 콘텐츠가 변경되지 않았으면 건너뜀; 5초 디바운스 정리 | None | saveFile, setSaveStatus, setTimeout, clearTimeout |
 | OMD-FILE-MainEditorApp-0057 | MainEditorApp.tsx | readFileText | 브라우저 FileSystemHandle, 로컬 electronAPI, VFS 또는 클라우드 API에서 파일 내용 읽기 | 경로/핸들 존재 여부에 따라 활성 모드 결정; 오류를 정상적으로 처리 | None | node.handle.getFile, vfsReadFile, api.readFromPath, fetch |
 | OMD-FILE-MainEditorApp-0059 | MainEditorApp.tsx | handleDocFileClick | 문서 링크 선택기를 위해 선택된 문서 파일에서 제목 로드 | 로딩 상태 설정, 오류 시 제목 초기화 | None | readFileText, extractHeadings, setDocHeadings, setIsHeadingLoading |
@@ -318,3 +318,5 @@
 | OMD-IO-exportHandlers-0013 | exportHandlers.ts | exportPNG | 미리보기 DOM을 html-to-image로 PNG 캡처 및 저장 (Electron/브라우저) | Electron IPC saveFileAs, overflow visible 강제, scrollHeight 측정 fallback | html2canvas ::before/counter() 누락 보정, 이미지 crossOrigin anonymous 설정 | flushIME, clonePreview, inlineLocalImages, injectExportStyles, fixListMarkers, applyExportInlineStyles, saveToDownloads |
 | OMD-IO-MainEditorApp-0037 | MainEditorApp.tsx | electronAPI_listeners | 파일 작업 및 외부 파일 열기를 위한 Electron 메인 프로세스 IPC 리스너 등록 | 정리 시 리스너 제거, 보류 중인 외부 파일 참조 처리 | pendingExternalFileRef가 마운트 완료될 때까지 파일 열기 연기 | api.onNewFileRequested, api.onSaveFileRequested, api.onSaveFileAsRequested, api.onReceiveFile, openExternalFile, handlers.newFile, handlers.save, handlers.saveAs |
 | OMD-PAY-MainEditorApp-0017 | MainEditorApp.tsx | supabaseRealtime_license | 실시간 활성화를 위해 license_activations의 Supabase postgres_changes 구독, 데스크톱 프로토콜 폴백 포함 | 언마운트 시 채널 및 리스너 정리; device_uuid 필터로 중복 제거 | Electron 환경을 위한 데스크톱 onLicenseActivated 백업 | supabase.channel, supabase.from.software_licenses.select, handleSuccessActivation, showToast |
+| OMD-FILE-main-rename-0001 | main.js | file:rename | Electron IPC로 파일/폴더 이름 변경 및 이동 처리. 대상 디렉터리 부재 시 자동 생성, renameSync 실패 시 cpSync+rmSync fallback | 경로 NFC 정규화, try-catch 이중 구조 (renameSync 실패 시 copy+delete로 우회) | Windows EPERM 대응: 대상 폴더 mkdirSync + renameSync 실패 시 cpSync+rmSync fallback (2026-06-17) | fs.renameSync, fs.mkdirSync, fs.cpSync, fs.rmSync, fs.copyFileSync, fs.unlinkSync, path.dirname |
+| OMD-FILE-backend-rename-0002 | backend/index.js | /api/rename | REST API로 파일/폴더 이름 변경 및 이동 처리. 대상 디렉터리 부재 시 자동 생성, rename 실패 시 cp+rm fallback | getSafePath로 경로 검증, try-catch 이중 구조 (rename 실패 시 copy+delete로 우회) | Windows EPERM 대응: 대상 폴더 fs.mkdir + rename 실패 시 fs.cp+fs.rm fallback (2026-06-17) | fs.rename, fs.mkdir, fs.cp, fs.rm, fs.copyFile, fs.unlink, path.dirname |

@@ -35,7 +35,8 @@ export const useEditorTabs = (
   tabs: any[],
   setTabs: (fn: any) => void,
   activeTabId: string | null,
-  setActiveTabId: (id: string | null) => void
+  setActiveTabId: (id: string | null) => void,
+  setPreviewModeRaw?: (mode: any) => void
 ) => {
   const tabsRef = useRef<EditorTab[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
@@ -75,13 +76,34 @@ export const useEditorTabs = (
   }, [setContent, isEditorMountedRef, previewModeRef, previewDebounceRef, isComposingRef, editorRef]);
 
   // ====================================================================
-  // 📊 [OMD-FILE-USEEDITORTABS-0002] useEditorTabs.ts ➔ switchTab
-  // 🎯 @KICK  : 특정 탭으로 전환하며 스크롤 위치와 Monaco 모델을 복원
-  // 🛡️ @GUARD : 대상 탭 미존재 시 early return
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : setContent, setCurrentFileName, setCurrentFileNode
+  // 📊 [OMD-FILE-USEEDITORTABS-0002 ✅ FIXED] useEditorTabs.ts ➔ switchTab
+  // 🎯 @KICK  : 특정 탭으로 전환하며 스크롤 위치와 Monaco 모델을 복원. 탭 종류별 자동 모드 전환 (css-style↔both, help→preview)
+  // 🛡️ @GUARD : 대상 탭 미존재 시 early return; 도움말 탭('도움말.md')은 preview 강제, css-style/도움말 탭 이탈 시 both 복원
+  // 🚨 @PATCH : 도움말 탭 preview 모드 강제 + 모드 자동 전환 통합 (2026-06-17)
+  // 🔗 @CALLS : setContent, setCurrentFileName, setCurrentFileNode, setPreviewModeRaw
   // ====================================================================
   const switchTab = useCallback((tabId: string) => {
+    const targetTab = tabsRef.current.find(t => t.id === tabId);
+
+    if (setPreviewModeRaw && targetTab) {
+      if (targetTab.name === '도움말.md' && previewModeRef.current !== 'preview') {
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
+        isEditorMountedRef.current = false;
+      } else if (targetTab.name === '서식 정의 미리보기.md' && previewModeRef.current !== 'css-style') {
+        setPreviewModeRaw('css-style');
+        previewModeRef.current = 'css-style';
+        isEditorMountedRef.current = true;
+      } else if (previewModeRef.current === 'preview' || previewModeRef.current === 'css-style') {
+        const prevTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
+        if (prevTab && (prevTab.name === '도움말.md' || prevTab.name === '서식 정의 미리보기.md')) {
+          setPreviewModeRaw('both');
+          previewModeRef.current = 'both';
+          isEditorMountedRef.current = true;
+        }
+      }
+    }
+
     const monaco = (window as any).monaco;
     const editor = editorRef.current;
 
@@ -92,7 +114,6 @@ export const useEditorTabs = (
 
     setActiveTabId(tabId);
 
-    const targetTab = tabsRef.current.find(t => t.id === tabId);
     if (!targetTab) return;
 
     setContent(targetTab.content);
@@ -109,14 +130,14 @@ export const useEditorTabs = (
     } else if (editor) {
       editor.setValue(targetTab.content);
     }
-  }, [editorRef, setContent, setCurrentFileName, setCurrentFileNode]);
+  }, [editorRef, setContent, setCurrentFileName, setCurrentFileNode, previewModeRef, setPreviewModeRaw, isEditorMountedRef]);
 
   // ====================================================================
-  // 📊 [OMD-FILE-USEEDITORTABS-0001] useEditorTabs.ts ➔ createNewTab
-  // 🎯 @KICK  : 새 탭을 생성하고 Monaco 모델을 만들어 에디터에 연결
-  // 🛡️ @GUARD : monaco 미존재 시 모델 없이 탭만 생성
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : getWelcomeContent, setContent, setTabs, setActiveTabId, setCurrentFileName, setCurrentFileNode
+  // 📊 [OMD-FILE-USEEDITORTABS-0001 ✅ FIXED] useEditorTabs.ts ➔ createNewTab
+  // 🎯 @KICK  : 새 탭을 생성하고 Monaco 모델을 만들어 에디터에 연결. 탭 종류/출발 탭에 따라 모드 자동 전환
+  // 🛡️ @GUARD : monaco 미존재 시 모델 없이 탭만 생성; 도움말 탭 생성 시 preview 강제, css-style 출발 시 both 복원
+  // 🚨 @PATCH : 모드 자동 전환 로직 추가; prevTabId를 modeTransition 이전에 캡처하도록 순서 수정 (2026-06-17)
+  // 🔗 @CALLS : getWelcomeContent, setContent, setTabs, setActiveTabId, setCurrentFileName, setCurrentFileNode, setPreviewModeRaw
   // ====================================================================
   const createNewTab = useCallback((initialContent?: string, name?: string) => {
     const monaco = (window as any).monaco;
@@ -144,6 +165,31 @@ export const useEditorTabs = (
       model: model
     };
 
+    if (setPreviewModeRaw) {
+      const prevTabId = activeTabIdRef.current;
+      const prevTab = tabsRef.current.find(t => t.id === prevTabId);
+      const isFromHelp = prevTab?.name === '도움말.md';
+      const isFromCssStyle = prevTab?.name === '서식 정의 미리보기.md' && previewModeRef.current === 'css-style';
+
+      if (tabName === '도움말.md' || tabName.startsWith('도움말 - ')) {
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
+        isEditorMountedRef.current = false;
+      } else if (tabName === '서식 정의 미리보기.md') {
+        setPreviewModeRaw('css-style');
+        previewModeRef.current = 'css-style';
+        isEditorMountedRef.current = true;
+      } else if (isFromHelp || previewModeRef.current === 'preview') {
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
+        isEditorMountedRef.current = false;
+      } else if (isFromCssStyle) {
+        setPreviewModeRaw('both');
+        previewModeRef.current = 'both';
+        isEditorMountedRef.current = true;
+      }
+    }
+
     setTabs(prev => [...prev, newTab]);
     setActiveTabId(tabId);
 
@@ -157,7 +203,7 @@ export const useEditorTabs = (
         editorRef.current.setScrollTop(0);
       });
     }
-  }, [editorRef, setContent, setCurrentFileName, setCurrentFileNode]);
+  }, [editorRef, setContent, setCurrentFileName, setCurrentFileNode, previewModeRef, setPreviewModeRaw, isEditorMountedRef]);
 
   return {
     tabsRef,

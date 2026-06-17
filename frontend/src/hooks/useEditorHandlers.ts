@@ -68,6 +68,8 @@ export const useEditorHandlers = ({
   sanitizePastedText,
   isComposingRef,
   previewRef,
+  createNewTab,
+  switchTab,
 }: any) => {
 
   const handlers = {
@@ -761,32 +763,30 @@ export const useEditorHandlers = ({
     about: () => setIsAboutModalOpen(true),
     // ====================================================================
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0003] useEditorHandlers.ts ➔ help
-    // 🎯 @KICK  : 도움말 문서를 Electron/웹 환경에서 읽어와 화면에 표시
+    // 🎯 @KICK  : 도움말 문서를 Electron/웹 환경에서 읽어와 별도 탭으로 표시
     // 🛡️ @GUARD : api.readFromPath / fetch 실패 시 오류 메시지 표시
-    // 🚨 @PATCH : 없음
-    // 🔗 @CALLS : stripFrontmatter, setHelpTitle, setHelpContent
+    // 🚨 @PATCH : helpContent 오버레이 대신 createNewTab으로 별도 탭 생성 (2026-06-17)
+    // 🔗 @CALLS : stripFrontmatter, createNewTab
     // ====================================================================
     help: async () => {
       const api = (window as any).electronAPI;
-      if (api?.readFromPath) {
-        try {
+      let helpMd = '';
+      let helpTitle = '시작하기';
+      try {
+        if (api?.readFromPath) {
           const file = await api.readFromPath('docs/help/00_시작하기.md');
-          setHelpTitle('시작하기');
-          setHelpContent(stripFrontmatter(file.content));
-        } catch (e) {
-          setHelpContent('## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.');
-          setHelpTitle('오류');
-        }
-      } else {
-        try {
+          helpMd = stripFrontmatter(file.content);
+        } else {
           const res = await fetch('./docs/help/00_시작하기.md');
           const text = await res.text();
-          setHelpTitle('시작하기');
-          setHelpContent(stripFrontmatter(text));
-        } catch (e) {
-          setHelpContent('## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.');
-          setHelpTitle('오류');
+          helpMd = stripFrontmatter(text);
         }
+      } catch (e) {
+        helpMd = '## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.';
+        helpTitle = '오류';
+      }
+      if (createNewTab) {
+        createNewTab(helpMd, '도움말.md');
       }
     },
     license: () => setIsLicenseModalOpen(true),

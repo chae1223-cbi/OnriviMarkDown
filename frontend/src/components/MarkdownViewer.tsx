@@ -259,11 +259,12 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
 // 📊 [OMD-CORE-MarkdownViewer-0006] MarkdownViewer ➔ loadMermaidScript
 // 🎯 @KICK  : Mermaid CDN 스크립트를 동적으로 로드하고 초기화 (SSR 번들 충돌 방지)
 // 🛡️ @GUARD : window.mermaid 존재 시 재사용; 중복 로딩 방지용 mermaidPromise 캐싱
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : CSP script-src 'self' 차단 우회를 위해 동적 script 생성 → window.mermaid 폴링(200ms×30회) 방식으로 전환; layout.tsx의 <script defer>에 의존
 // 🔗 @CALLS : mermaid.initialize
 // ====================================================================
 // 🛡️ [한글 주석 완벽 탑재] 비동기 글로벌 Mermaid 스크립트 로더
-// Next.js SSR 및 정적 배포 번들의 컴파일 문제를 방지하기 위해 클라이언트단에서 CDN 스크립트를 동적으로 로드합니다.
+// Next.js SSR 및 정적 배포 번들의 컴파일 문제를 방지하기 위해 window.mermaid 존재 여부를 폴링합니다.
+// layout.tsx의 <script defer src="./mermaid.min.js">로 사전 로드됩니다.
 let mermaidPromise: Promise<any> | null = null;
 const loadMermaidScript = (): Promise<any> => {
   if (typeof window === 'undefined') return Promise.resolve(null);
@@ -275,26 +276,26 @@ const loadMermaidScript = (): Promise<any> => {
   }
 
   mermaidPromise = new Promise((resolve) => {
-    const script = document.createElement('script');
-    const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    script.src = isElectron ? 'media://local/serve?url=mermaid.min.js' : '/mermaid.min.js';
-    script.async = true;
-    script.onload = () => {
-      const mermaidObj = (window as any).mermaid;
-      if (mermaidObj) {
-        mermaidObj.initialize({
+    let retries = 0;
+    const poll = () => {
+      const m = (window as any).mermaid;
+      if (m) {
+        m.initialize({
           startOnLoad: false,
           theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
           securityLevel: 'loose',
         });
+        resolve(m);
+        return;
       }
-      resolve(mermaidObj);
+      if (retries++ > 30) {
+        mermaidPromise = null;
+        resolve(null);
+        return;
+      }
+      setTimeout(poll, 200);
     };
-    script.onerror = () => {
-      mermaidPromise = null;
-      resolve(null);
-    };
-    document.body.appendChild(script);
+    poll();
   });
   return mermaidPromise;
 };
@@ -305,7 +306,7 @@ const loadMermaidScript = (): Promise<any> => {
 // 📊 [OMD-CORE-MarkdownViewer-0005] MarkdownViewer ➔ MermaidBlock
 // 🎯 @KICK  : Mermaid 차트 텍스트를 SVG로 실시간 변환 렌더링 및 이미지 저장/복사 툴바 제공
 // 🛡️ @GUARD : Mermaid 라이브러리 로드 실패 시 에러 메시지 표시; 문법 무결성 사전 검증
-// 🚨 @PATCH : 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프
+// 🚨 @PATCH : 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프; <br> → \n 전역 변환 (HTML 태그 파싱 충돌 방지)
 // 🔗 @CALLS : loadMermaidScript, handleCopyImage, handleSaveImage, handleCopyCode
 // ====================================================================
 function MermaidBlock({ code }: { code: string }) {
@@ -426,6 +427,10 @@ function MermaidBlock({ code }: { code: string }) {
               .replace(/\)/g, '）');
             return `"${sanitized}"`;
           });
+        } catch (_) {}
+
+        try {
+          cleanCode = cleanCode.replace(/<br\s*\/?>/gi, '\\n');
         } catch (_) {}
 
         try {

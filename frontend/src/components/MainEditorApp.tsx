@@ -1083,7 +1083,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     tabs,        // 💡 [TDZ 방어] 최상단에서 선언된 상태를 주입
     setTabs,
     activeTabId,
-    setActiveTabId
+    setActiveTabId,
+    setPreviewModeRaw
   );
 
   // 💡 [TDZ 방어] useEditorTabs 반환값 중 상단에서 선언되지 않은 것들만 추가 추출
@@ -1105,6 +1106,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   // 💡 [TDZ 방어] lastSavedContentRef는 useFileExplorer에서 먼저 참조되므로 상단에 선언
   const lastSavedContentRef = useRef<string>('');
+  const prevActiveTabRef = useRef<string | null>(null);
 
   // 💡 [WBS CORE-02 / 요구사항 4] State Stale Closure 방지를 위한 Ref 백업 시스템 도입
   const currentFileNodeRef = useRef(currentFileNode);
@@ -1203,10 +1205,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   } = useFileExplorerResult;
 
 // ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0026] MainEditorApp.tsx ➔ setPreviewMode
+// 📊 [OMD-EDIT-MainEditorApp-0026 ✅ FIXED] MainEditorApp.tsx ➔ setPreviewMode
 // 🎯 @KICK  : 에디터 콘텐츠 보존, css-style 웰컴 탭 자동 생성 및 도움말 콘텐츠 가드와 함께 미리보기 모드 전환
-// 🛡️ @GUARD : css-style 잠금 중 모드 변경 방지, 전환 전 에디터 콘텐츠 강제 동기화, helpContent 재정의 차단
-// 🚨 @PATCH : 콘텐츠 손실 방지를 위한 모드 전환 전 100ms 디바운스 드레인; isEditorMountedRef 원자적 제어
+// 🛡️ @GUARD : css-style 잠금 중 모드 변경 방지, 전환 전 에디터 콘텐츠 강제 동기화, helpContent 재정의 차단, 도움말 탭('도움말.md') 모드 변경 차단
+// 🚨 @PATCH : 도움말 탭 읽기 전용 잠금 가드 추가 (2026-06-17)
 // 🔗 @CALLS : editorRef.current.getValue, setContent, setPreviewModeRaw, setHelpContent, createNewTab, switchTab, clearTimeout
 // ====================================================================
   const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
@@ -1225,6 +1227,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
       if (prev === 'css-style' && next !== 'css-style') return prev;
       if (helpContentRef.current && next !== 'css-style') return prev;
+      const activeTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
+      if (activeTab?.name === '도움말.md' && next !== 'preview') return prev;
       
       // 💡 서식 정의(css-style) 모드로 스위칭될 때, 대조할 웰컴페이지 샘플 마크다운 탭을 강제 신규 생성 및 포커싱
       if (next === 'css-style' && prev !== 'css-style') {
@@ -1252,10 +1256,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [setContent, createNewTab, switchTab]);
 
 // ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0027] MainEditorApp.tsx ➔ closeTab
-// 🎯 @KICK  : 저장되지 않은 변경사항 확인, 모델 폐기 및 css-style 모드 자동 종료와 함께 탭 닫기
+// 📊 [OMD-EDIT-MainEditorApp-0027 ✅ FIXED] MainEditorApp.tsx ➔ closeTab
+// 🎯 @KICK  : 저장되지 않은 변경사항 확인, 모델 폐기 및 css-style/도움말 모드 자동 종료와 함께 탭 닫기
 // 🛡️ @GUARD : 이벤트 stopPropagation, 수정된 탭 확인, Monaco 모델 폐기, 다음 탭으로 전환 또는 빈 탭 생성
-// 🚨 @PATCH : None
+// 🚨 @PATCH : 도움말 탭 닫을 때 'both' 모드 복원 추가 (2026-06-17)
 // 🔗 @CALLS : setTabs, switchTab, createNewTab, setConfirmConfig, tab.model.dispose
 // ====================================================================
   const closeTab = useCallback((tabId: string, event?: React.MouseEvent) => {
@@ -1272,7 +1276,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
 
       // 💡 서식 설정 전용 '서식 정의 미리보기.md' 탭을 닫으면 서식 설정창(CssStyleForm) 패널도 함께 닫음 (기본 분할 화면 'both' 모드로 전환)
-      if (tabToClose.name === '서식 정의 미리보기.md') {
+      if (tabToClose.name === '서식 정의 미리보기.md' || tabToClose.name === '도움말.md') {
         setPreviewModeRaw('both');
         previewModeRef.current = 'both';
         isEditorMountedRef.current = true;
@@ -1955,23 +1959,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 📊 [OMD-FILE-MainEditorApp-0046] MainEditorApp.tsx ➔ saveStatusSync
 // 🎯 @KICK  : 콘텐츠와 lastSavedContent를 비교하여 저장 상태 및 탭 isModified 플래그 업데이트
 // 🛡️ @GUARD : currentFileNode가 존재할 때만 실행 (새 저장되지 않은 파일 제외)
-// 🚨 @PATCH : None
+// 🚨 @PATCH : activeTabId deps 추가 + state 직접 참조로 변경 (탭 전환 시 stale ref로 isModified 오염 방지) | 2026-06-17
 // 🔗 @CALLS : setSaveStatus, setTabs
 // ====================================================================
 
 
 
+
   useEffect(() => {
-    if (currentFileNode) {
+    if (currentFileNode && activeTabId) {
+      // 탭 전환 시에는 isModified를 건드리지 않음 (각 탭의 기존 상태 유지)
+      if (prevActiveTabRef.current !== activeTabId) {
+        prevActiveTabRef.current = activeTabId;
+        return;
+      }
       const isUnsaved = content !== lastSavedContentRef.current;
       setSaveStatus(isUnsaved ? 'unsaved' : 'saved');
       setTabs(prev => prev.map(t => 
-        t.id === activeTabIdRef.current 
+        t.id === activeTabId 
           ? { ...t, isModified: isUnsaved } 
           : t
       ));
     }
-  }, [content, currentFileNode]);
+  }, [content, currentFileNode, activeTabId]);
 // ====================================================================
 // 📊 [OMD-FILE-MainEditorApp-0047] MainEditorApp.tsx ➔ autoSave
 // 🎯 @KICK  : 콘텐츠 변경 및 autoSave 활성화 시 5초 디바운스 후 파일 자동 저장
@@ -2929,6 +2939,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     sanitizePastedText,
     isComposingRef,
     previewRef,
+    createNewTab,
+    switchTab,
   });
 
   handlersRef.current = handlers;
