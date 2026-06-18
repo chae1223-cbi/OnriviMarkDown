@@ -50,7 +50,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-EDIT-0009 | MEA.tsx:964 | rootFolderRef_sync | - | rootFolderRef 동기화 |
 | OMD-CORE-0007 | MEA.tsx:965 | tabSizeRef_sync | parseInt | 활성 CSS 프로파일에서 tabSize 갱신 |
 | OMD-EDIT-0010 | MEA.tsx:1015 | setPreviewMode | setPreviewModeRaw, createNewTab, switchTab, clearTimeout | 미리보기 모드 전환 (콘텐츠 보존·헬프 가드) |
-| OMD-EDIT-0011 | MEA.tsx:1057 | closeTab | setTabs, switchTab, createNewTab, setConfirmConfig | 탭 닫기 (미저장 경고·모델 해제·모드 자동 복귀) |
+| OMD-EDIT-0011 ✅ FIXED | MEA.tsx:1057 | closeTab | setTabs, switchTab, createNewTab, setConfirmConfig | 탭 닫기 (미저장 경고·모델 해제·모드 자동 복귀) *(수정: 2026-06-18 — tabsRef 즉시 동기화 + isDisposed() 가드 + stale ref로 삭제 탭 복원 버그 수정)* |
 | OMD-EDIT-0012 ✅ FIXED | MEA.tsx:1101 | autoSaveRef/lastSavedContentRef 선행 선언 | useRef (React) | autoSaveRef·lastSavedContentRef 선행 선언 (기존 L1289→L1101 이동) *(수정: 2026-06-15 — autoSaveRef useEffect 참조 이전 선언 이동으로 rS TDZ 해결)* |
 | OMD-CORE-0008 | MEA.tsx:1168 | handleCheckboxToggle | editor.getModel, editor.executeEdits | 미리보기 체크박스 클릭→에디터 라인 동기화 |
 | OMD-CORE-0009 | MEA.tsx:1198 | updateDecorations | decorationsCollectionRef.current.set | Monaco 마크다운 문법 강조 데코레이션 업데이트 |
@@ -61,7 +61,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-CORE-0012 | MEA.tsx:1375 | profilesSave | api.saveProfiles, localStorage.setItem | CSS 프로파일 변경 시 플랫폼 저장 |
 | OMD-CORE-0013 | MEA.tsx:1388 | activeProfileSave | localStorage.setItem | 활성 CSS 프로파일 ID localStorage 저장 |
 | OMD-IO-0001 | MEA.tsx:1396 | electronAPI_listeners | api.onNewFileRequested, api.onReceiveFile, openExternalFile | Electron IPC 리스너 등록 (파일 작업) |
-| OMD-FILE-0006 | MEA.tsx:1426 | openExternalFile | api.readFromPath, switchTab, monaco.editor.createModel, setTabs | OS 더블클릭/CLI 파일 열기, Monaco 모델 생성 |
+| OMD-FILE-0006 ✅ FIXED | MEA.tsx:1426 | openExternalFile | api.readFromPath, switchTab, monaco.editor.createModel, setTabs | OS 더블클릭/CLI 파일 열기, Monaco 모델 생성 *(수정: 2026-06-18 — disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리)* |
 | OMD-FILE-0007 | MEA.tsx:1481 | welcomeContentLoad | getWelcomeContent, setTabs, setActiveTabId | 최초 마운트 시 환영 콘텐츠 로드 |
 | OMD-EDIT-0015 | MEA.tsx:1524 | dynamicTitleBar | - | 현재 파일명으로 document.title 갱신 |
 | OMD-CORE-0014 | MEA.tsx:1534 | previewHighlightLine | element.classList | 에디터 커서 라인 미리보기 강조 |
@@ -69,7 +69,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-EDIT-0016 | MEA.tsx:1612 | handleMouseMove | setSidebarWidth, localStorage.setItem | 사이드바 리사이즈 드래그 처리 |
 | OMD-EDIT-0017 | MEA.tsx:1623 | stopResizing | document.removeEventListener | 사이드바 리사이즈 종료 |
 | OMD-EDIT-0018 | MEA.tsx:1631 | startResizing | document.addEventListener | 사이드바 리사이즈 시작 |
-| OMD-FILE-0008 ✅ FIXED | MEA.tsx:1645 | saveStatusSync | setSaveStatus, setTabs | 콘텐츠 vs lastSaved 비교로 저장 상태·탭 수정 여부 갱신 *(수정: 2026-06-17 — activeTabId deps 추가로 탭 전환 시 isModified 오염 방지)* |
+| OMD-FILE-0008 ✅ FIXED | MEA.tsx:1645 | saveStatusSync | setSaveStatus, setTabs | 콘텐츠 vs lastSaved 비교로 저장 상태·탭 수정 여부 갱신 *(수정: 2026-06-18 — onDidChangeContent 핸들러 val !== t.content 비교로 전환 시 false isModified 방지)* |
 | OMD-FILE-0009 | MEA.tsx:1657 | autoSave | saveFile, setSaveStatus, setTimeout, clearTimeout | 5초 디바운스 자동 저장 |
 | OMD-EDIT-0019 | MEA.tsx:1688 | insertAtCursor | utilsEditorActions.insertAtCursor | 커서 위치에 텍스트 삽입 |
 | OMD-CORE-0016 | MEA.tsx:1699 | findLineNumberByHeading | utilsEditorActions.findLineNumberByHeading | 제목으로 라인 번호 탐색 |
@@ -85,7 +85,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-FILE-0011 | MEA.tsx:1915 | handleDocFileClick | readFileText, extractHeadings, setDocHeadings | doc link picker에서 파일 선택 시 제목 목록 로드 |
 | OMD-EDIT-0026 | MEA.tsx:1930 | handleDocLinkSelect | getRelativePath, editor.executeEdits | 크로스 문서 링크([[path#heading]]) 삽입 |
 | OMD-EDIT-0027 | MEA.tsx:1972 | parseHtmlTableToMarkdown | utilsPasteHandlers.parseHtmlTableToMarkdown | HTML 표를 마크다운 표로 변환 |
-| OMD-EDIT-0028 | MEA.tsx:1983 | sanitizePastedText | utilsPasteHandlers.sanitizePastedText | 붙여넣기 텍스트 정제 |
+| OMD-EDIT-0028 ✅ FIXED | MEA.tsx:1983 | sanitizePastedText | utilsPasteHandlers.sanitizePastedText | 붙여넣기 텍스트 정제 *(수정: 2026-06-18 — NBSP→공백 치환 추가)* |
 | OMD-EDIT-0029 | MEA.tsx:1993 | fixMarkdownTable | utilsPasteHandlers.fixMarkdownTable | 마크다운 표 정렬 수정 |
 | OMD-EDIT-0030 | MEA.tsx:1997 | handleEditorPaste | FileReader, parseHtmlTableToMarkdown, sanitizePastedText, insertAtCursor, updateContent, showToast | 붙여넣기 처리: 이미지 업로드·HTML표 변환·텍스트 정제 |
 | OMD-EDIT-0031 | MEA.tsx:2101 | applyLinePrefix | editor.getSelection, editor.executeEdits, model.forceTokenization | 선택 라인에 순서/불릿/인용/체크리스트 prefix 적용 |
@@ -100,11 +100,11 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-CORE-0021 | MEA.tsx:3472 | toc | - | 마크다운 제목 파싱→TOC 목차 생성 |
 | OMD-HOOK-0001 | useEditorSettings.ts:12 | useEditorSettings | getDefaultHotkeys, THEME_MAP, idb, getApiUrl | 테마·단축키·폰트·자동저장 설정 관리 |
 | OMD-HOOK-0002 | useEditorSettings.ts:41 | handleThemeChange | setThemePalette, setIsDarkMode | 테마 전환 |
-| OMD-HOOK-0003 ✅ FIXED | useEditorTabs.ts:13 | useEditorTabs | tabs, setTabs, activeTabId, setActiveTabId (외부 주입), getWelcomeContent, monaco.editor.createModel | 다중 탭 관리 *(수정: 2026-06-15 — 내부 useState 제거→외부 주입 전환으로 rS TDZ 에러 해결)* |
+| OMD-HOOK-0003 ✅ FIXED | useEditorTabs.ts:13 | useEditorTabs | tabs, setTabs, activeTabId, setActiveTabId (외부 주입), getWelcomeContent, monaco.editor.createModel | 다중 탭 관리 *(수정: 2026-06-15 — 내부 useState 제거→외부 주입 전환으로 rS TDZ 에러 해결; 2026-06-18 — onDidChangeContent isModified: true → val !== t.content 비교)* |
 | OMD-HOOK-0004 | useEditorTabs.ts:35 | updateContent | setContent, setTabs | 콘텐츠 변경 탭 동기화(100ms 디바운스) |
-| OMD-HOOK-0005 ✅ FIXED | useEditorTabs.ts:59 | switchTab | editor.setModel, setActiveTabId | 탭 전환·스크롤 저장·모델 교체 *(수정: 2026-06-17 — css-style↔일반 탭 전환 시 모드 자동 전환, 도움말 탭 preview 모드 강제)* |
-| OMD-HOOK-0006 | useEditorTabs.ts:89 | createNewTab | monaco.editor.createModel, setTabs | 새 탭 생성 및 Monaco 모델 초기화 |
-| OMD-HOOK-0007 | useFileExplorer.ts | useFileExplorer | saveFile, refreshFileList, handleFileClick, selectRootFolder | 파일 탐색·열기·저장·워크스페이스 제어 |
+| OMD-HOOK-0005 ✅ FIXED | useEditorTabs.ts:59 | switchTab | editor.setModel, setActiveTabId | 탭 전환·스크롤 저장·모델 교체 *(수정: 2026-06-17 — css-style↔일반 탭 전환 시 모드 자동 전환, 도움말 탭 preview 모드 강제; 2026-06-18 — isDisposed() 가드로 Model is disposed! 크래시 방지 + stale ref 복원 버그 수정)* |
+| OMD-HOOK-0006 ✅ FIXED | useEditorTabs.ts:89 | createNewTab | monaco.editor.createModel, setTabs | 새 탭 생성 및 Monaco 모델 초기화 *(수정: 2026-06-18 — onDidChangeContent isModified: true → val !== t.content 비교)* |
+| OMD-HOOK-0007 ✅ FIXED | useFileExplorer.ts | useFileExplorer | saveFile, refreshFileList, handleFileClick, selectRootFolder | 파일 탐색·열기·저장·워크스페이스 제어 *(수정: 2026-06-18 — handleFileClick disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리)* |
 | OMD-HOOK-0008 | useEditorHandlers.ts | useEditorHandlers | 각종 핸들러 | 에디터 액션 로직 통합 핸들러 |
 | OMD-HOOK-0009 | usePageBreak.ts | usePageBreak | handleResetPageBreaks, executeAutoPageBreak | 자동 페이지 나누기 |
 

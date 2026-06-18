@@ -1092,9 +1092,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const switchTab = useEditorTabsResult.switchTab;
   const createNewTab = useEditorTabsResult.createNewTab;
 
-  // Ref를 공유 tabsRef/activeTabIdRef에 동기화
-  tabsRef.current = useEditorTabsResult.tabsRef.current;
-  activeTabIdRef.current = useEditorTabsResult.activeTabIdRef.current;
+  // Ref를 공유 tabsRef/activeTabIdRef에 동기화 (React state 직접 사용 — useEffect로 업데이트된 useEditorTabs ref는 stale할 수 있음)
+  // 🚨 @PATCH : useEditorTabsResult.ref → React state 직접 참조로 변경 (stale ref가 closeTab에서 삭제된 탭을 복원하는 버그 수정) | 2026-06-18
+  tabsRef.current = tabs;
+  activeTabIdRef.current = activeTabId;
 
   // ====================================================================
   // 📊 [OMD-EDIT-0012 TDZ-GUARD] MainEditorApp.tsx ➔ autoSaveRef/lastSavedContentRef 선행 선언
@@ -1259,7 +1260,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 📊 [OMD-EDIT-MainEditorApp-0027 ✅ FIXED] MainEditorApp.tsx ➔ closeTab
 // 🎯 @KICK  : 저장되지 않은 변경사항 확인, 모델 폐기 및 css-style/도움말 모드 자동 종료와 함께 탭 닫기
 // 🛡️ @GUARD : 이벤트 stopPropagation, 수정된 탭 확인, Monaco 모델 폐기, 다음 탭으로 전환 또는 빈 탭 생성
-// 🚨 @PATCH : 도움말 탭 닫을 때 'both' 모드 복원 추가 (2026-06-17)
+// 🚨 @PATCH : 도움말 탭 닫을 때 'both' 모드 복원 추가 (2026-06-17); tabsRef 즉시 동기화 + isDisposed() 가드로 Model is disposed! 크래시 방지 (2026-06-18); stale ref로 인한 삭제 탭 복원 버그 수정 (2026-06-18)
 // 🔗 @CALLS : setTabs, switchTab, createNewTab, setConfirmConfig, tab.model.dispose
 // ====================================================================
   const closeTab = useCallback((tabId: string, event?: React.MouseEvent) => {
@@ -1283,11 +1284,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
 
       const nextTabs = tabsRef.current.filter(t => t.id !== tabId);
+      const closeIndex = tabsRef.current.findIndex(t => t.id === tabId);
+      tabsRef.current = nextTabs;
       setTabs(nextTabs);
 
       if (activeTabIdRef.current === tabId) {
         if (nextTabs.length > 0) {
-          const closeIndex = tabsRef.current.findIndex(t => t.id === tabId);
           const nextActiveIndex = Math.max(0, closeIndex - 1);
           const nextActiveTab = nextTabs[nextActiveIndex] || nextTabs[0];
           switchTab(nextActiveTab.id);
@@ -1694,7 +1696,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 📊 [OMD-FILE-MainEditorApp-0038] MainEditorApp.tsx ➔ openExternalFile
 // 🎯 @KICK  : OS 수준 더블클릭 또는 명령줄에서 파일 열기, Monaco 모델로 탭 생성
 // 🛡️ @GUARD : 중복 방지를 위해 기존 탭 확인, 변경 리스너로 Monaco 모델 생성, handleFileOpenByPath로 폴백
-// 🚨 @PATCH : None
+// 🚨 @PATCH : disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리 (2026-06-18)
 // 🔗 @CALLS : api.readFromPath, switchTab, monaco.editor.createModel, setTabs, setActiveTabId, setContent, setCurrentFileName, setCurrentFileNode, handleFileOpenByPath, showToast
 // ====================================================================
   const openExternalFile = async (filePath: string) => {
@@ -1705,9 +1707,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (file) {
           const existingTab = tabsRef.current.find(t => t.path === file.path);
           if (existingTab) {
-            switchTab(existingTab.id);
-            showToast(`📂 ${file.name}`, "info");
-            return;
+            if (existingTab.model && existingTab.model.isDisposed()) {
+              const cleaned = tabsRef.current.filter(t => t.id !== existingTab.id);
+              tabsRef.current = cleaned;
+              setTabs(cleaned);
+            } else {
+              switchTab(existingTab.id);
+              showToast(`📂 ${file.name}`, "info");
+              return;
+            }
           }
           
           const monaco = (window as any).monaco;
@@ -1717,7 +1725,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             model.onDidChangeContent(() => {
               const val = model.getValue();
               setContent(val);
-              setTabs(prev => prev.map(t => t.id === file.path ? { ...t, content: val, isModified: true } : t));
+              setTabs(prev => prev.map(t => t.id === file.path ? { ...t, content: val, isModified: val !== t.content } : t));
             });
           }
           
@@ -1959,7 +1967,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 📊 [OMD-FILE-MainEditorApp-0046] MainEditorApp.tsx ➔ saveStatusSync
 // 🎯 @KICK  : 콘텐츠와 lastSavedContent를 비교하여 저장 상태 및 탭 isModified 플래그 업데이트
 // 🛡️ @GUARD : currentFileNode가 존재할 때만 실행 (새 저장되지 않은 파일 제외)
-// 🚨 @PATCH : activeTabId deps 추가 + state 직접 참조로 변경 (탭 전환 시 stale ref로 isModified 오염 방지) | 2026-06-17
+// 🚨 @PATCH : activeTabId deps 추가 + state 직접 참조로 변경 (탭 전환 시 stale ref로 isModified 오염 방지) | 2026-06-17; onDidChangeContent 핸들러에서 val !== t.content 비교로 전환 시 false isModified 방지 (2026-06-18)
 // 🔗 @CALLS : setSaveStatus, setTabs
 // ====================================================================
 
@@ -3687,7 +3695,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         model.onDidChangeContent(() => {
                           const val = model.getValue();
                           setContent(val);
-                          setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, content: val, isModified: true } : t));
+                          setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, content: val, isModified: val !== t.content } : t));
                         });
                         return { ...tab, model };
                       }
@@ -5170,7 +5178,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 />
                 <div
                   className="fixed z-[9999] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-600 rounded-lg shadow-xl p-2 w-[280px] max-h-[350px] flex flex-col"
-                  style={{ top: floatingToolbar.top + 60, left: floatingToolbar.left }}
+                  style={{ top: floatingToolbar.top + 44, left: floatingToolbar.left }}
                 >
                   {!selectedDocNode ? (
                     <>

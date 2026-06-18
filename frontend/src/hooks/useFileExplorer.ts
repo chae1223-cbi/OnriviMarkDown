@@ -324,10 +324,10 @@ export const useFileExplorer = ({
   };
 
   // ====================================================================
-  // 📊 [OMD-FILE-USEFILEEXPLORER-0003] useFileExplorer.ts ➔ handleFileClick
+  // 📊 [OMD-FILE-USEFILEEXPLORER-0003 ✅ FIXED] useFileExplorer.ts ➔ handleFileClick
   // 🎯 @KICK  : 파일 트리 노드 클릭 시 기존 탭 전환 또는 새 탭 생성 및 파일 내용 로딩
   // 🛡️ @GUARD : node null/kind directory early return, 파일 읽기 실패 시 오류 토스트
-  // 🚨 @PATCH : 없음
+  // 🚨 @PATCH : disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리 (2026-06-18)
   // 🔗 @CALLS : createNewTab, switchTab, setContent, setTabs, setActiveTabId, showToast
   // ====================================================================
   // 5. 파일 트리 클릭 시 파일 열기 및 신규 탭 로딩
@@ -352,10 +352,16 @@ export const useFileExplorer = ({
     );
 
     if (existingTab) {
-      switchTab(existingTab.id);
-      if (isSearchOpen) setIsSearchOpen(false);
-      setIsSidebarOpen(true);
-      return;
+      if (existingTab.model && existingTab.model.isDisposed()) {
+        const cleaned = tabsRef.current.filter(t => t.id !== existingTab.id);
+        tabsRef.current = cleaned;
+        setTabs(cleaned);
+      } else {
+        switchTab(existingTab.id);
+        if (isSearchOpen) setIsSearchOpen(false);
+        setIsSidebarOpen(true);
+        return;
+      }
     }
 
     try {

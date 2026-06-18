@@ -65,6 +65,7 @@
       "main.js",
       "preload.js",
       "frontend/out/**/*",
+      "docs/**/*",
       "!frontend/node_modules/**/*"
     ],
     "asar": false

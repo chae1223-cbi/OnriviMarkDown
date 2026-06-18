@@ -140,7 +140,7 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-Toolbar-0008] Toolbar ➔ Toolbar
 // 🎯 @KICK  : 에디터 상단 툴바 컴포넌트 - 서식/제목/문단/삽입/고급/보기/설정 그룹 제공
 // 🛡️ @GUARD : ToolbarProps 인터페이스로 props 타입 검증
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : 2026-06-18 — h-[60px]→h-11 (44px) 좌측 사이드바 탭(📁탐색기|📝개요|🔍검색)과 높이 수평 정렬; bg-[#f3f9f4]/shadow/border-white 제거
 // 🔗 @CALLS : ToolbarGroup, ToolbarButton, HeadingSpinButton, CopyPreviewButton, useToast
 // ====================================================================
 export default function Toolbar({ 
@@ -197,11 +197,11 @@ export default function Toolbar({
   };
 
   return (
-    <div className="w-full h-[76px] border-b border-emerald-500/10 dark:border-emerald-500/20 flex flex-row items-center px-4 bg-[#f3f9f4] dark:bg-[#0f1712] shadow-sm z-30 text-zinc-700 dark:text-zinc-300 overflow-x-auto overflow-y-hidden shrink-0">
+    <div className="w-full h-11 border-b border-emerald-500/10 dark:border-emerald-500/20 flex flex-row items-center px-4 z-30 text-zinc-700 dark:text-zinc-300 overflow-x-auto overflow-y-hidden shrink-0">
       <div className="flex flex-row items-center justify-between w-full h-full min-w-max">
         {/* 🎨 왼쪽 영역: 플로팅 툴바 디자인의 카드 모음 */}
         {previewMode !== 'preview' && (
-          <div className="flex items-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-md rounded-2xl px-4 py-1.5 gap-3.5 select-none animate-in fade-in zoom-in-95 duration-100">
+          <div className="flex items-center gap-3.5 select-none animate-in fade-in zoom-in-95 duration-100">
             {/* 서식 */}
             <div className="flex flex-row items-center gap-0.5">
               <ToolbarButton label="B" title={t('bold')} onAction={() => dispatch('BOLD')} bold />

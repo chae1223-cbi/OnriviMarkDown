@@ -79,7 +79,7 @@ export const useEditorTabs = (
   // 📊 [OMD-FILE-USEEDITORTABS-0002 ✅ FIXED] useEditorTabs.ts ➔ switchTab
   // 🎯 @KICK  : 특정 탭으로 전환하며 스크롤 위치와 Monaco 모델을 복원. 탭 종류별 자동 모드 전환 (css-style↔both, help→preview)
   // 🛡️ @GUARD : 대상 탭 미존재 시 early return; 도움말 탭('도움말.md')은 preview 강제, css-style/도움말 탭 이탈 시 both 복원
-  // 🚨 @PATCH : 도움말 탭 preview 모드 강제 + 모드 자동 전환 통합 (2026-06-17)
+  // 🚨 @PATCH : 도움말 탭 preview 모드 강제 + 모드 자동 전환 통합 (2026-06-17); isDisposed() 가드로 Model is disposed! 크래시 방지 (2026-06-18)
   // 🔗 @CALLS : setContent, setCurrentFileName, setCurrentFileNode, setPreviewModeRaw
   // ====================================================================
   const switchTab = useCallback((tabId: string) => {
@@ -120,7 +120,7 @@ export const useEditorTabs = (
     setCurrentFileName(targetTab.name);
     setCurrentFileNode(targetTab.node);
 
-    if (editor && monaco && targetTab.model) {
+    if (editor && monaco && targetTab.model && !targetTab.model.isDisposed()) {
       editor.setModel(targetTab.model);
       if (targetTab.scrollTop !== undefined) {
         requestAnimationFrame(() => {
@@ -136,7 +136,7 @@ export const useEditorTabs = (
   // 📊 [OMD-FILE-USEEDITORTABS-0001 ✅ FIXED] useEditorTabs.ts ➔ createNewTab
   // 🎯 @KICK  : 새 탭을 생성하고 Monaco 모델을 만들어 에디터에 연결. 탭 종류/출발 탭에 따라 모드 자동 전환
   // 🛡️ @GUARD : monaco 미존재 시 모델 없이 탭만 생성; 도움말 탭 생성 시 preview 강제, css-style 출발 시 both 복원
-  // 🚨 @PATCH : 모드 자동 전환 로직 추가; prevTabId를 modeTransition 이전에 캡처하도록 순서 수정 (2026-06-17)
+  // 🚨 @PATCH : 모드 자동 전환 로직 추가; prevTabId를 modeTransition 이전에 캡처하도록 순서 수정 (2026-06-17); onDidChangeContent 핸들러 isModified: true → val !== t.content 비교로 전환 (2026-06-18)
   // 🔗 @CALLS : getWelcomeContent, setContent, setTabs, setActiveTabId, setCurrentFileName, setCurrentFileNode, setPreviewModeRaw
   // ====================================================================
   const createNewTab = useCallback((initialContent?: string, name?: string) => {
@@ -151,7 +151,7 @@ export const useEditorTabs = (
       model.onDidChangeContent(() => {
         const val = model.getValue();
         setContent(val);
-        setTabs(prev => prev.map(t => t.id === tabId ? { ...t, content: val, isModified: true } : t));
+        setTabs(prev => prev.map(t => t.id === tabId ? { ...t, content: val, isModified: val !== t.content } : t));
       });
     }
 

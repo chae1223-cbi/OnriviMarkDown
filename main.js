@@ -466,13 +466,7 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
 
     // 최종 검증
     if (!fs.existsSync(cleanPath)) {
-      // 최후의 수단: 하드코딩된 프로젝트 루트에서 시도 (빌드 환경 대비)
-      const fallbackPath = path.join('D:\\developer\\OnriviMarkDown', filePath).normalize('NFC');
-      if (fs.existsSync(fallbackPath)) {
-        cleanPath = fallbackPath;
-      } else {
-        throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
-      }
+      throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
     }
       
     const content = fs.readFileSync(cleanPath, 'utf-8');

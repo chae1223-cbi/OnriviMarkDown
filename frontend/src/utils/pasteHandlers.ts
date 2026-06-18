@@ -2,10 +2,10 @@
 import { FileNode } from '@/lib/helper';
 
 // ====================================================================
-// 📊 [OMD-EDIT-pasteHandlers-0003] pasteHandlers ➔ sanitizePastedText
+// 📊 [OMD-EDIT-pasteHandlers-0003 ✅ FIXED] pasteHandlers ➔ sanitizePastedText
 // 🎯 @KICK  : 붙여넣기 문자열을 마크다운에 적합하도록 정제한다
 // 🛡️ @GUARD : 줄바꿈 통일, 유령 문자 제거, HTML 찌꺼기 제거, TSV 자동 변환
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : NBSP(\u00a0) → 일반 공백 치환 추가 (Mermaid 컴파일러 호환성) | 2026-06-18
 // 🔗 @CALLS : 없음
 // ====================================================================
 /**
@@ -21,13 +21,16 @@ export const sanitizePastedText = (text: string, skipTsvConversion = false) => {
   // 1. 운영체제 간 줄바꿈 차이 통합 (\r\n -> \n)
   sanitized = sanitized.replace(/\r\n/g, '\n');
 
-  // 2. 눈에 보이지 않는 유령 문자(Zero-width space 등) 제거
+  // 2. NBSP(줄바꿈 없는 공백) → 일반 공백으로 변환 (Mermaid 컴파일러 호환성)
+  sanitized = sanitized.replace(/\u00a0/g, ' ');
+
+  // 3. 눈에 보이지 않는 유령 문자(Zero-width space 등) 제거
   sanitized = sanitized.replace(/[\u200B-\u200D\uFEFF]/g, '');
 
-  // 3. 웹 복사 시 자주 딸려오는 지저분한 HTML 태그 찌꺼기 제거 (마크다운 포맷팅 방해 요소)
+  // 4. 웹 복사 시 자주 딸려오는 지저분한 HTML 태그 찌꺼기 제거 (마크다운 포맷팅 방해 요소)
   sanitized = sanitized.replace(/<\/?(span|div|font|style|script|meta)[^>]*>/gi, '');
 
-  // 4. 표 등에서 줄바꿈이 파괴되지 않도록 <br>과 섞인 실제 줄바꿈(\n)을 제거하고 <br>로 통일합니다.
+  // 5. 표 등에서 줄바꿈이 파괴되지 않도록 <br>과 섞인 실제 줄바꿈(\n)을 제거하고 <br>로 통일합니다.
   sanitized = sanitized.replace(/<br\s*\/?>\s*[\r\n]+\s*<br\s*\/?>/gi, '<br><br>');
   sanitized = sanitized.replace(/<br\s*\/?>\s*[\r\n]+/gi, '<br>');
   sanitized = sanitized.replace(/[\r\n]+\s*<br\s*\/?>/gi, '<br>');
@@ -35,7 +38,7 @@ export const sanitizePastedText = (text: string, skipTsvConversion = false) => {
   // 불필요한 다중 줄바꿈 정리 (3개 이상의 줄바꿈을 2개로)
   sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
 
-  // 5. 마크다운 강조 닫힘 태그 뒤에 글자/숫자가 바로 붙어있으면 공백 삽입 (CommonMark 호환성)
+  // 6. 마크다운 강조 닫힘 태그 뒤에 글자/숫자가 바로 붙어있으면 공백 삽입 (CommonMark 호환성)
   sanitized = sanitized.replace(/(?<=[^\s*])(\*\*|__|~~)(?=\S)/g, '$1 ');
 
   // Auto-convert TSV to Markdown Table

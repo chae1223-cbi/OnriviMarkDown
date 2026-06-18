@@ -259,12 +259,14 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
 // 📊 [OMD-CORE-MarkdownViewer-0006] MarkdownViewer ➔ loadMermaidScript
 // 🎯 @KICK  : Mermaid CDN 스크립트를 동적으로 로드하고 초기화 (SSR 번들 충돌 방지)
 // 🛡️ @GUARD : window.mermaid 존재 시 재사용; 중복 로딩 방지용 mermaidPromise 캐싱
-// 🚨 @PATCH : CSP script-src 'self' 차단 우회를 위해 동적 script 생성 → window.mermaid 폴링(200ms×30회) 방식으로 전환; layout.tsx의 <script defer>에 의존
+// 🚨 @PATCH : CSP script-src 'self' 차단 우회 + Next.js hydration script 제거 + AMD anonymous define 충돌 + file:// path 오류 4대 문제 해결: layout.tsx script defer → 동적 script 생성(./mermaid.min.js 상대경로) + define 일시제거(UMD global 할당 강제) + fetch/eval 폴백 | 2026-06-18
 // 🔗 @CALLS : mermaid.initialize
 // ====================================================================
 // 🛡️ [한글 주석 완벽 탑재] 비동기 글로벌 Mermaid 스크립트 로더
-// Next.js SSR 및 정적 배포 번들의 컴파일 문제를 방지하기 위해 window.mermaid 존재 여부를 폴링합니다.
-// layout.tsx의 <script defer src="./mermaid.min.js">로 사전 로드됩니다.
+// Next.js app directory hydration + AMD define 충돌 + file:// 상대경로 3대 문제 대응:
+// 1) 동적 <script src="./mermaid.min.js"> 생성 (CSP 'self' 허용, 상대경로로 file:// 대응)
+// 2) define 일시 제거 → mermaid UMD global 할당(window.mermaid) 강제 (AMD 충돌 회피)
+// 3) CSP 차단 시 fetch + eval 폴백 (CSP 'unsafe-eval' 허용)
 let mermaidPromise: Promise<any> | null = null;
 const loadMermaidScript = (): Promise<any> => {
   if (typeof window === 'undefined') return Promise.resolve(null);
@@ -276,8 +278,7 @@ const loadMermaidScript = (): Promise<any> => {
   }
 
   mermaidPromise = new Promise((resolve) => {
-    let retries = 0;
-    const poll = () => {
+    const loaded = () => {
       const m = (window as any).mermaid;
       if (m) {
         m.initialize({
@@ -286,16 +287,40 @@ const loadMermaidScript = (): Promise<any> => {
           securityLevel: 'loose',
         });
         resolve(m);
-        return;
-      }
-      if (retries++ > 30) {
+      } else {
         mermaidPromise = null;
         resolve(null);
-        return;
       }
-      setTimeout(poll, 200);
     };
-    poll();
+
+    // 1) 동적 <script src="./mermaid.min.js"> 생성 (CSP script-src 'self' 허용)
+    // mermaid.min.js는 UMD 패턴(define → AMD) → Next.js의 loader.js가
+    // "only one anonymous define call per script file" 에러를 던지므로
+    // define을 일시 제거하여 global 할당(window.mermaid) 경로로 유도
+    // 💡 상대 경로(./)를 사용하여 file:// 프로토콜(데스크탑)과 http://(확장프로그램) 모두 대응
+    const savedDefine = (window as any).define;
+    (window as any).define = undefined;
+
+    const script = document.createElement('script');
+    script.src = './mermaid.min.js';
+    const done = () => { (window as any).define = savedDefine; };
+    script.onload = () => { done(); loaded(); };
+    script.onerror = () => {
+      done();
+      // 2) CSP 차단 시 fetch + eval 폴백 (CSP 'unsafe-eval' 허용)
+      // eval에서도 동일한 AMD 충돌 방지를 위해 define 일시 제거
+      fetch('./mermaid.min.js')
+        .then(r => r.text())
+        .then(code => {
+          const savedDefine2 = (window as any).define;
+          (window as any).define = undefined;
+          try { (0, eval)(code); } catch (_) {}
+          (window as any).define = savedDefine2;
+          loaded();
+        })
+        .catch(() => { mermaidPromise = null; resolve(null); });
+    };
+    document.head.appendChild(script);
   });
   return mermaidPromise;
 };
@@ -306,7 +331,7 @@ const loadMermaidScript = (): Promise<any> => {
 // 📊 [OMD-CORE-MarkdownViewer-0005] MarkdownViewer ➔ MermaidBlock
 // 🎯 @KICK  : Mermaid 차트 텍스트를 SVG로 실시간 변환 렌더링 및 이미지 저장/복사 툴바 제공
 // 🛡️ @GUARD : Mermaid 라이브러리 로드 실패 시 에러 메시지 표시; 문법 무결성 사전 검증
-// 🚨 @PATCH : 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프; <br> → \n 전역 변환 (HTML 태그 파싱 충돌 방지)
+// 🚨 @PATCH : 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프; <br> → \n 전역 변환 (HTML 태그 파싱 충돌 방지); NBSP(\u00a0) → 공백 치환 + class 세미콜론(;) 제거 (외부 복사 노이즈 내성 강화) | 2026-06-18
 // 🔗 @CALLS : loadMermaidScript, handleCopyImage, handleSaveImage, handleCopyCode
 // ====================================================================
 function MermaidBlock({ code }: { code: string }) {
@@ -316,6 +341,8 @@ function MermaidBlock({ code }: { code: string }) {
   const [imageCopied, setImageCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+  const mermaidRetryRef = useRef(0);
+  const mermaidRetryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleCopyImage = async () => {
     if (!containerRef.current) return;
@@ -396,12 +423,16 @@ function MermaidBlock({ code }: { code: string }) {
       const renderChart = async () => {
         const mermaidObj = await loadMermaidScript();
         if (!mermaidObj) {
-          if (active) {
+          if (active && mermaidRetryRef.current < 3) {
+            mermaidRetryRef.current++;
+            mermaidRetryTimerRef.current = setTimeout(renderChart, 3000);
+          } else if (active) {
             setError('Mermaid 라이브러리를 로드하지 못했습니다.');
             setLoading(false);
           }
           return;
         }
+        mermaidRetryRef.current = 0;
 
         // 🛡️ 매 렌더링마다 유일한 임시 ID를 생성하여 Mermaid 렌더러 간 캐시 충돌을 원천 차단 (무한 펜딩 방지)
         const renderId = `mermaid-temp-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
@@ -416,6 +447,13 @@ function MermaidBlock({ code }: { code: string }) {
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .replace(/&quot;/g, '"');
+        } catch (_) {}
+
+        // 💡 [Mermaid 문법 정제 가드] 붙여넣기 등으로 유입된 유령 공백(NBSP) 및 잘못된 class 문법 세미콜론 제거
+        try {
+          cleanCode = cleanCode
+            .replace(/\u00a0/g, ' ')
+            .replace(/^class\s+\S+\s+\S+;/gm, (m) => m.slice(0, -1));
         } catch (_) {}
 
         try {
@@ -488,6 +526,10 @@ function MermaidBlock({ code }: { code: string }) {
     return () => {
       active = false;
       clearTimeout(debounceTimer);
+      if (mermaidRetryTimerRef.current) {
+        clearTimeout(mermaidRetryTimerRef.current);
+        mermaidRetryTimerRef.current = null;
+      }
     };
   }, [code, isDark]);
 
