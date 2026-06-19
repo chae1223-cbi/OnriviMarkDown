@@ -1,7 +1,14 @@
-const { app, BrowserWindow, session, ipcMain, dialog, protocol } = require('electron');
+// ====================================================================
+// 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
+// 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
+// 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-06-19** — PNG 및 EPUB 내보내기 시 외부 이미지/웹폰트 fetch CSP 차단 버그를 해결하기 위해 connect-src에 http: https: 추가 허용; Node.js net 모듈과 Electron net 모듈 충돌로 인한 net.fetch TypeError 해결
+// 🔗 @CALLS : 없음
+// ====================================================================
+const { app, BrowserWindow, session, ipcMain, dialog, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const net = require('net'); // 빈 포트를 찾기 위한 네이티브 모듈 추가
+const nodeNet = require('net'); // 빈 포트를 찾기 위한 네이티브 모듈 추가
 
 // 🌐 [ media 프로토콜 Privilege 등록 - app.ready 이전에 호출되어야 함 ]
 protocol.registerSchemesAsPrivileged([
@@ -105,7 +112,7 @@ app.on('open-file', (event, path) => {
 // 포트 충돌을 막기 위한 동적 포트 탐색 헬퍼 (의존성 없음, 100% 안전)
 function getFreePort(startPort = 4000) {
   return new Promise((resolve) => {
-    const server = net.createServer();
+    const server = nodeNet.createServer();
     server.listen(startPort, () => {
       const { port } = server.address();
       server.close(() => resolve(port));
@@ -218,7 +225,7 @@ function createWindow(port) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: http: https: file: media:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' ws: wss: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co",
+    "connect-src 'self' ws: wss: http: https: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co",
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
     "media-src 'self' media:"
   ];
@@ -556,6 +563,9 @@ ipcMain.handle('file:rename', async (event, oldPath, newPath) => {
   try {
     const cleanOld = oldPath.normalize('NFC');
     const cleanNew = newPath.normalize('NFC');
+    if (!fs.existsSync(cleanOld)) {
+      return { success: true, skipped: true };
+    }
     const destDir = path.dirname(cleanNew);
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
@@ -583,6 +593,9 @@ ipcMain.handle('file:rename', async (event, oldPath, newPath) => {
 ipcMain.handle('file:delete', async (event, targetPath) => {
   try {
     const cleanPath = targetPath.normalize('NFC');
+    if (!fs.existsSync(cleanPath)) {
+      return { success: true, alreadyDeleted: true };
+    }
     const stat = fs.statSync(cleanPath);
     if (stat.isDirectory()) {
       fs.rmSync(cleanPath, { recursive: true, force: true });
@@ -889,6 +902,61 @@ ipcMain.handle('pdf:printToPDF', async (event, options) => {
   } catch (e) {
     console.error('Electron printToPDF 에러:', e);
     throw e;
+  }
+});
+
+// 21-2. HTML 기반 PDF 인쇄 (임시 오프스크린 창 빌드 및 네이티브 printToPDF 구동)
+ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
+  let printWindow = null;
+  let tempFilePath = null;
+  try {
+    // 1. 화면에 표시하지 않는 오프스크린 BrowserWindow 생성
+    printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      }
+    });
+
+    // 2. 대용량 HTML 처리를 위해 임시 파일 생성 및 로드
+    tempFilePath = path.join(app.getPath('temp'), `onrivi_author_print_${Date.now()}.html`);
+    fs.writeFileSync(tempFilePath, html, 'utf8');
+    
+    await printWindow.loadFile(tempFilePath);
+
+    // 3. 웹 폰트 및 스타일 렌더링 리플로우 시간 충분히 부여
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // 4. Chromium 네이티브 A4 인쇄 규격으로 PDF 파일 구워내기
+    const pdfOptions = {
+      margins: {
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0
+      },
+      pageSize: 'A4',
+      printBackground: true,
+      ...options
+    };
+    
+    const pdfBuffer = await printWindow.webContents.printToPDF(pdfOptions);
+    return pdfBuffer;
+  } catch (e) {
+    console.error('Electron printHTMLToPDF 에러:', e);
+    throw e;
+  } finally {
+    if (printWindow) {
+      printWindow.close();
+    }
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (err) {
+        console.warn("임시 인쇄 파일 삭제 오류:", err);
+      }
+    }
   }
 });
 

@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 21. 일렉트론 네이티브 PDF 인쇄 API
   printToPDF: (options) => ipcRenderer.invoke('pdf:printToPDF', options),
+  printHTMLToPDF: (html, options) => ipcRenderer.invoke('pdf:printHTMLToPDF', html, options),
 
   // 22. 로컬 이미지 파일 Base64 변환 읽기 API
   readImageAsBase64: (filePath) => ipcRenderer.invoke('file:readImageAsBase64', filePath),

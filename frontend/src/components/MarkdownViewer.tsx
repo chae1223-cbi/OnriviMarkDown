@@ -21,15 +21,9 @@ const getTextFromChildren = (children: React.ReactNode): string => {
   return '';
 };
 
-const mmToRem = (mm: string): string => {
-  const v = parseInt(mm);
-  if (isNaN(v)) return '1.5rem';
-  return (v * 0.236).toFixed(2) + 'rem';
-};
-
 /**
  * [ONR-MD-005] MarkdownViewerProps 인터페이스
- * @description 마크다운 렌더러 뷰어 컴포넌트에 주입되는 마크다운 원문(content), 여백 설정(margin), 페이지 가로/세로 방향(orientation), 체크박스 토글 핸들러 규격 명세입니다.
+ * @description 마크다운 렌더러 뷰어 컴포넌트에 주입되는 마크다운 원문(content), 체크박스 토글 핸들러 규격 명세입니다.
  */
 interface MarkdownViewerProps {
   content: string;
@@ -39,14 +33,11 @@ interface MarkdownViewerProps {
   currentFilePath?: string;
   rootFolderPath?: string;
   onFileOpen?: (resolvedPath: string, hashPart?: string) => void;
-  orientation?: 'portrait' | 'landscape';
+  listIndent?: string;
   marginTop?: string;
   marginBottom?: string;
   marginLeft?: string;
   marginRight?: string;
-  listIndent?: string;
-  showPageBreaks?: boolean; // 💡 실시간 A4 페이지 경계선 표시 토글 프롭 추가
-  calcKey?: number; // 💡 페이지 경계선 강제 초기화 트리거 키
 }
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
@@ -259,7 +250,7 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
 // 📊 [OMD-CORE-MarkdownViewer-0006] MarkdownViewer ➔ loadMermaidScript
 // 🎯 @KICK  : Mermaid CDN 스크립트를 동적으로 로드하고 초기화 (SSR 번들 충돌 방지)
 // 🛡️ @GUARD : window.mermaid 존재 시 재사용; 중복 로딩 방지용 mermaidPromise 캐싱
-// 🚨 @PATCH : CSP script-src 'self' 차단 우회 + Next.js hydration script 제거 + AMD anonymous define 충돌 + file:// path 오류 4대 문제 해결: layout.tsx script defer → 동적 script 생성(./mermaid.min.js 상대경로) + define 일시제거(UMD global 할당 강제) + fetch/eval 폴백 | 2026-06-18
+// 🚨 @PATCH : **2026-06-19** — Mermaid 로드 시 define이 undefined인 비동기 갭 동안 Monaco 에디터 로더가 모듈을 호출해 TypeError: define is not a function이 발생하는 충돌을 방지하기 위해, fetch + eval 방식을 우선 구동하여 define 비활성 시간차를 차단하고 Monaco 에디터 로딩을 안정화
 // 🔗 @CALLS : mermaid.initialize
 // ====================================================================
 // 🛡️ [한글 주석 완벽 탑재] 비동기 글로벌 Mermaid 스크립트 로더
@@ -293,34 +284,40 @@ const loadMermaidScript = (): Promise<any> => {
       }
     };
 
-    // 1) 동적 <script src="./mermaid.min.js"> 생성 (CSP script-src 'self' 허용)
-    // mermaid.min.js는 UMD 패턴(define → AMD) → Next.js의 loader.js가
-    // "only one anonymous define call per script file" 에러를 던지므로
-    // define을 일시 제거하여 global 할당(window.mermaid) 경로로 유도
-    // 💡 상대 경로(./)를 사용하여 file:// 프로토콜(데스크탑)과 http://(확장프로그램) 모두 대응
-    const savedDefine = (window as any).define;
-    (window as any).define = undefined;
-
-    const script = document.createElement('script');
-    script.src = './mermaid.min.js';
-    const done = () => { (window as any).define = savedDefine; };
-    script.onload = () => { done(); loaded(); };
-    script.onerror = () => {
-      done();
-      // 2) CSP 차단 시 fetch + eval 폴백 (CSP 'unsafe-eval' 허용)
-      // eval에서도 동일한 AMD 충돌 방지를 위해 define 일시 제거
-      fetch('./mermaid.min.js')
-        .then(r => r.text())
-        .then(code => {
-          const savedDefine2 = (window as any).define;
-          (window as any).define = undefined;
-          try { (0, eval)(code); } catch (_) {}
-          (window as any).define = savedDefine2;
-          loaded();
-        })
-        .catch(() => { mermaidPromise = null; resolve(null); });
-    };
-    document.head.appendChild(script);
+    // 1) 레이스 컨디션 완벽 차단: <script> 비동기 태그 대신 fetch + eval 동기 실행으로만 로드합니다.
+    //    이를 통해 define이 undefined로 유지되는 시간차(비동기 갭)를 소거하여 Monaco 에디터 로더와의 충돌을 원천 차단합니다.
+    fetch('./mermaid.min.js')
+      .then(r => r.text())
+      .then(code => {
+        const savedDefine = (window as any).define;
+        (window as any).define = undefined;
+        try {
+          (0, eval)(code);
+        } catch (_) {}
+        if ((window as any).define === undefined) {
+          (window as any).define = savedDefine;
+        }
+        loaded();
+      })
+      .catch(() => {
+        // 2) 최후의 수단으로 fetch 실패 시에만 <script> 태그 비동기 로드 fallback 시도
+        const savedDefine = (window as any).define;
+        (window as any).define = undefined;
+        const script = document.createElement('script');
+        script.src = './mermaid.min.js';
+        const done = () => {
+          if ((window as any).define === undefined) {
+            (window as any).define = savedDefine;
+          }
+        };
+        script.onload = () => { done(); loaded(); };
+        script.onerror = () => {
+          done();
+          mermaidPromise = null;
+          resolve(null);
+        };
+        document.head.appendChild(script);
+      });
   });
   return mermaidPromise;
 };
@@ -604,11 +601,10 @@ function MermaidBlock({ code }: { code: string }) {
 // ====================================================================
 export default function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
-  onFileOpen, orientation, marginTop, marginBottom, marginLeft, marginRight, listIndent, showPageBreaks, calcKey
+  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight
 }: MarkdownViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const prevBreaksRef = useRef<string>("");
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0003] MarkdownViewer ➔ cleanContent
@@ -749,21 +745,19 @@ export default function MarkdownViewer({
     };
   }, []);
 
-  const isLandscape = orientation === 'landscape';
-
   return (
     <div
       ref={containerRef}
-      className={`markdown-viewer-root bg-transparent mx-auto transition-all duration-200 relative ${showPageBreaks ? 'show-page-breaks-active' : ''}`}
+      className="markdown-viewer-root bg-transparent mx-auto transition-all duration-200 relative"
       style={{
-        width: showPageBreaks ? (isLandscape ? '1123px' : '794px') : '100%',
+        width: '100%',
         minHeight: '100%',
         boxShadow: 'none',
         borderRadius: '0px',
-        paddingTop: showPageBreaks ? mmToRem(marginTop || '') : '1.5rem',
-        paddingBottom: showPageBreaks ? mmToRem(marginBottom || '') : '1.5rem',
-        paddingLeft: showPageBreaks ? mmToRem(marginLeft || '') : '1.5rem',
-        paddingRight: showPageBreaks ? mmToRem(marginRight || '') : '1.5rem',
+        paddingTop: marginTop || '0',
+        paddingBottom: marginBottom || '0',
+        paddingLeft: marginLeft || '0',
+        paddingRight: marginRight || '0',
       }}
     >
       <div className="print:!block">
@@ -938,10 +932,6 @@ export default function MarkdownViewer({
                );
              },
             div: ({ node, className, children, ...props }: any) => {
-              // 수동 페이지 나누기 div 태그가 화면에서 텍스트 노출되지 않고 실제 CSS 클래스를 먹도록 렌더링 보장
-              if (className === 'page-break') {
-                return <div className="page-break" {...props} />;
-              }
               return <div className={className} {...props}>{children}</div>;
             },
             pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,

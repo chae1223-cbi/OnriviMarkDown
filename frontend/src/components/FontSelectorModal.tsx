@@ -16,11 +16,42 @@ const FALLBACK_FONTS = [
   'Courier New', 'Verdana', 'Tahoma', 'Impact', 'Comic Sans MS'
 ];
 
+const FONT_NAME_MAP: Record<string, string> = {
+  'Malgun Gothic': '맑은 고딕',
+  'Gulim': '굴림',
+  'Dotum': '돋움',
+  'Batang': '바탕',
+  'Gungsuh': '궁서',
+  'UnBatang': '은바탕',
+  'UnDotum': '은돋움',
+  'UnGungsuh': '은궁서',
+  'UnPilgi': '은필기',
+  'UnGraphic': '은그래픽',
+  'NanumGothic': '나눔고딕',
+  'Nanum Myeongjo': '나눔명조',
+  'NanumMyeongjo': '나눔명조',
+  'NanumSquare': '나눔스퀘어',
+  'NanumSquareRound': '나눔스퀘어라운드',
+  'NanumBarunGothic': '나눔바른고딕',
+  'Nanum Gothic': '나눔고딕',
+  'Apple SD Gothic Neo': '애플 SD 산돌고딕 Neo',
+  'AppleGothic': '애플고딕',
+  'AppleMyungjo': '애플명조',
+  'GungSeo': '궁서체',
+  'BatangChe': '바탕체',
+  'GulimChe': '굴림체',
+  'DotumChe': '돋움체',
+  'KoPubBatang': 'KoPub 바탕',
+  'KoPubDotum': 'KoPub 돋움',
+  'Noto Sans KR': '본고딕 (Noto Sans KR)',
+  'Noto Serif KR': '본명조 (Noto Serif KR)'
+};
+
 // ====================================================================
 // 📊 [OMD-CORE-FontSelectorModal-0001] FontSelectorModal ➔ collectFonts
 // 🎯 @KICK  : queryLocalFonts API로 시스템 설치 폰트 수집, 실패 시 FALLBACK_FONTS 반환
 // 🛡️ @GUARD : queryLocalFonts 미지원 환경에서는 콘솔 경고 후 폴백 폰트 반환
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-06-19** — 시스템 글꼴 중 한글명 매핑 테이블(FONT_NAME_MAP)을 추가하여 UI 상에 친숙한 한글 폰트명으로 노출하고 한글/영문 양방향 검색 지원
 // 🔗 @CALLS : 없음
 // ====================================================================
 async function collectFonts(): Promise<string[]> {
@@ -68,7 +99,11 @@ export default function FontSelectorModal({ isOpen, onClose, currentFont, onSele
 
   if (!isOpen) return null;
 
-  const filtered = fonts.filter(f => f.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filtered = fonts.filter(f => {
+    const koreanName = FONT_NAME_MAP[f] || '';
+    const term = searchTerm.toLowerCase();
+    return f.toLowerCase().includes(term) || koreanName.toLowerCase().includes(term);
+  });
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
@@ -137,7 +172,7 @@ export default function FontSelectorModal({ isOpen, onClose, currentFont, onSele
                       : 'hover:bg-blue-50 text-zinc-600'
                 }`}
               >
-                <span>{font}</span>
+                <span>{FONT_NAME_MAP[font] || font}</span>
                 <span className="text-[11px] font-normal opacity-60" style={{ fontFamily: font }}>
                   가나다 ABC 123
                 </span>

@@ -88,7 +88,17 @@ option {
   }
 }
 
+/* 📊 [OMD-STYLE-globals-0001] globals.css ➔ @media print
+   🎯 @KICK  : OS 인쇄 모달(window.print()) 실행 시 전체 스크롤 전체 높이 출력 보장
+   🛡️ @GUARD : html, body, #__next 높이 및 overflow 강제 해제
+   🚨 @PATCH : **2026-06-19** — OS 인쇄창에서 1페이지 잘림 버그 해결을 위해 html, body, #__next에 overflow:visible 및 height:auto 강제 적용; 미리보기 화면의 좌우 여백이 과도하게 벌어지는 문제를 막기 위해 .prose의 기본 max-width: 65ch 제한을 전역적으로 해제 */
 @media print {
+  html, body, #__next {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
+  }
   nav, aside, header, footer, .no-print {
     display: none !important;
   }
@@ -100,6 +110,17 @@ option {
   .prose {
     max-width: none !important;
     padding: 0 !important;
+  }
+  .custom-preview-container {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex: none !important;
+  }
+  .markdown-viewer-root {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 }
 
@@ -276,6 +297,12 @@ option {
   border-radius: 12px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   max-width: 100%;
+}
+
+/* Tailwind Typography prose의 65ch 너비 제한 족쇄 해제 */
+.prose,
+.custom-preview-container .prose {
+  max-width: none !important;
 }
 
 /* 일반 본문 문단의 상하 여백 및 줄간격을 컴팩트하게 조정 (단정 개행 /n 1줄 실현) */
@@ -772,75 +799,31 @@ div.onrivi-list-spacer {
   }
 }
 
-/* 📄 [실시간 페이지 경계선 표시용 스타일 - 오버랩 방지 분리형] */
-.page-break-indicator {
-  display: block !important;
-  width: 100% !important;
-  clear: both !important;
-  margin-top: 2rem !important;
-  margin-bottom: 2rem !important;
-  user-select: none !important;
-  pointer-events: none !important;
-}
-.page-break-indicator-line {
-  width: 100% !important;
-  border-top: 1px dashed rgba(239, 68, 68, 0.4) !important; /* 빨간색 점선 */
-}
-.page-break-indicator-text {
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  color: #ef4444 !important;
-  padding: 6px 16px !important;
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  letter-spacing: 0.05em !important;
-}
-.dark .page-break-indicator-text {
-  background-color: rgba(9, 9, 11, 0.95) !important;
-  color: #f87171 !important;
-}
-
+/* 인쇄 시 행 잘림 방지 */
 @media print {
-  .page-break-indicator {
-    display: none !important;
+  html, body {
+    orphans: 2 !important;
+    widows: 2 !important;
   }
-  .page-break-line-before {
-    page-break-before: always !important;
-    break-before: page !important;
-    margin-top: 0 !important;
+  p, li, blockquote, figcaption, .prose p {
+    orphans: 3 !important;
+    widows: 3 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
-}
-
-/* 📊 [테이블 내부 행(Row) 단위 A4 페이지 경계선 스타일] */
-tr.table-page-break-line-before > td {
-  border-top: 2px dashed #f87171 !important; /* 빨간색 점선 */
-  padding-top: 24px !important; /* 안내 문구 공간 확보 */
-}
-
-tr.table-page-break-line-before > td:first-child {
-  position: relative !important;
-}
-
-tr.table-page-break-line-before > td:first-child::before {
-  content: "✂️ [ A4 인쇄 페이지 경계선 - Page " attr(data-page-num) " 시작 지점 ]";
-  position: absolute !important;
-  top: 4px !important;
-  left: 8px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  color: #ef4444 !important;
-  white-space: nowrap !important;
-  user-select: none !important;
-  pointer-events: none !important;
-  opacity: 0.85 !important;
-  font-family: sans-serif !important;
-}
-
-/* 인쇄 시 테이블 자동 분할 및 가상 구분선 제거 최적화 */
-@media print {
-  /* 테이블 행 쪼개짐 방지 및 헤더 반복 설정 */
+  pre, code, .code-block, pre > div {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: visible !important;
+  }
+  img, video, iframe, .mermaid-container {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
   table {
     page-break-inside: auto !important;
     break-inside: auto !important;
@@ -855,71 +838,5 @@ tr.table-page-break-line-before > td:first-child::before {
   tfoot {
     display: table-footer-group !important;
   }
-
-  /* 테이블 내부 가상 구분선 위치에서 실제 용지 강제 분할 제거 (tr에 always 부여 시 테이블 레이아웃 붕괴 유발) */
-  tr.table-page-break-line-before > td {
-    border-top: none !important;
-    padding-top: 12px !important; /* 기본 패딩 값 수준으로 복구 */
-  }
-  tr.table-page-break-line-before > td:first-child::before {
-    display: none !important;
-  }
-}
-
-/* 🛡️ [마크다운 미리보기 전용 카운터 리셋] */
-.custom-preview-container {
-  counter-reset: page-counter 1 !important;
-}
-
-/* ✂️ [사용자 지정 수동 페이지 분할(Page Break)용 스타일] */
-.page-break {
-  page-break-before: always !important;
-  break-before: page !important;
-  position: relative !important;
-  margin-top: 2rem !important;
-  margin-bottom: 2rem !important;
-  display: block !important;
-  clear: both !important;
-  counter-increment: page-counter !important;
-}
-
-.page-break::before {
-  content: "✂️ [ A4 인쇄 페이지 경계선 - Page " counter(page-counter) " 시작 지점 ] ----------------------------------------------------" !important;
-  display: block !important;
-  width: 100% !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  color: #ef4444 !important; /* 빨간색 */
-  border-top: 1px dashed rgba(239, 68, 68, 0.4) !important; /* 빨간색 점선 */
-  padding-top: 0.75rem !important;
-  margin-bottom: 1.5rem !important;
-  user-select: none !important;
-  pointer-events: none !important;
-  letter-spacing: 0.05em !important;
-  opacity: 0.85 !important;
-}
-
-.dark .page-break::before {
-  color: #f87171 !important;
-}
-
-/* 인쇄 시 수동 구분선 숨김 및 실제 인쇄 분할 유도 */
-@media print {
-  .page-break::before {
-    display: none !important;
-  }
-  .page-break {
-    page-break-before: always !important;
-    break-before: page !important;
-    margin-top: 0 !important;
-    height: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-  }
-}
-
-/* 실시간 A4 페이지 경계선 표시 활성화 시, 수동 구분선의 기본 초록색 가상선을 숨겨 중복 방지 */
-.show-page-breaks-active .page-break::before {
-  display: none !important;
 }
 

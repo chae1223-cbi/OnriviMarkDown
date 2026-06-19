@@ -2,7 +2,7 @@
 // 📊 [OMD-CORE-welcomeContent-0006] welcomeContent ➔ WELCOME_MD
 // 🎯 @KICK  : 웰컴 페이지 마크다운을 원시 문자열 상수로 정의한다
 // 🛡️ @GUARD : WELCOME_CONTENT, DEFAULT_WELCOME_MD가 이 값을 참조
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-06-19** — 웰컴 마크다운 기본 텍스트에 Mermaid 업무 흐름도 테스트 마크다운 예시 추가
 // 🔗 @CALLS : WELCOME_CONTENT, DEFAULT_WELCOME_MD
 // ====================================================================
 const WELCOME_MD = `# ✨ 글쓰기가 10배 즐거워지는 마법! 온리비 어서(Onrivi Author)에 오신 것을 환영합니다! ✨
@@ -133,6 +133,51 @@ function testOnrivi() {
 문장 중간에 자연스럽게 \`$a^2 + b^2 = c^2$\` 처럼 달러 기호 하나(\`$\`)로 감싸서 **인라인 수식**을 넣을 수도 있고, 아래처럼 달러 기호 두 개(\`$$\`)를 위아래로 쳐서 화면 중앙에 웅장하게 독립 배치하는 **디스플레이 수식**도 자유자재로 구동할 수 있어요. V2 서식에 정의된 대로 깊고 우아한 블루 색상 오프셋(\`#1e3a8a\`)이 실시간으로 락인(Lock-in)되는지 프리뷰 창에서 꼭 확인해 보세요!
 
 $$f(x) = \\int_{-\\infty}^{\\infty} \\hat{f}(\\xi)\\,e^{2\\pi i \\xi x}\\,d\\xi$$
+
+### 📌 테스트 13: 업무 흐름도 다이어그램 (Mermaid)
+
+*마크다운 코드 블록 안에 \`mermaid\` 지시자를 사용하면, 복잡한 비즈니스 프로세스나 인프라 설계도를 직관적인 그래프로 0.1초 만에 변환하여 렌더링합니다.*
+
+\`\`\`mermaid
+graph TD
+    %% 외부 정보 수집
+    Inbox([새로운 아이디어 / 정보 수집]) --> Filter{실행 가능성과<br>목적 판단}
+
+    %% 초기 분류
+    Filter -- "단기적 목표 및 마감일 있음" --> P[Projects<br/>프로젝트]
+    Filter -- "장기적 유지 및 책임" --> A[Areas<br/>영역]
+    Filter -- "당장 실행 안 함 / 관심사" --> R[Resources<br/>자원]
+
+    %% Projects와 Areas 간의 유동성
+    A -- "영역 내에서 단기 실행 목표 발생" --> P
+    P -- "프로젝트 완료 후 장기 관리 필요" --> A
+
+    %% Projects와 Resources 간의 유동성
+    R -- "진행 중인 프로젝트에 자료로 활용" --> P
+    P -- "프로젝트 완료 후 유용한 레퍼런스 추출" --> R
+
+    %% Archives로의 이동 (보관 처리)
+    P -- "목표 달성 / 완료 / 중단" --> AR[Archives<br/>보관함]
+    A -- "더 이상 책임지지 않음 / 관심 소멸" --> AR
+    R -- "정보가 구식이거나 더 이상 참고 안 함" --> AR
+
+    %% Archives에서 복구 (재활성화)
+    AR -. "과거 자료가 새로운 프로젝트에 필요" .-> P
+    AR -. "보관된 자료가 다시 유용해짐" .-> R
+
+    %% 스타일링 클래스 정의
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef project fill:#ffcccb,stroke:#ff0000,stroke-width:2px;
+    classDef area fill:#fffacd,stroke:#ffd700,stroke-width:2px;
+    classDef resource fill:#e0ffff,stroke:#00ced1,stroke-width:2px;
+    classDef archive fill:#d3d3d3,stroke:#808080,stroke-width:2px;
+    
+    %% 클래스 지정 (세미콜론 노이즈 적출)
+    class P project
+    class A area
+    class R resource
+    class AR archive
+\`\`\`
 ---
 
 온리비 아서 에디터 엔진이 렌더링해야 하는 모든 멀티미디어 컴포넌트(Yandex/Google Map 변환기용 \`[map: ]\` 가드 태그, YouTube용 \`[video: ]\` 가드 태그, 링크, 인라인 코드 가드 등)를 V2 서식 명세에 맞추어 완벽하게 심어두었습니다.

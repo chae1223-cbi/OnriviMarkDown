@@ -411,7 +411,7 @@ export const useFileExplorer = ({
         model.onDidChangeContent(() => {
           const val = model.getValue();
           setContent(val);
-          setTabs(prev => prev.map(t => t.id === newTabId ? { ...t, content: val, isModified: true } : t));
+          setTabs(prev => prev.map(t => t.id === newTabId ? { ...t, content: val, isModified: val !== t.content } : t));
         });
       }
 

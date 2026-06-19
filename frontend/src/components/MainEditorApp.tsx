@@ -11,6 +11,8 @@
  * 모든 전역 상태 및 화면 분할 레이아웃 조립.
  * 메뉴바 , 툴바, 상태바, 사이드바 등 모든 컴포넌트의 렌더링을 책임짐.
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정
+ * -----------------------------------------------------------------------
  */
 
 // @ts-nocheck
@@ -30,7 +32,6 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
 import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
-import MarkdownPageViewer from '@/components/MarkdownPageViewer'; // 📄 용지별 자동 페이지 나누기 뷰어
 import Script from 'next/script'; // 넥스트 스크립트 - 
 import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더링
 
@@ -98,7 +99,6 @@ import * as utilsPasteHandlers from '@/utils/pasteHandlers';
 import * as utilsEditorActions from '@/utils/editorActions';
 import { useEditorTabs } from '@/hooks/useEditorTabs';
 import { useEditorSettings } from '@/hooks/useEditorSettings';
-import { usePageBreak } from '@/hooks/usePageBreak';
 import { useEditorHandlers } from '@/hooks/useEditorHandlers';
 import { useFileExplorer } from '@/hooks/useFileExplorer';
 
@@ -134,7 +134,7 @@ export type EditorCommandType =
   | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS'                                                                // ⑫ 스타일 적용 
   | 'FOOTNOTE'                                                                         // ⑬ 각주 삽입 
   | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW'                                               // ⑭ 표 행 편집 명령
-  | 'DOCLINK' | 'PAGE_BREAK';                                                                          // ⑮ 문서링크 및 페이지나누기
+  | 'DOCLINK';                                                                          // ⑮ 문서링크
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -368,7 +368,7 @@ const getRelativePath = (fromPath: string | null | undefined, toPath: string): s
 // 🎯 @KICK  : 컨트롤 타워: 모든 전역 상태, 레이아웃 조립, Monaco 에디터, 미리보기, 사이드바, 메뉴 조정
 // 🛡️ @GUARD : TDZ 선언 순서 방어, IME 조합 잠금, 스테일 클로저 Ref 백업, 마운트 시 레이스 컨디션 가드
 // 🚨 @PATCH : 아래 상세 하위 항목 참조
-// 🔗 @CALLS : useToast, useEditorTabs, useFileExplorer, useEditorSettings, usePageBreak, useEditorHandlers, getMdFiles, fetchAllMdFiles, resolveRelativeImagePath, getRelativePath, utilsEditorActions, utilsPasteHandlers, getSlashCommands, preprocessMarkdownForPreview, saveSecureData, loadSecureData, idb, getApiUrl
+// 🔗 @CALLS : useToast, useEditorTabs, useFileExplorer, useEditorSettings, useEditorHandlers, getMdFiles, fetchAllMdFiles, resolveRelativeImagePath, getRelativePath, utilsEditorActions, utilsPasteHandlers, getSlashCommands, preprocessMarkdownForPreview, saveSecureData, loadSecureData, idb, getApiUrl
 // ====================================================================
 export default function MainEditorApp() {                  // @MainEditorApp : MainEditorApp component  
   const { showToast } = useToast();             // @showToast : Toast component  
@@ -393,7 +393,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-CORE-0003 TDZ-GUARD] MainEditorApp.tsx ➔ 훅 호출 전 선행 상태 선언 블록
-  // 🎯 @KICK  : useEditorSettings/usePageBreak/useEditorTabs 훅 호출 이전에 반환값을 참조하는
+  // 🎯 @KICK  : useEditorSettings/useEditorTabs 훅 호출 이전에 반환값을 참조하는
   //             하위 코드(useEffect 등)를 위해 모든 관련 상태를 const로 선행 선언
   // 🛡️ @GUARD : Webpack 번들러가 let 변수를 단일 글자(rS, r0 등)로 난독화 시 TDZ 에러 유발 → const로 즉시 초기화
   // 🚨 @PATCH : _init 더미 변수 패턴 도입 (useEditorSettings 분리 리팩토링) | 이전 버전
@@ -414,11 +414,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [_customSlashCommands_init, _setCustomSlashCommands_init] = useState<Record<string, string>>({});
   const _customSlashCommandsRef_init = useRef<Record<string, string>>({});
   const _handleThemeChange_init = () => {};
-
-  const _isAutoPageBreakingRef_init = useRef(false);
-  const _lastPageBreakCountRef_init = useRef(0);
-  const _handleResetPageBreaks_init = () => {};
-  const _executeAutoPageBreak_init = () => {};
 
   // 💡 [초기화 순서 방어] 라이선스 및 디바이스 ID 상태 선행 선언
   const [deviceId, setDeviceId] = useState<string>('');
@@ -562,40 +557,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     error: string;
   }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
 
-  // 📄 [자동 페이지 나누기 미리보기] 상태 선언 및 로컬 스토리지 보존
-  const [isPageViewEnabled, setIsPageViewEnabled] = useState(false);
-  const [pageCalcKey, setPageCalcKey] = useState(0);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0010] MainEditorApp.tsx ➔ pageViewInit
-// 🎯 @KICK  : 마운트 시 localStorage에서 isPageViewEnabled 복원
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : 이전에 제품 결정으로 비활성화되었으나 인쇄 미리보기 용도로 복원
-// 🔗 @CALLS : localStorage.getItem
-// ====================================================================
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('isPageViewEnabled');
-      if (saved === 'true') {
-        setIsPageViewEnabled(true);
-      }
-    }
-  }, []);
-
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0011] MainEditorApp.tsx ➔ handleTogglePageView
-// 🎯 @KICK  : 페이지 보기 모드 토글 및 localStorage에 설정 유지 (인쇄 미리보기 용도)
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : 인쇄 미리보기 용도로 복원 (이전에 제품 결정으로 비활성화)
-// 🔗 @CALLS : localStorage.setItem
-// ====================================================================
-  const handleTogglePageView = useCallback(() => {
-    setIsPageViewEnabled(prev => {
-      const next = !prev;
-      localStorage.setItem('isPageViewEnabled', String(next));
-      return next;
-    });
-  }, []);
 
   const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
   const [driveLetter, setDriveLetter] = useState('D:');
@@ -1065,8 +1027,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const previewRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
-  const autoPageBreakDebounceRef = useRef<NodeJS.Timeout | null>(null);
-
   // 💡 다중 탭 관련 상태 선언 및 백업 레퍼런스
   const useEditorTabsResult = useEditorTabs(
     editorRef,
@@ -1367,15 +1327,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const isActivated = licenseStatus.isActivated;
 
-  const usePageBreakResult = usePageBreak(editorRef, previewRef, profiles, activeProfileId, showToast);
 
-  // 💡 [TDZ 방어] usePageBreak 반환값을 즉시 구조분해 할당
-  const {
-    isAutoPageBreakingRef,
-    lastPageBreakCountRef,
-    handleResetPageBreaks,
-    executeAutoPageBreak
-  } = usePageBreakResult;
 
   const decorationsCollectionRef = useRef<any>(null);
   const decorationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1835,9 +1787,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (!previewRef.current) return;
 
-    const elements = isPageViewEnabled
-      ? Array.from(previewRef.current.querySelectorAll('.page-view-paper [data-line]')) as HTMLElement[]
-      : Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
+    const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
     elements.forEach(element => element.classList.remove('preview-highlight-line'));
 
     if (previewMode !== 'both' || !activeLine) return;
@@ -1976,9 +1926,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   useEffect(() => {
     if (currentFileNode && activeTabId) {
-      // 탭 전환 시에는 isModified를 건드리지 않음 (각 탭의 기존 상태 유지)
       if (prevActiveTabRef.current !== activeTabId) {
         prevActiveTabRef.current = activeTabId;
+        lastSavedContentRef.current = content;
+        // 탭 전환 시 saveStatus를 현재 탭의 isModified에 맞게 동기화
+        const activeTab = tabsRef.current.find(t => t.id === activeTabId);
+        setSaveStatus(activeTab?.isModified ? 'unsaved' : 'saved');
         return;
       }
       const isUnsaved = content !== lastSavedContentRef.current;
@@ -2073,9 +2026,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         scrollToLine(lineNumber);
 
         if (previewRef.current) {
-          const elements = isPageViewEnabled
-            ? Array.from(previewRef.current.querySelectorAll('.page-view-paper [data-line]'))
-            : Array.from(previewRef.current.querySelectorAll('[data-line]'));
+          const elements = Array.from(previewRef.current.querySelectorAll('[data-line]'));
           elements.forEach(element => element.classList.remove('preview-highlight-line'));
           lineEl.classList.add('preview-highlight-line'); // 💡 사장님 지시: 마우스 클릭 시 미리보기 행 마킹 하이라이트색 복구
         }
@@ -2909,7 +2860,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     activeProfileId,
     isDarkMode,
     dynamicCssString,
-    isPageViewEnabled,
     setSaveStatus,
     setCurrentFileName,
     setCurrentFileNode,
@@ -2949,6 +2899,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     previewRef,
     createNewTab,
     switchTab,
+    setTabs,
+    activeTabIdRef,
   });
 
   handlersRef.current = handlers;
@@ -2956,9 +2908,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // ====================================================================
 // 📊 [OMD-EDIT-MainEditorApp-0070] MainEditorApp.tsx ➔ dispatchCommand
 // 🎯 @KICK  : 에디터 포커스 가드와 함께 EditorCommandType을 핸들러 메서드로 라우팅하는 통합 명령 디스패처
-// 🛡️ @GUARD : 브라우저 포커스 손실 방지를 위한 entry에서 editor.focus(); 모달 명령 후 50ms 비동기 forceTokenization
-// 🚨 @PATCH : 문자 겹침 수정을 위한 50ms setTimeout 토큰화 + 레이아웃 (WBS SYNC-02); EXPORT_PDF → PRINT(OS 인쇄), EXPORT_HTML 별도 유지
-// 🔗 @CALLS : handlers.newFile/save/saveAs/exit/print/exportHTML/exportEPUB/exportPNG/openExport, handlers.zoomIn/zoomOut/undo/redo/find/replace/globalSearch/settings/about/help/license, handlers.toggleFloatingToolbar/cleanDoc/copyAll, handlers.bold/italic/inlineCode/underline/strikethrough/h1-h6/hr/orderedList/list/quote/check/removePrefix, handlers.link/doclink/image/video/now/map/table/quickTable/insertTableRow/deleteTableRow/code/chart/pageBreak/math, handlers.quickWrap, selectRootFolder, setPreviewMode, setIsToolbarOpen, setIsSidebarOpen, setThemePalette, setIsDarkMode
+// 🛡️ @GUARD : 브라우저 포커스 손실 방지를 위한 entry에서 editor.focus(); 모달 명령 후 50ms 비동기 forceTokenization; previewMode !== 'preview' 가드를 이용한 내보내기 제한
+// 🚨 @PATCH : **2026-06-19** — 내보내기 모드 가드 패치: previewMode가 'preview'(미리보기 전용) 모드가 아닐 때 내보내기 명령(PRINT, EXPORT_*)이 트리거되는 경우 경고 토스트를 띄우고 명령 실행을 차단하도록 보정; 문자 겹침 수정을 위한 50ms setTimeout 토큰화 + 레이아웃 (WBS SYNC-02)
+// 🔗 @CALLS : handlers.newFile/save/saveAs/exit/print/exportHTML/exportEPUB/exportPNG/openExport, handlers.zoomIn/zoomOut/undo/redo/find/replace/globalSearch/settings/about/help/license, handlers.toggleFloatingToolbar/cleanDoc/copyAll, handlers.bold/italic/inlineCode/underline/strikethrough/h1-h6/hr/orderedList/list/quote/check/removePrefix, handlers.link/doclink/image/video/now/map/table/quickTable/insertTableRow/deleteTableRow/code/chart/math, handlers.quickWrap, selectRootFolder, setPreviewMode, setIsToolbarOpen, setIsSidebarOpen, setThemePalette, setIsDarkMode
 // ====================================================================
   const dispatchCommand = useCallback((type: EditorCommandType, payload?: any) => {
     // [WBS SYNC-01] 명령어 실행 초입 단계에 반드시 editor.focus()를 강제 격발하여 브라우저 포커스 뺏김 방지 및 포지션 최우선 확보
@@ -2979,11 +2931,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'EXIT': handlers.exit(); return;
 
       // 내보내기 관련
-      case 'PRINT': handlers.print(); return;
-      case 'EXPORT_HTML': handlers.exportHTML(); return;
-      case 'EXPORT_EPUB': handlers.exportEPUB(); return;
-      case 'EXPORT_PNG': handlers.exportPNG(); return;
-      case 'OPEN_EXPORT': handlers.openExport(); return;
+      case 'PRINT': 
+      case 'EXPORT_HTML': 
+      case 'EXPORT_EPUB': 
+      case 'EXPORT_PNG': 
+      case 'OPEN_EXPORT': {
+        if (previewMode !== 'preview') {
+          showToast('내보내기는 미리보기 전용 모드에서만 가능합니다. (상단 도구 > 미리보기 선택)', 'warning');
+          return;
+        }
+        if (type === 'PRINT') handlers.print();
+        else if (type === 'EXPORT_HTML') handlers.exportHTML();
+        else if (type === 'EXPORT_EPUB') handlers.exportEPUB();
+        else if (type === 'EXPORT_PNG') handlers.exportPNG();
+        else if (type === 'OPEN_EXPORT') handlers.openExport();
+        return;
+      }
 
       // 보기/제어 관련
       case 'ZOOM_IN': handlers.zoomIn(); return;
@@ -3080,7 +3043,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'CODE':
       case 'CODE_BLOCK': handlers.code(); break;
       case 'CHART': handlers.chart(); break;
-      case 'PAGE_BREAK': handlers.pageBreak(); break;
       case 'LATEX':
       case 'MATH': handlers.math(); break;
 
@@ -3138,7 +3100,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       strikethrough: 'STRIKETHROUGH',
       h1: 'H1', h2: 'H2', h3: 'H3', h4: 'H4', h5: 'H5', h6: 'H6',
       divider: 'HR',        // id는 divider이지만 커맨드는 HR
-      pageBreak: 'PAGE_BREAK',
       orderedList: 'ORDERED_LIST',
       list: 'LIST',
       quote: 'QUOTE',
@@ -3493,6 +3454,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [content]);
 
   const heightClass = isToolbarOpen ? 'h-[calc(100vh-176px)]' : 'h-[calc(100vh-128px)]';
+  const openTabPaths = useMemo(() => tabs.map(t => t.path).filter(Boolean) as string[], [tabs]);
 
   return (
     <div className={`flex h-screen flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
@@ -3542,6 +3504,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           openFile={handleFileClick}
           currentFileNode={currentFileNode}
           refreshFileList={refreshFileList}
+          openTabPaths={openTabPaths}
 
           askConfirm={(config) => setConfirmConfig({ isOpen: true, ...config })}
           isMergeMode={isMergeMode}
@@ -4636,45 +4599,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       editorMouseDown = false;
                       editorMouseAnchor = null;
                     });
-                    editor.onDidChangeModelContent((e: any) => {
-                      if (isAutoPageBreakingRef.current) return;
 
-                      let isPageBreakModified = false;
-                      let targetLineNum = Infinity;
-
-                      const model = editor.getModel();
-                      if (!model) return;
-
-                      // 총 페이지나누기(page-break) 문구 개수 체크
-                      const currentText = model.getValue();
-                      const pageBreakMatches = currentText.match(/page-break/gi);
-                      const currentCount = pageBreakMatches ? pageBreakMatches.length : 0;
-
-                      if (currentCount !== lastPageBreakCountRef.current) {
-                        lastPageBreakCountRef.current = currentCount;
-                        isPageBreakModified = true;
-                      }
-
-                      e.changes.forEach((change: any) => {
-                        if (change.text.includes('page-break')) {
-                          isPageBreakModified = true;
-                          targetLineNum = Math.min(targetLineNum, change.range.startLineNumber);
-                        }
-                        const lineContent = model.getLineContent(change.range.startLineNumber);
-                        if (lineContent.includes('page-break')) {
-                          isPageBreakModified = true;
-                          targetLineNum = Math.min(targetLineNum, change.range.startLineNumber);
-                        }
-                      });
-
-                      if (isPageBreakModified) {
-                        const finalLine = targetLineNum === Infinity ? 1 : targetLineNum;
-                        if (autoPageBreakDebounceRef.current) clearTimeout(autoPageBreakDebounceRef.current);
-                        autoPageBreakDebounceRef.current = setTimeout(() => {
-                          executeAutoPageBreak(editor, finalLine);
-                        }, 800); // 800ms 디바운스로 타이핑 중 부하 방지
-                      }
-                    });
                     editor.onDidChangeCursorPosition((e) => {
                       setActiveLine(e.position.lineNumber);
                       setCursorLine(e.position.lineNumber);
@@ -5304,53 +5229,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             )}
 
             <div
-              className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden relative"
+              className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden print:overflow-visible relative"
               style={{
                 width: previewMode === 'preview' ? '100%' : '50%',
                 display: (previewMode === 'edit') ? 'none' : 'flex'
               }}
             >
-                {/* 📄 상단 고정 헤더 바 (페이지 분할 토글 등) - 당분간 숨김 처리 */}
-                {false && (
-                <div className="flex items-center justify-between px-6 py-2 border-b border-black/5 dark:border-white/5 bg-slate-50 dark:bg-zinc-900 select-none z-10 no-print">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12px] font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-                      📄 A4 인쇄 페이지 경계선 표시
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-medium">
-                      LIGHT
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleTogglePageView}
-                      className={`px-3 py-1 text-[11px] font-semibold rounded-md border transition-all flex items-center gap-1.5 ${
-                        isPageViewEnabled
-                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm hover:bg-indigo-700'
-                          : 'bg-white dark:bg-zinc-800 border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700'
-                      }`}
-                    >
-                      {isPageViewEnabled ? '경계선 표시 끄기' : 'A4 페이지 경계선 표시'}
-                    </button>
-                    {isPageViewEnabled && (
-                      <button
-                        onClick={handleResetPageBreaks}
-                        className="px-3 py-1 text-[11px] font-semibold rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-700 transition-all flex items-center gap-1.5"
-                        title="페이지 나누기 계산을 강제로 초기화하고 실시간으로 다시 실측합니다."
-                      >
-                        <span>🔄</span>
-                        <span>경계선 초기화</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                )}
+
 
                 {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
                 <div
                   ref={previewRef}
-                  className={`flex-1 ${heightClass} px-8 pt-10 pb-32 print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container bg-white dark:bg-zinc-950 ${
-                    previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
+                  className={`flex-1 ${heightClass} print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container ${
+                    previewMode === 'preview'
+                      ? 'bg-zinc-100 dark:bg-zinc-900/60 p-4 overflow-y-auto'
+                      : `bg-white dark:bg-zinc-950 px-0 pt-0 pb-32 ${
+                          previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
+                        }`
                   }`}
                   onMouseEnter={() => { isPreviewHovered.current = true; }}
                   onMouseLeave={() => { isPreviewHovered.current = false; }}
@@ -5369,9 +5264,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                     scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
 
-                    const elements = isPageViewEnabled
-                      ? Array.from(target.querySelectorAll('.page-view-paper [data-line]')) as HTMLElement[]
-                      : Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
+                    const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
 
                     let targetLine = -1;
                     for (const element of elements) {
@@ -5401,8 +5294,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   {(() => {
                     const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
                     const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
+                    const isPreviewOnly = previewMode === 'preview';
+                    
+                    const paperWidth = activeProfile.pageStyle.paperSize?.toLowerCase() === 'a4'
+                      ? (isLandscape ? '297mm' : '210mm')
+                      : (isLandscape ? '297mm' : '210mm');
+                    
+                    const minHeight = isLandscape ? '210mm' : '297mm';
+                    
+                    const pTop = activeProfile.pageStyle.marginTop || '20mm';
+                    const pBottom = activeProfile.pageStyle.marginBottom || '20mm';
+                    const pLeft = activeProfile.pageStyle.marginLeft || '20mm';
+                    const pRight = activeProfile.pageStyle.marginRight || '20mm';
+                    
+                    const pageStyle = {
+                      boxSizing: 'border-box' as const,
+                      ...(isPreviewOnly ? {
+                        width: paperWidth,
+                        minHeight: minHeight,
+                      } : {})
+                    };
+
                     return (
-                      <div className={`${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
+                      <div 
+                        className={isPreviewOnly
+                          ? "preview-page-sheet mx-auto my-8 border border-zinc-200 dark:border-zinc-800/80 shadow-xl dark:shadow-black/40 transition-all duration-300"
+                          : `${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`
+                        }
+                        style={pageStyle}
+                      >
                         <MarkdownViewer
                           content={helpContent || processedContent}
                           originalContent={helpContent || content}
@@ -5411,14 +5331,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           currentFilePath={currentFileNode?.path}
                           rootFolderPath={rootFolder?.name}
                           onFileOpen={handleFileOpenByPath}
-                          orientation={activeProfile.pageStyle.orientation as 'portrait' | 'landscape'}
-                          marginTop={activeProfile.pageStyle.marginTop}
-                          marginBottom={activeProfile.pageStyle.marginBottom}
-                          marginLeft={activeProfile.pageStyle.marginLeft}
-                          marginRight={activeProfile.pageStyle.marginRight}
                           listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left']}
-                          showPageBreaks={isPageViewEnabled}
-                          calcKey={pageCalcKey}
+                          marginTop={pTop}
+                          marginBottom={pBottom}
+                          marginLeft={pLeft}
+                          marginRight={pRight}
                         />
                       </div>
                     );
@@ -5432,6 +5349,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                    */}
                   {dynamicCssString && (
                     <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
+                  )}
+                  {/* 미리보기 전용 모드일 때 스킨의 배경색과 외부 감싸기용 회색 배경 분리 지정 */}
+                  {previewMode === 'preview' && (
+                    <style dangerouslySetInnerHTML={{ __html: `
+                      .custom-preview-container {
+                        background: ${isDarkMode ? '#121214' : '#f4f4f5'} !important;
+                      }
+                      .preview-page-sheet {
+                        background: ${isDarkMode ? '#09090b' : (profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE).pageStyle.backgroundColor || '#ffffff'} !important;
+                      }
+                    `}} />
                   )}
                 </div>
               </div>

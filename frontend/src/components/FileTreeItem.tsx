@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Plus, FolderPlus, Edit2, Trash2 } from 'lucide-react';
 import { FileNode, getFileIcon } from '@/lib/helper';
 import { getApiUrl } from '@/lib/api';
@@ -20,6 +20,8 @@ interface FileTreeItemProps {
   currentFilePath?: string;
   workspaceType: string;
   refreshParent: () => void;
+  onRefreshAll?: () => void;
+  openTabPaths?: string[];
   askConfirm: (config: { title: string, message: string, onConfirm: () => void, isDanger?: boolean }) => void;
   siblings?: FileNode[];
   isMergeMode?: boolean;
@@ -32,11 +34,12 @@ interface FileTreeItemProps {
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
 // 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신
 // 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
 // ====================================================================
 const FileTreeItem = ({ 
-  node: rawNode, parentHandle, level, openFile, previewMode, setPreviewMode, currentFileName, currentFilePath, workspaceType, refreshParent, askConfirm, siblings,
+  node: rawNode, parentHandle, level, openFile, previewMode, setPreviewMode, currentFileName, currentFilePath, workspaceType, refreshParent, onRefreshAll, openTabPaths,
+  askConfirm, siblings,
   isMergeMode = false, selectedMergeNodes = [], toggleMergeNodeSelect, onLazyLoad
 }: FileTreeItemProps) => {
   const { showToast } = useToast();
@@ -81,6 +84,23 @@ const FileTreeItem = ({
       setIsLoading(false);
     }
   };
+  // 드래그 이동 완료 후 이 디렉토리가 source/target이면 자식 목록 갱신
+  const refreshThisDirectoryRef = useRef(refreshThisDirectory);
+  refreshThisDirectoryRef.current = refreshThisDirectory;
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (node.kind !== 'directory' || !node.path) return;
+      const normNodePath = node.path.replace(/\\/g, '/');
+      const matches =
+        normNodePath === (detail.sourceParentPath || '').replace(/\\/g, '/') ||
+        normNodePath === (detail.targetParentPath || '').replace(/\\/g, '/') ||
+        normNodePath === (detail.targetPath || '').replace(/\\/g, '/');
+      if (matches) refreshThisDirectoryRef.current();
+    };
+    window.addEventListener('file:moved', handler);
+    return () => window.removeEventListener('file:moved', handler);
+  }, [node.kind, node.path]);
   const [isLoading, setIsLoading] = useState(false);
   const [promptConfig, setPromptConfig] = useState<{
     isOpen: boolean;
@@ -92,6 +112,16 @@ const FileTreeItem = ({
 
   const [isDragOver, setIsDragOver] = useState(false);
 
+  const dispatchMovedEvent = (srcPath: string, tgtPath: string) => {
+    const normSrc = srcPath.replace(/\\/g, '/');
+    const normTgt = tgtPath.replace(/\\/g, '/');
+    const srcParentPath = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
+    const tgtParentPath = normTgt.includes('/') ? normTgt.substring(0, normTgt.lastIndexOf('/')) : '';
+    window.dispatchEvent(new CustomEvent('file:moved', {
+      detail: { sourceParentPath: srcParentPath, targetParentPath: tgtParentPath, targetPath: normTgt }
+    }));
+  };
+
   const handleDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
     e.dataTransfer.setData("sourcePath", node.path || "");
@@ -102,6 +132,7 @@ const FileTreeItem = ({
     if (typeof window !== 'undefined') {
       (window as any)._draggedNode = node;
       (window as any)._draggedNodeParentHandle = parentHandle;
+      (window as any)._draggedNodeParentPath = node.path ? node.path.substring(0, node.path.lastIndexOf('/')) : '';
     }
   };
 
@@ -123,9 +154,9 @@ const FileTreeItem = ({
   // ====================================================================
   // 📊 [OMD-FILE-FileTreeItem-0004] FileTreeItem ➔ handleDrop
   // 🎯 @KICK  : 파일/폴더 드래그 앤 드롭 이동 처리 - Electron, File System API, VFS 세 환경 지원
-  // 🛡️ @GUARD : 자기 자신/하위 폴더 드롭 방지, 디렉토리만 드롭 대상 허용
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : refreshParent, refreshThisDirectory, vfsRename, showToast
+  // 🛡️ @GUARD : 자기 자신/하위 폴더 드롭 방지, 디렉토리만 드롭 대상 허용; openTabPaths로 열린 파일/폴더 드롭 차단
+  // 🚨 @PATCH : **2026-06-19** — 열린 탭 보호 가드 추가 (파일/포함 폴더 이동 차단); 이동 후 onRefreshAll 전체 트리 갱신
+  // 🔗 @CALLS : refreshParent, refreshThisDirectory, onRefreshAll, vfsRename, showToast
   // ====================================================================
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -149,6 +180,28 @@ const FileTreeItem = ({
       }
     }
 
+    // 열린 탭에 포함된 파일/폴더인지 확인
+    if (openTabPaths && openTabPaths.length > 0 && sourcePath) {
+      const normSource = sourcePath.replace(/\\/g, '/');
+      if (draggedNode && draggedNode.kind === 'directory') {
+        // 폴더 이동 시: 열린 탭 중 해당 폴더 하위에 있는 파일이 있는지 확인
+        const hasOpenDescendant = openTabPaths.some(tp => {
+          const normTp = tp.replace(/\\/g, '/');
+          return normTp === normSource || normTp.startsWith(normSource + '/');
+        });
+        if (hasOpenDescendant) {
+          showToast("열려 있는 파일이 포함된 폴더는 이동할 수 없습니다.", "warning");
+          return;
+        }
+      } else {
+        // 파일 이동 시: 열린 탭에 해당 파일이 있는지 확인
+        if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normSource)) {
+          showToast("편집기에서 열려 있는 파일은 이동할 수 없습니다.", "warning");
+          return;
+        }
+      }
+    }
+
     try {
       if (workspaceType === 'local') {
         const newPath = node.path ? `${node.path}\\${sourceName}` : sourceName;
@@ -156,6 +209,8 @@ const FileTreeItem = ({
         if (api?.renameFile) {
           await api.renameFile(sourcePath, newPath);
           showToast(`'${sourceName}' 이동 완료`, 'success');
+          dispatchMovedEvent(sourcePath, node.path || '');
+          onRefreshAll?.();
           refreshParent();
           await refreshThisDirectory();
         } else {
@@ -166,6 +221,8 @@ const FileTreeItem = ({
           });
           if (res.ok) {
             showToast(`'${sourceName}' 이동 완료`, 'success');
+            dispatchMovedEvent(sourcePath, node.path || '');
+            onRefreshAll?.();
             refreshParent();
             await refreshThisDirectory();
           }
@@ -213,6 +270,8 @@ const FileTreeItem = ({
             }
           }
           showToast(`'${draggedNode.name}' 이동 완료`, 'success');
+          dispatchMovedEvent(sourcePath, node.path || '');
+          onRefreshAll?.();
           refreshParent();
           await refreshThisDirectory();
         } else if (sourcePath) {
@@ -225,6 +284,8 @@ const FileTreeItem = ({
           
           vfsRename(oldPath, newPath);
           showToast(`'${filename}' 이동 완료`, 'success');
+          dispatchMovedEvent(oldPath, node.path || '');
+          onRefreshAll?.();
           refreshParent();
           await refreshThisDirectory();
         }
@@ -556,13 +617,35 @@ const FileTreeItem = ({
   // ====================================================================
   // 📊 [OMD-FILE-FileTreeItem-0007] FileTreeItem ➔ handleDelete
   // 🎯 @KICK  : 파일/폴더 삭제 처리 - 브라우저 VFS 또는 Electron API를 통해 삭제
-  // 🛡️ @GUARD : askConfirm으로 사용자 재확인 후 실행
-  // 🚨 @PATCH : setTimeout 300ms 지연 인덱싱 동기화 갱신으로 OS 파일 락 방어
-  // 🔗 @CALLS : askConfirm, refreshParent, vfsDelete, openFile
+  // 🛡️ @GUARD : askConfirm으로 사용자 재확인 후 실행; openTabPaths로 열린 파일/폴더 삭제 차단
+  // 🚨 @PATCH : setTimeout 300ms 지연 인덱싱 동기화 갱신으로 OS 파일 락 방어; **2026-06-19** — 열린 탭 보호 가드 추가
+  // 🔗 @CALLS : askConfirm, refreshParent, vfsDelete, openFile, showToast
   // ====================================================================
   const handleDelete = async (e: any) => {
     e.stopPropagation();
-    
+
+    // 열린 탭에 포함된 파일/폴더인지 확인
+    if (openTabPaths && openTabPaths.length > 0 && node.path) {
+      const normPath = node.path.replace(/\\/g, '/');
+      if (node.kind === 'directory') {
+        // 폴더 삭제 시: 열린 탭 중 해당 폴더 하위에 있는 파일이 있는지 확인
+        const hasOpenDescendant = openTabPaths.some(tp => {
+          const normTp = tp.replace(/\\/g, '/');
+          return normTp === normPath || normTp.startsWith(normPath + '/');
+        });
+        if (hasOpenDescendant) {
+          showToast("열려 있는 파일이 포함된 폴더는 삭제할 수 없습니다.", "warning");
+          return;
+        }
+      } else {
+        // 파일 삭제 시: 열린 탭에 해당 파일이 있는지 확인
+        if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath)) {
+          showToast("편집기에서 열려 있는 파일은 삭제할 수 없습니다.", "warning");
+          return;
+        }
+      }
+    }
+
     askConfirm({
       title: "파일 삭제",
       message: `'${node.name}'을(를) 정말 삭제하시겠습니까?`,
@@ -698,6 +781,8 @@ const FileTreeItem = ({
                 currentFilePath={currentFilePath}
                 workspaceType={workspaceType}
                 refreshParent={refreshThisDirectory}
+                onRefreshAll={onRefreshAll}
+                openTabPaths={openTabPaths}
                 askConfirm={askConfirm}
                 siblings={children}
                

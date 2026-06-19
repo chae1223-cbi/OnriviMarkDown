@@ -223,33 +223,33 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
 
 ### 3.2 rules 위젯 매핑
 
-| UI 패널 | 태그 키 | 위젯이 제어하는 CSS 속성 |
-|---|---|---|
-| **H1 하단 밑줄** | `h1` | `"border-bottom"` (값: `""`/`"1px solid"`/`"3px double"`) |
-| **P 정렬 방식** | `p` | `"text-align"` (`left`/`center`/`right`/`justify`) |
-| **P 들여쓰기** | `p` | `"text-indent"` (px) |
-| **UL 글머리 마커** | `ul` | `"list-style-type"` (`disc`/`circle`/`square`/`none`) |
-| **OL 숫자 마커** | `ol` | `"list-style-type"` (`decimal`/`decimal-leading-zero`/`upper-alpha`/`lower-alpha`/`upper-roman`/`lower-roman`) |
-| **목록 들여쓰기** | `ul`, `ol` | `"padding-left"` (px) |
-| **LI 항목 간격** | `li` | `"margin-bottom"` (px) |
-| **blockquote 좌측 선 색상** | `blockquote` | `"border-left-color"` |
-| **blockquote 좌측 선 굵기** | `blockquote` | `"border-left-width"` (px) |
-| **blockquote 상하 여백** | `blockquote` | `"margin-top"`, `"margin-bottom"` (px) |
-| **blockquote 안쪽 여백** | `blockquote` | `"padding"` (px) |
-| **table 전체 너비** | `table` | `"width"` (`100%`/`auto`/`50%`) |
-| **table 테두리 모양** | `table` | `"border-style"` (`solid`/`double`/`dotted`/`dashed`/`none`) |
-| **img 정렬 방식** | `img` | `"float"`, `"display"`, `"margin-left"`, `"margin-right"` (4개 동시 제어) |
-| **img 가로/세로/여백** | `img` | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px) |
-| **code 배경/글자색** | `code` | `"background-color"`, `"color"` |
-| **code 글자/둥근정도** | `code` | `"font-size"` (px), `"border-radius"` (px) |
-| **codeBlock 배경/글자색** | `codeBlock` | `"background-color"`, `"color"` |
-| **codeBlock 글자/패딩/둥근정도** | `codeBlock` | `"font-size"` (px), `"padding"` (px), `"border-radius"` (px) |
-| **video 가로/세로/여백** | `video` | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px) |
-| **math 글자색/크기** | `math` | `"color"`, `"font-size"` (px) |
-| **math 상하 여백/정렬** | `math` | `"margin-top"`, `"margin-bottom"` (px), `"text-align"` (`left`/`center`/`right`) |
-| **map 가로/세로/여백** | `map` | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px) |
-| **footnote 글자색/크기** | `footnote` | `"color"`, `"font-size"` (px) |
-| **footnote 줄간격/여백** | `footnote` | `"line-height"`, `"margin-top"`, `"margin-bottom"` (px) |
+| UI 패널                          | 태그 키      | 위젯이 제어하는 CSS 속성                                                                                       |
+| -------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
+| **H1 하단 밑줄**                 | `h1`         | `"border-bottom"` (값: `""`/`"1px solid"`/`"3px double"`)                                                      |
+| **P 정렬 방식**                  | `p`          | `"text-align"` (`left`/`center`/`right`/`justify`)                                                             |
+| **P 들여쓰기**                   | `p`          | `"text-indent"` (px)                                                                                           |
+| **UL 글머리 마커**               | `ul`         | `"list-style-type"` (`disc`/`circle`/`square`/`none`)                                                          |
+| **OL 숫자 마커**                 | `ol`         | `"list-style-type"` (`decimal`/`decimal-leading-zero`/`upper-alpha`/`lower-alpha`/`upper-roman`/`lower-roman`) |
+| **목록 들여쓰기**                | `ul`, `ol`   | `"padding-left"` (px)                                                                                          |
+| **LI 항목 간격**                 | `li`         | `"margin-bottom"` (px)                                                                                         |
+| **blockquote 좌측 선 색상**      | `blockquote` | `"border-left-color"`                                                                                          |
+| **blockquote 좌측 선 굵기**      | `blockquote` | `"border-left-width"` (px)                                                                                     |
+| **blockquote 상하 여백**         | `blockquote` | `"margin-top"`, `"margin-bottom"` (px)                                                                         |
+| **blockquote 안쪽 여백**         | `blockquote` | `"padding"` (px)                                                                                               |
+| **table 전체 너비**              | `table`      | `"width"` (`100%`/`auto`/`50%`)                                                                                |
+| **table 테두리 모양**            | `table`      | `"border-style"` (`solid`/`double`/`dotted`/`dashed`/`none`)                                                   |
+| **img 정렬 방식**                | `img`        | `"float"`, `"display"`, `"margin-left"`, `"margin-right"` (4개 동시 제어)                                      |
+| **img 가로/세로/여백**           | `img`        | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px)                                                  |
+| **code 배경/글자색**             | `code`       | `"background-color"`, `"color"`                                                                                |
+| **code 글자/둥근정도**           | `code`       | `"font-size"` (px), `"border-radius"` (px)                                                                     |
+| **codeBlock 배경/글자색**        | `codeBlock`  | `"background-color"`, `"color"`                                                                                |
+| **codeBlock 글자/패딩/둥근정도** | `codeBlock`  | `"font-size"` (px), `"padding"` (px), `"border-radius"` (px)                                                   |
+| **video 가로/세로/여백**         | `video`      | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px)                                                  |
+| **math 글자색/크기**             | `math`       | `"color"`, `"font-size"` (px)                                                                                  |
+| **math 상하 여백/정렬**          | `math`       | `"margin-top"`, `"margin-bottom"` (px), `"text-align"` (`left`/`center`/`right`)                               |
+| **map 가로/세로/여백**           | `map`        | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px)                                                  |
+| **footnote 글자색/크기**         | `footnote`   | `"color"`, `"font-size"` (px)                                                                                  |
+| **footnote 줄간격/여백**         | `footnote`   | `"line-height"`, `"margin-top"`, `"margin-bottom"` (px)                                                        |
 
 ---
 

@@ -44,6 +44,7 @@ interface LeftSidebarProps {
   openFile: (node: FileNode | null, parentHandle?: any) => void;
   currentFileNode: FileNode | null;
   refreshFileList: () => void;
+  openTabPaths: string[];
   askConfirm: (config: { title: string; message: string; onConfirm: () => void; isDanger?: boolean }) => void;
   previewMode: 'edit' | 'both' | 'preview' | 'css-style';
   setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
@@ -58,7 +59,7 @@ interface LeftSidebarProps {
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-06-19** — openTabPaths prop 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
 export default function LeftSidebar({
@@ -88,6 +89,7 @@ export default function LeftSidebar({
   openFile,
   currentFileNode,
   refreshFileList,
+  openTabPaths = [],
 
   askConfirm,
   isMergeMode = false,
@@ -456,6 +458,8 @@ export default function LeftSidebar({
                       currentFilePath={currentFileNode?.path}
                       workspaceType={workspaceType}
                       refreshParent={refreshFileList}
+                      onRefreshAll={refreshFileList}
+                      openTabPaths={openTabPaths}
                       askConfirm={askConfirm}
                       isMergeMode={isMergeMode}
                       selectedMergeNodes={selectedMergeNodes}

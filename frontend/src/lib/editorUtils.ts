@@ -75,8 +75,8 @@ export interface ProcessedMarkdown {
 // ====================================================================
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
-// 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, page-break 특수 태그, ordered/unordered list indent
-// 🚨 @PATCH : 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정
+// 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, ordered/unordered list indent
+// 🚨 @PATCH : 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
 // 🔗 @CALLS : stripFrontmatter, isAnyListLine, getIndentLevel
 // ====================================================================
 export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown {
@@ -91,23 +91,6 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
   originalLines.forEach((line, index) => {
     const originalLineNumber = index + 1;
     
-    // ✂️ [수동 페이지 분할 문법 사전 지원] [page-break], <!-- [page-break] --> 또는 <!-- [auto-page-break] --> 를 미리 HTML div 태그로 변환하여 
-    // 라인 매핑 정보(lineMap)가 뒤틀리거나 어긋나는 현상을 방지합니다.
-    const isPageBreak = /^(?:\[page-break\]|<!--\s*\[?(?:auto-)?page-break\]?\s*-->)\s*$/.test(line.trim());
-    if (isPageBreak) {
-      expandedLines.push("");
-      expandedLineMap.push(originalLineNumber);
-      expandedLines.push("");
-      expandedLineMap.push(originalLineNumber);
-      expandedLines.push('<div class="page-break"></div>');
-      expandedLineMap.push(originalLineNumber);
-      expandedLines.push("");
-      expandedLineMap.push(originalLineNumber);
-      expandedLines.push("");
-      expandedLineMap.push(originalLineNumber);
-      return;
-    }
-    
     // 수식 기호 정규화 및 볼드 수식 분리
     let processedLine = line.replace(/\\/g, '\\');
     const replaced = processedLine.replace(/(\*\*|__)\$\$(.*?)\$\$(\*\*|__)/g, (match, p1, p2, p3) => {
@@ -121,8 +104,6 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     });
   });
 
-
-
   // Step 2: 탭 보정 및 들여쓰기 공백 정규화 (correctMarkdownIndents)
   let insideCodeBlock = false;
   let insideParagraph = false;
@@ -130,10 +111,6 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
 
   const correctedLines = expandedLines.map((line, index) => {
     const trimmed = line.trim();
-    
-    if (trimmed === '<div class="page-break"></div>') {
-      return line; // 💡 수동 페이지 분할용 특수 HTML 태그는 이스케이프 및 들여쓰기 공백 정규화에서 완전히 스킵합니다.
-    }
     
     if (trimmed.startsWith("```")) {
       insideCodeBlock = !insideCodeBlock;

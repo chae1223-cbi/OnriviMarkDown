@@ -166,8 +166,9 @@ export default function MenuBar({
     { label: t('saveFileAs'), icon: <span>💿</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
     { divider: true },
     { 
-      label: t('export'), 
+      label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
       icon: <span>📤</span>,
+      disabled: previewMode !== 'preview',
       subItems: [
         { label: t('print'), onClick: () => dispatch('PRINT') },
         { label: t('html'), onClick: () => dispatch('EXPORT_HTML') },
@@ -253,10 +254,11 @@ export default function MenuBar({
 }
 
 // ====================================================================
+// ====================================================================
 // 📊 [OMD-EDIT-MenuBar-0001] MenuBar ➔ MenuDropdown
 // 🎯 @KICK  : 상단 메뉴 드롭다운 렌더링 - 서브메뉴 호버 열림 및 단축키 표시
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
+// 🛡️ @GUARD : item.disabled 적용하여 클릭 및 서브메뉴 방지
+// 🚨 @PATCH : **2026-06-19** — 메뉴 아이템 비활성화(disabled) 기능 추가: item.disabled가 true일 때 opacity 및 cursor 스타일을 비활성화 형태로 변환하고 클릭/서브메뉴 오픈을 차단하도록 보정
 // 🔗 @CALLS : 없음
 // ====================================================================
 function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { label: string, isOpen: boolean, onClick: () => void, onClose: () => void, items: any[], isDarkMode: boolean }) {
@@ -284,15 +286,21 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
             item.divider ? (
               <div key={i} className="my-1 border-t border-black/5 dark:border-white/5" />
             ) : (
-              <div key={i} className="relative group/item" onMouseEnter={() => item.subItems && setActiveSubMenu(item.label)} onMouseLeave={() => setActiveSubMenu(null)}>
+              <div key={i} className="relative group/item" onMouseEnter={() => !item.disabled && item.subItems && setActiveSubMenu(item.label)} onMouseLeave={() => setActiveSubMenu(null)}>
                 <button 
+                  disabled={item.disabled}
                   onClick={() => { 
+                    if (item.disabled) return;
                     if (!item.subItems) { 
                       item.onClick?.(); 
                       onClose(); 
                     } 
                   }}
-                  className="w-full flex items-center justify-between px-3 py-2 hover:bg-blue-600 hover:text-white transition-colors text-left text-sm"
+                  className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm ${
+                    item.disabled 
+                      ? 'opacity-40 cursor-not-allowed text-zinc-400 dark:text-zinc-500' 
+                      : 'hover:bg-blue-600 hover:text-white transition-colors'
+                  }`}
                 >
                   <div className="flex items-center gap-2">
                     <span className="w-4 flex justify-center opacity-70">{item.icon}</span>

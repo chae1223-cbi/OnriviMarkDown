@@ -48,7 +48,7 @@
     "guard": "TDZ declaration ordering defense, IME composition lock, stale closure ref backups, race condition guards on mount",
     "patch": "see detailed child entries below",
     "calls": [
-      "useToast", "useEditorTabs", "useFileExplorer", "useEditorSettings", "usePageBreak", "useEditorHandlers",
+      "useToast", "useEditorTabs", "useFileExplorer", "useEditorSettings", "useEditorHandlers",
       "getMdFiles", "fetchAllMdFiles", "resolveRelativeImagePath", "getRelativePath",
       "utilsEditorActions", "utilsPasteHandlers", "getSlashCommands", "preprocessMarkdownForPreview",
       "saveSecureData", "loadSecureData", "idb", "getApiUrl"

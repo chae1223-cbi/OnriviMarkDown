@@ -14,7 +14,7 @@ import { stripFrontmatter } from "@/lib/editorUtils";
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
 // 🛡️ @GUARD : 각 핸들러별 editorRef/selection/model 방어 로직; previewRef 누락 시 export early return
-// 🚨 @PATCH : previewRef 매개변수 미전달로 인한 export 함수 ReferenceError 수정; setIsSettingsModalOpen 누락으로 settings 모달 미오픈 수정; print 핸들러 추가(PDF/HTML → OS 인쇄 통합)
+// 🚨 @PATCH : **2026-06-19** — 인쇄/PDF 기능 통합 처리: print 핸들러 실행 시 window.print() 인쇄 팝업 대신 직접 PDF 파일 저장 기능(exportPDF)을 다이렉트로 수행하도록 패치; exportPDF 호출 시 누락되었던 dynamicCssString(활성 CSS 프로필) 매개변수를 추가 전달하도록 패치; previewRef/setIsSettingsModalOpen 누락 복원 등
 // 🔗 @CALLS : exportPDF, exportHTML, exportEPUB, exportPNG, vfsWriteFile, stripFrontmatter, sanitizePastedText, previewRef, setIsSettingsModalOpen
 // ====================================================================
 export const useEditorHandlers = ({
@@ -30,7 +30,6 @@ export const useEditorHandlers = ({
   activeProfileId,
   isDarkMode,
   dynamicCssString,
-  isPageViewEnabled,
   setSaveStatus,
   setCurrentFileName,
   setCurrentFileNode,
@@ -70,6 +69,8 @@ export const useEditorHandlers = ({
   previewRef,
   createNewTab,
   switchTab,
+  setTabs,
+  activeTabIdRef,
 }: any) => {
 
   const handlers = {
@@ -255,6 +256,7 @@ export const useEditorHandlers = ({
             if (success) {
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
+              setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               return;
             }
@@ -273,6 +275,7 @@ export const useEditorHandlers = ({
             if (res.ok) {
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
+              setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               return;
             }
@@ -289,6 +292,7 @@ export const useEditorHandlers = ({
               await writable.close();
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
+              setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               return;
             } catch (e: any) {
@@ -300,6 +304,7 @@ export const useEditorHandlers = ({
             vfsWriteFile(fileNode.path, currentVal);
             lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
+            setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
             showToast("현재 파일에 안전하게 저장되었습니다.", "success");
             return;
           }
@@ -325,6 +330,7 @@ export const useEditorHandlers = ({
             setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
             lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
+            setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
             await refreshFileList();
             showToast(`'${file.name}' 저장 완료 · 워크스페이스 → ${osParentPath}`, 'success');
           } else {
@@ -368,6 +374,7 @@ export const useEditorHandlers = ({
           setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
           lastSavedContentRef.current = currentVal;
           setSaveStatus('saved');
+          setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
           await refreshFileList();
           showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
         } catch (e: any) {
@@ -539,28 +546,64 @@ export const useEditorHandlers = ({
       }
     },
     openExport: () => setIsExportModalOpen(true),
-    print: () => window.print(),
+    print: async () => {
+      if (!previewRef.current) return;
+      const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+      const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
+      const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor });
+    },
     exportPDF: async () => {
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, showPageBreaks: isPageViewEnabled, marginTop, marginBottom, marginLeft, marginRight, backgroundColor });
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor });
     },
     exportHTML: async () => {
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      await exportHTML({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
+      const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
+      const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
+      await exportHTML({ 
+        previewEl: previewRef.current, 
+        currentFileName: currentFileNameRef.current, 
+        isDarkMode, 
+        showToast, 
+        orientation, 
+        paperSize, 
+        dynamicCssString, 
+        marginTop, 
+        marginBottom, 
+        marginLeft, 
+        marginRight, 
+        backgroundColor 
+      });
     },
     exportEPUB: async () => {
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      await exportEPUB({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
+      await exportEPUB({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, backgroundColor: activeProfile.pageStyle.backgroundColor });
     },
     exportPNG: async () => {
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-      await exportPNG({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, dynamicCssString, showPageBreaks: isPageViewEnabled, backgroundColor: activeProfile.pageStyle.backgroundColor });
+      const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
+      const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
+      await exportPNG({ 
+        previewEl: previewRef.current, 
+        currentFileName: currentFileNameRef.current, 
+        isDarkMode, 
+        showToast, 
+        orientation, 
+        paperSize, 
+        dynamicCssString, 
+        marginTop, 
+        marginBottom, 
+        marginLeft, 
+        marginRight, 
+        backgroundColor 
+      });
     },
     exit: () => window.confirm("종료하시겠습니까?") && window.close(),
     undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
@@ -815,37 +858,6 @@ export const useEditorHandlers = ({
       });
     },
     quickWrap: (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => quickWrap(format),
-    // ====================================================================
-    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0001] useEditorHandlers.ts ➔ pageBreak
-    // 🎯 @KICK  : 커서 위치에 페이지 분할선(<!-- [page-break] -->)을 삽입하여 PDF/인쇄 시 페이지 전환
-    // 🛡️ @GUARD : editorRef, selection, model 존재 여부 확인
-    // 🚨 @PATCH : 없음
-    // 🔗 @CALLS : showToast
-    // ====================================================================
-    pageBreak: () => {
-      if (!editorRef.current) return;
-      const editor = editorRef.current;
-      const selection = editor.getSelection();
-      const model = editor.getModel();
-      if (!model || !selection) return;
-
-      const Range = (window as any).monaco.Range;
-      const Selection = (window as any).monaco.Selection;
-      
-      const insertText = '<!-- [page-break] -->';
-      
-      editor.executeEdits("pageBreak", [{
-        range: selection,
-        text: insertText,
-        forceMoveMarkers: true
-      }]);
-      
-      const currentPos = selection.getEndPosition();
-      const nextLineNumber = currentPos.lineNumber;
-      editor.setSelection(new Selection(nextLineNumber, currentPos.column + insertText.length, nextLineNumber, currentPos.column + insertText.length));
-      editor.focus();
-      showToast("페이지 분할선이 삽입되었습니다.", "info");
-    },
   };
 
   return handlers;
