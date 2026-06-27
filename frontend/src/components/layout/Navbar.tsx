@@ -24,14 +24,27 @@ export function Navbar() {
 
   useEffect(() => {
     setMounted(true);
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUserEmail(session.user.email || null);
-        setIsLoggedIn(true);
-      }
-    });
+    
+    // 비밀번호 재설정 페이지(/reset-password)에서는 임시 세션이 활성화되므로 Navbar의 로그인 상태를 강제로 비활성화
+    const isResetPasswordPage = typeof window !== "undefined" && window.location.pathname.includes("/reset-password");
+
+    if (isResetPasswordPage) {
+      setIsLoggedIn(false);
+      setUserEmail(null);
+    } else {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setUserEmail(session.user.email || null);
+          setIsLoggedIn(true);
+        }
+      });
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
+      if (isResetPasswordPage) {
+        setUserEmail(null);
+        setIsLoggedIn(false);
+      } else if (session?.user) {
         setUserEmail(session.user.email || null);
         setIsLoggedIn(true);
       } else {
