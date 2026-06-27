@@ -1,0 +1,119 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { X, AlertCircle } from 'lucide-react';
+
+/**
+ * [ONR-UI-009] ConfirmModalProps 인터페이스
+ * @description 저장 안 하고 탭 닫기 등의 의사결정을 묻는 ConfirmModal 대화 상자 매개변수 명세입니다.
+ */
+interface ConfirmModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isDanger?: boolean;
+}
+
+/**
+ * [ONR-UI-010] ConfirmModal 컴포넌트 함수
+ * @description 작업의 실행 여부를 예/아니오 단추와 위험성 경고 아이콘 등으로 확인받는 포털 기반 범용 컨펌 창입니다.
+ */
+// ====================================================================
+// 📊 [OMD-CORE-ConfirmModal-0001] ConfirmModal ➔ ConfirmModal
+// 🎯 @KICK  : 확인/취소 선택과 위험 경고 아이콘을 표시하는 포털 기반 범용 컨펌 모달
+// 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 렌더링, isDanger에 따라 스타일 분기
+// 🚨 @PATCH : 없음
+// 🔗 @CALLS : 없음
+// ====================================================================
+export default function ConfirmModal({ 
+  isOpen, 
+  title, 
+  message, 
+  confirmText = "확인", 
+  cancelText = "취소", 
+  onConfirm, 
+  onCancel,
+  isDanger = false
+}: ConfirmModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
+  // Enter or Escape Key Down
+  // ====================================================================
+  // 📊 [OMD-CORE-ConfirmModal-0002] ConfirmModal ➔ useEffect (handleKeyDown)
+  // 🎯 @KICK  : Escape/Enter 키 입력 시 각각 취소/확인 콜백 자동 실행
+  // 🛡️ @GUARD : isOpen이 false면 이벤트 무시
+  // 🚨 @PATCH : 없음
+  // 🔗 @CALLS : onCancel, onConfirm
+  // ====================================================================
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Enter') onConfirm();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onConfirm, onCancel]);
+
+  if (!isOpen) return null;
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div 
+        className="w-full max-w-sm bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden animate-in zoom-in-95 duration-200"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-white/5">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={18} className={isDanger ? "text-red-500" : "text-blue-500"} />
+            <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{title}</h3>
+          </div>
+          <button 
+            onClick={onCancel}
+            className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6">
+          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+            {message}
+          </p>
+          
+          <div className="mt-8 flex items-center justify-end gap-3">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={onConfirm}
+              className={`px-5 py-2.5 ${
+                isDanger 
+                ? 'bg-red-600 hover:bg-red-500 shadow-red-500/20' 
+                : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'
+              } text-white text-xs font-bold rounded-xl shadow-lg transition-all active:scale-95`}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}

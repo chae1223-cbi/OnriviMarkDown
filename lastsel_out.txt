@@ -1,0 +1,2 @@
+﻿Found at: 125463
+'editor.onDidChangeCursorSelection((e) => {\r\n                       lastSelectionRef.current = e.selection;\r\n                       if (!e.selection.isEmpty() && editor.hasTextFocus()) {\r\n                         const position = editor.getScrolledVisiblePosition(e.selection.getStartPosition());\r\n                         if (position) {\r\n                           setFloatingToolbar({ visible: true'

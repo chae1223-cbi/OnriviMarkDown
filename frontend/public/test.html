@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Crop Diagnostic</title>
+  <style>
+    body { background: #1a1a1a; color: #fff; font-family: sans-serif; padding: 20px; }
+    canvas { border: 1px solid #444; margin-top: 10px; }
+    .stats { font-family: monospace; font-size: 16px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>Icon Crop Diagnostic Tool</h1>
+  <div id="stats" class="stats">Loading...</div>
+  <canvas id="canvas"></canvas>
+  <canvas id="croppedCanvas"></canvas>
+
+  <script>
+    const img = new Image();
+    img.src = '/temp_icon.png';
+    img.onload = () => {
+      const width = img.width;
+      const height = img.height;
+      
+      const canvas = document.getElementById('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const data = imgData.data;
+      
+      let minX = width;
+      let minY = height;
+      let maxX = 0;
+      let maxY = 0;
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = (y * width + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          
+          const isGreen = g > 130 && (g - r) > 40 && (g - b) > 40;
+          const isYellowGold = r > 180 && g > 140 && (r - b) > 60 && (g - b) > 60;
+          const isLightOutline = r > 210 && g > 210 && b > 210;
+          
+          const isForeground = isGreen || isYellowGold || isLightOutline;
+          
+          if (isForeground) {
+            const marginX = width * 0.1;
+            const marginY = height * 0.1;
+            if (x >= marginX && x <= (width - marginX) && y >= marginY && y <= (height - marginY)) {
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+      }
+      
+      const stats = document.getElementById('stats');
+      stats.innerHTML = `
+        Image Dimensions: ${width}x${height}<br/>
+        Bounding Box Detected:<br/>
+        &nbsp;&nbsp;minX: ${minX}, minY: ${minY}<br/>
+        &nbsp;&nbsp;maxX: ${maxX}, maxY: ${maxY}<br/>
+        &nbsp;&nbsp;Width: ${maxX - minX}, Height: ${maxY - minY}<br/>
+        &nbsp;&nbsp;Crop Status: ${maxX > minX ? 'SUCCESS' : 'FAILED'}
+      `;
+      
+      // Draw red bounding box on diagnostic canvas
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+      
+      // Draw cropped version
+      const croppedCanvas = document.getElementById('croppedCanvas');
+      croppedCanvas.width = 256;
+      croppedCanvas.height = 256;
+      const cCtx = croppedCanvas.getContext('2d');
+      cCtx.drawImage(canvas, minX, minY, maxX - minX, maxY - minY, 0, 0, 256, 256);
+    };
+  </script>
+</body>
+</html>

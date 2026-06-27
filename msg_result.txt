@@ -1,0 +1,19 @@
+﻿=== msg.* 교체 시작 ===
+  OK: 'msg.error("Monaco loader configuration error", err'
+  OK: "msg.warn('Backend root 조회 실패', err)"
+  NOT FOUND: 'msg.warn("워크스페이스 캐시가 유효하지 않아 동작: 캐시를 초기화합니다.")'
+  NOT FOUND: 'msg.error("파일 디렉토리 목록 오류", e)'
+  OK: 'msg.error("refreshFileList api.listDirectory 오류", '
+  OK: 'msg.error("Local file fetch error", err)'
+  OK: 'msg.error("워크스페이스 선택 오류", err)'
+  OK: 'msg.error("폴더 선택 오류", err)'
+  OK: 'msg.error("Save failed", e)'
+  OK: "msg.error('HTML Table parsing error', err)"
+  OK: 'msg.error("클립보드 이미지 업로드 실패", err)'
+  msg.warn unmapped command: 1 replaced
+
+남은 msg.* 호출: 2개
+  L553: 'msg.warn'
+  L780: 'msg.error'
+
+Done!

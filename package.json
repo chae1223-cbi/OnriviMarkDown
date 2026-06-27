@@ -1,0 +1,75 @@
+{
+  "name": "onrivi-author",
+  "version": "1.0.0",
+  "description": "Onrivi Author - Web-based Markdown Editor",
+  "author": "Onrivi Studio",
+  "homepage": "https://onrivi.com",
+  "main": "main.js",
+  "scripts": {
+    "dev": "npm run build && set NO_SERVER=true&& electron .",
+    "electron": "electron .",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "build": "npm run build:frontend",
+    "build:extension": "cd frontend && npm run build:extension",
+    "build:electron": "electron-builder --win",
+    "dist": "npm run build && npm run build:electron",
+    "deploy": "npm run build:frontend && npx wrangler deploy ./frontend/out --compatibility-date 2026-06-23 --routes author.onrivi.com/* --custom-domain true"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "dotenv": "^16.0.3",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.1",
+    "electron": "^42.4.1",
+    "electron-builder": "^24.6.3"
+  },
+  "build": {
+    "appId": "com.onrivi.author",
+    "productName": "Onrivi Author",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "frontend/public/icon.png",
+      "fileAssociations": [
+        {
+          "ext": "md",
+          "name": "Markdown Document",
+          "description": "온리비 어서 마크다운 문서",
+          "role": "Editor"
+        },
+        {
+          "ext": "markdown",
+          "name": "Markdown Document",
+          "description": "온리비 어서 마크다운 문서",
+          "role": "Editor"
+        }
+      ],
+      "protocols": {
+        "name": "Onrivi Author Protocol",
+        "schemes": [
+          "onriviauthor"
+        ]
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "frontend/out/**/*",
+      "docs/**/*",
+      "!frontend/node_modules/**/*"
+    ],
+    "asar": false
+  }
+}
