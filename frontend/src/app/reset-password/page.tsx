@@ -107,6 +107,10 @@ export default function ResetPasswordPage() {
         throw new Error(error.message);
       }
 
+      // 비밀번호 업데이트가 성공한 직후 세션을 강제로 원천 파괴(로그아웃) 시킵니다.
+      // 이 처리를 통해 메일에 들어 있던 일회성 리커버리 링크는 즉각 서버 단에서 영구 무력화(만료) 됩니다.
+      await supabase.auth.signOut();
+
       showToast("비밀번호가 성공적으로 변경되었습니다! 로그인 페이지로 이동합니다.", "success");
       setPassword("");
       setConfirmPassword("");
