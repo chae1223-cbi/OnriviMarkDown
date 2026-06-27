@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
-// 🚨 @PATCH : **2026-06-23** — 로그아웃 시 license_activations 직접 delete DML을 Supabase Stored Procedure (deactivate_session_on_logout RPC) 호출 방식으로 위임 개편 패치
+// 🚨 @PATCH : **2026-06-28** — 비밀번호 재설정(/reset-password) 화면 진입 시 임시 토큰으로 로그인 상태의 헤더 UI가 노출되지 않도록 강제 필터링 우회 패치
+//             **2026-06-23** — 로그아웃 시 license_activations 직접 delete DML을 Supabase Stored Procedure (deactivate_session_on_logout RPC) 호출 방식으로 위임 개편 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스모피즘 Navbar, Inter 폰트, Ice Blue 액센트); 비로그인 상태 진입 경로 제거(로그인/시작하기 버튼 숨김) 패치; 헤더에 비로그인용 '시작하기' 버튼 복원 패치
 //             **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 및 Supabase Auth 연동 패치; 깨진 logo 이미지 아이콘을 /icon.png로 변경; 다운로드 네비게이션 링크 제거 대응 패치
 // 🔗 @CALLS : supabase.auth, supabase.rpc, Button, useRouter

@@ -2,10 +2,11 @@
 // 📊 [OMD-AUTH-reset-password-0001] page ➔ ResetPasswordPage
 // 🎯 @KICK  : Supabase Auth 기반 새로운 비밀번호 변경 입력창 및 패스워드 재설정 화면
 // 🛡️ @GUARD : 비밀번호 영문소문자/숫자/특수문자 조합 8~20자 유효성, 비밀번호 확인 일치성 검증 가드
-// 🚨 @PATCH : **2026-06-27** — Supabase Auth 대신 Next.js API Route Handler(/api/auth/reset-password-confirm)에 이메일 인증 토큰을 대조해 비밀번호를 변경하도록 개편 패치
+// 🚨 @PATCH : **2026-06-28** — 비밀번호 변경 성공 시 즉시 signOut()을 호출하여 메일 복구 링크(토큰 세션)를 일회성으로 즉각 영구 파괴하도록 보안 강화 패치
+//             **2026-06-27** — Supabase Auth 대신 Next.js API Route Handler(/api/auth/reset-password-confirm)에 이메일 인증 토큰을 대조해 비밀번호를 변경하도록 개편 패치
 //             **2026-06-23** — 화면 내 고정식 {errorMessage}/{successMessage} 경고 및 안내 문구를 제거하고 성공/실패 알림을 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치;
 //             **2026-06-22** — Luminous Arctic 디자인 적용 (Neomorphic 그림자 shadow-2xl 및 버튼 배경색 #6366f1 일원화) 패치
-// 🔗 @CALLS : fetch, Navbar, Footer, useRouter, useToast
+// 🔗 @CALLS : supabase.auth, Navbar, Footer, useRouter, useToast
 // ====================================================================
 "use client";
 
