@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-Footer-0021] Footer ➔ Footer
 // 🎯 @KICK  : 웹사이트 하단 푸터로 주요 서비스 바로가기 링크 및 사업자 고지 정보 노출
 // 🛡️ @GUARD : 정적 데이터 출력 위주이나 현재 연도를 new Date().getFullYear()로 안전하게 가져와 출력
-// 🚨 @PATCH : **2026-06-21** — OMDLanding UI 이식 패치; 로고 아이콘 /icon.png 변경 패치
+// 🚨 @PATCH : **2026-06-28** — 하단 제품 메뉴에 온라인 문의하기(/contact) 네비게이션 링크 추가 패치
+//             **2026-06-21** — OMDLanding UI 이식 패치; 로고 아이콘 /icon.png 변경 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 푸터, Ice Blue 링크 호버)
 // 🔗 @CALLS : Link
 // ====================================================================
@@ -16,6 +17,7 @@ const footerLinks = {
     { label: "기능 소개", href: "#features" },
     { label: "요금제", href: "#pricing" },
     { label: "도움말 센터", href: "/docs" },
+    { label: "문의하기", href: "/contact" },
   ],
   약관: [
     { label: "이용약관", href: "/terms" },
