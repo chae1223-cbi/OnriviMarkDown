@@ -1011,10 +1011,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       isExpired: true,
       remainingDays: 0,
       userId: savedUserId,
-      licenseKey: '',
+      licenseKey: savedKey || cached?.licenseKey || '',
       paymentNo: savedPaymentNo,
-      planName: '미인증 라이선스',
-      nextPaymentDate: undefined
+      planName: cached?.planName || '미인증 라이선스',
+      nextPaymentDate: cached?.nextPaymentDate || undefined
     });
   }, [deviceId, showToast]);
 
