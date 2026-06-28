@@ -142,7 +142,8 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-Toolbar-0008] Toolbar ➔ Toolbar
 // 🎯 @KICK  : 에디터 상단 툴바 컴포넌트 - 서식/제목/문단/삽입/고급/보기/설정 그룹 제공
 // 🛡️ @GUARD : ToolbarProps 인터페이스로 props 타입 검증; isExpired 시 formatting 영역 pointer-events-none+opacity-40
-// 🚨 @PATCH : 2026-06-18 — h-[60px]→h-11 (44px) 좌측 사이드바 탭과 높이 수평 정렬; bg/shadow/border-white 제거; 2026-06-22 — isExpired prop 추가, overlay 제거 → formatting 영역 직접 비활성화; 우측 순서 설정→대시보드→온리비어서로 변경 (항시 클릭 가능)
+// 🚨 @PATCH : **2026-06-28** — 데스크톱 앱(Electron) 내부 서빙 시 하단부의 온리비 홈(랜딩) 및 마이페이지 대시보드 바로가기 버튼을 항상 노출시키되, 일렉트론 환경일 때 클릭 시 외부 시스템 기본 브라우저 새창으로 열리도록(openExternal 연동) 보완하여 화면 이탈을 방지하고, 라이선스가 만료된 미리보기 모드일 때(isExpired) 서식 및 서식 편집 관련 아이콘들이 툴바에서 완전히 숨김 처리되도록 렌더링 초기화 가드 추가
+//             2026-06-18 — h-[60px]→h-11 (44px) 좌측 사이드바 탭과 높이 수평 정렬; bg/shadow/border-white 제거; 2026-06-22 — isExpired prop 추가, overlay 제거 → formatting 영역 직접 비활성화; 우측 순서 설정→대시보드→온리비어서로 변경 (항시 클릭 가능)
 // 🔗 @CALLS : ToolbarGroup, ToolbarButton, HeadingSpinButton, CopyPreviewButton, useToast
 // ====================================================================
 export default function Toolbar({ 
@@ -202,9 +203,9 @@ export default function Toolbar({
 
   return (
     <div className="h-full w-14 flex flex-col items-center py-3 px-1 z-30 text-zinc-700 dark:text-zinc-300 overflow-y-auto overflow-x-hidden shrink-0 bg-zinc-50 dark:bg-zinc-900/50">
-      {/* 🎨 서식 버튼들 (미리보기 모드에서는 비활성화) */}
-      {(previewMode !== 'preview') && (
-        <div className={`flex flex-col items-center gap-0 select-none ${isExpired ? 'pointer-events-none opacity-40' : ''}`}>
+      {/* 🎨 서식 버튼들 (미리보기 모드 및 라이선스 만료 시에는 완전히 가림) */}
+      {(previewMode !== 'preview' && !isExpired) && (
+        <div className="flex flex-col items-center gap-0 select-none">
           {/* 서식 */}
           <ToolbarButton label="B" title={t('bold')} onAction={() => dispatch('BOLD')} bold />
           <ToolbarButton label="I" title={t('italic')} onAction={() => dispatch('ITALIC')} italic />
@@ -260,21 +261,51 @@ export default function Toolbar({
 
       {/* ⚙️ 하단 영역: 온리비어서 → 대시보드 → 설정 → 로그아웃 */}
       <div className="w-10 border-t-2 border-zinc-300 dark:border-zinc-700/60 mb-2" />
-
       <button
-        onMouseDown={(e) => { e.preventDefault(); router.push('/'); }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          const isDesktop = typeof window !== "undefined" && (
+            !!(window as any).electronAPI || 
+            navigator.userAgent.toLowerCase().includes('electron') ||
+            new URLSearchParams(window.location.search).get('env') === 'desktop'
+          );
+          if (isDesktop && (window as any).electronAPI?.openExternal) {
+            // full URL 전달하여 외부 시스템 기본 웹 브라우저 새창 연동 확실화
+            (window as any).electronAPI.openExternal('https://onrivi.com/');
+          } else if (isDesktop) {
+            window.open('https://onrivi.com/', '_blank');
+          } else {
+            router.push('/');
+          }
+        }}
         className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
         title="온리비 어서 홈으로"
       >
-        <img src="/icon.png" alt="온리비" className="w-5 h-5 object-contain" />
+        <img src="./icon.png" alt="온리비" className="w-5 h-5 object-contain" />
       </button>
       <button 
-        onMouseDown={(e) => { e.preventDefault(); router.push('/dashboard'); }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          const isDesktop = typeof window !== "undefined" && (
+            !!(window as any).electronAPI || 
+            navigator.userAgent.toLowerCase().includes('electron') ||
+            new URLSearchParams(window.location.search).get('env') === 'desktop'
+          );
+          if (isDesktop && (window as any).electronAPI?.openExternal) {
+            // full URL 전달하여 외부 시스템 기본 웹 브라우저 새창 연동 확실화
+            (window as any).electronAPI.openExternal('https://onrivi.com/dashboard');
+          } else if (isDesktop) {
+            window.open('https://onrivi.com/dashboard', '_blank');
+          } else {
+            router.push('/dashboard');
+          }
+        }}
         className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-base"
         title="대시보드 이동"
       >
         <span className="text-zinc-500 dark:text-zinc-400 text-lg">🔠</span>
       </button>
+
       <button 
         onMouseDown={(e) => { e.preventDefault(); dispatch('SETTINGS'); }}
         className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"

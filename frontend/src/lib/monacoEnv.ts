@@ -4,7 +4,7 @@ import { loader } from '@monaco-editor/react';
 // 📊 [OMD-EDIT-monacoEnv-0001] monacoEnv.ts ➔ configureMonacoEnvironment
 // 🎯 @KICK  : Monaco Editor 워커/로더 경로를 로컬(Electron/Web) 또는 Extension 환경에 맞게 구성
 // 🛡️ @GUARD : window 부재, Extension 환경(chrome.runtime.id) 조기 반환
-// 🚨 @PATCH : loader.config try-catch로 미초기화 상태 무시
+// 🚨 @PATCH : loader.config try-catch로 미초기화 상태 무시 | **2026-06-28** — CDN Monaco Editor 라이브러리와 워커 로더 버전 불일치로 인한 M.findSectionHeaders is not a function 런타임 타입 에러를 차단하기 위해 0.44.0 버전으로 매칭 하향 안정화 적용
 // 🔗 @CALLS : 없음
 // ====================================================================
 export function configureMonacoEnvironment(): void {
@@ -31,7 +31,7 @@ export function configureMonacoEnvironment(): void {
   // Monaco loader 경로를 로컬로 설정 (dev: Next.js public/, packaged: out/)
   // 이렇게 하면 loader.js, editor.main.css 등 모든 리소스가 로컬에서 로드됨
   try {
-    loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs' } });
+    loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
   } catch {
     // 로더가 아직 초기화되지 않은 경우 무시 (onMount에서 처리됨)
   }

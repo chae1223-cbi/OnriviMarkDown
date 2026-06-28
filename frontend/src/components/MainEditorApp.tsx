@@ -33,7 +33,7 @@
 
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
-loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs' } });
+loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
 import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
 import Script from 'next/script'; // 넥스트 스크립트 - 
 import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더링
@@ -1164,9 +1164,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const api = (window as any).electronAPI;
     let removeListener: any = null;
     if (api && typeof api.onLicenseActivated === 'function') {
-      removeListener = api.onLicenseActivated((updatedData: any) => {
-        handleSuccessActivation(updatedData.verifyKey, updatedData.userId, updatedData.paymentNo || '', updatedData.licenseKey || '');
-        showToast("🎉 정품 라이선스가 자동으로 성공적으로 등록되었습니다!", "success");
+      removeListener = api.onLicenseActivated(async (updatedData: any) => {
+        await handleSuccessActivation(updatedData.verifyKey, updatedData.userId, updatedData.paymentNo || '', updatedData.licenseKey || '');
+        showToast("🎉 정품 라이선스 연동 성공! 깨끗한 환경을 위해 에디터를 다시 시작합니다...", "success");
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       });
     }
 
@@ -1878,8 +1881,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 📊 [OMD-IO-MainEditorApp-0037] MainEditorApp.tsx ➔ electronAPI_listeners
 // 🎯 @KICK  : 파일 작업 및 외부 파일 열기를 위한 Electron 메인 프로세스 IPC 리스너 등록
 // 🛡️ @GUARD : 정리 시 리스너 제거, 보류 중인 외부 파일 참조 처리
-// 🚨 @PATCH : pendingExternalFileRef가 마운트 완료될 때까지 파일 열기 연기
-// 🔗 @CALLS : api.onNewFileRequested, api.onSaveFileRequested, api.onSaveFileAsRequested, api.onReceiveFile, openExternalFile, handlers.newFile, handlers.save, handlers.saveAs
+// 🚨 @PATCH : **2026-06-28** — 최초 실행 시 api.getInitialFilePath() 호출을 추가하여 윈도우 탐색기/바탕화면에서
+//             .md 파일 더블클릭 시 앱 기동 후 해당 파일이 자동으로 열리도록 IPC 연결 패치
+// 🔗 @CALLS : api.onNewFileRequested, api.onSaveFileRequested, api.onSaveFileAsRequested, api.onReceiveFile, api.getInitialFilePath, openExternalFile, handlers.newFile, handlers.save, handlers.saveAs
 // ====================================================================
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
@@ -1896,7 +1900,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         });
       }
 
-      // restoreSettings에서 확보해 둔 pending 파일 경로 처리
+      // 🆕 최초 실행 시: 앱이 .md 파일 더블클릭으로 기동된 경우 해당 파일 경로를 pull 방식으로 가져와 즉시 오픈
+      if (api.getInitialFilePath) {
+        api.getInitialFilePath().then((filePath: string | null) => {
+          if (filePath) {
+            openExternalFile(filePath);
+          }
+        }).catch(() => {});
+      }
+
+      // restoreSettings에서 확보해 둔 pending 파일 경로 처리 (폴백)
       if (pendingExternalFileRef.current) {
         const path = pendingExternalFileRef.current;
         pendingExternalFileRef.current = null;
@@ -1909,6 +1922,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       };
     }
   }, [mounted, content, currentFileNode]);
+
 
 // ====================================================================
 // 📊 [OMD-FILE-MainEditorApp-0038] MainEditorApp.tsx ➔ openExternalFile

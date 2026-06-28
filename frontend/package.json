@@ -7,7 +7,7 @@
     "clean": "rd /s /q .next",
     "dev:clean": "npm run clean && next dev",
     "build": "next build",
-    "build:desktop": "set ASSET_PREFIX=./&& next build",
+    "build:desktop": "next build",
     "build:extension": "npm run build && node fix-extension.js",
     "start": "next start",
     "lint": "next lint"
