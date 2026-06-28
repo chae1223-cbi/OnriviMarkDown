@@ -1,7 +1,7 @@
 // 🚨 @PATCH : **2026-06-19** — EPUB 생성 시 수동 챕터 분할 흔적 코드를 전면 제거하고 단일 챕터 구조로 단순화
 
 import JSZip from 'jszip';
-import { msg } from './msg';
+import { msg } from './systemMessages';
 
 // [ONR-EXP-002] EPUB 규격 파일 어셈블링: 마크다운 렌더링된 XHTML 소스와 정적 스타일, OPF 메타데이터 파일을 JSZip을 통해 표준 e-book 구조로 빌드하고 내보내는 비동기 생성기입니다.
 /** XML/EPUB에서 literal 텍스트를 XHTML에 안전하게 삽입하기 위한 XML 이스케이프 헬퍼 */

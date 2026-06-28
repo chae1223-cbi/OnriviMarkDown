@@ -66,18 +66,47 @@ export default function LicenseModal({
       return;
     }
     
-    setIsVerifyingEmail(true);
     setMessage({ text: '계정 정보를 확인 중입니다...', type: 'info' });
+    setIsVerifyingEmail(true);
     
     try {
-      const { data, error } = await supabase.rpc('check_user_by_email', { p_email: inputUserId.trim() });
+      const api = (window as any).electronAPI;
+      const isDesktop = !!api;
 
-      if (error) throw new Error(error.message);
+      if (isDesktop) {
+        const { data, error } = await supabase.rpc('verify_desktop_license', {
+          p_email: inputUserId.trim(),
+          p_device_uuid: deviceId
+        });
 
-      if (!data || !data.exists) {
-        setMessage({ text: '등록되지 않은 이메일입니다. 먼저 회원가입 후 진행해 주세요.', type: 'error' });
+        if (error) throw new Error(error.message);
+
+        if (!data || (!data.success && data.code !== 'ERR_MAX_DEVICES_EXCEEDED')) {
+          setMessage({ text: '등록되지 않은 이메일이거나 활성화된 구독이 없습니다. 회원가입 및 결제를 진행해주세요.', type: 'error' });
+        } else {
+          if (!data.success && data.code === 'ERR_MAX_DEVICES_EXCEEDED') {
+            setMessage({ text: '동시 접속 제한을 초과하여 제한 사용자로 접근합니다.', type: 'warning' });
+          } else {
+            setMessage({ text: `본 계정은 성공적으로 확인되었습니다. (${data.plan_name || 'PRO'} 플랜)`, type: 'success' });
+          }
+          if (typeof api.saveLicenseFull === 'function') {
+            await api.saveLicenseFull({ userId: inputUserId.trim(), paymentNo: data.payment_no || '', lastRunTime: Date.now() });
+          }
+          onSuccessActivation('', inputUserId.trim(), data.payment_no || '', data.license_key || '');
+          setTimeout(() => {
+            onClose();
+            window.location.reload(); 
+          }, 1500);
+        }
       } else {
-        setMessage({ text: '✅ 이메일이 확인되었습니다. 구독 페이지로 이동하여 결제를 진행해 주세요.', type: 'success' });
+        const { data, error } = await supabase.rpc('check_user_by_email', { p_email: inputUserId.trim() });
+        if (error) throw new Error(error.message);
+
+        if (!data || !data.exists) {
+          setMessage({ text: '등록되지 않은 이메일입니다. 먼저 회원가입 후 진행해 주세요.', type: 'error' });
+        } else {
+          setMessage({ text: '✅ 이메일이 확인되었습니다. 구독 페이지로 이동하여 결제를 진행해 주세요.', type: 'success' });
+        }
       }
     } catch (err: any) {
       setMessage({ text: `확인 중 오류가 발생했습니다: ${err.message}`, type: 'error' });

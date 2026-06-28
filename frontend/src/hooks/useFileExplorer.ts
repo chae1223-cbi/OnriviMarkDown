@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { useEffect, useCallback, useRef } from 'react';
-import { FileNode, scanDirectory, idb } from '@/lib/helper';
-import { getVfsFiles, vfsReadFile, vfsWriteFile } from '@/lib/vfsHelper';
-import { getApiUrl } from '@/lib/api';
+import { FileNode, scanDirectory, idb } from '@/lib/indexedDbHelper';
+import { getVfsFiles, vfsReadFile, vfsWriteFile } from '@/lib/virtualFileSystem';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import { EditorTab } from '@/components/UnifiedTabBar';
 

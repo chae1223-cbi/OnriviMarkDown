@@ -2,17 +2,19 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
-// 🚨 @PATCH : **2026-06-19** — PNG 및 EPUB 내보내기 시 외부 이미지/웹폰트 fetch CSP 차단 버그를 해결하기 위해 connect-src에 http: https: 추가 허용; Node.js net 모듈과 Electron net 모듈 충돌로 인한 net.fetch TypeError 해결 | **2026-06-20** — 딥링크(onriviauthor://activate) 파라미터 파싱 로직 보완하여 licenseKey와 paymentNo를 함께 추출 및 license.json 저장
-// 🔗 @CALLS : 없음
+// 🚨 @PATCH : **2026-06-28** — 데스크톱 앱 내에서 에디터 외 일반 웹 경로(대시보드, 랜딩 등) 클릭 시 기존 에디터 화면을 덮어쓰지 않고 기본 웹 브라우저 새창으로 띄워 안전하게 분리하도록 내비게이션 라우팅 제어 패치; 데스크톱 패키징/실행 시 실서버 대신 100% 로컬 독립 서빙을 실현하기 위해 `file://` 프로토콜 기반의 빌드 아웃풋 파일(`frontend/out/editor.html`)을 불러오도록 로드 방식을 변경하는 패치; Monaco Editor 로더 CDN CSP 차단 문제 해결; Next.js 정적 빌드 시 `public/` 폴더 내용이 `out/` 폴더로 자동 복사되는 구조를 반영하여 `file:readFromPath` 핸들러 탐색 경로에 `frontend/out`을 최우선으로 추가 — 이로써 설치판에서 도움말(`help/00_시작하기.md`) 파일을 정상적으로 읽어오지 못하던 버그 수정
+//             **2026-06-19** — PNG 및 EPUB 내보내기 시 외부 이미지/웹폰트 fetch CSP 차단 버그를 해결하기 위해 connect-src에 http: https: 추가 허용; Node.js net 모듈과 Electron net 모듈 충돌로 인한 net.fetch TypeError 해결 | **2026-06-20** — 딥링크(onriviauthor://activate) 파라미터 파싱 로직 보완하여 licenseKey와 paymentNo를 함께 추출 및 license.json 저장
+// 🔗 @CALLS : loadURL, onrivi.com
 // ====================================================================
 const { app, BrowserWindow, session, ipcMain, dialog, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const nodeNet = require('net'); // 빈 포트를 찾기 위한 네이티브 모듈 추가
 
-// 🌐 [ media 프로토콜 Privilege 등록 - app.ready 이전에 호출되어야 함 ]
+// 🌐 [ 프로토콜 Privilege 등록 - app.ready 이전에 호출되어야 함 ]
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'media', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true } }
+  { scheme: 'media', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+  { scheme: 'app', privileges: { standard: true, secure: true, bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
 ]);
 
 
@@ -37,7 +39,13 @@ const gotTheLock = app.requestSingleInstanceLock();
 
 // 💡 onriviauthor:// 커스텀 프로토콜 등록 (윈도우 파일 연결 + URL 프로토콜)
 if (process.platform === 'win32') {
-  app.setAsDefaultProtocolClient('onriviauthor');
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient('onriviauthor', process.execPath, [path.resolve(process.argv[1])]);
+    }
+  } else {
+    app.setAsDefaultProtocolClient('onriviauthor');
+  }
 }
 
 if (!gotTheLock) {
@@ -199,24 +207,28 @@ function createWindow(port) {
     autoHideMenuBar: true, // 메뉴 바 자동 숨김으로 몰입도 극대화
   });
 
-  // 🌐 [ 외부 링크 클릭 시 기본 웹 브라우저 새창으로 오픈하는 설정 ]
+  // 🌐 [ 외부 링크 및 일반 웹 페이지 클릭 시 기본 웹 브라우저 새창으로 오픈하는 설정 ]
   // 1) target="_blank" 등으로 새 창을 띄우려는 시도를 가로채 시스템 브라우저로 실행
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    const isLocalApp = url.includes('localhost') || url.includes('127.0.0.1') || url.startsWith('file://');
-    if (!isLocalApp && (url.startsWith('http:') || url.startsWith('https:'))) {
+    // 로컬 환경(file:// 또는 app://) 혹은 에디터 단독 화면(/editor) 및 OAuth 콜백(/auth/callback)만 일렉트론 내부 서빙을 허용합니다.
+    const isInternalRoute = url.startsWith('file://') || url.startsWith('app://') || url.includes('/editor') || url.includes('/auth/callback');
+
+    if (!isInternalRoute && (url.startsWith('http:') || url.startsWith('https:'))) {
       const { shell } = require('electron');
       shell.openExternal(url);
     }
-    return { action: 'deny' }; // 일렉트론 내부에서 새 창이 뜨는 것을 강제 차단
+    return { action: 'deny' }; // 일렉트론 내부에서 새 창이 뜨는 것은 원천 차단
   });
 
-  // 2) 내비게이션 인터셉터: 외부 링크는 시스템 브라우저로, 로컬 경로는 차단 (파일 탐색기 노출 방지)
+  // 2) 내비게이션 인터셉터: 대시보드, 랜딩 등 에디터 외 경로 클릭 시 외부 웹 브라우저 새창으로 강제 튕김 우회
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    // 로컬 앱 URL (localhost 개발서버, file:// 프로덕션 번들) 허용
-    const isLocalApp = url.includes('localhost') || url.includes('127.0.0.1') || url.startsWith('file://');
-    if (isLocalApp) {
-      return; // 허용
+    const isInternalRoute = url.startsWith('file://') || url.startsWith('app://') || url.includes('/editor') || url.includes('/auth/callback');
+
+    if (isInternalRoute) {
+      return; // 내부 서빙 허용
     }
+    
+    // 에디터 화면 외(대시보드, 랜딩, 요금제 등)의 웹 주소로의 창 이동은 가로채 시스템 기본 브라우저로 띄웁니다.
     event.preventDefault();
     if (url.startsWith('http:') || url.startsWith('https:')) {
       const { shell } = require('electron');
@@ -227,15 +239,15 @@ function createWindow(port) {
   // 🛡️ [ Content-Security-Policy 설정 ]
   // Monaco Editor가 eval()과 blob: 워커를 사용하므로 필요한 권한만 허용
   const cspDirectives = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://maps.gstatic.com https://maps.googleapis.com",
-    "worker-src 'self' blob:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: blob: http: https: file: media:",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' ws: wss: http: https: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co",
+    "default-src 'self' app:",
+    "script-src 'self' app: 'unsafe-eval' 'unsafe-inline' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net",
+    "worker-src 'self' app: blob:",
+    "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+    "img-src 'self' app: data: blob: http: https: file: media:",
+    "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
+    "connect-src 'self' app: ws: wss: http: https: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co",
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
-    "media-src 'self' media:"
+    "media-src 'self' app: media:"
   ];
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -246,11 +258,12 @@ function createWindow(port) {
     });
   });
 
-  // 프로덕션 빌드(패키징 완료)이거나 NO_SERVER 환경변수가 활성화된 경우 로컬 정적 HTML 로드
+  // 프로덕션 빌드(패키징 완료)이거나 NO_SERVER 환경변수가 활성화된 경우 로컬 빌드 정적 HTML 로드
   if (app.isPackaged || process.env.NO_SERVER === 'true') {
-    mainWindow.loadFile(path.join(__dirname, 'frontend/out/index.html'));
+    // Next.js App Router 정적 빌드는 file:// 프로토콜에서 동적 chunk 로드에 404를 발생시키므로 app:// 커스텀 프로토콜을 사용합니다.
+    mainWindow.loadURL('app://-/editor.html?env=desktop');
   } else {
-    mainWindow.loadURL('http://localhost:3100');
+    mainWindow.loadURL('http://localhost:3100/editor?env=desktop');
   }
 
   mainWindow.on('closed', function () {
@@ -260,6 +273,33 @@ function createWindow(port) {
 
 // 앱 구동 생명주기 시작
 app.on('ready', async () => {
+  // 🌐 [ Next.js App Router 정적 파일 서빙을 위한 app:// 프로토콜 핸들러 등록 ]
+  protocol.handle('app', (request) => {
+    try {
+      const url = new URL(request.url);
+      let pathname = decodeURIComponent(url.pathname);
+      if (pathname === '/' || pathname === '') pathname = '/editor.html';
+      else if (pathname === '/editor') pathname = '/editor.html';
+      else if (pathname === '/dashboard') pathname = '/dashboard.html';
+      
+      let targetPath = path.join(__dirname, 'frontend/out', pathname);
+      
+      // html 파일 확장자 보완 (Next.js 정적 빌드 대응)
+      if (!path.extname(targetPath) && !fs.existsSync(targetPath)) {
+         if (fs.existsSync(targetPath + '.html')) {
+             targetPath += '.html';
+         } else if (fs.existsSync(path.join(targetPath, 'index.html'))) {
+             targetPath = path.join(targetPath, 'index.html');
+         }
+      }
+      
+      return net.fetch('file://' + targetPath.replace(/\\/g, '/'));
+    } catch (err) {
+      console.error('app protocol serve error:', err);
+      return new Response('Error serving app file', { status: 500 });
+    }
+  });
+
   // 🌐 [ 로컬 이미지 및 미디어 서빙을 위한 media 프로토콜 핸들러 등록 ]
   protocol.handle('media', (request) => {
     try {
@@ -461,9 +501,16 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
       cleanPath = path.join(projectRoot, filePath).normalize('NFC');
     } else {
       // 기존 로직: 개발/번들 내부, 설치된 환경 외부 리소스 순서로 탐색
+      // 📌 Next.js 정적 빌드 시 public/ 폴더 내용이 out/ 폴더로 자동 복사됨.
+      //    패키징 대상이 frontend/out/**/* 이므로 help 파일은 frontend/out/help/ 에 실재함.
+      //    따라서 frontend/out 경로를 최우선으로 탐색하도록 설정.
       const pathsToTry = [
+        path.join(app.getAppPath(), 'frontend/out', filePath),
         path.join(app.getAppPath(), filePath),
-        path.join(process.resourcesPath, filePath)
+        path.join(app.getAppPath(), 'frontend/public', filePath),
+        path.join(process.resourcesPath, 'frontend/out', filePath),
+        path.join(process.resourcesPath, filePath),
+        path.join(process.resourcesPath, 'frontend/public', filePath)
       ];
       
       let foundPath = '';

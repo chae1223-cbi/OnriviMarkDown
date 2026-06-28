@@ -6,9 +6,10 @@
   "homepage": "https://onrivi.com",
   "main": "main.js",
   "scripts": {
-    "dev": "npm run build && set NO_SERVER=true&& electron .",
+    "dev": "cd frontend && npm run dev",
     "electron": "electron .",
-    "build:frontend": "cd frontend && npm install && npm run build",
+    "electron:prod": "set NO_SERVER=true&& electron .",
+    "build:frontend": "cd frontend && npm install && npm run build:desktop",
     "build": "npm run build:frontend",
     "build:extension": "cd frontend && npm run build:extension",
     "build:electron": "electron-builder --win",
@@ -37,7 +38,6 @@
         "nsis",
         "portable"
       ],
-      "icon": "frontend/public/icon.png",
       "fileAssociations": [
         {
           "ext": "md",
@@ -52,16 +52,21 @@
           "role": "Editor"
         }
       ],
-      "protocols": {
-        "name": "Onrivi Author Protocol",
-        "schemes": [
-          "onriviauthor"
-        ]
-      }
+      "protocols": [
+        {
+          "name": "Onrivi Author Protocol",
+          "schemes": [
+            "onriviauthor"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "perMachine": false
     },
     "files": [
       "main.js",
@@ -70,6 +75,6 @@
       "docs/**/*",
       "!frontend/node_modules/**/*"
     ],
-    "asar": false
+    "asar": true
   }
 }

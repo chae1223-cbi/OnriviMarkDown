@@ -1,5 +1,5 @@
 /*
- * vfsHelper.ts — Virtual File System (가상 파일 시스템)
+ * virtualFileSystem.ts — Virtual File System (가상 파일 시스템)
  *
  * 브라우저 localStorage를 기반으로 한 단순한 가상 파일 시스템입니다.
  * 실제 파일 I/O 없이도 .md 파일을 생성/수정/삭제/이름변경할 수 있습니다.
@@ -12,8 +12,8 @@
  * DEFAULT_WELCOME_MD를 사용합니다.
  */
 
-import { FileNode } from './helper';
-import { msg } from './msg';
+import { FileNode } from './indexedDbHelper';
+import { msg } from './systemMessages';
 import { DEFAULT_WELCOME_MD } from '@/constants/welcomeContent';
 
 const DEFAULT_WELCOME_TEXT = DEFAULT_WELCOME_MD;
@@ -29,7 +29,7 @@ const VFS_CONTENT_PREFIX = 'onrivi_vfs_content_';
  * 없을 경우 기본 Welcome.md 파일을 포함하여 초기화합니다.
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0001] vfsHelper.ts ➔ getVfsFiles
+// 📊 [OMD-FILE-virtualFileSystem-0001] virtualFileSystem.ts ➔ getVfsFiles
 // 🎯 @KICK  : localStorage에서 가상 파일 목록 조회, 없으면 Welcome.md로 초기화
 // 🛡️ @GUARD : window 부재, JSON 파싱 오류 시 빈 배열
 // 🚨 @PATCH : 없음
@@ -65,7 +65,7 @@ export function getVfsFiles(): FileNode[] {
  * 가상 파일 목록 구조를 로컬 스토리지에 저장합니다.
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0002] vfsHelper.ts ➔ saveVfsFiles
+// 📊 [OMD-FILE-virtualFileSystem-0002] virtualFileSystem.ts ➔ saveVfsFiles
 // 🎯 @KICK  : 가상 파일 목록을 localStorage에 JSON 직렬화하여 저장
 // 🛡️ @GUARD : window 부재
 // 🚨 @PATCH : 없음
@@ -81,7 +81,7 @@ export function saveVfsFiles(files: FileNode[]): void {
  * 가상 파일의 텍스트 내용을 가져옵니다.
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0003] vfsHelper.ts ➔ vfsReadFile
+// 📊 [OMD-FILE-virtualFileSystem-0003] virtualFileSystem.ts ➔ vfsReadFile
 // 🎯 @KICK  : 가상 파일 텍스트 내용을 localStorage에서 조회
 // 🛡️ @GUARD : window 부재, null 반환 시 빈 문자열
 // 🚨 @PATCH : 없음
@@ -105,7 +105,7 @@ export function vfsWriteFile(path: string, content: string): void {
  * 특정 경로에서 노드를 검색하는 헬퍼 함수
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0005] vfsHelper.ts ➔ findNodeByPath
+// 📊 [OMD-FILE-virtualFileSystem-0005] virtualFileSystem.ts ➔ findNodeByPath
 // 🎯 @KICK  : 노드 배열에서 path로 노드 재귀 검색
 // 🛡️ @GUARD : directory kind 확인, children 순회
 // 🚨 @PATCH : 없음
@@ -126,7 +126,7 @@ function findNodeByPath(nodes: FileNode[], path: string): FileNode | null {
  * 새 파일을 가상 파일 시스템에 추가합니다.
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0006] vfsHelper.ts ➔ vfsCreateFile
+// 📊 [OMD-FILE-virtualFileSystem-0006] virtualFileSystem.ts ➔ vfsCreateFile
 // 🎯 @KICK  : 가상 파일 시스템에 새 .md 파일 생성 (확장자 자동 추가)
 // 🛡️ @GUARD : parentPath 분기, findNodeByPath로 부모 폴더 검증, throw Error
 // 🚨 @PATCH : 없음
@@ -163,7 +163,7 @@ export function vfsCreateFile(parentPath: string, name: string): void {
  * 새 폴더를 가상 파일 시스템에 추가합니다.
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0007] vfsHelper.ts ➔ vfsCreateFolder
+// 📊 [OMD-FILE-virtualFileSystem-0007] virtualFileSystem.ts ➔ vfsCreateFolder
 // 🎯 @KICK  : 가상 파일 시스템에 새 폴더 생성
 // 🛡️ @GUARD : parentPath 존재 여부에 따른 루트/하위 분기, findNodeByPath로 부모 검증
 // 🚨 @PATCH : 없음
@@ -199,7 +199,7 @@ export function vfsCreateFolder(parentPath: string, name: string): void {
  * 파일 및 폴더 구조 내에서 경로를 재귀적으로 수정합니다.
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0008] vfsHelper.ts ➔ updateChildPaths
+// 📊 [OMD-FILE-virtualFileSystem-0008] virtualFileSystem.ts ➔ updateChildPaths
 // 🎯 @KICK  : 노드 및 하위 노드의 path를 old 접두사에서 new 접두사로 재귀 교체
 // 🛡️ @GUARD : directory kind 확인, children 존재 여부
 // 🚨 @PATCH : 없음
@@ -220,7 +220,7 @@ function updateChildPaths(node: FileNode, oldPathPrefix: string, newPathPrefix: 
  * 가상 파일/폴더의 이름을 변경하고 경로를 수정합니다.
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0009] vfsHelper.ts ➔ vfsRename
+// 📊 [OMD-FILE-virtualFileSystem-0009] virtualFileSystem.ts ➔ vfsRename
 // 🎯 @KICK  : 가상 파일/폴더 이름 변경 및 경로 수정 (하위 콘텐츠 키 마이그레이션)
 // 🛡️ @GUARD : file/directory 분기, 하위 경로 updateChildPaths 재귀 호출
 // 🚨 @PATCH : 없음
@@ -280,7 +280,7 @@ export function vfsRename(oldPath: string, newPath: string): void {
  * 가상 파일/폴더를 삭제합니다. 하위 콘텐츠도 함께 정리합니다.
  */
 // ====================================================================
-// 📊 [OMD-FILE-vfsHelper-0010] vfsHelper.ts ➔ vfsDelete
+// 📊 [OMD-FILE-virtualFileSystem-0010] virtualFileSystem.ts ➔ vfsDelete
 // 🎯 @KICK  : 가상 파일/폴더 삭제 (하위 콘텐츠 localStorage 정리 포함)
 // 🛡️ @GUARD : 재귀 clearContents로 하위 파일 키 일괄 제거
 // 🚨 @PATCH : 없음

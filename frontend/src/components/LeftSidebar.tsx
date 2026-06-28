@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import GlobalSearch from './GlobalSearch';
 import FileTreeItem from './FileTreeItem';
-import { FileNode } from '@/lib/helper';
-import { getApiUrl } from '@/lib/api';
+import { FileNode } from '@/lib/indexedDbHelper';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
 import { Plus, FolderPlus } from 'lucide-react';
-import { msg } from '@/lib/msg';
+import { msg } from '@/lib/systemMessages';
 
 interface TocItem {
   id: string;
@@ -148,7 +148,7 @@ export default function LeftSidebar({
             openFile({ name: finalName, kind: 'file', handle }, rootFolder?.handle);
           } else {
             // LocalStorage 가상 파일 생성
-            const { vfsCreateFile } = await import('@/lib/vfsHelper');
+            const { vfsCreateFile } = await import('@/lib/virtualFileSystem');
             vfsCreateFile("", finalName);
             refreshFileList();
             openFile({ name: finalName, kind: 'file', path: finalName });
@@ -189,7 +189,7 @@ export default function LeftSidebar({
             await rootFolder.handle.getDirectoryHandle(name, { create: true });
           } else {
             // LocalStorage 가상 폴더 생성
-            const { vfsCreateFolder } = await import('@/lib/vfsHelper');
+            const { vfsCreateFolder } = await import('@/lib/virtualFileSystem');
             vfsCreateFolder("", name);
           }
         } else {
@@ -297,7 +297,7 @@ export default function LeftSidebar({
           return children;
         } else {
           // LocalStorage VFS용 폴백
-          const { getVfsFiles } = await import('@/lib/vfsHelper');
+          const { getVfsFiles } = await import('@/lib/virtualFileSystem');
           const allVfs = getVfsFiles();
           const findChildren = (nodes: FileNode[]): FileNode[] => {
             for (const n of nodes) {

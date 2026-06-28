@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUp, ArrowDown, X, Layers, Trash2, ArrowUpDown } from 'lucide-react';
-import { FileNode } from '@/lib/helper';
-import { getApiUrl } from '@/lib/api';
+import { FileNode } from '@/lib/indexedDbHelper';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { useToast } from '@/components/ToastProvider';
 
 

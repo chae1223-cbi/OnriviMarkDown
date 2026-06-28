@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Search, CaseSensitive, FileText } from 'lucide-react';
-import { FileNode } from '@/lib/helper';
-import { msg } from '@/lib/msg';
-import { getApiUrl } from '@/lib/api';
+import { FileNode } from '@/lib/indexedDbHelper';
+import { msg } from '@/lib/systemMessages';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 
 interface SearchResult {
   fileName: string;

@@ -5,7 +5,7 @@
 // 🚨 @PATCH : **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치
 // 🔗 @CALLS : cn
 // ====================================================================
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/tailwindUtils";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

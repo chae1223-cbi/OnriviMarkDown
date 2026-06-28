@@ -2,8 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDefaultHotkeys, getDefaultCommands } from "@/lib/toolbarConfig";
 import { THEME_MAP } from "@/lib/editorThemes";
-import { idb } from '@/lib/helper';
-import { getApiUrl } from '@/lib/api';
+import { idb } from '@/lib/indexedDbHelper';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 
 /**
  * [ONR-16-002] useEditorSettings 커스텀 훅

@@ -1,10 +1,10 @@
 // @ts-nocheck
 import { useRef, useEffect, useCallback } from 'react';
 import { EditorTab } from '@/components/UnifiedTabBar';
-import { FileNode } from '@/lib/helper';
+import { FileNode } from '@/lib/indexedDbHelper';
 import { getWelcomeContent } from "@/constants/welcomeContent";
-import { vfsReadFile } from '@/lib/vfsHelper';
-import { getApiUrl } from '@/lib/api';
+import { vfsReadFile } from '@/lib/virtualFileSystem';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 
 /**
  * [OMD-HOOK-0003] useEditorTabs 커스텀 훅

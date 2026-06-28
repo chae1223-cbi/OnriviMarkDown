@@ -2,8 +2,8 @@
 import { useCallback } from 'react';
 import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers';
 import { DEFAULT_PROFILE } from "@/constants/cssProfile";
-import { vfsWriteFile } from '@/lib/vfsHelper';
-import { getApiUrl } from '@/lib/api';
+import { vfsWriteFile } from '@/lib/virtualFileSystem';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import { supabase } from '@/lib/supabaseClient';
 

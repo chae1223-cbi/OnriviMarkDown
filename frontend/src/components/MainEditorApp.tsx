@@ -59,11 +59,11 @@ import {
  * ==================================================================================
  */
 import { useToast } from '@/components/ToastProvider';  // 토스트 메시지
-import { msg } from '@/lib/msg'; // 메시지
-import { getApiUrl } from '@/lib/api'; // api 서버 경로
+import { msg } from '@/lib/systemMessages'; // 메시지
+import { getApiUrl } from '@/lib/apiUrlBuilder'; // api 서버 경로
 import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers'; // 파일 내보내기 핸들러
 import { configureMonacoEnvironment } from '@/lib/monacoEnv'; // Monaco 환경 설정
-import { idb, FileNode, scanDirectory, getFileIcon } from '@/lib/helper'; // indexedDB 헬퍼
+import { idb, FileNode, scanDirectory, getFileIcon } from '@/lib/indexedDbHelper'; // indexedDB 헬퍼
 import { preprocessMarkdownForPreview, stripFrontmatter } from "@/lib/editorUtils"; // 마크다운 프리뷰
 import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig"; // 툴바 설정
 import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes"; // 에디터 테마
@@ -73,7 +73,7 @@ import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐�
 import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import CssStyleForm from "@/components/CssStyleForm"; // css 스타일 폼
-import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/vfsHelper'; // 가상 파일 시스템 헬퍼
+import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/virtualFileSystem'; // 가상 파일 시스템 헬퍼
 import ColorText from '@/components/ColorText'; // 컬러 텍스트
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import CopyButton from '@/components/CopyButton'; // 버튼
@@ -679,8 +679,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 📊 [OMD-AUTH-MainEditorApp-0015] MainEditorApp.tsx ➔ initDeviceId
 // 🎯 @KICK  : electronAPI, chrome.storage 또는 localStorage 폴백에서 고유 장치 ID 초기화
 // 🛡️ @GUARD : 순서가 다른 환경 처리; 존재하지 않으면 crypto-random UUID 생성
-// 🚨 @PATCH : 애드온 크로스 브라우저 동기화를 위해 chrome.storage.sync 사용
-// 🔗 @CALLS : api.getMachineId, chrome.storage.sync.get/set, crypto.randomUUID, localStorage.getItem/setItem, setDeviceId
+// 🚨 @PATCH : 2026-06-28 — 크롬 스토리지 동기화 완전 제거 및 로컬스토리지 격리로 세션 기반 접속 관리 전환
+// 🔗 @CALLS : api.getMachineId, crypto.randomUUID, localStorage.getItem/setItem, setDeviceId
 // ====================================================================
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -692,28 +692,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const realId = await api.getMachineId();
         setDeviceId(realId);
       } else {
-        // B. 브라우저 애드온 환경
-        const chromeStorage = (window as any).chrome?.storage?.sync;
-        if (chromeStorage) {
-          chromeStorage.get(['onrivi_device_id'], (result: any) => {
-            if (result.onrivi_device_id) {
-              setDeviceId(result.onrivi_device_id);
-            } else {
-              const newId = crypto.randomUUID();
-              chromeStorage.set({ onrivi_device_id: newId }, () => {
-                setDeviceId(newId);
-              });
-            }
-          });
-        } else {
-          // 일반 브라우저 로컬 스토리지 Fallback
-          let localId = localStorage.getItem('onrivi_device_id');
-          if (!localId) {
-            localId = crypto.randomUUID();
-            localStorage.setItem('onrivi_device_id', localId);
-          }
-          setDeviceId(localId);
+        // B. 일반 웹 브라우저 (스토리지 동기화 완전 제거 및 로컬스토리지 격리)
+        let localId = localStorage.getItem('onrivi_device_id');
+        if (!localId) {
+          localId = crypto.randomUUID();
+          localStorage.setItem('onrivi_device_id', localId);
         }
+        setDeviceId(localId);
       }
     };
     initDeviceId();
@@ -723,44 +708,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 📊 [OMD-AUTH-MainEditorApp-0016] MainEditorApp.tsx ➔ loadAndVerifyLicense (payment_no)
 // 🎯 @KICK  : 저장소에서 라이선스 키 로드, Supabase DB로 검증; payment_no 없는 경우 user_id fallback
 // 🛡️ @GUARD : 암호화 캐시를 통한 오프라인 유예 기간(3일), 시간 조작 방어; 웹 SaaS는 count 조회만 (upsert/장비 체크 없음)
-// 🚨 @PATCH : 2026-06-23 — payment_no 미존재 시의 subscriptions 폴백 쿼리에 다중구독 cardinality violation 방지용 활성 구독 필터(is_expired/plan_end_date/plan_status 등) 추가 개편;
+// 🚨 @PATCH : 2026-06-28 — 확장프로그램(chrome.storage.local) 스토리지 읽기 로직 제거 (로컬스토리지 격리);
+//              2026-06-23 — payment_no 미존재 시의 subscriptions 폴백 쿼리에 다중구독 cardinality violation 방지용 활성 구독 필터(is_expired/plan_end_date/plan_status 등) 추가 개편;
 //              2026-06-22 — payment_no 미존재 시 supabase Auth 세션 → subscriptions → software_licenses fallback;
 //              웹 SaaS: count 조회만 수행, upsert/device UUID 완전 제거 (auth callback에서 insert 담당)
-// 🔗 @CALLS : api.loadLicenseFull, chrome.storage.local.get, supabase.from.license_activations.select, crypto.subtle.digest, saveSecureData, loadSecureData, setLicenseStatus, setLicenseKey
+// 🔗 @CALLS : api.loadLicenseFull, supabase.from.license_activations.select, crypto.subtle.digest, saveSecureData, loadSecureData, setLicenseStatus, setLicenseKey
 // ====================================================================
   const loadAndVerifyLicense = useCallback(async () => {
     if (typeof window === 'undefined' || !deviceId) return;
     const api = (window as any).electronAPI;
+    const isDesktop = !!api;
     let savedKey = '';
     let savedPaymentNo = '';
     let savedUserId = '';
     let savedLastRunTime = 0;
 
-    // A. 스토리지 로드
-    if (api && typeof api.loadLicenseFull === 'function') {
-      const fullData = await api.loadLicenseFull();
-      if (fullData) {
-        savedKey = fullData.licenseKey || '';
-        savedPaymentNo = fullData.paymentNo || '';
-        savedUserId = fullData.userId || '';
-        savedLastRunTime = fullData.lastRunTime || 0;
+    // A. 스토리지 로드 (웹/데스크탑 분리)
+    if (isDesktop) {
+      if (typeof api.loadLicenseFull === 'function') {
+        const fullData = await api.loadLicenseFull();
+        if (fullData) {
+          savedUserId = fullData.userId || '';
+          savedLastRunTime = fullData.lastRunTime || 0;
+        }
       }
     } else {
-      const chromeStorage = (window as any).chrome?.storage?.local;
-      if (chromeStorage) {
-        const result = await new Promise<any>((resolve) => {
-          chromeStorage.get(['onrivi_license_key', 'onrivi_user_id', 'onrivi_payment_no', 'onrivi_last_run_time'], resolve);
-        });
-        savedKey = result.onrivi_license_key || '';
-        savedUserId = result.onrivi_user_id || '';
-        savedPaymentNo = result.onrivi_payment_no || '';
-        savedLastRunTime = result.onrivi_last_run_time || 0;
-      } else {
-        savedKey = localStorage.getItem('onrivi_license_key') || '';
-        savedUserId = localStorage.getItem('onrivi_user_id') || '';
-        savedPaymentNo = localStorage.getItem('onrivi_payment_no') || '';
-        savedLastRunTime = parseInt(localStorage.getItem('onrivi_last_run_time') || '0', 10);
-      }
+      // 확장프로그램(chrome.storage.local) 조회 로직 제거 -> 오직 localStorage만 사용 (동기화 좀비 현상 방지)
+      savedKey = localStorage.getItem('onrivi_license_key') || '';
+      savedUserId = localStorage.getItem('onrivi_user_id') || '';
+      savedPaymentNo = localStorage.getItem('onrivi_payment_no') || '';
+      savedLastRunTime = parseInt(localStorage.getItem('onrivi_last_run_time') || '0', 10);
     }
 
     const nowTime = Date.now();
@@ -768,15 +745,68 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // B. 시간 조작 가드
     if (savedLastRunTime > 0 && nowTime < savedLastRunTime) {
       showToast("⚠️ 로컬 시스템 시간 조작이 감지되었습니다. 에디터 편집 기능이 제한됩니다.", "error");
-      setLicenseStatus({
-        isActivated: false, isExpired: true, remainingDays: 0,
-        userId: savedUserId, licenseKey: '', paymentNo: savedPaymentNo,
-        planName: '시간 역전 제한 모드'
-      });
+      setLicenseStatus(prev => ({
+        ...prev, isActivated: false, isExpired: true, planName: '시간 역전 제한 모드'
+      }));
       return;
     }
 
-    // C. paymentNo가 없는 경우 → Supabase 세션으로 라이선스 조회
+    // ============================================
+    // 🚨 데스크탑 전용 로직: 무조건 DB 조회 (USERID + DeviceID)
+    // ============================================
+    if (isDesktop) {
+      // 시스템 실행 시간 및 USERID만 갱신 (결제번호 등은 캐시하지 않음)
+      if (typeof api.saveLicenseFull === 'function') {
+        await api.saveLicenseFull({ userId: savedUserId, lastRunTime: nowTime });
+      }
+
+      if (!savedUserId) {
+        setLicenseStatus({
+          isActivated: false, isExpired: true, remainingDays: 0,
+          userId: '', licenseKey: '', paymentNo: '',
+          planName: '미인증 라이선스', nextPaymentDate: ''
+        });
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.rpc('verify_desktop_license', {
+          p_email: savedUserId,
+          p_device_uuid: deviceId
+        });
+
+        if (error || !data || !data.success) {
+          console.warn('[loadAndVerifyLicense] Desktop verification failed:', error || data?.message);
+          setLicenseStatus({
+            isActivated: false, isExpired: true, remainingDays: 0,
+            userId: savedUserId, licenseKey: '', paymentNo: '',
+            planName: '미인증 라이선스', nextPaymentDate: ''
+          });
+        } else {
+          const expiryMs = data.next_payment_date ? new Date(data.next_payment_date).getTime() : 0;
+          const remainingDays = expiryMs === 0 ? 0 : Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
+          
+          setLicenseStatus({
+            isActivated: true, isExpired: false, remainingDays,
+            userId: savedUserId, licenseKey: data.license_key || '', paymentNo: data.payment_no || '',
+            planName: data.plan_name || '프리미엄 요금제',
+            nextPaymentDate: data.next_payment_date || data.trial_end_at || ''
+          });
+        }
+      } catch (err) {
+        console.warn('[loadAndVerifyLicense] Desktop DB error:', err);
+        setLicenseStatus({
+          isActivated: false, isExpired: true, remainingDays: 0,
+          userId: savedUserId, licenseKey: '', paymentNo: '',
+          planName: '미인증 라이선스 (네트워크 오류)', nextPaymentDate: ''
+        });
+      }
+      return; // 데스크탑은 여기서 검증 완전 종료!
+    }
+
+    // ============================================
+    // ── 웹 SaaS 전용 기존 로직 ──
+    // ============================================
     if (!savedPaymentNo) {
       savedKey = '';
       savedUserId = '';
@@ -789,6 +819,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             .select('id, plan_name, plan_status, trial_end_at, current_period_end, max_devices')
             .eq('user_id', session.user.id)
             .in('plan_status', ['ACTIVE', 'FREE'])
+              .not('plan_name', 'like', '%데스크탑%')
             .order('current_period_end', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -810,213 +841,130 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
-    // 시스템 실행 시간 갱신 기록
-    if (api && typeof api.saveLicenseFull === 'function') {
-      await api.saveLicenseFull({
-        licenseKey: savedKey,
-        userId: savedUserId,
-        paymentNo: savedPaymentNo,
-        lastRunTime: nowTime
-      });
-    } else {
-      const chromeStorage = (window as any).chrome?.storage?.local;
-      if (chromeStorage) {
-        chromeStorage.set({
-          onrivi_license_key: savedKey,
-          onrivi_user_id: savedUserId,
-          onrivi_payment_no: savedPaymentNo,
-          onrivi_last_run_time: nowTime
-        });
-      }
-      localStorage.setItem('onrivi_license_key', savedKey);
-      localStorage.setItem('onrivi_user_id', savedUserId);
-      localStorage.setItem('onrivi_payment_no', savedPaymentNo);
-      localStorage.setItem('onrivi_last_run_time', nowTime.toString());
-    }
+    // chromeStorage.set 로직 완전 제거 (순수 localStorage만 유지)
+    localStorage.setItem('onrivi_license_key', savedKey);
+    localStorage.setItem('onrivi_user_id', savedUserId);
+    localStorage.setItem('onrivi_payment_no', savedPaymentNo);
+    localStorage.setItem('onrivi_last_run_time', nowTime.toString());
 
-    // C. 기기 식별 라이선스 키가 없는 경우 빈 값 유지 (자체 생성 및 DB 직접 삽입 배제)
-    if (!savedKey) {
-      savedKey = '';
-    }
-
+    if (!savedKey) savedKey = '';
     setLicenseKey(savedKey);
 
-    // D. Supabase DB 라이선스 검증 (paymentNo 기준)
-    // 📊 [OMD-LICENSE-MainEditorApp-0092] payment_no 기반 인증; verify_key 제거, 플랫폼별 분기
-    // 🎯 @KICK  : 데스크탑=device_uuid 기반 설치장비 식별, 웹 SaaS=현재 세션 갱신 후 5분 기준 활성세션만 count→모드 결정
-    // 🛡️ @GUARD : electronAPI 존재 여부로 데스크탑/웹 분기; onrivi_session_id 없으면 skip; 5분 미갱신 세션 미포함
-    // 🚨 @PATCH : 2026-06-22 — verify_key 전면 제거, payment_no 단일 인증 체계로 개편;
-    //              데스크탑/웹 SaaS 경로 분할; 5분 기준 활성세션 필터링으로 스테일 세션 자동 제외
     if (savedPaymentNo) {
       try {
-        const isDesktop = !!(window as any).electronAPI;
-        console.log('[DEACTIVATION] isDesktop:', isDesktop, 'savedPaymentNo:', savedPaymentNo);
-        let foundLicenseId: string | null = null;
-        let foundSubscriptionId: string | null = null;
-
-        if (isDesktop) {
-          // ── 데스크탑 경로: device_uuid로 설치장비 식별 ──
-          const { data: activation } = await supabase
-            .from('license_activations')
-            .select('license_id')
-            .eq('device_uuid', deviceId)
-            .maybeSingle();
-
-          if (activation?.license_id) {
-            foundLicenseId = activation.license_id;
-          } else {
-            console.warn('[loadAndVerifyLicense] desktop: activation not found for device_uuid');
-          }
-        } else {
-          // ── 웹 SaaS 경로: payment_no로 직접 라이선스 식별 ──
-          const { data: lic } = await supabase
-            .from('software_licenses')
-            .select('id, subscription_id')
-            .eq('payment_no', savedPaymentNo)
-            .maybeSingle();
-
-          if (lic) {
-            foundLicenseId = lic.id;
-            foundSubscriptionId = lic.subscription_id;
-          } else {
-            console.warn('[loadAndVerifyLicense] web: license not found for payment_no');
-          }
+        let sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
+        if (!sessionId) {
+          sessionId = crypto.randomUUID();
+          localStorage.setItem('onrivi_session_id', sessionId);
         }
 
-        if (!foundLicenseId) {
-          console.warn('[loadAndVerifyLicense] licenseId not found');
+        const { data: lic } = await supabase
+          .from('software_licenses')
+          .select('id, subscription_id')
+          .eq('payment_no', savedPaymentNo)
+          .maybeSingle();
+
+        if (!lic) {
+          console.warn('[loadAndVerifyLicense] web: license not found for payment_no. Auto-clearing cache...');
+          // 잘못된 결제 번호 캐시가 남아 영원히 에러가 나는 좀비 현상(무한루프) 방지를 위해 캐시 자동 강제 삭제
+          localStorage.removeItem('onrivi_payment_no');
+          localStorage.removeItem('onrivi_license_key');
+          localStorage.removeItem('onrivi_session_id');
         } else {
-          // 공통: software_licenses 확인 (id + payment_no 일치)
           const { data: license } = await supabase
             .from('software_licenses')
             .select('id, is_active, license_key, payment_no, subscription_id')
-            .eq('id', foundLicenseId)
+            .eq('id', lic.id)
             .eq('payment_no', savedPaymentNo)
             .maybeSingle();
 
-          if (!license) {
-            console.warn('[loadAndVerifyLicense] license mismatch: id + payment_no');
-          } else {
-            // 공통: subscriptions 조회
-            const subId = foundSubscriptionId || license.subscription_id;
+          if (license) {
             const { data: sub } = await supabase
               .from('subscriptions')
               .select('plan_name, plan_status, trial_end_at, current_period_end, max_devices')
-              .eq('id', subId)
+              .eq('id', lic.subscription_id)
               .maybeSingle();
 
-            // 계약 종료 임계점
-            let expiryMs = 0;
-            if (sub) {
-              const targetDate = sub.current_period_end || sub.trial_end_at;
-              if (targetDate) expiryMs = new Date(targetDate).getTime();
-            }
+                          let expiryMs = 0;
+              if (sub) {
+                if (sub.plan_name && sub.plan_name.includes('데스크탑')) {
+                  console.warn('[loadAndVerifyLicense] Desktop plan cannot be used in Web SaaS.');
+                  setLicenseStatus({
+                    isActivated: false, isExpired: true, remainingDays: 0, userId: savedUserId,
+                    licenseKey: '', paymentNo: savedPaymentNo || license?.payment_no || '',
+                    planName: '데스크탑 전용 플랜 (웹 사용 불가)', nextPaymentDate: ''
+                  });
+                  return;
+                }
+                const targetDate = sub.current_period_end || sub.trial_end_at;
+                if (targetDate) expiryMs = new Date(targetDate).getTime();
+              }
             
             let isExpired = expiryMs === 0 ? true : (Date.now() > expiryMs);
             const remainingDays = expiryMs === 0 ? 0 : Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
-            
-            // 요금제명
             const isFreeTrial = sub?.plan_name === 'FREE' || savedPaymentNo.startsWith('FREE_TRIAL_');
-            const planName = isFreeTrial ? '무료 체험판 플랜' : `${sub?.plan_name || 'PRO'} 프리미엄 플랜`;
-            
-            // 웹 SaaS: 세션 존재 확인 + 접속자수 체크 (5분 기준)
-            if (!isDesktop) {
-              let sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
-              if (!sessionId) {
-                sessionId = crypto.randomUUID();
-                localStorage.setItem('onrivi_session_id', sessionId);
-              }
+            let planName = isFreeTrial ? '무료 체험판 플랜' : `${sub?.plan_name || 'PRO'} 프리미엄 플랜`;
 
-              console.log('[DEACTIVATION] sessionId:', sessionId, 'license.id:', license.id);
+            const { data: actResult } = await supabase.rpc('insert_license_activation', {
+              p_license_id: license.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS'
+            });
+            if (actResult && !actResult.success) {
+              isExpired = true;
+              planName = '동시 접속 초과 (제한 사용자)';
+            }
 
-              const { data: actResult, error: actError } = await supabase.rpc('insert_license_activation', {
-                p_license_id: license.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS'
-              });
-
-              if (actError) {
-                console.error('[DEACTIVATION] RPC error:', actError);
-                showToast('라이선스 활성화 중 오류: ' + actError.message, 'error');
-              } else if (actResult && !actResult.success) {
-                console.warn('[DEACTIVATION]', actResult.code, actResult.message, 'step:', actResult.step);
-                isExpired = true;
-                showToast(actResult.message || '라이선스 활성화에 실패했습니다.', 'error');
-              } else if (actResult && actResult.success) {
-                console.log('[ACTIVATION]', actResult.code, actResult.message);
-              }
-
-              // 접속자수 초과 체크 (check_license_session RPC)
-              const { data: chk2 } = await supabase.rpc('check_license_session', { p_payment_no: savedPaymentNo, p_device_uuid: sessionId });
-              if (chk2 && chk2.success && chk2.active_count > chk2.max_devices) {
-                isExpired = true;
-                showToast(`⚠️ 현재 접속자 수(${chk2.active_count}명)가 요금제 한도(${chk2.max_devices}명)를 초과했습니다. 대시보드에서 접속 세션을 해제해 주세요.`, 'error');
-              }
+            const { data: chk2 } = await supabase.rpc('check_license_session', { p_payment_no: savedPaymentNo, p_device_uuid: sessionId });
+            if (chk2 && chk2.success && chk2.active_count > chk2.max_devices) {
+              isExpired = true;
+              planName = `동시 접속 초과 (${chk2.max_devices}대) - 제한 사용자`;
+            } else if (isExpired) {
+              planName = '기간 만료 (제한 사용자)';
             }
 
             const isActivated = !isExpired;
 
             setLicenseStatus({
-              isActivated,
-              isExpired,
-              remainingDays,
-              userId: savedUserId,
-              licenseKey: isActivated ? savedKey : '',
-              paymentNo: savedPaymentNo || license.payment_no || '',
-              planName,
-              nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : '')
+              isActivated, isExpired, remainingDays, userId: savedUserId,
+              licenseKey: isActivated ? savedKey : '', paymentNo: savedPaymentNo || license.payment_no || '',
+              planName, nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : '')
             });
 
             saveSecureData('onrivi_license_status', {
-              isActivated,
-              isExpired,
-              remainingDays,
-              userId: savedUserId,
-              licenseKey: isActivated ? savedKey : '',
-              paymentNo: savedPaymentNo || license.payment_no || '',
-              planName,
-              nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : ''),
+              isActivated, isExpired, remainingDays, userId: savedUserId,
+              licenseKey: isActivated ? savedKey : '', paymentNo: savedPaymentNo || license.payment_no || '',
+              planName, nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : ''),
               lastVerifiedAt: Date.now()
             });
             return;
           }
         }
       } catch (err) {
-        console.warn('[loadAndVerifyLicense] unexpected error:', err);
+        console.warn('[loadAndVerifyLicense] web unexpected error:', err);
       }
     }
 
-    // E. 로컬 암호화 보안 캐시 로드 및 오프라인 검증 (유예 기간 3일 체크)
     const cached = loadSecureData<any>('onrivi_license_status');
     if (cached && cached.licenseKey === savedKey && cached.userId === savedUserId) {
       const elapsedSinceVerify = Date.now() - (cached.lastVerifiedAt || 0);
-      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-      if (elapsedSinceVerify < threeDaysMs) {
+      if (elapsedSinceVerify < 3 * 24 * 60 * 60 * 1000) {
         setLicenseStatus({
-          isActivated: cached.isActivated,
-          isExpired: cached.isExpired,
-          remainingDays: cached.remainingDays,
-          userId: cached.userId,
-          licenseKey: cached.isActivated ? cached.licenseKey : '',
-          paymentNo: cached.paymentNo || '',
-          planName: cached.planName || '오프라인 캐시 모드',
+          isActivated: cached.isActivated, isExpired: cached.isExpired, remainingDays: cached.remainingDays,
+          userId: cached.userId, licenseKey: cached.isActivated ? cached.licenseKey : '',
+          paymentNo: cached.paymentNo || '', planName: cached.planName || '오프라인 캐시 모드',
           nextPaymentDate: cached.nextPaymentDate
         });
         return;
       }
     }
 
-    // F. Fallback (정품 미인증 프리뷰 모드 고정)
-    // 확인인증키가 없거나 만료된 경우, 로컬 14일 계산 폴백을 제거하고 즉시 에디터 잠금
     setLicenseStatus({
-      isActivated: false,
-      isExpired: true,
-      remainingDays: 0,
-      userId: savedUserId,
-      licenseKey: savedKey || cached?.licenseKey || '',
-      paymentNo: savedPaymentNo,
-      planName: cached?.planName || '미인증 라이선스',
-      nextPaymentDate: cached?.nextPaymentDate || undefined
+      isActivated: false, isExpired: true, remainingDays: 0, userId: savedUserId,
+      licenseKey: savedKey || cached?.licenseKey || '', paymentNo: savedPaymentNo,
+      planName: cached?.planName || (savedPaymentNo ? '프리미엄 요금제' : '미인증 라이선스'),
+      nextPaymentDate: cached?.nextPaymentDate || (savedPaymentNo ? '-' : undefined)
     });
   }, [deviceId, showToast]);
+
 
   useEffect(() => {
     loadAndVerifyLicense();
@@ -1183,8 +1131,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 📊 [OMD-AUTH-MainEditorApp-0018] MainEditorApp.tsx ➔ handleSuccessActivation
 // 🎯 @KICK  : 성공적인 결제/활성화 후 모든 저장소 계층에 확인된 라이선스 활성화 유지
 // 🛡️ @GUARD : 원자적 setLicenseStatus + 플랫폼 저장소 저장 (electronAPI, chrome.storage, localStorage) 및 실시간 동기화
-// 🚨 @PATCH : 결제번호(paymentNo) 인자 수용 및 loadAndVerifyLicense() 호출을 통한 상태 실시간 동기화
-// 🔗 @CALLS : setLicenseStatus, api.saveLicenseFull, chrome.storage.local.set, localStorage.setItem, loadAndVerifyLicense
+// 🚨 @PATCH : 2026-06-28 — chrome.storage.local.set 제거 (로컬스토리지 격리)
+//              결제번호(paymentNo) 인자 수용 및 loadAndVerifyLicense() 호출을 통한 상태 실시간 동기화
+// 🔗 @CALLS : setLicenseStatus, api.saveLicenseFull, localStorage.setItem, loadAndVerifyLicense
 // ====================================================================
   const handleSuccessActivation = async (verifyKey: string, userId: string, paymentNo: string, explicitLicenseKey?: string) => {
     const api = (window as any).electronAPI;
@@ -1198,15 +1147,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         paymentNo: paymentNo
       });
     } else {
-      const chromeStorage = (window as any).chrome?.storage?.local;
-      if (chromeStorage) {
-        chromeStorage.set({
-          onrivi_license_key: finalLicenseKey,
-          onrivi_verify_key: verifyKey,
-          onrivi_user_id: userId,
-          onrivi_payment_no: paymentNo
-        });
-      }
+      // chromeStorage.set 로직 제거 (순수 localStorage만 유지)
       localStorage.setItem('onrivi_license_key', finalLicenseKey);
       localStorage.setItem('onrivi_verify_key', verifyKey);
       localStorage.setItem('onrivi_user_id', userId);

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sigma, Plus, History, Info, ChevronRight, Calculator, AlignCenter, AlignLeft } from 'lucide-react';
 import { wrapMathWithBold } from "@/lib/editorUtils";
-import { msg } from '@/lib/msg';
+import { msg } from '@/lib/systemMessages';
 import katex from 'katex';
 
 interface FormulaModalProps {

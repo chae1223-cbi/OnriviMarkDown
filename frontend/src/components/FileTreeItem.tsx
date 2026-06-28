@@ -2,11 +2,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Plus, FolderPlus, Edit2, Trash2 } from 'lucide-react';
-import { FileNode, getFileIcon } from '@/lib/helper';
-import { getApiUrl } from '@/lib/api';
-import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/vfsHelper';
+import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
+import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/virtualFileSystem';
 import PromptModal from '@/components/PromptModal';
-import { msg } from '@/lib/msg';
+import { msg } from '@/lib/systemMessages';
 import { useToast } from '@/components/ToastProvider';
 
 interface FileTreeItemProps {

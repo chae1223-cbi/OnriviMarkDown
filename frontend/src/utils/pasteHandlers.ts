@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { FileNode } from '@/lib/helper';
+import { FileNode } from '@/lib/indexedDbHelper';
 
 // ====================================================================
 // 📊 [OMD-EDIT-pasteHandlers-0003 ✅ FIXED] pasteHandlers ➔ sanitizePastedText

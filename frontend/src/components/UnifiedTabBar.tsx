@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Plus } from 'lucide-react';
-import { FileNode } from '@/lib/helper';
+import { FileNode } from '@/lib/indexedDbHelper';
 
 // ====================================================================
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
