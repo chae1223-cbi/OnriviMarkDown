@@ -1,11 +1,12 @@
 // ====================================================================
 // 📊 [OMD-SUPPORT-contact-api-0001] route ➔ ContactRouteHandler
-// 🎯 @KICK  : 문의하기(Contact) 제출 메일을 Brevo SMTP를 사용해 관리자(firstonrivi@onrivi.com)에게 전송
+// 🎯 @KICK  : 문의하기(Contact) 제출 메일을 Brevo SMTP를 사용해 관리자(firstonrivi@onrivi.com)에게 전송 및 DB에 접수 이력 영구 보존
 // 🛡️ @GUARD : 필수 파라미터 체크 및 환경변수(BREVO_API_KEY) 부재 방어 가드
-// 🚨 @PATCH : **2026-06-28** — 수신인 관리자 메일을 support@onrivi.com에서 firstonrivi@onrivi.com으로 다이렉트 전송하도록 최종 변경 패치; 신규 개설: Brevo REST API 호출 기반 문의 메일 송신 엔드포인트 구현
-// 🔗 @CALLS : fetch (Brevo SMTP API)
+// 🚨 @PATCH : **2026-06-28** — 수파베이스 insert_support_inquiry 저장 프로시저를 호출하여 문의 내역을 DB에 먼저 영구 기록한 뒤 이메일 발송하도록 순차 처리 고도화 패치; 수신인 관리자 메일을 support@onrivi.com에서 firstonrivi@onrivi.com으로 다이렉트 전송하도록 최종 변경 패치; 신규 개설: Brevo REST API 호출 기반 문의 메일 송신 엔드포인트 구현
+// 🔗 @CALLS : supabase.rpc, fetch (Brevo SMTP API)
 // ====================================================================
 import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabaseClient";
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +31,43 @@ export async function POST(request: Request) {
       );
     }
 
+    // 3. Supabase 로그인 세션 식별 (있는 경우 user_id 자동 할당)
+    let sessionUserId: string | null = null;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        sessionUserId = session.user.id;
+      }
+    } catch (sessionErr) {
+      console.warn("[Contact API] 로그인 세션 조회 실패 (비회원 처리):", sessionErr);
+    }
+
+    // 4. Supabase Stored Procedure (insert_support_inquiry)를 사용하여 DB에 문의 데이터 영구 기록
+    const { data: rpcResult, error: rpcError } = await supabase.rpc("insert_support_inquiry", {
+      p_name: name,
+      p_email: email,
+      p_type: type,
+      p_title: title,
+      p_content: content,
+      p_user_id: sessionUserId
+    });
+
+    if (rpcError) {
+      console.error("[Contact API] DB 저장 실패 (RPC 에러):", rpcError);
+      return NextResponse.json(
+        { error: "문의 사항을 데이터베이스에 저장하는 중 오류가 발생했습니다." },
+        { status: 500 }
+      );
+    }
+
+    if (rpcResult && rpcResult.success === false) {
+      console.error("[Contact API] DB 저장 실패 (비즈니스 에러):", rpcResult.error);
+      return NextResponse.json(
+        { error: `데이터베이스 기록 실패: ${rpcResult.error}` },
+        { status: 500 }
+      );
+    }
+
     // 문의 유형 한글 매핑
     const typeMap: Record<string, string> = {
       general: "일반 문의 / 기타",
@@ -39,7 +77,7 @@ export async function POST(request: Request) {
     };
     const typeLabel = typeMap[type] || "일반 문의";
 
-    // 3. Brevo Transactional Email 발송
+    // 5. Brevo Transactional Email 발송
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
@@ -91,7 +129,7 @@ export async function POST(request: Request) {
             </div>
 
             <p style="font-size: 12px; color: #64748b; margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
-              * 본 메일은 [support@onrivi.com] 발신전용 알림입니다. 문의자에게 즉시 답장하시려면 이 메일의 [답장] 버튼을 클릭해 주십시오 (Reply-To 주소가 문의자의 이메일로 자동 연결됩니다).
+              * 본 메일은 [firstonrivi@onrivi.com] 발신전용 알림입니다. 문의자에게 즉시 답장하시려면 이 메일의 [답장] 버튼을 클릭해 주십시오 (Reply-To 주소가 문의자의 이메일로 자동 연결됩니다).
             </p>
           </div>
         `,
