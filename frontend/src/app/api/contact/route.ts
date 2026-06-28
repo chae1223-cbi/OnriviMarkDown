@@ -1,8 +1,8 @@
 // ====================================================================
 // 📊 [OMD-SUPPORT-contact-api-0001] route ➔ ContactRouteHandler
-// 🎯 @KICK  : 문의하기(Contact) 제출 메일을 Brevo SMTP를 사용해 관리자(support@onrivi.com)에게 전송
+// 🎯 @KICK  : 문의하기(Contact) 제출 메일을 Brevo SMTP를 사용해 관리자(firstonrivi@onrivi.com)에게 전송
 // 🛡️ @GUARD : 필수 파라미터 체크 및 환경변수(BREVO_API_KEY) 부재 방어 가드
-// 🚨 @PATCH : **2026-06-28** — 신규 개설: Brevo REST API 호출 기반 문의 메일 송신 엔드포인트 구현
+// 🚨 @PATCH : **2026-06-28** — 수신인 관리자 메일을 support@onrivi.com에서 firstonrivi@onrivi.com으로 다이렉트 전송하도록 최종 변경 패치; 신규 개설: Brevo REST API 호출 기반 문의 메일 송신 엔드포인트 구현
 // 🔗 @CALLS : fetch (Brevo SMTP API)
 // ====================================================================
 import { NextResponse } from "next/server";
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         },
         to: [
           {
-            email: "support@onrivi.com",
+            email: "firstonrivi@onrivi.com",
             name: "Onrivi Author 관리자",
           },
         ],
