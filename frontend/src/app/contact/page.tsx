@@ -12,6 +12,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { useToast } from "@/components/ToastProvider";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function ContactPage() {
   const router = useRouter();
@@ -46,26 +47,24 @@ export default function ContactPage() {
     setLoading(true);
 
     try {
-      // 문의 전송 API 호출
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          type,
-          title: title.trim(),
-          content: content.trim(),
-        }),
+      // 🚨 정적 내보내기(output: 'export') 환경에서는 Next.js POST API 라우트가 작동하지 않으므로,
+      // 프론트엔드에서 직접 Supabase DB에 문의 접수 내역을 기록합니다.
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const { data: rpcResult, error: rpcError } = await supabase.rpc("insert_support_inquiry", {
+        p_name: name.trim(),
+        p_email: email.trim(),
+        p_type: type,
+        p_title: title.trim(),
+        p_content: content.trim(),
+        p_user_id: session?.user?.id || null
       });
 
-      const resData = await response.json();
+      if (rpcError) throw new Error("문의 사항을 데이터베이스에 저장하는 중 오류가 발생했습니다.");
+      if (rpcResult && rpcResult.success === false) throw new Error(`데이터베이스 기록 실패: ${rpcResult.error}`);
 
-      if (!response.ok) {
-        throw new Error(resData.error || "문의 접수에 실패했습니다.");
-      }
+      // 📝 참고: 정적 웹 앱에서는 브라우저에 API Key가 노출될 위험이 있어
+      // 이메일 즉시 발송(Brevo) 로직은 여기서 제외되거나 향후 Supabase Edge Function으로 이관해야 합니다.
 
       showToast("문의가 성공적으로 접수되었습니다. 최대한 빠른 시일 내에 답변해 드리겠습니다.", "success");
       
