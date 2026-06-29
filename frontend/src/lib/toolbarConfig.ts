@@ -12,6 +12,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'italic', icon: 'I', name: '기울임', group: '서식', tagFormat: '*텍스트*', defaultHotkey: 'Ctrl+I', defaultCommand: 'italic', insertText: '*텍스트*', kind: 15 },
   { id: 'strikethrough', icon: 'S', name: '취소선', group: '서식', tagFormat: '~~텍스트~~', defaultHotkey: 'Ctrl+Shift+X', defaultCommand: 'strike', insertText: '~~텍스트~~', kind: 15 },
   { id: 'inlineCode', icon: '</>', name: '인라인 코드', group: '서식', tagFormat: '`텍스트`', defaultHotkey: 'Ctrl+E', defaultCommand: 'inlinecode', insertText: '`텍스트`', kind: 15 },
+  { id: 'footnote', icon: 'fn', name: '각주', group: '서식', tagFormat: '[^1]', defaultHotkey: 'Ctrl+Alt+F', defaultCommand: 'footnote', insertText: '', kind: 15 },
 
   // 3. 목록 (목록)
   { id: 'list', icon: '☰', name: '글머리 기호', group: '목록', tagFormat: '- ', defaultHotkey: 'Ctrl+Shift+8', defaultCommand: 'ul', insertText: '- ', kind: 17 },
@@ -114,7 +115,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       // 💡 [한글 주석] 모달이 필요한 항목 (youtube 추가)
       const modalKeys = ['image', 'video', 'youtube', 'map', 'table', 'math'];
       // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 표 행 편집 이관)
-      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink'];
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink', 'footnote'];
 
       if (modalKeys.includes(item.id)) {
         command = {

@@ -20,7 +20,7 @@ export default function TermsPage() {
           {/* 헤더 */}
           <div className="border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 text-center sm:text-left">
             <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">서비스 이용약관</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">최종 수정일: 2026년 6월 24일</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">최종 수정일: 2026년 6월 30일</p>
           </div>
 
           {/* 본문 약관 내용 */}
@@ -39,7 +39,7 @@ export default function TermsPage() {
               <ul className="list-disc pl-5 space-y-1">
                 <li><strong>서비스:</strong> 이용자가 텍스트, 마크다운 등을 작성, 편집, 인쇄 양식으로 미리보기할 수 있도록 제공하는 웹 에디터 및 일렉트론(Electron) 데스크톱 애플리케이션 전체를 의미합니다.</li>
                 <li><strong>이용자:</strong> 본 약관에 동의하고 회사가 제공하는 서비스를 이용하는 회원 및 비회원을 말합니다.</li>
-                <li><strong>구독 요금제:</strong> 서비스의 특정 기능(예: 에디트 모드 활성화, 다중 기기 연동 등)을 이용하기 위해 이용자가 정기적으로 지불하는 결제 모델을 의미하며, &quot;무료(Free)&quot;, &quot;기본(Basic)&quot;, &quot;프로(Pro)&quot;, &quot;프리미엄(Premium)&quot; 요금제로 구분됩니다.</li>
+                <li><strong>구독 요금제:</strong> 서비스의 특정 기능(예: 에디트 모드 활성화, 다중 기기 연동 등)을 이용하기 위해 이용자가 정기적으로 지불하는 결제 모델을 의미하며, "무료 체험", "웹 월간", "웹 연간", "데스크탑 연간" 요금제로 구분됩니다.</li>
                 <li><strong>기기 식별자(UUID/Device UUID):</strong> 이용자의 단말기(PC, 노트북, 태블릿 등)를 고유하게 식별하기 위해 앱 내부에서 자동으로 생성 및 캐싱하는 고유 식별 정보입니다.</li>
                 <li><strong>라이선스 키/검증 키:</strong> 서비스 연동 및 정품 인증 상태를 로컬과 백엔드 서버 간에 대조하기 위해 발급되는 고유 암호화 토큰입니다.</li>
               </ul>
@@ -79,10 +79,10 @@ export default function TermsPage() {
               <h2 className="text-sm md:text-base font-bold text-gray-900 dark:text-white">제6조 (동시접속 및 라이선스 세션 제어 규정)</h2>
               <p>서비스는 부정한 복제 및 라이선스 유출을 방지하기 위해 요금제 등급별로 최대 동시 접속 기기(세션)의 개수를 엄격히 제한합니다.</p>
               <ul className="list-disc pl-5 space-y-1">
-                <li>무료(Free) 요금제: 최대 동시 접속 기기 1대 (체험 기간 7일 제공)</li>
-                <li>기본(Basic) 요금제: 최대 동시 접속 기기 3대</li>
-                <li>프로(Pro) 요금제: 최대 동시 접속 기기 6대</li>
-                <li>프리미엄(Premium) 요금제: 최대 동시 접속 기기 9대</li>
+                <li>무료 체험: 최대 동시 접속 기기 1대 (체험 기간 7일 제공)</li>
+                <li>웹 월간 요금제: 최대 동시 접속 기기 3대</li>
+                <li>웹 연간 요금제: 최대 동시 접속 기기 3대</li>
+                <li>데스크탑 연간 요금제: 윈도우 데스크탑 1카피 (1 PC 오프라인 전용)</li>
               </ul>
               <p>이용자는 가용 한도를 초과하여 새로운 기기에서 에디터를 기동할 수 없습니다. 한도가 초과될 경우 에디터는 읽기 전용(미리보기 모드)으로 일시 제한됩니다.</p>
               <p>이용자는 웹 대시보드 마이페이지의 세션 관리 도구를 통해, 과거에 등록되어 동작 중인 기기의 세션을 언제든지 원격으로 즉시 해제(delete_device_activation)할 수 있습니다. 세션 해제 완료 즉시 새로운 기기에서 정품 편집 기능을 사용하실 수 있습니다.</p>
@@ -108,8 +108,8 @@ export default function TermsPage() {
             </section>
 
             <div className="border-t border-gray-200 dark:border-gray-800 pt-6 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-              <p>공고일자: 2026년 06월 24일</p>
-              <p>시행일자: 2026년 06월 24일</p>
+              <p>공고일자: 2026년 06월 30일</p>
+              <p>시행일자: 2026년 06월 30일</p>
             </div>
 
           </div>

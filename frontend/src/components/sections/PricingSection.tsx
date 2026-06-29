@@ -15,7 +15,6 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import Link from "next/link";
 
 export function PricingSection() {
-  const [isAnnual, setIsAnnual] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean; title: string; message: string; onConfirm: () => void;
   }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
@@ -70,49 +69,19 @@ export function PricingSection() {
           </div>
         </div>
 
-        {/* Annual Toggle */}
-        <div className="flex justify-center items-center gap-4 mb-10">
-          <span style={{ fontSize: 14, fontWeight: 500, color: !isAnnual ? "#0f172a" : "#6e7881" }}>월간 결제</span>
-          <button
-            onClick={() => setIsAnnual(!isAnnual)}
-            style={{
-              width: 48, height: 26, borderRadius: 9999,
-              background: "#0ea5e9", border: "none", cursor: "pointer",
-              position: "relative", transition: "background 0.2s",
-              flexShrink: 0,
-            }}
-            aria-label="결제 방식 전환"
-          >
-            <div
-              style={{
-                position: "absolute", top: 3, left: isAnnual ? 24 : 3,
-                width: 20, height: 20, borderRadius: "50%",
-                background: "#fff", transition: "left 0.25s",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
-              }}
-            />
-          </button>
-          <span style={{ fontSize: 14, fontWeight: 500, color: isAnnual ? "#0f172a" : "#6e7881", display: "flex", alignItems: "center", gap: 8 }}>
-            연간 결제
-            <span style={{ background: "rgba(14,165,233,0.12)", color: "#006591", fontSize: 11, fontWeight: 700, padding: "2px 10px", borderRadius: 9999 }}>
-              2개월 면제
-            </span>
-          </span>
-        </div>
-
         {/* Plan List */}
         <div className="max-w-3xl mx-auto" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {plans.map((plan, i) => {
             const isHighlighted = plan.highlighted;
             const priceText = plan.isFree
               ? "0원"
-              : isAnnual
-              ? `₩${((plan.priceMonthly || 0) * 10).toLocaleString()} / 년`
+              : plan.name.includes("연간") || plan.name.includes("데스크톱")
+              ? `₩${(plan.priceYearly || 0).toLocaleString()} / 년`
               : `₩${(plan.priceMonthly || 0).toLocaleString()} / 월`;
-            const usdText = plan.isFree ? "" : isAnnual
-              ? `($${parseInt((plan.priceUSD || "0$").replace("$", "")) * 10} / 년)`
+            const usdText = plan.isFree ? "" : plan.name.includes("연간") || plan.name.includes("데스크톱")
+              ? `($${plan.priceUSD?.replace("$", "")} / 년)`
               : `(${plan.priceUSD || "0$"} / 월)`;
-            const sessionCount = plan.name === "무료" ? "1회 (1주일 체험)" : plan.name === "기본" ? "3회" : plan.name === "프로" ? "6회" : "9회";
+            const sessionCount = plan.name.includes("무료") ? "1회 (1주일 체험)" : "3회";
 
             return (
               <motion.div
@@ -165,15 +134,15 @@ export function PricingSection() {
                   <div style={{ width: 1, height: 36, background: isHighlighted ? "rgba(255,255,255,0.25)" : "#e2e8f0" }} className="hidden md:block" />
                   <div>
                     <span style={{ fontSize: 11, fontWeight: 600, color: isHighlighted ? "rgba(255,255,255,0.7)" : "#6e7881", letterSpacing: "0.05em", display: "block" }}>
-                      최대 접속 횟수
+                      {plan.name.includes("데스크톱") ? "라이선스 허용" : "최대 동시 접속"}
                     </span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: isHighlighted ? "#bae6fd" : "#0ea5e9", marginTop: 2, display: "block" }}>
-                      {sessionCount}
+                      {plan.name.includes("데스크톱") ? "1 카피 (1 PC)" : sessionCount}
                     </span>
                   </div>
                 </div>
 
-                {/* Right: Price + CTA */}
+                {/* Right: Price */}
                 <div style={{ display: "flex", alignItems: "center", gap: 20, flexShrink: 0 }}>
                   <div style={{ textAlign: "right" }}>
                     <span style={{ fontSize: 22, fontWeight: 700, color: isHighlighted ? "#fff" : "#0f172a" }}>
@@ -185,21 +154,6 @@ export function PricingSection() {
                       </span>
                     )}
                   </div>
-                  <button
-                    style={{
-                      padding: "9px 20px",
-                      borderRadius: "0.75rem",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                      transition: "all 0.15s",
-                      ...(isHighlighted
-                        ? { background: "#fff", color: "#006591", border: "none" }
-                        : { background: "rgba(255,255,255,0.8)", color: "#006591", border: "1px solid #0ea5e9" }),
-                    }}
-                  >
-                    {plan.name === "무료" ? "무료 플랜 스펙" : `${plan.name} 플랜 스펙`}
-                  </button>
                 </div>
               </motion.div>
             );

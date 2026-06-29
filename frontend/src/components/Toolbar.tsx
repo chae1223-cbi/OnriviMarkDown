@@ -45,6 +45,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     underline: "밑줄",
     inlineCode: "인라인 코드",
     strikethrough: "취소선",
+    footnote: "각주",
     h1: "제목 1",
     h2: "제목 2",
     h3: "제목 3",
@@ -99,6 +100,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     underline: "Underline",
     inlineCode: "Inline Code",
     strikethrough: "Strikethrough",
+    footnote: "Footnote",
     h1: "Heading 1",
     h2: "Heading 2",
     h3: "Heading 3",
@@ -212,6 +214,7 @@ export default function Toolbar({
           <ToolbarButton label="</>" title={t('inlineCode')} onAction={() => dispatch('INLINE_CODE')} />
           <ToolbarButton label="U" title={t('underline')} onAction={() => dispatch('UNDERLINE')} underline />
           <ToolbarButton label={<span className="line-through">S</span>} title={t('strikethrough')} onAction={() => dispatch('STRIKETHROUGH')} />
+          <ToolbarButton label="fn" title={t('footnote')} onAction={() => dispatch('FOOTNOTE')} />
 
           <div className="w-10 border-t-2 border-zinc-300 dark:border-zinc-600/60" />
 

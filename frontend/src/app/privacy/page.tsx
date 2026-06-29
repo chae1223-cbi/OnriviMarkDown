@@ -20,7 +20,7 @@ export default function PrivacyPage() {
           {/* 헤더 */}
           <div className="border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 text-center sm:text-left">
             <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">개인정보처리방침</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">최종 수정일: 2026년 6월 24일</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">최종 수정일: 2026년 6월 30일</p>
           </div>
 
           {/* 본문 처리방침 내용 */}
@@ -132,8 +132,8 @@ export default function PrivacyPage() {
             </section>
 
             <div className="border-t border-gray-200 dark:border-gray-800 pt-6 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-              <p>공고일자: 2026년 06월 24일</p>
-              <p>시행일자: 2026년 06월 24일</p>
+              <p>공고일자: 2026년 06월 30일</p>
+              <p>시행일자: 2026년 06월 30일</p>
             </div>
 
           </div>

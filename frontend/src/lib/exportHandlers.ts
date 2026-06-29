@@ -491,6 +491,67 @@ async function inlineLocalImages(clone: HTMLElement): Promise<void> {
     const src = img.getAttribute('src') || '';
     if (!src || src.startsWith('data:')) return;
 
+    const isBlob = src.startsWith('blob:');
+
+    // 💡 [블롭 가드] 드래그앤드롭 등으로 생성된 로컬 브라우저 메모리 blob URL은 IPC나 외부 프록시를 거치지 않음.
+    // Electron app:// 프로토콜에서는 fetch(blob:)이 차단되므로 캔버스를 우선 사용하여 메모리에서 다이렉트 픽셀 추출을 시도.
+    if (isBlob) {
+      try {
+        const liveImg = document.querySelector(`img[src="${src}"]`) as HTMLImageElement;
+        if (liveImg && liveImg.complete && liveImg.naturalWidth > 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = liveImg.naturalWidth;
+          canvas.height = liveImg.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(liveImg, 0, 0);
+            img.setAttribute('src', canvas.toDataURL('image/png'));
+            return;
+          }
+        }
+        
+        // 원본 이미지가 없거나 로드 전이면 임시 객체로 로드 시도
+        await new Promise<void>((resolve, reject) => {
+          const tempImg = new Image();
+          tempImg.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = tempImg.naturalWidth;
+            canvas.height = tempImg.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(tempImg, 0, 0);
+              img.setAttribute('src', canvas.toDataURL('image/png'));
+              resolve();
+            } else {
+              reject(new Error('Canvas context null'));
+            }
+          };
+          tempImg.onerror = reject;
+          tempImg.src = src;
+        });
+        return;
+      } catch (err) {
+        console.warn(`[Blob Canvas Fallback] failed, trying fetch: ${src}`, err);
+        try {
+          const resp = await fetch(src);
+          if (resp.ok) {
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            await new Promise<void>((resolve) => {
+              reader.onloadend = () => {
+                if (reader.result) img.setAttribute('src', reader.result as string);
+                resolve();
+              };
+              reader.readAsDataURL(blob);
+            });
+          }
+        } catch (fetchErr) {
+          console.error(`Failed to inline blob image via both canvas and fetch: ${src}`, fetchErr);
+        }
+      }
+      return;
+    }
+
     const isExternal = src.startsWith('http://') || src.startsWith('https://');
 
     // 💡 [일렉트론 환경 가드] 외부 http/https 이미지이고 일렉트론인 경우, CORS/CSP 우회용 media 프록시로 fetch하여 base64 인라인 변환
