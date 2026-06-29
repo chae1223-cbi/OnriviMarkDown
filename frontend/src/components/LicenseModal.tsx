@@ -21,6 +21,11 @@ interface LicenseModalProps {
   isDarkMode?: boolean;
 }
 
+const maskSecret = (val: string | null | undefined) => {
+  if (!val) return '';
+  return val.length > 6 ? val.substring(0, 6) + '*'.repeat(val.length - 6) : val;
+};
+
 // ====================================================================
 // 📊 [OMD-AUTH-LicenseModal-0004] LicenseModal ➔ LicenseModal
 // 🎯 @KICK  : 라이선스 정품 인증 UI - Supabase 직접 수동 인증 (이메일 + 비밀번호 로그인)
@@ -233,24 +238,14 @@ export default function LicenseModal({
           </div>
 
           {/* 2. 내 라이선스 식별 코드 */}
-          <div>
-            <span className="font-bold text-[11px] text-slate-500 dark:text-zinc-400 tracking-wide uppercase">내 라이선스 식별 코드</span>
-            <div className="flex items-center gap-2 mt-1.5">
-              <input
-                type="text"
-                readOnly
-                value={licenseStatus.licenseKey || ''}
-                className="flex-1 px-3.5 py-2 font-mono text-[11px] bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg select-all focus:outline-none text-slate-600 dark:text-zinc-400 cursor-not-allowed"
-              />
-              <button
-                onClick={() => handleCopyText(licenseStatus.licenseKey, '라이선스 키')}
-                disabled={!licenseStatus.licenseKey}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-bold text-[11px] rounded-lg transition-all active:scale-95 shadow-sm border border-slate-200/40 dark:border-zinc-700/40 disabled:opacity-50"
-                title="라이선스 키 복사"
-              >
-                복사
-              </button>
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">내 라이선스 식별 코드</label>
+            <input
+              type="text"
+              readOnly
+              value={maskSecret(licenseStatus.licenseKey)}
+              className="w-full px-3.5 py-2 font-mono text-[11px] bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg select-all focus:outline-none text-slate-600 dark:text-zinc-400 cursor-not-allowed"
+            />
           </div>
 
           {/* 3. 정품 결제번호 */}
@@ -259,7 +254,7 @@ export default function LicenseModal({
             <input
               type="text"
               readOnly
-              value={licenseStatus.paymentNo || ''}
+              value={maskSecret(licenseStatus.paymentNo)}
               className="w-full px-3.5 py-2 text-sm font-mono bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 cursor-not-allowed"
             />
           </div>
