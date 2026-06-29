@@ -1989,26 +1989,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (pendingExternalFileRef.current) return;
     
     if (tabs.length === 0) {
-      const welcome = getWelcomeContent();
-      const welcomeTabId = 'welcome-tab';
+      const initialContent = ""; // 💡 웰컴 페이지 대신 순수한 빈 새 파일로 시작
+      const initialTabId = 'new-tab-' + Date.now();
       
-      const welcomeTab: EditorTab = {
-        id: welcomeTabId,
+      const initialTab: EditorTab = {
+        id: initialTabId,
         name: '새 파일.md',
         path: null,
         node: null,
-        content: welcome,
+        content: initialContent,
         isModified: false
       };
       
-      setTabs([welcomeTab]);
-      setActiveTabId(welcomeTabId);
-      setContent(welcome);
+      setTabs([initialTab]);
+      setActiveTabId(initialTabId);
+      setContent(initialContent);
       setCurrentFileName('새 파일.md');
       setCurrentFileNode(null);
 
-      // Monaco onMount가 welcome-tab 생성 전에 실행된 경우(tabs 빈 배열), 에디터에 내용 즉시 반영
-      editorRef.current?.setValue(welcome);
+      // Monaco onMount가 생성 전에 실행된 경우, 에디터에 내용 즉시 반영
+      editorRef.current?.setValue(initialContent);
     }
   }, [mounted]);
 
