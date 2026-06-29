@@ -91,6 +91,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   const [desktopDevice, setDesktopDevice] = useState<string | null>(null);
   const [desktopEmail, setDesktopEmail] = useState<string | null>(null);
   const [desktopLicense, setDesktopLicense] = useState<LicenseInfo | null>(null);
+  const [desktopSubscription, setDesktopSubscription] = useState<SubscriptionInfo | null>(null);
 
   useEffect(() => {
     // Read URL params
@@ -168,9 +169,11 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
         .maybeSingle();
 
       if (dSubRes && allLics) {
+        setDesktopSubscription(dSubRes as SubscriptionInfo);
         const dLic = allLics.find(l => l.subscription_id === dSubRes.id);
         if (dLic) setDesktopLicense(dLic);
       } else {
+        setDesktopSubscription(null);
         setDesktopLicense(null);
       }
 
@@ -284,7 +287,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
 
   const handleCancelSubscription = async () => { // ⏳ 구독 해지 함수
     if (!subscription || !user) { showToast('해지할 구독 정보가 없습니다.', 'warning'); return; } // 🛡️ 구독/유저 정보 존재 여부 확인
-    const confirmed = await showConfirm('계약 해지', '정말로 현재 요금제를 해지하시겠습니까?', { confirmText: '해지', isDanger: true }); // ⚠️ 해지 확인 컨펌
+    const confirmed = await showConfirm('구독 해지', '정말로 현재 요금제를 해지하시겠습니까?', { confirmText: '해지', isDanger: true }); // ⚠️ 해지 확인 컨펌
     if (!confirmed) return;
     try {
       const { data: result, error } = await supabase.rpc('cancel_subscription', { p_subscription_id: subscription.id, p_user_id: user.id }); // 🔗 cancel_subscription RPC 호출
@@ -294,6 +297,21 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       await loadDashboardData(); // 🔄 대시보드 데이터 새로고침
     } catch (err: any) {
       showToast(`구독 해지 실패: ${err.message}`, 'error'); // ❌ 에러 토스트
+    }
+  };
+
+  const handleCancelDesktopSubscription = async () => {
+    if (!desktopSubscription || !user) { showToast('해지할 구독 정보가 없습니다.', 'warning'); return; }
+    const confirmed = await showConfirm('구독 해지', '정말로 데스크탑 요금제를 해지하시겠습니까?', { confirmText: '해지', isDanger: true });
+    if (!confirmed) return;
+    try {
+      const { data: result, error } = await supabase.rpc('cancel_subscription', { p_subscription_id: desktopSubscription.id, p_user_id: user.id });
+      if (error) throw new Error(error.message);
+      if (!result || !result.success) throw new Error(result?.message || '구독 해지에 실패했습니다.');
+      showToast('데스크탑 요금제가 해지되었습니다.', 'success');
+      await loadDashboardData();
+    } catch (err: any) {
+      showToast(`구독 해지 실패: ${err.message}`, 'error');
     }
   };
 
@@ -349,22 +367,22 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   // 🚨 @PATCH : 2026-06-26 — 원리비 설치 유도(딥링크)
   // -------------------------------------------------------------------------------------
   const handleDesktopActivate = async () => {
-    if (!desktopDevice || !desktopEmail) {
-      showToast('데스크탑에서 올바른 기기 정보가 전달되지 않았습니다.', 'warning');
-      return;
-    }
-    
-    // 이메일 검증
-    if (user?.email !== desktopEmail) {
-      showToast('현재 로그인된 웹 계정과 데스크탑 가입 이메일이 다릅니다. 확인해주세요.', 'error');
-      return;
-    }
-
     let currentDesktopPaymentNo = desktopLicense?.payment_no;
     let currentVerifyKey = desktopLicense?.verify_key;
     let currentLicenseKey = desktopLicense?.license_key;
 
     if (!currentDesktopPaymentNo) {
+      if (!desktopDevice || !desktopEmail) {
+        showToast('데스크탑에서 올바른 기기 정보가 전달되지 않았습니다.', 'warning');
+        return;
+      }
+      
+      // 이메일 검증
+      if (user?.email !== desktopEmail) {
+        showToast('현재 로그인된 웹 계정과 데스크탑 가입 이메일이 다릅니다. 확인해주세요.', 'error');
+        return;
+      }
+
       // 결제 이력이 없으므로 결제 진행 (목업)
       setActionLoading('desktop_activate');
       try {
@@ -648,11 +666,11 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             ))}
           </div>
 
-          {/* 계약 내역 */}
+          {/* 구독 내역 */}
           <div style={{ ...glassCard, padding: "20px 22px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <Calendar size={14} style={{ color: T.subtle }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: T.subtle, letterSpacing: "0.06em", textTransform: "uppercase" }}>계약 내역</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: T.subtle, letterSpacing: "0.06em", textTransform: "uppercase" }}>구독 내역</span>
             </div>
             {[
               ["시작일", subscription?.trial_start_at ? new Date(subscription.trial_start_at).toLocaleDateString() : '-'],
@@ -673,7 +691,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                   onMouseEnter={e => (e.currentTarget.style.color = T.danger)}
                   onMouseLeave={e => (e.currentTarget.style.color = T.muted)}
                 >
-                  계약 해지
+                  구독 해지
                 </button>
               </div>
             )}
@@ -708,6 +726,35 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                   <span style={{ color: T.subtle }}>연동 준비</span>
                   <span style={{ color: T.success, fontWeight: 600 }}>✓ 데스크탑 앱 대기중</span>
                 </div>
+                {desktopSubscription && (
+                  <div style={{ marginTop: 8, paddingTop: 10, borderTop: `1px solid rgba(14,165,233,0.1)`, textAlign: 'right' }}>
+                    <button
+                      onClick={handleCancelDesktopSubscription}
+                      style={{ fontSize: 12, color: T.danger, fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    >
+                      구독 해지
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : desktopSubscription && desktopLicense ? (
+              <div style={{ padding: "12px 14px", background: "rgba(14,165,233,0.05)", border: `1px solid rgba(14,165,233,0.15)`, borderRadius: "0.75rem", marginBottom: 16, fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: T.subtle }}>정품결제번호</span>
+                  <span style={{ color: T.onSurface, fontWeight: 600, fontFamily: "monospace" }}>{desktopLicense.payment_no.replace(/(?<=.{7})./g, '*')}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: T.subtle }}>인증 상태</span>
+                  <span style={{ color: T.success, fontWeight: 600 }}>✓ 데스크탑 연동 활성화됨</span>
+                </div>
+                <div style={{ marginTop: 8, paddingTop: 10, borderTop: `1px solid rgba(14,165,233,0.1)`, textAlign: 'right' }}>
+                  <button
+                    onClick={handleCancelDesktopSubscription}
+                    style={{ fontSize: 12, color: T.danger, fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  >
+                    구독 해지
+                  </button>
+                </div>
               </div>
             ) : license ? (
               <div style={{ padding: "12px 14px", background: "rgba(14,165,233,0.05)", border: `1px solid rgba(14,165,233,0.15)`, borderRadius: "0.75rem", marginBottom: 16, fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -728,15 +775,15 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             )}
             <button
               onClick={handleDesktopActivate}
-              disabled={!desktopDevice}
+              disabled={!desktopLicense?.payment_no && !desktopDevice}
               style={{
                 width: "100%", padding: "10px", borderRadius: "0.75rem",
-                background: !desktopDevice ? "rgba(14,165,233,0.05)" : T.primary,
-                color: !desktopDevice ? T.subtle : "#fff",
-                border: `1px solid ${!desktopDevice ? T.border : "transparent"}`,
-                fontSize: 13, fontWeight: 600, cursor: !desktopDevice ? "not-allowed" : "pointer",
+                background: (!desktopLicense?.payment_no && !desktopDevice) ? "rgba(14,165,233,0.05)" : T.primary,
+                color: (!desktopLicense?.payment_no && !desktopDevice) ? T.subtle : "#fff",
+                border: `1px solid ${(!desktopLicense?.payment_no && !desktopDevice) ? T.border : "transparent"}`,
+                fontSize: 13, fontWeight: 600, cursor: (!desktopLicense?.payment_no && !desktopDevice) ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                transition: "all 0.15s", opacity: !desktopDevice ? 0.6 : 1,
+                transition: "all 0.15s", opacity: (!desktopLicense?.payment_no && !desktopDevice) ? 0.6 : 1,
               }}
             >
               <ShieldCheck size={15} /> 
@@ -792,8 +839,8 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                                   <span style={{ fontWeight: 600, color: T.onSurface, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: 120 }} title={device.device_name}>
                                     {device.device_name}
                                   </span>
-                                  <span style={{ fontSize: 9, color: device.is_active_license ? T.primary : T.danger, fontWeight: 600 }}>
-                                    {device.is_active_license ? '현재 요금제' : '과거 요금제'} ({device.payment_no})
+                                  <span style={{ fontSize: 9, color: T.subtle, fontFamily: "monospace", marginTop: 1 }}>
+                                    {device.device_uuid}
                                   </span>
                                   {isCurrent && (
                                     <span style={{ fontSize: 9, fontWeight: 700, color: T.success, alignSelf: "flex-start" }}>
@@ -839,7 +886,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.border}`, flexWrap: "wrap", gap: 12 }}>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: T.onSurface, display: "flex", alignItems: "center", gap: 8 }}>
-                <CreditCard size={17} style={{ color: T.primary }} /> 요금제 선택 / 결제
+                <CreditCard size={17} style={{ color: T.primary }} /> 웹요금제 선택 / 결제
               </h2>
               <p style={{ fontSize: 12, color: T.subtle, marginTop: 4 }}>
                 원하는 요금제를 선택하여 결제를 진행하세요. 현재 플랜:{" "}
