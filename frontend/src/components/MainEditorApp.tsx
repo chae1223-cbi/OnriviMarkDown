@@ -1106,6 +1106,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         previewModeRef.current = 'preview';
         isEditorMountedRef.current = false;
       }
+
+      // 💡 제한 사용자(미리보기 전용)인 경우 빈 화면 대신 웰컴 페이지 렌더링
+      if (tabsRef.current.length === 1 && tabsRef.current[0].name === '새 파일.md' && tabsRef.current[0].content === '') {
+        const welcome = getWelcomeContent();
+        const welcomeTab = { ...tabsRef.current[0], name: '서식 정의 미리보기.md', content: welcome };
+        setTabs([welcomeTab]);
+        setContent(welcome);
+        setCurrentFileName(welcomeTab.name);
+      }
     }
   }, [licenseStatus.isExpired, mounted, previewMode]);
 
