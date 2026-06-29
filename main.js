@@ -6,7 +6,7 @@
 //             **2026-06-19** — PNG 및 EPUB 내보내기 시 외부 이미지/웹폰트 fetch CSP 차단 버그를 해결하기 위해 connect-src에 http: https: 추가 허용; Node.js net 모듈과 Electron net 모듈 충돌로 인한 net.fetch TypeError 해결 | **2026-06-20** — 딥링크(onriviauthor://activate) 파라미터 파싱 로직 보완하여 licenseKey와 paymentNo를 함께 추출 및 license.json 저장
 // 🔗 @CALLS : loadURL, onrivi.com
 // ====================================================================
-const { app, BrowserWindow, session, ipcMain, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, session, ipcMain, dialog, protocol, net, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const nodeNet = require('net'); // 빈 포트를 찾기 위한 네이티브 모듈 추가
@@ -190,9 +190,11 @@ function createWindow(port) {
     console.error("캐시 소탕 오류:", e.message);
   }
 
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: Math.min(1400, screenWidth),
+    height: Math.min(900, screenHeight),
     title: "온리비 어서",
     icon: path.join(__dirname, 'frontend/public/icon_onriveauther.png'),
        webPreferences: {

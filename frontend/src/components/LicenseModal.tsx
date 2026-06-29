@@ -90,7 +90,13 @@ export default function LicenseModal({
             setMessage({ text: `본 계정은 성공적으로 확인되었습니다. (${data.plan_name || 'PRO'} 플랜)`, type: 'success' });
           }
           if (typeof api.saveLicenseFull === 'function') {
-            await api.saveLicenseFull({ userId: inputUserId.trim(), paymentNo: data.payment_no || '', lastRunTime: Date.now() });
+            await api.saveLicenseFull({ 
+              userId: inputUserId.trim(), 
+              lastRunTime: Date.now(),
+              nextPaymentDate: data.next_payment_date || data.trial_end_at || '',
+              licenseKey: data.license_key || '',
+              planName: data.plan_name || ''
+            });
           }
           onSuccessActivation('', inputUserId.trim(), data.payment_no || '', data.license_key || '');
           setTimeout(() => {

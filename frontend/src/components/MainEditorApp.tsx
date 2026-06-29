@@ -723,6 +723,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     let savedUserId = '';
     let savedLastRunTime = 0;
 
+    let savedNextPaymentDate = '';
+    let savedLicenseKey = '';
+    let savedPlanName = '';
+
     // A. 스토리지 로드 (웹/데스크탑 분리)
     if (isDesktop) {
       if (typeof api.loadLicenseFull === 'function') {
@@ -730,6 +734,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (fullData) {
           savedUserId = fullData.userId || '';
           savedLastRunTime = fullData.lastRunTime || 0;
+          savedNextPaymentDate = fullData.nextPaymentDate || '';
+          savedLicenseKey = fullData.licenseKey || '';
+          savedPlanName = fullData.planName || '';
         }
       }
     } else {
@@ -755,9 +762,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 🚨 데스크탑 전용 로직: 무조건 DB 조회 (USERID + DeviceID)
     // ============================================
     if (isDesktop) {
-      // 시스템 실행 시간 및 USERID만 갱신 (결제번호 등은 캐시하지 않음)
+      // 시스템 실행 시간 갱신 및 기존 라이선스 오프라인 토큰 유지
       if (typeof api.saveLicenseFull === 'function') {
-        await api.saveLicenseFull({ userId: savedUserId, lastRunTime: nowTime });
+        await api.saveLicenseFull({ 
+          userId: savedUserId, 
+          lastRunTime: nowTime,
+          nextPaymentDate: savedNextPaymentDate,
+          licenseKey: savedLicenseKey,
+          planName: savedPlanName
+        });
       }
 
       if (!savedUserId) {
@@ -786,19 +799,51 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const expiryMs = data.next_payment_date ? new Date(data.next_payment_date).getTime() : 0;
           const remainingDays = expiryMs === 0 ? 0 : Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
           
-          setLicenseStatus({
+          const newStatus = {
             isActivated: true, isExpired: false, remainingDays,
             userId: savedUserId, licenseKey: data.license_key || '', paymentNo: data.payment_no || '',
             planName: data.plan_name || '프리미엄 요금제',
             nextPaymentDate: data.next_payment_date || data.trial_end_at || ''
-          });
+          };
+          
+          setLicenseStatus(newStatus);
+
+          // 인증 성공 시 최신 라이선스 정보로 로컬 오프라인 토큰 갱신
+          if (typeof api.saveLicenseFull === 'function') {
+            await api.saveLicenseFull({
+              userId: savedUserId,
+              lastRunTime: Date.now(),
+              nextPaymentDate: newStatus.nextPaymentDate,
+              licenseKey: newStatus.licenseKey,
+              planName: newStatus.planName
+            });
+          }
         }
       } catch (err) {
-        console.warn('[loadAndVerifyLicense] Desktop DB error:', err);
+        console.warn('[loadAndVerifyLicense] Desktop DB error (Network offline):', err);
+        
+        // 🚨 오프라인 유예기간(Grace Period) 검증 🚨
+        if (savedNextPaymentDate) {
+          const expiryMs = new Date(savedNextPaymentDate).getTime();
+          const remainingDays = Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
+          
+          if (remainingDays > 0) {
+            console.log('[loadAndVerifyLicense] Offline grace period active. Days remaining:', remainingDays);
+            showToast(`네트워크 오프라인 모드로 실행 중입니다. (구독 만료까지 D-${remainingDays})`, "warning");
+            setLicenseStatus({
+              isActivated: true, isExpired: false, remainingDays,
+              userId: savedUserId, licenseKey: savedLicenseKey, paymentNo: '',
+              planName: savedPlanName || '오프라인 프리미엄 요금제',
+              nextPaymentDate: savedNextPaymentDate
+            });
+            return;
+          }
+        }
+
         setLicenseStatus({
           isActivated: false, isExpired: true, remainingDays: 0,
           userId: savedUserId, licenseKey: '', paymentNo: '',
-          planName: '미인증 라이선스 (네트워크 오류)', nextPaymentDate: ''
+          planName: '미인증 라이선스 (네트워크 연결 필요)', nextPaymentDate: ''
         });
       }
       return; // 데스크탑은 여기서 검증 완전 종료!
@@ -3708,7 +3753,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const openTabPaths = useMemo(() => tabs.map(t => t.path).filter(Boolean) as string[], [tabs]);
 
   return (
-    <div className={`flex h-screen flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
+    <div className={`flex h-screen overflow-hidden flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
 
       <MenuBar
         isDarkMode={isDarkMode}

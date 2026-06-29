@@ -33,6 +33,9 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "nsis": {
+      "deleteAppDataOnUninstall": true
+    },
     "win": {
       "target": [
         "nsis",
