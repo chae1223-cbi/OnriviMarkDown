@@ -2637,25 +2637,61 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               showToast('이미지 로컬 폴더 저장 실패', 'error');
             }
           } else {
-            // 웹 브라우저 환경 (임시 Blob 사용)
+            // 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
             if (!file) return;
-            const previewUrl = URL.createObjectURL(file);
-            if (editorRef.current) {
-              const editor = editorRef.current;
-              const selection = editor.getSelection();
-              const range = {
-                startLineNumber: selection.startLineNumber,
-                startColumn: selection.startColumn,
-                endLineNumber: selection.endLineNumber,
-                endColumn: selection.endColumn
-              };
-              const textToInsert = `![이미지](${previewUrl})`;
-              editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+            try {
+              // Supabase 세션 가져오기 (JWT)
+              const { data: { session } } = await supabase.auth.getSession();
+              const token = session?.access_token;
 
-              const newValue = editor.getValue();
-              updateContent(newValue, true);
+              // 개발 모드(Next.js dev)일 때는 로컬 백엔드로, 프로덕션(Cloudflare Pages)일 때는 R2 함수로
+              const isDev = process.env.NODE_ENV === 'development';
+              const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
+
+              const headers: any = { 'Content-Type': 'application/json' };
+              if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+              }
+
+              const response = await fetch(uploadEndpoint, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ base64Data, targetFolder: currentFilePath || rootFolderRef.current?.name || '' }),
+              });
+              
+              if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'success' && data.relativePath) {
+                  if (editorRef.current) {
+                    const editor = editorRef.current;
+                    const selection = editor.getSelection();
+                    const range = {
+                      startLineNumber: selection.startLineNumber,
+                      startColumn: selection.startColumn,
+                      endLineNumber: selection.endLineNumber,
+                      endColumn: selection.endColumn
+                    };
+                    const textToInsert = `![이미지](${data.relativePath})`;
+                    editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+      
+                    const newValue = editor.getValue();
+                    updateContent(newValue, true);
+                  }
+                  if (isDev) {
+                    showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
+                  } else {
+                    showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
+                  }
+                } else {
+                  showToast('이미지 클라우드 업로드 실패: ' + (data.error || '알 수 없는 오류'), 'error');
+                }
+              } else {
+                showToast(`서버 오류 발생 (${response.status})`, 'error');
+              }
+            } catch (proxyErr) {
+              console.error('[Web Proxy/R2 Paste Error]', proxyErr);
+              showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
             }
-            showToast('웹 환경: 임시 이미지로 주입되었습니다.', 'success');
           }
         } catch (err) {
           showToast('클립보드 이미지 처리 중 오류가 발생했습니다.', 'error');

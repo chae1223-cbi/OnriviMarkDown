@@ -134,10 +134,10 @@ export function PricingSection() {
                   <div style={{ width: 1, height: 36, background: isHighlighted ? "rgba(255,255,255,0.25)" : "#e2e8f0" }} className="hidden md:block" />
                   <div>
                     <span style={{ fontSize: 11, fontWeight: 600, color: isHighlighted ? "rgba(255,255,255,0.7)" : "#6e7881", letterSpacing: "0.05em", display: "block" }}>
-                      {plan.name.includes("데스크톱") ? "라이선스 허용" : "최대 동시 접속"}
+                      라이선스 정책
                     </span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: isHighlighted ? "#bae6fd" : "#0ea5e9", marginTop: 2, display: "block" }}>
-                      {plan.name.includes("데스크톱") ? "1 카피 (1 PC)" : sessionCount}
+                      1카피당 1대 PC 사용
                     </span>
                   </div>
                 </div>

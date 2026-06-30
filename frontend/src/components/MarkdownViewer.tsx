@@ -963,7 +963,8 @@ export default function MarkdownViewer({
               let finalSrc = pureSrc;
               const isExternal = pureSrc.startsWith('http://') || pureSrc.startsWith('https://') || pureSrc.startsWith('data:') || pureSrc.startsWith('blob:');
 
-              if (!isExternal && typeof window !== 'undefined' && (window as any).electronAPI) {
+              if (!isExternal && typeof window !== 'undefined') {
+                const api = (window as any).electronAPI;
                 let absolutePath = pureSrc;
                 const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(pureSrc);
                 const isAbsoluteUnix = pureSrc.startsWith('/');
@@ -992,10 +993,21 @@ export default function MarkdownViewer({
                   absolutePath = pureSrc.startsWith('./') ? pureSrc.slice(2) : pureSrc;
                 }
                 
-                // 순수 경로에 대해서만 encodeURIComponent를 수행하고, 쿼리가 존재할 시 뒤에 덧붙입니다.
-                finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
+                if (api) {
+                  // 💻 데스크탑 환경 (미디어 프로토콜)
+                  finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
+                } else {
+                  // 🌐 웹 브라우저 환경 (로컬 개발용)
+                  // 브라우저에서 직접 로컬 절대 경로를 읽을 수 없으므로, Next.js의 자체 로컬 파일 서빙 API(/api/view)를 활용합니다.
+                  finalSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
+                }
+                
                 if (queryString) {
-                  finalSrc += '&' + queryString.substring(1);
+                  if (finalSrc.includes('?')) {
+                    finalSrc += '&' + queryString.substring(1);
+                  } else {
+                    finalSrc += queryString; // queryString includes the leading '?'
+                  }
                 }
               }
 

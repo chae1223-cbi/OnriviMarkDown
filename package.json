@@ -6,7 +6,7 @@
   "homepage": "https://onrivi.com",
   "main": "main.js",
   "scripts": {
-    "dev": "cd frontend && npm run dev",
+    "dev": "concurrently \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
     "electron": "electron .",
     "electron:prod": "set NO_SERVER=true&& electron .",
     "build:frontend": "cd frontend && npm install && npm run build:desktop",

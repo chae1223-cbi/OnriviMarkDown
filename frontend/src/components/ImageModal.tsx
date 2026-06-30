@@ -5,6 +5,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -129,11 +131,44 @@ export default function ImageModal({
               }
             }
           } else {
-            // 💡 웹 브라우저 환경 폴백 (blob URL 사용)
-            const blobUrl = URL.createObjectURL(file);
-            setImagePath(blobUrl);
-            if (showToast) {
-              showToast("클립보드 이미지가 임시 URL로 주입되었습니다.", 'success');
+            // 💡 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
+            try {
+              // Supabase 세션 가져오기 (JWT)
+              const { data: { session } } = await supabase.auth.getSession();
+              const token = session?.access_token;
+
+              // 개발 모드(Next.js dev)일 때는 로컬 백엔드로, 프로덕션(Cloudflare Pages)일 때는 R2 함수로
+              const isDev = process.env.NODE_ENV === 'development';
+              const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
+
+              const headers: any = { 'Content-Type': 'application/json' };
+              if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+              }
+
+              const response = await fetch(uploadEndpoint, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
+              });
+              
+              if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'success' && data.relativePath) {
+                  setImagePath(data.relativePath);
+                  if (showToast) {
+                    if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
+                    else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
+                  }
+                } else {
+                  if (showToast) showToast('이미지 클라우드 업로드 실패: ' + (data.error || ''), 'error');
+                }
+              } else {
+                if (showToast) showToast(`서버 오류 발생 (${response.status})`, 'error');
+              }
+            } catch (err) {
+              console.error(err);
+              if (showToast) showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
             }
           }
         };
@@ -264,12 +299,75 @@ export default function ImageModal({
     }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const previewUrl = URL.createObjectURL(file);
-      setImagePath(previewUrl);
-      setImageAlt("이미지 설명");
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const result = reader.result as string;
+        const base64Data = result.split(',')[1];
+        const api = (window as any).electronAPI;
+        if (api) {
+          const fileName = `image_${Date.now()}.png`;
+          const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
+          if (saveResult && saveResult.success) {
+            let finalPath = '';
+            if (saveResult.isRelative) {
+              finalPath = `assets/${fileName}`;
+            } else {
+              const encodedUrl = encodeURIComponent(saveResult.absolutePath);
+              finalPath = `media://local/serve?url=${encodedUrl}`;
+            }
+            setImagePath(finalPath);
+            setImageAlt("이미지 설명");
+            if (showToast) showToast("파일이 로컬 assets 폴더에 저장되었습니다.", 'success');
+          } else {
+            if (showToast) showToast("이미지 저장 실패", 'error');
+          }
+        } else {
+          // 💡 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
+          try {
+            // Supabase 세션 가져오기 (JWT)
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            // 개발 모드(Next.js dev)일 때는 로컬 백엔드로, 프로덕션(Cloudflare Pages)일 때는 R2 함수로
+            const isDev = process.env.NODE_ENV === 'development';
+            const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
+
+            const headers: any = { 'Content-Type': 'application/json' };
+            if (token) {
+              headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const response = await fetch(uploadEndpoint, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data.status === 'success' && data.relativePath) {
+                setImagePath(data.relativePath);
+                setImageAlt("이미지 설명");
+                if (showToast) {
+                  if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
+                  else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
+                }
+              } else {
+                if (showToast) showToast('이미지 클라우드 업로드 실패: ' + (data.error || ''), 'error');
+              }
+            } else {
+              if (showToast) showToast(`서버 오류 발생 (${response.status})`, 'error');
+            }
+          } catch (err) {
+            console.error(err);
+            if (showToast) showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
+          }
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 

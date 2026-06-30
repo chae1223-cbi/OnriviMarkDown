@@ -20,8 +20,9 @@ export const getApiUrl = (path: string): string => {
     }
     const port = parseInt(window.location.port, 10);
     const isNextDev = port >= 3000 && port < 4000;
-    const base = isNextDev ? 'http://localhost:4000' : '';
+    // Next.js 내부 API(/api/*)를 직접 호출하도록 포트 4000 프록시를 제거합니다.
+    const base = isNextDev ? '' : ''; 
     return `${base}${path}`;
   }
-  return `http://localhost:4000${path}`;
+  return path;
 };

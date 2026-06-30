@@ -106,7 +106,7 @@ export const plans: Plan[] = [
     priceYearly: 0,
     priceUSD: "0$",
     features: [
-      "최대 동시 접속 기기 1대",
+      "1카피당 1대 PC 사용 가능",
       "이용 기간 1주일 (7일 제공)",
       "웹 및 데스크톱 앱 모두 사용 가능",
     ],
@@ -120,7 +120,7 @@ export const plans: Plan[] = [
     priceYearly: 3000,
     priceUSD: "3$",
     features: [
-      "최대 동시 접속 기기 3대",
+      "1카피당 1대 PC 사용 가능",
       "웹 에디터 모든 기능 무제한",
     ],
     cta: "웹 월간 구독",
@@ -135,7 +135,7 @@ export const plans: Plan[] = [
     priceYearly: 30000,
     priceUSD: "30$",
     features: [
-      "최대 동시 접속 기기 3대",
+      "1카피당 1대 PC 사용 가능",
       "웹 에디터 모든 기능 무제한",
       "2개월치 요금 즉시 할인 효과",
     ],
@@ -149,7 +149,7 @@ export const plans: Plan[] = [
     priceYearly: 30000,
     priceUSD: "30$",
     features: [
-      "윈도우 데스크톱 1카피 발급 (1 PC)",
+      "1카피당 1대 PC 사용 가능",
       "오프라인 편집 및 보안 완벽 보장",
     ],
     cta: "데스크톱 연간 구독",
@@ -165,3 +165,4 @@ export const NAV_LINKS = [
 
 export const SITE_NAME = "Onrivi Author";
 export const SITE_TAGLINE = "온리비(Onrivi)는 문서 본연의 가치와 완벽한 한글 타이핑 사용성을 지향합니다.";
+

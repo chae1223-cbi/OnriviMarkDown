@@ -1,4 +1,9 @@
 /** @type {import('next').NextConfig} */
+// 💡 데스크탑(Electron) 빌드 시 NEXT_BUILD_TARGET=desktop 환경변수가 주입됩니다.
+// 개발 전용 API 라우트(/api/view, /api/upload-pasted-image)는 정적 내보내기(output:export)와
+// 호환되지 않으므로, 데스크탑 빌드 시에만 해당 라우트를 빌드 대상에서 완전히 제외합니다.
+const isDesktopBuild = process.env.NEXT_BUILD_TARGET === 'desktop';
+
 const nextConfig = {
   output: 'export', // 데스크톱/애드온을 위한 정적 HTML 내보내기 생성
   productionBrowserSourceMaps: true, // 🔍 [임시] TDZ 에러 추적용 소스맵 활성화
@@ -56,4 +61,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-
