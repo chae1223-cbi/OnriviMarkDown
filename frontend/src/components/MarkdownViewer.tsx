@@ -1037,7 +1037,23 @@ export default function MarkdownViewer({
               };
               imgStyle.width = width || undefined;
               if (!width) imgStyle.maxWidth = '600px';
-              return <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" {...props} />;
+              const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+                const img = e.currentTarget;
+                if (img.dataset.fallbackAttempted) return;
+                img.dataset.fallbackAttempted = 'true';
+                if (!pureSrc.startsWith('/api/image/')) return;
+                const api = (window as any).electronAPI;
+                if (!api) return;
+                const match = pureSrc.match(/\/api\/image\/users\/[^/]+\/(.+)/);
+                if (!match) return;
+                const localFileName = match[1];
+                const baseFolder = currentFilePath?.replace(/\\/g, '/').replace(/\/[^/]+$/, '') || '';
+                if (baseFolder) {
+                  const localPath = baseFolder + '/assets/' + localFileName;
+                  img.src = `media://local/serve?url=${encodeURIComponent(localPath)}`;
+                }
+              };
+              return <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" onError={onImgError} {...props} />;
             },
             a: ({ node, href, children, ...props }: any) => {
               const isWebLink = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:'));

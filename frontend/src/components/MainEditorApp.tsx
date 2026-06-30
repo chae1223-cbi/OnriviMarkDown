@@ -2610,8 +2610,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             const saveResult = await api.saveImage(targetFolder, base64DataClean, fileName);
             
             if (saveResult && saveResult.success) {
+              let r2Path = null;
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                if (token) {
+                  const resp = await fetch('https://onrivi.com/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ base64Data: base64DataClean, targetFolder, fileName }),
+                  });
+                  if (resp.ok) { const d = await resp.json(); if (d.status === 'success' && d.relativePath) r2Path = d.relativePath; }
+                }
+              } catch {}
               let finalPath = '';
-              if (saveResult.isRelative) {
+              if (r2Path) {
+                finalPath = r2Path;
+              } else if (saveResult.isRelative) {
                 finalPath = `assets/${fileName}`;
               } else {
                 const encodedUrl = encodeURIComponent(saveResult.absolutePath);
@@ -2633,6 +2648,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 const newValue = editor.getValue();
                 updateContent(newValue, true);
               }
+              showToast(r2Path ? '이미지가 로컬 및 클라우드(R2)에 저장되었습니다.' : '이미지가 로컬 assets 폴더에 저장되었습니다.', 'success');
             } else {
               showToast('이미지 로컬 폴더 저장 실패', 'error');
             }

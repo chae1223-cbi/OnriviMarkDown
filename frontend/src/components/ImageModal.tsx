@@ -114,8 +114,23 @@ export default function ImageModal({
             const fileName = `image_${Date.now()}.png`;
             const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
             if (saveResult && saveResult.success) {
+              let r2Path = null;
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                if (token) {
+                  const resp = await fetch('https://onrivi.com/api/upload-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
+                  });
+                  if (resp.ok) { const d = await resp.json(); if (d.status === 'success' && d.relativePath) r2Path = d.relativePath; }
+                }
+              } catch {}
               let finalPath = '';
-              if (saveResult.isRelative) {
+              if (r2Path) {
+                finalPath = r2Path;
+              } else if (saveResult.isRelative) {
                 finalPath = `assets/${fileName}`;
               } else {
                 const encodedUrl = encodeURIComponent(saveResult.absolutePath);
@@ -123,7 +138,7 @@ export default function ImageModal({
               }
               setImagePath(finalPath);
               if (showToast) {
-                showToast("클립보드 이미지가 로컬 assets 폴더에 저장되었습니다.", 'success');
+                showToast(r2Path ? "이미지가 로컬 및 클라우드(R2)에 저장되었습니다." : "클립보드 이미지가 로컬 assets 폴더에 저장되었습니다.", 'success');
               }
             } else {
               if (showToast) {
@@ -311,8 +326,23 @@ export default function ImageModal({
           const fileName = `image_${Date.now()}.png`;
           const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
           if (saveResult && saveResult.success) {
+            let r2Path = null;
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              const token = session?.access_token;
+              if (token) {
+                const resp = await fetch('https://onrivi.com/api/upload-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
+                });
+                if (resp.ok) { const d = await resp.json(); if (d.status === 'success' && d.relativePath) r2Path = d.relativePath; }
+              }
+            } catch {}
             let finalPath = '';
-            if (saveResult.isRelative) {
+            if (r2Path) {
+              finalPath = r2Path;
+            } else if (saveResult.isRelative) {
               finalPath = `assets/${fileName}`;
             } else {
               const encodedUrl = encodeURIComponent(saveResult.absolutePath);
@@ -320,7 +350,7 @@ export default function ImageModal({
             }
             setImagePath(finalPath);
             setImageAlt("이미지 설명");
-            if (showToast) showToast("파일이 로컬 assets 폴더에 저장되었습니다.", 'success');
+            if (showToast) showToast(r2Path ? "파일이 로컬 및 클라우드(R2)에 저장되었습니다." : "파일이 로컬 assets 폴더에 저장되었습니다.", 'success');
           } else {
             if (showToast) showToast("이미지 저장 실패", 'error');
           }
