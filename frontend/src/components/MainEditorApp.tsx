@@ -3828,6 +3828,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           isMergeMode={isMergeMode}
           previewMode={previewMode}
           setPreviewMode={setPreviewMode}
+          isRestrictedUser={licenseStatus.isExpired}
           selectedMergeNodes={selectedMergeNodes}
           toggleMergeNodeSelect={toggleMergeNodeSelect}
           onSelectRootFolder={() => selectRootFolder('local', null)}

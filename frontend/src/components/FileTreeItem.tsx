@@ -28,6 +28,7 @@ interface FileTreeItemProps {
   selectedMergeNodes?: FileNode[];
   toggleMergeNodeSelect?: (node: FileNode) => void;
   onLazyLoad?: (node: FileNode) => Promise<FileNode[]>;
+  isRestrictedUser?: boolean;
 }
 
 // ====================================================================
@@ -40,7 +41,7 @@ interface FileTreeItemProps {
 const FileTreeItem = ({ 
   node: rawNode, parentHandle, level, openFile, previewMode, setPreviewMode, currentFileName, currentFilePath, workspaceType, refreshParent, onRefreshAll, openTabPaths,
   askConfirm, siblings,
-  isMergeMode = false, selectedMergeNodes = [], toggleMergeNodeSelect, onLazyLoad
+  isMergeMode = false, selectedMergeNodes = [], toggleMergeNodeSelect, onLazyLoad, isRestrictedUser = false
 }: FileTreeItemProps) => {
   const { showToast } = useToast();
 
@@ -159,6 +160,7 @@ const FileTreeItem = ({
   // 🔗 @CALLS : refreshParent, refreshThisDirectory, onRefreshAll, vfsRename, showToast
   // ====================================================================
   const handleDrop = async (e: React.DragEvent) => {
+    if (isRestrictedUser) return; // 제한 사용자는 파일 조작/이동 불가
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
@@ -706,7 +708,7 @@ const FileTreeItem = ({
         onCancel={() => setPromptConfig({ ...promptConfig, isOpen: false, error: '' })}
       />
       <div 
-        draggable={!isMergeMode}
+        draggable={!isMergeMode && !isRestrictedUser}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -742,7 +744,7 @@ const FileTreeItem = ({
         <span className="ml-1.5 truncate text-[15px] text-left flex-1">{node.name}</span>
 
         {/* Hover Actions */}
-        {!isMergeMode && (
+        {!isMergeMode && !isRestrictedUser && (
           <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {node.kind === 'directory' && (
               <>
@@ -785,11 +787,11 @@ const FileTreeItem = ({
                 openTabPaths={openTabPaths}
                 askConfirm={askConfirm}
                 siblings={children}
-               
                 isMergeMode={isMergeMode}
                 selectedMergeNodes={selectedMergeNodes}
                 toggleMergeNodeSelect={toggleMergeNodeSelect}
                 onLazyLoad={onLazyLoad}
+                isRestrictedUser={isRestrictedUser}
               />
             ))}
           </div>

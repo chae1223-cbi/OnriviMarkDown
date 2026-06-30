@@ -54,6 +54,7 @@ interface LeftSidebarProps {
   onSelectRootFolder?: () => void;
   onRestoreFolder?: () => void;
   tabs?: { id: string; name: string; path: string | null; content: string }[];
+  isRestrictedUser?: boolean;
 }
 
 // ====================================================================
@@ -100,7 +101,8 @@ export default function LeftSidebar({
   onRestoreFolder,
   previewMode,
   setPreviewMode,
-  tabs
+  tabs = [],
+  isRestrictedUser = false
 }: LeftSidebarProps) {
   const [drives, setDrives] = useState<FileNode[]>([]);
   const [isDrivesLoading, setIsDrivesLoading] = useState(false);
@@ -406,38 +408,40 @@ export default function LeftSidebar({
             <div className="space-y-0.5">
               <div className="group relative flex items-center justify-between px-1 py-2 text-[15px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
                 <span className="truncate">📁 {rootFolder.name}</span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPromptConfig({
-                        isOpen: true,
-                        title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요:",
-                        defaultValue: "untitled.md",
-                        type: 'createFile'
-                      });
-                    }} 
-                    className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
-                    title="새 파일"
-                  >
-                    <Plus size={14} />
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPromptConfig({
-                        isOpen: true,
-                        title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요:",
-                        defaultValue: "",
-                        type: 'createFolder'
-                      });
-                    }} 
-                    className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
-                    title="새 폴더"
-                  >
-                    <FolderPlus size={14} />
-                  </button>
-                </div>
+                {!isRestrictedUser && (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPromptConfig({
+                          isOpen: true,
+                          title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요:",
+                          defaultValue: "untitled.md",
+                          type: 'createFile'
+                        });
+                      }} 
+                      className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      title="새 파일"
+                    >
+                      <Plus size={14} />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPromptConfig({
+                          isOpen: true,
+                          title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요:",
+                          defaultValue: "",
+                          type: 'createFolder'
+                        });
+                      }} 
+                      className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      title="새 폴더"
+                    >
+                      <FolderPlus size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
               {fileList.length === 0 ? (
                 <div className="text-zinc-400 dark:text-zinc-500 text-xs text-center py-8">
@@ -450,17 +454,18 @@ export default function LeftSidebar({
                   <FileTreeItem
                     key={node.path || node.name + i}
                     node={node}
-                     parentHandle={rootFolder?.handle || null}
+                    parentHandle={rootFolder?.handle || null}
                     level={0}
-                     openFile={openFile}
-                     previewMode={previewMode}
-                     setPreviewMode={setPreviewMode}
-                     currentFileName={currentFileName}
+                    openFile={openFile}
+                    previewMode={previewMode}
+                    setPreviewMode={setPreviewMode}
+                    currentFileName={currentFileName}
                     currentFilePath={currentFileNode?.path}
                     workspaceType={workspaceType}
                     refreshParent={refreshFileList}
                     onRefreshAll={refreshFileList}
                     openTabPaths={openTabPaths}
+                    isRestrictedUser={isRestrictedUser}
                     askConfirm={askConfirm}
                     isMergeMode={isMergeMode}
                     selectedMergeNodes={selectedMergeNodes}
