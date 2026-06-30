@@ -118,14 +118,13 @@ export default function ImageModal({
               try {
                 const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
-                if (token) {
-                  const resp = await fetch('https://onrivi.com/api/upload-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
-                  });
-                  if (resp.ok) { const d = await resp.json(); if (d.status === 'success' && d.relativePath) r2Path = d.relativePath; }
-                }
+                const headers: any = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const resp = await fetch('https://onrivi.com/api/upload-image', {
+                  method: 'POST', headers,
+                  body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
+                });
+                if (resp.ok) { const d = await resp.json(); if (d.status === 'success' && d.relativePath) r2Path = d.relativePath; }
               } catch {}
               let finalPath = '';
               if (r2Path) {

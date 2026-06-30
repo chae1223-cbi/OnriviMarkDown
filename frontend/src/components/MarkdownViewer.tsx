@@ -961,18 +961,22 @@ export default function MarkdownViewer({
               }
 
               let finalSrc = pureSrc;
-              const isExternal = pureSrc.startsWith('http://') || pureSrc.startsWith('https://') || pureSrc.startsWith('data:') || pureSrc.startsWith('blob:')
-                || pureSrc.startsWith('/api/image/'); // ☁️ Cloudflare Pages Function 이미지 서빙 경로
+              const isHttp = pureSrc.startsWith('http://') || pureSrc.startsWith('https://');
+              const isBlobOrData = pureSrc.startsWith('data:') || pureSrc.startsWith('blob:');
+              const isExternal = isHttp || isBlobOrData;
+              const isR2ApiPath = pureSrc.startsWith('/api/image/');
 
-              if (!isExternal && typeof window !== 'undefined') {
+              if (isR2ApiPath && (window as any).electronAPI) {
+                finalSrc = `https://onrivi.com${pureSrc}`;
+              } else if (isR2ApiPath) {
+                finalSrc = pureSrc;
+              } else if (!isExternal && typeof window !== 'undefined') {
                 const api = (window as any).electronAPI;
                 let absolutePath = pureSrc;
                 const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(pureSrc);
                 const isAbsoluteUnix = pureSrc.startsWith('/');
                 const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
 
-                // 🛡️ [웰컴 페이지 예외 가드] 웰컴 페이지 내장 이미지는 로컬 워크스페이스 경로로 강제 확장하지 않고,
-                // 원래의 상대경로 그대로 에셋 폴백 서빙을 탈 수 있도록 우회합니다.
                 const isWelcomePage = currentFilePath && (
                   currentFilePath.endsWith('Welcome.md') || 
                   currentFilePath.endsWith('Welcome.markdown') || 
@@ -984,27 +988,18 @@ export default function MarkdownViewer({
                 if (!isAbsolute && currentFilePath && !isWelcomeAsset) {
                   absolutePath = resolveRelativeImagePath(pureSrc, currentFilePath);
                 } else if (!isAbsolute && rootFolderPath && rootFolderPath !== '브라우저 스토리지' && !isWelcomeAsset) {
-                  // currentFilePath가 없는 새 파일인 경우, 활성화된 로컬 워크스페이스 디렉토리를 기준으로 상대경로를 해결합니다.
                   const sep = rootFolderPath.includes('/') ? '/' : '\\';
                   const folder = rootFolderPath.endsWith(sep) ? rootFolderPath : rootFolderPath + sep;
                   absolutePath = folder + pureSrc;
                 } else if (isWelcomeAsset) {
-                  // 웰컴 에셋인 경우, './hero.png' 에서 './'를 제거하여 'hero.png' 로 안전하게 전송합니다.
-                  // 이를 통해 URL 내 상대경로 문자 정규화 꼬임으로 인한 이미지 엑스박스 결함을 영구 방지합니다.
                   absolutePath = pureSrc.startsWith('./') ? pureSrc.slice(2) : pureSrc;
                 }
                 
                 if (api) {
-                  // 💻 데스크탑 환경 (미디어 프로토콜)
                   finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
                 } else if (process.env.NODE_ENV === 'development') {
-                  // 🔧 로컬 개발 환경: Next.js 자체 파일 서빙 프록시 (/api/view) 사용
                   finalSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
                 } else {
-                  // ☁️ Cloudflare 프로덕션 환경
-                  // R2 업로드된 이미지는 https:// URL이므로 isExternal로 이미 처리됩니다.
-                  // 상대 경로 이미지(로컬 전용)는 Cloudflare에서 서빙 불가이므로 원본 src를 그대로 전달합니다.
-                  // (브라우저가 상대 경로로 시도 → 없으면 broken image 표시)
                   finalSrc = pureSrc;
                 }
                 
@@ -1041,10 +1036,11 @@ export default function MarkdownViewer({
                 const img = e.currentTarget;
                 if (img.dataset.fallbackAttempted) return;
                 img.dataset.fallbackAttempted = 'true';
-                if (!pureSrc.startsWith('/api/image/')) return;
                 const api = (window as any).electronAPI;
                 if (!api) return;
-                const match = pureSrc.match(/\/api\/image\/users\/[^/]+\/(.+)/);
+                const isR2Path = pureSrc.startsWith('/api/image/') || img.src.includes('/api/image/');
+                if (!isR2Path) return;
+                const match = pureSrc.match(/\/api\/image\/users\/[^/]+\/(.+)/) || img.src.match(/\/api\/image\/users\/[^/]+\/([^?#]+)/);
                 if (!match) return;
                 const localFileName = match[1];
                 const baseFolder = currentFilePath?.replace(/\\/g, '/').replace(/\/[^/]+$/, '') || '';

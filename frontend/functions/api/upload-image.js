@@ -20,28 +20,22 @@ export async function onRequestPost(context) {
   try {
     const { request, env } = context;
     
-    // 1. Authorization 헤더 확인 (Supabase JWT)
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return withCors(new Response(JSON.stringify({ error: 'Unauthorized: Missing or invalid token' }), { 
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      }));
-    }
-    const token = authHeader.split(' ')[1];
-    
-    // 2. JWT 디코딩하여 User ID (sub) 추출
+    // 1. Authorization 헤더 확인 (선택적 JWT)
     let userId = 'anonymous';
-    try {
-      const tokenParts = token.split('.');
-      if (tokenParts.length === 3) {
-        const payload = JSON.parse(atob(tokenParts[1]));
-        if (payload.sub) {
-          userId = payload.sub;
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          if (payload.sub) {
+            userId = payload.sub;
+          }
         }
+      } catch (e) {
+        console.warn('Failed to parse JWT', e);
       }
-    } catch (e) {
-      console.warn('Failed to parse JWT', e);
     }
 
     // 3. Request Body (JSON) 파싱
