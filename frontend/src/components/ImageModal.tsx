@@ -451,112 +451,99 @@ export default function ImageModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 text-on-surface">
-          {/* 상단 2컬럼: 소스 파일 | 적용 경로 */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* 왼쪽: 소스 파일 */}
-            <div className="space-y-3">
-              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">소스 파일 (원본)</label>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={imagePath}
-                  onChange={(e) => setImagePath(e.target.value)}
-                  placeholder="https://example.com/image.png"
-                  className={`flex-1 border px-2 py-2 rounded-lg outline-none transition-all text-xs ${
-                    isDarkMode 
-                      ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
-                      : 'bg-white border-[#c1c6d7] focus:border-blue-600'
-                  }`}
-                />
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-                <button onClick={() => fileInputRef.current?.click()}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all active:scale-95 whitespace-nowrap ${
-                    isDarkMode 
-                      ? 'bg-[#33373b] border-[#44474e] text-blue-300 hover:bg-[#44474e]' 
-                      : 'bg-[#ebeef3] border-[#c1c6d7] text-gray-700 hover:bg-[#e0e3e8]'
-                  }`}>찾아보기</button>
-              </div>
-              {/* 클립보드 붙여넣기 */}
-              <div tabIndex={0} onPaste={handlePasteEvent} onClick={(e) => e.currentTarget.focus()}
-                className={`border-2 border-dashed rounded-lg p-2 text-center cursor-pointer transition-all focus:ring-2 focus:ring-blue-500 outline-none ${
-                  isDarkMode 
-                    ? 'border-[#44474e] bg-[#282a2f] hover:border-blue-400 text-gray-400 focus:border-blue-400' 
-                    : 'border-[#c1c6d7] bg-gray-50 hover:border-blue-600 text-gray-500 focus:border-blue-600'
-                }`}>
-                <p className="text-[10px] font-semibold">클릭 후 Ctrl+V</p>
-                <p className="text-[9px] text-gray-400 dark:text-gray-500">클립보드 이미지</p>
-              </div>
-              {/* 미리보기 */}
-              <div className={`rounded-lg border border-dashed flex items-center justify-center overflow-hidden bg-black/5 dark:bg-white/5 ${
-                isDarkMode ? 'border-[#444755]' : 'border-[#c1c6d7]'
-              }`} style={{ minHeight: '120px' }}>
-                {previewSrc ? (
-                  <img src={previewSrc} alt="미리보기"
-                    style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'contain' }}
-                    onError={(e) => (e.currentTarget.style.display = 'none')}
-                    onLoad={(e) => (e.currentTarget.style.display = 'block')} />
-                ) : (
-                  <div className="text-center p-3 text-gray-400">
-                    <ImageIcon size={28} className="mx-auto mb-1 opacity-20" />
-                    <p className="text-[10px]">미리보기</p>
-                  </div>
-                )}
-              </div>
+        <div className="p-6 space-y-4 text-on-surface">
+          {/* 이미지 경로 입력 */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">소스 파일 (원본)</label>
+            <div className="flex gap-2">
+              <input type="text" value={imagePath} onChange={(e) => setImagePath(e.target.value)}
+                placeholder="https://example.com/image.png"
+                className={`flex-1 border px-3 py-2 rounded-lg outline-none transition-all text-sm ${
+                  isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+                }`} />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+              <button onClick={() => fileInputRef.current?.click()}
+                className={`px-4 py-2 rounded-lg text-xs font-medium border transition-all active:scale-95 ${
+                  isDarkMode ? 'bg-[#33373b] border-[#44474e] text-blue-300 hover:bg-[#44474e]' : 'bg-[#ebeef3] border-[#c1c6d7] text-gray-700 hover:bg-[#e0e3e8]'
+                }`}>찾아보기</button>
             </div>
-            {/* 오른쪽: 적용 경로 */}
-            <div className="space-y-3">
-              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">적용 경로</label>
-              <input type="text" value={cleanImagePath} readOnly
-                className={`w-full border px-2 py-2 rounded-lg outline-none text-xs bg-gray-100 dark:bg-[#1a1c1e] ${
-                  isDarkMode ? 'border-[#44474e] text-gray-300' : 'border-[#c1c6d7] text-gray-500'
-                }`} placeholder="파일 선택 또는 URL 입력 후 자동 표시" />
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">이미지 설명 (Alt)</label>
-                <input type="text" value={imageAlt} onChange={(e) => setImageAlt(e.target.value)}
-                  className={`w-full border px-2 py-2 rounded-lg outline-none transition-all text-xs ${
-                    isDarkMode 
-                      ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
-                      : 'bg-white border-[#c1c6d7] focus:border-blue-600'
-                  }`} />
-              </div>
-              {/* 이미지 크기 */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 block">가로</label>
-                  <input type="text" value={imageWidth} onChange={(e) => setImageWidth(e.target.value)}
-                    placeholder="300px"
-                    className={`w-full border px-2 py-1.5 rounded-lg outline-none transition-all text-xs ${
-                      isDarkMode 
-                        ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
-                        : 'bg-white border-[#c1c6d7] focus:border-blue-600'
-                    }`} />
+          </div>
+
+          {/* 적용 경로 */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">적용 경로</label>
+            <input type="text" value={cleanImagePath} readOnly
+              className={`w-full border px-3 py-2 rounded-lg outline-none text-sm bg-gray-100 dark:bg-[#1a1c1e] ${
+                isDarkMode ? 'border-[#44474e] text-gray-300' : 'border-[#c1c6d7] text-gray-500'
+              }`} placeholder="파일 선택 또는 URL 입력 후 자동 표시" />
+          </div>
+
+          {/* 클립보드 붙여넣기 */}
+          <div tabIndex={0} onPaste={handlePasteEvent} onClick={(e) => e.currentTarget.focus()}
+            className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-all focus:ring-2 focus:ring-blue-500 outline-none ${
+              isDarkMode ? 'border-[#44474e] bg-[#282a2f] hover:border-blue-400 text-gray-400 focus:border-blue-400' : 'border-[#c1c6d7] bg-gray-50 hover:border-blue-600 text-gray-500 focus:border-blue-600'
+            }`}>
+            <p className="text-xs font-semibold">클릭 후 Ctrl+V</p>
+            <p className="text-[10px] text-gray-400 dark:text-gray-500">클립보드 이미지 붙여넣기</p>
+          </div>
+
+          {/* Alt + 크기 + 정렬 3열 */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">설명 (Alt)</label>
+              <input type="text" value={imageAlt} onChange={(e) => setImageAlt(e.target.value)}
+                className={`w-full border px-2 py-2 rounded-lg outline-none transition-all text-sm ${
+                  isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+                }`} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">가로</label>
+              <input type="text" value={imageWidth} onChange={(e) => setImageWidth(e.target.value)} placeholder="300px"
+                className={`w-full border px-2 py-2 rounded-lg outline-none transition-all text-sm ${
+                  isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+                }`} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">세로</label>
+              <input type="text" value={imageHeight} onChange={(e) => setImageHeight(e.target.value)} placeholder="auto"
+                className={`w-full border px-2 py-2 rounded-lg outline-none transition-all text-sm ${
+                  isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+                }`} />
+            </div>
+          </div>
+
+          {/* 정렬 */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1.5">정렬</label>
+            <div className="flex gap-2">
+              {([['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']] as const).map(([val, label]) => (
+                <button key={val} onClick={() => setImageAlign(val)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all border ${
+                    imageAlign === val
+                      ? isDarkMode ? 'bg-[#33373b] text-blue-300 border-[#44474e] shadow-sm' : 'bg-white text-blue-600 border-[#c1c6d7] shadow-sm font-semibold'
+                      : isDarkMode ? 'bg-transparent text-gray-400 border-transparent hover:bg-[#282a2f]' : 'bg-transparent text-gray-500 border-transparent hover:bg-gray-50'
+                  }`}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* 미리보기 */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1.5">미리보기</label>
+            <div className={`rounded-xl border border-dashed flex items-center justify-center overflow-hidden bg-black/5 dark:bg-white/5 ${
+              isDarkMode ? 'border-[#444755]' : 'border-[#c1c6d7]'
+            }`} style={{ minHeight: '200px' }}>
+              {previewSrc ? (
+                <img src={previewSrc} alt="미리보기"
+                  style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain' }}
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                  onLoad={(e) => (e.currentTarget.style.display = 'block')} />
+              ) : (
+                <div className="text-center p-6 text-gray-400">
+                  <ImageIcon size={48} className="mx-auto mb-2 opacity-20" />
+                  <p className="text-xs">유효한 이미지 주소를 입력하면<br/>여기에 미리보기가 표시됩니다.</p>
                 </div>
-                <div>
-                  <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 block">세로</label>
-                  <input type="text" value={imageHeight} onChange={(e) => setImageHeight(e.target.value)}
-                    placeholder="auto"
-                    className={`w-full border px-2 py-1.5 rounded-lg outline-none transition-all text-xs ${
-                      isDarkMode 
-                        ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' 
-                        : 'bg-white border-[#c1c6d7] focus:border-blue-600'
-                    }`} />
-                </div>
-              </div>
-              {/* 정렬 */}
-              <div>
-                <label className="text-[10px] font-medium text-gray-500 dark:text-gray-400 block mb-1">정렬</label>
-                <div className="flex gap-1">
-                  {([['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']] as const).map(([val, label]) => (
-                    <button key={val} onClick={() => setImageAlign(val)}
-                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all border ${
-                        imageAlign === val
-                          ? isDarkMode ? 'bg-[#33373b] text-blue-300 border-[#44474e]' : 'bg-white text-blue-600 border-[#c1c6d7] shadow-sm font-semibold'
-                          : isDarkMode ? 'bg-transparent text-gray-400 border-transparent hover:bg-[#282a2f]' : 'bg-transparent text-gray-500 border-transparent hover:bg-gray-50'
-                      }`}>{label}</button>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
