@@ -2602,16 +2602,44 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (!base64Data) return;
 
         try {
-          const response = await fetch(getApiUrl('/api/upload-pasted-image'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ base64Data })
-          });
+          const base64DataClean = base64Data.split(',')[1] || base64Data;
+          const api = (window as any).electronAPI;
+          if (api) {
+            const fileName = `image_${Date.now()}.png`;
+            const targetFolder = currentFilePath || rootFolderRef.current?.name || '';
+            const saveResult = await api.saveImage(targetFolder, base64DataClean, fileName);
+            
+            if (saveResult && saveResult.success) {
+              let finalPath = '';
+              if (saveResult.isRelative) {
+                finalPath = `assets/${fileName}`;
+              } else {
+                const encodedUrl = encodeURIComponent(saveResult.absolutePath);
+                finalPath = `media://local/serve?url=${encodedUrl}`;
+              }
 
-          if (response.ok) {
-            const data = await response.json();
-            const relativePath = data.relativePath;
+              if (editorRef.current) {
+                const editor = editorRef.current;
+                const selection = editor.getSelection();
+                const range = {
+                  startLineNumber: selection.startLineNumber,
+                  startColumn: selection.startColumn,
+                  endLineNumber: selection.endLineNumber,
+                  endColumn: selection.endColumn
+                };
+                const textToInsert = `![이미지](${finalPath})`;
+                editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
 
+                const newValue = editor.getValue();
+                updateContent(newValue, true);
+              }
+            } else {
+              showToast('이미지 로컬 폴더 저장 실패', 'error');
+            }
+          } else {
+            // 웹 브라우저 환경 (임시 Blob 사용)
+            if (!file) return;
+            const previewUrl = URL.createObjectURL(file);
             if (editorRef.current) {
               const editor = editorRef.current;
               const selection = editor.getSelection();
@@ -2621,15 +2649,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 endLineNumber: selection.endLineNumber,
                 endColumn: selection.endColumn
               };
-              const textToInsert = `![이미지](${relativePath})`;
+              const textToInsert = `![이미지](${previewUrl})`;
               editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
 
               const newValue = editor.getValue();
               updateContent(newValue, true);
             }
+            showToast('웹 환경: 임시 이미지로 주입되었습니다.', 'success');
           }
         } catch (err) {
-          showToast('클립보드 이미지 업로드에 실패했습니다.', 'error');
+          showToast('클립보드 이미지 처리 중 오류가 발생했습니다.', 'error');
         }
       };
       reader.readAsDataURL(file);
