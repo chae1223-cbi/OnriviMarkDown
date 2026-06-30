@@ -1,0 +1,7 @@
+name = "onrivi-author"
+compatibility_date = "2026-06-23"
+pages_build_output_dir = "./frontend/out"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "onrivi-images"

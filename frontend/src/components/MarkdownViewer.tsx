@@ -961,7 +961,8 @@ export default function MarkdownViewer({
               }
 
               let finalSrc = pureSrc;
-              const isExternal = pureSrc.startsWith('http://') || pureSrc.startsWith('https://') || pureSrc.startsWith('data:') || pureSrc.startsWith('blob:');
+              const isExternal = pureSrc.startsWith('http://') || pureSrc.startsWith('https://') || pureSrc.startsWith('data:') || pureSrc.startsWith('blob:')
+                || pureSrc.startsWith('/api/image/'); // ☁️ Cloudflare Pages Function 이미지 서빙 경로
 
               if (!isExternal && typeof window !== 'undefined') {
                 const api = (window as any).electronAPI;
@@ -996,10 +997,15 @@ export default function MarkdownViewer({
                 if (api) {
                   // 💻 데스크탑 환경 (미디어 프로토콜)
                   finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
-                } else {
-                  // 🌐 웹 브라우저 환경 (로컬 개발용)
-                  // 브라우저에서 직접 로컬 절대 경로를 읽을 수 없으므로, Next.js의 자체 로컬 파일 서빙 API(/api/view)를 활용합니다.
+                } else if (process.env.NODE_ENV === 'development') {
+                  // 🔧 로컬 개발 환경: Next.js 자체 파일 서빙 프록시 (/api/view) 사용
                   finalSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
+                } else {
+                  // ☁️ Cloudflare 프로덕션 환경
+                  // R2 업로드된 이미지는 https:// URL이므로 isExternal로 이미 처리됩니다.
+                  // 상대 경로 이미지(로컬 전용)는 Cloudflare에서 서빙 불가이므로 원본 src를 그대로 전달합니다.
+                  // (브라우저가 상대 경로로 시도 → 없으면 broken image 표시)
+                  finalSrc = pureSrc;
                 }
                 
                 if (queryString) {

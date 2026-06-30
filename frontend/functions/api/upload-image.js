@@ -63,13 +63,14 @@ export async function onRequestPost(context) {
       customMetadata: { userId }
     });
 
-    // 7. 퍼블릭 도메인 조립 후 반환
-    const publicDomain = env.R2_PUBLIC_DOMAIN || 'https://pub-your-domain.r2.dev';
-    const publicUrl = `${publicDomain.replace(/\/$/, '')}/${fileName}`;
+    // 7. 자체 Pages Function(/api/image/) 경로로 반환 (R2 퍼블릭 도메인 불필요)
+    // /api/image/users/{userId}/img_xxx.png 형태로 반환하면
+    // [[path]].js Function이 R2에서 직접 읽어 서빙합니다.
+    const servePath = `/api/image/${fileName}`;
 
     return new Response(JSON.stringify({
       status: 'success',
-      relativePath: publicUrl
+      relativePath: servePath
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
