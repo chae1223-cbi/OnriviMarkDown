@@ -115,6 +115,7 @@ export default function ImageModal({
             const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
             if (saveResult && saveResult.success) {
               let r2Path = null;
+              let r2Error = '';
               try {
                 const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
@@ -124,8 +125,17 @@ export default function ImageModal({
                   method: 'POST', headers,
                   body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
                 });
-                if (resp.ok) { const d = await resp.json(); if (d.status === 'success' && d.relativePath) r2Path = d.relativePath; }
-              } catch {}
+                if (resp.ok) {
+                  const d = await resp.json();
+                  if (d.status === 'success' && d.relativePath) r2Path = d.relativePath;
+                  else r2Error = d.error || `status=${d.status}`;
+                } else {
+                  r2Error = `HTTP ${resp.status}`;
+                  try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch {}
+                }
+              } catch (e: any) {
+                r2Error = e?.message || String(e);
+              }
               let finalPath = '';
               if (r2Path) {
                 finalPath = r2Path;
@@ -137,7 +147,8 @@ export default function ImageModal({
               }
               setImagePath(finalPath);
               if (showToast) {
-                showToast(r2Path ? "이미지가 로컬 및 클라우드(R2)에 저장되었습니다." : "클립보드 이미지가 로컬 assets 폴더에 저장되었습니다.", 'success');
+                const msg = r2Path ? "이미지가 로컬 및 클라우드(R2)에 저장되었습니다." : (r2Error ? `R2 업로드 실패: ${r2Error} — 로컬 assets에 저장` : "클립보드 이미지가 로컬 assets 폴더에 저장되었습니다.");
+                showToast(msg, r2Path ? 'success' : 'error');
               }
             } else {
               if (showToast) {
@@ -322,35 +333,47 @@ export default function ImageModal({
         const result = reader.result as string;
         const base64Data = result.split(',')[1];
         const api = (window as any).electronAPI;
-        if (api) {
-          const fileName = `image_${Date.now()}.png`;
-          const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
-          if (saveResult && saveResult.success) {
-            let r2Path = null;
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              const token = session?.access_token;
-              if (token) {
+          if (api) {
+            const fileName = `image_${Date.now()}.png`;
+            const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
+            if (saveResult && saveResult.success) {
+              let r2Path = null;
+              let r2Error = '';
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                const headers: any = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
                 const resp = await fetch('https://onrivi.com/api/upload-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  method: 'POST', headers,
                   body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
                 });
-                if (resp.ok) { const d = await resp.json(); if (d.status === 'success' && d.relativePath) r2Path = d.relativePath; }
+                if (resp.ok) {
+                  const d = await resp.json();
+                  if (d.status === 'success' && d.relativePath) r2Path = d.relativePath;
+                  else r2Error = d.error || `status=${d.status}`;
+                } else {
+                  r2Error = `HTTP ${resp.status}`;
+                  try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch {}
+                }
+              } catch (e: any) {
+                r2Error = e?.message || String(e);
               }
-            } catch {}
-            let finalPath = '';
-            if (r2Path) {
-              finalPath = r2Path;
-            } else if (saveResult.isRelative) {
-              finalPath = `assets/${fileName}`;
-            } else {
-              const encodedUrl = encodeURIComponent(saveResult.absolutePath);
-              finalPath = `media://local/serve?url=${encodedUrl}`;
-            }
-            setImagePath(finalPath);
-            setImageAlt("이미지 설명");
-            if (showToast) showToast(r2Path ? "파일이 로컬 및 클라우드(R2)에 저장되었습니다." : "파일이 로컬 assets 폴더에 저장되었습니다.", 'success');
+              let finalPath = '';
+              if (r2Path) {
+                finalPath = r2Path;
+              } else if (saveResult.isRelative) {
+                finalPath = `assets/${fileName}`;
+              } else {
+                const encodedUrl = encodeURIComponent(saveResult.absolutePath);
+                finalPath = `media://local/serve?url=${encodedUrl}`;
+              }
+              setImagePath(finalPath);
+              setImageAlt("이미지 설명");
+              if (showToast) {
+                const msg = r2Path ? "파일이 로컬 및 클라우드(R2)에 저장되었습니다." : (r2Error ? `R2 업로드 실패: ${r2Error} — 로컬 assets에 저장` : "파일이 로컬 assets 폴더에 저장되었습니다.");
+                showToast(msg, r2Path ? 'success' : 'error');
+              }
           } else {
             if (showToast) showToast("이미지 저장 실패", 'error');
           }

@@ -2611,6 +2611,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             
             if (saveResult && saveResult.success) {
               let r2Path = null;
+              let r2Error = '';
               try {
                 const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
@@ -2620,8 +2621,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   method: 'POST', headers,
                   body: JSON.stringify({ base64Data: base64DataClean, targetFolder, fileName }),
                 });
-                if (resp.ok) { const d = await resp.json(); if (d.status === 'success' && d.relativePath) r2Path = d.relativePath; }
-              } catch {}
+                if (resp.ok) {
+                  const d = await resp.json();
+                  if (d.status === 'success' && d.relativePath) r2Path = d.relativePath;
+                  else r2Error = d.error || `status=${d.status}`;
+                } else {
+                  r2Error = `HTTP ${resp.status}`;
+                  try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch {}
+                }
+              } catch (e: any) {
+                r2Error = e?.message || String(e);
+              }
               let finalPath = '';
               if (r2Path) {
                 finalPath = r2Path;
@@ -2647,7 +2657,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 const newValue = editor.getValue();
                 updateContent(newValue, true);
               }
-              showToast(r2Path ? '이미지가 로컬 및 클라우드(R2)에 저장되었습니다.' : '이미지가 로컬 assets 폴더에 저장되었습니다.', 'success');
+              showToast(r2Path ? '이미지가 로컬 및 클라우드(R2)에 저장되었습니다.' : `R2 업로드 실패(${r2Error}) — 로컬 assets에 저장`, r2Path ? 'success' : 'error');
             } else {
               showToast('이미지 로컬 폴더 저장 실패', 'error');
             }
