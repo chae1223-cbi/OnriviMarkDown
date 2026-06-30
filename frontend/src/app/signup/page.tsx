@@ -141,11 +141,21 @@ export default function SignupPage() {
         throw new Error(error.message);
       }
 
-      if (!data.user) {
-        throw new Error("회원가입 결과를 받아올 수 없습니다.");
+      // 💡 Supabase "이메일 인증" 기능이 활성화된 경우:
+      //    signUp() 성공 시 data.user가 null이 아닌 identities가 빈 배열로 반환됩니다.
+      //    data.session이 null이면 인증 메일 발송 상태 (확인 대기)
+      if (!data.user && !data.session) {
+        // 이메일 인증 메일 발송됨 → 사용자에게 안내
+        showToast("입력하신 이메일로 인증 메일을 발송했습니다. 메일함을 확인해 주세요!", "success");
+        setLoading(false);
+        return;
       }
 
-      const userId = data.user.id;
+      // data.user가 있거나 identities가 있으면 정상 진행
+      const userId = data.user?.id;
+      if (!userId) {
+        throw new Error("회원가입 결과를 받아올 수 없습니다.");
+      }
 
       // 2. public.users 동기화 (Stored Procedure 'register_user' RPC 호출로 단일 처리하여 RLS 우회 및 예외 추적 제공)
       const { data: { session } } = await supabase.auth.getSession();
