@@ -145,47 +145,48 @@ export default function ImageModal({
                 showToast("이미지 저장 실패", 'error');
               }
             }
-          } else {
-            // 💡 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
-            try {
-              // Supabase 세션 가져오기 (JWT)
-              const { data: { session } } = await supabase.auth.getSession();
-              const token = session?.access_token;
+        } else {
+          // 💡 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
+          // Blob URL로 즉시 미리보기 표시 (업로드 성공 여부와 무관)
+          const blobPreview = URL.createObjectURL(file);
+          setImagePath(blobPreview);
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
 
-              // 개발 모드(Next.js dev)일 때는 로컬 백엔드로, 프로덕션(Cloudflare Pages)일 때는 R2 함수로
-              const isDev = process.env.NODE_ENV === 'development';
-              const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
+            const isDev = process.env.NODE_ENV === 'development';
+            const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
 
-              const headers: any = { 'Content-Type': 'application/json' };
-              if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-              }
+            const headers: any = { 'Content-Type': 'application/json' };
+            if (token) {
+              headers['Authorization'] = `Bearer ${token}`;
+            }
 
-              const response = await fetch(uploadEndpoint, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
-              });
-              
-              if (response.ok) {
-                const data = await response.json();
-                if (data.status === 'success' && data.relativePath) {
-                  setImagePath(data.relativePath);
-                  if (showToast) {
-                    if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
-                    else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
-                  }
-                } else {
-                  if (showToast) showToast('이미지 클라우드 업로드 실패: ' + (data.error || ''), 'error');
+            const response = await fetch(uploadEndpoint, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data.status === 'success' && data.relativePath) {
+                setImagePath(data.relativePath);
+                if (showToast) {
+                  if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
+                  else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
                 }
               } else {
-                if (showToast) showToast(`서버 오류 발생 (${response.status})`, 'error');
+                if (showToast) showToast('이미지 클라우드 업로드 실패: ' + (data.error || ''), 'error');
               }
-            } catch (err) {
-              console.error(err);
-              if (showToast) showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
+            } else {
+              if (showToast) showToast(`서버 오류 발생 (${response.status})`, 'error');
             }
+          } catch (err) {
+            console.error(err);
+            if (showToast) showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
           }
+        }
         };
         reader.readAsDataURL(file);
         break; // 첫 번째 파일만 처리
@@ -356,12 +357,12 @@ export default function ImageModal({
           }
         } else {
           // 💡 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
+          const blobPreview = URL.createObjectURL(file);
+          setImagePath(blobPreview);
           try {
-            // Supabase 세션 가져오기 (JWT)
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
 
-            // 개발 모드(Next.js dev)일 때는 로컬 백엔드로, 프로덕션(Cloudflare Pages)일 때는 R2 함수로
             const isDev = process.env.NODE_ENV === 'development';
             const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
 
