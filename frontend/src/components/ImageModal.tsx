@@ -271,6 +271,12 @@ export default function ImageModal({
       return cleanImagePath;
     }
 
+    // R2 API 경로인 경우 (데스크탑에서 HTTPS로 로드)
+    if (cleanImagePath.startsWith('/api/image/')) {
+      if ((window as any).electronAPI) return `https://onrivi.com${cleanImagePath}`;
+      return cleanImagePath;
+    }
+
     // 로컬 절대경로 또는 상대경로인 경우
     let absolutePath = cleanImagePath;
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
