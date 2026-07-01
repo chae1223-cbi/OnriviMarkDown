@@ -656,6 +656,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         try {
           const files = await fetchAllMdFiles(workspaceType, fileList, rootFolder);
           setAllMdFiles(files);
+          docLinkFilesRef.current = files;
         } catch (e) {
           console.error(e);
         } finally {
@@ -672,6 +673,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setDocHeadingSearchText('');
     }
   }, [showDocLinkPicker, workspaceType, fileList, rootFolder]);
+
+// 📊 [[ 자동완성용 파일 목록 로드
+  useEffect(() => {
+    if (workspaceType && fileList.length > 0 && !showDocLinkPicker) {
+      fetchAllMdFiles(workspaceType, fileList, rootFolder).then(files => {
+        docLinkFilesRef.current = files;
+      }).catch(() => {});
+    }
+  }, [workspaceType, fileList, rootFolder, showDocLinkPicker]);
+
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
 
@@ -1749,6 +1760,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const prevCursorLineRef = useRef<number | null>(null);
   const contentChangeTimeoutRef = useRef<any>(null);
   const completionProviderRef = useRef<any>(null);
+  const wikilinkProviderRef = useRef<any>(null);
+  const docLinkFilesRef = useRef<FileNode[]>([]);
+  const readFileTextRef = useRef<(node: FileNode) => Promise<string>>(null!);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
 
 
@@ -2453,6 +2467,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     return fileContent;
   };
+  readFileTextRef.current = readFileText;
 
 // ====================================================================
 // 📊 [OMD-CORE-MainEditorApp-0058] MainEditorApp.tsx ➔ extractHeadings
@@ -5318,6 +5333,70 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                               endColumn: position.column
                             }
                           }))
+                        };
+                      }
+                    });
+
+                    // [[ 위키 링크 자동완성 (파일 + 헤딩)
+                    if (wikilinkProviderRef.current) {
+                      wikilinkProviderRef.current.dispose();
+                    }
+                    wikilinkProviderRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
+                      triggerCharacters: ['[', '#'],
+                      provideCompletionItems: async (model: any, position: any) => {
+                        const textUntilPos = model.getValueInRange({
+                          startLineNumber: position.lineNumber,
+                          startColumn: Math.max(1, position.column - 80),
+                          endLineNumber: position.lineNumber,
+                          endColumn: position.column
+                        });
+                        const bracketMatch = textUntilPos.match(/\[\[([^\]\n]*)$/);
+                        if (!bracketMatch) return { suggestions: [] };
+                        const inside = bracketMatch[1];
+                        const hashIdx = inside.indexOf('#');
+                        const files = docLinkFilesRef.current;
+                        const curPath = currentFileNodeRef.current?.path || '';
+                        if (hashIdx >= 0) {
+                          const fileMatch = inside.substring(0, hashIdx);
+                          const headingFilter = inside.substring(hashIdx + 1).toLowerCase();
+                          let targetFile: FileNode | null = null;
+                          for (const f of files) {
+                            if (f.path?.toLowerCase().includes(fileMatch.toLowerCase()) || f.name?.toLowerCase().includes(fileMatch.toLowerCase())) {
+                              targetFile = f; break;
+                            }
+                          }
+                          if (!targetFile) return { suggestions: [] };
+                          let headings: string[] = [];
+                          try {
+                            const text = await readFileTextRef.current(targetFile);
+                            headings = extractHeadings(text);
+                          } catch { return { suggestions: [] }; }
+                          const filtered = headingFilter ? headings.filter(h => h.toLowerCase().includes(headingFilter)) : headings;
+                          const relPath = getRelativePath(curPath, targetFile.path || '');
+                          const matchLen = bracketMatch[0].length;
+                          return {
+                            suggestions: filtered.map(h => ({
+                              label: h, kind: monaco.languages.CompletionItemKind.Reference,
+                              insertText: `[[${relPath}#${h}]]`,
+                              range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
+                            }))
+                          };
+                        }
+                        const fileFilter = inside.toLowerCase();
+                        const filteredFiles = files.filter(f => {
+                          const name = f.name || ''; const path = f.path || '';
+                          return !fileFilter || name.toLowerCase().includes(fileFilter) || path.toLowerCase().includes(fileFilter);
+                        });
+                        const matchLen = bracketMatch[0].length;
+                        return {
+                          suggestions: filteredFiles.map(f => {
+                            const relPath = getRelativePath(curPath, f.path || '');
+                            return {
+                              label: f.name || f.path || '', kind: monaco.languages.CompletionItemKind.File,
+                              insertText: `[[${relPath}]]`,
+                              range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
+                            };
+                          })
                         };
                       }
                     });
