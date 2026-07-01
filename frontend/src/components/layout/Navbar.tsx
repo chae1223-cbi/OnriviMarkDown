@@ -68,8 +68,8 @@ export function Navbar() {
       if (sessionId && paymentNo) {
         await supabase.rpc('deactivate_session_on_logout', { p_payment_no: paymentNo, p_device_uuid: sessionId });
       }
-      localStorage.removeItem('onrivi_session_id');
-      await supabase.auth.signOut({ scope: 'local' });
+      ['onrivi_session_id', 'onrivi_payment_no', 'onrivi_user_id', 'onrivi_license_key'].forEach(k => localStorage.removeItem(k));
+      await supabase.auth.signOut();
       setUserEmail(null);
       setIsLoggedIn(false);
       router.push("/");

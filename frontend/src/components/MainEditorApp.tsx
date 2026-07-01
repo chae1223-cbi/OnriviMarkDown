@@ -896,6 +896,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setLicenseKey(savedKey);
 
     if (savedPaymentNo) {
+      // 🛡️ savedPaymentNo가 localStorage에 남아있어도 Supabase 세션이 유효한지 다시 확인
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          Object.keys(localStorage).filter(k => k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
+          window.location.href = '/login';
+          return;
+        }
+      } catch (_) {
+        Object.keys(localStorage).filter(k => k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
+        window.location.href = '/login';
+        return;
+      }
       try {
         let sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
         if (!sessionId) {

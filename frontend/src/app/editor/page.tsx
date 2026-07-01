@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { supabase } from '@/lib/supabaseClient';
 
 const MainEditorApp = dynamic(() => import('@/components/MainEditorApp'), {
   ssr: false,
@@ -14,17 +17,30 @@ const MainEditorApp = dynamic(() => import('@/components/MainEditorApp'), {
   )
 });
 
-/**
- * [ONR-02-001] Page 컴포넌트 함수
- * @description Next.js의 클라이언트 진입 에디터 페이지 컴포넌트입니다. SSR 비활성화 모드 하에서 MainEditorApp을 동적으로 불러와 렌더링을 지시합니다.
- */
-// ====================================================================
-// 📊 [OMD-CORE-editor-page-0001] page ➔ Page
-// 🎯 @KICK  : Next.js 에디터 진입 페이지 - SSR 비활성화로 MainEditorApp 동적 로딩
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : MainEditorApp
-// ====================================================================
 export default function Page() {
+  const [checked, setChecked] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) {
+        router.replace('/login');
+      } else {
+        setChecked(true);
+      }
+    });
+  }, [router]);
+
+  if (!checked) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-zinc-950 text-slate-500 font-sans select-none">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="text-sm font-medium">인증 확인 중...</div>
+        </div>
+      </div>
+    );
+  }
+
   return <MainEditorApp />;
 }
