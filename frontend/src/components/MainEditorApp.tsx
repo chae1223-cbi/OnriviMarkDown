@@ -1845,7 +1845,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         editorRef.current?.layout();
       });
     }
-  }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, licenseStatus.isExpired]);
+  }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, licenseStatus.isExpired, previewMode]);
 
 // ====================================================================
 // 📊 [OMD-CORE-MainEditorApp-0034] MainEditorApp.tsx ➔ darkModePaletteSync
