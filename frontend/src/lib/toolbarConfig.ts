@@ -49,7 +49,8 @@ export const TOOLBAR_ITEMS = [
   { id: 'toggleToolbar', icon: '♻️', name: '툴바 토글', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'toggleSidebar', icon: '🗃️', name: '사이드바 토글', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+B', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'toggleMode', icon: '📜', name: '모드 전환', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+M', defaultCommand: '', insertText: '', kind: 17 },
-  { id: 'underline', icon: 'U', name: '밑줄', group: '서식', tagFormat: '<u>텍스트</u>', defaultHotkey: 'Ctrl+U', defaultCommand: 'underline', insertText: '<u>텍스트</u>', kind: 15 }
+  { id: 'underline', icon: 'U', name: '밑줄', group: '서식', tagFormat: '<u>텍스트</u>', defaultHotkey: 'Ctrl+U', defaultCommand: 'underline', insertText: '<u>텍스트</u>', kind: 15 },
+  { id: 'merge', icon: '🔀', name: '파일 병합', group: '문서', tagFormat: '', defaultHotkey: '', defaultCommand: 'merge', insertText: '', kind: 17 }
 ];
 
 // ====================================================================
@@ -93,7 +94,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
   // 슬래시 자동완성에서 제외할 항목 (UI 토글/래핑 류는 에디터에서 쓸 일 없음)
   const EXCLUDED_FROM_SLASH = new Set([
     'toggleFloatingToolbar', 'toggleToolbar', 'toggleSidebar',
-    'toggleMode', 'toggleTheme',
+    'toggleMode', 'toggleTheme', 'merge',
     'wrap-h1', 'wrap-h2', 'wrap-h3', 'wrap-quote', 'wrap-code'
   ]);
 

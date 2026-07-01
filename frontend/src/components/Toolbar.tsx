@@ -81,7 +81,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     export: "내보내기",
     copyAll: "미리보기 복사",
     youtube: "유튜브 동영상 삽입",
-    cleanDoc: "문서 서식 일괄 정리"
+    cleanDoc: "문서 서식 일괄 정리",
+    merge: "파일 병합"
   },
   en: {
     sidebarHide: "Hide Sidebar",
@@ -136,7 +137,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     export: "Export",
     copyAll: "Copy Preview",
     youtube: "Insert YouTube Video",
-    cleanDoc: "Clean Document Formatting"
+    cleanDoc: "Clean Document Formatting",
+    merge: "Merge Files"
   }
 };
 
@@ -239,6 +241,7 @@ export default function Toolbar({
           <ToolbarButton label="☑️" title={t('check')} onAction={() => dispatch('CHECK')} />
           <ToolbarButton label={<Eraser size={16} className="text-red-500 opacity-80" />} title={t('eraser')} onAction={() => dispatch('REMOVE_PREFIX')} />
           <ToolbarButton label="✨" title={t('cleanDoc')} onAction={() => dispatch('CLEAN_DOC')} />
+          <ToolbarButton label="🔀" title={t('merge')} onAction={() => dispatch('MERGE')} />
 
           <div className="w-10 border-t-2 border-zinc-300 dark:border-zinc-600/60" />
 

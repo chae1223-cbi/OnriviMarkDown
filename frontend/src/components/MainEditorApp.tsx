@@ -139,7 +139,8 @@ export type EditorCommandType =
   | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS'                                                                // ⑫ 스타일 적용 
   | 'FOOTNOTE'                                                                         // ⑬ 각주 삽입 
   | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW'                                               // ⑭ 표 행 편집 명령
-  | 'DOCLINK';                                                                          // ⑮ 문서링크
+  | 'DOCLINK'                                                                          // ⑮ 문서링크
+  | 'MERGE';                                                                          // ⑯ 파일 병합
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -3417,6 +3418,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
        */
       case 'TOGGLE_CSS_STYLE':
         setPreviewMode(prev => prev === 'css-style' ? prev : 'css-style');
+        return;
+      case 'MERGE':
+        if (isMergeMode) {
+          if (selectedMergeNodes.length >= 2) {
+            setIsMergeModalOpen(true);
+          } else {
+            setIsMergeMode(false);
+            setSelectedMergeNodes([]);
+          }
+        } else {
+          setIsMergeMode(true);
+          showToast("사이드바에서 병합할 파일을 선택한 후 다시 클릭하세요.", 'info');
+        }
         return;
     }
 
