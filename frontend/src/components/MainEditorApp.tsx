@@ -1129,22 +1129,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (!mounted) return;
     if (licenseStatus.isExpired) {
-      if (previewMode !== 'preview' && previewMode !== 'css-style') {
-        setPreviewModeRaw('preview');
-        previewModeRef.current = 'preview';
-        isEditorMountedRef.current = false;
-      }
-
-      // 💡 제한 사용자(미리보기 전용)인 경우 빈 화면 대신 웰컴 페이지 렌더링
-      if (tabsRef.current.length === 1 && tabsRef.current[0].name === '새 파일.md' && tabsRef.current[0].content === '') {
+      if (tabsRef.current.length === 0) {
         const welcome = getWelcomeContent();
-        const welcomeTab = { ...tabsRef.current[0], name: '서식 정의 미리보기.md', content: welcome };
+        const welcomeTabId = 'welcome-tab-' + Date.now();
+        const welcomeTab: EditorTab = {
+          id: welcomeTabId, name: '서식 정의 미리보기.md', path: null, node: null,
+          content: welcome, isModified: false
+        };
         setTabs([welcomeTab]);
+        setActiveTabId(welcomeTabId);
         setContent(welcome);
-        setCurrentFileName(welcomeTab.name);
+        setCurrentFileName('서식 정의 미리보기.md');
+        setCurrentFileNode(null);
+      }
+      if (previewModeRef.current !== 'css-style') {
+        setPreviewModeRaw('css-style');
+        previewModeRef.current = 'css-style';
+        isEditorMountedRef.current = true;
       }
     }
-  }, [licenseStatus.isExpired, mounted, previewMode]);
+  }, [licenseStatus.isExpired, mounted]);
 
 // ====================================================================
 // 📊 [OMD-PAY-MainEditorApp-0017] MainEditorApp.tsx ➔ supabaseRealtime_license

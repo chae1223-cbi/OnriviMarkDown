@@ -745,7 +745,7 @@ const FileTreeItem = ({
 
         {/* Hover Actions */}
         {!isMergeMode && !isRestrictedUser && (
-          <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="ml-auto flex items-center gap-1 transition-opacity">
             {node.kind === 'directory' && (
               <>
                 <button onClick={handleCreateFile} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 파일"}><Plus size={14} /></button>

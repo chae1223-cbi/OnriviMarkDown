@@ -411,7 +411,7 @@ export default function LeftSidebar({
               <div className="group relative flex items-center justify-between px-1 py-2 text-[15px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
                 <span className="truncate">📁 {rootFolder.name}</span>
                 {!isRestrictedUser && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 transition-opacity">
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
