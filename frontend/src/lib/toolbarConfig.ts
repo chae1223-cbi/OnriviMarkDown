@@ -38,7 +38,6 @@ export const TOOLBAR_ITEMS = [
   { id: 'cleanDoc', icon: '✨', name: '문서 서식 일괄 정리', group: '문서', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleandoc', insertText: '', kind: 17 },
   
   // 7. 부가기능 (Extra)
-  { id: 'newFile', icon: '📝', name: '새 파일', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+N', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'save', icon: '💾', name: '저장', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+S', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'saveAs', icon: '💿', name: '다른 이름으로 저장', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+S', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'undo', icon: '↩️', name: '실행 취소', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Z', defaultCommand: '', insertText: '', kind: 17 },

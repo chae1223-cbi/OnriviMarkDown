@@ -195,9 +195,9 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
           </form>
 
           {/* Google Map 미리보기 */}
-          <div className={`relative w-full h-[300px] rounded-lg overflow-hidden border ${
+          <div className={`relative rounded-lg overflow-hidden border ${
             isDarkMode ? 'border-[#414755] bg-[#353534]' : 'border-[#c1c6d7] bg-[#e0e3e8]'
-          }`}>
+          }`} style={{ width: mapWidth.includes('%') ? mapWidth : `${mapWidth}px`, height: `${mapHeight}px` }}>
             {/* key 를 URL로 부여하여 coords 변경 시 iframe 강제 리로드 */}
             <iframe
               key={googleEmbedUrl}

@@ -162,7 +162,6 @@ export default function MenuBar({
   }, []);
 
   const fileItems = [
-    { label: "새 파일", icon: <span>📝</span>, shortcut: 'Ctrl+N', onClick: () => dispatch('NEW_FILE') },
     { label: t('openFolder'), icon: <span>📂</span>, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') },
     { label: t('openWorkspace'), icon: <span>📁</span>, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
     { divider: true },
