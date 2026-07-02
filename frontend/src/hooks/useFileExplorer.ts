@@ -343,6 +343,11 @@ export const useFileExplorer = ({
   // 5. 파일 트리 클릭 시 파일 열기 및 신규 탭 로딩
   const handleFileClick = async (node: FileNode | null, parentHandle?: any) => {
     if (previewModeRef.current === 'css-style') {
+      const editor = editorRef.current;
+      if (editor && activeTabIdRef.current) {
+        const latestVal = editor.getValue();
+        setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: latestVal } : t));
+      }
       setPreviewModeRaw('both');
       previewModeRef.current = 'both';
       isEditorMountedRef.current = true;

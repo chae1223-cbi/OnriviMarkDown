@@ -112,6 +112,14 @@ export const useEditorTabs = (
       setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, scrollTop: currentScrollTop } : t));
     }
 
+    // 현재 탭의 에디터 내용을 React 상태에 동기화 (모드 전환 시 데이터 유실 방지)
+    if (editor && (previewModeRef.current === 'css-style' || previewModeRef.current === 'preview')) {
+      const latestVal = editor.getValue();
+      if (activeTabIdRef.current) {
+        setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: latestVal } : t));
+      }
+    }
+
     setActiveTabId(tabId);
 
     if (!targetTab) return;

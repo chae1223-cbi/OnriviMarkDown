@@ -1476,7 +1476,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
         return 'preview';
       }
-      if (prev === 'css-style' && next !== 'css-style') return prev;
       if (helpContentRef.current && next !== 'css-style') return prev;
       const activeTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
       if (activeTab?.name === '도움말.md' && next !== 'preview') return prev;
@@ -1544,7 +1543,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const nextActiveTab = nextTabs[nextActiveIndex] || nextTabs[0];
           switchTab(nextActiveTab.id);
         } else {
-          createNewTab("");
+          setContent('');
+          setCurrentFileName('새 파일.md');
+          setCurrentFileNode(null);
+          setActiveTabId(null);
+          if (editorRef.current) {
+            editorRef.current.setValue('');
+          }
         }
       }
     };
@@ -2024,33 +2029,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 🚨 @PATCH : None
 // 🔗 @CALLS : getWelcomeContent, setTabs, setActiveTabId, setContent, setCurrentFileName
 // ====================================================================
-  useEffect(() => {
-    if (!mounted) return;
-    if (pendingExternalFileRef.current) return;
-    
-    if (tabs.length === 0) {
-      const initialContent = ""; // 💡 웰컴 페이지 대신 순수한 빈 새 파일로 시작
-      const initialTabId = 'new-tab-' + Date.now();
-      
-      const initialTab: EditorTab = {
-        id: initialTabId,
-        name: '새 파일.md',
-        path: null,
-        node: null,
-        content: initialContent,
-        isModified: false
-      };
-      
-      setTabs([initialTab]);
-      setActiveTabId(initialTabId);
-      setContent(initialContent);
-      setCurrentFileName('새 파일.md');
-      setCurrentFileNode(null);
-
-      // Monaco onMount가 생성 전에 실행된 경우, 에디터에 내용 즉시 반영
-      editorRef.current?.setValue(initialContent);
-    }
-  }, [mounted]);
+  // 💡 초기 빈 탭을 생성하지 않음 — 사용자는 탐색기에서만 파일을 열거나 생성할 수 있음
 
   // 💡 [조치 완료] 애드온 구동 시 사용자의 클립보드 내용을 동의 없이 강제 읽기 하여 첫 웰컴페이지를 무조건 덮어쓰던 로직을 제거(주석 처리)하여 웰컴 페이지 노출을 보장합니다.
   // useEffect(() => {
@@ -3465,7 +3444,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
        * - 다시 누르면 'both'(편집+미리보기 분할)로 복귀
        */
       case 'TOGGLE_CSS_STYLE':
-        setPreviewMode(prev => prev === 'css-style' ? prev : 'css-style');
+        setPreviewMode(prev => prev === 'css-style' ? 'both' : 'css-style');
         return;
       case 'MERGE':
         if (isMergeMode) {
