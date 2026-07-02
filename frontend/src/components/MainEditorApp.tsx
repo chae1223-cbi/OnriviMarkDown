@@ -1843,15 +1843,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       editorRef.current.updateOptions({
         fontSize: fontSize,
         wordWrap: wordWrap,
-        readOnly: licenseStatus.isExpired,
-        domReadOnly: licenseStatus.isExpired,
+        readOnly: licenseStatus.isExpired || tabs.length === 0,
+        domReadOnly: licenseStatus.isExpired || tabs.length === 0,
       });
       // 3. 레이아웃 리플로우 강제 트리거 (찌그러짐 방지)
       requestAnimationFrame(() => {
         editorRef.current?.layout();
       });
     }
-  }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, licenseStatus.isExpired, previewMode]);
+  }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, licenseStatus.isExpired, previewMode, tabs.length]);
 
 // ====================================================================
 // 📊 [OMD-CORE-MainEditorApp-0034] MainEditorApp.tsx ➔ darkModePaletteSync
@@ -4074,8 +4074,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   language="markdown"
                   theme={themePalette}
                   options={{
-                    readOnly: licenseStatus.isExpired,
-                    domReadOnly: licenseStatus.isExpired,
+                    readOnly: licenseStatus.isExpired || tabs.length === 0,
+                    domReadOnly: licenseStatus.isExpired || tabs.length === 0,
                   }}
                   // 💡 value={content} 속성을 배제하고 defaultValue를 적용하여
                   // React 상태 갱신 시 모나코 내부의 불필요한 setValue 호출로 인한 한글 composition 깨짐 및 중복 입력을 원천 방어합니다.
