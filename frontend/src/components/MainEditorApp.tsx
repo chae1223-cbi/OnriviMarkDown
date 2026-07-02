@@ -1914,7 +1914,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const api = (window as any).electronAPI;
-      api.onNewFileRequested(() => handlers.newFile());
+      api.onNewFileRequested(() => {});
       api.onSaveFileRequested(() => handlers.save());
       api.onSaveFileAsRequested(() => handlers.saveAs());
 
@@ -3369,7 +3369,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 1. 에디터 텍스트 비조작 명령어 (상태 제어 및 파일 입출력 위임)
     switch (type) {
       // 파일 관련
-      case 'NEW_FILE': handlers.newFile(); return;
+      case 'NEW_FILE': return;
       case 'OPEN_FILE': (async () => {
         if (typeof (window as any).showOpenFilePicker !== 'function') {
           showToast('이 브라우저는 로컬 파일 열기를 지원하지 않습니다.', 'error');
@@ -4014,6 +4014,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           isRestrictedUser={licenseStatus.isExpired}
           selectedMergeNodes={selectedMergeNodes}
           toggleMergeNodeSelect={toggleMergeNodeSelect}
+          onCancelMerge={() => { setIsMergeMode(false); setSelectedMergeNodes([]); }}
           onSelectRootFolder={() => selectRootFolder('local', null)}
           onRestoreFolder={restoreFolderPermission}
         />

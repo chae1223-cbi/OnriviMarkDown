@@ -51,6 +51,7 @@ interface LeftSidebarProps {
   isMergeMode?: boolean;
   selectedMergeNodes?: FileNode[];
   toggleMergeNodeSelect?: (node: FileNode) => void;
+  onCancelMerge?: () => void;
   onSelectRootFolder?: () => void;
   onRestoreFolder?: () => void;
   tabs?: { id: string; name: string; path: string | null; content: string }[];
@@ -97,6 +98,7 @@ export default function LeftSidebar({
   isMergeMode = false,
   selectedMergeNodes = [],
   toggleMergeNodeSelect,
+  onCancelMerge,
   onSelectRootFolder,
   onRestoreFolder,
   previewMode,
@@ -443,6 +445,22 @@ export default function LeftSidebar({
                   </div>
                 )}
               </div>
+
+              {isMergeMode && (
+                <div className="flex items-center justify-between px-2 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mx-0.5 mb-1">
+                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                    병합 모드 ({selectedMergeNodes.length}개 선택됨)
+                  </span>
+                  <button
+                    onClick={onCancelMerge}
+                    className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-blue-500 hover:text-blue-700 dark:hover:text-blue-200 transition-colors"
+                    title="병합 취소"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              )}
+
               {fileList.length === 0 ? (
                 <div className="text-zinc-400 dark:text-zinc-500 text-xs text-center py-8">
                   <p>연결된 폴더에 파일이 없습니다.</p>
