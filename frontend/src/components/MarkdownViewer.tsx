@@ -966,10 +966,33 @@ export default function MarkdownViewer({
               const isExternal = isHttp || isBlobOrData;
               const isR2ApiPath = pureSrc.startsWith('/api/image/');
 
+              // 🛡️ media://local/serve → Electron 전용, 웹에선 filePath 추출
+              const isMediaServe = pureSrc === 'media://local/serve';
+              let mediaFilePath = '';
+              if (isMediaServe && queryString) {
+                const urlMatch = queryString.match(/[?&]url=([^&]+)/);
+                if (urlMatch) mediaFilePath = decodeURIComponent(urlMatch[1]);
+              }
+
               if (isR2ApiPath && (window as any).electronAPI) {
                 finalSrc = `https://onrivi.com${pureSrc}`;
               } else if (isR2ApiPath) {
                 finalSrc = pureSrc;
+              } else if (isMediaServe && mediaFilePath) {
+                // media://local/serve → 웹에선 /api/view?filePath=... 로 변환
+                const api = (window as any).electronAPI;
+                if (api) {
+                  finalSrc = `media://local/serve?url=${encodeURIComponent(mediaFilePath)}`;
+                } else if (process.env.NODE_ENV === 'development') {
+                  finalSrc = `/api/view?filePath=${encodeURIComponent(mediaFilePath)}`;
+                } else {
+                  finalSrc = mediaFilePath;
+                }
+                if (queryString && !finalSrc.includes('?')) {
+                  // 쿼리스트링에 url=... 외 다른 파라미터가 있을 경우 처리
+                  const otherParams = queryString.replace(/[?&]url=[^&]*/, '');
+                  if (otherParams) finalSrc += otherParams;
+                }
               } else if (!isExternal && typeof window !== 'undefined') {
                 const api = (window as any).electronAPI;
                 let absolutePath = pureSrc;
@@ -1007,7 +1030,7 @@ export default function MarkdownViewer({
                   if (finalSrc.includes('?')) {
                     finalSrc += '&' + queryString.substring(1);
                   } else {
-                    finalSrc += queryString; // queryString includes the leading '?'
+                    finalSrc += queryString;
                   }
                 }
               }

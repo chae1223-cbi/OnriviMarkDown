@@ -80,7 +80,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     save: "저장",
     export: "내보내기",
     copyAll: "미리보기 복사",
-    youtube: "유튜브 동영상 삽입",
+    youtube: "동영상삽입",
     cleanDoc: "문서 서식 일괄 정리",
     merge: "파일 병합"
   },
@@ -136,7 +136,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     save: "Save",
     export: "Export",
     copyAll: "Copy Preview",
-    youtube: "Insert YouTube Video",
+    youtube: "Insert Video",
     cleanDoc: "Clean Document Formatting",
     merge: "Merge Files"
   }

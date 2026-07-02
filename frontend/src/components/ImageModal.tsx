@@ -43,14 +43,12 @@ export default function ImageModal({
 }: ImageModalProps) {
   const [imagePath, setImagePath] = React.useState("");
   const [appliedPath, setAppliedPath] = React.useState("");
-  const [isUploading, setIsUploading] = React.useState(false);
   const [imageAlt, setImageAlt] = React.useState("이미지 설명");
   const [imageWidth, setImageWidth] = React.useState("");
   const [imageHeight, setImageHeight] = React.useState("");
   const [imageAlign, setImageAlign] = React.useState("center");
   const [mounted, setMounted] = React.useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pendingFileRef = useRef<{ base64: string; fileName: string } | null>(null);
 
 // ====================================================================
 // 📊 [OMD-EDIT-ImageModal-0006] ImageModal ➔ useEffect (mounted)
@@ -74,7 +72,6 @@ export default function ImageModal({
   React.useEffect(() => {
     if (isOpen) {
       setAppliedPath("");
-      pendingFileRef.current = null;
       if (initialData) {
         setImagePath(initialData.path);
         setImageAlt(initialData.alt);
@@ -99,48 +96,84 @@ export default function ImageModal({
 // 🔗 @CALLS : api.saveImage, showToast, setImagePath
 // ====================================================================
   // 📸 [클립보드 붙여넣기(Paste) 공통 처리 함수]
-  const handlePasteEvent = async (e: React.ClipboardEvent<HTMLDivElement>) => {
-    // 1) clipboardData.items 에서 이미지 찾기
-    let imageFile: File | null = null;
+  // 🖥️ 데스크탑 공통: R2 우선 업로드 → 실패 시 로컬 assets/ fallback
+  const handleDesktopImageUpload = async (base64Data: string, fileName: string, imageFile: File) => {
+    let finalPath = '';
+    let r2Success = false;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const resp = await fetch('https://onrivi.com/api/upload-image', {
+        method: 'POST', headers,
+        body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
+      });
+      if (resp.ok) {
+        const d = await resp.json();
+        if (d.status === 'success' && d.relativePath) {
+          finalPath = d.relativePath;
+          r2Success = true;
+        }
+      }
+    } catch {}
+    if (!r2Success) {
+      const api = (window as any).electronAPI;
+      if (api) {
+        const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
+        if (saveResult && saveResult.success) {
+          finalPath = saveResult.isRelative ? `assets/${fileName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+        }
+      }
+    }
+    if (finalPath) {
+      setImagePath(finalPath);
+      setAppliedPath(finalPath);
+      if (showToast) {
+        if (r2Success) showToast('R2 업로드 완료 — 적용 경로가 설정되었습니다.', 'success');
+        else showToast('R2 업로드 실패 — 로컬 assets에 저장되었습니다.', 'error');
+      }
+    } else {
+      const blobPreview = URL.createObjectURL(imageFile);
+      setImagePath(blobPreview);
+      if (showToast) showToast('이미지 저장 실패', 'error');
+    }
+  };
+
+  const resolveClipboardFile = async (e: React.ClipboardEvent<HTMLDivElement>): Promise<File | null> => {
     const items = e.clipboardData?.items;
     if (items) {
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.indexOf('image') !== -1) {
-          imageFile = items[i].getAsFile();
-          if (imageFile) break;
+          const file = items[i].getAsFile();
+          if (file) return file;
         }
       }
     }
-    // 2) items 실패 → clipboardData.files 폴백
-    if (!imageFile) {
-      const files = e.clipboardData?.files;
-      if (files && files.length > 0 && files[0].type.startsWith('image/')) {
-        imageFile = files[0];
-      }
-    }
-    // 3) files 실패 → navigator.clipboard 폴백
-    if (!imageFile) {
-      try {
-        if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
-          const clipboardItems = await navigator.clipboard.read();
-          for (const ci of clipboardItems) {
-            for (const type of ci.types) {
-              if (type.startsWith('image/')) {
-                const blob = await ci.getType(type);
-                imageFile = blob as File;
-                break;
-              }
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0 && files[0].type.startsWith('image/')) return files[0];
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+        const clipboardItems = await navigator.clipboard.read();
+        for (const ci of clipboardItems) {
+          for (const type of ci.types) {
+            if (type.startsWith('image/')) {
+              const blob = await ci.getType(type);
+              return blob as File;
             }
-            if (imageFile) break;
           }
         }
-      } catch {}
-    }
+      }
+    } catch {}
+    return null;
+  };
+
+  const handlePasteEvent = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const imageFile = await resolveClipboardFile(e);
     if (!imageFile) {
       if (showToast) showToast('클립보드에서 이미지를 읽을 수 없습니다.', 'error');
       return;
     }
-
     e.preventDefault();
     e.stopPropagation();
 
@@ -155,15 +188,7 @@ export default function ImageModal({
       const api = (window as any).electronAPI;
       if (api) {
         const fileName = `image_${Date.now()}.png`;
-        const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
-        if (saveResult && saveResult.success) {
-          const blobPreview = URL.createObjectURL(imageFile!);
-          setImagePath(blobPreview);
-          pendingFileRef.current = { base64: base64Data, fileName };
-          if (showToast) showToast("이미지가 로컬 assets에 저장되었습니다. '적용경로적용' 버튼으로 R2 업로드하세요.", 'success');
-        } else {
-          if (showToast) showToast("이미지 저장 실패", 'error');
-        }
+        await handleDesktopImageUpload(base64Data, fileName, imageFile!);
       } else {
         const blobPreview = URL.createObjectURL(imageFile!);
         setImagePath(blobPreview);
@@ -182,6 +207,7 @@ export default function ImageModal({
             const data = await response.json();
             if (data.status === 'success' && data.relativePath) {
               setImagePath(data.relativePath);
+              setAppliedPath(data.relativePath);
               if (showToast) {
                 if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
                 else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
@@ -295,36 +321,6 @@ export default function ImageModal({
     return cleanImagePath;
   }, [cleanImagePath, targetFolder]);
 
-  const handleApplyR2 = async () => {
-    const pending = pendingFileRef.current;
-    if (!pending) return;
-    setIsUploading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const resp = await fetch('https://onrivi.com/api/upload-image', {
-        method: 'POST', headers,
-        body: JSON.stringify({ base64Data: pending.base64, targetFolder: targetFolder || '', fileName: pending.fileName }),
-      });
-      if (resp.ok) {
-        const d = await resp.json();
-        if (d.status === 'success' && d.relativePath) {
-          setAppliedPath(d.relativePath);
-          if (showToast) showToast('R2 업로드 완료 — 적용 경로가 설정되었습니다.', 'success');
-        } else {
-          if (showToast) showToast('R2 업로드 실패: ' + (d.error || ''), 'error');
-        }
-      } else {
-        if (showToast) showToast(`R2 업로드 실패 (HTTP ${resp.status})`, 'error');
-      }
-    } catch (e: any) {
-      if (showToast) showToast('R2 업로드 네트워크 오류: ' + (e?.message || ''), 'error');
-    }
-    setIsUploading(false);
-  };
-
   if (!isOpen) return null;
   if (!mounted) return null;
 
@@ -337,10 +333,6 @@ export default function ImageModal({
 // ====================================================================
   const handleInsert = () => {
     const insertPath = appliedPath || cleanImagePath;
-    if (insertPath.startsWith('blob:')) {
-      if (showToast) showToast('먼저 "적용경로적용" 버튼으로 R2 업로드를 완료해주세요.', 'error');
-      return;
-    }
     if (insertPath) {
       let finalPath = insertPath;
       const params: string[] = [];
@@ -359,7 +351,6 @@ export default function ImageModal({
       onInsert(finalPath, imageAlt, initialData?.range);
       setImagePath("");
       setAppliedPath("");
-      pendingFileRef.current = null;
       setImageAlt("이미지 설명");
       setImageWidth("");
       setImageHeight("");
@@ -376,18 +367,10 @@ export default function ImageModal({
         const result = reader.result as string;
         const base64Data = result.split(',')[1];
         const api = (window as any).electronAPI;
-          if (api) {
-            const fileName = `image_${Date.now()}.png`;
-            const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
-            if (saveResult && saveResult.success) {
-              const blobPreview = URL.createObjectURL(file);
-              setImagePath(blobPreview);
-              pendingFileRef.current = { base64: base64Data, fileName };
-              setImageAlt("이미지 설명");
-              if (showToast) showToast("파일이 로컬 assets에 저장되었습니다. '적용경로적용' 버튼으로 R2 업로드하세요.", 'success');
-          } else {
-            if (showToast) showToast("이미지 저장 실패", 'error');
-          }
+        if (api) {
+          const fileName = `image_${Date.now()}.png`;
+          await handleDesktopImageUpload(base64Data, fileName, file);
+          setImageAlt("이미지 설명");
         } else {
           // 💡 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
           const blobPreview = URL.createObjectURL(file);
@@ -474,23 +457,13 @@ export default function ImageModal({
             </div>
           </div>
 
-          {/* 적용 경로 + R2 업로드 버튼 */}
+          {/* 적용 경로 (자동 R2 업로드 후 세팅됨) */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">적용 경로</label>
-            <div className="flex gap-2">
-              <input type="text" value={appliedPath || (pendingFileRef.current ? '' : cleanImagePath)} readOnly
-                className={`flex-1 border px-3 py-2 rounded-lg outline-none text-sm bg-gray-100 dark:bg-[#1a1c1e] ${
-                  isDarkMode ? 'border-[#44474e] text-gray-300' : 'border-[#c1c6d7] text-gray-500'
-                }`} placeholder="R2 업로드 후 경로가 표시됩니다" />
-              <button onClick={handleApplyR2} disabled={!pendingFileRef.current || isUploading}
-                className={`px-4 py-2 rounded-lg text-xs font-medium border transition-all active:scale-95 whitespace-nowrap ${
-                  isDarkMode
-                    ? 'bg-[#1e3a5f] border-[#2d5a8e] text-blue-200 hover:bg-[#2d5a8e] disabled:opacity-40'
-                    : 'bg-[#d9e6f7] border-[#7a9ec7] text-[#1a4a7a] hover:bg-[#c5d7ef] disabled:opacity-40'
-                }`}>
-                {isUploading ? '업로드 중...' : '적용경로적용'}
-              </button>
-            </div>
+            <input type="text" value={appliedPath || cleanImagePath} readOnly
+              className={`w-full border px-3 py-2 rounded-lg outline-none text-sm bg-gray-100 dark:bg-[#1a1c1e] ${
+                isDarkMode ? 'border-[#44474e] text-gray-300' : 'border-[#c1c6d7] text-gray-500'
+              }`} placeholder="붙여넣기/파일선택 시 자동 설정됩니다" />
           </div>
 
           {/* 클립보드 붙여넣기 */}

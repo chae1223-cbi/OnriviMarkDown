@@ -913,16 +913,21 @@ ipcMain.handle('settings:save', async (event, settings) => {
 // 19. 이미지 파일 저장 핸들러 (붙여넣기 대응)
 ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileName) => {
   try {
-    let destFolder = targetFolder ? targetFolder.normalize('NFC') : '';
+    let rawFolder = targetFolder ? targetFolder.normalize('NFC') : '';
     let isRelative = false;
     
-    if (destFolder && fs.existsSync(destFolder)) {
+    // targetFolder가 .md 파일 경로인 경우 부모 디렉토리 사용
+    if (rawFolder && (rawFolder.endsWith('.md') || rawFolder.endsWith('.markdown'))) {
+      rawFolder = path.dirname(rawFolder);
+    }
+    
+    if (rawFolder && fs.existsSync(rawFolder)) {
       // 대상 워크스페이스/파일 디렉토리 하위에 'assets' 폴더를 생성 및 타겟팅
-      const assetsFolder = path.join(destFolder, 'assets');
+      const assetsFolder = path.join(rawFolder, 'assets');
       if (!fs.existsSync(assetsFolder)) {
         fs.mkdirSync(assetsFolder, { recursive: true });
       }
-      destFolder = assetsFolder;
+      rawFolder = assetsFolder;
       isRelative = true;
     } else {
       // 대상 폴더가 유효하지 않은 경우 사용자 문서 디렉토리 하위의 'OnriviAuthorAssets'에 임시 저장
@@ -931,11 +936,11 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
       if (!fs.existsSync(tempAssetsFolder)) {
         fs.mkdirSync(tempAssetsFolder, { recursive: true });
       }
-      destFolder = tempAssetsFolder;
+      rawFolder = tempAssetsFolder;
       isRelative = false;
     }
 
-    const absolutePath = path.join(destFolder, fileName);
+    const absolutePath = path.join(rawFolder, fileName);
     const buffer = Buffer.from(base64Data, 'base64');
     fs.writeFileSync(absolutePath, buffer);
 

@@ -24,7 +24,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'link', icon: '🔗', name: '링크', group: '미디어', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
   { id: 'taglink', icon: '🔖', name: '문서 연결', group: '미디어', tagFormat: '[[상대경로/파일명]]', defaultHotkey: '', defaultCommand: 'doclink', insertText: '', kind: 15 },
   { id: 'image', icon: '🖼️', name: '이미지', group: '미디어', tagFormat: '![대체 텍스트](URL)', defaultHotkey: '', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
-  { id: 'youtube', icon: '🎥', name: '유튜브 동영상 삽입', group: '미디어', tagFormat: '동영상 삽입', defaultHotkey: '', defaultCommand: 'youtube', insertText: '유튜브 동영상 삽입', kind: 15 },
+  { id: 'youtube', icon: '🎥', name: '동영상삽입', group: '미디어', tagFormat: '동영상삽입', defaultHotkey: '', defaultCommand: 'youtube', insertText: '동영상삽입', kind: 15 },
   { id: 'map', icon: '🗺️', name: '지도', group: '미디어', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
   
   // 5. 코드 (Code)
