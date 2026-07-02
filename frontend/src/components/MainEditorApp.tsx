@@ -6192,6 +6192,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         onClose={() => setIsYoutubeModalOpen(false)}
         onInsert={(code) => insertAtCursor(code)}
         isDarkMode={isDarkMode}
+        targetFolder={(() => {
+          let folder = '';
+          if (currentFileNodeRef.current?.path) {
+            const filePath = currentFileNodeRef.current.path;
+            const lastSlashIndex = filePath.lastIndexOf('\\');
+            if (lastSlashIndex !== -1) {
+              folder = filePath.substring(0, lastSlashIndex);
+            }
+          } else if (rootFolderRef.current?.name && rootFolderRef.current.name !== '브라우저 스토리지') {
+            folder = rootFolderRef.current.name;
+          }
+          return folder;
+        })()}
       />
       <MapModal
         isOpen={isMapModalOpen}
