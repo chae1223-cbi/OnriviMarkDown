@@ -100,79 +100,108 @@ export default function ImageModal({
 // ====================================================================
   // 📸 [클립보드 붙여넣기(Paste) 공통 처리 함수]
   const handlePasteEvent = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    // 1) clipboardData.items 에서 이미지 찾기
+    let imageFile: File | null = null;
     const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.indexOf('image') !== -1) {
-        e.preventDefault();
-        e.stopPropagation();
-        const file = item.getAsFile();
-        if (!file) continue;
-
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const result = reader.result as string;
-          const base64Data = result.split(',')[1];
-          const api = (window as any).electronAPI;
-          if (api) {
-            const fileName = `image_${Date.now()}.png`;
-            const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
-            if (saveResult && saveResult.success) {
-              const blobPreview = URL.createObjectURL(file);
-              setImagePath(blobPreview);
-              pendingFileRef.current = { base64: base64Data, fileName };
-              if (showToast) showToast("이미지가 로컬 assets에 저장되었습니다. '적용경로적용' 버튼으로 R2 업로드하세요.", 'success');
-            } else {
-              if (showToast) showToast("이미지 저장 실패", 'error');
-            }
-        } else {
-          // 💡 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
-          // Blob URL로 즉시 미리보기 표시 (업로드 성공 여부와 무관)
-          const blobPreview = URL.createObjectURL(file);
-          setImagePath(blobPreview);
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-
-            const isDev = process.env.NODE_ENV === 'development';
-            const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
-
-            const headers: any = { 'Content-Type': 'application/json' };
-            if (token) {
-              headers['Authorization'] = `Bearer ${token}`;
-            }
-
-            const response = await fetch(uploadEndpoint, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              if (data.status === 'success' && data.relativePath) {
-                setImagePath(data.relativePath);
-                if (showToast) {
-                  if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
-                  else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
-                }
-              } else {
-                if (showToast) showToast('이미지 클라우드 업로드 실패: ' + (data.error || ''), 'error');
-              }
-            } else {
-              if (showToast) showToast(`서버 오류 발생 (${response.status})`, 'error');
-            }
-          } catch (err) {
-            console.error(err);
-            if (showToast) showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
-          }
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          imageFile = items[i].getAsFile();
+          if (imageFile) break;
         }
-        };
-        reader.readAsDataURL(file);
-        break; // 첫 번째 파일만 처리
       }
     }
+    // 2) items 실패 → clipboardData.files 폴백
+    if (!imageFile) {
+      const files = e.clipboardData?.files;
+      if (files && files.length > 0 && files[0].type.startsWith('image/')) {
+        imageFile = files[0];
+      }
+    }
+    // 3) files 실패 → navigator.clipboard 폴백
+    if (!imageFile) {
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const ci of clipboardItems) {
+            for (const type of ci.types) {
+              if (type.startsWith('image/')) {
+                const blob = await ci.getType(type);
+                imageFile = blob as File;
+                break;
+              }
+            }
+            if (imageFile) break;
+          }
+        }
+      } catch {}
+    }
+    if (!imageFile) {
+      if (showToast) showToast('클립보드에서 이미지를 읽을 수 없습니다.', 'error');
+      return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const result = reader.result as string;
+      const base64Data = result.split(',')[1];
+      if (!base64Data) {
+        if (showToast) showToast('이미지 데이터를 읽을 수 없습니다.', 'error');
+        return;
+      }
+      const api = (window as any).electronAPI;
+      if (api) {
+        const fileName = `image_${Date.now()}.png`;
+        const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
+        if (saveResult && saveResult.success) {
+          const blobPreview = URL.createObjectURL(imageFile!);
+          setImagePath(blobPreview);
+          pendingFileRef.current = { base64: base64Data, fileName };
+          if (showToast) showToast("이미지가 로컬 assets에 저장되었습니다. '적용경로적용' 버튼으로 R2 업로드하세요.", 'success');
+        } else {
+          if (showToast) showToast("이미지 저장 실패", 'error');
+        }
+      } else {
+        const blobPreview = URL.createObjectURL(imageFile!);
+        setImagePath(blobPreview);
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
+          const isDev = process.env.NODE_ENV === 'development';
+          const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
+          const headers: any = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+          const response = await fetch(uploadEndpoint, {
+            method: 'POST', headers,
+            body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'success' && data.relativePath) {
+              setImagePath(data.relativePath);
+              if (showToast) {
+                if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
+                else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
+              }
+            } else {
+              if (showToast) showToast('이미지 클라우드 업로드 실패: ' + (data.error || ''), 'error');
+            }
+          } else {
+            if (showToast) showToast(`서버 오류 발생 (${response.status})`, 'error');
+          }
+        } catch (err) {
+          console.error(err);
+          if (showToast) showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
+        }
+      }
+    };
+    reader.onerror = () => {
+      if (showToast) showToast('이미지 파일을 읽는데 실패했습니다.', 'error');
+    };
+    reader.readAsDataURL(imageFile);
   };
 
 // ====================================================================

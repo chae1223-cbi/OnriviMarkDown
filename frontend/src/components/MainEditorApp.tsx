@@ -2597,7 +2597,41 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   };
 
 // ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0064] MainEditorApp.tsx ➔ handleEditorPaste
+// 📊 [OMD-EDIT-MainEditorApp-0064] MainEditorApp.tsx ➔ resolveClipboardImage
+// 🎯 @KICK  : 클립보드에서 이미지 Blob/File 추출 (items → files → navigator.clipboard 순)
+// 🛡️ @GUARD : 모든 경로 실패 시 null 반환, 성공 시 Blob 반환
+// 🔗 @CALLS : 없음
+// ====================================================================
+  const resolveClipboardImage = async (e: any, imageItem: any): Promise<Blob | null> => {
+    // 1) clipboardData.items[i].getAsFile()
+    if (imageItem) {
+      const file = imageItem.getAsFile();
+      if (file) return file;
+      // 1b) items에서 찾았지만 getAsFile()이 null → clipboardData.files 폴백
+      const files = e.clipboardData.files;
+      if (files && files.length > 0 && files[0].type.startsWith('image/')) return files[0];
+    }
+    // 2) clipboardData.files (items에 이미지가 없을 때)
+    const files = e.clipboardData.files;
+    if (files && files.length > 0 && files[0].type.startsWith('image/')) return files[0];
+    // 3) navigator.clipboard.read() (Async Clipboard API, 권한 필요)
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+        const clipboardItems = await navigator.clipboard.read();
+        for (const ci of clipboardItems) {
+          for (const type of ci.types) {
+            if (type.startsWith('image/')) {
+              return await ci.getType(type);
+            }
+          }
+        }
+      }
+    } catch {}
+    return null;
+  };
+
+// ====================================================================
+// 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handleEditorPaste
 // 🎯 @KICK  : 붙여넣기 이벤트 처리: 이미지 업로드, HTML 표 변환, 텍스트 정제
 // 🛡️ @GUARD : 이미지 붙여넣기 시 기본 동작 차단, 일반 텍스트 폴백 전 HTML 표 시도
 // 🚨 @PATCH : None
@@ -2605,156 +2639,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // ====================================================================
   const handleEditorPaste = async (e: any) => {
     const items = e.clipboardData?.items;
-    if (!items) return;
-
-    let imageItem = null;
     let hasText = false;
     let hasHtml = false;
+    let imageItem = null;
 
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        imageItem = items[i];
-      }
-      if (items[i].type === 'text/plain') {
-        hasText = true;
-      }
-      if (items[i].type === 'text/html') {
-        hasHtml = true;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) imageItem = items[i];
+        if (items[i].type === 'text/plain') hasText = true;
+        if (items[i].type === 'text/html') hasHtml = true;
       }
     }
 
-    if (imageItem) {
+    const resolvedBlob = await resolveClipboardImage(e, imageItem);
+
+    if (resolvedBlob) {
       e.preventDefault();
-      const file = imageItem.getAsFile();
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = event.target?.result as string;
-        if (!base64Data) return;
-
-        try {
-          const base64DataClean = base64Data.split(',')[1] || base64Data;
-          const api = (window as any).electronAPI;
-          if (api) {
-            const fileName = `image_${Date.now()}.png`;
-            const targetFolder = currentFilePath || rootFolderRef.current?.name || '';
-            const saveResult = await api.saveImage(targetFolder, base64DataClean, fileName);
-            
-            if (saveResult && saveResult.success) {
-              let r2Path = null;
-              let r2Error = '';
-              try {
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
-                const headers: any = { 'Content-Type': 'application/json' };
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-                const resp = await fetch('https://onrivi.com/api/upload-image', {
-                  method: 'POST', headers,
-                  body: JSON.stringify({ base64Data: base64DataClean, targetFolder, fileName }),
-                });
-                if (resp.ok) {
-                  const d = await resp.json();
-                  if (d.status === 'success' && d.relativePath) r2Path = d.relativePath;
-                  else r2Error = d.error || `status=${d.status}`;
-                } else {
-                  r2Error = `HTTP ${resp.status}`;
-                  try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch {}
-                }
-              } catch (e: any) {
-                r2Error = e?.message || String(e);
-              }
-              let finalPath = '';
-              if (r2Path) {
-                finalPath = r2Path;
-              } else if (saveResult.isRelative) {
-                finalPath = `assets/${fileName}`;
-              } else {
-                const encodedUrl = encodeURIComponent(saveResult.absolutePath);
-                finalPath = `media://local/serve?url=${encodedUrl}`;
-              }
-
-              if (editorRef.current) {
-                const editor = editorRef.current;
-                const selection = editor.getSelection();
-                const range = {
-                  startLineNumber: selection.startLineNumber,
-                  startColumn: selection.startColumn,
-                  endLineNumber: selection.endLineNumber,
-                  endColumn: selection.endColumn
-                };
-                const textToInsert = `![이미지](${finalPath})`;
-                editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
-
-                const newValue = editor.getValue();
-                updateContent(newValue, true);
-              }
-              showToast(r2Path ? '이미지가 로컬 및 클라우드(R2)에 저장되었습니다.' : `R2 업로드 실패(${r2Error}) — 로컬 assets에 저장`, r2Path ? 'success' : 'error');
-            } else {
-              showToast('이미지 로컬 폴더 저장 실패', 'error');
-            }
-          } else {
-            // 웹 브라우저 환경 (SaaS: Cloudflare R2 클라우드 저장)
-            if (!file) return;
-            try {
-              // Supabase 세션 가져오기 (JWT)
-              const { data: { session } } = await supabase.auth.getSession();
-              const token = session?.access_token;
-
-              // 개발 모드(Next.js dev)일 때는 로컬 백엔드로, 프로덕션(Cloudflare Pages)일 때는 R2 함수로
-              const isDev = process.env.NODE_ENV === 'development';
-              const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
-
-              const headers: any = { 'Content-Type': 'application/json' };
-              if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-              }
-
-              const response = await fetch(uploadEndpoint, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ base64Data, targetFolder: currentFilePath || rootFolderRef.current?.name || '' }),
-              });
-              
-              if (response.ok) {
-                const data = await response.json();
-                if (data.status === 'success' && data.relativePath) {
-                  if (editorRef.current) {
-                    const editor = editorRef.current;
-                    const selection = editor.getSelection();
-                    const range = {
-                      startLineNumber: selection.startLineNumber,
-                      startColumn: selection.startColumn,
-                      endLineNumber: selection.endLineNumber,
-                      endColumn: selection.endColumn
-                    };
-                    const textToInsert = `![이미지](${data.relativePath})`;
-                    editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
-      
-                    const newValue = editor.getValue();
-                    updateContent(newValue, true);
-                  }
-                  if (isDev) {
-                    showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
-                  } else {
-                    showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
-                  }
-                } else {
-                  showToast('이미지 클라우드 업로드 실패: ' + (data.error || '알 수 없는 오류'), 'error');
-                }
-              } else {
-                showToast(`서버 오류 발생 (${response.status})`, 'error');
-              }
-            } catch (proxyErr) {
-              console.error('[Web Proxy/R2 Paste Error]', proxyErr);
-              showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
-            }
-          }
-        } catch (err) {
-          showToast('클립보드 이미지 처리 중 오류가 발생했습니다.', 'error');
-        }
-      };
-      reader.readAsDataURL(file);
+      handlePasteImageFile(resolvedBlob);
       return;
     }
 
@@ -2795,6 +2696,153 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
     }
+  };
+
+// ====================================================================
+// 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handlePasteImageFile
+// 🎯 @KICK  : 이미지 Blob/File을 받아 로컬(데스크탑) 또는 R2(웹)에 저장 후 에디터 커서 위치에 삽입
+// 🛡️ @GUARD : FileReader onload/onerror 처리, 데스크탑/웹 분기
+// 🚨 @PATCH : None
+// 🔗 @CALLS : fetch, FileReader, showToast
+// ====================================================================
+  const handlePasteImageFile = async (fileOrBlob: Blob) => {
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Data = event.target?.result as string;
+      if (!base64Data) {
+        showToast('이미지 데이터를 읽을 수 없습니다.', 'error');
+        return;
+      }
+      try {
+        const base64DataClean = base64Data.split(',')[1] || base64Data;
+        const api = (window as any).electronAPI;
+        if (api) {
+          // 🖥️ 데스크탑 (Electron): 로컬 assets/ 저장 + R2 업로드 시도
+          const fileName = `image_${Date.now()}.png`;
+          const targetFolder = currentFilePath || rootFolderRef.current?.name || '';
+          const saveResult = await api.saveImage(targetFolder, base64DataClean, fileName);
+          if (saveResult && saveResult.success) {
+            await insertWithR2Fallback(base64DataClean, targetFolder, fileName, saveResult);
+          } else {
+            showToast('이미지 로컬 폴더 저장 실패', 'error');
+          }
+        } else {
+          // 🌐 웹 브라우저 (SaaS): R2 클라우드 저장
+          await webUploadImage(base64Data);
+        }
+      } catch (err) {
+        console.error('[Paste Image Error]', err);
+        showToast('클립보드 이미지 처리 중 오류가 발생했습니다.', 'error');
+      }
+    };
+    reader.onerror = () => {
+      showToast('이미지 파일을 읽는데 실패했습니다.', 'error');
+    };
+    reader.readAsDataURL(fileOrBlob);
+  };
+
+// ====================================================================
+// 📊 [OMD-EDIT-MainEditorApp-0066] MainEditorApp.tsx ➔ insertWithR2Fallback
+// 🎯 @KICK  : 데스크탑: 로컬 저장 성공 시 R2 업로드 시도, 경로 결정 후 에디터 삽입
+// 🛡️ @GUARD : R2 실패 시 로컬 경로 fallback
+// 🔗 @CALLS : fetch, showToast
+// ====================================================================
+  const insertWithR2Fallback = async (base64DataClean: string, targetFolder: string, fileName: string, saveResult: any) => {
+    let r2Path = null;
+    let r2Error = '';
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const resp = await fetch('https://onrivi.com/api/upload-image', {
+        method: 'POST', headers,
+        body: JSON.stringify({ base64Data: base64DataClean, targetFolder, fileName }),
+      });
+      if (resp.ok) {
+        const d = await resp.json();
+        if (d.status === 'success' && d.relativePath) r2Path = d.relativePath;
+        else r2Error = d.error || `status=${d.status}`;
+      } else {
+        r2Error = `HTTP ${resp.status}`;
+        try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch {}
+      }
+    } catch (e: any) {
+      r2Error = e?.message || String(e);
+    }
+    let finalPath = '';
+    if (r2Path) {
+      finalPath = r2Path;
+    } else if (saveResult.isRelative) {
+      finalPath = `assets/${fileName}`;
+    } else {
+      const encodedUrl = encodeURIComponent(saveResult.absolutePath);
+      finalPath = `media://local/serve?url=${encodedUrl}`;
+    }
+    insertImageMarkdown(finalPath);
+    showToast(r2Path ? '이미지가 로컬 및 클라우드(R2)에 저장되었습니다.' : `R2 업로드 실패(${r2Error}) — 로컬 assets에 저장`, r2Path ? 'success' : 'error');
+  };
+
+// ====================================================================
+// 📊 [OMD-EDIT-MainEditorApp-0067] MainEditorApp.tsx ➔ webUploadImage
+// 🎯 @KICK  : 웹 브라우저: API를 통해 R2(또는 dev 로컬)에 이미지 업로드 후 에디터 삽입
+// 🛡️ @GUARD : dev/production 엔드포인트 분기, JWT 인증
+// 🔗 @CALLS : fetch, showToast
+// ====================================================================
+  const webUploadImage = async (base64Data: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const isDev = process.env.NODE_ENV === 'development';
+      const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch(uploadEndpoint, {
+        method: 'POST', headers,
+        body: JSON.stringify({ base64Data, targetFolder: currentFilePath || rootFolderRef.current?.name || '' }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'success' && data.relativePath) {
+          insertImageMarkdown(data.relativePath);
+          showToast(isDev ? '개발 환경: 로컬 assets 폴더에 저장되었습니다.' : '웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
+        } else {
+          showToast('이미지 업로드 실패: ' + (data.error || '알 수 없는 오류'), 'error');
+        }
+      } else {
+        showToast(`서버 오류 발생 (${response.status})`, 'error');
+      }
+    } catch (err) {
+      console.error('[Web Upload Error]', err);
+      showToast('이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
+    }
+  };
+
+// ====================================================================
+// 📊 [OMD-EDIT-MainEditorApp-0068] MainEditorApp.tsx ➔ insertImageMarkdown
+// 🎯 @KICK  : 에디터 커서 위치에 마크다운 이미지 문법 삽입
+// 🛡️ @GUARD : editorRef.current null 체크, readOnly 우회
+// 🔗 @CALLS : editor.executeEdits, updateContent
+// ====================================================================
+  const insertImageMarkdown = (path: string) => {
+    if (!editorRef.current) {
+      showToast('에디터를 찾을 수 없어 이미지를 삽입할 수 없습니다.', 'error');
+      return;
+    }
+    const editor = editorRef.current;
+    const selection = editor.getSelection();
+    const range = {
+      startLineNumber: selection.startLineNumber,
+      startColumn: selection.startColumn,
+      endLineNumber: selection.endLineNumber,
+      endColumn: selection.endColumn
+    };
+    const textToInsert = `![이미지](${path})`;
+    editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+    try {
+      const newValue = editor.getValue();
+      updateContent(newValue, true);
+    } catch {}
   };
 
 // ====================================================================

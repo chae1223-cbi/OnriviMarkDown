@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       status: 'success',
-      relativePath: `assets/${fileName}`
+      relativePath: `/assets/${fileName}`
     });
   } catch (error: any) {
     console.error('API Error:', error);
