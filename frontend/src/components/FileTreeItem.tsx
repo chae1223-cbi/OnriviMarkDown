@@ -330,6 +330,24 @@ const FileTreeItem = ({
 
   const handleRename = async (e: any) => {
     e.stopPropagation();
+    if (openTabPaths && openTabPaths.length > 0 && node.path) {
+      const normPath = node.path.replace(/\\/g, '/');
+      if (node.kind === 'directory') {
+        const hasOpenDescendant = openTabPaths.some(tp => {
+          const normTp = tp.replace(/\\/g, '/');
+          return normTp === normPath || normTp.startsWith(normPath + '/');
+        });
+        if (hasOpenDescendant) {
+          showToast("열려 있는 파일이 포함된 폴더는 이름을 변경할 수 없습니다.", "warning");
+          return;
+        }
+      } else {
+        if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath)) {
+          showToast("편집기에서 열려 있는 파일은 이름을 변경할 수 없습니다.", "warning");
+          return;
+        }
+      }
+    }
     setPromptConfig({
       isOpen: true,
       title: `'${node.name}'의 새 이름을 입력하세요:`,
@@ -745,7 +763,7 @@ const FileTreeItem = ({
 
         {/* Hover Actions */}
         {!isMergeMode && !isRestrictedUser && (
-          <div className="ml-auto flex items-center gap-1 transition-opacity">
+          <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {node.kind === 'directory' && (
               <>
                 <button onClick={handleCreateFile} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 파일"}><Plus size={14} /></button>
