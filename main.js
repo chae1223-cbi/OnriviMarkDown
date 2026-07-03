@@ -210,13 +210,22 @@ function createWindow(port) {
   });
 
   // 🌐 [ 외부 링크 및 일반 웹 페이지 클릭 시 기본 웹 브라우저 새창으로 오픈하는 설정 ]
-  // 1) target="_blank" 등으로 새 창을 띄우려는 시도를 가로채 시스템 브라우저로 실행
+  // 1) target="_blank" 등으로 새 창을 띄우려는 시도를 가로채 시스템 브라우저/플레이어로 실행
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // 로컬 환경(file:// 또는 app://) 혹은 에디터 단독 화면(/editor) 및 OAuth 콜백(/auth/callback)만 일렉트론 내부 서빙을 허용합니다.
     const isInternalRoute = url.startsWith('file://') || url.startsWith('app://') || url.includes('/editor') || url.includes('/auth/callback');
+    const { shell } = require('electron');
+
+    if (url.startsWith('media://local/serve')) {
+      const parsedUrl = new URL(url);
+      const filePath = parsedUrl.searchParams.get('url');
+      if (filePath) {
+        shell.openPath(decodeURIComponent(filePath));
+      }
+      return { action: 'deny' };
+    }
 
     if (!isInternalRoute && (url.startsWith('http:') || url.startsWith('https:'))) {
-      const { shell } = require('electron');
       shell.openExternal(url);
     }
     return { action: 'deny' }; // 일렉트론 내부에서 새 창이 뜨는 것은 원천 차단

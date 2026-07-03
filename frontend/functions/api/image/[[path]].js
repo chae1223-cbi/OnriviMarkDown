@@ -38,6 +38,12 @@ export async function onRequestGet(context) {
       'gif': 'image/gif',
       'webp': 'image/webp',
       'svg': 'image/svg+xml',
+      'mp4': 'video/mp4',
+      'webm': 'video/webm',
+      'ogg': 'video/ogg',
+      'mov': 'video/quicktime',
+      'avi': 'video/x-msvideo',
+      'mkv': 'video/x-matroska',
     };
     const contentType = contentTypeMap[ext] || object.httpMetadata?.contentType || 'application/octet-stream';
 

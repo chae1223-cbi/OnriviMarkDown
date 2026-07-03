@@ -52,7 +52,7 @@ export async function onRequestPost(context) {
     const clientFileName = body.fileName || null;
 
     // 4. Base64 -> Uint8Array (바이너리) 변환
-    const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const cleanBase64 = base64Data.replace(/^data:(image|video)\/\w+;base64,/, '');
     const binaryString = atob(cleanBase64);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
@@ -66,7 +66,7 @@ export async function onRequestPost(context) {
     const baseName = clientFileName || `img_${timestamp}_${randomHex}.png`;
     const fileName = `users/${userId}/${baseName}`;
 
-    // 6. R2 버킷에 업로드
+    // 6. R2 버킷에 업로드 — 파일 확장자에 따라 적절한 Content-Type 설정
     if (!env.R2_BUCKET) {
       return withCors(new Response(JSON.stringify({ error: 'Internal Server Error: R2_BUCKET binding missing' }), { 
         status: 500,
@@ -74,8 +74,17 @@ export async function onRequestPost(context) {
       }));
     }
 
+    const ext = baseName.split('.').pop()?.toLowerCase() || '';
+    const mimeMap = {
+      'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+      'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml',
+      'mp4': 'video/mp4', 'webm': 'video/webm', 'ogg': 'video/ogg',
+      'mov': 'video/quicktime', 'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska',
+    };
+    const contentType = mimeMap[ext] || 'application/octet-stream';
+
     await env.R2_BUCKET.put(fileName, bytes, {
-      httpMetadata: { contentType: 'image/png' },
+      httpMetadata: { contentType },
       customMetadata: { userId }
     });
 

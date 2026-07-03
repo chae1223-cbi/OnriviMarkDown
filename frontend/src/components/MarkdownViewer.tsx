@@ -9,6 +9,7 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeHighlight from 'rehype-highlight';
 import DOMPurify from 'dompurify';
+import { getApiUrl } from '@/lib/apiUrlBuilder';
 
 const getTextFromChildren = (children: React.ReactNode): string => {
   if (children === null || children === undefined) return '';
@@ -1147,7 +1148,41 @@ export default function MarkdownViewer({
                 return <a href={href} onClick={handleClick} {...props}>{children}</a>;
               }
 
-              return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+              const apiHref = href && href.startsWith('/api/image/')
+                ? `https://onrivi.com${href}`
+                : href && (href.startsWith('/api/') || href.match(/^https?:\/\/localhost:/))
+                  ? getApiUrl(href.replace(/^https?:\/\/localhost:\d+/, ''))
+                  : href;
+              const isVideo = apiHref && /\.(mp4|webm|ogg|mov|avi|mkv)(\?|#|$)/i.test(apiHref);
+              if (isVideo) {
+                const displayName = getTextFromChildren(children) || apiHref.split('/').pop()?.split('?')[0] || '동영상';
+                return (
+                  <a href={apiHref} target="_blank" rel="noopener noreferrer" className="block no-underline my-2 group">
+                    <div className="relative rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
+                      <div className="aspect-video flex items-center justify-center bg-black/5 dark:bg-black/20">
+                        <div className="w-16 h-16 rounded-full bg-black/60 dark:bg-black/50 flex items-center justify-center group-hover:bg-black/80 group-hover:scale-110 transition-all">
+                          <svg viewBox="0 0 24 24" className="w-7 h-7 text-white fill-current" style={{ marginLeft: 3 }}>
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="px-4 py-2.5 flex items-center gap-2 border-t border-zinc-200 dark:border-zinc-800">
+                        <div className="w-5 h-5 shrink-0 text-zinc-400">
+                          <svg viewBox="0 0 24 24" className="w-full h-full fill-current">
+                            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                          </svg>
+                        </div>
+                        <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300 truncate min-w-0">
+                          <span className="text-zinc-400 dark:text-zinc-500 mr-1.5">▶</span>
+                          <span>{displayName}</span>
+                        </div>
+                        <span className="ml-auto text-[10px] text-zinc-400 dark:text-zinc-500 shrink-0">새창</span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              }
+              return <a href={apiHref} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
             },
             table: ({ node, children, ...props }: any) => {
                return (

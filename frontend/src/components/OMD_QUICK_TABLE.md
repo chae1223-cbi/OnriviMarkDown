@@ -1,7 +1,7 @@
 ﻿# OMD 함수 카탈로그 퀵 테이블
 
 > **온리비 어서 (OnriviAuthor) v1.0.1** — 호출구조 결합형 전수 함수 주석 가이드라인  
-> 생성일: 2026-06-15 | 총 함수: 55개 (MainEditorApp.tsx 기준)  
+> 생성일: 2026-06-15 | 최종 갱신: 2026-07-03 | 총 함수: 70개 (MainEditorApp.tsx 기준)  
 > **BUG 마크**: Shift+LeftArrow 관련 의심 함수 강조
 
 ---
@@ -98,6 +98,20 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-EDIT-0036 | MEA.tsx:2791 | hotkeyRegistration | TOOLBAR_ITEMS.forEach, editor.addAction, parseKeybinding | Monaco 커스텀 단축키 액션 등록 |
 | OMD-EDIT-0037 ✅ FIXED | MEA.tsx:3319 | globalKeydownHandler | dispatchCommand, mapIdToCommandType, setShowTagLinkPicker, setFloatingToolbar | capture:true 전역 키 핸들러 *(수정: 2026-06-15 — Shift+방향키 early return 추가로 Monaco 선택 버그 해결)* | |
 | OMD-CORE-0021 | MEA.tsx:3472 | toc | - | 마크다운 제목 파싱→TOC 목차 생성 |
+| OMD-FILE-0012 ✅ FIXED | MEA.tsx:2027 | welcomeContentLoad 제거 | - | 초기 "새 파일.md" 빈 탭 자동 생성 제거 — 전체 사용자는 아무 탭 없이 시작, 탐색기에서만 파일 생성 |
+| OMD-FILE-0013 ✅ FIXED | MEA.tsx:1536 | closeTab | switchTab, setContent | 마지막 탭 닫을 때 createNewTab("") 대신 에디터 초기화만 하고 탭 없이 유지 |
+| OMD-EDIT-0038 ✅ FIXED | apiUrlBuilder.ts:16 | getApiUrl | - | Electron `app:` 프로토콜 감지 추가 → API 호출이 `http://localhost:4000`으로 라우팅되도록 수정 |
+| OMD-EDIT-0039 ✅ FIXED | MEA.tsx:3446 | TOGGLE_CSS_STYLE | setPreviewMode | css-style 진입/탈출 토글 가능하도록 수정 (prev === 'css-style' ? 'both' : 'css-style') |
+| OMD-EDIT-0040 ✅ FIXED | MEA.tsx:1479 | setPreviewMode guard 제거 | - | `if (prev === 'css-style' && next !== 'css-style') return prev;` 가드 제거 → CssStyleForm 닫기/토글로 정상 탈출 가능 |
+| OMD-EDIT-0041 ✅ FIXED | useEditorTabs.ts:85 | switchTab | setTabs, editor.getValue | css-style/preview 모드 탈출 시 에디터 내용을 tabs 배열에 동기화 (데이터 유실 방지) |
+| OMD-EDIT-0042 ✅ FIXED | useFileExplorer.ts:344 | handleFileClick | setTabs, editor.getValue | css-style 모드 탈출 시 에디터 내용 tabs 배열에 동기화 |
+| OMD-EDIT-0043 ✅ FIXED | MEA.tsx:3145 | dynamicCssString | - | img/video/map 태그의 width/height/max-width/max-height에 `!important` 제거 → inline style 우선 적용 |
+| OMD-EDIT-0044 ✅ FIXED | exportHandlers.ts:110 | generateExportCss | - | img/video/map 태그의 width/height에 `!important` 제거 (내보내기 CSS 동기화) |
+| OMD-CORE-0022 | MEA.tsx:1846/4077 | readOnly | licenseStatus, tabs.length | 탭이 없을 때 에디터 자동 readOnly (tabs.length === 0) |
+| OMD-CORE-0023 ✅ FIXED | MapModal.tsx:118 | mapCode | - | 지도 iframe width/height HTML 속성 → inline style로 변경 (CSS 우선순위 확보) |
+| OMD-FILE-0014 | LeftSidebar.tsx:449 | MergeMode 취소 버튼 | onCancelMerge | 병합 모드 시 탐색기 상단에 "병합 모드 (N개) ✕" 취소 바 추가 |
+| OMD-FILE-0015 ✅ FIXED | FileTreeItem.tsx:331 | handleRename | showToast, openTabPaths | 열린 탭 파일/폴더 이름변경 차단 (openTabPaths 검사 추가) |
+| OMD-AUTH-0004 ✅ FIXED | MEA.tsx:1129 | license_force_preview | setTabs, setPreviewModeRaw | 제한사용자(미리보기 전용) → css-style 모드 + 서식 정의 미리보기 탭 자동 생성 |
 | OMD-HOOK-0001 | useEditorSettings.ts:12 | useEditorSettings | getDefaultHotkeys, THEME_MAP, idb, getApiUrl | 테마·단축키·폰트·자동저장 설정 관리 |
 | OMD-HOOK-0002 | useEditorSettings.ts:41 | handleThemeChange | setThemePalette, setIsDarkMode | 테마 전환 |
 | OMD-HOOK-0003 ✅ FIXED | useEditorTabs.ts:13 | useEditorTabs | tabs, setTabs, activeTabId, setActiveTabId (외부 주입), getWelcomeContent, monaco.editor.createModel | 다중 탭 관리 *(수정: 2026-06-15 — 내부 useState 제거→외부 주입 전환으로 rS TDZ 에러 해결; 2026-06-18 — onDidChangeContent isModified: true → val !== t.content 비교)* |
