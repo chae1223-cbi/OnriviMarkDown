@@ -258,7 +258,7 @@ function createWindow(port) {
     "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
     "connect-src 'self' app: ws: wss: http: https: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co",
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
-    "media-src 'self' app: media:"
+    "media-src 'self' app: media: https:"
   ];
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -303,11 +303,41 @@ app.on('ready', async () => {
              targetPath = path.join(targetPath, 'index.html');
          }
       }
-      
-      return net.fetch('file://' + targetPath.replace(/\\/g, '/'));
+
+      const ext = path.extname(targetPath).toLowerCase();
+      const mimeMap = {
+        '.html': 'text/html; charset=utf-8',
+        '.js': 'application/javascript',
+        '.css': 'text/css',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.svg': 'image/svg+xml',
+        '.webp': 'image/webp',
+        '.ico': 'image/x-icon',
+        '.woff2': 'font/woff2',
+      };
+      const contentType = mimeMap[ext] || 'application/octet-stream';
+      const content = fs.readFileSync(targetPath);
+      const headers = new Headers();
+      headers.set('Content-Type', contentType);
+      headers.set('Content-Length', String(content.byteLength));
+      // CSP: file:// 프로토콜 기본 CSP 충돌 방지를 위해 직접 설정
+      headers.set('Content-Security-Policy', [
+        "default-src 'self' app: media:",
+        "script-src 'self' app: 'unsafe-eval' 'unsafe-inline' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net",
+        "worker-src 'self' app: blob:",
+        "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+        "img-src 'self' app: data: blob: http: https: file: media:",
+        "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
+        "connect-src 'self' app: ws: wss: http: https: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co",
+        "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
+        "media-src 'self' app: media: https:"
+      ].join('; '));
+      return new Response(content, { status: 200, headers });
     } catch (err) {
       console.error('app protocol serve error:', err);
-      return new Response('Error serving app file', { status: 500 });
+      return new Response('File not found', { status: 404 });
     }
   });
 
