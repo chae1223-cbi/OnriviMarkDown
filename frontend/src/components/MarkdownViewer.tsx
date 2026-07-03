@@ -1153,6 +1153,41 @@ export default function MarkdownViewer({
                 : href && (href.startsWith('/api/') || href.match(/^https?:\/\/localhost:/))
                   ? getApiUrl(href.replace(/^https?:\/\/localhost:\d+/, ''))
                   : href;
+
+              const youtubeMatch = href && href.match(/^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/);
+              if (youtubeMatch && youtubeMatch[2] && youtubeMatch[2].length === 11) {
+                const videoId = youtubeMatch[2];
+                const ytDisplayName = getTextFromChildren(children) || 'YouTube 동영상';
+                return (
+                  <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noopener noreferrer" className="block no-underline my-2 group">
+                    <div className="relative rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-950 hover:border-red-400 dark:hover:border-red-500 transition-colors">
+                      <div className="aspect-video relative flex items-center justify-center bg-black/20">
+                        <img src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`} alt={ytDisplayName}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${videoId}/0.jpg`; }} />
+                        <div className="relative w-16 h-16 rounded-full bg-black/70 flex items-center justify-center group-hover:bg-red-600 group-hover:scale-110 transition-all z-10">
+                          <svg viewBox="0 0 24 24" className="w-7 h-7 text-white fill-current" style={{ marginLeft: 3 }}>
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="px-4 py-2.5 flex items-center gap-2 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900">
+                        <div className="w-5 h-5 shrink-0 text-red-500">
+                          <svg viewBox="0 0 24 24" className="w-full h-full fill-current">
+                            <path d="M21.58 7.19c-.23-.86-.91-1.54-1.77-1.77C18.25 5 12 5 12 5s-6.25 0-7.81.42c-.86.23-1.54.91-1.77 1.77C2 8.75 2 12 2 12s0 3.25.42 4.81c.23.86.91 1.54 1.77 1.77C5.75 19 12 19 12 19s6.25 0 7.81-.42c.86-.23 1.54-.91 1.77-1.77C22 15.25 22 12 22 12s0-3.25-.42-4.81zM10 15V9l5.2 3-5.2 3z" />
+                          </svg>
+                        </div>
+                        <div className="text-xs font-medium text-zinc-600 dark:text-zinc-300 truncate min-w-0">
+                          <span className="text-red-500 mr-1.5">▶</span>
+                          <span>{ytDisplayName}</span>
+                        </div>
+                        <span className="ml-auto text-[10px] text-zinc-400 dark:text-zinc-500 shrink-0">YouTube</span>
+                      </div>
+                    </div>
+                  </a>
+                );
+              }
+
               const isVideo = apiHref && /\.(mp4|webm|ogg|mov|avi|mkv)(\?|#|$)/i.test(apiHref);
               if (isVideo) {
                 const displayName = getTextFromChildren(children) || apiHref.split('/').pop()?.split('?')[0] || '동영상';

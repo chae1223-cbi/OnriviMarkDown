@@ -630,6 +630,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     align: string;
   } | null>(null);
   const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);
+  const [youtubeInitialUrl, setYoutubeInitialUrl] = useState<string | null>(null);
+  const youtubeEditRangeRef = useRef<any>(null);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [showDocLinkPicker, setShowDocLinkPicker] = useState(false);
@@ -3507,7 +3509,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'DOCLINK': handlers.doclink(); break;
       case 'IMAGE': handlers.image(); break;
       case 'YOUTUBE':
-      case 'VIDEO': handlers.video(); break;
+      case 'VIDEO': {
+        const selText = model.getValueInRange(selection);
+        const mdLink = selText.match(/^\[([^\]]*)\]\(([^)]*)\)$/);
+        if (mdLink) {
+          setYoutubeInitialUrl(mdLink[2]);
+          youtubeEditRangeRef.current = new (window as any).monaco.Range(
+            selection.startLineNumber, selection.startColumn,
+            selection.endLineNumber, selection.endColumn
+          );
+        } else {
+          setYoutubeInitialUrl(null);
+          youtubeEditRangeRef.current = null;
+        }
+        handlers.video();
+        break;
+      }
       case 'NOW': handlers.now(); break;
       case 'MAP': handlers.map(); break;
       case 'TABLE': handlers.table(); break;
@@ -6176,9 +6193,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       />
       <YoutubeModal
         isOpen={isYoutubeModalOpen}
-        onClose={() => setIsYoutubeModalOpen(false)}
-        onInsert={(code) => insertAtCursor(code)}
+        onClose={() => { setIsYoutubeModalOpen(false); setYoutubeInitialUrl(null); youtubeEditRangeRef.current = null; }}
+        onInsert={(code) => {
+          if (youtubeEditRangeRef.current) {
+            const editor = editorRef.current;
+            if (editor) {
+              editor.executeEdits('youtube-replace', [
+                { range: youtubeEditRangeRef.current, text: code }
+              ]);
+              editor.focus();
+            }
+            youtubeEditRangeRef.current = null;
+            setYoutubeInitialUrl(null);
+          } else {
+            insertAtCursor(code);
+          }
+        }}
         isDarkMode={isDarkMode}
+        initialUrl={youtubeInitialUrl || undefined}
         targetFolder={(() => {
           let folder = '';
           if (currentFileNodeRef.current?.path) {

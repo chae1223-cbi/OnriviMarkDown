@@ -12,9 +12,10 @@ interface YoutubeModalProps {
   onInsert: (code: string) => void;
   isDarkMode: boolean;
   targetFolder?: string;
+  initialUrl?: string;
 }
 
-export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, targetFolder }: YoutubeModalProps) {
+export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, targetFolder, initialUrl }: YoutubeModalProps) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -25,6 +26,16 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (isOpen && initialUrl) {
+      setSourceUrl(initialUrl);
+      setAppliedPath(initialUrl);
+    } else if (!isOpen) {
+      setSourceUrl("");
+      setAppliedPath("");
+    }
+  }, [isOpen, initialUrl]);
 
   const uploadVideo = async (file: File, base64Data: string) => {
     const fileName = `video_${Date.now()}.${file.name.split('.').pop() || 'mp4'}`;
