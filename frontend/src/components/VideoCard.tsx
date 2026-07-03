@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 
+const thumbnailCache = new Map<string, string>();
+
 interface VideoCardProps {
   src: string;
   href: string;
@@ -11,17 +13,22 @@ interface VideoCardProps {
 }
 
 export default function VideoCard({ src, href, displayName, isYoutube, youtubeId }: VideoCardProps) {
-  const [thumbnail, setThumbnail] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const cachedKey = isYoutube ? `yt:${youtubeId}` : src;
+  const [thumbnail, setThumbnail] = useState<string | null>(() => thumbnailCache.get(cachedKey) || null);
+  const [loading, setLoading] = useState(!thumbnailCache.has(cachedKey));
+  const frameDoneRef = useRef(false);
 
   useEffect(() => {
     if (isYoutube && youtubeId) {
-      setThumbnail(`https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`);
+      const ytUrl = `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`;
+      thumbnailCache.set(cachedKey, ytUrl);
+      setThumbnail(ytUrl);
       setLoading(false);
       return;
     }
-    if (!src) { setLoading(false); return; }
+    if (!src || thumbnailCache.has(cachedKey)) { setLoading(false); return; }
+    if (frameDoneRef.current) return;
+    frameDoneRef.current = true;
     let cancelled = false;
     const video = document.createElement('video');
     video.muted = true;
@@ -42,6 +49,7 @@ export default function VideoCard({ src, href, displayName, isYoutube, youtubeId
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        thumbnailCache.set(cachedKey, dataUrl);
         if (!cancelled) setThumbnail(dataUrl);
       } catch {
         if (!cancelled) setThumbnail(null);
@@ -53,7 +61,7 @@ export default function VideoCard({ src, href, displayName, isYoutube, youtubeId
     video.src = src;
     video.load();
     return () => { cancelled = true; clearTimeout(timeout); video.remove(); };
-  }, [src, isYoutube, youtubeId]);
+  }, [src, isYoutube, youtubeId, cachedKey]);
 
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="block no-underline my-2 group">

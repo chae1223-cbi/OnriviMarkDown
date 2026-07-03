@@ -562,7 +562,7 @@ export default function ImageModal({
             }`}
           >
             <LinkIcon size={14} />
-            마크다운 코드 삽입
+            삽입
           </button>
         </div>
       </div>

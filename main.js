@@ -318,25 +318,7 @@ app.on('ready', async () => {
         '.woff2': 'font/woff2',
       };
       const contentType = mimeMap[ext] || 'application/octet-stream';
-      let content = fs.readFileSync(targetPath);
-
-      // CSP meta 태그 삽입: app:// 프로토콜은 onHeadersReceived가 동작하지 않으므로
-      // HTML 내 meta 태그로 CSP를 설정해야 함
-      if (ext === '.html') {
-        const cspMeta = '<meta http-equiv="Content-Security-Policy" content="' +
-          "default-src 'self' app: media:; " +
-          "script-src 'self' app: 'unsafe-eval' 'unsafe-inline' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net; " +
-          "worker-src 'self' app: blob:; " +
-          "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
-          "img-src 'self' app: data: blob: http: https: file: media:; " +
-          "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
-          "connect-src 'self' app: ws: wss: http: https: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co; " +
-          "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com; " +
-          "media-src 'self' app: media: https:" +
-          '">';
-        content = content.toString().replace('<head>', '<head>' + cspMeta);
-      }
-
+      const content = fs.readFileSync(targetPath);
       const headers = new Headers();
       headers.set('Content-Type', contentType);
       headers.set('Content-Length', String(Buffer.byteLength(content)));

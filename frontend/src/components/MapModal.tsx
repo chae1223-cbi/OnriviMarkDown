@@ -277,7 +277,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
           <button onMouseDown={(e) => e.preventDefault()} onClick={onClose} className="px-4 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#21262d] border border-gray-200 dark:border-[#30363d] rounded-xl transition-all active:scale-[0.98]">취소</button>
           <button onMouseDown={(e) => e.preventDefault()} onClick={handleInsert} className="px-5 py-2 bg-[#4285F4] text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-2 hover:opacity-90 transition-all">
             <Terminal size={16} />
-            마크다운 코드 삽입
+            삽입
           </button>
         </div>
       </div>

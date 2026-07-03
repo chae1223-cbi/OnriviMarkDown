@@ -282,7 +282,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
                 ? 'bg-[#005bc1] text-white hover:brightness-110 shadow-sm'
                 : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed opacity-50 shadow-none'
             }`}>
-            <Check size={14} />링크 삽입
+            <Check size={14} />삽입
           </button>
         </div>
       </div>
