@@ -3147,9 +3147,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         tag === 'map' ? 'iframe[src*="map"]' :
         tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' :
         tag === 'math' ? '.katex-display, .katex' : tag;
+      const isMediaTag = tag === 'img' || tag === 'video' || tag === 'map';
+      const sizeProps = ['width', 'height', 'max-width', 'max-height'];
       css += `.custom-preview-container ${selector} {\n`;
       entries.forEach(([prop, val]) => {
-        css += `  ${prop}: ${val} !important;\n`;
+        const skipImportant = isMediaTag && sizeProps.includes(prop);
+        css += `  ${prop}: ${val}${skipImportant ? '' : ' !important'};\n`;
       });
       css += `}\n`;
     });

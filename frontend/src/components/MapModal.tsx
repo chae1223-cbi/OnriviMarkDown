@@ -115,7 +115,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
 
   // 삽입할 코드 (Google Maps iframe embed - API 키 불필요)
   const [lat, lng] = cleanCoords.split(',').map(s => s.trim());
-  const mapCode = `<iframe src="https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&output=embed" width="${mapWidth}" height="${mapHeight}" style="border:0;border-radius:12px;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
+  const mapCode = `<iframe src="https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&output=embed" style="width:${mapWidth};height:${mapHeight};border:0;border-radius:12px;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
 
 // ====================================================================
 // 📊 [OMD-CORE-MapModal-0001] MapModal ➔ handleInsert
