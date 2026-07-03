@@ -370,16 +370,34 @@ app.on('ready', async () => {
         '.svg': 'image/svg+xml',
         '.webp': 'image/webp',
         '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.ogg': 'video/ogg',
+        '.mov': 'video/quicktime',
         '.mp3': 'audio/mpeg'
       };
       const contentType = mimeTypes[ext] || 'application/octet-stream';
-      const fileStream = fs.createReadStream(normalizedPath);
-      return new Response(fileStream, {
-        headers: { 
-          'Content-Type': contentType,
-          'Access-Control-Allow-Origin': '*' 
+      const stat = fs.statSync(normalizedPath);
+      const fileSize = stat.size;
+      const rangeHeader = request.headers.get('Range');
+      const respHeaders = new Headers();
+      respHeaders.set('Content-Type', contentType);
+      respHeaders.set('Accept-Ranges', 'bytes');
+      respHeaders.set('Access-Control-Allow-Origin', '*');
+
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          const start = parseInt(match[1], 10);
+          const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
+          const chunkSize = end - start + 1;
+          respHeaders.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+          respHeaders.set('Content-Length', String(chunkSize));
+          const stream = fs.createReadStream(normalizedPath, { start, end });
+          return new Response(stream, { status: 206, headers: respHeaders });
         }
-      });
+      }
+      respHeaders.set('Content-Length', String(fileSize));
+      return new Response(fs.createReadStream(normalizedPath), { status: 200, headers: respHeaders });
     } catch (err) {
       console.error('media protocol serve error:', err);
       return new Response('Error serving file', { status: 500 });
