@@ -99,6 +99,21 @@ const commands = {
     console.log(`Executing SQL from file: ${filePath}...`);
     await executeSql(sql);
     console.log(`✅ SQL Script [${filePath}] executed successfully!`);
+  },
+  
+  // 5. 임의 SQL 실행기 (결과 표출)
+  query: async (sqlText) => {
+    if (!sqlText) {
+      console.log("Usage: node db_admin.js query <sql_string>");
+      return;
+    }
+    console.log(`Executing query: ${sqlText}`);
+    const res = await executeSql(sqlText);
+    if (res.rows) {
+      console.table(res.rows);
+    } else {
+      console.log(res);
+    }
   }
 };
 

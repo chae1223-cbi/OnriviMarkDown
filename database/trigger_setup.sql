@@ -125,7 +125,7 @@ BEGIN
       headers:=jsonb_build_object(
           'accept', 'application/json',
           'content-type', 'application/json',
-          'api-key', 'YOUR_BREVO_API_KEY_HERE'
+          'api-key', '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'
       ),
       body:=v_payload
   );
