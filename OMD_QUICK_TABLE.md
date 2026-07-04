@@ -214,7 +214,7 @@
 | OMD-EDIT-MainEditorApp-0040 | MainEditorApp.tsx | dynamicTitleBar | 창 탭 식별을 위해 현재 파일 이름으로 document.title 업데이트 | None | None | None |
 | OMD-EDIT-MainEditorApp-0043 | MainEditorApp.tsx | handleMouseMove | 사이드바 크기 조정 드래그 mousemove 이벤트 처리 | 너비를 150-600px 사이로 제한 | None | setSidebarWidth, localStorage.setItem |
 | OMD-EDIT-MainEditorApp-0044 | MainEditorApp.tsx | stopResizing | 사이드바 크기 조정 종료: 리스너 제거, 커서 및 user-select 복원 | None | None | document.removeEventListener, document.body.style.cursor/userSelect |
-| OMD-EDIT-MainEditorApp-0046 ✅ FIXED | MainEditorApp.tsx | tabModeSync | 탭 포커스 변경 시 도움말은 미리보기로, 서식설정 웰컴 탭은 서식 전용 모드로 복구 고정하고 일반 문서는 전역 보기 상태를 유지 | mounted 및 activeTabId 유효성 검사, 라이선스 가드 | **2026-07-04** — 탭 전환 시 도움말 탭은 preview 모드, 서식설정 웰컴 탭은 css-style 모드로 강제 고정하고 이탈 시 기존 일반 마크다운 모드를 완전 복원하는 탭 뷰 꼬임 완벽 방지 패치 | setPreviewModeRaw |
+| OMD-EDIT-MainEditorApp-0046 ✅ FIXED | MainEditorApp.tsx | tabModeSync | 탭 포커스 변경 시 도움말은 미리보기로, 서식설정 웰컴 탭은 서식 전용 모드로 복구 고정하고 일반 문서는 전역 보기 상태를 유지 | mounted 및 activeTabId 유효성 검사, 라이선스 가드 | **2026-07-04** — 탭 전환 시 도움말 탭은 preview 모드, 서식설정 웰컴 탭은 css-style 모드로 강제 고정하고 이탈 시 기존 일반 마크다운 모드를 완전 복원하되, 제한(만료) 사용자의 경우 서식설정 모드 진입을 전면 차단하여 웰컴페이지 미리보기(preview) 레이아웃만 단독 출력되도록 가딩을 강화한 탭 뷰 꼬임 방지 패치 | setPreviewModeRaw |
 | OMD-EDIT-MainEditorApp-0045 | MainEditorApp.tsx | startResizing | 사이드바 크기 조정 시작: 리스너 추가, col-resize 커서 설정 | None | None | document.addEventListener, document.body.style |
 | OMD-EDIT-MainEditorApp-0048 | MainEditorApp.tsx | insertAtCursor | 커서 위치 텍스트 삽입을 utilsEditorActions에 위임 | None | None | utilsEditorActions.insertAtCursor |
 | OMD-EDIT-MainEditorApp-0050 | MainEditorApp.tsx | scrollToLine | 에디터 특정 줄로 스크롤을 utilsEditorActions에 위임 | None | None | utilsEditorActions.scrollToLine |

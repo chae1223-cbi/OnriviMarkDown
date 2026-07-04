@@ -1491,8 +1491,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return prev;
       }
 
-      if (licenseStatus.isExpired && next !== 'preview') {
-        showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
+      if (licenseStatus.isExpired) {
+        if (next !== 'preview') {
+          showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
+        }
         return 'preview';
       }
       if (helpContentRef.current && next !== 'css-style') return prev;
@@ -2247,8 +2249,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
       }
-    } else if (activeTab.isStyleTab === true) {
-      // 💡 2. 서식설정 웰컴 탭은 예외없이 무조건 서식설정('css-style') 모드 고정
+    } else if (activeTab.isStyleTab === true && !licenseStatus.isExpired) {
+      // 💡 2. 서식설정 웰컴 탭은 예외없이 무조건 서식설정('css-style') 모드 고정 (일반 정품 유저에 한함)
       // 서식설정이 구동될 때 켜져 있던 도움말 오버레이를 자동으로 완전히 종료시킵니다.
       if (helpContentRef.current) {
         setHelpContent(null);
