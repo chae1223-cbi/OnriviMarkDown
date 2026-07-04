@@ -12,7 +12,8 @@ export async function onRequestGet(context) {
     // URL에서 이미지 경로 추출 (/api/image/ 이후 부분)
     const url = new URL(request.url);
     // pathname: /api/image/users/xxx/img.png → key: users/xxx/img.png
-    const key = url.pathname.replace(/^\/api\/image\//, '');
+    // Cloudflare Workers의 URL.pathname은 percent-encoding이 유지되므로 디코딩 필요
+    const key = decodeURIComponent(url.pathname.replace(/^\/api\/image\//, ''));
 
     if (!key) {
       return new Response('Missing image path', { status: 400 });
@@ -44,11 +45,28 @@ export async function onRequestGet(context) {
       'mov': 'video/quicktime',
       'avi': 'video/x-msvideo',
       'mkv': 'video/x-matroska',
+      'md': 'text/markdown; charset=utf-8',
+      'txt': 'text/plain; charset=utf-8',
+      'pdf': 'application/pdf',
+      'zip': 'application/zip',
+      'rar': 'application/x-rar-compressed',
+      'hwp': 'application/x-hwp',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
     };
     const contentType = contentTypeMap[ext] || object.httpMetadata?.contentType || 'application/octet-stream';
 
     const headers = new Headers();
     headers.set('Content-Type', contentType);
+    
+    // 이미지/비디오 이외의 일반 첨부파일 다운로드 속성(Content-Disposition) 헤더 강제 주입
+    const mediaTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'video/mp4', 'video/webm'];
+    if (!mediaTypes.includes(contentType)) {
+      const originalFilename = key.split('/').pop() || 'attachment';
+      headers.set('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(originalFilename)}`);
+    }
+
     // 1주일 캐싱
     headers.set('Cache-Control', 'public, max-age=604800, immutable');
     headers.set('ETag', object.httpEtag);

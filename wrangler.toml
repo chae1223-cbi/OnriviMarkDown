@@ -1,10 +1,10 @@
 name = "onriviauthor"
 compatibility_date = "2026-06-23"
 pages_build_output_dir = "./frontend/out"
+functions_directory = "./frontend/functions"
 
 [build]
 # Cloudflare Pages Functions 디렉토리 (API 라우트 포함)
-functions_directory = "./frontend/functions"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"

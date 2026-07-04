@@ -52,7 +52,7 @@ export async function onRequestPost(context) {
     const clientFileName = body.fileName || null;
 
     // 4. Base64 -> Uint8Array (바이너리) 변환
-    const cleanBase64 = base64Data.replace(/^data:(image|video)\/\w+;base64,/, '');
+    const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, '');
     const binaryString = atob(cleanBase64);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);

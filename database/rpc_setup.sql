@@ -403,3 +403,38 @@ BEGIN
   );
 END;
 $$;
+
+-- ====================================================================
+-- 11. insert_support_inquiry
+-- 문의하기 접수 — attachment_urls(text[]) 지원
+-- ====================================================================
+DROP FUNCTION IF EXISTS insert_support_inquiry(p_name text, p_email text, p_type text, p_title text, p_content text, p_user_id uuid, p_attachment_urls text[]);
+CREATE OR REPLACE FUNCTION insert_support_inquiry(
+  p_name text,
+  p_email text,
+  p_type text,
+  p_title text,
+  p_content text,
+  p_user_id uuid DEFAULT NULL,
+  p_attachment_urls text[] DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_inquiry_id uuid;
+BEGIN
+  INSERT INTO support_inquiries (name, email, type, title, content, user_id, attachment_urls)
+  VALUES (p_name, p_email, p_type, p_title, p_content, p_user_id, COALESCE(p_attachment_urls, '{}'))
+  RETURNING id INTO v_inquiry_id;
+
+  RETURN jsonb_build_object(
+    'success', true, 'code', 'SUCCESS', 'message', '문의가 접수되었습니다.',
+    'inquiry_id', v_inquiry_id
+  );
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN jsonb_build_object('success', false, 'code', 'ERROR', 'message', SQLERRM);
+END;
+$$;

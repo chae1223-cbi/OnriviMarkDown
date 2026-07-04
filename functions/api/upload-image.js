@@ -52,7 +52,7 @@ export async function onRequestPost(context) {
     const clientFileName = body.fileName || null;
 
     // 4. Base64 -> Uint8Array (바이너리) 변환
-    const cleanBase64 = base64Data.replace(/^data:(image|video)\/\w+;base64,/, '');
+    const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, '');
     const binaryString = atob(cleanBase64);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
@@ -80,6 +80,11 @@ export async function onRequestPost(context) {
       'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml',
       'mp4': 'video/mp4', 'webm': 'video/webm', 'ogg': 'video/ogg',
       'mov': 'video/quicktime', 'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska',
+      'md': 'text/markdown; charset=utf-8', 'txt': 'text/plain; charset=utf-8',
+      'pdf': 'application/pdf', 'zip': 'application/zip', 'rar': 'application/x-rar-compressed',
+      'hwp': 'application/x-hwp', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
     };
     const contentType = mimeMap[ext] || 'application/octet-stream';
 

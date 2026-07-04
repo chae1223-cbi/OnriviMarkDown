@@ -68,10 +68,13 @@ export default function ContactPage() {
         const token = session?.access_token;
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const resp = await fetch(getApiUrl('/api/upload-image'), {
-          method: 'POST', headers,
+
+        const resp = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers,
           body: JSON.stringify({ base64Data, fileName: file.name, targetFolder: 'inquiry' }),
         });
+
         if (resp.ok) {
           const d = await resp.json();
           if (d.status === 'success' && d.relativePath) {
@@ -83,7 +86,7 @@ export default function ContactPage() {
           console.error('[Contact] R2 HTTP 오류:', resp.status);
         }
       } catch (err) {
-        console.error('[Contact] 파일 업로드 예외:', err);
+        console.error('[Contact] R2 파일 업로드 예외:', err);
       }
     }
     return urls;

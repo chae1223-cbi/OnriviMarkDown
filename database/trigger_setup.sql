@@ -2,6 +2,7 @@
 -- 📊 [OMD-DB-TRIGGER-0001] trg_send_brevo_email_on_inquiry
 -- 🎯 @KICK  : 문의하기 접수 시 DB 자체 트리거(pg_net)를 통해 Brevo 이메일 자동 발송
 -- 🚨 @PATCH : 2026-06-29 — 정적 웹 환경(output: 'export')에서의 API 통신 한계 극복을 위해 데이터베이스 트리거 기반 메일 발송 로직 신규 구축
+--             2026-07-04 — 첨부파일 다운로드 링크 및 이메일 템플릿 전면 개선
 -- ====================================================================
 
 -- 1. pg_net 익스텐션 활성화 (HTTP 요청용)
@@ -13,8 +14,9 @@ RETURNS trigger AS $$
 DECLARE
   v_payload jsonb;
   v_type_label text;
+  v_attachments_html text;
+  v_file_count int;
 BEGIN
-  -- 유형 매핑
   CASE NEW.type
     WHEN 'general' THEN v_type_label := '일반 문의 / 기타';
     WHEN 'billing' THEN v_type_label := '요금제 / 결제 / 환불 문의';
@@ -23,28 +25,53 @@ BEGIN
     ELSE v_type_label := '일반 문의';
   END CASE;
 
-  -- Brevo 페이로드 구성
+  -- 첨부파일 다운로드 링크 생성 (Cloudflare R2 URL)
+  v_file_count := 0;
+  IF NEW.attachment_urls IS NOT NULL AND array_length(NEW.attachment_urls, 1) > 0 THEN
+    v_attachments_html := '<div style="margin-top: 20px; padding: 16px; background: linear-gradient(135deg, #eff6ff, #f0f9ff); border: 1px solid #bae6fd; border-radius: 12px;">' ||
+                          '<h4 style="margin: 0 0 12px 0; font-size: 14px; color: #0369a1; display: flex; align-items: center; gap: 6px;">📎 첨부 파일 다운로드</h4>' ||
+                          '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+    FOR i IN 1..array_length(NEW.attachment_urls, 1) LOOP
+      v_file_count := v_file_count + 1;
+      v_attachments_html := v_attachments_html ||
+        '<tr><td style="padding: 6px 0; border-bottom: 1px solid #e0f2fe;">' ||
+        '<a href="' || CASE WHEN NEW.attachment_urls[i] LIKE '/%' THEN 'https://onrivi.com' ELSE '' END || NEW.attachment_urls[i] || '" target="_blank" style="color: #2563eb; text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 6px;">' ||
+        '📄 첨부파일 ' || v_file_count || ' 다운로드</a></td></tr>';
+    END LOOP;
+    v_attachments_html := v_attachments_html || '</table></div>';
+  ELSE
+    v_attachments_html := '';
+  END IF;
+
   v_payload := jsonb_build_object(
-    'sender', jsonb_build_object('name', 'Onrivi Author System', 'email', 'support@onrivi.com'),
+    'sender', jsonb_build_object('name', 'Onrivi Author', 'email', 'support@onrivi.com'),
     'to', jsonb_build_array(jsonb_build_object('email', 'firstonrivi@onrivi.com', 'name', 'Onrivi Author 관리자')),
     'replyTo', jsonb_build_object('email', NEW.email, 'name', NEW.name),
-    'subject', '[온리비 문의 접수] ' || v_type_label || ' - ' || NEW.title,
-    'htmlContent', '<div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">' ||
-                   '<h2 style="color: #0ea5e9; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px;">온리비 문의 접수 알림</h2>' ||
-                   '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">' ||
-                   '<tr><td style="padding: 8px 0; font-weight: bold; color: #475569; width: 120px;">접수자 이름:</td><td style="padding: 8px 0; color: #0f172a;">' || NEW.name || '</td></tr>' ||
-                   '<tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">회신 이메일:</td><td style="padding: 8px 0; color: #0f172a;"><a href="mailto:' || NEW.email || '">' || NEW.email || '</a></td></tr>' ||
-                   '<tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">문의 유형:</td><td style="padding: 8px 0; color: #0f172a;">' || v_type_label || '</td></tr>' ||
-                   '<tr><td style="padding: 8px 0; font-weight: bold; color: #475569;">문의 제목:</td><td style="padding: 8px 0; color: #0f172a; font-weight: bold;">' || NEW.title || '</td></tr>' ||
+    'subject', '[온리비 문의] ' || v_type_label || ' — ' || NEW.title,
+    'htmlContent', '<div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">' ||
+                   '<div style="text-align: center; margin-bottom: 24px;">' ||
+                   '<img src="https://onrivi.com/icon.png" alt="Onrivi" style="width: 48px; height: 48px; border-radius: 12px;" />' ||
+                   '<h2 style="color: #0f172a; margin: 12px 0 4px 0; font-size: 20px;">온리비 문의가 접수되었습니다</h2>' ||
+                   '<p style="color: #64748b; font-size: 13px; margin: 0;">' || to_char(NEW.created_at::timestamptz AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI') || ' 접수</p></div>' ||
+                   '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; background: #f8fafc; border-radius: 12px; padding: 16px;">' ||
+                   '<tr><td style="padding: 10px 16px; font-weight: 600; color: #475569; width: 100px; white-space: nowrap;">👤 이름</td><td style="padding: 10px 16px; color: #0f172a;">' || NEW.name || '</td></tr>' ||
+                   '<tr><td style="padding: 10px 16px; font-weight: 600; color: #475569;">📧 이메일</td><td style="padding: 10px 16px; color: #0f172a;"><a href="mailto:' || NEW.email || '" style="color: #2563eb;">' || NEW.email || '</a></td></tr>' ||
+                   '<tr><td style="padding: 10px 16px; font-weight: 600; color: #475569;">📂 유형</td><td style="padding: 10px 16px; color: #0f172a;"><span style="background: #dbeafe; color: #1d4ed8; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;">' || v_type_label || '</span></td></tr>' ||
+                   '<tr><td style="padding: 10px 16px; font-weight: 600; color: #475569;">📌 제목</td><td style="padding: 10px 16px; color: #0f172a; font-weight: 700;">' || NEW.title || '</td></tr>' ||
                    '</table>' ||
-                   '<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; font-size: 14px; color: #0f172a; line-height: 1.6; white-space: pre-wrap;">' ||
+                   '<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 16px;">' ||
+                   '<h4 style="margin: 0 0 8px 0; font-size: 13px; color: #475569;">📝 문의 내용</h4>' ||
+                   '<div style="font-size: 14px; color: #0f172a; line-height: 1.7; white-space: pre-wrap;">' ||
                    replace(replace(NEW.content, '<', '&lt;'), '>', '&gt;') ||
-                   '</div>' ||
-                   '<p style="font-size: 12px; color: #64748b; margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 15px;">* 본 메일은 [firstonrivi@onrivi.com] 발신전용 알림입니다. 문의자에게 즉시 답장하시려면 이 메일의 [답장] 버튼을 클릭해 주십시오 (Reply-To 주소가 문의자의 이메일로 자동 연결됩니다).</p>' ||
+                   '</div></div>' ||
+                   v_attachments_html ||
+                   '<div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.6;">' ||
+                   '이 메일은 onrivi.com 문의하기를 통해 자동 발송되었습니다.<br>' ||
+                   '답장하시려면 이 메일의 [Reply] 버튼을 클릭하거나 ' ||
+                   '<a href="mailto:' || NEW.email || '" style="color: #2563eb;">' || NEW.email || '</a>로 직접 회신해 주세요.</div>' ||
                    '</div>'
   );
 
-  -- pg_net HTTP POST 호출 (비동기)
   PERFORM net.http_post(
       url:='https://api.brevo.com/v3/smtp/email',
       headers:=jsonb_build_object(
@@ -65,3 +92,7 @@ CREATE TRIGGER trg_support_inquiry_email
 AFTER INSERT ON support_inquiries
 FOR EACH ROW
 EXECUTE FUNCTION trg_send_brevo_email_on_inquiry();
+
+-- 4. attachment_urls 컬럼 추가 (없는 경우)
+ALTER TABLE support_inquiries
+ADD COLUMN IF NOT EXISTS attachment_urls text[] DEFAULT '{}';
