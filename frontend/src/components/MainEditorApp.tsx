@@ -2249,10 +2249,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
       }
+    } else if (activeTab.isStyleTab === true) {
+      // 💡 2. 서식설정 전용 탭은 무조건 서식설정('css-style') 모드 고정
+      if (helpContentRef.current) {
+        setHelpContent(null);
+        setHelpTitle('');
+      }
+      if (previewModeRef.current !== 'css-style') {
+        setPreviewModeRaw('css-style');
+        previewModeRef.current = 'css-style';
+      }
     } else {
-      // 💡 2. css-style 모드 중에는 탭 전환으로 모드를 변경하지 않음 (Ctrl+Shift+S로만 진입/해제)
-      if (previewModeRef.current === 'css-style') return;
-
       // 💡 3. 그 외 일반 마크다운 문서들은 전역으로 공유되는 마크다운 보기 모드를 그대로 상속 및 유지
       const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
       if (previewModeRef.current !== target) {
