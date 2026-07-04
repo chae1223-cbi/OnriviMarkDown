@@ -1133,7 +1133,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     if (!mounted) return;
-    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
     if (licenseStatus.isExpired) {
       // 🔒 제한 사용자 (만료/미인증): 에디터 시작 시 강제로 웰컴페이지만 띄움
@@ -1142,7 +1141,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const welcomeTabId = 'welcome-tab-' + Date.now();
         const welcomeTab: EditorTab = {
           id: welcomeTabId, name: '온리비 어서 시작하기.md', path: null, node: null,
-          content: welcome, isModified: false, previewMode: 'preview'
+          content: welcome, isModified: false, previewMode: 'preview',
+          isStyleTab: false
         };
         setTabs([welcomeTab]);
         setActiveTabId(welcomeTabId);
@@ -1153,19 +1153,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (previewModeRef.current !== 'preview') {
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
-      }
-    } else {
-      // 🟢 전체 사용자: 데스크탑 앱 구동 시 탭이 비어 있어도 웰컴페이지나 기본 탭을 절대 자동 생성하지 않음 (빈 화면 유지)
-      if (isDesktop && tabsRef.current.length > 0 && tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md' && t.id.startsWith('welcome-tab-'))) {
-        // 혹시 초기에 비동기 확인 전 생성된 임시 웰컴 탭이 있다면 정리하여 완전한 빈 상태 확보
-        const cleaned = tabsRef.current.filter(t => !(t.name === '온리비 어서 시작하기.md' && t.id.startsWith('welcome-tab-')));
-        setTabs(cleaned);
-        if (cleaned.length === 0) {
-          setActiveTabId(null);
-          setContent('');
-          setCurrentFileName('새 파일.md');
-          setCurrentFileNode(null);
-        }
       }
     }
   }, [licenseStatus.isExpired, mounted]);
@@ -1517,20 +1504,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         lastGeneralPreviewModeRef.current = next;
       }
 
-      // 💡 서식 정의(css-style) 모드로 스위칭될 때, 대조할 웰컴페이지 샘플 마크다운 탭을 강제 신규 생성 및 포커싱
+      // 💡 서식 정의(css-style) 모드로 스위칭될 때
       if (next === 'css-style' && prev !== 'css-style') {
         // 💡 진입하기 직전 일반 모드가 css-style이 아니었다면 백업
         if (prev === 'edit' || prev === 'both' || prev === 'preview') {
           lastGeneralPreviewModeRef.current = prev;
         }
 
-        // 💡 도움말이 켜져 있었다면 강제 종료하여 웰컴페이지 미리보기 화면이 보이도록 연동
+        // 💡 도움말이 켜져 있었다면 강제 종료하여 화면이 깨지지 않도록 연동
         setHelpContent(null);
         setHelpTitle('');
         
-        const hasWelcomeTab = tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md');
-        if (!hasWelcomeTab) {
-          createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md');
+        // 💡 현재 활성화되어 서식설정의 대상이 되는 탭에 서식 전용 탭임을 표시
+        if (activeTabIdRef.current) {
+          setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isStyleTab: true } : t));
         }
       }
 
@@ -2256,8 +2243,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
       }
-    } else if (activeTab.name === '온리비 어서 시작하기.md') {
+    } else if (activeTab.isStyleTab === true) {
       // 💡 2. 서식설정 웰컴 탭은 예외없이 무조건 서식설정('css-style') 모드 고정
+      // 서식설정이 구동될 때 켜져 있던 도움말 오버레이를 자동으로 완전히 종료시킵니다.
+      if (helpContentRef.current) {
+        setHelpContent(null);
+        setHelpTitle('');
+      }
       if (previewModeRef.current !== 'css-style') {
         setPreviewModeRaw('css-style');
         previewModeRef.current = 'css-style';
@@ -2270,7 +2262,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         previewModeRef.current = target;
       }
     }
-  }, [activeTabId, mounted, licenseStatus.isExpired]);
+  }, [activeTabId, mounted, licenseStatus.isExpired, helpContent]);
 
 
 

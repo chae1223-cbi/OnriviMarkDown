@@ -19,6 +19,7 @@ export interface EditorTab {
   scrollTop?: number;
   model?: any;
   previewMode?: 'edit' | 'both' | 'preview' | 'css-style';
+  isStyleTab?: boolean;
 }
 
 interface UnifiedTabBarProps {
