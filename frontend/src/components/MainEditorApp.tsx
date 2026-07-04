@@ -4168,7 +4168,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             <div
               className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5 pt-3 no-print`}
-              style={{ display: (previewMode === 'preview' || (previewMode === 'css-style' && activeTab?.isStyleTab === true)) ? 'none' : 'block' }}
+              style={{ display: (previewMode === 'preview' || previewMode === 'css-style') ? 'none' : 'block' }}
             >
                 <Editor
                   height="100%"
