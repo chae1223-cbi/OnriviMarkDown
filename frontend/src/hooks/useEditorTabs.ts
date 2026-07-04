@@ -90,13 +90,9 @@ export const useEditorTabs = (
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
         isEditorMountedRef.current = false;
-      } else if (targetTab.name === '서식 정의 미리보기.md' && previewModeRef.current !== 'css-style') {
-        setPreviewModeRaw('css-style');
-        previewModeRef.current = 'css-style';
-        isEditorMountedRef.current = true;
       } else if (previewModeRef.current === 'preview' || previewModeRef.current === 'css-style') {
         const prevTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
-        if (prevTab && (prevTab.name === '도움말.md' || prevTab.name === '서식 정의 미리보기.md')) {
+        if (prevTab?.name === '도움말.md') {
           setPreviewModeRaw('both');
           previewModeRef.current = 'both';
           isEditorMountedRef.current = true;
@@ -174,27 +170,10 @@ export const useEditorTabs = (
     };
 
     if (setPreviewModeRaw) {
-      const prevTabId = activeTabIdRef.current;
-      const prevTab = tabsRef.current.find(t => t.id === prevTabId);
-      const isFromHelp = prevTab?.name === '도움말.md';
-      const isFromCssStyle = prevTab?.name === '서식 정의 미리보기.md' && previewModeRef.current === 'css-style';
-
       if (tabName === '도움말.md' || tabName.startsWith('도움말 - ')) {
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
         isEditorMountedRef.current = false;
-      } else if (tabName === '서식 정의 미리보기.md') {
-        setPreviewModeRaw('css-style');
-        previewModeRef.current = 'css-style';
-        isEditorMountedRef.current = true;
-      } else if (isFromHelp || previewModeRef.current === 'preview') {
-        setPreviewModeRaw('preview');
-        previewModeRef.current = 'preview';
-        isEditorMountedRef.current = false;
-      } else if (isFromCssStyle) {
-        setPreviewModeRaw('both');
-        previewModeRef.current = 'both';
-        isEditorMountedRef.current = true;
       }
     }
 
