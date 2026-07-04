@@ -1474,6 +1474,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 🔗 @CALLS : editorRef.current.getValue, setContent, setPreviewModeRaw, setHelpContent, createNewTab, switchTab, clearTimeout
 // ====================================================================
   const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
+    // 🔒 서식설정 모드일 때는 모든 외부 모드 전환(상태바/Ctrl+Shift+S)을 차단 (탭 전환은 effect에서 setPreviewModeRaw 직접 호출)
+    if (previewModeRef.current === 'css-style') return;
+
     // 모드 전환 전 에디터 내용을 즉시 React 상태에 반영 (100ms 디바운스 손실 방지)
     if (editorRef.current && previewModeRef.current !== 'preview') {
       if (previewDebounceRef.current) {
@@ -2246,10 +2249,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
       }
+    } else if (activeTab.isStyleTab === true) {
+      // 💡 2. 서식설정 전용 탭은 무조건 서식설정('css-style') 모드 고정
+      if (helpContentRef.current) {
+        setHelpContent(null);
+        setHelpTitle('');
+      }
+      if (previewModeRef.current !== 'css-style') {
+        setPreviewModeRaw('css-style');
+        previewModeRef.current = 'css-style';
+      }
     } else {
-      // 💡 2. css-style 모드 중에는 탭 전환으로 모드를 변경하지 않음 (Ctrl+Shift+S로만 진입/해제)
-      if (previewModeRef.current === 'css-style') return;
-
       // 💡 3. 그 외 일반 마크다운 문서들은 전역으로 공유되는 마크다운 보기 모드를 그대로 상속 및 유지
       const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
       if (previewModeRef.current !== target) {
@@ -2267,9 +2277,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     
     // 전체 사용자이면서 데스크탑일 때
     if (isDesktop && !licenseStatus.isExpired) {
-      const hasWelcome = tabs.some(t => t.name === '온리비 어서 시작하기.md' && t.id.startsWith('welcome-tab-'));
+      const hasWelcome = tabs.some(t => t.name === '온리비 어서 시작하기.md');
       if (hasWelcome) {
-        const cleaned = tabs.filter(t => !(t.name === '온리비 어서 시작하기.md' && t.id.startsWith('welcome-tab-')));
+        const cleaned = tabs.filter(t => t.name !== '온리비 어서 시작하기.md');
         setTabs(cleaned);
         if (cleaned.length === 0) {
           setActiveTabId(null);
@@ -4110,7 +4120,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             isDarkMode={isDarkMode}
           /></div>
           <div className="flex flex-1 overflow-hidden">
-            {previewMode === 'css-style' && (
+            {previewMode === 'css-style' && activeTab?.isStyleTab === true && (
               <CssStyleForm
                 profiles={profiles}
                 activeProfileId={activeProfileId}
@@ -4168,7 +4178,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             <div
               className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5 pt-3 no-print`}
-              style={{ display: (previewMode === 'preview' || previewMode === 'css-style') ? 'none' : 'block' }}
+              style={{ display: (previewMode === 'preview' || (previewMode === 'css-style' && activeTab?.isStyleTab === true)) ? 'none' : 'block' }}
             >
                 <Editor
                   height="100%"
