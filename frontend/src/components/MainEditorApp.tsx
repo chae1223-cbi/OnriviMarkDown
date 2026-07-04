@@ -1522,6 +1522,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           // 없으면 새로운 서식설정 전용 탭(isStyleTab: true)을 강제 생성 및 로드
           createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md', true);
         }
+        
+        // ⚠️ 탭 전환 상태 Batching이 끝나 포커싱이 완료될 때까지 임시로 기존 모드를 유지
+        return prev;
       }
 
       previewModeRef.current = next;
@@ -4109,7 +4112,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             isDarkMode={isDarkMode}
           /></div>
           <div className="flex flex-1 overflow-hidden">
-            {previewMode === 'css-style' && (
+            {previewMode === 'css-style' && activeTab?.isStyleTab === true && (
               <CssStyleForm
                 profiles={profiles}
                 activeProfileId={activeProfileId}
@@ -4167,7 +4170,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             <div
               className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5 pt-3 no-print`}
-              style={{ display: (previewMode === 'preview' || previewMode === 'css-style') ? 'none' : 'block' }}
+              style={{ display: (previewMode === 'preview' || (previewMode === 'css-style' && activeTab?.isStyleTab === true)) ? 'none' : 'block' }}
             >
                 <Editor
                   height="100%"
