@@ -1474,9 +1474,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // 🔗 @CALLS : editorRef.current.getValue, setContent, setPreviewModeRaw, setHelpContent, createNewTab, switchTab, clearTimeout
 // ====================================================================
   const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
-    // 🔒 서식설정 모드일 때는 모든 외부 모드 전환(상태바/Ctrl+Shift+S)을 차단 (탭 전환은 effect에서 setPreviewModeRaw 직접 호출)
-    if (previewModeRef.current === 'css-style') return;
-
     // 모드 전환 전 에디터 내용을 즉시 React 상태에 반영 (100ms 디바운스 손실 방지)
     if (editorRef.current && previewModeRef.current !== 'preview') {
       if (previewDebounceRef.current) {
