@@ -1134,9 +1134,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (!mounted) return;
 
+    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+
     if (licenseStatus.isExpired) {
-      // 🔒 제한 사용자 (만료/미인증): 에디터 시작 시 강제로 웰컴페이지만 띄움
-      if (tabsRef.current.length === 0) {
+      // 🔒 제한 사용자 (만료/미인증): 웹은 웰컴페이지, 데스크탑은 빈 화면
+      if (!isDesktop && tabsRef.current.length === 0) {
         const welcome = getWelcomeContent();
         const welcomeTabId = 'welcome-tab-' + Date.now();
         const welcomeTab: EditorTab = {
