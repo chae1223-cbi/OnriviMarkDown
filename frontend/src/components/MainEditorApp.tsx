@@ -1487,12 +1487,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setPreviewModeRaw(prev => {
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
       
-      // 🔒 [서식설정 레이아웃 고정 가드 2026-07-04]
-      // 서식설정 모드일 때는 화면 하단 상태바 등 외부 입력을 통한 일반 모드 전환 시도를 전면 차단합니다.
-      if (prev === 'css-style' && next !== 'css-style') {
-        return prev;
-      }
-
       if (licenseStatus.isExpired) {
         if (next !== 'preview') {
           showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
@@ -2251,18 +2245,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
       }
-    } else if (activeTab.isStyleTab === true && !licenseStatus.isExpired) {
-      // 💡 2. 서식설정 웰컴 탭은 예외없이 무조건 서식설정('css-style') 모드 고정 (일반 정품 유저에 한함)
-      // 서식설정이 구동될 때 켜져 있던 도움말 오버레이를 자동으로 완전히 종료시킵니다.
-      if (helpContentRef.current) {
-        setHelpContent(null);
-        setHelpTitle('');
-      }
-      if (previewModeRef.current !== 'css-style') {
-        setPreviewModeRaw('css-style');
-        previewModeRef.current = 'css-style';
-      }
     } else {
+      // 💡 2. css-style 모드 중에는 탭 전환으로 모드를 변경하지 않음 (Ctrl+Shift+S로만 진입/해제)
+      if (previewModeRef.current === 'css-style') return;
+
       // 💡 3. 그 외 일반 마크다운 문서들은 전역으로 공유되는 마크다운 보기 모드를 그대로 상속 및 유지
       const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
       if (previewModeRef.current !== target) {
