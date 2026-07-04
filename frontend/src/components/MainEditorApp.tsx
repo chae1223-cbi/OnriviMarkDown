@@ -1499,7 +1499,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
       if (helpContentRef.current && next !== 'css-style') return prev;
       const activeTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
-      if (activeTab?.name === '도움말.md' && next !== 'preview') return prev;
+      if (activeTab?.name === '도움말.md' && next !== 'preview' && next !== 'css-style') return prev;
       
       // 💡 일반 보기 모드(edit, both, preview)로 변경하는 경우, 이를 전역 상태용 Ref에 백업해둡니다.
       if (next === 'edit' || next === 'both' || next === 'preview') {
@@ -2269,10 +2269,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
   }, [activeTabId, mounted, licenseStatus.isExpired, helpContent]);
-
-
-
-
+  // 🟢 [전체 사용자 시작 탭 완전 차단 가드 2026-07-04]
+  // 전체 사용자(isExpired === false)인 경우, 마운트 직후나 로딩 중에 어떤 이유로든
+  // tabs 배열 내에 생성되었을 수 있는 임시 웰컴페이지 탭을 강제 폐기하여 빈 에디터 화면으로 강제 유지합니다.
+  useEffect(() => {
+    if (!mounted) return;
+    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    
+    // 전체 사용자이면서 데스크탑일 때
+    if (isDesktop && !licenseStatus.isExpired) {
+      const hasWelcome = tabs.some(t => t.name === '온리비 어서 시작하기.md' && t.id.startsWith('welcome-tab-'));
+      if (hasWelcome) {
+        const cleaned = tabs.filter(t => !(t.name === '온리비 어서 시작하기.md' && t.id.startsWith('welcome-tab-')));
+        setTabs(cleaned);
+        if (cleaned.length === 0) {
+          setActiveTabId(null);
+          setContent('');
+          setCurrentFileName('새 파일.md');
+          setCurrentFileNode(null);
+        }
+      }
+    }
+  }, [mounted, licenseStatus.isExpired, tabs]);
   useEffect(() => {
     if (currentFileNode && activeTabId) {
       if (prevActiveTabRef.current !== activeTabId) {
