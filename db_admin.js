@@ -95,7 +95,24 @@ const commands = {
       console.error(`File not found: ${absolutePath}`);
       return;
     }
-    const sql = fs.readFileSync(absolutePath, 'utf-8');
+    let sql = fs.readFileSync(absolutePath, 'utf-8');
+    if (sql.includes('YOUR_BREVO_API_KEY_HERE')) {
+      console.log("🔒 Detecting Brevo API Key placeholder... loading key from frontend/.env.local...");
+      const dotenv = require('dotenv');
+      const envPath = path.resolve(__dirname, 'frontend/.env.local');
+      if (fs.existsSync(envPath)) {
+        const envConfig = dotenv.parse(fs.readFileSync(envPath));
+        const apiKey = envConfig.BREVO_API_KEY;
+        if (apiKey) {
+          sql = sql.replace('YOUR_BREVO_API_KEY_HERE', apiKey);
+          console.log("🔑 API Key successfully injected in runtime!");
+        } else {
+          console.warn("⚠️ BREVO_API_KEY not found in frontend/.env.local!");
+        }
+      } else {
+        console.warn("⚠️ frontend/.env.local file not found!");
+      }
+    }
     console.log(`Executing SQL from file: ${filePath}...`);
     await executeSql(sql);
     console.log(`✅ SQL Script [${filePath}] executed successfully!`);
