@@ -1517,14 +1517,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setHelpContent(null);
         setHelpTitle('');
         
-        // 💡 기존에 열려 있는 서식설정 전용 탭이 있는지 확인
-        const existingStyleTab = tabsRef.current.find(t => t.isStyleTab === true);
-        if (existingStyleTab) {
-          switchTab(existingStyleTab.id);
-        } else {
-          // 없으면 새로운 서식설정 전용 탭(isStyleTab: true)을 강제 생성 및 로드
-          createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md', true);
-        }
+        // 💡 무조건 새로운 서식설정 전용 탭(isStyleTab: true) 생성 (기존탭 재사용 금지)
+        createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md', true);
       }
 
       previewModeRef.current = next;
@@ -2277,9 +2271,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     
     // 전체 사용자이면서 데스크탑일 때
     if (isDesktop && !licenseStatus.isExpired) {
-      const hasWelcome = tabs.some(t => t.name === '온리비 어서 시작하기.md');
+      const hasWelcome = tabs.some(t => t.name === '온리비 어서 시작하기.md' && !t.isStyleTab);
       if (hasWelcome) {
-        const cleaned = tabs.filter(t => t.name !== '온리비 어서 시작하기.md');
+        const cleaned = tabs.filter(t => !(t.name === '온리비 어서 시작하기.md' && !t.isStyleTab));
         setTabs(cleaned);
         if (cleaned.length === 0) {
           setActiveTabId(null);
