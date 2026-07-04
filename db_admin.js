@@ -70,16 +70,35 @@ const commands = {
     console.log(`Testing concurrent login for License ID: ${licenseId}`);
     
     for (let i = 1; i <= 3; i++) {
-      const mockUuid = \`simulated-device-\${i}-\${Date.now()}\`;
+      const mockUuid = `simulated-device-${i}-${Date.now()}`;
       try {
         const updateRes = await executeSql(`
           SELECT insert_license_activation($1, $2, $3)
-        `, [licenseId, mockUuid, \`Simulated Browser \${i}\`]);
+        `, [licenseId, mockUuid, `Simulated Browser ${i}`]);
         console.log(`✅ Device ${i} inserted/updated:`, updateRes.rows[0].insert_license_activation);
       } catch (err) {
         console.log(`❌ Device ${i} failed:`, err.message);
       }
     }
+  },
+  
+  // 4. 로컬 SQL 스크립트 실행기
+  runFile: async (filePath) => {
+    if (!filePath) {
+      console.log("Usage: node db_admin.js runFile <sql_file_path>");
+      return;
+    }
+    const fs = require('fs');
+    const path = require('path');
+    const absolutePath = path.resolve(filePath);
+    if (!fs.existsSync(absolutePath)) {
+      console.error(`File not found: ${absolutePath}`);
+      return;
+    }
+    const sql = fs.readFileSync(absolutePath, 'utf-8');
+    console.log(`Executing SQL from file: ${filePath}...`);
+    await executeSql(sql);
+    console.log(`✅ SQL Script [${filePath}] executed successfully!`);
   }
 };
 

@@ -12,8 +12,16 @@ export async function onRequestGet(context) {
     // URL에서 이미지 경로 추출 (/api/image/ 이후 부분)
     const url = new URL(request.url);
     // pathname: /api/image/users/xxx/img.png → key: users/xxx/img.png
-    // Cloudflare Workers의 URL.pathname은 percent-encoding이 유지되므로 디코딩 필요
-    const key = decodeURIComponent(url.pathname.replace(/^\/api\/image\//, ''));
+    let rawKey = url.pathname.replace(/^\/api\/image\//, '');
+    let key = rawKey;
+    try {
+      key = decodeURIComponent(rawKey);
+      if (key.includes('%')) {
+        key = decodeURIComponent(key); // 이중 인코딩 방어용
+      }
+    } catch (_) {
+      key = rawKey;
+    }
 
     if (!key) {
       return new Response('Missing image path', { status: 400 });

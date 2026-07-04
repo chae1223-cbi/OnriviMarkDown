@@ -7,6 +7,7 @@
   "main": "main.js",
   "scripts": {
     "dev": "concurrently \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
+    "dev:r2": "cd frontend && npx wrangler pages dev ./out --compatibility-date=2026-06-23 --r2=R2_BUCKET --remote",
     "electron": "electron .",
     "electron:prod": "set NO_SERVER=true&& electron .",
     "build:frontend": "cd frontend && npm install && npm run build:desktop",
@@ -19,6 +20,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
     "dotenv": "^16.0.3",
+    "pg": "^8.22.0",
     "sharp": "^0.34.5"
   },
   "devDependencies": {
@@ -34,7 +36,11 @@
       "buildResources": "build"
     },
     "nsis": {
-      "deleteAppDataOnUninstall": true
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "perMachine": false
     },
     "win": {
       "target": [
@@ -63,13 +69,6 @@
           ]
         }
       ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": "always",
-      "createStartMenuShortcut": true,
-      "perMachine": false
     },
     "files": [
       "main.js",

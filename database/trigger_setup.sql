@@ -8,6 +8,33 @@
 -- 1. pg_net 익스텐션 활성화 (HTTP 요청용)
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
+-- URL 디코딩 PL/pgSQL 헬퍼 함수 정의
+CREATE OR REPLACE FUNCTION url_decode(input text) RETURNS text AS $$
+DECLARE
+  bin bytea = '';
+  byte text;
+  i int = 1;
+BEGIN
+  WHILE i <= length(input) LOOP
+    IF substr(input, i, 1) = '%' THEN
+      byte = substr(input, i + 1, 2);
+      bin = bin || decode(byte, 'hex');
+      i = i + 3;
+    ELSIF substr(input, i, 1) = '+' THEN
+      bin = bin || decode('20', 'hex');
+      i = i + 1;
+    ELSE
+      bin = bin || substr(input, i, 1)::bytea;
+      i = i + 1;
+    END IF;
+  END LOOP;
+  RETURN convert_from(bin, 'utf-8');
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN input;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE STRICT;
+
 -- 2. 문의 알림 이메일 발송 트리거 함수 생성
 CREATE OR REPLACE FUNCTION trg_send_brevo_email_on_inquiry()
 RETURNS trigger AS $$
@@ -32,11 +59,27 @@ BEGIN
                           '<h4 style="margin: 0 0 12px 0; font-size: 14px; color: #0369a1; display: flex; align-items: center; gap: 6px;">📎 첨부 파일 다운로드</h4>' ||
                           '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
     FOR i IN 1..array_length(NEW.attachment_urls, 1) LOOP
-      v_file_count := v_file_count + 1;
-      v_attachments_html := v_attachments_html ||
-        '<tr><td style="padding: 6px 0; border-bottom: 1px solid #e0f2fe;">' ||
-        '<a href="' || CASE WHEN NEW.attachment_urls[i] LIKE '/%' THEN 'https://onrivi.com' ELSE '' END || NEW.attachment_urls[i] || '" target="_blank" style="color: #2563eb; text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 6px;">' ||
-        '📄 첨부파일 ' || v_file_count || ' 다운로드</a></td></tr>';
+      DECLARE
+        v_raw_filename text;
+        v_clean_filename text;
+      BEGIN
+        v_file_count := v_file_count + 1;
+        -- URL에서 마지막 파일명 세그먼트만 파싱
+        v_raw_filename := substring(NEW.attachment_urls[i] from '[^/]+$');
+        -- 디코딩 복원 및 난수 제거 (R2 고유 식별 타임스탬프 등 정제)
+        v_clean_filename := url_decode(v_raw_filename);
+        
+        -- 혹시 R2 고유 난수가 1783125222_unique_우리안양.pdf 처럼 붙어 있다면
+        -- 첫번째와 두번째 언더스코어(_) 이후의 실제 원본 파일명만 정밀 파싱
+        IF v_clean_filename ~ '^[0-9]+_[a-z0-9]+_' THEN
+          v_clean_filename := substring(v_clean_filename from '^[0-9]+_[a-z0-9]+_(.*)$');
+        END IF;
+
+        v_attachments_html := v_attachments_html ||
+          '<tr><td style="padding: 6px 0; border-bottom: 1px solid #e0f2fe;">' ||
+          '<a href="' || CASE WHEN NEW.attachment_urls[i] LIKE '/%' THEN 'https://onrivi.com' ELSE '' END || NEW.attachment_urls[i] || '" target="_blank" style="color: #2563eb; text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 6px;">' ||
+          '📄 ' || v_clean_filename || ' 다운로드</a></td></tr>';
+      END;
     END LOOP;
     v_attachments_html := v_attachments_html || '</table></div>';
   ELSE
