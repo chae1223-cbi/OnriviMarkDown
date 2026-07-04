@@ -6,7 +6,7 @@ import { FileNode } from '@/lib/indexedDbHelper';
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
 // 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-07-04** — 저장이 필요한 경우에만 탭명 옆에 황금색 도트(#FFD700)를 노출하고, 닫기 버튼은 저장 여부와 상관없이 항시 우측에 배치하여 언제든지 탭을 닫을 수 있도록 UI 편의성 보정 패치
 // 🔗 @CALLS : 없음
 // ====================================================================
 export interface EditorTab {
@@ -74,24 +74,28 @@ export default function UnifiedTabBar({
             >
               <span className="truncate max-w-[150px]">{tab.name}</span>
               
-              {/* 수정됨(미저장) → 노란색 도트, 저장됨 → 닫기버튼(X) */}
-              {tab.isModified ? (
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 animate-pulse" title="수정됨" />
-              ) : (
-                <button
-                  onClick={(e) => onCloseTab(tab.id, e)}
-                  className={`w-4.5 h-4.5 flex items-center justify-center rounded-full transition-all duration-150 p-0.5 ${
-                    isActive
-                      ? isDarkMode
-                        ? 'hover:bg-white/20 text-zinc-300 hover:text-white'
-                        : 'hover:bg-white/30 text-zinc-200 hover:text-white'
-                      : 'opacity-0 group-hover:opacity-100 hover:bg-slate-200/50 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
-                  }`}
-                  title="탭 닫기"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+              {/* 💡 1. 저장 필요 상태(isModified)인 경우 황금색 도트 표시 */}
+              {tab.isModified && (
+                <span 
+                  className="w-1.5 h-1.5 rounded-full bg-[#FFD700] shadow-[0_0_4px_#FFD700] flex-shrink-0 animate-pulse" 
+                  title="저장 필요" 
+                />
               )}
+              
+              {/* 💡 2. 닫기 단추: 저장 여부와 관계없이 항상 언제나 노출 */}
+              <button
+                onClick={(e) => onCloseTab(tab.id, e)}
+                className={`w-4.5 h-4.5 flex items-center justify-center rounded-full transition-all duration-150 p-0.5 ${
+                  isActive
+                    ? isDarkMode
+                      ? 'hover:bg-white/20 text-zinc-300 hover:text-white'
+                      : 'hover:bg-white/30 text-zinc-200 hover:text-white'
+                    : 'opacity-65 group-hover:opacity-100 hover:bg-slate-200/50 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
+                }`}
+                title="탭 닫기"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           );
         })}

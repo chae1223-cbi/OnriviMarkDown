@@ -120,7 +120,7 @@
 | OMD-EDIT-SettingsModal-0001 | SettingsModal | ModeButton | 화면 보기 모드(편집/분할/미리보기) 전환 버튼 렌더링 | 없음 | 없음 | 없음 |
 | OMD-EDIT-MenuBar-0001 ✅ FIXED | MenuBar | MenuDropdown | 상단 메뉴 드롭다운 렌더링 - 서브메뉴 호버 열림 및 단축키 표시 | item.disabled 적용하여 클릭 및 서브메뉴 방지 | **2026-06-19** — 메뉴 아이템 비활성화(disabled) 기능 추가: item.disabled가 true일 때 opacity 및 cursor 스타일을 비활성화 형태로 변환하고 클릭/서브메뉴 오픈을 차단하도록 보정 | 없음 |
 | OMD-EDIT-FormulaModal-0001 | FormulaModal | useEffect (loadHistory) | localStorage에서 최근 사용한 수식 기록을 불러오거나 기본 공식 세트 초기화 | JSON 파싱 실패 시 에러 로그만 출력 | 없음 | 없음 |
-| OMD-EDIT-UnifiedTabBar-0001 ✅ FIXED | UnifiedTabBar | UnifiedTabBar | 통합 탭바 컴포넌트 - 열린 문서 탭 목록 표시, 탭 전환/닫기/추가 기능 제공 | 없음 | **2026-06-23** — 탭 추가(+) 버튼 기능 제거 / isModified 기반 도트/X 조건부 렌더링 (수정됨→도트, 저장됨→닫기) | onSwitchTab, onCloseTab, onCreateNewTab |
+| OMD-EDIT-UnifiedTabBar-0001 ✅ FIXED | UnifiedTabBar | UnifiedTabBar | 통합 탭바 컴포넌트 - 열린 문서 탭 목록 표시, 탭 전환/닫기/추가 기능 제공 | 없음 | **2026-06-23** — 탭 추가(+) 버튼 기능 제거; **2026-07-04** — 저장이 필요한 경우에만 탭명 옆에 황금색 도트(#FFD700)를 노출하고, 닫기 버튼은 저장 여부와 상관없이 항시 우측에 배치하여 언제든지 탭을 닫을 수 있도록 UI 편의성 보정 패치 | onSwitchTab, onCloseTab, onCreateNewTab |
 | OMD-EDIT-Toolbar-0001 | Toolbar | CopyPreviewButton | 미리보기 복사 버튼 - 클릭 시 onAction 콜백 실행 | 없음 | 없음 | onAction |
 | OMD-EDIT-YoutubeModal-0001 | YoutubeModal | handleInsert | 생성된 유튜브 코드를 본문에 삽입하고 입력값 초기화 후 모달 닫기 | videoId가 없으면 경고 토스트 표시 후 조기 반환 | 없음 | showToast, onInsert, onClose |
 | OMD-EDIT-USEEDITORHANDLERS-0001 | useEditorHandlers.ts | pageBreak | 커서 위치에 페이지 분할선(<!-- [page-break] -->)을 삽입하여 PDF/인쇄 시 페이지 전환 | editorRef, selection, model 존재 여부 확인 | 없음 | showToast |

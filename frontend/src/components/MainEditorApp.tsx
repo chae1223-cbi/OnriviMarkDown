@@ -397,6 +397,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
   const previewModeRef = useRef(previewMode);
+  // 💡 서식설정(css-style)이나 도움말 진입 전의 일반 마크다운 모드를 격리 보관하여 복원하는 Ref
+  const lastGeneralPreviewModeRef = useRef<'edit' | 'both' | 'preview'>('both');
   const isEditorMountedRef = useRef(false);
 
   // ====================================================================
@@ -1503,8 +1505,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const activeTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
       if (activeTab?.name === '도움말.md' && next !== 'preview') return prev;
       
+      // 💡 일반 보기 모드(edit, both, preview)로 변경하는 경우, 이를 전역 상태용 Ref에 백업해둡니다.
+      if (next === 'edit' || next === 'both' || next === 'preview') {
+        lastGeneralPreviewModeRef.current = next;
+      }
+
       // 💡 서식 정의(css-style) 모드로 스위칭될 때, 대조할 웰컴페이지 샘플 마크다운 탭을 강제 신규 생성 및 포커싱
       if (next === 'css-style' && prev !== 'css-style') {
+        // 💡 진입하기 직전 일반 모드가 css-style이 아니었다면 백업
+        if (prev === 'edit' || prev === 'both' || prev === 'preview') {
+          lastGeneralPreviewModeRef.current = prev;
+        }
+
         // 💡 도움말이 켜져 있었다면 강제 종료하여 웰컴페이지 미리보기 화면이 보이도록 연동
         setHelpContent(null);
         setHelpTitle('');
@@ -1512,16 +1524,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const hasWelcomeTab = tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md');
         if (!hasWelcomeTab) {
           createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md');
-          // 새 탭에 css-style 모드 저장
-          setTimeout(() => {
-            setTabs(prev => prev.map(t => t.name === '온리비 어서 시작하기.md' ? { ...t, previewMode: 'css-style' as const } : t));
-          }, 0);
-        } else {
-          const welcomeTab = tabsRef.current.find(t => t.name === '온리비 어서 시작하기.md');
-          if (welcomeTab) {
-            // 기존 탭에 css-style 모드 저장
-            setTabs(prev => prev.map(t => t.id === welcomeTab.id ? { ...t, previewMode: 'css-style' as const } : t));
-          }
         }
       }
 
@@ -1532,14 +1534,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         isEditorMountedRef.current = true;
       }
 
-      // 현재 활성 탭에 모드 저장
-      if (activeTabIdRef.current) {
-        setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, previewMode: next } : t));
-      }
-
       return next;
     });
-  }, [setContent, createNewTab, switchTab, setTabs, licenseStatus, showToast]);
+  }, [setContent, createNewTab, setTabs, licenseStatus, showToast]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0027 ✅ FIXED] MainEditorApp.tsx ➔ closeTab
@@ -2235,12 +2232,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [handleMouseMove, stopResizing]);
 
 // ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0046] MainEditorApp.tsx ➔ saveStatusSync
-// 🎯 @KICK  : 콘텐츠와 lastSavedContent를 비교하여 저장 상태 및 탭 isModified 플래그 업데이트
-// 🛡️ @GUARD : currentFileNode가 존재할 때만 실행 (새 저장되지 않은 파일 제외)
-// 🚨 @PATCH : activeTabId deps 추가 + state 직접 참조로 변경 (탭 전환 시 stale ref로 isModified 오염 방지) | 2026-06-17; onDidChangeContent 핸들러에서 val !== t.content 비교로 전환 시 false isModified 방지 (2026-06-18)
-// 🔗 @CALLS : setSaveStatus, setTabs
+// 📊 [OMD-EDIT-MainEditorApp-0046] MainEditorApp.tsx ➔ tabModeSync
+// 🎯 @KICK  : 탭 전환 시 도움말은 미리보기 전용으로 강제하고 일반 문서는 직전의 전역 에디터 모드로 복구 동기화
+// 🛡️ @GUARD : 라이선스 만료 시 preview 모드로 가드
+// 🚨 @PATCH : 2026-07-04 — 신규 추가
+// 🔗 @CALLS : setPreviewModeRaw
 // ====================================================================
+  useEffect(() => {
+    if (!mounted || !activeTabId) return;
+    const activeTab = tabs.find(t => t.id === activeTabId);
+    if (!activeTab) return;
+
+    if (activeTab.name === '도움말.md') {
+      if (previewModeRef.current !== 'preview') {
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
+      }
+    } else if (previewModeRef.current === 'css-style') {
+      if (activeTab.name !== '온리비 어서 시작하기.md') {
+        const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
+        setPreviewModeRaw(target);
+        previewModeRef.current = target;
+      }
+    } else {
+      const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
+      if (previewModeRef.current !== target) {
+        setPreviewModeRaw(target);
+        previewModeRef.current = target;
+      }
+    }
+  }, [activeTabId, mounted, licenseStatus.isExpired]);
 
 
 

@@ -93,11 +93,6 @@ export const useEditorTabs = (
       setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, scrollTop: currentScrollTop } : t));
     }
 
-    // 현재 탭의 모드 저장
-    if (activeTabIdRef.current) {
-      setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, previewMode: previewModeRef.current } : t));
-    }
-
     // 현재 탭의 에디터 내용을 React 상태에 동기화 (모드 전환 시 데이터 유실 방지)
     if (editor && (previewModeRef.current === 'css-style' || previewModeRef.current === 'preview')) {
       const latestVal = editor.getValue();
@@ -114,10 +109,10 @@ export const useEditorTabs = (
     setCurrentFileName(targetTab.name);
     setCurrentFileNode(targetTab.node);
 
-    // 대상 탭의 저장된 모드 복원
-    if (targetTab.previewMode && setPreviewModeRaw) {
-      setPreviewModeRaw(targetTab.previewMode);
-      previewModeRef.current = targetTab.previewMode;
+    // 💡 도움말 문서 탭으로 전환할 때는 예외적으로 무조건 미리보기(preview) 모드를 강제 지정합니다.
+    if (targetTab.name === '도움말.md' && setPreviewModeRaw) {
+      setPreviewModeRaw('preview');
+      previewModeRef.current = 'preview';
     }
 
     if (editor && monaco && targetTab.model && !targetTab.model.isDisposed()) {
