@@ -1497,6 +1497,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     setPreviewModeRaw(prev => {
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
+      
+      // 🔒 [서식설정 레이아웃 고정 가드 2026-07-04]
+      // 서식설정 모드일 때는 화면 하단 상태바 등 외부 입력을 통한 일반 모드 전환 시도를 전면 차단합니다.
+      if (prev === 'css-style' && next !== 'css-style') {
+        return prev;
+      }
+
       if (licenseStatus.isExpired && next !== 'preview') {
         showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
         return 'preview';
