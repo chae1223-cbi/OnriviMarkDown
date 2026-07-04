@@ -85,21 +85,6 @@ export const useEditorTabs = (
   const switchTab = useCallback((tabId: string) => {
     const targetTab = tabsRef.current.find(t => t.id === tabId);
 
-    if (setPreviewModeRaw && targetTab) {
-      if (targetTab.name === '도움말.md' && previewModeRef.current !== 'preview') {
-        setPreviewModeRaw('preview');
-        previewModeRef.current = 'preview';
-        isEditorMountedRef.current = false;
-      } else if (previewModeRef.current === 'preview' || previewModeRef.current === 'css-style') {
-        const prevTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
-        if (prevTab?.name === '도움말.md') {
-          setPreviewModeRaw('both');
-          previewModeRef.current = 'both';
-          isEditorMountedRef.current = true;
-        }
-      }
-    }
-
     const monaco = (window as any).monaco;
     const editor = editorRef.current;
 
@@ -170,11 +155,7 @@ export const useEditorTabs = (
     };
 
     if (setPreviewModeRaw) {
-      if (tabName === '도움말.md' || tabName.startsWith('도움말 - ')) {
-        setPreviewModeRaw('preview');
-        previewModeRef.current = 'preview';
-        isEditorMountedRef.current = false;
-      }
+      // 온리비 제공 문서 탭은 모드 변경 없이 미리보기로만 표시
     }
 
     setTabs(prev => [...prev, newTab]);
