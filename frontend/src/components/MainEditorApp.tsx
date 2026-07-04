@@ -1148,7 +1148,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (previewModeRef.current !== 'preview') {
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
-        isEditorMountedRef.current = true;
       }
     }
   }, [licenseStatus.isExpired, mounted]);

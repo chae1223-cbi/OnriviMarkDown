@@ -119,6 +119,18 @@ export const useEditorTabs = (
     } else if (editor) {
       editor.setValue(targetTab.content);
     }
+
+    // 탭에 모델이 없으면 생성
+    if (monaco && targetTab && !targetTab.model) {
+      const newModel = monaco.editor.createModel(targetTab.content, 'markdown');
+      newModel.onDidChangeContent(() => {
+        const val = newModel.getValue();
+        setContent(val);
+        setTabs(prev => prev.map(t => t.id === targetTab.id ? { ...t, content: val, isModified: val !== t.content } : t));
+      });
+      (targetTab as any).model = newModel;
+      tabsRef.current = tabsRef.current.map(t => t.id === targetTab.id ? { ...t, model: newModel } : t);
+    }
   }, [editorRef, setContent, setCurrentFileName, setCurrentFileNode, previewModeRef, setPreviewModeRaw, isEditorMountedRef]);
 
   // ====================================================================
