@@ -1515,9 +1515,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setHelpContent(null);
         setHelpTitle('');
         
-        // 💡 현재 활성화되어 서식설정의 대상이 되는 탭에 서식 전용 탭임을 표시
-        if (activeTabIdRef.current) {
-          setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isStyleTab: true } : t));
+        // 💡 기존에 열려 있는 서식설정 전용 탭이 있는지 확인
+        const existingStyleTab = tabsRef.current.find(t => t.isStyleTab === true);
+        if (existingStyleTab) {
+          switchTab(existingStyleTab.id);
+        } else {
+          // 없으면 새로운 서식설정 전용 탭(isStyleTab: true)을 강제 생성 및 로드
+          createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md', true);
         }
       }
 

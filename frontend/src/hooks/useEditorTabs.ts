@@ -146,7 +146,7 @@ export const useEditorTabs = (
   // 🚨 @PATCH : 모드 자동 전환 로직 추가; prevTabId를 modeTransition 이전에 캡처하도록 순서 수정 (2026-06-17); onDidChangeContent 핸들러 isModified: true → val !== t.content 비교로 전환 (2026-06-18)
   // 🔗 @CALLS : getWelcomeContent, setContent, setTabs, setActiveTabId, setCurrentFileName, setCurrentFileNode, setPreviewModeRaw
   // ====================================================================
-  const createNewTab = useCallback((initialContent?: string, name?: string) => {
+  const createNewTab = useCallback((initialContent?: string, name?: string, isStyleTab?: boolean) => {
     const monaco = (window as any).monaco;
     const contentVal = initialContent !== undefined ? initialContent : getWelcomeContent();
     const tabName = name || '새 파일.md';
@@ -170,7 +170,8 @@ export const useEditorTabs = (
       content: contentVal,
       isModified: false,
       model: model,
-      previewMode: previewModeRef.current // 💡 현재 하단 상태표시줄 등에 설정된 UI 모드를 새 탭에 기본 할당하여 유지
+      previewMode: previewModeRef.current, // 💡 현재 하단 상태표시줄 등에 설정된 UI 모드를 새 탭에 기본 할당하여 유지
+      isStyleTab: isStyleTab || false
     };
 
     if (setPreviewModeRaw) {
