@@ -2241,15 +2241,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         previewModeRef.current = 'preview';
       }
     } else if (activeTab.isStyleTab === true) {
-      // 💡 2. 서식설정 전용 탭은 무조건 서식설정('css-style') 모드 고정
-      if (helpContentRef.current) {
-        setHelpContent(null);
-        setHelpTitle('');
-      }
-      if (previewModeRef.current !== 'css-style') {
-        setPreviewModeRaw('css-style');
-        previewModeRef.current = 'css-style';
-      }
+      // 💡 2. 서식설정 전용 탭: 모드 전환 없이 현재 모드 유지 (CssStyleForm은 Ctrl+Shift+S로만 토글)
     } else {
       // 💡 3. 그 외 일반 마크다운 문서들은 전역으로 공유되는 마크다운 보기 모드를 그대로 상속 및 유지
       const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
