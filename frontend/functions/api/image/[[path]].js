@@ -38,17 +38,46 @@ export async function onRequestGet(context) {
       'gif': 'image/gif',
       'webp': 'image/webp',
       'svg': 'image/svg+xml',
+      'bmp': 'image/bmp',
+      'ico': 'image/x-icon',
+      'tiff': 'image/tiff',
+      'tif': 'image/tiff',
       'mp4': 'video/mp4',
       'webm': 'video/webm',
       'ogg': 'video/ogg',
       'mov': 'video/quicktime',
       'avi': 'video/x-msvideo',
       'mkv': 'video/x-matroska',
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'flac': 'audio/flac',
+      'aac': 'audio/aac',
+      'pdf': 'application/pdf',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'ppt': 'application/vnd.ms-powerpoint',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'zip': 'application/zip',
+      'rar': 'application/vnd.rar',
+      '7z': 'application/x-7z-compressed',
+      'tar': 'application/x-tar',
+      'gz': 'application/gzip',
+      'txt': 'text/plain',
+      'csv': 'text/csv',
+      'json': 'application/json',
+      'md': 'text/markdown',
+      'xml': 'application/xml',
+      'hwp': 'application/x-hwp',
     };
     const contentType = contentTypeMap[ext] || object.httpMetadata?.contentType || 'application/octet-stream';
 
     const headers = new Headers();
     headers.set('Content-Type', contentType);
+    // 이미지는 브라우저 표시, 나머지는 다운로드 (파일명 유지)
+    const isImage = contentType.startsWith('image/');
+    headers.set('Content-Disposition', isImage ? 'inline' : `attachment; filename="${key.split('/').pop()}"`);
     // 1주일 캐싱
     headers.set('Cache-Control', 'public, max-age=604800, immutable');
     headers.set('ETag', object.httpEtag);

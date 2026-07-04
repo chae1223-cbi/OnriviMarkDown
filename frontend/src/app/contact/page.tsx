@@ -43,10 +43,6 @@ export default function ContactPage() {
   };
 
   const getApiUrl = (path: string) => {
-    if (process.env.NODE_ENV === 'development') {
-      if (path === '/api/upload-image') return '/api/upload-pasted-image';
-      return path;
-    }
     return `https://onrivi.com${path}`;
   };
 
@@ -79,8 +75,7 @@ export default function ContactPage() {
         if (resp.ok) {
           const d = await resp.json();
           if (d.status === 'success' && d.relativePath) {
-            const baseUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:3100' : 'https://onrivi.com';
-            urls.push(baseUrl + d.relativePath);
+            urls.push('https://onrivi.com' + d.relativePath);
           } else {
             console.error('[Contact] R2 업로드 실패:', d.error);
           }
