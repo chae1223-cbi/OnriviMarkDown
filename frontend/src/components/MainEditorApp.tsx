@@ -443,6 +443,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     userId: '',
     licenseKey: ''
   });
+  const [isLicenseChecking, setIsLicenseChecking] = useState(true);
   const [graceRemainingSeconds, setGraceRemainingSeconds] = useState<number | null>(null);
 
   // ====================================================================
@@ -1045,7 +1046,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
 
   useEffect(() => {
-    loadAndVerifyLicense();
+    loadAndVerifyLicense().finally(() => {
+      setIsLicenseChecking(false);
+    });
   }, [loadAndVerifyLicense]);
 
   // 📊 [OMD-LICENSE-MainEditorApp-POLLING] 대시보드 기기해제 감지 → 로그아웃 (15초 폴링)
@@ -1132,13 +1135,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : setPreviewModeRaw
   // ====================================================================
   useEffect(() => {
-    if (!mounted) return;
-
-    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    if (!mounted || isLicenseChecking) return;
 
     if (licenseStatus.isExpired) {
-      // 🔒 제한 사용자 (만료/미인증): 웹은 웰컴페이지, 데스크탑은 빈 화면
-      if (!isDesktop && tabsRef.current.length === 0) {
+      // 🔒 제한 사용자 (만료/미인증): 에디터 시작 시 강제로 웰컴페이지를 띄움
+      if (tabsRef.current.length === 0) {
         const welcome = getWelcomeContent();
         const welcomeTabId = 'welcome-tab-' + Date.now();
         const welcomeTab: EditorTab = {
@@ -1157,7 +1158,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         previewModeRef.current = 'preview';
       }
     }
-  }, [licenseStatus.isExpired, mounted]);
+  }, [licenseStatus.isExpired, mounted, isLicenseChecking]);
 
 // ====================================================================
 // 📊 [OMD-PAY-MainEditorApp-0017] MainEditorApp.tsx ➔ supabaseRealtime_license
