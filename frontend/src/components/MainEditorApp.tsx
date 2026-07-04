@@ -2251,17 +2251,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (!activeTab) return;
 
     if (activeTab.name === '도움말.md') {
+      // 💡 1. 도움말 탭은 예외없이 무조건 미리보기 전용('preview') 고정
       if (previewModeRef.current !== 'preview') {
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
       }
-    } else if (previewModeRef.current === 'css-style') {
-      if (activeTab.name !== '온리비 어서 시작하기.md') {
-        const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
-        setPreviewModeRaw(target);
-        previewModeRef.current = target;
+    } else if (activeTab.name === '온리비 어서 시작하기.md') {
+      // 💡 2. 서식설정 웰컴 탭은 예외없이 무조건 서식설정('css-style') 모드 고정
+      if (previewModeRef.current !== 'css-style') {
+        setPreviewModeRaw('css-style');
+        previewModeRef.current = 'css-style';
       }
     } else {
+      // 💡 3. 그 외 일반 마크다운 문서들은 전역으로 공유되는 마크다운 보기 모드를 그대로 상속 및 유지
       const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
       if (previewModeRef.current !== target) {
         setPreviewModeRaw(target);
