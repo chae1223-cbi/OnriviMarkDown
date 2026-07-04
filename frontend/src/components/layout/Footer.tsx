@@ -16,6 +16,7 @@ const footerLinks = {
   제품: [
     { label: "기능 소개", href: "#features" },
     { label: "요금제", href: "#pricing" },
+    { label: "서식 템플릿", href: "/cssformat", external: true },
     { label: "도움말 센터", href: "/docs" },
     { label: "문의하기", href: "/contact" },
   ],
@@ -56,14 +57,27 @@ export function Footer() {
               <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
                 {links.map((link) => (
                   <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      style={{ fontSize: 13, color: "#6e7881", textDecoration: "none", transition: "color 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget.style.color = "#0ea5e9")}
-                      onMouseLeave={e => (e.currentTarget.style.color = "#6e7881")}
-                    >
-                      {link.label}
-                    </Link>
+                    {(link as any).external ? (
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 13, color: "#6e7881", textDecoration: "none", transition: "color 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget.style.color = "#0ea5e9")}
+                        onMouseLeave={e => (e.currentTarget.style.color = "#6e7881")}
+                      >
+                        {link.label}
+                      </a>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        style={{ fontSize: 13, color: "#6e7881", textDecoration: "none", transition: "color 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget.style.color = "#0ea5e9")}
+                        onMouseLeave={e => (e.currentTarget.style.color = "#6e7881")}
+                      >
+                        {link.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

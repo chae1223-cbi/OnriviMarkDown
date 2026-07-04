@@ -245,6 +245,7 @@ export default function MenuBar({
               { label: "분할 화면", onClick: () => setPreviewMode('both') },
               { label: "미리보기", onClick: () => setPreviewMode('preview') },
               { label: "서식 정의", onClick: () => setPreviewMode('css-style') },
+              { label: "서식 설정 페이지", icon: <span>🎨</span>, onClick: () => window.open('/cssformat', '_blank') },
             ]
           },
           { divider: true },

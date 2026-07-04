@@ -84,6 +84,7 @@ import OAIcon from './icon_onriveauther.png'; // 아이콘
 // 분리된 컴포넌트들 임포트
 import MenuBar from '@/components/MenuBar'; // 메뉴바
 import Toolbar from '@/components/Toolbar'; // 툴바
+import FormattingToolbar from '@/components/FormattingToolbar'; // 서식 툴바
 import StatusBar from '@/components/StatusBar'; // 상태바
 import ImageModal from '@/components/ImageModal'; // 모달
 import MapModal from '@/components/MapModal'; // 모달
@@ -4030,6 +4031,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         onThemeChange={(themeId) => handleThemeChange(themeId, THEME_MAP)}
       />
 
+      <FormattingToolbar
+        dispatch={dispatchCommand}
+        previewMode={previewMode}
+        isExpired={licenseStatus.isExpired}
+      />
+
       {graceRemainingSeconds !== null && (
         <div className="bg-rose-600 text-white text-xs font-black py-2.5 px-4 flex items-center justify-between animate-pulse shadow-md z-[50]">
           <span className="flex items-center gap-2">
@@ -6013,18 +6020,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         {isToolbarOpen && (
           <div className="no-print h-full flex border-l border-zinc-200 dark:border-zinc-700/60">
             <Toolbar
-              isDarkMode={isDarkMode}
-              setIsDarkMode={setIsDarkMode}
-              isSidebarOpen={isSidebarOpen}
-              setIsSidebarOpen={setIsSidebarOpen}
-              previewMode={previewMode}
-              setPreviewMode={setPreviewMode}
-              fontSize={fontSize}
-              setFontSize={setFontSize}
-              wordWrap={wordWrap}
-              setWordWrap={setWordWrap}
               dispatch={dispatchCommand}
-              isExpired={licenseStatus.isExpired}
             />
           </div>
         )}

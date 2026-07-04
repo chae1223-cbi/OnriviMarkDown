@@ -7,22 +7,84 @@
 // ====================================================================
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { useToast } from "@/components/ToastProvider";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
+const MAX_FILES = 5;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 export default function ContactPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [type, setType] = useState("general"); // general: 일반문의, billing: 요금/결제, tech: 기술지원, suggestion: 제안/건의
+  const [type, setType] = useState("general");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || []);
+    if (files.length + selected.length > MAX_FILES) {
+      showToast(`파일은 최대 ${MAX_FILES}개까지 첨부할 수 있습니다.`, "warning");
+      return;
+    }
+    const oversized = selected.find(f => f.size > MAX_FILE_SIZE);
+    if (oversized) {
+      showToast("파일 크기는 10MB를 초과할 수 없습니다.", "warning");
+      return;
+    }
+    setFiles(prev => [...prev, ...selected]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getApiUrl = (path: string) => {
+    if (process.env.NODE_ENV === 'development') {
+      return path;
+    }
+    return `https://onrivi.com${path}`;
+  };
+
+  const uploadFiles = async (): Promise<string[]> => {
+    if (files.length === 0) return [];
+    const urls: string[] = [];
+    
+    for (const file of files) {
+      const ext = file.name.split('.').pop() || 'file';
+      const fileName = `inquiry/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      
+      const { data, error } = await supabase.storage
+        .from('support-attachments')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+      
+      if (error) {
+        console.error('[Contact] 파일 업로드 실패:', error);
+        continue;
+      }
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('support-attachments')
+        .getPublicUrl(fileName);
+      
+      urls.push(publicUrl);
+    }
+    
+    return urls;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,8 +109,14 @@ export default function ContactPage() {
     setLoading(true);
 
     try {
-      // 🚨 정적 내보내기(output: 'export') 환경에서는 Next.js POST API 라우트가 작동하지 않으므로,
-      // 프론트엔드에서 직접 Supabase DB에 문의 접수 내역을 기록합니다.
+      let attachmentUrls: string[] = [];
+
+      if (files.length > 0) {
+        setUploading(true);
+        attachmentUrls = await uploadFiles();
+        setUploading(false);
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       
       const { data: rpcResult, error: rpcError } = await supabase.rpc("insert_support_inquiry", {
@@ -57,23 +125,21 @@ export default function ContactPage() {
         p_type: type,
         p_title: title.trim(),
         p_content: content.trim(),
-        p_user_id: session?.user?.id || null
+        p_user_id: session?.user?.id || null,
+        p_attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null
       });
 
       if (rpcError) throw new Error("문의 사항을 데이터베이스에 저장하는 중 오류가 발생했습니다.");
       if (rpcResult && rpcResult.success === false) throw new Error(`데이터베이스 기록 실패: ${rpcResult.error}`);
 
-      // 📝 참고: 정적 웹 앱에서는 브라우저에 API Key가 노출될 위험이 있어
-      // 이메일 즉시 발송(Brevo) 로직은 여기서 제외되거나 향후 Supabase Edge Function으로 이관해야 합니다.
-
       showToast("문의가 성공적으로 접수되었습니다. 최대한 빠른 시일 내에 답변해 드리겠습니다.", "success");
       
-      // 입력 폼 초기화
       setName("");
       setEmail("");
       setType("general");
       setTitle("");
       setContent("");
+      setFiles([]);
 
       setTimeout(() => {
         router.push("/");
@@ -83,6 +149,7 @@ export default function ContactPage() {
       showToast(err.message || "문의 전송 중 예기치 않은 오류가 발생했습니다.", "error");
     } finally {
       setLoading(false);
+      setUploading(false);
     }
   };
 
@@ -191,6 +258,51 @@ export default function ContactPage() {
                 />
               </div>
 
+              {/* 파일 첨부 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">파일 첨부 (선택, 최대 {MAX_FILES}개, 각 10MB)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleFileChange}
+                    className="hidden"
+                    disabled={loading || uploading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading || uploading || files.length >= MAX_FILES}
+                    className="px-4 py-2.5 bg-white/50 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700 rounded-xl hover:bg-slate-100 dark:hover:bg-gray-700 transition-all text-sm flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-lg">attach_file</span>
+                    파일 선택
+                  </button>
+                  {files.length > 0 && (
+                    <span className="text-xs text-slate-500">{files.length}개 선택됨</span>
+                  )}
+                </div>
+                {files.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {files.map((file, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5 bg-white/60 dark:bg-gray-800/60 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
+                        <span className="material-symbols-outlined text-base text-sky-500">description</span>
+                        <span className="truncate max-w-[150px]">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(idx)}
+                          disabled={loading || uploading}
+                          className="text-red-400 hover:text-red-600 ml-1 disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-base">close</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* 제출 버튼 */}
               <button
                 type="submit"
@@ -200,7 +312,7 @@ export default function ContactPage() {
                 {loading ? (
                   <>
                     <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                    문의 전송 중...
+                    {uploading ? '파일 업로드 중...' : '문의 전송 중...'}
                   </>
                 ) : (
                   <>
