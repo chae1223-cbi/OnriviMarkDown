@@ -1131,7 +1131,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     if (!mounted) return;
+    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+
     if (licenseStatus.isExpired) {
+      // 🔒 제한 사용자 (만료/미인증): 에디터 시작 시 강제로 웰컴페이지만 띄움
       if (tabsRef.current.length === 0) {
         const welcome = getWelcomeContent();
         const welcomeTabId = 'welcome-tab-' + Date.now();
@@ -1148,6 +1151,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (previewModeRef.current !== 'preview') {
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
+      }
+    } else {
+      // 🟢 전체 사용자: 데스크탑 앱 구동 시 탭이 비어 있어도 웰컴페이지나 기본 탭을 절대 자동 생성하지 않음 (빈 화면 유지)
+      if (isDesktop && tabsRef.current.length > 0 && tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md' && t.id.startsWith('welcome-tab-'))) {
+        // 혹시 초기에 비동기 확인 전 생성된 임시 웰컴 탭이 있다면 정리하여 완전한 빈 상태 확보
+        const cleaned = tabsRef.current.filter(t => !(t.name === '온리비 어서 시작하기.md' && t.id.startsWith('welcome-tab-')));
+        setTabs(cleaned);
+        if (cleaned.length === 0) {
+          setActiveTabId(null);
+          setContent('');
+          setCurrentFileName('새 파일.md');
+          setCurrentFileNode(null);
+        }
       }
     }
   }, [licenseStatus.isExpired, mounted]);
@@ -3369,6 +3385,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       editorPosition = editor.getPosition();
     }
 
+    // 🔒 [제한 사용자 쓰기 방어 가드 2026-07-04] 읽기 전용 상태일 때 편집 및 파일 입출력 명령 전면 차단
+    const restrictedCommands = [
+      'NEW_FILE', 'OPEN_FILE', 'OPEN_WORKSPACE', 'SAVE', 'SAVE_AS',
+      'BOLD', 'ITALIC', 'INLINE_CODE', 'UNDERLINE', 'STRIKETHROUGH', 'HEADING',
+      'HR', 'ORDERED_LIST', 'UNORDERED_LIST', 'QUOTE', 'CHECKLIST', 'LINK',
+      'DOCUMENT_LINK', 'IMAGE', 'VIDEO', 'TIMESTAMP', 'MAP', 'TABLE', 'QUICK_TABLE',
+      'INSERT_ROW', 'DELETE_ROW', 'CODE_BLOCK', 'DIAGRAM', 'FORMULA'
+    ];
+    if (licenseStatusRef.current?.isExpired && restrictedCommands.includes(type)) {
+      showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않아 읽기 전용 상태입니다. 편집 또는 파일 쓰기 작업을 수행할 수 없습니다.", "error");
+      return;
+    }
+
     // 1. 에디터 텍스트 비조작 명령어 (상태 제어 및 파일 입출력 위임)
     switch (type) {
       // 파일 관련
@@ -4035,7 +4064,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             activeTabId={activeTabId}
             onSwitchTab={switchTab}
             onCloseTab={closeTab}
-            onCreateNewTab={() => createNewTab()}
+            onCreateNewTab={() => {
+              if (licenseStatus.isExpired) {
+                showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않아 읽기 전용 상태입니다. 새 문서를 만들 수 없습니다.", "error");
+                return;
+              }
+              createNewTab();
+            }}
             isDarkMode={isDarkMode}
           /></div>
           <div className="flex flex-1 overflow-hidden">
