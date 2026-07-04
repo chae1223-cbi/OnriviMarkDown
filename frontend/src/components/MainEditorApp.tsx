@@ -11,8 +11,8 @@
  * 모든 전역 상태 및 화면 분할 레이아웃 조립.
  * 메뉴바 , 툴바, 상태바, 사이드바 등 모든 컴포넌트의 렌더링을 책임짐.
  * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
- *             2026-07-04 — 미인증/만료 사용자 css-style 모드 차단, preview 전용 고정, 웰컴페이지 표시
+ * 🚨 @PATCH : **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
+ *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
  *             **2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
  *             **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
  * -----------------------------------------------------------------------
@@ -1137,7 +1137,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const welcomeTabId = 'welcome-tab-' + Date.now();
         const welcomeTab: EditorTab = {
           id: welcomeTabId, name: '온리비 어서 시작하기.md', path: null, node: null,
-          content: welcome, isModified: false
+          content: welcome, isModified: false, previewMode: 'preview'
         };
         setTabs([welcomeTab]);
         setActiveTabId(welcomeTabId);
@@ -1444,7 +1444,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     fileList,
     setFileList,
     workspaceType,
-    setWorkspaceType
+    setWorkspaceType,
+    licenseStatus
   });
 
   // 💡 [TDZ 방어] useFileExplorer 반환값에서 즉시 구조분해 할당하여 참조 에러 방지
@@ -1495,9 +1496,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const hasWelcomeTab = tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md');
         if (!hasWelcomeTab) {
           createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md');
+          // 새 탭에 css-style 모드 저장
+          setTimeout(() => {
+            setTabs(prev => prev.map(t => t.name === '온리비 어서 시작하기.md' ? { ...t, previewMode: 'css-style' as const } : t));
+          }, 0);
         } else {
           const welcomeTab = tabsRef.current.find(t => t.name === '온리비 어서 시작하기.md');
-          if (welcomeTab) switchTab(welcomeTab.id);
+          if (welcomeTab) {
+            // 기존 탭에 css-style 모드 저장
+            setTabs(prev => prev.map(t => t.id === welcomeTab.id ? { ...t, previewMode: 'css-style' as const } : t));
+          }
         }
       }
 
@@ -1507,9 +1515,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       } else {
         isEditorMountedRef.current = true;
       }
+
+      // 현재 활성 탭에 모드 저장
+      if (activeTabIdRef.current) {
+        setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, previewMode: next } : t));
+      }
+
       return next;
     });
-  }, [setContent, createNewTab, switchTab, licenseStatus, showToast]);
+  }, [setContent, createNewTab, switchTab, setTabs, licenseStatus, showToast]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0027 ✅ FIXED] MainEditorApp.tsx ➔ closeTab
@@ -1531,11 +1545,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         tabToClose.model.dispose();
       }
 
-      // 💡 웰컴페이지 전용 '온리비 어서 시작하기.md' 탭을 닫으면 기본 분할 화면 'both' 모드로 전환
+      // 💡 웰컴페이지 전용 '온리비 어서 시작하기.md' 탭을 닫거나 도움말을 닫을 때의 모드 조정
       if (tabToClose.name === '온리비 어서 시작하기.md' || tabToClose.name === '도움말.md') {
-        setPreviewModeRaw('both');
-        previewModeRef.current = 'both';
-        isEditorMountedRef.current = true;
+        const targetMode = licenseStatus.isExpired ? 'preview' : (previewModeRef.current === 'css-style' ? 'both' : previewModeRef.current);
+        setPreviewModeRaw(targetMode);
+        previewModeRef.current = targetMode;
+        isEditorMountedRef.current = targetMode !== 'preview';
       }
 
       const nextTabs = tabsRef.current.filter(t => t.id !== tabId);

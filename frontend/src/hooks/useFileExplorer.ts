@@ -10,11 +10,10 @@ import { EditorTab } from '@/components/UnifiedTabBar';
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
-// ====================================================================
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
 // 🎯 @KICK  : 워크스페이스 폴더 연결, 파일 트리 스캔, 파일 열기/저장 I/O 전담
 // 🛡️ @GUARD : 각 환경별 API 실패 시 예외 처리 및 fallback
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-07-04** — 탭 전환/닫기 시 제한(만료) 사용자의 경우 항상 미리보기('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 설정된 에디터 뷰잉 모드를 그대로 보존 및 상속하도록 UI 모드 자동 보정 연동 패치
 // 🔗 @CALLS : scanDirectory, getVfsFiles, fetch, vfsReadFile, vfsWriteFile, stripFrontmatter, idb.get, api.saveFile, api.listDirectory, api.readFromPath
 // ====================================================================
 export const useFileExplorer = ({
@@ -48,7 +47,8 @@ export const useFileExplorer = ({
   fileList,
   setFileList,
   workspaceType,
-  setWorkspaceType
+  setWorkspaceType,
+  licenseStatus
 }: any) => {
 
   const rootFolderRef = useRef(rootFolder);
@@ -348,9 +348,10 @@ export const useFileExplorer = ({
         const latestVal = editor.getValue();
         setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: latestVal } : t));
       }
-      setPreviewModeRaw('both');
-      previewModeRef.current = 'both';
-      isEditorMountedRef.current = true;
+      const targetMode = licenseStatus?.isExpired ? 'preview' : 'both';
+      setPreviewModeRaw(targetMode);
+      previewModeRef.current = targetMode;
+      isEditorMountedRef.current = targetMode !== 'preview';
     }
 
     currentFileParentHandleRef.current = parentHandle || null;
@@ -436,7 +437,8 @@ export const useFileExplorer = ({
         node: node,
         content: fileContent,
         isModified: false,
-        model: model
+        model: model,
+        previewMode: licenseStatus?.isExpired ? 'preview' : (node.name === '도움말.md' ? 'preview' : previewModeRef.current)
       };
 
       setTabs(prev => [...prev, newTab]);

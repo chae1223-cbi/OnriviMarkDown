@@ -93,6 +93,11 @@ export const useEditorTabs = (
       setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, scrollTop: currentScrollTop } : t));
     }
 
+    // 현재 탭의 모드 저장
+    if (activeTabIdRef.current) {
+      setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, previewMode: previewModeRef.current } : t));
+    }
+
     // 현재 탭의 에디터 내용을 React 상태에 동기화 (모드 전환 시 데이터 유실 방지)
     if (editor && (previewModeRef.current === 'css-style' || previewModeRef.current === 'preview')) {
       const latestVal = editor.getValue();
@@ -108,6 +113,12 @@ export const useEditorTabs = (
     setContent(targetTab.content);
     setCurrentFileName(targetTab.name);
     setCurrentFileNode(targetTab.node);
+
+    // 대상 탭의 저장된 모드 복원
+    if (targetTab.previewMode && setPreviewModeRaw) {
+      setPreviewModeRaw(targetTab.previewMode);
+      previewModeRef.current = targetTab.previewMode;
+    }
 
     if (editor && monaco && targetTab.model && !targetTab.model.isDisposed()) {
       editor.setModel(targetTab.model);
@@ -163,11 +174,17 @@ export const useEditorTabs = (
       node: null,
       content: contentVal,
       isModified: false,
-      model: model
+      model: model,
+      previewMode: previewModeRef.current // 💡 현재 하단 상태표시줄 등에 설정된 UI 모드를 새 탭에 기본 할당하여 유지
     };
 
     if (setPreviewModeRaw) {
-      // 온리비 제공 문서 탭은 모드 변경 없이 미리보기로만 표시
+      // 💡 도움말 문서 등 특정 고유 탭은 강제로 미리보기('preview') 모드로 설정되게 처리
+      if (tabName === '도움말.md') {
+        newTab.previewMode = 'preview';
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
+      }
     }
 
     setTabs(prev => [...prev, newTab]);
