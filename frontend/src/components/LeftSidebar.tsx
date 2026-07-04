@@ -341,7 +341,7 @@ export default function LeftSidebar({
         className="flex flex-col border-r border-zinc-200 dark:border-zinc-700/60 bg-zinc-100 dark:bg-zinc-900 select-none relative z-10"
       >
         {/* 탭 헤더 */}
-        <div className="h-11 border-b border-zinc-200 dark:border-zinc-700/60 flex items-center px-2 bg-zinc-200/70 dark:bg-zinc-800/50 justify-between">
+        <div className="h-10 border-b border-zinc-200 dark:border-zinc-700/60 flex items-center px-2 bg-zinc-200/70 dark:bg-zinc-800/50 justify-between">
           <div className="flex gap-1.5 w-full">
             <button
               onClick={() => {

@@ -3498,6 +3498,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'HELP': handlers.help(); return;
       case 'LICENSE': handlers.license(); return;
       case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
+      case 'SLASH_COMMAND': {
+        const editor = editorRef.current;
+        if (editor) {
+          editor.focus();
+          const position = editor.getPosition();
+          if (position) {
+            editor.executeEdits('slash-trigger', [
+              {
+                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                text: '/',
+                forceMoveMarkers: true
+              }
+            ]);
+            setTimeout(() => {
+              editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+            }, 50);
+          }
+        }
+        return;
+      }
       case 'CLEAN_DOC': handlers.cleanDoc(); return;
       case 'COPY_ALL': handlers.copyAll(); return;
       // 🎯 TOOLBAR_ITEMS '푸터' 그룹 토글 명령어 (handlers에 없으므로 직접 상태 변환)
@@ -4031,23 +4051,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         onThemeChange={(themeId) => handleThemeChange(themeId, THEME_MAP)}
       />
 
-      <FormattingToolbar
-        dispatch={dispatchCommand}
-        previewMode={previewMode}
-        isExpired={licenseStatus.isExpired}
-      />
 
-      {graceRemainingSeconds !== null && (
-        <div className="bg-rose-600 text-white text-xs font-black py-2.5 px-4 flex items-center justify-between animate-pulse shadow-md z-[50]">
-          <span className="flex items-center gap-2">
-            <span>⚠️</span>
-            <span>라이선스가 만료되었습니다. 편집 및 저장을 완료해 주십시오. 유예 시간 경과 시 미리보기 모드로 고정됩니다.</span>
-          </span>
-          <span className="bg-black/25 px-2.5 py-0.5 rounded font-mono">
-            남은 유예 시간: {Math.floor(graceRemainingSeconds / 60)}분 {graceRemainingSeconds % 60}초
-          </span>
-        </div>
-      )}
 
       <div className="flex flex-1 overflow-hidden relative">
         <LeftSidebar
@@ -4094,6 +4098,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         />
 
         <main className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-zinc-950">
+          <FormattingToolbar
+            dispatch={dispatchCommand}
+            previewMode={previewMode}
+            isExpired={licenseStatus.isExpired}
+          />
+
+          {graceRemainingSeconds !== null && (
+            <div className="bg-rose-600 text-white text-xs font-black py-2.5 px-4 flex items-center justify-between animate-pulse shadow-md z-[50]">
+              <span className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span>라이선스가 만료되었습니다. 편집 및 저장을 완료해 주십시오. 유예 시간 경과 시 미리보기 모드로 고정됩니다.</span>
+              </span>
+              <span className="bg-black/25 px-2.5 py-0.5 rounded font-mono">
+                남은 유예 시간: {Math.floor(graceRemainingSeconds / 60)}분 {graceRemainingSeconds % 60}초
+              </span>
+            </div>
+          )}
           {/* 탭 바를 오른쪽 에디터/미리보기 영역에만 위치하도록 main 상단에 배치 */}
           <div className="no-print"><UnifiedTabBar
             tabs={tabs}
@@ -5990,41 +6011,44 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               </div>
           </div>
 
-          <StatusBar
-            content={content}
-            fileName={currentFileName}
-            folderName={rootFolder?.name}
-            driveLetter={driveLetter}
-            workspaceType={workspaceType}
-            activeProfileName={profiles.find(p => p.id === activeProfileId)?.name || DEFAULT_PROFILE.name}
-            cloudProvider={null}
-            path={currentFileNode?.path}
-            cursorLine={cursorPositionRef.current?.lineNumber}
-            cursorColumn={cursorPositionRef.current?.column}
-            saveStatus={saveStatus}
-            isToolbarOpen={isToolbarOpen}
-            setIsToolbarOpen={setIsToolbarOpen}
-            isSidebarOpen={isSidebarOpen}
-            setIsSidebarOpen={setIsSidebarOpen}
-            previewMode={previewMode}
-            setPreviewMode={setPreviewMode}
-            isDarkMode={isDarkMode}
-            setIsDarkMode={setIsDarkMode}
-            themePalette={themePalette}
-            onThemeChange={(themeId) => handleThemeChange(themeId, THEME_MAP)}
-            isActivated={isActivated}
-            isExpired={licenseStatus.isExpired}
-          />
         </main>
 
         {isToolbarOpen && (
-          <div className="no-print h-full flex border-l border-zinc-200 dark:border-zinc-700/60">
+          <div className="no-print h-full w-12 flex flex-col justify-end bg-zinc-50 dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700/60 pb-3">
             <Toolbar
               dispatch={dispatchCommand}
+              previewMode={previewMode}
+              isExpired={licenseStatus.isExpired}
             />
           </div>
         )}
       </div>
+
+      <StatusBar
+        content={content}
+        fileName={currentFileName}
+        folderName={rootFolder?.name}
+        driveLetter={driveLetter}
+        workspaceType={workspaceType}
+        activeProfileName={profiles.find(p => p.id === activeProfileId)?.name || DEFAULT_PROFILE.name}
+        cloudProvider={null}
+        path={currentFileNode?.path}
+        cursorLine={cursorPositionRef.current?.lineNumber}
+        cursorColumn={cursorPositionRef.current?.column}
+        saveStatus={saveStatus}
+        isToolbarOpen={isToolbarOpen}
+        setIsToolbarOpen={setIsToolbarOpen}
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        previewMode={previewMode}
+        setPreviewMode={setPreviewMode}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
+        themePalette={themePalette}
+        onThemeChange={(themeId) => handleThemeChange(themeId, THEME_MAP)}
+        isActivated={isActivated}
+        isExpired={licenseStatus.isExpired}
+      />
 
       <SettingsModal
         isOpen={isSettingsModalOpen}
