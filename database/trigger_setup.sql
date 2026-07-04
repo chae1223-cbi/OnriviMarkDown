@@ -14,9 +14,14 @@ DECLARE
   bin bytea = '';
   byte text;
   i int = 1;
+  len int;
 BEGIN
-  WHILE i <= length(input) LOOP
-    IF substr(input, i, 1) = '%' THEN
+  IF input IS NULL THEN
+    RETURN NULL;
+  END IF;
+  len := length(input);
+  WHILE i <= len LOOP
+    IF substr(input, i, 1) = '%' AND i + 2 <= len AND substr(input, i + 1, 2) ~ '^[0-9a-fA-F]{2}$' THEN
       byte = substr(input, i + 1, 2);
       bin = bin || decode(byte, 'hex');
       i = i + 3;

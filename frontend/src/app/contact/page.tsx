@@ -78,7 +78,7 @@ export default function ContactPage() {
         if (resp.ok) {
           const d = await resp.json();
           if (d.status === 'success' && d.relativePath) {
-            urls.push('https://onrivi.com' + d.relativePath);
+            urls.push('https://onrivi.com' + d.relativePath + '?name=' + encodeURIComponent(file.name));
           } else {
             console.error('[Contact] R2 업로드 실패:', d.error);
           }
