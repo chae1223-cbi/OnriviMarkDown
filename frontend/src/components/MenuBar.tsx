@@ -250,6 +250,7 @@ export default function MenuBar({
           { divider: true },
           { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <span>📋</span>, onClick: () => dispatch('COPY_ALL') },
+          { label: "문서 병합", icon: <span>🔀</span>, onClick: () => dispatch('MERGE') },
           { label: "환경 설정", icon: <span>⚙️</span>, onClick: () => dispatch('SETTINGS') },
         ]}
       />

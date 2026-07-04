@@ -11,7 +11,8 @@
  * 모든 전역 상태 및 화면 분할 레이아웃 조립.
  * 메뉴바 , 툴바, 상태바, 사이드바 등 모든 컴포넌트의 렌더링을 책임짐.
  * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거 / 서식설정(css-style)을 제한사용자 및 만료사용자도 사용할 수 있게 완화
+ * 🚨 @PATCH : **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
+ *             2026-07-04 — 미인증/만료 사용자 css-style 모드 차단, preview 전용 고정, 웰컴페이지 표시
  *             **2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
  *             **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
  * -----------------------------------------------------------------------
@@ -1122,7 +1123,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-LICENSE-MainEditorApp-0090] MainEditorApp.tsx ➔ license_force_preview
   // 🎯 @KICK  : 미인증 또는 계약만료 시 에디터 모드를 무조건 미리보기 전용으로 강제
   // 🛡️ @GUARD : mounted 이후에만 실행; 불필요한 재설정 방지를 위해 현재 모드와 목표 모드 비교;
-  //             css-style 모드는 허용 (서식 설정 중에는 강제 전환하지 않음)
+  //             css-style 모드는 허용 (서식 설정 중에는 강제 전환하지 않음) → 미인증 시 preview만 허용
   //             유효 라이선스 시에는 모드 자유롭게 전환 가능 (preview 고정 해제)
   // 🚨 @PATCH : 2026-06-21 — 신규: 미인증/계약만료 시 preview 강제; previewMode deps 추가
   //             2026-06-22 — `else if` (유효 시 both 복원) 제거 → 유효 라이선스도 미리보기 전환 가능
@@ -1135,18 +1136,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const welcome = getWelcomeContent();
         const welcomeTabId = 'welcome-tab-' + Date.now();
         const welcomeTab: EditorTab = {
-          id: welcomeTabId, name: '서식 정의 미리보기.md', path: null, node: null,
+          id: welcomeTabId, name: '온리비 어서 시작하기.md', path: null, node: null,
           content: welcome, isModified: false
         };
         setTabs([welcomeTab]);
         setActiveTabId(welcomeTabId);
         setContent(welcome);
-        setCurrentFileName('서식 정의 미리보기.md');
+        setCurrentFileName('온리비 어서 시작하기.md');
         setCurrentFileNode(null);
       }
-      if (previewModeRef.current !== 'css-style') {
-        setPreviewModeRaw('css-style');
-        previewModeRef.current = 'css-style';
+      if (previewModeRef.current !== 'preview') {
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
         isEditorMountedRef.current = true;
       }
     }
@@ -1478,7 +1479,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     setPreviewModeRaw(prev => {
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
-      if (licenseStatus.isExpired && next !== 'preview' && next !== 'css-style') {
+      if (licenseStatus.isExpired && next !== 'preview') {
         showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
         return 'preview';
       }
@@ -1492,11 +1493,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setHelpContent(null);
         setHelpTitle('');
         
-        const hasWelcomeTab = tabsRef.current.some(t => t.name === '서식 정의 미리보기.md');
+        const hasWelcomeTab = tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md');
         if (!hasWelcomeTab) {
-          createNewTab(getWelcomeContent(), '서식 정의 미리보기.md');
+          createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md');
         } else {
-          const welcomeTab = tabsRef.current.find(t => t.name === '서식 정의 미리보기.md');
+          const welcomeTab = tabsRef.current.find(t => t.name === '온리비 어서 시작하기.md');
           if (welcomeTab) switchTab(welcomeTab.id);
         }
       }
@@ -1531,8 +1532,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         tabToClose.model.dispose();
       }
 
-      // 💡 서식 설정 전용 '서식 정의 미리보기.md' 탭을 닫으면 서식 설정창(CssStyleForm) 패널도 함께 닫음 (기본 분할 화면 'both' 모드로 전환)
-      if (tabToClose.name === '서식 정의 미리보기.md' || tabToClose.name === '도움말.md') {
+      // 💡 웰컴페이지 전용 '온리비 어서 시작하기.md' 탭을 닫으면 기본 분할 화면 'both' 모드로 전환
+      if (tabToClose.name === '온리비 어서 시작하기.md' || tabToClose.name === '도움말.md') {
         setPreviewModeRaw('both');
         previewModeRef.current = 'both';
         isEditorMountedRef.current = true;
@@ -3456,17 +3457,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setPreviewMode(prev => prev === 'css-style' ? 'both' : 'css-style');
         return;
       case 'MERGE':
-        if (isMergeMode) {
-          if (selectedMergeNodes.length >= 2) {
-            setIsMergeModalOpen(true);
-          } else {
-            setIsMergeMode(false);
-            setSelectedMergeNodes([]);
-          }
-        } else {
-          setIsMergeMode(true);
-          showToast("사이드바에서 병합할 파일을 선택한 후 다시 클릭하세요.", 'info');
-        }
+        setIsMergeMode(true);
         return;
     }
 
@@ -4017,6 +4008,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           isRestrictedUser={licenseStatus.isExpired}
           selectedMergeNodes={selectedMergeNodes}
           toggleMergeNodeSelect={toggleMergeNodeSelect}
+          onOpenMergeModal={handleOpenMergeModal}
           onCancelMerge={() => { setIsMergeMode(false); setSelectedMergeNodes([]); }}
           onSelectRootFolder={() => selectRootFolder('local', null)}
           onRestoreFolder={restoreFolderPermission}
@@ -6126,7 +6118,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       />
       <MergeModal
         isOpen={isMergeModalOpen}
-        onClose={() => setIsMergeModalOpen(false)}
+        onClose={() => { setIsMergeModalOpen(false); setIsMergeMode(false); setSelectedMergeNodes([]); }}
         selectedNodes={selectedMergeNodes}
         rootFolder={rootFolder}
         workspaceType={workspaceType}

@@ -1000,6 +1000,53 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
   }
 });
 
+// 20. 다중 파일 병합 (IPC — 백엔드 서버 불필요)
+ipcMain.handle('file:mergeFiles', async (event, { sourcePaths, targetPath, deleteSources, separator }) => {
+  try {
+    if (!sourcePaths || !Array.isArray(sourcePaths) || sourcePaths.length < 2) {
+      return { success: false, error: 'At least two source files are required for merging.' };
+    }
+    if (!targetPath) {
+      return { success: false, error: 'Target path is required.' };
+    }
+
+    const contents = [];
+    for (const src of sourcePaths) {
+      const fileContent = fs.readFileSync(src, 'utf-8');
+      const fileName = path.basename(src);
+      let formattedContent = fileContent;
+      if (separator === 'title') {
+        const titleLabel = fileName.replace(/\.[^/.]+$/, "");
+        formattedContent = `## ${titleLabel}\n\n${fileContent}`;
+      }
+      contents.push(formattedContent);
+    }
+
+    let joinSeparator = '\n\n';
+    if (separator === 'divider') joinSeparator = '\n\n---\n\n';
+    else if (separator === 'none') joinSeparator = '\n';
+    else if (separator === 'title') joinSeparator = '\n\n';
+
+    const mergedContent = contents.join(joinSeparator);
+
+    const targetDir = path.dirname(targetPath);
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(targetPath, mergedContent, 'utf-8');
+
+    if (deleteSources) {
+      for (const src of sourcePaths) {
+        if (src !== targetPath) {
+          fs.rmSync(src, { recursive: true, force: true });
+        }
+      }
+    }
+
+    return { success: true, path: targetPath };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // 21. PDF 인쇄 (webContents.printToPDF API 연동)
 ipcMain.handle('pdf:printToPDF', async (event, options) => {
   if (!mainWindow) throw new Error("메인 윈도우 인스턴스가 존재하지 않습니다.");

@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-06-20** — Mermaid 다이어그램 이미지 저장(handleSaveImage) 기능이 Electron 데스크톱 앱 내에서 동작하지 않던 API 명칭 불일치 버그(saveAs -> saveFileAs)를 해결하고, 웹 브라우저 환경에서 동작할 수 있도록 a 링크 다운로드 폴백을 추가; 다이어그램 저장, 이미지 복사 시 다이어그램 크기가 극도로 작게 나오는 찌그러짐 결함을 3배 스케일링 기법으로 최종 영구 해결; 딤드 오버레이 방식의 복잡한 확대 모달을 전면 걷어내고, 독립 새 브라우저 창(Pop-up Window)으로 다이어그램을 선명하게 확대 및 다중 작업할 수 있도록 openInNewWindow 기능으로 리팩토링 및 🔍 새 창으로 확대 버튼 제공
+// 🚨 @PATCH : **2026-07-04** — Mermaid 다이어그램 렌더링 문법 에러 복구 강화(유입된 중첩 백틱 펜스 태그 ```mermaid 및 깨진 기호/괄호 라인 자동 정제, 화살표 레이블 간격 자동 보정) 및 에러 발생 시 마크다운 코드 원본을 복사하고 대조해볼 수 있는 '코드 원본 보기' 디버깅 UI 추가 패치
+//             **2026-06-20** — Mermaid 다이어그램 이미지 저장(handleSaveImage) 기능이 Electron 데스크톱 앱 내에서 동작하지 않던 API 명칭 불일치 버그(saveAs -> saveFileAs)를 해결하고, 웹 브라우저 환경에서 동작할 수 있도록 a 링크 다운로드 폴백을 추가; 다이어그램 저장, 이미지 복사 시 다이어그램 크기가 극도로 작게 나오는 찌그러짐 결함을 3배 스케일링 기법으로 최종 영구 해결; 딤드 오버레이 방식의 복잡한 확대 모달을 전면 걷어내고, 독립 새 브라우저 창(Pop-up Window)으로 다이어그램을 선명하게 확대 및 다중 작업할 수 있도록 openInNewWindow 기능으로 리팩토링 및 🔍 새 창으로 확대 버튼 제공
 
 import React, { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -357,6 +358,7 @@ const loadMermaidScript = (): Promise<any> => {
 function MermaidBlock({ code }: { code: string }) {
   const [svgHtml, setSvgHtml] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
   const [copied, setCopied] = useState(false);
   const [imageCopied, setImageCopied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -605,6 +607,15 @@ function MermaidBlock({ code }: { code: string }) {
         // 렌더링 전에 자동으로 전각 문자(［, ］, （, ）)로 자동 보정하여 구문 에러를 원천 예방합니다.
         // 또한 마크다운 파서로 인해 HTML 이스케이프된 기호(&gt;, &lt; 등)를 본래의 코드로 복구합니다.
         let cleanCode = code;
+        
+        // 💡 [Mermaid 중첩 백틱 가드 2026-07-04] 코드 내용에 실수로 중첩 삽입된 ```mermaid 및 ``` 펜스 기호들을 제거합니다.
+        try {
+          cleanCode = cleanCode
+            .replace(/```mermaid\s*/gi, '')
+            .replace(/```\s*$/gi, '')
+            .replace(/```/g, '');
+        } catch (_) {}
+
         try {
           cleanCode = cleanCode
             .replace(/&amp;/g, '&')
@@ -614,12 +625,46 @@ function MermaidBlock({ code }: { code: string }) {
         } catch (_) {}
 
         // 💡 [Mermaid 문법 정제 가드] 붙여넣기 등으로 유입된 유령 공백(NBSP) 및 잘못된 class 문법 세미콜론 제거
+        // 💡 [추가 패치 2026-07-04] 불필요한 빈 줄(\r 등)이나 줄 끝의 불완전한 공백들을 제거하여 문법 에러 최소화
+        // 💡 [화살표 텍스트 간격 보정 가드 2026-07-04] 띄어쓰기가 없는 '--텍스트-->' 문법을 파서 호환을 위해 '-- 텍스트 -->' 로 자동 치환
+        // 💡 [subgraph 명칭 자동 따옴표 래핑 가드 2026-07-04] subgraph 명칭에 공백/괄호가 포함되었으나 따옴표가 없으면 강제로 따옴표 씌우기
         try {
           cleanCode = cleanCode
             .replace(/\u00a0/g, ' ')
-            .replace(/^class\s+\S+\s+\S+;/gm, (m) => m.slice(0, -1));
+            .replace(/\r/g, '')
+            .replace(/^class\s+\S+\s+\S+;/gm, (m) => m.slice(0, -1))
+            .replace(/--([^-<>]+)-->/g, '-- $1 -->')
+            .replace(/==([^=<>]+)==>/g, '== $1 ==>')
+            .replace(/subgraph\s+([^"\n\r]+)$/gm, (match, title) => {
+              const trimmed = title.trim();
+              // 이미 따옴표가 있거나 방향 지시어(direction)인 경우는 건너뜀
+              if (trimmed.startsWith('"') || trimmed.startsWith('\'') || trimmed.match(/^(TB|TD|BT|RL|LR)$/i)) {
+                return match;
+              }
+              return `subgraph "${trimmed}"`;
+            });
         } catch (_) {}
 
+        // 💡 [Mermaid 깨진 라인/외톨이 괄호 자동 수리 가드 2026-07-04] 
+        // 입력 도중 또는 실수로 복사된 줄 끝의 외톨이 닫는 괄호 ')' 나 불완전한 화살표 연결을 자동 복구합니다.
+        try {
+          const lines = cleanCode.split('\n');
+          const fixedLines = lines.map(line => {
+            let l = line.trimRight();
+            // Case 1: '--> |텍스트| )' 또는 '--> )' 와 같이 화살표 뒤에 닫는 괄호 하나만 덜렁 있는 경우 제거
+            if (l.match(/(-->|==>|-\.-\>)\s*(\|[^|]*\|)?\s*\)$/)) {
+              l = l.replace(/\s*\)$/, '');
+            }
+            // Case 2: '--> |텍스트|' 혹은 '-->' 로 줄이 끝나고 다음 연결 노드가 누락된 경우, 임시 노드 'temp'를 붙여 파서 붕괴 예방
+            if (l.endsWith('-->') || l.endsWith('==>') || l.endsWith('-.->')) {
+              l = l + ' temp["..."]';
+            }
+            return line.endsWith('\n') ? l + '\n' : l;
+          });
+          cleanCode = fixedLines.join('\n');
+        } catch (_) {}
+
+        // 💡 [따옴표 내부 전각화 가드]
         try {
           cleanCode = cleanCode.replace(/"([^"]*)"/g, (match, p1) => {
             const sanitized = p1
@@ -628,6 +673,23 @@ function MermaidBlock({ code }: { code: string }) {
               .replace(/\(/g, '（')
               .replace(/\)/g, '）');
             return `"${sanitized}"`;
+          });
+        } catch (_) {}
+
+        // 💡 [대괄호 내부 소괄호 중첩 복구 가드 2026-07-04] 따옴표 없이 사용된 P[텍스트(프로젝트)] 와 같은 중첩 소괄호 전각화
+        try {
+          // [내부 텍스트(소괄호)텍스트] 패턴 감지하여 안쪽 소괄호만 전각으로 교환
+          cleanCode = cleanCode.replace(/\[([^\]\n]*?)\(([^\]\n]*?)\)([^\]\n]*?)\]/g, (match, p1, p2, p3) => {
+            return `[${p1}（${p2}）${p3}]`;
+          });
+        } catch (_) {}
+
+        // 💡 [Mermaid 노드 외곽 괄호 수리 가드] 노드명 뒤에 따옴표 없이 대괄호/소괄호가 올 때, 
+        // 괄호 내부에 다른 기호가 있으면 파서가 충돌하므로 안전하게 전각 문자로 보정합니다.
+        try {
+          cleanCode = cleanCode.replace(/(\[|{|{|\(|=>)\s*([^\]\)\n\"\'`]*?)([\/\:\;\*\&]+)([^\]\)\n\"\'`]*?)\s*(\]|}|\)|=>)/g, (match, open, prefix, invalidChar, suffix, close) => {
+            const safeMid = (prefix + invalidChar + suffix).replace(/[\/\:\;\*\&]/g, ' ');
+            return `${open}${safeMid}${close}`;
           });
         } catch (_) {}
 
@@ -654,7 +716,7 @@ function MermaidBlock({ code }: { code: string }) {
 
           if (!isValid) {
             if (active) {
-              setError(`🎨 온리비 아서: 다이어그램 문법을 입력하는 중이거나 문법이 불완전합니다. (${parserErrorMsg.substring(0, 100)})`);
+              setError(`🎨 온리비 어서: 다이어그램 문법을 입력하는 중이거나 문법이 불완전합니다. (${parserErrorMsg.substring(0, 150)})`);
               setLoading(false);
             }
             return;
@@ -676,7 +738,7 @@ function MermaidBlock({ code }: { code: string }) {
         } catch (err: any) {
           console.warn('[온리비 어서] Mermaid 렌더링 실패 가드 가동', err);
           if (active) {
-            setError('🎨 온리비 어서: 다이어그램 렌더링 중 오류를 복구했습니다.');
+            setError('🎨 온리비 어서: 다이어그램 렌더링 중 문법 충돌로 오류가 발생했습니다.');
             setLoading(false);
           }
           const badEl = document.getElementById(renderId);
@@ -747,12 +809,26 @@ function MermaidBlock({ code }: { code: string }) {
           )}
         </div>
       </div>
-      <div className="p-6 flex justify-center items-center overflow-x-auto min-h-[100px]">
+      <div className="p-6 flex flex-col justify-center items-center overflow-x-auto min-h-[100px]">
         {loading && <div className="text-sm text-zinc-400 dark:text-zinc-500 flex items-center gap-2">🔄 차트를 렌더링하는 중...</div>}
         {error && (
-          <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-md p-3 w-full font-mono whitespace-pre-wrap">
-            ⚠️ 렌더링 에러:<br />
-            {error}
+          <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-md p-4 w-full font-mono">
+            <div className="flex items-center justify-between border-b border-red-200/55 dark:border-red-900/30 pb-2 mb-2">
+              <span className="font-semibold flex items-center gap-1">⚠️ 렌더링 에러</span>
+              <button 
+                onClick={() => setShowRaw(!showRaw)}
+                className="text-[10px] px-2 py-0.5 rounded bg-white dark:bg-zinc-800 border border-red-300 dark:border-red-900/40 text-red-700 dark:text-red-400 hover:bg-red-100/50 cursor-pointer transition-all active:scale-95"
+              >
+                {showRaw ? '코드 접기' : '코드 원본 보기'}
+              </button>
+            </div>
+            <div className="whitespace-pre-wrap leading-relaxed">{error}</div>
+            
+            {showRaw && (
+              <div className="mt-3 p-3 bg-zinc-900 dark:bg-black text-zinc-300 dark:text-zinc-400 rounded border border-zinc-800 text-xs overflow-x-auto select-all max-h-[250px]">
+                {code}
+              </div>
+            )}
           </div>
         )}
         {!loading && !error && (

@@ -99,6 +99,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 24. 사용자 서식 프로필 저장 (Desktop — userData)
   saveProfiles: (profiles) => ipcRenderer.invoke('file:saveProfiles', profiles),
 
+  // 25. 다중 파일 병합 (백엔드 서버 불필요, IPC 직접 처리)
+  mergeFiles: (config) => ipcRenderer.invoke('file:mergeFiles', config),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');

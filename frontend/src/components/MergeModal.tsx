@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUp, ArrowDown, X, Layers, Trash2, ArrowUpDown } from 'lucide-react';
 import { FileNode } from '@/lib/indexedDbHelper';
@@ -31,6 +31,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
   
 
   const [nodes, setNodes] = useState<FileNode[]>([]);
+  const prevSelectedRef = useRef<FileNode[]>([]);
   const [targetName, setTargetName] = useState('merged.md');
   const [separator, setSeparator] = useState('line'); // 'none' | 'line' | 'divider' | 'title'
   const [deleteSources, setDeleteSources] = useState(false);
@@ -56,17 +57,19 @@ const MergeModal: React.FC<MergeModalProps> = ({
 // 🔗 @CALLS : setNodes, setTargetName
 // ====================================================================
   useEffect(() => {
-    if (isOpen) {
-      setNodes([...selectedNodes]);
-      // 기본 병합 파일명 제안 (첫번째 파일명 뒤에 _merged 추가)
-      if (selectedNodes.length > 0) {
-        const first = selectedNodes[0].name;
-        const extIndex = first.lastIndexOf('.');
-        const baseName = extIndex !== -1 ? first.substring(0, extIndex) : first;
-        setTargetName(`${baseName}_merged.md`);
-      }
+    if (!isOpen) return;
+    const prev = prevSelectedRef.current;
+    const hasChanged = prev.length !== selectedNodes.length || selectedNodes.some((n, i) => n.path ? n.path !== (prev[i]?.path) : n.name !== (prev[i]?.name));
+    if (!hasChanged) return;
+    prevSelectedRef.current = [...selectedNodes];
+    setNodes([...selectedNodes]);
+    if (selectedNodes.length > 0 && nodes.length === 0) {
+      const first = selectedNodes[0].name;
+      const extIndex = first.lastIndexOf('.');
+      const baseName = extIndex !== -1 ? first.substring(0, extIndex) : first;
+      setTargetName(`${baseName}_merged.md`);
     }
-  }, [isOpen, selectedNodes]);
+  }, [isOpen, selectedNodes, nodes.length]);
 
   if (!isOpen) return null;
   if (!mounted) return null;
@@ -155,27 +158,45 @@ const MergeModal: React.FC<MergeModalProps> = ({
         const parentDir = lastSlash !== -1 ? firstPath.substring(0, lastSlash) : "";
         const targetPath = parentDir ? `${parentDir}\\${finalName}` : finalName;
 
-        const res = await fetch(getApiUrl('/api/merge-files'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        if (typeof window !== 'undefined' && (window as any).electronAPI) {
+          const result = await (window as any).electronAPI.mergeFiles({
             sourcePaths,
             targetPath,
             deleteSources,
             separator
-          })
-        });
-
-        if (res.ok) {
-          const result = await res.json();
-          showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
-          refreshParent();
-          setTimeout(() => refreshParent(), 300);
-          onClose();
-          openFile({ name: finalName, kind: 'file', path: result.path });
+          });
+          if (result.success) {
+            showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
+            refreshParent();
+            setTimeout(() => refreshParent(), 300);
+            onClose();
+            openFile({ name: finalName, kind: 'file', path: result.path });
+          } else {
+            showToast("글 병합 중 오류가 발생했습니다: " + result.error, 'error');
+          }
         } else {
-          const errData = await res.json();
-          showToast("글 병합 중 오류가 발생했습니다: " + errData.error, 'error');
+          const res = await fetch(getApiUrl('/api/merge-files'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourcePaths,
+              targetPath,
+              deleteSources,
+              separator
+            })
+          });
+
+          if (res.ok) {
+            const result = await res.json();
+            showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
+            refreshParent();
+            setTimeout(() => refreshParent(), 300);
+            onClose();
+            openFile({ name: finalName, kind: 'file', path: result.path });
+          } else {
+            const errData = await res.json();
+            showToast("글 병합 중 오류가 발생했습니다: " + errData.error, 'error');
+          }
         }
       } else if (activeMode === 'browser') {
         const contents = [];
@@ -286,7 +307,11 @@ const MergeModal: React.FC<MergeModalProps> = ({
             </div>
             
             <div className="border border-gray-100 dark:border-[#30363d] rounded-xl overflow-hidden divide-y divide-gray-100 dark:divide-[#30363d] bg-gray-50/20 dark:bg-black/10">
-              {nodes.map((node, index) => (
+              {nodes.length === 0 ? (
+                <div className="px-4 py-8 text-center text-xs text-gray-400 dark:text-gray-500">
+                  사이드바에서 병합할 .md 파일을 선택하세요
+                </div>
+              ) : nodes.map((node, index) => (
                 <div 
                   key={node.path || node.name} 
                   className="flex items-center justify-between px-4 py-2.5 text-xs text-gray-800 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#161b22]/50 transition-colors"
@@ -349,7 +374,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
           </button>
           <button 
             onClick={handleMerge}
-            disabled={loading}
+            disabled={loading || nodes.length < 2}
             className="px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center gap-1.5"
           >
             {loading ? "로딩 중..." : "확인"}
