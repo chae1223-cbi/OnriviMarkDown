@@ -88,6 +88,14 @@ export default function Toolbar({ dispatch, previewMode, isExpired }: ToolbarPro
         <span className="text-zinc-500 dark:text-zinc-400 text-sm">🔠</span>
       </button>
 
+      <button
+        onMouseDown={(e) => { e.preventDefault(); dispatch('TOGGLE_CSS_STYLE'); }}
+        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-base"
+        title="서식관리"
+      >
+        <span className="text-zinc-500 dark:text-zinc-400">🎨</span>
+      </button>
+
       <button 
         onMouseDown={(e) => { e.preventDefault(); dispatch('SETTINGS'); }}
         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
