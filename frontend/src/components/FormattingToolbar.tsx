@@ -3,11 +3,7 @@
 import React from 'react';
 import { Eraser } from 'lucide-react';
 
-interface FormattingToolbarProps {
-  dispatch: (type: any) => void;
-  previewMode: 'edit' | 'both' | 'preview' | 'css-style';
-  isExpired?: boolean;
-}
+import { useEditorContext } from '@/context/EditorContext';
 
 const SHORTCUTS: Record<string, string> = {
   bold: 'Ctrl+B',
@@ -32,7 +28,8 @@ const SHORTCUTS: Record<string, string> = {
 const tooltip = (label: string, shortcut?: string) =>
   shortcut ? `${label} (${shortcut})` : label;
 
-export default function FormattingToolbar({ dispatch, previewMode, isExpired }: FormattingToolbarProps) {
+export default function FormattingToolbar() {
+  const { dispatchCommand: dispatch, previewMode, isExpired } = useEditorContext();
   const [headingLevel, setHeadingLevel] = React.useState(3);
 
   const handleHeadingUp = (e: React.MouseEvent) => {

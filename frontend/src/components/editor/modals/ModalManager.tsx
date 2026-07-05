@@ -1,3 +1,13 @@
+/**
+ * 프로그램명 : OnriviAuthor
+ * 프로그램 ID : oaar-modal-manager
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026.07.05> 최초작성
+ * 🚨 @PATCH : **2026-07-06** — [시큐어코딩] 파일 및 폴더 생성 시 경로 탐색(Path Traversal) 공격 방지를 위해 생성명에서 슬래시(/) 및 백슬래시(\) 문자를 제거하는 정규식 필터 적용
+ * -----------------------------------------------------------------------
+ */
 import React from 'react';
 
 // 각종 모달 컴포넌트 임포트
@@ -10,6 +20,7 @@ import MapModal from '@/components/MapModal';
 import TableModal from '@/components/TableModal';
 import MergeModal from '@/components/MergeModal';
 import YoutubeModal from '@/components/YoutubeModal';
+import HelpModal from '@/components/HelpModal';
 import AboutModal from '@/components/AboutModal';
 import LicenseModal from '@/components/LicenseModal';
 import FormulaModal from '@/components/FormulaModal';
@@ -44,7 +55,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     promptConfig, setPromptConfig,
     confirmConfig, setConfirmConfig,
     isMapModalOpen, setIsMapModalOpen,
-    isTableModalOpen, setIsTableModalOpen
+    isTableModalOpen, setIsTableModalOpen,
+    isHelpModalOpen, setIsHelpModalOpen
   } = modals;
 
   // deps에서 필요한 속성들 추출
@@ -57,7 +69,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
     showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
     handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId, setProfiles,
-    isSystemProfileId, getApiUrl, DEFAULT_PROFILE, SYSTEM_PROFILES, vfsCreateFile, vfsWriteFile, vfsCreateFolder
+    isSystemProfileId, getApiUrl, DEFAULT_PROFILE, SYSTEM_PROFILES, vfsCreateFile, vfsWriteFile, vfsCreateFolder,
+    helpTitle, helpContent, setHelpContent
   } = deps;
 
   return (
@@ -109,7 +122,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
             }
             try {
               if (promptConfig.type === 'createFile') {
-                const finalName = value.endsWith('.md') ? value : `${value}.md`;
+                // [시큐어코딩] 경로 탐색(Path Traversal) 공격 방지: 파일명에서 슬래시, 백슬래시 제거
+                const safeValue = value.replace(/[\/\\]/g, '');
+                const finalName = safeValue.endsWith('.md') ? safeValue : `${safeValue}.md`;
                 const api = (window as any).electronAPI;
                 if (api && rootFolder?.name && rootFolder.name !== '브라우저 스토리지') {
                   const fullPath = rootFolder.name + '\\' + finalName;
@@ -175,17 +190,19 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                   }
                 }
               } else if (promptConfig.type === 'createFolder') {
+                // [시큐어코딩] 경로 탐색(Path Traversal) 공격 방지: 폴더명에서 슬래시, 백슬래시 제거
+                const safeValue = value.replace(/[\/\\]/g, '');
                 if (workspaceType === 'browser') {
                   if (rootFolder?.handle) {
-                    await rootFolder.handle.getDirectoryHandle(value, { create: true });
+                    await rootFolder.handle.getDirectoryHandle(safeValue, { create: true });
                   } else {
-                    vfsCreateFolder('', value);
+                    vfsCreateFolder('', safeValue);
                   }
                 } else {
                   await fetch(getApiUrl('/api/create-folder'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ parentPath: '', name: value })
+                    body: JSON.stringify({ parentPath: '', name: safeValue })
                   });
                 }
                 setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));
@@ -351,6 +368,14 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           setActiveProfileId(newId);
           showToast(`서식 '${merged.name}'이(가) 추가되었습니다.`, 'success');
         }}
+        isDarkMode={isDarkMode}
+      />
+
+      <HelpModal
+        isOpen={isHelpModalOpen}
+        onClose={() => { setIsHelpModalOpen(false); setHelpContent(''); }}
+        title={helpTitle}
+        content={helpContent}
         isDarkMode={isDarkMode}
       />
     </>

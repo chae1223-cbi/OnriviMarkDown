@@ -49,6 +49,7 @@ export const useEditorModals = () => {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
   const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   
   const [promptConfig, setPromptConfig] = useState<PromptConfig>({
     isOpen: false, title: "", defaultValue: "", type: null, error: ""
@@ -73,6 +74,7 @@ export const useEditorModals = () => {
     isAboutModalOpen, setIsAboutModalOpen,
     isLicenseModalOpen, setIsLicenseModalOpen,
     isFormulaModalOpen, setIsFormulaModalOpen,
+    isHelpModalOpen, setIsHelpModalOpen,
     promptConfig, setPromptConfig,
     confirmConfig, setConfirmConfig
   };

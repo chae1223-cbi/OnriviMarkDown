@@ -3,31 +3,7 @@
 import React, { useState } from 'react';
 import { EDITOR_THEMES } from '@/lib/editorThemes';
 
-interface StatusBarProps {
-  content: string;
-  folderName?: string;
-  fileName: string;
-  driveLetter: string;
-  workspaceType: 'local' | 'cloud' | 'browser';
-  cloudProvider: string | null;
-  path?: string;
-  cursorLine?: number;
-  cursorColumn?: number;
-  saveStatus?: 'saved' | 'saving' | 'unsaved' | '';
-  isToolbarOpen?: boolean;
-  setIsToolbarOpen?: (v: boolean) => void;
-  isSidebarOpen?: boolean;
-  setIsSidebarOpen?: (v: boolean) => void;
-  previewMode?: 'edit' | 'both' | 'preview' | 'css-style';
-  setPreviewMode?: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
-  isDarkMode?: boolean;
-  setIsDarkMode?: (v: boolean) => void;
-  themePalette?: string;
-  onThemeChange?: (themeId: string) => void;
-  isActivated?: boolean;
-  isExpired?: boolean;
-  activeProfileName?: string;
-}
+import { useEditorContext } from '@/context/EditorContext';
 
 const localTranslations: Record<string, Record<string, string>> = {
   ko: {
@@ -115,18 +91,24 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : getFullPath, t
 // ====================================================================
-export default function StatusBar({ 
-  content, folderName, fileName, driveLetter, 
-  workspaceType, cloudProvider, path: relativePath, cursorLine, cursorColumn, saveStatus,
-  isToolbarOpen, setIsToolbarOpen,
-  isSidebarOpen, setIsSidebarOpen,
-  previewMode, setPreviewMode,
-  isDarkMode, setIsDarkMode,
-  themePalette, onThemeChange,
-  isActivated,
-  isExpired,
-  activeProfileName
-}: StatusBarProps) {
+export default function StatusBar() {
+  const { 
+    content, rootFolder, currentFileName: fileName, driveLetter, 
+    workspaceType, cloudProvider, currentFileNode, cursorLine, cursorColumn, saveStatus,
+    isToolbarOpen, setIsToolbarOpen,
+    isSidebarOpen, setIsSidebarOpen,
+    previewMode, setPreviewMode,
+    isDarkMode, setIsDarkMode,
+    themePalette, handleThemeChange: onThemeChange,
+    isActivated,
+    isExpired,
+    activeProfileId, profiles, DEFAULT_PROFILE
+  } = useEditorContext();
+
+  const folderName = rootFolder?.name;
+  const relativePath = currentFileNode?.path;
+  const activeProfileName = profiles?.find((p: any) => p.id === activeProfileId)?.name || DEFAULT_PROFILE?.name;
+
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
   const currentTheme = EDITOR_THEMES.find(t => t.id === themePalette) || EDITOR_THEMES[0];
   const charCount = content.length;

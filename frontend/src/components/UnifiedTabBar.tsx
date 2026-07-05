@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Plus } from 'lucide-react';
 import { FileNode } from '@/lib/indexedDbHelper';
+import { useEditorContext } from '@/context/EditorContext';
 
 // ====================================================================
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
@@ -22,37 +23,15 @@ export interface EditorTab {
   isStyleTab?: boolean;
 }
 
-interface UnifiedTabBarProps {
-  tabs: EditorTab[];
-  activeTabId: string | null;
-  onSwitchTab: (id: string) => void;
-  onCloseTab: (id: string, e?: React.MouseEvent) => void;
-  onCreateNewTab: () => void;
-  isDarkMode: boolean;
-}
-
-// ====================================================================
-// 📊 [OMD-EDIT-UnifiedTabBar-0001] UnifiedTabBar ➔ UnifiedTabBar
-// 🎯 @KICK  : 통합 탭바 컴포넌트 - 열린 문서 탭 목록 표시, 탭 전환/닫기/추가 기능 제공
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 2026-06-23 - 탭 추가(+) 버튼 기능 제거
-// 🔗 @CALLS : onSwitchTab, onCloseTab, onCreateNewTab
-// ====================================================================
-export default function UnifiedTabBar({
-  tabs,
-  activeTabId,
-  onSwitchTab,
-  onCloseTab,
-  onCreateNewTab,
-  isDarkMode
-}: UnifiedTabBarProps) {
+export default function UnifiedTabBar() {
+  const { tabs, activeTabId, switchTab: onSwitchTab, closeTab: onCloseTab, isDarkMode } = useEditorContext();
   /* [ONR-UI-004] 통합 탭바 제어 연동: 개별 문서 탭 간 전환 및 마우스 클릭 이벤트 바인딩 로직입니다. */
   return (
     <div className={`flex items-center w-full border-b border-black/5 dark:border-white/10 px-4 py-1.5 gap-1.5 overflow-x-auto select-none no-scrollbar h-[44px] ${
       isDarkMode ? 'bg-zinc-900 text-zinc-100' : 'bg-slate-50 text-slate-800'
     }`}>
       <div className="flex items-center gap-1.5 flex-1 overflow-x-auto no-scrollbar">
-        {tabs.map((tab) => {
+        {tabs.map((tab: EditorTab) => {
           const isActive = activeTabId === tab.id;
           return (
             <div

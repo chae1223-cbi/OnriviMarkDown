@@ -4,24 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { EDITOR_THEMES } from '@/lib/editorThemes';
 import { useRouter } from 'next/navigation';
-import { useUIStore } from '@/store/useUIStore';
-
-interface MenuBarProps {
-  isDarkMode?: boolean;
-  setIsDarkMode?: (v: boolean) => void;
-  isSidebarOpen?: boolean;
-  setIsSidebarOpen?: (v: boolean) => void;
-  isToolbarOpen?: boolean;
-  setIsToolbarOpen?: (v: boolean) => void;
-  previewMode: 'edit' | 'both' | 'preview' | 'css-style';
-  setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
-  dispatch: (type: any, payload?: any) => void;
-  setContent: (v: string) => void;
-  isSearchOpen: boolean;
-  isAddonEnv?: boolean;
-  themePalette?: string;
-  onThemeChange?: (themeId: string) => void;
-}
+import { useEditorContext } from '@/context/EditorContext';
 
 const localTranslations: Record<string, Record<string, string>> = {
   ko: {
@@ -109,23 +92,21 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-MenuBar-0004] MenuBar ➔ MenuBar
 // 🎯 @KICK  : 상단 메뉴바 렌더링 - 파일/편집/도구/도움말 드롭다운 메뉴 제공
 // 🛡️ @GUARD : previewMode가 'preview'일 때 편집 메뉴 숨김
-// 🚨 @PATCH : PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
+// 🚨 @PATCH : **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 리팩토링; PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
 // 🔗 @CALLS : MenuDropdown, dispatch, setIsSidebarOpen, setIsToolbarOpen, setPreviewMode
 // ====================================================================
-export default function MenuBar({ 
-  previewMode, setPreviewMode, 
-  dispatch, setContent,
-  isSearchOpen,
-  isAddonEnv,
-  onThemeChange,
-  ...props
- }: MenuBarProps) {
+export default function MenuBar() {
   const { 
+    previewMode, setPreviewMode, 
+    dispatchCommand: dispatch, setContent,
+    isSearchOpen,
+    isAddonEnv,
+    handleThemeChange: onThemeChange,
     isDarkMode, setIsDarkMode, 
     isSidebarOpen, setIsSidebarOpen, 
     isToolbarOpen, setIsToolbarOpen, 
     themePalette 
-  } = useUIStore();
+  } = useEditorContext();
   
   const router = useRouter();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);

@@ -53,6 +53,7 @@ export const useEditorHandlers = ({
   setFontSize,
   setHelpTitle,
   setHelpContent,
+  setIsHelpModalOpen,
   setFloatingToolbar,
   setPromptConfig,
   showToast,
@@ -831,25 +832,8 @@ export const useEditorHandlers = ({
     // 🔗 @CALLS : stripFrontmatter, createNewTab
     // ====================================================================
     help: async () => {
-      const api = (window as any).electronAPI;
-      let helpMd = '';
-      let helpTitle = '시작하기';
-      try {
-        if (api?.readFromPath) {
-          const file = await api.readFromPath('help/00_시작하기.md');
-          helpMd = stripFrontmatter(file.content);
-        } else {
-          const res = await fetch('/help/00_시작하기.md');
-          const text = await res.text();
-          helpMd = stripFrontmatter(text);
-        }
-      } catch (e) {
-        helpMd = '## 문서를 불러올 수 없습니다.\n\n도움말 파일을 찾을 수 없습니다.';
-        helpTitle = '오류';
-      }
-      if (createNewTab) {
-        createNewTab(helpMd, '도움말.md');
-      }
+      // 🚨 @PATCH : 기존 fetch 데이터 로직 삭제 -> HelpModal.tsx의 2-Pane 레이아웃으로 이관 (2026-07-05)
+      if (setIsHelpModalOpen) setIsHelpModalOpen(true);
     },
     license: () => setIsLicenseModalOpen(true),
     // ====================================================================

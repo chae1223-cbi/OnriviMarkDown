@@ -4,11 +4,7 @@ import React from 'react';
 import { Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-interface ToolbarProps {
-  dispatch: (type: any) => void;
-  previewMode?: 'edit' | 'both' | 'preview' | 'css-style';
-  isExpired?: boolean;
-}
+import { useEditorContext } from '@/context/EditorContext';
 
 function openExternal(url: string) {
   if ((window as any).electronAPI?.openExternal) {
@@ -18,7 +14,8 @@ function openExternal(url: string) {
   }
 }
 
-export default function Toolbar({ dispatch, previewMode, isExpired }: ToolbarProps) {
+export default function Toolbar() {
+  const { dispatchCommand: dispatch, previewMode, isExpired } = useEditorContext();
   const router = useRouter();
   const showProductivity = previewMode !== 'preview' && !isExpired;
 
