@@ -1,4 +1,4 @@
-﻿# OMD 함수 카탈로그 퀵 테이블
+# OMD 함수 카탈로그 퀵 테이블
 
 > **온리비 어서 (OnriviAuthor) v1.0.1** — 호출구조 결합형 전수 함수 주석 가이드라인  
 > 생성일: 2026-06-15 | 최종 갱신: 2026-07-03 | 총 함수: 70개 (MainEditorApp.tsx 기준)  
@@ -31,6 +31,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-CORE-0003 | MEA.tsx:338 | MainEditorApp (컴포넌트) | useToast, useEditorTabs, useFileExplorer, useEditorSettings, usePageBreak | 컨트롤 타워: 전체 상태·레이아웃·Monaco 통합 |
 | OMD-EDIT-0001 | MEA.tsx:344 | contentRef_sync | - | contentRef.current를 content 상태와 동기화 |
 | OMD-CORE-0004 | MEA.tsx:417 | loadUserProfiles | api.readProfiles, localStorage.getItem, setProfiles | 플랫폼 저장소에서 CSS 프로파일 로드 |
+| OMD-EDIT-MainEditorApp-0001 ✅ FIXED | MEA.tsx:28 | MainEditorApp | useToast, useEditorTabs, useFileExplorer, useEditorSettings, useEditorHandlers, getMdFiles, fetchAllMdFiles, resolveRelativeImagePath, getRelativePath, utilsEditorActions, utilsPasteHandlers, getSlashCommands, preprocessMarkdownForPreview, saveSecureData, loadSecureData, idb, getApiUrl | 에디터/UI 전역 상태 관리 및 레이아웃 조립 *(수정: 2026-06-20 — 데스크톱 라이선스 체크 배제, 2026-06-23 — 탭 추가(+) 기능 제거, 2026-07-04 — 서식설정 탭 모드를 대형 팝업 모달 방식으로 전면 개편)* |
 | OMD-EDIT-0002 | MEA.tsx:461 | previewModeRef_sync | - | previewModeRef 상태 동기화 |
 | OMD-EDIT-0003 | MEA.tsx:466 | helpContent_forces_preview | setPreviewModeRaw | 헬프 콘텐츠 설정 시 미리보기 모드 강제 전환 |
 | OMD-CORE-0005 | MEA.tsx:491 | pageViewInit | localStorage.getItem | 페이지뷰 모드 localStorage 복원 |

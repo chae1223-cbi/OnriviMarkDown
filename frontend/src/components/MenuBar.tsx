@@ -243,11 +243,11 @@ export default function MenuBar({
             subItems: [
               { label: "편집 전용", onClick: () => setPreviewMode('edit') },
               { label: "분할 화면", onClick: () => setPreviewMode('both') },
-              { label: "미리보기", onClick: () => setPreviewMode('preview') },
-              { label: "서식 정의", onClick: () => setPreviewMode('css-style') },
-              { label: "서식 설정 페이지", icon: <span>🎨</span>, onClick: () => window.open('/cssformat', '_blank') },
+              { label: "미리보기", onClick: () => setPreviewMode('preview') }
             ]
           },
+          { divider: true },
+          { label: "서식 정의 (갤러리)", icon: <span>🏛️</span>, onClick: () => setPreviewMode('css-style') },
           { divider: true },
           { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <span>📋</span>, onClick: () => dispatch('COPY_ALL') },

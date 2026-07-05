@@ -267,6 +267,7 @@ export default function CssStyleForm({
   /* ─── 인라인 이름 변경 상태 ─── */
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState('');
+  const [showAllProfiles, setShowAllProfiles] = useState(false);
 
   /* ─── ⚡ [고속 업데이트 최적화 가드] ─── */
   const rafIdRef = useRef<number | null>(null);
@@ -706,148 +707,183 @@ export default function CssStyleForm({
     { label: '넓게', value: '40px' },
   ] as const;
 
+  // 팝오버 토글 상태: showAllProfiles를 팝오버 On/Off로 사용
+  const isGalleryOpen = showAllProfiles;
+
+  // 📥 JSON 파일 내보내기 핸들러
+  const handleExportJson = () => {
+    if (!currentProfile) return;
+    const jsonString = JSON.stringify(currentProfile, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    // 파일명: 테마이름_theme.json
+    const safeName = currentProfile.name.replace(/[^a-z0-9가-힣]/gi, '_');
+    link.download = `${safeName}_theme.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="w-[420px] shrink-0 h-full bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col select-none text-sm animate-fadeIn">
-      {/* 상단 헤더 (글자 크기 상향) */}
-      <div className="h-14 bg-white dark:bg-zinc-850 border-b border-zinc-200 dark:border-zinc-850 px-4 flex items-center justify-between shrink-0 gap-2">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          {isEditingName ? (
-            <input
-              type="text"
-              value={tempName}
-              onChange={(e) => setTempName(e.target.value)}
-              onBlur={handleRenameSave}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRenameSave();
-                if (e.key === 'Escape') setIsEditingName(false);
-              }}
-              autoFocus
-              className="p-1 border border-blue-500 rounded bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 font-bold text-sm outline-none w-full max-w-[200px]"
-            />
-          ) : (
-            <>
-              <span className="font-bold text-zinc-700 dark:text-zinc-300 text-base shrink-0 whitespace-nowrap">🏛️ 서식 정의</span>
-              <select
-                value={activeProfileId}
-                onChange={(e) => onSelectProfile(e.target.value)}
-                className="p-1 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 font-semibold text-sm outline-none cursor-pointer max-w-[120px] truncate"
-              >
-                {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </>
-          )}
+    <div className="w-[420px] shrink-0 h-full bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col select-none text-sm animate-fadeIn relative">
+      
+      {/* 1단계: 최상단 메가 메뉴 토글 타이틀 바 (항상 보임) */}
+      <div className="px-4 py-3 bg-white dark:bg-zinc-850 border-b border-zinc-200 dark:border-zinc-800 shrink-0 z-20 flex flex-col gap-2">
+        
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+            📌 현재 선택된 테마
+          </div>
           
+          {/* 이름 편집 / 삭제 / 추가 버튼 모음 */}
           <div className="flex items-center gap-1 shrink-0">
             {onAddProfile && (
-              <button onClick={onAddProfile} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-blue-500 transition-colors shrink-0" title="새 서식 추가">
-                <span className="text-[15px] font-bold leading-none">➕</span>
+              <button onClick={onAddProfile} className="p-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors" title="새 테마 추가">
+                ➕
               </button>
             )}
-            {!isSystemProfile && (
-              <button onClick={handleRenameClick} className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-blue-500 transition-colors shrink-0" title="서식 이름 변경">
-                <span className="text-[15px] font-bold leading-none">✏️</span>
+            <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 transition-colors" title="테마 가져오기 (JSON)">
+              📥
+            </button>
+            <button onClick={handleExportJson} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 transition-colors" title="현재 테마 내보내기 (JSON)">
+              📤
+            </button>
+            <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-700 mx-1"></div>
+            {!isSystemProfile && !isEditingName && (
+              <button onClick={handleRenameClick} className="p-1.5 bg-white dark:bg-zinc-800 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="이름 변경">
+                ✏️
               </button>
             )}
-            {canDelete && onDeleteProfile && (
-              <button onClick={handleDeleteClick} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-zinc-400 hover:text-red-500 transition-colors shrink-0" title="서식 삭제">
-                <span className="text-[15px] font-bold leading-none">🗑️</span>
+            {canDelete && onDeleteProfile && !isEditingName && (
+              <button onClick={handleDeleteClick} className="p-1.5 bg-white dark:bg-zinc-800 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-red-500 transition-colors" title="이름 삭제">
+                🗑️
               </button>
             )}
-            <button
-              onClick={() => {
-                exportCurrentProfile();
-                copyProfileToClipboard();
-              }}
-              className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-blue-500 transition-colors shrink-0"
-              title="서식 데이터 내보내기 (.json 파일 다운로드 & 클립보드 복사)"
-            >
-              <span className="text-[14px] font-bold leading-none">📤</span>
-            </button>
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-green-500 transition-colors shrink-0"
-              title="외부 서식 업로드 / 가져오기 (JSON 직접 붙여넣기 가능)"
-            >
-              <span className="text-[14px] font-bold leading-none">📥</span>
-            </button>
-            <button
-              onClick={downloadGuideSpec}
-              className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-550 hover:text-amber-500 transition-colors shrink-0"
-              title="서식 작성 표준 명세서 다운로드 (AI에게 요청할 때 활용)"
-            >
-              <span className="text-[14px] font-bold leading-none">📖</span>
-            </button>
           </div>
         </div>
+
+        {/* 메가 메뉴 토글 스위치 (이름 렌더링) */}
+        {isEditingName && !isSystemProfile ? (
+          <input
+            type="text"
+            value={tempName}
+            onChange={(e) => setTempName(e.target.value)}
+            onBlur={handleRenameSave}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleRenameSave();
+              if (e.key === 'Escape') setIsEditingName(false);
+            }}
+            autoFocus
+            className="w-full p-2.5 border-2 border-blue-400 rounded-lg outline-none text-base font-extrabold bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+          />
+        ) : (
+          <button 
+            onClick={() => setShowAllProfiles(!isGalleryOpen)}
+            className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800/50 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{isSystemProfile ? '🏛️' : '🖌️'}</span>
+              <span className="text-[17px] font-extrabold text-zinc-900 dark:text-zinc-100 truncate pr-2">
+                {currentProfile.name}
+              </span>
+            </div>
+            <span className={`text-zinc-400 group-hover:text-blue-500 transition-transform duration-200 ${isGalleryOpen ? 'rotate-180' : ''}`}>
+              ▼
+            </span>
+          </button>
+        )}
       </div>
 
-      {/* 프로필 이름 지정 (인풋 크기 상향) */}
-      {!isSystemProfile && (
-        <div className="px-4 py-3 shrink-0 bg-white dark:bg-zinc-850 border-b border-zinc-150 dark:border-zinc-800">
-          <label className="block text-zinc-500 dark:text-zinc-400 text-sm font-semibold mb-1.5">서식 명칭</label>
-          <input type="text" value={currentProfile.name} onChange={(e) => handleNameChange(e.target.value)} className="w-full p-2.5 border border-zinc-200 dark:border-zinc-800 rounded bg-white dark:bg-zinc-950 font-bold text-base text-zinc-750 dark:text-zinc-300 outline-none focus:border-blue-500 transition-colors" placeholder="예: 정부표준_보고서_양식" />
+      {/* 팝오버 메가 메뉴 갤러리 (z-index 40) */}
+      {isGalleryOpen && (
+        <div className="absolute top-[104px] left-0 right-0 max-h-[400px] overflow-y-auto z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 shadow-2xl p-4 custom-scrollbar animate-in slide-in-from-top-2">
+          <div className="text-xs font-bold text-zinc-500 mb-3">테마 선택 ({profiles.length}개)</div>
+          <div className="grid grid-cols-3 gap-2.5">
+            {profiles.map(p => {
+              const isActive = p.id === activeProfileId;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    onSelectProfile(p.id);
+                    setShowAllProfiles(false); // 선택 후 자동 닫힘
+                  }}
+                  className={`w-full h-[70px] rounded-xl border-2 flex flex-col items-center justify-center p-2 transition-all ${isActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm' : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 hover:border-blue-300 dark:hover:border-zinc-600'}`}
+                >
+                  <span className="text-[18px] mb-1">{isSystemProfileId(p.id) ? '🏛️' : '🖌️'}</span>
+                  <span className={`text-[11px] font-bold truncate w-full text-center ${isActive ? 'text-blue-700 dark:text-blue-300' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                    {p.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* 스크롤 가능한 본문 영역 */}
+      {/* 2단계: 스크롤 가능한 본문 영역 (슬라이더 패널) */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
 
-        {/* ─── 접이식 아코디언 그룹 시작 ─── */}
+        {/* 2단계: 필수 스무스 슬라이더 컨트롤 패널 */}
+        <div className="space-y-4.5 bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-zinc-700 dark:text-zinc-300">✍️ 기본 타이포그래피</span>
+          </div>
 
-        {/* 🟢 아코디언 [1]: 글꼴 및 본문 문단 */}
-        <AccordionSection
-          id="typography"
-          title="✍️ 전역 글꼴 및 본문 문단"
-          isOpen={openAccordion === 'typography'}
-          onToggle={() => setOpenAccordion(openAccordion === 'typography' ? null : 'typography')}
-        >
-          {/* 가상 A4 용지 기본 서식 */}
-          <div className="space-y-4.5">
-            <div className="text-sm font-bold text-zinc-550 dark:text-zinc-400 uppercase tracking-wider">용지 레이아웃 & 전역 타이포</div>
-            
-            {/* 글꼴 선택 */}
-            <div className="flex gap-2.5 items-end">
-              <div className="flex-1">
-                <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm block mb-1.5">용지 기본 글꼴</span>
-                <input
-                  type="text"
-                  value={isFontModalOpen ? '글꼴 선택 중...' : currentProfile.pageStyle.fontFamily}
-                  readOnly
-                  className="w-full p-2.5 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-100 dark:bg-zinc-900 font-mono text-blue-600 dark:text-blue-400 font-bold text-sm cursor-not-allowed"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => { if (!isSystemProfile) setIsFontModalOpen(true); }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-md transition-colors shrink-0 h-[40px] disabled:opacity-50 shadow-sm"
-                disabled={isSystemProfile}
-              >
-                변경...
-              </button>
+          {/* 글꼴 선택 */}
+          <div className="flex gap-2.5 items-end">
+            <div className="flex-1">
+              <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold block mb-1">문서 전체 글꼴</span>
+              <input
+                type="text"
+                value={isFontModalOpen ? '선택 중...' : currentProfile.pageStyle.fontFamily}
+                readOnly
+                className="w-full p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-900 font-mono text-sm text-zinc-800 dark:text-zinc-200 cursor-not-allowed"
+              />
             </div>
-
-            {/* 기본 크기 슬라이더 */}
-            <SliderWidget
-              label="기본 글자 크기"
-              min={10}
-              max={36}
-              value={parseInt(currentProfile.pageStyle.fontSize) || 15}
-              unit="px"
+            <button
+              type="button"
+              onClick={() => { if (!isSystemProfile) setIsFontModalOpen(true); }}
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-sm font-bold rounded-lg transition-colors shrink-0 disabled:opacity-50"
               disabled={isSystemProfile}
-              onChange={(v) => handlePageStyleChange('fontSize', v + 'px')}
-            />
+            >
+              변경
+            </button>
+          </div>
 
-            {/* 줄 간격 슬라이더 */}
-            <SliderWidget
-              label="기본 줄 간격"
-              min={1.0}
-              max={3.0}
-              step={0.1}
-              value={parseFloat(currentProfile.pageStyle.lineHeight) || 1.8}
-              unit="배"
-              disabled={isSystemProfile}
-              onChange={(v) => handlePageStyleChange('lineHeight', v)}
-            />
+          {/* 스무스 슬라이더들 */}
+          <SliderWidget
+            label="기본 글자 크기"
+            min={10}
+            max={36}
+            value={parseInt(currentProfile.pageStyle.fontSize) || 15}
+            unit="px"
+            disabled={isSystemProfile}
+            onChange={(v) => handlePageStyleChange('fontSize', v + 'px')}
+          />
+          <SliderWidget
+            label="기본 줄 간격"
+            min={1.0}
+            max={3.0}
+            step={0.1}
+            value={parseFloat(currentProfile.pageStyle.lineHeight) || 1.8}
+            unit="배"
+            disabled={isSystemProfile}
+            onChange={(v) => handlePageStyleChange('lineHeight', v)}
+          />
+        </div>
+
+        {/* 3단계: 고급 레이아웃 아코디언 설정들 */}
+        <AccordionSection
+          id="advanced"
+          title="⚙️ 고급 레이아웃 및 본문 문단"
+          isOpen={openAccordion === 'advanced'}
+          onToggle={() => setOpenAccordion(openAccordion === 'advanced' ? null : 'advanced')}
+        >
+          <div className="space-y-4.5">
 
             {/* 자간 간격 슬라이더 */}
             <SliderWidget

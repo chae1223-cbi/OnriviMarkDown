@@ -35,7 +35,7 @@ for (const route of DEV_ONLY_ROUTES) {
 let buildSuccess = false;
 try {
   console.log('[desktop-build] next build 시작...');
-  execSync('npx next build', { stdio: 'inherit' });
+  execSync('npx next build', { stdio: 'inherit', env: { ...process.env, ASSET_PREFIX: './', NEXT_BUILD_TARGET: 'desktop' } });
   buildSuccess = true;
 } catch (err) {
   console.error('[desktop-build] 빌드 실패:', err.message);

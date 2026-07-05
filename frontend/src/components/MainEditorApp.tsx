@@ -11,7 +11,7 @@
  * 모든 전역 상태 및 화면 분할 레이아웃 조립.
  * 메뉴바 , 툴바, 상태바, 사이드바 등 모든 컴포넌트의 렌더링을 책임짐.
  * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
+ * 🚨 @PATCH : **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
  *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
  *             **2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
  *             **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
@@ -73,7 +73,7 @@ import { DEFAULT_PROFILE, SYSTEM_PROFILES, isSystemProfileId } from "@/constants
 import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
-import CssStyleForm from "@/components/CssStyleForm"; // css 스타일 폼
+import CssStyleModal from "@/components/CssStyleModal"; // css 스타일 모달
 import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/virtualFileSystem'; // 가상 파일 시스템 헬퍼
 import ColorText from '@/components/ColorText'; // 컬러 텍스트
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
@@ -693,6 +693,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
+  const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
 
 // ====================================================================
 // 📊 [OMD-AUTH-MainEditorApp-0015] MainEditorApp.tsx ➔ initDeviceId
@@ -735,6 +736,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 // ====================================================================
   const loadAndVerifyLicense = useCallback(async () => {
     if (typeof window === 'undefined' || !deviceId) return;
+    console.log('[LICENSE] loadAndVerifyLicense START deviceId=%o', deviceId);
     const api = (window as any).electronAPI;
     const isDesktop = !!api;
     let savedKey = '';
@@ -950,6 +952,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           localStorage.removeItem('onrivi_payment_no');
           localStorage.removeItem('onrivi_license_key');
           localStorage.removeItem('onrivi_session_id');
+          return;
         } else {
           const { data: license } = await supabase
             .from('software_licenses')
@@ -990,19 +993,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             });
             if (actResult && !actResult.success) {
               isExpired = true;
-              planName = '동시 접속 초과 (제한 사용자)';
+              planName = actResult.code === 'ERR_MAX_DEVICES_EXCEEDED' ? `동시 접속 초과 (${actResult.max_devices || '?'}대) - 제한 사용자` : `라이선스 오류: ${actResult.message || '알 수 없는 오류'}`;
             }
 
             const { data: chk2 } = await supabase.rpc('check_license_session', { p_payment_no: savedPaymentNo, p_device_uuid: sessionId });
-            if (chk2 && chk2.success && chk2.active_count > chk2.max_devices) {
-              isExpired = true;
-              planName = `동시 접속 초과 (${chk2.max_devices}대) - 제한 사용자`;
-            } else if (isExpired) {
+            if (chk2) {
+              if (!chk2.success || !chk2.has_session) {
+                isExpired = true;
+                planName = `동시 접속 초과 (${chk2.max_devices || '?'}대) - 제한 사용자`;
+              }
+            }
+            if (isExpired && !planName.includes('초과')) {
               planName = '기간 만료 (제한 사용자)';
             }
 
             const isActivated = !isExpired;
 
+            console.log('[LICENSE] VERIFIED setLicenseStatus isActivated=%o isExpired=%o planName=%o', isActivated, isExpired, planName);
             setLicenseStatus({
               isActivated, isExpired, remainingDays, userId: savedUserId,
               licenseKey: isActivated ? savedKey : '', paymentNo: savedPaymentNo || license.payment_no || '',
@@ -1037,54 +1044,32 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
+    const finalPlanName = cached?.planName || (savedPaymentNo ? '프리미엄 요금제' : '미인증 라이선스');
+    console.log('[LICENSE] FINAL setLicenseStatus isExpired=true planName=%o', finalPlanName);
     setLicenseStatus({
       isActivated: false, isExpired: true, remainingDays: 0, userId: savedUserId,
       licenseKey: savedKey || cached?.licenseKey || '', paymentNo: savedPaymentNo,
-      planName: cached?.planName || (savedPaymentNo ? '프리미엄 요금제' : '미인증 라이선스'),
+      planName: finalPlanName,
       nextPaymentDate: cached?.nextPaymentDate || (savedPaymentNo ? '-' : undefined)
     });
-  }, [deviceId, showToast]);
+  }, [deviceId]);
 
 
   useEffect(() => {
+    if (!deviceId) {
+      console.log('[WELCOME-TRIGGER] skipped: deviceId empty');
+      return;
+    }
+    console.log('[WELCOME-TRIGGER] calling loadAndVerifyLicense deviceId=%o', deviceId);
     loadAndVerifyLicense().finally(() => {
+      console.log('[WELCOME-TRIGGER] loadAndVerifyLicense done, setting isLicenseChecking=false');
       setIsLicenseChecking(false);
     });
-  }, [loadAndVerifyLicense]);
+  }, [loadAndVerifyLicense, deviceId]);
 
-  // 📊 [OMD-LICENSE-MainEditorApp-POLLING] 대시보드 기기해제 감지 → 로그아웃 (15초 폴링)
-  useEffect(() => {
-    const isDesktop = !!(window as any).electronAPI;
-    if (isDesktop) return;
-    const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
-    const paymentNo = localStorage.getItem('onrivi_payment_no');
-    if (!sessionId || !paymentNo) return;
-    let mounted = true;
-    const forceLogout = async () => {
-      if (!mounted) return;
-      showToast('⚠️ 관리자에 의해 접속 세션이 해제되었습니다.', 'error');
-      Object.keys(localStorage).filter(k => k.startsWith('sb-') || k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
-      try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) {}
-      window.location.href = '/login';
-    };
-    const checkActivation = async () => {
-      if (!mounted) return;
-      const { data: chk } = await supabase.rpc('check_license_session', { p_payment_no: paymentNo, p_device_uuid: sessionId });
-      if (chk && !chk.success) return;
-      if (chk && !chk.has_session) forceLogout();
-    };
-    window.addEventListener('focus', checkActivation);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') checkActivation();
-    });
-    const interval = setInterval(checkActivation, 15000);
-    return () => {
-      mounted = false;
-      window.removeEventListener('focus', checkActivation);
-      document.removeEventListener('visibilitychange', checkActivation);
-      clearInterval(interval);
-    };
-  }, [showToast]);
+  // 📊 [OMD-LICENSE-MainEditorApp-POLLING]
+  // 🚨 @PATCH: 2026-07-05 - 사용자 지시에 따라 무거운 백그라운드 실시간 감시(Polling) 및 강제 로그아웃 차단 로직 전면 제거.
+  // 오직 초기 진입 시(loadAndVerifyLicense)에만 권한을 1회 판별하여 웰컴 페이지 제어로 대체합니다.
 
   // G. 만료일 자정(24:00) 차단 백그라운드 타이머 및 10분 유예
   useEffect(() => {
@@ -1139,21 +1124,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (!mounted || isLicenseChecking) return;
 
     if (licenseStatus.isExpired) {
-      // 🔒 제한 사용자 (만료/미인증): 에디터 시작 시 강제로 웰컴페이지를 띄움
-      if (tabsRef.current.length === 0) {
-        const welcome = getWelcomeContent();
-        const welcomeTabId = 'welcome-tab-' + Date.now();
-        const welcomeTab: EditorTab = {
-          id: welcomeTabId, name: '온리비 어서 시작하기.md', path: null, node: null,
-          content: welcome, isModified: false, previewMode: 'preview',
-          isStyleTab: false
-        };
-        setTabs([welcomeTab]);
-        setActiveTabId(welcomeTabId);
-        setContent(welcome);
-        setCurrentFileName('온리비 어서 시작하기.md');
-        setCurrentFileNode(null);
-      }
+      // 🔒 제한 사용자 (만료/미인증): 에디터 모드를 미리보기 전용으로 강제
+      // (초기 웰컴 페이지 노출은 하단의 통합 라우팅 가드에서 담당합니다)
       if (previewModeRef.current !== 'preview') {
         setPreviewModeRaw('preview');
         previewModeRef.current = 'preview';
@@ -1504,19 +1476,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         lastGeneralPreviewModeRef.current = next;
       }
 
-      // 💡 서식 정의(css-style) 모드로 스위칭될 때
-      if (next === 'css-style' && prev !== 'css-style') {
-        // 💡 진입하기 직전 일반 모드가 css-style이 아니었다면 백업
-        if (prev === 'edit' || prev === 'both' || prev === 'preview') {
-          lastGeneralPreviewModeRef.current = prev;
-        }
-
-        // 💡 도움말이 켜져 있었다면 강제 종료하여 화면이 깨지지 않도록 연동
-        setHelpContent(null);
-        setHelpTitle('');
-        
-        // 💡 무조건 새로운 서식설정 전용 탭(isStyleTab: true) 생성 (기존탭 재사용 금지)
-        createNewTab(getWelcomeContent(), '온리비 어서 시작하기.md', true);
+      // 💡 서식 정의(css-style) 모드로 스위칭될 때 -> 기존 탭 생성 로직을 폐기하고, 새 모달을 띄우도록 가로챕니다.
+      if (next === 'css-style') {
+        setTimeout(() => setIsStyleModalOpen(true), 0);
+        return prev; // 에디터 뷰잉 모드는 이전 상태 그대로 유지
       }
 
       previewModeRef.current = next;
@@ -1980,6 +1943,47 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [mounted, content, currentFileNode]);
 
+  // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 영구 잠금 및 강제 노출 로직 2026-07-05]
+  const prevRestrictedRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!mounted || isLicenseChecking) return;
+
+    // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우
+    const isRestrictedUser = licenseStatus.isExpired ||
+                             licenseStatus.planName?.includes('동시 접속 초과') ||
+                             licenseStatus.planName?.includes('미인증');
+
+    if (prevRestrictedRef.current === isRestrictedUser) return;
+    prevRestrictedRef.current = isRestrictedUser;
+
+    if (!isRestrictedUser) {
+      setTabs(prev => {
+        const hasWelcome = prev.some(t => t.name === '온리비 어서 시작하기.md' && !t.isStyleTab);
+        if (!hasWelcome) return prev;
+        const cleaned = prev.filter(t => !(t.name === '온리비 어서 시작하기.md' && !t.isStyleTab));
+        if (cleaned.length === 0) {
+          setActiveTabId(null);
+          setContent(localStorage.getItem('onrivi_content') || '');
+          setCurrentFileName('새 파일.md');
+          setCurrentFileNode(null);
+        }
+        return cleaned;
+      });
+    } else {
+      const welcome = getWelcomeContent();
+      const welcomeTabId = 'welcome-tab-' + Date.now();
+      setTabs([{
+        id: welcomeTabId, name: '온리비 어서 시작하기.md', path: null, node: null,
+        content: welcome, isModified: false, previewMode: 'preview',
+        isStyleTab: false, originalContent: welcome
+      }]);
+      setActiveTabId(welcomeTabId);
+      setContent(welcome);
+      setPreviewModeRaw('preview');
+      previewModeRef.current = 'preview';
+    }
+  }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName]);
+
 
 // ====================================================================
 // 📊 [OMD-FILE-MainEditorApp-0038] MainEditorApp.tsx ➔ openExternalFile
@@ -2252,28 +2256,59 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
   }, [activeTabId, mounted, licenseStatus.isExpired, helpContent]);
-  // 🟢 [전체 사용자 시작 탭 완전 차단 가드 2026-07-04]
-  // 전체 사용자(isExpired === false)인 경우, 마운트 직후나 로딩 중에 어떤 이유로든
-  // tabs 배열 내에 생성되었을 수 있는 임시 웰컴페이지 탭을 강제 폐기하여 빈 에디터 화면으로 강제 유지합니다.
+  // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 차단 및 강제 노출 로직 2026-07-05]
+  // 초기 로딩 후 제한 사용자인지 판단하여 웰컴 페이지를 남기거나, 일반 사용자면 지웁니다.
+  const hasHandledWelcomeRef = useRef(false);
+  
   useEffect(() => {
-    if (!mounted) return;
-    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    if (!mounted || isLicenseChecking || hasHandledWelcomeRef.current) return;
     
-    // 전체 사용자이면서 데스크탑일 때
-    if (isDesktop && !licenseStatus.isExpired) {
-      const hasWelcome = tabs.some(t => t.name === '온리비 어서 시작하기.md' && !t.isStyleTab);
+    console.log('[WELCOME#2] FIRED! isExpired=%o planName=%o tabsRef=%o', licenseStatus.isExpired, licenseStatus.planName, tabsRef.current.map((t:any)=>t.name));
+    
+    // 이펙트를 단 한 번만 실행하여 다른 컴포넌트나 훅이 웰컴탭을 덮어쓰거나 무한루프 도는 것을 원천 방지
+    hasHandledWelcomeRef.current = true;
+    
+    // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우 (undefined 방어를 위해 Optional Chaining 추가)
+    const isRestrictedUser = licenseStatus.isExpired || 
+                             licenseStatus.planName?.includes('동시 접속 초과') || 
+                             licenseStatus.planName?.includes('미인증');
+                             
+    // tabs 상태값 대신 refs로 현재 상황을 안전하게 스냅샷
+    const hasWelcome = tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md' && !t.isStyleTab);
+
+    if (!isRestrictedUser) {
+      // 1. [정상/전체 사용자]: 웰컴 페이지 강제 삭제 (빈 문서 시작)
       if (hasWelcome) {
-        const cleaned = tabs.filter(t => !(t.name === '온리비 어서 시작하기.md' && !t.isStyleTab));
+        const cleaned = tabsRef.current.filter(t => !(t.name === '온리비 어서 시작하기.md' && !t.isStyleTab));
         setTabs(cleaned);
         if (cleaned.length === 0) {
           setActiveTabId(null);
-          setContent('');
+          // 시작 페이지 없이(Empty) 시작하도록 요청됨 -> 로컬 스토리지에 남아있는 게 있다면 복원하거나 빈 문자열.
+          const localDraft = localStorage.getItem('onrivi_content');
+          setContent(localDraft || '');
           setCurrentFileName('새 파일.md');
           setCurrentFileNode(null);
         }
       }
+    } else {
+      // 2. [제한 사용자]: 무조건 웰컴 페이지 노출 (미리보기/체험 전용)
+      if (!hasWelcome) {
+        const welcome = getWelcomeContent();
+        const welcomeTabId = 'welcome-tab-' + Date.now();
+        const welcomeTab: EditorTab = {
+          id: welcomeTabId, name: '온리비 어서 시작하기.md', path: null, node: null,
+          content: welcome, isModified: false, previewMode: 'preview',
+          isStyleTab: false, originalContent: welcome
+        };
+        // 제한 사용자의 경우 기존 탭(새 파일 등)을 모두 강제로 덮어버리고 웰컴 탭만 남깁니다.
+        setTabs([welcomeTab]);
+        setActiveTabId(welcomeTabId);
+        setContent(welcome);
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
+      }
     }
-  }, [mounted, licenseStatus.isExpired, tabs]);
+  }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName]);
   useEffect(() => {
     if (currentFileNode && activeTabId) {
       if (prevActiveTabRef.current !== activeTabId) {
@@ -3492,8 +3527,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'FIND': handlers.find(); return;
       case 'REPLACE': handlers.replace(); return;
       case 'GLOBAL_SEARCH': handlers.globalSearch(); return;
-      case 'SETTINGS': handlers.settings('editor'); return;
-      case 'SETTINGS_SHORTCUTS': handlers.settings('shortcuts'); return;
+      case 'SETTINGS':
+        setIsSettingsModalOpen(true);
+        return;
+      case 'SETTINGS_SHORTCUTS':
+        setSettingsModalInitialTab('shortcuts');
+        setIsSettingsModalOpen(true);
+        return;
+      case 'TOGGLE_CSS_STYLE':
+        setIsStyleModalOpen(true);
+        return;
       case 'ABOUT': handlers.about(); return;
       case 'HELP': handlers.help(); return;
       case 'LICENSE': handlers.license(); return;
@@ -3545,9 +3588,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
        * - css-style 모드: 좌측 50%가 CssStyleForm(서식 정의), 우측 50%가 미리보기
        * - 다시 누르면 'both'(편집+미리보기 분할)로 복귀
        */
-      case 'TOGGLE_CSS_STYLE':
-        setPreviewMode(prev => prev === 'css-style' ? 'both' : 'css-style');
-        return;
+      // TOGGLE_CSS_STYLE is merged above with SETTINGS
       case 'MERGE':
         setIsMergeMode(true);
         return;
@@ -3691,6 +3732,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       chart: 'CHART',
       codeblock: 'CODE_BLOCK',
       math: 'MATH',
+      styleSettings: 'TOGGLE_CSS_STYLE',
       table: 'TABLE',
       quickTable: 'QUICK_TABLE',
       insertTableRow: 'INSERT_TABLE_ROW',
@@ -4088,7 +4130,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           isMergeMode={isMergeMode}
           previewMode={previewMode}
           setPreviewMode={setPreviewMode}
-          isRestrictedUser={licenseStatus.isExpired}
+          isRestrictedUser={licenseStatus.isExpired || licenseStatus.planName?.includes('동시 접속 초과') || licenseStatus.planName?.includes('미인증')}
           selectedMergeNodes={selectedMergeNodes}
           toggleMergeNodeSelect={toggleMergeNodeSelect}
           onOpenMergeModal={handleOpenMergeModal}
@@ -4131,65 +4173,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             isDarkMode={isDarkMode}
           /></div>
           <div className="flex flex-1 overflow-hidden">
-            {previewMode === 'css-style' && activeTab?.isStyleTab === true && (
-              <CssStyleForm
-                profiles={profiles}
-                activeProfileId={activeProfileId}
-                onSelectProfile={setActiveProfileId}
-                onUpdateProfile={(updated) => setProfiles(prev =>
-                  prev.map(p => p.id === updated.id ? updated : p)
-                )}
-                /*
-                 * onAddProfile — 새 사용자 프로필 생성:
-                 * DEFAULT_PROFILE을 템플릿으로 복제
-                 * 생성 직후 새 프로필로 자동 전환
-                 */
-                onAddProfile={() => {
-                  const newId = 'profile-' + Date.now();
-                  const count = profiles.filter(p => !isSystemProfileId(p.id)).length + 1;
-                  setProfiles(prev => [...prev, {
-                    ...DEFAULT_PROFILE,
-                    id: newId,
-                    name: `나만의 서식 ${count}`,
-                    rules: JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
-                  }]);
-                  setActiveProfileId(newId);
-                }}
-                /*
-                 * onDeleteProfile — 사용자 프로필 삭제:
-                 * 시스템 프로필은 삭제 불가
-                 * 현재 보고 있던 프로필이 삭제되면 첫 번째 시스템 프로필로 전환
-                 */
-                onDeleteProfile={(id) => {
-                  if (isSystemProfileId(id)) return;
-                  setProfiles(prev => prev.filter(p => p.id !== id));
-                  if (activeProfileId === id) {
-                    setActiveProfileId(SYSTEM_PROFILES[0].id);
-                  }
-                }}
-                onImportProfile={(imported) => {
-                  const newId = 'profile-' + Date.now();
-                  const merged: CssProfile = {
-                    ...DEFAULT_PROFILE,
-                    ...imported,
-                    id: newId,
-                    name: imported.name || '가져온 서식',
-                    pageStyle: { ...DEFAULT_PROFILE.pageStyle, ...(imported.pageStyle || {}) },
-                    rules: imported.rules ? { ...DEFAULT_PROFILE.rules, ...imported.rules } : JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
-                    hrStructure: imported.hrStructure ? { ...DEFAULT_PROFILE.hrStructure, ...imported.hrStructure } : DEFAULT_PROFILE.hrStructure ? { ...DEFAULT_PROFILE.hrStructure } : undefined,
-                    checkboxStructure: imported.checkboxStructure ? { ...DEFAULT_PROFILE.checkboxStructure, ...imported.checkboxStructure } : DEFAULT_PROFILE.checkboxStructure ? { ...DEFAULT_PROFILE.checkboxStructure } : undefined,
-                  };
-                  setProfiles(prev => [...prev, merged]);
-                  setActiveProfileId(newId);
-                  showToast(`서식 '${merged.name}'이(가) 추가되었습니다.`, 'success');
-                }}
-                onClose={() => setPreviewMode('both')}
-              />
-            )}
 
             <div
               className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5 pt-3 no-print`}
-              style={{ display: (previewMode === 'preview' || (previewMode === 'css-style' && activeTab?.isStyleTab === true)) ? 'none' : 'block' }}
+              style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
             >
                 <Editor
                   height="100%"
@@ -5879,7 +5866,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden print:overflow-visible relative"
               style={{
                 width: previewMode === 'preview' ? '100%' : '50%',
-                display: (previewMode === 'edit') ? 'none' : 'flex'
+                display: (previewMode === 'edit' || activeTab?.isStyleTab === true) ? 'none' : 'flex'
               }}
             >
 
@@ -6325,6 +6312,53 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         isOpen={isTableModalOpen}
         onClose={() => setIsTableModalOpen(false)}
         onInsert={(code) => insertAtCursor(code)}
+        isDarkMode={isDarkMode}
+      />
+
+      <CssStyleModal
+        isOpen={isStyleModalOpen}
+        onClose={() => setIsStyleModalOpen(false)}
+        profiles={profiles}
+        activeProfileId={activeProfileId}
+        dynamicCssString={dynamicCssString}
+        onSelectProfile={setActiveProfileId}
+        onUpdateProfile={(updated) => setProfiles(prev =>
+          prev.map(p => p.id === updated.id ? updated : p)
+        )}
+        onAddProfile={() => {
+          const newId = 'profile-' + Date.now();
+          const count = profiles.filter(p => !isSystemProfileId(p.id)).length + 1;
+          setProfiles(prev => [...prev, {
+            ...DEFAULT_PROFILE,
+            id: newId,
+            name: `나만의 서식 ${count}`,
+            rules: JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
+          }]);
+          setActiveProfileId(newId);
+        }}
+        onDeleteProfile={(id) => {
+          if (isSystemProfileId(id)) return;
+          setProfiles(prev => prev.filter(p => p.id !== id));
+          if (activeProfileId === id) {
+            setActiveProfileId(SYSTEM_PROFILES[0].id);
+          }
+        }}
+        onImportProfile={(imported) => {
+          const newId = 'profile-' + Date.now();
+          const merged: CssProfile = {
+            ...DEFAULT_PROFILE,
+            ...imported,
+            id: newId,
+            name: imported.name || '가져온 서식',
+            pageStyle: { ...DEFAULT_PROFILE.pageStyle, ...(imported.pageStyle || {}) },
+            rules: imported.rules ? { ...DEFAULT_PROFILE.rules, ...imported.rules } : JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
+            hrStructure: imported.hrStructure ? { ...DEFAULT_PROFILE.hrStructure, ...imported.hrStructure } : DEFAULT_PROFILE.hrStructure ? { ...DEFAULT_PROFILE.hrStructure } : undefined,
+            checkboxStructure: imported.checkboxStructure ? { ...DEFAULT_PROFILE.checkboxStructure, ...imported.checkboxStructure } : DEFAULT_PROFILE.checkboxStructure ? { ...DEFAULT_PROFILE.checkboxStructure } : undefined,
+          };
+          setProfiles(prev => [...prev, merged]);
+          setActiveProfileId(newId);
+          showToast(`서식 '${merged.name}'이(가) 추가되었습니다.`, 'success');
+        }}
         isDarkMode={isDarkMode}
       />
 

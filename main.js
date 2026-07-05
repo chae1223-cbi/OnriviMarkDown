@@ -293,6 +293,7 @@ app.on('ready', async () => {
       else if (pathname === '/editor') pathname = '/editor.html';
       else if (pathname === '/dashboard') pathname = '/dashboard.html';
       
+      pathname = pathname.replace(/^\//, '');  // path.join이 앞 경로를 먹는 버그 방지
       let targetPath = path.join(__dirname, 'frontend/out', pathname);
       
       // html 파일 확장자 보완 (Next.js 정적 빌드 대응)

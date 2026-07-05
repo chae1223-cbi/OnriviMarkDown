@@ -16,7 +16,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 // 📊 [OMD-HOOK-0003] useEditorTabs.ts ➔ useEditorTabs
 // 🎯 @KICK  : Monaco 에디터 가상 모델 다중 탭 관리 — 탭 전환·생성·콘텐츠 동기화
 // 🛡️ @GUARD : tabs/setTabs/activeTabId/setActiveTabId 외부 주입으로 TDZ 원천 차단
-// 🚨 @PATCH : 내부 useState 제거 → 외부 주입 방식으로 전환 | 2026-06-15 | MainEditorApp L526 tabMetadata_sync가 useEditorTabs 선언 전에 setTabs/activeTabId 참조하여 rS TDZ 에러 발생
+// 🚨 @PATCH : **2026-07-04** — 서식설정(isStyleTab) 탭 전환 시 에디터 뷰캐시(viewState) 저장/복원 로직 탑재 및 모델 바인딩 예외 처리 패치 | 2026-06-15 — 내부 useState 제거 → 외부 주입 방식으로 전환 | MainEditorApp L526 tabMetadata_sync가 useEditorTabs 선언 전에 setTabs/activeTabId 참조하여 rS TDZ 에러 발생
 // 🔗 @CALLS : getWelcomeContent, monaco.editor.createModel
 // ====================================================================
 export const useEditorTabs = (
@@ -88,9 +88,11 @@ export const useEditorTabs = (
     const monaco = (window as any).monaco;
     const editor = editorRef.current;
 
+    // 💡 탭 전환 직전 현재 에디터 상태 및 스크롤 위치 완전 복원용 캐싱
     if (editor && activeTabIdRef.current) {
       const currentScrollTop = editor.getScrollTop();
-      setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, scrollTop: currentScrollTop } : t));
+      const currentViewState = editor.saveViewState();
+      setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, scrollTop: currentScrollTop, viewState: currentViewState } : t));
     }
 
     // 현재 탭의 에디터 내용을 React 상태에 동기화 (모드 전환 시 데이터 유실 방지)
@@ -105,6 +107,14 @@ export const useEditorTabs = (
 
     if (!targetTab) return;
 
+    // 💡 서식설정 탭(isStyleTab)일 때는 에디터 상태 복원을 스킵합니다.
+    if (targetTab.isStyleTab) {
+      setContent("");
+      setCurrentFileName(targetTab.name);
+      setCurrentFileNode(null);
+      return;
+    }
+
     setContent(targetTab.content);
     setCurrentFileName(targetTab.name);
     setCurrentFileNode(targetTab.node);
@@ -117,7 +127,11 @@ export const useEditorTabs = (
 
     if (editor && monaco && targetTab.model && !targetTab.model.isDisposed()) {
       editor.setModel(targetTab.model);
-      if (targetTab.scrollTop !== undefined) {
+      if (targetTab.viewState) {
+        requestAnimationFrame(() => {
+          editor.restoreViewState(targetTab.viewState);
+        });
+      } else if (targetTab.scrollTop !== undefined) {
         requestAnimationFrame(() => {
           editor.setScrollTop(targetTab.scrollTop || 0);
         });

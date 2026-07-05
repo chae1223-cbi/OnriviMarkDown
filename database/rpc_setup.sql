@@ -322,28 +322,55 @@ $$;
 -- 로그인/OAuth 콜백 시 기기 세션 등록
 -- ====================================================================
 DROP FUNCTION IF EXISTS insert_license_activation(p_license_id uuid, p_device_uuid text, p_device_name text);
-CREATE OR REPLACE FUNCTION insert_license_activation(   -- 20260626 신규 생성 @PATCH @R41 @KICK @PATCH 
+CREATE OR REPLACE FUNCTION insert_license_activation(   -- 20260705 max_devices 제한 추가 @PATCH
   p_license_id uuid,                   -- 🆔 라이선스 ID
   p_device_uuid text,                  -- 🆔 디바이스 UUID
   p_device_name text                   -- 🆔 디바이스 이름
 ) RETURNS jsonb
-LANGUAGE plpgsql                         -- 🔗 플루이드한 타입 사용 및 예외처리 지원을 위해 plpgsql로 구현
-SECURITY DEFINER                   -- 🔐 RLS 정책을 우회하는 보안 설정
-SET search_path = public             -- 📁 테이블 스키마를 public으로 설정
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_sub_id uuid;
+  v_max_devices int;
+  v_active_count int;
 BEGIN
-  -- 기존 동일 기기 세션 제거 후 등록
-  DELETE FROM license_activations      -- 기존접속 세션 삭제
+  -- 1. 해당 라이선스의 구독 정보 조회
+  SELECT sl.subscription_id, sub.max_devices
+  INTO v_sub_id, v_max_devices
+  FROM software_licenses sl
+  LEFT JOIN subscriptions sub ON sub.id = sl.subscription_id
+  WHERE sl.id = p_license_id;
+
+  -- 2. 기존 동일 기기 세션 제거
+  DELETE FROM license_activations
   WHERE license_id = p_license_id
     AND device_uuid = p_device_uuid;
 
-  INSERT INTO license_activations (license_id, device_uuid, device_name, activated_at) -- 신규접속 세션 등록
+  -- 3. max_devices가 설정되어 있으면 제한 검사 (NULL이면 무제한)
+  IF v_max_devices IS NOT NULL AND v_max_devices > 0 THEN
+    SELECT COUNT(*) INTO v_active_count
+    FROM license_activations
+    WHERE license_id = p_license_id;
+
+    IF v_active_count >= v_max_devices THEN
+      RETURN jsonb_build_object(
+        'success', false, 'code', 'ERR_MAX_DEVICES_EXCEEDED',
+        'message', format('최대 %s대까지 동시 접속 가능합니다.', v_max_devices),
+        'max_devices', v_max_devices
+      );
+    END IF;
+  END IF;
+
+  -- 4. 신규 세션 등록
+  INSERT INTO license_activations (license_id, device_uuid, device_name, activated_at)
   VALUES (p_license_id, p_device_uuid, p_device_name, now());
 
-  RETURN jsonb_build_object('success', true, 'code', 'SUCCESS', 'message', '기기가 활성화되었습니다.'); -- 📤 성공 반환
+  RETURN jsonb_build_object('success', true, 'code', 'SUCCESS', 'message', '기기가 활성화되었습니다.');
 EXCEPTION
   WHEN OTHERS THEN
-    RETURN jsonb_build_object('success', false, 'code', 'ERROR', 'message', SQLERRM); -- 📤 실패 반환
+    RETURN jsonb_build_object('success', false, 'code', 'ERROR', 'message', SQLERRM);
 END;
 $$;
 

@@ -49,6 +49,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'toggleSidebar', icon: '🗃️', name: '사이드바 토글', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+B', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'toggleMode', icon: '📜', name: '모드 전환', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+M', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'underline', icon: 'U', name: '밑줄', group: '서식', tagFormat: '<u>텍스트</u>', defaultHotkey: 'Ctrl+U', defaultCommand: 'underline', insertText: '<u>텍스트</u>', kind: 15 },
+  { id: 'styleSettings', icon: '🎨', name: '서식관리', group: '문서', tagFormat: '서식 테마 갤러리', defaultHotkey: '', defaultCommand: 'style', insertText: '', kind: 17 },
 ];
 
 // ====================================================================
@@ -114,7 +115,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       // 💡 [한글 주석] 모달이 필요한 항목 (youtube 추가)
       const modalKeys = ['image', 'video', 'youtube', 'map', 'table', 'math'];
       // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 표 행 편집 이관)
-      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink', 'footnote'];
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink', 'footnote', 'styleSettings'];
 
       if (modalKeys.includes(item.id)) {
         command = {
