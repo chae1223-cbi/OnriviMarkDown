@@ -59,6 +59,8 @@ import {
  * 프로젝트 내부 모듈 @가 있는 내부 components 참조선언
  * ==================================================================================
  */
+import { EditorProvider } from '@/context/EditorContext';
+import { useUIStore } from '@/store/useUIStore';
 import { useToast } from '@/components/ToastProvider';  // 토스트 메시지
 import { msg } from '@/lib/systemMessages'; // 메시지
 import { getApiUrl } from '@/lib/apiUrlBuilder'; // api 서버 경로
@@ -108,6 +110,16 @@ import { useEditorTabs } from '@/hooks/useEditorTabs';
 import { useEditorSettings } from '@/hooks/useEditorSettings';
 import { useEditorHandlers } from '@/hooks/useEditorHandlers';
 import { useFileExplorer } from '@/hooks/useFileExplorer';
+
+// ====================================================================
+// 🚀 [리팩토링 V2 이관 준비] 새로 생성된 모듈 Import
+// 기존 하드코딩된 상태와 뷰를 이 파일들로 점진적으로 마이그레이션해야 합니다.
+// ====================================================================
+import { useEditorAuth } from '@/hooks/editor/useEditorAuth';
+import { useEditorModals } from '@/hooks/editor/useEditorModals';
+// import EditorLayout from '@/components/editor/layout/EditorLayout';
+// import EditorCore from '@/components/editor/core/EditorCore';
+import ModalManager from '@/components/editor/modals/ModalManager';
 
 
 /**
@@ -351,19 +363,19 @@ const getRelativePath = (fromPath: string | null | undefined, toPath: string): s
   const normTo = toPath.replace(/\\/g, '/');
   const fromParts = normFrom.split('/').filter(Boolean);
   const toParts = normTo.split('/').filter(Boolean);
-  
+
   // 파일명을 제외한 폴더 경로만 추출
-  fromParts.pop(); 
-  
+  fromParts.pop();
+
   let commonIndex = 0;
   while (commonIndex < fromParts.length && commonIndex < toParts.length && fromParts[commonIndex] === toParts[commonIndex]) {
     commonIndex++;
   }
-  
+
   const upCount = fromParts.length - commonIndex;
   const upParts = Array(upCount).fill('..');
   const downParts = toParts.slice(commonIndex);
-  
+
   const relParts = [...upParts, ...downParts];
   let relPath = relParts.join('/');
   if (!relPath.startsWith('.') && !relPath.startsWith('/')) {
@@ -381,17 +393,23 @@ const getRelativePath = (fromPath: string | null | undefined, toPath: string): s
 // ====================================================================
 export default function MainEditorApp() {                  // @MainEditorApp : MainEditorApp component  
   const { showToast } = useToast();             // @showToast : Toast component  
+  const { 
+    isSidebarOpen, setIsSidebarOpen, 
+    isToolbarOpen, setIsToolbarOpen, 
+    sidebarWidth, setSidebarWidth, 
+    sidebarTab, setSidebarTab 
+  } = useUIStore();
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
   const [content, setContent] = useState('');   // @content : content state 
-  
+
   const contentRef = useRef(content);
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0006] MainEditorApp.tsx ➔ contentRef_sync
-// 🎯 @KICK  : 클로저에서 사용하기 위해 contentRef.current를 content 상태와 동기화
-// 🛡️ @GUARD : 스테일 클로저가 ref에서 이전 콘텐츠를 읽는 것을 방지
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0006] MainEditorApp.tsx ➔ contentRef_sync
+  // 🎯 @KICK  : 클로저에서 사용하기 위해 contentRef.current를 content 상태와 동기화
+  // 🛡️ @GUARD : 스테일 클로저가 ref에서 이전 콘텐츠를 읽는 것을 방지
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   useEffect(() => {
     contentRef.current = content;
   }, [content]);
@@ -424,28 +442,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [_customHotkeys_init, _setCustomHotkeys_init] = useState<Record<string, string>>({});
   const [_customSlashCommands_init, _setCustomSlashCommands_init] = useState<Record<string, string>>({});
   const _customSlashCommandsRef_init = useRef<Record<string, string>>({});
-  const _handleThemeChange_init = () => {};
+  const _handleThemeChange_init = () => { };
 
-  // 💡 [초기화 순서 방어] 라이선스 및 디바이스 ID 상태 선행 선언
-  const [deviceId, setDeviceId] = useState<string>('');
-  const [licenseStatus, setLicenseStatus] = useState<{
-    isActivated: boolean;
-    isExpired: boolean;
-    remainingDays: number;
-    userId: string;
-    licenseKey: string;
-    paymentNo?: string;
-    planName?: string;
-    nextPaymentDate?: string;
-  }>({
-    isActivated: false,
-    isExpired: false,
-    remainingDays: 14,
-    userId: '',
-    licenseKey: ''
-  });
-  const [isLicenseChecking, setIsLicenseChecking] = useState(true);
-  const [graceRemainingSeconds, setGraceRemainingSeconds] = useState<number | null>(null);
+  // 💡 [Step 1 리팩토링 완료] 라이선스 및 권한 관리를 별도 Hook으로 완전히 분리!
+  const {
+    deviceId, setDeviceId,
+    licenseStatus, setLicenseStatus,
+    isLicenseChecking, setIsLicenseChecking,
+    graceRemainingSeconds, setGraceRemainingSeconds
+  } = useEditorAuth();
+
+  // 💡 [Step 2 리팩토링 완료] 수십 개에 달하던 모달/팝업 상태를 단 하나의 Hook으로 완전히 분리!
+  const {
+    isSettingsModalOpen, setIsSettingsModalOpen,
+    settingsModalInitialTab, setSettingsModalInitialTab,
+    isStyleModalOpen, setIsStyleModalOpen,
+    isExportModalOpen, setIsExportModalOpen,
+    isImageModalOpen, setIsImageModalOpen,
+    editingImageInfo, setEditingImageInfo,
+    isMapModalOpen, setIsMapModalOpen,
+    isTableModalOpen, setIsTableModalOpen,
+    isMergeModalOpen, setIsMergeModalOpen,
+    isYoutubeModalOpen, setIsYoutubeModalOpen,
+    youtubeInitialUrl, setYoutubeInitialUrl,
+    isAboutModalOpen, setIsAboutModalOpen,
+    isLicenseModalOpen, setIsLicenseModalOpen,
+    isFormulaModalOpen, setIsFormulaModalOpen,
+    promptConfig, setPromptConfig,
+    confirmConfig, setConfirmConfig
+  } = useEditorModals();
 
   // ====================================================================
   // 📊 [OMD-EDIT-0004 TDZ-GUARD] MainEditorApp.tsx ➔ tabs/activeTabId 선행 선언
@@ -476,9 +501,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const [activeLine, setActiveLine] = useState<number | null>(null); // @activeLine : active line state 
   const lastSelectionRef = useRef<any>(null);    // @lastSelectionRef : last selection state 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // @isSidebarOpen : sidebar open state 
-  const [isToolbarOpen, setIsToolbarOpen] = useState(true); // @isToolbarOpen : toolbar open state 
-  const [sidebarWidth, setSidebarWidth] = useState(340); // @sidebarWidth : sidebar width state 
   /*
    * profiles state — CssProfile 배열
    * - 시스템 프로필(SYSTEM_PROFILES)은 항상 앞에 고정
@@ -489,13 +511,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // SSR 이후: 시스템 프로필만 우선 세팅, 사용자 프로필은 useEffect에서 비동기 로드
     return [...SYSTEM_PROFILES];
   });
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0007] MainEditorApp.tsx ➔ loadUserProfiles
-// 🎯 @KICK  : 마운트 시 플랫폼 저장소(electronAPI 또는 localStorage)에서 사용자 CSS 프로필 로드
-// 🛡️ @GUARD : 사용자 저장 데이터에서 시스템 프로필 필터링, 레거시 형식 마이그레이션 병합
-// 🚨 @PATCH : None
-// 🔗 @CALLS : api.readProfiles, localStorage.getItem, JSON.parse, setProfiles
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0007] MainEditorApp.tsx ➔ loadUserProfiles
+  // 🎯 @KICK  : 마운트 시 플랫폼 저장소(electronAPI 또는 localStorage)에서 사용자 CSS 프로필 로드
+  // 🛡️ @GUARD : 사용자 저장 데이터에서 시스템 프로필 필터링, 레거시 형식 마이그레이션 병합
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : api.readProfiles, localStorage.getItem, JSON.parse, setProfiles
+  // ====================================================================
   useEffect(() => {
     if (!mounted) return;
     const api = (window as any).electronAPI;
@@ -522,7 +544,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               localStorage.removeItem('cssProfiles');
             }
           }
-        } catch {}
+        } catch { }
       }
       setProfiles(prev => {
         const systemPart = prev.filter(p => isSystemProfileId(p.id));
@@ -540,24 +562,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const helpContentRef = useRef(helpContent);
   helpContentRef.current = helpContent;
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0008] MainEditorApp.tsx ➔ previewModeRef_sync
-// 🎯 @KICK  : previewModeRef.current를 previewMode 상태와 동기화
-// 🛡️ @GUARD : 이벤트 핸들러 및 비동기 콜백에서 스테일 ref 방지
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0008] MainEditorApp.tsx ➔ previewModeRef_sync
+  // 🎯 @KICK  : previewModeRef.current를 previewMode 상태와 동기화
+  // 🛡️ @GUARD : 이벤트 핸들러 및 비동기 콜백에서 스테일 ref 방지
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   useEffect(() => {
     previewModeRef.current = previewMode;
   }, [previewMode]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0009] MainEditorApp.tsx ➔ helpContent_forces_preview
-// 🎯 @KICK  : 도움말 콘텐츠가 설정되면 미리보기 모드 강제, 에디터 마운트 비활성화
-// 🛡️ @GUARD : 도움말 오버레이와 에디터 콘텐츠 충돌 방지
-// 🚨 @PATCH : None
-// 🔗 @CALLS : setPreviewModeRaw
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0009] MainEditorApp.tsx ➔ helpContent_forces_preview
+  // 🎯 @KICK  : 도움말 콘텐츠가 설정되면 미리보기 모드 강제, 에디터 마운트 비활성화
+  // 🛡️ @GUARD : 도움말 오버레이와 에디터 콘텐츠 충돌 방지
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : setPreviewModeRaw
+  // ====================================================================
   useEffect(() => {
     if (helpContent) {
       setPreviewModeRaw('preview');
@@ -571,51 +593,43 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
   const [currentFileName, setCurrentFileName] = useState<string>('새 파일.md');
   const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
-  const [promptConfig, setPromptConfig] = useState<{
-    isOpen: boolean;
-    title: string;
-    defaultValue: string;
-    type: 'createFile' | 'createFolder' | 'rename' | null;
-    error: string;
-  }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
 
-
+  // 💡 [Step 2 리팩토링으로 promptConfig 삭제됨 (useEditorModals로 이관)]
 
   const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
   const [driveLetter, setDriveLetter] = useState('D:');
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0012] MainEditorApp.tsx ➔ tabMetadata_sync
-// 🎯 @KICK  : 현재 파일 정보가 변경될 때 탭 메타데이터(fileName, path, node) 동기화
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : setTabs
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0012] MainEditorApp.tsx ➔ tabMetadata_sync
+  // 🎯 @KICK  : 현재 파일 정보가 변경될 때 탭 메타데이터(fileName, path, node) 동기화
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : setTabs
+  // ====================================================================
   useEffect(() => {
     if (activeTabId) {
-      setTabs(prev => prev.map(t => 
-        t.id === activeTabId 
-          ? { 
-              ...t, 
-              name: currentFileName, 
-              path: currentFileNode?.path || null, 
-              node: currentFileNode 
-            } 
+      setTabs(prev => prev.map(t =>
+        t.id === activeTabId
+          ? {
+            ...t,
+            name: currentFileName,
+            path: currentFileNode?.path || null,
+            node: currentFileNode
+          }
           : t
       ));
     }
   }, [currentFileName, currentFileNode, activeTabId]);
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<'toc' | 'search' | 'explorer'>('explorer');
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0013] MainEditorApp.tsx ➔ searchOpen_sidebar_behavior
-// 🎯 @KICK  : 글로벌 검색이 열릴 때 사이드바 열기 및 검색 탭으로 전환
-// 🛡️ @GUARD : 검색이 닫힐 때 (여전히 검색 탭인 경우) 사이드바 탭을 TOC로 재설정
-// 🚨 @PATCH : None
-// 🔗 @CALLS : setIsSidebarOpen, setSidebarTab
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0013] MainEditorApp.tsx ➔ searchOpen_sidebar_behavior
+  // 🎯 @KICK  : 글로벌 검색이 열릴 때 사이드바 열기 및 검색 탭으로 전환
+  // 🛡️ @GUARD : 검색이 닫힐 때 (여전히 검색 탭인 경우) 사이드바 탭을 TOC로 재설정
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : setIsSidebarOpen, setSidebarTab
+  // ====================================================================
   useEffect(() => {
     if (isSearchOpen) {
       setIsSidebarOpen(true);
@@ -625,38 +639,27 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [isSearchOpen]);
 
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [editingImageInfo, setEditingImageInfo] = useState<{
-    range: any;
-    alt: string;
-    path: string;
-    width: string;
-    height: string;
-    align: string;
-  } | null>(null);
-  const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);
-  const [youtubeInitialUrl, setYoutubeInitialUrl] = useState<string | null>(null);
+  // 💡 [Step 2 리팩토링으로 각종 모달 상태들 삭제됨 (useEditorModals로 이관)]
   const youtubeEditRangeRef = useRef<any>(null);
-  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+
   const [showDocLinkPicker, setShowDocLinkPicker] = useState(false);
   const [docLinkSearchText, setDocLinkSearchText] = useState('');
   const [allMdFiles, setAllMdFiles] = useState<FileNode[]>([]);
   const [isDocLinkLoading, setIsDocLinkLoading] = useState(false);
-  
+
   // 💡 [다른 문서 헤딩 연결] 헤딩 파싱 및 UI 조작을 위한 상태값
   const [selectedDocNode, setSelectedDocNode] = useState<FileNode | null>(null);
   const [docHeadings, setDocHeadings] = useState<string[]>([]);
   const [isHeadingLoading, setIsHeadingLoading] = useState(false);
   const [docHeadingSearchText, setDocHeadingSearchText] = useState('');
 
-// ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0014] MainEditorApp.tsx ➔ loadFilesForDocLinkPicker
-// 🎯 @KICK  : 문서 링크 선택기 열릴 때 모든 .md 파일 로드, 닫힐 때 상태 정리
-// 🛡️ @GUARD : 선택기 닫힐 때 모든 제목/파일 선택 상태 초기화
-// 🚨 @PATCH : None
-// 🔗 @CALLS : fetchAllMdFiles, setAllMdFiles
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0014] MainEditorApp.tsx ➔ loadFilesForDocLinkPicker
+  // 🎯 @KICK  : 문서 링크 선택기 열릴 때 모든 .md 파일 로드, 닫힐 때 상태 정리
+  // 🛡️ @GUARD : 선택기 닫힐 때 모든 제목/파일 선택 상태 초기화
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : fetchAllMdFiles, setAllMdFiles
+  // ====================================================================
   useEffect(() => {
     if (showDocLinkPicker) {
       const loadFiles = async () => {
@@ -682,26 +685,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [showDocLinkPicker, workspaceType, fileList, rootFolder]);
 
-// 📊 [[ 자동완성용 파일 목록 로드
+  // 📊 [[ 자동완성용 파일 목록 로드
   useEffect(() => {
     if (workspaceType && fileList.length > 0 && !showDocLinkPicker) {
       fetchAllMdFiles(workspaceType, fileList, rootFolder).then(files => {
         docLinkFilesRef.current = files;
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [workspaceType, fileList, rootFolder, showDocLinkPicker]);
 
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
-  const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
+  // 💡 [Step 2 리팩토링으로 세팅 및 스타일 모달 상태 삭제됨 (useEditorModals로 이관)]
 
-// ====================================================================
-// 📊 [OMD-AUTH-MainEditorApp-0015] MainEditorApp.tsx ➔ initDeviceId
-// 🎯 @KICK  : electronAPI, chrome.storage 또는 localStorage 폴백에서 고유 장치 ID 초기화
-// 🛡️ @GUARD : 순서가 다른 환경 처리; 존재하지 않으면 crypto-random UUID 생성
-// 🚨 @PATCH : 2026-06-28 — 크롬 스토리지 동기화 완전 제거 및 로컬스토리지 격리로 세션 기반 접속 관리 전환
-// 🔗 @CALLS : api.getMachineId, crypto.randomUUID, localStorage.getItem/setItem, setDeviceId
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-AUTH-MainEditorApp-0015] MainEditorApp.tsx ➔ initDeviceId
+  // 🎯 @KICK  : electronAPI, chrome.storage 또는 localStorage 폴백에서 고유 장치 ID 초기화
+  // 🛡️ @GUARD : 순서가 다른 환경 처리; 존재하지 않으면 crypto-random UUID 생성
+  // 🚨 @PATCH : 2026-06-28 — 크롬 스토리지 동기화 완전 제거 및 로컬스토리지 격리로 세션 기반 접속 관리 전환
+  // 🔗 @CALLS : api.getMachineId, crypto.randomUUID, localStorage.getItem/setItem, setDeviceId
+  // ====================================================================
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -724,16 +725,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     initDeviceId();
   }, []);
 
-// ====================================================================
-// 📊 [OMD-AUTH-MainEditorApp-0016] MainEditorApp.tsx ➔ loadAndVerifyLicense (payment_no)
-// 🎯 @KICK  : 저장소에서 라이선스 키 로드, Supabase DB로 검증; payment_no 없는 경우 user_id fallback
-// 🛡️ @GUARD : 암호화 캐시를 통한 오프라인 유예 기간(3일), 시간 조작 방어; 웹 SaaS는 count 조회만 (upsert/장비 체크 없음)
-// 🚨 @PATCH : 2026-06-28 — 확장프로그램(chrome.storage.local) 스토리지 읽기 로직 제거 (로컬스토리지 격리);
-//              2026-06-23 — payment_no 미존재 시의 subscriptions 폴백 쿼리에 다중구독 cardinality violation 방지용 활성 구독 필터(is_expired/plan_end_date/plan_status 등) 추가 개편;
-//              2026-06-22 — payment_no 미존재 시 supabase Auth 세션 → subscriptions → software_licenses fallback;
-//              웹 SaaS: count 조회만 수행, upsert/device UUID 완전 제거 (auth callback에서 insert 담당)
-// 🔗 @CALLS : api.loadLicenseFull, supabase.from.license_activations.select, crypto.subtle.digest, saveSecureData, loadSecureData, setLicenseStatus, setLicenseKey
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-AUTH-MainEditorApp-0016] MainEditorApp.tsx ➔ loadAndVerifyLicense (payment_no)
+  // 🎯 @KICK  : 저장소에서 라이선스 키 로드, Supabase DB로 검증; payment_no 없는 경우 user_id fallback
+  // 🛡️ @GUARD : 암호화 캐시를 통한 오프라인 유예 기간(3일), 시간 조작 방어; 웹 SaaS는 count 조회만 (upsert/장비 체크 없음)
+  // 🚨 @PATCH : 2026-06-28 — 확장프로그램(chrome.storage.local) 스토리지 읽기 로직 제거 (로컬스토리지 격리);
+  //              2026-06-23 — payment_no 미존재 시의 subscriptions 폴백 쿼리에 다중구독 cardinality violation 방지용 활성 구독 필터(is_expired/plan_end_date/plan_status 등) 추가 개편;
+  //              2026-06-22 — payment_no 미존재 시 supabase Auth 세션 → subscriptions → software_licenses fallback;
+  //              웹 SaaS: count 조회만 수행, upsert/device UUID 완전 제거 (auth callback에서 insert 담당)
+  // 🔗 @CALLS : api.loadLicenseFull, supabase.from.license_activations.select, crypto.subtle.digest, saveSecureData, loadSecureData, setLicenseStatus, setLicenseKey
+  // ====================================================================
   const loadAndVerifyLicense = useCallback(async () => {
     if (typeof window === 'undefined' || !deviceId) return;
     console.log('[LICENSE] loadAndVerifyLicense START deviceId=%o', deviceId);
@@ -785,8 +786,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (isDesktop) {
       // 시스템 실행 시간 갱신 및 기존 라이선스 오프라인 토큰 유지
       if (typeof api.saveLicenseFull === 'function') {
-        await api.saveLicenseFull({ 
-          userId: savedUserId, 
+        await api.saveLicenseFull({
+          userId: savedUserId,
           lastRunTime: nowTime,
           nextPaymentDate: savedNextPaymentDate,
           licenseKey: savedLicenseKey,
@@ -819,14 +820,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         } else {
           const expiryMs = data.next_payment_date ? new Date(data.next_payment_date).getTime() : 0;
           const remainingDays = expiryMs === 0 ? 0 : Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
-          
+
           const newStatus = {
             isActivated: true, isExpired: false, remainingDays,
             userId: savedUserId, licenseKey: data.license_key || '', paymentNo: data.payment_no || '',
             planName: data.plan_name || '프리미엄 요금제',
             nextPaymentDate: data.next_payment_date || data.trial_end_at || ''
           };
-          
+
           setLicenseStatus(newStatus);
 
           // 인증 성공 시 최신 라이선스 정보로 로컬 오프라인 토큰 갱신
@@ -842,12 +843,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       } catch (err) {
         console.warn('[loadAndVerifyLicense] Desktop DB error (Network offline):', err);
-        
+
         // 🚨 오프라인 유예기간(Grace Period) 검증 🚨
         if (savedNextPaymentDate) {
           const expiryMs = new Date(savedNextPaymentDate).getTime();
           const remainingDays = Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
-          
+
           if (remainingDays > 0) {
             console.log('[loadAndVerifyLicense] Offline grace period active. Days remaining:', remainingDays);
             showToast(`네트워크 오프라인 모드로 실행 중입니다. (구독 만료까지 D-${remainingDays})`, "warning");
@@ -885,7 +886,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             .select('id, plan_name, plan_status, trial_end_at, current_period_end, max_devices')
             .eq('user_id', session.user.id)
             .in('plan_status', ['ACTIVE', 'FREE'])
-              .not('plan_name', 'like', '%데스크탑%')
+            .not('plan_name', 'like', '%데스크탑%')
             .order('current_period_end', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -968,21 +969,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               .eq('id', lic.subscription_id)
               .maybeSingle();
 
-                          let expiryMs = 0;
-              if (sub) {
-                if (sub.plan_name && sub.plan_name.includes('데스크탑')) {
-                  console.warn('[loadAndVerifyLicense] Desktop plan cannot be used in Web SaaS.');
-                  setLicenseStatus({
-                    isActivated: false, isExpired: true, remainingDays: 0, userId: savedUserId,
-                    licenseKey: '', paymentNo: savedPaymentNo || license?.payment_no || '',
-                    planName: '데스크탑 전용 플랜 (웹 사용 불가)', nextPaymentDate: ''
-                  });
-                  return;
-                }
-                const targetDate = sub.current_period_end || sub.trial_end_at;
-                if (targetDate) expiryMs = new Date(targetDate).getTime();
+            let expiryMs = 0;
+            if (sub) {
+              if (sub.plan_name && sub.plan_name.includes('데스크탑')) {
+                console.warn('[loadAndVerifyLicense] Desktop plan cannot be used in Web SaaS.');
+                setLicenseStatus({
+                  isActivated: false, isExpired: true, remainingDays: 0, userId: savedUserId,
+                  licenseKey: '', paymentNo: savedPaymentNo || license?.payment_no || '',
+                  planName: '데스크탑 전용 플랜 (웹 사용 불가)', nextPaymentDate: ''
+                });
+                return;
               }
-            
+              const targetDate = sub.current_period_end || sub.trial_end_at;
+              if (targetDate) expiryMs = new Date(targetDate).getTime();
+            }
+
             let isExpired = expiryMs === 0 ? true : (Date.now() > expiryMs);
             const remainingDays = expiryMs === 0 ? 0 : Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
             const isFreeTrial = sub?.plan_name === 'FREE' || savedPaymentNo.startsWith('FREE_TRIAL_');
@@ -1133,13 +1134,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [licenseStatus.isExpired, mounted, isLicenseChecking]);
 
-// ====================================================================
-// 📊 [OMD-PAY-MainEditorApp-0017] MainEditorApp.tsx ➔ supabaseRealtime_license
-// 🎯 @KICK  : 실시간 활성화를 위해 license_activations의 Supabase postgres_changes 구독, 데스크톱 프로토콜 폴백 포함
-// 🛡️ @GUARD : 언마운트 시 채널 및 리스너 정리; device_uuid 필터로 중복 제거
-// 🚨 @PATCH : Electron 환경을 위한 데스크톱 onLicenseActivated 백업 및 결제번호(paymentNo) 전달 보완
-// 🔗 @CALLS : supabase.channel, supabase.from.software_licenses.select, handleSuccessActivation, showToast
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-PAY-MainEditorApp-0017] MainEditorApp.tsx ➔ supabaseRealtime_license
+  // 🎯 @KICK  : 실시간 활성화를 위해 license_activations의 Supabase postgres_changes 구독, 데스크톱 프로토콜 폴백 포함
+  // 🛡️ @GUARD : 언마운트 시 채널 및 리스너 정리; device_uuid 필터로 중복 제거
+  // 🚨 @PATCH : Electron 환경을 위한 데스크톱 onLicenseActivated 백업 및 결제번호(paymentNo) 전달 보완
+  // 🔗 @CALLS : supabase.channel, supabase.from.software_licenses.select, handleSuccessActivation, showToast
+  // ====================================================================
   useEffect(() => {
     if (!deviceId) return;
 
@@ -1196,14 +1197,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     };
   }, [deviceId, _licenseKey_init, licenseStatus.userId]);
 
-// ====================================================================
-// 📊 [OMD-AUTH-MainEditorApp-0018] MainEditorApp.tsx ➔ handleSuccessActivation
-// 🎯 @KICK  : 성공적인 결제/활성화 후 모든 저장소 계층에 확인된 라이선스 활성화 유지
-// 🛡️ @GUARD : 원자적 setLicenseStatus + 플랫폼 저장소 저장 (electronAPI, chrome.storage, localStorage) 및 실시간 동기화
-// 🚨 @PATCH : 2026-06-28 — chrome.storage.local.set 제거 (로컬스토리지 격리)
-//              결제번호(paymentNo) 인자 수용 및 loadAndVerifyLicense() 호출을 통한 상태 실시간 동기화
-// 🔗 @CALLS : setLicenseStatus, api.saveLicenseFull, localStorage.setItem, loadAndVerifyLicense
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-AUTH-MainEditorApp-0018] MainEditorApp.tsx ➔ handleSuccessActivation
+  // 🎯 @KICK  : 성공적인 결제/활성화 후 모든 저장소 계층에 확인된 라이선스 활성화 유지
+  // 🛡️ @GUARD : 원자적 setLicenseStatus + 플랫폼 저장소 저장 (electronAPI, chrome.storage, localStorage) 및 실시간 동기화
+  // 🚨 @PATCH : 2026-06-28 — chrome.storage.local.set 제거 (로컬스토리지 격리)
+  //              결제번호(paymentNo) 인자 수용 및 loadAndVerifyLicense() 호출을 통한 상태 실시간 동기화
+  // 🔗 @CALLS : setLicenseStatus, api.saveLicenseFull, localStorage.setItem, loadAndVerifyLicense
+  // ====================================================================
   const handleSuccessActivation = async (verifyKey: string, userId: string, paymentNo: string, explicitLicenseKey?: string) => {
     const api = (window as any).electronAPI;
     const finalLicenseKey = explicitLicenseKey || licenseKey;
@@ -1226,39 +1227,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     await loadAndVerifyLicense();
   };
 
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);
-  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
-  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
-  const [confirmConfig, setConfirmConfig] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    confirmText?: string;
-    cancelText?: string;
-    isDanger?: boolean;
-    onConfirm: () => void;
-    onCancel?: () => void;
-  }>({ isOpen: false, title: "", message: "", onConfirm: () => { } });
-
+  // 💡 [Step 2 리팩토링으로 내보내기, 어바웃, 컴펌 등 기타 모달 상태 싹 다 삭제됨 (useEditorModals로 이관)]
 
   const [isEditorReady, setIsEditorReady] = useState(false);
 
   const [isMergeMode, setIsMergeMode] = useState(false);
   const [selectedMergeNodes, setSelectedMergeNodes] = useState<FileNode[]>([]);
-  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  // 💡 [Step 2 리팩토링으로 isMergeModalOpen 삭제됨]
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorColumn, setCursorColumn] = useState(1);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | ''>('');
   const [floatingHeadingLevel, setFloatingHeadingLevel] = useState(3);
 
-// ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0019] MainEditorApp.tsx ➔ toggleMergeNodeSelect
-// 🎯 @KICK  : 병합 선택 목록에서 FileNode 추가/제거 토글
-// 🛡️ @GUARD : 중복 추가 방지를 위해 경로 또는 이름으로 중복 제거
-// 🚨 @PATCH : None
-// 🔗 @CALLS : setSelectedMergeNodes
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0019] MainEditorApp.tsx ➔ toggleMergeNodeSelect
+  // 🎯 @KICK  : 병합 선택 목록에서 FileNode 추가/제거 토글
+  // 🛡️ @GUARD : 중복 추가 방지를 위해 경로 또는 이름으로 중복 제거
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : setSelectedMergeNodes
+  // ====================================================================
   const toggleMergeNodeSelect = (node: FileNode) => {
     setSelectedMergeNodes(prev => {
       const exists = prev.some(n => n.path ? n.path === node.path : n.name === node.name);
@@ -1270,13 +1257,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     });
   };
 
-// ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0020] MainEditorApp.tsx ➔ handleOpenMergeModal
-// 🎯 @KICK  : 2개 이상의 파일이 선택된 경우에만 병합 모달 열기
-// 🛡️ @GUARD : 모달 열기 전 최소 선택 개수(2) 검증
-// 🚨 @PATCH : None
-// 🔗 @CALLS : showToast, setIsMergeModalOpen
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0020] MainEditorApp.tsx ➔ handleOpenMergeModal
+  // 🎯 @KICK  : 2개 이상의 파일이 선택된 경우에만 병합 모달 열기
+  // 🛡️ @GUARD : 모달 열기 전 최소 선택 개수(2) 검증
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : showToast, setIsMergeModalOpen
+  // ====================================================================
   const handleOpenMergeModal = () => {
     if (selectedMergeNodes.length < 2) {
       showToast("병합하려면 최소 2개 이상의 파일을 선택해야 합니다.", 'warning');
@@ -1342,53 +1329,53 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const licenseStatusRef = useRef(licenseStatus);
   const tabSizeRef = useRef(4);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0021] MainEditorApp.tsx ➔ currentFileNodeRef_sync
-// 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 currentFileNodeRef 동기화
-// 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지 시스템의 일부
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0021] MainEditorApp.tsx ➔ currentFileNodeRef_sync
+  // 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 currentFileNodeRef 동기화
+  // 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지 시스템의 일부
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   useEffect(() => { currentFileNodeRef.current = currentFileNode; }, [currentFileNode]);
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0022] MainEditorApp.tsx ➔ currentFileNameRef_sync
-// 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 currentFileNameRef 동기화
-// 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지의 일부
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0022] MainEditorApp.tsx ➔ currentFileNameRef_sync
+  // 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 currentFileNameRef 동기화
+  // 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지의 일부
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   useEffect(() => { currentFileNameRef.current = currentFileName; }, [currentFileName]);
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0023] MainEditorApp.tsx ➔ workspaceTypeRef_sync
-// 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 workspaceTypeRef 동기화
-// 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지의 일부
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0023] MainEditorApp.tsx ➔ workspaceTypeRef_sync
+  // 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 workspaceTypeRef 동기화
+  // 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지의 일부
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   useEffect(() => { workspaceTypeRef.current = workspaceType; }, [workspaceType]);
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0024] MainEditorApp.tsx ➔ rootFolderRef_sync
-// 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 rootFolderRef 동기화
-// 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지의 일부
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0024] MainEditorApp.tsx ➔ rootFolderRef_sync
+  // 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 rootFolderRef 동기화
+  // 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지의 일부
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
-// ====================================================================
-// 📊 [OMD-LICENSE-MainEditorApp-0075] MainEditorApp.tsx ➔ licenseStatusRef_sync
-// 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 licenseStatusRef 동기화
-// 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지 시스템의 일부
-// 🚨 @PATCH : **2026-06-21** — 신규: 만료 시 Ctrl+S/내보내기 차단을 위한 ref 추가
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-LICENSE-MainEditorApp-0075] MainEditorApp.tsx ➔ licenseStatusRef_sync
+  // 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 licenseStatusRef 동기화
+  // 🛡️ @GUARD : WBS CORE-02 스테일 클로저 방지 시스템의 일부
+  // 🚨 @PATCH : **2026-06-21** — 신규: 만료 시 Ctrl+S/내보내기 차단을 위한 ref 추가
+  // 🔗 @CALLS : None
+  // ====================================================================
   useEffect(() => { licenseStatusRef.current = licenseStatus; }, [licenseStatus]);
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0025] MainEditorApp.tsx ➔ tabSizeRef_sync
-// 🎯 @KICK  : 활성 CSS 프로필 tabSize 설정에서 tabSizeRef 업데이트
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : parseInt
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0025] MainEditorApp.tsx ➔ tabSizeRef_sync
+  // 🎯 @KICK  : 활성 CSS 프로필 tabSize 설정에서 tabSizeRef 업데이트
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : parseInt
+  // ====================================================================
   useEffect(() => {
     const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
     tabSizeRef.current = parseInt(activeProfile.pageStyle.tabSize) || 4;
@@ -1439,13 +1426,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     handleFileOpenByPath
   } = useFileExplorerResult;
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0026 ✅ FIXED] MainEditorApp.tsx ➔ setPreviewMode
-// 🎯 @KICK  : 에디터 콘텐츠 보존, css-style 웰컴 탭 자동 생성 및 도움말 콘텐츠 가드와 함께 미리보기 모드 전환
-// 🛡️ @GUARD : css-style 잠금 중 모드 변경 방지, 전환 전 에디터 콘텐츠 강제 동기화, helpContent 재정의 차단, 도움말 탭('도움말.md') 모드 변경 차단
-// 🚨 @PATCH : 도움말 탭 읽기 전용 잠금 가드 추가 (2026-06-17)
-// 🔗 @CALLS : editorRef.current.getValue, setContent, setPreviewModeRaw, setHelpContent, createNewTab, switchTab, clearTimeout
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0026 ✅ FIXED] MainEditorApp.tsx ➔ setPreviewMode
+  // 🎯 @KICK  : 에디터 콘텐츠 보존, css-style 웰컴 탭 자동 생성 및 도움말 콘텐츠 가드와 함께 미리보기 모드 전환
+  // 🛡️ @GUARD : css-style 잠금 중 모드 변경 방지, 전환 전 에디터 콘텐츠 강제 동기화, helpContent 재정의 차단, 도움말 탭('도움말.md') 모드 변경 차단
+  // 🚨 @PATCH : 도움말 탭 읽기 전용 잠금 가드 추가 (2026-06-17)
+  // 🔗 @CALLS : editorRef.current.getValue, setContent, setPreviewModeRaw, setHelpContent, createNewTab, switchTab, clearTimeout
+  // ====================================================================
   const setPreviewMode = useCallback((modeOrFn: 'edit' | 'both' | 'preview' | 'css-style' | ((prev: 'edit' | 'both' | 'preview' | 'css-style') => 'edit' | 'both' | 'preview' | 'css-style')) => {
     // 모드 전환 전 에디터 내용을 즉시 React 상태에 반영 (100ms 디바운스 손실 방지)
     if (editorRef.current && previewModeRef.current !== 'preview') {
@@ -1460,7 +1447,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     setPreviewModeRaw(prev => {
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
-      
+
       if (licenseStatus.isExpired) {
         if (next !== 'preview') {
           showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
@@ -1470,7 +1457,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (helpContentRef.current && next !== 'css-style') return prev;
       const activeTab = tabsRef.current.find(t => t.id === activeTabIdRef.current);
       if (activeTab?.name === '도움말.md' && next !== 'preview' && next !== 'css-style') return prev;
-      
+
       // 💡 일반 보기 모드(edit, both, preview)로 변경하는 경우, 이를 전역 상태용 Ref에 백업해둡니다.
       if (next === 'edit' || next === 'both' || next === 'preview') {
         lastGeneralPreviewModeRef.current = next;
@@ -1495,11 +1482,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0027 ✅ FIXED] MainEditorApp.tsx ➔ closeTab
-// 🎯 @KICK  : 저장되지 않은 변경사항 확인, 모델 폐기 및 css-style/도움말 모드 자동 종료와 함께 탭 닫기
-// 🛡️ @GUARD : 이벤트 stopPropagation, 수정된 탭 확인, Monaco 모델 폐기, 다음 탭으로 전환 또는 빈 탭 생성
-// 🚨 @PATCH : 도움말 탭 닫을 때 'both' 모드 복원 추가 (2026-06-17); tabsRef 즉시 동기화 + isDisposed() 가드로 Model is disposed! 크래시 방지 (2026-06-18); stale ref로 인한 삭제 탭 복원 버그 수정 (2026-06-18)
-// 🔗 @CALLS : setTabs, switchTab, createNewTab, setConfirmConfig, tab.model.dispose
-// ====================================================================
+  // 🎯 @KICK  : 저장되지 않은 변경사항 확인, 모델 폐기 및 css-style/도움말 모드 자동 종료와 함께 탭 닫기
+  // 🛡️ @GUARD : 이벤트 stopPropagation, 수정된 탭 확인, Monaco 모델 폐기, 다음 탭으로 전환 또는 빈 탭 생성
+  // 🚨 @PATCH : 도움말 탭 닫을 때 'both' 모드 복원 추가 (2026-06-17); tabsRef 즉시 동기화 + isDisposed() 가드로 Model is disposed! 크래시 방지 (2026-06-18); stale ref로 인한 삭제 탭 복원 버그 수정 (2026-06-18)
+  // 🔗 @CALLS : setTabs, switchTab, createNewTab, setConfirmConfig, tab.model.dispose
+  // ====================================================================
   const closeTab = useCallback((tabId: string, event?: React.MouseEvent) => {
     if (event) {
       event.stopPropagation();
@@ -1560,7 +1547,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     performClose();
   }, [createNewTab, switchTab, setTabs]);
-  
+
   const useEditorSettingsResult = useEditorSettings(
     editorRef,
     mounted,
@@ -1599,13 +1586,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     handleThemeChange
   } = useEditorSettingsResult;
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0028] MainEditorApp.tsx ➔ autoSaveRef_sync
-// 🎯 @KICK  : 자동 저장 로직에서 스테일 클로저 방지를 위해 autoSaveRef를 autoSave 상태와 동기화
-// 🛡️ @GUARD : 스테일 클로저 방지 시스템의 일부
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0028] MainEditorApp.tsx ➔ autoSaveRef_sync
+  // 🎯 @KICK  : 자동 저장 로직에서 스테일 클로저 방지를 위해 autoSaveRef를 autoSave 상태와 동기화
+  // 🛡️ @GUARD : 스테일 클로저 방지 시스템의 일부
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   const autoSaveRef = useRef(autoSave);
   useEffect(() => { autoSaveRef.current = autoSave; }, [autoSave]);
 
@@ -1616,13 +1603,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const decorationsCollectionRef = useRef<any>(null);
   const decorationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0029] MainEditorApp.tsx ➔ handleCheckboxToggle
-// 🎯 @KICK  : 미리보기 체크박스 클릭을 에디터 모델 라인 콘텐츠에 동기화
-// 🛡️ @GUARD : window.monaco 존재 확인, 라인 범위 검사, 정규식 검증으로 가드
-// 🚨 @PATCH : None
-// 🔗 @CALLS : editor.getModel, editor.pushUndoStop, editor.executeEdits
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0029] MainEditorApp.tsx ➔ handleCheckboxToggle
+  // 🎯 @KICK  : 미리보기 체크박스 클릭을 에디터 모델 라인 콘텐츠에 동기화
+  // 🛡️ @GUARD : window.monaco 존재 확인, 라인 범위 검사, 정규식 검증으로 가드
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : editor.getModel, editor.pushUndoStop, editor.executeEdits
+  // ====================================================================
   const handleCheckboxToggle = useCallback((lineNumber: number, checked: boolean) => {
     if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
     const editor = editorRef.current;
@@ -1653,13 +1640,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, []);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0030] MainEditorApp.tsx ➔ updateDecorations
-// 🎯 @KICK  : 마크다운 구문 강조(제목, 굵게, 기울임, 취소선)를 위한 인라인 Monaco 데코레이션 적용
-// 🛡️ @GUARD : editor/window.monaco를 사용할 수 없으면 건너뜀
-// 🚨 @PATCH : None
-// 🔗 @CALLS : decorationsCollectionRef.current.set
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0030] MainEditorApp.tsx ➔ updateDecorations
+  // 🎯 @KICK  : 마크다운 구문 강조(제목, 굵게, 기울임, 취소선)를 위한 인라인 Monaco 데코레이션 적용
+  // 🛡️ @GUARD : editor/window.monaco를 사용할 수 없으면 건너뜀
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : decorationsCollectionRef.current.set
+  // ====================================================================
   const updateDecorations = useCallback((editor: any) => {
     if (!editor || typeof window === 'undefined' || !(window as any).monaco) return;
     const model = editor.getModel();
@@ -1770,13 +1757,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const handlersRef = useRef<any>(null);
   const hotkeyDisposablesRef = useRef<any[]>([]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0031] MainEditorApp.tsx ➔ previewWheelSync
-// 🎯 @KICK  : 분할 모드에서 미리보기 영역의 마우스 휠 이벤트를 에디터 스크롤로 전달
-// 🛡️ @GUARD : 기본 스크롤 중지를 위해 passive:false로 e.preventDefault
-// 🚨 @PATCH : None
-// 🔗 @CALLS : editor.setScrollTop
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0031] MainEditorApp.tsx ➔ previewWheelSync
+  // 🎯 @KICK  : 분할 모드에서 미리보기 영역의 마우스 휠 이벤트를 에디터 스크롤로 전달
+  // 🛡️ @GUARD : 기본 스크롤 중지를 위해 passive:false로 e.preventDefault
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : editor.setScrollTop
+  // ====================================================================
   useEffect(() => {
     const previewEl = previewRef.current;
     if (!previewEl) return;
@@ -1797,13 +1784,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     };
   }, [previewMode]);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0032] MainEditorApp.tsx ➔ darkModeDOMClass
-// 🎯 @KICK  : Tailwind 다크 모드를 위해 documentElement에 'dark' 클래스 토글
-// 🛡️ @GUARD : SSR 불일치 방지를 위해 마운트 후에만 실행
-// 🚨 @PATCH : None
-// 🔗 @CALLS : document.documentElement.classList.add/remove
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0032] MainEditorApp.tsx ➔ darkModeDOMClass
+  // 🎯 @KICK  : Tailwind 다크 모드를 위해 documentElement에 'dark' 클래스 토글
+  // 🛡️ @GUARD : SSR 불일치 방지를 위해 마운트 후에만 실행
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : document.documentElement.classList.add/remove
+  // ====================================================================
 
   useEffect(() => {
     if (!mounted) return;
@@ -1814,13 +1801,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [isDarkMode, mounted]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0033] MainEditorApp.tsx ➔ editorSettingsSync
-// 🎯 @KICK  : 설정 또는 에디터 마운트 변경 시 테마, 폰트 크기, 줄 바꿈 재적용
-// 🛡️ @GUARD : 레이스 컨디션 방지를 위해 mounted && isEditorReady로 가드
-// 🚨 @PATCH : 2026-06-23 — 라이선스 만료/제한 여부(isExpired) 변경 시 readOnly/domReadOnly 동기화 연동 추가
-// 🔗 @CALLS : monaco.editor.setTheme, editor.updateOptions, requestAnimationFrame
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0033] MainEditorApp.tsx ➔ editorSettingsSync
+  // 🎯 @KICK  : 설정 또는 에디터 마운트 변경 시 테마, 폰트 크기, 줄 바꿈 재적용
+  // 🛡️ @GUARD : 레이스 컨디션 방지를 위해 mounted && isEditorReady로 가드
+  // 🚨 @PATCH : 2026-06-23 — 라이선스 만료/제한 여부(isExpired) 변경 시 readOnly/domReadOnly 동기화 연동 추가
+  // 🔗 @CALLS : monaco.editor.setTheme, editor.updateOptions, requestAnimationFrame
+  // ====================================================================
   useEffect(() => {
     if (mounted && isEditorReady && editorRef.current) {
       // 1. 테마 강제 적용
@@ -1842,13 +1829,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, licenseStatus.isExpired, previewMode, tabs.length]);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0034] MainEditorApp.tsx ➔ darkModePaletteSync
-// 🎯 @KICK  : 시각적 일관성 유지를 위해 다크 모드 전환 시 테마 팔레트 자동 전환
-// 🛡️ @GUARD : 현재 팔레트가 다크/라이트 모드와 일치하는지 THEME_MAP으로 확인
-// 🚨 @PATCH : None
-// 🔗 @CALLS : setThemePalette
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0034] MainEditorApp.tsx ➔ darkModePaletteSync
+  // 🎯 @KICK  : 시각적 일관성 유지를 위해 다크 모드 전환 시 테마 팔레트 자동 전환
+  // 🛡️ @GUARD : 현재 팔레트가 다크/라이트 모드와 일치하는지 THEME_MAP으로 확인
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : setThemePalette
+  // ====================================================================
   useEffect(() => {
     if (!mounted) return;
     if (isDarkMode) {
@@ -1864,13 +1851,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [isDarkMode, mounted, themePalette]);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0035] MainEditorApp.tsx ➔ profilesSave
-// 🎯 @KICK  : 변경 시마다 사용자 CSS 프로필을 플랫폼 저장소에 유지
-// 🛡️ @GUARD : 중복 방지를 위해 저장 전 시스템 프로필 필터링
-// 🚨 @PATCH : None
-// 🔗 @CALLS : api.saveProfiles, localStorage.setItem
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0035] MainEditorApp.tsx ➔ profilesSave
+  // 🎯 @KICK  : 변경 시마다 사용자 CSS 프로필을 플랫폼 저장소에 유지
+  // 🛡️ @GUARD : 중복 방지를 위해 저장 전 시스템 프로필 필터링
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : api.saveProfiles, localStorage.setItem
+  // ====================================================================
   useEffect(() => {
     if (!mounted) return;
     const userProfiles = profiles.filter(p => !isSystemProfileId(p.id));
@@ -1880,35 +1867,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       api.saveProfiles(userProfiles);
     } else {
       // Addon/Browser: localStorage
-      try { localStorage.setItem('userCssProfiles', JSON.stringify(userProfiles)); } catch {}
+      try { localStorage.setItem('userCssProfiles', JSON.stringify(userProfiles)); } catch { }
     }
   }, [profiles, mounted]);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0036] MainEditorApp.tsx ➔ activeProfileSave
-// 🎯 @KICK  : 활성 CSS 프로필 ID를 localStorage에 유지
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : localStorage.setItem
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0036] MainEditorApp.tsx ➔ activeProfileSave
+  // 🎯 @KICK  : 활성 CSS 프로필 ID를 localStorage에 유지
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : localStorage.setItem
+  // ====================================================================
   useEffect(() => {
     if (mounted && activeProfileId) {
       localStorage.setItem('activeCssProfileId', activeProfileId);
     }
   }, [activeProfileId, mounted]);
 
-// ====================================================================
-// 📊 [OMD-IO-MainEditorApp-0037] MainEditorApp.tsx ➔ electronAPI_listeners
-// 🎯 @KICK  : 파일 작업 및 외부 파일 열기를 위한 Electron 메인 프로세스 IPC 리스너 등록
-// 🛡️ @GUARD : 정리 시 리스너 제거, 보류 중인 외부 파일 참조 처리
-// 🚨 @PATCH : **2026-06-28** — 최초 실행 시 api.getInitialFilePath() 호출을 추가하여 윈도우 탐색기/바탕화면에서
-//             .md 파일 더블클릭 시 앱 기동 후 해당 파일이 자동으로 열리도록 IPC 연결 패치
-// 🔗 @CALLS : api.onNewFileRequested, api.onSaveFileRequested, api.onSaveFileAsRequested, api.onReceiveFile, api.getInitialFilePath, openExternalFile, handlers.newFile, handlers.save, handlers.saveAs
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-IO-MainEditorApp-0037] MainEditorApp.tsx ➔ electronAPI_listeners
+  // 🎯 @KICK  : 파일 작업 및 외부 파일 열기를 위한 Electron 메인 프로세스 IPC 리스너 등록
+  // 🛡️ @GUARD : 정리 시 리스너 제거, 보류 중인 외부 파일 참조 처리
+  // 🚨 @PATCH : **2026-06-28** — 최초 실행 시 api.getInitialFilePath() 호출을 추가하여 윈도우 탐색기/바탕화면에서
+  //             .md 파일 더블클릭 시 앱 기동 후 해당 파일이 자동으로 열리도록 IPC 연결 패치
+  // 🔗 @CALLS : api.onNewFileRequested, api.onSaveFileRequested, api.onSaveFileAsRequested, api.onReceiveFile, api.getInitialFilePath, openExternalFile, handlers.newFile, handlers.save, handlers.saveAs
+  // ====================================================================
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const api = (window as any).electronAPI;
-      api.onNewFileRequested(() => {});
+      api.onNewFileRequested(() => { });
       api.onSaveFileRequested(() => handlers.save());
       api.onSaveFileAsRequested(() => handlers.saveAs());
 
@@ -1926,7 +1913,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (filePath) {
             openExternalFile(filePath);
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       // restoreSettings에서 확보해 둔 pending 파일 경로 처리 (폴백)
@@ -1950,8 +1937,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우
     const isRestrictedUser = licenseStatus.isExpired ||
-                             licenseStatus.planName?.includes('동시 접속 초과') ||
-                             licenseStatus.planName?.includes('미인증');
+      licenseStatus.planName?.includes('동시 접속 초과') ||
+      licenseStatus.planName?.includes('미인증');
 
     if (prevRestrictedRef.current === isRestrictedUser) return;
     prevRestrictedRef.current = isRestrictedUser;
@@ -1985,13 +1972,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName]);
 
 
-// ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0038] MainEditorApp.tsx ➔ openExternalFile
-// 🎯 @KICK  : OS 수준 더블클릭 또는 명령줄에서 파일 열기, Monaco 모델로 탭 생성
-// 🛡️ @GUARD : 중복 방지를 위해 기존 탭 확인, 변경 리스너로 Monaco 모델 생성, handleFileOpenByPath로 폴백
-// 🚨 @PATCH : disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리 (2026-06-18)
-// 🔗 @CALLS : api.readFromPath, switchTab, monaco.editor.createModel, setTabs, setActiveTabId, setContent, setCurrentFileName, setCurrentFileNode, handleFileOpenByPath, showToast
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0038] MainEditorApp.tsx ➔ openExternalFile
+  // 🎯 @KICK  : OS 수준 더블클릭 또는 명령줄에서 파일 열기, Monaco 모델로 탭 생성
+  // 🛡️ @GUARD : 중복 방지를 위해 기존 탭 확인, 변경 리스너로 Monaco 모델 생성, handleFileOpenByPath로 폴백
+  // 🚨 @PATCH : disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리 (2026-06-18)
+  // 🔗 @CALLS : api.readFromPath, switchTab, monaco.editor.createModel, setTabs, setActiveTabId, setContent, setCurrentFileName, setCurrentFileNode, handleFileOpenByPath, showToast
+  // ====================================================================
   const openExternalFile = async (filePath: string) => {
     try {
       const api = (window as any).electronAPI;
@@ -2010,7 +1997,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               return;
             }
           }
-          
+
           const monaco = (window as any).monaco;
           let model: any = null;
           if (monaco) {
@@ -2021,7 +2008,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               setTabs(prev => prev.map(t => t.id === file.path ? { ...t, content: val, isModified: val !== t.content } : t));
             });
           }
-          
+
           const newTabId = file.path;
           const newTab: EditorTab = {
             id: newTabId,
@@ -2032,13 +2019,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             isModified: false,
             model: model
           };
-          
+
           setTabs(prev => [...prev, newTab]);
           setActiveTabId(newTabId);
           setContent(file.content);
           setCurrentFileName(file.name);
           setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-          
+
           if (editorRef.current && model) {
             editorRef.current.setModel(model);
           }
@@ -2052,13 +2039,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
-// ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0039] MainEditorApp.tsx ➔ welcomeContentLoad
-// 🎯 @KICK  : 첫 마운트 시 탭이 없고 보류 중인 외부 파일이 없으면 웰컴 콘텐츠 로드
-// 🛡️ @GUARD : pendingExternalFileRef가 설정되어 있으면 건너뜀 (파일 열기로 연기)
-// 🚨 @PATCH : None
-// 🔗 @CALLS : getWelcomeContent, setTabs, setActiveTabId, setContent, setCurrentFileName
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0039] MainEditorApp.tsx ➔ welcomeContentLoad
+  // 🎯 @KICK  : 첫 마운트 시 탭이 없고 보류 중인 외부 파일이 없으면 웰컴 콘텐츠 로드
+  // 🛡️ @GUARD : pendingExternalFileRef가 설정되어 있으면 건너뜀 (파일 열기로 연기)
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : getWelcomeContent, setTabs, setActiveTabId, setContent, setCurrentFileName
+  // ====================================================================
   // 💡 초기 빈 탭을 생성하지 않음 — 사용자는 탐색기에서만 파일을 열거나 생성할 수 있음
 
   // 💡 [조치 완료] 애드온 구동 시 사용자의 클립보드 내용을 동의 없이 강제 읽기 하여 첫 웰컴페이지를 무조건 덮어쓰던 로직을 제거(주석 처리)하여 웰컴 페이지 노출을 보장합니다.
@@ -2078,26 +2065,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   //   }
   // }, [mounted]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0040] MainEditorApp.tsx ➔ dynamicTitleBar
-// 🎯 @KICK  : document.title을 '온리비 어서'로 고정 (탭 UI가 파일명 표시하므로)
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : 2026-06-22 — 파일명 제거, '온리비 어서'만 표시 (탭으로 대체)
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0040] MainEditorApp.tsx ➔ dynamicTitleBar
+  // 🎯 @KICK  : document.title을 '온리비 어서'로 고정 (탭 UI가 파일명 표시하므로)
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : 2026-06-22 — 파일명 제거, '온리비 어서'만 표시 (탭으로 대체)
+  // 🔗 @CALLS : None
+  // ====================================================================
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.title = '온리비 어서';
     }
   }, []);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0041] MainEditorApp.tsx ➔ previewHighlightLine
-// 🎯 @KICK  : 분할 모드에서 에디터의 activeLine과 일치하는 미리보기 줄 강조
-// 🛡️ @GUARD : 중복 방지를 위해 모든 강조 먼저 제거, 불일치 위치에 대해 가장 가까운 하위 data-line 찾기
-// 🚨 @PATCH : None
-// 🔗 @CALLS : element.classList.add/remove
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0041] MainEditorApp.tsx ➔ previewHighlightLine
+  // 🎯 @KICK  : 분할 모드에서 에디터의 activeLine과 일치하는 미리보기 줄 강조
+  // 🛡️ @GUARD : 중복 방지를 위해 모든 강조 먼저 제거, 불일치 위치에 대해 가장 가까운 하위 data-line 찾기
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : element.classList.add/remove
+  // ====================================================================
   useEffect(() => {
     if (!previewRef.current) return;
 
@@ -2126,16 +2113,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [activeLine, previewMode]);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0042] MainEditorApp.tsx ➔ postContentScrollCorrection
-// 🎯 @KICK  : 콘텐츠 변경/파싱 후 에디터 커서 비율에 맞게 미리보기 스크롤 위치 동기화
-// 🛡️ @GUARD : 에디터 커서에서 뷰포트 비율 계산하여 미리보기 스크롤에 동일 비율 적용
-// 🚨 @PATCH : isScrollingRef 잠금으로 스크롤 루프 방지; 정확한 타이밍을 위한 requestAnimationFrame
-// 🔗 @CALLS : requestAnimationFrame, editor.getPosition, editor.getTopForLineNumber, editor.getScrollTop
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0042] MainEditorApp.tsx ➔ postContentScrollCorrection
+  // 🎯 @KICK  : 콘텐츠 변경/파싱 후 에디터 커서 비율에 맞게 미리보기 스크롤 위치 동기화
+  // 🛡️ @GUARD : 에디터 커서에서 뷰포트 비율 계산하여 미리보기 스크롤에 동일 비율 적용
+  // 🚨 @PATCH : isScrollingRef 잠금으로 스크롤 루프 방지; 정확한 타이밍을 위한 requestAnimationFrame
+  // 🔗 @CALLS : requestAnimationFrame, editor.getPosition, editor.getTopForLineNumber, editor.getScrollTop
+  // ====================================================================
   useEffect(() => {
     if (previewMode !== 'both' || !previewRef.current || !editorRef.current) return;
-    
+
     requestAnimationFrame(() => {
       const editor = editorRef.current;
       if (!editor) return;
@@ -2146,7 +2133,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 에디터 내 커서 뷰포트 Y축 비율(ratio) 계산
       const viewportHeight = editor.getLayoutInfo().height;
       if (viewportHeight <= 0) return;
-      
+
       const cursorTop = editor.getTopForLineNumber(curLine);
       const scrollTop = editor.getScrollTop();
       const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight) || 20;
@@ -2167,7 +2154,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         isScrollingRef.current = 'editor';
         const parentRect = parent.getBoundingClientRect();
         const childRect = targetEl.getBoundingClientRect();
-        
+
         // 에디터 비율에 맞춰 정밀 위치 제어
         const relativeTop = childRect.top - parentRect.top + parent.scrollTop - (parentRect.height * targetRatio);
         parent.scrollTop = Math.max(0, relativeTop);
@@ -2178,13 +2165,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     });
   }, [content, previewMode]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0043] MainEditorApp.tsx ➔ handleMouseMove
-// 🎯 @KICK  : 사이드바 크기 조정 드래그 mousemove 이벤트 처리
-// 🛡️ @GUARD : 너비를 150-600px 사이로 제한
-// 🚨 @PATCH : None
-// 🔗 @CALLS : setSidebarWidth, localStorage.setItem
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0043] MainEditorApp.tsx ➔ handleMouseMove
+  // 🎯 @KICK  : 사이드바 크기 조정 드래그 mousemove 이벤트 처리
+  // 🛡️ @GUARD : 너비를 150-600px 사이로 제한
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : setSidebarWidth, localStorage.setItem
+  // ====================================================================
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizing.current) return;
@@ -2197,13 +2184,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // fontSize 및 wordWrap 저장은 통합 환경설정 저장 가드에서 처리
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0044] MainEditorApp.tsx ➔ stopResizing
-// 🎯 @KICK  : 사이드바 크기 조정 종료: 리스너 제거, 커서 및 user-select 복원
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : document.removeEventListener, document.body.style.cursor/userSelect
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0044] MainEditorApp.tsx ➔ stopResizing
+  // 🎯 @KICK  : 사이드바 크기 조정 종료: 리스너 제거, 커서 및 user-select 복원
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : document.removeEventListener, document.body.style.cursor/userSelect
+  // ====================================================================
   const stopResizing = useCallback(() => {
     isResizing.current = false;
     document.removeEventListener('mousemove', handleMouseMove);
@@ -2212,13 +2199,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     document.body.style.userSelect = 'auto';
   }, [handleMouseMove]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0045] MainEditorApp.tsx ➔ startResizing
-// 🎯 @KICK  : 사이드바 크기 조정 시작: 리스너 추가, col-resize 커서 설정
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : document.addEventListener, document.body.style
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0045] MainEditorApp.tsx ➔ startResizing
+  // 🎯 @KICK  : 사이드바 크기 조정 시작: 리스너 추가, col-resize 커서 설정
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : document.addEventListener, document.body.style
+  // ====================================================================
   const startResizing = useCallback((e: React.MouseEvent) => {
     isResizing.current = true;
     document.addEventListener('mousemove', handleMouseMove);
@@ -2227,13 +2214,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     document.body.style.userSelect = 'none';
   }, [handleMouseMove, stopResizing]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0046] MainEditorApp.tsx ➔ tabModeSync
-// 🎯 @KICK  : 탭 전환 시 도움말은 미리보기 전용으로 강제하고 일반 문서는 직전의 전역 에디터 모드로 복구 동기화
-// 🛡️ @GUARD : 라이선스 만료 시 preview 모드로 가드
-// 🚨 @PATCH : 2026-07-04 — 신규 추가
-// 🔗 @CALLS : setPreviewModeRaw
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0046] MainEditorApp.tsx ➔ tabModeSync
+  // 🎯 @KICK  : 탭 전환 시 도움말은 미리보기 전용으로 강제하고 일반 문서는 직전의 전역 에디터 모드로 복구 동기화
+  // 🛡️ @GUARD : 라이선스 만료 시 preview 모드로 가드
+  // 🚨 @PATCH : 2026-07-04 — 신규 추가
+  // 🔗 @CALLS : setPreviewModeRaw
+  // ====================================================================
   useEffect(() => {
     if (!mounted || !activeTabId) return;
     const activeTab = tabs.find(t => t.id === activeTabId);
@@ -2259,20 +2246,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 차단 및 강제 노출 로직 2026-07-05]
   // 초기 로딩 후 제한 사용자인지 판단하여 웰컴 페이지를 남기거나, 일반 사용자면 지웁니다.
   const hasHandledWelcomeRef = useRef(false);
-  
+
   useEffect(() => {
     if (!mounted || isLicenseChecking || hasHandledWelcomeRef.current) return;
-    
-    console.log('[WELCOME#2] FIRED! isExpired=%o planName=%o tabsRef=%o', licenseStatus.isExpired, licenseStatus.planName, tabsRef.current.map((t:any)=>t.name));
-    
+
+    console.log('[WELCOME#2] FIRED! isExpired=%o planName=%o tabsRef=%o', licenseStatus.isExpired, licenseStatus.planName, tabsRef.current.map((t: any) => t.name));
+
     // 이펙트를 단 한 번만 실행하여 다른 컴포넌트나 훅이 웰컴탭을 덮어쓰거나 무한루프 도는 것을 원천 방지
     hasHandledWelcomeRef.current = true;
-    
+
     // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우 (undefined 방어를 위해 Optional Chaining 추가)
-    const isRestrictedUser = licenseStatus.isExpired || 
-                             licenseStatus.planName?.includes('동시 접속 초과') || 
-                             licenseStatus.planName?.includes('미인증');
-                             
+    const isRestrictedUser = licenseStatus.isExpired ||
+      licenseStatus.planName?.includes('동시 접속 초과') ||
+      licenseStatus.planName?.includes('미인증');
+
     // tabs 상태값 대신 refs로 현재 상황을 안전하게 스냅샷
     const hasWelcome = tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md' && !t.isStyleTab);
 
@@ -2321,20 +2308,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
       const isUnsaved = content !== lastSavedContentRef.current;
       setSaveStatus(isUnsaved ? 'unsaved' : 'saved');
-      setTabs(prev => prev.map(t => 
-        t.id === activeTabId 
-          ? { ...t, isModified: isUnsaved } 
+      setTabs(prev => prev.map(t =>
+        t.id === activeTabId
+          ? { ...t, isModified: isUnsaved }
           : t
       ));
     }
   }, [content, currentFileNode, activeTabId]);
-// ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0047] MainEditorApp.tsx ➔ autoSave
-// 🎯 @KICK  : 콘텐츠 변경 및 autoSave 활성화 시 5초 디바운스 후 파일 자동 저장
-// 🛡️ @GUARD : 콘텐츠가 비어있거나, 미리보기 모드가 변경 중이거나, 콘텐츠가 변경되지 않았으면 건너뜀; 5초 디바운스 정리
-// 🚨 @PATCH : None
-// 🔗 @CALLS : saveFile, setSaveStatus, setTimeout, clearTimeout
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0047] MainEditorApp.tsx ➔ autoSave
+  // 🎯 @KICK  : 콘텐츠 변경 및 autoSave 활성화 시 5초 디바운스 후 파일 자동 저장
+  // 🛡️ @GUARD : 콘텐츠가 비어있거나, 미리보기 모드가 변경 중이거나, 콘텐츠가 변경되지 않았으면 건너뜀; 5초 디바운스 정리
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : saveFile, setSaveStatus, setTimeout, clearTimeout
+  // ====================================================================
   useEffect(() => {
     // 🌟 [세이프티 가드 1]: 원고 본문이 비어있거나 데이터가 초기화되기 전 상태라면 
     // 시스템 오염 저장을 원천 차단합니다.
@@ -2361,46 +2348,46 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [content, autoSave, currentFileNode, saveFile]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0048] MainEditorApp.tsx ➔ insertAtCursor
-// 🎯 @KICK  : 커서 위치 텍스트 삽입을 utilsEditorActions에 위임
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : utilsEditorActions.insertAtCursor
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0048] MainEditorApp.tsx ➔ insertAtCursor
+  // 🎯 @KICK  : 커서 위치 텍스트 삽입을 utilsEditorActions에 위임
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : utilsEditorActions.insertAtCursor
+  // ====================================================================
   const insertAtCursor = (text: string) => {
     utilsEditorActions.insertAtCursor(editorRef, lastSelectionRef, text);
   };
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0049] MainEditorApp.tsx ➔ findLineNumberByHeading
-// 🎯 @KICK  : 제목 줄 검색을 utilsEditorActions에 위임
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : utilsEditorActions.findLineNumberByHeading
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0049] MainEditorApp.tsx ➔ findLineNumberByHeading
+  // 🎯 @KICK  : 제목 줄 검색을 utilsEditorActions에 위임
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : utilsEditorActions.findLineNumberByHeading
+  // ====================================================================
   const findLineNumberByHeading = (content: string, heading: string): number => {
     return utilsEditorActions.findLineNumberByHeading(content, heading);
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0050] MainEditorApp.tsx ➔ scrollToLine
-// 🎯 @KICK  : 에디터 특정 줄로 스크롤을 utilsEditorActions에 위임
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : utilsEditorActions.scrollToLine
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0050] MainEditorApp.tsx ➔ scrollToLine
+  // 🎯 @KICK  : 에디터 특정 줄로 스크롤을 utilsEditorActions에 위임
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : utilsEditorActions.scrollToLine
+  // ====================================================================
   const scrollToLine = (lineNumber: number) => {
     utilsEditorActions.scrollToLine(editorRef, lineNumber);
   };
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0051] MainEditorApp.tsx ➔ handlePreviewClick
-// 🎯 @KICK  : 미리보기 클릭 시: 에디터를 일치하는 줄로 스크롤, 미리보기에서 줄 강조
-// 🛡️ @GUARD : 중첩 요소 처리를 위해 DOM closest [data-line] 순회
-// 🚨 @PATCH : None
-// 🔗 @CALLS : scrollToLine, element.closest, classList.add/remove
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0051] MainEditorApp.tsx ➔ handlePreviewClick
+  // 🎯 @KICK  : 미리보기 클릭 시: 에디터를 일치하는 줄로 스크롤, 미리보기에서 줄 강조
+  // 🛡️ @GUARD : 중첩 요소 처리를 위해 DOM closest [data-line] 순회
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : scrollToLine, element.closest, classList.add/remove
+  // ====================================================================
   const handlePreviewClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const lineEl = target.closest('[data-line]');
@@ -2419,35 +2406,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0052] MainEditorApp.tsx ➔ insertBlockTag
-// 🎯 @KICK  : 블록 태그 감싸기를 utilsEditorActions에 위임
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : utilsEditorActions.insertBlockTag
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0052] MainEditorApp.tsx ➔ insertBlockTag
+  // 🎯 @KICK  : 블록 태그 감싸기를 utilsEditorActions에 위임
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : utilsEditorActions.insertBlockTag
+  // ====================================================================
   const insertBlockTag = (startTag: string, endTag: string, defaultText: string = "") => {
     utilsEditorActions.insertBlockTag(editorRef, startTag, endTag, defaultText);
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0053] MainEditorApp.tsx ➔ wrapSelection
-// 🎯 @KICK  : 선택 영역 감싸기/풀기를 utilsEditorActions에 위임
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : utilsEditorActions.wrapSelection
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0053] MainEditorApp.tsx ➔ wrapSelection
+  // 🎯 @KICK  : 선택 영역 감싸기/풀기를 utilsEditorActions에 위임
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : utilsEditorActions.wrapSelection
+  // ====================================================================
   const wrapSelection = (before: string, after: string = before, defaultText: string = "") => {
     utilsEditorActions.wrapSelection(editorRef, lastSelectionRef, before, after, defaultText);
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0054] MainEditorApp.tsx ➔ insertLink
-// 🎯 @KICK  : 커서에 마크다운 링크 삽입, URL 플레이스홀더 텍스트 자동 선택
-// 🛡️ @GUARD : 현재 선택이 비어있으면 lastSelectionRef 사용; 선택 텍스트와 빈 경우 모두 처리
-// 🚨 @PATCH : None
-// 🔗 @CALLS : editor.focus, editor.getSelection, editor.executeEdits, editor.setSelection
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0054] MainEditorApp.tsx ➔ insertLink
+  // 🎯 @KICK  : 커서에 마크다운 링크 삽입, URL 플레이스홀더 텍스트 자동 선택
+  // 🛡️ @GUARD : 현재 선택이 비어있으면 lastSelectionRef 사용; 선택 텍스트와 빈 경우 모두 처리
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : editor.focus, editor.getSelection, editor.executeEdits, editor.setSelection
+  // ====================================================================
   const insertLink = () => {
     if (!editorRef.current) return;
     const editor = editorRef.current;
@@ -2501,13 +2488,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
-// ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0057] MainEditorApp.tsx ➔ readFileText
-// 🎯 @KICK  : 브라우저 FileSystemHandle, 로컬 electronAPI, VFS 또는 클라우드 API에서 파일 내용 읽기
-// 🛡️ @GUARD : 경로/핸들 존재 여부에 따라 활성 모드 결정; 오류를 정상적으로 처리
-// 🚨 @PATCH : None
-// 🔗 @CALLS : node.handle.getFile, vfsReadFile, api.readFromPath, fetch
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0057] MainEditorApp.tsx ➔ readFileText
+  // 🎯 @KICK  : 브라우저 FileSystemHandle, 로컬 electronAPI, VFS 또는 클라우드 API에서 파일 내용 읽기
+  // 🛡️ @GUARD : 경로/핸들 존재 여부에 따라 활성 모드 결정; 오류를 정상적으로 처리
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : node.handle.getFile, vfsReadFile, api.readFromPath, fetch
+  // ====================================================================
   const readFileText = async (node: FileNode): Promise<string> => {
     let fileContent = '';
     let activeMode = workspaceType;
@@ -2553,13 +2540,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   };
   readFileTextRef.current = readFileText;
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0058] MainEditorApp.tsx ➔ extractHeadings
-// 🎯 @KICK  : 마크다운 텍스트를 파싱하여 제목 텍스트 줄(H1-H6) 추출
-// 🛡️ @GUARD : 제목 텍스트에서 후행 # 문자 제거
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0058] MainEditorApp.tsx ➔ extractHeadings
+  // 🎯 @KICK  : 마크다운 텍스트를 파싱하여 제목 텍스트 줄(H1-H6) 추출
+  // 🛡️ @GUARD : 제목 텍스트에서 후행 # 문자 제거
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   const extractHeadings = (text: string): string[] => {
     if (!text) return [];
     const headingLines = text.split('\n');
@@ -2578,13 +2565,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return headings;
   };
 
-// ====================================================================
-// 📊 [OMD-FILE-MainEditorApp-0059] MainEditorApp.tsx ➔ handleDocFileClick
-// 🎯 @KICK  : 문서 링크 선택기를 위해 선택된 문서 파일에서 제목 로드
-// 🛡️ @GUARD : 로딩 상태 설정, 오류 시 제목 초기화
-// 🚨 @PATCH : None
-// 🔗 @CALLS : readFileText, extractHeadings, setDocHeadings, setIsHeadingLoading
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0059] MainEditorApp.tsx ➔ handleDocFileClick
+  // 🎯 @KICK  : 문서 링크 선택기를 위해 선택된 문서 파일에서 제목 로드
+  // 🛡️ @GUARD : 로딩 상태 설정, 오류 시 제목 초기화
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : readFileText, extractHeadings, setDocHeadings, setIsHeadingLoading
+  // ====================================================================
   const handleDocFileClick = async (targetNode: FileNode) => {
     setSelectedDocNode(targetNode);
     setIsHeadingLoading(true);
@@ -2600,20 +2587,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0060] MainEditorApp.tsx ➔ handleDocLinkSelect
-// 🎯 @KICK  : 커서에 [[relativePath#heading|text]] 문서 간 링크 삽입
-// 🛡️ @GUARD : 완료 시 모든 선택기 상태 초기화; lastSelectionRef로 폴백
-// 🚨 @PATCH : None
-// 🔗 @CALLS : getRelativePath, editor.focus, editor.getSelection, editor.executeEdits
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0060] MainEditorApp.tsx ➔ handleDocLinkSelect
+  // 🎯 @KICK  : 커서에 [[relativePath#heading|text]] 문서 간 링크 삽입
+  // 🛡️ @GUARD : 완료 시 모든 선택기 상태 초기화; lastSelectionRef로 폴백
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : getRelativePath, editor.focus, editor.getSelection, editor.executeEdits
+  // ====================================================================
   const handleDocLinkSelect = (targetNode: FileNode, heading?: string) => {
     setShowDocLinkPicker(false);
     setDocLinkSearchText('');
     setSelectedDocNode(null);
     setDocHeadings([]);
     setDocHeadingSearchText('');
-    
+
     if (!editorRef.current || !targetNode || !targetNode.path) return;
     const editor = editorRef.current;
     editor.focus();
@@ -2643,45 +2630,45 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     editor.focus();
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0061] MainEditorApp.tsx ➔ parseHtmlTableToMarkdown
-// 🎯 @KICK  : HTML 표를 마크다운으로 변환하는 작업을 paste handlers에 위임
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : utilsPasteHandlers.parseHtmlTableToMarkdown
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0061] MainEditorApp.tsx ➔ parseHtmlTableToMarkdown
+  // 🎯 @KICK  : HTML 표를 마크다운으로 변환하는 작업을 paste handlers에 위임
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : utilsPasteHandlers.parseHtmlTableToMarkdown
+  // ====================================================================
   const parseHtmlTableToMarkdown = (html: string) => {
     return utilsPasteHandlers.parseHtmlTableToMarkdown(html, showToast);
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0062] MainEditorApp.tsx ➔ sanitizePastedText
-// 🎯 @KICK  : 붙여넣기 텍스트 정제를 paste handlers에 위임
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : utilsPasteHandlers.sanitizePastedText
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0062] MainEditorApp.tsx ➔ sanitizePastedText
+  // 🎯 @KICK  : 붙여넣기 텍스트 정제를 paste handlers에 위임
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : utilsPasteHandlers.sanitizePastedText
+  // ====================================================================
   const sanitizePastedText = (text: string, skipTsvConversion = false) => {
     return utilsPasteHandlers.sanitizePastedText(text, skipTsvConversion);
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0063] MainEditorApp.tsx ➔ fixMarkdownTable
-// 🎯 @KICK  : 마크다운 표 수정을 paste handlers에 위임
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : utilsPasteHandlers.fixMarkdownTable
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0063] MainEditorApp.tsx ➔ fixMarkdownTable
+  // 🎯 @KICK  : 마크다운 표 수정을 paste handlers에 위임
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : utilsPasteHandlers.fixMarkdownTable
+  // ====================================================================
   const fixMarkdownTable = (text: string) => {
     return utilsPasteHandlers.fixMarkdownTable(text);
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0064] MainEditorApp.tsx ➔ resolveClipboardImage
-// 🎯 @KICK  : 클립보드에서 이미지 Blob/File 추출 (items → files → navigator.clipboard 순)
-// 🛡️ @GUARD : 모든 경로 실패 시 null 반환, 성공 시 Blob 반환
-// 🔗 @CALLS : 없음
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0064] MainEditorApp.tsx ➔ resolveClipboardImage
+  // 🎯 @KICK  : 클립보드에서 이미지 Blob/File 추출 (items → files → navigator.clipboard 순)
+  // 🛡️ @GUARD : 모든 경로 실패 시 null 반환, 성공 시 Blob 반환
+  // 🔗 @CALLS : 없음
+  // ====================================================================
   const resolveClipboardImage = async (e: any, imageItem: any): Promise<Blob | null> => {
     // 1) clipboardData.items[i].getAsFile()
     if (imageItem) {
@@ -2706,17 +2693,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
         }
       }
-    } catch {}
+    } catch { }
     return null;
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handleEditorPaste
-// 🎯 @KICK  : 붙여넣기 이벤트 처리: 이미지 업로드, HTML 표 변환, 텍스트 정제
-// 🛡️ @GUARD : 이미지 붙여넣기 시 기본 동작 차단, 일반 텍스트 폴백 전 HTML 표 시도
-// 🚨 @PATCH : None
-// 🔗 @CALLS : fetch, FileReader, parseHtmlTableToMarkdown, sanitizePastedText, fixMarkdownTable, insertAtCursor, updateContent, showToast
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handleEditorPaste
+  // 🎯 @KICK  : 붙여넣기 이벤트 처리: 이미지 업로드, HTML 표 변환, 텍스트 정제
+  // 🛡️ @GUARD : 이미지 붙여넣기 시 기본 동작 차단, 일반 텍스트 폴백 전 HTML 표 시도
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : fetch, FileReader, parseHtmlTableToMarkdown, sanitizePastedText, fixMarkdownTable, insertAtCursor, updateContent, showToast
+  // ====================================================================
   const handleEditorPaste = async (e: any) => {
     const items = e.clipboardData?.items;
     let hasText = false;
@@ -2778,13 +2765,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handlePasteImageFile
-// 🎯 @KICK  : 이미지 Blob/File을 받아 로컬(데스크탑) 또는 R2(웹)에 저장 후 에디터 커서 위치에 삽입
-// 🛡️ @GUARD : FileReader onload/onerror 처리, 데스크탑/웹 분기
-// 🚨 @PATCH : None
-// 🔗 @CALLS : fetch, FileReader, showToast
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handlePasteImageFile
+  // 🎯 @KICK  : 이미지 Blob/File을 받아 로컬(데스크탑) 또는 R2(웹)에 저장 후 에디터 커서 위치에 삽입
+  // 🛡️ @GUARD : FileReader onload/onerror 처리, 데스크탑/웹 분기
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : fetch, FileReader, showToast
+  // ====================================================================
   const handlePasteImageFile = async (fileOrBlob: Blob) => {
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -2821,12 +2808,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     reader.readAsDataURL(fileOrBlob);
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0066] MainEditorApp.tsx ➔ insertWithR2Fallback
-// 🎯 @KICK  : 데스크탑: 로컬 저장 성공 시 R2 업로드 시도, 경로 결정 후 에디터 삽입
-// 🛡️ @GUARD : R2 실패 시 로컬 경로 fallback
-// 🔗 @CALLS : fetch, showToast
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0066] MainEditorApp.tsx ➔ insertWithR2Fallback
+  // 🎯 @KICK  : 데스크탑: 로컬 저장 성공 시 R2 업로드 시도, 경로 결정 후 에디터 삽입
+  // 🛡️ @GUARD : R2 실패 시 로컬 경로 fallback
+  // 🔗 @CALLS : fetch, showToast
+  // ====================================================================
   const insertWithR2Fallback = async (base64DataClean: string, targetFolder: string, fileName: string, saveResult: any) => {
     let r2Path = null;
     let r2Error = '';
@@ -2845,7 +2832,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         else r2Error = d.error || `status=${d.status}`;
       } else {
         r2Error = `HTTP ${resp.status}`;
-        try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch {}
+        try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch { }
       }
     } catch (e: any) {
       r2Error = e?.message || String(e);
@@ -2863,12 +2850,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     showToast(r2Path ? '이미지가 로컬 및 클라우드(R2)에 저장되었습니다.' : `R2 업로드 실패(${r2Error}) — 로컬 assets에 저장`, r2Path ? 'success' : 'error');
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0067] MainEditorApp.tsx ➔ webUploadImage
-// 🎯 @KICK  : 웹 브라우저: API를 통해 R2(또는 dev 로컬)에 이미지 업로드 후 에디터 삽입
-// 🛡️ @GUARD : dev/production 엔드포인트 분기, JWT 인증
-// 🔗 @CALLS : fetch, showToast
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0067] MainEditorApp.tsx ➔ webUploadImage
+  // 🎯 @KICK  : 웹 브라우저: API를 통해 R2(또는 dev 로컬)에 이미지 업로드 후 에디터 삽입
+  // 🛡️ @GUARD : dev/production 엔드포인트 분기, JWT 인증
+  // 🔗 @CALLS : fetch, showToast
+  // ====================================================================
   const webUploadImage = async (base64Data: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -2898,12 +2885,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0068] MainEditorApp.tsx ➔ insertImageMarkdown
-// 🎯 @KICK  : 에디터 커서 위치에 마크다운 이미지 문법 삽입
-// 🛡️ @GUARD : editorRef.current null 체크, readOnly 우회
-// 🔗 @CALLS : editor.executeEdits, updateContent
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0068] MainEditorApp.tsx ➔ insertImageMarkdown
+  // 🎯 @KICK  : 에디터 커서 위치에 마크다운 이미지 문법 삽입
+  // 🛡️ @GUARD : editorRef.current null 체크, readOnly 우회
+  // 🔗 @CALLS : editor.executeEdits, updateContent
+  // ====================================================================
   const insertImageMarkdown = (path: string) => {
     if (!editorRef.current) {
       showToast('에디터를 찾을 수 없어 이미지를 삽입할 수 없습니다.', 'error');
@@ -2922,16 +2909,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     try {
       const newValue = editor.getValue();
       updateContent(newValue, true);
-    } catch {}
+    } catch { }
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ applyLinePrefix
-// 🎯 @KICK  : 선택된 줄에 순서 목록/글머리 기호/인용구/체크리스트 접두사 적용
-// 🛡️ @GUARD : 이전 비어있지 않은 줄(최대 10줄)에서 연속 순서 번호 계산; 중첩 인용구 처리
-// 🚨 @PATCH : 구문 강조 새로고침을 위해 편집 후 forceTokenization
-// 🔗 @CALLS : editor.getSelection, editor.executeEdits, model.forceTokenization, editor.layout
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ applyLinePrefix
+  // 🎯 @KICK  : 선택된 줄에 순서 목록/글머리 기호/인용구/체크리스트 접두사 적용
+  // 🛡️ @GUARD : 이전 비어있지 않은 줄(최대 10줄)에서 연속 순서 번호 계산; 중첩 인용구 처리
+  // 🚨 @PATCH : 구문 강조 새로고침을 위해 편집 후 forceTokenization
+  // 🔗 @CALLS : editor.getSelection, editor.executeEdits, model.forceTokenization, editor.layout
+  // ====================================================================
   const applyLinePrefix = (prefixType: 'orderedList' | 'list' | 'quote' | 'check') => {
     if (!editorRef.current) return;
     const editor = editorRef.current;
@@ -3039,18 +3026,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
       editor.layout();
-    } catch (_) {}
+    } catch (_) { }
 
     editor.focus();
   };
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0066] MainEditorApp.tsx ➔ removePrefix
-// 🎯 @KICK  : 선택 영역에서 마크다운 서식 태그 제거: 굵게, 기울임, 취소선, 코드, 링크, 제목, 목록
-// 🛡️ @GUARD : 빈 선택 영역을 전체 줄로 확장 처리; 정규식 기반 정리로 선행 공백 보존
-// 🚨 @PATCH : 구문 강조 새로고침을 위해 편집 후 forceTokenization
-// 🔗 @CALLS : editor.getSelection, editor.executeEdits, model.forceTokenization, editor.layout
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0066] MainEditorApp.tsx ➔ removePrefix
+  // 🎯 @KICK  : 선택 영역에서 마크다운 서식 태그 제거: 굵게, 기울임, 취소선, 코드, 링크, 제목, 목록
+  // 🛡️ @GUARD : 빈 선택 영역을 전체 줄로 확장 처리; 정규식 기반 정리로 선행 공백 보존
+  // 🚨 @PATCH : 구문 강조 새로고침을 위해 편집 후 forceTokenization
+  // 🔗 @CALLS : editor.getSelection, editor.executeEdits, model.forceTokenization, editor.layout
+  // ====================================================================
   const removePrefix = () => {
     if (!editorRef.current) return;
     const editor = editorRef.current;
@@ -3112,18 +3099,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
       editor.layout();
-    } catch (_) {}
+    } catch (_) { }
 
     editor.focus();
   };
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0067] MainEditorApp.tsx ➔ processedContent_lineMap
-// 🎯 @KICK  : 미리보기를 위해 마크다운 콘텐츠를 전처리하고 스크롤 동기화를 위한 라인 매핑 생성
-// 🛡️ @GUARD : None
-// 🚨 @PATCH : None
-// 🔗 @CALLS : preprocessMarkdownForPreview
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0067] MainEditorApp.tsx ➔ processedContent_lineMap
+  // 🎯 @KICK  : 미리보기를 위해 마크다운 콘텐츠를 전처리하고 스크롤 동기화를 위한 라인 매핑 생성
+  // 🛡️ @GUARD : None
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : preprocessMarkdownForPreview
+  // ====================================================================
 
   const { processedContent, lineMap } = useMemo(() => {
     const res = preprocessMarkdownForPreview(content);
@@ -3133,18 +3120,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     };
   }, [content]);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0068] MainEditorApp.tsx ➔ dynamicCssString
-// 🎯 @KICK  : 활성 CSS 프로필에서 타이포그래피, 코드 블록, 표, 체크박스, 구분선, 다크모드 재정의를 포함한 동적 CSS 생성
-// 🛡️ @GUARD : 기본 프로필은 빈 문자열 반환; blockquote, hr, color에 대한 다크모드 재정의; h2-h6 font-size 건너뜀(자동 계산)
-// 🚨 @PATCH : 박스 중첩 아티팩트 방지를 위한 codeBlock 중첩 border/background 투명 재정의
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0068] MainEditorApp.tsx ➔ dynamicCssString
+  // 🎯 @KICK  : 활성 CSS 프로필에서 타이포그래피, 코드 블록, 표, 체크박스, 구분선, 다크모드 재정의를 포함한 동적 CSS 생성
+  // 🛡️ @GUARD : 기본 프로필은 빈 문자열 반환; blockquote, hr, color에 대한 다크모드 재정의; h2-h6 font-size 건너뜀(자동 계산)
+  // 🚨 @PATCH : 박스 중첩 아티팩트 방지를 위한 codeBlock 중첩 border/background 투명 재정의
+  // 🔗 @CALLS : None
+  // ====================================================================
   const dynamicCssString = useMemo(() => {
     if (activeProfileId === 'default') return '';
     const prof = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
     const ps = prof.pageStyle;
-    
+
     // 💡 프로필에 설정된 배경색 사용 (없으면 흰색), 다크모드이면 다크모드 전용 배경으로 강제
     const profileBg = ps.backgroundColor || '#ffffff';
     const bg = isDarkMode ? '#09090b' : profileBg;
@@ -3187,7 +3174,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (tag === 'hr' && isDarkMode) return;
 
       /* h2~h6의 font-size는 headingSizeOffset 자동 계산으로 대체 */
-      const skipFontSize = ['h2','h3','h4','h5','h6'].includes(tag);
+      const skipFontSize = ['h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
       const entries = Object.entries(ruleObj).filter(([prop, v]) => {
         if (v === '') return false;
         if (skipFontSize && prop === 'font-size') return false;
@@ -3198,7 +3185,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return true;
       });
       if (entries.length === 0) return;
-      
+
       if (tag === 'codeBlockTitle') {
         const bgColor = ruleObj['background-color'];
         const textColor = ruleObj['color'];
@@ -3233,7 +3220,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (padding) {
           css += `.custom-preview-container .codeblock-area pre {\n  padding: ${padding} !important;\n}\n`;
         }
-        
+
         // 💡 프리뷰 모드에서 중첩된 테두리와 배경색(박스 안의 박스 현상) 원천 차단
         css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code {\n  border: none !important;\n  background: transparent !important;\n}\n`;
         return;
@@ -3241,9 +3228,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       const selector = tag === 'taskList' ? '.task-list-item' :
         tag === 'code' ? ':not(pre) > code' :
-        tag === 'map' ? 'iframe[src*="map"]' :
-        tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' :
-        tag === 'math' ? '.katex-display, .katex' : tag;
+          tag === 'map' ? 'iframe[src*="map"]' :
+            tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' :
+              tag === 'math' ? '.katex-display, .katex' : tag;
       const isMediaTag = tag === 'img' || tag === 'video' || tag === 'map';
       const sizeProps = ['width', 'height', 'max-width', 'max-height'];
       css += `.custom-preview-container ${selector} {\n`;
@@ -3333,13 +3320,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return css;
   }, [profiles, activeProfileId, isDarkMode]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0069] MainEditorApp.tsx ➔ quickWrap
-// 🎯 @KICK  : 선택 영역 또는 현재 줄을 제목/인용구/코드 서식으로 빠르게 감쌉니다
-// 🛡️ @GUARD : 선택 영역이 없으면 전체 줄 자동 선택; Monaco 가드 확인
-// 🚨 @PATCH : None
-// 🔗 @CALLS : wrapSelection, applyLinePrefix, insertBlockTag, editor.focus
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0069] MainEditorApp.tsx ➔ quickWrap
+  // 🎯 @KICK  : 선택 영역 또는 현재 줄을 제목/인용구/코드 서식으로 빠르게 감쌉니다
+  // 🛡️ @GUARD : 선택 영역이 없으면 전체 줄 자동 선택; Monaco 가드 확인
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : wrapSelection, applyLinePrefix, insertBlockTag, editor.focus
+  // ====================================================================
   const quickWrap = (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => {
     if (!editorRef.current) return;
     const editor = editorRef.current;
@@ -3433,13 +3420,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   handlersRef.current = handlers;
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0070] MainEditorApp.tsx ➔ dispatchCommand
-// 🎯 @KICK  : 에디터 포커스 가드와 함께 EditorCommandType을 핸들러 메서드로 라우팅하는 통합 명령 디스패처
-// 🛡️ @GUARD : 브라우저 포커스 손실 방지를 위한 entry에서 editor.focus(); 모달 명령 후 50ms 비동기 forceTokenization; previewMode !== 'preview' 가드를 이용한 내보내기 제한
-// 🚨 @PATCH : **2026-06-19** — 내보내기 모드 가드 패치: previewMode가 'preview'(미리보기 전용) 모드가 아닐 때 내보내기 명령(PRINT, EXPORT_*)이 트리거되는 경우 경고 토스트를 띄우고 명령 실행을 차단하도록 보정; 문자 겹침 수정을 위한 50ms setTimeout 토큰화 + 레이아웃 (WBS SYNC-02)
-// 🔗 @CALLS : handlers.newFile/save/saveAs/exit/print/exportHTML/exportEPUB/exportPNG/openExport, handlers.zoomIn/zoomOut/undo/redo/find/replace/globalSearch/settings/about/help/license, handlers.toggleFloatingToolbar/cleanDoc/copyAll, handlers.bold/italic/inlineCode/underline/strikethrough/h1-h6/hr/orderedList/list/quote/check/removePrefix, handlers.link/doclink/image/video/now/map/table/quickTable/insertTableRow/deleteTableRow/code/chart/math, handlers.quickWrap, selectRootFolder, setPreviewMode, setIsToolbarOpen, setIsSidebarOpen, setThemePalette, setIsDarkMode
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0070] MainEditorApp.tsx ➔ dispatchCommand
+  // 🎯 @KICK  : 에디터 포커스 가드와 함께 EditorCommandType을 핸들러 메서드로 라우팅하는 통합 명령 디스패처
+  // 🛡️ @GUARD : 브라우저 포커스 손실 방지를 위한 entry에서 editor.focus(); 모달 명령 후 50ms 비동기 forceTokenization; previewMode !== 'preview' 가드를 이용한 내보내기 제한
+  // 🚨 @PATCH : **2026-06-19** — 내보내기 모드 가드 패치: previewMode가 'preview'(미리보기 전용) 모드가 아닐 때 내보내기 명령(PRINT, EXPORT_*)이 트리거되는 경우 경고 토스트를 띄우고 명령 실행을 차단하도록 보정; 문자 겹침 수정을 위한 50ms setTimeout 토큰화 + 레이아웃 (WBS SYNC-02)
+  // 🔗 @CALLS : handlers.newFile/save/saveAs/exit/print/exportHTML/exportEPUB/exportPNG/openExport, handlers.zoomIn/zoomOut/undo/redo/find/replace/globalSearch/settings/about/help/license, handlers.toggleFloatingToolbar/cleanDoc/copyAll, handlers.bold/italic/inlineCode/underline/strikethrough/h1-h6/hr/orderedList/list/quote/check/removePrefix, handlers.link/doclink/image/video/now/map/table/quickTable/insertTableRow/deleteTableRow/code/chart/math, handlers.quickWrap, selectRootFolder, setPreviewMode, setIsToolbarOpen, setIsSidebarOpen, setThemePalette, setIsDarkMode
+  // ====================================================================
   const dispatchCommand = useCallback((type: EditorCommandType, payload?: any) => {
     // [WBS SYNC-01] 명령어 실행 초입 단계에 반드시 editor.focus()를 강제 격발하여 브라우저 포커스 뺏김 방지 및 포지션 최우선 확보
     let editorPosition = null;
@@ -3498,10 +3485,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'EXIT': handlers.exit(); return;
 
       // 내보내기 관련
-      case 'PRINT': 
-      case 'EXPORT_HTML': 
-      case 'EXPORT_EPUB': 
-      case 'EXPORT_PNG': 
+      case 'PRINT':
+      case 'EXPORT_HTML':
+      case 'EXPORT_EPUB':
+      case 'EXPORT_PNG':
       case 'OPEN_EXPORT': {
         if (licenseStatusRef.current?.isExpired) {
           showToast('🔒 라이선스가 만료되어 내보내기를 사용할 수 없습니다. 라이선스를 갱신해 주세요.', 'error');
@@ -3693,17 +3680,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             editor.layout();
           }
         }
-      } catch (_) {}
+      } catch (_) { }
     }, 50);
   }, [handlers]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0071] MainEditorApp.tsx ➔ mapIdToCommandType
-// 🎯 @KICK  : 툴바 항목의 camelCase ID를 명시적 재정의 테이블로 EditorCommandType UPPER_SNAKE_CASE에 매핑
-// 🛡️ @GUARD : 불일치 ID에 대한 명시적 매핑(divider→HR, clear→REMOVE_PREFIX, calendar→NOW); 자동 UPPER_SNAKE 폴백
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0071] MainEditorApp.tsx ➔ mapIdToCommandType
+  // 🎯 @KICK  : 툴바 항목의 camelCase ID를 명시적 재정의 테이블로 EditorCommandType UPPER_SNAKE_CASE에 매핑
+  // 🛡️ @GUARD : 불일치 ID에 대한 명시적 매핑(divider→HR, clear→REMOVE_PREFIX, calendar→NOW); 자동 UPPER_SNAKE 폴백
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   const mapIdToCommandType = useCallback((id: string): EditorCommandType => {
     // 🔑 명시적 매핑 테이블: TOOLBAR_ITEMS id → EditorCommandType
     // (id ≠ commandType 인 항목들을 수동으로 정의하여 싱크 보장)
@@ -3754,13 +3741,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return snake as EditorCommandType;
   }, []);
 
-// ====================================================================
-// 📊 [OMD-EDIT-MainEditorApp-0072] MainEditorApp.tsx ➔ hotkeyRegistration
-// 🎯 @KICK  : 모든 TOOLBAR_ITEMS에 대해 사용자 정의 단축키(Ctrl+S/Ctrl+Shift+S 포함)로 Monaco 에디터 액션 등록
-// 🛡️ @GUARD : 재실행 시 이전 disposables 해제; 키바인딩 문자열을 Monaco KeyMod/KeyCode로 파싱
-// 🚨 @PATCH : None
-// 🔗 @CALLS : TOOLBAR_ITEMS.forEach, editor.addAction, monaco.editor.defineTheme, monaco.editor.setTheme, updateDecorations, handleEditorPaste
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0072] MainEditorApp.tsx ➔ hotkeyRegistration
+  // 🎯 @KICK  : 모든 TOOLBAR_ITEMS에 대해 사용자 정의 단축키(Ctrl+S/Ctrl+Shift+S 포함)로 Monaco 에디터 액션 등록
+  // 🛡️ @GUARD : 재실행 시 이전 disposables 해제; 키바인딩 문자열을 Monaco KeyMod/KeyCode로 파싱
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : TOOLBAR_ITEMS.forEach, editor.addAction, monaco.editor.defineTheme, monaco.editor.setTheme, updateDecorations, handleEditorPaste
+  // ====================================================================
   useEffect(() => {
     if (!editorRef.current || !(window as any).monaco) return;
     const editor = editorRef.current;
@@ -3874,14 +3861,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     hotkeyDisposablesRef.current.push(saveAsAction);
   }, [customHotkeys, isEditorReady, dispatchCommand, mapIdToCommandType]);
 
-// ====================================================================
-// 📊 [OMD-EDIT-0037] MainEditorApp.tsx ➔ globalKeydownHandler
-// 🎯 @KICK  : 전역 키보드 단축키 처리기: S/O의 브라우저 기본 동작 차단, Escape로 플로팅 툴바/태그 선택기 처리, 사용자 정의 단축키 라우팅
-// 🛡️ @GUARD : capture 단계 리스너; Monaco 외부 폼 요소 이벤트 무시; IME 229 keyCode 복구; 에디터 포커스 체크 전 글로벌 전용 단축키 감지; Shift+방향키 조기 반환(Monaco 선택 보호)
-// 🚨 @PATCH : Ctrl+S/O 브라우저 기본 저장/열기 다이얼로그 preventDefault 처리; 한글 입력을 위한 keyCode 229 IME 조합 복구
-//           | Shift+방향키를 capture 단계에서 가로채지 않도록 early return 추가 | 2026-06-15 | IME+방향키 충돌로 Monaco 텍스트 선택 버그 해결
-// 🔗 @CALLS : dispatchCommand, mapIdToCommandType, setFloatingToolbar
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-0037] MainEditorApp.tsx ➔ globalKeydownHandler
+  // 🎯 @KICK  : 전역 키보드 단축키 처리기: S/O의 브라우저 기본 동작 차단, Escape로 플로팅 툴바/태그 선택기 처리, 사용자 정의 단축키 라우팅
+  // 🛡️ @GUARD : capture 단계 리스너; Monaco 외부 폼 요소 이벤트 무시; IME 229 keyCode 복구; 에디터 포커스 체크 전 글로벌 전용 단축키 감지; Shift+방향키 조기 반환(Monaco 선택 보호)
+  // 🚨 @PATCH : Ctrl+S/O 브라우저 기본 저장/열기 다이얼로그 preventDefault 처리; 한글 입력을 위한 keyCode 229 IME 조합 복구
+  //           | Shift+방향키를 capture 단계에서 가로채지 않도록 early return 추가 | 2026-06-15 | IME+방향키 충돌로 Monaco 텍스트 선택 버그 해결
+  // 🔗 @CALLS : dispatchCommand, mapIdToCommandType, setFloatingToolbar
+  // ====================================================================
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // 💡 [Shift+방향키 가드] capture:true 단계에서 Shift+방향키를 절대 가로채지 않음
@@ -4030,13 +4017,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
   }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar]);
 
-// ====================================================================
-// 📊 [OMD-CORE-MainEditorApp-0074] MainEditorApp.tsx ➔ toc
-// 🎯 @KICK  : 마크다운 제목에서 목차를 생성하고 코드 블록은 건너뜁니다
-// 🛡️ @GUARD : BOM 문자를 제거하고 코드 블록 펜스를 감지하여 오탐을 방지합니다
-// 🚨 @PATCH : None
-// 🔗 @CALLS : None
-// ====================================================================
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0074] MainEditorApp.tsx ➔ toc
+  // 🎯 @KICK  : 마크다운 제목에서 목차를 생성하고 코드 블록은 건너뜁니다
+  // 🛡️ @GUARD : BOM 문자를 제거하고 코드 블록 펜스를 감지하여 오탐을 방지합니다
+  // 🚨 @PATCH : None
+  // 🔗 @CALLS : None
+  // ====================================================================
   const toc = useMemo(() => {
     if (typeof content !== 'string') return [];
     // 윈도우 스타일의 개행(\r\n)과 일반 개행(\n) 모두를 안전하게 분리
@@ -4073,8 +4060,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const activeTab = tabs.find(t => t.id === activeTabId);
   const openTabPaths = useMemo(() => tabs.map(t => t.path).filter(Boolean) as string[], [tabs]);
 
+  const contextValue = {
+    content, setContent,
+    tabs, setTabs,
+    activeTabId, setActiveTabId,
+    previewMode, setPreviewMode,
+    currentFileName, setCurrentFileName,
+    currentFileNode, setCurrentFileNode,
+    workspaceType, setWorkspaceType,
+    rootFolder, setRootFolder,
+    fileList, setFileList,
+    // 필요 시 아래에 더 추가
+  };
+
   return (
-    <div className={`flex h-screen overflow-hidden flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
+    <EditorProvider value={contextValue}>
+      <div className={`flex h-screen overflow-hidden flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
 
       <MenuBar
         isDarkMode={isDarkMode}
@@ -4178,670 +4179,669 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5 pt-3 no-print`}
               style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
             >
-                <Editor
-                  height="100%"
-                  language="markdown"
-                  theme={themePalette}
-                  options={{
-                    readOnly: licenseStatus.isExpired || tabs.length === 0,
-                    domReadOnly: licenseStatus.isExpired || tabs.length === 0,
-                  }}
-                  // 💡 value={content} 속성을 배제하고 defaultValue를 적용하여
-                  // React 상태 갱신 시 모나코 내부의 불필요한 setValue 호출로 인한 한글 composition 깨짐 및 중복 입력을 원천 방어합니다.
-                  defaultValue={content}
-                  onChange={(val) => {
-                    // 💡 [에디터 언마운트 데이터 유실 가드]
-                    // 에디터가 언마운트된 상태이거나 파괴 진행 중이면 모든 변경 입력을 무시하여 데이터 유실을 완전 가드합니다.
-                    if (!isEditorMountedRef.current) return;
-                    if (previewModeRef.current === 'preview') return; // 💡 [가드] 미리보기 모드일 땐 입력 버퍼 갱신 원천 방지
+              <Editor
+                height="100%"
+                language="markdown"
+                theme={themePalette}
+                options={{
+                  readOnly: licenseStatus.isExpired || tabs.length === 0,
+                  domReadOnly: licenseStatus.isExpired || tabs.length === 0,
+                }}
+                // 💡 value={content} 속성을 배제하고 defaultValue를 적용하여
+                // React 상태 갱신 시 모나코 내부의 불필요한 setValue 호출로 인한 한글 composition 깨짐 및 중복 입력을 원천 방어합니다.
+                defaultValue={content}
+                onChange={(val) => {
+                  // 💡 [에디터 언마운트 데이터 유실 가드]
+                  // 에디터가 언마운트된 상태이거나 파괴 진행 중이면 모든 변경 입력을 무시하여 데이터 유실을 완전 가드합니다.
+                  if (!isEditorMountedRef.current) return;
+                  if (previewModeRef.current === 'preview') return; // 💡 [가드] 미리보기 모드일 땐 입력 버퍼 갱신 원천 방지
 
-                    const editor = editorRef.current;
-                    if (editor) {
-                      const dom = editor.getDomNode();
-                      const model = editor.getModel();
-                      if (!dom || !model) {
-                        return; // 에디터가 파괴 중이므로 빈 값 무시
-                      }
+                  const editor = editorRef.current;
+                  if (editor) {
+                    const dom = editor.getDomNode();
+                    const model = editor.getModel();
+                    if (!dom || !model) {
+                      return; // 에디터가 파괴 중이므로 빈 값 무시
                     }
-                    updateContent(val || '', true);
-                  }}
-                  beforeMount={(monaco) => {
-                    EDITOR_THEMES.forEach(t => {
-                      monaco.editor.defineTheme(t.id, {
-                        base: t.base,
-                        inherit: true,
-                        rules: t.rules,
-                        colors: t.colors
+                  }
+                  updateContent(val || '', true);
+                }}
+                beforeMount={(monaco) => {
+                  EDITOR_THEMES.forEach(t => {
+                    monaco.editor.defineTheme(t.id, {
+                      base: t.base,
+                      inherit: true,
+                      rules: t.rules,
+                      colors: t.colors
+                    });
+                  });
+                }}
+                onMount={(editor, monaco) => {
+                  editorRef.current = editor;
+                  if (typeof window !== 'undefined') {
+                    (window as any).monaco = monaco;
+                  }
+
+                  const updatedTabs = tabsRef.current.map(tab => {
+                    if (!tab.model) {
+                      const model = monaco.editor.createModel(tab.content, 'markdown');
+                      model.onDidChangeContent(() => {
+                        const val = model.getValue();
+                        setContent(val);
+                        setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, content: val, isModified: val !== t.content } : t));
                       });
-                    });
-                  }}
-                  onMount={(editor, monaco) => {
-                    editorRef.current = editor;
-                    if (typeof window !== 'undefined') {
-                      (window as any).monaco = monaco;
+                      return { ...tab, model };
                     }
+                    return tab;
+                  });
+                  setTabs(updatedTabs);
 
-                    const updatedTabs = tabsRef.current.map(tab => {
-                      if (!tab.model) {
-                        const model = monaco.editor.createModel(tab.content, 'markdown');
-                        model.onDidChangeContent(() => {
-                          const val = model.getValue();
-                          setContent(val);
-                          setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, content: val, isModified: val !== t.content } : t));
-                        });
-                        return { ...tab, model };
-                      }
-                      return tab;
+                  const activeTab = updatedTabs.find(t => t.id === activeTabIdRef.current);
+                  if (activeTab && activeTab.model) {
+                    editor.setModel(activeTab.model);
+                  } else {
+                    editor.setValue(contentRef.current);
+                  }
+
+                  // 💡 [IME 조합 감지 락 구현]
+                  const textarea = editor.getDomNode()?.querySelector('textarea');
+                  if (textarea) {
+                    textarea.addEventListener('compositionstart', () => {
+                      isComposingRef.current = true;
                     });
-                    setTabs(updatedTabs);
-
-                    const activeTab = updatedTabs.find(t => t.id === activeTabIdRef.current);
-                    if (activeTab && activeTab.model) {
-                      editor.setModel(activeTab.model);
-                    } else {
-                      editor.setValue(contentRef.current);
-                    }
-
-                    // 💡 [IME 조합 감지 락 구현]
-                    const textarea = editor.getDomNode()?.querySelector('textarea');
-                    if (textarea) {
-                      textarea.addEventListener('compositionstart', () => {
-                        isComposingRef.current = true;
-                      });
-                      textarea.addEventListener('compositionend', () => {
-                        isComposingRef.current = false;
-                        // 조합이 종료된 시점에 에디터 모델이 완전히 갱신되도록 10ms 지연 후 최종값 동기화
-                        setTimeout(() => {
-                          if (editorRef.current) {
-                            setContent(editorRef.current.getValue());
-                          }
-                        }, 10);
-                      });
-                    }
-
-                    // 💡 [에디터 하단 여유 공간 확보] scrollBeyondLastLine + padding.bottom 500px로 쾌적한 작문 환경 제공
-                    editor.updateOptions({
-                      scrollBeyondLastLine: true,
-                      padding: { top: 20, bottom: 500 },
-                      lineDecorationsWidth: 26, // 💡 decorations 폭을 적절히 줄여 본문을 왼쪽으로 당김
-                      lineNumbersMinChars: 4,  // 💡 라인 넘버 영역을 약간 키워서 숫자 노출 폭 확보
-                      automaticLayout: true,
-                      wrappingStrategy: 'advanced', // 💡 브라우저 폰트 가로폭을 실측하여 텍스트 줄바꿈 계산
-                      
-                      // 🔒 [하단 클릭 시 에디터 붕 뜸 및 상단 유실 방어 3대 마스터 가드]
-                      cursorSurroundingLines: 0,
-                      cursorSurroundingLinesStyle: 'all',
-                      occurrencesHighlight: 'off',
-                      scrollbar: {
-                        vertical: 'visible',
-                        horizontal: 'auto',
-                        useShadows: false,
-                        verticalHasArrows: false,
-                        horizontalHasArrows: false
-                      }
-                    });
-
-                    // 💡 [테마 연동 가드] 비동기 세션 복원(restoreSettings)과 에디터 마운트 시차로 인한 테마 미적용 레이스 컨디션 방지
-                    if (themePalette) {
-                      monaco.editor.setTheme(themePalette);
-                    }
-
-                    // 💡 브라우저 맞춤법 검사(빨간 물결선)가 잘려 잔상/찌꺼기처럼 보이는 현상 차단
-                    try {
-                      const textarea = editor.getDomNode()?.querySelector('textarea');
-                      if (textarea) textarea.setAttribute('spellcheck', 'false');
-                    } catch (_) {}
-
-                    // 💡 [추가 하드닝] 사이드바 신설/닫힘 시 에디터 굳음 방어: 50ms 후 강제 레이아웃 리프레시
-                    setTimeout(() => { editor.layout(); }, 50);
-
-                    // 🤝 [레이스 컨디션 진압 트리거] 
-                    // 유저가 하단을 클릭하여 가상 스크롤 컨텍스트가 임의로 깨졌을 때를 대비해,
-                    // 포커스 이벤트가 격발되는 순간 에디터의 레이아웃 좌표계를 강제로 제자리로 스냅(Snap) 백 시킵니다.
-                    editor.onDidFocusEditorText(() => {
-                      // 0.01초 만에 뒤틀린 레이아웃 좌표를 수평 정렬하여 상단 짤림을 영구 방어합니다.
-                      editor.layout(); 
-                    });
-                    
-                    // 💡 [IME-blur] 포커스 아웃 시 즉시 React 상태와 에디터 최종 값 동기화 (이중 입력 방지 가드 탑재)
-                    editor.onDidBlurEditorText(() => {
-                      if (previewDebounceRef.current) {
-                        clearTimeout(previewDebounceRef.current);
-                        previewDebounceRef.current = null;
-                      }
-                      // 💡 [IME-blur 보완] 한글 입력 조합(Composition) 종료와 React 상태 갱신 타이밍 간의 레이스 컨디션을 방지하기 위해 
-                      // 100ms 지연 후 에디터 최종 값을 React 상태에 동기화하여 마지막 글자 중복 입력을 원천 방어합니다.
+                    textarea.addEventListener('compositionend', () => {
+                      isComposingRef.current = false;
+                      // 조합이 종료된 시점에 에디터 모델이 완전히 갱신되도록 10ms 지연 후 최종값 동기화
                       setTimeout(() => {
                         if (editorRef.current) {
-                          const latestVal = editorRef.current.getValue();
-                          setContent(latestVal);
+                          setContent(editorRef.current.getValue());
                         }
-                      }, 100);
+                      }, 10);
                     });
+                  }
 
-                    // 💡 에디터 내용이 바뀔 때마다(타이핑 및 setValue 포함) 다음 렌더링 프레임에서 데코레이션 즉시 업데이트
-                    // 모나코 에디터의 자체 뷰 렌더러가 화면을 새로 그린 직후에 데코레이션을 덮어씌워 파란색 뒤집힘 버그 방지
-                    editor.onDidChangeModelContent(() => {
-                      requestAnimationFrame(() => {
-                        updateDecorations(editor);
-                      });
+                  // 💡 [에디터 하단 여유 공간 확보] scrollBeyondLastLine + padding.bottom 500px로 쾌적한 작문 환경 제공
+                  editor.updateOptions({
+                    scrollBeyondLastLine: true,
+                    padding: { top: 20, bottom: 500 },
+                    lineDecorationsWidth: 26, // 💡 decorations 폭을 적절히 줄여 본문을 왼쪽으로 당김
+                    lineNumbersMinChars: 4,  // 💡 라인 넘버 영역을 약간 키워서 숫자 노출 폭 확보
+                    automaticLayout: true,
+                    wrappingStrategy: 'advanced', // 💡 브라우저 폰트 가로폭을 실측하여 텍스트 줄바꿈 계산
+
+                    // 🔒 [하단 클릭 시 에디터 붕 뜸 및 상단 유실 방어 3대 마스터 가드]
+                    cursorSurroundingLines: 0,
+                    cursorSurroundingLinesStyle: 'all',
+                    occurrencesHighlight: 'off',
+                    scrollbar: {
+                      vertical: 'visible',
+                      horizontal: 'auto',
+                      useShadows: false,
+                      verticalHasArrows: false,
+                      horizontalHasArrows: false
+                    }
+                  });
+
+                  // 💡 [테마 연동 가드] 비동기 세션 복원(restoreSettings)과 에디터 마운트 시차로 인한 테마 미적용 레이스 컨디션 방지
+                  if (themePalette) {
+                    monaco.editor.setTheme(themePalette);
+                  }
+
+                  // 💡 브라우저 맞춤법 검사(빨간 물결선)가 잘려 잔상/찌꺼기처럼 보이는 현상 차단
+                  try {
+                    const textarea = editor.getDomNode()?.querySelector('textarea');
+                    if (textarea) textarea.setAttribute('spellcheck', 'false');
+                  } catch (_) { }
+
+                  // 💡 [추가 하드닝] 사이드바 신설/닫힘 시 에디터 굳음 방어: 50ms 후 강제 레이아웃 리프레시
+                  setTimeout(() => { editor.layout(); }, 50);
+
+                  // 🤝 [레이스 컨디션 진압 트리거] 
+                  // 유저가 하단을 클릭하여 가상 스크롤 컨텍스트가 임의로 깨졌을 때를 대비해,
+                  // 포커스 이벤트가 격발되는 순간 에디터의 레이아웃 좌표계를 강제로 제자리로 스냅(Snap) 백 시킵니다.
+                  editor.onDidFocusEditorText(() => {
+                    // 0.01초 만에 뒤틀린 레이아웃 좌표를 수평 정렬하여 상단 짤림을 영구 방어합니다.
+                    editor.layout();
+                  });
+
+                  // 💡 [IME-blur] 포커스 아웃 시 즉시 React 상태와 에디터 최종 값 동기화 (이중 입력 방지 가드 탑재)
+                  editor.onDidBlurEditorText(() => {
+                    if (previewDebounceRef.current) {
+                      clearTimeout(previewDebounceRef.current);
+                      previewDebounceRef.current = null;
+                    }
+                    // 💡 [IME-blur 보완] 한글 입력 조합(Composition) 종료와 React 상태 갱신 타이밍 간의 레이스 컨디션을 방지하기 위해 
+                    // 100ms 지연 후 에디터 최종 값을 React 상태에 동기화하여 마지막 글자 중복 입력을 원천 방어합니다.
+                    setTimeout(() => {
+                      if (editorRef.current) {
+                        const latestVal = editorRef.current.getValue();
+                        setContent(latestVal);
+                      }
+                    }, 100);
+                  });
+
+                  // 💡 에디터 내용이 바뀔 때마다(타이핑 및 setValue 포함) 다음 렌더링 프레임에서 데코레이션 즉시 업데이트
+                  // 모나코 에디터의 자체 뷰 렌더러가 화면을 새로 그린 직후에 데코레이션을 덮어씌워 파란색 뒤집힘 버그 방지
+                  editor.onDidChangeModelContent(() => {
+                    requestAnimationFrame(() => {
+                      updateDecorations(editor);
                     });
+                  });
 
-                    if (!(monaco.editor as any)._customActionCommandRegistered) {
-                      (monaco.editor as any)._customActionCommandRegistered = true;
-                      (monaco.editor as any).registerCommand('trigger-custom-action', (accessor: any, actionId: string) => {
-                        if (typeof window !== 'undefined' && (window as any).dispatchEditorCommand) {
-                          (window as any).dispatchEditorCommand(actionId);
-                        }
-                      });
-                    }
+                  if (!(monaco.editor as any)._customActionCommandRegistered) {
+                    (monaco.editor as any)._customActionCommandRegistered = true;
+                    (monaco.editor as any).registerCommand('trigger-custom-action', (accessor: any, actionId: string) => {
+                      if (typeof window !== 'undefined' && (window as any).dispatchEditorCommand) {
+                        (window as any).dispatchEditorCommand(actionId);
+                      }
+                    });
+                  }
 
-                    // 💡 [슬래시 명령어 플레이스홀더 선택] 툴바/단축키와 동일하게 삽입 후 플레이스홀더를 자동 선택합니다.
-                    //    arguments: [insertTextLength, placeholderOffset, placeholderLength]
-                    //    Monaco completion command는 삽입 완료 후 실행되므로, 커서 위치에서 역산하여 선택 범위를 계산합니다.
-                    if (!(monaco.editor as any)._slashPlaceholderCommandRegistered) {
-                      (monaco.editor as any)._slashPlaceholderCommandRegistered = true;
-                      (monaco.editor as any).registerCommand(
-                        'select-slash-placeholder',
-                        (accessor: any, insertTextLength: number, placeholderOffset: number, placeholderLength: number) => {
-                          // 활성 에디터를 전역 참조에서 가져옴
-                          const activeEditor = (monaco.editor as any).getEditors?.()[0];
-                          if (!activeEditor) return;
+                  // 💡 [슬래시 명령어 플레이스홀더 선택] 툴바/단축키와 동일하게 삽입 후 플레이스홀더를 자동 선택합니다.
+                  //    arguments: [insertTextLength, placeholderOffset, placeholderLength]
+                  //    Monaco completion command는 삽입 완료 후 실행되므로, 커서 위치에서 역산하여 선택 범위를 계산합니다.
+                  if (!(monaco.editor as any)._slashPlaceholderCommandRegistered) {
+                    (monaco.editor as any)._slashPlaceholderCommandRegistered = true;
+                    (monaco.editor as any).registerCommand(
+                      'select-slash-placeholder',
+                      (accessor: any, insertTextLength: number, placeholderOffset: number, placeholderLength: number) => {
+                        // 활성 에디터를 전역 참조에서 가져옴
+                        const activeEditor = (monaco.editor as any).getEditors?.()[0];
+                        if (!activeEditor) return;
 
-                          const pos = activeEditor.getPosition();
-                          if (!pos) return;
+                        const pos = activeEditor.getPosition();
+                        if (!pos) return;
 
-                          // 삽입된 텍스트는 단일 라인이므로: 삽입 후 커서 컬럼 = 삽입 시작 컬럼 + insertTextLength
-                          // 플레이스홀더 시작 컬럼 = 삽입 시작 컬럼 + placeholderOffset
-                          const insertStartCol = pos.column - insertTextLength;
-                          const selStartCol = insertStartCol + placeholderOffset;
-                          const selEndCol = selStartCol + placeholderLength;
+                        // 삽입된 텍스트는 단일 라인이므로: 삽입 후 커서 컬럼 = 삽입 시작 컬럼 + insertTextLength
+                        // 플레이스홀더 시작 컬럼 = 삽입 시작 컬럼 + placeholderOffset
+                        const insertStartCol = pos.column - insertTextLength;
+                        const selStartCol = insertStartCol + placeholderOffset;
+                        const selEndCol = selStartCol + placeholderLength;
 
-                          if (selStartCol < 1) return;
+                        if (selStartCol < 1) return;
 
-                          setTimeout(() => {
-                            activeEditor.setSelection(new (window as any).monaco.Selection(
-                              pos.lineNumber,
-                              selStartCol,
-                              pos.lineNumber,
-                              selEndCol
-                            ));
-                            activeEditor.focus();
-                          }, 10);
-                        }
-                      );
-                    }
-                    // 대용량 문서 엔터 키 입력 시 자동 스크롤 패치 (CORE-01)
-                    editor.onKeyDown((e) => {
-                      if (e.keyCode === monaco.KeyCode.Enter) {
-                        // 엔터가 입력되어 행이 추가된 직후, 커널 스케줄러를 한 틱 늦춰서 최신 좌표 추출
                         setTimeout(() => {
-                          const position = editor.getPosition();
-                          if (position) {
-                            // 커서가 뷰포트 바깥으로 나가면 무조건 화면 중앙이나 하단으로 스크롤 강제 이송
-                            editor.revealPositionInCenterIfOutsideViewport(position);
-                          }
+                          activeEditor.setSelection(new (window as any).monaco.Selection(
+                            pos.lineNumber,
+                            selStartCol,
+                            pos.lineNumber,
+                            selEndCol
+                          ));
+                          activeEditor.focus();
                         }, 10);
                       }
-                    });
-
-                    editor.onKeyUp((e) => {
-                      if (e.browserEvent.key === '/') {
-                        editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
-                      }
-                    });
-
-                    // Shift + Enter 를 누르면 실제 엔터(\n) 대신 <br> 태그를 삽입 (표 내부 줄바꿈 용도)
-                    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
-                      const position = editor.getPosition();
-                      if (!position) return;
-                      editor.executeEdits("insertBr", [{
-                        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-                        text: "<br>",
-                        forceMoveMarkers: true
-                      }]);
-                    });
-
-                    // 🛡️ [한글 주석 탑재] 표(Table) 자동 정렬 및 너비 계산 헬퍼 함수 정의
-                    const getVisualLength = (str: string): number => {
-                      let len = 0;
-                      for (let i = 0; i < str.length; i++) {
-                        const code = str.charCodeAt(i);
-                        if (code >= 0x2e80 || (code >= 0xac00 && code <= 0xd7a3)) {
-                          len += 2;
-                        } else {
-                          len += 1;
+                    );
+                  }
+                  // 대용량 문서 엔터 키 입력 시 자동 스크롤 패치 (CORE-01)
+                  editor.onKeyDown((e) => {
+                    if (e.keyCode === monaco.KeyCode.Enter) {
+                      // 엔터가 입력되어 행이 추가된 직후, 커널 스케줄러를 한 틱 늦춰서 최신 좌표 추출
+                      setTimeout(() => {
+                        const position = editor.getPosition();
+                        if (position) {
+                          // 커서가 뷰포트 바깥으로 나가면 무조건 화면 중앙이나 하단으로 스크롤 강제 이송
+                          editor.revealPositionInCenterIfOutsideViewport(position);
                         }
+                      }, 10);
+                    }
+                  });
+
+                  editor.onKeyUp((e) => {
+                    if (e.browserEvent.key === '/') {
+                      editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+                    }
+                  });
+
+                  // Shift + Enter 를 누르면 실제 엔터(\n) 대신 <br> 태그를 삽입 (표 내부 줄바꿈 용도)
+                  editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
+                    const position = editor.getPosition();
+                    if (!position) return;
+                    editor.executeEdits("insertBr", [{
+                      range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                      text: "<br>",
+                      forceMoveMarkers: true
+                    }]);
+                  });
+
+                  // 🛡️ [한글 주석 탑재] 표(Table) 자동 정렬 및 너비 계산 헬퍼 함수 정의
+                  const getVisualLength = (str: string): number => {
+                    let len = 0;
+                    for (let i = 0; i < str.length; i++) {
+                      const code = str.charCodeAt(i);
+                      if (code >= 0x2e80 || (code >= 0xac00 && code <= 0xd7a3)) {
+                        len += 2;
+                      } else {
+                        len += 1;
                       }
-                      return len;
-                    };
+                    }
+                    return len;
+                  };
 
-                    const padVisual = (str: string, targetVisualLen: number): string => {
-                      const currentLen = getVisualLength(str);
-                      const needed = targetVisualLen - currentLen;
-                      if (needed <= 0) return str;
-                      return str + ' '.repeat(needed);
-                    };
+                  const padVisual = (str: string, targetVisualLen: number): string => {
+                    const currentLen = getVisualLength(str);
+                    const needed = targetVisualLen - currentLen;
+                    if (needed <= 0) return str;
+                    return str + ' '.repeat(needed);
+                  };
 
-                    const formatTableBlock = (editorInstance: any, targetLineNumber: number) => {
-                      const model = editorInstance.getModel();
-                      if (!model) return;
+                  const formatTableBlock = (editorInstance: any, targetLineNumber: number) => {
+                    const model = editorInstance.getModel();
+                    if (!model) return;
 
-                      const lineCount = model.getLineCount();
-                      let startLine = targetLineNumber;
-                      let endLine = targetLineNumber;
+                    const lineCount = model.getLineCount();
+                    let startLine = targetLineNumber;
+                    let endLine = targetLineNumber;
 
-                      // 위쪽 표 영역 시작점 찾기
-                      while (startLine > 1) {
-                        const prevLineContent = model.getLineContent(startLine - 1);
-                        if (isTableLine(prevLineContent)) {
-                          startLine--;
-                        } else {
-                          break;
-                        }
+                    // 위쪽 표 영역 시작점 찾기
+                    while (startLine > 1) {
+                      const prevLineContent = model.getLineContent(startLine - 1);
+                      if (isTableLine(prevLineContent)) {
+                        startLine--;
+                      } else {
+                        break;
                       }
+                    }
 
-                      // 아래쪽 표 영역 끝점 찾기
-                      while (endLine < lineCount) {
-                        const nextLineContent = model.getLineContent(endLine + 1);
-                        if (isTableLine(nextLineContent)) {
-                          endLine++;
-                        } else {
-                          break;
-                        }
+                    // 아래쪽 표 영역 끝점 찾기
+                    while (endLine < lineCount) {
+                      const nextLineContent = model.getLineContent(endLine + 1);
+                      if (isTableLine(nextLineContent)) {
+                        endLine++;
+                      } else {
+                        break;
                       }
+                    }
 
-                      const rows: { lineNumber: number; content: string; isDivider: boolean; cells: string[] }[] = [];
-                      let maxCols = 0;
+                    const rows: { lineNumber: number; content: string; isDivider: boolean; cells: string[] }[] = [];
+                    let maxCols = 0;
 
-                      for (let i = startLine; i <= endLine; i++) {
-                        const content = model.getLineContent(i);
-                        const isDivider = isTableDividerLine(content);
-                        const trimmed = content.trim();
-                        const inner = trimmed.substring(1, trimmed.length - 1);
-                        
-                        const cells: string[] = [];
-                        let currentCell = "";
-                        for (let j = 0; j < inner.length; j++) {
-                          if (inner[j] === '|') {
-                            if (j > 0 && inner[j - 1] === '\\') {
-                              currentCell += '|';
-                            } else {
-                              cells.push(currentCell);
-                              currentCell = "";
-                            }
+                    for (let i = startLine; i <= endLine; i++) {
+                      const content = model.getLineContent(i);
+                      const isDivider = isTableDividerLine(content);
+                      const trimmed = content.trim();
+                      const inner = trimmed.substring(1, trimmed.length - 1);
+
+                      const cells: string[] = [];
+                      let currentCell = "";
+                      for (let j = 0; j < inner.length; j++) {
+                        if (inner[j] === '|') {
+                          if (j > 0 && inner[j - 1] === '\\') {
+                            currentCell += '|';
                           } else {
-                            currentCell += inner[j];
+                            cells.push(currentCell);
+                            currentCell = "";
                           }
+                        } else {
+                          currentCell += inner[j];
                         }
-                        cells.push(currentCell);
-                        
-                        const trimmedCells = cells.map(c => c.trim());
-                        maxCols = Math.max(maxCols, trimmedCells.length);
-                        
-                        rows.push({
-                          lineNumber: i,
-                          content,
-                          isDivider,
-                          cells: trimmedCells
+                      }
+                      cells.push(currentCell);
+
+                      const trimmedCells = cells.map(c => c.trim());
+                      maxCols = Math.max(maxCols, trimmedCells.length);
+
+                      rows.push({
+                        lineNumber: i,
+                        content,
+                        isDivider,
+                        cells: trimmedCells
+                      });
+                    }
+
+                    if (rows.length === 0 || maxCols === 0) return;
+
+                    // 각 열별 비주얼 너비 최댓값 계산 (구분행은 배제)
+                    const colWidths = Array(maxCols).fill(0);
+                    for (const row of rows) {
+                      if (row.isDivider) continue;
+                      for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+                        const cellText = row.cells[colIdx] || "";
+                        const visualLen = getVisualLength(cellText);
+                        colWidths[colIdx] = Math.max(colWidths[colIdx], visualLen);
+                      }
+                    }
+
+                    // 최소 너비 3 보장
+                    for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+                      colWidths[colIdx] = Math.max(3, colWidths[colIdx]);
+                    }
+
+                    const edits: any[] = [];
+                    for (const row of rows) {
+                      let formattedLine = "|";
+                      for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+                        const cellText = row.cells[colIdx] || "";
+                        const width = colWidths[colIdx];
+                        if (row.isDivider) {
+                          const text = cellText.trim();
+                          const alignLeft = text.startsWith(':');
+                          const alignRight = text.endsWith(':');
+                          let dividerStr = "";
+                          if (alignLeft && alignRight) {
+                            dividerStr = ":" + "-".repeat(Math.max(1, width - 2)) + ":";
+                          } else if (alignLeft) {
+                            dividerStr = ":" + "-".repeat(Math.max(2, width - 1));
+                          } else if (alignRight) {
+                            dividerStr = "-".repeat(Math.max(2, width - 1)) + ":";
+                          } else {
+                            dividerStr = "-".repeat(Math.max(3, width));
+                          }
+                          formattedLine += ` ${dividerStr} |`;
+                        } else {
+                          const padded = padVisual(cellText, width);
+                          formattedLine += ` ${padded} |`;
+                        }
+                      }
+                      const originalLine = model.getLineContent(row.lineNumber);
+                      const indentMatch = originalLine.match(/^([ \t]*)/);
+                      const indent = indentMatch ? indentMatch[1] : '';
+                      const finalLineText = indent + formattedLine;
+
+                      if (finalLineText !== originalLine) {
+                        edits.push({
+                          range: new monaco.Range(row.lineNumber, 1, row.lineNumber, originalLine.length + 1),
+                          text: finalLineText
                         });
                       }
+                    }
 
-                      if (rows.length === 0 || maxCols === 0) return;
+                    if (edits.length > 0) {
+                      editorInstance.pushUndoStop();
+                      editorInstance.executeEdits("formatTable", edits);
+                      editorInstance.pushUndoStop();
+                    }
+                  };
 
-                      // 각 열별 비주얼 너비 최댓값 계산 (구분행은 배제)
-                      const colWidths = Array(maxCols).fill(0);
-                      for (const row of rows) {
-                        if (row.isDivider) continue;
-                        for (let colIdx = 0; colIdx < maxCols; colIdx++) {
-                          const cellText = row.cells[colIdx] || "";
-                          const visualLen = getVisualLength(cellText);
-                          colWidths[colIdx] = Math.max(colWidths[colIdx], visualLen);
-                        }
+                  // 🛡️ [한글 주석 탑재] 표(Table) 여부 및 구분행 판별 헬퍼 함수 정의
+                  const isTableLine = (text: string): boolean => {
+                    const trimmed = text.trim();
+                    return trimmed.startsWith('|') && trimmed.endsWith('|') && (trimmed.match(/\|/g) || []).length >= 2;
+                  };
+
+                  const isTableDividerLine = (text: string): boolean => {
+                    const trimmed = text.trim();
+                    if (!isTableLine(trimmed)) return false;
+                    const inner = trimmed.substring(1, trimmed.length - 1);
+                    const parts = inner.split('|');
+                    return parts.every(part => /^[ \t]*:?-+:?[ \t]*$/.test(part));
+                  };
+
+                  const getCellRanges = (lineContent: string, lineNumber: number) => {
+                    const ranges: { lineNumber: number; startColumn: number; endColumn: number; isEmpty: boolean }[] = [];
+                    const pipeIndices: number[] = [];
+                    for (let i = 0; i < lineContent.length; i++) {
+                      if (lineContent[i] === '|') {
+                        if (i > 0 && lineContent[i - 1] === '\\') continue;
+                        pipeIndices.push(i);
                       }
+                    }
+                    if (pipeIndices.length < 2) return { ranges: [], pipeIndices: [] };
+                    for (let i = 0; i < pipeIndices.length - 1; i++) {
+                      const startIdx = pipeIndices[i] + 1;
+                      const endIdx = pipeIndices[i + 1];
+                      const rawText = lineContent.substring(startIdx, endIdx);
+                      const hasLeftSpace = rawText.startsWith(' ');
+                      const hasRightSpace = rawText.endsWith(' ');
+                      const trimLeft = hasLeftSpace ? 1 : 0;
+                      const trimRight = hasRightSpace ? 1 : 0;
+                      const cellStartCol = startIdx + 1 + trimLeft;
+                      const cellEndCol = endIdx + 1 - trimRight;
+                      const coreText = rawText.substring(trimLeft, rawText.length - trimRight);
+                      const isEmpty = coreText.trim().length === 0;
 
-                      // 최소 너비 3 보장
-                      for (let colIdx = 0; colIdx < maxCols; colIdx++) {
-                        colWidths[colIdx] = Math.max(3, colWidths[colIdx]);
+                      if (isEmpty) {
+                        // 빈 셀: 파이프 사이 공백들의 정중앙 컬럼에 크기 0의 셀 범위를 생성 (타이핑 시 양옆 공백 1칸 보존)
+                        const centerCol = startIdx + 1 + Math.max(1, Math.floor(rawText.length / 2));
+                        ranges.push({
+                          lineNumber,
+                          startColumn: centerCol,
+                          endColumn: centerCol,
+                          isEmpty: true
+                        });
+                      } else {
+                        ranges.push({
+                          lineNumber,
+                          startColumn: cellStartCol,
+                          endColumn: cellEndCol,
+                          isEmpty: false
+                        });
                       }
+                    }
+                    return { ranges, pipeIndices };
+                  };
 
-                      const edits: any[] = [];
-                      for (const row of rows) {
-                        let formattedLine = "|";
-                        for (let colIdx = 0; colIdx < maxCols; colIdx++) {
-                          const cellText = row.cells[colIdx] || "";
-                          const width = colWidths[colIdx];
-                          if (row.isDivider) {
-                            const text = cellText.trim();
-                            const alignLeft = text.startsWith(':');
-                            const alignRight = text.endsWith(':');
-                            let dividerStr = "";
-                            if (alignLeft && alignRight) {
-                              dividerStr = ":" + "-".repeat(Math.max(1, width - 2)) + ":";
-                            } else if (alignLeft) {
-                              dividerStr = ":" + "-".repeat(Math.max(2, width - 1));
-                            } else if (alignRight) {
-                              dividerStr = "-".repeat(Math.max(2, width - 1)) + ":";
-                            } else {
-                              dividerStr = "-".repeat(Math.max(3, width));
-                            }
-                            formattedLine += ` ${dividerStr} |`;
-                          } else {
-                            const padded = padVisual(cellText, width);
-                            formattedLine += ` ${padded} |`;
-                          }
-                        }
-                        const originalLine = model.getLineContent(row.lineNumber);
-                        const indentMatch = originalLine.match(/^([ \t]*)/);
-                        const indent = indentMatch ? indentMatch[1] : '';
-                        const finalLineText = indent + formattedLine;
-
-                        if (finalLineText !== originalLine) {
-                          edits.push({
-                            range: new monaco.Range(row.lineNumber, 1, row.lineNumber, originalLine.length + 1),
-                            text: finalLineText
-                          });
-                        }
-                      }
-
-                      if (edits.length > 0) {
-                        editorInstance.pushUndoStop();
-                        editorInstance.executeEdits("formatTable", edits);
-                        editorInstance.pushUndoStop();
-                      }
-                    };
-
-                    // 🛡️ [한글 주석 탑재] 표(Table) 여부 및 구분행 판별 헬퍼 함수 정의
-                    const isTableLine = (text: string): boolean => {
-                      const trimmed = text.trim();
-                      return trimmed.startsWith('|') && trimmed.endsWith('|') && (trimmed.match(/\|/g) || []).length >= 2;
-                    };
-
-                    const isTableDividerLine = (text: string): boolean => {
-                      const trimmed = text.trim();
-                      if (!isTableLine(trimmed)) return false;
-                      const inner = trimmed.substring(1, trimmed.length - 1);
-                      const parts = inner.split('|');
-                      return parts.every(part => /^[ \t]*:?-+:?[ \t]*$/.test(part));
-                    };
-
-                    const getCellRanges = (lineContent: string, lineNumber: number) => {
-                      const ranges: { lineNumber: number; startColumn: number; endColumn: number; isEmpty: boolean }[] = [];
-                      const pipeIndices: number[] = [];
-                      for (let i = 0; i < lineContent.length; i++) {
-                        if (lineContent[i] === '|') {
-                          if (i > 0 && lineContent[i - 1] === '\\') continue;
-                          pipeIndices.push(i);
-                        }
-                      }
-                      if (pipeIndices.length < 2) return { ranges: [], pipeIndices: [] };
-                      for (let i = 0; i < pipeIndices.length - 1; i++) {
-                        const startIdx = pipeIndices[i] + 1;
-                        const endIdx = pipeIndices[i + 1];
-                        const rawText = lineContent.substring(startIdx, endIdx);
-                        const hasLeftSpace = rawText.startsWith(' ');
-                        const hasRightSpace = rawText.endsWith(' ');
-                        const trimLeft = hasLeftSpace ? 1 : 0;
-                        const trimRight = hasRightSpace ? 1 : 0;
-                        const cellStartCol = startIdx + 1 + trimLeft;
-                        const cellEndCol = endIdx + 1 - trimRight;
-                        const coreText = rawText.substring(trimLeft, rawText.length - trimRight);
-                        const isEmpty = coreText.trim().length === 0;
-
-                        if (isEmpty) {
-                          // 빈 셀: 파이프 사이 공백들의 정중앙 컬럼에 크기 0의 셀 범위를 생성 (타이핑 시 양옆 공백 1칸 보존)
-                          const centerCol = startIdx + 1 + Math.max(1, Math.floor(rawText.length / 2));
-                          ranges.push({
-                            lineNumber,
-                            startColumn: centerCol,
-                            endColumn: centerCol,
-                            isEmpty: true
-                          });
-                        } else {
-                          ranges.push({
-                            lineNumber,
-                            startColumn: cellStartCol,
-                            endColumn: cellEndCol,
-                            isEmpty: false
-                          });
-                        }
-                      }
-                      return { ranges, pipeIndices };
-                    };
-
-                    // 🛡️ [한글 주석 탑재] Tab 키 입력 시 마크다운 표 셀 내비게이션 / 행 생성 및 목록 들여쓰기(Indent) 통합 처리
-                    // 자동완성(Suggest Widget)이 열려 있으면 Tab → 자동완성 수락에 양보하고,
-                    // 표 안이라면 다음 셀 이동 및 끝 셀에서 행 자동 생성을 수행하며,
-                    // 그 외 마크다운 목록 또는 인용문이 감지되면 2칸 들여쓰기를 삽입합니다.
-                    editor.addCommand(monaco.KeyCode.Tab, () => {
-                      // ① 자동완성 위젯이 열려 있으면 Tab = 자동완성 항목 수락
-                      try {
-                        const contextKeyService = (editor as any)._contextKeyService;
-                        const isSuggestVisible = contextKeyService?.getContextKeyValue('suggestWidgetVisible') === true;
-                        if (isSuggestVisible) {
-                          editor.trigger('keyboard', 'acceptSelectedSuggestion', {});
-                          return;
-                        }
-                      } catch (_) { /* 위젯 접근 실패 시 무시 */ }
-
-                      const selection = editor.getSelection();
-                      const model = editor.getModel();
-                      if (!model || !selection) {
-                        editor.trigger('keyboard', 'tab', null);
+                  // 🛡️ [한글 주석 탑재] Tab 키 입력 시 마크다운 표 셀 내비게이션 / 행 생성 및 목록 들여쓰기(Indent) 통합 처리
+                  // 자동완성(Suggest Widget)이 열려 있으면 Tab → 자동완성 수락에 양보하고,
+                  // 표 안이라면 다음 셀 이동 및 끝 셀에서 행 자동 생성을 수행하며,
+                  // 그 외 마크다운 목록 또는 인용문이 감지되면 2칸 들여쓰기를 삽입합니다.
+                  editor.addCommand(monaco.KeyCode.Tab, () => {
+                    // ① 자동완성 위젯이 열려 있으면 Tab = 자동완성 항목 수락
+                    try {
+                      const contextKeyService = (editor as any)._contextKeyService;
+                      const isSuggestVisible = contextKeyService?.getContextKeyValue('suggestWidgetVisible') === true;
+                      if (isSuggestVisible) {
+                        editor.trigger('keyboard', 'acceptSelectedSuggestion', {});
                         return;
                       }
+                    } catch (_) { /* 위젯 접근 실패 시 무시 */ }
 
-                      // ② 마크다운 표 영역인지 검사 및 표 내비게이션 / 행 추가 처리
-                      const position = editor.getPosition();
-                      if (position) {
-                        const lineContent = model.getLineContent(position.lineNumber);
-                        if (isTableLine(lineContent) && !isTableDividerLine(lineContent)) {
-                          const { ranges, pipeIndices } = getCellRanges(lineContent, position.lineNumber);
-                          if (ranges.length > 0) {
-                            let currentCellIdx = -1;
-                            for (let i = 0; i < pipeIndices.length - 1; i++) {
-                              const leftCol = pipeIndices[i] + 1;
-                              const rightCol = pipeIndices[i + 1] + 2;
-                              if (position.column >= leftCol && position.column <= rightCol) {
-                                currentCellIdx = i;
-                                break;
-                              }
-                            }
-
-                            if (currentCellIdx !== -1) {
-                              if (currentCellIdx < ranges.length - 1) {
-                                // 다음 셀로 이동
-                                const nextCell = ranges[currentCellIdx + 1];
-                                editor.setSelection(new monaco.Selection(
-                                  nextCell.lineNumber, nextCell.startColumn,
-                                  nextCell.lineNumber, nextCell.endColumn
-                                ));
-                                return;
-                              } else {
-                                // 현재 행이 마지막 셀인 경우 -> 다음 행으로 이동 또는 신규 행 삽입
-                                let targetLine = position.lineNumber + 1;
-                                const lineCount = model.getLineCount();
-                                if (targetLine <= lineCount) {
-                                  let nextLineContent = model.getLineContent(targetLine);
-                                  if (isTableLine(nextLineContent) && isTableDividerLine(nextLineContent)) {
-                                    targetLine++;
-                                    if (targetLine <= lineCount) {
-                                      nextLineContent = model.getLineContent(targetLine);
-                                    } else {
-                                      nextLineContent = "";
-                                    }
-                                  }
-
-                                  if (isTableLine(nextLineContent)) {
-                                    const nextLineRanges = getCellRanges(nextLineContent, targetLine).ranges;
-                                    if (nextLineRanges.length > 0) {
-                                      const firstCell = nextLineRanges[0];
-                                      editor.setSelection(new monaco.Selection(
-                                        firstCell.lineNumber, firstCell.startColumn,
-                                        firstCell.lineNumber, firstCell.endColumn
-                                      ));
-
-                                      // 💡 다음 행으로 이동 시 스크롤 튀는 현상 방지 락 및 강제 동기화
-                                      isScrollingRef.current = 'editor';
-                                      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                                      scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 200);
-                                      setTimeout(() => {
-                                        if (previewRef.current) {
-                                          const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`);
-                                          if (targetElement) {
-                                            targetElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
-                                          }
-                                        }
-                                      }, 50);
-                                      return;
-                                    }
-                                  }
-                                }
-
-                                // 다음 행이 없거나 표 행이 아니라면 -> 신규 행 자동 추가
-                                const cellCount = ranges.length;
-                                const newRowText = "\n|" + "  |".repeat(cellCount);
-                                const lastLineMaxCol = model.getLineMaxColumn(position.lineNumber);
-                                editor.pushUndoStop();
-                                editor.executeEdits("insertTableRow", [{
-                                  range: new monaco.Range(position.lineNumber, lastLineMaxCol, position.lineNumber, lastLineMaxCol),
-                                  text: newRowText,
-                                  forceMoveMarkers: true
-                                }]);
-                                editor.pushUndoStop();
-
-                                const newRowNumber = position.lineNumber + 1;
-                                const newRowContent = model.getLineContent(newRowNumber);
-                                const newRowRanges = getCellRanges(newRowContent, newRowNumber).ranges;
-                                if (newRowRanges.length > 0) {
-                                  const firstCell = newRowRanges[0];
-                                  editor.setSelection(new monaco.Selection(
-                                    firstCell.lineNumber, firstCell.startColumn,
-                                    firstCell.lineNumber, firstCell.endColumn
-                                  ));
-                                }
-
-                                // 💡 행 추가 후 스크롤 튀는 현상 방지 락 및 강제 동기화
-                                isScrollingRef.current = 'editor';
-                                if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                                scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 300);
-                                setTimeout(() => {
-                                  if (previewRef.current) {
-                                    const targetElement = previewRef.current.querySelector(`[data-line="${newRowNumber}"]`);
-                                    if (targetElement) {
-                                      targetElement.scrollIntoView({ behavior: 'auto', block: 'center' });
-                                    }
-                                  }
-                                }, 80);
-                                return;
-                              }
-                            }
-                          }
-                        }
-                      }
-
-                      // ③ 기존 리스트 및 인용문 들여쓰기(Indent) 처리
-                      const startLine = selection.startLineNumber;
-                      const endLine = selection.endLineNumber;
-
-                      let hasList = false;
-                      for (let i = startLine; i <= endLine; i++) {
-                        const lineContent = model.getLineContent(i);
-                        if (/^[ \t]*([-*+]|\d+\.|>)/.test(lineContent)) {
-                          hasList = true;
-                          break;
-                        }
-                      }
-
-                      if (hasList) {
-                        editor.pushUndoStop();
-                        const edits: any[] = [];
-                        for (let i = startLine; i <= endLine; i++) {
-                          edits.push({
-                            range: new monaco.Range(i, 1, i, 1),
-                            text: " ".repeat(tabSizeRef.current)
-                          });
-                        }
-                        editor.executeEdits("indentList", edits);
-                        editor.pushUndoStop();
-                        return;
-                      }
-
-                      // 목록이 아니라면 기본의 탭 이동을 트리거
+                    const selection = editor.getSelection();
+                    const model = editor.getModel();
+                    if (!model || !selection) {
                       editor.trigger('keyboard', 'tab', null);
-                    });
+                      return;
+                    }
 
-                    // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 마크다운 표 역방향 셀 이동 및 목록 내어쓰기(Outdent) 통합 처리
-                    // 현재 커서가 표 내부이면 이전 셀로 커서를 이동하고,
-                    // 목록 계층에 있으면 맨 앞에 존재하는 2칸 공백 또는 1칸 탭 문자를 소거하여 아웃덴트 정렬합니다.
-                    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
-                      const selection = editor.getSelection();
-                      const model = editor.getModel();
-                      if (!model || !selection) return;
-
-                      // ① 마크다운 표 영역인지 검사 및 표 역방향 셀 이동 처리
-                      const position = editor.getPosition();
-                      if (position) {
-                        const lineContent = model.getLineContent(position.lineNumber);
-                        if (isTableLine(lineContent) && !isTableDividerLine(lineContent)) {
-                          const { ranges, pipeIndices } = getCellRanges(lineContent, position.lineNumber);
-                          if (ranges.length > 0) {
-                            let currentCellIdx = -1;
-                            for (let i = 0; i < pipeIndices.length - 1; i++) {
-                              const leftCol = pipeIndices[i] + 1;
-                              const rightCol = pipeIndices[i + 1] + 2;
-                              if (position.column >= leftCol && position.column <= rightCol) {
-                                currentCellIdx = i;
-                                break;
-                              }
+                    // ② 마크다운 표 영역인지 검사 및 표 내비게이션 / 행 추가 처리
+                    const position = editor.getPosition();
+                    if (position) {
+                      const lineContent = model.getLineContent(position.lineNumber);
+                      if (isTableLine(lineContent) && !isTableDividerLine(lineContent)) {
+                        const { ranges, pipeIndices } = getCellRanges(lineContent, position.lineNumber);
+                        if (ranges.length > 0) {
+                          let currentCellIdx = -1;
+                          for (let i = 0; i < pipeIndices.length - 1; i++) {
+                            const leftCol = pipeIndices[i] + 1;
+                            const rightCol = pipeIndices[i + 1] + 2;
+                            if (position.column >= leftCol && position.column <= rightCol) {
+                              currentCellIdx = i;
+                              break;
                             }
+                          }
 
-                            if (currentCellIdx !== -1) {
-                              if (currentCellIdx > 0) {
-                                // 이전 셀로 이동
-                                const prevCell = ranges[currentCellIdx - 1];
-                                editor.setSelection(new monaco.Selection(
-                                  prevCell.lineNumber, prevCell.startColumn,
-                                  prevCell.lineNumber, prevCell.endColumn
-                                ));
-                                return;
-                              } else {
-                                // 첫 번째 셀에서 Shift+Tab -> 이전 행의 마지막 셀로 이동
-                                let targetLine = position.lineNumber - 1;
-                                if (targetLine >= 1) {
-                                  let prevLineContent = model.getLineContent(targetLine);
-                                  if (isTableLine(prevLineContent) && isTableDividerLine(prevLineContent)) {
-                                    targetLine--;
-                                    if (targetLine >= 1) {
-                                      prevLineContent = model.getLineContent(targetLine);
-                                    } else {
-                                      prevLineContent = "";
-                                    }
+                          if (currentCellIdx !== -1) {
+                            if (currentCellIdx < ranges.length - 1) {
+                              // 다음 셀로 이동
+                              const nextCell = ranges[currentCellIdx + 1];
+                              editor.setSelection(new monaco.Selection(
+                                nextCell.lineNumber, nextCell.startColumn,
+                                nextCell.lineNumber, nextCell.endColumn
+                              ));
+                              return;
+                            } else {
+                              // 현재 행이 마지막 셀인 경우 -> 다음 행으로 이동 또는 신규 행 삽입
+                              let targetLine = position.lineNumber + 1;
+                              const lineCount = model.getLineCount();
+                              if (targetLine <= lineCount) {
+                                let nextLineContent = model.getLineContent(targetLine);
+                                if (isTableLine(nextLineContent) && isTableDividerLine(nextLineContent)) {
+                                  targetLine++;
+                                  if (targetLine <= lineCount) {
+                                    nextLineContent = model.getLineContent(targetLine);
+                                  } else {
+                                    nextLineContent = "";
                                   }
+                                }
 
-                                  if (isTableLine(prevLineContent)) {
-                                    const prevLineRanges = getCellRanges(prevLineContent, targetLine).ranges;
-                                    if (prevLineRanges.length > 0) {
-                                      const lastCell = prevLineRanges[prevLineRanges.length - 1];
-                                      editor.setSelection(new monaco.Selection(
-                                        lastCell.lineNumber, lastCell.startColumn,
-                                        lastCell.lineNumber, lastCell.endColumn
-                                      ));
+                                if (isTableLine(nextLineContent)) {
+                                  const nextLineRanges = getCellRanges(nextLineContent, targetLine).ranges;
+                                  if (nextLineRanges.length > 0) {
+                                    const firstCell = nextLineRanges[0];
+                                    editor.setSelection(new monaco.Selection(
+                                      firstCell.lineNumber, firstCell.startColumn,
+                                      firstCell.lineNumber, firstCell.endColumn
+                                    ));
 
-                                      // 💡 이전 행으로 이동 시 스크롤 튀는 현상 방지 락 및 강제 동기화
-                                      isScrollingRef.current = 'editor';
-                                      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                                      scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 200);
-                                      setTimeout(() => {
-                                        if (previewRef.current) {
-                                          const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`);
-                                          if (targetElement) {
-                                            targetElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
-                                          }
+                                    // 💡 다음 행으로 이동 시 스크롤 튀는 현상 방지 락 및 강제 동기화
+                                    isScrollingRef.current = 'editor';
+                                    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                                    scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 200);
+                                    setTimeout(() => {
+                                      if (previewRef.current) {
+                                        const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`);
+                                        if (targetElement) {
+                                          targetElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
                                         }
-                                      }, 50);
-                                      return;
-                                    }
+                                      }
+                                    }, 50);
+                                    return;
+                                  }
+                                }
+                              }
+
+                              // 다음 행이 없거나 표 행이 아니라면 -> 신규 행 자동 추가
+                              const cellCount = ranges.length;
+                              const newRowText = "\n|" + "  |".repeat(cellCount);
+                              const lastLineMaxCol = model.getLineMaxColumn(position.lineNumber);
+                              editor.pushUndoStop();
+                              editor.executeEdits("insertTableRow", [{
+                                range: new monaco.Range(position.lineNumber, lastLineMaxCol, position.lineNumber, lastLineMaxCol),
+                                text: newRowText,
+                                forceMoveMarkers: true
+                              }]);
+                              editor.pushUndoStop();
+
+                              const newRowNumber = position.lineNumber + 1;
+                              const newRowContent = model.getLineContent(newRowNumber);
+                              const newRowRanges = getCellRanges(newRowContent, newRowNumber).ranges;
+                              if (newRowRanges.length > 0) {
+                                const firstCell = newRowRanges[0];
+                                editor.setSelection(new monaco.Selection(
+                                  firstCell.lineNumber, firstCell.startColumn,
+                                  firstCell.lineNumber, firstCell.endColumn
+                                ));
+                              }
+
+                              // 💡 행 추가 후 스크롤 튀는 현상 방지 락 및 강제 동기화
+                              isScrollingRef.current = 'editor';
+                              if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                              scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 300);
+                              setTimeout(() => {
+                                if (previewRef.current) {
+                                  const targetElement = previewRef.current.querySelector(`[data-line="${newRowNumber}"]`);
+                                  if (targetElement) {
+                                    targetElement.scrollIntoView({ behavior: 'auto', block: 'center' });
+                                  }
+                                }
+                              }, 80);
+                              return;
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    // ③ 기존 리스트 및 인용문 들여쓰기(Indent) 처리
+                    const startLine = selection.startLineNumber;
+                    const endLine = selection.endLineNumber;
+
+                    let hasList = false;
+                    for (let i = startLine; i <= endLine; i++) {
+                      const lineContent = model.getLineContent(i);
+                      if (/^[ \t]*([-*+]|\d+\.|>)/.test(lineContent)) {
+                        hasList = true;
+                        break;
+                      }
+                    }
+
+                    if (hasList) {
+                      editor.pushUndoStop();
+                      const edits: any[] = [];
+                      for (let i = startLine; i <= endLine; i++) {
+                        edits.push({
+                          range: new monaco.Range(i, 1, i, 1),
+                          text: " ".repeat(tabSizeRef.current)
+                        });
+                      }
+                      editor.executeEdits("indentList", edits);
+                      editor.pushUndoStop();
+                      return;
+                    }
+
+                    // 목록이 아니라면 기본의 탭 이동을 트리거
+                    editor.trigger('keyboard', 'tab', null);
+                  });
+
+                  // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 마크다운 표 역방향 셀 이동 및 목록 내어쓰기(Outdent) 통합 처리
+                  // 현재 커서가 표 내부이면 이전 셀로 커서를 이동하고,
+                  // 목록 계층에 있으면 맨 앞에 존재하는 2칸 공백 또는 1칸 탭 문자를 소거하여 아웃덴트 정렬합니다.
+                  editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
+                    const selection = editor.getSelection();
+                    const model = editor.getModel();
+                    if (!model || !selection) return;
+
+                    // ① 마크다운 표 영역인지 검사 및 표 역방향 셀 이동 처리
+                    const position = editor.getPosition();
+                    if (position) {
+                      const lineContent = model.getLineContent(position.lineNumber);
+                      if (isTableLine(lineContent) && !isTableDividerLine(lineContent)) {
+                        const { ranges, pipeIndices } = getCellRanges(lineContent, position.lineNumber);
+                        if (ranges.length > 0) {
+                          let currentCellIdx = -1;
+                          for (let i = 0; i < pipeIndices.length - 1; i++) {
+                            const leftCol = pipeIndices[i] + 1;
+                            const rightCol = pipeIndices[i + 1] + 2;
+                            if (position.column >= leftCol && position.column <= rightCol) {
+                              currentCellIdx = i;
+                              break;
+                            }
+                          }
+
+                          if (currentCellIdx !== -1) {
+                            if (currentCellIdx > 0) {
+                              // 이전 셀로 이동
+                              const prevCell = ranges[currentCellIdx - 1];
+                              editor.setSelection(new monaco.Selection(
+                                prevCell.lineNumber, prevCell.startColumn,
+                                prevCell.lineNumber, prevCell.endColumn
+                              ));
+                              return;
+                            } else {
+                              // 첫 번째 셀에서 Shift+Tab -> 이전 행의 마지막 셀로 이동
+                              let targetLine = position.lineNumber - 1;
+                              if (targetLine >= 1) {
+                                let prevLineContent = model.getLineContent(targetLine);
+                                if (isTableLine(prevLineContent) && isTableDividerLine(prevLineContent)) {
+                                  targetLine--;
+                                  if (targetLine >= 1) {
+                                    prevLineContent = model.getLineContent(targetLine);
+                                  } else {
+                                    prevLineContent = "";
+                                  }
+                                }
+
+                                if (isTableLine(prevLineContent)) {
+                                  const prevLineRanges = getCellRanges(prevLineContent, targetLine).ranges;
+                                  if (prevLineRanges.length > 0) {
+                                    const lastCell = prevLineRanges[prevLineRanges.length - 1];
+                                    editor.setSelection(new monaco.Selection(
+                                      lastCell.lineNumber, lastCell.startColumn,
+                                      lastCell.lineNumber, lastCell.endColumn
+                                    ));
+
+                                    // 💡 이전 행으로 이동 시 스크롤 튀는 현상 방지 락 및 강제 동기화
+                                    isScrollingRef.current = 'editor';
+                                    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                                    scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 200);
+                                    setTimeout(() => {
+                                      if (previewRef.current) {
+                                        const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`);
+                                        if (targetElement) {
+                                          targetElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+                                        }
+                                      }
+                                    }, 50);
+                                    return;
                                   }
                                 }
                               }
@@ -4849,21 +4849,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           }
                         }
                       }
+                    }
 
-                      // 일반 문장이면 기본 아웃덴트 기능 트리거
-                      editor.trigger('keyboard', 'outdent', null);
-                    });
+                    // 일반 문장이면 기본 아웃덴트 기능 트리거
+                    editor.trigger('keyboard', 'outdent', null);
+                  });
 
-                    // 🛡️ [한글 주석 탑재] 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
-                    // 자동완성(Suggest Widget)이 열려 있으면 Enter → 자동완성 수락에 양보
-                    // 그 외에는 리스트 상태에서 엔터를 치면 다음 줄에 불릿 기호를 자동 주입합니다.
-                    editor.addAction({
-                      id: 'custom-enter-list-auto',
-                      label: '리스트 자동완성 (Enter)',
-                      keybindings: [monaco.KeyCode.Enter],
-                      // suggestWidgetVisible = true 이면 이 액션 발동 안됨 → Monaco 기본 Enter(자동완성 수락)에 양보
-                      precondition: '!suggestWidgetVisible && !editorReadonly',
-                      run: () => {
+                  // 🛡️ [한글 주석 탑재] 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
+                  // 자동완성(Suggest Widget)이 열려 있으면 Enter → 자동완성 수락에 양보
+                  // 그 외에는 리스트 상태에서 엔터를 치면 다음 줄에 불릿 기호를 자동 주입합니다.
+                  editor.addAction({
+                    id: 'custom-enter-list-auto',
+                    label: '리스트 자동완성 (Enter)',
+                    keybindings: [monaco.KeyCode.Enter],
+                    // suggestWidgetVisible = true 이면 이 액션 발동 안됨 → Monaco 기본 Enter(자동완성 수락)에 양보
+                    precondition: '!suggestWidgetVisible && !editorReadonly',
+                    run: () => {
                       // ① 자동완성 위젯이 열려 있으면 Enter = 자동완성 항목 수락
                       try {
                         const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
@@ -5014,286 +5015,228 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         text: `\n${indent}`,
                         forceMoveMarkers: true
                       }]);
-                    
-                      }
-                    });
 
-                    // 🛡️ [한글 주석 탑재] Ctrl + Shift + = (즉, Ctrl+Shift++) 입력 시 표 행 삽입
-                    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Equal, () => {
-                      const position = editor.getPosition();
-                      const model = editor.getModel();
-                      if (!position || !model) return;
-                      const lineContent = model.getLineContent(position.lineNumber);
-                      if (isTableLine(lineContent)) {
-                        const { ranges } = getCellRanges(lineContent, position.lineNumber);
-                        const cellCount = ranges.length;
-                        if (cellCount > 0) {
-                          const newRowText = "|" + "  |".repeat(cellCount) + "\n";
-                          editor.pushUndoStop();
-                          editor.executeEdits("insertTableRowAbove", [{
-                            range: new monaco.Range(position.lineNumber, 1, position.lineNumber, 1),
-                            text: newRowText,
-                            forceMoveMarkers: false
-                          }]);
-                          editor.pushUndoStop();
-                          
-                          // 삽입된 행의 첫 셀로 포커싱
-                          const newRanges = getCellRanges(model.getLineContent(position.lineNumber), position.lineNumber).ranges;
-                          if (newRanges.length > 0) {
-                            editor.setSelection(new monaco.Selection(
-                              position.lineNumber, newRanges[0].startColumn,
-                              position.lineNumber, newRanges[0].endColumn
-                            ));
-                          }
-                        }
-                      }
-                    });
+                    }
+                  });
 
-                    // 🛡️ [한글 주석 탑재] Ctrl + Shift + - 입력 시 표 행 삭제 (구분행은 삭제 방지 가드 처리)
-                    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Minus, () => {
-                      const position = editor.getPosition();
-                      const model = editor.getModel();
-                      if (!position || !model) return;
-                      const lineContent = model.getLineContent(position.lineNumber);
-                      if (isTableLine(lineContent)) {
-                        // 구분행(| --- | --- |)인 경우 표 붕괴를 막기 위해 삭제 완전 차단
-                        if (isTableDividerLine(lineContent)) {
-                          return;
-                        }
+                  // 🛡️ [한글 주석 탑재] Ctrl + Shift + = (즉, Ctrl+Shift++) 입력 시 표 행 삽입
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Equal, () => {
+                    const position = editor.getPosition();
+                    const model = editor.getModel();
+                    if (!position || !model) return;
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    if (isTableLine(lineContent)) {
+                      const { ranges } = getCellRanges(lineContent, position.lineNumber);
+                      const cellCount = ranges.length;
+                      if (cellCount > 0) {
+                        const newRowText = "|" + "  |".repeat(cellCount) + "\n";
                         editor.pushUndoStop();
-                        const lineMaxCol = model.getLineMaxColumn(position.lineNumber);
-                        let range: any;
-                        if (position.lineNumber < model.getLineCount()) {
-                          range = new monaco.Range(position.lineNumber, 1, position.lineNumber + 1, 1);
-                        } else if (position.lineNumber > 1) {
-                          const prevMaxCol = model.getLineMaxColumn(position.lineNumber - 1);
-                          range = new monaco.Range(position.lineNumber - 1, prevMaxCol, position.lineNumber, lineMaxCol);
-                        } else {
-                          range = new monaco.Range(position.lineNumber, 1, position.lineNumber, lineMaxCol);
-                        }
-                        editor.executeEdits("deleteTableRow", [{
-                          range,
-                          text: ""
+                        editor.executeEdits("insertTableRowAbove", [{
+                          range: new monaco.Range(position.lineNumber, 1, position.lineNumber, 1),
+                          text: newRowText,
+                          forceMoveMarkers: false
                         }]);
                         editor.pushUndoStop();
-                      }
-                    });
 
-                    // Ctrl+Space: 슬래시 명령어 입력 중인 경우 제안 팝업 트리거, 그렇지 않으면 플로팅 툴바 토글
-                    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
-                      const position = editor.getPosition();
+                        // 삽입된 행의 첫 셀로 포커싱
+                        const newRanges = getCellRanges(model.getLineContent(position.lineNumber), position.lineNumber).ranges;
+                        if (newRanges.length > 0) {
+                          editor.setSelection(new monaco.Selection(
+                            position.lineNumber, newRanges[0].startColumn,
+                            position.lineNumber, newRanges[0].endColumn
+                          ));
+                        }
+                      }
+                    }
+                  });
+
+                  // 🛡️ [한글 주석 탑재] Ctrl + Shift + - 입력 시 표 행 삭제 (구분행은 삭제 방지 가드 처리)
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Minus, () => {
+                    const position = editor.getPosition();
+                    const model = editor.getModel();
+                    if (!position || !model) return;
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    if (isTableLine(lineContent)) {
+                      // 구분행(| --- | --- |)인 경우 표 붕괴를 막기 위해 삭제 완전 차단
+                      if (isTableDividerLine(lineContent)) {
+                        return;
+                      }
+                      editor.pushUndoStop();
+                      const lineMaxCol = model.getLineMaxColumn(position.lineNumber);
+                      let range: any;
+                      if (position.lineNumber < model.getLineCount()) {
+                        range = new monaco.Range(position.lineNumber, 1, position.lineNumber + 1, 1);
+                      } else if (position.lineNumber > 1) {
+                        const prevMaxCol = model.getLineMaxColumn(position.lineNumber - 1);
+                        range = new monaco.Range(position.lineNumber - 1, prevMaxCol, position.lineNumber, lineMaxCol);
+                      } else {
+                        range = new monaco.Range(position.lineNumber, 1, position.lineNumber, lineMaxCol);
+                      }
+                      editor.executeEdits("deleteTableRow", [{
+                        range,
+                        text: ""
+                      }]);
+                      editor.pushUndoStop();
+                    }
+                  });
+
+                  // Ctrl+Space: 슬래시 명령어 입력 중인 경우 제안 팝업 트리거, 그렇지 않으면 플로팅 툴바 토글
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
+                    const position = editor.getPosition();
+                    const model = editor.getModel();
+                    if (position && model) {
+                      const lineContent = model.getLineContent(position.lineNumber);
+                      const beforeCursor = lineContent.substring(0, position.column - 1);
+                      // 커서 바로 직전이 / 이거나, / 뒤에 공백 없이 영문/숫자가 연속되는 슬래시 입력 패턴인 경우
+                      const slashMatch = beforeCursor.match(/\/([a-zA-Z0-9]*)$/);
+                      if (slashMatch) {
+                        editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+                        return;
+                      }
+                    }
+
+                    setFloatingToolbar(prev => {
+                      if (prev.visible) return { ...prev, visible: false };
+                      let targetPosition = editor.getPosition();
+                      const selection = editor.getSelection();
+                      const activeSelection = (selection && !selection.isEmpty()) ? selection : lastSelectionRef.current;
+                      if (activeSelection && !activeSelection.isEmpty()) {
+                        targetPosition = activeSelection.getStartPosition();
+                      }
+                      if (!targetPosition) return prev;
+                      const visiblePos = editor.getScrolledVisiblePosition(targetPosition);
+                      if (!visiblePos) return prev;
+                      return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
+                    });
+                  });
+
+                  // 💡 [테마 적용 안전장치] 마운트 시점에 수동으로 모든 테마를 다시 정의하고 강제 적용
+                  EDITOR_THEMES.forEach(t => {
+                    monaco.editor.defineTheme(t.id, {
+                      base: t.base,
+                      inherit: true,
+                      rules: t.rules,
+                      colors: t.colors
+                    });
+                  });
+                  monaco.editor.setTheme(themePalette);
+
+                  decorationsCollectionRef.current = editor.createDecorationsCollection();
+                  updateDecorations(editor);
+                  setIsEditorReady(true);
+                  const container = editor.getContainerDomNode();
+                  container.addEventListener('paste', handleEditorPaste, true);
+
+                  // 💡 다른 문서에서 글을 마우스로 드래그앤드롭(Drag & Drop)하여 옮길 때 끝에 $0이 붙는 버그 방지 커스텀 핸들러
+                  container.addEventListener('drop', (e: DragEvent) => {
+                    const text = e.dataTransfer?.getData('text');
+                    if (text) {
+                      e.preventDefault();
+                      e.stopPropagation();
+
+                      const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
+                      const position = target?.position || editor.getPosition();
+
+                      if (position) {
+                        editor.executeEdits('dragDropText', [{
+                          range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                          text: text,
+                          forceMoveMarkers: true
+                        }]);
+                        editor.focus();
+                      }
+                    }
+                  }, true);
+
+                  container.addEventListener('mouseenter', () => { isEditorHovered.current = true; });
+                  container.addEventListener('mouseleave', () => { isEditorHovered.current = false; });
+
+                  // 💡 [고속/역방향 드래그 가드] Monaco anchor 리셋 방어 — 마우스 다운 위치를 anchor로 고정
+                  let editorMouseDown = false;
+                  let editorMouseAnchor: { lineNumber: number; column: number } | null = null;
+
+                  editor.onMouseDown((e: any) => {
+                    editorMouseDown = true;
+                    if (e.target?.position) {
+                      editorMouseAnchor = {
+                        lineNumber: e.target.position.lineNumber,
+                        column: e.target.position.column
+                      };
+                    }
+                  });
+
+                  editor.onMouseUp(() => {
+                    editorMouseDown = false;
+                    editorMouseAnchor = null;
+                  });
+
+                  editor.onDidChangeCursorPosition((e) => {
+                    setActiveLine(e.position.lineNumber);
+                    setCursorLine(e.position.lineNumber);
+                    setCursorColumn(e.position.column);
+
+                    // 💡 [커서 연동 방향 감지 및 이전 줄 업데이트]
+                    const currentLine = e.position.lineNumber;
+                    const prevLine = prevCursorLineRef.current;
+                    prevCursorLineRef.current = currentLine;
+
+                    // 분할모드에서 커서가 새로운 행으로 이동 시 미리보기 동기화
+                    if (prevLine !== null && prevLine !== currentLine && previewModeRef.current === 'both' && previewRef.current) {
+                      const targetEl = previewRef.current.querySelector(`[data-line="${currentLine}"]`) as HTMLElement;
+                      if (targetEl) {
+                        targetEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                      }
+                    }
+
+                    // 💡 표(Table) 영역 이탈 시 자동 정렬 수행
+                    if (prevLine && prevLine !== currentLine) {
                       const model = editor.getModel();
-                      if (position && model) {
-                        const lineContent = model.getLineContent(position.lineNumber);
-                        const beforeCursor = lineContent.substring(0, position.column - 1);
-                        // 커서 바로 직전이 / 이거나, / 뒤에 공백 없이 영문/숫자가 연속되는 슬래시 입력 패턴인 경우
-                        const slashMatch = beforeCursor.match(/\/([a-zA-Z0-9]*)$/);
-                        if (slashMatch) {
-                          editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
-                          return;
-                        }
-                      }
-
-                      setFloatingToolbar(prev => {
-                        if (prev.visible) return { ...prev, visible: false };
-                        let targetPosition = editor.getPosition();
-                        const selection = editor.getSelection();
-                        const activeSelection = (selection && !selection.isEmpty()) ? selection : lastSelectionRef.current;
-                        if (activeSelection && !activeSelection.isEmpty()) {
-                          targetPosition = activeSelection.getStartPosition();
-                        }
-                        if (!targetPosition) return prev;
-                        const visiblePos = editor.getScrolledVisiblePosition(targetPosition);
-                        if (!visiblePos) return prev;
-                        return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
-                      });
-                    });
-
-                    // 💡 [테마 적용 안전장치] 마운트 시점에 수동으로 모든 테마를 다시 정의하고 강제 적용
-                    EDITOR_THEMES.forEach(t => {
-                      monaco.editor.defineTheme(t.id, {
-                        base: t.base,
-                        inherit: true,
-                        rules: t.rules,
-                        colors: t.colors
-                      });
-                    });
-                    monaco.editor.setTheme(themePalette);
-
-                    decorationsCollectionRef.current = editor.createDecorationsCollection();
-                    updateDecorations(editor);
-                    setIsEditorReady(true);
-                    const container = editor.getContainerDomNode();
-                    container.addEventListener('paste', handleEditorPaste, true);
-                    
-                    // 💡 다른 문서에서 글을 마우스로 드래그앤드롭(Drag & Drop)하여 옮길 때 끝에 $0이 붙는 버그 방지 커스텀 핸들러
-                    container.addEventListener('drop', (e: DragEvent) => {
-                      const text = e.dataTransfer?.getData('text');
-                      if (text) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        
-                        const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
-                        const position = target?.position || editor.getPosition();
-                        
-                        if (position) {
-                          editor.executeEdits('dragDropText', [{
-                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-                            text: text,
-                            forceMoveMarkers: true
-                          }]);
-                          editor.focus();
-                        }
-                      }
-                    }, true);
-
-                    container.addEventListener('mouseenter', () => { isEditorHovered.current = true; });
-                    container.addEventListener('mouseleave', () => { isEditorHovered.current = false; });
-
-                    // 💡 [고속/역방향 드래그 가드] Monaco anchor 리셋 방어 — 마우스 다운 위치를 anchor로 고정
-                    let editorMouseDown = false;
-                    let editorMouseAnchor: { lineNumber: number; column: number } | null = null;
-
-                    editor.onMouseDown((e: any) => {
-                      editorMouseDown = true;
-                      if (e.target?.position) {
-                        editorMouseAnchor = {
-                          lineNumber: e.target.position.lineNumber,
-                          column: e.target.position.column
-                        };
-                      }
-                    });
-
-                    editor.onMouseUp(() => {
-                      editorMouseDown = false;
-                      editorMouseAnchor = null;
-                    });
-
-                    editor.onDidChangeCursorPosition((e) => {
-                      setActiveLine(e.position.lineNumber);
-                      setCursorLine(e.position.lineNumber);
-                      setCursorColumn(e.position.column);
-
-                      // 💡 [커서 연동 방향 감지 및 이전 줄 업데이트]
-                      const currentLine = e.position.lineNumber;
-                      const prevLine = prevCursorLineRef.current;
-                      prevCursorLineRef.current = currentLine;
-
-                      // 분할모드에서 커서가 새로운 행으로 이동 시 미리보기 동기화
-                      if (prevLine !== null && prevLine !== currentLine && previewModeRef.current === 'both' && previewRef.current) {
-                        const targetEl = previewRef.current.querySelector(`[data-line="${currentLine}"]`) as HTMLElement;
-                        if (targetEl) {
-                          targetEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
-                        }
-                      }
-
-                      // 💡 표(Table) 영역 이탈 시 자동 정렬 수행
-                      if (prevLine && prevLine !== currentLine) {
-                        const model = editor.getModel();
-                        if (model) {
-                          const lineCount = model.getLineCount();
-                          if (prevLine >= 1 && prevLine <= lineCount && currentLine >= 1 && currentLine <= lineCount) {
-                            const prevLineContent = model.getLineContent(prevLine);
-                            const currentLineContent = model.getLineContent(currentLine);
-                            if (isTableLine(prevLineContent) && (!isTableLine(currentLineContent) || Math.abs(currentLine - prevLine) > 1)) {
-                              // 스크롤 및 렌더링 간섭을 차단하기 위해 비동기 틱으로 정렬 수행
-                              setTimeout(() => {
-                                const currentModel = editor.getModel();
-                                if (currentModel && prevLine >= 1 && prevLine <= currentModel.getLineCount()) {
-                                  formatTableBlock(editor, prevLine);
-                                }
-                              }, 50);
-                            }
+                      if (model) {
+                        const lineCount = model.getLineCount();
+                        if (prevLine >= 1 && prevLine <= lineCount && currentLine >= 1 && currentLine <= lineCount) {
+                          const prevLineContent = model.getLineContent(prevLine);
+                          const currentLineContent = model.getLineContent(currentLine);
+                          if (isTableLine(prevLineContent) && (!isTableLine(currentLineContent) || Math.abs(currentLine - prevLine) > 1)) {
+                            // 스크롤 및 렌더링 간섭을 차단하기 위해 비동기 틱으로 정렬 수행
+                            setTimeout(() => {
+                              const currentModel = editor.getModel();
+                              if (currentModel && prevLine >= 1 && prevLine <= currentModel.getLineCount()) {
+                                formatTableBlock(editor, prevLine);
+                              }
+                            }, 50);
                           }
                         }
                       }
+                    }
 
-                      // [WBS CORE-03] 마우스 클릭 등으로 명시적인 커서 행 강제 이동 감지 시 자동완성 팝업 강제 파괴
-                      if (e.reason === 3) {
-                        try {
-                          const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
-                          if (suggestCtrl && suggestCtrl.widget && suggestCtrl.widget.value) {
-                            suggestCtrl.widget.value.hide();
-                          }
-                        } catch (_) {
-                          editor.trigger('keyboard', 'hideSuggestWidget', {});
+                    // [WBS CORE-03] 마우스 클릭 등으로 명시적인 커서 행 강제 이동 감지 시 자동완성 팝업 강제 파괴
+                    if (e.reason === 3) {
+                      try {
+                        const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
+                        if (suggestCtrl && suggestCtrl.widget && suggestCtrl.widget.value) {
+                          suggestCtrl.widget.value.hide();
                         }
+                      } catch (_) {
+                        editor.trigger('keyboard', 'hideSuggestWidget', {});
                       }
-                    });
-                    let scrollSyncRafId: number | null = null;
-                    editor.onDidScrollChange(() => {
-                      if (isScrollingRef.current === 'preview') return;
-                      if (previewModeRef.current !== 'both' || !previewRef.current) return;
-                      if (scrollSyncRafId !== null) return;
-                      scrollSyncRafId = requestAnimationFrame(() => {
-                        scrollSyncRafId = null;
-                        
-                        const parent = previewRef.current!;
-                        const range = editor.getVisibleRanges();
-                        if (range && range.length > 0) {
-                          const firstVisible = range[0].startLineNumber;
-                          
-                          // 1. 역추적으로 가장 가까운 data-line을 검색하여 라인 누락 방어
-                          let targetEl: HTMLElement | null = null;
-                          for (let line = firstVisible; line >= 1; line--) {
-                            const found = parent.querySelector(`[data-line="${line}"]`) as HTMLElement;
-                            if (found) {
-                              targetEl = found;
-                              break;
-                            }
-                          }
+                    }
+                  });
+                  let scrollSyncRafId: number | null = null;
+                  editor.onDidScrollChange(() => {
+                    if (isScrollingRef.current === 'preview') return;
+                    if (previewModeRef.current !== 'both' || !previewRef.current) return;
+                    if (scrollSyncRafId !== null) return;
+                    scrollSyncRafId = requestAnimationFrame(() => {
+                      scrollSyncRafId = null;
 
-                          if (targetEl) {
-                            isScrollingRef.current = 'editor';
-                            // 2. scrollIntoView 대신 offset 기반 직접 scrollTop 제어로 화면 요동 방지 및 정밀 제어
-                            const parentRect = parent.getBoundingClientRect();
-                            const childRect = targetEl.getBoundingClientRect();
-                            const relativeTop = childRect.top - parentRect.top + parent.scrollTop;
-                            
-                            parent.scrollTop = relativeTop;
+                      const parent = previewRef.current!;
+                      const range = editor.getVisibleRanges();
+                      if (range && range.length > 0) {
+                        const firstVisible = range[0].startLineNumber;
 
-                            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                            scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 100);
-                          }
-                        }
-                      });
-                    });
-
-                    // 💡 [커서 위치 실시간 비율 싱크 및 Typewriter Scroll]
-                    let cursorSyncRafId: number | null = null;
-                    editor.onDidChangeCursorPosition((e) => {
-                      if (e.reason === 2) return; // 드래그 선택 복구 시 등 예외 제외
-
-                      // 1. [에디터 자체 Typewriter Scroll] 커서가 화면의 80% 이상 아래로 내려오면 화면 30% 지점으로 에디터를 올림
-                      const viewportHeight = editor.getLayoutInfo().height;
-                      const curLine = e.position.lineNumber;
-                      const cursorTop = editor.getTopForLineNumber(curLine);
-                      const scrollTop = editor.getScrollTop();
-                      const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight) || 20;
-                      
-                      const cursorYInViewport = cursorTop + lineHeight - scrollTop;
-                      const ratio = cursorYInViewport / viewportHeight;
-
-                      let targetRatio = ratio;
-                      if (ratio >= 0.8) {
-                        const newScrollTop = cursorTop - (viewportHeight * 0.3);
-                        editor.setScrollTop(Math.max(0, newScrollTop));
-                        targetRatio = 0.3; // 에디터가 상단 30%로 스크롤되었으므로 비율도 30%로 맞춤
-                      }
-
-                      // 2. [미리보기 실시간 비율 싱크] 에디터 커서의 뷰포트 Y축 비율을 미리보기에 1:1 동기화하여 완벽한 수평선 유지
-                      if (previewModeRef.current !== 'both' || !previewRef.current) return;
-                      if (isScrollingRef.current === 'preview') return;
-                      if (cursorSyncRafId !== null) return;
-
-                      cursorSyncRafId = requestAnimationFrame(() => {
-                        cursorSyncRafId = null;
-                        
-                        const actualLine = editor.getPosition()?.lineNumber || curLine;
-                        const parent = previewRef.current!;
-
+                        // 1. 역추적으로 가장 가까운 data-line을 검색하여 라인 누락 방어
                         let targetEl: HTMLElement | null = null;
-                        for (let line = actualLine; line >= 1; line--) {
+                        for (let line = firstVisible; line >= 1; line--) {
                           const found = parent.querySelector(`[data-line="${line}"]`) as HTMLElement;
                           if (found) {
                             targetEl = found;
@@ -5303,374 +5246,432 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                         if (targetEl) {
                           isScrollingRef.current = 'editor';
-                          
+                          // 2. scrollIntoView 대신 offset 기반 직접 scrollTop 제어로 화면 요동 방지 및 정밀 제어
                           const parentRect = parent.getBoundingClientRect();
                           const childRect = targetEl.getBoundingClientRect();
-                          
-                          // 에디터의 커서 상대 비율(targetRatio)과 동일한 높이에 미리보기 단락이 위치하도록 scrollTop 연산
-                          const relativeTop = childRect.top - parentRect.top + parent.scrollTop - (parentRect.height * targetRatio);
-                          
-                          parent.scrollTop = Math.max(0, relativeTop);
+                          const relativeTop = childRect.top - parentRect.top + parent.scrollTop;
+
+                          parent.scrollTop = relativeTop;
 
                           if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                          scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 80);
-                        }
-                      });
-                    });
-
-                    // 💡 [Enter 즉시 저장] 엔터를 치면 곧바로 저장 — 5초 디바운스 기다림 없음
-                    editor.onKeyDown((e) => {
-                      if (e.keyCode === monaco.KeyCode.Enter && !isComposingRef.current) {
-                        if (autoSaveRef.current && currentFileNodeRef.current) {
-                          const val = editor.getValue();
-                          if (val && val !== lastSavedContentRef.current) {
-                            setSaveStatus('saving');
-                            saveFile(val, currentFileNodeRef.current).then(success => {
-                              if (success) lastSavedContentRef.current = val;
-                              setSaveStatus(success ? 'saved' : 'unsaved');
-                            });
-                          }
+                          scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 100);
                         }
                       }
                     });
+                  });
 
-                    editor.onMouseDown((e) => {
-                      // 🔥 마우스 클릭 시 자동완성 팝업 즉시 닫기
-                      // 다른 행 클릭 시 이전 입력 버퍼 잔재로 팝업이 엉뚱한 위치에 뜨는 현상 방지
-                      editor.trigger('mouse', 'hideSuggestWidget', {});
+                  // 💡 [커서 위치 실시간 비율 싱크 및 Typewriter Scroll]
+                  let cursorSyncRafId: number | null = null;
+                  editor.onDidChangeCursorPosition((e) => {
+                    if (e.reason === 2) return; // 드래그 선택 복구 시 등 예외 제외
 
-                      setTimeout(() => {
-                        const position = editor.getPosition();
-                        if (!position) return;
-                        const clickedLine = position.lineNumber;
+                    // 1. [에디터 자체 Typewriter Scroll] 커서가 화면의 80% 이상 아래로 내려오면 화면 30% 지점으로 에디터를 올림
+                    const viewportHeight = editor.getLayoutInfo().height;
+                    const curLine = e.position.lineNumber;
+                    const cursorTop = editor.getTopForLineNumber(curLine);
+                    const scrollTop = editor.getScrollTop();
+                    const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight) || 20;
 
-                        if (previewRef.current) {
-                          // 💡 반반(both) 모드이고 미리보기가 한 페이지를 초과하는 경우에만 연동 진행
-                          const isNotScrollable = previewRef.current.scrollHeight <= previewRef.current.clientHeight;
-                          if (previewModeRef.current !== 'both' || isNotScrollable) return;
+                    const cursorYInViewport = cursorTop + lineHeight - scrollTop;
+                    const ratio = cursorYInViewport / viewportHeight;
 
-                          const totalLines = editor.getModel()?.getLineCount() || 1;
+                    let targetRatio = ratio;
+                    if (ratio >= 0.8) {
+                      const newScrollTop = cursorTop - (viewportHeight * 0.3);
+                      editor.setScrollTop(Math.max(0, newScrollTop));
+                      targetRatio = 0.3; // 에디터가 상단 30%로 스크롤되었으므로 비율도 30%로 맞춤
+                    }
 
-                          // 맨 위(첫 줄) 클릭 시 최상단 스크롤
-                          if (clickedLine === 1) {
-                            previewRef.current.scrollTo({
-                              top: 0,
-                              behavior: 'smooth'
-                            });
-                            return;
+                    // 2. [미리보기 실시간 비율 싱크] 에디터 커서의 뷰포트 Y축 비율을 미리보기에 1:1 동기화하여 완벽한 수평선 유지
+                    if (previewModeRef.current !== 'both' || !previewRef.current) return;
+                    if (isScrollingRef.current === 'preview') return;
+                    if (cursorSyncRafId !== null) return;
+
+                    cursorSyncRafId = requestAnimationFrame(() => {
+                      cursorSyncRafId = null;
+
+                      const actualLine = editor.getPosition()?.lineNumber || curLine;
+                      const parent = previewRef.current!;
+
+                      let targetEl: HTMLElement | null = null;
+                      for (let line = actualLine; line >= 1; line--) {
+                        const found = parent.querySelector(`[data-line="${line}"]`) as HTMLElement;
+                        if (found) {
+                          targetEl = found;
+                          break;
+                        }
+                      }
+
+                      if (targetEl) {
+                        isScrollingRef.current = 'editor';
+
+                        const parentRect = parent.getBoundingClientRect();
+                        const childRect = targetEl.getBoundingClientRect();
+
+                        // 에디터의 커서 상대 비율(targetRatio)과 동일한 높이에 미리보기 단락이 위치하도록 scrollTop 연산
+                        const relativeTop = childRect.top - parentRect.top + parent.scrollTop - (parentRect.height * targetRatio);
+
+                        parent.scrollTop = Math.max(0, relativeTop);
+
+                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 80);
+                      }
+                    });
+                  });
+
+                  // 💡 [Enter 즉시 저장] 엔터를 치면 곧바로 저장 — 5초 디바운스 기다림 없음
+                  editor.onKeyDown((e) => {
+                    if (e.keyCode === monaco.KeyCode.Enter && !isComposingRef.current) {
+                      if (autoSaveRef.current && currentFileNodeRef.current) {
+                        const val = editor.getValue();
+                        if (val && val !== lastSavedContentRef.current) {
+                          setSaveStatus('saving');
+                          saveFile(val, currentFileNodeRef.current).then(success => {
+                            if (success) lastSavedContentRef.current = val;
+                            setSaveStatus(success ? 'saved' : 'unsaved');
+                          });
+                        }
+                      }
+                    }
+                  });
+
+                  editor.onMouseDown((e) => {
+                    // 🔥 마우스 클릭 시 자동완성 팝업 즉시 닫기
+                    // 다른 행 클릭 시 이전 입력 버퍼 잔재로 팝업이 엉뚱한 위치에 뜨는 현상 방지
+                    editor.trigger('mouse', 'hideSuggestWidget', {});
+
+                    setTimeout(() => {
+                      const position = editor.getPosition();
+                      if (!position) return;
+                      const clickedLine = position.lineNumber;
+
+                      if (previewRef.current) {
+                        // 💡 반반(both) 모드이고 미리보기가 한 페이지를 초과하는 경우에만 연동 진행
+                        const isNotScrollable = previewRef.current.scrollHeight <= previewRef.current.clientHeight;
+                        if (previewModeRef.current !== 'both' || isNotScrollable) return;
+
+                        const totalLines = editor.getModel()?.getLineCount() || 1;
+
+                        // 맨 위(첫 줄) 클릭 시 최상단 스크롤
+                        if (clickedLine === 1) {
+                          previewRef.current.scrollTo({
+                            top: 0,
+                            behavior: 'smooth'
+                          });
+                          return;
+                        }
+
+                        // 맨 아래(끝 줄) 클릭 시 최하단 스크롤
+                        if (clickedLine === totalLines) {
+                          previewRef.current.scrollTo({
+                            top: previewRef.current.scrollHeight,
+                            behavior: 'smooth'
+                          });
+                          return;
+                        }
+
+                        const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`);
+                        if (targetElement) {
+                          targetElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                          });
+                        } else {
+                          // 일치하는 엘리먼트가 없으면, 클릭한 라인보다 작거나 같은 가장 가까운 상위 엘리먼트를 찾아 스크롤
+                          const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
+                          let targetEl: HTMLElement | null = null;
+                          let maxLine = -1;
+                          for (const el of elements) {
+                            const lineStr = el.getAttribute('data-line');
+                            if (lineStr) {
+                              const line = parseInt(lineStr, 10);
+                              if (line <= clickedLine && line > maxLine) {
+                                maxLine = line;
+                                targetEl = el;
+                              }
+                            }
                           }
-
-                          // 맨 아래(끝 줄) 클릭 시 최하단 스크롤
-                          if (clickedLine === totalLines) {
-                            previewRef.current.scrollTo({
-                              top: previewRef.current.scrollHeight,
-                              behavior: 'smooth'
-                            });
-                            return;
-                          }
-
-                          const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`);
-                          if (targetElement) {
-                            targetElement.scrollIntoView({
+                          if (targetEl) {
+                            targetEl.scrollIntoView({
                               behavior: 'smooth',
                               block: 'center'
                             });
-                          } else {
-                            // 일치하는 엘리먼트가 없으면, 클릭한 라인보다 작거나 같은 가장 가까운 상위 엘리먼트를 찾아 스크롤
-                            const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
-                            let targetEl: HTMLElement | null = null;
-                            let maxLine = -1;
-                            for (const el of elements) {
-                               const lineStr = el.getAttribute('data-line');
-                               if (lineStr) {
-                                 const line = parseInt(lineStr, 10);
-                                 if (line <= clickedLine && line > maxLine) {
-                                   maxLine = line;
-                                   targetEl = el;
-                                 }
-                               }
-                             }
-                             if (targetEl) {
-                               targetEl.scrollIntoView({
-                                 behavior: 'smooth',
-                                 block: 'center'
-                               });
-                             }
-                           }
-                         }
-                       }, 10);
-                     });
-                      editor.onDidChangeCursorSelection((e) => {
-                         // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)
-                         if (!e.selection.isEmpty()) {
-                           lastSelectionRef.current = e.selection;
-                         } else {
-                           lastSelectionRef.current = null;
-                         }
-                         // 사장님 요청으로 텍스트 멀티선택 시 자동 노출은 완전 차단하되, 선택 영역이 지워지면(isEmpty) 플로팅 툴바를 자동으로 닫습니다.
-                         if (e.selection.isEmpty()) {
-                           setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
-                         }
-                         // 💡 [고속 드래그 anchor 리셋 보정] Monaco가 mousemove 이벤트 간격 중 anchor를 잃으면 선택이 리셋되는 현상 방어
-                         if (editorMouseDown && editorMouseAnchor && e.source === 'mouse') {
-                           const sel = e.selection;
-                           const anchorMatchStart = sel.startLineNumber === editorMouseAnchor.lineNumber && sel.startColumn === editorMouseAnchor.column;
-                           const anchorMatchEnd = sel.endLineNumber === editorMouseAnchor.lineNumber && sel.endColumn === editorMouseAnchor.column;
-                           if (!anchorMatchStart && !anchorMatchEnd) {
-                             const aL = editorMouseAnchor.lineNumber, aC = editorMouseAnchor.column;
-                             const fL = sel.positionLineNumber, fC = sel.positionColumn;
-                             const forward = aL < fL || (aL === fL && aC < fC);
-                             editor.setSelection({
-                               startLineNumber: forward ? aL : fL,
-                               startColumn: forward ? aC : fC,
-                               endLineNumber: forward ? fL : aL,
-                               endColumn: forward ? fC : aC
-                             });
-                           }
-                         }
-                       });
-
-                    if (completionProviderRef.current) {
-                      completionProviderRef.current.dispose();
+                          }
+                        }
+                      }
+                    }, 10);
+                  });
+                  editor.onDidChangeCursorSelection((e) => {
+                    // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)
+                    if (!e.selection.isEmpty()) {
+                      lastSelectionRef.current = e.selection;
+                    } else {
+                      lastSelectionRef.current = null;
                     }
-                    completionProviderRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
-                      // 슬래시(/)와 일반 문자 모두에서 자동완성 트리거
-                      triggerCharacters: ['/'],  // '/' 입력 시에만 슬래시 커맨드 팝업
-                      provideCompletionItems: (model: any, position: any) => {
-                        const textUntilPosition = model.getValueInRange({
-                          startLineNumber: position.lineNumber,
-                          startColumn: 1,
-                          endLineNumber: position.lineNumber,
-                          endColumn: position.column
+                    // 사장님 요청으로 텍스트 멀티선택 시 자동 노출은 완전 차단하되, 선택 영역이 지워지면(isEmpty) 플로팅 툴바를 자동으로 닫습니다.
+                    if (e.selection.isEmpty()) {
+                      setFloatingToolbar(prev => prev.visible ? { ...prev, visible: false } : prev);
+                    }
+                    // 💡 [고속 드래그 anchor 리셋 보정] Monaco가 mousemove 이벤트 간격 중 anchor를 잃으면 선택이 리셋되는 현상 방어
+                    if (editorMouseDown && editorMouseAnchor && e.source === 'mouse') {
+                      const sel = e.selection;
+                      const anchorMatchStart = sel.startLineNumber === editorMouseAnchor.lineNumber && sel.startColumn === editorMouseAnchor.column;
+                      const anchorMatchEnd = sel.endLineNumber === editorMouseAnchor.lineNumber && sel.endColumn === editorMouseAnchor.column;
+                      if (!anchorMatchStart && !anchorMatchEnd) {
+                        const aL = editorMouseAnchor.lineNumber, aC = editorMouseAnchor.column;
+                        const fL = sel.positionLineNumber, fC = sel.positionColumn;
+                        const forward = aL < fL || (aL === fL && aC < fC);
+                        editor.setSelection({
+                          startLineNumber: forward ? aL : fL,
+                          startColumn: forward ? aC : fC,
+                          endLineNumber: forward ? fL : aL,
+                          endColumn: forward ? fC : aC
+                        });
+                      }
+                    }
+                  });
+
+                  if (completionProviderRef.current) {
+                    completionProviderRef.current.dispose();
+                  }
+                  completionProviderRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
+                    // 슬래시(/)와 일반 문자 모두에서 자동완성 트리거
+                    triggerCharacters: ['/'],  // '/' 입력 시에만 슬래시 커맨드 팝업
+                    provideCompletionItems: (model: any, position: any) => {
+                      const textUntilPosition = model.getValueInRange({
+                        startLineNumber: position.lineNumber,
+                        startColumn: 1,
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column
+                      });
+
+                      // 현재 줄에서 마지막 '/' 부터 커서까지를 슬래시 단어로 추출
+                      // 예) 'hello /bold' → slashWord = '/bold'
+                      const slashMatch = textUntilPosition.match(/(^|\s)(\/\S*)$/);
+                      if (!slashMatch) {
+                        return { suggestions: [] };
+                      }
+
+                      const slashWord = slashMatch[2]; // '/bold', '/', '/im' 등
+                      // '/' 하나만 있거나, '/단어' 형태일 때만 제안
+                      if (!slashWord.startsWith('/')) {
+                        return { suggestions: [] };
+                      }
+
+                      // 슬래시 단어 시작 컬럼 (교체 범위 시작)
+                      const startColumn = position.column - slashWord.length;
+
+                      const suggestions = getSlashCommands(monaco, customSlashCommandsRef.current);
+
+                      // 입력한 단어로 필터링 (/ 이후 글자 기준)
+                      const filterWord = slashWord.slice(1).toLowerCase(); // 'bold', 'im' 등
+
+                      const filtered = filterWord.length === 0
+                        ? suggestions  // '/' 만 입력 → 전체 표시
+                        : suggestions.filter(s => {
+                          const labelStr = typeof s.label === 'string' ? s.label : '';
+                          const filterStr = typeof s.filterText === 'string' ? s.filterText : '';
+                          return (
+                            labelStr.toLowerCase().includes(filterWord) ||
+                            filterStr.toLowerCase().includes(filterWord)
+                          );
                         });
 
-                        // 현재 줄에서 마지막 '/' 부터 커서까지를 슬래시 단어로 추출
-                        // 예) 'hello /bold' → slashWord = '/bold'
-                        const slashMatch = textUntilPosition.match(/(^|\s)(\/\S*)$/);
-                        if (!slashMatch) {
-                          return { suggestions: [] };
+                      return {
+                        suggestions: filtered.map(s => ({
+                          ...s,
+                          // '/bold' 전체를 교체하여 '/bold' → '**텍스트**' 로 올바르게 변환
+                          range: {
+                            startLineNumber: position.lineNumber,
+                            endLineNumber: position.lineNumber,
+                            startColumn: startColumn,
+                            endColumn: position.column
+                          }
+                        }))
+                      };
+                    }
+                  });
+
+                  // [[ 위키 링크 자동완성 (파일 + 헤딩)
+                  if (wikilinkProviderRef.current) {
+                    wikilinkProviderRef.current.dispose();
+                  }
+                  wikilinkProviderRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
+                    triggerCharacters: ['[', '#'],
+                    provideCompletionItems: async (model: any, position: any) => {
+                      const textUntilPos = model.getValueInRange({
+                        startLineNumber: position.lineNumber,
+                        startColumn: Math.max(1, position.column - 80),
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column
+                      });
+                      const bracketMatch = textUntilPos.match(/\[\[([^\]\n]*)$/);
+                      if (!bracketMatch) return { suggestions: [] };
+                      const inside = bracketMatch[1];
+                      const hashIdx = inside.indexOf('#');
+                      const files = docLinkFilesRef.current;
+                      const curPath = currentFileNodeRef.current?.path || '';
+                      if (hashIdx >= 0) {
+                        const fileMatch = inside.substring(0, hashIdx);
+                        const headingFilter = inside.substring(hashIdx + 1).toLowerCase();
+                        let targetFile: FileNode | null = null;
+                        for (const f of files) {
+                          if (f.path?.toLowerCase().includes(fileMatch.toLowerCase()) || f.name?.toLowerCase().includes(fileMatch.toLowerCase())) {
+                            targetFile = f; break;
+                          }
                         }
-
-                        const slashWord = slashMatch[2]; // '/bold', '/', '/im' 등
-                        // '/' 하나만 있거나, '/단어' 형태일 때만 제안
-                        if (!slashWord.startsWith('/')) {
-                          return { suggestions: [] };
-                        }
-
-                        // 슬래시 단어 시작 컬럼 (교체 범위 시작)
-                        const startColumn = position.column - slashWord.length;
-
-                        const suggestions = getSlashCommands(monaco, customSlashCommandsRef.current);
-
-                        // 입력한 단어로 필터링 (/ 이후 글자 기준)
-                        const filterWord = slashWord.slice(1).toLowerCase(); // 'bold', 'im' 등
-
-                        const filtered = filterWord.length === 0
-                          ? suggestions  // '/' 만 입력 → 전체 표시
-                          : suggestions.filter(s => {
-                              const labelStr = typeof s.label === 'string' ? s.label : '';
-                              const filterStr = typeof s.filterText === 'string' ? s.filterText : '';
-                              return (
-                                labelStr.toLowerCase().includes(filterWord) ||
-                                filterStr.toLowerCase().includes(filterWord)
-                              );
-                            });
-
+                        if (!targetFile) return { suggestions: [] };
+                        let headings: string[] = [];
+                        try {
+                          const text = await readFileTextRef.current(targetFile);
+                          headings = extractHeadings(text);
+                        } catch { return { suggestions: [] }; }
+                        const filtered = headingFilter ? headings.filter(h => h.toLowerCase().includes(headingFilter)) : headings;
+                        const relPath = getRelativePath(curPath, targetFile.path || '');
+                        const matchLen = bracketMatch[0].length;
                         return {
-                          suggestions: filtered.map(s => ({
-                            ...s,
-                            // '/bold' 전체를 교체하여 '/bold' → '**텍스트**' 로 올바르게 변환
-                            range: {
-                              startLineNumber: position.lineNumber,
-                              endLineNumber: position.lineNumber,
-                              startColumn: startColumn,
-                              endColumn: position.column
-                            }
+                          suggestions: filtered.map(h => ({
+                            label: h, kind: monaco.languages.CompletionItemKind.Reference,
+                            insertText: `[[${relPath}#${h}]]`,
+                            range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
                           }))
                         };
                       }
-                    });
-
-                    // [[ 위키 링크 자동완성 (파일 + 헤딩)
-                    if (wikilinkProviderRef.current) {
-                      wikilinkProviderRef.current.dispose();
-                    }
-                    wikilinkProviderRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
-                      triggerCharacters: ['[', '#'],
-                      provideCompletionItems: async (model: any, position: any) => {
-                        const textUntilPos = model.getValueInRange({
-                          startLineNumber: position.lineNumber,
-                          startColumn: Math.max(1, position.column - 80),
-                          endLineNumber: position.lineNumber,
-                          endColumn: position.column
-                        });
-                        const bracketMatch = textUntilPos.match(/\[\[([^\]\n]*)$/);
-                        if (!bracketMatch) return { suggestions: [] };
-                        const inside = bracketMatch[1];
-                        const hashIdx = inside.indexOf('#');
-                        const files = docLinkFilesRef.current;
-                        const curPath = currentFileNodeRef.current?.path || '';
-                        if (hashIdx >= 0) {
-                          const fileMatch = inside.substring(0, hashIdx);
-                          const headingFilter = inside.substring(hashIdx + 1).toLowerCase();
-                          let targetFile: FileNode | null = null;
-                          for (const f of files) {
-                            if (f.path?.toLowerCase().includes(fileMatch.toLowerCase()) || f.name?.toLowerCase().includes(fileMatch.toLowerCase())) {
-                              targetFile = f; break;
-                            }
-                          }
-                          if (!targetFile) return { suggestions: [] };
-                          let headings: string[] = [];
-                          try {
-                            const text = await readFileTextRef.current(targetFile);
-                            headings = extractHeadings(text);
-                          } catch { return { suggestions: [] }; }
-                          const filtered = headingFilter ? headings.filter(h => h.toLowerCase().includes(headingFilter)) : headings;
-                          const relPath = getRelativePath(curPath, targetFile.path || '');
-                          const matchLen = bracketMatch[0].length;
+                      const fileFilter = inside.toLowerCase();
+                      const filteredFiles = files.filter(f => {
+                        const name = f.name || ''; const path = f.path || '';
+                        return !fileFilter || name.toLowerCase().includes(fileFilter) || path.toLowerCase().includes(fileFilter);
+                      });
+                      const matchLen = bracketMatch[0].length;
+                      return {
+                        suggestions: filteredFiles.map(f => {
+                          const relPath = getRelativePath(curPath, f.path || '');
                           return {
-                            suggestions: filtered.map(h => ({
-                              label: h, kind: monaco.languages.CompletionItemKind.Reference,
-                              insertText: `[[${relPath}#${h}]]`,
-                              range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
-                            }))
+                            label: f.name || f.path || '', kind: monaco.languages.CompletionItemKind.File,
+                            insertText: `[[${relPath}]]`,
+                            range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
                           };
-                        }
-                        const fileFilter = inside.toLowerCase();
-                        const filteredFiles = files.filter(f => {
-                          const name = f.name || ''; const path = f.path || '';
-                          return !fileFilter || name.toLowerCase().includes(fileFilter) || path.toLowerCase().includes(fileFilter);
-                        });
-                        const matchLen = bracketMatch[0].length;
-                        return {
-                          suggestions: filteredFiles.map(f => {
-                            const relPath = getRelativePath(curPath, f.path || '');
-                            return {
-                              label: f.name || f.path || '', kind: monaco.languages.CompletionItemKind.File,
-                              insertText: `[[${relPath}]]`,
-                              range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
-                            };
-                          })
-                        };
-                      }
-                    });
-
-                    // ⛔ [반반 스크롤 동기화 제거] — 타이핑 시 Monaco 자동 스크롤이 프리뷰를 흔들던 문제 수정
-                    // 프리뷰 → 에디터 단방향 동기화만 유지 (프리뷰 onScroll)
-
-                    }}
-                      options={{
-                    padding: { top: 20, bottom: 500 },
-                    scrollBeyondLastLine: true,
-                    automaticLayout: true,
-                    fontSize,
-                    fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace",
-                    fontLigatures: false,
-                    letterSpacing: 0,
-                    'semanticHighlighting.enabled': true,
-                    wordWrap,
-                    lineNumbers: 'on',
-                    minimap: { enabled: false },
-                    scrollbar: { vertical: 'visible', horizontal: 'visible' },
-                    // 슬래시(/) 입력 시에만 자동완성 트리거 (일반 타이핑 시 팝업 방지)
-                    quickSuggestions: false,
-                    suggestOnTriggerCharacters: true,
-                    // Enter/Tab 수락은 커스텀 핸들러에서 처리 (리스트 자동완성과 충돌 방지)
-                    acceptSuggestionOnEnter: 'on',
-                    tabCompletion: 'on',
-                    fixedOverflowWidgets: true,
-                    renderValidationDecorations: 'on',
-                    matchBrackets: 'always',
-                    wordBasedSuggestions: "off",
-                    renderLineHighlight: 'all',
-                    tabSize: parseInt(profiles.find(p => p.id === activeProfileId)?.pageStyle?.tabSize) || 4,
-                    detectIndentation: false,
-                    insertSpaces: true,
-                    autoIndent: 'none',
-                    links: false
-                  }}
-                />
-                {floatingToolbar.visible && (() => {
-                  const editorDom = editorRef.current?.getContainerDomNode();
-                  let fixedTop = floatingToolbar.top;
-                  let fixedLeft = floatingToolbar.left;
-                  if (editorDom) {
-                    const rect = editorDom.getBoundingClientRect();
-                    fixedTop += rect.top;
-                    fixedLeft += rect.left;
-                  }
-                  const handleDragStart = (dragEvent: React.MouseEvent) => {
-                    const target = dragEvent.target as HTMLElement;
-                    if (target.closest('button') || target.closest('input')) {
-                      return;
+                        })
+                      };
                     }
-                    dragEvent.preventDefault();
-                    const startX = dragEvent.clientX;
-                    const startY = dragEvent.clientY;
-                    const startLeft = floatingToolbar.left;
-                    const startTop = floatingToolbar.top;
+                  });
 
-                    const handleDragMove = (moveEvent: MouseEvent) => {
-                      const deltaX = moveEvent.clientX - startX;
-                      const deltaY = moveEvent.clientY - startY;
-                      setFloatingToolbar(prev => ({
-                        ...prev,
-                        left: startLeft + deltaX,
-                        top: startTop + deltaY
-                      }));
-                    };
+                  // ⛔ [반반 스크롤 동기화 제거] — 타이핑 시 Monaco 자동 스크롤이 프리뷰를 흔들던 문제 수정
+                  // 프리뷰 → 에디터 단방향 동기화만 유지 (프리뷰 onScroll)
 
-                    const handleDragEnd = () => {
-                      document.removeEventListener('mousemove', handleDragMove);
-                      document.removeEventListener('mouseup', handleDragEnd);
-                    };
+                }}
+                options={{
+                  padding: { top: 20, bottom: 500 },
+                  scrollBeyondLastLine: true,
+                  automaticLayout: true,
+                  fontSize,
+                  fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace",
+                  fontLigatures: false,
+                  letterSpacing: 0,
+                  'semanticHighlighting.enabled': true,
+                  wordWrap,
+                  lineNumbers: 'on',
+                  minimap: { enabled: false },
+                  scrollbar: { vertical: 'visible', horizontal: 'visible' },
+                  // 슬래시(/) 입력 시에만 자동완성 트리거 (일반 타이핑 시 팝업 방지)
+                  quickSuggestions: false,
+                  suggestOnTriggerCharacters: true,
+                  // Enter/Tab 수락은 커스텀 핸들러에서 처리 (리스트 자동완성과 충돌 방지)
+                  acceptSuggestionOnEnter: 'on',
+                  tabCompletion: 'on',
+                  fixedOverflowWidgets: true,
+                  renderValidationDecorations: 'on',
+                  matchBrackets: 'always',
+                  wordBasedSuggestions: "off",
+                  renderLineHighlight: 'all',
+                  tabSize: parseInt(profiles.find(p => p.id === activeProfileId)?.pageStyle?.tabSize) || 4,
+                  detectIndentation: false,
+                  insertSpaces: true,
+                  autoIndent: 'none',
+                  links: false
+                }}
+              />
+              {floatingToolbar.visible && (() => {
+                const editorDom = editorRef.current?.getContainerDomNode();
+                let fixedTop = floatingToolbar.top;
+                let fixedLeft = floatingToolbar.left;
+                if (editorDom) {
+                  const rect = editorDom.getBoundingClientRect();
+                  fixedTop += rect.top;
+                  fixedLeft += rect.left;
+                }
+                const handleDragStart = (dragEvent: React.MouseEvent) => {
+                  const target = dragEvent.target as HTMLElement;
+                  if (target.closest('button') || target.closest('input')) {
+                    return;
+                  }
+                  dragEvent.preventDefault();
+                  const startX = dragEvent.clientX;
+                  const startY = dragEvent.clientY;
+                  const startLeft = floatingToolbar.left;
+                  const startTop = floatingToolbar.top;
 
-                    document.addEventListener('mousemove', handleDragMove);
-                    document.addEventListener('mouseup', handleDragEnd);
+                  const handleDragMove = (moveEvent: MouseEvent) => {
+                    const deltaX = moveEvent.clientX - startX;
+                    const deltaY = moveEvent.clientY - startY;
+                    setFloatingToolbar(prev => ({
+                      ...prev,
+                      left: startLeft + deltaX,
+                      top: startTop + deltaY
+                    }));
                   };
 
-                  return (
-                   <div
-                      id="floating-toolbar"
-                      tabIndex={-1}
-                      onKeyDown={(e) => {
-                        const buttons = Array.from(e.currentTarget.querySelectorAll('button')) as HTMLButtonElement[];
-                        const activeEl = document.activeElement as HTMLButtonElement;
-                        const currentIndex = buttons.indexOf(activeEl);
-                        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          const nextIndex = (currentIndex + 1) % buttons.length;
-                          buttons[nextIndex]?.focus();
-                        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          const prevIndex = (currentIndex - 1 + buttons.length) % buttons.length;
-                          buttons[prevIndex]?.focus();
-                        } else if (e.key === 'Escape') {
-                          e.preventDefault();
-                          setFloatingToolbar(prev => ({ ...prev, visible: false }));
-                          editorRef.current?.focus();
-                        }
-                      }}
-                      className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl rounded-xl border border-gray-200 dark:border-zinc-700 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
-                     style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
+                  const handleDragEnd = () => {
+                    document.removeEventListener('mousemove', handleDragMove);
+                    document.removeEventListener('mouseup', handleDragEnd);
+                  };
+
+                  document.addEventListener('mousemove', handleDragMove);
+                  document.addEventListener('mouseup', handleDragEnd);
+                };
+
+                return (
+                  <div
+                    id="floating-toolbar"
+                    tabIndex={-1}
+                    onKeyDown={(e) => {
+                      const buttons = Array.from(e.currentTarget.querySelectorAll('button')) as HTMLButtonElement[];
+                      const activeEl = document.activeElement as HTMLButtonElement;
+                      const currentIndex = buttons.indexOf(activeEl);
+                      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        const nextIndex = (currentIndex + 1) % buttons.length;
+                        buttons[nextIndex]?.focus();
+                      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        const prevIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+                        buttons[prevIndex]?.focus();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                        editorRef.current?.focus();
+                      }
+                    }}
+                    className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl rounded-xl border border-gray-200 dark:border-zinc-700 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
+                    style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
                     onMouseDown={handleDragStart}
                   >
-                  {helpContent && (
-                    <div className="flex items-center justify-between px-5 py-2.5 mb-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-lg mx-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">📖</span>
-                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{helpTitle || '사용 설명서'}</span>
-                        <span className="text-xs text-blue-400 dark:text-blue-500 ml-1">(서식 설정이 적용된 미리보기)</span>
+                    {helpContent && (
+                      <div className="flex items-center justify-between px-5 py-2.5 mb-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-lg mx-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">📖</span>
+                          <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{helpTitle || '사용 설명서'}</span>
+                          <span className="text-xs text-blue-400 dark:text-blue-500 ml-1">(서식 설정이 적용된 미리보기)</span>
+                        </div>
+                        <button
+                          onClick={() => { setHelpContent(null); setHelpTitle(''); }}
+                          className="text-xs px-3 py-1.5 rounded-md bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 font-semibold transition-colors"
+                        >
+                          닫기
+                        </button>
                       </div>
-                      <button
-                        onClick={() => { setHelpContent(null); setHelpTitle(''); }}
-                        className="text-xs px-3 py-1.5 rounded-md bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 font-semibold transition-colors"
-                      >
-                        닫기
-                      </button>
-                    </div>
-                  )}
-                  {(() => {
+                    )}
+                    {(() => {
                       return (
                         <div className="flex flex-row items-center gap-3 min-w-max">
                           {/* 서식 */}
@@ -5723,8 +5724,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       );
                     })()}
                   </div>
-                  )})()}
-              </div>
+                )
+              })()}
+            </div>
 
             {showDocLinkPicker && (
               <>
@@ -5760,7 +5762,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                             문서 목록 로딩 중...
                           </div>
                         ) : (() => {
-                          const filtered = allMdFiles.filter(f => 
+                          const filtered = allMdFiles.filter(f =>
                             f.name.toLowerCase().includes(docLinkSearchText.toLowerCase()) ||
                             (f.path && f.path.toLowerCase().includes(docLinkSearchText.toLowerCase()))
                           );
@@ -5871,121 +5873,120 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             >
 
 
-                {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
-                <div
-                  ref={previewRef}
-                  className={`flex-1 ${heightClass} print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container ${
-                    previewMode === 'preview'
-                      ? 'bg-zinc-100 dark:bg-zinc-900/60 p-4 overflow-y-auto'
-                      : `bg-white dark:bg-zinc-950 px-0 pt-0 pb-32 ${
-                          previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
-                        }`
+              {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
+              <div
+                ref={previewRef}
+                className={`flex-1 ${heightClass} print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container ${previewMode === 'preview'
+                  ? 'bg-zinc-100 dark:bg-zinc-900/60 p-4 overflow-y-auto'
+                  : `bg-white dark:bg-zinc-950 px-0 pt-0 pb-32 ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
+                  }`
                   }`}
-                  onMouseEnter={() => { isPreviewHovered.current = true; }}
-                  onMouseLeave={() => { isPreviewHovered.current = false; }}
-                  onScroll={(e) => {
-                    const target = e.target as HTMLElement;
+                onMouseEnter={() => { isPreviewHovered.current = true; }}
+                onMouseLeave={() => { isPreviewHovered.current = false; }}
+                onScroll={(e) => {
+                  const target = e.target as HTMLElement;
 
-                    // 💡 [요구사항 3 / SYNC-03] 미리보기 최상단(0점) 복귀 시 스크롤 락에 관계없이 에디터를 자석처럼 최상단 영점으로 복구
-                    if (target.scrollTop === 0 && editorRef.current) {
-                      editorRef.current.setScrollTop(0);
-                    }
+                  // 💡 [요구사항 3 / SYNC-03] 미리보기 최상단(0점) 복귀 시 스크롤 락에 관계없이 에디터를 자석처럼 최상단 영점으로 복구
+                  if (target.scrollTop === 0 && editorRef.current) {
+                    editorRef.current.setScrollTop(0);
+                  }
 
-                    // 💡 [요구사항 3 / SYNC-03] 미리보기 마우스 오버 상태일 때만 에디터로 스크롤 송신 허용 (관성 튕김 루프 원천 방쇄)
-                    if (!isPreviewHovered.current || previewModeRef.current !== 'both' || !editorRef.current) return;
+                  // 💡 [요구사항 3 / SYNC-03] 미리보기 마우스 오버 상태일 때만 에디터로 스크롤 송신 허용 (관성 튕김 루프 원천 방쇄)
+                  if (!isPreviewHovered.current || previewModeRef.current !== 'both' || !editorRef.current) return;
 
-                    isScrollingRef.current = 'preview';
-                    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                    scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+                  isScrollingRef.current = 'preview';
+                  if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                  scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
 
-                    const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
+                  const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
 
-                    let targetLine = -1;
-                    for (const element of elements) {
-                      const rect = element.getBoundingClientRect();
-                      const containerRect = target.getBoundingClientRect();
-                      if (rect.top >= containerRect.top) {
-                        const lineStr = element.getAttribute('data-line');
-                        if (lineStr) {
-                          targetLine = parseInt(lineStr, 10);
-                          break;
-                        }
+                  let targetLine = -1;
+                  for (const element of elements) {
+                    const rect = element.getBoundingClientRect();
+                    const containerRect = target.getBoundingClientRect();
+                    if (rect.top >= containerRect.top) {
+                      const lineStr = element.getAttribute('data-line');
+                      if (lineStr) {
+                        targetLine = parseInt(lineStr, 10);
+                        break;
                       }
                     }
+                  }
 
-                    if (targetLine !== -1 && editorRef.current) {
-                      const editor = editorRef.current;
-                      if (typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
-                        editor.setScrollPosition({
-                          scrollTop: editor.getTopForLineNumber(targetLine)
-                        });
-                      } else if (typeof editor.revealLine === 'function') {
-                        editor.revealLine(targetLine);
-                      }
+                  if (targetLine !== -1 && editorRef.current) {
+                    const editor = editorRef.current;
+                    if (typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
+                      editor.setScrollPosition({
+                        scrollTop: editor.getTopForLineNumber(targetLine)
+                      });
+                    } else if (typeof editor.revealLine === 'function') {
+                      editor.revealLine(targetLine);
                     }
-                  }}
-                >
-                  {(() => {
-                    const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-                    const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
-                    const isPreviewOnly = previewMode === 'preview';
-                    
-                    const paperSizeKey = activeProfile.pageStyle.paperSize?.toLowerCase() || 'a4';
-                    const ps = PAPER_SIZES[paperSizeKey] || PAPER_SIZES.a4;
-                    const paperWidth = isLandscape ? `${ps.height}mm` : `${ps.width}mm`;
-                    const minHeight = isLandscape ? `${ps.width}mm` : `${ps.height}mm`;
-                    
-                    const pTop = activeProfile.pageStyle.marginTop || '20mm';
-                    const pBottom = activeProfile.pageStyle.marginBottom || '20mm';
-                    const pLeft = activeProfile.pageStyle.marginLeft || '20mm';
-                    const pRight = activeProfile.pageStyle.marginRight || '20mm';
-                    
-                    const pageStyle = {
-                      boxSizing: 'border-box' as const,
-                      ...(isPreviewOnly ? {
-                        width: paperWidth,
-                        minHeight: minHeight,
-                      } : {})
-                    };
+                  }
+                }}
+              >
+                {(() => {
+                  const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+                  const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
+                  const isPreviewOnly = previewMode === 'preview';
 
-                    return (
-                      <div 
-                        className={isPreviewOnly
-                          ? "preview-page-sheet mx-auto my-8 border border-zinc-200 dark:border-zinc-800/80 shadow-xl dark:shadow-black/40 transition-all duration-300"
-                          : `${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`
-                        }
-                        style={pageStyle}
-                      >
-                        <MarkdownViewer
-                          content={helpContent || processedContent}
-                          originalContent={helpContent || content}
-                          lineMap={helpContent ? undefined : lineMap}
-                          onCheckboxToggle={helpContent ? undefined : handleCheckboxToggle}
-                          currentFilePath={currentFileNode?.path}
-                          rootFolderPath={rootFolder?.name}
-                          onFileOpen={handleFileOpenByPath}
-                          listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left']}
-                          marginTop={pTop}
-                          marginBottom={pBottom}
-                          marginLeft={pLeft}
-                          marginRight={pRight}
-                        />
-                      </div>
-                    );
-                  })()}
-                  {/*
+                  const paperSizeKey = activeProfile.pageStyle.paperSize?.toLowerCase() || 'a4';
+                  const ps = PAPER_SIZES[paperSizeKey] || PAPER_SIZES.a4;
+                  const paperWidth = isLandscape ? `${ps.height}mm` : `${ps.width}mm`;
+                  const minHeight = isLandscape ? `${ps.width}mm` : `${ps.height}mm`;
+
+                  const pTop = activeProfile.pageStyle.marginTop || '20mm';
+                  const pBottom = activeProfile.pageStyle.marginBottom || '20mm';
+                  const pLeft = activeProfile.pageStyle.marginLeft || '20mm';
+                  const pRight = activeProfile.pageStyle.marginRight || '20mm';
+
+                  const pageStyle = {
+                    boxSizing: 'border-box' as const,
+                    ...(isPreviewOnly ? {
+                      width: paperWidth,
+                      minHeight: minHeight,
+                    } : {})
+                  };
+
+                  return (
+                    <div
+                      className={isPreviewOnly
+                        ? "preview-page-sheet mx-auto my-8 border border-zinc-200 dark:border-zinc-800/80 shadow-xl dark:shadow-black/40 transition-all duration-300"
+                        : `${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`
+                      }
+                      style={pageStyle}
+                    >
+                      <MarkdownViewer
+                        content={helpContent || processedContent}
+                        originalContent={helpContent || content}
+                        lineMap={helpContent ? undefined : lineMap}
+                        onCheckboxToggle={helpContent ? undefined : handleCheckboxToggle}
+                        currentFilePath={currentFileNode?.path}
+                        rootFolderPath={rootFolder?.name}
+                        onFileOpen={handleFileOpenByPath}
+                        listIndent={activeProfile.rules.ul?.['padding-left'] || activeProfile.rules.ol?.['padding-left']}
+                        marginTop={pTop}
+                        marginBottom={pBottom}
+                        marginLeft={pLeft}
+                        marginRight={pRight}
+                      />
+                    </div>
+                  );
+                })()}
+                {/*
                    * 동적 CSS 스타일 인젝션:
                    * custom-preview-container 내부의 태그들에 CssRuleSet을 적용합니다.
                    * activeProfileId === 'default'면 dynamicCssString이 빈 문자열이므로
                    * 이 <style> 태그는 자동으로 생략됩니다.
                    * 모든 값에 !important가 붙어 prose 클래스 스타일을 오버라이드합니다.
                    */}
-                  {dynamicCssString && (
-                    <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
-                  )}
-                  {/* 미리보기 전용 모드일 때 스킨의 배경색과 외부 감싸기용 회색 배경 분리 지정 */}
-                  {previewMode === 'preview' && (
-                    <style dangerouslySetInnerHTML={{ __html: `
+                {dynamicCssString && (
+                  <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
+                )}
+                {/* 미리보기 전용 모드일 때 스킨의 배경색과 외부 감싸기용 회색 배경 분리 지정 */}
+                {previewMode === 'preview' && (
+                  <style dangerouslySetInnerHTML={{
+                    __html: `
                       .custom-preview-container {
                         background: ${isDarkMode ? '#121214' : '#f4f4f5'} !important;
                       }
@@ -5993,9 +5994,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         background: ${isDarkMode ? '#09090b' : (profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE).pageStyle.backgroundColor || '#ffffff'} !important;
                       }
                     `}} />
-                  )}
-                </div>
+                )}
               </div>
+            </div>
           </div>
 
         </main>
@@ -6037,331 +6038,45 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         isExpired={licenseStatus.isExpired}
       />
 
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        initialTab={settingsModalInitialTab}
-        isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
-        fontSize={fontSize} setFontSize={setFontSize}
-        wordWrap={wordWrap} setWordWrap={setWordWrap}
-        autoSave={autoSave} setAutoSave={setAutoSave}
-        rootFolder={rootFolder} onSelectRootFolder={selectRootFolder}
-        driveLetter={driveLetter} setDriveLetter={setDriveLetter}
-        workspaceType={workspaceType} setWorkspaceType={setWorkspaceType}
-        cloudProvider={null}
-        previewMode={previewMode} setPreviewMode={setPreviewMode}
-        customHotkeys={customHotkeys} setCustomHotkeys={setCustomHotkeys}
-        customSlashCommands={customSlashCommands} setCustomSlashCommands={setCustomSlashCommands}
-        licenseKey={licenseKey} setLicenseKey={setLicenseKey}
-        themePalette={themePalette}
-        onThemeChange={(themeId) => handleThemeChange(themeId, THEME_MAP)}
-      />
-
-      <ExportModal
-        isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        onExport={(format) => {
-          if (!isActivated) {
-            showToast("정품 라이선스 키 등록이 필요합니다. (설정 -> 애플리케이션 탭에서 등록)", 'error');
-            return;
-          }
-          if (format === 'print') handlers.print();
-          else if (format === 'html') handlers.exportHTML();
-          else if (format === 'png') handlers.exportPNG();
-          else if (format === 'epub') handlers.exportEPUB();
+      {/* 💡 [Step 4 리팩토링 완료] 모든 모달 껍데기들을 ModalManager로 완벽하게 이관 완료! */}
+      <ModalManager
+        modals={{
+          isSettingsModalOpen, setIsSettingsModalOpen,
+          settingsModalInitialTab, setSettingsModalInitialTab,
+          isStyleModalOpen, setIsStyleModalOpen,
+          isExportModalOpen, setIsExportModalOpen,
+          isImageModalOpen, setIsImageModalOpen,
+          editingImageInfo, setEditingImageInfo,
+          isMergeModalOpen, setIsMergeModalOpen,
+          isYoutubeModalOpen, setIsYoutubeModalOpen,
+          youtubeInitialUrl, setYoutubeInitialUrl,
+          isAboutModalOpen, setIsAboutModalOpen,
+          isLicenseModalOpen, setIsLicenseModalOpen,
+          isFormulaModalOpen, setIsFormulaModalOpen,
+          promptConfig, setPromptConfig,
+          confirmConfig, setConfirmConfig,
+          isMapModalOpen, setIsMapModalOpen,
+          isTableModalOpen, setIsTableModalOpen
         }}
-        isDarkMode={isDarkMode}
-      />
-      {promptConfig.isOpen && (
-        <PromptModal
-          isOpen={promptConfig.isOpen}
-          title={promptConfig.title}
-          defaultValue={promptConfig.defaultValue}
-          error={promptConfig.error}
-          onConfirm={async (value) => {
-            if (!value.trim()) {
-              setPromptConfig(prev => ({ ...prev, error: '이름을 입력해주세요.' }));
-              return;
-            }
-            try {
-              if (promptConfig.type === 'createFile') {
-                const finalName = value.endsWith('.md') ? value : `${value}.md`;
-                const api = (window as any).electronAPI;
-                if (api && rootFolder?.name && rootFolder.name !== '브라우저 스토리지') {
-                  // === Desktop (Electron): 워크스페이스 경로에 직접 저장 ===
-                  const fullPath = rootFolder.name + '\\' + finalName;
-                  const success = await api.saveFile(fullPath, content);
-                  if (success) {
-                    setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
-                    setCurrentFileName(finalName);
-                    setCurrentFileNode({ name: finalName, kind: 'file', path: fullPath });
-                    lastSavedContentRef.current = content;
-                    setSaveStatus('saved');
-                    await refreshFileList();
-                    showToast(`${finalName} 저장 완료`, 'success');
-                  } else {
-                    showToast("저장 실패", 'error');
-                  }
-                } else if (workspaceType === 'browser') {
-                  if (rootFolder?.handle) {
-                    const handle = await rootFolder.handle.getFileHandle(finalName, { create: true });
-                    const writable = await handle.createWritable();
-                    await writable.write(content);
-                    await writable.close();
-                    setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
-                    setCurrentFileName(finalName);
-                    setCurrentFileNode({ name: finalName, kind: 'file', handle });
-                    lastSavedContentRef.current = content;
-                    setSaveStatus('saved');
-                    await refreshFileList();
-                    showToast(`${finalName} 저장 완료`, 'success');
-                  } else {
-                    vfsCreateFile('', finalName);
-                    vfsWriteFile(finalName, content);
-                    setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
-                    setCurrentFileName(finalName);
-                    setCurrentFileNode({ name: finalName, kind: 'file', path: finalName });
-                    lastSavedContentRef.current = content;
-                    setSaveStatus('saved');
-                    await refreshFileList();
-                    showToast(`${finalName} 저장 완료`, 'success');
-                  }
-                } else {
-                  const res = await fetch(getApiUrl('/api/create-file'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ parentPath: '', name: finalName })
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    if (content) {
-                      await fetch(getApiUrl('/api/save'), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ path: data.path, content })
-                      });
-                    }
-                    setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
-                    await refreshFileList();
-                    const newFileNode = { name: finalName, kind: 'file' as const, path: data.path };
-                    setCurrentFileName(finalName);
-                    setCurrentFileNode(newFileNode);
-                    lastSavedContentRef.current = content;
-                    setSaveStatus('saved');
-                    showToast(`${finalName} 생성 및 저장 완료`, 'success');
-                  }
-                }
-              } else if (promptConfig.type === 'createFolder') {
-                if (workspaceType === 'browser') {
-                  if (rootFolder?.handle) {
-                    await rootFolder.handle.getDirectoryHandle(value, { create: true });
-                  } else {
-                    // LocalStorage 가상 폴더 생성
-                    vfsCreateFolder('', value);
-                  }
-                } else {
-                  await fetch(getApiUrl('/api/create-folder'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ parentPath: '', name: value })
-                  });
-                }
-                setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
-                await refreshFileList();
-                showToast(`${value} 폴더 생성 완료`, 'success');
-              } else {
-                setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }));
-              }
-            } catch (e: any) {
-              showToast('작업 실패: ' + e.message, 'error');
-            }
-          }}
-          onCancel={() => setPromptConfig(prev => ({ ...prev, isOpen: false, error: '' }))}
-        />
-      )}
-      <ConfirmModal
-        isOpen={confirmConfig.isOpen}
-        title={confirmConfig.title}
-        message={confirmConfig.message}
-        confirmText={confirmConfig.confirmText}
-        cancelText={confirmConfig.cancelText}
-        isDanger={confirmConfig.isDanger}
-        onConfirm={() => {
-          confirmConfig.onConfirm();
-          setConfirmConfig(prev => ({ ...prev, isOpen: false }));
-        }}
-        onCancel={() => {
-          if (confirmConfig.onCancel) confirmConfig.onCancel();
-          setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        deps={{
+          isDarkMode, setIsDarkMode, fontSize, setFontSize, wordWrap, setWordWrap,
+          autoSave, setAutoSave, rootFolder, selectRootFolder, driveLetter, setDriveLetter,
+          workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
+          customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
+          isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
+          setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
+          showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
+          handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId, setProfiles,
+          isSystemProfileId: (window as any).isSystemProfileId || (() => false),
+          getApiUrl: (window as any).getApiUrl || (() => ''),
+          DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
+          SYSTEM_PROFILES: (window as any).SYSTEM_PROFILES || [],
+          vfsCreateFile: (window as any).vfsCreateFile || (() => { }),
+          vfsWriteFile: (window as any).vfsWriteFile || (() => { }),
+          vfsCreateFolder: (window as any).vfsCreateFolder || (() => { })
         }}
       />
-      <FormulaModal
-        isOpen={isFormulaModalOpen}
-        onClose={() => setIsFormulaModalOpen(false)}
-        onInsert={(formula) => insertAtCursor(formula)}
-        isDarkMode={isDarkMode}
-      />
-      <MergeModal
-        isOpen={isMergeModalOpen}
-        onClose={() => { setIsMergeModalOpen(false); setIsMergeMode(false); setSelectedMergeNodes([]); }}
-        selectedNodes={selectedMergeNodes}
-        rootFolder={rootFolder}
-        workspaceType={workspaceType}
-        refreshParent={refreshFileList}
-        openFile={handleFileClick}
-
-      />
-      <AboutModal
-        isOpen={isAboutModalOpen}
-        onClose={() => setIsAboutModalOpen(false)}
-        isDarkMode={isDarkMode}
-        licenseKey={licenseKey}
-        setLicenseKey={setLicenseKey}
-        isActivated={isActivated}
-      />
-
-      <LicenseModal
-        isOpen={isLicenseModalOpen}
-        onClose={() => setIsLicenseModalOpen(false)}
-        deviceId={deviceId}
-        licenseStatus={licenseStatus}
-        onSuccessActivation={handleSuccessActivation}
-        isDarkMode={isDarkMode}
-      />
-
-      <ImageModal
-        isOpen={isImageModalOpen}
-        onClose={() => {
-          setIsImageModalOpen(false);
-          setEditingImageInfo(null);
-        }}
-        initialData={editingImageInfo}
-        targetFolder={(() => {
-          let folder = '';
-          if (currentFileNodeRef.current?.path) {
-            const filePath = currentFileNodeRef.current.path;
-            const lastSlashIndex = filePath.lastIndexOf('\\');
-            if (lastSlashIndex !== -1) {
-              folder = filePath.substring(0, lastSlashIndex);
-            }
-          } else if (rootFolderRef.current?.name && rootFolderRef.current.name !== '브라우저 스토리지') {
-            folder = rootFolderRef.current.name;
-          }
-          return folder;
-        })()}
-        showToast={showToast}
-        onInsert={(path, alt, range) => {
-          if (range) {
-            const editor = editorRef.current;
-            if (editor) {
-              editor.executeEdits("edit-image", [{
-                range: range,
-                text: `![${alt}](${path})`,
-                forceMoveMarkers: true
-              }]);
-              editor.focus();
-            }
-          } else {
-            insertAtCursor(`![${alt}](${path})`);
-          }
-          setEditingImageInfo(null);
-        }}
-        isDarkMode={isDarkMode}
-      />
-      <YoutubeModal
-        isOpen={isYoutubeModalOpen}
-        onClose={() => { setIsYoutubeModalOpen(false); setYoutubeInitialUrl(null); youtubeEditRangeRef.current = null; }}
-        onInsert={(code) => {
-          if (youtubeEditRangeRef.current) {
-            const editor = editorRef.current;
-            if (editor) {
-              editor.executeEdits('youtube-replace', [
-                { range: youtubeEditRangeRef.current, text: code }
-              ]);
-              editor.focus();
-            }
-            youtubeEditRangeRef.current = null;
-            setYoutubeInitialUrl(null);
-          } else {
-            insertAtCursor(code);
-          }
-        }}
-        isDarkMode={isDarkMode}
-        initialUrl={youtubeInitialUrl || undefined}
-        targetFolder={(() => {
-          let folder = '';
-          if (currentFileNodeRef.current?.path) {
-            const filePath = currentFileNodeRef.current.path;
-            const lastSlashIndex = filePath.lastIndexOf('\\');
-            if (lastSlashIndex !== -1) {
-              folder = filePath.substring(0, lastSlashIndex);
-            }
-          } else if (rootFolderRef.current?.name && rootFolderRef.current.name !== '브라우저 스토리지') {
-            folder = rootFolderRef.current.name;
-          }
-          return folder;
-        })()}
-      />
-      <MapModal
-        isOpen={isMapModalOpen}
-        onClose={() => setIsMapModalOpen(false)}
-        onInsert={(code) => insertAtCursor(code)}
-        isDarkMode={isDarkMode}
-      />
-      <TableModal
-        isOpen={isTableModalOpen}
-        onClose={() => setIsTableModalOpen(false)}
-        onInsert={(code) => insertAtCursor(code)}
-        isDarkMode={isDarkMode}
-      />
-
-      <CssStyleModal
-        isOpen={isStyleModalOpen}
-        onClose={() => setIsStyleModalOpen(false)}
-        profiles={profiles}
-        activeProfileId={activeProfileId}
-        dynamicCssString={dynamicCssString}
-        onSelectProfile={setActiveProfileId}
-        onUpdateProfile={(updated) => setProfiles(prev =>
-          prev.map(p => p.id === updated.id ? updated : p)
-        )}
-        onAddProfile={() => {
-          const newId = 'profile-' + Date.now();
-          const count = profiles.filter(p => !isSystemProfileId(p.id)).length + 1;
-          setProfiles(prev => [...prev, {
-            ...DEFAULT_PROFILE,
-            id: newId,
-            name: `나만의 서식 ${count}`,
-            rules: JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
-          }]);
-          setActiveProfileId(newId);
-        }}
-        onDeleteProfile={(id) => {
-          if (isSystemProfileId(id)) return;
-          setProfiles(prev => prev.filter(p => p.id !== id));
-          if (activeProfileId === id) {
-            setActiveProfileId(SYSTEM_PROFILES[0].id);
-          }
-        }}
-        onImportProfile={(imported) => {
-          const newId = 'profile-' + Date.now();
-          const merged: CssProfile = {
-            ...DEFAULT_PROFILE,
-            ...imported,
-            id: newId,
-            name: imported.name || '가져온 서식',
-            pageStyle: { ...DEFAULT_PROFILE.pageStyle, ...(imported.pageStyle || {}) },
-            rules: imported.rules ? { ...DEFAULT_PROFILE.rules, ...imported.rules } : JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
-            hrStructure: imported.hrStructure ? { ...DEFAULT_PROFILE.hrStructure, ...imported.hrStructure } : DEFAULT_PROFILE.hrStructure ? { ...DEFAULT_PROFILE.hrStructure } : undefined,
-            checkboxStructure: imported.checkboxStructure ? { ...DEFAULT_PROFILE.checkboxStructure, ...imported.checkboxStructure } : DEFAULT_PROFILE.checkboxStructure ? { ...DEFAULT_PROFILE.checkboxStructure } : undefined,
-          };
-          setProfiles(prev => [...prev, merged]);
-          setActiveProfileId(newId);
-          showToast(`서식 '${merged.name}'이(가) 추가되었습니다.`, 'success');
-        }}
-        isDarkMode={isDarkMode}
-      />
-
     </div>
+    </EditorProvider>
   );
 }

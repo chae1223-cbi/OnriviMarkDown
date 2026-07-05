@@ -745,7 +745,7 @@ export default function CssStyleForm({
                 ➕
               </button>
             )}
-            <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 transition-colors" title="테마 가져오기 (JSON)">
+            <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 transition-colors" title="외부 서식 테마 가져오기 (JSON)">
               📥
             </button>
             <button onClick={handleExportJson} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 transition-colors" title="현재 테마 내보내기 (JSON)">

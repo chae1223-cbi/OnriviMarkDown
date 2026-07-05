@@ -9,6 +9,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
 import { Plus, FolderPlus } from 'lucide-react';
 import { msg } from '@/lib/systemMessages';
+import { useUIStore } from '@/store/useUIStore';
 
 interface TocItem {
   id: string;
@@ -18,15 +19,15 @@ interface TocItem {
 }
 
 interface LeftSidebarProps {
-  isSidebarOpen: boolean;
-  setIsSidebarOpen: (v: boolean) => void;
-  sidebarWidth: number;
-  setSidebarWidth: (v: number) => void;
-  sidebarTab: 'toc' | 'search' | 'explorer';
-  setSidebarTab: (v: 'toc' | 'search' | 'explorer') => void;
+  isSidebarOpen?: boolean;
+  setIsSidebarOpen?: (v: boolean) => void;
+  sidebarWidth?: number;
+  setSidebarWidth?: (v: number) => void;
+  sidebarTab?: 'toc' | 'search' | 'explorer';
+  setSidebarTab?: (v: 'toc' | 'search' | 'explorer') => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (v: boolean) => void;
-  isDarkMode: boolean;
+  isDarkMode?: boolean;
   content: string;
   currentFileName: string;
   setCurrentFileName: (v: string) => void;
@@ -67,15 +68,8 @@ interface LeftSidebarProps {
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
 export default function LeftSidebar({
-  isSidebarOpen,
-  setIsSidebarOpen,
-  sidebarWidth,
-  setSidebarWidth,
-  sidebarTab,
-  setSidebarTab,
   isSearchOpen,
   setIsSearchOpen,
-  isDarkMode,
   content,
   currentFileName,
   setCurrentFileName,
@@ -108,6 +102,13 @@ export default function LeftSidebar({
   tabs = [],
   isRestrictedUser = false
 }: LeftSidebarProps) {
+  const { 
+    isSidebarOpen, setIsSidebarOpen, 
+    sidebarWidth, setSidebarWidth, 
+    sidebarTab, setSidebarTab, 
+    isDarkMode 
+  } = useUIStore();
+  
   const [drives, setDrives] = useState<FileNode[]>([]);
   const [isDrivesLoading, setIsDrivesLoading] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);

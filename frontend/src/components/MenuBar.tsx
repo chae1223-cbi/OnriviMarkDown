@@ -4,14 +4,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { EDITOR_THEMES } from '@/lib/editorThemes';
 import { useRouter } from 'next/navigation';
+import { useUIStore } from '@/store/useUIStore';
 
 interface MenuBarProps {
-  isDarkMode: boolean;
-  setIsDarkMode: (v: boolean) => void;
-  isSidebarOpen: boolean;
-  setIsSidebarOpen: (v: boolean) => void;
-  isToolbarOpen: boolean;
-  setIsToolbarOpen: (v: boolean) => void;
+  isDarkMode?: boolean;
+  setIsDarkMode?: (v: boolean) => void;
+  isSidebarOpen?: boolean;
+  setIsSidebarOpen?: (v: boolean) => void;
+  isToolbarOpen?: boolean;
+  setIsToolbarOpen?: (v: boolean) => void;
   previewMode: 'edit' | 'both' | 'preview' | 'css-style';
   setPreviewMode: (v: 'edit' | 'both' | 'preview' | 'css-style') => void;
   dispatch: (type: any, payload?: any) => void;
@@ -112,16 +113,20 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 🔗 @CALLS : MenuDropdown, dispatch, setIsSidebarOpen, setIsToolbarOpen, setPreviewMode
 // ====================================================================
 export default function MenuBar({ 
-  isDarkMode, setIsDarkMode, 
-  isSidebarOpen, setIsSidebarOpen, 
-  isToolbarOpen, setIsToolbarOpen, 
   previewMode, setPreviewMode, 
   dispatch, setContent,
   isSearchOpen,
   isAddonEnv,
-  themePalette,
-  onThemeChange
+  onThemeChange,
+  ...props
  }: MenuBarProps) {
+  const { 
+    isDarkMode, setIsDarkMode, 
+    isSidebarOpen, setIsSidebarOpen, 
+    isToolbarOpen, setIsToolbarOpen, 
+    themePalette 
+  } = useUIStore();
+  
   const router = useRouter();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
