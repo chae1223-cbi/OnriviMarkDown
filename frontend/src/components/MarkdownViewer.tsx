@@ -1311,9 +1311,17 @@ export default function MarkdownViewer({
 
               const isVideo = apiHref && /\.(mp4|webm|ogg|mov|avi|mkv)(\?|#|$)/i.test(apiHref);
               if (isVideo) {
-                const videoSrc = apiHref.startsWith('http://') || apiHref.startsWith('https://') || apiHref.startsWith('media://')
+                let videoSrc = apiHref.startsWith('http://') || apiHref.startsWith('https://') || apiHref.startsWith('media://')
                   ? apiHref
                   : resolveRelativeImagePath(apiHref, currentFilePath);
+                  
+                // 데스크탑 및 로컬 Dev 환경에서 R2 경로(/api/image/users/...) 처리
+                if (videoSrc.startsWith('/api/image/')) {
+                  const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+                  if (api || process.env.NODE_ENV === 'development') {
+                    videoSrc = `https://onrivi.com${videoSrc}`;
+                  }
+                }
                 
                 let finalDisplayName = displayName || apiHref.split('/').pop()?.split('?')[0] || '동영상';
                 // 만약 파일명(또는 링크 텍스트)이 단순히 UUID 형식이라면 친근한 이름으로 교체합니다.
@@ -1392,8 +1400,14 @@ export default function MarkdownViewer({
             p: ({ node, children, style, ...props }) => {
               if (!children) return <p />;
               // react-markdown은 마크다운 문단의 자식으로 img가 오면 p 태그로 감쌉니다.
-              // AST(mdast) node의 children을 검사하여 'image' 타입이 있는지 확인합니다.
-              const hasImage = node && node.children && node.children.some((c: any) => c.type === 'image');
+              // AST(hast) node의 children을 재귀적으로 검사하여 'img' 태그가 있는지 확인합니다. (링크 등 중첩 고려)
+              const hasImage = (function check(n: any): boolean {
+                if (!n) return false;
+                if (n.tagName === 'img' || n.tagName === 'video' || n.tagName === 'iframe') return true;
+                if (!n.children) return false;
+                return n.children.some(check);
+              })(node);
+              
               if (hasImage) {
                 return <div style={{ ...style, ...getIndentStyle(node) }} {...props} className="my-4">{children}</div>;
               }

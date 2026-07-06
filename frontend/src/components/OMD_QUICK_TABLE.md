@@ -124,3 +124,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-HOOK-0009 | usePageBreak.ts | usePageBreak | handleResetPageBreaks, executeAutoPageBreak | 자동 페이지 나누기 |
 | OMD-EDIT-0065 ✅ FIXED | MEA.tsx:2861 | handlePasteImageFile | insertWithR2Fallback, webUploadImage | 클립보드 이미지 처리 (데스크탑 R2 선 시도) |
 | OMD-EDIT-0066 ✅ FIXED | MEA.tsx:2900 | insertWithR2Fallback | fetch, api.saveImage | R2 선 시도 및 실패 시 로컬 assets 저장 로직 |
+| OMD-EDIT-0067 ✅ FIXED | VideoCard.tsx:29 | useEffect | - | 로컬 환경(데스크탑/dev) 동영상 썸네일 생략 및 텍스트 설명 표시 |
+| OMD-EDIT-0068 ✅ FIXED | VideoCard.tsx:49 | useEffect | - | 동영상 썸네일 추출 시 검은 화면 방지를 위해 1초 시점으로 이동(seeking) 후 추출 |
+| OMD-EDIT-0069 ✅ FIXED | MarkdownViewer.tsx:1400 | p | - | 중첩된 이미지에서 p 태그 Hydration 에러 방지를 위해 mdast가 아닌 hast 속성(tagName === 'img')을 기준으로 재귀적 노드 검사하도록 수정 |
+| OMD-EDIT-0070 ✅ FIXED | VideoCard.tsx:35 | useEffect | - | 로컬 서버(localhost) 또는 데스크탑 앱에서 타 도메인(onrivi.com) 영상 로드 시 발생하는 CORS (ERR_FAILED 206) 에러 방지를 위해 교차 출처 시 썸네일 추출 생략 |

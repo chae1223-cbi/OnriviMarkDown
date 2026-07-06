@@ -27,6 +27,20 @@ export default function VideoCard({ src, href, displayName, isYoutube, youtubeId
       return;
     }
     if (!src || thumbnailCache.has(cachedKey)) { setLoading(false); return; }
+
+    // 사용자의 요청: 로컬 환경(데스크탑 앱, 로컬 개발 서버)인 경우 첫 프레임 추출을 생략하고 텍스트 설명으로 대체
+    // 주의: /api/ 경로는 클라우드 R2 이미지 라우팅이므로 로컬로 간주하지 않습니다.
+    const isLocalVideo = src.startsWith('media://') || src.startsWith('file://') || src.startsWith('assets/') || (src.startsWith('./') && !src.includes('/api/')) || (src.startsWith('/') && !src.startsWith('/api/'));
+    
+    // CORS 에러 방지: 현재 도메인과 다른 도메인의 영상(예: localhost에서 onrivi.com 영상 로드)은 썸네일 추출을 생략합니다.
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const isCrossOrigin = src.startsWith('http') && !src.startsWith(currentOrigin);
+
+    if ((isLocalVideo && !src.startsWith('http')) || isCrossOrigin) {
+      setLoading(false);
+      return;
+    }
+
     if (frameDoneRef.current) return;
     frameDoneRef.current = true;
     let cancelled = false;
@@ -36,7 +50,12 @@ export default function VideoCard({ src, href, displayName, isYoutube, youtubeId
     video.crossOrigin = 'anonymous';
     video.preload = 'metadata';
     const timeout = setTimeout(() => { if (!cancelled) { video.remove(); setLoading(false); } }, 5000);
-    video.onloadeddata = () => {
+    video.onloadedmetadata = () => {
+      if (cancelled) return;
+      // 검은 화면 방지를 위해 1초 시점(또는 매우 짧은 경우 중간 시점)으로 이동
+      video.currentTime = Math.min(1, video.duration > 0 ? video.duration / 2 : 0.5);
+    };
+    video.onseeked = () => {
       if (cancelled) return;
       clearTimeout(timeout);
       try {
