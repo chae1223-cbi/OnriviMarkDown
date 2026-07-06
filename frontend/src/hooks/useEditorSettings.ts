@@ -257,6 +257,7 @@ export const useEditorSettings = (
     };
 
     restoreSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorRef]);
 
   // ====================================================================

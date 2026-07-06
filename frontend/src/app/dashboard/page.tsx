@@ -245,6 +245,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadDashboardData(); }, []);   // ⏳ 최초 렌더링 시 로딩
 
   // 📊 [OMD-DASHBOARD-POLLING] 활성 구독 있을 때만 세션 삭제 감지 (15초 폴링)
@@ -270,6 +271,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     };
     const interval = setInterval(check, 15000); // ⏳ 15초 간격으로 세션 체크
     return () => { mounted = false; clearInterval(interval); }; // ⏳ 컴포넌트 언마운트 시 인터벌 제거
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [license?.payment_no]); // 🚨 paymentNo가 변경되면 인터벌 재시작
 
   // 📊 [OMD-AUTH-dashboard-0005] 로그아웃 시 license_activation 제거

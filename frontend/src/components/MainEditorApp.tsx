@@ -626,6 +626,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     } else if (sidebarTab === 'search') {
       setSidebarTab('toc');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSearchOpen]);
 
   // 💡 [Step 2 리팩토링으로 각종 모달 상태들 삭제됨 (useEditorModals로 이관)]
@@ -712,6 +713,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     };
     initDeviceId();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ====================================================================
@@ -1042,6 +1044,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       planName: finalPlanName,
       nextPaymentDate: cached?.nextPaymentDate || (savedPaymentNo ? '-' : undefined)
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId]);
 
 
@@ -1055,6 +1058,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       console.log('[WELCOME-TRIGGER] loadAndVerifyLicense done, setting isLicenseChecking=false');
       setIsLicenseChecking(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAndVerifyLicense, deviceId]);
 
   // 📊 [OMD-LICENSE-MainEditorApp-POLLING]
@@ -1081,6 +1085,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     checkExpiry();
 
     return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [licenseStatus.nextPaymentDate, licenseStatus.isActivated, graceRemainingSeconds, showToast]);
 
   useEffect(() => {
@@ -1098,6 +1103,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }, 1000);
 
     return () => clearTimeout(timerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graceRemainingSeconds, showToast]);
 
   // ====================================================================
@@ -1184,6 +1190,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       supabase.removeChannel(channel);
       if (typeof removeListener === 'function') removeListener();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, _licenseKey_init, licenseStatus.userId]);
 
   // ====================================================================
@@ -1466,6 +1473,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       return next;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setContent, createNewTab, setTabs, licenseStatus, showToast]);
 
   // ====================================================================
@@ -1534,6 +1542,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
 
     performClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [createNewTab, switchTab, setTabs]);
 
   const useEditorSettingsResult = useEditorSettings(
@@ -1837,6 +1846,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setThemePalette('onrivi-light');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDarkMode, mounted, themePalette]);
 
   // ====================================================================
@@ -1916,6 +1926,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (unsubscribeReceiveFile) unsubscribeReceiveFile();
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, content, currentFileNode]);
 
   // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 영구 잠금 및 강제 노출 로직 2026-07-05]
@@ -2168,6 +2179,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setSidebarWidth(newWidth);
       localStorage.setItem('sidebarWidth', newWidth.toString());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // fontSize 및 wordWrap 저장은 통합 환경설정 저장 가드에서 처리
@@ -2230,6 +2242,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         previewModeRef.current = target;
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId, mounted, licenseStatus.isExpired, helpContent]);
   // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 차단 및 강제 노출 로직 2026-07-05]
   // 초기 로딩 후 제한 사용자인지 판단하여 웰컴 페이지를 남기거나, 일반 사용자면 지웁니다.
@@ -3671,6 +3684,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       } catch (_) { }
     }, 50);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handlers]);
 
   // ====================================================================

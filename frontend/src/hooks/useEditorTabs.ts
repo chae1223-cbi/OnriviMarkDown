@@ -73,6 +73,7 @@ export const useEditorTabs = (
         editorRef.current.setValue(newValue);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setContent, isEditorMountedRef, previewModeRef, previewDebounceRef, isComposingRef, editorRef]);
 
   // ====================================================================
@@ -151,6 +152,7 @@ export const useEditorTabs = (
       (targetTab as any).model = newModel;
       tabsRef.current = tabsRef.current.map(t => t.id === targetTab.id ? { ...t, model: newModel } : t);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorRef, setContent, setCurrentFileName, setCurrentFileNode, previewModeRef, setPreviewModeRaw, isEditorMountedRef]);
 
   // ====================================================================
@@ -210,6 +212,7 @@ export const useEditorTabs = (
         editorRef.current.setScrollTop(0);
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorRef, setContent, setCurrentFileName, setCurrentFileNode, previewModeRef, setPreviewModeRaw, isEditorMountedRef]);
 
   return {

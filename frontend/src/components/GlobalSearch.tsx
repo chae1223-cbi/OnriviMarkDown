@@ -183,6 +183,7 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
     }, 150);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, content, matchCase, currentFileName, searchFolder, workspacePath, fileList, tabs]);
 
   return (

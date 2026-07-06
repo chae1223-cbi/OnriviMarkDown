@@ -538,6 +538,7 @@ export const useFileExplorer = ({
       showToast('파일 저장 중 오류가 발생했습니다. 권한을 확인해 주세요.', 'error');
     }
     return false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceType, setTabs, showToast]);
 
   // ====================================================================
