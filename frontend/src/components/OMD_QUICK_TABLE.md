@@ -122,4 +122,5 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-HOOK-0007 ✅ FIXED | useFileExplorer.ts | useFileExplorer | saveFile, refreshFileList, handleFileClick, selectRootFolder | 파일 탐색·열기·저장·워크스페이스 제어 *(수정: 2026-06-18 — handleFileClick disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리)* |
 | OMD-HOOK-0008 | useEditorHandlers.ts | useEditorHandlers | 각종 핸들러 | 에디터 액션 로직 통합 핸들러 |
 | OMD-HOOK-0009 | usePageBreak.ts | usePageBreak | handleResetPageBreaks, executeAutoPageBreak | 자동 페이지 나누기 |
-
+| OMD-EDIT-0065 ✅ FIXED | MEA.tsx:2861 | handlePasteImageFile | insertWithR2Fallback, webUploadImage | 클립보드 이미지 처리 (데스크탑 R2 선 시도) |
+| OMD-EDIT-0066 ✅ FIXED | MEA.tsx:2900 | insertWithR2Fallback | fetch, api.saveImage | R2 선 시도 및 실패 시 로컬 assets 저장 로직 |

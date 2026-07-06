@@ -256,7 +256,7 @@ function createWindow(port) {
     "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
     "img-src 'self' app: data: blob: http: https: file: media:",
     "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
-    "connect-src 'self' app: ws: wss: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:11434 https://onrivi.com",
+    "connect-src 'self' app: ws: wss: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:11434 https://onrivi.com https://cdn.jsdelivr.net",
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
     "media-src 'self' app: media: https:"
   ];

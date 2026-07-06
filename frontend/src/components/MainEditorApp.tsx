@@ -2861,7 +2861,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handlePasteImageFile
   // 🎯 @KICK  : 이미지 Blob/File을 받아 로컬(데스크탑) 또는 R2(웹)에 저장 후 에디터 커서 위치에 삽입
   // 🛡️ @GUARD : FileReader onload/onerror 처리, 데스크탑/웹 분기
-  // 🚨 @PATCH : None
+  // 🚨 @PATCH : 2026-07-06 이미지 붙여넣기 시 데스크탑 로컬 선저장이 아닌 R2 선저장으로 로직 순서 반전
   // 🔗 @CALLS : fetch, FileReader, showToast
   // ====================================================================
   const handlePasteImageFile = async (fileOrBlob: Blob) => {
@@ -2875,16 +2875,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       try {
         const base64DataClean = base64Data.split(',')[1] || base64Data;
         const api = (window as any).electronAPI;
+        const fileName = `image_${Date.now()}.png`;
+        const targetFolder = currentFilePath || rootFolderRef.current?.name || '';
+        
         if (api) {
-          // 🖥️ 데스크탑 (Electron): 로컬 assets/ 저장 + R2 업로드 시도
-          const fileName = `image_${Date.now()}.png`;
-          const targetFolder = currentFilePath || rootFolderRef.current?.name || '';
-          const saveResult = await api.saveImage(targetFolder, base64DataClean, fileName);
-          if (saveResult && saveResult.success) {
-            await insertWithR2Fallback(base64DataClean, targetFolder, fileName, saveResult);
-          } else {
-            showToast('이미지 로컬 폴더 저장 실패', 'error');
-          }
+          // 🖥️ 데스크탑 (Electron): 우선적으로 R2 업로드를 시도하고, 실패 시 로컬 assets/ 에 저장
+          await insertWithR2Fallback(base64DataClean, targetFolder, fileName);
         } else {
           // 🌐 웹 브라우저 (SaaS): R2 클라우드 저장
           await webUploadImage(base64Data);
@@ -2902,13 +2898,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0066] MainEditorApp.tsx ➔ insertWithR2Fallback
-  // 🎯 @KICK  : 데스크탑: 로컬 저장 성공 시 R2 업로드 시도, 경로 결정 후 에디터 삽입
-  // 🛡️ @GUARD : R2 실패 시 로컬 경로 fallback
-  // 🔗 @CALLS : fetch, showToast
+  // 🎯 @KICK  : 데스크탑: 우선 R2 클라우드 업로드 시도, 실패 시 로컬 파일 시스템(assets/)에 fallback 저장
+  // 🛡️ @GUARD : R2 실패 시 api.saveImage 호출
+  // 🚨 @PATCH : 2026-07-06 우선 R2 클라우드 업로드 시도 후 실패 시 api.saveImage로 로컬 assets에 저장하도록 재설계
+  // 🔗 @CALLS : fetch, api.saveImage, showToast
   // ====================================================================
-  const insertWithR2Fallback = async (base64DataClean: string, targetFolder: string, fileName: string, saveResult: any) => {
+  const insertWithR2Fallback = async (base64DataClean: string, targetFolder: string, fileName: string) => {
     let r2Path = null;
     let r2Error = '';
+    let isR2Success = false;
+    
+    // 1. 우선적으로 R2(클라우드) 업로드 시도
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
@@ -2920,8 +2920,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       });
       if (resp.ok) {
         const d = await resp.json();
-        if (d.status === 'success' && d.relativePath) r2Path = d.relativePath;
-        else r2Error = d.error || `status=${d.status}`;
+        if (d.status === 'success' && d.relativePath) {
+          r2Path = d.relativePath;
+          isR2Success = true;
+        } else {
+          r2Error = d.error || `status=${d.status}`;
+        }
       } else {
         r2Error = `HTTP ${resp.status}`;
         try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch { }
@@ -2929,17 +2933,32 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     } catch (e: any) {
       r2Error = e?.message || String(e);
     }
+    
+    // 2. 경로 설정 및 로컬 Fallback 처리
     let finalPath = '';
-    if (r2Path) {
+    if (isR2Success && r2Path) {
       finalPath = r2Path;
-    } else if (saveResult.isRelative) {
-      finalPath = `assets/${fileName}`;
     } else {
-      const encodedUrl = encodeURIComponent(saveResult.absolutePath);
-      finalPath = `media://local/serve?url=${encodedUrl}`;
+      // R2 업로드 실패 시 데스크탑 로컬 파일시스템에 저장
+      const api = (window as any).electronAPI;
+      if (api) {
+        const saveResult = await api.saveImage(targetFolder, base64DataClean, fileName);
+        if (saveResult && saveResult.success) {
+          if (saveResult.isRelative) {
+            finalPath = `assets/${fileName}`;
+          } else {
+            const encodedUrl = encodeURIComponent(saveResult.absolutePath);
+            finalPath = `media://local/serve?url=${encodedUrl}`;
+          }
+        } else {
+          showToast('클라우드 및 로컬 폴더 저장 모두 실패했습니다.', 'error');
+          return;
+        }
+      }
     }
+    
     insertImageMarkdown(finalPath);
-    showToast(r2Path ? '이미지가 로컬 및 클라우드(R2)에 저장되었습니다.' : `R2 업로드 실패(${r2Error}) — 로컬 assets에 저장`, r2Path ? 'success' : 'error');
+    showToast(isR2Success ? '이미지가 클라우드(R2)에 저장되었습니다.' : `R2 업로드 실패(${r2Error}) — 로컬 assets 폴더에 대체 저장되었습니다.`, isR2Success ? 'success' : 'error');
   };
 
   // ====================================================================
