@@ -94,7 +94,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-CORE-0019 | MEA.tsx:2281 | processedContent_lineMap | preprocessMarkdownForPreview | 미리보기 전처리 및 라인 매핑 생성(스크롤 동기화용) |
 | OMD-CORE-0020 | MEA.tsx:2301 | dynamicCssString | - | 활성 CSS 프로파일로 동적 CSS 문자열 생성 |
 | OMD-EDIT-0033 | MEA.tsx:2491 | quickWrap | wrapSelection, applyLinePrefix, insertBlockTag | 빠른 서식 감싸기(heading/quote/code) |
-| OMD-EDIT-0034 | MEA.tsx:2577 | dispatchCommand | handlers.xxx, selectRootFolder, setPreviewMode | 에디터 명령 유형→핸들러 메서드 라우팅 |
+| OMD-EDIT-MainEditorApp-0070 | MainEditorApp.tsx:3426 | dispatchCommand | 2026-07-06 | 🚨 @PATCH : 제한 사용자 단축키 및 쓰기 방어 가드 제거 (전체 사용자 무료화) | ✅ FIXED | 명령 유형→핸들러 메서드 라우팅 |
 | OMD-EDIT-0035 | MEA.tsx:2740 | mapIdToCommandType | - | 툴바 ID→EditorCommandType 변환 |
 | OMD-EDIT-0036 | MEA.tsx:2791 | hotkeyRegistration | TOOLBAR_ITEMS.forEach, editor.addAction, parseKeybinding | Monaco 커스텀 단축키 액션 등록 |
 | OMD-EDIT-0037 ✅ FIXED | MEA.tsx:3319 | globalKeydownHandler | dispatchCommand, mapIdToCommandType, setShowTagLinkPicker, setFloatingToolbar | capture:true 전역 키 핸들러 *(수정: 2026-06-15 — Shift+방향키 early return 추가로 Monaco 선택 버그 해결)* | |

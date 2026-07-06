@@ -92,6 +92,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         licenseKey={licenseKey} setLicenseKey={setLicenseKey}
         themePalette={themePalette}
         onThemeChange={handleThemeChange}
+        isActivated={isActivated}
+        autoClosingBrackets={deps.autoClosingBrackets}
+        setAutoClosingBrackets={deps.setAutoClosingBrackets}
       />
 
       <ExportModal

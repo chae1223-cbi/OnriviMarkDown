@@ -34,13 +34,14 @@ export const useEditorSettings = (
   const setIsDarkMode = useCallback((val: boolean) => { }, []);
   const [fontSize, setFontSize] = useState<number>(14);
   const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on');
-  const [autoSave, setAutoSave] = useState(true);
+  const [autoSave, setAutoSave] = useState<number>(5);
   const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
   const [themePalette, setThemePalette] = useState<string>('onrivi-light');
   const [licenseKey, setLicenseKey] = useState<string>('');
 
   const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>({});
   const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>({});
+  const [autoClosingBrackets, setAutoClosingBrackets] = useState<boolean>(true);
 
   const customSlashCommandsRef = useRef<Record<string, string>>(customSlashCommands);
   useEffect(() => {
@@ -82,13 +83,14 @@ export const useEditorSettings = (
         isDarkMode: false,
         fontSize: 15,
         wordWrap: 'on' as 'on' | 'off',
-        autoSave: true,
+        autoSave: 5,
         previewMode: 'both' as 'edit' | 'both' | 'preview' | 'css-style',
         quoteStyle: 'modern' as 'modern' | 'clean' | 'none',
         customHotkeys: getDefaultHotkeys(),
         customSlashCommands: getDefaultCommands(),
         themePalette: 'onrivi-light',
-        licenseKey: 'chae6^jung1!jang3#&'
+        licenseKey: 'chae6^jung1!jang3#&',
+        autoClosingBrackets: true
       };
 
       try {
@@ -108,7 +110,9 @@ export const useEditorSettings = (
           const legacyThemePalette = localStorage.getItem('themePalette');
           if (legacyThemePalette) baseSettings.themePalette = legacyThemePalette;
           const legacyAutoSave = localStorage.getItem('autoSave');
-          if (legacyAutoSave) baseSettings.autoSave = legacyAutoSave === 'true';
+          if (legacyAutoSave) {
+            baseSettings.autoSave = legacyAutoSave === 'true' ? 5 : legacyAutoSave === 'false' ? 0 : parseInt(legacyAutoSave) || 0;
+          }
           const legacyPreviewMode = localStorage.getItem('previewMode');
           if (legacyPreviewMode) baseSettings.previewMode = legacyPreviewMode as any;
 
@@ -171,13 +175,19 @@ export const useEditorSettings = (
       setIsDarkMode(false);
       setFontSize(baseSettings.fontSize);
       setWordWrap(baseSettings.wordWrap);
-      setAutoSave(baseSettings.autoSave);
+      // 하위 호환성: boolean 값이 스토리지에 남아있는 경우 변환
+      if (typeof baseSettings.autoSave === 'boolean') {
+        setAutoSave(baseSettings.autoSave ? 5 : 0);
+      } else {
+        setAutoSave(baseSettings.autoSave || 0);
+      }
       setPreviewMode(baseSettings.previewMode);
       setQuoteStyle(baseSettings.quoteStyle);
       setCustomHotkeys(baseSettings.customHotkeys);
       setCustomSlashCommands(baseSettings.customSlashCommands);
       setThemePalette(baseSettings.themePalette);
       setLicenseKey(baseSettings.licenseKey);
+      setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
 
       document.documentElement.classList.remove('dark');
 
@@ -281,7 +291,8 @@ export const useEditorSettings = (
       customHotkeys,
       customSlashCommands,
       licenseKey,
-      themePalette
+      themePalette,
+      autoClosingBrackets
     };
 
     localStorage.setItem('onrivi_settings', JSON.stringify(settings));
@@ -315,7 +326,8 @@ export const useEditorSettings = (
     customHotkeys,
     customSlashCommands,
     licenseKey,
-    themePalette
+    themePalette,
+    autoClosingBrackets
   ]);
 
   return {
@@ -333,6 +345,8 @@ export const useEditorSettings = (
     setThemePalette,
     licenseKey,
     setLicenseKey,
+    autoClosingBrackets,
+    setAutoClosingBrackets,
     customHotkeys,
     setCustomHotkeys,
     customSlashCommands,

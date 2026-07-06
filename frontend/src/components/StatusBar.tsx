@@ -98,6 +98,7 @@ export default function StatusBar() {
     isToolbarOpen, setIsToolbarOpen,
     isSidebarOpen, setIsSidebarOpen,
     previewMode, setPreviewMode,
+    isA4GuardEnabled, setIsA4GuardEnabled,
     isDarkMode, setIsDarkMode,
     themePalette, handleThemeChange: onThemeChange,
     isActivated,
@@ -112,8 +113,10 @@ export default function StatusBar() {
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
   const currentTheme = EDITOR_THEMES.find(t => t.id === themePalette) || EDITOR_THEMES[0];
   const charCount = content.length;
+  const charCountNoSpace = content.replace(/\s/g, '').length;
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-  const manuscriptPages = Math.ceil(charCount / 200);
+  // 기자들을 위해 원고지 매수를 소수점 첫째 자리까지 표시
+  const manuscriptPages = (charCount / 200).toFixed(1);
   const targetCharCount = 2000;
   const progressPercent = Math.min(100, Math.round((charCount / targetCharCount) * 100));
 
@@ -172,7 +175,7 @@ export default function StatusBar() {
           </span>
         )}
         <span className="shrink-0">|</span>
-        <span className="shrink-0">{t('charCount')}: {charCount.toLocaleString()}</span>
+        <span className="shrink-0">{t('charCount')}: {charCount.toLocaleString()} (공백제외 {charCountNoSpace.toLocaleString()})</span>
         <span className="shrink-0">|</span>
         <span className="shrink-0">{t('wordCount')}: {wordCount.toLocaleString()}</span>
         <span className="hidden md:inline shrink-0">|</span>
@@ -239,6 +242,20 @@ export default function StatusBar() {
         {/* 모드 표시 세그먼트 (항상 표시) */}
         {setPreviewMode && (
           <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-lg overflow-hidden border border-black/10 dark:border-white/10">
+            {/* A4 조판 가드 토글 */}
+            {setIsA4GuardEnabled && (
+              <button
+                onClick={() => setIsA4GuardEnabled(!isA4GuardEnabled)}
+                title={isA4GuardEnabled ? "Disable A4 Guard" : "Enable A4 Guard"}
+                className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none border-r border-black/10 dark:border-white/10 ${
+                  isA4GuardEnabled
+                    ? 'bg-amber-500 text-white'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
+                }`}
+              >
+                A4 Guard {isA4GuardEnabled ? 'ON' : 'OFF'}
+              </button>
+            )}
             <button
               onClick={() => !isExpired && setPreviewMode('edit')}
               title={isExpired ? "🔒 라이선스 만료로 편집 모드가 잠겨 있습니다." : "편집보기 - 에디터만 표시"}

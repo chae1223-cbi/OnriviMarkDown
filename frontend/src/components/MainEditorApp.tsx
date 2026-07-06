@@ -416,6 +416,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [content]);
 
   const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
+  const [isA4GuardEnabled, setIsA4GuardEnabled] = useState<boolean>(false);
+  const [previewZoomScale, setPreviewZoomScale] = useState<number>(1);
   const previewModeRef = useRef(previewMode);
   // 💡 서식설정(css-style)이나 도움말 진입 전의 일반 마크다운 모드를 격리 보관하여 복원하는 Ref
   const lastGeneralPreviewModeRef = useRef<'edit' | 'both' | 'preview'>('both');
@@ -1324,6 +1326,40 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const rootFolderRef = useRef(rootFolder);
   const licenseStatusRef = useRef(licenseStatus);
   const tabSizeRef = useRef(4);
+  // 🚨 @PATCH : A4 조판 가드 스케일링 로직
+  useEffect(() => {
+    if (!isA4GuardEnabled) {
+      setPreviewZoomScale(1);
+      return;
+    }
+
+    const container = previewRef.current;
+    if (!container) return;
+
+    // ResizeObserver를 통해 custom-preview-container 너비를 감지하여 A4(210mm) 비율에 맞게 zoom 계산
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width } = entry.contentRect;
+        // 브라우저 기본 96 DPI 기준: 210mm = 793.7px (대략 794px)
+        const A4_PIXEL_WIDTH = 794; 
+        
+        // 여백(Padding) 등을 고려하여 컨테이너 너비보다 A4가 크면 축소, 아니면 1 유지
+        // 40px은 양옆 여유 여백(패딩 및 스크롤바)
+        if (width < A4_PIXEL_WIDTH + 40) {
+          const scale = Math.max(0.3, (width - 40) / A4_PIXEL_WIDTH);
+          setPreviewZoomScale(scale);
+        } else {
+          setPreviewZoomScale(1);
+        }
+      }
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isA4GuardEnabled, previewRef]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0021] MainEditorApp.tsx ➔ currentFileNodeRef_sync
@@ -1580,7 +1616,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     customSlashCommands,
     setCustomSlashCommands,
     customSlashCommandsRef,
-    handleThemeChange
+    handleThemeChange,
+    autoClosingBrackets,
+    setAutoClosingBrackets
   } = useEditorSettingsResult;
 
   // ====================================================================
@@ -1816,8 +1854,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       editorRef.current.updateOptions({
         fontSize: fontSize,
         wordWrap: wordWrap,
-        readOnly: licenseStatus.isExpired || tabs.length === 0,
-        domReadOnly: licenseStatus.isExpired || tabs.length === 0,
+        readOnly: tabs.length === 0,
+        domReadOnly: tabs.length === 0,
       });
       // 3. 레이아웃 리플로우 강제 트리거 (찌그러짐 방지)
       requestAnimationFrame(() => {
@@ -2332,7 +2370,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     // 🌟 [세이프티 가드 2]: 유저가 뷰 모드(분할/에디터/프리뷰)를 변환하는 찰나의 순간에는 
     // 컴포넌트 오염 타이밍이므로 자동 저장을 생략하고 무조건 대기시킵니다.
-    if (autoSave && currentFileNode) {
+    if (typeof autoSave === 'number' && autoSave > 0 && currentFileNode && licenseStatus.isActivated) {
       if (content === lastSavedContentRef.current) return;
 
       setSaveStatus('saving');
@@ -2342,12 +2380,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const success = await saveFile(content, currentFileNode);
         setSaveStatus(success ? 'saved' : 'unsaved');
         if (success) {
-          console.log("✏️ [Onrivi Guard] 자동 저장 완료");
+          console.log(`✏️ [Onrivi Guard] 자동 저장 완료 (${autoSave}초)`);
         }
-      }, 5000); // 🕒 5초 디바운스 — 안정적인 실시간 저장
+      }, autoSave * 1000); // 🕒 설정된 초(seconds) 기반 디바운스
       return () => clearTimeout(timer);
     }
-  }, [content, autoSave, currentFileNode, saveFile]);
+  }, [content, autoSave, currentFileNode, saveFile, licenseStatus.isActivated]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0048] MainEditorApp.tsx ➔ insertAtCursor
@@ -3438,18 +3476,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       editorPosition = editor.getPosition();
     }
 
-    // 🔒 [제한 사용자 쓰기 방어 가드 2026-07-04] 읽기 전용 상태일 때 편집 및 파일 입출력 명령 전면 차단
-    const restrictedCommands = [
-      'NEW_FILE', 'OPEN_FILE', 'OPEN_WORKSPACE', 'SAVE', 'SAVE_AS',
-      'BOLD', 'ITALIC', 'INLINE_CODE', 'UNDERLINE', 'STRIKETHROUGH', 'HEADING',
-      'HR', 'ORDERED_LIST', 'UNORDERED_LIST', 'QUOTE', 'CHECKLIST', 'LINK',
-      'DOCUMENT_LINK', 'IMAGE', 'VIDEO', 'TIMESTAMP', 'MAP', 'TABLE', 'QUICK_TABLE',
-      'INSERT_ROW', 'DELETE_ROW', 'CODE_BLOCK', 'DIAGRAM', 'FORMULA'
-    ];
-    if (licenseStatusRef.current?.isExpired && restrictedCommands.includes(type)) {
-      showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않아 읽기 전용 상태입니다. 편집 또는 파일 쓰기 작업을 수행할 수 없습니다.", "error");
-      return;
-    }
+    // 🔒 [제한 사용자 쓰기 방어 가드] 기능 제거됨
 
     // 1. 에디터 텍스트 비조작 명령어 (상태 제어 및 파일 입출력 위임)
     switch (type) {
@@ -3492,10 +3519,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'EXPORT_EPUB':
       case 'EXPORT_PNG':
       case 'OPEN_EXPORT': {
-        if (licenseStatusRef.current?.isExpired) {
-          showToast('🔒 라이선스가 만료되어 내보내기를 사용할 수 없습니다. 라이선스를 갱신해 주세요.', 'error');
-          return;
-        }
+        // 🔒 [내보내기 방어 가드] 기능 제거됨
         if (previewMode !== 'preview') {
           showToast('내보내기는 미리보기 전용 모드에서만 가능합니다. (상단 도구 > 미리보기 선택)', 'warning');
           return;
@@ -3932,6 +3956,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           e.stopPropagation();
           return;
         }
+        if (e.key === ',') {
+          e.preventDefault();
+          e.stopPropagation();
+          dispatchCommand('SETTINGS');
+          return;
+        }
       }
 
       // 💡 [글로벌 푸터 제어 단축키 예외 가드]
@@ -3976,10 +4006,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         key = e.code.substring(5); // 'Digit7' -> '7'
       }
 
-      // 2. 한글 입력기(IME) 상태에서 Ctrl+Shift 조합 입력 시 229 Process 상태 물리 복원
-      if (e.keyCode === 229 && isCtrl && isShift) {
-        if (e.code.startsWith('Key')) {
+      // 2. 한글 입력기(IME) 상태이거나 한/영 전환 상태에서 영문자가 아닌 키 입력 물리 복원
+      if (isCtrl || isAlt) {
+        if (e.code && e.code.startsWith('Key')) {
           key = e.code.substring(3).toUpperCase(); // 'KeyX' -> 'X'
+        } else if (e.code && e.code.startsWith('Digit')) {
+          key = e.code.substring(5); // 'Digit7' -> '7'
         }
       }
 
@@ -4068,6 +4100,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     tabs, setTabs,
     activeTabId, setActiveTabId,
     previewMode, setPreviewMode,
+    isA4GuardEnabled, setIsA4GuardEnabled,
     currentFileName, setCurrentFileName,
     currentFileNode, setCurrentFileNode,
     workspaceType, setWorkspaceType,
@@ -4179,8 +4212,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 }}
                 onMount={handleMount}
                 options={{
-                  readOnly: licenseStatus.isExpired || tabs.length === 0,
-                  domReadOnly: licenseStatus.isExpired || tabs.length === 0,
+                  readOnly: tabs.length === 0,
+                  domReadOnly: tabs.length === 0,
                   padding: { top: 20, bottom: 500 },
                   scrollBeyondLastLine: true,
                   automaticLayout: true,
@@ -4192,6 +4225,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   wordWrap,
                   lineNumbers: 'on',
                   minimap: { enabled: false },
+                  autoClosingBrackets: autoClosingBrackets ? 'languageDefined' : 'never',
                   scrollbar: { vertical: 'visible', horizontal: 'visible' },
                   // 슬래시(/) 입력 시에만 자동완성 트리거 (일반 타이핑 시 팝업 방지)
                   quickSuggestions: false,
@@ -4533,7 +4567,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 {(() => {
                   const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
                   const isLandscape = activeProfile.pageStyle.orientation === 'landscape';
-                  const isPreviewOnly = previewMode === 'preview';
+                  // A4 조판 가드가 켜져 있으면 편집+미리보기 모드라도 렌더링 규격은 미리보기 모드와 동일하게 취급
+                  const isPreviewOnly = previewMode === 'preview' || isA4GuardEnabled;
 
                   const paperSizeKey = activeProfile.pageStyle.paperSize?.toLowerCase() || 'a4';
                   const ps = PAPER_SIZES[paperSizeKey] || PAPER_SIZES.a4;
@@ -4545,19 +4580,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   const pLeft = activeProfile.pageStyle.marginLeft || '20mm';
                   const pRight = activeProfile.pageStyle.marginRight || '20mm';
 
-                  const pageStyle = {
+                  const pageStyle: React.CSSProperties = {
                     boxSizing: 'border-box' as const,
                     ...(isPreviewOnly ? {
                       width: paperWidth,
                       minHeight: minHeight,
+                      zoom: isA4GuardEnabled ? previewZoomScale : undefined
                     } : {})
                   };
 
                   return (
                     <div
                       className={isPreviewOnly
-                        ? "preview-page-sheet mx-auto my-8 border border-zinc-200 dark:border-zinc-800/80 shadow-xl dark:shadow-black/40 transition-all duration-300"
-                        : `${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`
+                        ? "preview-page-sheet mx-auto my-8 border border-zinc-200 dark:border-zinc-800/80 shadow-xl dark:shadow-black/40 transition-all duration-300 transform-gpu origin-top"
+                        : `${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full origin-top`
                       }
                       style={pageStyle}
                     >
@@ -4588,8 +4624,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 {dynamicCssString && (
                   <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
                 )}
-                {/* 미리보기 전용 모드일 때 스킨의 배경색과 외부 감싸기용 회색 배경 분리 지정 */}
-                {previewMode === 'preview' && (
+                {/* 미리보기 전용 모드이거나 A4 조판 가드가 켜져 있을 때 스킨의 배경색과 외부 감싸기용 회색 배경 분리 지정 */}
+                {(previewMode === 'preview' || isA4GuardEnabled) && (
                   <style dangerouslySetInnerHTML={{
                     __html: `
                       .custom-preview-container {
@@ -4641,6 +4677,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           autoSave, setAutoSave, rootFolder, selectRootFolder, driveLetter, setDriveLetter,
           workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
           customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
+          isActivated, autoClosingBrackets, setAutoClosingBrackets,
           isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
           setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
           showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,

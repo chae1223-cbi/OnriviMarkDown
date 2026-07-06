@@ -11,6 +11,7 @@ export const PAPER_SIZES: Record<string, { label: string; width: number; height:
   a5:     { label: 'A5',     width: 148, height: 210 },
   b4:     { label: 'B4',     width: 250, height: 353 },
   b5:     { label: 'B5',     width: 176, height: 250 },
+  shinseo:{ label: '신서판 (단행본)', width: 128, height: 188 },
   letter: { label: 'Letter',  width: 216, height: 279 },
   legal:  { label: 'Legal',   width: 216, height: 356 },
 };

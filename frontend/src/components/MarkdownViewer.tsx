@@ -356,7 +356,7 @@ const loadMermaidScript = (): Promise<any> => {
 // 🚨 @PATCH : 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프; <br> → \n 전역 변환 (HTML 태그 파싱 충돌 방지); NBSP(\u00a0) → 공백 치환 + class 세미콜론(;) 제거 (외부 복사 노이즈 내성 강화) | 2026-06-18; **2026-06-20** — 다이어그램 이미지 저장(handleSaveImage) API 호출 버그 수정(saveFileAs) 및 웹 다운로드 폴백 적용
 // 🔗 @CALLS : loadMermaidScript, handleCopyImage, handleSaveImage, handleCopyCode
 // ====================================================================
-function MermaidBlock({ code }: { code: string }) {
+const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }) {
   const [svgHtml, setSvgHtml] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
@@ -843,7 +843,7 @@ function MermaidBlock({ code }: { code: string }) {
       </div>
     </div>
   );
-}
+});
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0004] MarkdownViewer ➔ MarkdownViewer
@@ -897,13 +897,21 @@ export default function MarkdownViewer({
     });
   }, [content]);
 
+  // 최신 content 및 originalContent 상태를 참조하기 위한 Ref
+  const contentRef = useRef(content);
+  const originalContentRef = useRef(originalContent);
+  useEffect(() => {
+    contentRef.current = content;
+    originalContentRef.current = originalContent;
+  }, [content, originalContent]);
+
   // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
   const getIndentStyle = (node: any) => {
     const line = node?.position?.start?.line;
     const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
     if (!origLine) return {};
 
-    const targetContent = originalContent || content;
+    const targetContent = originalContentRef.current || contentRef.current;
     if (!targetContent || typeof targetContent !== 'string') return {};
     const lines = targetContent.split('\n');
     const lineText = lines[origLine - 1] || '';
@@ -977,6 +985,11 @@ export default function MarkdownViewer({
         if (node.children) {
           const newChildren: any[] = [];
           for (const child of node.children) {
+            // 💡 [OMD-HOTFIX] 기존 병합 파일에서 <div style="page-break-before: always"></div> 문자열이 
+            // 텍스트나 인라인 코드로 파싱되어 화면에 노출되는 현상 방어 및 출판용 페이지 나누기로 강제 변환
+            const isPageBreakString = (val: string) => 
+              typeof val === 'string' && (val.includes('page-break-before: always') || val.includes('class="page-break"'));
+
             if (child.type === 'raw' && /<br\s*\/?>/i.test(child.value)) {
               const parts = child.value.split(/(<br\s*\/?>)/gi);
               for (const part of parts) {
@@ -984,6 +997,22 @@ export default function MarkdownViewer({
                   newChildren.push({ type: 'element', tagName: 'br', properties: {}, children: [] });
                 } else if (part) {
                   newChildren.push({ type: 'raw', value: part });
+                }
+              }
+            } else if (child.type === 'raw' && isPageBreakString(child.value)) {
+              // raw HTML 텍스트로 인식되었을 때 교체
+              newChildren.push({ type: 'element', tagName: 'hr', properties: { className: ['page-break'] }, children: [] });
+            } else if (child.type === 'element' && child.tagName === 'code' && child.children?.length === 1 && child.children[0].type === 'text' && isPageBreakString(child.children[0].value)) {
+              // inlineCode 안의 텍스트로 인식되었을 때 (파서 오작동 방어)
+              newChildren.push({ type: 'element', tagName: 'hr', properties: { className: ['page-break'] }, children: [] });
+            } else if (child.type === 'text' && isPageBreakString(child.value)) {
+              // 일반 텍스트 노드로 인식되었을 때
+              const parts = child.value.split(/(<div[^>]*page-break[^>]*><\/div>|<hr[^>]*page-break[^>]*\/>)/i);
+              for (const part of parts) {
+                if (isPageBreakString(part)) {
+                  newChildren.push({ type: 'element', tagName: 'hr', properties: { className: ['page-break'] }, children: [] });
+                } else if (part) {
+                  newChildren.push({ type: 'text', value: part });
                 }
               }
             } else {
@@ -1029,7 +1058,7 @@ export default function MarkdownViewer({
             rehypeHighlight,
             rehypeSourceLinesPlugin,
           ]}
-          components={{
+          components={useMemo(() => ({
             img: ({ node, src, alt, style, ...props }: any) => {
               if (!src) return <img alt={alt} {...props} />;
               
@@ -1156,7 +1185,19 @@ export default function MarkdownViewer({
                   img.src = `media://local/serve?url=${encodeURIComponent(localPath)}`;
                 }
               };
-              return <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3" onError={onImgError} {...props} />;
+              const imgElement = <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3 mx-auto block" onError={onImgError} {...props} />;
+              
+              if (alt && alt.trim() !== '') {
+                return (
+                  <figure className="my-6 text-center flex flex-col items-center">
+                    {imgElement}
+                    <figcaption className="text-[0.9em] text-zinc-500 dark:text-zinc-400 mt-2 font-medium">
+                      {alt}
+                    </figcaption>
+                  </figure>
+                );
+              }
+              return imgElement;
             },
             a: ({ node, href, children, ...props }: any) => {
               const isWebLink = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:'));
@@ -1169,6 +1210,11 @@ export default function MarkdownViewer({
                   
                   let targetEl = document.getElementById(targetId);
                   
+                  if (!targetEl && targetId.includes('fnref-')) {
+                    const fnId = targetId.replace('fnref-', 'fn-');
+                    targetEl = document.querySelector(`a[href="#${fnId}"]`) || document.getElementById(fnId.replace('user-content-', ''));
+                  }
+
                   if (!targetEl) {
                     const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
                     const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '').normalize('NFC');
@@ -1262,11 +1308,19 @@ export default function MarkdownViewer({
                 const videoSrc = apiHref.startsWith('http://') || apiHref.startsWith('https://') || apiHref.startsWith('media://')
                   ? apiHref
                   : resolveRelativeImagePath(apiHref, currentFilePath);
+                
+                let finalDisplayName = displayName || apiHref.split('/').pop()?.split('?')[0] || '동영상';
+                // 만약 파일명(또는 링크 텍스트)이 단순히 UUID 형식이라면 친근한 이름으로 교체합니다.
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[a-zA-Z0-9]+)?$/i;
+                if (uuidRegex.test(finalDisplayName)) {
+                  finalDisplayName = '로컬 첨부 동영상';
+                }
+
                 return (
                   <VideoCard
                     src={videoSrc}
                     href={apiHref}
-                    displayName={displayName || apiHref.split('/').pop()?.split('?')[0] || '동영상'}
+                    displayName={finalDisplayName}
                   />
                 );
               }
@@ -1331,6 +1385,12 @@ export default function MarkdownViewer({
             input: ({ node, ...props }: any) => <input {...props} />,
             p: ({ node, children, style, ...props }) => {
               if (!children) return <p />;
+              // react-markdown은 마크다운 문단의 자식으로 img가 오면 p 태그로 감쌉니다.
+              // AST(mdast) node의 children을 검사하여 'image' 타입이 있는지 확인합니다.
+              const hasImage = node && node.children && node.children.some((c: any) => c.type === 'image');
+              if (hasImage) {
+                return <div style={{ ...style, ...getIndentStyle(node) }} {...props} className="my-4">{children}</div>;
+              }
               return <p style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</p>;
             },
             ul: ({ node, children, style, ...props }) => <ul style={style} {...props}>{children}</ul>,
@@ -1379,17 +1439,95 @@ export default function MarkdownViewer({
               return <li style={{ ...style, ...getIndentStyle(node) }} className={props.className} {...props}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
+              // GitHub style Alerts 파싱: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]
+              let alertType: 'NOTE' | 'TIP' | 'IMPORTANT' | 'WARNING' | 'CAUTION' | null = null;
+              let processedChildren = children;
+
+              const childrenArray = React.Children.toArray(children);
+              if (childrenArray.length > 0) {
+                const firstChild: any = childrenArray[0];
+                if (firstChild && firstChild.props && firstChild.props.children) {
+                  const pChildren = React.Children.toArray(firstChild.props.children);
+                  console.error("DEBUG_PCHILDREN:", pChildren);
+                  
+                  // 첫 번째 의미 있는 텍스트 노드 찾기 (빈 줄바꿈 문자열 등 무시)
+                  let firstTextIndex = -1;
+                  for (let i = 0; i < pChildren.length; i++) {
+                    if (typeof pChildren[i] === 'string' && (pChildren[i] as string).trim() !== '') {
+                      firstTextIndex = i;
+                      break;
+                    }
+                  }
+
+                  if (firstTextIndex !== -1) {
+                    const firstText = pChildren[firstTextIndex] as string;
+                    const match = firstText.trimStart().match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+                    
+                    if (match) {
+                      alertType = match[1].toUpperCase() as any;
+                      
+                      // 텍스트에서 [!TYPE] 부분 제거
+                      const matchStr = match[0];
+                      // 원본 문자열에서 matchStr이 나타나는 첫 번째 인덱스를 찾아서 자름
+                      const typeIndex = firstText.indexOf(matchStr);
+                      const newFirstText = firstText.substring(0, typeIndex) + firstText.substring(typeIndex + matchStr.length).trimStart();
+                      
+                      let newPChildren = [...pChildren];
+                      
+                      if (newFirstText.trim() === '') {
+                        // 해당 텍스트 노드가 [!TYPE] 외에 남는게 없다면 빈 문자열로 만듬
+                        newPChildren[firstTextIndex] = '';
+                        // 바로 다음이 <br> 이면 그것도 제거
+                        if (firstTextIndex + 1 < newPChildren.length && React.isValidElement(newPChildren[firstTextIndex + 1])) {
+                          const nextChild: any = newPChildren[firstTextIndex + 1];
+                          if (nextChild.type === 'br' || nextChild.props?.node?.tagName === 'br') {
+                            newPChildren[firstTextIndex + 1] = '';
+                          }
+                        }
+                      } else {
+                        newPChildren[firstTextIndex] = newFirstText;
+                      }
+
+                      const newFirstChild = React.cloneElement(firstChild, {}, ...newPChildren);
+                      processedChildren = [newFirstChild, ...childrenArray.slice(1)];
+                    }
+                  }
+                }
+              }
+
+              if (alertType) {
+                const alertStyles = {
+                  NOTE: { border: 'border-[#0969da] dark:border-[#2f81f7]', bg: 'bg-blue-50/50 dark:bg-[#1f6feb]/10', text: 'text-[#0969da] dark:text-[#2f81f7]', icon: 'ℹ️', title: 'Note' },
+                  TIP: { border: 'border-[#1a7f37] dark:border-[#3fb950]', bg: 'bg-green-50/50 dark:bg-[#2ea043]/10', text: 'text-[#1a7f37] dark:text-[#3fb950]', icon: '💡', title: 'Tip' },
+                  IMPORTANT: { border: 'border-[#8250df] dark:border-[#a371f7]', bg: 'bg-purple-50/50 dark:bg-[#8957e5]/10', text: 'text-[#8250df] dark:text-[#a371f7]', icon: '📢', title: 'Important' },
+                  WARNING: { border: 'border-[#9a6700] dark:border-[#d29922]', bg: 'bg-yellow-50/50 dark:bg-[#d29922]/10', text: 'text-[#9a6700] dark:text-[#d29922]', icon: '⚠️', title: 'Warning' },
+                  CAUTION: { border: 'border-[#d1242f] dark:border-[#f85149]', bg: 'bg-red-50/50 dark:bg-[#f85149]/10', text: 'text-[#d1242f] dark:text-[#f85149]', icon: '🚨', title: 'Caution' },
+                }[alertType];
+
+                return (
+                  <div style={{ ...style, ...getIndentStyle(node) }} className={`my-4 border-l-[3px] rounded-r-lg ${alertStyles.border} ${alertStyles.bg} p-4`} {...(props as any)}>
+                    <div className={`flex items-center gap-2 font-semibold mb-2 ${alertStyles.text}`}>
+                      <span>{alertStyles.icon}</span>
+                      <span>{alertStyles.title}</span>
+                    </div>
+                    <div className="text-zinc-700 dark:text-zinc-300 prose-p:my-1 prose-p:last:mb-0 text-[0.95em]">
+                      {processedChildren}
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <blockquote
                   style={{ ...style, ...getIndentStyle(node) }}
-                  className="my-4 p-4 rounded-r-lg border-l-4 border-blue-500 bg-blue-50/30 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300 font-normal not-italic"
+                  className="my-4 p-4 rounded-r-lg border-l-4 border-zinc-400 bg-zinc-50 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300 font-normal not-italic"
                   {...props}
                 >
                   {children}
                 </blockquote>
               );
             }
-          }}
+          }), [lineMap, listIndent, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen])}
         >
           {cleanContent}
         </ReactMarkdown>

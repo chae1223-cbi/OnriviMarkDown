@@ -32,9 +32,11 @@ const MergeModal: React.FC<MergeModalProps> = ({
 
   const [nodes, setNodes] = useState<FileNode[]>([]);
   const prevSelectedRef = useRef<FileNode[]>([]);
-  const [targetName, setTargetName] = useState('merged.md');
-  const [separator, setSeparator] = useState('line'); // 'none' | 'line' | 'divider' | 'title'
+  const [targetName, setTargetName] = useState('merged_doc');
   const [deleteSources, setDeleteSources] = useState(false);
+  const [separator, setSeparator] = useState<'none' | 'divider' | 'title'>('divider');
+  const [generateToc, setGenerateToc] = useState(false);
+  const [insertPageBreak, setInsertPageBreak] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -163,7 +165,9 @@ const MergeModal: React.FC<MergeModalProps> = ({
             sourcePaths,
             targetPath,
             deleteSources,
-            separator
+            separator,
+            generateToc,
+            insertPageBreak
           });
           if (result.success) {
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
@@ -182,7 +186,9 @@ const MergeModal: React.FC<MergeModalProps> = ({
               sourcePaths,
               targetPath,
               deleteSources,
-              separator
+              separator,
+              generateToc,
+              insertPageBreak
             })
           });
 
@@ -200,24 +206,76 @@ const MergeModal: React.FC<MergeModalProps> = ({
         }
       } else if (activeMode === 'browser') {
         const contents = [];
+        const tocLines = [];
+
+        // 브라우저용 가상 경로 계산 헬퍼 (타겟은 항상 rootFolder이므로, srcPath 기준으로 resolve하면 그게 새로운 상대경로가 됨)
+        const resolveBrowserPath = (srcPath: string, linkPath: string) => {
+          if (
+            linkPath.startsWith('http://') || 
+            linkPath.startsWith('https://') || 
+            linkPath.startsWith('data:') || 
+            linkPath.startsWith('/')
+          ) {
+            return linkPath;
+          }
+          
+          const srcParts = srcPath.replace(/\\/g, '/').split('/').filter(Boolean);
+          srcParts.pop(); // 파일명 제거, 디렉토리만 남김
+          
+          const linkParts = linkPath.replace(/\\/g, '/').split('/').filter(Boolean);
+          const outParts = [...srcParts];
+          for (const p of linkParts) {
+            if (p === '.') continue;
+            if (p === '..') {
+              if (outParts.length > 0) outParts.pop();
+            } else {
+              outParts.push(p);
+            }
+          }
+          return outParts.join('/');
+        };
+
         for (const node of nodes) {
           if (!node.handle) throw new Error('File handle missing in browser mode');
           const file = await node.handle.getFile();
-          const text = await file.text();
+          let text = await file.text();
           
+          // 1. 프론트매터 제거
+          text = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');
+
+          // 2. 상대 경로 보정
+          const srcPath = node.path || node.name;
+          text = text.replace(/(!?\[.*?\])\((.*?)\)/g, (match: string, prefix: string, linkPath: string) => {
+            const newRelativePath = resolveBrowserPath(srcPath, linkPath);
+            return `${prefix}(${newRelativePath})`;
+          });
+
+          const titleLabel = node.name.replace(/\.[^/.]+$/, "");
+          
+          if (generateToc) {
+            const anchor = titleLabel.toLowerCase().replace(/\s+/g, '-');
+            tocLines.push(`- [${titleLabel}](#${anchor})`);
+          }
+
           let formattedContent = text;
           if (separator === 'title') {
-            const titleLabel = node.name.replace(/\.[^/.]+$/, "");
             formattedContent = `## ${titleLabel}\n\n${text}`;
           }
           contents.push(formattedContent);
         }
 
         let joinSep = '\n\n';
-        if (separator === 'divider') joinSep = '\n\n---\n\n';
+        if (insertPageBreak) joinSep = '\n\n<hr class="page-break" />\n\n';
+        else if (separator === 'divider') joinSep = '\n\n---\n\n';
         else if (separator === 'none') joinSep = '\n';
+        else if (separator === 'title') joinSep = '\n\n';
         
-        const mergedText = contents.join(joinSep);
+        let mergedText = contents.join(joinSep);
+        
+        if (generateToc) {
+          const tocSection = `# 목차\n\n${tocLines.join('\n')}\n\n${insertPageBreak ? '<hr class="page-break" />\n\n' : '---\n\n'}`;
+          mergedText = tocSection + mergedText;
+        }
 
         if (!rootFolder || !rootFolder.handle) {
           throw new Error('Root folder handle is not open');
@@ -287,7 +345,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
             <label className="text-xs font-bold text-gray-600 dark:text-gray-400">{"구분선 스타일"}</label>
             <select 
               value={separator}
-              onChange={(e) => setSeparator(e.target.value)}
+              onChange={(e) => setSeparator(e.target.value as any)}
               className="w-full px-3 py-2 text-sm bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-xl text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:focus:ring-blue-500/30 transition-all cursor-pointer font-medium"
             >
               <option value="none">{"구분선 없음"}</option>
@@ -345,22 +403,47 @@ const MergeModal: React.FC<MergeModalProps> = ({
             </div>
           </div>
 
-          {/* Delete Source Option */}
-          <div className="flex items-center gap-2 px-1 pt-1">
-            <input 
-              type="checkbox" 
-              id="deleteSourcesCheck"
-              checked={deleteSources}
-              onChange={(e) => setDeleteSources(e.target.checked)}
-              className="w-4 h-4 rounded text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500/30 dark:focus:ring-blue-500/20 focus:ring-2 dark:bg-[#0d1117] dark:border-[#30363d] cursor-pointer"
-            />
-            <label 
-              htmlFor="deleteSourcesCheck" 
-              className="text-xs font-semibold text-gray-600 dark:text-gray-400 cursor-pointer select-none"
-            >
-              {"병합 완료 후 원본 파일 삭제"}
-            </label>
-          </div>
+            {/* Delete Original */}
+            <div className="flex items-center gap-2 px-1">
+              <input 
+                type="checkbox" 
+                id="deleteSources"
+                checked={deleteSources}
+                onChange={(e) => setDeleteSources(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <label htmlFor="deleteSources" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                {"병합 완료 후 원본 파일 삭제"}
+              </label>
+            </div>
+
+            {/* Generate TOC */}
+            <div className="flex items-center gap-2 px-1 mt-2">
+              <input 
+                type="checkbox" 
+                id="generateToc"
+                checked={generateToc}
+                onChange={(e) => setGenerateToc(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <label htmlFor="generateToc" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                {"자동 목차(TOC) 최상단에 생성"}
+              </label>
+            </div>
+
+            {/* Insert Page Break */}
+            <div className="flex items-center gap-2 px-1 mt-2">
+              <input 
+                type="checkbox" 
+                id="insertPageBreak"
+                checked={insertPageBreak}
+                onChange={(e) => setInsertPageBreak(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <label htmlFor="insertPageBreak" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                {"파일 단위로 페이지 나누기 적용 (출판용)"}
+              </label>
+            </div>
 
         </div>
 

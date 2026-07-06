@@ -15,8 +15,10 @@ interface SettingsModalProps {
   setFontSize: (v: number) => void;
   wordWrap: 'on' | 'off';
   setWordWrap: (v: 'on' | 'off') => void;
-  autoSave: boolean;
-  setAutoSave: (v: boolean) => void;
+  autoSave: number;
+  setAutoSave: (v: number) => void;
+  autoClosingBrackets: boolean;
+  setAutoClosingBrackets: (v: boolean) => void;
   rootFolder: { name: string, handle?: any } | null;
   onSelectRootFolder: (type: 'local' | 'cloud' | 'browser', provider: string | null) => void;
   driveLetter: string;
@@ -34,6 +36,7 @@ interface SettingsModalProps {
   setLicenseKey: (v: string) => void;
   themePalette: string;
   onThemeChange: (themeId: string) => void;
+  isActivated: boolean;
 }
 
 const SEVEN_THEMES = [
@@ -72,7 +75,9 @@ export default function SettingsModal({
   customSlashCommands, setCustomSlashCommands,
   licenseKey, setLicenseKey,
   themePalette,
-  onThemeChange
+  onThemeChange,
+  isActivated,
+  autoClosingBrackets, setAutoClosingBrackets
 }: SettingsModalProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -191,33 +196,6 @@ export default function SettingsModal({
               <span>일반 설정</span>
             </div>
             <div className="pl-6 space-y-4">
-              <label className="flex justify-between items-center text-sm font-medium cursor-pointer" style={{ color: colors.onSurface }}>
-                <span>프로그램 시작 시 이전 문서 열기</span>
-                <input
-                  type="checkbox"
-                  checked={restoreSession}
-                  onChange={(e) => {
-                    setRestoreSession(e.target.checked);
-                    localStorage.setItem('ONRIVI_RESTORE_SESSION', String(e.target.checked));
-                  }}
-                  className="rounded"
-                />
-              </label>
-
-              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>글자 크기 (Font Size)</span>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range" min="10" max="24" step="1"
-                    value={fontSize}
-                    onChange={(e) => setFontSize(parseInt(e.target.value))}
-                    className="w-32 h-1.5 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                    style={{ backgroundColor: colors.border }}
-                  />
-                  <span className="text-xs font-mono font-bold w-8" style={{ color: colors.primary }}>{fontSize}px</span>
-                </div>
-              </div>
-
               <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
                 <span>자동 줄 바꿈 (Word Wrap)</span>
                 <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
@@ -227,51 +205,40 @@ export default function SettingsModal({
               </div>
 
               <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>자동 저장 (Auto Save)</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked={autoSave} onChange={(e) => setAutoSave(e.target.checked)} className="sr-only peer" />
-                  <div className="w-9 h-5 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all"
-                    style={{
-                      backgroundColor: autoSave ? '#3b82f6' : (isDarkMode ? '#525252' : '#d4d4d4'),
-                      borderColor: colors.border
-                    }}
-                  ></div>
-                </label>
+                <span>괄호 자동 완성 (Auto Closing Brackets)</span>
+                <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
+                  <ThemeButton active={autoClosingBrackets === true} onClick={() => setAutoClosingBrackets(true)} label="켜기" colors={colors} />
+                  <ThemeButton active={autoClosingBrackets === false} onClick={() => setAutoClosingBrackets(false)} label="끄기" colors={colors} />
+                </div>
               </div>
 
               <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>기본 시작 모드</span>
-                <div className="flex gap-2">
-                  <ModeButton active={previewMode === 'edit'} onClick={() => setPreviewMode('edit')} label="편집 전용" colors={colors} />
-                  <ModeButton active={previewMode === 'both'} onClick={() => setPreviewMode('both')} label="분할 화면" colors={colors} />
-                  <ModeButton active={previewMode === 'preview'} onClick={() => setPreviewMode('preview')} label="미리보기" colors={colors} />
-                </div>
+                <span className="flex items-center gap-2">
+                  자동 저장 (Auto Save)
+                </span>
+                <select
+                  value={autoSave}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setAutoSave(val);
+                  }}
+                  className="px-3 py-1.5 rounded text-xs outline-none cursor-pointer"
+                  style={{
+                    backgroundColor: colors.container,
+                    color: colors.onSurface,
+                    border: `1px solid ${colors.border}`
+                  }}
+                >
+                  <option value={0}>사용 안함</option>
+                  <option value={5}>5초</option>
+                  <option value={10}>10초</option>
+                  <option value={30}>30초</option>
+                  <option value={60}>1분</option>
+                </select>
               </div>
             </div>
           </section>
 
-          {/* ---------- 정품 인증 ---------- */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
-              <ShieldCheck size={16} />
-              <span>정품 인증</span>
-            </div>
-            <div className="pl-6">
-              <input
-                type="text"
-                value={licenseKey}
-                onChange={(e) => handleSaveLicense(e.target.value)}
-                className="w-full max-w-md px-3 py-1.5 text-xs font-mono rounded outline-none border shadow-sm"
-                style={{
-                  backgroundColor: colors.container,
-                  borderColor: colors.border,
-                  color: colors.onSurface,
-                  border: `1px solid ${colors.border}`
-                }}
-                placeholder="라이선스 키를 입력하세요"
-              />
-            </div>
-          </section>
 
           {/* ---------- 단축키/명령어 ---------- */}
           <section className="space-y-4">
@@ -320,13 +287,62 @@ export default function SettingsModal({
                             setCustomHotkeys(newHotkeys);
                             localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
                           }}
-                          className="w-full px-2 py-1 text-xs font-mono text-center rounded outline-none transition-colors"
+                          onKeyDown={(e) => {
+                            // 단축키 입력 레코딩 처리
+                            if (e.key === 'Backspace' || e.key === 'Delete') {
+                              e.preventDefault();
+                              const newHotkeys = { ...customHotkeys, [item.id]: '' };
+                              setCustomHotkeys(newHotkeys);
+                              localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
+                              return;
+                            }
+                            if (e.key === 'Tab' || e.key === 'Escape' || e.key === 'Enter') return;
+                            
+                            const isCtrl = e.ctrlKey || e.metaKey;
+                            const isShift = e.shiftKey;
+                            const isAlt = e.altKey;
+                            
+                            // Modifier만 누른 상태면 리턴
+                            if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta') return;
+                            
+                            e.preventDefault();
+                            
+                            let key = e.key.toUpperCase();
+                            if (e.code && e.code.startsWith('Key')) {
+                              key = e.code.substring(3).toUpperCase();
+                            } else if (e.code && e.code.startsWith('Digit')) {
+                              key = e.code.substring(5);
+                            }
+                            
+                            const parts = [];
+                            if (isCtrl) parts.push('Ctrl');
+                            if (isShift) parts.push('Shift');
+                            if (isAlt) parts.push('Alt');
+                            parts.push(key);
+                            
+                            const combo = parts.join('+');
+                            
+                            // 단축키 중복 방지 검증
+                            const conflictItem = TOOLBAR_ITEMS.find(
+                              t => t.id !== item.id && (customHotkeys[t.id] || t.defaultHotkey) === combo
+                            );
+                            if (conflictItem) {
+                              alert(`⚠️ 이미 [${conflictItem.name}] 기능에 할당된 단축키입니다.`);
+                              return;
+                            }
+                            
+                            const newHotkeys = { ...customHotkeys, [item.id]: combo };
+                            setCustomHotkeys(newHotkeys);
+                            localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
+                          }}
+                          className="w-full px-2 py-1 text-xs font-mono text-center rounded outline-none transition-colors focus:ring-1 focus:ring-primary focus:bg-black/5 dark:focus:bg-white/5"
                           style={{
                             backgroundColor: colors.container,
                             border: `1px solid ${colors.border}`,
                             color: colors.onSurface
                           }}
-                          placeholder="없음"
+                          placeholder="클릭 후 단축키 누르기"
+                          readOnly
                         />
                       </td>
                       <td className="px-4 py-2 text-center">

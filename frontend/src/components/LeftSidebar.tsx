@@ -36,7 +36,7 @@ export default function LeftSidebar() {
     setIsMergeMode, setSelectedMergeNodes
   } = useEditorContext();
 
-  const isRestrictedUser = licenseStatus?.isExpired || licenseStatus?.planName?.includes('동시 접속 초과') || licenseStatus?.planName?.includes('미인증');
+  const isRestrictedUser = false;
   const onCancelMerge = () => {
     if (setIsMergeMode) setIsMergeMode(false);
     if (setSelectedMergeNodes) setSelectedMergeNodes([]);
@@ -53,6 +53,100 @@ export default function LeftSidebar() {
   const [isDrivesLoading, setIsDrivesLoading] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [collapsedH1s, setCollapsedH1s] = useState<Record<string, boolean>>({});
+  
+  // TOC 스크롤 추적을 위한 활성화된 헤딩 ID 상태
+  const [activeTocId, setActiveTocId] = useState<string>('');
+
+  useEffect(() => {
+    const previewContainer = previewRef?.current;
+    if (!previewContainer) return;
+
+    let rafId: number;
+    const handleScroll = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (!toc || toc.length === 0) return;
+        
+        let foundId = '';
+        const containerTop = previewContainer.getBoundingClientRect().top;
+
+        // 아래에서 위로 스크롤하며, 화면 상단에 가장 가까운 헤딩을 찾음
+        for (let i = toc.length - 1; i >= 0; i--) {
+          const el = document.getElementById(toc[i].id);
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            // 약간의 오프셋(예: 150px)을 주어 제목이 상단에 닿기 직전에 하이라이트되도록 함
+            if (rect.top - containerTop <= 150) {
+              foundId = toc[i].id;
+              break;
+            }
+          }
+        }
+        
+        // 스크롤이 맨 위에 있어서 어떤 헤딩도 조건을 만족하지 않으면 첫 번째 헤딩 활성화
+        if (!foundId && toc.length > 0) {
+          foundId = toc[0].id;
+        }
+
+        if (foundId && foundId !== activeTocId) {
+          setActiveTocId(foundId);
+
+          // 활성화된 헤딩의 부모들을 모두 펼침 (Auto-expand)
+          const activeIndex = toc.findIndex((t: any) => t.id === foundId);
+          if (activeIndex >= 0) {
+            const activeLevel = toc[activeIndex].level;
+            let parentH1Id = '';
+            let parentH2Id = '';
+            let parentH3Id = '';
+            for (let i = activeIndex - 1; i >= 0; i--) {
+              const item = toc[i];
+              if (item.level === 1 && !parentH1Id) parentH1Id = item.id;
+              if (item.level === 2 && !parentH2Id && !parentH1Id) parentH2Id = item.id;
+              if (item.level === 3 && !parentH3Id && !parentH2Id && !parentH1Id) parentH3Id = item.id;
+              if (parentH1Id && parentH2Id && parentH3Id) break;
+            }
+
+            setCollapsedH1s(prev => {
+              const next = { ...prev };
+              let changed = false;
+
+              if (parentH1Id && next[parentH1Id] === true) {
+                next[parentH1Id] = false;
+                changed = true;
+              }
+              if (parentH2Id && next[parentH2Id] !== false) {
+                next[parentH2Id] = false;
+                changed = true;
+              }
+              if (parentH3Id && next[parentH3Id] !== false) {
+                next[parentH3Id] = false;
+                changed = true;
+              }
+
+              if (activeLevel === 1 && next[foundId] === true) {
+                next[foundId] = false;
+                changed = true;
+              } else if (activeLevel >= 2 && activeLevel <= 3 && next[foundId] !== false) {
+                next[foundId] = false;
+                changed = true;
+              }
+
+              return changed ? next : prev;
+            });
+          }
+        }
+      });
+    };
+
+    previewContainer.addEventListener('scroll', handleScroll, { passive: true });
+    // 초기 렌더링 시 스크롤 위치 계산
+    handleScroll();
+
+    return () => {
+      previewContainer.removeEventListener('scroll', handleScroll);
+      cancelAnimationFrame(rafId);
+    };
+  }, [toc, previewRef, activeTocId]);
 
   // 📝 루트 디렉토리 생성을 위한 Prompt 상태 제어 및 비동기 처리
   const [promptConfig, setPromptConfig] = useState<{
@@ -522,7 +616,11 @@ export default function LeftSidebar() {
                     <div 
                       key={i} 
                       style={{ paddingLeft: `${(item.level - 1) * 16}px` }}
-                      className="cursor-pointer py-2 px-3 rounded-md hover:bg-zinc-200/70 dark:hover:bg-zinc-800/50 hover:text-blue-600 dark:hover:text-blue-400 transition-all truncate text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5"
+                      className={`cursor-pointer py-1.5 px-3 rounded-md transition-all truncate flex items-center gap-1.5 ${
+                        activeTocId === item.id 
+                          ? 'bg-blue-100/60 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-semibold shadow-sm border border-blue-200 dark:border-blue-800/50' 
+                          : 'hover:bg-zinc-200/70 dark:hover:bg-zinc-800/50 hover:text-blue-600 dark:hover:text-blue-400 text-zinc-600 dark:text-zinc-300 border border-transparent'
+                      }`}
                       onClick={() => {
                         const el = document.getElementById(item.id);
                         if (el) {

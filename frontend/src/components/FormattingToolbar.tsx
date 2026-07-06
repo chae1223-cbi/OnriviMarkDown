@@ -42,7 +42,7 @@ export default function FormattingToolbar() {
     if (headingLevel < 6) setHeadingLevel(prev => prev + 1);
   };
 
-  if (previewMode === 'preview' || isExpired) return null;
+  if (previewMode === 'preview') return null;
 
   return (
     <div className="h-10 flex items-center px-2 gap-1 bg-zinc-50 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-700/60 shrink-0 overflow-x-auto">

@@ -22,6 +22,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
 
   const [sourceUrl, setSourceUrl] = useState("");
   const [appliedPath, setAppliedPath] = useState("");
+  const [customDisplayName, setCustomDisplayName] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -34,6 +35,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
     } else if (!isOpen) {
       setSourceUrl("");
       setAppliedPath("");
+      setCustomDisplayName("");
     }
   }, [isOpen, initialUrl]);
 
@@ -168,10 +170,12 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
       showToast('동영상 URL을 입력하거나 파일을 선택해주세요.', 'warning');
       return;
     }
+    const finalDisplayName = customDisplayName.trim() || displayName;
     const linkUrl = isYoutube ? `https://www.youtube.com/watch?v=${detectedVideoId}` : url;
-    onInsert(`\n[${displayName}](${linkUrl})\n`);
+    onInsert(`\n[${finalDisplayName}](${linkUrl})\n`);
     setSourceUrl("");
     setAppliedPath("");
+    setCustomDisplayName("");
     onClose();
     showToast("동영상 링크가 본문에 삽입되었습니다.", "success");
   };
@@ -213,6 +217,15 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
                 }`}><Upload size={14} />찾아보기</button>
             </div>
             <p className="text-[10px] text-gray-400">YouTube URL 또는 MP4/WebM/Ogg 동영상 URL, 파일 선택 (최대 100MB)</p>
+          </div>
+
+          <div className="space-y-1.5 mt-4">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">표시할 동영상 이름 (선택사항)</label>
+            <input type="text" value={customDisplayName} onChange={(e) => setCustomDisplayName(e.target.value)}
+              placeholder="표시할 이름을 입력하세요 (미입력 시 원본 파일명/기본 이름 사용)"
+              className={`w-full border px-3 py-2 rounded-lg outline-none transition-all text-sm ${
+                isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white focus:border-blue-400' : 'bg-white border-[#c1c6d7] focus:border-blue-600'
+              }`} />
           </div>
 
           {sourceUrl.trim() && !appliedPath && (

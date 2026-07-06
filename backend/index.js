@@ -942,7 +942,7 @@ app.post('/api/rename', async (req, res) => {
 // 다중 파일 병합(통폐합) API 추가
 app.post('/api/merge-files', async (req, res) => {
   try {
-    const { sourcePaths, targetPath, deleteSources, separator } = req.body;
+    const { sourcePaths, targetPath, deleteSources, separator, generateToc, insertPageBreak } = req.body;
     if (!sourcePaths || !Array.isArray(sourcePaths) || sourcePaths.length < 2) {
       return res.status(400).json({ error: 'At least two source files are required for merging.' });
     }
@@ -952,34 +952,38 @@ app.post('/api/merge-files', async (req, res) => {
 
     const resolvedTargetPath = getSafePath(targetPath);
 
-    // 소스 내용들을 차례로 읽음
     const contents = [];
+    const tocLines = [];
     for (const src of sourcePaths) {
       const resolvedSrcPath = getSafePath(src);
       const fileContent = await fs.readFile(resolvedSrcPath, 'utf-8');
-
       const fileName = path.basename(src);
+      const titleLabel = fileName.replace(/\.[^/.]+$/, "");
+
+      if (generateToc) {
+        const anchor = titleLabel.toLowerCase().replace(/\s+/g, '-');
+        tocLines.push(`- [${titleLabel}](#${anchor})`);
+      }
 
       let formattedContent = fileContent;
       if (separator === 'title') {
-        // H2 제목으로 파일명 삽입
-        const titleLabel = fileName.replace(/\.[^/.]+$/, "");
         formattedContent = `## ${titleLabel}\n\n${fileContent}`;
       }
       contents.push(formattedContent);
     }
 
-    // 구분선 처리
     let joinSeparator = '\n\n';
-    if (separator === 'divider') {
-      joinSeparator = '\n\n---\n\n';
-    } else if (separator === 'none') {
-      joinSeparator = '\n';
-    } else if (separator === 'title') {
-      joinSeparator = '\n\n';
-    }
+    if (insertPageBreak) joinSeparator = '\n\n<hr class="page-break" />\n\n';
+    else if (separator === 'divider') joinSeparator = '\n\n---\n\n';
+    else if (separator === 'none') joinSeparator = '\n';
+    else if (separator === 'title') joinSeparator = '\n\n';
 
-    const mergedContent = contents.join(joinSeparator);
+    let mergedContent = contents.join(joinSeparator);
+
+    if (generateToc) {
+      const tocSection = `# 목차\n\n${tocLines.join('\n')}\n\n${insertPageBreak ? '<hr class="page-break" />\n\n' : '---\n\n'}`;
+      mergedContent = tocSection + mergedContent;
+    }
 
     // 대상 경로의 디렉토리가 존재하는지 확인 및 자동 생성
     const targetDir = path.dirname(resolvedTargetPath);

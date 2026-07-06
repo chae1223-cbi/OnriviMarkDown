@@ -680,6 +680,14 @@ function injectExportStyles(
     fragments.push(dynamicCssString);
   }
 
+  if (options?.hideIndicators) {
+    fragments.push(`
+      hr.page-break {
+        display: none !important;
+      }
+    `);
+  }
+
   fragments.push(`
 /* 🌟 html2canvas 가상 iframe 내부의 html/body 족쇄 해제 (글로벌 overflow:hidden/height:100% 무력화) */
 html, body {
@@ -1474,7 +1482,8 @@ export async function exportPNG({
     hidePageBreaksStyle.innerHTML = `
       .page-break-indicator,
       .page-break-line-before::before,
-      .page-break::before {
+      .page-break::before,
+      hr.page-break {
         display: none !important;
       }
       .page-break-line-before {

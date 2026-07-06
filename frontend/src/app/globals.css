@@ -992,6 +992,59 @@ div.onrivi-list-spacer {
   }
 }
 
+/* 🖨️ [출판용 페이지 나누기] MergeModal 등에서 주입된 page-break 요소 처리 */
+@media print {
+  .page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+    height: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    opacity: 0 !important;
+  }
+}
+
+@media screen {
+  hr.page-break {
+    display: block !important;
+    width: 100% !important;
+    height: 0 !important;
+    margin: 3rem 0 !important;
+    position: relative !important;
+    border: none !important;
+    border-top: 2px dashed #d1d5db !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+  hr.page-break::before {
+    content: '✂️ Page Break';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #6b7280;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    padding: 4px 16px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .dark hr.page-break {
+    border-top-color: #374151 !important;
+  }
+  .dark hr.page-break::before {
+    background: #1f2937;
+    border-color: #374151;
+    color: #9ca3af;
+  }
+}
+
 /* ====================================================================
    📊 [OMD-STYLE-globals-0002] globals.css ➔ OMDLanding Styles
    🎯 @KICK  : OMDLanding 전용 테마 변수, 자동완성 커스텀 및 타이핑 효과 추가

@@ -1002,7 +1002,7 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
 });
 
 // 20. 다중 파일 병합 (IPC — 백엔드 서버 불필요)
-ipcMain.handle('file:mergeFiles', async (event, { sourcePaths, targetPath, deleteSources, separator }) => {
+ipcMain.handle('file:mergeFiles', async (event, { sourcePaths, targetPath, deleteSources, separator, generateToc, insertPageBreak }) => {
   try {
     if (!sourcePaths || !Array.isArray(sourcePaths) || sourcePaths.length < 2) {
       return { success: false, error: 'At least two source files are required for merging.' };
@@ -1012,23 +1012,70 @@ ipcMain.handle('file:mergeFiles', async (event, { sourcePaths, targetPath, delet
     }
 
     const contents = [];
+    const tocLines = [];
+    
+    // 타겟 폴더 절대 경로
+    const targetDir = path.dirname(targetPath);
+
     for (const src of sourcePaths) {
-      const fileContent = fs.readFileSync(src, 'utf-8');
+      let fileContent = fs.readFileSync(src, 'utf-8');
+      
+      // 1. 프론트매터(YAML) 제거 로직
+      fileContent = fileContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');
+
+      // 2. 상대 경로 보정 로직 (이미지 및 링크)
+      // 정규식: ![alt](path) 또는 [text](path)
+      fileContent = fileContent.replace(/(!?\[.*?\])\((.*?)\)/g, (match, prefix, linkPath) => {
+        // 이미 절대 경로이거나 외부 URL, data URI인 경우 건너뜀
+        if (
+          linkPath.startsWith('http://') || 
+          linkPath.startsWith('https://') || 
+          linkPath.startsWith('data:') || 
+          linkPath.startsWith('/')
+        ) {
+          return match;
+        }
+
+        // src 파일이 위치한 폴더를 기준으로 링크의 절대 경로를 계산
+        const srcDir = path.dirname(src);
+        const absoluteLinkPath = path.resolve(srcDir, linkPath);
+
+        // 타겟 폴더를 기준으로 새로운 상대 경로 계산
+        let newRelativePath = path.relative(targetDir, absoluteLinkPath);
+
+        // Windows 경로 구분자(\)를 웹 호환 슬래시(/)로 변환
+        newRelativePath = newRelativePath.replace(/\\/g, '/');
+
+        return `${prefix}(${newRelativePath})`;
+      });
+
       const fileName = path.basename(src);
+      const titleLabel = fileName.replace(/\.[^/.]+$/, "");
+
+      if (generateToc) {
+        const anchor = titleLabel.toLowerCase().replace(/\s+/g, '-');
+        tocLines.push(`- [${titleLabel}](#${anchor})`);
+      }
+
       let formattedContent = fileContent;
       if (separator === 'title') {
-        const titleLabel = fileName.replace(/\.[^/.]+$/, "");
         formattedContent = `## ${titleLabel}\n\n${fileContent}`;
       }
       contents.push(formattedContent);
     }
 
     let joinSeparator = '\n\n';
-    if (separator === 'divider') joinSeparator = '\n\n---\n\n';
+    if (insertPageBreak) joinSeparator = '\n\n<hr class="page-break" />\n\n';
+    else if (separator === 'divider') joinSeparator = '\n\n---\n\n';
     else if (separator === 'none') joinSeparator = '\n';
     else if (separator === 'title') joinSeparator = '\n\n';
 
-    const mergedContent = contents.join(joinSeparator);
+    let mergedContent = contents.join(joinSeparator);
+
+    if (generateToc) {
+      const tocSection = `# 목차\n\n${tocLines.join('\n')}\n\n${insertPageBreak ? '<hr class="page-break" />\n\n' : '---\n\n'}`;
+      mergedContent = tocSection + mergedContent;
+    }
 
     const targetDir = path.dirname(targetPath);
     fs.mkdirSync(targetDir, { recursive: true });

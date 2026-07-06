@@ -10,7 +10,7 @@ import { CssProfile } from '../types/cssProfile';
 /**
  * 시스템 프로필 식별자 목록 — 이 ID를 가진 프로필은 수정/삭제 불가
  */
-export const SYSTEM_PROFILE_IDS = ['system-gov', 'system-press', 'system-report'] as const;
+export const SYSTEM_PROFILE_IDS = ['system-gov', 'system-press', 'system-report', 'system-univ'] as const;
 export type SystemProfileId = typeof SYSTEM_PROFILE_IDS[number];
 
 // ====================================================================
@@ -245,6 +245,61 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       footnote: { "color": "#6b7280", "font-size": "10px", "line-height": "1.3", "margin-top": "6px", "margin-bottom": "6px" },
     },
     hrStructure: { borderTopStyle: "solid", borderTopWidth: "1px", marginTopBottom: "24px", lineWidth: "100%" },
+    checkboxStructure: { boxSize: "14px", checkedEffect: "dim-only", textGap: "8px" }
+  },
+  // ──────────────────────────────────────────────
+  // 시스템 프로필 4: 대학생_A4_레포트_표준
+  // ──────────────────────────────────────────────
+  {
+    id: 'system-univ',
+    name: '대학생_A4_레포트_표준',
+    pageStyle: {
+      fontFamily: '"Batang", "KoPub Batang", "Noto Serif KR", serif',
+      fontSize: '14px', // approx 10.5pt
+      lineHeight: '1.6', // 160%
+      letterSpacing: '0px',
+      backgroundColor: '#ffffff',
+      paperSize: 'a4',
+      marginTop: '20mm', // standard top margin
+      marginBottom: '20mm', // standard bottom margin
+      marginLeft: '30mm', // standard left margin
+      marginRight: '30mm', // standard right margin
+      orientation: 'portrait',
+      headingSizeOffset: '2',
+      tabSize: '4',
+    },
+    rules: {
+      h1: { "text-align": "center", "font-weight": "bold", "font-size": "24px", "margin-top": "24px", "margin-bottom": "24px", "line-height": "1.6" },
+      h2: { "text-align": "left", "font-weight": "bold", "font-size": "18px", "margin-top": "20px", "margin-bottom": "12px", "line-height": "1.6" },
+      h3: { "text-align": "left", "font-weight": "bold", "font-size": "16px", "margin-top": "16px", "margin-bottom": "10px", "line-height": "1.6" },
+      h4: { "text-align": "left", "font-weight": "bold", "font-size": "14px", "margin-top": "12px", "margin-bottom": "8px", "line-height": "1.6" },
+      h5: { "text-align": "left", "font-weight": "bold", "font-size": "14px", "margin-top": "12px", "margin-bottom": "8px", "line-height": "1.6" },
+      h6: { "text-align": "left", "font-weight": "bold", "font-size": "14px", "margin-top": "12px", "margin-bottom": "8px", "line-height": "1.6" },
+      p: { "text-align": "justify", "margin-top": "0px", "margin-bottom": "0px", "text-indent": "14px", "line-height": "1.6", "word-break": "keep-all" },
+      strong: { "font-weight": "bold" },
+      em: { "font-style": "italic" },
+      u: { "text-decoration": "underline" },
+      del: { "text-decoration": "line-through" },
+      ul: { "padding-left": "24px", "list-style-type": "disc", "line-height": "1.6", "margin-bottom": "0px", "margin-top": "0px" },
+      ol: { "padding-left": "24px", "list-style-type": "decimal", "line-height": "1.6", "margin-bottom": "0px", "margin-top": "0px" },
+      li: { "margin-bottom": "0px", "padding-inline-start": "4px" },
+      taskList: {},
+      hr: { "border-top-color": "#000000", "border-top-width": "1px", "margin-top": "16px", "margin-bottom": "16px" },
+      table: { "width": "100%", "border-collapse": "collapse", "border-style": "solid", "border-width": "1px", "border-color": "#000000", "font-size": "13px", "margin-top": "10px", "margin-bottom": "10px" },
+      th: { "background-color": "#f9fafb", "color": "#000000", "padding": "6px 8px", "border-style": "solid", "border-width": "1px", "border-color": "#000000", "font-weight": "bold", "text-align": "center" },
+      td: { "padding": "5px 8px", "border-style": "solid", "border-width": "1px", "border-color": "#000000" },
+      blockquote: { "padding": "10px 14px", "margin-top": "10px", "margin-bottom": "10px", "background-color": "#f8fafc", "border-left-width": "4px", "border-left-style": "solid", "border-left-color": "#94a3b8" },
+      codeBlock: { "background-color": "#1e293b", "color": "#e2e8f0", "font-size": "12px", "padding": "12px", "border-radius": "4px", "margin-top": "10px", "margin-bottom": "10px", "font-family": "monospace" },
+      codeBlockTitle: { "background-color": "#0f172a", "color": "#94a3b8" },
+      a: { "color": "#2563eb", "text-decoration": "underline" },
+      img: { "display": "block", "margin-left": "auto", "margin-right": "auto", "max-width": "100%", "margin-top": "16px", "margin-bottom": "16px" },
+      code: { "font-family": "monospace", "background-color": "#f1f5f9", "color": "#000000", "font-size": "0.9em", "padding": "2px 4px", "border-radius": "3px" },
+      video: { "width": "100%", "max-width": "560px", "height": "auto", "display": "block", "margin-left": "auto", "margin-right": "auto", "margin-top": "16px", "margin-bottom": "16px" },
+      math: { "font-size": "15px", "text-align": "center", "margin-top": "12px", "margin-bottom": "12px" },
+      map: { "width": "100%", "height": "auto", "display": "block", "margin-left": "auto", "margin-right": "auto", "margin-top": "16px", "margin-bottom": "16px" },
+      footnote: { "color": "#4b5563", "font-size": "11px", "line-height": "1.4", "margin-top": "6px", "margin-bottom": "6px" },
+    },
+    hrStructure: { borderTopStyle: "solid", borderTopWidth: "1px", marginTopBottom: "16px", lineWidth: "100%" },
     checkboxStructure: { boxSize: "14px", checkedEffect: "dim-only", textGap: "8px" }
   }
 ];
