@@ -565,6 +565,7 @@ const FileTreeItem = ({
             // LocalStorage 가상 파일 생성
             vfsCreateFile(node.path, finalName);
             refreshParent();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             const filePath = `${node.path}/${finalName}`;
             openFile({ name: finalName, kind: 'file', path: filePath }, node.handle);
           }
@@ -574,6 +575,8 @@ const FileTreeItem = ({
             const result = await api.createFile(node.path, finalName);
             if (result.success) {
               await refreshThisDirectory();
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+              setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 300);
               openFile({ name: finalName, kind: 'file', path: result.path }, node.handle);
             }
           } else {
@@ -585,6 +588,8 @@ const FileTreeItem = ({
             if (res.ok) {
               const data = await res.json();
               await refreshThisDirectory();
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+              setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 300);
               openFile({ name: finalName, kind: 'file', path: data.path }, node.handle);
             }
           }
@@ -619,6 +624,8 @@ const FileTreeItem = ({
           }
         }
         await refreshThisDirectory();
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 300);
       } catch(e) { showToast("생성 실패: " + e, 'error'); }
     }
   };

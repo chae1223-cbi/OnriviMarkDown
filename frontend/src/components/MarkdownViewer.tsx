@@ -1087,10 +1087,16 @@ export default function MarkdownViewer({
                 if (urlMatch) mediaFilePath = decodeURIComponent(urlMatch[1]);
               }
 
-              if (isR2ApiPath && (window as any).electronAPI) {
-                finalSrc = `https://onrivi.com${pureSrc}`;
-              } else if (isR2ApiPath) {
-                finalSrc = pureSrc;
+              if (isR2ApiPath) {
+                const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+                if (api || process.env.NODE_ENV === 'development') {
+                  finalSrc = `https://onrivi.com${pureSrc}`;
+                } else {
+                  finalSrc = pureSrc;
+                }
+                if (queryString) {
+                  finalSrc += finalSrc.includes('?') ? '&' + queryString.substring(1) : queryString;
+                }
               } else if (isMediaServe && mediaFilePath) {
                 // media://local/serve → 웹에선 /api/view?filePath=... 로 변환
                 const api = (window as any).electronAPI;

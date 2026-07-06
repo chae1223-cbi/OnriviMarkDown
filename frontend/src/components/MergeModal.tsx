@@ -189,7 +189,8 @@ const MergeModal: React.FC<MergeModalProps> = ({
           if (result.success) {
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
             refreshParent();
-            setTimeout(() => refreshParent(), 300);
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
             onClose();
           } else {
             showToast("글 병합 중 오류가 발생했습니다: " + result.error, 'error');
@@ -213,7 +214,8 @@ const MergeModal: React.FC<MergeModalProps> = ({
             const result = await res.json();
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
             refreshParent();
-            setTimeout(() => refreshParent(), 300);
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
             onClose();
           } else {
             const errData = await res.json();
@@ -312,7 +314,8 @@ const MergeModal: React.FC<MergeModalProps> = ({
             }
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
             refreshParent();
-            setTimeout(() => refreshParent(), 300);
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
             onClose();
           } else {
             // showDirectoryPicker로 선택한 폴더에 저장
@@ -329,7 +332,8 @@ const MergeModal: React.FC<MergeModalProps> = ({
             }
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
             refreshParent();
-            setTimeout(() => refreshParent(), 300);
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
             onClose();
           }
 
@@ -351,7 +355,8 @@ const MergeModal: React.FC<MergeModalProps> = ({
           }
           showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
           refreshParent();
-          setTimeout(() => refreshParent(), 300);
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
           onClose();
         }
       }

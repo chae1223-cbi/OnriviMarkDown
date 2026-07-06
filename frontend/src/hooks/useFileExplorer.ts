@@ -555,13 +555,21 @@ export const useFileExplorer = ({
   // 🚨 @PATCH : 없음
   // 🔗 @CALLS : refreshFileList, setFileList
   // ====================================================================
-  // 폴더가 바뀔 때 리스트 자동 리프레시 연동
+  // 폴더가 바뀔 때 리스트 자동 리프레시 연동 및 전역 리프레시 이벤트 수신
   useEffect(() => {
     if (rootFolder) {
       refreshFileList();
     } else {
       setFileList([]);
     }
+
+    const handleGlobalRefresh = () => {
+      if (rootFolder) refreshFileList();
+    };
+    window.addEventListener('file:refresh-all-directories', handleGlobalRefresh);
+    return () => {
+      window.removeEventListener('file:refresh-all-directories', handleGlobalRefresh);
+    };
   }, [rootFolder, refreshFileList, setFileList]);
 
   const helpContentRef = useRef<any>(null);
