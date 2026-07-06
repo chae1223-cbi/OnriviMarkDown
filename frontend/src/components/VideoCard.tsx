@@ -27,16 +27,14 @@ export default function VideoCard({ src, href, displayName, isYoutube, youtubeId
       return;
     }
     if (!src || thumbnailCache.has(cachedKey)) { setLoading(false); return; }
-
-    // 사용자의 요청: 로컬 환경(데스크탑 앱, 로컬 개발 서버)인 경우 첫 프레임 추출을 생략하고 텍스트 설명으로 대체
-    // 주의: /api/ 경로는 클라우드 R2 이미지 라우팅이므로 로컬로 간주하지 않습니다.
-    const isLocalVideo = src.startsWith('media://') || src.startsWith('file://') || src.startsWith('assets/') || (src.startsWith('./') && !src.includes('/api/')) || (src.startsWith('/') && !src.startsWith('/api/'));
     
-    // CORS 에러 방지: 현재 도메인과 다른 도메인의 영상(예: localhost에서 onrivi.com 영상 로드)은 썸네일 추출을 생략합니다.
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-    const isCrossOrigin = src.startsWith('http') && !src.startsWith(currentOrigin);
+    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 
-    if ((isLocalVideo && !src.startsWith('http')) || isCrossOrigin) {
+    // 사용자의 요청 정리:
+    // 1. "데스크탑은 원래대로 하고": 데스크탑(Electron) 환경에서는 로컬/클라우드 상관없이 정상적으로 썸네일을 추출합니다.
+    // 2. "로컬에서는 파일명으로 해줘": 로컬 웹 개발 서버(localhost:3100 등)에서는 외부/로컬 영상 로드 시 CORS 에러 방지를 위해 썸네일 추출을 모두 생략하고 파일명만 표시합니다.
+    if (isLocalhost && !isDesktop) {
       setLoading(false);
       return;
     }
