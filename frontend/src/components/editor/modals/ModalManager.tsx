@@ -139,6 +139,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     lastSavedContentRef.current = content;
                     setSaveStatus('saved');
                     await refreshFileList();
+                    window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                     showToast(`${finalName} 저장 완료`, 'success');
                   } else {
                     showToast("저장 실패", 'error');
@@ -155,6 +156,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     lastSavedContentRef.current = content;
                     setSaveStatus('saved');
                     await refreshFileList();
+                    window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                     showToast(`${finalName} 저장 완료`, 'success');
                   } else {
                     vfsCreateFile('', finalName);
@@ -165,6 +167,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     lastSavedContentRef.current = content;
                     setSaveStatus('saved');
                     await refreshFileList();
+                    window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                     showToast(`${finalName} 저장 완료`, 'success');
                   }
                 } else {
@@ -184,6 +187,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     }
                     setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));
                     await refreshFileList();
+                    window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                     const newFileNode = { name: finalName, kind: 'file' as const, path: data.path };
                     setCurrentFileName(finalName);
                     setCurrentFileNode(newFileNode);
@@ -210,6 +214,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                 }
                 setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));
                 await refreshFileList();
+                window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                 showToast(`${value} 폴더 생성 완료`, 'success');
               } else {
                 setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }));

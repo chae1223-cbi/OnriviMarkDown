@@ -35,7 +35,7 @@ interface FileTreeItemProps {
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
 // 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
-// 🚨 @PATCH : **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신
+// 🚨 @PATCH : **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
 // 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
 // ====================================================================
 const FileTreeItem = ({ 
@@ -99,9 +99,21 @@ const FileTreeItem = ({
         normNodePath === (detail.targetPath || '').replace(/\\/g, '/');
       if (matches) refreshThisDirectoryRef.current();
     };
+    
+    const refreshAllHandler = () => {
+      if (node.kind === 'directory' && isOpen) {
+        refreshThisDirectoryRef.current();
+      }
+    };
+
     window.addEventListener('file:moved', handler);
-    return () => window.removeEventListener('file:moved', handler);
-  }, [node.kind, node.path]);
+    window.addEventListener('file:refresh-all-directories', refreshAllHandler);
+    
+    return () => {
+      window.removeEventListener('file:moved', handler);
+      window.removeEventListener('file:refresh-all-directories', refreshAllHandler);
+    };
+  }, [node.kind, node.path, isOpen]);
   const [isLoading, setIsLoading] = useState(false);
   const [promptConfig, setPromptConfig] = useState<{
     isOpen: boolean;
@@ -427,16 +439,10 @@ const FileTreeItem = ({
               setTimeout(() => {
                 refreshParent();
               }, 800);
-              // 💡 경로 기반 및 백업된 이름을 비교하여 에디터에 열려있는 활성 파일 정보 갱신
-              if (oldPath && currentFilePath) {
-                const normCurrent = currentFilePath.replace(/\\/g, '/');
-                const normOld = oldPath.replace(/\\/g, '/');
-                if (normCurrent === normOld) {
-                  openFile({ name: finalName, kind: 'file', path: newPath, handle: newHandle }, parentHandle);
-                }
-              } else if (currentFileName === oldName) {
-                openFile({ name: finalName, kind: 'file', path: newPath, handle: newHandle }, parentHandle);
-              }
+              // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음)
+              window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+                detail: { oldPath, newPath, newName: finalName, newHandle }
+              }));
             } else if (node.kind === 'directory') {
               // 폴더 이름 변경: 새 폴더를 만들고 하위 항목들을 재귀적으로 복사한 뒤 기존 폴더 삭제
               const newDirHandle = await parentHandle.getDirectoryHandle(finalName, { create: true });
@@ -491,9 +497,10 @@ const FileTreeItem = ({
             
             vfsRename(oldPath, newPath);
             refreshParent();
-            if (currentFileName === node.name) {
-              openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
-            }
+            // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음)
+            window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+              detail: { oldPath, newPath, newName: finalName }
+            }));
           }
         } else {
           const api = (window as any).electronAPI;
@@ -504,6 +511,7 @@ const FileTreeItem = ({
           // 🛡️ 한글 자소 분리 깨짐 방지를 위한 NFC 경로 표준화
           const newPath = (finalParentPath ? `${finalParentPath}\\${finalName}` : finalName).normalize('NFC');
 
+          const oldNodePath = node.path || "";
           if (api?.renameFile) {
             await api.renameFile(node.path, newPath);
             // 💡 [요구사항 1] 이름 변경 시 노드 메모리 정보 즉시 갱신하여 하위 목록의 404 경로 유실 에러 원천 차단
@@ -511,22 +519,12 @@ const FileTreeItem = ({
             node.name = finalName;
             refreshParent();
             // 🛡️ [요구사항 1] 지연 새로고침을 800ms로 상향하여 OS 파일 인덱싱 락 완벽 방어
-            setTimeout(() => refreshParent(), 800); 
+            setTimeout(() => refreshParent(), 800);
 
-            // 💡 [요구사항 1] 파일 혹은 폴더 이름 변경 시 현재 열려 있는 문서의 경로가 이 영향을 받으면 즉각 갱신
-            if (node.path && currentFilePath) {
-              const normCurrent = currentFilePath.replace(/\\/g, '/');
-              const normOld = node.path.replace(/\\/g, '/');
-              const normNew = newPath.replace(/\\/g, '/');
-              if (normCurrent === normOld) {
-                openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
-              } else if (normCurrent.startsWith(normOld + '/')) {
-                const updatedPath = currentFilePath.substring(node.path.length);
-                openFile({ name: currentFileName, kind: 'file', path: newPath + updatedPath }, parentHandle);
-              }
-            } else if (currentFileName === node.name) {
-              openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
-            }
+            // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음) — oldNodePath 스냅샷 사용
+            window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+              detail: { oldPath: oldNodePath, newPath, newName: finalName }
+            }));
           } else {
             const res = await fetch(getApiUrl('/api/rename'), {
               method: 'POST',
@@ -539,19 +537,10 @@ const FileTreeItem = ({
               node.name = finalName;
               refreshParent();
               setTimeout(() => refreshParent(), 800);
-              if (node.path && currentFilePath) {
-                const normCurrent = currentFilePath.replace(/\\/g, '/');
-                const normOld = node.path.replace(/\\/g, '/');
-                const normNew = newPath.replace(/\\/g, '/');
-                if (normCurrent === normOld) {
-                  openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
-                } else if (normCurrent.startsWith(normOld + '/')) {
-                  const updatedPath = currentFilePath.substring(node.path.length);
-                  openFile({ name: currentFileName, kind: 'file', path: newPath + updatedPath }, parentHandle);
-                }
-              } else if (currentFileName === node.name) {
-                openFile({ name: finalName, kind: node.kind, path: newPath }, parentHandle);
-              }
+              // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음) — oldNodePath 스냅샷 사용
+              window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+                detail: { oldPath: oldNodePath, newPath, newName: finalName }
+              }));
             }
           }
         }
@@ -762,18 +751,46 @@ const FileTreeItem = ({
         <span className="ml-1.5 truncate text-[15px] text-left flex-1">{node.name}</span>
 
         {/* Hover Actions */}
-        {!isMergeMode && !isRestrictedUser && (
-          <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {node.kind === 'directory' && (
-              <>
-                <button onClick={handleCreateFile} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 파일"}><Plus size={14} /></button>
-                <button onClick={handleCreateFolder} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 폴더"}><FolderPlus size={14} /></button>
-              </>
-            )}
-            <button onClick={handleRename} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"이름 변경"}><Edit2 size={14} /></button>
-            <button onClick={handleDelete} className="p-1 hover:bg-red-500 hover:text-white rounded transition-colors" title={"삭제"}><Trash2 size={14} /></button>
-          </div>
-        )}
+        {!isMergeMode && !isRestrictedUser && (() => {
+          // 탭에 열려있는지 확인
+          const isOpenInTab = !!node.path && !!openTabPaths?.length && (() => {
+            const normPath = node.path.replace(/\\/g, '/');
+            if (node.kind === 'directory') {
+              return openTabPaths.some(tp => {
+                const normTp = tp.replace(/\\/g, '/');
+                return normTp === normPath || normTp.startsWith(normPath + '/');
+              });
+            }
+            return openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath);
+          })();
+
+          return (
+            <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {node.kind === 'directory' && (
+                <>
+                  <button onClick={handleCreateFile} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 파일"}><Plus size={14} /></button>
+                  <button onClick={handleCreateFolder} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 폴더"}><FolderPlus size={14} /></button>
+                </>
+              )}
+              <button
+                onClick={isOpenInTab ? undefined : handleRename}
+                disabled={isOpenInTab}
+                className={`p-1 rounded transition-colors ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-blue-500 hover:text-white'}`}
+                title={isOpenInTab ? "탭에서 열려있는 파일은 이름을 변경할 수 없습니다" : "이름 변경"}
+              >
+                <Edit2 size={14} />
+              </button>
+              <button
+                onClick={isOpenInTab ? undefined : handleDelete}
+                disabled={isOpenInTab}
+                className={`p-1 rounded transition-colors ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-red-500 hover:text-white'}`}
+                title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       {node.kind === 'directory' && isOpen && (() => {

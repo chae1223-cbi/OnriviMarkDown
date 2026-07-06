@@ -612,6 +612,59 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [currentFileName, currentFileNode, activeTabId]);
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0012b] MainEditorApp.tsx ➔ file:tab-renamed listener
+  // 🎯 @KICK  : 탐색기에서 파일/폴더 이름 변경 시 새 탭을 열지 않고 기존 탭 메타데이터만 갱신
+  // 🛡️ @GUARD : oldPath가 현재 열린 탭과 일치하거나 하위 경로에 포함될 때만 동작
+  // 🚨 @PATCH : **2026-07-06** — 추가 (이름 변경 시 새 탭이 생기는 버그 수정)
+  // 🔗 @CALLS : setCurrentFileName, setCurrentFileNode, setTabs
+  // ====================================================================
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { oldPath, newPath, newName, newHandle } = (e as CustomEvent).detail;
+      if (!oldPath || !newPath) return;
+
+      const normOld = oldPath.replace(/\\/g, '/');
+      const normNew = newPath.replace(/\\/g, '/');
+
+      // 현재 열린 파일이 변경된 파일이거나 변경된 폴더 하위에 있을 때
+      setTabs(prev => prev.map(t => {
+        const tabPath = (t.path || '').replace(/\\/g, '/');
+        if (tabPath === normOld) {
+          // 정확히 이름 변경된 파일
+          return { ...t, name: newName, path: newPath, node: { ...t.node, name: newName, path: newPath, ...(newHandle ? { handle: newHandle } : {}) } };
+        } else if (tabPath.startsWith(normOld + '/')) {
+          // 이름 변경된 폴더의 하위 파일
+          const updatedPath = newPath + t.path.substring(oldPath.length);
+          const updatedName = t.name; // 파일명 자체는 변경 없음
+          return { ...t, path: updatedPath, node: { ...t.node, path: updatedPath } };
+        }
+        return t;
+      }));
+
+      // 현재 활성 파일도 갱신
+      setCurrentFileNode(prev => {
+        if (!prev) return prev;
+        const normCur = (prev.path || '').replace(/\\/g, '/');
+        if (normCur === normOld) {
+          return { ...prev, name: newName, path: newPath, ...(newHandle ? { handle: newHandle } : {}) };
+        } else if (normCur.startsWith(normOld + '/')) {
+          const updatedPath = newPath + (prev.path || '').substring(oldPath.length);
+          return { ...prev, path: updatedPath };
+        }
+        return prev;
+      });
+      setCurrentFileName(prev => {
+        const normCur = (currentFileNode?.path || '').replace(/\\/g, '/');
+        if (normCur === normOld) return newName;
+        return prev;
+      });
+    };
+    window.addEventListener('file:tab-renamed', handler);
+    return () => window.removeEventListener('file:tab-renamed', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFileNode]);
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // ====================================================================

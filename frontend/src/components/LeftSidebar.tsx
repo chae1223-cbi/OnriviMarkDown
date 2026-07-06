@@ -18,7 +18,7 @@ import { useEditorContext } from '@/context/EditorContext';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
+// 🚨 @PATCH : **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
 export default function LeftSidebar() {
@@ -185,13 +185,15 @@ export default function LeftSidebar() {
         if (workspaceType === 'browser') {
           if (rootFolder?.handle) {
             const handle = await rootFolder.handle.getFileHandle(finalName, { create: true });
-            refreshFileList();
+            await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             openFile({ name: finalName, kind: 'file', handle }, rootFolder?.handle);
           } else {
             // LocalStorage 가상 파일 생성
             const { vfsCreateFile } = await import('@/lib/virtualFileSystem');
             vfsCreateFile("", finalName);
-            refreshFileList();
+            await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             openFile({ name: finalName, kind: 'file', path: finalName });
           }
         } else {
@@ -199,7 +201,8 @@ export default function LeftSidebar() {
           if (api?.createFile) {
             const result = await api.createFile(rootPath, finalName);
             if (result.success) {
-              refreshFileList();
+              await refreshFileList();
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
               openFile({ name: finalName, kind: 'file', path: result.path });
             }
           } else {
@@ -210,7 +213,8 @@ export default function LeftSidebar() {
             });
             if (res.ok) {
               const data = await res.json();
-              refreshFileList();
+              await refreshFileList();
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
               openFile({ name: finalName, kind: 'file', path: data.path });
             }
           }
@@ -245,7 +249,8 @@ export default function LeftSidebar() {
             });
           }
         }
-        refreshFileList();
+        await refreshFileList();
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
       } catch(e) { showToast("생성 실패: " + e, 'error'); }
     }
   };
@@ -420,6 +425,25 @@ export default function LeftSidebar() {
           </div>
         </div>
       
+      {/* 항상 표시되는 워크스페이스 선택 바 */}
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-200 dark:border-zinc-700/60 bg-zinc-50 dark:bg-zinc-900/80">
+        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide shrink-0">폴더</span>
+        <button
+          onClick={onSelectRootFolder}
+          className="flex-1 min-w-0 flex items-center gap-1 px-2 py-1 rounded-md text-left text-[11px] font-medium transition-colors
+            bg-white dark:bg-zinc-800 hover:bg-blue-50 dark:hover:bg-blue-900/30
+            border border-zinc-200 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-600
+            text-zinc-700 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400
+            truncate"
+          title={rootFolder?.name ? `워크스페이스 변경 (현재: ${rootFolder.name})` : '워크스페이스 폴더 선택'}
+        >
+          <span className="shrink-0">{rootFolder?.name ? '📁' : '📂'}</span>
+          <span className="truncate">
+            {rootFolder?.name ? rootFolder.name : '폴더를 선택하세요'}
+          </span>
+        </button>
+      </div>
+
       {/* 탭 바디 — 항상 마운트, hidden으로 표시/숨김 제어 */}
       <div className="flex-1 min-h-0 relative flex flex-col">
         <div className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}>
@@ -480,9 +504,10 @@ export default function LeftSidebar() {
                       <FolderPlus size={14} />
                     </button>
                     <button 
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        refreshFileList();
+                        await refreshFileList();
+                        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                       }} 
                       className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
                       title="새로고침"
@@ -536,8 +561,14 @@ export default function LeftSidebar() {
                     currentFileName={currentFileName}
                     currentFilePath={currentFileNode?.path}
                     workspaceType={workspaceType}
-                    refreshParent={refreshFileList}
-                    onRefreshAll={refreshFileList}
+                    refreshParent={async () => {
+                      await refreshFileList();
+                      window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+                    }}
+                    onRefreshAll={async () => {
+                      await refreshFileList();
+                      window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+                    }}
                     openTabPaths={openTabPaths}
                     isRestrictedUser={isRestrictedUser}
                     askConfirm={askConfirm}
@@ -549,15 +580,10 @@ export default function LeftSidebar() {
                 )))}
               </div>
           ) : (
-            <div className="text-zinc-400 dark:text-zinc-500 text-xs text-center py-8 space-y-4">
-              <p className="font-medium">연결된 워크스페이스 폴더가 없습니다.</p>
-              <button
-                onClick={onSelectRootFolder}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-500/20"
-              >
-                📂 폴더 선택
-              </button>
-              <p className="text-[10px] opacity-50">메뉴 &gt; 파일 &gt; 폴더 열기 로 워크스페이스를 시작하세요.</p>
+            // 폴더 미연결 상태 — 간결한 안내
+            <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-zinc-400 dark:text-zinc-500 text-xs text-center space-y-3 px-4">
+              <span className="text-3xl opacity-40">📁</span>
+              <p className="font-medium opacity-70">위의 폴더 선택 바를 눌러<br/>워크스페이스를 시작하세요.</p>
             </div>
           )}
         </div>

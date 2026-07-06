@@ -340,6 +340,7 @@ export const useEditorHandlers = ({
             setSaveStatus('saved');
             setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
             await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             showToast(`'${file.name}' 저장 완료 · 워크스페이스 → ${osParentPath}`, 'success');
           } else {
             setSaveStatus('unsaved');
@@ -384,6 +385,7 @@ export const useEditorHandlers = ({
           setSaveStatus('saved');
           setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
           await refreshFileList();
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
           showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
         } catch (e: any) {
           if (e.name !== 'AbortError') {
@@ -467,6 +469,7 @@ export const useEditorHandlers = ({
             lastSavedContentRef.current = currentVal;
             setSaveStatus('saved');
             await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             showToast(`'${file.name}' 저장 완료`, 'success');
           } else {
             setSaveStatus('unsaved');
@@ -508,6 +511,7 @@ export const useEditorHandlers = ({
           lastSavedContentRef.current = currentVal;
           setSaveStatus('saved');
           await refreshFileList();
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
           showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
         } catch (e: any) {
           if (e.name !== 'AbortError') {

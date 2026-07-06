@@ -337,7 +337,7 @@ export const useFileExplorer = ({
   // 📊 [OMD-FILE-USEFILEEXPLORER-0003 ✅ FIXED] useFileExplorer.ts ➔ handleFileClick
   // 🎯 @KICK  : 파일 트리 노드 클릭 시 기존 탭 전환 또는 새 탭 생성 및 파일 내용 로딩
   // 🛡️ @GUARD : node null/kind directory early return, 파일 읽기 실패 시 오류 토스트
-  // 🚨 @PATCH : disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리 (2026-06-18)
+  // 🚨 @PATCH : disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리 (2026-06-18); **2026-07-06** — 브라우저 모드 핸들 재클릭 시 중복 탭 생성 버그 수정: 경로→핸들→파일명 3단계 fallback 비교로 existingTab 정확도 향상
   // 🔗 @CALLS : createNewTab, switchTab, setContent, setTabs, setActiveTabId, showToast
   // ====================================================================
   // 5. 파일 트리 클릭 시 파일 열기 및 신규 탭 로딩
@@ -362,10 +362,17 @@ export const useFileExplorer = ({
     }
     if (node.kind === 'directory') return;
 
-    const existingTab = tabsRef.current.find(t => 
-      (node.path && t.path === node.path) || 
-      (node.handle && t.node?.handle === node.handle)
-    );
+    const existingTab = tabsRef.current.find(t => {
+      // 1순위: 절대 경로 정규화 일치 (가장 정확, \ vs / 슬래시 차이 무시)
+      if (node.path && t.path) {
+        const normNode = node.path.replace(/\\/g, '/');
+        const normTab = t.path.replace(/\\/g, '/');
+        if (normNode === normTab) return true;
+      }
+      // 2순위: 핸들 참조 일치 (브라우저 모드, 같은 핸들 객체)
+      if (node.handle && t.node?.handle && node.handle === t.node.handle) return true;
+      return false;
+    });
 
     if (existingTab) {
       if (existingTab.model && existingTab.model.isDisposed()) {

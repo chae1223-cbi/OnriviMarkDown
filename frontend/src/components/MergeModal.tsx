@@ -21,7 +21,7 @@ interface MergeModalProps {
 // 📊 [OMD-FILE-MergeModal-0007] MergeModal ➔ MergeModal
 // 🎯 @KICK  : 여러 파일을 선택 순서대로 병합하여 새 파일로 저장 (로컬/브라우저 모드 대응)
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환; 최소 2개 파일 필요
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-07-06** — 타이틀 아이콘 깨짐 수정(? → Layers), 찾아보기 버튼 조건 electronAPI 유무로 변경, 브라우저 모드 저장 위치 지정(showSaveFilePicker / showDirectoryPicker) 추가
 // 🔗 @CALLS : handleMerge, moveUp, moveDown, removeItem, showToast
 // ====================================================================
 const MergeModal: React.FC<MergeModalProps> = ({
@@ -34,6 +34,9 @@ const MergeModal: React.FC<MergeModalProps> = ({
   const prevSelectedRef = useRef<FileNode[]>([]);
   const [targetName, setTargetName] = useState('merged_doc');
   const [targetPathAbsolute, setTargetPathAbsolute] = useState('');
+  // 브라우저 모드용 저장 대상 폴더 핸들 (선택 시 해당 폴더에 저장)
+  const [targetFolderHandle, setTargetFolderHandle] = useState<any>(null);
+  const [targetFolderName, setTargetFolderName] = useState('');
   const [deleteSources, setDeleteSources] = useState(false);
   const [separator, setSeparator] = useState<'none' | 'divider' | 'title'>('divider');
   const [generateToc, setGenerateToc] = useState(false);
@@ -41,6 +44,13 @@ const MergeModal: React.FC<MergeModalProps> = ({
   const [shiftHeadings, setShiftHeadings] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [hasSaveFilePicker] = useState(
+    typeof window !== 'undefined' && typeof (window as any).showSaveFilePicker === 'function'
+  );
+  const [hasDirectoryPicker] = useState(
+    typeof window !== 'undefined' && typeof (window as any).showDirectoryPicker === 'function'
+  );
+  const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
 // ====================================================================
 // 📊 [OMD-FILE-MergeModal-0006] MergeModal ➔ useEffect (mounted)
@@ -181,7 +191,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
             refreshParent();
             setTimeout(() => refreshParent(), 300);
             onClose();
-            openFile({ name: finalName, kind: 'file', path: result.path });
           } else {
             showToast("글 병합 중 오류가 발생했습니다: " + result.error, 'error');
           }
@@ -206,7 +215,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
             refreshParent();
             setTimeout(() => refreshParent(), 300);
             onClose();
-            openFile({ name: finalName, kind: 'file', path: result.path });
           } else {
             const errData = await res.json();
             showToast("글 병합 중 오류가 발생했습니다: " + errData.error, 'error');
@@ -216,7 +224,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
         const contents = [];
         const tocLines = [];
 
-        // 브라우저용 가상 경로 계산 헬퍼 (타겟은 항상 rootFolder이므로, srcPath 기준으로 resolve하면 그게 새로운 상대경로가 됨)
+        // 브라우저용 가상 경로 계산 헬퍼
         const resolveBrowserPath = (srcPath: string, linkPath: string) => {
           if (
             linkPath.startsWith('http://') || 
@@ -228,7 +236,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
           }
           
           const srcParts = srcPath.replace(/\\/g, '/').split('/').filter(Boolean);
-          srcParts.pop(); // 파일명 제거, 디렉토리만 남김
+          srcParts.pop();
           
           const linkParts = linkPath.replace(/\\/g, '/').split('/').filter(Boolean);
           const outParts = [...srcParts];
@@ -285,28 +293,67 @@ const MergeModal: React.FC<MergeModalProps> = ({
           mergedText = tocSection + mergedText;
         }
 
-        if (!rootFolder || !rootFolder.handle) {
-          throw new Error('Root folder handle is not open');
-        }
-        
-        const newFileHandle = await rootFolder.handle.getFileHandle(finalName, { create: true });
-        const writable = await newFileHandle.createWritable();
-        await writable.write(mergedText);
-        await writable.close();
+        // ─── 저장 위치 결정 ─────────────────────────────────────────────────
+        // [Case 1] 찾아보기에서 선택된 파일 핸들 또는 폴더 핸들이 있을 때
+        if (targetFolderHandle) {
+          // showSaveFilePicker로 선택한 경우: fileHandle로 직접 저장
+          const isFileHandle = targetFolderHandle.kind === 'file';
+          if (isFileHandle) {
+            finalName = targetFolderHandle.name;
+            const writable = await targetFolderHandle.createWritable();
+            await writable.write(mergedText);
+            await writable.close();
+            if (deleteSources) {
+              for (const node of nodes) {
+                if (node.name !== finalName && node.handle && rootFolder?.handle) {
+                  try { await rootFolder.handle.removeEntry(node.name); } catch(_) {}
+                }
+              }
+            }
+            showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
+            refreshParent();
+            setTimeout(() => refreshParent(), 300);
+            onClose();
+          } else {
+            // showDirectoryPicker로 선택한 폴더에 저장
+            const newFileHandle = await targetFolderHandle.getFileHandle(finalName, { create: true });
+            const writable = await newFileHandle.createWritable();
+            await writable.write(mergedText);
+            await writable.close();
+            if (deleteSources) {
+              for (const node of nodes) {
+                if (node.name !== finalName && node.handle && rootFolder?.handle) {
+                  try { await rootFolder.handle.removeEntry(node.name); } catch(_) {}
+                }
+              }
+            }
+            showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
+            refreshParent();
+            setTimeout(() => refreshParent(), 300);
+            onClose();
+          }
 
-        if (deleteSources) {
-          for (const node of nodes) {
-            if (node.name !== finalName) {
-              await rootFolder.handle.removeEntry(node.name);
+        // [Case 2] 미지정 → rootFolder.handle 폴백
+        } else {
+          if (!rootFolder || !rootFolder.handle) {
+            throw new Error('Root folder handle is not open. 저장 위치를 지정하거나 워크스페이스 폴더를 먼저 연결하세요.');
+          }
+          const newFileHandle = await rootFolder.handle.getFileHandle(finalName, { create: true });
+          const writable = await newFileHandle.createWritable();
+          await writable.write(mergedText);
+          await writable.close();
+          if (deleteSources) {
+            for (const node of nodes) {
+              if (node.name !== finalName) {
+                await rootFolder.handle.removeEntry(node.name);
+              }
             }
           }
+          showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
+          refreshParent();
+          setTimeout(() => refreshParent(), 300);
+          onClose();
         }
-
-        showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
-        refreshParent();
-        setTimeout(() => refreshParent(), 300);
-        onClose();
-        openFile({ name: finalName, kind: 'file', handle: newFileHandle });
       }
     } catch (e: any) {
       showToast("글 병합 중 오류가 발생했습니다: " + e.message, 'error');
@@ -322,7 +369,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-[#30363d] bg-gray-50/50 dark:bg-[#0d1117]/30">
           <div className="flex items-center gap-2">
-            <span className="text-lg leading-none">?</span>
+            <Layers size={18} className="text-blue-500 dark:text-blue-400" />
             <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">{"글 통폐합 (병합)"}</h3>
           </div>
           <button 
@@ -336,7 +383,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
         {/* Content */}
         <div className="flex-1 p-6 space-y-5 overflow-y-auto max-h-[60vh] custom-scrollbar">
           
-          {/* Target File Name */}
+          {/* Target File Name + 저장 위치 */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-600 dark:text-gray-400">
               {targetPathAbsolute ? "저장 경로" : "최종 병합 파일명"}
@@ -352,19 +399,44 @@ const MergeModal: React.FC<MergeModalProps> = ({
                 placeholder="merged.md"
                 className="w-full px-4 py-2 text-sm bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-xl text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:focus:ring-blue-500/30 transition-all font-medium"
               />
-              {workspaceType === 'local' && (
+              {/* 환경 통합 찾아보기 버튼 */}
+              {(isElectron || hasSaveFilePicker || hasDirectoryPicker) && (
                 <button
                   onClick={async () => {
-                    const api = (window as any).electronAPI;
-                    if (api?.showSaveDialog) {
-                      const res = await api.showSaveDialog({
-                        title: '병합 파일 저장',
-                        defaultPath: targetName,
-                        filters: [{ name: 'Markdown', extensions: ['md'] }]
-                      });
-                      if (!res.canceled && res.filePath) {
-                        setTargetPathAbsolute(res.filePath);
+                    try {
+                      if (isElectron) {
+                        // Electron: OS 파일 저장 다이얼로그
+                        const api = (window as any).electronAPI;
+                        if (api?.showSaveDialog) {
+                          const res = await api.showSaveDialog({
+                            title: '병합 파일 저장',
+                            defaultPath: targetPathAbsolute || targetName,
+                            filters: [{ name: 'Markdown', extensions: ['md'] }]
+                          });
+                          if (!res.canceled && res.filePath) {
+                            setTargetPathAbsolute(res.filePath);
+                            setTargetFolderName('');
+                          }
+                        }
+                      } else if (hasSaveFilePicker) {
+                        // 웹 (Chrome/Edge): showSaveFilePicker
+                        const fileHandle = await (window as any).showSaveFilePicker({
+                          suggestedName: targetName,
+                          excludeAcceptAllOption: true,
+                          types: [{ description: 'Markdown Files', accept: { 'text/markdown': ['.md'] } }]
+                        });
+                        setTargetPathAbsolute(fileHandle.name);
+                        setTargetFolderHandle(fileHandle);
+                        setTargetFolderName(fileHandle.name);
+                      } else if (hasDirectoryPicker) {
+                        // 웹 (기타): showDirectoryPicker로 폴더 선택
+                        const dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+                        setTargetFolderHandle(dirHandle);
+                        setTargetFolderName(dirHandle.name);
+                        setTargetPathAbsolute('');
                       }
+                    } catch (e: any) {
+                      if (e.name !== 'AbortError') showToast('저장 위치 선택 실패', 'error');
                     }
                   }}
                   className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-[#21262d] dark:hover:bg-[#30363d] text-gray-700 dark:text-gray-300 rounded-xl whitespace-nowrap transition-colors font-semibold"
@@ -373,6 +445,18 @@ const MergeModal: React.FC<MergeModalProps> = ({
                 </button>
               )}
             </div>
+            {/* 저장 위치 지정된 경우 표시 */}
+            {(targetPathAbsolute || targetFolderName) && (
+              <p className="text-[10px] text-blue-500 dark:text-blue-400 px-1 flex items-center gap-1">
+                <span>📁</span>
+                <span className="truncate">{targetPathAbsolute || targetFolderName}</span>
+                <button
+                  onClick={() => { setTargetPathAbsolute(''); setTargetFolderHandle(null); setTargetFolderName(''); }}
+                  className="ml-auto shrink-0 text-gray-400 hover:text-red-500 transition-colors"
+                  title="저장 위치 초기화"
+                >✕</button>
+              </p>
+            )}
           </div>
 
           {/* Separator Select */}
