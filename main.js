@@ -256,7 +256,7 @@ function createWindow(port) {
     "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
     "img-src 'self' app: data: blob: http: https: file: media:",
     "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
-    "connect-src 'self' app: ws: wss: http: https: https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co",
+    "connect-src 'self' app: ws: wss: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:11434 https://onrivi.com",
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
     "media-src 'self' app: media: https:"
   ];
@@ -1170,13 +1170,42 @@ ipcMain.handle('file:readProfiles', async () => {
 
 ipcMain.handle('file:saveProfiles', async (event, profiles) => {
   try {
-    const profilePath = path.join(app.getPath('userData'), 'userCssProfiles.json');
-    fs.writeFileSync(profilePath, JSON.stringify(profiles, null, 2), 'utf-8');
-    return true;
-  } catch (e) {
-    console.error('프로필 저장 실패:', e);
-    return false;
+    const dataPath = path.join(app.getPath('userData'), 'user_profiles.json');
+    fs.writeFileSync(dataPath, JSON.stringify(profiles, null, 2), 'utf-8');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save profiles:', error);
+    return { success: false, error: error.message };
   }
 });
 
+// 26. 로컬 보안 데이터 암복호화 (OS Keyring 연동)
+ipcMain.handle('security:encrypt', async (event, plainText) => {
+  const { safeStorage } = require('electron');
+  if (safeStorage.isEncryptionAvailable() && plainText) {
+    try {
+      const buffer = safeStorage.encryptString(plainText);
+      return buffer.toString('hex');
+    } catch (e) {
+      console.error('Encryption failed:', e);
+    }
+  }
+  return plainText; // Fallback
+});
 
+ipcMain.handle('security:decrypt', async (event, cipherTextHex) => {
+  const { safeStorage } = require('electron');
+  if (safeStorage.isEncryptionAvailable() && cipherTextHex) {
+    try {
+      // Check if it's actually hex encoded
+      const buffer = Buffer.from(cipherTextHex, 'hex');
+      // A simple heuristic: if the length of the string is odd or not hex, it might be fallback plain text.
+      // But Buffer.from handles it. safeStorage.decryptString will throw if invalid.
+      return safeStorage.decryptString(buffer);
+    } catch (e) {
+      // If decryption fails, it might be unencrypted plain text from a previous version or fallback.
+      return cipherTextHex;
+    }
+  }
+  return cipherTextHex;
+});

@@ -10,6 +10,7 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeHighlight from 'rehype-highlight';
 import DOMPurify from 'dompurify';
+import rehypeSanitize from 'rehype-sanitize';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import VideoCard from '@/components/VideoCard';
 import SocialVideoCard from '@/components/SocialVideoCard';
@@ -1014,8 +1015,12 @@ export default function MarkdownViewer({
     >
       <div className="print:!block">
         <ReactMarkdown
-          // 🛡️ [보안 필터 우회] blob: 및 chrome-extension: 프로토콜 이미지/동영상 리소스가 유실되지 않도록 주소를 그대로 변환 허용합니다.
-          urlTransform={(uri) => uri}
+          urlTransform={(uri) => {
+            // 🛡️ [보안 필터 강화] XSS 공격 방어 (javascript: 차단, blob: 등 허용)
+            const cleanUri = DOMPurify.sanitize(uri);
+            if (cleanUri.trim().toLowerCase().startsWith('javascript:')) return '';
+            return cleanUri;
+          }}
           remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
           rehypePlugins={[
             [rehypeKatex, { strict: false }],

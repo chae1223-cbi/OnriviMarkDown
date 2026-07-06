@@ -4134,10 +4134,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 height="100%"
                 language="markdown"
                 theme={themePalette}
-                options={{
-                  readOnly: licenseStatus.isExpired || tabs.length === 0,
-                  domReadOnly: licenseStatus.isExpired || tabs.length === 0,
-                }}
                 // 💡 value={content} 속성을 배제하고 defaultValue를 적용하여
                 // React 상태 갱신 시 모나코 내부의 불필요한 setValue 호출로 인한 한글 composition 깨짐 및 중복 입력을 원천 방어합니다.
                 defaultValue={content}
@@ -4169,6 +4165,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 }}
                 onMount={handleMount}
                 options={{
+                  readOnly: licenseStatus.isExpired || tabs.length === 0,
+                  domReadOnly: licenseStatus.isExpired || tabs.length === 0,
                   padding: { top: 20, bottom: 500 },
                   scrollBeyondLastLine: true,
                   automaticLayout: true,

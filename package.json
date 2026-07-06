@@ -6,6 +6,7 @@
   "homepage": "https://onrivi.com",
   "main": "main.js",
   "scripts": {
+    "prepare": "husky",
     "dev": "concurrently \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
     "dev:r2": "cd frontend && npx wrangler pages dev ./out --compatibility-date=2026-06-23 --r2=R2_BUCKET --remote",
     "electron": "electron .",
@@ -15,7 +16,8 @@
     "build:extension": "cd frontend && npm run build:extension",
     "build:electron": "electron-builder --win",
     "dist": "npm run build && npm run build:electron",
-    "deploy": "npm run build:frontend && cd frontend && npx wrangler pages deploy ./out --project-name onriviauthor --functions-directory ./functions"
+    "deploy": "npm run build:frontend && cd frontend && npx wrangler pages deploy ./out --project-name onriviauthor --functions-directory ./functions",
+    "prepare": "husky"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -26,7 +28,9 @@
   "devDependencies": {
     "concurrently": "^8.2.1",
     "electron": "^42.4.1",
-    "electron-builder": "^24.6.3"
+    "electron-builder": "^24.6.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8"
   },
   "build": {
     "appId": "com.onrivi.author",

@@ -102,6 +102,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 25. 다중 파일 병합 (백엔드 서버 불필요, IPC 직접 처리)
   mergeFiles: (config) => ipcRenderer.invoke('file:mergeFiles', config),
 
+  // 26. 로컬 보안 데이터 암복호화 (OS Keyring 연동)
+  encryptData: (plainText) => ipcRenderer.invoke('security:encrypt', plainText),
+  decryptData: (cipherTextHex) => ipcRenderer.invoke('security:decrypt', cipherTextHex),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');
