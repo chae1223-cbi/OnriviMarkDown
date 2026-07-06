@@ -78,7 +78,7 @@ const nextConfig = {
               splitStrings: false,
               stringArray: true,
               stringArrayCallsTransform: true,
-              stringArrayEncoding: ['base64'],
+              stringArrayEncoding: [],
               stringArrayIndexShift: true,
               stringArrayRotate: true,
               stringArrayShuffle: true,

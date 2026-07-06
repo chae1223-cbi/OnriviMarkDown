@@ -1,7 +1,7 @@
 // 🚨 @PATCH : **2026-07-04** — Mermaid 다이어그램 렌더링 문법 에러 복구 강화(유입된 중첩 백틱 펜스 태그 ```mermaid 및 깨진 기호/괄호 라인 자동 정제, 화살표 레이블 간격 자동 보정) 및 에러 발생 시 마크다운 코드 원본을 복사하고 대조해볼 수 있는 '코드 원본 보기' 디버깅 UI 추가 패치
 //             **2026-06-20** — Mermaid 다이어그램 이미지 저장(handleSaveImage) 기능이 Electron 데스크톱 앱 내에서 동작하지 않던 API 명칭 불일치 버그(saveAs -> saveFileAs)를 해결하고, 웹 브라우저 환경에서 동작할 수 있도록 a 링크 다운로드 폴백을 추가; 다이어그램 저장, 이미지 복사 시 다이어그램 크기가 극도로 작게 나오는 찌그러짐 결함을 3배 스케일링 기법으로 최종 영구 해결; 딤드 오버레이 방식의 복잡한 확대 모달을 전면 걷어내고, 독립 새 브라우저 창(Pop-up Window)으로 다이어그램을 선명하게 확대 및 다중 작업할 수 있도록 openInNewWindow 기능으로 리팩토링 및 🔍 새 창으로 확대 버튼 제공
 
-import React, { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -906,7 +906,7 @@ export default function MarkdownViewer({
   }, [content, originalContent]);
 
   // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
-  const getIndentStyle = (node: any) => {
+  const getIndentStyle = useCallback((node: any) => {
     const line = node?.position?.start?.line;
     const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
     if (!origLine) return {};
@@ -942,7 +942,7 @@ export default function MarkdownViewer({
       return { marginLeft: `${marginLeft}px` };
     }
     return {};
-  };
+  }, [lineMap, listIndent]);
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0002] MarkdownViewer ➔ rehypeSourceLinesPlugin
@@ -1527,7 +1527,7 @@ export default function MarkdownViewer({
                 </blockquote>
               );
             }
-          }), [lineMap, listIndent, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen])}
+          }), [lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, getIndentStyle])}
         >
           {cleanContent}
         </ReactMarkdown>

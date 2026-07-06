@@ -8,7 +8,7 @@ import FileTreeItem from './FileTreeItem';
 import { FileNode } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
-import { Plus, FolderPlus } from 'lucide-react';
+import { Plus, FolderPlus, RefreshCw } from 'lucide-react';
 import { msg } from '@/lib/systemMessages';
 import { useUIStore } from '@/store/useUIStore';
 
@@ -478,6 +478,16 @@ export default function LeftSidebar() {
                       title="새 폴더"
                     >
                       <FolderPlus size={14} />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        refreshFileList();
+                      }} 
+                      className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      title="새로고침"
+                    >
+                      <RefreshCw size={14} />
                     </button>
                   </div>
                 )}

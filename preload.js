@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 5. 폴더 선택 대화상자 띄우기 (전체 검색 범위 선택용)
   selectFolder: (defaultPath) => ipcRenderer.invoke('dialog:selectFolder', defaultPath),
 
+  // 5.5. 파일 저장 대화상자 띄우기
+  showSaveDialog: (options) => ipcRenderer.invoke('dialog:showSaveDialog', options),
+
   // 6. 드라이브 목록 조회 (Windows 탐색기)
   getDrives: () => ipcRenderer.invoke('file:getDrives'),
 

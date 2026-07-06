@@ -52,7 +52,7 @@ try {
   }
   // 백업 디렉토리 정리
   if (fs.existsSync(BACKUP_DIR)) {
-    fs.rmdirSync(BACKUP_DIR, { recursive: true });
+    fs.rmSync(BACKUP_DIR, { recursive: true, force: true });
   }
 }
 

@@ -499,6 +499,13 @@ ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir, 
   }
 });
 
+// 4.5 프론트엔드에서 저장 다이얼로그 호출
+ipcMain.handle('dialog:showSaveDialog', async (event, options) => {
+  if (!mainWindow) return { canceled: true };
+  const result = await dialog.showSaveDialog(mainWindow, options);
+  return result;
+});
+
 // 4. 프론트엔드에서 폴더 선택 다이얼로그 호출 시 OS 표준 창 띄우기
 //    기본 경로는 사용자 Documents 폴더 혹은 전달받은 defaultPath
 ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
@@ -1002,7 +1009,7 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
 });
 
 // 20. 다중 파일 병합 (IPC — 백엔드 서버 불필요)
-ipcMain.handle('file:mergeFiles', async (event, { sourcePaths, targetPath, deleteSources, separator, generateToc, insertPageBreak }) => {
+ipcMain.handle('file:mergeFiles', async (event, { sourcePaths, targetPath, deleteSources, separator, generateToc, insertPageBreak, shiftHeadings }) => {
   try {
     if (!sourcePaths || !Array.isArray(sourcePaths) || sourcePaths.length < 2) {
       return { success: false, error: 'At least two source files are required for merging.' };
@@ -1022,6 +1029,11 @@ ipcMain.handle('file:mergeFiles', async (event, { sourcePaths, targetPath, delet
       
       // 1. 프론트매터(YAML) 제거 로직
       fileContent = fileContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');
+
+      // 1.5. 헤딩 강등 (Heading Shift)
+      if (shiftHeadings) {
+        fileContent = fileContent.replace(/^(#{1,5})(\s)/gm, '$1#$2');
+      }
 
       // 2. 상대 경로 보정 로직 (이미지 및 링크)
       // 정규식: ![alt](path) 또는 [text](path)
@@ -1077,7 +1089,6 @@ ipcMain.handle('file:mergeFiles', async (event, { sourcePaths, targetPath, delet
       mergedContent = tocSection + mergedContent;
     }
 
-    const targetDir = path.dirname(targetPath);
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(targetPath, mergedContent, 'utf-8');
 

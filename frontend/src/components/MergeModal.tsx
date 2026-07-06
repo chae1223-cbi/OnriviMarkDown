@@ -33,10 +33,12 @@ const MergeModal: React.FC<MergeModalProps> = ({
   const [nodes, setNodes] = useState<FileNode[]>([]);
   const prevSelectedRef = useRef<FileNode[]>([]);
   const [targetName, setTargetName] = useState('merged_doc');
+  const [targetPathAbsolute, setTargetPathAbsolute] = useState('');
   const [deleteSources, setDeleteSources] = useState(false);
   const [separator, setSeparator] = useState<'none' | 'divider' | 'title'>('divider');
   const [generateToc, setGenerateToc] = useState(false);
   const [insertPageBreak, setInsertPageBreak] = useState(false);
+  const [shiftHeadings, setShiftHeadings] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -138,7 +140,7 @@ const MergeModal: React.FC<MergeModalProps> = ({
       return;
     }
     
-    const finalName = targetName.toLowerCase().endsWith('.md') ? targetName : `${targetName}.md`;
+    let finalName = targetName.toLowerCase().endsWith('.md') ? targetName : `${targetName}.md`;
     setLoading(true);
 
     try {
@@ -158,7 +160,11 @@ const MergeModal: React.FC<MergeModalProps> = ({
         const firstPath = nodes[0].path || "";
         const lastSlash = firstPath.lastIndexOf('\\');
         const parentDir = lastSlash !== -1 ? firstPath.substring(0, lastSlash) : "";
-        const targetPath = parentDir ? `${parentDir}\\${finalName}` : finalName;
+        const targetPath = targetPathAbsolute || (parentDir ? `${parentDir}\\${finalName}` : finalName);
+        if (targetPathAbsolute) {
+          const absSlash = targetPathAbsolute.lastIndexOf('\\');
+          finalName = absSlash !== -1 ? targetPathAbsolute.substring(absSlash + 1) : targetPathAbsolute;
+        }
 
         if (typeof window !== 'undefined' && (window as any).electronAPI) {
           const result = await (window as any).electronAPI.mergeFiles({
@@ -167,7 +173,8 @@ const MergeModal: React.FC<MergeModalProps> = ({
             deleteSources,
             separator,
             generateToc,
-            insertPageBreak
+            insertPageBreak,
+            shiftHeadings
           });
           if (result.success) {
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
@@ -188,7 +195,8 @@ const MergeModal: React.FC<MergeModalProps> = ({
               deleteSources,
               separator,
               generateToc,
-              insertPageBreak
+              insertPageBreak,
+              shiftHeadings
             })
           });
 
@@ -330,14 +338,41 @@ const MergeModal: React.FC<MergeModalProps> = ({
           
           {/* Target File Name */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-600 dark:text-gray-400">{"최종 병합 파일명"}</label>
-            <input 
-              type="text" 
-              value={targetName}
-              onChange={(e) => setTargetName(e.target.value)}
-              placeholder="merged.md"
-              className="w-full px-4 py-2 text-sm bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-xl text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:focus:ring-blue-500/30 transition-all font-medium"
-            />
+            <label className="text-xs font-bold text-gray-600 dark:text-gray-400">
+              {targetPathAbsolute ? "저장 경로" : "최종 병합 파일명"}
+            </label>
+            <div className="flex items-center gap-2">
+              <input 
+                type="text" 
+                value={targetPathAbsolute || targetName}
+                onChange={(e) => {
+                  if (targetPathAbsolute) setTargetPathAbsolute(e.target.value);
+                  else setTargetName(e.target.value);
+                }}
+                placeholder="merged.md"
+                className="w-full px-4 py-2 text-sm bg-white dark:bg-[#0d1117] border border-gray-200 dark:border-[#30363d] rounded-xl text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:focus:ring-blue-500/30 transition-all font-medium"
+              />
+              {workspaceType === 'local' && (
+                <button
+                  onClick={async () => {
+                    const api = (window as any).electronAPI;
+                    if (api?.showSaveDialog) {
+                      const res = await api.showSaveDialog({
+                        title: '병합 파일 저장',
+                        defaultPath: targetName,
+                        filters: [{ name: 'Markdown', extensions: ['md'] }]
+                      });
+                      if (!res.canceled && res.filePath) {
+                        setTargetPathAbsolute(res.filePath);
+                      }
+                    }
+                  }}
+                  className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-[#21262d] dark:hover:bg-[#30363d] text-gray-700 dark:text-gray-300 rounded-xl whitespace-nowrap transition-colors font-semibold"
+                >
+                  찾아보기...
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Separator Select */}
@@ -428,6 +463,20 @@ const MergeModal: React.FC<MergeModalProps> = ({
               />
               <label htmlFor="generateToc" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
                 {"자동 목차(TOC) 최상단에 생성"}
+              </label>
+            </div>
+
+            {/* Shift Headings */}
+            <div className="flex items-center gap-2 px-1 mt-2">
+              <input 
+                type="checkbox" 
+                id="shiftHeadings"
+                checked={shiftHeadings}
+                onChange={(e) => setShiftHeadings(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <label htmlFor="shiftHeadings" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                {"병합되는 문서들의 헤딩 레벨 1단계 낮추기 (H1 → H2)"}
               </label>
             </div>
 

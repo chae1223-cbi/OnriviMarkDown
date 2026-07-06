@@ -942,7 +942,7 @@ app.post('/api/rename', async (req, res) => {
 // 다중 파일 병합(통폐합) API 추가
 app.post('/api/merge-files', async (req, res) => {
   try {
-    const { sourcePaths, targetPath, deleteSources, separator, generateToc, insertPageBreak } = req.body;
+    const { sourcePaths, targetPath, deleteSources, separator, generateToc, insertPageBreak, shiftHeadings } = req.body;
     if (!sourcePaths || !Array.isArray(sourcePaths) || sourcePaths.length < 2) {
       return res.status(400).json({ error: 'At least two source files are required for merging.' });
     }
@@ -951,12 +951,38 @@ app.post('/api/merge-files', async (req, res) => {
     }
 
     const resolvedTargetPath = getSafePath(targetPath);
+    const targetDir = path.dirname(resolvedTargetPath);
 
     const contents = [];
     const tocLines = [];
     for (const src of sourcePaths) {
       const resolvedSrcPath = getSafePath(src);
-      const fileContent = await fs.readFile(resolvedSrcPath, 'utf-8');
+      let fileContent = await fs.readFile(resolvedSrcPath, 'utf-8');
+
+      // 1. 프론트매터 제거
+      fileContent = fileContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '');
+
+      // 1.5. 헤딩 강등 (Heading Shift)
+      if (shiftHeadings) {
+        fileContent = fileContent.replace(/^(#{1,5})(\s)/gm, '$1#$2');
+      }
+
+      // 2. 상대 경로 보정
+      fileContent = fileContent.replace(/(!?\[.*?\])\((.*?)\)/g, (match, prefix, linkPath) => {
+        if (
+          linkPath.startsWith('http://') || 
+          linkPath.startsWith('https://') || 
+          linkPath.startsWith('data:') || 
+          linkPath.startsWith('/')
+        ) return match;
+
+        const srcDir = path.dirname(resolvedSrcPath);
+        const absoluteLinkPath = path.resolve(srcDir, linkPath);
+        let newRelativePath = path.relative(targetDir, absoluteLinkPath);
+        newRelativePath = newRelativePath.replace(/\\/g, '/');
+        return `${prefix}(${newRelativePath})`;
+      });
+
       const fileName = path.basename(src);
       const titleLabel = fileName.replace(/\.[^/.]+$/, "");
 
