@@ -355,7 +355,9 @@ export function useMonacoSetup(deps: any) {
                   // 🛡️ [한글 주석 탑재] 표(Table) 여부 및 구분행 판별 헬퍼 함수 정의
                   const isTableLine = (text: string): boolean => {
                     const trimmed = text.trim();
-                    return trimmed.startsWith('|') && trimmed.endsWith('|') && (trimmed.match(/\|/g) || []).length >= 2;
+                    if (!trimmed.startsWith('|')) return false;
+                    const pipeCount = (trimmed.match(/\|/g) || []).length;
+                    return pipeCount >= 2; // 줄 끝에 | 가 없어도 파이프가 2개 이상이면 표 행으로 간주
                   };
 
                   const isTableDividerLine = (text: string): boolean => {
@@ -435,8 +437,20 @@ export function useMonacoSetup(deps: any) {
                     // ② 마크다운 표 영역인지 검사 및 표 내비게이션 / 행 추가 처리
                     const position = editor.getPosition();
                     if (position) {
-                      const lineContent = model.getLineContent(position.lineNumber);
+                      let lineContent = model.getLineContent(position.lineNumber);
                       if (isTableLine(lineContent) && !isTableDividerLine(lineContent)) {
+                        // 사용자가 표를 작성 중인데 줄 끝에 | 를 안 닫고 Tab을 누른 경우 자동 보정
+                        if (!lineContent.trimEnd().endsWith('|')) {
+                          editor.pushUndoStop();
+                          editor.executeEdits("appendPipe", [{
+                            range: new monaco.Range(position.lineNumber, lineContent.length + 1, position.lineNumber, lineContent.length + 1),
+                            text: " |",
+                            forceMoveMarkers: true
+                          }]);
+                          editor.pushUndoStop();
+                          lineContent = model.getLineContent(position.lineNumber);
+                        }
+
                         const { ranges, pipeIndices } = getCellRanges(lineContent, position.lineNumber);
                         if (ranges.length > 0) {
                           let currentCellIdx = -1;
@@ -570,7 +584,7 @@ export function useMonacoSetup(deps: any) {
 
                     // 목록이 아니라면 기본의 탭 이동을 트리거
                     editor.trigger('keyboard', 'tab', null);
-                  });
+                  }, "textInputFocus && !suggestWidgetVisible && !inSnippetMode");
 
                   // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 마크다운 표 역방향 셀 이동 및 목록 내어쓰기(Outdent) 통합 처리
                   // 현재 커서가 표 내부이면 이전 셀로 커서를 이동하고,
@@ -653,7 +667,7 @@ export function useMonacoSetup(deps: any) {
 
                     // 일반 문장이면 기본 아웃덴트 기능 트리거
                     editor.trigger('keyboard', 'outdent', null);
-                  });
+                  }, "textInputFocus && !suggestWidgetVisible && !inSnippetMode");
 
                   // 🛡️ [한글 주석 탑재] 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
                   // 자동완성(Suggest Widget)이 열려 있으면 Enter → 자동완성 수락에 양보

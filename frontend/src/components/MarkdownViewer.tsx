@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import remarkMath from 'remark-math';
+import remarkExtendedTable, { extendedTableHandlers } from 'remark-extended-table';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeHighlight from 'rehype-highlight';
@@ -14,6 +15,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import VideoCard from '@/components/VideoCard';
 import SocialVideoCard from '@/components/SocialVideoCard';
+import { rehypePreserveFootnotes } from '@/lib/rehypePreserveFootnotes';
 
 const getTextFromChildren = (children: React.ReactNode): string => {
   if (children === null || children === undefined) return '';
@@ -1042,6 +1044,19 @@ export default function MarkdownViewer({
         paddingRight: marginRight || '0',
       }}
     >
+      <style>{`
+        .markdown-viewer-root {
+          counter-reset: onrivi-figure;
+        }
+        .markdown-viewer-root figure {
+          counter-increment: onrivi-figure;
+        }
+        .markdown-viewer-root figcaption::before {
+          content: "[그림 " counter(onrivi-figure) "] ";
+          font-weight: 700;
+          color: #3b82f6;
+        }
+      `}</style>
       <div className="print:!block">
         <ReactMarkdown
           urlTransform={(uri) => {
@@ -1050,14 +1065,16 @@ export default function MarkdownViewer({
             if (cleanUri.trim().toLowerCase().startsWith('javascript:')) return '';
             return cleanUri;
           }}
-          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
+          remarkPlugins={[remarkGfm, remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
           rehypePlugins={[
             [rehypeKatex, { strict: false }],
             rehypeBrRaw,
             rehypeRaw,
             rehypeHighlight,
             rehypeSourceLinesPlugin,
+            rehypePreserveFootnotes,
           ]}
+          remarkRehypeOptions={{ handlers: extendedTableHandlers }}
           components={useMemo(() => ({
             img: ({ node, src, alt, style, ...props }: any) => {
               if (!src) return <img alt={alt} {...props} />;
@@ -1465,10 +1482,18 @@ export default function MarkdownViewer({
 
               const childrenArray = React.Children.toArray(children);
               if (childrenArray.length > 0) {
-                const firstChild: any = childrenArray[0];
-                if (firstChild && firstChild.props && firstChild.props.children) {
+                let firstElementIndex = -1;
+                for (let i = 0; i < childrenArray.length; i++) {
+                  const child: any = childrenArray[i];
+                  if (child && child.props && child.props.children) {
+                    firstElementIndex = i;
+                    break;
+                  }
+                }
+
+                if (firstElementIndex !== -1) {
+                  const firstChild: any = childrenArray[firstElementIndex];
                   const pChildren = React.Children.toArray(firstChild.props.children);
-                  console.error("DEBUG_PCHILDREN:", pChildren);
                   
                   // 첫 번째 의미 있는 텍스트 노드 찾기 (빈 줄바꿈 문자열 등 무시)
                   let firstTextIndex = -1;
@@ -1509,7 +1534,11 @@ export default function MarkdownViewer({
                       }
 
                       const newFirstChild = React.cloneElement(firstChild, {}, ...newPChildren);
-                      processedChildren = [newFirstChild, ...childrenArray.slice(1)];
+                      processedChildren = [
+                        ...childrenArray.slice(0, firstElementIndex),
+                        newFirstChild,
+                        ...childrenArray.slice(firstElementIndex + 1)
+                      ];
                     }
                   }
                 }

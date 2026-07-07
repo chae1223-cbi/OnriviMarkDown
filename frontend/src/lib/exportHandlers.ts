@@ -2,6 +2,7 @@
 
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { msg } from '@/lib/systemMessages';
+import { PAPER_SIZES } from '@/constants/paperSizes';
 
 interface ExportOptions {
   previewEl: HTMLElement;
@@ -732,6 +733,11 @@ html, body {
   display: none !important;
 }
 /* 🛡️ 각주 타이틀 및 영어 라벨 원천 차단 */
+.footnotes {
+  border-top: 1px solid #e5e7eb !important;
+  margin-top: 30px !important;
+  padding-top: 10px !important;
+}
 .footnotes h2,
 .footnotes #footnote-label,
 .footnotes .sr-only {
@@ -889,6 +895,13 @@ export async function exportPDF({ previewEl, currentFileName, isDarkMode, showTo
     // 💡 activeProfile이 있으면 무조건 라이트모드 기준 export용 CSS를 다시 생성하여 dynamicCssString을 대체
     const activeCss = activeProfile ? generateExportCss(activeProfile) : (dynamicCssString || '');
 
+    const paperKey = (paperSize || 'a4').toLowerCase();
+    const paperSpec = PAPER_SIZES[paperKey] || PAPER_SIZES.a4;
+    const isLandscape = orientation === 'landscape';
+    const pageWidth = isLandscape ? paperSpec.height : paperSpec.width;
+    const pageHeight = isLandscape ? paperSpec.width : paperSpec.height;
+    const cssPageSize = `${pageWidth}mm ${pageHeight}mm`;
+
     const finalHtml = `
 <!DOCTYPE html>
 <html>
@@ -906,7 +919,7 @@ export async function exportPDF({ previewEl, currentFileName, isDarkMode, showTo
   </style>
   <style>
     @page {
-      size: ${paperSize || 'A4'} ${orientation || 'portrait'};
+      size: ${cssPageSize};
       margin-top: ${marginTop || '10mm'} !important;
       margin-bottom: ${marginBottom || '10mm'} !important;
       margin-left: ${marginLeft || '10mm'} !important;
@@ -1013,11 +1026,13 @@ export async function exportPDF({ previewEl, currentFileName, isDarkMode, showTo
       };
 
       const pdfBuffer: Uint8Array = await (window as any).electronAPI.printHTMLToPDF(finalHtml, {
-        landscape: orientation === 'landscape',
+        landscape: isLandscape,
         margins: {
           marginType: 'none'
         },
-        pageSize: paperSize || 'A4',
+        pageSize: ['A3', 'A4', 'A5', 'LEGAL', 'LETTER', 'TABLOID'].includes(paperKey.toUpperCase())
+          ? paperKey.toUpperCase()
+          : { width: pageWidth * 1000, height: pageHeight * 1000 },
         printBackground: true
       });
 
@@ -1135,12 +1150,15 @@ export async function exportHTML({
     // 💡 미리보기에 실제 렌더링된 font-family를 HTML 템플릿에도 반영 (동적 CSS 프로필 값 포함)
     const computedFontFamily = window.getComputedStyle(targetEl).fontFamily;
 
+    const paperKey = (paperSize || 'a4').toLowerCase();
+    const paperSpec = PAPER_SIZES[paperKey] || PAPER_SIZES.a4;
     const isLandscape = orientation === 'landscape';
-    const paperWidth = paperSize?.toLowerCase() === 'a4' 
-      ? (isLandscape ? '297mm' : '210mm') 
-      : (isLandscape ? '297mm' : '210mm');
-      
-    const minHeight = isLandscape ? '210mm' : '297mm';
+    const pageWidth = isLandscape ? paperSpec.height : paperSpec.width;
+    const pageHeight = isLandscape ? paperSpec.width : paperSpec.height;
+    
+    const paperWidthStr = `${pageWidth}mm`;
+    const minHeightStr = `${pageHeight}mm`;
+    const cssPageSize = `${pageWidth}mm ${pageHeight}mm`;
     
     const pTop = marginTop || '20mm';
     const pBottom = marginBottom || '20mm';
@@ -1182,8 +1200,8 @@ export async function exportHTML({
       justify-content: center;
     }
     .preview-page-sheet {
-      width: ${paperWidth};
-      min-height: ${minHeight};
+      width: ${paperWidthStr};
+      min-height: ${minHeightStr};
       padding-top: ${pTop};
       padding-bottom: ${pBottom};
       padding-left: ${pLeft};
@@ -1197,7 +1215,7 @@ export async function exportHTML({
       background-color: transparent !important;
     }
     @page {
-      size: ${paperSize || 'A4'} ${orientation || 'portrait'};
+      size: ${cssPageSize};
       margin-top: ${marginTop || '20mm'} !important;
       margin-bottom: ${marginBottom || '20mm'} !important;
       margin-left: ${marginLeft || '20mm'} !important;
@@ -1433,13 +1451,14 @@ export async function exportPNG({
     clone.style.height = 'auto';
     clone.style.maxHeight = 'none';
 
+    const paperKey = (paperSize || 'a4').toLowerCase();
+    const paperSpec = PAPER_SIZES[paperKey] || PAPER_SIZES.a4;
     const isLandscape = orientation === 'landscape';
-    // 96 DPI: 210mm = 794px, 297mm = 1123px
-    const widthPx = paperSize?.toLowerCase() === 'a4'
-      ? (isLandscape ? 1123 : 794)
-      : (isLandscape ? 1123 : 794);
-      
-    const minHeightPx = isLandscape ? 794 : 1123;
+    const pageWidthMm = isLandscape ? paperSpec.height : paperSpec.width;
+    const pageHeightMm = isLandscape ? paperSpec.width : paperSpec.height;
+
+    const widthPx = Math.round(pageWidthMm * 96 / 25.4);
+    const minHeightPx = Math.round(pageHeightMm * 96 / 25.4);
     
     const mmToPx = (mmStr?: string, defaultVal = 20) => {
       const mm = parseFloat(mmStr || `${defaultVal}`);

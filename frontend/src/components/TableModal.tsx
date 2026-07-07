@@ -107,9 +107,18 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
             })}
           </div>
 
-          <p className="mt-4 text-[11px] text-gray-500 font-medium italic">
-            그리드를 클릭하여 크기를 지정하세요
-          </p>
+          <div className="mt-4 text-[11px] text-gray-500 font-medium flex flex-col items-center gap-1">
+            <span className="italic">그리드를 클릭하여 크기를 지정하세요</span>
+            <div className={`mt-2 px-3 py-2 rounded-md flex flex-col items-center gap-1 text-[10.5px] border ${isDarkMode ? 'bg-[#2a2d32] border-[#44474e] text-gray-400' : 'bg-[#eef1f6] border-[#d1d6e5] text-gray-600'}`}>
+              <span className="font-bold text-blue-500 flex items-center gap-1">
+                💡 표 병합 TIP
+              </span>
+              <div className="flex flex-col items-start gap-0.5 mt-0.5">
+                <span>• 가로 병합: 병합 시작 셀에 <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-blue-500 font-bold">&gt;</code> 입력</span>
+                <span>• 세로 병합: 병합될 대상 셀에 <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-blue-500 font-bold">^</code> 입력</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

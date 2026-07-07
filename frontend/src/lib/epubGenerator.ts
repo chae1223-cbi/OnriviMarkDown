@@ -477,6 +477,12 @@ del {
   padding-bottom: 0.4em;
 }
 /* 🛡️ 각주 타이틀 및 영어 라벨 원천 차단 */
+/* 🛡️ 각주 영역 구분선 */
+.footnotes {
+  border-top: 1px solid #e5e7eb !important;
+  margin-top: 30px !important;
+  padding-top: 10px !important;
+}
 .footnotes h2,
 .footnotes #footnote-label,
 .footnotes .sr-only {

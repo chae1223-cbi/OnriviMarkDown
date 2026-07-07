@@ -2,18 +2,19 @@
 // 📊 [OMD-CORE-paperSizes-0001] paperSizes ➔ PAPER_SIZES
 // 🎯 @KICK  : 선택 가능한 용지 규격 상수 맵 — mm 단위 width/height 제공
 // 🛡️ @GUARD : 키는 jsPDF format 이름과 호환 ('a4' → jsPDF 'a4')
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-07-07** — 46판(saryuk) 출판 규격 추가
 // 🔗 @CALLS : mmToPixels
 // ====================================================================
 export const PAPER_SIZES: Record<string, { label: string; width: number; height: number }> = {
-  a3:     { label: 'A3',     width: 297, height: 420 },
-  a4:     { label: 'A4',     width: 210, height: 297 },
-  a5:     { label: 'A5',     width: 148, height: 210 },
-  b4:     { label: 'B4',     width: 250, height: 353 },
-  b5:     { label: 'B5',     width: 176, height: 250 },
+  a3:     { label: 'A3',          width: 297, height: 420 },
+  a4:     { label: 'A4',          width: 210, height: 297 },
+  a5:     { label: 'A5 (국판)',   width: 148, height: 210 },
+  b4:     { label: 'B4',          width: 250, height: 353 },
+  b5:     { label: 'B5 (46판 변형)', width: 176, height: 250 },
+  saryuk: { label: '46판',        width: 188, height: 257 },
   shinseo:{ label: '신서판 (단행본)', width: 128, height: 188 },
-  letter: { label: 'Letter',  width: 216, height: 279 },
-  legal:  { label: 'Legal',   width: 216, height: 356 },
+  letter: { label: 'Letter',       width: 216, height: 279 },
+  legal:  { label: 'Legal',        width: 216, height: 356 },
 };
 
 export const DEFAULT_PAPER_SIZE = 'a4';
