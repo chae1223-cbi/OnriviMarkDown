@@ -1280,6 +1280,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (!deviceId) return;
 
+    const api = (window as any).electronAPI;
+    const isDesktop = !!api;
+
+    // 데스크탑: Electron IPC 리스너만 사용 (Supabase WebSocket 불필요)
+    let removeListener: any = null;
+    if (isDesktop) {
+      if (typeof api.onLicenseActivated === 'function') {
+        removeListener = api.onLicenseActivated(async (updatedData: any) => {
+          await handleSuccessActivation(updatedData.verifyKey, updatedData.userId, updatedData.paymentNo || '', updatedData.licenseKey || '');
+          showToast("🎉 정품 라이선스 연동 성공! 깨끗한 환경을 위해 에디터를 다시 시작합니다...", "success");
+          setTimeout(() => { window.location.reload(); }, 2000);
+        });
+      }
+      return () => {
+        if (typeof removeListener === 'function') removeListener();
+      };
+    }
+
+    // 웹 전용: Supabase Realtime 구독
     const channel = supabase
       .channel(`device-activation-${deviceId}`)
       .on(
@@ -1315,21 +1334,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       )
       .subscribe();
 
-    const api = (window as any).electronAPI;
-    let removeListener: any = null;
-    if (api && typeof api.onLicenseActivated === 'function') {
-      removeListener = api.onLicenseActivated(async (updatedData: any) => {
-        await handleSuccessActivation(updatedData.verifyKey, updatedData.userId, updatedData.paymentNo || '', updatedData.licenseKey || '');
-        showToast("🎉 정품 라이선스 연동 성공! 깨끗한 환경을 위해 에디터를 다시 시작합니다...", "success");
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      });
-    }
-
     return () => {
       supabase.removeChannel(channel);
-      if (typeof removeListener === 'function') removeListener();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, _licenseKey_init, licenseStatus.userId]);

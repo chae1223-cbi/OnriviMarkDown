@@ -28,10 +28,12 @@ export function configureMonacoEnvironment(): void {
     }
   };
 
-  // Monaco loader 경로를 로컬로 설정 (dev: Next.js public/, packaged: out/)
-  // 이렇게 하면 loader.js, editor.main.css 등 모든 리소스가 로컬에서 로드됨
+  const isElectron = !!(window as any).electronAPI;
+  const vsPath = isElectron
+    ? './monaco-editor/min/vs'
+    : 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs';
   try {
-    loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
+    loader.config({ paths: { vs: vsPath } });
   } catch {
     // 로더가 아직 초기화되지 않은 경우 무시 (onMount에서 처리됨)
   }
