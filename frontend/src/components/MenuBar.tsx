@@ -170,8 +170,10 @@ export default function MenuBar() {
     // 📊 [OMD-EDIT-MenuBar-0005] 파일 메뉴 하단 홈/대시보드 네비게이션
     // 🎯 @KICK  : useRouter.push('/') / push('/dashboard') 로 페이지 이동
     // 🚨 @PATCH : 2026-06-22 — 에디터에서 랜딩/대시보드 이동 가능하도록 추가
-    { label: t('exit'), icon: <span>🚪</span>, onClick: () => dispatch('EXIT') },
-    { divider: true },
+    ...((typeof window !== 'undefined' && !!(window as any).electronAPI) ? [] : [
+      { label: t('exit'), icon: <span>🚪</span>, onClick: () => dispatch('EXIT') },
+      { divider: true },
+    ]),
     { label: "🏠 홈으로", icon: <span>🏠</span>, onClick: () => router.push('/') },
     { label: "📊 대시보드", icon: <span>📊</span>, onClick: () => router.push('/dashboard') },
   ];

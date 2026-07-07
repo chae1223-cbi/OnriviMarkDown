@@ -3,7 +3,6 @@
 import React from 'react';
 import { Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-
 import { useEditorContext } from '@/context/EditorContext';
 
 function openExternal(url: string) {
@@ -103,13 +102,15 @@ export default function Toolbar() {
 
       <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600/60 my-1" />
 
-      <button 
-        onMouseDown={(e) => { e.preventDefault(); dispatch('EXIT'); }}
-        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-all"
-        title="로그아웃"
-      >
-        <span className="text-base">🚪</span>
-      </button>
+      {!((window as any).electronAPI) && (
+        <button 
+          onMouseDown={(e) => { e.preventDefault(); dispatch('EXIT'); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-all"
+          title="로그아웃"
+        >
+          <span className="text-base">🚪</span>
+        </button>
+      )}
     </div>
   );
 }

@@ -395,7 +395,7 @@ const getRelativePath = (fromPath: string | null | undefined, toPath: string): s
 // 🚨 @PATCH : **2026-07-05** — MainEditorApp에 하드코딩된 UI 껍데기(MenuBar, LeftSidebar 등 6종) Props 의존성을 전면 제거하고 EditorContext로 마이그레이션하여 모듈화 아키텍처 개편; 아래 상세 하위 항목 참조
 // 🔗 @CALLS : useToast, useEditorTabs, useFileExplorer, useEditorSettings, useEditorHandlers, getMdFiles, fetchAllMdFiles, resolveRelativeImagePath, getRelativePath, utilsEditorActions, utilsPasteHandlers, getSlashCommands, preprocessMarkdownForPreview, saveSecureData, loadSecureData, idb, getApiUrl
 // ====================================================================
-export default function MainEditorApp() {                  // @MainEditorApp : MainEditorApp component  
+export default function MainEditorApp() {                  // @MainEditorApp : MainEditorApp component
   const { showToast } = useToast();             // @showToast : Toast component  
   const { 
     isSidebarOpen, setIsSidebarOpen, 
@@ -607,7 +607,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         t.id === activeTabId
           ? {
             ...t,
-            name: currentFileName,
+            name: t.path || t.model ? currentFileName : t.name,
             path: currentFileNode?.path || null,
             node: currentFileNode
           }
@@ -849,7 +849,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setLicenseStatus({
           isActivated: false, isExpired: true, remainingDays: 0,
           userId: '', licenseKey: '', paymentNo: '',
-          planName: '미인증 라이선스', nextPaymentDate: ''
+          planName: '제한사용자', nextPaymentDate: ''
         });
         return;
       }
@@ -883,7 +883,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           setLicenseStatus({
             isActivated: false, isExpired: true, remainingDays: 0,
             userId: savedUserId, licenseKey: '', paymentNo: '',
-            planName: '미인증 라이선스', nextPaymentDate: ''
+            planName: '제한사용자', nextPaymentDate: ''
           });
         } else {
           const expiryMs = data.next_payment_date ? new Date(data.next_payment_date).getTime() : 0;
@@ -933,7 +933,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setLicenseStatus({
           isActivated: false, isExpired: true, remainingDays: 0,
           userId: savedUserId, licenseKey: '', paymentNo: '',
-          planName: '미인증 라이선스 (네트워크 연결 필요)', nextPaymentDate: ''
+          planName: '제한사용자', nextPaymentDate: ''
         });
       }
       return; // 데스크탑은 여기서 검증 완전 종료!
@@ -2141,7 +2141,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우
     const isRestrictedUser = licenseStatus.isExpired ||
       licenseStatus.planName?.includes('동시 접속 초과') ||
-      licenseStatus.planName?.includes('미인증');
+      licenseStatus.planName?.includes('미인증') ||
+      licenseStatus.planName?.includes('제한사용자');
 
     if (prevRestrictedRef.current === isRestrictedUser) return;
     prevRestrictedRef.current = isRestrictedUser;
@@ -2160,15 +2161,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return cleaned;
       });
     } else {
-      const welcome = getWelcomeContent();
-      const welcomeTabId = 'welcome-tab-' + Date.now();
-      setTabs([{
-        id: welcomeTabId, name: '온리비 어서 시작하기.md', path: null, node: null,
-        content: welcome, isModified: false, previewMode: 'preview',
-        isStyleTab: false, originalContent: welcome
-      }]);
-      setActiveTabId(welcomeTabId);
-      setContent(welcome);
+      // 🛡️ [EMBEDDED WELCOME 2026-07-07] 제한사용자 — welcome tab을 만들지 않고
+      // activeTabId=null로 유지. embedded 환영 페이지가 렌더링에서 직접 표시됩니다.
+      setTabs([]);
+      setActiveTabId(null);
       setPreviewModeRaw('preview');
       previewModeRef.current = 'preview';
     }
@@ -2463,7 +2459,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우 (undefined 방어를 위해 Optional Chaining 추가)
     const isRestrictedUser = licenseStatus.isExpired ||
       licenseStatus.planName?.includes('동시 접속 초과') ||
-      licenseStatus.planName?.includes('미인증');
+      licenseStatus.planName?.includes('미인증') ||
+      licenseStatus.planName?.includes('제한사용자');
 
     // tabs 상태값 대신 refs로 현재 상황을 안전하게 스냅샷
     const hasWelcome = tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md' && !t.isStyleTab);
@@ -2483,22 +2480,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
     } else {
-      // 2. [제한 사용자]: 무조건 웰컴 페이지 노출 (미리보기/체험 전용)
-      if (!hasWelcome) {
-        const welcome = getWelcomeContent();
-        const welcomeTabId = 'welcome-tab-' + Date.now();
-        const welcomeTab: EditorTab = {
-          id: welcomeTabId, name: '온리비 어서 시작하기.md', path: null, node: null,
-          content: welcome, isModified: false, previewMode: 'preview',
-          isStyleTab: false, originalContent: welcome
-        };
-        // 제한 사용자의 경우 기존 탭(새 파일 등)을 모두 강제로 덮어버리고 웰컴 탭만 남깁니다.
-        setTabs([welcomeTab]);
-        setActiveTabId(welcomeTabId);
-        setContent(welcome);
-        setPreviewModeRaw('preview');
-        previewModeRef.current = 'preview';
-      }
+      // 🛡️ [EMBEDDED WELCOME 2026-07-07] 제한사용자 — 탭을 만들지 않고
+      // 빈 탭 상태로 유지하면 embedded 환영 페이지가 렌더링됩니다.
+      setTabs([]);
+      setActiveTabId(null);
+      setPreviewModeRaw('preview');
+      previewModeRef.current = 'preview';
     }
   }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName]);
   useEffect(() => {
@@ -4278,6 +4265,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const heightClass = 'h-[calc(100vh-128px)]';
   const activeTab = tabs.find(t => t.id === activeTabId);
+  // 🛡️ [EMBEDDED WELCOME 2026-07-07] 제한사용자 — licenseStatus로 직접 판단.
+  // 탭/콘텐츠/activeTabId 상태와 무관하게 강제로 embedded 환영 페이지를 렌더링합니다.
+  const showEmbeddedWelcome = false;
   const openTabPaths = useMemo(() => tabs.map(t => t.path).filter(Boolean) as string[], [tabs]);
 
   const contextValue = {
@@ -4353,10 +4343,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             </div>
           )}
           {/* 탭 바를 오른쪽 에디터/미리보기 영역에만 위치하도록 main 상단에 배치 */}
-          <div className="no-print">
-            <UnifiedTabBar />
-          </div>
-          <div className="flex flex-1 overflow-hidden">
+          {!showEmbeddedWelcome && (
+            <div className="no-print">
+              <UnifiedTabBar />
+            </div>
+          )}
+          {showEmbeddedWelcome ? (
+            <div className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-zinc-900">
+              <div className="max-w-4xl mx-auto py-8 px-4">
+                <MarkdownViewer
+                  content={getWelcomeContent()}
+                  originalContent={getWelcomeContent()}
+                  lineMap={[]}
+                  onFileOpen={handleFileOpenByPath}
+                  rootFolderPath={rootFolder?.name}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-1 overflow-hidden">
 
             <div
               className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5 pt-3 no-print`}
@@ -4825,6 +4830,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               </div>
             </div>
           </div>
+          )}
 
         </main>
 

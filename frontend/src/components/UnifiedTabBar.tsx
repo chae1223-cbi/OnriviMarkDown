@@ -36,7 +36,7 @@ export default function UnifiedTabBar() {
           return (
             <div
               key={tab.id}
-              onClick={() => onSwitchTab(tab.id)}
+              onClick={() => { if (!isActive) onSwitchTab(tab.id); }}
               className={`group relative flex items-center gap-2 px-3.5 py-1.5 rounded-t-md text-sm cursor-pointer transition-all duration-200 border-t border-x font-semibold ${
                 isActive
                   ? isDarkMode

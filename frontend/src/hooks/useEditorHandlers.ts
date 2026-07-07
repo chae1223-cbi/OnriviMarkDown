@@ -620,6 +620,11 @@ export const useEditorHandlers = ({
       });
     },
     exit: async () => {
+      const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+      if (isDesktop) {
+        window.location.href = '/';
+        return;
+      }
       const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
       const paymentNo = localStorage.getItem('onrivi_payment_no');
       if (sessionId && paymentNo) {

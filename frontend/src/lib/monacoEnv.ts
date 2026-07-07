@@ -28,10 +28,7 @@ export function configureMonacoEnvironment(): void {
     }
   };
 
-  const isElectron = !!(window as any).electronAPI;
-  const vsPath = isElectron
-    ? './monaco-editor/min/vs'
-    : 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs';
+  const vsPath = './monaco-editor/min/vs';
   try {
     loader.config({ paths: { vs: vsPath } });
   } catch {

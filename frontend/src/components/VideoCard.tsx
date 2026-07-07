@@ -20,9 +20,11 @@ export default function VideoCard({ src, href, displayName, isYoutube, youtubeId
 
   useEffect(() => {
     if (isYoutube && youtubeId) {
-      const ytUrl = `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`;
-      thumbnailCache.set(cachedKey, ytUrl);
-      setThumbnail(ytUrl);
+      if (navigator.onLine) {
+        const ytUrl = `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`;
+        thumbnailCache.set(cachedKey, ytUrl);
+        setThumbnail(ytUrl);
+      }
       setLoading(false);
       return;
     }

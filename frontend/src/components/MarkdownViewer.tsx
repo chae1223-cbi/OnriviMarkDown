@@ -272,6 +272,7 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
 // 2) define 일시 제거 → mermaid UMD global 할당(window.mermaid) 강제 (AMD 충돌 회피)
 // 3) CSP 차단 시 fetch + eval 폴백 (CSP 'unsafe-eval' 허용)
 let mermaidPromise: Promise<any> | null = null;
+const mermaidSvgCache = new Map<string, string>();
 const loadMermaidScript = (): Promise<any> => {
   if (typeof window === 'undefined') return Promise.resolve(null);
   if ((window as any).mermaid) {
@@ -586,6 +587,14 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
   }, []);
 
   useEffect(() => {
+    const cacheKey = `${code}|${isDark ? 'dark' : 'light'}`;
+    const cachedSvg = mermaidSvgCache.get(cacheKey);
+    if (cachedSvg) {
+      setSvgHtml(cachedSvg);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let active = true;
     setLoading(true);
     setError(null);
@@ -738,6 +747,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
           // 비동기 렌더링을 통한 SVG 생성
           const { svg } = await mermaidObj.render(renderId, cleanCode);
           if (active) {
+            mermaidSvgCache.set(cacheKey, svg);
             setSvgHtml(svg);
             setLoading(false);
           }
@@ -1036,43 +1046,95 @@ export default function MarkdownViewer({
     let text = cleanContent;
     if (bibContent) {
       const entries: any[] = [];
-      const regex = /@\w+\s*{\s*([^,]+),([^@]*)}/g;
-      let match;
-      while ((match = regex.exec(bibContent)) !== null) {
-        const id = match[1].trim();
-        const body = match[2];
-        
-        let title = '';
-        const titleMatch = body.match(/title\s*=\s*[{"]([^}"]+)[}"]/i);
-        if (titleMatch) title = titleMatch[1];
-        
-        let author = '';
-        const authorMatch = body.match(/author\s*=\s*[{"]([^}"]+)[}"]/i);
-        if (authorMatch) author = authorMatch[1];
-        
-        let year = '';
-        const yearMatch = body.match(/year\s*=\s*[{"]?(\d{4})[}"]?/i);
-        if (yearMatch) year = yearMatch[1];
-        
-        let journal = '';
-        const journalMatch = body.match(/journal\s*=\s*[{"]([^}"]+)[}"]/i);
-        if (journalMatch) journal = journalMatch[1];
-        
+
+      const extractField = (body: string, field: string): string => {
+        const re = new RegExp(`\\b${field}\\s*=\\s*`, 'i');
+        const fieldMatch = re.exec(body);
+        if (!fieldMatch) return '';
+        let start = fieldMatch.index + fieldMatch[0].length;
+        if (start >= body.length) return '';
+        const ch = body[start];
+        if (ch === '{') {
+          start++;
+          let value = '';
+          let d = 1;
+          while (start < body.length && d > 0) {
+            if (body[start] === '{') d++;
+            else if (body[start] === '}') d--;
+            if (d > 0) value += body[start];
+            start++;
+          }
+          return value.trim();
+        } else if (ch === '"') {
+          start++;
+          let value = '';
+          while (start < body.length && body[start] !== '"') {
+            value += body[start];
+            start++;
+          }
+          return value.trim();
+        } else {
+          let value = '';
+          while (start < body.length && body[start] !== ',' && body[start] !== '}') {
+            value += body[start];
+            start++;
+          }
+          return value.trim();
+        }
+      };
+
+      const entryRegex = /@(\w+)\s*\{\s*([^,]+),/g;
+      let entryMatch;
+      while ((entryMatch = entryRegex.exec(bibContent)) !== null) {
+        const id = entryMatch[2].trim();
+        let depth = 1;
+        let i = entryMatch.index + entryMatch[0].length;
+        let body = '';
+        while (i < bibContent.length && depth > 0) {
+          const ch = bibContent[i];
+          if (ch === '{') depth++;
+          else if (ch === '}') depth--;
+          if (depth > 0) body += ch;
+          i++;
+        }
+        entryRegex.lastIndex = i + 1;
+
+        const title = extractField(body, 'title');
+        const author = extractField(body, 'author');
+        const year = extractField(body, 'year');
+        const journal = extractField(body, 'journal');
+
         entries.push({ id, title, author, year, journal });
       }
 
+      const entryMap = new Map<string, any>();
+      entries.forEach(e => entryMap.set(e.id.toLowerCase(), e));
+
       const usedIds = new Set<string>();
 
-      text = text.replace(/\[@([a-zA-Z0-9_:-]+)\]/g, (m, id) => {
-        usedIds.add(id.toLowerCase());
-        return `<span class="citation bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-[0.9em] mx-1 shadow-sm border border-blue-200 dark:border-blue-800"><a href="#bib-${id.toLowerCase()}" style="text-decoration: none; color: inherit;">${id}</a></span>`;
+      const citationSpan = (id: string, lowerId: string) =>
+        `<span class="citation bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-[0.9em] mx-1 shadow-sm border border-blue-200 dark:border-blue-800"><a href="#bib-${lowerId}" style="text-decoration: none; color: inherit;">${id}</a></span>`;
+
+      text = text.replace(/\[@([a-zA-Z0-9_:\-.+]+)\]/g, (m, id) => {
+        const lower = id.toLowerCase();
+        if (!entryMap.has(lower)) return m;
+        usedIds.add(lower);
+        return citationSpan(id, lower);
       });
-      text = text.replace(/(?<!\[)@([a-zA-Z0-9_:-]+)/g, (m, id) => {
-        usedIds.add(id.toLowerCase());
-        return `<span class="citation bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-[0.9em] mx-1 shadow-sm border border-blue-200 dark:border-blue-800"><a href="#bib-${id.toLowerCase()}" style="text-decoration: none; color: inherit;">${id}</a></span>`;
+      text = text.replace(/(?<!\[)@([a-zA-Z0-9_:\-.+]+)/g, (m, id) => {
+        const lower = id.toLowerCase();
+        if (!entryMap.has(lower)) return m;
+        usedIds.add(lower);
+        return citationSpan(id, lower);
       });
 
-      const usedEntries = entries.filter(entry => usedIds.has(entry.id.toLowerCase()));
+      let usedEntries = entries.filter(entry => usedIds.has(entry.id.toLowerCase()));
+
+      usedEntries.sort((a: any, b: any) => {
+        const aKey = (a.author || a.id).toLowerCase();
+        const bKey = (b.author || b.id).toLowerCase();
+        return aKey.localeCompare(bKey);
+      });
 
       if (usedEntries.length > 0) {
         let bibHtml = `\n\n---\n\n<div id="refs" class="references csl-bib-body mt-8 mb-8 break-words">\n  <h2 class="text-2xl font-bold mb-4 border-b pb-2">참고문헌 (References)</h2>\n`;
