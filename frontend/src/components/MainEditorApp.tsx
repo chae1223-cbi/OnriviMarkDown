@@ -255,7 +255,7 @@ const fetchAllMdFiles = async (
           for (const item of list) {
             if (item.kind === 'file') {
               const nameLower = item.name.toLowerCase();
-              if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown')) {
+              if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown') || nameLower.endsWith('.bib')) {
                 allFiles.push(item);
               }
             } else if (item.kind === 'directory' && item.path) {
@@ -1128,21 +1128,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const tryLoadBib = async () => {
       const api = (window as any).electronAPI;
       
-      // 파일 트리(fileList)에서 모든 .bib 파일 객체 추출
+      // 파일 트리(allMdFiles)에서 모든 .bib 파일 객체 추출
       let dynamicBibs: { path: string, handle?: any }[] = [];
       const findBibFiles = (nodes: any[], currentPath: string = '') => {
         nodes.forEach(n => {
           const nPath = currentPath ? `${currentPath}/${n.name}` : n.name;
           if (n.kind === 'file' && n.name.toLowerCase().endsWith('.bib')) {
-            const fullPath = rootFolder?.name ? `${rootFolder.name}/${nPath}` : nPath;
+            const fullPath = n.path || (rootFolder?.name ? `${rootFolder.name}/${nPath}` : nPath);
             dynamicBibs.push({ path: fullPath, handle: n.handle });
           } else if (n.kind === 'directory' && n.children) {
             findBibFiles(n.children, nPath);
           }
         });
       };
-      if (fileList && fileList.length > 0) {
-        findBibFiles(fileList);
+      if (allMdFiles && allMdFiles.length > 0) {
+        findBibFiles(allMdFiles);
       }
 
       const rootPathStr = rootFolder?.name?.replace(/\\/g, '/');
@@ -1158,29 +1158,30 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       
       const uniqueCandidates = Array.from(new Map(candidates.map(c => [c.path, c])).values());
 
+      let mergedBibContent = '';
       for (const bib of uniqueCandidates) {
         try {
           if (bib.handle) {
             const file = await bib.handle.getFile();
             const text = await file.text();
-            if (text) { setBibContent(text); return; }
+            if (text) { mergedBibContent += '\n' + text; }
           } else if (api?.readFromPath) {
             const file = await api.readFromPath(bib.path);
-            if (file?.content) { setBibContent(file.content); return; }
+            if (file?.content) { mergedBibContent += '\n' + file.content; }
           } else if (workspaceType === 'browser') {
             const { vfsReadFile } = await import('@/lib/virtualFileSystem');
             const vfsContent = vfsReadFile(bib.path);
-            if (vfsContent) { setBibContent(vfsContent); return; }
+            if (vfsContent) { mergedBibContent += '\n' + vfsContent; }
           } else if (process.env.NODE_ENV === 'development') {
             const res = await fetch(`/api/file-content?path=${encodeURIComponent(bib.path)}`);
-            if (res.ok) { const data = await res.json(); if (data?.content) { setBibContent(data.content); return; } }
+            if (res.ok) { const data = await res.json(); if (data?.content) { mergedBibContent += '\n' + data.content; } }
           }
         } catch {}
       }
-      setBibContent('');
+      setBibContent(mergedBibContent.trim());
     };
     tryLoadBib();
-  }, [currentFileNode?.path, rootFolder?.name, fileList, workspaceType]);
+  }, [currentFileNode?.path, rootFolder?.name, fileList, workspaceType, allMdFiles]);
 
   // 📊 [OMD-LICENSE-MainEditorApp-POLLING]
   // 🚨 @PATCH: 2026-07-05 - 사용자 지시에 따라 무거운 백그라운드 실시간 감시(Polling) 및 강제 로그아웃 차단 로직 전면 제거.
