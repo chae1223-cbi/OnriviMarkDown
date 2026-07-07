@@ -1118,10 +1118,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [loadAndVerifyLicense, deviceId]);
 
   // 📊 [OMD-CITATION-MainEditorApp] .bib 워크스페이스 자동 로드
-  // 🎯 @KICK  : 워크스페이스 전체를 재귀 탐색하여 .bib 파일을 모습 로드
+  // 🎯 @KICK  : 워크스페이스 전체를 재귀 탐색하여 .bib 파일을 모두 병합 로드
   // 🚨 @PATCH : **2026-07-07** — allMdFiles 의존성 완전 제거.
-  //              Electron IPC(listDirectory) 직접 재귀 스캔으로 .bib 탐색. fileList 트리도 병렭 탐색.
-  // 🔗 @CALLS : electronAPI.listDirectory, electronAPI.readFromPath
+  //              Electron IPC(listDirectory) 직접 재귀 스캔 + fileList 트리 병렭 탐색.
+  //              웹 환경: bib.handle → VFS → getApiUrl REST API 순서로 폴백 처리.
+  // 🔗 @CALLS : electronAPI.listDirectory, electronAPI.readFromPath, vfsReadFile, getApiUrl
   useEffect(() => {
     if (!rootFolder?.name && !currentFileNode?.path) return;
 
@@ -1171,6 +1172,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       for (const bib of bibPaths) {
         try {
           if (bib.handle) {
+            // Browser FileSystem Access API (실제 폴더 선택)
             const file = await bib.handle.getFile();
             const text = await file.text();
             if (text) mergedBibContent += '\n' + text;
@@ -1179,13 +1181,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             const nativePath = bib.path.replace(/\//g, '\\');
             const file = await api.readFromPath(nativePath);
             if (file?.content) mergedBibContent += '\n' + file.content;
-          } else if (workspaceType === 'browser') {
-            const { vfsReadFile } = await import('@/lib/virtualFileSystem');
-            const vfsContent = vfsReadFile(bib.path);
-            if (vfsContent) mergedBibContent += '\n' + vfsContent;
-          } else if (process.env.NODE_ENV === 'development') {
-            const res = await fetch(`/api/file-content?path=${encodeURIComponent(bib.path)}`);
-            if (res.ok) { const data = await res.json(); if (data?.content) mergedBibContent += '\n' + data.content; }
+          } else {
+            // 웹 환경: VFS 먼저 시도 → REST API 폴백
+            const { vfsReadFile: vfsRead } = await import('@/lib/virtualFileSystem');
+            const vfsContent = vfsRead(bib.path);
+            if (vfsContent) {
+              mergedBibContent += '\n' + vfsContent;
+            } else {
+              try {
+                const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(bib.path)}`));
+                if (res.ok) { const d = await res.json(); if (d?.content) mergedBibContent += '\n' + d.content; }
+              } catch {}
+            }
           }
         } catch {}
       }
