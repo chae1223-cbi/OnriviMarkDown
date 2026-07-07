@@ -365,8 +365,8 @@ export const useFileExplorer = ({
     const existingTab = tabsRef.current.find(t => {
       // 1순위: 절대 경로 정규화 일치 (가장 정확, \ vs / 슬래시 차이 무시)
       if (node.path && t.path) {
-        const normNode = node.path.replace(/\\/g, '/');
-        const normTab = t.path.replace(/\\/g, '/');
+        const normNode = node.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+        const normTab = t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
         if (normNode === normTab) return true;
       }
       // 2순위: 이름과 경로가 모두 일치 (vfs 등)

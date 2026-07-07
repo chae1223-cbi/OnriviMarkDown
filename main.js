@@ -645,7 +645,7 @@ ipcMain.handle('file:listDirectory', async (event, dirPath) => {
         if (['node_modules', '.git', '.next', '.vscode'].includes(entry.name)) return false;
         if (entry.isFile()) {
           const nameLower = entry.name.toLowerCase();
-          return nameLower.endsWith('.md') || nameLower.endsWith('.markdown');
+          return nameLower.endsWith('.md') || nameLower.endsWith('.markdown') || nameLower.endsWith('.bib');
         }
         return true;
       })

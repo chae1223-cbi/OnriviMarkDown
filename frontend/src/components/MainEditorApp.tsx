@@ -1145,10 +1145,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         findBibFiles(fileList);
       }
 
+      const rootPathStr = rootFolder?.name?.replace(/\\/g, '/');
       const candidates = [
         ...dynamicBibs,
         { path: `${bibDir}/references.bib` }, 
-        { path: `${bibDir}/refs.bib` }
+        { path: `${bibDir}/refs.bib` },
+        ...(rootPathStr && rootPathStr !== bibDir ? [
+          { path: `${rootPathStr}/references.bib` },
+          { path: `${rootPathStr}/refs.bib` }
+        ] : [])
       ];
       
       const uniqueCandidates = Array.from(new Map(candidates.map(c => [c.path, c])).values());
