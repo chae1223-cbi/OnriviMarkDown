@@ -1117,71 +1117,83 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAndVerifyLicense, deviceId]);
 
-  // 📊 [OMD-CITATION-MainEditorApp] references.bib 워크스페이스 자동 로드
-  // 🎯 @KICK  : rootFolder 또는 currentFileNode 경로에서 references.bib 파일을 탐색하여 bibContent에 로드
-  // 🚨 @PATCH : **2026-07-07** — 초기 구현: 같은 디렉토리에서 references.bib 찾기 (Electron 전용)
-  // 🔗 @CALLS : electronAPI.readFromPath, fetch(/api/file-content)
+  // 📊 [OMD-CITATION-MainEditorApp] .bib 워크스페이스 자동 로드
+  // 🎯 @KICK  : 워크스페이스 전체를 재귀 탐색하여 .bib 파일을 모습 로드
+  // 🚨 @PATCH : **2026-07-07** — allMdFiles 의존성 완전 제거.
+  //              Electron IPC(listDirectory) 직접 재귀 스캔으로 .bib 탐색. fileList 트리도 병렭 탐색.
+  // 🔗 @CALLS : electronAPI.listDirectory, electronAPI.readFromPath
   useEffect(() => {
-    const bibDir = currentFileNode?.path ? currentFileNode.path.replace(/\\/g, '/').replace(/\/[^/]+$/, '') : rootFolder?.name?.replace(/\\/g, '/');
-    if (!bibDir) return;
+    if (!rootFolder?.name && !currentFileNode?.path) return;
 
     const tryLoadBib = async () => {
       const api = (window as any).electronAPI;
-      
-      // 파일 트리(allMdFiles)에서 모든 .bib 파일 객체 추출
-      let dynamicBibs: { path: string, handle?: any }[] = [];
-      const findBibFiles = (nodes: any[], currentPath: string = '') => {
+      const bibPaths: { path: string; handle?: any }[] = [];
+      const seen = new Set<string>();
+
+      const addBib = (p: string, handle?: any) => {
+        const key = p.toLowerCase().replace(/\\/g, '/');
+        if (!seen.has(key)) { seen.add(key); bibPaths.push({ path: p, handle }); }
+      };
+
+      // ① Electron: listDirectory IPC로 워크스페이스 전체 재귀 탐색
+      if (api?.listDirectory && api?.readFromPath && rootFolder?.name) {
+        const scanDir = async (dirPath: string) => {
+          try {
+            const entries: any[] = await api.listDirectory(dirPath);
+            for (const entry of entries) {
+              if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.bib') && entry.path) {
+                addBib(entry.path);
+              } else if (entry.kind === 'directory' && entry.path) {
+                await scanDir(entry.path);
+              }
+            }
+          } catch {}
+        };
+        await scanDir(rootFolder.name);
+      }
+
+      // ② fileList 트리(1단계 + 운영 중인 children) 재귀 탐색
+      const scanTree = (nodes: any[]) => {
         nodes.forEach(n => {
-          const nPath = currentPath ? `${currentPath}/${n.name}` : n.name;
-          if (n.kind === 'file' && n.name.toLowerCase().endsWith('.bib')) {
-            const fullPath = n.path || (rootFolder?.name ? `${rootFolder.name}/${nPath}` : nPath);
-            dynamicBibs.push({ path: fullPath, handle: n.handle });
+          if (n.kind === 'file' && n.name.toLowerCase().endsWith('.bib') && n.path) {
+            addBib(n.path, n.handle);
           } else if (n.kind === 'directory' && n.children) {
-            findBibFiles(n.children, nPath);
+            scanTree(n.children);
           }
         });
       };
-      if (allMdFiles && allMdFiles.length > 0) {
-        findBibFiles(allMdFiles);
-      }
+      scanTree(fileList);
 
-      const rootPathStr = rootFolder?.name?.replace(/\\/g, '/');
-      const candidates = [
-        ...dynamicBibs,
-        { path: `${bibDir}/references.bib` }, 
-        { path: `${bibDir}/refs.bib` },
-        ...(rootPathStr && rootPathStr !== bibDir ? [
-          { path: `${rootPathStr}/references.bib` },
-          { path: `${rootPathStr}/refs.bib` }
-        ] : [])
-      ];
-      
-      const uniqueCandidates = Array.from(new Map(candidates.map(c => [c.path, c])).values());
+      if (bibPaths.length === 0) { setBibContent(''); return; }
 
+      // ③ 발견된 모든 .bib 파일 읽고 합치기
       let mergedBibContent = '';
-      for (const bib of uniqueCandidates) {
+      for (const bib of bibPaths) {
         try {
           if (bib.handle) {
             const file = await bib.handle.getFile();
             const text = await file.text();
-            if (text) { mergedBibContent += '\n' + text; }
+            if (text) mergedBibContent += '\n' + text;
           } else if (api?.readFromPath) {
-            const file = await api.readFromPath(bib.path);
-            if (file?.content) { mergedBibContent += '\n' + file.content; }
+            // Electron: 백슬래시 경로로 전달
+            const nativePath = bib.path.replace(/\//g, '\\');
+            const file = await api.readFromPath(nativePath);
+            if (file?.content) mergedBibContent += '\n' + file.content;
           } else if (workspaceType === 'browser') {
             const { vfsReadFile } = await import('@/lib/virtualFileSystem');
             const vfsContent = vfsReadFile(bib.path);
-            if (vfsContent) { mergedBibContent += '\n' + vfsContent; }
+            if (vfsContent) mergedBibContent += '\n' + vfsContent;
           } else if (process.env.NODE_ENV === 'development') {
             const res = await fetch(`/api/file-content?path=${encodeURIComponent(bib.path)}`);
-            if (res.ok) { const data = await res.json(); if (data?.content) { mergedBibContent += '\n' + data.content; } }
+            if (res.ok) { const data = await res.json(); if (data?.content) mergedBibContent += '\n' + data.content; }
           }
         } catch {}
       }
       setBibContent(mergedBibContent.trim());
     };
     tryLoadBib();
-  }, [currentFileNode?.path, rootFolder?.name, fileList, workspaceType, allMdFiles]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFileNode?.path, rootFolder?.name, fileList, workspaceType]);
 
   // 📊 [OMD-LICENSE-MainEditorApp-POLLING]
   // 🚨 @PATCH: 2026-07-05 - 사용자 지시에 따라 무거운 백그라운드 실시간 감시(Polling) 및 강제 로그아웃 차단 로직 전면 제거.
