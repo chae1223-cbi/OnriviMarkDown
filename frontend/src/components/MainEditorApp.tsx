@@ -34,7 +34,10 @@
 
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
-loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
+const _monacoVsPath = typeof window !== 'undefined' && !!(window as any).electronAPI
+  ? './monaco-editor/min/vs'
+  : 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs';
+loader.config({ paths: { vs: _monacoVsPath } });
 import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
 import Script from 'next/script'; // 넥스트 스크립트 - 
 import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더링
