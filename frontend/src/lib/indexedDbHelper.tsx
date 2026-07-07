@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { FileText, FileCode, FileJson, FileType, File, Folder } from 'lucide-react';
+import { FileText, FileCode, FileJson, FileType, File, Folder, Library } from 'lucide-react';
 import { msg } from './systemMessages';
 
 // IndexedDB 헬퍼 (핸들 저장을 위해 필요)
@@ -67,7 +67,7 @@ export async function scanDirectory(dirHandle: any, parentPath: string = ""): Pr
         entries.push({ name, kind: 'directory', handle, children, path: currentPath });
       } else if (handle.kind === 'file') {
         const nameLower = name.toLowerCase();
-        if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown')) {
+        if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown') || nameLower.endsWith('.bib')) {
           entries.push({ name, kind: 'file', handle, path: currentPath });
         }
       }
@@ -101,7 +101,8 @@ export const getFileIcon = (node: FileNode, isSelected: boolean) => {
   const fileName = node.name;
   const ext = fileName.split('.').pop()?.toLowerCase();
   
-  if (ext === 'md') return <FileText size={16} className={`${baseClass} text-blue-500`} />;
+  if (ext === 'md' || ext === 'markdown') return <FileText size={16} className={`${baseClass} text-blue-500`} />;
+  if (ext === 'bib') return <Library size={16} className={`${baseClass} text-purple-500`} />;
   if (ext === 'js' || ext === 'jsx') return <FileCode size={16} className={`${baseClass} text-yellow-500`} />;
   if (ext === 'ts' || ext === 'tsx') return <FileCode size={16} className={`${baseClass} text-blue-400`} />;
   if (ext === 'json') return <FileJson size={16} className={`${baseClass} text-orange-400`} />;

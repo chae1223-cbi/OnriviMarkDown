@@ -141,8 +141,14 @@ export default function StatusBar() {
 // 🔗 @CALLS : 없음
 // ====================================================================
   const getFullPath = () => {
-    if (workspaceType === 'browser') return folderName ? `${folderName} \\ ${fileName}` : `🌐 Browser Storage \\ ${fileName}`;
-    if (workspaceType === 'cloud') return `[${cloudProvider || 'Cloud'}] \\ ${folderName || 'Sync'} \\ ${fileName}`;
+    if (workspaceType === 'browser') {
+      const displayPath = relativePath || fileName;
+      return folderName ? `${folderName} \\ ${displayPath.replace(/\//g, ' \\ ')}` : `🌐 Browser Storage \\ ${displayPath.replace(/\//g, ' \\ ')}`;
+    }
+    if (workspaceType === 'cloud') {
+      const displayPath = relativePath || fileName;
+      return `[${cloudProvider || 'Cloud'}] \\ ${folderName || 'Sync'} \\ ${displayPath.replace(/\//g, ' \\ ')}`;
+    }
     
     // 저장된 파일의 전체 경로가 있으면 그대로 사용
     if (relativePath?.includes(':')) return relativePath;
@@ -242,18 +248,18 @@ export default function StatusBar() {
         {/* 모드 표시 세그먼트 (항상 표시) */}
         {setPreviewMode && (
           <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-lg overflow-hidden border border-black/10 dark:border-white/10">
-            {/* A4 조판 가드 토글 */}
+            {/* 조판 가드(Layout Guard) 토글 */}
             {setIsA4GuardEnabled && (
               <button
                 onClick={() => setIsA4GuardEnabled(!isA4GuardEnabled)}
-                title={isA4GuardEnabled ? "Disable A4 Guard" : "Enable A4 Guard"}
+                title={isA4GuardEnabled ? "조판 가드 끄기 (Disable Layout Guard)" : "조판 가드 켜기 (Enable Layout Guard)"}
                 className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none border-r border-black/10 dark:border-white/10 ${
                   isA4GuardEnabled
                     ? 'bg-amber-500 text-white'
                     : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
                 }`}
               >
-                A4 Guard {isA4GuardEnabled ? 'ON' : 'OFF'}
+                Layout Guard {isA4GuardEnabled ? 'ON' : 'OFF'}
               </button>
             )}
             <button

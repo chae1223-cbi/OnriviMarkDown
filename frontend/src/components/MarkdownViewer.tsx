@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-07-04** — Mermaid 다이어그램 렌더링 문법 에러 복구 강화(유입된 중첩 백틱 펜스 태그 ```mermaid 및 깨진 기호/괄호 라인 자동 정제, 화살표 레이블 간격 자동 보정) 및 에러 발생 시 마크다운 코드 원본을 복사하고 대조해볼 수 있는 '코드 원본 보기' 디버깅 UI 추가 패치
+// 🚨 @PATCH : **2026-07-07** — rehype-citation 플러그인 추가 (참고문헌/BibTeX 인용 파이프라인); bibContent prop으로 BibTeX 데이터를 주입받아 [@citekey] 문법을 인용/참고문헌 목록으로 자동 변환
+//             **2026-07-04** — Mermaid 다이어그램 렌더링 문법 에러 복구 강화(유입된 중첩 백틱 펜스 태그 ```mermaid 및 깨진 기호/괄호 라인 자동 정제, 화살표 레이블 간격 자동 보정) 및 에러 발생 시 마크다운 코드 원본을 복사하고 대조해볼 수 있는 '코드 원본 보기' 디버깅 UI 추가 패치
 //             **2026-06-20** — Mermaid 다이어그램 이미지 저장(handleSaveImage) 기능이 Electron 데스크톱 앱 내에서 동작하지 않던 API 명칭 불일치 버그(saveAs -> saveFileAs)를 해결하고, 웹 브라우저 환경에서 동작할 수 있도록 a 링크 다운로드 폴백을 추가; 다이어그램 저장, 이미지 복사 시 다이어그램 크기가 극도로 작게 나오는 찌그러짐 결함을 3배 스케일링 기법으로 최종 영구 해결; 딤드 오버레이 방식의 복잡한 확대 모달을 전면 걷어내고, 독립 새 브라우저 창(Pop-up Window)으로 다이어그램을 선명하게 확대 및 다중 작업할 수 있도록 openInNewWindow 기능으로 리팩토링 및 🔍 새 창으로 확대 버튼 제공
 
 import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
@@ -16,6 +17,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 import VideoCard from '@/components/VideoCard';
 import SocialVideoCard from '@/components/SocialVideoCard';
 import { rehypePreserveFootnotes } from '@/lib/rehypePreserveFootnotes';
+
 
 const getTextFromChildren = (children: React.ReactNode): string => {
   if (children === null || children === undefined) return '';
@@ -48,6 +50,7 @@ interface MarkdownViewerProps {
   marginBottom?: string;
   marginLeft?: string;
   marginRight?: string;
+  bibContent?: string;
 }
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
@@ -856,7 +859,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
 // ====================================================================
 export default function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
-  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight
+  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent
 }: MarkdownViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1029,6 +1032,68 @@ export default function MarkdownViewer({
     };
   }, []);
 
+  const processedContent = useMemo(() => {
+    let text = cleanContent;
+    if (bibContent) {
+      const entries: any[] = [];
+      const regex = /@\w+\s*{\s*([^,]+),([^@]*)}/g;
+      let match;
+      while ((match = regex.exec(bibContent)) !== null) {
+        const id = match[1].trim();
+        const body = match[2];
+        
+        let title = '';
+        const titleMatch = body.match(/title\s*=\s*[{"]([^}"]+)[}"]/i);
+        if (titleMatch) title = titleMatch[1];
+        
+        let author = '';
+        const authorMatch = body.match(/author\s*=\s*[{"]([^}"]+)[}"]/i);
+        if (authorMatch) author = authorMatch[1];
+        
+        let year = '';
+        const yearMatch = body.match(/year\s*=\s*[{"]?(\d{4})[}"]?/i);
+        if (yearMatch) year = yearMatch[1];
+        
+        let journal = '';
+        const journalMatch = body.match(/journal\s*=\s*[{"]([^}"]+)[}"]/i);
+        if (journalMatch) journal = journalMatch[1];
+        
+        entries.push({ id, title, author, year, journal });
+      }
+
+      const usedIds = new Set<string>();
+
+      text = text.replace(/\[@([a-zA-Z0-9_:-]+)\]/g, (m, id) => {
+        usedIds.add(id.toLowerCase());
+        return `<span class="citation bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-[0.9em] mx-1 shadow-sm border border-blue-200 dark:border-blue-800"><a href="#bib-${id.toLowerCase()}" style="text-decoration: none; color: inherit;">${id}</a></span>`;
+      });
+      text = text.replace(/(?<!\[)@([a-zA-Z0-9_:-]+)/g, (m, id) => {
+        usedIds.add(id.toLowerCase());
+        return `<span class="citation bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-[0.9em] mx-1 shadow-sm border border-blue-200 dark:border-blue-800"><a href="#bib-${id.toLowerCase()}" style="text-decoration: none; color: inherit;">${id}</a></span>`;
+      });
+
+      const usedEntries = entries.filter(entry => usedIds.has(entry.id.toLowerCase()));
+
+      if (usedEntries.length > 0) {
+        let bibHtml = `\n\n---\n\n<div id="refs" class="references csl-bib-body mt-8 mb-8 break-words">\n  <h2 class="text-2xl font-bold mb-4 border-b pb-2">참고문헌 (References)</h2>\n`;
+        usedEntries.forEach(entry => {
+          bibHtml += `  <div class="csl-entry mb-4 pl-4 -indent-4" id="bib-${entry.id.toLowerCase()}">\n`;
+          let display = '';
+          if (entry.author) display += `<strong>${entry.author}</strong> `;
+          if (entry.year) display += `(${entry.year}). `;
+          if (entry.title) display += `<em>${entry.title}</em>. `;
+          if (entry.journal) display += `${entry.journal}. `;
+          if (!display) display = entry.id;
+          
+          bibHtml += `    ${display}\n  </div>\n`;
+        });
+        bibHtml += `</div>\n`;
+        text += bibHtml;
+      }
+    }
+    return text;
+  }, [cleanContent, bibContent]);
+
   return (
     <div
       ref={containerRef}
@@ -1190,7 +1255,7 @@ export default function MarkdownViewer({
                 ...style, maxWidth: '100%', height: height || 'auto',
               };
               imgStyle.width = width || undefined;
-              if (!width) imgStyle.maxWidth = '600px';
+              if (!width) imgStyle.maxWidth = 'min(100%, 600px)';
               const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
                 const img = e.currentTarget;
                 if (img.dataset.fallbackAttempted) return;
@@ -1578,7 +1643,7 @@ export default function MarkdownViewer({
             }
           }), [lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, getIndentStyle])}
         >
-          {cleanContent}
+          {processedContent}
         </ReactMarkdown>
       </div>
     </div>

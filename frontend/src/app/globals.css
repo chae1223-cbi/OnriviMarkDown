@@ -227,6 +227,12 @@ option {
     max-height: none !important;
     overflow: visible !important;
   }
+  .markdown-viewer-root img,
+  .markdown-viewer-root video,
+  .markdown-viewer-root iframe,
+  .markdown-viewer-root .table-wrapper {
+    max-width: 100% !important;
+  }
 }
 
 /* Monaco Find Widget 내부의 불필요한 풍선 도움말(hover tooltip) 억제 */

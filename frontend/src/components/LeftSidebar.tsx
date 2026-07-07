@@ -172,7 +172,7 @@ export default function LeftSidebar() {
     const rootPath = rootFolder?.name || "";
 
     if (type === 'createFile') {
-      const finalName = name.toLowerCase().endsWith('.md') ? name : `${name}.md`;
+      const finalName = (name.toLowerCase().endsWith('.md') || name.toLowerCase().endsWith('.bib')) ? name : `${name}.md`;
       
       // 중복 체크
       if (fileList.some((c: any) => c.name.toLowerCase() === finalName.toLowerCase())) {
@@ -187,7 +187,7 @@ export default function LeftSidebar() {
             const handle = await rootFolder.handle.getFileHandle(finalName, { create: true });
             await refreshFileList();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-            openFile({ name: finalName, kind: 'file', handle }, rootFolder?.handle);
+            openFile({ name: finalName, kind: 'file', handle, path: finalName }, rootFolder?.handle);
           } else {
             // LocalStorage 가상 파일 생성
             const { vfsCreateFile } = await import('@/lib/virtualFileSystem');
@@ -323,7 +323,7 @@ export default function LeftSidebar() {
             const path = node.path ? `${node.path}/${entry.name}` : entry.name;
             if (kind === 'file') {
               const nameLower = entry.name.toLowerCase();
-              if (!nameLower.endsWith('.md') && !nameLower.endsWith('.markdown')) {
+              if (!nameLower.endsWith('.md') && !nameLower.endsWith('.markdown') && !nameLower.endsWith('.bib')) {
                 continue;
               }
             }
@@ -548,7 +548,7 @@ export default function LeftSidebar() {
                 </div>
               ) : (
                 fileList
-                  .filter((node: any) => node.kind === 'directory' || node.name.toLowerCase().endsWith('.md'))
+                  .filter((node: any) => node.kind === 'directory' || node.name.toLowerCase().endsWith('.md') || node.name.toLowerCase().endsWith('.markdown') || node.name.toLowerCase().endsWith('.bib'))
                   .map((node: any, i: number) => (
                   <FileTreeItem
                     key={node.path || node.name + i}

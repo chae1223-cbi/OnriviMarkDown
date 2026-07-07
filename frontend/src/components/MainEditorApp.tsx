@@ -584,6 +584,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
   const [currentFileName, setCurrentFileName] = useState<string>('새 파일.md');
   const [currentFileNode, setCurrentFileNode] = useState<FileNode | null>(null);
+  const [bibContent, setBibContent] = useState<string>('');
 
   // 💡 [Step 2 리팩토링으로 promptConfig 삭제됨 (useEditorModals로 이관)]
 
@@ -1115,6 +1116,66 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAndVerifyLicense, deviceId]);
+
+  // 📊 [OMD-CITATION-MainEditorApp] references.bib 워크스페이스 자동 로드
+  // 🎯 @KICK  : rootFolder 또는 currentFileNode 경로에서 references.bib 파일을 탐색하여 bibContent에 로드
+  // 🚨 @PATCH : **2026-07-07** — 초기 구현: 같은 디렉토리에서 references.bib 찾기 (Electron 전용)
+  // 🔗 @CALLS : electronAPI.readFromPath, fetch(/api/file-content)
+  useEffect(() => {
+    const bibDir = currentFileNode?.path ? currentFileNode.path.replace(/\\/g, '/').replace(/\/[^/]+$/, '') : rootFolder?.name?.replace(/\\/g, '/');
+    if (!bibDir) return;
+
+    const tryLoadBib = async () => {
+      const api = (window as any).electronAPI;
+      
+      // 파일 트리(fileList)에서 모든 .bib 파일 객체 추출
+      let dynamicBibs: { path: string, handle?: any }[] = [];
+      const findBibFiles = (nodes: any[], currentPath: string = '') => {
+        nodes.forEach(n => {
+          const nPath = currentPath ? `${currentPath}/${n.name}` : n.name;
+          if (n.kind === 'file' && n.name.toLowerCase().endsWith('.bib')) {
+            const fullPath = rootFolder?.name ? `${rootFolder.name}/${nPath}` : nPath;
+            dynamicBibs.push({ path: fullPath, handle: n.handle });
+          } else if (n.kind === 'directory' && n.children) {
+            findBibFiles(n.children, nPath);
+          }
+        });
+      };
+      if (fileList && fileList.length > 0) {
+        findBibFiles(fileList);
+      }
+
+      const candidates = [
+        ...dynamicBibs,
+        { path: `${bibDir}/references.bib` }, 
+        { path: `${bibDir}/refs.bib` }
+      ];
+      
+      const uniqueCandidates = Array.from(new Map(candidates.map(c => [c.path, c])).values());
+
+      for (const bib of uniqueCandidates) {
+        try {
+          if (bib.handle) {
+            const file = await bib.handle.getFile();
+            const text = await file.text();
+            if (text) { setBibContent(text); return; }
+          } else if (api?.readFromPath) {
+            const file = await api.readFromPath(bib.path);
+            if (file?.content) { setBibContent(file.content); return; }
+          } else if (workspaceType === 'browser') {
+            const { vfsReadFile } = await import('@/lib/virtualFileSystem');
+            const vfsContent = vfsReadFile(bib.path);
+            if (vfsContent) { setBibContent(vfsContent); return; }
+          } else if (process.env.NODE_ENV === 'development') {
+            const res = await fetch(`/api/file-content?path=${encodeURIComponent(bib.path)}`);
+            if (res.ok) { const data = await res.json(); if (data?.content) { setBibContent(data.content); return; } }
+          }
+        } catch {}
+      }
+      setBibContent('');
+    };
+    tryLoadBib();
+  }, [currentFileNode?.path, rootFolder?.name, fileList, workspaceType]);
 
   // 📊 [OMD-LICENSE-MainEditorApp-POLLING]
   // 🚨 @PATCH: 2026-07-05 - 사용자 지시에 따라 무거운 백그라운드 실시간 감시(Polling) 및 강제 로그아웃 차단 로직 전면 제거.
@@ -4682,6 +4743,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         marginBottom={pBottom}
                         marginLeft={pLeft}
                         marginRight={pRight}
+                        bibContent={bibContent}
                       />
                     </div>
                   );

@@ -369,8 +369,19 @@ export const useFileExplorer = ({
         const normTab = t.path.replace(/\\/g, '/');
         if (normNode === normTab) return true;
       }
-      // 2순위: 핸들 참조 일치 (브라우저 모드, 같은 핸들 객체)
-      if (node.handle && t.node?.handle && node.handle === t.node.handle) return true;
+      // 2순위: 이름과 경로가 모두 일치 (vfs 등)
+      if (!node.path && !t.path && node.name === t.name) return true;
+
+      // 3순위: 핸들 참조 일치 (브라우저 모드)
+      if (node.handle && t.node?.handle) {
+        if (typeof node.handle.isSameEntry === 'function') {
+          // FileSystemHandle.isSameEntry는 비동기 함수이므로 동기 루프 내에선 promise를 반환합니다.
+          // 여기서 바로 await를 쓸 수 없으므로, 이름과 kind로 fallback 비교합니다.
+          if (node.name === t.node.name && node.kind === t.node.kind) return true;
+        } else if (node.handle === t.node.handle) {
+          return true;
+        }
+      }
       return false;
     });
 

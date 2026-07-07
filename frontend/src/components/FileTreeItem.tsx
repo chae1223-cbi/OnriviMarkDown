@@ -402,7 +402,7 @@ const FileTreeItem = ({
 
     if (type === 'rename') {
       if (name === node.name) return;
-      const finalName = node.kind === 'file' && !name.toLowerCase().endsWith('.md') ? `${name}.md` : name;
+      const finalName = node.kind === 'file' && !(name.toLowerCase().endsWith('.md') || name.toLowerCase().endsWith('.markdown') || name.toLowerCase().endsWith('.bib')) ? `${name}.md` : name;
       
       // 중복 체크
       if (siblings?.some(s => s.name.toLowerCase() === finalName.toLowerCase() && s.path !== node.path)) {
@@ -546,7 +546,7 @@ const FileTreeItem = ({
         }
       } catch(e) { showToast("이름 변경 실패: " + e, 'error'); }
     } else if (type === 'createFile') {
-      const finalName = name.toLowerCase().endsWith('.md') ? name : `${name}.md`;
+      const finalName = (name.toLowerCase().endsWith('.md') || name.toLowerCase().endsWith('.bib')) ? name : `${name}.md`;
       
       // 중복 체크
       if (node.children?.some(c => c.name.toLowerCase() === finalName.toLowerCase())) {
@@ -560,7 +560,8 @@ const FileTreeItem = ({
           if (node.handle) {
             const handle = await node.handle.getFileHandle(finalName, { create: true });
             refreshParent();
-            openFile({ name: finalName, kind: 'file', handle }, node.handle);
+            const filePath = node.path ? `${node.path}/${finalName}` : finalName;
+            openFile({ name: finalName, kind: 'file', handle, path: filePath }, node.handle);
           } else if (node.path) {
             // LocalStorage 가상 파일 생성
             vfsCreateFile(node.path, finalName);
@@ -803,7 +804,7 @@ const FileTreeItem = ({
       {node.kind === 'directory' && isOpen && (() => {
         const rawChildren = localChildren !== null ? localChildren : node.children;
         if (!rawChildren) return null;
-        const children = rawChildren.filter(child => child.kind === 'directory' || child.name.toLowerCase().endsWith('.md'));
+        const children = rawChildren.filter(child => child.kind === 'directory' || child.name.toLowerCase().endsWith('.md') || child.name.toLowerCase().endsWith('.markdown') || child.name.toLowerCase().endsWith('.bib'));
         if (isLoading) {
           return <div className="text-[10px] text-zinc-400 pl-6 py-1 italic">불러오는 중...</div>;
         }
