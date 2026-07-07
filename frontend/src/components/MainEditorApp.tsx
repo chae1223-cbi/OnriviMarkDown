@@ -862,6 +862,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
         if (error || !data || !data.success) {
           console.warn('[loadAndVerifyLicense] Desktop verification failed:', error || data?.message);
+
+          // 오프라인 유예기간(Grace Period) 검증 (Supabase가 network error를 response로 반환)
+          if (savedNextPaymentDate) {
+            const expiryMs = new Date(savedNextPaymentDate).getTime();
+            const remainingDays = Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
+            if (remainingDays > 0) {
+              console.log('[loadAndVerifyLicense] Offline grace period active. Days remaining:', remainingDays);
+              showToast(`네트워크 오프라인 모드로 실행 중입니다. (구독 만료까지 D-${remainingDays})`, "warning");
+              setLicenseStatus({
+                isActivated: true, isExpired: false, remainingDays,
+                userId: savedUserId, licenseKey: savedLicenseKey, paymentNo: '',
+                planName: savedPlanName || '오프라인 프리미엄 요금제',
+                nextPaymentDate: savedNextPaymentDate
+              });
+              return;
+            }
+          }
+
           setLicenseStatus({
             isActivated: false, isExpired: true, remainingDays: 0,
             userId: savedUserId, licenseKey: '', paymentNo: '',
