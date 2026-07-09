@@ -39,24 +39,23 @@ interface SettingsModalProps {
   isActivated: boolean;
 }
 
-const SEVEN_THEMES = [
+const THEMES = [
   { id: 'editorial', name: 'The Technical Editorial (기본)', monaco: 'onrivi-light', isDark: false },
-  { id: 'gov', name: '정부 표준 서식 테마', monaco: 'github-light', isDark: false },
-  { id: 'dark', name: '시크 다크 블랙', monaco: 'onrivi-dark', isDark: true },
-  { id: 'terminal', name: '엔지니어 터미널', monaco: 'onrivi-dark', isDark: true },
-  { id: 'slate', name: '고급 미디어 에디션', monaco: 'midnight-neon', isDark: true },
-  { id: 'vellum', name: '디지털 매뉴스크립트', monaco: 'solarized-light', isDark: false },
-  { id: 'office', name: '미니멀 오피스 (Pure White)', monaco: 'onrivi-light', isDark: false },
+  { id: 'dark', name: 'GitHub Dark Dimmed', monaco: 'github-dark-dimmed', isDark: true },
+  { id: 'slate', name: 'Solarized Dark', monaco: 'solarized-dark', isDark: true },
 ];
 
-const THEME_CLASSES = SEVEN_THEMES.map(t => `theme-${t.id}`);
+const THEME_CLASSES = THEMES.map(t => `theme-${t.id}`);
 
 const MONACO_TO_USER_THEME: Record<string, string> = {
   'onrivi-light': 'editorial',
-  'github-light': 'gov',
+  'github-dark-dimmed': 'dark',
+  'solarized-dark': 'slate',
+  // backward compatibility with legacy saved settings
   'onrivi-dark': 'dark',
   'midnight-neon': 'slate',
-  'solarized-light': 'vellum',
+  'github-light': 'editorial',
+  'solarized-light': 'editorial',
 };
 
 // ====================================================================
@@ -86,7 +85,7 @@ export default function SettingsModal({
   const initialTheme = (() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('ONRIVI_SELECTED_THEME');
-      if (stored && SEVEN_THEMES.some(t => t.id === stored)) return stored;
+      if (stored && THEMES.some(t => t.id === stored)) return stored;
     }
     return MONACO_TO_USER_THEME[themePalette] || 'editorial';
   })();
@@ -113,13 +112,13 @@ export default function SettingsModal({
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0004] SettingsModal ➔ handleThemeSelect
 // 🎯 @KICK  : 테마 선택 시 DOM 클래스/로컬스토리지/다크모드/onThemeChange를 일괄 적용
-// 🛡️ @GUARD : 테마 ID가 SEVEN_THEMES에 존재하는지 확인
+// 🛡️ @GUARD : 테마 ID가 THEMES에 존재하는지 확인
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : setIsDarkMode, onThemeChange, localStorage.setItem
 // ====================================================================
   const handleThemeSelect = (themeId: string) => {
     setSelectedTheme(themeId);
-    const theme = SEVEN_THEMES.find(t => t.id === themeId);
+    const theme = THEMES.find(t => t.id === themeId);
     if (!theme) return;
 
     const root = document.documentElement;
@@ -170,10 +169,10 @@ export default function SettingsModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
       <div
-        className="relative w-full max-w-3xl max-h-[780px] flex flex-col overflow-hidden rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
-        style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+        className="relative w-full max-w-3xl flex flex-col rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
+        style={{ maxHeight: "90dvh", backgroundColor: colors.surface, borderColor: colors.border }}
       >
         {/* 헤더 */}
         <div className="flex items-center gap-2 px-6 py-4 border-b shrink-0" style={{ borderColor: colors.border }}>
@@ -188,7 +187,7 @@ export default function SettingsModal({
         </div>
 
         {/* 본문 (스크롤) */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+        <div className="flex-1 overflow-y-auto min-h-0 px-6 py-6 space-y-8">
           {/* ---------- 일반 설정 ---------- */}
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
@@ -239,6 +238,31 @@ export default function SettingsModal({
             </div>
           </section>
 
+
+          {/* ---------- 테마 선택 ---------- */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
+              <Palette size={16} />
+              <span>테마 선택</span>
+            </div>
+            <div className="pl-6 grid grid-cols-2 gap-2">
+              {THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => handleThemeSelect(t.id)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all active:scale-[0.98]"
+                  style={{
+                    backgroundColor: selectedTheme === t.id ? `${colors.primary}20` : colors.container,
+                    border: `1.5px solid ${selectedTheme === t.id ? colors.primary : colors.border}`,
+                    color: colors.onSurface,
+                  }}
+                >
+                  <span>{t.name}</span>
+                  {t.isDark && <span className="ml-auto text-[10px] opacity-50">다크</span>}
+                </button>
+              ))}
+            </div>
+          </section>
 
           {/* ---------- 단축키/명령어 ---------- */}
           <section className="space-y-4">

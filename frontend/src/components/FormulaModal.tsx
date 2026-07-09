@@ -172,14 +172,14 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
-      <div className={`relative w-full max-w-[800px] h-[600px] shadow-2xl rounded-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
+      <div className={`relative w-full max-w-[800px] shadow-2xl rounded-2xl flex flex-col animate-in zoom-in-95 duration-200 border ${
         isDarkMode ? 'bg-[#1e2022] border-[#44474e] text-white' : 'bg-white border-[#c1c6d7] text-zinc-900'
-      }`}>
+      }`} style={{ maxHeight: "90dvh", overflow: "hidden" }}>
         {/* Header */}
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${
+        <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
           isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-3">
@@ -349,7 +349,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
         </div>
 
         {/* Footer */}
-        <div className={`px-6 py-4 border-t flex justify-end items-center gap-3 ${
+        <div className={`px-6 py-4 border-t flex justify-end items-center gap-3 shrink-0 ${
           isDarkMode ? 'border-[#44474e] bg-[#1d2024]' : 'border-[#c1c6d7] bg-[#f1f4f9]'
         }`}>
           <button 

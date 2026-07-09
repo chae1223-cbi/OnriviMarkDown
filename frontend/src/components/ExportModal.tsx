@@ -45,13 +45,14 @@ export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: E
   ];
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
       <div 
-        className={`w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border ${
+        className={`w-full max-w-sm rounded-2xl shadow-2xl border flex flex-col ${
           isDarkMode ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-black/5 text-zinc-900'
         } animate-in zoom-in-95 duration-200`}
+        style={{ maxHeight: "90dvh", overflow: "hidden" }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 shrink-0">
           <div className="flex items-center gap-2 font-bold">
             <span className="text-lg leading-none">📦</span>
             <span>내보내기</span>
@@ -64,7 +65,7 @@ export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: E
           </button>
         </div>
 
-        <div className="p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-2">
           <p className="text-[13px] opacity-60 px-1 mb-3">저장할 파일 형식을 선택해주세요.</p>
           
           <div className="grid grid-cols-1 gap-2">
@@ -93,7 +94,7 @@ export default function ExportModal({ isOpen, onClose, onExport, isDarkMode }: E
           </div>
         </div>
 
-        <div className={`flex items-center justify-end gap-2 px-5 py-4 border-t ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-black/5 bg-black/5'}`}>
+        <div className={`flex items-center justify-end gap-2 px-5 py-4 border-t shrink-0 ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-black/5 bg-black/5'}`}>
           <button 
             onClick={onClose}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

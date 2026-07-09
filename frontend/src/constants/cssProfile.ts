@@ -85,7 +85,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       marginRight: '20mm',
       orientation: 'portrait',
       headingSizeOffset: '2',
-      tabSize: '4',
+      tabSize: '2',
     },
     rules: {
       h1: { "text-align": "center", "font-weight": "bold", "font-size": "20pt", "margin-top": "30px", "margin-bottom": "20px" },
@@ -202,7 +202,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       marginRight: '20mm',
       orientation: 'portrait',
       headingSizeOffset: '4',
-      tabSize: '4',
+      tabSize: '2',
     },
     rules: {
       h1: { "text-align": "center", "font-weight": "bold", "font-size": "30px", "margin-top": "40px", "margin-bottom": "8px", "letter-spacing": "0.08em" },
@@ -257,7 +257,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       marginRight: '20mm',
       orientation: 'portrait',
       headingSizeOffset: '2',
-      tabSize: '4',
+      tabSize: '2',
     },
     rules: {
       h1: { "text-align": "left", "font-weight": "bold", "font-size": "22px", "margin-top": "24px", "margin-bottom": "16px", "border-bottom": "3px double #374151", "padding-bottom": "10px" },
@@ -312,7 +312,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       marginRight: '30mm', // standard right margin
       orientation: 'portrait',
       headingSizeOffset: '2',
-      tabSize: '4',
+      tabSize: '2',
     },
     rules: {
       h1: { "text-align": "center", "font-weight": "bold", "font-size": "24px", "margin-top": "24px", "margin-bottom": "24px", "line-height": "1.6" },
@@ -367,7 +367,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       marginRight: '18mm',
       orientation: 'portrait',
       headingSizeOffset: '2',
-      tabSize: '4',
+      tabSize: '2',
     },
     rules: {
       h1: { "text-align": "center", "font-weight": "bold", "font-size": "16pt", "margin-top": "20px", "margin-bottom": "16px", "line-height": "1.6" },
@@ -422,7 +422,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       marginRight: '14mm',
       orientation: 'portrait',
       headingSizeOffset: '2',
-      tabSize: '4',
+      tabSize: '2',
     },
     rules: {
       h1: { "text-align": "center", "font-weight": "bold", "font-size": "14pt", "margin-top": "16px", "margin-bottom": "12px", "line-height": "1.5" },
@@ -477,7 +477,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       marginRight: '20mm',
       orientation: 'portrait',
       headingSizeOffset: '2',
-      tabSize: '4',
+      tabSize: '2',
     },
     rules: {
       h1: { "text-align": "center", "font-weight": "bold", "font-size": "18pt", "margin-top": "24px", "margin-bottom": "18px", "line-height": "1.6" },

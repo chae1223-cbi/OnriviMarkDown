@@ -130,17 +130,17 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
-      <div className={`relative w-full max-w-[640px] rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
+      <div className={`relative w-full max-w-[640px] rounded-xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 border ${
         isDarkMode 
           ? 'bg-[#131313] border-[#414755] shadow-[0px_8px_32px_rgba(0,0,0,0.4)]' 
-          : 'bg-white border-[#c1c6d7] shadow-[0px_4px_24px_rgba(0,0,0,0.15)]'
-      }`}>
+          : 'bg-white border-[#c1c6d7]'
+      }`} style={{ maxHeight: "90dvh" }}>
         
         {/* 헤더 */}
-        <div className={`px-6 py-4 flex items-center justify-between border-b ${
+        <div className={`px-6 py-4 flex items-center justify-between border-b shrink-0 ${
           isDarkMode ? 'border-[#414755] bg-[#201f1f]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-2">
@@ -153,7 +153,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
         </div>
 
         {/* 본문 */}
-        <div className="p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-4">
           {/* 주소 검색 영역 */}
           <form onSubmit={handleSearch} className="space-y-1.5">
             <label className={`text-xs font-semibold ${isDarkMode ? 'text-[#c1c6d7]' : 'text-[#5c5f61]'}`}>
@@ -273,7 +273,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
         </div>
 
         {/* 푸터 버튼 영역 */}
-        <div className={`px-6 py-4 border-t flex items-center justify-end gap-2 ${isDarkMode ? 'border-[#414755] bg-[#1c1b1b]' : 'border-[#c1c6d7] bg-[#f1f4f9]'}`}>
+        <div className={`px-6 py-4 border-t flex items-center justify-end gap-2 shrink-0 ${isDarkMode ? 'border-[#414755] bg-[#1c1b1b]' : 'border-[#c1c6d7] bg-[#f1f4f9]'}`}>
           <button onMouseDown={(e) => e.preventDefault()} onClick={onClose} className="px-4 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#21262d] border border-gray-200 dark:border-[#30363d] rounded-xl transition-all active:scale-[0.98]">취소</button>
           <button onMouseDown={(e) => e.preventDefault()} onClick={handleInsert} className="px-5 py-2 bg-[#4285F4] text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-2 hover:opacity-90 transition-all">
             <Terminal size={16} />

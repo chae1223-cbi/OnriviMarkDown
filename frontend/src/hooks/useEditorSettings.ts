@@ -30,8 +30,7 @@ export const useEditorSettings = (
   setIsAddonEnv: (val: boolean) => void,
   showToast: (msg: string, type?: string) => void
 ) => {
-  const isDarkMode = false;
-  const setIsDarkMode = useCallback((val: boolean) => { }, []);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [fontSize, setFontSize] = useState<number>(14);
   const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on');
   const [autoSave, setAutoSave] = useState<number>(5);
@@ -55,11 +54,8 @@ export const useEditorSettings = (
   // 🚨 @PATCH : 없음
   // 🔗 @CALLS : 없음
   // ====================================================================
-  const handleThemeChange = useCallback((themeId: string, THEME_MAP_REF: any) => {
-    const theme = THEME_MAP_REF[themeId];
-    if (!theme) return;
+  const handleThemeChange = useCallback((themeId: string) => {
     setThemePalette(themeId);
-    // 다크모드 전면 제거로 isDarkMode는 항상 false 고정
   }, []);
 
   // ====================================================================
@@ -108,7 +104,13 @@ export const useEditorSettings = (
           const legacyTheme = localStorage.getItem('theme');
           if (legacyTheme) baseSettings.isDarkMode = legacyTheme === 'dark';
           const legacyThemePalette = localStorage.getItem('themePalette');
-          if (legacyThemePalette) baseSettings.themePalette = legacyThemePalette;
+          if (legacyThemePalette) {
+            const LEGACY_THEME_MAP: Record<string, string> = {
+              'onrivi-dark': 'github-dark-dimmed',
+              'midnight-neon': 'github-dark-dimmed',
+            };
+            baseSettings.themePalette = LEGACY_THEME_MAP[legacyThemePalette] || legacyThemePalette;
+          }
           const legacyAutoSave = localStorage.getItem('autoSave');
           if (legacyAutoSave) {
             baseSettings.autoSave = legacyAutoSave === 'true' ? 5 : legacyAutoSave === 'false' ? 0 : parseInt(legacyAutoSave) || 0;
@@ -171,8 +173,7 @@ export const useEditorSettings = (
         }
       });
 
-      // 다크모드 무력화: 강제로 light 세팅 및 dark 클래스 제거
-      setIsDarkMode(false);
+      setIsDarkMode(baseSettings.isDarkMode);
       setFontSize(baseSettings.fontSize);
       setWordWrap(baseSettings.wordWrap);
       // 하위 호환성: boolean 값이 스토리지에 남아있는 경우 변환

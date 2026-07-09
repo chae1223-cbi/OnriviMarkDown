@@ -16,7 +16,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-export function Navbar() {
+export interface NavbarContent {
+  navLinks: { label: string; href: string }[];
+  dashboardLabel: string;
+  editorLabel: string;
+  logoutLabel: string;
+  startLabel: string;
+}
+
+export function Navbar({ content }: { content?: NavbarContent }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -114,7 +122,7 @@ export function Navbar() {
 
           {/* Nav Links */}
           <div className="hidden md:flex items-center gap-8">
-            {NAV_LINKS.map((link) => (
+            {(content?.navLinks ?? NAV_LINKS).map((link) => (
               <a
                 key={link.href}
                 href={link.href}
@@ -143,10 +151,10 @@ export function Navbar() {
                     {userEmail}
                   </span>
                   <Link href="/dashboard">
-                    <button className="btn-secondary" style={{ fontSize: 13, padding: "6px 16px" }}>대시보드</button>
+                    <button className="btn-secondary" style={{ fontSize: 13, padding: "6px 16px" }}>{content?.dashboardLabel ?? "대시보드"}</button>
                   </Link>
                   <Link href="/editor">
-                    <button className="btn-primary" style={{ fontSize: 13, padding: "6px 16px" }}>에디터</button>
+                    <button className="btn-primary" style={{ fontSize: 13, padding: "6px 16px" }}>{content?.editorLabel ?? "에디터"}</button>
                   </Link>
                   <button
                     onClick={handleLogout}
@@ -154,12 +162,12 @@ export function Navbar() {
                     onMouseEnter={e => (e.currentTarget.style.color = "#475569")}
                     onMouseLeave={e => (e.currentTarget.style.color = "#64748b")}
                   >
-                    로그아웃
+                    {content?.logoutLabel ?? "로그아웃"}
                   </button>
                 </>
               ) : (
                 <Link href="/login">
-                  <button className="btn-primary" style={{ fontSize: 13, padding: "6px 16px" }}>시작하기</button>
+                  <button className="btn-primary" style={{ fontSize: 13, padding: "6px 16px" }}>{content?.startLabel ?? "시작하기"}</button>
                 </Link>
               )
             )}

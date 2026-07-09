@@ -39,13 +39,15 @@ export interface Plan {
   addonYearly?: number;
   desktopMonthly?: number;
   desktopYearly?: number;
+  environment: "web" | "desktop" | "both";
+  tierEmoji: string;
 }
 
 export const features: Feature[] = [
   {
-    icon: <PenLine className="w-6 h-6 text-indigo-500" />,
-    title: "✍️ 끝 글자 씹힘 없는 완벽한 한글 타이핑",
-    description: "대용량 문서를 집필할 때도 단 1ms의 밀림이나 한글 끝 글자 중복 버그 없이 물 흐르듯 매끄러운 타이핑을 보장합니다.",
+    icon: <Monitor className="w-6 h-6 text-indigo-500" />,
+    title: "🎬 눈이 편안한 멀티미디어 문서 만들기",
+    description: "유튜브 영상부터 지도까지, 당신이 보여주고 싶은 모든 시각 자료를 글 속에 매끄럽게 담아냅니다. 복잡한 컴퓨터 기호를 몰라도 누구나 프로처럼 멋진 문서를 완성할 수 있습니다.",
   },
   {
     icon: <Monitor className="w-6 h-6 text-indigo-500" />,
@@ -99,61 +101,67 @@ export const faqs: FAQ[] = [
 
 export const plans: Plan[] = [
   {
-    name: "무료 체험",
-    tagline: "모든 기능 무제한 체험 (최대 접속 1회)",
+    name: "Reader",
+    tagline: "평생 무료 읽기 전용",
+    badge: "🥉",
     isFree: true,
-    priceMonthly: 0,
-    priceYearly: 0,
-    priceUSD: "0$",
+    environment: "web",
+    tierEmoji: "🥉",
     features: [
-      "1카피당 1대 PC 사용 가능",
-      "이용 기간 1주일 (7일 제공)",
-      "웹 및 데스크톱 앱 모두 사용 가능",
+      "회원가입 시 세상의 모든 마크다운 문서를 제한 없이 자유롭게 읽기 가능",
     ],
-    cta: "무료로 시작하기",
+    cta: "무료 회원가입",
     ctaVariant: "secondary",
   },
   {
-    name: "웹 월간",
-    tagline: "웹 브라우저에서 가볍게 작성",
-    priceMonthly: 3000,
-    priceYearly: 3000,
-    priceUSD: "3$",
+    name: "Apprentice",
+    tagline: "7일 무료 체험",
+    badge: "🥈",
+    isFree: true,
+    environment: "web",
+    tierEmoji: "🥈",
     features: [
-      "1카피당 1대 PC 사용 가능",
-      "웹 에디터 모든 기능 무제한",
+      "가입 후 7일 동안 모든 문서 읽기 + 편집 기능 무료 체험",
+      "편집(Write): 단 1개의 브라우저에서만 작성 가능",
+      "웹 뷰어: 모든 마크다운 문서를 브라우저로 원클릭 공유!",
     ],
-    cta: "웹 월간 구독",
+    cta: "무료 체험 시작",
     ctaVariant: "secondary",
   },
   {
-    name: "웹 연간",
-    tagline: "할인받고 1년 내내 쾌적하게",
+    name: "Regular",
+    tagline: "월 3,000원 / 연 30,000원",
+    badge: "🥇",
     highlighted: true,
-    badge: "2개월 무료",
-    priceMonthly: 30000,
+    environment: "web",
+    tierEmoji: "🥇",
+    priceMonthly: 3000,
     priceYearly: 30000,
-    priceUSD: "30$",
+    priceUSD: "$2",
     features: [
-      "1카피당 1대 PC 사용 가능",
-      "웹 에디터 모든 기능 무제한",
-      "2개월치 요금 즉시 할인 효과",
+      "매달 가볍게 시작하는 월간 구독 또는 합리적인 연간 구독 선택",
+      "편집(Write): 1개의 브라우저에서만 문서 편집 가능",
+      "웹 뷰어: 모든 마크다운 문서를 브라우저로 원클릭 공유!",
     ],
-    cta: "웹 연간 구독",
+    cta: "구독 시작",
     ctaVariant: "primary",
   },
   {
-    name: "데스크톱 연간",
-    tagline: "오프라인 환경의 최고의 퍼포먼스",
-    priceMonthly: 30000,
-    priceYearly: 30000,
-    priceUSD: "30$",
+    name: "Elite Pro",
+    tagline: "오프라인 + 웹 듀얼 환경",
+    badge: "💎",
+    environment: "desktop",
+    tierEmoji: "💎",
+    priceYearly: 45000,
+    priceUSD: "$30",
     features: [
-      "1카피당 1대 PC 사용 가능",
-      "오프라인 편집 및 보안 완벽 보장",
+      "내 컴퓨터에 직접 설치하는 독립 설치형 프로그램 제공",
+      "설치 권한: 단 1대 PC 설치 및 고유 인증",
+      "설치한 PC에서 무제한 읽기/편집 가능",
+      "웹 뷰어: 모든 마크다운 문서를 브라우저로 원클릭 공유!",
     ],
-    cta: "데스크톱 연간 구독",
-    ctaVariant: "secondary",
+    cta: "Elite Pro 구독",
+    ctaVariant: "primary",
   },
 ];
 

@@ -184,12 +184,12 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
-      <div className={`relative w-full max-w-[480px] shadow-2xl rounded-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
+      <div className={`relative w-full max-w-[480px] shadow-2xl rounded-xl flex flex-col animate-in zoom-in-95 duration-200 border ${
         isDarkMode ? 'bg-[#1e2022] border-[#44474e]' : 'bg-white border-[#c1c6d7]'
-      }`}>
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${
+      }`} style={{ maxHeight: "90dvh", overflow: "hidden" }}>
+        <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
           isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
           </button>
         </div>
 
-        <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh] no-scrollbar">
+        <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-4 no-scrollbar">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">동영상 URL 또는 파일</label>
             <div className="flex gap-2">
@@ -282,7 +282,7 @@ export default function YoutubeModal({ isOpen, onClose, onInsert, isDarkMode, ta
           </div>
         </div>
 
-        <div className={`px-6 py-4 border-t flex justify-end items-center gap-2 ${
+        <div className={`px-6 py-4 border-t flex justify-end items-center gap-2 shrink-0 ${
           isDarkMode ? 'border-[#44474e] bg-[#1d2024]' : 'border-[#c1c6d7] bg-[#f1f4f9]'
         }`}>
           <button onMouseDown={(e) => e.preventDefault()} onClick={onClose}

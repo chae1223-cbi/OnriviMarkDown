@@ -106,15 +106,16 @@ export default function FontSelectorModal({ isOpen, onClose, currentFont, onSele
   });
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose} style={{ overflowY: "auto" }}>
       <div
-        className={`w-full max-w-md mx-4 rounded-xl shadow-2xl border ${
+        className={`w-full max-w-md mx-4 rounded-xl shadow-2xl border flex flex-col ${
           isDarkMode ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-gray-200'
         }`}
+        style={{ maxHeight: "90dvh", overflow: "hidden" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
-        <div className={`flex justify-between items-center px-5 pt-4 pb-3 border-b ${
+        <div className={`flex justify-between items-center px-5 pt-4 pb-3 border-b shrink-0 ${
           isDarkMode ? 'border-zinc-800' : 'border-gray-100'
         }`}>
           <span className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-[#1b1b23]'}`}>
@@ -145,7 +146,7 @@ export default function FontSelectorModal({ isOpen, onClose, currentFont, onSele
         </div>
 
         {/* 폰트 목록 */}
-        <div className={`mx-4 mb-3 max-h-64 overflow-y-auto space-y-0.5 rounded-lg border p-1 ${
+        <div className={`mx-4 mb-3 flex-1 overflow-y-auto min-h-0 space-y-0.5 rounded-lg border p-1 ${
           isDarkMode ? 'border-zinc-800 bg-zinc-950/40' : 'border-gray-100 bg-gray-50/50'
         }`}>
           {loading ? (
@@ -182,7 +183,7 @@ export default function FontSelectorModal({ isOpen, onClose, currentFont, onSele
         </div>
 
         {/* 하단 정보 */}
-        <div className={`px-5 pb-4 text-[10px] text-right font-medium ${
+        <div className={`px-5 pb-4 text-[10px] text-right font-medium shrink-0 ${
           isDarkMode ? 'text-zinc-500' : 'text-gray-400'
         }`}>
           총 <span className="text-blue-600 font-bold">{filtered.length}</span>개 글꼴

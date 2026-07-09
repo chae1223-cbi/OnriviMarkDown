@@ -94,15 +94,17 @@ export function HelpCenterModal({ open, onClose }: Props) {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
           <motion.div
-            className="relative w-full max-w-5xl h-[85vh] bg-white dark:bg-gray-950 rounded-2xl shadow-2xl flex overflow-hidden border border-gray-200 dark:border-gray-800"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ overflowY: "auto" }}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+          <motion.div
+            className="relative w-full max-w-5xl bg-white dark:bg-gray-950 rounded-2xl shadow-2xl flex border border-gray-200 dark:border-gray-800"
+            style={{ maxHeight: "90dvh" }}
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
@@ -130,7 +132,7 @@ export function HelpCenterModal({ open, onClose }: Props) {
               </nav>
             </div>
             <div className="flex-1 flex flex-col min-w-0">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800 shrink-0">
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">{selected.title}</h2>
                 <button
                   onClick={onClose}
@@ -139,7 +141,7 @@ export function HelpCenterModal({ open, onClose }: Props) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="flex-1 overflow-y-auto min-h-0 px-6 py-6">
                 {loading ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />

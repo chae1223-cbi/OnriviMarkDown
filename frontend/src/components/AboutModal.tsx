@@ -47,14 +47,15 @@ export default function AboutModal({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose} style={{ overflowY: "auto" }}>
       <div
-        className={`relative w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border animate-in zoom-in-95 duration-200 ${
+        className={`relative w-full max-w-sm rounded-2xl shadow-2xl border animate-in zoom-in-95 duration-200 flex flex-col ${
           isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-black/5'
         }`}
+        style={{ maxHeight: "90dvh", overflow: "hidden" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`flex items-center justify-between px-5 py-4 border-b ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b shrink-0 ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}>
           <div className="flex items-center gap-2">
             <img src={OAIcon.src} alt="Logo" className="w-4 h-4 object-contain" />
             <h2 className="text-sm font-bold">프로그램 정보</h2>
@@ -64,7 +65,7 @@ export default function AboutModal({
           </button>
         </div>
 
-        <div className="p-6 text-center space-y-5">
+        <div className="flex-1 overflow-y-auto min-h-0 p-6 text-center space-y-5">
           <div className="flex items-center justify-center gap-3">
             <img src={OAIcon.src} alt="온리비 어서 브랜드 아이콘" className="w-12 h-12 object-contain" />
             <h3 className="text-xl font-bold">온리비 어서</h3>
@@ -122,7 +123,7 @@ export default function AboutModal({
             </div>
           </div>
 
-          <p className="text-[10px] text-gray-500 dark:text-gray-400 pt-2 border-t border-black/5 dark:border-white/10">
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 pt-2 border-t border-black/5 dark:border-white/10 shrink-0">
             © 2024 Onrivi. All rights reserved.
           </p>
         </div>

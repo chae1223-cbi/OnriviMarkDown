@@ -56,14 +56,14 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
-      <div className={`relative w-full max-w-[320px] shadow-2xl rounded-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
+      <div className={`relative w-full max-w-[320px] shadow-2xl rounded-xl flex flex-col animate-in zoom-in-95 duration-200 border ${
         isDarkMode ? 'bg-[#1e2022] border-[#44474e]' : 'bg-white border-[#c1c6d7]'
-      }`}>
+      }`} style={{ maxHeight: "90dvh" }}>
         {/* Header */}
-        <div className={`flex items-center justify-between px-5 py-4 border-b ${
+        <div className={`flex items-center justify-between px-5 py-4 border-b shrink-0 ${
           isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
         </div>
 
         {/* Grid Area */}
-        <div className="p-5 flex flex-col items-center">
+        <div className="flex-1 overflow-y-auto min-h-0 p-5 flex flex-col items-center">
           <div 
             className={`grid grid-cols-10 gap-1 p-1 rounded-lg border ${
               isDarkMode ? 'bg-[#131313] border-[#44474e]' : 'bg-[#f1f4f9] border-[#c1c6d7]'
@@ -122,7 +122,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
         </div>
 
         {/* Footer */}
-        <div className={`px-5 py-4 border-t flex flex-col gap-2 ${
+        <div className={`px-5 py-4 border-t flex flex-col gap-2 shrink-0 ${
           isDarkMode ? 'border-[#44474e] bg-[#1d2024]' : 'border-[#c1c6d7] bg-[#f1f4f9]'
         }`}>
           <button 

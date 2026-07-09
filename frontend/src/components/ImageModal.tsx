@@ -419,14 +419,14 @@ export default function ImageModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>
       <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
       
-      <div className={`relative w-full max-w-[520px] shadow-2xl rounded-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border ${
+      <div className={`relative w-full max-w-[520px] shadow-2xl rounded-xl flex flex-col animate-in zoom-in-95 duration-200 border ${
         isDarkMode ? 'bg-[#1e2022] border-[#44474e]' : 'bg-white border-[#c1c6d7]'
-      }`}>
+      }`} style={{ maxHeight: "90dvh" }}>
         {/* Header */}
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${
+        <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
           isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-2">
@@ -439,7 +439,7 @@ export default function ImageModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4 text-on-surface">
+        <div className="p-6 space-y-4 text-on-surface flex-1 overflow-y-auto min-h-0">
           {/* 이미지 경로 입력 */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block">소스 파일 (원본)</label>
@@ -537,7 +537,7 @@ export default function ImageModal({
         </div>
 
         {/* Footer */}
-        <div className={`px-6 py-4 border-t flex justify-end items-center gap-2 ${
+        <div className={`px-6 py-4 border-t flex justify-end items-center gap-2 shrink-0 ${
           isDarkMode ? 'border-[#44474e] bg-[#1d2024]' : 'border-[#c1c6d7] bg-[#f1f4f9]'
         }`}>
           <button 

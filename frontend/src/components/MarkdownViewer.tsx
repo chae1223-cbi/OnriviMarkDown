@@ -164,21 +164,21 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
 
 
   return (
-    <div className="codeblock-area my-4 rounded-lg bg-blue-50/20 dark:bg-blue-950/15 overflow-hidden shadow-sm select-text">
+    <div className="codeblock-area my-4 rounded-lg bg-blue-50/20  overflow-hidden shadow-sm select-text">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
-      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 dark:bg-blue-950/40">
-        <span className="codeblock-header-text text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 ">
+        <span className="codeblock-header-text text-xs font-semibold text-blue-600  uppercase tracking-wider">
           {lang || 'plaintext'}
         </span>
         <button
           onClick={handleCopy}
-          className="text-xs px-2.5 py-1 rounded bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium"
+          className="text-xs px-2.5 py-1 rounded bg-white  text-blue-600  hover:bg-blue-50 :bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium"
         >
           {copied ? '✓ 복사됨' : '복사'}
         </button>
       </div>
-      <pre className="m-0 p-4 overflow-x-auto font-mono text-sm leading-relaxed bg-transparent text-blue-700 dark:text-blue-300">
-        <code className={`${className || ''} block text-blue-700 dark:text-blue-300`} {...props}>
+      <pre className="m-0 p-4 overflow-x-auto font-mono text-sm leading-relaxed bg-transparent text-blue-700 ">
+        <code className={`${className || ''} block text-blue-700 `} {...props}>
           {code}
         </code>
       </pre>
@@ -241,12 +241,12 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
 
   // [ONR-MD-004] 표 데이터 래퍼 컴포넌트: 마크다운 렌더링 내의 표(table) 태그를 수신하여 가로 스크롤 레이아웃으로 감싸고, 마우스 오버 시 스프레드시트 호환 규격 복사 버튼을 제공하는 고기능 래퍼입니다.
   return (
-    <div ref={tableRef} className="relative group my-6 border border-zinc-200/60 dark:border-zinc-800/60 rounded-lg overflow-x-auto shadow-sm bg-white dark:bg-zinc-900 select-text">
+    <div ref={tableRef} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-x-auto shadow-sm bg-white  select-text">
       {/* 마우스 호버 시 우측 상단에 노출되는 미려한 시트/표형식 복사 단추 */}
       <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
         <button
           onClick={handleCopy}
-          className="text-xs px-2.5 py-1.5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-md font-semibold flex items-center gap-1.5 cursor-pointer"
+          className="text-xs px-2.5 py-1.5 rounded-md bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 hover:text-blue-600 :text-blue-400 active:scale-95 transition-all shadow-md font-semibold flex items-center gap-1.5 cursor-pointer"
         >
           <span>{copied ? '✓' : '📋'}</span>
           <span>{copied ? '시트/표형식 복사 완료' : '시트/표형식 복사'}</span>
@@ -784,16 +784,16 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
   };
 
   return (
-    <div ref={containerRef} className="relative group my-6 border border-zinc-200/60 dark:border-zinc-800/60 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-zinc-900 select-text">
+    <div ref={containerRef} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-hidden shadow-sm bg-white  select-text">
 
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200/60 dark:border-zinc-800/60">
-        <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+      <div className="flex items-center justify-between px-4 py-2 bg-zinc-50  border-b border-zinc-200/60 ">
+        <span className="text-xs font-semibold text-zinc-500  uppercase tracking-wider flex items-center gap-1.5">
           📊 다이어그램 (Mermaid)
         </span>
         <div className="flex items-center gap-1.5">
           <button
             onClick={handleCopyCode}
-            className="text-[11px] px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+            className="text-[11px] px-2.5 py-1 rounded bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
             title="마크다운 소스 복사"
           >
             {copied ? '✓ 코드 복사됨' : '코드 복사'}
@@ -802,21 +802,21 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
             <>
               <button
                 onClick={openInNewWindow}
-                className="text-[11px] px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+                className="text-[11px] px-2.5 py-1 rounded bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 hover:text-blue-600 :text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
                 title="다이어그램을 새 웹브라우저 창으로 크게 보기"
               >
                 🔍 새 창으로 확대
               </button>
               <button
                 onClick={handleCopyImage}
-                className="text-[11px] px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+                className="text-[11px] px-2.5 py-1 rounded bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 hover:text-blue-600 :text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
                 title="차트 이미지를 클립보드에 복사해 워드나 한글에 바로 붙여넣기"
               >
                 {imageCopied ? '✓ 이미지 복사됨' : '이미지 복사'}
               </button>
               <button
                 onClick={handleSaveImage}
-                className="text-[11px] px-2.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
+                className="text-[11px] px-2.5 py-1 rounded bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 hover:text-blue-600 :text-blue-400 active:scale-95 transition-all shadow-sm font-medium cursor-pointer"
                 title="차트를 PNG 파일로 저장"
               >
                 💾 저장
@@ -826,14 +826,14 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
         </div>
       </div>
       <div className="p-6 flex flex-col justify-center items-center overflow-x-auto min-h-[100px]">
-        {loading && <div className="text-sm text-zinc-400 dark:text-zinc-500 flex items-center gap-2">🔄 차트를 렌더링하는 중...</div>}
+        {loading && <div className="text-sm text-zinc-400  flex items-center gap-2">🔄 차트를 렌더링하는 중...</div>}
         {error && (
-          <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-md p-4 w-full font-mono">
-            <div className="flex items-center justify-between border-b border-red-200/55 dark:border-red-900/30 pb-2 mb-2">
+          <div className="text-sm text-red-500 bg-red-50  border border-red-200  rounded-md p-4 w-full font-mono">
+            <div className="flex items-center justify-between border-b border-red-200/55  pb-2 mb-2">
               <span className="font-semibold flex items-center gap-1">⚠️ 렌더링 에러</span>
               <button 
                 onClick={() => setShowRaw(!showRaw)}
-                className="text-[10px] px-2 py-0.5 rounded bg-white dark:bg-zinc-800 border border-red-300 dark:border-red-900/40 text-red-700 dark:text-red-400 hover:bg-red-100/50 cursor-pointer transition-all active:scale-95"
+                className="text-[10px] px-2 py-0.5 rounded bg-white  border border-red-300  text-red-700  hover:bg-red-100/50 cursor-pointer transition-all active:scale-95"
               >
                 {showRaw ? '코드 접기' : '코드 원본 보기'}
               </button>
@@ -841,7 +841,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
             <div className="whitespace-pre-wrap leading-relaxed">{error}</div>
             
             {showRaw && (
-              <div className="mt-3 p-3 bg-zinc-900 dark:bg-black text-zinc-300 dark:text-zinc-400 rounded border border-zinc-800 text-xs overflow-x-auto select-all max-h-[250px]">
+              <div className="mt-3 p-3 bg-zinc-900  text-zinc-300  rounded border border-zinc-800 text-xs overflow-x-auto select-all max-h-[250px]">
                 {code}
               </div>
             )}
@@ -1113,7 +1113,7 @@ export default function MarkdownViewer({
       const usedIds = new Set<string>();
 
       const citationSpan = (id: string, lowerId: string) =>
-        `<span class="citation bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-[0.9em] mx-1 shadow-sm border border-blue-200 dark:border-blue-800"><a href="#bib-${lowerId}" style="text-decoration: none; color: inherit;">${id}</a></span>`;
+        `<span class="citation bg-blue-50  text-blue-600  px-1.5 py-0.5 rounded text-[0.9em] mx-1 shadow-sm border border-blue-200 "><a href="#bib-${lowerId}" style="text-decoration: none; color: inherit;">${id}</a></span>`;
 
       text = text.replace(/\[@([a-zA-Z0-9_:\-.+]+)\]/g, (m, id) => {
         const lower = id.toLowerCase();
@@ -1335,13 +1335,13 @@ export default function MarkdownViewer({
                   img.src = `media://local/serve?url=${encodeURIComponent(localPath)}`;
                 }
               };
-              const imgElement = <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30 dark:border-zinc-800/30 my-3 mx-auto block" onError={onImgError} {...props} />;
+              const imgElement = <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30  my-3 mx-auto block" onError={onImgError} {...props} />;
               
               if (alt && alt.trim() !== '') {
                 return (
                   <figure className="my-6 text-center flex flex-col items-center">
                     {imgElement}
-                    <figcaption className="text-[0.9em] text-zinc-500 dark:text-zinc-400 mt-2 font-medium">
+                    <figcaption className="text-[0.9em] text-zinc-500  mt-2 font-medium">
                       {alt}
                     </figcaption>
                   </figure>
@@ -1503,7 +1503,7 @@ export default function MarkdownViewer({
               const codeContent = getTextFromChildren(children).replace(/\n$/, '');
               const isInline = !match && !getTextFromChildren(children).includes('\n');
               if (isInline) {
-                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-mono text-[0.9em] border border-blue-200 dark:border-blue-800" {...props}>{children}</code>;
+                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md bg-blue-50  text-blue-600  font-mono text-[0.9em] border border-blue-200 " {...props}>{children}</code>;
               }
               if (lang === 'mermaid') {
                 return <MermaidBlock code={codeContent} />;
@@ -1673,11 +1673,11 @@ export default function MarkdownViewer({
 
               if (alertType) {
                 const alertStyles = {
-                  NOTE: { border: 'border-[#0969da] dark:border-[#2f81f7]', bg: 'bg-blue-50/50 dark:bg-[#1f6feb]/10', text: 'text-[#0969da] dark:text-[#2f81f7]', icon: 'ℹ️', title: 'Note' },
-                  TIP: { border: 'border-[#1a7f37] dark:border-[#3fb950]', bg: 'bg-green-50/50 dark:bg-[#2ea043]/10', text: 'text-[#1a7f37] dark:text-[#3fb950]', icon: '💡', title: 'Tip' },
-                  IMPORTANT: { border: 'border-[#8250df] dark:border-[#a371f7]', bg: 'bg-purple-50/50 dark:bg-[#8957e5]/10', text: 'text-[#8250df] dark:text-[#a371f7]', icon: '📢', title: 'Important' },
-                  WARNING: { border: 'border-[#9a6700] dark:border-[#d29922]', bg: 'bg-yellow-50/50 dark:bg-[#d29922]/10', text: 'text-[#9a6700] dark:text-[#d29922]', icon: '⚠️', title: 'Warning' },
-                  CAUTION: { border: 'border-[#d1242f] dark:border-[#f85149]', bg: 'bg-red-50/50 dark:bg-[#f85149]/10', text: 'text-[#d1242f] dark:text-[#f85149]', icon: '🚨', title: 'Caution' },
+                  NOTE: { border: 'border-[#0969da] [#2f81f7]', bg: 'bg-blue-50/50 [#1f6feb]/10', text: 'text-[#0969da] [#2f81f7]', icon: 'ℹ️', title: 'Note' },
+                  TIP: { border: 'border-[#1a7f37] [#3fb950]', bg: 'bg-green-50/50 [#2ea043]/10', text: 'text-[#1a7f37] [#3fb950]', icon: '💡', title: 'Tip' },
+                  IMPORTANT: { border: 'border-[#8250df] [#a371f7]', bg: 'bg-purple-50/50 [#8957e5]/10', text: 'text-[#8250df] [#a371f7]', icon: '📢', title: 'Important' },
+                  WARNING: { border: 'border-[#9a6700] [#d29922]', bg: 'bg-yellow-50/50 [#d29922]/10', text: 'text-[#9a6700] [#d29922]', icon: '⚠️', title: 'Warning' },
+                  CAUTION: { border: 'border-[#d1242f] [#f85149]', bg: 'bg-red-50/50 [#f85149]/10', text: 'text-[#d1242f] [#f85149]', icon: '🚨', title: 'Caution' },
                 }[alertType];
 
                 return (
@@ -1686,7 +1686,7 @@ export default function MarkdownViewer({
                       <span>{alertStyles.icon}</span>
                       <span>{alertStyles.title}</span>
                     </div>
-                    <div className="text-zinc-700 dark:text-zinc-300 prose-p:my-1 prose-p:last:mb-0 text-[0.95em]">
+                    <div className="text-zinc-700  prose-p:my-1 prose-p:last:mb-0 text-[0.95em]">
                       {processedChildren}
                     </div>
                   </div>
@@ -1696,7 +1696,7 @@ export default function MarkdownViewer({
               return (
                 <blockquote
                   style={{ ...style, ...getIndentStyle(node) }}
-                  className="my-4 p-4 rounded-r-lg border-l-4 border-zinc-400 bg-zinc-50 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300 font-normal not-italic"
+                  className="my-4 p-4 rounded-r-lg border-l-4 border-zinc-400 bg-zinc-50  text-zinc-700  font-normal not-italic"
                   {...props}
                 >
                   {children}

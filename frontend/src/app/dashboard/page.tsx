@@ -92,6 +92,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   const [desktopEmail, setDesktopEmail] = useState<string | null>(null);
   const [desktopLicense, setDesktopLicense] = useState<LicenseInfo | null>(null);
   const [desktopSubscription, setDesktopSubscription] = useState<SubscriptionInfo | null>(null);
+  const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
 
   useEffect(() => {
     // Read URL params
@@ -462,14 +463,16 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     try {
       // 🚨 [재가입 가드]: 한 번이라도 구독/무료 체험 신청 이력이 존재하는지 확인
             const hasWebHistory = historyList.some(h => !h.plan_name.includes('데스크탑'));
-      if (plan.isFree && hasWebHistory) { // 🛡️ 무료 요금제 재가입 방지
+      if (plan.isFree && hasWebHistory && plan.name !== 'Reader') { // 🛡️ 무료 요금제 재가입 방지 (Reader는 항상 가능)
         throw new Error("이미 구독 신청 이력이 존재하는 계정이므로 무료 요금제 재가입이 절대 불가합니다.");
       }
-      const maxDevices = plan.isFree ? 1 : 3; // 🔒 최대 기기 수 설정 (현재 무료1, 유료 3 통일)
-      const isYearly = plan.name.includes("연간") || plan.name.includes("데스크톱");
-      const trialDays = plan.isFree ? 7 : (isYearly ? 365 : 30); // 🛡️ 무료 체험 기간 설정
-      const interval = plan.isFree ? 'trial' : (isYearly ? 'year' : 'month'); // 🛡️ 구독 간격 설정
-      const periodEnd = new Date(Date.now() + trialDays * 86400000).toISOString(); // 🛡️ 기간 종료일 설정
+      const maxDevices = plan.name === 'Elite Pro' ? 1 : (plan.isFree ? 1 : 3); // 🔒 최대 기기 수
+      const isYearly = billingInterval === 'year' || plan.name === 'Elite Pro';
+      const trialDays = plan.isFree ? (plan.name === 'Reader' ? 36500 : 7) : (isYearly ? 365 : 30); // Reader=100년, Apprentice=7일
+      const interval = plan.name === 'Reader' ? 'free' : (plan.isFree ? 'trial' : (isYearly ? 'year' : 'month'));
+      const periodEnd = plan.name === 'Reader'
+        ? new Date(Date.now() + 36500 * 86400000).toISOString()
+        : new Date(Date.now() + trialDays * 86400000).toISOString();
 
       // ⏳ 한국 시간대 기준 오늘 날짜 계산 (YYYYMMDD 규격 완벽 고수)
       const kstOffset = 9 * 60 * 60 * 1000; // ⏰ 9시간 오프셋
@@ -884,28 +887,30 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             </div>
           </div>
         </div>
-        {/* 요금제 선택 */}
+        {/* 멤버십 선택 */}
         <div style={{ ...glassCard, padding: "28px", marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.border}`, flexWrap: "wrap", gap: 12 }}>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: T.onSurface, display: "flex", alignItems: "center", gap: 8 }}>
-                <CreditCard size={17} style={{ color: T.primary }} /> 웹요금제 선택 / 결제
+                <CreditCard size={17} style={{ color: T.primary }} /> 멤버십 선택 / 결제
               </h2>
               <p style={{ fontSize: 12, color: T.subtle, marginTop: 4 }}>
-                원하는 요금제를 선택하여 결제를 진행하세요. 현재 플랜:{" "}
+                원하는 멤버십을 선택하여 결제를 진행하세요. 현재 플랜:{" "}
                 <span style={{ color: T.primary, fontWeight: 600 }}>{subscription?.plan_name || '없음'}</span>
               </p>
             </div>
           </div>
-          <div className="grid md:grid-cols-4 gap-4">
-            {plans.map((plan) => {
-              // 현재 플랜인지 여부 판별 (청구 주기도 함께 일치해야 함)
-              const planBillingInterval = plan.name.includes("연간") || plan.name.includes("데스크톱") ? 'year' : 'month';
-              const isSameInterval = plan.isFree ? true : subscription?.billing_interval === planBillingInterval;
+          <div className="grid md:grid-cols-3 gap-4">
+            {plans.filter(p => p.name !== 'Reader').map((plan) => {
+              const planInterval = plan.name === 'Elite Pro' ? 'year' : (plan.name === 'Regular' ? billingInterval : 'month');
+              const isSameInterval = plan.isFree ? true : subscription?.billing_interval === planInterval;
               const isCurrentPlan = subscription?.plan_name === plan.name && (subscription?.plan_status === 'ACTIVE' || subscription?.plan_status === 'FREE') && isSameInterval;
 
-              const priceVal = plan.isFree ? 0 : (plan.name.includes("연간") || plan.name.includes("데스크톱") ? plan.priceYearly : plan.priceMonthly);
-              const suffix = plan.isFree ? "" : (plan.name.includes("연간") || plan.name.includes("데스크톱") ? "/년" : "/월");
+              const priceVal = plan.isFree ? 0
+                : (planInterval === 'year' ? (plan.priceYearly || 0) : (plan.priceMonthly || 0));
+              const suffix = plan.isFree ? "" : (planInterval === 'year' ? "/년" : "/월");
+
+              const isPaidEnabled = plan.name === 'Regular' || plan.name === 'Elite Pro';
 
               return (
                 <div
@@ -935,14 +940,48 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                     </div>
                   )}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    {plan.isFree ? <Zap size={15} style={{ color: T.subtle }} /> : <Crown size={15} style={{ color: plan.highlighted ? T.primary : T.subtle }} />}
+                    <span style={{ fontSize: 18 }}>{plan.tierEmoji}</span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: T.onSurface }}>{plan.name}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 8px", borderRadius: 9999, background: "rgba(14,165,233,0.08)", color: T.primary }}>
+                      {plan.environment === "web" ? "Web" : plan.environment === "desktop" ? "Desktop+Web" : plan.environment}
+                    </span>
                   </div>
                   <div style={{ fontSize: 22, fontWeight: 800, color: T.onSurface, marginBottom: 2 }}>
                     {plan.isFree ? '무료' : `${priceVal?.toLocaleString()}원`}
                     {!plan.isFree && <span style={{ fontSize: 12, fontWeight: 400, color: T.subtle }}>{suffix}</span>}
                   </div>
                   <p style={{ fontSize: 11, color: T.subtle, marginBottom: 14 }}>{plan.tagline}</p>
+
+                  {/* Billing interval toggle for Regular */}
+                  {plan.name === 'Regular' && (
+                    <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                      <button
+                        onClick={() => setBillingInterval('month')}
+                        style={{
+                          flex: 1, padding: "4px 0", fontSize: 11, fontWeight: 600, borderRadius: "0.5rem",
+                          border: `1px solid ${billingInterval === 'month' ? T.primary : T.border}`,
+                          background: billingInterval === 'month' ? T.primary : "transparent",
+                          color: billingInterval === 'month' ? "#fff" : T.subtle,
+                          cursor: "pointer", transition: "all 0.15s",
+                        }}
+                      >
+                        월간 3,000원
+                      </button>
+                      <button
+                        onClick={() => setBillingInterval('year')}
+                        style={{
+                          flex: 1, padding: "4px 0", fontSize: 11, fontWeight: 600, borderRadius: "0.5rem",
+                          border: `1px solid ${billingInterval === 'year' ? T.primary : T.border}`,
+                          background: billingInterval === 'year' ? T.primary : "transparent",
+                          color: billingInterval === 'year' ? "#fff" : T.subtle,
+                          cursor: "pointer", transition: "all 0.15s",
+                        }}
+                      >
+                        연간 30,000원
+                      </button>
+                    </div>
+                  )}
+
                   <ul style={{ listStyle: "none", padding: 0, margin: "0 0 16px", display: "flex", flexDirection: "column", gap: 6, flexGrow: 1 }}>
                     {plan.features.map((f, i) => (
                       <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 7, fontSize: 11, color: T.muted }}>
@@ -952,25 +991,27 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                     ))}
                   </ul>
                   <button
-                    onClick={() => {
-                      if (!plan.isFree) {
-                        showToast('현재 시스템 공사 중인 요금제입니다. 무료 체험을 이용해 주세요.', 'warning');
-                        return;
-                      }
-                      handleSelectPlan(plan);
-                    }}
-                    disabled={isCurrentPlan || actionLoading === 'plan_' + plan.name || !plan.isFree}
+                    onClick={() => handleSelectPlan(plan)}
+                    disabled={isCurrentPlan || actionLoading === 'plan_' + plan.name}
                     style={{
                       width: "100%", padding: "9px 0", borderRadius: "0.75rem",
-                      fontSize: 12, fontWeight: 700, cursor: (isCurrentPlan || actionLoading === 'plan_' + plan.name || !plan.isFree) ? "not-allowed" : "pointer",
+                      fontSize: 12, fontWeight: 700,
+                      cursor: (isCurrentPlan || actionLoading === 'plan_' + plan.name) ? "not-allowed" : "pointer",
                       transition: "all 0.15s",
-                      background: !plan.isFree ? "rgba(226,232,240,0.4)" : (plan.highlighted ? T.primary : "rgba(99,102,241,0.06)"),
-                      color: !plan.isFree ? T.subtle : (plan.highlighted ? "#fff" : T.primaryDark),
-                      border: `1px solid ${!plan.isFree ? "rgba(226,232,240,0.8)" : (plan.highlighted ? "transparent" : "rgba(99,102,241,0.25)")}`,
-                      opacity: (isCurrentPlan || actionLoading === 'plan_' + plan.name || !plan.isFree) ? 0.6 : 1,
+                      background: isCurrentPlan
+                        ? "rgba(16,185,129,0.1)"
+                        : (plan.highlighted ? T.primary : "rgba(99,102,241,0.06)"),
+                      color: isCurrentPlan
+                        ? T.success
+                        : (plan.highlighted ? "#fff" : T.primaryDark),
+                      border: `1px solid ${
+                        isCurrentPlan ? "rgba(16,185,129,0.3)" :
+                        plan.highlighted ? "transparent" : "rgba(99,102,241,0.25)"
+                      }`,
+                      opacity: (isCurrentPlan || actionLoading === 'plan_' + plan.name) ? 0.6 : 1,
                     }}
                   >
-                    {actionLoading === 'plan_' + plan.name ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : plan.isFree ? plan.cta : '공사중'}
+                    {actionLoading === 'plan_' + plan.name ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : plan.isFree ? plan.cta : plan.cta}
                   </button>
                 </div>
               );

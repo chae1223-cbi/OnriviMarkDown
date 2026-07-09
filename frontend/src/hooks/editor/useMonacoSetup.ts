@@ -60,14 +60,14 @@ export function useMonacoSetup(deps: any) {
                     });
                   }
 
-                  // 💡 [에디터 하단 여유 공간 확보] scrollBeyondLastLine + padding.bottom 500px로 쾌적한 작문 환경 제공
+                  // 💡 [에디터 스크롤 및 우측 여백 최적화]
                   editor.updateOptions({
-                    scrollBeyondLastLine: true,
-                    padding: { top: 20, bottom: 500 },
-                    lineDecorationsWidth: 26, // 💡 decorations 폭을 적절히 줄여 본문을 왼쪽으로 당김
-                    lineNumbersMinChars: 4,  // 💡 라인 넘버 영역을 약간 키워서 숫자 노출 폭 확보
+                    scrollBeyondLastLine: false,   // 마지막 줄 도달 시 즉시 자동 스크롤
+                    padding: { top: 20, bottom: 20 },
+                    lineDecorationsWidth: 26,
+                    lineNumbersMinChars: 4,
                     automaticLayout: true,
-                    wrappingStrategy: 'advanced', // 💡 브라우저 폰트 가로폭을 실측하여 텍스트 줄바꿈 계산
+                    wrappingStrategy: 'advanced',
 
                     // 🔒 [하단 클릭 시 에디터 붕 뜸 및 상단 유실 방어 3대 마스터 가드]
                     cursorSurroundingLines: 0,
@@ -81,6 +81,19 @@ export function useMonacoSetup(deps: any) {
                       horizontalHasArrows: false
                     }
                   });
+
+                  // 🛡️ [스크롤바 글자 가림 방지] .monaco-editor에 border-right + box-sizing: border-box로
+                  // Monaco가 인식하는 content width를 강제로 줄여 줄바꿈 시 마지막 글자가
+                  // 스크롤바 뒤에 숨지 않도록 방어합니다.
+                  const scrollStyle = document.createElement('style');
+                  scrollStyle.textContent = `
+                    .monaco-editor {
+                      border-right: 28px solid transparent !important;
+                      box-sizing: border-box !important;
+                    }
+                  `;
+                  document.head.appendChild(scrollStyle);
+                  setTimeout(() => editor.layout(), 0);
 
                   // 💡 [테마 연동 가드] 비동기 세션 복원(restoreSettings)과 에디터 마운트 시차로 인한 테마 미적용 레이스 컨디션 방지
                   if (themePalette) {
@@ -580,6 +593,33 @@ export function useMonacoSetup(deps: any) {
                       editor.executeEdits("indentList", edits);
                       editor.pushUndoStop();
                       return;
+                    }
+
+                    // ④ 빈 줄에서 Tab + 이전 줄이 리스트 → 리스트 차단용 ZWSP 삽입 후 들여쓰기
+                    // CommonMark에서 빈 줄만으로 리스트 연속이 종료되지 않으므로,
+                    // \u200b(zero-width space)를 줄 첫 칸에 삽입하여 새 문단 시작을 강제합니다.
+                    const tabPos = editor.getPosition();
+                    if (tabPos) {
+                      const curContent = model.getLineContent(tabPos.lineNumber);
+                      if (/^\s*$/.test(curContent) && tabPos.lineNumber > 1) {
+                        let prevNonEmpty = tabPos.lineNumber - 1;
+                        let prevContent = model.getLineContent(prevNonEmpty);
+                        while (/^\s*$/.test(prevContent) && prevNonEmpty > 1) {
+                          prevNonEmpty--;
+                          prevContent = model.getLineContent(prevNonEmpty);
+                        }
+                        if (/^[ \t]*([-*+]|\d+\.)/.test(prevContent)) {
+                          editor.pushUndoStop();
+                          editor.executeEdits("break-list-indent", [{
+                            range: new monaco.Range(tabPos.lineNumber, 1, tabPos.lineNumber, 1),
+                            text: "\u200b" + " ".repeat(tabSizeRef.current),
+                            forceMoveMarkers: true,
+                          }]);
+                          editor.setPosition({ lineNumber: tabPos.lineNumber, column: tabSizeRef.current + 1 });
+                          editor.pushUndoStop();
+                          return;
+                        }
+                      }
                     }
 
                     // 목록이 아니라면 기본의 탭 이동을 트리거

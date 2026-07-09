@@ -119,9 +119,10 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
   if (!mounted || !isOpen) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm transition-opacity ${isDarkMode ? 'dark' : ''}`}>
+    <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm transition-opacity ${isDarkMode ? 'dark' : ''}`} style={{ overflowY: "auto" }}>
       <div 
-        className="w-full max-w-6xl h-[90vh] sm:h-[85vh] bg-white dark:bg-zinc-950 rounded-xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/5 dark:ring-white/10 animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-6xl bg-white dark:bg-zinc-950 rounded-xl shadow-2xl flex flex-col ring-1 ring-black/5 dark:ring-white/10 animate-in fade-in zoom-in-95 duration-200"
+        style={{ maxHeight: "90dvh" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}

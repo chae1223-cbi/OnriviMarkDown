@@ -82,13 +82,14 @@ export default function PromptModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
       <div 
-        className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col"
+        style={{ maxHeight: "90dvh" }}
         onKeyDown={handleKeyDown}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-white/5">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 shrink-0">
           <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{title}</h3>
           <button 
             onClick={onCancel}
@@ -99,7 +100,7 @@ export default function PromptModal({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto min-h-0 p-5">
           <input
             ref={inputRef}
             type="text"

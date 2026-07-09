@@ -1491,7 +1491,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const workspaceTypeRef = useRef(workspaceType);
   const rootFolderRef = useRef(rootFolder);
   const licenseStatusRef = useRef(licenseStatus);
-  const tabSizeRef = useRef(4);
+  const tabSizeRef = useRef(2);
   // 🚨 @PATCH : A4 조판 가드 스케일링 로직
   useEffect(() => {
     if (!isA4GuardEnabled) {
@@ -1576,7 +1576,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-    tabSizeRef.current = parseInt(activeProfile.pageStyle.tabSize) || 4;
+    tabSizeRef.current = parseInt(activeProfile.pageStyle.tabSize) || 2;
   }, [profiles, activeProfileId]);
 
   const useFileExplorerResult = useFileExplorer({
@@ -1995,12 +1995,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   useEffect(() => {
     if (!mounted) return;
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode, mounted]);
+    document.documentElement.classList.remove('dark');
+  }, [mounted]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0033] MainEditorApp.tsx ➔ editorSettingsSync
@@ -2032,26 +2028,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0034] MainEditorApp.tsx ➔ darkModePaletteSync
-  // 🎯 @KICK  : 시각적 일관성 유지를 위해 다크 모드 전환 시 테마 팔레트 자동 전환
-  // 🛡️ @GUARD : 현재 팔레트가 다크/라이트 모드와 일치하는지 THEME_MAP으로 확인
-  // 🚨 @PATCH : None
-  // 🔗 @CALLS : setThemePalette
+  // 🎯 @KICK  : 다크모드(isDarkMode)는 강제 비활성화되어 있으므로 자동 테마 전환을 수행하지 않음
+  // 🛡️ @GUARD : 없음
+  // 🚨 @PATCH : 2026-07-09 — 다크 테마가 isDarkMode=false여도 강제로 onrivi-light로 되돌려지던 버그 수정. effect를 무효화하여 사용자가 설정에서 선택한 테마를 유지하도록 변경.
+  // 🔗 @CALLS : 없음
   // ====================================================================
   useEffect(() => {
-    if (!mounted) return;
-    if (isDarkMode) {
-      const currentTheme = THEME_MAP[themePalette];
-      if (!currentTheme || !currentTheme.isDark) {
-        setThemePalette('onrivi-dark');
-      }
-    } else {
-      const currentTheme = THEME_MAP[themePalette];
-      if (!currentTheme || currentTheme.isDark) {
-        setThemePalette('onrivi-light');
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDarkMode, mounted, themePalette]);
+    // isDarkMode는 항상 false로 고정되어 있으므로 아무 동작도 하지 않음
+  }, []);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0035] MainEditorApp.tsx ➔ profilesSave
@@ -3343,10 +3327,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const prof = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
     const ps = prof.pageStyle;
 
-    // 💡 프로필에 설정된 배경색 사용 (없으면 흰색), 다크모드이면 다크모드 전용 배경으로 강제
     const profileBg = ps.backgroundColor || '#ffffff';
-    const bg = isDarkMode ? '#09090b' : profileBg;
-    const fg = isDarkMode ? '#e4e4e7' : 'inherit';
+    const bg = profileBg;
+    const fg = 'inherit';
 
     let css = `
 .custom-preview-container {
@@ -3379,20 +3362,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}px !important;\n}\n`;
     }
     Object.entries(prof.rules).forEach(([tag, ruleObj]) => {
-      // 💡 다크모드일 때 인용구(blockquote)는 사용자 정의 서식을 무시하고 다크모드 테마의 기본 스타일을 유지합니다.
-      if (tag === 'blockquote' && isDarkMode) return;
-      // 💡 다크모드일 때 구분선(hr)은 사용자 정의 서식을 무시하고 선명한 다크모드 전용 고정 색상을 사용합니다.
-      if (tag === 'hr' && isDarkMode) return;
-
       /* h2~h6의 font-size는 headingSizeOffset 자동 계산으로 대체 */
       const skipFontSize = ['h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
       const entries = Object.entries(ruleObj).filter(([prop, v]) => {
         if (v === '') return false;
         if (skipFontSize && prop === 'font-size') return false;
-        // 💡 다크모드일 경우 기본적으로 개별 규칙의 글자색(color) 설정을 무시하지만, 
-        // 코드 블록, 인용구 등 사용자가 명시적으로 색상을 지정해야 하는 태그는 예외 처리합니다.
-        const keepColorTags = ['codeBlock', 'codeBlockTitle', 'code', 'math', 'footnote'];
-        if (isDarkMode && prop === 'color' && !keepColorTags.includes(tag)) return false;
         return true;
       });
       if (entries.length === 0) return;
@@ -3479,11 +3453,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const hrWidth = hrRules['border-top-width'] || hrRules['border-width'] || prof.hrStructure.borderTopWidth || '1px';
       const hrMargin = hrRules['margin-top'] || hrRules['margin-bottom'] || hrRules['margin'] || prof.hrStructure.marginTopBottom || '32px';
       const hrLen = hrRules['width'] || prof.hrStructure.lineWidth || '100%';
-      // 💡 다크모드계열이면 구분선의 색상을 선명한 전용 색상(rgba(255,255,255,0.35))으로 고정하고,
-      // 라이트모드는 서식정의(border-top-color, border-color 또는 color)가 있으면 그 색상을, 없으면 은은한 회색(#e5e7eb)을 사용합니다.
-      const hrColor = isDarkMode
-        ? 'rgba(255, 255, 255, 0.35)'
-        : (hrRules['border-top-color'] || hrRules['border-color'] || hrRules['color'] || '#e5e7eb');
+      const hrColor = hrRules['border-top-color'] || hrRules['border-color'] || hrRules['color'] || '#e5e7eb';
       css += `
 .custom-preview-container hr {
   border-left: none !important;
@@ -3529,7 +3499,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
 
     return css;
-  }, [profiles, activeProfileId, isDarkMode]);
+  }, [profiles, activeProfileId]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0069] MainEditorApp.tsx ➔ quickWrap
@@ -4349,7 +4319,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             </div>
           )}
           {showEmbeddedWelcome ? (
-            <div className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-zinc-900">
+            <div className="flex-1 overflow-y-auto bg-zinc-100">
               <div className="max-w-4xl mx-auto py-8 px-4">
                 <MarkdownViewer
                   content={getWelcomeContent()}
@@ -4364,8 +4334,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             <div className="flex flex-1 overflow-hidden">
 
             <div
-              className={`flex-1 min-w-0 ${heightClass} relative border-r border-black/5 dark:border-white/5 pt-3 no-print`}
-              style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
+                className="flex-1 min-w-0 relative border-r border-black/5 dark:border-white/5 no-print"
+              style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block', paddingTop: '12px' }}
             >
               <Editor
                 height="100%"
@@ -4404,8 +4374,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 options={{
                   readOnly: tabs.length === 0,
                   domReadOnly: tabs.length === 0,
-                  padding: { top: 20, bottom: 500 },
-                  scrollBeyondLastLine: true,
+                  padding: { top: 20, bottom: 20, right: 24 },
+                  scrollBeyondLastLine: false,
                   automaticLayout: true,
                   fontSize,
                   fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace",
@@ -4428,7 +4398,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   matchBrackets: 'always',
                   wordBasedSuggestions: "off",
                   renderLineHighlight: 'all',
-                  tabSize: parseInt(profiles.find(p => p.id === activeProfileId)?.pageStyle?.tabSize) || 4,
+                  tabSize: parseInt(profiles.find(p => p.id === activeProfileId)?.pageStyle?.tabSize) || 2,
                   detectIndentation: false,
                   insertSpaces: true,
                   autoIndent: 'none',
@@ -4694,7 +4664,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             )}
 
             <div
-              className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden print:overflow-visible relative"
+              className="flex-1 flex flex-col bg-white text-gray-900 overflow-hidden print:overflow-visible relative"
               style={{
                 width: previewMode === 'preview' ? '100%' : '50%',
                 display: (previewMode === 'edit' || activeTab?.isStyleTab === true) ? 'none' : 'flex'
@@ -4705,11 +4675,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
               <div
                 ref={previewRef}
-                className={`flex-1 ${heightClass} print:h-auto print:overflow-visible prose prose-sm md:prose-base dark:prose-invert max-w-none custom-preview-container ${previewMode === 'preview'
-                  ? 'bg-zinc-100 dark:bg-zinc-900/60 p-4 overflow-y-auto'
-                  : `bg-white dark:bg-zinc-950 px-0 pt-0 pb-32 ${previewMode === 'both' || previewMode === 'css-style' ? 'overflow-y-auto no-scrollbar' : 'overflow-y-auto'
-                  }`
-                  }`}
+                className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-gray-900 ${previewMode === 'preview'
+                  ? 'bg-zinc-100 p-4 overflow-y-auto'
+                  : 'bg-white px-0 pt-0 pb-32 overflow-y-auto'}`}
                 onMouseEnter={() => { isPreviewHovered.current = true; }}
                 onMouseLeave={() => { isPreviewHovered.current = false; }}
                 onScroll={(e) => {
@@ -4782,7 +4750,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   return (
                     <div
                       className={isPreviewOnly
-                        ? "preview-page-sheet mx-auto my-8 border border-zinc-200 dark:border-zinc-800/80 shadow-xl dark:shadow-black/40 transition-all duration-300 transform-gpu origin-top"
+                        ? "preview-page-sheet mx-auto my-8 border border-zinc-200 shadow-xl transition-all duration-300 transform-gpu origin-top"
                         : `${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full origin-top`
                       }
                       style={pageStyle}
@@ -4820,10 +4788,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   <style dangerouslySetInnerHTML={{
                     __html: `
                       .custom-preview-container {
-                        background: ${isDarkMode ? '#121214' : '#f4f4f5'} !important;
+                        background: #f4f4f5 !important;
                       }
                       .preview-page-sheet {
-                        background: ${isDarkMode ? '#09090b' : (profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE).pageStyle.backgroundColor || '#ffffff'} !important;
+                        background: ${(profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE).pageStyle.backgroundColor || '#ffffff'} !important;
                       }
                     `}} />
                 )}

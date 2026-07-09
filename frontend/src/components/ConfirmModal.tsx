@@ -69,12 +69,13 @@ export default function ConfirmModal({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
       <div 
-        className="w-full max-w-sm bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-sm bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-2xl border border-black/10 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col"
+        style={{ maxHeight: "90dvh" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-white/5">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 shrink-0">
           <div className="flex items-center gap-2">
             <AlertCircle size={18} className={isDanger ? "text-red-500" : "text-blue-500"} />
             <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{title}</h3>
@@ -88,29 +89,30 @@ export default function ConfirmModal({
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="flex-1 overflow-y-auto min-h-0 p-6">
           <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
             {message}
           </p>
-          
-          <div className="mt-8 flex items-center justify-end gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-            >
-              {cancelText}
-            </button>
-            <button
-              onClick={onConfirm}
-              className={`px-5 py-2.5 ${
-                isDanger 
-                ? 'bg-red-600 hover:bg-red-500 shadow-red-500/20' 
-                : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'
-              } text-white text-xs font-bold rounded-xl shadow-lg transition-all active:scale-95`}
-            >
-              {confirmText}
-            </button>
-          </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 pb-6 shrink-0">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-5 py-2.5 ${
+              isDanger 
+              ? 'bg-red-600 hover:bg-red-500 shadow-red-500/20' 
+              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'
+            } text-white text-xs font-bold rounded-xl shadow-lg transition-all active:scale-95`}
+          >
+            {confirmText}
+          </button>
         </div>
       </div>
     </div>,
