@@ -21,12 +21,11 @@ export function FaqItem({ faq, isOpen, onToggle }: FaqItemProps) {
   return (
     <div
       style={{
-        border: "1px solid rgba(14,165,233,0.12)",
+        border: "1.5px solid rgba(14,165,233,0.25)",
         borderRadius: "1rem",
         overflow: "hidden",
-        background: "rgba(255, 255, 255, 0.55)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
+        background: "#ffffff",
+        boxShadow: "0 4px 16px rgba(14,165,233,0.08), 0 1px 4px rgba(0,0,0,0.04)",
       }}
     >
       <button
