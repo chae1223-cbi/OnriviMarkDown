@@ -3349,8 +3349,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 /* 탭 간격 (Tab Size) — pre/code에서 탭 문자가 표시될 폭 */
 .custom-preview-container pre,
 .custom-preview-container code {
-  tab-size: ${ps.tabSize || '4'} !important;
-  -moz-tab-size: ${ps.tabSize || '4'} !important;
+  tab-size: ${ps.tabSize || '2'} !important;
+  -moz-tab-size: ${ps.tabSize || '2'} !important;
 }
 `;
     /* H2~H6 자동 크기 계산 (headingSizeOffset 기반) */

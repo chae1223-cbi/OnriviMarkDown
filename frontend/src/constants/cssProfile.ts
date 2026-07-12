@@ -131,7 +131,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
     marginRight: '25mm',
     orientation: 'portrait',
     headingSizeOffset: '3',
-    tabSize: '4',
+    tabSize: '2',
   },
   rules: {
     // --- 제목(Heading) ---
@@ -545,7 +545,7 @@ export function createEmptyProfile(): CssProfile {
   return {
     id: '',
     name: '',
-    pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', backgroundColor: '#ffffff', paperSize: 'a4', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '', tabSize: '4' },
+    pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', backgroundColor: '#ffffff', paperSize: 'a4', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '', tabSize: '2' },
     rules: JSON.parse(JSON.stringify(EMPTY_RULES)),
     hrStructure: {
       borderTopStyle: 'solid',

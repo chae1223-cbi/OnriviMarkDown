@@ -1119,7 +1119,7 @@ export function useMonacoSetup(deps: any) {
                   editor.onDidChangeCursorPosition((e) => {
                     if (e.reason === 2) return; // 드래그 선택 복구 시 등 예외 제외
 
-                    // 1. [에디터 자체 Typewriter Scroll] 커서가 화면의 80% 이상 아래로 내려오면 화면 30% 지점으로 에디터를 올림
+                    // 1. [뷰포트 및 커서 Y축 비율 계산] (Typewriter 스크롤 기능 취소 - 사용자 요청)
                     const viewportHeight = editor.getLayoutInfo().height;
                     const curLine = e.position.lineNumber;
                     const cursorTop = editor.getTopForLineNumber(curLine);
@@ -1128,13 +1128,7 @@ export function useMonacoSetup(deps: any) {
 
                     const cursorYInViewport = cursorTop + lineHeight - scrollTop;
                     const ratio = cursorYInViewport / viewportHeight;
-
-                    let targetRatio = ratio;
-                    if (ratio >= 0.8) {
-                      const newScrollTop = cursorTop - (viewportHeight * 0.3);
-                      editor.setScrollTop(Math.max(0, newScrollTop));
-                      targetRatio = 0.3; // 에디터가 상단 30%로 스크롤되었으므로 비율도 30%로 맞춤
-                    }
+                    const targetRatio = ratio;
 
                     // 2. [미리보기 실시간 비율 싱크] 에디터 커서의 뷰포트 Y축 비율을 미리보기에 1:1 동기화하여 완벽한 수평선 유지
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
