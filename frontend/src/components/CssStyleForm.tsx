@@ -731,7 +731,7 @@ export default function CssStyleForm({
     <div className="w-[420px] shrink-0 h-full bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col select-none text-sm animate-fadeIn relative">
       
       {/* 1단계: 최상단 메가 메뉴 토글 타이틀 바 (항상 보임) */}
-      <div className="px-4 py-3 bg-white dark:bg-zinc-850 border-b border-zinc-200 dark:border-zinc-800 shrink-0 z-20 flex flex-col gap-2">
+      <div className="px-4 py-3 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 shrink-0 z-20 flex flex-col gap-2">
         
         <div className="flex items-center justify-between">
           <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
@@ -1512,7 +1512,7 @@ export default function CssStyleForm({
             />
 
             {/* 태스크 체크박스 규칙 */}
-            <div className="border-t border-zinc-150 dark:border-zinc-800 pt-3.5 space-y-3.5">
+            <div className="border-t border-zinc-200 dark:border-zinc-800 pt-3.5 space-y-3.5">
               <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">태스크 리스트 체크박스</span>
 
               {/* 완료 항목 효과 */}
@@ -1935,7 +1935,7 @@ export default function CssStyleForm({
           </div>
 
           {/* 각주 영역 (Footnote) 설정 */}
-          <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+          <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
             <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📌 FOOTNOTE - 각주 영역 스타일 조작</span>
             <ColorPickerWidget
               label="각주 글자 색상"
@@ -2060,7 +2060,7 @@ export default function CssStyleForm({
           </div>
 
           {/* 동영상 객체 (Video) 설정 */}
-          <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+          <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
             <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🎥 VIDEO - 동영상 객체 규격 조작</span>
             <SliderWidget
               label="동영상 가로 너비"
@@ -2123,7 +2123,7 @@ export default function CssStyleForm({
           </div>
 
           {/* 지도 객체 (Map) 설정 */}
-          <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+          <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
             <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🗺️ MAP - 지도 객체 규격 조작</span>
             <SliderWidget
               label="지도 가로 너비"
@@ -2186,7 +2186,7 @@ export default function CssStyleForm({
           </div>
 
           {/* 수식 블록 (Math) 설정 */}
-          <div className="border-t border-zinc-150 dark:border-zinc-850/60 pt-4 space-y-3.5">
+          <div className="border-t border-zinc-200 dark:border-zinc-800/60 pt-4 space-y-3.5">
             <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📐 MATH - KaTeX 수식 블록 스타일</span>
             <ColorPickerWidget
               label="수식 글자 색상"
@@ -2283,7 +2283,7 @@ export default function CssStyleForm({
       {showImportModal && (
         <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-[480px] max-w-full shadow-2xl p-5 space-y-4 animate-scaleUp text-left">
-            <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-800 pb-3">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
               <span className="font-bold text-zinc-800 dark:text-zinc-200 text-base">📥 외부 서식 가져오기 / 업로드</span>
               <button onClick={() => { setShowImportModal(false); setImportJsonText(''); }} className="text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 font-bold text-base leading-none">X</button>
             </div>
@@ -2306,7 +2306,7 @@ export default function CssStyleForm({
                   value={importJsonText}
                   onChange={(e) => setImportJsonText(e.target.value)}
                   placeholder="AI가 출력해 준 Onrivi 규격 JSON 텍스트를 여기에 붙여넣어 주세요..."
-                  className="w-full h-44 p-3 border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 rounded-xl font-mono text-xs leading-relaxed outline-none focus:border-blue-500 transition-colors resize-none"
+                  className="w-full h-44 p-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 rounded-xl font-mono text-xs leading-relaxed outline-none focus:border-blue-500 transition-colors resize-none"
                 />
               </div>
             </div>

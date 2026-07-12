@@ -352,14 +352,21 @@ option {
   margin-bottom: 0.2em;
 }
 
-/* 리스트 아이템(li) 하위의 p 태그 마진 누적 폭발 차단:
-   loose list 파싱 시 각 li 안에 <p>가 생기면서 margin 0.45em이 중첩되어 높이가 폭발하는 현상 완전 압착 */
+/* 리스트 아이템(li) 하위의 p 태그 마진 누적 폭발 차단 및 다중 문단 병합 방지:
+   loose list 파싱 시 각 li 안에 <p>가 생기면서 margin 0.45em이 중첩되어 높이가 폭발하는 현상을 막기 위해 margin을 0으로 압착.
+   단, 들여쓰기로 생성된 두 번째 문단부터는 병합되지 않고 줄바꿈되도록 display: block 유지 및 여백 추가 */
 .prose li p,
 .custom-preview-container li p {
-  display: inline !important;
-  margin: 0 !important;
+  display: block !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
   margin-left: 0 !important;
   padding: 0 !important;
+}
+
+.prose li p + p,
+.custom-preview-container li p + p {
+  margin-top: 0.45em !important;
 }
 
 /* 중첩 리스트 여백 2배 증폭 방지: 부모 패딩이 중첩되어 누적되는 현상 차단 */
