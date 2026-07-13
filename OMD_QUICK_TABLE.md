@@ -41,7 +41,7 @@
 | OMD-CORE-CssStyleForm-0002 | CssStyleForm | SliderWidget | HTML5 range 슬라이더로 숫자 값 실시간 조정 위젯 | getNumValue로 falsy 값 안전 처리 | 없음 | getNumValue |
 | OMD-CORE-helper-0003 | helper.tsx | getFileIcon | 파일/폴더 확장자에 따른 Lucide 아이콘 및 색상 반환 | directory/file 분기, 확장자 lowercase 매핑 | 없음 | 없음 |
 | OMD-CORE-USEPAGEBREAK-0003 | usePageBreak.ts | usePageBreak | 선택 용지 기준 지능형 페이지 나누기 계산 및 초기화 로직 처리 | Lock 변수(isAutoPageBreakingRef)로 중복 자동 페이지 나누기 방지 | 없음 | 없음 |
-| OMD-CORE-cssProfile-0003 ✅ FIXED | cssProfile | SYSTEM_PROFILES | 앱에 내장된 시스템 프로필 배열을 정의한다 | system-* 접두사 id를 가지며 수정/삭제 불가 | **2026-07-07** — 법원 및 특허청 제출 양식에 맞춘 'system-legal' 프로필(바탕체, 자동 들여쓰기, 가/나/다 넘버링 등 법률 전용 조판 규격) 신규 추가 패치 | 없음 |
+| OMD-CORE-cssProfile-0003 ✅ FIXED | cssProfile | SYSTEM_PROFILES | 앱에 내장된 시스템 프로필 배열을 정의한다 | system-* 접두사 id를 가지며 수정/삭제 불가 | **2026-07-13** — 마크다운 리스트 표준 규격에 맞춰 기본 탭 크기(tabSize) 설정을 기존 2에서 4로 일괄 상향 개편 패치; **2026-07-07** — 법원 및 특허청 제출 양식에 맞춘 'system-legal' 프로필(바탕체, 자동 들여쓰기, 가/나/다 넘버링 등 법률 전용 조판 규격) 신규 추가 패치 | 없음 |
 | OMD-CORE-CssStyleForm-0003 | CssStyleForm | ColorPickerWidget | 브라우저 내장 컬러 피커와 텍스트 입력을 연동한 색상 선택 위젯 | value가 #으로 시작하지 않으면 #000000 기본값 사용 | 없음 | 없음 |
 | OMD-CORE-MainEditorApp-0003 | MainEditorApp.tsx | resolveRelativeImagePath | 상대 마크다운 이미지 경로를 절대 경로로 변환, 백슬래시 및 ../.. 세그먼트 정규화 | http/https/data/blob URI, Windows 드라이브 문자, 빈 src 처리 | None | None |
 | OMD-CORE-MapModal-0003 | MapModal | cleanCoords | 입력된 좌표 문자열에서 외곽 괄호/따옴표 제거 | trim + 정규식으로 좌표 정제 | 없음 | 없음 |
@@ -88,6 +88,7 @@
 | OMD-CORE-CssStyleForm-0016 | CssStyleForm | updateCellPadding | 표 th/td 셀 내부 여백을 일괄 업데이트 | isSystemProfile true면 실행 차단 | 없음 | triggerUpdate, getTagRules |
 | OMD-CORE-CssStyleForm-0017 | CssStyleForm | updateTableFontSize | 표(table/th/td) 글자 크기를 일괄 업데이트 또는 제거 | isSystemProfile true면 실행 차단, value가 비면 font-size 속성 제거 | 없음 | triggerUpdate, getTagRules |
 | OMD-CORE-CssStyleForm-0018 | CssStyleForm | handlePageStyleChange | 용지 레이아웃 속성(글꼴, 글자 크기, 줄 간격, 용지 크기, 여백 등) 업데이트 | isSystemProfile true면 실행 차단 | paperSize(용지 크기) 선택 기능 추가 | triggerUpdate |
+| OMD-CORE-useMonacoSetup-0001 ✅ FIXED | useMonacoSetup.ts | indentList | 리스트 들여쓰기 시 스마트 번호 매기기 및 탭/스페이스 매칭 최적화 | hasList 체크 후 순차적으로 이전 줄의 탭 깊이와 숫자를 비교하여 번호 갱신 | **2026-07-13** — 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치, Monaco keydown 캡처링 해킹을 Monaco 공식 editor.onKeyDown API 및 browserEvent 차단 조합으로 마이그레이션하여 무력화 현상 완벽 조치 | model.getLineContent, editor.executeEdits |
 | OMD-CORE-CssStyleForm-0019 | CssStyleForm | handleDeleteClick | 현재 선택된 서식 프로필 삭제 처리 | canDelete 및 onDeleteProfile 존재 여부 확인, confirm 창으로 재확인 | 없음 | onDeleteProfile |
 | OMD-CORE-CssStyleForm-0020 | CssStyleForm | updateHrStructure | 수평 구분선(HR) 스타일(선 스타일, 두께, 여백, 너비) 업데이트 | isSystemProfile true면 실행 차단 | 없음 | triggerUpdate |
 | OMD-CORE-CssStyleForm-0021 | CssStyleForm | updateCheckboxStructure | 체크박스 구조(완료 효과, 박스 크기, 텍스트 간격) 업데이트 | isSystemProfile true면 실행 차단 | 없음 | triggerUpdate |

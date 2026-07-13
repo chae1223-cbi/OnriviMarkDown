@@ -1553,9 +1553,9 @@ export default function MarkdownViewer({
               })(node);
               
               if (hasImage) {
-                return <div style={{ ...style, ...getIndentStyle(node) }} {...props} className="my-4">{children}</div>;
+                return <div style={style} {...props} className="my-4">{children}</div>;
               }
-              return <p style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</p>;
+              return <p style={style} {...props}>{children}</p>;
             },
             ul: ({ node, children, style, ...props }) => <ul style={style} {...props}>{children}</ul>,
             ol: ({ node, children, style, start, ...props }) => {
@@ -1600,7 +1600,7 @@ export default function MarkdownViewer({
                 return child;
               });
 
-              return <li style={{ ...style, ...getIndentStyle(node) }} className={props.className} {...props}>{modifiedChildren}</li>;
+              return <li style={style} className={props.className} {...props}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
               // GitHub style Alerts 파싱: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]

@@ -370,12 +370,11 @@ option {
 }
 
 /* 중첩 리스트 여백 2배 증폭 방지: 부모 패딩이 중첩되어 누적되는 현상 차단 */
-/* 💡 padding-left는 !important 고정 대신 사용자 정의 들여쓰기가 그대로 반영되도록 inherit 사용 */
 .prose ol ol, .prose ol ul, .prose ul ol, .prose ul ul,
 .prose li ol, .prose li ul {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  padding-left: var(--list-indent, 1.25rem) !important;
+  padding-left: 1rem !important; /* 16px로 더 타이트하게 압착 */
 }
 
 /* 빈 줄(br) 물리 높이 보장: whitespace collapsing으로 빈 줄이 압착 소멸되는 현상 방어 */

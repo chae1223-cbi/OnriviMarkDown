@@ -1491,7 +1491,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const workspaceTypeRef = useRef(workspaceType);
   const rootFolderRef = useRef(rootFolder);
   const licenseStatusRef = useRef(licenseStatus);
-  const tabSizeRef = useRef(2);
+  const tabSizeRef = useRef(4);
   // 🚨 @PATCH : A4 조판 가드 스케일링 로직
   useEffect(() => {
     if (!isA4GuardEnabled) {
@@ -1575,9 +1575,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : parseInt
   // ====================================================================
   useEffect(() => {
-    const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
-    tabSizeRef.current = parseInt(activeProfile.pageStyle.tabSize) || 2;
-  }, [profiles, activeProfileId]);
+    // 💡 [버그 픽스] 마크다운에서 하위 리스트(Nested List)로 파싱되려면 들여쓰기가 최소 3~4칸 필요합니다.
+    // 사용자가 CSS 프로필에서 탭 너비를 2 등으로 설정하더라도 에디터 편집 환경에서는 무조건 4를 강제해야 합니다.
+    tabSizeRef.current = 4;
+  }, []);
 
   const useFileExplorerResult = useFileExplorer({
     editorRef,
@@ -4398,7 +4399,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   matchBrackets: 'always',
                   wordBasedSuggestions: "off",
                   renderLineHighlight: 'all',
-                  tabSize: parseInt(profiles.find(p => p.id === activeProfileId)?.pageStyle?.tabSize) || 2,
+                  // 💡 마크다운 들여쓰기 규격 준수를 위해 4칸 강제 고정
+                  tabSize: 4,
                   detectIndentation: false,
                   insertSpaces: true,
                   autoIndent: 'none',
