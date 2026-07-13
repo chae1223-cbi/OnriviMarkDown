@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Settings, Palette, Pen, Command, ShieldCheck } from 'lucide-react';
+import { X, Settings, Palette, Pen, Command, ShieldCheck, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
+import { testGeminiConnection } from '@/lib/gemini';
 
 
 interface SettingsModalProps {
@@ -37,6 +38,10 @@ interface SettingsModalProps {
   themePalette: string;
   onThemeChange: (themeId: string) => void;
   isActivated: boolean;
+  geminiApiKey: string;
+  setGeminiApiKey: (v: string) => void;
+  aiModelName: string;
+  setAiModelName: (v: string) => void;
 }
 
 const THEMES = [
@@ -76,11 +81,35 @@ export default function SettingsModal({
   themePalette,
   onThemeChange,
   isActivated,
-  autoClosingBrackets, setAutoClosingBrackets
+  autoClosingBrackets, setAutoClosingBrackets,
+  geminiApiKey, setGeminiApiKey,
+  aiModelName, setAiModelName
 }: SettingsModalProps) {
   const [mounted, setMounted] = useState(false);
-
   const [restoreSession, setRestoreSession] = useState(true);
+  const [isTestingKey, setIsTestingKey] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null);
+
+  const handleTestGemini = async () => {
+    if (!geminiApiKey) {
+      setTestResult({ success: false, msg: 'API 키를 먼저 입력해주세요.' });
+      return;
+    }
+    setIsTestingKey(true);
+    setTestResult(null);
+    try {
+      const isOk = await testGeminiConnection(geminiApiKey, aiModelName);
+      if (isOk) {
+        setTestResult({ success: true, msg: '연동 테스트 성공! API 키 및 모델이 유효합니다.' });
+      } else {
+        setTestResult({ success: false, msg: '응답이 올바르지 않습니다.' });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, msg: err.message || '연동 실패' });
+    } finally {
+      setIsTestingKey(false);
+    }
+  };
 
   const initialTheme = (() => {
     if (typeof window !== 'undefined') {
@@ -235,32 +264,89 @@ export default function SettingsModal({
                   <option value={60}>1분</option>
                 </select>
               </div>
-            </div>
-          </section>
-
-
-          {/* ---------- 테마 선택 ---------- */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
-              <Palette size={16} />
-              <span>테마 선택</span>
-            </div>
-            <div className="pl-6 grid grid-cols-2 gap-2">
-              {THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => handleThemeSelect(t.id)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all active:scale-[0.98]"
-                  style={{
-                    backgroundColor: selectedTheme === t.id ? `${colors.primary}20` : colors.container,
-                    border: `1.5px solid ${selectedTheme === t.id ? colors.primary : colors.border}`,
-                    color: colors.onSurface,
-                  }}
-                >
-                  <span>{t.name}</span>
-                  {t.isDark && <span className="ml-auto text-[10px] opacity-50">다크</span>}
-                </button>
-              ))}
+              
+              <div className="flex flex-col gap-2 pt-2 text-sm font-medium" style={{ color: colors.onSurface }}>
+                <span>Google Gemma API Key (AI 어시스턴트용)</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    placeholder="AI 기능을 위해 API Key를 입력하세요..."
+                    value={geminiApiKey || ''}
+                    onChange={(e) => {
+                      setGeminiApiKey(e.target.value);
+                      if (testResult) setTestResult(null);
+                    }}
+                    className="px-3 py-2 rounded text-xs outline-none flex-1"
+                    style={{
+                      backgroundColor: colors.container,
+                      color: colors.onSurface,
+                      border: `1px solid ${colors.border}`
+                    }}
+                  />
+                  <button
+                    onClick={handleTestGemini}
+                    disabled={isTestingKey || !geminiApiKey}
+                    className="px-4 py-2 text-xs font-bold rounded flex items-center gap-2 whitespace-nowrap transition-colors disabled:opacity-50"
+                    style={{
+                      backgroundColor: colors.primary,
+                      color: '#ffffff'
+                    }}
+                  >
+                    {isTestingKey ? <Loader2 size={14} className="animate-spin" /> : '연동 테스트'}
+                  </button>
+                </div>
+                {testResult && (
+                  <div className={`text-[11px] font-bold flex items-center gap-1.5 ${testResult.success ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {testResult.success ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+                    {testResult.msg}
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 pt-2 text-sm font-medium" style={{ color: colors.onSurface }}>
+                  <span>AI 모델 식별자 (Model Name)</span>
+                  <input
+                    type="text"
+                    placeholder="예) gemini-3.5-flash, gemma-4-9b-it"
+                    value={aiModelName || ''}
+                    onChange={(e) => {
+                      setAiModelName(e.target.value);
+                      if (testResult) setTestResult(null);
+                    }}
+                    className="px-3 py-2 rounded text-xs outline-none w-full"
+                    style={{
+                      backgroundColor: colors.container,
+                      color: colors.onSurface,
+                      border: `1px solid ${colors.border}`
+                    }}
+                  />
+                  <span className="text-[11px] opacity-70">원하시는 모델의 공식 API 식별자를 입력하세요. (기본: gemini-3.5-flash)</span>
+                  
+                  {/* 추천 모델 빠른 선택 칩 */}
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {[
+                      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 (추천/고속)' },
+                      { id: 'gemini-pro', label: 'Gemini Pro (안정판)' },
+                      { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4 (최신 오픈모델)' },
+                      { id: 'gemma-2-9b-it', label: 'Gemma 2 (가벼움)' },
+                    ].map(model => (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          setAiModelName(model.id);
+                          if (testResult) setTestResult(null);
+                        }}
+                        className="px-2 py-1 text-[10px] rounded-full border hover:opacity-80 transition-opacity"
+                        style={{
+                          backgroundColor: aiModelName === model.id ? colors.primary : 'transparent',
+                          color: aiModelName === model.id ? '#ffffff' : colors.onSurface,
+                          borderColor: aiModelName === model.id ? colors.primary : colors.border
+                        }}
+                      >
+                        {model.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 

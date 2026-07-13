@@ -311,7 +311,7 @@ export function useMonacoSetup(deps: any) {
                   const scrollStyle = document.createElement('style');
                   scrollStyle.textContent = `
                     .monaco-editor {
-                      border-right: 28px solid transparent !important;
+                      border-right: 120px solid transparent !important;
                       box-sizing: border-box !important;
                     }
                   `;

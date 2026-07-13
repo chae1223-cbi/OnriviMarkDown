@@ -37,6 +37,8 @@ export const useEditorSettings = (
   const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
   const [themePalette, setThemePalette] = useState<string>('onrivi-light');
   const [licenseKey, setLicenseKey] = useState<string>('');
+  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
+  const [aiModelName, setAiModelName] = useState<string>('gemini-3.5-flash');
 
   const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>({});
   const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>({});
@@ -86,6 +88,8 @@ export const useEditorSettings = (
         customSlashCommands: getDefaultCommands(),
         themePalette: 'onrivi-light',
         licenseKey: 'chae6^jung1!jang3#&',
+        geminiApiKey: '',
+        aiModelName: 'gemini-3.5-flash',
         autoClosingBrackets: true
       };
 
@@ -188,6 +192,8 @@ export const useEditorSettings = (
       setCustomSlashCommands(baseSettings.customSlashCommands);
       setThemePalette(baseSettings.themePalette);
       setLicenseKey(baseSettings.licenseKey);
+      setGeminiApiKey(baseSettings.geminiApiKey || '');
+      setAiModelName(baseSettings.aiModelName || 'gemini-3.5-flash');
       setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
 
       document.documentElement.classList.remove('dark');
@@ -292,6 +298,8 @@ export const useEditorSettings = (
       customHotkeys,
       customSlashCommands,
       licenseKey,
+      geminiApiKey,
+      aiModelName,
       themePalette,
       autoClosingBrackets
     };
@@ -327,6 +335,8 @@ export const useEditorSettings = (
     customHotkeys,
     customSlashCommands,
     licenseKey,
+    geminiApiKey,
+    aiModelName,
     themePalette,
     autoClosingBrackets
   ]);
@@ -346,6 +356,10 @@ export const useEditorSettings = (
     setThemePalette,
     licenseKey,
     setLicenseKey,
+    geminiApiKey,
+    setGeminiApiKey,
+    aiModelName,
+    setAiModelName,
     autoClosingBrackets,
     setAutoClosingBrackets,
     customHotkeys,

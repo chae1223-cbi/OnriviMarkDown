@@ -54,7 +54,7 @@ import 'highlight.js/styles/github.css'; // 코드 하이라이팅 스타일
 import {
   PanelLeft as SidebarIcon, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2,
   ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2,
-  Layers, X, Eraser
+  Layers, X, Eraser, Sparkles, Loader2
 } from 'lucide-react';
 
 /**
@@ -81,6 +81,7 @@ import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import CssStyleModal from "@/components/CssStyleModal"; // css 스타일 모달
 import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/virtualFileSystem'; // 가상 파일 시스템 헬퍼
+import { processTextWithAI, AI_ACTIONS, AiActionType } from '@/lib/gemini'; // Gemini AI 모듈
 import ColorText from '@/components/ColorText'; // 컬러 텍스트
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import CopyButton from '@/components/CopyButton'; // 버튼
@@ -1785,8 +1786,51 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     customSlashCommandsRef,
     handleThemeChange,
     autoClosingBrackets,
-    setAutoClosingBrackets
+    setAutoClosingBrackets,
+    geminiApiKey,
+    setGeminiApiKey,
+    aiModelName,
+    setAiModelName
   } = useEditorSettingsResult;
+
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  const handleAiAction = async (action: AiActionType) => {
+    if (!geminiApiKey) {
+      showToast("환경설정(애플리케이션)에서 Google Gemma API Key를 먼저 입력해주세요.", 'error');
+      return;
+    }
+    const editor = editorRef.current;
+    if (!editor) return;
+    const model = editor.getModel();
+    const selection = editor.getSelection();
+    if (!model || !selection || selection.isEmpty()) {
+      showToast("가공할 텍스트를 먼저 드래그(선택) 해주세요.", 'warning');
+      return;
+    }
+    const selectedText = model.getValueInRange(selection);
+    
+    setIsAiLoading(true);
+    showToast("AI가 텍스트를 가공하고 있습니다... 잠시만 기다려주세요.", 'info');
+    setFloatingToolbar(prev => ({ ...prev, visible: false }));
+    
+    try {
+      const resultText = await processTextWithAI(geminiApiKey, aiModelName, selectedText, action);
+      
+      // 실행 취소 가능하도록 트랜잭션 사용
+      editor.executeEdits("AI_ACTION", [{
+        range: selection,
+        text: resultText,
+        forceMoveMarkers: true
+      }]);
+      
+      showToast("AI 가공이 완료되었습니다.", 'success');
+    } catch (err: any) {
+      showToast(err.message || "AI 요청 실패", 'error');
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0028] MainEditorApp.tsx ➔ autoSaveRef_sync
@@ -3730,14 +3774,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           return 'edit';
         });
         return;
-      case 'TOGGLE_THEME': {
-        const currentIndex = EDITOR_THEMES.findIndex(t => t.id === themePalette);
-        const nextIndex = (currentIndex + 1) % EDITOR_THEMES.length;
-        const nextTheme = EDITOR_THEMES[nextIndex];
-        setThemePalette(nextTheme.id);
-        setIsDarkMode(nextTheme.isDark);
+      case 'TOGGLE_THEME':
+        // 사용자 요청으로 테마 변경 기능 비활성화
         return;
-      }
       /*
        * TOGGLE_CSS_STYLE — CssStyleForm 패널 토글 (Ctrl+Shift+S)
        *
@@ -4290,7 +4329,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   return (
     <>
       <EditorProvider value={contextValue}>
-      <div className={`flex h-screen overflow-hidden flex-col text-slate-800 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-amber-50/20'}`}>
+      <div className={`flex h-screen overflow-hidden flex-col text-slate-800 transition-colors duration-300 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-[#FAFAFA]'}`}>
 
       <MenuBar />
 
@@ -4299,7 +4338,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       <div className="flex flex-1 overflow-hidden relative">
         <LeftSidebar />
 
-        <main className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-zinc-950">
+        <main className="flex flex-1 flex-col overflow-hidden bg-transparent">
           <FormattingToolbar />
 
           {graceRemainingSeconds !== null && (
@@ -4335,8 +4374,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             <div className="flex flex-1 overflow-hidden">
 
             <div
-                className="flex-1 min-w-0 relative border-r border-black/5 dark:border-white/5 no-print"
-              style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block', paddingTop: '12px' }}
+                className="flex-1 min-w-0 relative border-r border-transparent hover:border-black/5 dark:hover:border-white/5 transition-colors duration-500 no-print bg-transparent"
+              style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
             >
               <Editor
                 height="100%"
@@ -4367,7 +4406,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       base: t.base,
                       inherit: true,
                       rules: t.rules,
-                      colors: t.colors
+                      colors: {
+                        ...t.colors,
+                        'editor.background': '#00000000', // 프리미엄 룩을 위한 완전 투명 배경 (부모 UI와 일체화)
+                        'editor.lineHighlightBackground': '#88888810', // 연한 하이라이트
+                        'editorLineNumber.foreground': '#88888850', // 튀지 않는 줄번호
+                        'editorIndentGuide.background': '#88888815', // 은은한 들여쓰기 가이드
+                        'editorIndentGuide.activeBackground': '#88888830',
+                      }
                     });
                   });
                 }}
@@ -4375,12 +4421,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 options={{
                   readOnly: tabs.length === 0,
                   domReadOnly: tabs.length === 0,
-                  padding: { top: 20, bottom: 20, right: 24 },
+                  padding: { top: 48, bottom: 64, right: 64 }, // 적절한 포커스 패딩
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
                   fontSize,
-                  fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace",
-                  fontLigatures: false,
+                  lineHeight: 1.7, // 시원한 줄간격 유지 (세련됨)
+                  fontFamily: "ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Pretendard Std', 'D2Coding', Consolas, 'Courier New', monospace",
+                  fontLigatures: false, // 글자 폭 계산 오차를 유발할 수 있는 합자(Ligature) 기능 해제
                   letterSpacing: 0,
                   'semanticHighlighting.enabled': true,
                   wordWrap,
@@ -4468,7 +4515,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         editorRef.current?.focus();
                       }
                     }}
-                    className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl rounded-xl border border-gray-200 dark:border-zinc-700 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
+                    className="fixed z-[99999] flex items-center bg-white/85 dark:bg-zinc-800/85 backdrop-blur-xl shadow-2xl shadow-black/15 rounded-xl border border-black/5 dark:border-white/10 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
                     style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
                     onMouseDown={handleDragStart}
                   >
@@ -4483,6 +4530,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('UNDERLINE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] underline" title="밑줄">U</button>
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="취소선"><span className="line-through">S</span></button>
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('FOOTNOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-bold font-serif" title="각주">fn</button>
+                            <div className="w-px h-5 mx-0.5 bg-black/10 dark:bg-white/10" />
+                            <button
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleAiAction(AI_ACTIONS.POLISH);
+                              }}
+                              className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] group relative"
+                              title="AI 다듬기 (Gemma)"
+                            >
+                              {isAiLoading ? <Loader2 size={14} className="animate-spin text-purple-500" /> : <Sparkles size={14} className="text-purple-500 group-hover:scale-110 transition-transform" />}
+                            </button>
                           </div>
                           <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
                           {/* 제목 */}
@@ -4839,7 +4897,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           autoSave, setAutoSave, rootFolder, selectRootFolder, driveLetter, setDriveLetter,
           workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
           customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
-          isActivated, autoClosingBrackets, setAutoClosingBrackets,
+          isActivated, autoClosingBrackets, setAutoClosingBrackets, geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
           isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
           setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
           showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,

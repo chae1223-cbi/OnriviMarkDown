@@ -45,7 +45,7 @@ export default function FormattingToolbar() {
   if (previewMode === 'preview') return null;
 
   return (
-    <div className="h-10 flex items-center px-2 gap-1 bg-zinc-50 dark:bg-zinc-900/70 border-b border-zinc-200 dark:border-zinc-700/60 shrink-0 overflow-x-auto">
+    <div className="h-10 flex items-center px-2 gap-1 bg-white/85 dark:bg-zinc-900/85 backdrop-blur-xl border-b border-black/5 dark:border-white/5 shrink-0 overflow-x-auto z-10 transition-colors duration-300">
       {/* 서식 */}
       <FormatBtn label="B" title={tooltip('굵게', SHORTCUTS.bold)} onAction={() => dispatch('BOLD')} bold />
       <FormatBtn label="I" title={tooltip('기울임', SHORTCUTS.italic)} onAction={() => dispatch('ITALIC')} italic />

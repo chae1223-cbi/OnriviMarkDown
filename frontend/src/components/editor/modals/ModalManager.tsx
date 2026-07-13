@@ -65,6 +65,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     autoSave, setAutoSave, rootFolder, rootFolderRef, selectRootFolder, driveLetter, setDriveLetter,
     workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
     customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
+    geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
     isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
     setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
     showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
@@ -95,6 +96,10 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         isActivated={isActivated}
         autoClosingBrackets={deps.autoClosingBrackets}
         setAutoClosingBrackets={deps.setAutoClosingBrackets}
+        geminiApiKey={geminiApiKey}
+        setGeminiApiKey={setGeminiApiKey}
+        aiModelName={aiModelName}
+        setAiModelName={setAiModelName}
       />
 
       <ExportModal
