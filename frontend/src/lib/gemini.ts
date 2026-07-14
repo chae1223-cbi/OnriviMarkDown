@@ -7,10 +7,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // API 키 유효성 검사 헬퍼
 const getGenAI = (apiKey: string) => {
-  if (!apiKey || apiKey.trim() === '') {
+  const cleanKey = (apiKey || '').trim();
+  if (!cleanKey) {
     throw new Error('Gemini API Key가 설정되지 않았습니다. 환경설정에서 API 키를 입력해주세요.');
   }
-  return new GoogleGenerativeAI(apiKey);
+  return new GoogleGenerativeAI(cleanKey);
 };
 
 export const AI_ACTIONS = {
@@ -136,6 +137,12 @@ export const processTextWithAIStream = async (
     if (match && match.index !== undefined) {
       const content = raw.substring(match.index + match[0].length);
       return content.replace(/^```[a-z]*\n?/im, '').replace(/\n?```$/im, '').trim();
+    }
+
+    // 💡 [지능형 폴백 가드] 누적 스트리밍 텍스트가 120자 이상 쌓였음에도 [출력결과] 태그가 없다면,
+    // AI가 태그 지침을 빠뜨리고 본론을 다이렉트로 적는 것으로 판단하여 무한 대기를 차단하고 원본 전체를 표출합니다.
+    if (raw.length > 120) {
+      return raw.replace(/^```[a-z]*\n?/im, '').replace(/\n?```$/im, '').trim();
     }
 
     // 마커가 아직 들어오지 않은 생각 흐름(CoT) 구간은 사용자 화면에 노출하지 않고 빈 문자로 대기 유도
