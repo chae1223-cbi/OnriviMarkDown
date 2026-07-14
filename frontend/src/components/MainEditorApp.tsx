@@ -1137,7 +1137,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       console.log('[WELCOME-TRIGGER] loadAndVerifyLicense done, setting isLicenseChecking=false');
       setIsLicenseChecking(false);
     });
-  }, [loadAndVerifyLicense, deviceId]);
+  }, [loadAndVerifyLicense, deviceId, setIsLicenseChecking]);
 
   // 💻 [Heartbeat 가드] 20초마다 라이선스 세션의 활동 시각(last_active_at)을 갱신하고 강탈 여부를 검사
   useEffect(() => {
@@ -1190,7 +1190,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }, 20000); // 20초마다 주기적 검사 수행 (60초 DB 만료 대비 충분한 신뢰성 확보)
 
     return () => clearInterval(intervalId);
-  }, [deviceId, isLicenseChecking]);
+  }, [deviceId, isLicenseChecking, setLicenseStatus, showToast]);
 
   // 📊 [OMD-CITATION-MainEditorApp] .bib 워크스페이스 자동 로드
   // 🎯 @KICK  : 워크스페이스 전체를 재귀 탐색하여 .bib 파일을 모두 병합 로드
