@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Eraser } from 'lucide-react';
+import { Eraser, Sparkles } from 'lucide-react';
 
 import { useEditorContext } from '@/context/EditorContext';
 
@@ -29,7 +29,7 @@ const tooltip = (label: string, shortcut?: string) =>
   shortcut ? `${label} (${shortcut})` : label;
 
 export default function FormattingToolbar() {
-  const { dispatchCommand: dispatch, previewMode, isExpired } = useEditorContext();
+  const { dispatchCommand: dispatch, previewMode, isExpired, geminiApiKey, showToast } = useEditorContext();
   const [headingLevel, setHeadingLevel] = React.useState(3);
 
   const handleHeadingUp = (e: React.MouseEvent) => {
@@ -46,6 +46,21 @@ export default function FormattingToolbar() {
 
   return (
     <div className="h-10 flex items-center px-2 gap-1 bg-white/85 dark:bg-zinc-900/85 backdrop-blur-xl border-b border-black/5 dark:border-white/5 shrink-0 overflow-x-auto z-10 transition-colors duration-300">
+      {/* AI 글쓰기 단독 버튼 */}
+      <FormatBtn
+        label={<Sparkles size={15} className={geminiApiKey ? "text-purple-500 animate-pulse" : "text-slate-400 dark:text-zinc-500"} />}
+        title={geminiApiKey ? "AI 글쓰기 팝업 어시스턴트" : "AI 글쓰기 (설정에서 API 키를 등록해 주세요)"}
+        onAction={() => {
+          if (!geminiApiKey) {
+            showToast("AI 기능을 사용하려면 설정에서 Gemini API Key를 등록해 주세요.", "warning");
+            dispatch('SETTINGS');
+            return;
+          }
+          dispatch('OPEN_AI_WRITER');
+        }}
+      />
+      <Divider />
+
       {/* 서식 */}
       <FormatBtn label="B" title={tooltip('굵게', SHORTCUTS.bold)} onAction={() => dispatch('BOLD')} bold />
       <FormatBtn label="I" title={tooltip('기울임', SHORTCUTS.italic)} onAction={() => dispatch('ITALIC')} italic />

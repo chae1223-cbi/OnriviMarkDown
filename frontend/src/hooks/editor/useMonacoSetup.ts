@@ -1107,7 +1107,8 @@ export function useMonacoSetup(deps: any) {
                     scrollSyncRafId = requestAnimationFrame(() => {
                       scrollSyncRafId = null;
 
-                      const parent = previewRef.current!;
+                      const parent = previewRef.current;
+                      if (!parent) return;
                       const range = editor.getVisibleRanges();
                       if (range && range.length > 0) {
                         const firstVisible = range[0].startLineNumber;
@@ -1163,7 +1164,8 @@ export function useMonacoSetup(deps: any) {
                       cursorSyncRafId = null;
 
                       const actualLine = editor.getPosition()?.lineNumber || curLine;
-                      const parent = previewRef.current!;
+                      const parent = previewRef.current;
+                      if (!parent) return;
 
                       let targetEl: HTMLElement | null = null;
                       for (let line = actualLine; line >= 1; line--) {

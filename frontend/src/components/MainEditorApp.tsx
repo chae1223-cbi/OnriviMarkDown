@@ -11,7 +11,7 @@
  * 모든 전역 상태 및 화면 분할 레이아웃 조립.
  * 메뉴바 , 툴바, 상태바, 사이드바 등 모든 컴포넌트의 렌더링을 책임짐.
  * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
+ * 🚨 @PATCH : **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
  *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
  *             **2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
  *             **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
@@ -81,7 +81,7 @@ import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import CssStyleModal from "@/components/CssStyleModal"; // css 스타일 모달
 import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/virtualFileSystem'; // 가상 파일 시스템 헬퍼
-import { processTextWithAI, AI_ACTIONS, AiActionType } from '@/lib/gemini'; // Gemini AI 모듈
+import { processTextWithAI, processTextWithAIStream, AI_ACTIONS, AiActionType } from '@/lib/gemini'; // Gemini AI 모듈
 import ColorText from '@/components/ColorText'; // 컬러 텍스트
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import CopyButton from '@/components/CopyButton'; // 버튼
@@ -159,7 +159,8 @@ export type EditorCommandType =
   | 'FOOTNOTE'                                                                         // ⑬ 각주 삽입 
   | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW'                                               // ⑭ 표 행 편집 명령
   | 'DOCLINK'                                                                          // ⑮ 문서링크
-  | 'MERGE';                                                                          // ⑯ 파일 병합
+  | 'MERGE'                                                                             // ⑯ 파일 병합
+  | 'AI_HELP';                                                                          // ⑰ AI 글쓰기 도우미
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -1810,25 +1811,42 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     const selectedText = model.getValueInRange(selection);
     
-    setIsAiLoading(true);
-    showToast("AI가 텍스트를 가공하고 있습니다... 잠시만 기다려주세요.", 'info');
+    // 프리뷰 카드 열고 상태 초기화
+    setAiPreviewState({
+      isOpen: true,
+      originalRange: selection,
+      streamingText: '',
+      action,
+      originalText: selectedText,
+      isFinished: false
+    });
     setFloatingToolbar(prev => ({ ...prev, visible: false }));
     
     try {
-      const resultText = await processTextWithAI(geminiApiKey, aiModelName, selectedText, action);
+      await processTextWithAIStream(
+        geminiApiKey,
+        aiModelName,
+        selectedText,
+        action,
+        (chunkText) => {
+          if (chunkText === '') {
+            return;
+          }
+          setAiPreviewState(prev => ({
+            ...prev,
+            streamingText: chunkText
+          }));
+        }
+      );
       
-      // 실행 취소 가능하도록 트랜잭션 사용
-      editor.executeEdits("AI_ACTION", [{
-        range: selection,
-        text: resultText,
-        forceMoveMarkers: true
-      }]);
-      
-      showToast("AI 가공이 완료되었습니다.", 'success');
+      setAiPreviewState(prev => ({
+        ...prev,
+        isFinished: true
+      }));
+      showToast("AI 가공이 완료되었습니다. 결과물을 검토해 주세요.", 'success');
     } catch (err: any) {
       showToast(err.message || "AI 요청 실패", 'error');
-    } finally {
-      setIsAiLoading(false);
+      setAiPreviewState(prev => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -1993,8 +2011,42 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const completionProviderRef = useRef<any>(null);
   const wikilinkProviderRef = useRef<any>(null);
   const docLinkFilesRef = useRef<FileNode[]>([]);
-  const readFileTextRef = useRef<(node: FileNode) => Promise<string>>(null!);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
+  const aiDecorationsRef = useRef<string[]>([]);
+  const readFileTextRef = useRef<(node: FileNode) => Promise<string>>(null!);
+  const [aiPreviewState, setAiPreviewState] = useState<{
+    isOpen: boolean;
+    isModalOpen: boolean;
+    promptInput: string;
+    originalRange: any;
+    streamingText: string;
+    action: string;
+    originalText: string;
+    isFinished: boolean;
+    targetScope: 'selection' | 'document';
+  }>({
+    isOpen: false,
+    isModalOpen: false,
+    promptInput: '',
+    originalRange: null,
+    streamingText: '',
+    action: '',
+    originalText: '',
+    isFinished: false,
+    targetScope: 'document'
+  });
+
+  // 📱 모바일 상태 관리를 Rules of Hooks에 따라 최상위(Top-level)로 상향 조정
+  const [isMobile, setIsMobile] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    handleResize(); // 마운트 시점 확인
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
 
 
@@ -2368,7 +2420,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const cursorYInViewport = cursorTop + lineHeight - scrollTop;
       const targetRatio = cursorYInViewport / viewportHeight;
 
-      const parent = previewRef.current!;
+      const parent = previewRef.current;
+      if (!parent) return;
+      
       let targetEl: HTMLElement | null = null;
       for (let line = curLine; line >= 1; line--) {
         const found = parent.querySelector(`[data-line="${line}"]`) as HTMLElement;
@@ -3740,7 +3794,27 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'ABOUT': handlers.about(); return;
       case 'HELP': handlers.help(); return;
       case 'LICENSE': handlers.license(); return;
-      case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
+       case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
+      case 'OPEN_AI_WRITER': {
+        const editor = editorRef.current;
+        const selection = editor ? editor.getSelection() : null;
+        const model = editor ? editor.getModel() : null;
+        let selectedText = '';
+        if (editor && model && selection && !selection.isEmpty()) {
+          selectedText = model.getValueInRange(selection);
+        }
+        setAiPreviewState(prev => ({
+          ...prev,
+          isModalOpen: true,
+          promptInput: '',
+          streamingText: '',
+          isFinished: false,
+          originalRange: selection,
+          originalText: selectedText,
+          targetScope: selectedText ? 'selection' : 'document'
+        }));
+        return;
+      }
       case 'SLASH_COMMAND': {
         const editor = editorRef.current;
         if (editor) {
@@ -3787,6 +3861,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'MERGE':
         setIsMergeMode(true);
         return;
+      case 'AI_HELP': {
+        const editor = editorRef.current;
+        if (!editor) return;
+        if (!geminiApiKey) {
+          showToast("환경설정에서 API Key를 먼저 입력해주세요.", 'error');
+          return;
+        }
+        
+        const selection = editor.getSelection();
+        // 중앙 플로팅 모달을 띄워 입력 및 결과 감상 지원
+        setAiPreviewState({
+          isOpen: false,
+          isModalOpen: true,
+          promptInput: '',
+          originalRange: selection,
+          streamingText: '',
+          action: 'expand',
+          originalText: '',
+          isFinished: false
+        });
+        return;
+      }
     }
 
     // 2. 에디터 본문 서식 조작 명령어 (포커스 가드 강제 추적)
@@ -3939,6 +4035,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       toggleMode: 'TOGGLE_MODE',
       toggleTheme: 'TOGGLE_THEME',
       'wrap-h1': 'WRAP_H1',
+      aiHelp: 'AI_HELP',
       'wrap-h2': 'WRAP_H2',
       'wrap-h3': 'WRAP_H3',
       'wrap-quote': 'WRAP_QUOTE',
@@ -4309,8 +4406,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     onOpenMergeModal: handleOpenMergeModal, onSelectRootFolder: () => selectRootFolder('local', null),
     onRestoreFolder: restoreFolderPermission,
     isHelpModalOpen, setIsHelpModalOpen, helpTitle, setHelpTitle, helpContent, setHelpContent,
-    tabs, // for tabs reference if needed
-    // 필요 시 아래에 더 추가
+    tabs,
+    geminiApiKey
   };
 
   const { handleMount } = useMonacoSetup({
@@ -4328,6 +4425,31 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   return (
     <>
+      <style>{`
+        .ai-changed-highlight {
+          background-color: rgba(168, 85, 247, 0.25) !important;
+          animation: ai-flash-fade 1.5s ease-out forwards;
+        }
+        @keyframes ai-flash-fade {
+          0% { background-color: rgba(168, 85, 247, 0.35); }
+          100% { background-color: rgba(168, 85, 247, 0); }
+        }
+        .ai-stream-pulse {
+          animation: ai-pulse-bg 2s infinite ease-in-out;
+        }
+        @keyframes ai-pulse-bg {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
+        .mic-pulse {
+          animation: mic-pulse-anim 1.5s infinite;
+        }
+        @keyframes mic-pulse-anim {
+          0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7); }
+          70% { box-shadow: 0 0 0 10px rgba(168, 85, 247, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
+        }
+      `}</style>
       <EditorProvider value={contextValue}>
       <div className={`flex h-screen overflow-hidden flex-col text-slate-800 transition-colors duration-300 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-[#FAFAFA]'}`}>
 
@@ -4522,6 +4644,48 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     {(() => {
                       return (
                         <div className="flex flex-row items-center gap-3 min-w-max">
+                          {/* AI 단독 아이콘 */}
+                          <div className="flex items-center">
+                            <button
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                if (!geminiApiKey) {
+                                  showToast("AI 기능을 사용하려면 설정에서 Gemini API Key를 등록해 주세요.", "warning");
+                                  dispatchCommand('SETTINGS');
+                                  setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                  return;
+                                }
+                                const editor = editorRef.current;
+                                const selection = editor ? editor.getSelection() : null;
+                                const model = editor ? editor.getModel() : null;
+                                let selectedText = '';
+                                if (editor && model && selection && !selection.isEmpty()) {
+                                  selectedText = model.getValueInRange(selection);
+                                }
+                                setAiPreviewState(prev => ({
+                                  ...prev,
+                                  isModalOpen: true,
+                                  promptInput: '',
+                                  streamingText: '',
+                                  isFinished: false,
+                                  originalRange: selection,
+                                  originalText: selectedText,
+                                  targetScope: 'selection'
+                                }));
+                                setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                              }}
+                              className={`w-7 h-7 rounded-lg transition-all flex items-center justify-center shrink-0 ${
+                                geminiApiKey
+                                  ? 'hover:bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                                  : 'hover:bg-black/5 dark:hover:bg-white/5 text-slate-400 dark:text-zinc-500'
+                              }`}
+                              title={geminiApiKey ? "AI 글쓰기 어시스턴트" : "AI 글쓰기 (설정에서 API 키를 등록해 주세요)"}
+                            >
+                              <Sparkles size={14} className={geminiApiKey ? "animate-pulse" : ""} />
+                            </button>
+                          </div>
+                          <div className="w-px h-5 bg-black/10 dark:bg-white/10 shrink-0" />
+
                           {/* 서식 */}
                           <div className="flex flex-row items-center gap-0.5">
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('BOLD'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-black" title="굵게">B</button>
@@ -4530,17 +4694,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('UNDERLINE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] underline" title="밑줄">U</button>
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="취소선"><span className="line-through">S</span></button>
                             <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('FOOTNOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-bold font-serif" title="각주">fn</button>
-                            <div className="w-px h-5 mx-0.5 bg-black/10 dark:bg-white/10" />
-                            <button
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                handleAiAction(AI_ACTIONS.POLISH);
-                              }}
-                              className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] group relative"
-                              title="AI 다듬기 (Gemma)"
-                            >
-                              {isAiLoading ? <Loader2 size={14} className="animate-spin text-purple-500" /> : <Sparkles size={14} className="text-purple-500 group-hover:scale-110 transition-transform" />}
-                            </button>
                           </div>
                           <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
                           {/* 제목 */}
@@ -4912,6 +5065,543 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           helpTitle, helpContent, setHelpContent
         }}
       />
+      
+      {/* 🔮 AI 글쓰기 어시스턴트 중앙 플로팅 모달 */}
+      {aiPreviewState.isModalOpen && (() => {
+        const handleStartGeneration = async () => {
+          if (!aiPreviewState.promptInput.trim()) {
+            showToast("AI에게 지시할 글쓰기 주제나 명령을 입력해 주세요.", "warning");
+            return;
+          }
+          
+          setAiPreviewState(prev => ({
+            ...prev,
+            streamingText: '',
+            isFinished: false
+          }));
+
+          const editor = editorRef.current;
+          let finalPrompt = aiPreviewState.promptInput;
+
+          // 적용 범위에 맞춰 원본 본문을 지시문 문맥으로 결합
+          if (aiPreviewState.targetScope === 'selection' && aiPreviewState.originalText) {
+            finalPrompt = `${aiPreviewState.promptInput}\n\n[대상 영역 텍스트]\n${aiPreviewState.originalText}`;
+          } else if (aiPreviewState.targetScope === 'document' && editor) {
+            finalPrompt = `${aiPreviewState.promptInput}\n\n[대상 문서 전체 내용]\n${editor.getValue()}`;
+          }
+
+          try {
+            await processTextWithAIStream(
+              geminiApiKey,
+              aiModelName,
+              finalPrompt,
+              'general',
+              (chunkText) => {
+                // [출력결과] 태그가 포함되기 전까지는 렌더링 스킵하여 로딩 상태 유지
+                if (chunkText === '') {
+                  return;
+                }
+                setAiPreviewState(prev => ({
+                  ...prev,
+                  streamingText: chunkText
+                }));
+              }
+            );
+            setAiPreviewState(prev => ({
+              ...prev,
+              isFinished: true
+            }));
+            showToast("AI가 글쓰기를 완료했습니다. 결과를 본문에 적용해 보세요!", "success");
+          } catch (err: any) {
+            showToast(err.message || "AI 글쓰기 요청 실패", "error");
+          }
+        };
+
+        const handleApplyInsertModal = () => {
+          const editor = editorRef.current;
+          const model = editor ? editor.getModel() : null;
+          if (!editor || !model) return;
+          const monaco = (window as any).monaco;
+
+          // 적용 범위에 따른 타겟 영역 결정
+          let targetRange = aiPreviewState.originalRange;
+          if (aiPreviewState.targetScope === 'document') {
+            targetRange = model.getFullModelRange();
+          } else if (!targetRange) {
+            // 선택 영역 스코프인데 range가 유실된 경우 전체 치환 폴백
+            targetRange = model.getFullModelRange();
+          }
+
+          editor.executeEdits("AI_MODAL_INSERT", [{
+            range: targetRange,
+            text: aiPreviewState.streamingText,
+            forceMoveMarkers: true
+          }]);
+
+          const lines = aiPreviewState.streamingText.split('\n');
+          const startLine = targetRange.startLineNumber;
+          const startCol = targetRange.startColumn;
+          const endLine = startLine + lines.length - 1;
+          const endCol = lines.length === 1 ? startCol + aiPreviewState.streamingText.length : lines[lines.length - 1].length + 1;
+          const newRange = new monaco.Range(startLine, startCol, endLine, endCol);
+
+          editor.setSelection(newRange);
+          editor.revealRangeInCenter(newRange, 1);
+
+          const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
+          aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
+          setTimeout(() => {
+            if (editorRef.current) aiDecorationsRef.current = editorRef.current.deltaDecorations(aiDecorationsRef.current, []);
+          }, 1500);
+
+          setAiPreviewState(prev => ({ ...prev, isModalOpen: false }));
+          showToast("작성된 글이 에디터 본문에 주입되었습니다. (Ctrl+Z 실행취소 가능)", "success");
+        };
+
+        const handleApplyAppendModal = () => {
+          const editor = editorRef.current;
+          const model = editor?.getModel();
+          if (!editor || !model) return;
+          const monaco = (window as any).monaco;
+
+          // 적용 범위가 selection이면 선택 영역 아래, document면 문서 맨 끝 라인 결정
+          let endLine = model.getLineCount();
+          if (aiPreviewState.targetScope === 'selection' && aiPreviewState.originalRange) {
+            endLine = aiPreviewState.originalRange.endLineNumber;
+          }
+
+          const endCol = model.getLineMaxColumn(endLine);
+          const insertRange = new monaco.Range(endLine, endCol, endLine, endCol);
+
+          const formattedText = `\n\n---\n#### [AI 교정문]\n${aiPreviewState.streamingText}\n---\n`;
+
+          editor.executeEdits("AI_MODAL_APPEND", [{
+            range: insertRange,
+            text: formattedText,
+            forceMoveMarkers: true
+          }]);
+
+          const lines = formattedText.split('\n');
+          const startLine = endLine;
+          const startCol = endCol;
+          const endLineNum = startLine + lines.length - 1;
+          const endColNum = lines.length === 1 ? startCol + formattedText.length : lines[lines.length - 1].length + 1;
+          const newRange = new monaco.Range(startLine, startCol, endLineNum, endColNum);
+
+          editor.setSelection(newRange);
+          editor.revealRangeInCenter(newRange, 1);
+
+          const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
+          aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
+          setTimeout(() => {
+            if (editorRef.current) aiDecorationsRef.current = editorRef.current.deltaDecorations(aiDecorationsRef.current, []);
+          }, 1500);
+
+          setAiPreviewState(prev => ({ ...prev, isModalOpen: false }));
+          showToast("글쓰기 결과물이 본문 아랫줄에 덧붙여졌습니다. (Ctrl+Z 실행취소 가능)", "success");
+        };
+
+        const handleCloseModal = () => {
+          setAiPreviewState(prev => ({ ...prev, isModalOpen: false }));
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
+            <div 
+              className="bg-white dark:bg-zinc-900 border border-purple-500/30 rounded-2xl w-full max-w-lg shadow-2xl p-5 flex flex-col gap-4 animate-in zoom-in-95 duration-200 text-slate-800 dark:text-zinc-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b dark:border-zinc-800 pb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={18} className="text-purple-500" />
+                  <span className="text-sm font-extrabold bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400 bg-clip-text text-transparent">
+                    AI 글쓰기 팝업 어시스턴트
+                  </span>
+                </div>
+                <button 
+                  onClick={handleCloseModal}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 text-base font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+               <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-extrabold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
+                  AI에게 작성할 주제나 명령을 적어주세요
+                </label>
+                <textarea
+                  value={aiPreviewState.promptInput}
+                  onChange={(e) => setAiPreviewState(prev => ({ ...prev, promptInput: e.target.value }))}
+                  placeholder="예: '마크다운 에디터 사용법 3가지 정리해줘', '오늘 우천으로 대진표 순서가 변경되었다는 긴급 공지 써줘'"
+                  rows={3}
+                  className="w-full text-xs p-3 border rounded-xl dark:border-zinc-700 bg-slate-50/50 dark:bg-zinc-950/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600 resize-none font-medium"
+                />
+              </div>
+
+              {/* 🎯 적용 범위 지정 칩 토글 UI */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-extrabold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
+                  명령 적용 대상 범위
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'selection' }))}
+                    disabled={!aiPreviewState.originalText}
+                    className={`flex-1 py-2 text-[11px] font-bold rounded-xl border transition-all ${
+                      aiPreviewState.targetScope === 'selection'
+                        ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-extrabold'
+                        : 'border-slate-200 dark:border-zinc-800 bg-transparent text-slate-400 dark:text-zinc-500 hover:bg-slate-50 dark:hover:bg-zinc-800/50'
+                    } disabled:opacity-30 disabled:cursor-not-allowed`}
+                    title={aiPreviewState.originalText ? `선택된 본문: "${aiPreviewState.originalText.substring(0, 15)}..."` : '에디터에서 텍스트를 드래그한 후 열어주세요.'}
+                  >
+                    선택 영역만 대상 {aiPreviewState.originalText && `(${aiPreviewState.originalText.length}자)`}
+                  </button>
+                  <button
+                    onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'document' }))}
+                    className={`flex-1 py-2 text-[11px] font-bold rounded-xl border transition-all ${
+                      aiPreviewState.targetScope === 'document'
+                        ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-extrabold'
+                        : 'border-slate-200 dark:border-zinc-800 bg-transparent text-slate-400 dark:text-zinc-500 hover:bg-slate-50 dark:hover:bg-zinc-800/50'
+                    }`}
+                  >
+                    문서 전체 대상
+                  </button>
+                </div>
+              </div>
+
+              {/* 생성 시작 버튼 */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleStartGeneration}
+                  disabled={!aiPreviewState.promptInput.trim()}
+                  className="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 active:bg-purple-800 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 shadow-md shadow-purple-500/10"
+                >
+                  <Sparkles size={13} />
+                  AI 글 생성 시작
+                </button>
+              </div>
+
+              {/* 실시간 타이핑 결과 영역 */}
+              {(aiPreviewState.streamingText || !aiPreviewState.isFinished) && (
+                <div className="flex flex-col gap-1.5 border-t dark:border-zinc-800 pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
+                      실시간 AI 답변 생성 프리뷰
+                    </span>
+                    {!aiPreviewState.isFinished && (
+                      <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 animate-pulse bg-purple-500/10 px-2 py-0.5 rounded-full">
+                        AI가 타다닥 적는 중...
+                      </span>
+                    )}
+                  </div>
+                  <div 
+                    className="text-xs font-mono p-3 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-200 overflow-y-auto whitespace-pre-wrap select-text cursor-text min-h-[80px]"
+                    style={{ maxHeight: '180px' }}
+                  >
+                    {aiPreviewState.streamingText ? (
+                      <span className="w-full text-left">{aiPreviewState.streamingText}</span>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-2 py-4 select-none">
+                        <Loader2 className="animate-spin text-purple-500" size={24} />
+                        <span className="text-slate-500 dark:text-zinc-400 italic text-[11px] font-bold animate-pulse">
+                          AI가 문서 구조를 분석하고 기획하는 중입니다...
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 하단 최종 조작 버튼 */}
+              {aiPreviewState.isFinished && aiPreviewState.streamingText && (
+                <div className="flex items-center justify-between border-t dark:border-zinc-800 pt-3">
+                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-medium">
+                    본문에 적용하거나 아래 추가할 수 있습니다.
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleCloseModal}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 transition-colors"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={handleApplyAppendModal}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg border border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/15 text-purple-600 dark:text-purple-400 transition-colors"
+                    >
+                      아래에 추가
+                    </button>
+                    <button
+                      onClick={handleApplyInsertModal}
+                      className="px-4 py-1.5 text-xs font-bold rounded-lg text-white bg-purple-600 hover:bg-purple-700 transition-opacity"
+                    >
+                      본문에 적용
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 🔮 AI 인라인 프리뷰 카드 (수락/취소 안전장치) */}
+      {aiPreviewState.isOpen && (() => {
+        const handleApplyInsert = () => {
+          const editor = editorRef.current;
+          if (!editor || !aiPreviewState.originalRange) return;
+          const monaco = (window as any).monaco;
+          
+          editor.executeEdits("AI_INSERT", [{
+            range: aiPreviewState.originalRange,
+            text: aiPreviewState.streamingText,
+            forceMoveMarkers: true
+          }]);
+          
+          // 바뀐 곳으로 스크롤 고정 및 하이라이트
+          const lines = aiPreviewState.streamingText.split('\n');
+          const startLine = aiPreviewState.originalRange.startLineNumber;
+          const startCol = aiPreviewState.originalRange.startColumn;
+          const endLine = startLine + lines.length - 1;
+          const endCol = lines.length === 1 ? startCol + aiPreviewState.streamingText.length : lines[lines.length - 1].length + 1;
+          const newRange = new monaco.Range(startLine, startCol, endLine, endCol);
+          
+          editor.setSelection(newRange);
+          editor.revealRangeInCenter(newRange, 1);
+          
+          const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
+          aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
+          setTimeout(() => {
+            if (editorRef.current) aiDecorationsRef.current = editorRef.current.deltaDecorations(aiDecorationsRef.current, []);
+          }, 1500);
+          
+          setAiPreviewState(prev => ({ ...prev, isOpen: false }));
+          showToast("문장이 본문에 성공적으로 적용되었습니다. (Ctrl+Z 실행취소 가능)", 'success');
+        };
+
+        const handleApplyAppend = () => {
+          const editor = editorRef.current;
+          const model = editor?.getModel();
+          if (!editor || !model || !aiPreviewState.originalRange) return;
+          const monaco = (window as any).monaco;
+          
+          const endLine = aiPreviewState.originalRange.endLineNumber;
+          const endCol = model.getLineMaxColumn(endLine);
+          const insertRange = new monaco.Range(endLine, endCol, endLine, endCol);
+          
+          let formattedText = '';
+          if (aiPreviewState.action === 'summarize') {
+            formattedText = `\n\n> 📝 **AI 요약**:\n> ` + aiPreviewState.streamingText.replace(/\r?\n/g, '\n> ') + `\n`;
+          } else {
+            formattedText = `\n\n> ✨ **AI 가공 결과**:\n> ` + aiPreviewState.streamingText.replace(/\r?\n/g, '\n> ') + `\n`;
+          }
+
+          editor.executeEdits("AI_APPEND", [{
+            range: insertRange,
+            text: formattedText,
+            forceMoveMarkers: true
+          }]);
+          
+          // 새로 추가된 위치 계산 및 포커싱/하이라이트
+          const lines = formattedText.split('\n');
+          const startLine = endLine;
+          const startCol = endCol;
+          const endLineNum = startLine + lines.length - 1;
+          const endColNum = lines.length === 1 ? startCol + formattedText.length : lines[lines.length - 1].length + 1;
+          const newRange = new monaco.Range(startLine, startCol, endLineNum, endColNum);
+          
+          editor.setSelection(newRange);
+          editor.revealRangeInCenter(newRange, 1);
+          
+          const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
+          aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
+          setTimeout(() => {
+            if (editorRef.current) aiDecorationsRef.current = editorRef.current.deltaDecorations(aiDecorationsRef.current, []);
+          }, 1500);
+          
+          setAiPreviewState(prev => ({ ...prev, isOpen: false }));
+          showToast("결과물이 아랫줄에 덧붙여졌습니다. (Ctrl+Z 실행취소 가능)", 'success');
+        };
+
+        const handleCancel = () => {
+          setAiPreviewState(prev => ({ ...prev, isOpen: false }));
+          showToast("AI 결과가 취소되었습니다.", 'info');
+        };
+
+        return (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] w-[90%] max-w-xl bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-purple-500/20 p-4 flex flex-col gap-3 animate-in slide-in-from-bottom-5 duration-300">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-purple-500 animate-pulse" />
+                <span className="text-sm font-extrabold text-purple-600 dark:text-purple-400">
+                  AI 가공 결과 프리뷰 ({aiPreviewState.action.toUpperCase()})
+                </span>
+              </div>
+              {!aiPreviewState.isFinished && (
+                <span className="text-[11px] font-bold text-purple-500/80 animate-pulse bg-purple-500/10 px-2 py-0.5 rounded-full">
+                  글자 생성 중...
+                </span>
+              )}
+            </div>
+            
+            <div 
+              className="text-xs font-mono p-3 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950/80 text-slate-800 dark:text-zinc-200 overflow-y-auto whitespace-pre-wrap select-text cursor-text min-h-[80px]"
+              style={{ maxHeight: '180px' }}
+            >
+              {aiPreviewState.streamingText ? (
+                <span className="w-full text-left">{aiPreviewState.streamingText}</span>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 py-4 select-none">
+                  <Loader2 className="animate-spin text-purple-500" size={20} />
+                  <span className="text-slate-500 dark:text-zinc-400 italic text-[11px] font-bold animate-pulse">
+                    AI가 최적의 문장 구조를 가공하는 중입니다...
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-medium">
+                Ctrl+Z로 본문 치환 후 즉시 원복할 수 있습니다.
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleCancel}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleApplyAppend}
+                  disabled={!aiPreviewState.streamingText}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg border border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/15 text-purple-600 dark:text-purple-400 disabled:opacity-40 transition-colors"
+                >
+                  아래에 추가
+                </button>
+                <button
+                  onClick={handleApplyInsert}
+                  disabled={!aiPreviewState.streamingText}
+                  className="px-4 py-1.5 text-xs font-bold rounded-lg text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-40 transition-opacity"
+                >
+                  본문에 적용
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 🎙️ 모바일 플로팅 음성 비서 (STT) */}
+      {mounted && isMobile && (() => {
+        const handleSpeechToText = () => {
+          const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+          if (!SpeechRecognition) {
+            showToast("죄송합니다. 현재 브라우저는 음성 인식을 지원하지 않습니다.", 'error');
+            return;
+          }
+
+          if (isRecording) {
+            // 녹음 중지
+            setIsRecording(false);
+            return;
+          }
+
+          const recognition = new SpeechRecognition();
+          recognition.lang = 'ko-KR';
+          recognition.interimResults = false;
+          recognition.maxAlternatives = 1;
+
+          recognition.onstart = () => {
+            setIsRecording(true);
+            showToast("🎙️ 마이크가 켜졌습니다. 말씀해 주세요...", 'info');
+          };
+
+          recognition.onerror = (e: any) => {
+            console.error('Speech recognition error:', e);
+            setIsRecording(false);
+            showToast("음성 인식에 실패했습니다.", 'error');
+          };
+
+          recognition.onend = () => {
+            setIsRecording(false);
+          };
+
+          recognition.onresult = async (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            if (!transcript.trim()) return;
+
+            showToast(`음성 감지: "${transcript}"`, 'success');
+            
+            // 음성을 AI 다듬기(POLISH)로 가공하여 에디터에 주입
+            if (!geminiApiKey) {
+              // API Key가 없으면 원본 음성 텍스트라도 본문에 직접 삽입
+              insertAtCursor(transcript);
+              showToast("API 키가 설정되어 있지 않아 원본 음성을 그대로 입력했습니다.", 'info');
+              return;
+            }
+
+            // 가짜 렌더링 범위 생성 후 AI 스트리밍 구동
+            const editor = editorRef.current;
+            if (!editor) return;
+            const model = editor.getModel();
+            if (!model) return;
+            const pos = editor.getPosition() || { lineNumber: 1, column: 1 };
+            const dummyRange = new ((window as any).monaco).Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
+
+            setAiPreviewState({
+              isOpen: true,
+              originalRange: dummyRange,
+              streamingText: '',
+              action: 'polish',
+              originalText: transcript,
+              isFinished: false
+            });
+
+            try {
+              await processTextWithAIStream(
+                geminiApiKey,
+                aiModelName,
+                `이 구어체 음성을 깔끔하고 정갈한 공지글 또는 설명글 템플릿으로 가공해줘: "${transcript}"`,
+                'polish',
+                (chunkText) => {
+                  setAiPreviewState(prev => ({ ...prev, streamingText: chunkText }));
+                }
+              );
+              setAiPreviewState(prev => ({ ...prev, isFinished: true }));
+            } catch (err: any) {
+              showToast("음성 가공 요청 실패", 'error');
+              setAiPreviewState(prev => ({ ...prev, isOpen: false }));
+            }
+          };
+
+          recognition.start();
+        };
+
+        return (
+          <button
+            onClick={handleSpeechToText}
+            className={`fixed bottom-20 right-6 z-[99999] w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer ${isRecording ? 'bg-rose-500 mic-pulse' : 'bg-gradient-to-tr from-purple-600 to-indigo-600 shadow-purple-500/20'}`}
+          >
+            {isRecording ? (
+              <span className="w-4 h-4 bg-white rounded-full animate-ping" />
+            ) : (
+              <span className="text-xl">🎙️</span>
+            )}
+          </button>
+        );
+      })()}
+
+      {isAiLoading && (
+        <div className="fixed inset-0 z-[99999] bg-black/10 dark:bg-black/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none select-none">
+          <div className="bg-white dark:bg-zinc-800 shadow-2xl border border-purple-500/20 rounded-2xl px-6 py-4 flex items-center gap-3.5 animate-in fade-in zoom-in-95 duration-200">
+            <Loader2 className="animate-spin text-purple-500" size={20} />
+            <span className="text-[13px] font-bold text-zinc-700 dark:text-zinc-200">
+              AI가 문장을 다듬고 있습니다...
+            </span>
+          </div>
+        </div>
+      )}
     </div>
     </EditorProvider>
     </>

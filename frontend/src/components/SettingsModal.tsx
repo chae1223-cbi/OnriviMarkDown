@@ -265,18 +265,21 @@ export default function SettingsModal({
                 </select>
               </div>
               
-              <div className="flex flex-col gap-2 pt-2 text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>Google Gemma API Key (AI 어시스턴트용)</span>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 pt-2">
+                <span className="text-sm font-medium" style={{ color: colors.onSurface }}>Google Gemma API Key (AI 어시스턴트용)</span>
+                <div className="flex gap-2">
                   <input
                     type="password"
-                    placeholder="AI 기능을 위해 API Key를 입력하세요..."
+                    placeholder="AI 통신을 위한 구글 API 키를 입력하세요"
                     value={geminiApiKey || ''}
                     onChange={(e) => {
                       setGeminiApiKey(e.target.value);
                       if (testResult) setTestResult(null);
                     }}
-                    className="px-3 py-2 rounded text-xs outline-none flex-1"
+                    onCopy={(e) => e.preventDefault()}
+                    onCut={(e) => e.preventDefault()}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className="px-3 py-2 rounded text-sm outline-none flex-1 font-mono"
                     style={{
                       backgroundColor: colors.container,
                       color: colors.onSurface,
