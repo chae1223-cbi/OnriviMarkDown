@@ -1137,8 +1137,60 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       console.log('[WELCOME-TRIGGER] loadAndVerifyLicense done, setting isLicenseChecking=false');
       setIsLicenseChecking(false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAndVerifyLicense, deviceId]);
+
+  // 💻 [Heartbeat 가드] 20초마다 라이선스 세션의 활동 시각(last_active_at)을 갱신하고 강탈 여부를 검사
+  useEffect(() => {
+    if (typeof window === 'undefined' || !deviceId || isLicenseChecking) return;
+
+    const intervalId = setInterval(async () => {
+      const paymentNo = localStorage.getItem('onrivi_payment_no');
+      if (!paymentNo) return;
+
+      try {
+        // p_device_uuid는 로컬의 sessionId를 넘겨야 현재 브라우저 탭 세션을 추적함
+        const currentSessionId = localStorage.getItem('onrivi_session_id') || deviceId;
+        const { data: chk } = await supabase.rpc('check_license_session', {
+          p_payment_no: paymentNo,
+          p_device_uuid: currentSessionId
+        });
+
+        if (chk) {
+          if (!chk.success || !chk.has_session) {
+            // 다른 기기 접속이나 만료로 세션이 초과/소멸되었다면 즉시 제한 사용자로 상태 전이
+            setLicenseStatus(prev => {
+              if (!prev.isExpired) {
+                showToast("⚠️ 다른 브라우저/기기에서 접속하여 본 세션의 편집 권한이 제한모드로 해제되었습니다.", "warning");
+              }
+              return {
+                ...prev,
+                isActivated: false,
+                isExpired: true,
+                planName: `동시 접속 초과 (${chk.max_devices || '?'}대) - 제한 사용자`
+              };
+            });
+          } else {
+            // 정상 복구/유지인 경우 상태 동기화
+            setLicenseStatus(prev => {
+              if (prev.isExpired) {
+                return {
+                  ...prev,
+                  isActivated: true,
+                  isExpired: false,
+                  planName: chk.plan_name || prev.planName || '프리미엄 요금제'
+                };
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[Heartbeat] session verify failed:', err);
+      }
+    }, 20000); // 20초마다 주기적 검사 수행 (60초 DB 만료 대비 충분한 신뢰성 확보)
+
+    return () => clearInterval(intervalId);
+  }, [deviceId, isLicenseChecking]);
 
   // 📊 [OMD-CITATION-MainEditorApp] .bib 워크스페이스 자동 로드
   // 🎯 @KICK  : 워크스페이스 전체를 재귀 탐색하여 .bib 파일을 모두 병합 로드
@@ -4177,6 +4229,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 💡 [비표준 이벤트 가드] getModifierState 메서드가 없는 가상/비표준 이벤트 유입 차단
+      if (typeof e.getModifierState !== 'function') {
+        return;
+      }
+
       // 💡 [Shift+방향키 가드] capture:true 단계에서 Shift+방향키를 절대 가로채지 않음
       // Monaco 에디터의 cursorLeftSelect/cursorRightSelect 등 기본 텍스트 선택 동작 보호
       // 특히 IME(한글) 상태에서 keyCode 229 복구 로직과 충돌하여 선택이 끊기는 버그 방지
@@ -4620,6 +4677,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     id="floating-toolbar"
                     tabIndex={-1}
                     onKeyDown={(e) => {
+                      e.stopPropagation();
                       const buttons = Array.from(e.currentTarget.querySelectorAll('button')) as HTMLButtonElement[];
                       const activeEl = document.activeElement as HTMLButtonElement;
                       const currentIndex = buttons.indexOf(activeEl);
