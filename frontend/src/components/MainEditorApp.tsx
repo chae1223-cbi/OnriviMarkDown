@@ -9,9 +9,7 @@
  * 작성자 : 채병익
  * 기능 설명 : 전체 시스템의 컨트롤 타워.
  * 모든 전역 상태 및 화면 분할 레이아웃 조립.
- * 메뉴바 , 툴바, 상태바, 사이드바 등 모든 컴포넌트의 렌더링을 책임짐.
- * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-07-15** — 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
+  * 🚨 @PATCH : **2026-07-15** — AI 재생성 및 모달 닫기/취소 시 백그라운드 스트리밍을 무효화하는 generationIdRef 가드 추가(동일 모달 재진입 또는 재생성 시 이전 버퍼가 오버랩되는 현상 완벽 조치), 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
  *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
  *             **2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
  *             **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
@@ -1863,6 +1861,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     const selectedText = model.getValueInRange(selection);
     
+    const currentGenId = ++generationIdRef.current;
+    
     // 프리뷰 카드 열고 상태 초기화
     setAiPreviewState({
       isOpen: true,
@@ -1881,6 +1881,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         selectedText,
         action,
         (chunkText) => {
+          if (currentGenId !== generationIdRef.current) return;
           if (chunkText === '') {
             return;
           }
@@ -1891,12 +1892,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       );
       
+      if (currentGenId !== generationIdRef.current) return;
+      
       setAiPreviewState(prev => ({
         ...prev,
         isFinished: true
       }));
       showToast("AI 가공이 완료되었습니다. 결과물을 검토해 주세요.", 'success');
     } catch (err: any) {
+      if (currentGenId !== generationIdRef.current) return;
       showToast(err.message || "AI 요청 실패", 'error');
       setAiPreviewState(prev => ({ ...prev, isOpen: false }));
     }
@@ -2065,6 +2069,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const docLinkFilesRef = useRef<FileNode[]>([]);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
   const aiDecorationsRef = useRef<string[]>([]);
+  const generationIdRef = useRef<number>(0);
   const readFileTextRef = useRef<(node: FileNode) => Promise<string>>(null!);
   const [aiPreviewState, setAiPreviewState] = useState<{
     isOpen: boolean;
@@ -3859,12 +3864,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (editor && model && selection && !selection.isEmpty()) {
           selectedText = model.getValueInRange(selection);
         }
+        generationIdRef.current++;
         setAiPreviewState(prev => ({
           ...prev,
           isModalOpen: true,
           promptInput: '',
           streamingText: '',
           isFinished: false,
+          isStarted: false,
           originalRange: selection,
           originalText: selectedText,
           targetScope: selectedText ? 'selection' : 'none'
@@ -3927,6 +3934,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         
         const selection = editor.getSelection();
         // 중앙 플로팅 모달을 띄워 입력 및 결과 감상 지원
+        generationIdRef.current++;
         setAiPreviewState({
           isOpen: false,
           isModalOpen: true,
@@ -4139,6 +4147,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             selectedText = model.getValueInRange(selection);
           }
           
+          generationIdRef.current++;
           setAiPreviewState(prev => ({
             ...prev,
             isModalOpen: true,
@@ -4817,12 +4826,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 if (editor && model && selection && !selection.isEmpty()) {
                                   selectedText = model.getValueInRange(selection);
                                 }
+                                generationIdRef.current++;
                                 setAiPreviewState(prev => ({
                                   ...prev,
                                   isModalOpen: true,
                                   promptInput: '',
                                   streamingText: '',
                                   isFinished: false,
+                                  isStarted: false,
                                   originalRange: selection,
                                   originalText: selectedText,
                                   targetScope: 'selection'
@@ -5232,6 +5243,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             return;
           }
           
+          const currentGenId = ++generationIdRef.current;
+          
           setAiPreviewState(prev => ({
             ...prev,
             streamingText: '',
@@ -5256,6 +5269,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               finalPrompt,
               'general',
               (chunkText) => {
+                if (currentGenId !== generationIdRef.current) return;
                 // [출력결과] 태그가 포함되기 전까지는 렌더링 스킵하여 로딩 상태 유지
                 if (chunkText === '') {
                   return;
@@ -5266,12 +5280,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 }));
               }
             );
+            if (currentGenId !== generationIdRef.current) return;
             setAiPreviewState(prev => ({
               ...prev,
               isFinished: true
             }));
             showToast("AI가 글쓰기를 완료했습니다. 결과를 본문에 적용해 보세요!", "success");
           } catch (err: any) {
+            if (currentGenId !== generationIdRef.current) return;
             setAiPreviewState(prev => ({ ...prev, isStarted: false }));
             showToast(err.message || "AI 글쓰기 요청 실패", "error");
           }
@@ -5378,6 +5394,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         };
 
         const handleCloseModal = () => {
+          generationIdRef.current++;
           setAiPreviewState(prev => ({ ...prev, isModalOpen: false, isStarted: false }));
         };
 
@@ -5679,6 +5696,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         };
 
         const handleCancel = () => {
+          generationIdRef.current++;
           setAiPreviewState(prev => ({ ...prev, isOpen: false }));
           showToast("AI 결과가 취소되었습니다.", 'info');
         };
@@ -5803,6 +5821,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             const pos = editor.getPosition() || { lineNumber: 1, column: 1 };
             const dummyRange = new ((window as any).monaco).Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
 
+            const currentGenId = ++generationIdRef.current;
+
             setAiPreviewState({
               isOpen: true,
               originalRange: dummyRange,
@@ -5819,11 +5839,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 `이 구어체 음성을 깔끔하고 정갈한 공지글 또는 설명글 템플릿으로 가공해줘: "${transcript}"`,
                 'polish',
                 (chunkText) => {
+                  if (currentGenId !== generationIdRef.current) return;
                   setAiPreviewState(prev => ({ ...prev, streamingText: chunkText }));
                 }
               );
+              if (currentGenId !== generationIdRef.current) return;
               setAiPreviewState(prev => ({ ...prev, isFinished: true }));
             } catch (err: any) {
+              if (currentGenId !== generationIdRef.current) return;
               showToast("음성 가공 요청 실패", 'error');
               setAiPreviewState(prev => ({ ...prev, isOpen: false }));
             }
