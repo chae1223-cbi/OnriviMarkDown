@@ -279,9 +279,9 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
       </button>
       {isOpen && (
         <div 
-          className="absolute top-full left-0 w-56 backdrop-blur-md border rounded-b-md py-1 animate-in fade-in slide-in-from-top-1 duration-150 text-zinc-800 dark:text-zinc-200"
+          className="absolute top-full left-0 w-56 border rounded-b-md py-1 animate-in fade-in slide-in-from-top-1 duration-150 text-zinc-800 dark:text-zinc-200"
           style={{ 
-            backgroundColor: isDarkMode ? 'rgba(9, 9, 11, 0.99)' : 'rgba(255, 255, 255, 0.99)',
+            backgroundColor: isDarkMode ? 'rgba(9, 9, 11, 1)' : 'rgba(255, 255, 255, 1)',
             borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
             zIndex: 9999
@@ -318,9 +318,9 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                 {/* Submenu — CSS group-hover로 제어 (mouse leave 문제 해결) */}
                 {item.subItems && (
                   <div 
-                    className="absolute top-0 left-full w-48 backdrop-blur-md border rounded-md py-1 invisible group-hover:visible ml-px text-zinc-800 dark:text-zinc-200"
+                    className="absolute top-0 left-full w-48 border rounded-md py-1 invisible group-hover:visible ml-px text-zinc-800 dark:text-zinc-200"
                     style={{ 
-                      backgroundColor: isDarkMode ? 'rgba(9, 9, 11, 0.99)' : 'rgba(255, 255, 255, 0.99)',
+                      backgroundColor: isDarkMode ? 'rgba(9, 9, 11, 1)' : 'rgba(255, 255, 255, 1)',
                       borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
                       boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
                       zIndex: 10000

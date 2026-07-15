@@ -128,6 +128,17 @@ export const processTextWithAIStream = async (
     systemInstruction: systemPrompt
   });
 
+  // 💡 [지능형 래핑 해제] 전체 텍스트의 바깥 껍질이 ``` 로 완전히 싸여 있을 때만 외곽 코드 블록을 안전하게 벗깁니다.
+  // 본문 중간에 들어간 ```mermaid 나 ```javascript 등 진짜 코드블록 서식의 훼손을 원천 차단합니다.
+  const cleanOuterCodeBlock = (val: string): string => {
+    let clean = val.trim();
+    if (clean.startsWith('```') && clean.endsWith('```')) {
+      clean = clean.replace(/^```[a-zA-Z0-9-]*\r?\n/, '');
+      clean = clean.replace(/\r?\n```$/, '');
+    }
+    return clean.trim();
+  };
+
   // 생각 로그(CoT) 및 안내 사족을 물리적으로 안전하게 발라내는 정제 함수 ([출력결과] 태그 이하 추출)
   const cleanOutputText = (raw: string): string => {
     // 줄의 시작 부분에 단독 라인으로 존재하는 [출력결과] 태그를 수색 (문장 중간의 설명용 텍스트 매칭 차단)
@@ -136,15 +147,15 @@ export const processTextWithAIStream = async (
     
     if (match && match.index !== undefined) {
       const content = raw.substring(match.index + match[0].length);
-      return content.replace(/^```[a-z]*\n?/im, '').replace(/\n?```$/im, '').trim();
+      return cleanOuterCodeBlock(content);
     }
-
+ 
     // 💡 [지능형 폴백 가드] 누적 스트리밍 텍스트가 120자 이상 쌓였음에도 [출력결과] 태그가 없다면,
     // AI가 태그 지침을 빠뜨리고 본론을 다이렉트로 적는 것으로 판단하여 무한 대기를 차단하고 원본 전체를 표출합니다.
     if (raw.length > 120) {
-      return raw.replace(/^```[a-z]*\n?/im, '').replace(/\n?```$/im, '').trim();
+      return cleanOuterCodeBlock(raw);
     }
-
+ 
     // 마커가 아직 들어오지 않은 생각 흐름(CoT) 구간은 사용자 화면에 노출하지 않고 빈 문자로 대기 유도
     return '';
   };

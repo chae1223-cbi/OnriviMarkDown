@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Map as MapIcon, Search, Plus, Minus, MapPin, Terminal, Code, Loader } from 'lucide-react';
+import { X, Search, Plus, Minus, MapPin, Copy, Check, Map } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 
 interface MapModalProps {
@@ -14,10 +14,10 @@ interface MapModalProps {
 
 // ====================================================================
 // 📊 [OMD-CORE-MapModal-0006] MapModal ➔ MapModal
-// 🎯 @KICK  : Google Maps iframe 기반 지도 삽입 모달 - 주소 검색, 줌 제어, 크기/정렬 설정
+// 🎯 @KICK  : Google Maps iframe 기반 지도 삽입 모달 - 주소 검색, 줌 제어, 크기/정렬 설정 및 프리미엄 HSL 테마 이식
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : handleSearch, handleInsert, setZoom, setMapAlign, showToast
+// 🚨 @PATCH : 2026-07-15 - 왼쪽 사이드바 제거 요청 반영 및 본문 영역 확장
+// 🔗 @CALLS : handleSearch, handleInsert, setZoom, setMapAlign, showToast, createPortal
 // ====================================================================
 export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapModalProps) {
   const { showToast } = useToast();
@@ -30,25 +30,12 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   const [mapAlign, setMapAlign] = useState<'left' | 'center' | 'right'>('center');
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
-// ====================================================================
-// 📊 [OMD-CORE-MapModal-0005] MapModal ➔ useEffect (mounted)
-// 🎯 @KICK  : 클라이언트 마운트 완료 상태 설정으로 hydration mismatch 방지
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : setMounted
-// ====================================================================
   useEffect(() => {
     setMounted(true);
   }, []);
 
-// ====================================================================
-// 📊 [OMD-CORE-MapModal-0004] MapModal ➔ handleSearch
-// 🎯 @KICK  : Nominatim API로 주소를 검색하여 좌표와 장소명 획득
-// 🛡️ @GUARD : address가 비어있으면 early return; 검색 결과가 없으면 에러 토스트
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : fetch, setCoords, setPlaceName, showToast
-// ====================================================================
   // 지도 검색 함수 - Nominatim(OpenStreetMap) 기반 주소/장소명 검색
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -71,7 +58,6 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
         const { lat, lon, display_name } = data[0];
         const newCoords = `${parseFloat(lat).toFixed(4)}, ${parseFloat(lon).toFixed(4)}`;
         setCoords(newCoords);
-        // 장소명은 첫 번째 콤마 앞까지만 표시
         const shortName = display_name.split(',')[0] || address;
         setPlaceName(shortName);
         showToast(`"${shortName}" 위치를 찾았습니다.`, 'success');
@@ -86,201 +72,247 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
     }
   };
 
-// ====================================================================
-// 📊 [OMD-CORE-MapModal-0003] MapModal ➔ cleanCoords
-// 🎯 @KICK  : 입력된 좌표 문자열에서 외곽 괄호/따옴표 제거
-// 🛡️ @GUARD : trim + 정규식으로 좌표 정제
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : 없음
-// ====================================================================
   const cleanCoords = useMemo(() => {
     return coords.trim().replace(/^[\("'\s]+|[\)"'\s]+$/g, '');
   }, [coords]);
 
-// ====================================================================
-// 📊 [OMD-CORE-MapModal-0002] MapModal ➔ googleEmbedUrl
-// 🎯 @KICK  : 좌표와 줌 레벨로 Google Maps iframe embed URL 생성
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : 없음
-// ====================================================================
-  // 구글 지도 Embed URL (API 키 없이 연동되는 방식)
   const googleEmbedUrl = useMemo(() => {
     const [lat, lng] = cleanCoords.split(',').map(s => s.trim());
     return `https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&t=&ie=UTF8&iwloc=&output=embed${isDarkMode ? '&theme=dark' : ''}`;
   }, [cleanCoords, zoom, isDarkMode]);
 
-  if (!isOpen) return null;
-  if (!mounted) return null;
+  const [latVal, lngVal] = cleanCoords.split(',').map(s => s.trim());
+  const mapCode = `<iframe src="https://maps.google.com/maps?q=${latVal},${lngVal}&z=${zoom}&output=embed" style="width:${mapWidth}px; height:${mapHeight}px; border:0;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
 
-  // 삽입할 코드 (Google Maps iframe embed - API 키 불필요)
-  const [lat, lng] = cleanCoords.split(',').map(s => s.trim());
-  const mapCode = `<iframe src="https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&output=embed" style="width:${mapWidth};height:${mapHeight};border:0;border-radius:12px;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
-
-// ====================================================================
-// 📊 [OMD-CORE-MapModal-0001] MapModal ➔ handleInsert
-// 🎯 @KICK  : Google Maps iframe HTML 코드를 생성하여 onInsert로 전달
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : onInsert, onClose
-// ====================================================================
   const handleInsert = () => {
     onInsert(`\n${mapCode}\n`);
     onClose();
   };
 
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(mapCode);
+      setIsCopied(true);
+      showToast("지도 HTML 코드가 복사되었습니다.", "success");
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      showToast("코드 복사에 실패했습니다.", "error");
+    }
+  };
+
+  if (!isOpen) return null;
+  if (!mounted) return null;
+
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>
-      <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-8" style={{ overflowY: "auto" }}>
+      {/* 선명한 투명 배경 (안개 블러 제거) */}
+      <div className="absolute inset-0 bg-black/65" onClick={onClose} />
       
-      <div className={`relative w-full max-w-[640px] rounded-xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 border ${
-        isDarkMode 
-          ? 'bg-[#131313] border-[#414755] shadow-[0px_8px_32px_rgba(0,0,0,0.4)]' 
-          : 'bg-white border-[#c1c6d7]'
-      }`} style={{ maxHeight: "90dvh" }}>
-        
-        {/* 헤더 */}
-        <div className={`px-6 py-4 flex items-center justify-between border-b shrink-0 ${
-          isDarkMode ? 'border-[#414755] bg-[#201f1f]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
+      {/* Modal Shell */}
+      <main 
+        className={`relative w-full max-w-4xl shadow-2xl rounded-xl overflow-hidden flex flex-col border animate-in zoom-in-95 duration-300 ${
+          isDarkMode 
+            ? 'bg-zinc-950 border-zinc-800 text-zinc-100' 
+            : 'bg-white border-slate-200 text-slate-800'
+        }`}
+      >
+        {/* Top App Bar (Header) */}
+        <header className={`flex justify-between items-center h-16 px-8 w-full border-b shrink-0 ${
+          isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-slate-150 bg-slate-50/50'
         }`}>
-          <div className="flex items-center gap-2">
-            <MapIcon size={20} className="text-[#4285F4]" />
-            <h2 className={`text-lg font-bold ${isDarkMode ? 'text-[#e5e2e1]' : 'text-[#181c20]'}`}>지도 삽입</h2>
+          <div className="flex items-center space-x-3">
+            <span className="text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+              <Map size={20} />
+            </span>
+            <h1 className="text-base font-black tracking-tight text-indigo-600 dark:text-indigo-400">지도 삽입</h1>
           </div>
-          <button onClick={onClose} className="p-1 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors">
-            <X size={20} />
+          <button 
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-2 transition-colors rounded-full active:scale-95"
+          >
+            <X size={18} />
           </button>
-        </div>
+        </header>
 
-        {/* 본문 */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-4">
-          {/* 주소 검색 영역 */}
-          <form onSubmit={handleSearch} className="space-y-1.5">
-            <label className={`text-xs font-semibold ${isDarkMode ? 'text-[#c1c6d7]' : 'text-[#5c5f61]'}`}>
-              주소 또는 장소 검색
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1 flex items-center">
-                {isLoading ? (
-                  <Loader size={16} className="absolute left-3 text-[#4285F4] animate-spin" />
-                ) : (
-                  <Search size={16} className="absolute left-3 text-gray-400" />
-                )}
-                <input 
-                  type="text" 
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all text-sm ${
-                    isDarkMode 
-                      ? 'bg-[#0e0e0e] border-[#414755] text-[#e5e2e1] focus:ring-2 focus:ring-[#4285F4]/40' 
-                      : 'bg-white border-[#c1c6d7] text-[#181c20] focus:ring-2 focus:ring-[#4285F4]/20'
-                  }`}
-                  placeholder="장소명 또는 주소를 입력하세요 (예: 경복궁, 강남역)"
-                />
+        {/* Content Area */}
+        <div className="flex flex-col flex-1 overflow-hidden h-[540px] min-h-0">
+          {/* Main Working Canvas */}
+          <section className="flex-1 flex flex-col p-6 space-y-5 overflow-y-auto min-h-0 bg-white dark:bg-zinc-950">
+            {/* Search Module */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 dark:text-zinc-400 tracking-wider uppercase">
+                주소 또는 장소 검색
+              </label>
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <div className="relative flex-1 group">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 flex items-center">
+                    <Search size={16} />
+                  </span>
+                  <input 
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="서울특별시 중구 세종대로 110"
+                    className={`w-full border-transparent focus:border-indigo-500/20 focus:ring-0 rounded-lg pl-11 pr-4 py-2.5 text-xs font-bold transition-all shadow-sm ${
+                      isDarkMode ? 'bg-zinc-900 focus:bg-zinc-900' : 'bg-slate-50 focus:bg-slate-50/30'
+                    }`}
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  disabled={isLoading}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg font-bold text-xs flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-40"
+                >
+                  <span>{isLoading ? '검색 중...' : '검색'}</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Map Visualization */}
+            <div className={`relative rounded-xl overflow-hidden border shadow-inner h-[280px] shrink-0 ${
+              isDarkMode ? 'border-zinc-800' : 'border-slate-200'
+            }`}>
+              <iframe
+                key={googleEmbedUrl}
+                title="Google Map"
+                width="100%"
+                height="100%"
+                style={{ border: 0, filter: isDarkMode ? 'invert(90%) hue-rotate(180deg)' : 'none' }}
+                loading="lazy"
+                allowFullScreen
+                src={googleEmbedUrl}
+              />
+
+              {/* Floating Coordinates Overlay */}
+              <div className="absolute bottom-4 left-4 bg-white/95 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 px-3.5 py-1.5 rounded-lg flex items-center space-x-3 z-20 shadow-sm text-[10px] font-bold">
+                <div className="flex flex-col text-slate-600 dark:text-zinc-400 leading-tight">
+                  <span>LAT: {latVal}</span>
+                  <span>LNG: {lngVal}</span>
+                </div>
+                <div className="h-6 w-px bg-slate-200 dark:bg-zinc-800" />
+                <span className="text-slate-400 dark:text-zinc-500">Local Engine Active</span>
               </div>
-              {/* 검색 버튼 */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="px-4 py-2.5 bg-[#4285F4] text-white rounded-lg text-sm font-bold shadow-sm flex items-center gap-1.5 hover:bg-[#3574e0] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-              >
-                {isLoading ? (
-                  <Loader size={15} className="animate-spin" />
-                ) : (
-                  <Search size={15} />
-                )}
-                검색
-              </button>
-            </div>
-          </form>
 
-          {/* Google Map 미리보기 */}
-          <div className={`relative rounded-lg overflow-hidden border ${
-            isDarkMode ? 'border-[#414755] bg-[#353534]' : 'border-[#c1c6d7] bg-[#e0e3e8]'
-          }`} style={{ width: mapWidth.includes('%') ? mapWidth : `${mapWidth}px`, height: `${mapHeight}px` }}>
-            {/* key 를 URL로 부여하여 coords 변경 시 iframe 강제 리로드 */}
-            <iframe
-              key={googleEmbedUrl}
-              title="Google Map Preview"
-              width="100%"
-              height="100%"
-              style={{ border: 0, filter: isDarkMode ? 'invert(90%) hue-rotate(180deg)' : 'none' }}
-              loading="lazy"
-              allowFullScreen
-              src={googleEmbedUrl}
-            ></iframe>
-            
-            {/* 줌 컨트롤 버튼 */}
-            <div className="absolute bottom-4 right-4 flex flex-col gap-1">
-              <button onClick={() => setZoom(z => Math.min(z + 1, 20))} className={`w-8 h-8 rounded shadow-md flex items-center justify-center border ${isDarkMode ? 'bg-[#2a2a2a] border-[#414755] text-white' : 'bg-white border-[#c1c6d7]'}`}><Plus size={18} /></button>
-              <button onClick={() => setZoom(z => Math.max(z - 1, 1))} className={`w-8 h-8 rounded shadow-md flex items-center justify-center border ${isDarkMode ? 'bg-[#2a2a2a] border-[#414755] text-white' : 'bg-white border-[#c1c6d7]'}`}><Minus size={18} /></button>
-            </div>
-
-            {/* 좌표 및 장소명 표시 배지 */}
-            <div className={`absolute top-4 left-4 backdrop-blur-md border px-2.5 py-1.5 rounded shadow-sm flex items-center gap-2 ${isDarkMode ? 'bg-black/60 border-[#414755] text-white' : 'bg-white/90 border-[#c1c6d7]'}`}>
-              <MapPin size={14} className="text-[#4285F4]" />
-              <div className="flex flex-col">
-                <span className="text-[11px] font-bold leading-tight">{placeName}</span>
-                <span className={`text-[10px] leading-tight ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{cleanCoords}</span>
+              {/* Map Controls */}
+              <div className="absolute top-4 right-4 flex flex-col space-y-1.5 z-20">
+                <button 
+                  onClick={() => setZoom(z => Math.min(z + 1, 20))}
+                  className="w-8 h-8 bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 rounded-lg border border-slate-200 dark:border-zinc-800 shadow-sm flex items-center justify-center hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-500 transition-colors active:scale-95"
+                >
+                  <Plus size={16} />
+                </button>
+                <button 
+                  onClick={() => setZoom(z => Math.max(z - 1, 1))}
+                  className="w-8 h-8 bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 rounded-lg border border-slate-200 dark:border-zinc-800 shadow-sm flex items-center justify-center hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-500 transition-colors active:scale-95"
+                >
+                  <Minus size={16} />
+                </button>
               </div>
             </div>
 
-            {/* 검색 중 로딩 오버레이 */}
-            {isLoading && (
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
-                <div className="flex flex-col items-center gap-2 text-white">
-                  <Loader size={28} className="animate-spin text-[#4285F4]" />
-                  <span className="text-xs font-semibold">장소 검색 중...</span>
+            {/* Editorial Control Panel: Grid of Settings */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1 shrink-0">
+              {/* Dimensions and Alignment */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-1 space-y-1">
+                    <label className="text-[9px] font-black text-slate-500 dark:text-zinc-400 tracking-wider uppercase">너비 (PX)</label>
+                    <input 
+                      type="number" 
+                      value={mapWidth} 
+                      onChange={(e) => setMapWidth(e.target.value)}
+                      className={`w-full border-transparent focus:border-indigo-500/20 focus:ring-0 rounded-lg p-2.5 text-xs font-bold ${
+                        isDarkMode ? 'bg-zinc-900' : 'bg-slate-50'
+                      }`} 
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <label className="text-[9px] font-black text-slate-500 dark:text-zinc-400 tracking-wider uppercase">높이 (PX)</label>
+                    <input 
+                      type="number" 
+                      value={mapHeight} 
+                      onChange={(e) => setMapHeight(e.target.value)}
+                      className={`w-full border-transparent focus:border-indigo-500/20 focus:ring-0 rounded-lg p-2.5 text-xs font-bold ${
+                        isDarkMode ? 'bg-zinc-900' : 'bg-slate-50'
+                      }`} 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-500 dark:text-zinc-400 tracking-wider uppercase">정렬</label>
+                  <div className={`flex p-1 rounded-lg ${isDarkMode ? 'bg-zinc-900' : 'bg-slate-50'}`}>
+                    {(['left', 'center', 'right'] as const).map((align) => (
+                      <button 
+                        key={align}
+                        onClick={() => setMapAlign(align)}
+                        className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${
+                          mapAlign === align
+                            ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm ring-1 ring-slate-200/40 dark:ring-zinc-700/40'
+                            : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
+                        }`}
+                      >
+                        {align === 'left' ? '왼쪽' : align === 'center' ? '가운데' : '오른쪽'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* 지도 크기 및 정렬 설정 */}
-          <div className="flex gap-4 items-center justify-between p-3 rounded-lg border border-dashed text-xs text-gray-500 dark:text-gray-400 bg-black/5 dark:bg-white/5 border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center gap-3">
-              <span className="font-medium">크기</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px]">너비:</span>
-                <input type="text" value={mapWidth} onChange={(e) => setMapWidth(e.target.value)}
-                  className={`w-14 border px-2 py-1 rounded outline-none text-center text-xs transition-all ${isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white' : 'bg-white border-[#c1c6d7]'}`} />
+              {/* Code Block Area */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-end">
+                  <label className="text-[9px] font-black text-slate-500 dark:text-zinc-400 tracking-wider uppercase">삽입될 HTML (IFRAME)</label>
+                  <span className="text-[9px] font-black text-indigo-600/60 dark:text-indigo-400/60">API 키 불필요</span>
+                </div>
+                <div className={`rounded-lg overflow-hidden border shadow-sm ${
+                  isDarkMode ? 'border-zinc-800/80' : 'border-slate-200/60'
+                }`}>
+                  <div className={`px-3 py-1.5 flex justify-between items-center border-b ${
+                    isDarkMode ? 'bg-zinc-900/80 border-zinc-800/80' : 'bg-slate-100/80 border-slate-200/60'
+                  }`}>
+                    <span className="text-[9px] font-bold text-slate-500 dark:text-zinc-400 font-mono">EMBED_SNIPPET.HTML</span>
+                    <button 
+                      onClick={handleCopyCode}
+                      className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center"
+                    >
+                      {isCopied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                  <pre className={`p-3 font-mono text-[9px] leading-relaxed overflow-x-auto whitespace-nowrap scrollbar-none select-text ${
+                    isDarkMode ? 'bg-zinc-900/30 text-zinc-400' : 'bg-slate-50/50 text-slate-600'
+                  }`}>
+                    <code>{mapCode}</code>
+                  </pre>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px]">세로:</span>
-                <input type="text" value={mapHeight} onChange={(e) => setMapHeight(e.target.value)}
-                  className={`w-14 border px-2 py-1 rounded outline-none text-center text-xs transition-all ${isDarkMode ? 'bg-[#282a2f] border-[#44474e] text-white' : 'bg-white border-[#c1c6d7]'}`} />
-              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-medium">정렬</span>
-              {([['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']] as const).map(([val, label]) => (
-                <button key={val} onClick={() => setMapAlign(val)}
-                  className={`px-2 py-1 rounded text-xs font-medium transition-all ${mapAlign === val ? (isDarkMode ? 'bg-[#33373b] text-blue-300' : 'bg-white text-blue-600 shadow-sm') : 'text-gray-400 hover:text-gray-600'}`}>{label}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* 삽입될 코드 미리보기 */}
-          <div className={`p-3 border rounded flex items-start gap-3 ${isDarkMode ? 'bg-[#201f1f] border-[#414755]' : 'bg-[#ebeef3] border-[#c1c6d7]'}`}>
-            <Code size={18} className="text-gray-400 shrink-0 mt-0.5" />
-            <div className="flex-1 overflow-hidden">
-              <p className={`text-[10px] font-semibold mb-1 ${isDarkMode ? 'text-[#4285F4]' : 'text-[#4285F4]'}`}>삽입될 HTML (iframe 방식 - API 키 불필요)</p>
-              <code className={`text-[10px] font-mono block truncate ${isDarkMode ? 'text-[#c1c6d7]' : 'text-[#5c5f61]'}`}>
-                {mapCode}
-              </code>
-            </div>
-          </div>
+          </section>
         </div>
 
-        {/* 푸터 버튼 영역 */}
-        <div className={`px-6 py-4 border-t flex items-center justify-end gap-2 shrink-0 ${isDarkMode ? 'border-[#414755] bg-[#1c1b1b]' : 'border-[#c1c6d7] bg-[#f1f4f9]'}`}>
-          <button onMouseDown={(e) => e.preventDefault()} onClick={onClose} className="px-4 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#21262d] border border-gray-200 dark:border-[#30363d] rounded-xl transition-all active:scale-[0.98]">취소</button>
-          <button onMouseDown={(e) => e.preventDefault()} onClick={handleInsert} className="px-5 py-2 bg-[#4285F4] text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-2 hover:opacity-90 transition-all">
-            <Terminal size={16} />
-            삽입
-          </button>
-        </div>
-      </div>
+        {/* Sticky Footer Action Zone */}
+        <footer className={`h-20 px-8 border-t flex items-center justify-between z-50 shrink-0 ${
+          isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-slate-150 bg-slate-50/50'
+        }`}>
+          <div className="flex items-center space-x-2 text-slate-400 dark:text-zinc-650">
+            <span className="text-[10px] font-black tracking-tight font-mono">Onrivi Local-First Engine v1.0.4</span>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button 
+              onClick={onClose}
+              className="px-6 py-2.5 rounded-[4px] font-bold text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-900 transition-all active:scale-95"
+            >
+              취소
+            </button>
+            <button 
+              onClick={handleInsert}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-2.5 rounded-[4px] font-bold text-xs shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 active:scale-95 transition-all flex items-center space-x-2"
+            >
+              <MapPin size={14} />
+              <span>지도 삽입하기</span>
+            </button>
+          </div>
+        </footer>
+      </main>
     </div>,
     document.body
   );

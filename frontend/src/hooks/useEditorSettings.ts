@@ -40,8 +40,8 @@ export const useEditorSettings = (
   const [geminiApiKey, setGeminiApiKey] = useState<string>('');
   const [aiModelName, setAiModelName] = useState<string>('gemini-3.5-flash');
 
-  const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>({});
-  const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>({});
+  const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>(() => getDefaultHotkeys());
+  const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>(() => getDefaultCommands());
   const [autoClosingBrackets, setAutoClosingBrackets] = useState<boolean>(true);
 
   const customSlashCommandsRef = useRef<Record<string, string>>(customSlashCommands);

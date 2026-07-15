@@ -439,6 +439,13 @@ export function useMonacoSetup(deps: any) {
                     }]);
                   });
 
+                  // 🔮 Ctrl + K 전용 AI 글쓰기 어시스턴트 호출 단축키 표준 바인딩 (ReferenceError 및 getModifierState 에러 원천 차단)
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+                    if (typeof window !== 'undefined' && (window as any).dispatchEditorCommand) {
+                      (window as any).dispatchEditorCommand('AI_MODAL');
+                    }
+                  });
+
                   // 🛡️ [한글 주석 탑재] 표(Table) 자동 정렬 및 너비 계산 헬퍼 함수 정의
                   const getVisualLength = (str: string): number => {
                     let len = 0;

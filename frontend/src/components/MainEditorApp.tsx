@@ -2075,6 +2075,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     action: string;
     originalText: string;
     isFinished: boolean;
+    isStarted: boolean;
     targetScope: 'selection' | 'document';
   }>({
     isOpen: false,
@@ -3934,7 +3935,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           streamingText: '',
           action: 'expand',
           originalText: '',
-          isFinished: false
+          isFinished: false,
+          isStarted: false,
+          targetScope: 'document'
         });
         return;
       }
@@ -4120,6 +4123,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 글로벌 trigger-custom-action 명령어를 위한 최신 디스패처 갱신
     if (typeof window !== 'undefined') {
       (window as any).dispatchEditorCommand = (id: string) => {
+        if (id === 'AI_MODAL') {
+          // 💡 [AI API 가드] API Key가 설정되어 있지 않으면 작동하지 않고 경고 후 설정창을 켭니다.
+          if (!geminiApiKey) {
+            showToast("AI 기능을 사용하려면 설정(톱니바퀴)에서 Gemini API Key를 등록해 주세요.", "warning");
+            dispatchCommand('SETTINGS');
+            return;
+          }
+
+          const editor = editorRef.current;
+          const selection = editor ? editor.getSelection() : null;
+          const model = editor ? editor.getModel() : null;
+          let selectedText = '';
+          if (editor && model && selection && !selection.isEmpty()) {
+            selectedText = model.getValueInRange(selection);
+          }
+          
+          setAiPreviewState(prev => ({
+            ...prev,
+            isModalOpen: true,
+            promptInput: '',
+            streamingText: '',
+            isFinished: false,
+            isStarted: false,
+            action: 'expand',
+            originalRange: selection,
+            originalText: selectedText,
+            targetScope: selectedText ? 'selection' : 'document'
+          }));
+          return;
+        }
         const cmdType = mapIdToCommandType(id);
         dispatchCommand(cmdType);
       };
@@ -4716,7 +4749,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         editorRef.current?.focus();
                       }
                     }}
-                    className="fixed z-[99999] flex items-center bg-white/85 dark:bg-zinc-800/85 backdrop-blur-xl shadow-2xl shadow-black/15 rounded-xl border border-black/5 dark:border-white/10 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
+                    className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl shadow-black/15 rounded-xl border border-black/5 dark:border-white/10 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
                     style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
                     onMouseDown={handleDragStart}
                   >
@@ -5301,169 +5334,197 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         };
 
         return (
-          <div className="fixed inset-0 bg-black/60 dark:bg-black/85 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
-            <div 
-              className="bg-white/95 dark:bg-zinc-900/95 border border-purple-500/20 dark:border-purple-500/30 rounded-3xl w-full max-w-2xl shadow-[0_20px_60px_rgba(168,85,247,0.18)] p-6 flex flex-col gap-5 animate-in zoom-in-95 duration-200 text-slate-800 dark:text-zinc-100"
+          <div className="fixed inset-0 bg-black/65 dark:bg-black/85 z-[99999] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200">
+            {/* Main Editorial Assistant Modal */}
+            <main 
+              className="relative w-full max-w-5xl bg-white dark:bg-zinc-950 border border-slate-200/80 dark:border-zinc-800/80 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] rounded-2xl overflow-hidden flex flex-col h-[700px] max-h-[90dvh] text-slate-800 dark:text-zinc-200 animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* 헤더 영역 */}
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 bg-purple-500/10 rounded-lg text-purple-600 dark:text-purple-400">
+              {/* Header */}
+              <header className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-zinc-800/80 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 flex items-center justify-center bg-purple-600 dark:bg-purple-500/20 text-white dark:text-purple-400 rounded-xl shadow-inner">
                     <Sparkles size={16} className="animate-pulse" />
                   </div>
-                  <span className="text-sm font-black bg-gradient-to-r from-purple-600 via-violet-600 to-indigo-600 dark:from-purple-400 dark:via-violet-400 dark:to-indigo-400 bg-clip-text text-transparent tracking-tight">
-                    AI 글쓰기 팝업 어시스턴트
-                  </span>
+                  <div>
+                    <h1 className="text-sm font-black bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400 bg-clip-text text-transparent tracking-tight">
+                      AI 에디토리얼 어시스턴트
+                    </h1>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                      <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-bold">협업 준비 완료</p>
+                    </div>
+                  </div>
                 </div>
                 <button 
                   onClick={handleCloseModal}
-                  className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full transition-all duration-200 font-bold"
+                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-900 rounded-full transition-all duration-200"
                   title="닫기"
                 >
-                  ✕
+                  <X size={16} />
                 </button>
-              </div>
+              </header>
 
-              {/* 지시어 입력 섹션 */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[11px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">
-                  AI에게 작성할 주제나 명령을 적어주세요
-                </label>
-                <textarea
-                  value={aiPreviewState.promptInput}
-                  onChange={(e) => setAiPreviewState(prev => ({ ...prev, promptInput: e.target.value }))}
-                  placeholder="예: '마크다운 에디터 사용법 3가지 정리해줘', '오늘 우천으로 대진표 순서가 변경되었다는 긴급 공지 써줘'"
-                  rows={4}
-                  className="w-full text-xs p-3.5 border border-slate-200 dark:border-zinc-800/80 rounded-2xl bg-slate-50/50 dark:bg-zinc-950/40 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500/80 transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-600 resize-none font-medium leading-relaxed shadow-inner"
-                />
-              </div>
+              {/* Content Shell */}
+              <div className="flex flex-1 overflow-hidden min-h-0">
+                {/* Left Panel: Command & Context */}
+                <section className="w-full md:w-[350px] border-r border-slate-100 dark:border-zinc-800/80 flex flex-col p-6 gap-6 overflow-y-auto bg-slate-50/50 dark:bg-zinc-900/10 shrink-0">
+                  {/* Prompt Area */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-700 dark:text-zinc-300 uppercase tracking-wider">
+                      에디토리얼 명령 (EDITORIAL COMMAND)
+                    </label>
+                    <textarea 
+                      value={aiPreviewState.promptInput}
+                      onChange={(e) => setAiPreviewState(prev => ({ ...prev, promptInput: e.target.value }))}
+                      placeholder="AI에게 요청할 편집 명령이나 주제를 입력하세요..."
+                      rows={5}
+                      className="w-full text-xs p-3.5 border border-slate-200 dark:border-zinc-800/80 rounded-2xl bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500/80 transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-650 resize-none font-medium leading-relaxed shadow-sm"
+                    />
+                  </div>
 
-              {/* 🎯 적용 범위 지정 칩 토글 UI */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[11px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">
-                  명령 적용 대상 범위
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'selection' }))}
-                    disabled={!aiPreviewState.originalText}
-                    className={`flex-1 py-2.5 text-[11px] font-bold rounded-2xl border transition-all duration-300 ${
-                      aiPreviewState.targetScope === 'selection'
-                        ? 'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-extrabold shadow-[0_4px_12px_rgba(168,85,247,0.1)]'
-                        : 'border-slate-100 dark:border-zinc-800/80 bg-slate-50/50 dark:bg-zinc-900/30 text-slate-400 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800/50'
-                    } disabled:opacity-30 disabled:cursor-not-allowed`}
-                    title={aiPreviewState.originalText ? `선택된 본문: "${aiPreviewState.originalText.substring(0, 15)}..."` : '에디터에서 텍스트를 드래그한 후 열어주세요.'}
-                  >
-                    선택 영역만 대상 {aiPreviewState.originalText && `(${aiPreviewState.originalText.length}자)`}
-                  </button>
-                  <button
-                    onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'document' }))}
-                    className={`flex-1 py-2.5 text-[11px] font-bold rounded-2xl border transition-all duration-300 ${
-                      aiPreviewState.targetScope === 'document'
-                        ? 'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-extrabold shadow-[0_4px_12px_rgba(168,85,247,0.1)]'
-                        : 'border-slate-100 dark:border-zinc-800/80 bg-slate-50/50 dark:bg-zinc-900/30 text-slate-400 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800/50'
-                    }`}
-                  >
-                    문서 전체 대상
-                  </button>
-                </div>
-              </div>
+                  {/* Context Scope */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-700 dark:text-zinc-300 uppercase tracking-wider">
+                      컨텍스트 범위 (CONTEXT SCOPE)
+                    </label>
+                    <div className="flex bg-slate-100 dark:bg-zinc-900 p-1 rounded-xl gap-1">
+                      <button 
+                        onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'selection' }))}
+                        disabled={!aiPreviewState.originalText}
+                        className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                          aiPreviewState.targetScope === 'selection'
+                            ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-sm font-black'
+                            : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
+                        } disabled:opacity-30 disabled:cursor-not-allowed`}
+                        title={aiPreviewState.originalText ? `선택된 본문: "${aiPreviewState.originalText.substring(0, 15)}..."` : '에디터에서 텍스트를 드래그한 후 사용해 주세요.'}
+                      >
+                        선택 영역만 {aiPreviewState.originalText && `(${aiPreviewState.originalText.length}자)`}
+                      </button>
+                      <button 
+                        onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'document' }))}
+                        className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                          aiPreviewState.targetScope === 'document'
+                            ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-sm font-black'
+                            : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
+                        }`}
+                      >
+                        문서 전체
+                      </button>
+                    </div>
+                  </div>
 
-              {/* 생성 시작 버튼 */}
-              <div className="flex justify-end">
-                <button
-                  onClick={handleStartGeneration}
-                  disabled={!aiPreviewState.promptInput.trim()}
-                  className="px-4.5 py-2.5 text-xs font-black text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-[0.97] rounded-2xl disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 shadow-md shadow-purple-500/20"
-                >
-                  <Sparkles size={13} />
-                  AI 글 생성 시작
-                </button>
-              </div>
+                  {/* Generate Button Container */}
+                  <div className="mt-auto pt-4">
+                    <button 
+                      onClick={handleStartGeneration}
+                      disabled={!aiPreviewState.promptInput.trim() || (aiPreviewState.isStarted && !aiPreviewState.isFinished)}
+                      className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 active:scale-[0.98] disabled:scale-100 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-500/10"
+                    >
+                      <Sparkles size={14} />
+                      {aiPreviewState.isStarted && !aiPreviewState.isFinished ? 'AI 글 생성 중...' : 'AI 글 생성 시작'}
+                    </button>
+                  </div>
+                </section>
 
-              {/* 실시간 타이핑 결과 영역 (생성 시작한 이후에만 노출) */}
-              {aiPreviewState.isStarted ? (
-                <div className="flex flex-col gap-2 border-t border-slate-100 dark:border-zinc-800 pt-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-widest">
-                      실시간 AI 답변 생성 프리뷰
-                    </span>
-                    {!aiPreviewState.isFinished && (
-                      <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 animate-pulse bg-purple-500/10 px-2 py-0.5 rounded-full">
-                        AI가 적는 중...
+                {/* Right Panel: Workspace Preview Canvas */}
+                <section className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden relative">
+                  {/* Sub-header for Workspace */}
+                  <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100 dark:border-zinc-900 bg-slate-50/20 dark:bg-zinc-950/20 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-wider">
+                        결과 미리보기 (Output Preview)
+                      </span>
+                    </div>
+                    {aiPreviewState.isFinished && (
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 px-2 py-0.5 bg-emerald-500/10 rounded-full">
+                        생성 성공
                       </span>
                     )}
                   </div>
-                  <div 
-                    className="text-xs font-mono p-4 rounded-2xl border border-purple-500/10 dark:border-purple-500/20 bg-gradient-to-b from-slate-50 to-slate-100/50 dark:from-zinc-950/80 dark:to-zinc-950/40 text-slate-800 dark:text-zinc-200 overflow-y-auto whitespace-pre-wrap select-text cursor-text leading-relaxed shadow-inner"
-                    style={{ minHeight: '120px', maxHeight: '350px' }}
-                  >
-                    {aiPreviewState.streamingText ? (
-                      <span className="w-full text-left font-medium">{aiPreviewState.streamingText}</span>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center gap-3 py-10 select-none">
-                        <Loader2 className="animate-spin text-purple-500" size={24} />
-                        <span className="text-slate-500 dark:text-zinc-400 italic text-[11px] font-bold animate-pulse">
-                          AI가 문서 구조를 분석하고 기획하는 중입니다...
-                        </span>
+
+                  {/* Preview Canvas Area */}
+                  <div className="flex-1 overflow-y-auto p-8 relative min-h-0">
+                    {/* 1. Initial State Placeholder (시작 전) */}
+                    {!aiPreviewState.isStarted && (
+                      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center select-none h-full">
+                        <div className="p-4 bg-purple-50 dark:bg-zinc-900 border border-purple-100 dark:border-zinc-800/80 rounded-full text-purple-600 dark:text-purple-400">
+                          <Lock size={32} />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="font-black text-sm text-slate-800 dark:text-zinc-100">AI 글 생성이 대기 중입니다</p>
+                          <p className="text-xs text-slate-600 dark:text-zinc-400 max-w-sm leading-relaxed font-bold">
+                            좌측 입력창에 편집 또는 글쓰기 명령을 입력하고 <br />
+                            아래 <span className="text-purple-600 dark:text-purple-400 font-black">AI 글 생성 시작</span> 버튼을 눌러주세요.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. Loading State Visualization Overlay (생성 중) */}
+                    {aiPreviewState.isStarted && !aiPreviewState.streamingText && (
+                      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center select-none h-full">
+                        <div className="relative w-14 h-14 flex items-center justify-center">
+                          <div className="absolute inset-0 border-4 border-purple-500/10 rounded-full"></div>
+                          <div className="absolute inset-0 border-4 border-t-purple-600 rounded-full animate-spin"></div>
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-bold text-purple-600 dark:text-purple-400 animate-pulse">에디토리얼 논리 분석 중</h3>
+                          <p className="text-[11px] text-slate-400 dark:text-zinc-500 max-w-xs mx-auto leading-relaxed">
+                            기술적 문맥과 원고의 구조를 교차 참조하고 있습니다...
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Output Content (생성 진행/종료 시 노출) */}
+                    {aiPreviewState.isStarted && aiPreviewState.streamingText && (
+                      <div className="max-w-2xl mx-auto space-y-6 select-text cursor-text">
+                        <div className="p-5 bg-purple-500/5 dark:bg-purple-500/10 border-l-4 border-purple-600 rounded-r-xl">
+                          <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1.5">실시간 AI 답변 생성 프리뷰</p>
+                          <div className="text-xs text-slate-700 dark:text-zinc-300 leading-relaxed font-mono whitespace-pre-wrap">
+                            {aiPreviewState.streamingText}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
-              ) : (
-                /* 시작 전 대기 상태를 진한 흑회색 톤과 잠금 안내로 보여주는 대기 카드 */
-                <div className="flex flex-col items-center justify-center p-9 rounded-2xl border border-dashed border-slate-700 dark:border-zinc-800 bg-slate-800 dark:bg-zinc-950/80 text-center gap-3 transition-all select-none shadow-xl">
-                  <div className="p-2.5 bg-slate-700/80 dark:bg-zinc-900/60 rounded-full text-slate-300 dark:text-zinc-400">
-                    <Lock size={18} className="opacity-80" />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-black text-white dark:text-zinc-200 tracking-wide">
-                      ⚠️ AI 글 생성이 대기 중입니다 (조작 불가 영역)
-                    </span>
-                    <span className="text-[10px] text-slate-300 dark:text-zinc-400 font-bold max-w-sm leading-relaxed">
-                      AI 글 생성 시작 버튼을 누르기 전까지는 이곳에서 아무런 작업도 수행할 수 없습니다. 상단 입력창에 지시사항을 적고 생성을 개시해 주세요.
-                    </span>
-                  </div>
-                </div>
-              )}
 
-              {/* 하단 최종 조작 버튼 */}
-              {aiPreviewState.isFinished && aiPreviewState.streamingText && (
-                <div className="flex items-center justify-between border-t border-slate-100 dark:border-zinc-800 pt-4">
-                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-bold tracking-tight">
-                    본문에 적용하거나 아래 추가할 수 있습니다.
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={handleCloseModal}
-                      className="px-3.5 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 transition-colors duration-150"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={handleCopyResult}
-                      className="px-3.5 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 transition-colors duration-150 flex items-center gap-1.5"
-                    >
-                      {aiCopied ? <Check size={13} className="text-emerald-500 animate-pulse" /> : <Copy size={13} />}
-                      {aiCopied ? '복사됨' : '결과 복사'}
-                    </button>
-                    <button
-                      onClick={handleApplyAppendModal}
-                      className="px-3.5 py-2 text-xs font-bold rounded-xl border border-purple-500/20 bg-purple-500/5 hover:bg-purple-500/15 text-purple-600 dark:text-purple-400 transition-colors duration-150"
-                    >
-                      아래에 추가
-                    </button>
-                    <button
-                      onClick={handleApplyInsertModal}
-                      className="px-4.5 py-2 text-xs font-black rounded-xl text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-[0.97] transition-all duration-150 hover:shadow-md hover:shadow-purple-500/25"
-                    >
-                      본문에 적용
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                  {/* Footer Actions */}
+                  {aiPreviewState.isFinished && aiPreviewState.streamingText && (
+                    <footer className="p-4 bg-slate-50/50 dark:bg-zinc-900/30 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-end shrink-0">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={handleCloseModal}
+                          className="px-4 py-2 rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-600 dark:text-zinc-400 font-bold text-xs transition-all active:scale-[0.98]"
+                        >
+                          취소
+                        </button>
+                        <button 
+                          onClick={handleCopyResult}
+                          className="px-4 py-2 rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-600 dark:text-zinc-400 font-bold text-xs transition-all flex items-center gap-1.5 active:scale-[0.98]"
+                        >
+                          {aiCopied ? <Check size={13} className="text-emerald-500 animate-pulse" /> : <Copy size={13} />}
+                          {aiCopied ? '복사 완료' : '결과 복사'}
+                        </button>
+                        <button 
+                          onClick={handleApplyAppendModal}
+                          className="px-4 py-2 rounded-lg border border-purple-500/20 bg-purple-500/5 hover:bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold text-xs transition-all active:scale-[0.98]"
+                        >
+                          아래에 추가
+                        </button>
+                        <button 
+                          onClick={handleApplyInsertModal}
+                          className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg font-black text-xs shadow-md shadow-purple-500/10 hover:shadow-lg transition-all active:scale-[0.98]"
+                        >
+                          본문에 적용
+                        </button>
+                      </div>
+                    </footer>
+                  )}
+                </section>
+              </div>
+            </main>
           </div>
         );
       })()}
@@ -5552,7 +5613,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         };
 
         return (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] w-[90%] max-w-xl bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-purple-500/20 p-4 flex flex-col gap-3 animate-in slide-in-from-bottom-5 duration-300">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] w-[90%] max-w-xl bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl border border-purple-500/20 p-4 flex flex-col gap-3 animate-in slide-in-from-bottom-5 duration-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-purple-500 animate-pulse" />
@@ -5715,7 +5776,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       })()}
 
       {isAiLoading && (
-        <div className="fixed inset-0 z-[99999] bg-black/10 dark:bg-black/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none select-none">
+        <div className="fixed inset-0 z-[99999] bg-black/25 dark:bg-black/55 flex items-center justify-center pointer-events-none select-none">
           <div className="bg-white dark:bg-zinc-800 shadow-2xl border border-purple-500/20 rounded-2xl px-6 py-4 flex items-center gap-3.5 animate-in fade-in zoom-in-95 duration-200">
             <Loader2 className="animate-spin text-purple-500" size={20} />
             <span className="text-[13px] font-bold text-zinc-700 dark:text-zinc-200">

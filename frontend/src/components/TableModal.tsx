@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Table as TableIcon, Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 
 interface TableModalProps {
   isOpen: boolean;
@@ -15,7 +15,7 @@ interface TableModalProps {
 // 📊 [OMD-EDIT-TableModal-0003] TableModal ➔ TableModal
 // 🎯 @KICK  : 표 삽입 모달 - 10x10 그리드 UI로 마우스 표 크기 선택 후 마크다운 코드 생성
 // 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : 2026-07-15 - 마우스 드래그 그리드 10x10 디자인 전면 개편 및 안개 블러 제거, 라운드 4px 규격 장착
 // 🔗 @CALLS : handleInsert, createPortal
 // ====================================================================
 export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: TableModalProps) {
@@ -23,13 +23,6 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
   const [selectedPos, setSelectedPos] = useState({ r: 3, c: 2 });
   const [mounted, setMounted] = useState(false);
 
-// ====================================================================
-// 📊 [OMD-EDIT-TableModal-0001] TableModal ➔ useEffect(mounted)
-// 🎯 @KICK  : 클라이언트 마운트 완료 시 mounted 상태 true 설정 (SSR 하이드레이션 보호)
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : 없음
-// ====================================================================
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -37,13 +30,6 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
   if (!isOpen) return null;
   if (!mounted) return null;
 
-// ====================================================================
-// 📊 [OMD-EDIT-TableModal-0002] TableModal ➔ handleInsert
-// 🎯 @KICK  : 선택된 행/열로 마크다운 표 문자열 생성 후 onInsert 콜백 전달 및 모달 닫기
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : onInsert, onClose
-// ====================================================================
   const handleInsert = () => {
     const { r, c } = selectedPos;
     let header = "| " + Array(c).fill("제목").join(" | ") + " |\n";
@@ -57,100 +43,127 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>
-      <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
+      {/* 선명한 투명 배경 (안개 블러 제거) */}
+      <div className="absolute inset-0 bg-black/65" onClick={onClose} />
       
-      <div className={`relative w-full max-w-[320px] shadow-2xl rounded-xl flex flex-col animate-in zoom-in-95 duration-200 border ${
-        isDarkMode ? 'bg-[#1e2022] border-[#44474e]' : 'bg-white border-[#c1c6d7]'
-      }`} style={{ maxHeight: "90dvh" }}>
-        {/* Header */}
-        <div className={`flex items-center justify-between px-5 py-4 border-b shrink-0 ${
-          isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
+      {/* MainModalContainer */}
+      <div 
+        className={`relative w-full max-w-[360px] shadow-2xl rounded-[4px] border flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden ${
+          isDarkMode 
+            ? 'bg-zinc-950 border-zinc-800 text-zinc-100' 
+            : 'bg-white border-slate-200 text-slate-800'
+        }`} 
+        style={{ maxHeight: "90dvh" }}
+      >
+        {/* ModalHeader */}
+        <header className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
+          isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-slate-100 bg-slate-50/40'
         }`}>
-          <div className="flex items-center gap-2">
-            <TableIcon size={18} className="text-blue-500" />
-            <h2 className={`text-sm font-bold ${isDarkMode ? 'text-[#eef1f6]' : 'text-[#181c20]'}`}>표 삽입</h2>
+          <div className="flex items-center gap-2.5">
+            {/* SVG Icon for Table */}
+            <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+            <h1 className="text-base font-bold tracking-tight">표 삽입</h1>
           </div>
-          <span className="text-blue-500 font-bold text-xs">{selectedPos.c} x {selectedPos.r}</span>
-        </div>
+          <span className="text-indigo-600 dark:text-indigo-400 font-extrabold text-base tracking-wide">
+            {selectedPos.c} × {selectedPos.r}
+          </span>
+        </header>
 
-        {/* Grid Area */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-5 flex flex-col items-center">
+        {/* GridContent */}
+        <main className="flex-1 flex flex-col items-center py-6 px-6 bg-white dark:bg-zinc-950 min-h-0 overflow-y-auto">
+          {/* Table Grid Visualization Container */}
           <div 
-            className={`grid grid-cols-10 gap-1 p-1 rounded-lg border ${
-              isDarkMode ? 'bg-[#131313] border-[#44474e]' : 'bg-[#f1f4f9] border-[#c1c6d7]'
-            }`}
-            onMouseLeave={() => setHoverPos(selectedPos)}
+            className={`p-4 rounded-xl mb-5 border shadow-sm ${
+              isDarkMode ? 'bg-zinc-900/40 border-zinc-800' : 'bg-slate-50/50 border-slate-100'
+            }`} 
+            data-purpose="grid-visualization"
           >
-            {[...Array(100)].map((_, i) => {
-              const row = Math.floor(i / 10) + 1;
-              const col = (i % 10) + 1;
-              const isHover = col <= hoverPos.c && row <= hoverPos.r;
-              const isSelected = col <= selectedPos.c && row <= selectedPos.r;
+            <div 
+              className="grid grid-cols-10 gap-1"
+              onMouseLeave={() => setHoverPos(selectedPos)}
+            >
+              {[...Array(100)].map((_, i) => {
+                const row = Math.floor(i / 10) + 1;
+                const col = (i % 10) + 1;
+                const isHover = col <= hoverPos.c && row <= hoverPos.r;
+                const isSelected = col <= selectedPos.c && row <= selectedPos.r;
 
-              return (
-                <div
-                  key={i}
-                  onMouseEnter={() => setHoverPos({ r: row, c: col })}
-                  onClick={() => {
-                    setSelectedPos({ r: row, c: col });
-                    setHoverPos({ r: row, c: col });
-                  }}
-                  className={`w-5 h-5 rounded-[2px] transition-all cursor-pointer ${
-                    isHover 
-                      ? 'bg-blue-500 scale-110 shadow-sm z-10' 
-                      : isSelected 
-                        ? 'bg-blue-400/60' 
-                        : isDarkMode ? 'bg-[#2d3135]' : 'bg-[#c1c6d7]'
-                  }`}
-                />
-              );
-            })}
-          </div>
-
-          <div className="mt-4 text-[11px] text-gray-500 font-medium flex flex-col items-center gap-1">
-            <span className="italic">그리드를 클릭하여 크기를 지정하세요</span>
-            <div className={`mt-2 px-3 py-2 rounded-md flex flex-col items-center gap-1 text-[10.5px] border ${isDarkMode ? 'bg-[#2a2d32] border-[#44474e] text-gray-400' : 'bg-[#eef1f6] border-[#d1d6e5] text-gray-600'}`}>
-              <span className="font-bold text-blue-500 flex items-center gap-1">
-                💡 표 병합 TIP
-              </span>
-              <div className="flex flex-col items-start gap-0.5 mt-0.5">
-                <span>• 가로 병합: 병합 시작 셀에 <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-blue-500 font-bold">&gt;</code> 입력</span>
-                <span>• 세로 병합: 병합될 대상 셀에 <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-blue-500 font-bold">^</code> 입력</span>
-              </div>
+                return (
+                  <div
+                    key={i}
+                    onMouseEnter={() => setHoverPos({ r: row, c: col })}
+                    onClick={() => {
+                      setSelectedPos({ r: row, c: col });
+                      setHoverPos({ r: row, c: col });
+                    }}
+                    className={`w-6 h-6 rounded-[2px] transition-all cursor-pointer ${
+                      isHover 
+                        ? 'bg-indigo-600 dark:bg-indigo-500 scale-105 shadow-sm z-10' 
+                        : isSelected 
+                          ? 'bg-indigo-600/60 dark:bg-indigo-500/50' 
+                          : isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-slate-100 hover:bg-slate-200'
+                    }`}
+                  />
+                );
+              })}
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className={`px-5 py-4 border-t flex flex-col gap-2 shrink-0 ${
-          isDarkMode ? 'border-[#44474e] bg-[#1d2024]' : 'border-[#c1c6d7] bg-[#f1f4f9]'
+          {/* Guide Text */}
+          <p className="text-slate-400 dark:text-zinc-500 italic text-xs mb-6 text-center font-medium">
+            그리드를 클릭하여 크기를 지정하세요
+          </p>
+
+          {/* TipBox */}
+          <section className={`w-full border rounded-[4px] p-4 ${
+            isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50/50 border-slate-200/60'
+          }`} data-purpose="usage-tips">
+            <h2 className="text-indigo-600 dark:text-indigo-400 text-xs font-black text-center mb-3 flex items-center justify-center gap-1">
+              <span>💡</span> 표 병합 TIP
+            </h2>
+            <ul className="text-[11px] text-slate-600 dark:text-zinc-400 space-y-2.5 font-medium leading-normal">
+              <li className="flex items-center gap-2">
+                <span className="w-1 h-1 bg-slate-400 dark:bg-zinc-600 rounded-full shrink-0"></span>
+                <span>
+                  가로 병합: 병합 시작 셀에 
+                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-indigo-600 dark:text-indigo-400">{">"}</span> 
+                  입력
+                </span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1 h-1 bg-slate-400 dark:bg-zinc-600 rounded-full shrink-0"></span>
+                <span>
+                  세로 병합: 병합될 대상 셀에 
+                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-indigo-600 dark:text-indigo-400">^</span> 
+                  입력
+                </span>
+              </li>
+            </ul>
+          </section>
+        </main>
+
+        {/* ActionZone */}
+        <footer className={`p-6 border-t flex flex-col gap-3 ${
+          isDarkMode ? 'bg-zinc-900/30 border-zinc-800/80' : 'bg-slate-50/30 border-slate-150'
         }`}>
           <button 
-            onClick={() => {
-              const { r, c } = selectedPos;
-              let header = "| " + Array(c).fill("제목").join(" | ") + " |\n";
-              let divider = "| " + Array(c).fill("---").join(" | ") + " |\n";
-              let row = "| " + Array(c).fill("내용").join(" | ") + " |\n";
-              let body = Array(r).fill(row).join("");
-              onInsert(`\n${header}${divider}${body}\n`);
-              onClose();
-            }}
-            onMouseDown={(e) => e.preventDefault()}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            onClick={handleInsert}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-[4px] shadow-md transition-colors flex items-center justify-center gap-2 text-xs active:scale-[0.98]"
+            data-purpose="submit-button"
           >
-            <Plus size={16} />
+            <Plus size={15} />
             {selectedPos.c} x {selectedPos.r} 표 삽입하기
           </button>
           <button 
-            onMouseDown={(e) => e.preventDefault()}
             onClick={onClose}
-            className={`w-full py-2 text-[11px] font-medium transition-colors ${
-              isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'
-            }`}
+            className="w-full text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 text-xs font-bold py-2 transition-colors active:scale-[0.98]"
+            data-purpose="cancel-button"
           >
             취소
           </button>
-        </div>
+        </footer>
       </div>
     </div>,
     document.body

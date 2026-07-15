@@ -198,7 +198,7 @@ export default function SettingsModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
       <div
         className="relative w-full max-w-3xl flex flex-col rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
         style={{ maxHeight: "90dvh", backgroundColor: colors.surface, borderColor: colors.border }}

@@ -147,7 +147,7 @@ export default function LicenseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 backdrop-blur-[4px] transition-all" style={{ overflowY: "auto" }}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 transition-all" style={{ overflowY: "auto" }}>
       <div className="w-[520px] max-w-full bg-white dark:bg-zinc-950 border border-slate-200/80 dark:border-zinc-800/80 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] select-none relative animate-fade-in text-slate-800 dark:text-zinc-200 flex flex-col" style={{ maxHeight: "90dvh" }}>
 
         {/* 닫기 버튼 */}
@@ -158,7 +158,7 @@ export default function LicenseModal({
           ✕
         </button>
 
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex-1 overflow-y-auto min-h-0 px-6 py-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center text-lg shadow-inner">
             🔑
