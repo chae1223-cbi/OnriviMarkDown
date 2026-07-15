@@ -4253,7 +4253,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     });
     hotkeyDisposablesRef.current.push(saveAsAction);
-  }, [customHotkeys, isEditorReady, dispatchCommand, mapIdToCommandType]);
+  }, [customHotkeys, isEditorReady, dispatchCommand, mapIdToCommandType, geminiApiKey, showToast]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-0037] MainEditorApp.tsx ➔ globalKeydownHandler
