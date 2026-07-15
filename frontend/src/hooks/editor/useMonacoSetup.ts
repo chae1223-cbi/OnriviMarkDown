@@ -3,7 +3,7 @@
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 탭/스페이스 매칭 최적화
 // 🛡️ @GUARD : hasList 체크 후 순차적으로 이전 줄의 탭 깊이와 숫자를 비교하여 번호 갱신
-// 🚨 @PATCH : 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
+// 🚨 @PATCH : 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
 // 🔗 @CALLS : model.getLineContent, editor.executeEdits
 // ====================================================================
 import { useRef } from 'react';
@@ -286,7 +286,7 @@ export function useMonacoSetup(deps: any) {
                   // 💡 [에디터 스크롤 및 우측 여백 최적화]
                   editor.updateOptions({
                     scrollBeyondLastLine: false,   // 마지막 줄 도달 시 즉시 자동 스크롤
-                    padding: { top: 20, bottom: 20 },
+                    padding: { top: 20, bottom: 0 }, // 마지막 줄 흔들림 버그 해결을 위해 bottom 패딩 0으로 설정
                     lineDecorationsWidth: 26,
                     lineNumbersMinChars: 4,
                     automaticLayout: true,

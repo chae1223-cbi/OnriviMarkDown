@@ -11,7 +11,7 @@
  * 모든 전역 상태 및 화면 분할 레이아웃 조립.
  * 메뉴바 , 툴바, 상태바, 사이드바 등 모든 컴포넌트의 렌더링을 책임짐.
  * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
+ * 🚨 @PATCH : **2026-07-15** — 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
  *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
  *             **2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
  *             **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
@@ -2076,7 +2076,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     originalText: string;
     isFinished: boolean;
     isStarted: boolean;
-    targetScope: 'selection' | 'document';
+    targetScope: 'selection' | 'document' | 'none';
   }>({
     isOpen: false,
     isModalOpen: false,
@@ -2087,7 +2087,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     originalText: '',
     isFinished: false,
     isStarted: false,
-    targetScope: 'document'
+    targetScope: 'none'
   });
 
   const [aiCopied, setAiCopied] = useState(false);
@@ -3867,7 +3867,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           isFinished: false,
           originalRange: selection,
           originalText: selectedText,
-          targetScope: selectedText ? 'selection' : 'document'
+          targetScope: selectedText ? 'selection' : 'none'
         }));
         return;
       }
@@ -4149,7 +4149,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             action: 'expand',
             originalRange: selection,
             originalText: selectedText,
-            targetScope: selectedText ? 'selection' : 'document'
+            targetScope: selectedText ? 'selection' : 'none'
           }));
           return;
         }
@@ -4516,6 +4516,49 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     isEditorMountedRef, updateContent
   });
 
+  // Get docLinkPicker absolute screen coordinates based on cursor position
+  let docLinkPickerStyle: React.CSSProperties = { top: 0, left: 0 };
+  if (showDocLinkPicker && editorRef.current) {
+    const editor = editorRef.current;
+    const position = editor.getPosition();
+    if (position) {
+      const visiblePos = editor.getScrolledVisiblePosition(position);
+      if (visiblePos) {
+        const editorDom = editor.getContainerDomNode();
+        if (editorDom) {
+          const rect = editorDom.getBoundingClientRect();
+          let top = visiblePos.top + rect.top + 22;
+          let left = visiblePos.left + rect.left;
+          if (typeof window !== 'undefined') {
+            if (left + 280 > window.innerWidth) {
+              left = Math.max(16, window.innerWidth - 296);
+            }
+            if (left < 16) {
+              left = 16;
+            }
+            if (top + 350 > window.innerHeight) {
+              top = Math.max(16, visiblePos.top + rect.top - 356);
+            }
+          }
+          docLinkPickerStyle = { top, left };
+        }
+      }
+    }
+  }
+  if (docLinkPickerStyle.top === 0 && docLinkPickerStyle.left === 0) {
+    let fixedTop = floatingToolbar.top;
+    let fixedLeft = floatingToolbar.left;
+    if (editorRef.current) {
+      const editorDom = editorRef.current.getContainerDomNode();
+      if (editorDom) {
+        const rect = editorDom.getBoundingClientRect();
+        fixedTop += rect.top;
+        fixedLeft += rect.left;
+      }
+    }
+    docLinkPickerStyle = { top: fixedTop + 44, left: fixedLeft };
+  }
+
   return (
     <>
       <style>{`
@@ -4654,7 +4697,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 options={{
                   readOnly: tabs.length === 0,
                   domReadOnly: tabs.length === 0,
-                  padding: { top: 48, bottom: 64, right: 64 }, // 적절한 포커스 패딩
+                  padding: { top: 48, bottom: 0, right: 64 }, // 적절한 포커스 패딩 (bottom 0으로 설정하여 마지막 줄 흔들림 버그 해결)
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
                   fontSize,
@@ -4863,7 +4906,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 />
                 <div
                   className="fixed z-[9999] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-600 rounded-lg shadow-xl p-2 w-[280px] max-h-[350px] flex flex-col"
-                  style={{ top: floatingToolbar.top + 44, left: floatingToolbar.left }}
+                  style={docLinkPickerStyle}
                 >
                   {!selectedDocNode ? (
                     <>
@@ -5244,6 +5287,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           let targetRange = aiPreviewState.originalRange;
           if (aiPreviewState.targetScope === 'document') {
             targetRange = model.getFullModelRange();
+          } else if (aiPreviewState.targetScope === 'none') {
+            const position = editor.getPosition();
+            if (position) {
+              targetRange = new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
+            } else {
+              targetRange = model.getFullModelRange();
+            }
           } else if (!targetRange) {
             // 선택 영역 스코프인데 range가 유실된 경우 전체 치환 폴백
             targetRange = model.getFullModelRange();
@@ -5262,8 +5312,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const endCol = lines.length === 1 ? startCol + aiPreviewState.streamingText.length : lines[lines.length - 1].length + 1;
           const newRange = new monaco.Range(startLine, startCol, endLine, endCol);
 
-          editor.setSelection(newRange);
-          editor.revealRangeInCenter(newRange, 1);
+          // 💡 커서를 반영된 문장의 가장 처음 위치로 이동하고 포커스
+          editor.setPosition({ lineNumber: startLine, column: startCol });
+          editor.revealPositionInCenter({ lineNumber: startLine, column: startCol }, 1);
+          editor.focus();
 
           const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
           aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
@@ -5285,6 +5337,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           let endLine = model.getLineCount();
           if (aiPreviewState.targetScope === 'selection' && aiPreviewState.originalRange) {
             endLine = aiPreviewState.originalRange.endLineNumber;
+          } else if (aiPreviewState.targetScope === 'none') {
+            const position = editor.getPosition();
+            if (position) {
+              endLine = position.lineNumber;
+            }
           }
 
           const endCol = model.getLineMaxColumn(endLine);
@@ -5305,8 +5362,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const endColNum = lines.length === 1 ? startCol + formattedText.length : lines[lines.length - 1].length + 1;
           const newRange = new monaco.Range(startLine, startCol, endLineNum, endColNum);
 
-          editor.setSelection(newRange);
-          editor.revealRangeInCenter(newRange, 1);
+          // 💡 커서를 반영된 문장의 가장 처음 위치로 이동하고 포커스
+          editor.setPosition({ lineNumber: startLine, column: startCol });
+          editor.revealPositionInCenter({ lineNumber: startLine, column: startCol }, 1);
+          editor.focus();
 
           const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
           aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
@@ -5380,6 +5439,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       placeholder="AI에게 요청할 편집 명령이나 주제를 입력하세요..."
                       rows={5}
                       className="w-full text-xs p-3.5 border border-slate-200 dark:border-zinc-800/80 rounded-2xl bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500/80 transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-650 resize-none font-medium leading-relaxed shadow-sm"
+                      autoFocus
                     />
                   </div>
 
@@ -5399,7 +5459,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         } disabled:opacity-30 disabled:cursor-not-allowed`}
                         title={aiPreviewState.originalText ? `선택된 본문: "${aiPreviewState.originalText.substring(0, 15)}..."` : '에디터에서 텍스트를 드래그한 후 사용해 주세요.'}
                       >
-                        선택 영역만 {aiPreviewState.originalText && `(${aiPreviewState.originalText.length}자)`}
+                        선택 영역
                       </button>
                       <button 
                         onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'document' }))}
@@ -5410,6 +5470,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         }`}
                       >
                         문서 전체
+                      </button>
+                      <button 
+                        onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'none' }))}
+                        className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                          aiPreviewState.targetScope === 'none'
+                            ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-sm font-black'
+                            : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
+                        }`}
+                        title="에디터 문서 내용을 참고하지 않고 일반적인 AI 질문을 보냅니다."
+                      >
+                        없음 (일반 질문)
                       </button>
                     </div>
                   </div>

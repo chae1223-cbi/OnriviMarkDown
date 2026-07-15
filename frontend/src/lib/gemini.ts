@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 /**
  * [ONR-AI-001] Gemini API 헬퍼 유틸리티
  * @description 구글 Gemini API를 사용하여 텍스트 생성, 교정, 요약 등의 기능을 제공합니다.
+ * 🚨 @PATCH : **2026-07-15** — [출력결과] 태그 매칭 시 공백 허용 글로벌 정규식(/\[\s*출력\s*결과\s*\]/g) 및 lastMatch 추적 구조 도입 (태그 내 임의 공백 수용, AI가 초안(Draft) 작성 후 최종 출력을 위해 태그를 재출력할 시 초안을 배제하고 마지막 최종본 영역만 발라내도록 지능화)
  */
 
 // API 키 유효성 검사 헬퍼
@@ -141,12 +142,17 @@ export const processTextWithAIStream = async (
 
   // 생각 로그(CoT) 및 안내 사족을 물리적으로 안전하게 발라내는 정제 함수 ([출력결과] 태그 이하 추출)
   const cleanOutputText = (raw: string): string => {
-    // 줄의 시작 부분에 단독 라인으로 존재하는 [출력결과] 태그를 수색 (문장 중간의 설명용 텍스트 매칭 차단)
-    const regex = /^\[출력결과\]/m;
-    const match = regex.exec(raw);
+    const regex = /\[\s*출력\s*결과\s*\]/g;
+    let match;
+    let lastMatch = null;
     
-    if (match && match.index !== undefined) {
-      const content = raw.substring(match.index + match[0].length);
+    // 스트리밍 문자열에서 매칭되는 마지막 태그의 위치를 찾아 최신 본문 영역 결정
+    while ((match = regex.exec(raw)) !== null) {
+      lastMatch = match;
+    }
+    
+    if (lastMatch && lastMatch.index !== undefined) {
+      const content = raw.substring(lastMatch.index + lastMatch[0].length);
       return cleanOuterCodeBlock(content);
     }
  
