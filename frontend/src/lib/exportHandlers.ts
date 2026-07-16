@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-06-20** — HTML/PNG 내보내기 시 로컬 및 확장프로그램 스타일시트를 런타임에 인라인화하여 테마 서식 동기화 결함 해결; 다크모드 무력화에 대응하여 내보내기 시 라이트모드 기준 스타일 생성(generateExportCss) 및 activeProfile 연동 처리 구현; PDF/HTML/PNG 내보내기 시 @page margin 0 및 body padding 레이아웃을 통해 가장자리 여백 영역까지 배경색이 단일 톤으로 빈틈없이 흐르도록 여백 분리 결함 해결; PDF 내보내기 시 배경색이 흰색으로 누락되는 custom-preview-container transparent 강제 투명화 가드 버그 수정 및 KaTeX 수식 전용 CDN 웹폰트 주입으로 찌그러짐 현상 해결; generateExportCss 선택자 구체성을 .custom-preview-container .markdown-viewer-root 기반으로 대폭 상향하여 사용자 커스텀 서식 100% 보장; HTML 내보내기 시 body 배경색을 용지 배경색(pageBg)과 완벽 동합; PDF 인쇄 템플릿 내의 mm 여백 단위 중복(25mmmm) 결함 수정으로 여백 소실 결함 해결; HTML 내보내기 시 Tailwind CDN에 의한 body 배경색 리셋을 차단하기 위해 body 및 시트지에 인라인 스타일 배경색 강제 지정 적용; PDF 내보내기 및 HTML 인쇄 시 페이지 분할(쪼개짐) 구역의 상하 여백 소실을 차단하기 위해 임시 패딩 래퍼를 롤백하고 표준 @page { margin: ... } 바인딩으로 전환하되, 여백 잘림(흰색 영역)을 막기 위해 html/body 전체 배경색 지정 및 print-color-adjust 강제화 구현; 일렉트론 및 크롬 인쇄 시 여백(마진) 영역의 흰색 잘림 결함을 완벽히 해결하기 위해 @page 지시자 규칙에 background-color 지정을 추가하여 용지 가장자리 영역까지 배경색이 가득 차도록 최종 동기화
+// 🚨 @PATCH : **2026-07-16** — PDF 내보내기 및 인쇄 기능 고도화: 설정된 상단 머리글 텍스트 및 하단 페이지 번호 서식(- 1 -, 1 / n)을 동적으로 캡처하여 인쇄 출력 본문 프레임에 counter(page) 기반으로 자동 인젝션 구현, 표지 페이지 번호 제외 조건부 가드 CSS 구현
+//             **2026-06-20** — HTML/PNG 내보내기 시 로컬 및 확장프로그램 스타일시트를 런타임에 인라인화하여 테마 서식 동기화 결함 해결; 다크모드 무력화에 대응하여 내보내기 시 라이트모드 기준 스타일 생성(generateExportCss) 및 activeProfile 연동 처리 구현; PDF/HTML/PNG 내보내기 시 @page margin 0 및 body padding 레이아웃을 통해 가장자리 여백 영역까지 배경색이 단일 톤으로 빈틈없이 흐르도록 여백 분리 결함 해결; PDF 내보내기 시 배경색이 흰색으로 누락되는 custom-preview-container transparent 강제 투명화 가드 버그 수정 및 KaTeX 수식 전용 CDN 웹폰트 주입으로 찌그러짐 현상 해결; generateExportCss 선택자 구체성을 .custom-preview-container .markdown-viewer-root 기반으로 대폭 상향하여 사용자 커스텀 서식 100% 보장; HTML 내보내기 시 body 배경색을 용지 배경색(pageBg)과 완벽 동합; PDF 인쇄 템플릿 내의 mm 여백 단위 중복(25mmmm) 결함 수정으로 여백 소실 결함 해결; HTML 내보내기 시 Tailwind CDN에 의한 body 배경색 리셋을 차단하기 위해 body 및 시트지에 인라인 스타일 배경색 강제 지정 적용; PDF 내보내기 및 HTML 인쇄 시 페이지 분할(쪼개짐) 구역의 상하 여백 소실을 차단하기 위해 임시 패딩 래퍼를 롤백하고 표준 @page { margin: ... } 바인딩으로 전환하되, 여백 잘림(흰색 영역)을 막기 위해 html/body 전체 배경색 지정 및 print-color-adjust 강제화 구현; 일렉트론 및 크롬 인쇄 시 여백(마진) 영역의 흰색 잘림 결함을 완벽히 해결하기 위해 @page 지시자 규칙에 background-color 지정을 추가하여 용지 가장자리 영역까지 배경색이 가득 차도록 최종 동기화
 
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { msg } from '@/lib/systemMessages';
@@ -19,6 +20,9 @@ interface ExportOptions {
   marginRight?: string;
   backgroundColor?: string;
   activeProfile?: any; // 서식 프로필 객체 추가
+  pdfHeader?: string;
+  pdfFooterStyle?: 'none' | 'hyphen' | 'slash';
+  pdfExcludeCover?: boolean;
 }
 
 /** 항상 라이트모드 기준으로 서식 프로필의 dynamic CSS를 재생성하는 헬퍼 함수 */
@@ -857,7 +861,11 @@ async function saveToDownloads(filename: string, content: string, type: 'base64'
 // 🚨 @PATCH : **2026-06-19** — html2canvas의 수식 깨짐, 정렬 어긋남 한계를 원천 우회하기 위해 Electron 환경에 대해 Chromium 백엔드 네이티브 브라우저 인쇄 엔진 API(printHTMLToPDF IPC) 연동 구현 완료; 일반 웹 브라우저 환경에만 html2canvas 폴백 제공
 // 🔗 @CALLS : flushIME, clonePreview, inlineLocalImages, injectExportStyles, fixListMarkers, applyExportInlineStyles, saveToDownloads
 // ====================================================================
-export async function exportPDF({ previewEl, currentFileName, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile }: ExportOptions) {
+export async function exportPDF({ 
+  previewEl, currentFileName, isDarkMode, showToast, orientation, paperSize, 
+  dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, 
+  activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover 
+}: ExportOptions) {
   try {
     showToast('PDF 내보내기 준비 중...', 'info');
     flushIME();
@@ -920,12 +928,62 @@ export async function exportPDF({ previewEl, currentFileName, isDarkMode, showTo
   <style>
     @page {
       size: ${cssPageSize};
-      margin-top: ${marginTop || '10mm'} !important;
-      margin-bottom: ${marginBottom || '10mm'} !important;
-      margin-left: ${marginLeft || '10mm'} !important;
-      margin-right: ${marginRight || '10mm'} !important;
+      margin-top: ${marginTop || '20mm'} !important;
+      margin-bottom: ${marginBottom || '20mm'} !important;
+      margin-left: ${marginLeft || '20mm'} !important;
+      margin-right: ${marginRight || '20mm'} !important;
       background-color: ${pageBg} !important;
     }
+    
+    /* ──────────────── 머리글 & 바닥글 CSS ──────────────── */
+    @media print {
+      .print-header-area {
+        position: fixed;
+        top: calc(-${marginTop || '20mm'} + 8mm);
+        right: 0;
+        left: 0;
+        display: flex;
+        justify-content: flex-end;
+        font-size: 8.5pt;
+        color: #64748b;
+        border-bottom: 1px solid #f1f5f9;
+        padding-bottom: 4px;
+        z-index: 9999;
+      }
+      .print-footer-area {
+        position: fixed;
+        bottom: calc(-${marginBottom || '20mm'} + 8mm);
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        font-size: 8.5pt;
+        color: #64748b;
+        border-top: 1px solid #f1f5f9;
+        padding-top: 4px;
+        z-index: 9999;
+      }
+      
+      /* 첫 페이지(표지) 제외 옵션 처리 */
+      ${pdfExcludeCover ? `
+      @page:first {
+        margin-top: ${marginTop || '20mm'} !important;
+        margin-bottom: ${marginBottom || '20mm'} !important;
+      }
+      body {
+        /* 첫 페이지에서 fixed 요소를 가리기 위해 카운터 분리 및 가시성 제어 */
+      }
+      .cover-page-detector {
+        page-break-after: always;
+      }
+      ` : ''}
+    }
+    
+    /* 화면에서는 인쇄 보조 영역 보이지 않게 처리 */
+    .print-header-area, .print-footer-area {
+      display: none;
+    }
+    
     * {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -1006,11 +1064,100 @@ export async function exportPDF({ previewEl, currentFileName, isDarkMode, showTo
       text-decoration: none !important;
       margin-left: 4px !important;
       font-family: sans-serif !important;
+  <style>
+    /* ──────────────── 페이지 번호 & 첫 페이지 숨김 CSS ──────────────── */
+    @media print {
+      body {
+        counter-reset: page;
+      }
+      .page-break-container {
+        /* 페이지 구분 시 카운터 증가 */
+        counter-increment: page;
+      }
+      
+      .print-header-area {
+        position: fixed;
+        top: calc(-${marginTop || '20mm'} + 8mm);
+        right: 0;
+        font-size: 8.5pt;
+        color: #64748b;
+        border-bottom: 1px solid #e2e8f0;
+        width: 100%;
+        text-align: right;
+        padding-bottom: 4px;
+        z-index: 9999;
+        display: block !important;
+      }
+      .print-footer-area {
+        position: fixed;
+        bottom: calc(-${marginBottom || '20mm'} + 8mm);
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 8.5pt;
+        color: #64748b;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 4px;
+        z-index: 9999;
+        display: block !important;
+      }
+      
+      .print-footer-area .page-num::after {
+        content: counter(page);
+      }
+      
+      /* 첫 페이지(표지) 제외 옵션 처리 */
+      ${pdfExcludeCover ? `
+      @page:first {
+        margin-top: ${marginTop || '20mm'} !important;
+        margin-bottom: ${marginBottom || '20mm'} !important;
+      }
+      /* 첫 번째 페이지에서는 fixed 요소 감춤 */
+      .print-header-area, .print-footer-area {
+        display: none !important;
+      }
+      /* 두 번째 페이지부터 다시 활성화 */
+      .page-break-container ~ .print-header-area,
+      .page-break-container ~ .print-footer-area {
+        display: block !important;
+      }
+      ` : ''}
     }
   </style>
 </head>
 <body class="prose prose-base max-w-none custom-preview-container">
-  ${clone.outerHTML}
+  ${pdfHeader ? `
+    <div class="print-header-area">
+      <span>${pdfHeader}</span>
+    </div>
+  ` : ''}
+  
+  ${pdfFooterStyle === 'hyphen' ? `
+    <div class="print-footer-area">
+      <span>- <span class="page-num"></span> -</span>
+    </div>
+  ` : pdfFooterStyle === 'slash' ? `
+    <div class="print-footer-area">
+      <span><span class="page-num"></span> / <span class="total-pages"></span></span>
+    </div>
+  ` : ''}
+
+  <div class="page-break-container">
+    ${clone.outerHTML}
+  </div>
+
+  <script>
+    // 브라우저 렌더링 후 총 페이지 수를 동적으로 채워넣는 헬퍼 스크립트 (slash 옵션용)
+    window.onload = function() {
+      if (${pdfFooterStyle === 'slash'}) {
+        // 대략적인 총 페이지 수 계산 및 주입
+        const total = document.querySelectorAll('.print-footer-area').length || 1;
+        document.querySelectorAll('.total-pages').forEach(el => {
+          el.innerText = total;
+        });
+      }
+    };
+  </script>
 </body>
 </html>
     `;

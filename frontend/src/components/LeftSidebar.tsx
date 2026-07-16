@@ -378,10 +378,10 @@ export default function LeftSidebar() {
   return (
       <aside 
         style={{ width: sidebarWidth }} 
-        className="flex flex-col border-r border-zinc-200 dark:border-zinc-700/60 bg-zinc-100 dark:bg-zinc-900 select-none relative z-10"
+        className="flex flex-col border-r border-outline-variant/20 bg-surface-container-low select-none relative z-10"
       >
         {/* 탭 헤더 */}
-        <div className="h-10 border-b border-zinc-200 dark:border-zinc-700/60 flex items-center px-2 bg-zinc-200/70 dark:bg-zinc-800/50 justify-between">
+        <div className="h-10 border-b border-outline-variant/20 flex items-center px-2 bg-surface-container justify-between">
           <div className="flex gap-1.5 w-full">
             <button
               onClick={() => {
@@ -390,8 +390,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'explorer' 
-                  ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-white/50 dark:hover:bg-zinc-800'
+                  ? 'bg-surface text-primary font-bold shadow-sm' 
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
               }`}
             >
               📂 탐색기
@@ -403,8 +403,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'toc' 
-                  ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-white/50 dark:hover:bg-zinc-800'
+                  ? 'bg-surface text-primary font-bold shadow-sm' 
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
               }`}
             >
               📝 개요
@@ -416,8 +416,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'search' 
-                  ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-white hover:bg-white/50 dark:hover:bg-zinc-800'
+                  ? 'bg-surface text-primary font-bold shadow-sm' 
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
               }`}
             >
               🔍 검색
@@ -426,14 +426,14 @@ export default function LeftSidebar() {
         </div>
       
       {/* 항상 표시되는 워크스페이스 선택 바 */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-200 dark:border-zinc-700/60 bg-zinc-50 dark:bg-zinc-900/80">
-        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide shrink-0">폴더</span>
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-outline-variant/20 bg-surface-container-low">
+        <span className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wide shrink-0">폴더</span>
         <button
           onClick={onSelectRootFolder}
           className="flex-1 min-w-0 flex items-center gap-1 px-2 py-1 rounded-md text-left text-[11px] font-medium transition-colors
-            bg-white dark:bg-zinc-800 hover:bg-blue-50 dark:hover:bg-blue-900/30
-            border border-zinc-200 dark:border-zinc-700 hover:border-blue-400 dark:hover:border-blue-600
-            text-zinc-700 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400
+            bg-surface hover:bg-surface-container-high/30
+            border border-outline-variant/30 hover:border-primary-container
+            text-on-surface-variant hover:text-primary
             truncate"
           title={rootFolder?.name ? `워크스페이스 변경 (현재: ${rootFolder.name})` : '워크스페이스 폴더 선택'}
         >
@@ -469,7 +469,7 @@ export default function LeftSidebar() {
             // 폴더 연결됨 → 파일 트리 표시
             // 🛡️ [빈 폴더 방어] fileList가 비어있어도 루트 폴더 헤더(풀경로+버튼)를 항상 유지
             <div className="space-y-0.5">
-              <div className="group relative flex items-center justify-between px-1 py-2 text-[15px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-700/60 mb-1">
+              <div className="group relative flex items-center justify-between px-1 py-2 text-[15px] font-bold text-on-surface border-b border-outline-variant/20 mb-1">
                 <span className="truncate">📁 {rootFolder.name}</span>
                 {!isRestrictedUser && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

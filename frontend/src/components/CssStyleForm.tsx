@@ -11,6 +11,13 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  *
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
+ *
+ * 🚨 @PATCH
+ *   2026-07-15 — AI 서식 생성 기능 추가: GoogleGenerativeAI 직접 호출로 processTextWithAI 대체
+ *               (이전 방식의 사전 코드블록 제거가 JSON 파싱과 충돌하는 버그 수정)
+ *             — 브레이스 밸런싱 JSON 파서 도입 (AI 응답 후미 설명글/괄호 오염 원천 차단)
+ *             — 서식 삭제(🗑️)·이름변경(✏️) 버튼 항상 표시로 복구 (시스템 서식 선택 시 비활성화 처리)
+ *             — window.confirm → ConfirmModal 공통 모달로 전환 (handleDeleteClick, resetToDefault)
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -19,6 +26,8 @@ import { DEFAULT_PROFILE, isSystemProfileId } from '@/constants/cssProfile';
 import { PAPER_SIZES } from '@/constants/paperSizes';
 import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide';
 import FontSelectorModal from './FontSelectorModal';
+import ConfirmModal from './ConfirmModal';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
  * 🎯 원클릭 서식 프리셋 템플릿 데이터 모델
@@ -35,6 +44,8 @@ interface CssStyleFormProps {
   onImportProfile?: (profile: CssProfile) => void;
   onClose: () => void;
   isDarkMode?: boolean;
+  geminiApiKey?: string;
+  aiModelName?: string;
 }
 
 /* ────────────────────────────────────────────────────────
@@ -245,7 +256,7 @@ function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRem
 // 🔗 @CALLS : AccordionSection, SliderWidget, ColorPickerWidget, TagRuleEditor, FontSelectorModal
 // ====================================================================
 export default function CssStyleForm({
-  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, isDarkMode
+  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, isDarkMode, geminiApiKey, aiModelName
 }: CssStyleFormProps) {
   const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
   const isSystemProfile = isSystemProfileId(currentProfile.id);
@@ -268,6 +279,174 @@ export default function CssStyleForm({
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState('');
   const [showAllProfiles, setShowAllProfiles] = useState(false);
+
+  /* ─── AI 서식 테마 자동 생성 상태 및 함수 ─── */
+  const [showAiGenerator, setShowAiGenerator] = useState(false);
+  const [aiPromptInput, setAiPromptInput] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  /* ─── 커스텀 컨펌 모달 상태 ─── */
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  } | null>(null);
+
+  const handleGenerateAiProfile = async () => {
+    if (!aiPromptInput.trim() || !geminiApiKey) return;
+
+    setIsAiGenerating(true);
+    try {
+      const promptText = `당신은 마크다운 조판 서식 디자이너입니다. 사용자가 입력한 설명에 부합하는 세련되고 아름다운 CSS 서식 테마(CssProfile) 데이터를 생성해 주세요.
+사용자 요청: "${aiPromptInput}"
+
+반드시 아래 JSON 형식 규격에 맞추어 생성해야 합니다. 다른 텍스트 설명이나 코드 블록 기호(\`\`\`) 없이 오직 순수한 JSON 문자열만 출력해 주세요.
+- "name": 생성된 서식의 이름 (예: "가을빛 레트로 테마", "학술 논문 표준")
+- "pageStyle": {
+    "fontFamily": "글꼴 명칭 (예: 'Nanum Gothic', 'serif', 'sans-serif')",
+    "fontSize": "기본 글자 크기 (예: '14px', '16px')",
+    "lineHeight": "기본 줄 간격 (예: '1.6', '1.8')",
+    "letterSpacing": "자간 (예: '-0.01em', '0em')",
+    "backgroundColor": "배경색상 (예: '#ffffff', '#faf9f5')",
+    "paperSize": "a4",
+    "marginTop": "20mm",
+    "marginBottom": "20mm",
+    "marginLeft": "20mm",
+    "marginRight": "20mm",
+    "orientation": "portrait",
+    "headingSizeOffset": "2",
+    "tabSize": "4"
+  }
+- "rules": 각 요소별 CSS 룰셋 객체. (주의: rules 내의 각 키는 CSS 속성명과 값을 담은 key-value 객체여야 합니다. 예: "h1": {"color": "#0f006d", "border-bottom": "2px solid #e2dfff", "padding-bottom": "8px"})
+  지원하는 rules 태그 목록: h1, h2, h3, h4, h5, h6, p, strong, em, u, del, ul, ol, li, hr, table, th, td, blockquote, codeBlock, a, img, code, math, footnote.
+  
+  예시:
+  {
+    "name": "레트로 오렌지",
+    "pageStyle": {
+      "fontFamily": "sans-serif",
+      "fontSize": "15px",
+      "lineHeight": "1.7",
+      "letterSpacing": "-0.01em",
+      "backgroundColor": "#FAF6F0",
+      "paperSize": "a4",
+      "marginTop": "20mm",
+      "marginBottom": "20mm",
+      "marginLeft": "20mm",
+      "marginRight": "20mm",
+      "orientation": "portrait",
+      "headingSizeOffset": "2",
+      "tabSize": "4"
+    },
+    "rules": {
+      "h1": {
+        "color": "#e65100",
+        "font-weight": "800",
+        "border-bottom": "3px solid #ffcc80",
+        "padding-bottom": "6px",
+        "margin-top": "24px",
+        "margin-bottom": "12px"
+      },
+      "h2": {
+        "color": "#fb8c00",
+        "font-weight": "700",
+        "margin-top": "20px",
+        "margin-bottom": "10px"
+      },
+      "p": {
+        "color": "#3e2723",
+        "line-height": "1.8",
+        "margin-bottom": "16px"
+      },
+      "blockquote": {
+        "border-left": "4px solid #ffb74d",
+        "background-color": "#fff3e0",
+        "padding": "12px 16px",
+        "color": "#5d4037",
+        "font-style": "italic"
+      }
+    }
+  }
+
+위의 구조를 엄격히 준수하여 사용자가 원하는 느낌의 CSS 서식 JSON을 완성해 주세요.`;
+
+      // GoogleGenerativeAI 직접 호출 — processTextWithAI의 사전 코드블록 제거가 JSON 파싱과 충돌하므로 raw 응답을 직접 수신
+      const genAI = new GoogleGenerativeAI((geminiApiKey || '').trim());
+      const model = genAI.getGenerativeModel({
+        model: aiModelName || 'gemma-4-26b-a4b-it',
+        systemInstruction: '당신은 CSS 서식 JSON 생성 전문가입니다. 오직 순수한 JSON 객체만 출력하십시오. 마크다운 코드 블록 기호, 설명 문구, 부연 텍스트는 절대 포함하지 마십시오.',
+      });
+      const result = await model.generateContent(promptText);
+      const responseText = result.response.text();
+      
+      // JSON 문자열 정제 (코드 블록 및 사족 제거)
+      let cleanedText = responseText.trim();
+      const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+      const match = cleanedText.match(jsonBlockRegex);
+      if (match && match[1]) {
+        cleanedText = match[1].trim();
+      }
+
+      // [ONR-AI-JSON-GUARD] 코드 블록 여부와 무관하게 항상 첫 { 부터 매칭되는 닫는 } 까지 브레이스 밸런싱 방식으로 정확히 발라냄
+      const startIdx = cleanedText.indexOf('{');
+      if (startIdx !== -1) {
+        let braceCount = 0;
+        let inString = false;
+        let escape = false;
+        let foundEnd = false;
+        
+        for (let i = startIdx; i < cleanedText.length; i++) {
+          const char = cleanedText[i];
+          if (escape) {
+            escape = false;
+            continue;
+          }
+          if (char === '\\') {
+            escape = true;
+            continue;
+          }
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+          if (!inString) {
+            if (char === '{') {
+              braceCount++;
+            } else if (char === '}') {
+              braceCount--;
+              if (braceCount === 0) {
+                cleanedText = cleanedText.substring(startIdx, i + 1);
+                foundEnd = true;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!foundEnd) {
+          const endIdx = cleanedText.lastIndexOf('}');
+          if (endIdx > startIdx) {
+            cleanedText = cleanedText.substring(startIdx, endIdx + 1).trim();
+          }
+        }
+      }
+
+      const parsedData = JSON.parse(cleanedText);
+
+      if (onImportProfile) {
+        onImportProfile(parsedData);
+      }
+      setAiPromptInput('');
+      setShowAiGenerator(false);
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'AI 서식 생성 실패. 형식에 맞지 않는 응답이거나 서버 오류입니다.');
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
 
   /* ─── ⚡ [고속 업데이트 최적화 가드] ─── */
   const rafIdRef = useRef<number | null>(null);
@@ -362,7 +541,7 @@ export default function CssStyleForm({
     try {
       const parsed = JSON.parse(jsonStr);
       if (!parsed.name || !parsed.pageStyle || !parsed.rules) {
-        alert("올바른 Onrivi 서식 양식이 아닙니다. name, pageStyle, rules 속성이 필수입니다.");
+        showToast("올바른 Onrivi 서식 양식이 아닙니다. name, pageStyle, rules 속성이 필수입니다.");
         return false;
       }
       if (onImportProfile) {
@@ -373,7 +552,7 @@ export default function CssStyleForm({
         return true;
       }
     } catch (e) {
-      alert("JSON 문법 에러! 형식을 확인해 주세요.");
+      showToast("JSON 문법 에러! 형식을 확인해 주세요.");
     }
     return false;
   };
@@ -610,9 +789,16 @@ export default function CssStyleForm({
   // ====================================================================
   const handleDeleteClick = () => {
     if (!canDelete || !onDeleteProfile) return;
-    if (window.confirm(`서식 "${currentProfile.name}"을(를) 정말로 삭제하시겠습니까?`)) {
-      onDeleteProfile(currentProfile.id);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: "서식 삭제",
+      message: `서식 "${currentProfile.name}"을(를) 정말로 삭제하시겠습니까?`,
+      isDanger: true,
+      onConfirm: () => {
+        onDeleteProfile(currentProfile.id);
+        setConfirmConfig(null);
+      }
+    });
   };
 
 
@@ -672,9 +858,16 @@ export default function CssStyleForm({
   // ====================================================================
   const resetToDefault = () => {
     if (isSystemProfile) return;
-    if (window.confirm('시스템 기본 서식으로 전환하시겠습니까?')) {
-      onSelectProfile(DEFAULT_PROFILE.id); // DEFAULT_PROFILE = system-gov
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: "서식 초기화",
+      message: "시스템 기본 서식으로 전환하시겠습니까?",
+      isDanger: false,
+      onConfirm: () => {
+        onSelectProfile(DEFAULT_PROFILE.id); // DEFAULT_PROFILE = system-gov
+        setConfirmConfig(null);
+      }
+    });
   };
 
   const nonDefaultProfiles = profiles.filter(p => !isSystemProfileId(p.id)).length;
@@ -745,6 +938,21 @@ export default function CssStyleForm({
                 ➕
               </button>
             )}
+            {onImportProfile && (
+              <button 
+                onClick={() => {
+                  if (!geminiApiKey) {
+                    showToast("AI 기능을 사용하려면 설정에서 Gemini API Key를 등록해 주세요.");
+                    return;
+                  }
+                  setShowAiGenerator(!showAiGenerator);
+                }} 
+                className={`p-1.5 rounded-md transition-colors ${showAiGenerator ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50'}`} 
+                title="AI 서식 테마 자동 생성"
+              >
+                ✨
+              </button>
+            )}
             <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 transition-colors" title="외부 서식 테마 가져오기 (JSON)">
               📥
             </button>
@@ -752,18 +960,98 @@ export default function CssStyleForm({
               📤
             </button>
             <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-700 mx-1"></div>
-            {!isSystemProfile && !isEditingName && (
-              <button onClick={handleRenameClick} className="p-1.5 bg-white dark:bg-zinc-800 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="이름 변경">
+            {!isEditingName && (
+              <button 
+                onClick={() => {
+                  if (isSystemProfile) {
+                    showToast("시스템 기본 서식은 이름을 변경할 수 없습니다.");
+                    return;
+                  }
+                  handleRenameClick();
+                }} 
+                className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-blue-600 dark:hover:text-blue-400'}`} 
+                title="이름 변경"
+              >
                 ✏️
               </button>
             )}
-            {canDelete && onDeleteProfile && !isEditingName && (
-              <button onClick={handleDeleteClick} className="p-1.5 bg-white dark:bg-zinc-800 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-red-500 transition-colors" title="이름 삭제">
+            {onDeleteProfile && !isEditingName && (
+              <button 
+                onClick={() => {
+                  if (isSystemProfile) {
+                    showToast("시스템 기본 서식은 삭제할 수 없습니다.");
+                    return;
+                  }
+                  handleDeleteClick();
+                }} 
+                className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-red-500'}`} 
+                title="서식 삭제"
+              >
                 🗑️
               </button>
             )}
           </div>
         </div>
+
+        {/* AI 서식 생성기 패널 */}
+        {showAiGenerator && (
+          <div className="p-3 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/50 rounded-xl flex flex-col gap-2 animate-slideIn">
+            <div className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+              <span>✨ AI 테마 스타일 생성기</span>
+            </div>
+            
+            {/* AI 퀵 스타일 선택 칩 */}
+            <div className="flex flex-wrap gap-1.5 mt-0.5 mb-0.5">
+              {[
+                { label: '#따뜻한 감성에세이', text: 'Noto Serif KR 명조체, 따뜻하고 은은한 아이보리 미색 배경(#FAF6ED), 넓고 부드러운 줄간격 1.8, 차분한 밤색 텍스트와 단정한 인용상자' },
+                { label: '#현대적인 기술보고서', text: 'Noto Sans KR 고딕체, 맑고 깨끗한 화이트 배경(#FFFFFF), 신뢰감을 주는 네이비 블루 강조색상(#0058BC), 정돈된 표 서식과 구분선' },
+                { label: '#영화 시나리오 대본', text: 'monospace 계열의 타자기 글꼴, 시선을 사로잡는 차분한 다크 슬레이트 배경(#1E1E24), 흑백 모노톤 강조색상, 단락 앞뒤 마진을 크게 주어 대본 느낌 극대화' },
+                { label: '#빈티지 미색잡지', text: '부드러운 바탕체, 예스러운 빈티지 황토 베이지 배경(#F4EDE0), 세련된 올리브 그린 포인트 색상, 넓은 자간과 여유로운 패딩 규칙' }
+              ].map((chip, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setAiPromptInput(chip.text)}
+                  disabled={isAiGenerating}
+                  className="px-2 py-0.5 text-[9px] rounded-full border border-purple-200 dark:border-purple-800 bg-white/70 dark:bg-zinc-800/70 text-purple-600 dark:text-purple-300 hover:bg-purple-100 transition-colors"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              placeholder="원하는 서식 스타일을 직접 적거나 위의 퀵 칩을 클릭해 보세요! (예: '나눔고딕 본문, 따뜻한 책 느낌, 줄간격 1.8, 주황색 강조색상')"
+              value={aiPromptInput}
+              onChange={(e) => setAiPromptInput(e.target.value)}
+              disabled={isAiGenerating}
+              className="w-full p-2 text-xs border border-purple-200 dark:border-purple-800 rounded-lg outline-none bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 h-16 resize-none focus:ring-1 focus:ring-purple-400"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowAiGenerator(false)}
+                disabled={isAiGenerating}
+                className="px-2.5 py-1 text-[11px] font-semibold text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+              >
+                닫기
+              </button>
+              <button
+                onClick={handleGenerateAiProfile}
+                disabled={isAiGenerating || !aiPromptInput.trim()}
+                className="px-3 py-1 text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-1"
+              >
+                {isAiGenerating ? (
+                  <>
+                    <span className="animate-spin">⏳</span> 생성 중...
+                  </>
+                ) : (
+                  <>
+                    <span>🚀</span> 스타일 생성
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 메가 메뉴 토글 스위치 (이름 렌더링) */}
         {isEditingName && !isSystemProfile ? (
@@ -839,7 +1127,7 @@ export default function CssStyleForm({
               <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold block mb-1">문서 전체 글꼴</span>
               <input
                 type="text"
-                value={isFontModalOpen ? '선택 중...' : currentProfile.pageStyle.fontFamily}
+                value={isFontModalOpen ? '선택 중...' : (currentProfile.pageStyle.fontFamily || '')}
                 readOnly
                 className="w-full p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-900 font-mono text-sm text-zinc-800 dark:text-zinc-200 cursor-not-allowed"
               />
@@ -2321,7 +2609,7 @@ export default function CssStyleForm({
               <button
                 onClick={() => {
                   if (!importJsonText.trim()) {
-                    alert("가져올 JSON 텍스트를 입력해 주세요!");
+                    showToast("가져올 JSON 텍스트를 입력해 주세요!");
                     return;
                   }
                   importProfileString(importJsonText);
@@ -2334,6 +2622,17 @@ export default function CssStyleForm({
             </div>
           </div>
         </div>
+      )}
+
+      {confirmConfig && (
+        <ConfirmModal
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          isDanger={confirmConfig.isDanger}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(null)}
+        />
       )}
     </div>
   );

@@ -311,7 +311,6 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                     <span className="w-4 flex justify-center opacity-70">{item.icon}</span>
                     <span>{item.label}</span>
                   </div>
-                  {item.shortcut && <span className="text-xs opacity-50 ml-4 font-mono">{item.shortcut}</span>}
                   {item.subItems && <ChevronRight size={14} className="opacity-50" />}
                 </button>
 

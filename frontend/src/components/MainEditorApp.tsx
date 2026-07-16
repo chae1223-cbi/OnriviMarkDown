@@ -9,7 +9,7 @@
  * 작성자 : 채병익
  * 기능 설명 : 전체 시스템의 컨트롤 타워.
  * 모든 전역 상태 및 화면 분할 레이아웃 조립.
-  * 🚨 @PATCH : **2026-07-15** — AI 재생성 및 모달 닫기/취소 시 백그라운드 스트리밍을 무효화하는 generationIdRef 가드 추가(동일 모달 재진입 또는 재생성 시 이전 버퍼가 오버랩되는 현상 완벽 조치), 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
+  * 🚨 @PATCH : **2026-07-15** — ModalManager deps 객체에서 window.SYSTEM_PROFILES/DEFAULT_PROFILE/isSystemProfileId를 window 전역에서 읽던 잘못된 코드를 모듈 import 상수 직접 참조로 수정 (window에 주입되지 않아 항상 빈 배열/객체로 폴백 → 서식 삭제 시 SYSTEM_PROFILES[0] undefined TypeError 버그 수정) | AI 재생성 및 모달 닫기/취소 시 백그라운드 스트리밍을 무효화하는 generationIdRef 가드 추가(동일 모달 재진입 또는 재생성 시 이전 버퍼가 오버랩되는 현상 완벽 조치), 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
  *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
  *             **2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
  *             **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
@@ -392,7 +392,8 @@ const getRelativePath = (fromPath: string | null | undefined, toPath: string): s
 // 📊 [OMD-CORE-MainEditorApp-0005] MainEditorApp.tsx ➔ MainEditorApp
 // 🎯 @KICK  : 컨트롤 타워: 모든 전역 상태, 레이아웃 조립, Monaco 에디터, 미리보기, 사이드바, 메뉴 조정
 // 🛡️ @GUARD : TDZ 선언 순서 방어, IME 조합 잠금, 스테일 클로저 Ref 백업, 마운트 시 레이스 컨디션 가드
-// 🚨 @PATCH : **2026-07-05** — MainEditorApp에 하드코딩된 UI 껍데기(MenuBar, LeftSidebar 등 6종) Props 의존성을 전면 제거하고 EditorContext로 마이그레이션하여 모듈화 아키텍처 개편; 아래 상세 하위 항목 참조
+// 🚨 @PATCH : **2026-07-16** — 분할 화면 모드에서 CSS 테마 배경색이 반영되지 않고 흰색으로 롤백되던 결함 수정 (모든 미리보기 모드에 배경색이 적용되도록 CSS 오버라이드 가드 조치).
+//             **2026-07-05** — MainEditorApp에 하드코딩된 UI 껍데기(MenuBar, LeftSidebar 등 6종) Props 의존성을 전면 제거하고 EditorContext로 마이그레이션하여 모듈화 아키텍처 개편; 아래 상세 하위 항목 참조
 // 🔗 @CALLS : useToast, useEditorTabs, useFileExplorer, useEditorSettings, useEditorHandlers, getMdFiles, fetchAllMdFiles, resolveRelativeImagePath, getRelativePath, utilsEditorActions, utilsPasteHandlers, getSlashCommands, preprocessMarkdownForPreview, saveSecureData, loadSecureData, idb, getApiUrl
 // ====================================================================
 export default function MainEditorApp() {                  // @MainEditorApp : MainEditorApp component
@@ -1841,7 +1842,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     geminiApiKey,
     setGeminiApiKey,
     aiModelName,
-    setAiModelName
+    setAiModelName,
+    pdfHeader,
+    setPdfHeader,
+    pdfFooterStyle,
+    setPdfFooterStyle,
+    pdfExcludeCover,
+    setPdfExcludeCover
   } = useEditorSettingsResult;
 
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -3758,6 +3765,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setTabs,
     activeTabIdRef,
     licenseStatusRef,
+    pdfHeader,
+    pdfFooterStyle,
+    pdfExcludeCover
   });
 
   handlersRef.current = handlers;
@@ -4596,7 +4606,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       `}</style>
       <EditorProvider value={contextValue}>
-      <div className={`flex h-screen overflow-hidden flex-col text-slate-800 transition-colors duration-300 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-[#FAFAFA]'}`}>
+      <div className={`flex h-screen overflow-hidden flex-col text-on-surface transition-colors duration-300 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-surface'}`}>
 
       <MenuBar />
 
@@ -4659,7 +4669,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               <div className="flex flex-1 overflow-hidden">
 
             <div
-                className="flex-1 min-w-0 relative border-r border-transparent hover:border-black/5 dark:hover:border-white/5 transition-colors duration-500 no-print bg-[#F8F9FA] dark:bg-zinc-950"
+                className="flex-1 min-w-0 relative border-r border-transparent hover:border-black/5 dark:hover:border-white/5 transition-colors duration-500 no-print bg-surface-container-low dark:bg-zinc-950"
               style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
             >
               <Editor
@@ -5043,7 +5053,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             )}
 
             <div
-              className="flex-1 flex flex-col bg-[#F8F9FA] dark:bg-zinc-900 text-gray-900 overflow-hidden print:overflow-visible relative"
+              className="flex-1 flex flex-col bg-surface-container-low text-on-surface overflow-hidden print:overflow-visible relative"
               style={{
                 width: previewMode === 'preview' ? '100%' : '50%',
                 display: (previewMode === 'edit' || activeTab?.isStyleTab === true) ? 'none' : 'flex'
@@ -5054,9 +5064,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
               <div
                 ref={previewRef}
-                className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-gray-900 ${previewMode === 'preview'
-                  ? 'bg-zinc-100 p-4 overflow-y-auto'
-                  : 'bg-[#F8F9FA] dark:bg-zinc-900 px-0 pt-0 pb-32 overflow-y-auto'}`}
+                className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-on-surface ${previewMode === 'preview'
+                  ? 'bg-surface-container-high p-4 overflow-y-auto'
+                  : 'bg-surface-container-low px-0 pt-0 pb-32 overflow-y-auto'}`}
                 onMouseEnter={() => { isPreviewHovered.current = true; }}
                 onMouseLeave={() => { isPreviewHovered.current = false; }}
                 onScroll={(e) => {
@@ -5129,8 +5139,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   return (
                     <div
                       className={isPreviewOnly
-                        ? "preview-page-sheet mx-auto my-8 border border-zinc-200 shadow-xl transition-all duration-300 transform-gpu origin-top"
-                        : `${isLandscape ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full origin-top`
+                        ? "preview-page-sheet mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top"
+                        : `preview-page-sheet mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full p-10 bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top`
                       }
                       style={pageStyle}
                     >
@@ -5163,19 +5173,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
                 )}
                 {/* 미리보기 전용 모드이거나 A4 조판 가드가 켜져 있을 때 스킨의 배경색과 외부 감싸기용 회색 배경 분리 지정 */}
-                {(previewMode === 'preview' || isA4GuardEnabled) && (
-                  <style dangerouslySetInnerHTML={{
-                    __html: `
-                      .custom-preview-container {
-                        background: ${isDarkMode ? '#18181b' : '#F8F9FA'} !important;
-                      }
-                      .preview-page-sheet {
-                        background: ${isDarkMode ? '#18181b' : '#F8F9FA'} !important;
-                        border-color: ${isDarkMode ? '#27272a' : '#e4e4e7'} !important;
-                        box-shadow: none !important;
-                      }
-                    `}} />
-                )}
+                {(() => {
+                  const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+                  const paperBg = activeProfile.pageStyle.backgroundColor || '#ffffff';
+                  return (
+                    <style dangerouslySetInnerHTML={{
+                      __html: `
+                        ${(previewMode === 'preview' || isA4GuardEnabled) ? `
+                        .custom-preview-container {
+                          background: ${isDarkMode ? '#13121a' : '#faf9f5'} !important;
+                        }
+                        ` : ''}
+                        .preview-page-sheet {
+                          background: ${paperBg} !important;
+                          border-color: ${isDarkMode ? '#36343e' : '#e4e1ed'} !important;
+                          box-shadow: none !important;
+                        }
+                      `}} />
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -5220,17 +5236,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
           customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
           isActivated, autoClosingBrackets, setAutoClosingBrackets, geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
+          pdfHeader, setPdfHeader, pdfFooterStyle, setPdfFooterStyle, pdfExcludeCover, setPdfExcludeCover,
           isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
           setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
           showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
           handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId, setProfiles,
-          isSystemProfileId: (window as any).isSystemProfileId || (() => false),
-          getApiUrl: (window as any).getApiUrl || (() => ''),
-          DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
-          SYSTEM_PROFILES: (window as any).SYSTEM_PROFILES || [],
-          vfsCreateFile: (window as any).vfsCreateFile || (() => { }),
-          vfsWriteFile: (window as any).vfsWriteFile || (() => { }),
-          vfsCreateFolder: (window as any).vfsCreateFolder || (() => { }),
+          isSystemProfileId,
+          getApiUrl,
+          DEFAULT_PROFILE,
+          SYSTEM_PROFILES,
+          vfsCreateFile,
+          vfsWriteFile,
+          vfsCreateFolder,
           helpTitle, helpContent, setHelpContent
         }}
       />

@@ -1,4 +1,6 @@
-// 🚨 @PATCH : **2026-07-07** — rehype-citation 플러그인 추가 (참고문헌/BibTeX 인용 파이프라인); bibContent prop으로 BibTeX 데이터를 주입받아 [@citekey] 문법을 인용/참고문헌 목록으로 자동 변환
+// 🚨 @PATCH : **2026-07-16** — 코드블록 및 인라인 코드의 하드코딩된 파란색 톤 배경 및 글자색을 제거하여, 사용자 CSS 프로필 서식 설정이 가로막힘 없이 실시간으로 올바르게 오버라이딩되도록 버그 수정.
+//             **2026-07-15** — MermaidBlock 내 alert() 호출을 useToast showToast('warning')로 교체 (브라우저 팝업 차단 알림을 공통 토스트 UI로 통일)
+//             **2026-07-07** — rehype-citation 플러그인 추가 (참고문헌/BibTeX 인용 파이프라인); bibContent prop으로 BibTeX 데이터를 주입받아 [@citekey] 문법을 인용/참고문헌 목록으로 자동 변환
 //             **2026-07-04** — Mermaid 다이어그램 렌더링 문법 에러 복구 강화(유입된 중첩 백틱 펜스 태그 ```mermaid 및 깨진 기호/괄호 라인 자동 정제, 화살표 레이블 간격 자동 보정) 및 에러 발생 시 마크다운 코드 원본을 복사하고 대조해볼 수 있는 '코드 원본 보기' 디버깅 UI 추가 패치
 //             **2026-06-20** — Mermaid 다이어그램 이미지 저장(handleSaveImage) 기능이 Electron 데스크톱 앱 내에서 동작하지 않던 API 명칭 불일치 버그(saveAs -> saveFileAs)를 해결하고, 웹 브라우저 환경에서 동작할 수 있도록 a 링크 다운로드 폴백을 추가; 다이어그램 저장, 이미지 복사 시 다이어그램 크기가 극도로 작게 나오는 찌그러짐 결함을 3배 스케일링 기법으로 최종 영구 해결; 딤드 오버레이 방식의 복잡한 확대 모달을 전면 걷어내고, 독립 새 브라우저 창(Pop-up Window)으로 다이어그램을 선명하게 확대 및 다중 작업할 수 있도록 openInNewWindow 기능으로 리팩토링 및 🔍 새 창으로 확대 버튼 제공
 
@@ -17,6 +19,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 import VideoCard from '@/components/VideoCard';
 import SocialVideoCard from '@/components/SocialVideoCard';
 import { rehypePreserveFootnotes } from '@/lib/rehypePreserveFootnotes';
+import { useToast } from '@/components/ToastProvider';
 
 
 const getTextFromChildren = (children: React.ReactNode): string => {
@@ -177,8 +180,8 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
           {copied ? '✓ 복사됨' : '복사'}
         </button>
       </div>
-      <pre className="m-0 p-4 overflow-x-auto font-mono text-sm leading-relaxed bg-transparent text-blue-700 ">
-        <code className={`${className || ''} block text-blue-700 `} {...props}>
+      <pre className="m-0 p-4 overflow-x-auto font-mono text-sm leading-relaxed bg-transparent">
+        <code className={`${className || ''} block`} {...props}>
           {code}
         </code>
       </pre>
@@ -363,6 +366,7 @@ const loadMermaidScript = (): Promise<any> => {
 // 🔗 @CALLS : loadMermaidScript, handleCopyImage, handleSaveImage, handleCopyCode
 // ====================================================================
 const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }) {
+  const { showToast } = useToast();
   const [svgHtml, setSvgHtml] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
@@ -418,7 +422,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
     );
 
     if (!newWindow) {
-      alert("💡 브라우저의 팝업이 차단되었습니다. 주소창 우측에서 팝업을 허용해주세요!");
+      showToast("💡 브라우저의 팝업이 차단되었습니다. 주소창 우측에서 팝업을 허용해주세요!", 'warning');
       return;
     }
 
@@ -1503,7 +1507,7 @@ export default function MarkdownViewer({
               const codeContent = getTextFromChildren(children).replace(/\n$/, '');
               const isInline = !match && !getTextFromChildren(children).includes('\n');
               if (isInline) {
-                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md bg-blue-50  text-blue-600  font-mono text-[0.9em] border border-blue-200 " {...props}>{children}</code>;
+                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-[0.9em]" {...props}>{children}</code>;
               }
               if (lang === 'mermaid') {
                 return <MermaidBlock code={codeContent} />;

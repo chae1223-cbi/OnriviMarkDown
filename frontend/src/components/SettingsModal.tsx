@@ -1,6 +1,9 @@
+// 🚨 @PATCH : **2026-07-16** — 단축키 설정 인풋의 onKeyDown 이벤트가 전역 body/window로 버블링되는 것을 차단하여 Monaco Editor 내부의 getModifierState 런타임 크래시 오류 해결, PDF & 인쇄 설정 모달 인터페이스 추가
+// ====================================================================
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useToast } from '@/components/ToastProvider';
 import { createPortal } from 'react-dom';
 import { X, Settings, Palette, Pen, Command, ShieldCheck, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
@@ -42,6 +45,12 @@ interface SettingsModalProps {
   setGeminiApiKey: (v: string) => void;
   aiModelName: string;
   setAiModelName: (v: string) => void;
+  pdfHeader: string;
+  setPdfHeader: (v: string) => void;
+  pdfFooterStyle: 'none' | 'hyphen' | 'slash';
+  setPdfFooterStyle: (v: 'none' | 'hyphen' | 'slash') => void;
+  pdfExcludeCover: boolean;
+  setPdfExcludeCover: (v: boolean) => void;
 }
 
 const THEMES = [
@@ -67,7 +76,7 @@ const MONACO_TO_USER_THEME: Record<string, string> = {
 // 📊 [OMD-EDIT-SettingsModal-0006] SettingsModal ➔ SettingsModal
 // 🎯 @KICK  : 환경 설정 모달 - 일반 설정, 정품 인증, 단축키/명령어 테이블, 테마 선택 제공
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-07-15** — 단축키 중복 할당 시 alert() 호출을 useToast showToast('warning')로 교체 (공통 토스트 UI 통일)
 // 🔗 @CALLS : handleThemeSelect, handleSaveLicense, ThemeButton, ModeButton
 // ====================================================================
 export default function SettingsModal({
@@ -83,8 +92,12 @@ export default function SettingsModal({
   isActivated,
   autoClosingBrackets, setAutoClosingBrackets,
   geminiApiKey, setGeminiApiKey,
-  aiModelName, setAiModelName
+  aiModelName, setAiModelName,
+  pdfHeader, setPdfHeader,
+  pdfFooterStyle, setPdfFooterStyle,
+  pdfExcludeCover, setPdfExcludeCover
 }: SettingsModalProps) {
+  const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
   const [restoreSession, setRestoreSession] = useState(true);
   const [isTestingKey, setIsTestingKey] = useState(false);
@@ -198,7 +211,18 @@ export default function SettingsModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
+    <div 
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 animate-in fade-in duration-200" 
+      style={{ overflowY: "auto" }}
+      onKeyDown={(e) => {
+        // 모달 내부의 키보드 입력이 Monaco Editor의 전역 keydown 이벤트 핸들러로 전달되어
+        // getModifierState 런타임 크래시를 유발하는 것을 완벽하게 원천 차단
+        e.stopPropagation();
+        if (e.nativeEvent) {
+          e.nativeEvent.stopImmediatePropagation?.();
+        }
+      }}
+    >
       <div
         className="relative w-full max-w-3xl flex flex-col rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
         style={{ maxHeight: "90dvh", backgroundColor: colors.surface, borderColor: colors.border }}
@@ -321,15 +345,12 @@ export default function SettingsModal({
                       border: `1px solid ${colors.border}`
                     }}
                   />
-                  <span className="text-[11px] opacity-70">원하시는 모델의 공식 API 식별자를 입력하세요. (기본: gemini-3.5-flash)</span>
+                  <span className="text-[11px] opacity-70">원하시는 모델의 공식 API 식별자를 입력하세요. (기본: gemma-4-26b-a4b-it)</span>
                   
                   {/* 추천 모델 빠른 선택 칩 */}
                   <div className="flex flex-wrap gap-2 mt-1">
                     {[
-                      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 (추천/고속)' },
-                      { id: 'gemini-pro', label: 'Gemini Pro (안정판)' },
                       { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4 (최신 오픈모델)' },
-                      { id: 'gemma-2-9b-it', label: 'Gemma 2 (가벼움)' },
                     ].map(model => (
                       <button
                         key={model.id}
@@ -348,6 +369,57 @@ export default function SettingsModal({
                       </button>
                     ))}
                   </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ---------- 인쇄 및 PDF 설정 ---------- */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
+              <Pen size={16} />
+              <span>인쇄 및 PDF 설정</span>
+            </div>
+            <div className="pl-6 space-y-4">
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium" style={{ color: colors.onSurface }}>상단 머리글 (Header) 텍스트</span>
+                <input
+                  type="text"
+                  placeholder="예: 파크골프 매칭 플랫폼 사업 계획서 (인쇄 시 상단 우측 출력)"
+                  value={pdfHeader || ''}
+                  onChange={(e) => setPdfHeader(e.target.value)}
+                  className="px-3 py-2 rounded text-xs outline-none w-full"
+                  style={{
+                    backgroundColor: colors.container,
+                    color: colors.onSurface,
+                    border: `1px solid ${colors.border}`
+                  }}
+                />
+              </div>
+
+              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
+                <span>하단 페이지 번호 (Footer) 스타일</span>
+                <select
+                  value={pdfFooterStyle}
+                  onChange={(e) => setPdfFooterStyle(e.target.value as any)}
+                  className="px-3 py-1.5 rounded text-xs outline-none cursor-pointer"
+                  style={{
+                    backgroundColor: colors.container,
+                    color: colors.onSurface,
+                    border: `1px solid ${colors.border}`
+                  }}
+                >
+                  <option value="none">사용 안함 (없음)</option>
+                  <option value="hyphen">줄표 형식 (- 1 -)</option>
+                  <option value="slash">슬래시 형식 (1 / n)</option>
+                </select>
+              </div>
+
+              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
+                <span>첫 번째 페이지(표지) 번호/머리글 제외</span>
+                <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
+                  <ThemeButton active={pdfExcludeCover === true} onClick={() => setPdfExcludeCover(true)} label="제외함" colors={colors} />
+                  <ThemeButton active={pdfExcludeCover === false} onClick={() => setPdfExcludeCover(false)} label="포함함" colors={colors} />
                 </div>
               </div>
             </div>
@@ -401,6 +473,12 @@ export default function SettingsModal({
                             localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
                           }}
                           onKeyDown={(e) => {
+                            // Monaco 및 전역 키보드 리스너로 전파되는 것 방지하여 getModifierState 런타임 크래시 예방
+                            e.stopPropagation();
+                            if (e.nativeEvent) {
+                              e.nativeEvent.stopImmediatePropagation?.();
+                            }
+                            
                             // 단축키 입력 레코딩 처리
                             if (e.key === 'Backspace' || e.key === 'Delete') {
                               e.preventDefault();
@@ -440,7 +518,7 @@ export default function SettingsModal({
                               t => t.id !== item.id && (customHotkeys[t.id] || t.defaultHotkey) === combo
                             );
                             if (conflictItem) {
-                              alert(`⚠️ 이미 [${conflictItem.name}] 기능에 할당된 단축키입니다.`);
+                              showToast(`⚠️ 이미 [${conflictItem.name}] 기능에 할당된 단축키입니다.`, 'warning');
                               return;
                             }
                             

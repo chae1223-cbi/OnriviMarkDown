@@ -1012,7 +1012,6 @@ app.post('/api/merge-files', async (req, res) => {
     }
 
     // 대상 경로의 디렉토리가 존재하는지 확인 및 자동 생성
-    const targetDir = path.dirname(resolvedTargetPath);
     await fs.mkdir(targetDir, { recursive: true });
 
     // 대상 파일 쓰기

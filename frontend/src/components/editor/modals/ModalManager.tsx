@@ -66,6 +66,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
     customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
     geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
+    pdfHeader, setPdfHeader, pdfFooterStyle, setPdfFooterStyle, pdfExcludeCover, setPdfExcludeCover,
     isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
     setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
     showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
@@ -100,6 +101,12 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         setGeminiApiKey={setGeminiApiKey}
         aiModelName={aiModelName}
         setAiModelName={setAiModelName}
+        pdfHeader={pdfHeader}
+        setPdfHeader={setPdfHeader}
+        pdfFooterStyle={pdfFooterStyle}
+        setPdfFooterStyle={setPdfFooterStyle}
+        pdfExcludeCover={pdfExcludeCover}
+        setPdfExcludeCover={setPdfExcludeCover}
       />
 
       <ExportModal
@@ -345,6 +352,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         profiles={profiles}
         activeProfileId={activeProfileId}
         dynamicCssString={dynamicCssString}
+        geminiApiKey={geminiApiKey}
+        aiModelName={aiModelName}
         onSelectProfile={setActiveProfileId}
         onUpdateProfile={(updated: any) => setProfiles((prev: any) =>
           prev.map((p: any) => p.id === updated.id ? updated : p)
@@ -356,7 +365,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
             ...DEFAULT_PROFILE,
             id: newId,
             name: `나만의 서식 ${count}`,
-            rules: JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
+            rules: structuredClone(DEFAULT_PROFILE.rules || {}),
           }]);
           setActiveProfileId(newId);
         }}
@@ -369,13 +378,20 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         }}
         onImportProfile={(imported: any) => {
           const newId = 'profile-' + Date.now();
+          // null/undefined 필드를 필터링하여 DEFAULT_PROFILE 기본값이 보존되도록 보장 (AI 응답에 포함된 null 값 방어)
+          const cleanPageStyle = Object.fromEntries(
+            Object.entries(imported.pageStyle || {}).filter(([, v]) => v !== undefined && v !== null)
+          );
+          const cleanRules = Object.fromEntries(
+            Object.entries(imported.rules || {}).filter(([, v]) => v !== undefined && v !== null)
+          );
           const merged: any = {
             ...DEFAULT_PROFILE,
             ...imported,
             id: newId,
             name: imported.name || '가져온 서식',
-            pageStyle: { ...DEFAULT_PROFILE.pageStyle, ...(imported.pageStyle || {}) },
-            rules: imported.rules ? { ...DEFAULT_PROFILE.rules, ...imported.rules } : JSON.parse(JSON.stringify(DEFAULT_PROFILE.rules)),
+            pageStyle: { ...DEFAULT_PROFILE.pageStyle, ...cleanPageStyle },
+            rules: { ...(DEFAULT_PROFILE.rules || {}), ...cleanRules },
           };
           setProfiles((prev: any) => [...prev, merged]);
           setActiveProfileId(newId);

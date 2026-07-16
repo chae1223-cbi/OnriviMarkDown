@@ -38,11 +38,18 @@ export const useEditorSettings = (
   const [themePalette, setThemePalette] = useState<string>('onrivi-light');
   const [licenseKey, setLicenseKey] = useState<string>('');
   const [geminiApiKey, setGeminiApiKey] = useState<string>('');
-  const [aiModelName, setAiModelName] = useState<string>('gemini-3.5-flash');
+  const [aiModelName, setAiModelName] = useState<string>('gemma-4-26b-a4b-it');
 
   const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>(() => getDefaultHotkeys());
   const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>(() => getDefaultCommands());
   const [autoClosingBrackets, setAutoClosingBrackets] = useState<boolean>(true);
+
+  // PDF/Print configurations
+  const [pdfHeader, setPdfHeader] = useState<string>('');
+  const [pdfFooterStyle, setPdfFooterStyle] = useState<'none' | 'hyphen' | 'slash'>('none');
+  const [pdfExcludeCover, setPdfExcludeCover] = useState<boolean>(false);
+  const [pdfWatermark, setPdfWatermark] = useState<string>('');
+  const [pdfWatermarkOpacity, setPdfWatermarkOpacity] = useState<number>(0.08);
 
   const customSlashCommandsRef = useRef<Record<string, string>>(customSlashCommands);
   useEffect(() => {
@@ -73,7 +80,7 @@ export const useEditorSettings = (
     // 📊 [OMD-EDIT-USEEDITORSETTINGS-0002] useEditorSettings.ts ➔ restoreSettings
     // 🎯 @KICK  : localStorage/chrome.storage/Electron에서 저장된 설정을 로드하여 복원
     // 🛡️ @GUARD : 각 스토리지별 로드 실패 시 console.error 후 기본값 유지
-    // 🚨 @PATCH : 없음
+    // 🚨 @PATCH : **2026-07-16** — geminiApiKey 및 aiModelName이 설정 저장 시 누락되어 유실되던 치명적 동기화 버그 해결 및 개별 스토리지 복구 폴백 가드 신설, PDF 머리글/바닥글 저장 옵션 연동.
     // 🔗 @CALLS : getDefaultHotkeys, getDefaultCommands, idb.get, api.loadSettings
     // ====================================================================
     const restoreSettings = async () => {
@@ -89,8 +96,13 @@ export const useEditorSettings = (
         themePalette: 'onrivi-light',
         licenseKey: 'chae6^jung1!jang3#&',
         geminiApiKey: '',
-        aiModelName: 'gemini-3.5-flash',
-        autoClosingBrackets: true
+        aiModelName: 'gemma-4-26b-a4b-it',
+        autoClosingBrackets: true,
+        pdfHeader: '',
+        pdfFooterStyle: 'none' as 'none' | 'hyphen' | 'slash',
+        pdfExcludeCover: false,
+        pdfWatermark: '',
+        pdfWatermarkOpacity: 0.08
       };
 
       try {
@@ -130,6 +142,16 @@ export const useEditorSettings = (
           if (savedSlashCmds) {
             Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
           }
+        }
+        
+        // 2차 백업 키에서 API 키와 모델명 개별 복구
+        const backupApiKey = localStorage.getItem('onrivi_gemini_api_key');
+        if (backupApiKey) {
+          baseSettings.geminiApiKey = backupApiKey;
+        }
+        const backupModelName = localStorage.getItem('onrivi_ai_model_name');
+        if (backupModelName) {
+          baseSettings.aiModelName = backupModelName;
         }
       } catch (e) {
         console.error('로컬스토리지 로드 실패:', e);
@@ -192,9 +214,14 @@ export const useEditorSettings = (
       setCustomSlashCommands(baseSettings.customSlashCommands);
       setThemePalette(baseSettings.themePalette);
       setLicenseKey(baseSettings.licenseKey);
-      setGeminiApiKey(baseSettings.geminiApiKey || '');
-      setAiModelName(baseSettings.aiModelName || 'gemini-3.5-flash');
+      setGeminiApiKey((baseSettings.geminiApiKey || '').trim());
+      setAiModelName(baseSettings.aiModelName || 'gemma-4-26b-a4b-it');
       setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
+      setPdfHeader(baseSettings.pdfHeader || '');
+      setPdfFooterStyle(baseSettings.pdfFooterStyle || 'none');
+      setPdfExcludeCover(!!baseSettings.pdfExcludeCover);
+      setPdfWatermark(baseSettings.pdfWatermark || '');
+      setPdfWatermarkOpacity(baseSettings.pdfWatermarkOpacity !== undefined ? baseSettings.pdfWatermarkOpacity : 0.08);
 
       document.documentElement.classList.remove('dark');
 
@@ -295,13 +322,15 @@ export const useEditorSettings = (
       autoSave,
       previewMode,
       quoteStyle,
-      customHotkeys,
-      customSlashCommands,
-      licenseKey,
+      themePalette,
+      autoClosingBrackets,
+      pdfHeader,
+      pdfFooterStyle,
+      pdfExcludeCover,
       geminiApiKey,
       aiModelName,
-      themePalette,
-      autoClosingBrackets
+      pdfWatermark,
+      pdfWatermarkOpacity
     };
 
     localStorage.setItem('onrivi_settings', JSON.stringify(settings));
@@ -313,6 +342,8 @@ export const useEditorSettings = (
     localStorage.setItem('customSlashCommands', JSON.stringify(customSlashCommands));
     localStorage.setItem('themePalette', themePalette);
     localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
+    localStorage.setItem('onrivi_gemini_api_key', geminiApiKey);
+    localStorage.setItem('onrivi_ai_model_name', aiModelName);
     if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
 
     const chromeStorage = (window as any).chrome?.storage?.local;
@@ -338,7 +369,12 @@ export const useEditorSettings = (
     geminiApiKey,
     aiModelName,
     themePalette,
-    autoClosingBrackets
+    autoClosingBrackets,
+    pdfHeader,
+    pdfFooterStyle,
+    pdfExcludeCover,
+    pdfWatermark,
+    pdfWatermarkOpacity
   ]);
 
   return {
@@ -367,6 +403,12 @@ export const useEditorSettings = (
     customSlashCommands,
     setCustomSlashCommands,
     customSlashCommandsRef,
-    handleThemeChange
+    handleThemeChange,
+    pdfHeader,
+    setPdfHeader,
+    pdfFooterStyle,
+    setPdfFooterStyle,
+    pdfExcludeCover,
+    setPdfExcludeCover
   };
 };

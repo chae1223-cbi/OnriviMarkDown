@@ -15,7 +15,8 @@ import { supabase } from '@/lib/supabaseClient';
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
 // 🛡️ @GUARD : 각 핸들러별 editorRef/selection/model 방어 로직; previewRef 누락 시 export early return
-// 🚨 @PATCH : **2026-06-19** — 인쇄/PDF 기능 통합 처리: print 핸들러 실행 시 window.print() 인쇄 팝업 대신 직접 PDF 파일 저장 기능(exportPDF)을 다이렉트로 수행하도록 패치; exportPDF 호출 시 누락되었던 dynamicCssString(활성 CSS 프로필) 매개변수를 추가 전달하도록 패치; previewRef/setIsSettingsModalOpen 누락 복원 등
+// 🚨 @PATCH : **2026-07-16** — PDF 내보내기 시 머리글/바닥글 및 표지 페이지 제외 옵션을 exportPDF 파라미터 구조체에 매핑하여 전달하도록 패치.
+//             **2026-06-19** — 인쇄/PDF 기능 통합 처리: print 핸들러 실행 시 window.print() 인쇄 팝업 대신 직접 PDF 파일 저장 기능(exportPDF)을 다이렉트로 수행하도록 패치; exportPDF 호출 시 누락되었던 dynamicCssString(활성 CSS 프로필) 매개변수를 추가 전달하도록 패치; previewRef/setIsSettingsModalOpen 누락 복원 등
 //             **2026-06-20** — 내보내기(PDF/HTML/PNG/EPUB) 서식 및 배경색 완벽 동기화를 위해 activeProfile 서식 프로필 매개변수를 추가로 전달하도록 패치
 // 🔗 @CALLS : exportPDF, exportHTML, exportEPUB, exportPNG, vfsWriteFile, stripFrontmatter, sanitizePastedText, previewRef, setIsSettingsModalOpen
 // ====================================================================
@@ -75,6 +76,9 @@ export const useEditorHandlers = ({
     setTabs,
     activeTabIdRef,
     licenseStatusRef,
+    pdfHeader,
+    pdfFooterStyle,
+    pdfExcludeCover
 }: any) => {
 
   const handlers = {
@@ -563,14 +567,14 @@ export const useEditorHandlers = ({
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover });
     },
     exportPDF: async () => {
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover });
     },
     exportHTML: async () => {
       if (!previewRef.current) return;

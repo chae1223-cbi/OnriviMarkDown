@@ -5,6 +5,7 @@ import CssStyleForm from './CssStyleForm';
 import MarkdownViewer from './MarkdownViewer';
 import { getWelcomeContent } from '@/constants/welcomeContent';
 import { CssProfile } from '@/types/cssProfile';
+import { DEFAULT_PROFILE } from '@/constants/cssProfile';
 import { X, BookOpen } from 'lucide-react';
 
 interface CssStyleModalProps {
@@ -19,6 +20,8 @@ interface CssStyleModalProps {
   onImportProfile?: (profile: CssProfile) => void;
   isDarkMode?: boolean;
   dynamicCssString?: string;
+  geminiApiKey?: string;
+  aiModelName?: string;
 }
 
 export default function CssStyleModal({
@@ -32,7 +35,9 @@ export default function CssStyleModal({
   onDeleteProfile,
   onImportProfile,
   isDarkMode,
-  dynamicCssString
+  dynamicCssString,
+  geminiApiKey,
+  aiModelName
 }: CssStyleModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -110,21 +115,33 @@ export default function CssStyleModal({
               onImportProfile={onImportProfile}
               onClose={onClose}
               isDarkMode={isDarkMode}
+              geminiApiKey={geminiApiKey}
+              aiModelName={aiModelName}
             />
           </div>
 
           {/* 우측: 샘플 검증 프리뷰 (65%) */}
           <div className={`flex-1 h-full overflow-y-auto ${isDarkMode ? 'bg-[#0E0E10]' : 'bg-slate-100'}`}>
-             <div className="max-w-[900px] mx-auto p-8 lg:p-12 relative custom-preview-container" id="omd-modal-preview-container">
-                {/* 실시간 CSS 인젝터 (MainEditorApp에서 생성된 동적 CSS를 받아서 주입) */}
-                {dynamicCssString && (
-                  <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
-                )}
-                <MarkdownViewer
-                  content={welcomeContent}
-                  originalContent={welcomeContent}
-                />
-             </div>
+             {(() => {
+               const activeProfile = profiles.find((p: any) => p.id === activeProfileId) || DEFAULT_PROFILE;
+               const paperBgColor = activeProfile.pageStyle.backgroundColor || '#ffffff';
+               return (
+                 <div
+                   className="max-w-[900px] mx-auto p-8 lg:p-12 relative custom-preview-container shadow-sm border border-slate-200/50 my-8 rounded-xl"
+                   id="omd-modal-preview-container"
+                   style={{ backgroundColor: paperBgColor }}
+                 >
+                    {/* 실시간 CSS 인젝터 (MainEditorApp에서 생성된 동적 CSS를 받아서 주입) */}
+                    {dynamicCssString && (
+                      <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
+                    )}
+                    <MarkdownViewer
+                      content={welcomeContent}
+                      originalContent={welcomeContent}
+                    />
+                 </div>
+               );
+             })()}
           </div>
 
         </div>

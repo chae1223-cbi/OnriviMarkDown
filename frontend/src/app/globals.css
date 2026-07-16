@@ -117,56 +117,60 @@
 
 
 :root {
-  --foreground-rgb: 25, 28, 30;
-  --background-start-rgb: 247, 249, 251;
-  --background-end-rgb: 247, 249, 251;
-  --primary: 0 101 145;
+  --foreground-rgb: 27, 27, 36;
+  --background-start-rgb: 250, 249, 245;
+  --background-end-rgb: 250, 249, 245;
+  --primary: 15 0 109;
   --on-primary: 255 255 255;
-  --primary-container: 14 165 233;
-  --on-primary-container: 0 55 81;
-  --surface: 247 249 251;
-  --surface-dim: 216 218 220;
-  --surface-bright: 247 249 251;
+  --primary-container: 79 70 229;
+  --on-primary-container: 144 141 255;
+  --surface: 250 249 245;
+  --surface-dim: 236 234 228;
+  --surface-bright: 250 249 245;
   --surface-container-lowest: 255 255 255;
-  --surface-container-low: 242 244 246;
-  --surface-container: 236 238 240;
-  --surface-container-high: 230 232 234;
-  --surface-container-highest: 224 227 229;
-  --on-surface: 25 28 30;
-  --on-surface-variant: 62 72 80;
-  --outline: 110 120 129;
-  --outline-variant: 190 200 210;
+  --surface-container-low: 244 242 238;
+  --surface-container: 238 236 230;
+  --surface-container-high: 232 230 224;
+  --surface-container-highest: 226 224 218;
+  --on-surface: 27 27 36;
+  --on-surface-variant: 70 69 84;
+  --outline: 119 117 134;
+  --outline-variant: 199 196 216;
   --error: 186 26 26;
   --on-error: 255 255 255;
-  --secondary: 80 95 118;
+  --secondary: 75 65 225;
   --on-secondary: 255 255 255;
+  --secondary-container: 101 93 251;
+  --on-secondary-container: 255 251 255;
 }
 
 [class~="dark"] {
   color-scheme: dark;
-  --foreground-rgb: 229, 226, 225;
-  --background-start-rgb: 19, 19, 19;
-  --background-end-rgb: 19, 19, 19;
-  --primary: 173 198 255;
-  --on-primary: 0 46 105;
-  --primary-container: 75 142 255;
-  --on-primary-container: 0 40 92;
-  --surface: 19 19 19;
-  --surface-dim: 19 19 19;
-  --surface-bright: 57 57 57;
-  --surface-container-lowest: 14 14 14;
-  --surface-container-low: 28 27 27;
-  --surface-container: 32 31 31;
-  --surface-container-high: 42 42 42;
-  --surface-container-highest: 53 53 52;
-  --on-surface: 229 226 225;
-  --on-surface-variant: 193 198 215;
-  --outline: 139 144 160;
-  --outline-variant: 65 71 85;
+  --foreground-rgb: 229, 225, 235;
+  --background-start-rgb: 19, 18, 26;
+  --background-end-rgb: 19, 18, 26;
+  --primary: 195 192 255;
+  --on-primary: 31 0 96;
+  --primary-container: 55 44 188;
+  --on-primary-container: 226 223 255;
+  --surface: 19 18 26;
+  --surface-dim: 19 18 26;
+  --surface-bright: 56 55 63;
+  --surface-container-lowest: 14 13 18;
+  --surface-container-low: 27 26 35;
+  --surface-container: 32 31 40;
+  --surface-container-high: 43 41 51;
+  --surface-container-highest: 54 52 62;
+  --on-surface: 229 225 235;
+  --on-surface-variant: 199 196 216;
+  --outline: 145 143 159;
+  --outline-variant: 71 69 84;
   --error: 255 180 171;
   --on-error: 105 0 5;
-  --secondary: 183 200 225;
-  --on-secondary: 33 49 69;
+  --secondary: 195 192 255;
+  --on-secondary: 24 0 98;
+  --secondary-container: 51 34 204;
+  --on-secondary-container: 226 223 255;
 }
 
 body {

@@ -2,7 +2,7 @@
 // 📊 [OMD-CONFIG-tailwind-0001] tailwind.config ➔ Config
 // 🎯 @KICK  : TailwindCSS 컴파일러 설정 및 컬러/폰트/스페이싱 변수 셋업
 // 🛡️ @GUARD : 기존 에디터 CSS 변수 기반 컬러 유지, OMDLanding 스타일 주입
-// 🚨 @PATCH : **2026-06-21** — OMDLanding 이식에 필요한 세부 컬러, 폰트패밀리, 라운딩, 스페이싱 병합 패치
+// 🚨 @PATCH : **2026-07-15** — 신규 퍼플/로즈 실버 테마 적용을 위해 하드코딩된 테마 컬러들을 CSS 변수 기반으로 동적 매핑화 패치 | **2026-06-21** — OMDLanding 이식에 필요한 세부 컬러, 폰트패밀리, 라운딩, 스페이싱 병합 패치
 // 🔗 @CALLS : 없음
 // ====================================================================
 import type { Config } from "tailwindcss";
@@ -27,24 +27,24 @@ const config: Config = {
         outline: "rgb(var(--outline) / <alpha-value>)",
         "outline-variant": "rgb(var(--outline-variant) / <alpha-value>)",
 
-        // OMDLanding 전용 색상 추가
-        "surface-container-low": "#f5f2ff",
+        // OMDLanding 전용 색상 추가 - CSS 변수 기반 동적 매핑으로 리팩토링
+        "surface-container-low": "rgb(var(--surface-container-low) / <alpha-value>)",
         "on-tertiary-container": "#ea7a5a",
-        "surface-container-lowest": "#ffffff",
+        "surface-container-lowest": "rgb(var(--surface-container-lowest) / <alpha-value>)",
         "primary-fixed": "#e2dfff",
         "on-secondary-fixed-variant": "#3322cc",
         "inverse-on-surface": "#f3effb",
-        "on-tertiary": "#ffffff",
-        "on-secondary-container": "#fffbff",
+        "on-tertiary": "rgb(var(--on-tertiary) / <alpha-value>)",
+        "on-secondary-container": "rgb(var(--on-secondary-container) / <alpha-value>)",
         "on-secondary-fixed": "#0f0069",
-        "surface-container-high": "#eae7ee",
-        "on-primary": "#ffffff",
+        "surface-container-high": "rgb(var(--surface-container-high) / <alpha-value>)",
+        "on-primary": "rgb(var(--on-primary) / <alpha-value>)",
         "surface-variant": "#e4e1ed",
-        "surface-container": "#f0ecf3",
+        "surface-container": "rgb(var(--surface-container) / <alpha-value>)",
         "on-tertiary-fixed": "#3b0900",
         "tertiary-fixed": "#ffdbd1",
-        "secondary-container": "#655dfb",
-        "error": "#ba1a1a",
+        "secondary-container": "rgb(var(--secondary-container) / <alpha-value>)",
+        "error": "rgb(var(--error) / <alpha-value>)",
         "inverse-surface": "#302f38",
         "inverse-primary": "#c3c0ff",
         "secondary-fixed": "#e2dfff",
@@ -52,15 +52,15 @@ const config: Config = {
         "on-primary-fixed-variant": "#372cbc",
         "on-tertiary-fixed-variant": "#7f2a11",
         "primary-fixed-dim": "#c3c0ff",
-        "on-secondary": "#ffffff",
+        "on-secondary": "rgb(var(--on-secondary) / <alpha-value>)",
         "surface-tint": "#5049d4",
-        "primary-container": "#1e00a9",
-        "on-error": "#ffffff",
-        "on-error-container": "#93000a",
+        "primary-container": "rgb(var(--primary-container) / <alpha-value>)",
+        "on-error": "rgb(var(--on-error) / <alpha-value>)",
+        "on-error-container": "rgb(var(--on-error-container) / <alpha-value>)",
         "tertiary-container": "#621500",
-        "secondary": "#4b41e1",
+        "secondary": "rgb(var(--secondary) / <alpha-value>)",
         "on-background": "#1b1b23",
-        "surface-container-highest": "#e4e1ee",
+        "surface-container-highest": "rgb(var(--surface-container-highest) / <alpha-value>)",
         "error-container": "#ffdad6",
         "secondary-fixed-dim": "#c3c0ff",
         "tertiary-fixed-dim": "#ffb5a0",
