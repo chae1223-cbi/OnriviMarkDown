@@ -1837,40 +1837,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     geminiApiKey,
     setGeminiApiKey,
     aiModelName,
-    setAiModelName,
-    pdfHeader,
-    setPdfHeader,
-    pdfFooterStyle,
-    setPdfFooterStyle,
-    pdfExcludeCover,
-    setPdfExcludeCover,
-    pdfUseWatermark,
-    setPdfUseWatermark,
-    pdfWatermark,
-    setPdfWatermark,
-    pdfWatermarkOpacity,
-    setPdfWatermarkOpacity
+    setAiModelName
   } = useEditorSettingsResult;
-
-  const pdfSettingsRef = useRef({
-    pdfHeader,
-    pdfFooterStyle,
-    pdfExcludeCover,
-    pdfUseWatermark,
-    pdfWatermark,
-    pdfWatermarkOpacity
-  });
-
-  useEffect(() => {
-    pdfSettingsRef.current = {
-      pdfHeader,
-      pdfFooterStyle,
-      pdfExcludeCover,
-      pdfUseWatermark,
-      pdfWatermark,
-      pdfWatermarkOpacity
-    };
-  }, [pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity]);
 
   const [isAiLoading, setIsAiLoading] = useState(false);
 
@@ -3677,12 +3645,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (prof.checkboxStructure) {
       const cbSize = prof.checkboxStructure.boxSize || '16px';
       const cbGap = prof.checkboxStructure.textGap || '10px';
-      const cbEffect = prof.checkboxStructure.checkedEffect || 'line-through-and-dim';
+      const cbEffect = prof.checkboxStructure.checkedEffect || 'none';
       css += `
 .custom-preview-container input[type="checkbox"] {
   width: ${cbSize} !important;
   height: ${cbSize} !important;
   margin-right: ${cbGap} !important;
+  accent-color: currentColor !important;
+  border: 1px solid currentColor !important;
+  border-radius: 3px !important;
 }
 `;
       if (cbEffect === 'line-through-and-dim') {
@@ -3700,6 +3671,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 `;
       }
     }
+
+
+
+    // 💡 마커 색상: ul/ol 텍스트 색상을 상속받도록 강제 (Tailwind 기본색상 무시)
+    css += `
+.custom-preview-container ul li::marker,
+.custom-preview-container ol li::marker {
+  color: inherit !important;
+}
+`;
 
     return css;
   }, [profiles, activeProfileId]);
@@ -3800,17 +3781,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     switchTab,
     setTabs,
     activeTabIdRef,
-    licenseStatusRef,
-    pdfSettingsRef: {
-      current: {
-        pdfHeader,
-        pdfFooterStyle,
-        pdfExcludeCover,
-        pdfUseWatermark,
-        pdfWatermark,
-        pdfWatermarkOpacity
-      }
-    }
+    licenseStatusRef
   });
 
   handlersRef.current = handlers;
@@ -4937,7 +4908,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('MAP'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="지도 삽입">🌏</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('TABLE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="표 생성">📶</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="코드 블록">⌨️</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LATEX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="수식(LaTeX)">✖️</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LATEX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="수식(LaTeX)">🧮</button>
                                   </div>
                                 </div>
                               );
@@ -5267,9 +5238,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
               customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
               isActivated, autoClosingBrackets, setAutoClosingBrackets, geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
-              pdfHeader, setPdfHeader, pdfFooterStyle, setPdfFooterStyle, pdfExcludeCover, setPdfExcludeCover,
-              pdfUseWatermark, setPdfUseWatermark,
-              pdfWatermark, setPdfWatermark, pdfWatermarkOpacity, setPdfWatermarkOpacity,
               isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
               setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
               showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,

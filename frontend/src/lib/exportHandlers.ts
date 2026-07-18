@@ -21,12 +21,7 @@ interface ExportOptions {
   marginRight?: string;
   backgroundColor?: string;
   activeProfile?: any; // 서식 프로필 객체 추가
-  pdfHeader?: string;
-  pdfFooterStyle?: 'none' | 'hyphen' | 'slash';
-  pdfExcludeCover?: boolean;
-  pdfUseWatermark?: boolean;
-  pdfWatermark?: string;
-  pdfWatermarkOpacity?: number;
+
 }
 
 /** 항상 라이트모드 기준으로 서식 프로필의 dynamic CSS를 재생성하는 헬퍼 함수 */
@@ -205,12 +200,12 @@ function generateExportCss(profile: any): string {
     const textGap = profile.checkboxStructure.textGap || '10px';
 
     css += `
-.custom-preview-container .task-list-item {
+.custom-preview-container li.task-list-item {
   position: relative !important;
   padding-left: calc(${boxSize} + ${textGap}) !important;
   list-style-type: none !important;
 }
-.custom-preview-container .task-list-item input[type="checkbox"] {
+.custom-preview-container li.task-list-item input[type="checkbox"] {
   position: absolute !important;
   left: 0 !important;
   top: 0.2em !important;
@@ -871,7 +866,7 @@ async function saveToDownloads(filename: string, content: string, type: 'base64'
 export async function exportPDF({ 
   previewEl, currentFileName, isDarkMode, showToast, orientation, paperSize, 
   dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, 
-  activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity
+  activeProfile
 }: ExportOptions) {
   try {
     showToast('PDF 내보내기 준비 중...', 'info');
@@ -946,7 +941,7 @@ export async function exportPDF({
     @media print {
       .print-header-area {
         position: fixed;
-        top: calc(-${marginTop || '20mm'} + 8mm);
+        top: 0 !important;
         right: 0;
         left: 0;
         display: flex;
@@ -956,10 +951,11 @@ export async function exportPDF({
         border-bottom: 1px solid #f1f5f9;
         padding-bottom: 4px;
         z-index: 9999;
+        background-color: white !important;
       }
       .print-footer-area {
         position: fixed;
-        bottom: calc(-${marginBottom || '20mm'} + 8mm);
+        bottom: 0 !important;
         left: 0;
         right: 0;
         display: flex;
@@ -969,21 +965,10 @@ export async function exportPDF({
         border-top: 1px solid #f1f5f9;
         padding-top: 4px;
         z-index: 9999;
+        background-color: white !important;
       }
       
-      /* 첫 페이지(표지) 제외 옵션 처리 */
-      ${pdfExcludeCover ? `
-      @page:first {
-        margin-top: ${marginTop || '20mm'} !important;
-        margin-bottom: ${marginBottom || '20mm'} !important;
-      }
-      body {
-        /* 첫 페이지에서 fixed 요소를 가리기 위해 카운터 분리 및 가시성 제어 */
-      }
-      .cover-page-detector {
-        page-break-after: always;
-      }
-      ` : ''}
+
     }
     
     /* 화면에서는 인쇄 보조 영역 보이지 않게 처리 */
@@ -1038,7 +1023,11 @@ export async function exportPDF({
       height: auto !important;
       overflow: visible !important;
     }
-    /* 🛡️ Mermaid SVG 페이지 넘김 허용 (헤더는 export 시 제거됨) */
+    /* 🛡️ Mermaid SVG 페이지 잘림 방지 (자리가 모자라면 다음 장으로 통째로 넘김) */
+    .not-prose {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
     .not-prose > div {
       overflow: visible !important;
     }
@@ -1084,7 +1073,7 @@ export async function exportPDF({
       
       .print-header-area {
         position: fixed;
-        top: calc(-${marginTop || '20mm'} + 8mm);
+        top: 0 !important;
         right: 0;
         font-size: 8.5pt;
         color: #64748b;
@@ -1094,10 +1083,11 @@ export async function exportPDF({
         padding-bottom: 4px;
         z-index: 9999;
         display: block !important;
+        background-color: white !important; /* 본문 겹침 방지 */
       }
       .print-footer-area {
         position: fixed;
-        bottom: calc(-${marginBottom || '20mm'} + 8mm);
+        bottom: 0 !important;
         left: 0;
         right: 0;
         text-align: center;
@@ -1107,82 +1097,27 @@ export async function exportPDF({
         padding-top: 4px;
         z-index: 9999;
         display: block !important;
+        background-color: white !important; /* 본문 겹침 방지 */
       }
       
       .print-footer-area .page-num::after {
         content: counter(page);
       }
       
-      /* 첫 페이지(표지) 제외 옵션 처리 */
-      ${pdfExcludeCover ? `
-      @page:first {
-        margin-top: ${marginTop || '20mm'} !important;
-        margin-bottom: ${marginBottom || '20mm'} !important;
-      }
-      /* 브라우저 네이티브 인쇄에서는 첫 페이지 고정요소 숨김이 CSS만으로는 완벽하지 않아, 
-         통상적으로는 margin만 복구하여 텍스트 겹침을 방지하는 선에서 처리합니다. */
-      ` : ''}
+
       
-      /* ──────────────── 배경 워터마크 CSS (body::after 매 페이지 반복 보장) ──────────────── */
-      ${pdfUseWatermark && pdfWatermark ? `
-      @media print {
-        body::after {
-          content: "${pdfWatermark}";
-          position: fixed !important;
-          top: 50% !important;
-          left: 50% !important;
-          transform: translate(-50%, -50%) rotate(-45deg) !important;
-          z-index: 2147483647 !important;
-          pointer-events: none !important;
-          display: flex !important;
-          justify-content: center !important;
-          align-items: center !important;
-          font-size: 80pt !important;
-          font-weight: 900 !important;
-          font-family: 'Pretendard', sans-serif !important;
-          color: rgba(120, 120, 120, ${pdfWatermarkOpacity !== undefined ? pdfWatermarkOpacity : 0.08}) !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-          white-space: nowrap !important;
-        }
-      }
-      ` : ''}
+      /* ──────────────── 배경 워터마크 CSS (real DOM layer) ──────────────── */
+
     }
   </style>
 </head>
-<body class="prose prose-base max-w-none custom-preview-container ${pdfExcludeCover ? 'print-exclude-cover' : ''}">
-  ${pdfHeader ? `
-    <div class="print-header-area">
-      <span>${pdfHeader}</span>
-    </div>
-  ` : ''}
-  
-  ${pdfFooterStyle === 'hyphen' ? `
-    <div class="print-footer-area">
-      <span>- <span class="page-num"></span> -</span>
-    </div>
-  ` : pdfFooterStyle === 'slash' ? `
-    <div class="print-footer-area">
-      <span><span class="page-num"></span> / <span class="total-pages"></span></span>
-    </div>
-  ` : ''}
+<body class="prose prose-base max-w-none custom-preview-container">
 
   <div class="page-break-container">
     ${clone.outerHTML}
   </div>
 
-  <script>
-    // 브라우저 렌더링 후 총 페이지 수를 동적으로 채워넣는 헬퍼 스크립트 (slash 옵션용)
-    window.onload = function() {
-      if (${pdfFooterStyle === 'slash'}) {
-        // 대략적인 총 페이지 수 계산 및 주입
-        const total = document.querySelectorAll('.print-footer-area').length || 1;
-        document.querySelectorAll('.total-pages').forEach(el => {
-          el.innerText = total;
-        });
-      }
-    };
-  </script>
+
 </body>
 </html>
     `;

@@ -70,9 +70,6 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,       // 워크스페이스타입, 미리보기모드, 사용자지정단축키, 사용자지정단축키설정
     customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,   // 사용자지정슬래시명령어, 사용자지정슬래시명령어설정, 라이선스키, 라이선스키설정, 테마팔레트, 테마변경
     geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,                                       // geminiAPI키, geminiAPI키설정, ai모델이름, ai모델이름설정
-    pdfHeader, setPdfHeader, pdfFooterStyle, setPdfFooterStyle, pdfExcludeCover, setPdfExcludeCover,     // pdf머리글, pdf머리글설정, pdf바닥글스타일, pdf바닥글스타일설정, pdf표지제외, pdf표지제외설정
-    pdfUseWatermark, setPdfUseWatermark,
-    pdfWatermark, setPdfWatermark, pdfWatermarkOpacity, setPdfWatermarkOpacity,
     isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,  // 활성화여부, 라이선스상태, 디바이스ID, 성공적인활성화처리, 핸들러, 콘텐츠, 현재파일노드참조
     setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,       // 현재파일이름설정, 현재파일노드설정, 마지막저장콘텐츠참조, 저장상태설정, 파일목록갱신
     showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,   // 토스트보이기, 에디터참조, 커서에삽입, 병합모드설정, 선택된병합노드, 선택된병합노드설정
@@ -108,30 +105,12 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         setGeminiApiKey={setGeminiApiKey}
         aiModelName={aiModelName}
         setAiModelName={setAiModelName}
-        pdfHeader={pdfHeader}
-        setPdfHeader={setPdfHeader}
-        pdfFooterStyle={pdfFooterStyle}
-        setPdfFooterStyle={setPdfFooterStyle}
-        pdfExcludeCover={pdfExcludeCover}
-        setPdfExcludeCover={setPdfExcludeCover}
-        pdfUseWatermark={pdfUseWatermark}
-        setPdfUseWatermark={setPdfUseWatermark}
-        pdfWatermark={pdfWatermark}
-        setPdfWatermark={setPdfWatermark}
-        pdfWatermarkOpacity={pdfWatermarkOpacity}
-        setPdfWatermarkOpacity={setPdfWatermarkOpacity}
       />
 
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         isDarkMode={isDarkMode}
-        pdfUseWatermark={pdfUseWatermark}
-        setPdfUseWatermark={setPdfUseWatermark}
-        pdfWatermark={pdfWatermark}
-        setPdfWatermark={setPdfWatermark}
-        pdfWatermarkOpacity={pdfWatermarkOpacity}
-        setPdfWatermarkOpacity={setPdfWatermarkOpacity}
         onExport={(format: any) => {
           if (!isActivated) {
             showToast("정품 라이선스 키 등록이 필요합니다. (설정 -> 애플리케이션 탭에서 등록)", 'error');

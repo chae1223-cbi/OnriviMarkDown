@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, Plus, FolderPlus, Edit2, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/virtualFileSystem';
@@ -776,25 +776,25 @@ const FileTreeItem = ({
             <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               {node.kind === 'directory' && (
                 <>
-                  <button onClick={handleCreateFile} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 파일"}><Plus size={14} /></button>
-                  <button onClick={handleCreateFolder} className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors" title={"새 폴더"}><FolderPlus size={14} /></button>
+                  <button onClick={handleCreateFile} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-sm" title={"새 파일"}>📄</button>
+                  <button onClick={handleCreateFolder} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-sm" title={"새 폴더"}>📁</button>
                 </>
               )}
               <button
                 onClick={isOpenInTab ? undefined : handleRename}
                 disabled={isOpenInTab}
-                className={`p-1 rounded transition-colors ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-blue-500 hover:text-white'}`}
+                className={`p-1 rounded transition-colors text-sm ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
                 title={isOpenInTab ? "탭에서 열려있는 파일은 이름을 변경할 수 없습니다" : "이름 변경"}
               >
-                <Edit2 size={14} />
+                ✏️
               </button>
               <button
                 onClick={isOpenInTab ? undefined : handleDelete}
                 disabled={isOpenInTab}
-                className={`p-1 rounded transition-colors ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-red-500 hover:text-white'}`}
+                className={`p-1 rounded transition-colors text-sm ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
                 title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
               >
-                <Trash2 size={14} />
+                ❎
               </button>
             </div>
           );

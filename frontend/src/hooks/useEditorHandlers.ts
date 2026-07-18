@@ -76,8 +76,7 @@ export const useEditorHandlers = ({
     switchTab,
     setTabs,
     activeTabIdRef,
-    licenseStatusRef,
-    pdfSettingsRef
+    licenseStatusRef
 }: any) => {
 
   const handlers = {
@@ -566,16 +565,14 @@ export const useEditorHandlers = ({
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      const { pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity } = pdfSettingsRef?.current || {};
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity });
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
     },
     exportPDF: async () => {
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      const { pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity } = pdfSettingsRef?.current || {};
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity });
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile });
     },
     exportHTML: async () => {
       if (!previewRef.current) return;

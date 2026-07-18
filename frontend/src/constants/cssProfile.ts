@@ -112,7 +112,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       codeBlockTitle: { "background-color": "#0f172a", "color": "#94a3b8" },
       a: { "color": "#0000ee", "text-decoration": "underline" },
       img: { "margin-top": "20px", "margin-bottom": "20px", "border-radius": "0px" },
-      code: { "background-color": "#f1f5f9", "color": "#ef4444", "padding": "2px 4px", "border-radius": "2px", "font-size": "0.9em" },
+      code: { "background-color": "#f1f5f9", "color": "#0000ee", "padding": "2px 4px", "border-radius": "2px", "font-size": "0.9em" },
     }
   },
   {
@@ -179,7 +179,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
   },
     checkboxStructure: {
     boxSize: "16px",
-    checkedEffect: "line-through-and-dim",
+    checkedEffect: "none",
     textGap: "10px"
   }
 },
@@ -236,7 +236,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       footnote: { "color": "#64748b", "font-size": "11px", "line-height": "1.4", "margin-top": "8px", "margin-bottom": "8px" },
     },
     hrStructure: { borderTopStyle: "solid", borderTopWidth: "2px", marginTopBottom: "32px", lineWidth: "75%" },
-    checkboxStructure: { boxSize: "16px", checkedEffect: "line-through-and-dim", textGap: "10px" }
+    checkboxStructure: { boxSize: "16px", checkedEffect: "none", textGap: "10px" }
   },
   // ──────────────────────────────────────────────
   // 시스템 프로필 ❸: 회의록_및_보고서_프로필
@@ -291,7 +291,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       footnote: { "color": "#6b7280", "font-size": "10px", "line-height": "1.3", "margin-top": "6px", "margin-bottom": "6px" },
     },
     hrStructure: { borderTopStyle: "solid", borderTopWidth: "1px", marginTopBottom: "24px", lineWidth: "100%" },
-    checkboxStructure: { boxSize: "14px", checkedEffect: "dim-only", textGap: "8px" }
+    checkboxStructure: { boxSize: "14px", checkedEffect: "none", textGap: "8px" }
   },
   // ──────────────────────────────────────────────
   // 시스템 프로필 4: 대학생_A4_레포트_표준
@@ -346,7 +346,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       footnote: { "color": "#4b5563", "font-size": "11px", "line-height": "1.4", "margin-top": "6px", "margin-bottom": "6px" },
     },
     hrStructure: { borderTopStyle: "solid", borderTopWidth: "1px", marginTopBottom: "16px", lineWidth: "100%" },
-    checkboxStructure: { boxSize: "14px", checkedEffect: "dim-only", textGap: "8px" }
+    checkboxStructure: { boxSize: "14px", checkedEffect: "none", textGap: "8px" }
   },
   // ──────────────────────────────────────────────
   // 시스템 프로필 ❻: A5 국판 출판 표준
@@ -401,7 +401,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       footnote: { "color": "#6b7280", "font-size": "8pt", "line-height": "1.3", "margin-top": "4px", "margin-bottom": "4px" },
     },
     hrStructure: { borderTopStyle: "solid", borderTopWidth: "1px", marginTopBottom: "16px", lineWidth: "100%" },
-    checkboxStructure: { boxSize: "12px", checkedEffect: "dim-only", textGap: "6px" }
+    checkboxStructure: { boxSize: "12px", checkedEffect: "none", textGap: "6px" }
   },
   // ──────────────────────────────────────────────
   // 시스템 프로필 ❼: 신서판 (단행본) 출판 표준
@@ -456,7 +456,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       footnote: { "color": "#6b7280", "font-size": "7.5pt", "line-height": "1.3", "margin-top": "3px", "margin-bottom": "3px" },
     },
     hrStructure: { borderTopStyle: "solid", borderTopWidth: "1px", marginTopBottom: "12px", lineWidth: "100%" },
-    checkboxStructure: { boxSize: "11px", checkedEffect: "dim-only", textGap: "5px" }
+    checkboxStructure: { boxSize: "11px", checkedEffect: "none", textGap: "5px" }
   },
   // ──────────────────────────────────────────────
   // 시스템 프로필 ❽: 46판 출판 표준 (만화/잡지)
@@ -511,7 +511,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       footnote: { "color": "#6b7280", "font-size": "9pt", "line-height": "1.3", "margin-top": "5px", "margin-bottom": "5px" },
     },
     hrStructure: { borderTopStyle: "solid", borderTopWidth: "1px", marginTopBottom: "20px", lineWidth: "100%" },
-    checkboxStructure: { boxSize: "13px", checkedEffect: "dim-only", textGap: "7px" }
+    checkboxStructure: { boxSize: "13px", checkedEffect: "none", textGap: "7px" }
   }
 ];
 
@@ -555,7 +555,7 @@ export function createEmptyProfile(): CssProfile {
     },
     checkboxStructure: {
       boxSize: '16px',
-      checkedEffect: 'line-through-and-dim',
+      checkedEffect: 'none',
       textGap: '10px'
     }
   };

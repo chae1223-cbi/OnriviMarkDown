@@ -318,83 +318,31 @@ export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현
 
     setIsAiGenerating(true); // AI 생성기 상태를 true로 변경 
     try {
+      // 최신 CSS 가이드 문서 불러오기
+      let guideContent = '';
+      try {
+        const res = await fetch('/CSS_PROFILE_GUIDE.md');
+        if (res.ok) {
+          guideContent = await res.text();
+        }
+      } catch (e) {
+        console.warn('CSS 가이드 문서를 불러오지 못했습니다.', e);
+      }
+
       const promptText = `당신은 마크다운 조판 서식 디자이너입니다. 사용자가 입력한 설명에 부합하는 세련되고 아름다운 CSS 서식 테마(CssProfile) 데이터를 생성해 주세요.
 사용자 요청: "${aiPromptInput}"
 
-반드시 아래 JSON 형식 규격에 맞추어 생성해야 합니다. 다른 텍스트 설명이나 코드 블록 기호(\`\`\`) 없이 오직 순수한 JSON 문자열만 출력해 주세요.
-- "name": 생성된 서식의 이름 (예: "가을빛 레트로 테마", "학술 논문 표준")
-- "pageStyle": {
-    "fontFamily": "글꼴 명칭 (예: 'Nanum Gothic', 'serif', 'sans-serif')",
-    "fontSize": "기본 글자 크기 (예: '14px', '16px')",
-    "lineHeight": "기본 줄 간격 (예: '1.6', '1.8')",
-    "letterSpacing": "자간 (예: '-0.01em', '0em')",
-    "backgroundColor": "배경색상 (예: '#ffffff', '#faf9f5')",
-    "paperSize": "a4",
-    "marginTop": "20mm",
-    "marginBottom": "20mm",
-    "marginLeft": "20mm",
-    "marginRight": "20mm",
-    "orientation": "portrait",
-    "headingSizeOffset": "2",
-    "tabSize": "4"
-  }
-- "rules": 각 요소별 CSS 룰셋 객체. (주의: rules 내의 각 키는 CSS 속성명과 값을 담은 key-value 객체여야 합니다. 예: "h1": {"color": "#0f006d", "border-bottom": "2px solid #e2dfff", "padding-bottom": "8px"})
-  지원하는 rules 태그 목록: h1, h2, h3, h4, h5, h6, p, strong, em, u, del, ul, ol, li, hr, table, th, td, blockquote, codeBlock, a, img, code, math, footnote.
-  
-  예시:
-  {
-    "name": "레트로 오렌지",
-    "pageStyle": {
-      "fontFamily": "sans-serif",
-      "fontSize": "15px",
-      "lineHeight": "1.7",
-      "letterSpacing": "-0.01em",
-      "backgroundColor": "#FAF6F0",
-      "paperSize": "a4",
-      "marginTop": "20mm",
-      "marginBottom": "20mm",
-      "marginLeft": "20mm",
-      "marginRight": "20mm",
-      "orientation": "portrait",
-      "headingSizeOffset": "2",
-      "tabSize": "4"
-    },
-    "rules": {
-      "h1": {
-        "color": "#e65100",
-        "font-weight": "800",
-        "border-bottom": "3px solid #ffcc80",
-        "padding-bottom": "6px",
-        "margin-top": "24px",
-        "margin-bottom": "12px"
-      },
-      "h2": {
-        "color": "#fb8c00",
-        "font-weight": "700",
-        "margin-top": "20px",
-        "margin-bottom": "10px"
-      },
-      "p": {
-        "color": "#3e2723",
-        "line-height": "1.8",
-        "margin-bottom": "16px"
-      },
-      "blockquote": {
-        "border-left": "4px solid #ffb74d",
-        "background-color": "#fff3e0",
-        "padding": "12px 16px",
-        "color": "#5d4037",
-        "font-style": "italic"
-      }
-    }
-  }
+다음은 온리비 어서의 공식 CSS 서식 프로필 가이드 문서입니다. 이를 바탕으로 JSON 객체 규격을 완벽하게 준수하여 생성하세요:
+--- 가이드 시작 ---
+${guideContent}
+--- 가이드 끝 ---
 
-위의 구조를 엄격히 준수하여 사용자가 원하는 느낌의 CSS 서식 JSON을 완성해 주세요.`;
+반드시 위 가이드라인과 JSON 구조를 준수해야 하며, 다른 텍스트 설명이나 코드 블록 기호(\`\`\`) 없이 오직 순수한 JSON 문자열만 출력해 주세요.`;
 
       // GoogleGenerativeAI 직접 호출 — processTextWithAI의 사전 코드블록 제거가 JSON 파싱과 충돌하므로 raw 응답을 직접 수신
       const genAI = new GoogleGenerativeAI((geminiApiKey || '').trim());
       const model = genAI.getGenerativeModel({
-        model: aiModelName || 'gemma-4-26b-a4b-it',
+        model: aiModelName || 'gemini-1.5-pro',
         systemInstruction: '당신은 CSS 서식 JSON 생성 전문가입니다. 오직 순수한 JSON 객체만 출력하십시오. 마크다운 코드 블록 기호, 설명 문구, 부연 텍스트는 절대 포함하지 마십시오.',
       });
       const result = await model.generateContent(promptText);
@@ -831,7 +779,7 @@ export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현
 
   const checkboxStructure = currentProfile.checkboxStructure || {
     boxSize: '16px',
-    checkedEffect: 'line-through-and-dim',
+    checkedEffect: 'none',
     textGap: '10px'
   };
 
@@ -954,7 +902,7 @@ export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현
           <div className="flex items-center gap-1 shrink-0">
             {onAddProfile && (
               <button onClick={onAddProfile} className="p-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors" title="새 테마 추가">
-                ➕
+                📄
               </button>
             )}
             {onImportProfile && (
@@ -1006,7 +954,7 @@ export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현
                 className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-red-500'}`}
                 title="서식 삭제"
               >
-                🗑️
+                ❎
               </button>
             )}
           </div>
@@ -1756,6 +1704,14 @@ export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현
               </select>
             </div>
 
+            {/* 글머리 마커 색상 */}
+            <ColorPickerWidget
+              label="글머리 마커 색상"
+              value={(currentProfile.rules.ul || {})['color'] || ''}
+              disabled={isSystemProfile}
+              onChange={(v) => updateCssRule('ul', 'color', v)}
+            />
+
             {/* 숫자 마커 종류 */}
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">숫자 목록 마커</span>
@@ -1772,6 +1728,14 @@ export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현
                 <option value="none">없음</option>
               </select>
             </div>
+
+            {/* 숫자 마커 색상 */}
+            <ColorPickerWidget
+              label="숫자 마커 색상"
+              value={(currentProfile.rules.ol || {})['color'] || ''}
+              disabled={isSystemProfile}
+              onChange={(v) => updateCssRule('ol', 'color', v)}
+            />
 
             {/* 목록 줄 간격 슬라이더 */}
             <SliderWidget

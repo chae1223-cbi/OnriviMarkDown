@@ -107,7 +107,7 @@ export default function FormattingToolbar() {
       <FormatBtn label="🌏" title="지도 삽입" onAction={() => dispatch('MAP')} />
       <FormatBtn label="📶" title={tooltip('표 생성', SHORTCUTS.table)} onAction={() => dispatch('TABLE')} />
       <FormatBtn label="⌨️" title={tooltip('코드 블록', SHORTCUTS.code)} onAction={() => dispatch('CODE')} />
-      <FormatBtn label="✖️" title={tooltip('수식(LaTeX)', SHORTCUTS.math)} onAction={() => dispatch('LATEX')} />
+      <FormatBtn label="🧮" title={tooltip('수식(LaTeX)', SHORTCUTS.math)} onAction={() => dispatch('LATEX')} />
     </div>
   );
 }

@@ -28,29 +28,47 @@
     "h2": { "font-size": "26px", "font-weight": "800", "color": "#222222", "border-bottom": "2px solid #eeeeee" },
     "h3": { "font-size": "22px", "color": "#333333" },
     "p": { "margin-bottom": "15px" },
-    "ul": { "padding-left": "24px" },
-    "ol": { "padding-left": "24px" },
+    "ul": { "padding-left": "24px", "color": "#333333" },
+    "ol": { "padding-left": "24px", "color": "#333333" },
     "blockquote": { "border-left": "4px solid #0058bc", "padding-left": "16px", "color": "#555555" },
     "table": { "border-collapse": "collapse", "width": "100%" },
     "th": { "background-color": "#f8f9fa", "font-weight": "bold", "border": "1px solid #dee2e6", "padding": "12px" },
-    "td": { "border": "1px solid #dee2e6", "padding": "12px" }
+    "td": { "border": "1px solid #dee2e6", "padding": "12px" },
+    "code": { "background-color": "#f1f5f9", "color": "#0000ee", "padding": "2px 4px", "border-radius": "2px" }
+  },
+  "hrStructure": {
+    "borderTopStyle": "solid",
+    "borderTopWidth": "1px",
+    "marginTopBottom": "32px",
+    "lineWidth": "100%"
+  },
+  "checkboxStructure": {
+    "boxSize": "16px",
+    "checkedEffect": "none",
+    "textGap": "10px"
   }
 }
 ```
 
 ---
 
-## 📌 2. 주요 태그 규칙 (rules 객체)
+## 📌 2. 주요 태그 규칙 및 추가 속성
 
 `rules` 안에 다음과 같은 HTML 태그를 키로 정의하여 CSS 속성들을 맵핑할 수 있습니다.
 
 - **h1 ~ h6**: 제목. (h2~h6의 경우 시스템이 `headingSizeOffset`을 기반으로 글자 크기를 자동 연산하기도 하지만 명시할 수 있습니다.)
 - **p**: 일반 문단. 글꼴과 줄 간격은 기본적으로 `pageStyle`을 상속받으므로 색상이나 마진 정도만 정의합니다.
-- **ul, ol, li**: 목록. 들여쓰기(`padding-left`) 등을 정의합니다.
+- **ul, ol, li**: 목록. 들여쓰기(`padding-left`)와 텍스트 색상(`color`) 등을 정의합니다. 글머리 기호(마커) 색상은 기본적으로 `color: inherit`을 통해 텍스트 색상을 자동으로 따라갑니다.
 - **blockquote**: 인용구. 주로 왼쪽 테두리(`border-left`)나 배경색을 정의합니다. (다크모드에서는 전용 컬러로 오버라이드 됨)
-- **hr**: 구분선. 굵기와 선 스타일(`border-top`)을 정의합니다. (다크모드에서는 고정색상으로 오버라이드 됨)
+- **hr**: 구분선. 굵기와 선 스타일(`border-top`)을 정의합니다. 특정 값을 지정하지 않으면 옅은 회색(`#d1d5db`)이 기본 적용됩니다.
 - **table, th, td**: 표. 표의 테두리와 셀 간격(`padding`) 등을 정의합니다.
-- **code, pre**: 코드 블록. `tab-size`는 `pageStyle.tabSize`에서 상속됩니다.
+- **code, pre**: 코드 블록. 인라인 코드의 텍스트 색상은 기본 `#0000ee`(파란색)으로 지정되어 있습니다.
+
+### 체크박스 세부 설정 (`checkboxStructure`)
+체크박스 목록의 렌더링 스타일을 설정합니다.
+- `checkedEffect`: 항목 완료 시 적용할 시각적 효과 (`"none"`: 효과 없음 기본값, `"line-through-and-dim"`: 취소선+반투명, `"dim-only"`: 반투명만)
+- `boxSize`: 체크박스 크기 (예: `"16px"`)
+- `textGap`: 체크박스와 텍스트 사이 간격 (예: `"10px"`)
 
 ---
 

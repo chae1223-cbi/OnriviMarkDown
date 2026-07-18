@@ -3,8 +3,14 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+let fs: any;
+let path: any;
+if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+  try {
+    fs = eval('require("fs")');
+    path = eval('require("path")');
+  } catch (e) {}
+}
 
 export async function GET(request: Request) {
   try {

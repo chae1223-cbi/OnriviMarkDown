@@ -30,7 +30,7 @@ export const TOOLBAR_ITEMS = [
   // 5. 코드 (Code)
   { id: 'codeblock', icon: '💻', name: '코드 블록', group: '코드', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\n\n```', kind: 15 },
   { id: 'table', icon: '📊', name: '표', group: '코드', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
-  { id: 'math', icon: 'Σ', name: '수식', group: '코드', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
+  { id: 'math', icon: '🧮', name: '수식', group: '코드', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
   
   // 6. 문서 (Document)
   { id: 'divider', icon: '—', name: '구분선', group: '문서', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },

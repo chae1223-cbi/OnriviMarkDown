@@ -45,18 +45,6 @@ interface SettingsModalProps {
   setGeminiApiKey: (v: string) => void;
   aiModelName: string;
   setAiModelName: (v: string) => void;
-  pdfHeader: string;
-  setPdfHeader: (v: string) => void;
-  pdfFooterStyle: 'none' | 'hyphen' | 'slash';
-  setPdfFooterStyle: (v: 'none' | 'hyphen' | 'slash') => void;
-  pdfExcludeCover: boolean;
-  setPdfExcludeCover: (v: boolean) => void;
-  pdfUseWatermark: boolean;
-  setPdfUseWatermark: (v: boolean) => void;
-  pdfWatermark: string;
-  setPdfWatermark: (v: string) => void;
-  pdfWatermarkOpacity: number;
-  setPdfWatermarkOpacity: (v: number) => void;
 }
 
 const THEMES = [
@@ -98,13 +86,7 @@ export default function SettingsModal({
   isActivated,
   autoClosingBrackets, setAutoClosingBrackets,
   geminiApiKey, setGeminiApiKey,
-  aiModelName, setAiModelName,
-  pdfHeader, setPdfHeader,
-  pdfFooterStyle, setPdfFooterStyle,
-  pdfExcludeCover, setPdfExcludeCover,
-  pdfUseWatermark, setPdfUseWatermark,
-  pdfWatermark, setPdfWatermark,
-  pdfWatermarkOpacity, setPdfWatermarkOpacity
+  aiModelName, setAiModelName
 }: SettingsModalProps) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
@@ -383,100 +365,6 @@ export default function SettingsModal({
             </div>
           </section>
 
-          {/* ---------- 인쇄 및 PDF 설정 ---------- */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
-              <Pen size={16} />
-              <span>인쇄 및 PDF 설정</span>
-            </div>
-            <div className="pl-6 space-y-4">
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium" style={{ color: colors.onSurface }}>상단 머리글 (Header) 텍스트</span>
-                <input
-                  type="text"
-                  placeholder="예: 파크골프 매칭 플랫폼 사업 계획서 (인쇄 시 상단 우측 출력)"
-                  value={pdfHeader || ''}
-                  onChange={(e) => setPdfHeader(e.target.value)}
-                  className="px-3 py-2 rounded text-xs outline-none w-full"
-                  style={{
-                    backgroundColor: colors.container,
-                    color: colors.onSurface,
-                    border: `1px solid ${colors.border}`
-                  }}
-                />
-              </div>
-
-              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>하단 페이지 번호 (Footer) 스타일</span>
-                <select
-                  value={pdfFooterStyle}
-                  onChange={(e) => setPdfFooterStyle(e.target.value as any)}
-                  className="px-3 py-1.5 rounded text-xs outline-none cursor-pointer"
-                  style={{
-                    backgroundColor: colors.container,
-                    color: colors.onSurface,
-                    border: `1px solid ${colors.border}`
-                  }}
-                >
-                  <option value="none">사용 안함 (없음)</option>
-                  <option value="hyphen">줄표 형식 (- 1 -)</option>
-                  <option value="slash">슬래시 형식 (1 / n)</option>
-                </select>
-              </div>
-
-              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>첫 번째 페이지(표지) 번호/머리글 제외</span>
-                <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
-                  <ThemeButton active={pdfExcludeCover === true} onClick={() => setPdfExcludeCover(true)} label="제외함" colors={colors} />
-                  <ThemeButton active={pdfExcludeCover === false} onClick={() => setPdfExcludeCover(false)} label="포함함" colors={colors} />
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center text-sm font-medium border-t pt-3" style={{ color: colors.onSurface, borderColor: colors.border }}>
-                <span>배경 텍스트 워터마크 (Watermark)</span>
-                <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
-                  <ThemeButton active={pdfUseWatermark === true} onClick={() => setPdfUseWatermark(true)} label="적용" colors={colors} />
-                  <ThemeButton active={pdfUseWatermark === false} onClick={() => setPdfUseWatermark(false)} label="미적용" colors={colors} />
-                </div>
-              </div>
-
-              {pdfUseWatermark && (
-                <>
-                  <div className="flex flex-col gap-2 pl-2 animate-fade-in">
-                    <span className="text-xs font-semibold" style={{ color: colors.onSurface }}>워터마크 텍스트 입력</span>
-                    <input
-                      type="text"
-                      placeholder="예: DRAFT, CONFIDENTIAL, 대외비"
-                      value={pdfWatermark || ''}
-                      onChange={(e) => setPdfWatermark(e.target.value)}
-                      className="px-3 py-2 rounded text-xs outline-none w-full font-sans"
-                      style={{
-                        backgroundColor: colors.container,
-                        color: colors.onSurface,
-                        border: `1px solid ${colors.border}`
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex justify-between items-center text-sm font-medium pl-2 animate-fade-in">
-                    <span style={{ color: colors.onSurface }}>워터마크 투명도 (Opacity: {Math.round(pdfWatermarkOpacity * 100)}%)</span>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min="0.01"
-                        max="0.4"
-                        step="0.01"
-                        value={pdfWatermarkOpacity}
-                        onChange={(e) => setPdfWatermarkOpacity(parseFloat(e.target.value))}
-                        className="w-32 cursor-pointer accent-current"
-                        style={{ color: colors.primary }}
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
 
           {/* ---------- 단축키/명령어 ---------- */}
           <section className="space-y-4">

@@ -45,14 +45,6 @@ export const useEditorSettings = (
   const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>(() => getDefaultCommands());
   const [autoClosingBrackets, setAutoClosingBrackets] = useState<boolean>(true);
 
-  // PDF/Print configurations
-  const [pdfHeader, setPdfHeader] = useState<string>('');
-  const [pdfFooterStyle, setPdfFooterStyle] = useState<'none' | 'hyphen' | 'slash'>('none');
-  const [pdfExcludeCover, setPdfExcludeCover] = useState<boolean>(false);
-  const [pdfUseWatermark, setPdfUseWatermark] = useState<boolean>(false);
-  const [pdfWatermark, setPdfWatermark] = useState<string>('');
-  const [pdfWatermarkOpacity, setPdfWatermarkOpacity] = useState<number>(0.08);
-
   const customSlashCommandsRef = useRef<Record<string, string>>(customSlashCommands);
   useEffect(() => {
     customSlashCommandsRef.current = customSlashCommands;
@@ -100,12 +92,6 @@ export const useEditorSettings = (
         geminiApiKey: '',
         aiModelName: 'gemma-4-26b-a4b-it',
         autoClosingBrackets: true,
-        pdfHeader: '',
-        pdfFooterStyle: 'none' as 'none' | 'hyphen' | 'slash',
-        pdfExcludeCover: false,
-        pdfUseWatermark: false,
-        pdfWatermark: '',
-        pdfWatermarkOpacity: 0.08
       };
 
       try {
@@ -155,18 +141,6 @@ export const useEditorSettings = (
         const backupModelName = localStorage.getItem('onrivi_ai_model_name');
         if (backupModelName) {
           baseSettings.aiModelName = backupModelName;
-        }
-        const backupUseWatermark = localStorage.getItem('onrivi_pdf_use_watermark');
-        if (backupUseWatermark !== null) {
-          baseSettings.pdfUseWatermark = backupUseWatermark === 'true';
-        }
-        const backupWatermark = localStorage.getItem('onrivi_pdf_watermark');
-        if (backupWatermark !== null) {
-          baseSettings.pdfWatermark = backupWatermark;
-        }
-        const backupWatermarkOpacity = localStorage.getItem('onrivi_pdf_watermark_opacity');
-        if (backupWatermarkOpacity !== null) {
-          baseSettings.pdfWatermarkOpacity = parseFloat(backupWatermarkOpacity);
         }
       } catch (e) {
         console.error('로컬스토리지 로드 실패:', e);
@@ -232,12 +206,6 @@ export const useEditorSettings = (
       setGeminiApiKey((baseSettings.geminiApiKey || '').trim());
       setAiModelName(baseSettings.aiModelName || 'gemma-4-26b-a4b-it');
       setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
-      setPdfHeader(baseSettings.pdfHeader || '');
-      setPdfFooterStyle(baseSettings.pdfFooterStyle || 'none');
-      setPdfExcludeCover(!!baseSettings.pdfExcludeCover);
-      setPdfUseWatermark(!!baseSettings.pdfUseWatermark);
-      setPdfWatermark(baseSettings.pdfWatermark || '');
-      setPdfWatermarkOpacity(baseSettings.pdfWatermarkOpacity !== undefined ? baseSettings.pdfWatermarkOpacity : 0.08);
 
       document.documentElement.classList.remove('dark');
 
@@ -340,14 +308,8 @@ export const useEditorSettings = (
       quoteStyle,
       themePalette,
       autoClosingBrackets,
-      pdfHeader,
-      pdfFooterStyle,
-      pdfExcludeCover,
-      pdfUseWatermark,
       geminiApiKey,
-      aiModelName,
-      pdfWatermark,
-      pdfWatermarkOpacity
+      aiModelName
     };
 
     localStorage.setItem('onrivi_settings', JSON.stringify(settings));
@@ -361,9 +323,6 @@ export const useEditorSettings = (
     localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
     localStorage.setItem('onrivi_gemini_api_key', geminiApiKey);
     localStorage.setItem('onrivi_ai_model_name', aiModelName);
-    localStorage.setItem('onrivi_pdf_use_watermark', pdfUseWatermark ? 'true' : 'false');
-    localStorage.setItem('onrivi_pdf_watermark', pdfWatermark || '');
-    localStorage.setItem('onrivi_pdf_watermark_opacity', (pdfWatermarkOpacity !== undefined ? pdfWatermarkOpacity : 0.08).toString());
     if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
 
     const chromeStorage = (window as any).chrome?.storage?.local;
@@ -389,13 +348,7 @@ export const useEditorSettings = (
     geminiApiKey,
     aiModelName,
     themePalette,
-    autoClosingBrackets,
-    pdfHeader,
-    pdfFooterStyle,
-    pdfExcludeCover,
-    pdfUseWatermark,
-    pdfWatermark,
-    pdfWatermarkOpacity
+    autoClosingBrackets
   ]);
 
   return {
@@ -424,18 +377,6 @@ export const useEditorSettings = (
     customSlashCommands,
     setCustomSlashCommands,
     customSlashCommandsRef,
-    handleThemeChange,
-    pdfHeader,
-    setPdfHeader,
-    pdfFooterStyle,
-    setPdfFooterStyle,
-    pdfExcludeCover,
-    setPdfExcludeCover,
-    pdfUseWatermark,
-    setPdfUseWatermark,
-    pdfWatermark,
-    setPdfWatermark,
-    pdfWatermarkOpacity,
-    setPdfWatermarkOpacity
+    handleThemeChange
   };
 };
