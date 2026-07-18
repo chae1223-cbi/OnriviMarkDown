@@ -62,6 +62,9 @@ export async function GET(request: Request) {
       }
     });
   } catch (error: any) {
+    if (error?.message && error.message.includes('NEXT_STATIC_GEN_BAILOUT')) {
+      return new NextResponse('Dynamic route bailout', { status: 500 });
+    }
     console.error('View API Error:', error);
     return new NextResponse(error.message, { status: 500 });
   }

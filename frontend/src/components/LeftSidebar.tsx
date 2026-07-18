@@ -487,7 +487,7 @@ export default function LeftSidebar() {
                       className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
                       title="새 파일"
                     >
-                      <Plus size={14} />
+                      <span className="text-sm">📖</span>
                     </button>
                     <button 
                       onClick={(e) => {
@@ -502,7 +502,7 @@ export default function LeftSidebar() {
                       className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
                       title="새 폴더"
                     >
-                      <FolderPlus size={14} />
+                      <span className="text-sm">📁</span>
                     </button>
                     <button 
                       onClick={async (e) => {

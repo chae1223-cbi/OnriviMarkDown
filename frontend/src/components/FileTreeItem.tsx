@@ -776,7 +776,7 @@ const FileTreeItem = ({
             <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               {node.kind === 'directory' && (
                 <>
-                  <button onClick={handleCreateFile} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-sm" title={"새 파일"}>📄</button>
+                  <button onClick={handleCreateFile} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-sm" title={"새 파일"}>📖</button>
                   <button onClick={handleCreateFolder} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-sm" title={"새 폴더"}>📁</button>
                 </>
               )}

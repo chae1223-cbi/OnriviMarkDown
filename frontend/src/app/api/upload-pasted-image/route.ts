@@ -59,6 +59,9 @@ export async function POST(request: Request) {
       relativePath: `/assets/${fileName}`
     });
   } catch (error: any) {
+    if (error?.message && error.message.includes('NEXT_STATIC_GEN_BAILOUT')) {
+      return new NextResponse('Dynamic route bailout', { status: 500 });
+    }
     console.error('API Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

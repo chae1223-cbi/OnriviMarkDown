@@ -902,7 +902,7 @@ ${guideContent}
           <div className="flex items-center gap-1 shrink-0">
             {onAddProfile && (
               <button onClick={onAddProfile} className="p-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors" title="새 테마 추가">
-                📄
+                📖
               </button>
             )}
             {onImportProfile && (

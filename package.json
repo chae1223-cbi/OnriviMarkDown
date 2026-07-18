@@ -16,8 +16,7 @@
     "build:extension": "cd frontend && npm run build:extension",
     "build:electron": "electron-builder --win",
     "dist": "npm run build && npm run build:electron",
-    "deploy": "npm run build:frontend && cd frontend && npx wrangler pages deploy ./out --project-name onriviauthor --functions-directory ./functions",
-    "prepare": "husky"
+    "deploy": "npm run build:frontend && cd frontend && npx wrangler pages deploy ./out --project-name onriviauthor --functions-directory ./functions"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
