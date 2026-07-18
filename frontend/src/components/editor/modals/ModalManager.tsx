@@ -11,23 +11,27 @@
 import React from 'react';
 
 // 각종 모달 컴포넌트 임포트
-import SettingsModal from '@/components/SettingsModal';
-import ExportModal from '@/components/ExportModal';
-import PromptModal from '@/components/PromptModal';
-import ConfirmModal from '@/components/ConfirmModal';
-import ImageModal from '@/components/ImageModal';
-import MapModal from '@/components/MapModal';
-import TableModal from '@/components/TableModal';
-import MergeModal from '@/components/MergeModal';
-import YoutubeModal from '@/components/YoutubeModal';
-import HelpModal from '@/components/HelpModal';
-import AboutModal from '@/components/AboutModal';
-import LicenseModal from '@/components/LicenseModal';
-import FormulaModal from '@/components/FormulaModal';
-import CssStyleModal from '@/components/CssStyleModal';
+import SettingsModal from '@/components/SettingsModal';        // 환경설정 모달 컴포넌트
+import ExportModal from '@/components/ExportModal';        // 내보내기 모달 컴포넌트
+import PromptModal from '@/components/PromptModal';        // 프롬프트 모달 컴포넌트
+import ConfirmModal from '@/components/ConfirmModal';        // 확인 모달 컴포넌트
+import ImageModal from '@/components/ImageModal';        // 이미지 모달 컴포넌트
+import MapModal from '@/components/MapModal';        // 지도 모달 컴포넌트
+import TableModal from '@/components/TableModal';        // 표 모달 컴포넌트
+import MergeModal from '@/components/MergeModal';        // 병합 모달 컴포넌트
+import YoutubeModal from '@/components/YoutubeModal';        // 유튜브 모달 컴포넌트
+import HelpModal from '@/components/HelpModal';        // 도움말 모달 컴포넌트
+import AboutModal from '@/components/AboutModal';        // 정보 모달 컴포넌트
+import LicenseModal from '@/components/LicenseModal';        // 라이선스 모달 컴포넌트
+import FormulaModal from '@/components/FormulaModal';        // 수식 모달 컴포넌트
+import CssStyleModal from '@/components/CssStyleModal';        // 서식 모달 컴포넌트
 
 import { useEditorModals } from '@/hooks/editor/useEditorModals';
+import { BROWSER_STORAGE_NAME } from '@/constants/storage'; // 모달 관련 상태와 함수들을 hook으로 관리하는 hooks
 
+/**
+ * props들의 타입을 선언
+ */
 interface ModalManagerProps {
   modals: ReturnType<typeof useEditorModals>;
   deps: any; // MainEditorApp에서 넘어오는 수많은 상태와 함수들 (점진적 타입 구체화 예정)
@@ -40,43 +44,46 @@ interface ModalManagerProps {
  */
 export default function ModalManager({ modals, deps }: ModalManagerProps) {
   const {
-    isSettingsModalOpen, setIsSettingsModalOpen,
-    settingsModalInitialTab, setSettingsModalInitialTab,
-    isStyleModalOpen, setIsStyleModalOpen,
-    isExportModalOpen, setIsExportModalOpen,
-    isImageModalOpen, setIsImageModalOpen,
-    editingImageInfo, setEditingImageInfo,
-    isMergeModalOpen, setIsMergeModalOpen,
-    isYoutubeModalOpen, setIsYoutubeModalOpen,
-    youtubeInitialUrl, setYoutubeInitialUrl,
-    isAboutModalOpen, setIsAboutModalOpen,
-    isLicenseModalOpen, setIsLicenseModalOpen,
-    isFormulaModalOpen, setIsFormulaModalOpen,
-    promptConfig, setPromptConfig,
-    confirmConfig, setConfirmConfig,
-    isMapModalOpen, setIsMapModalOpen,
-    isTableModalOpen, setIsTableModalOpen,
-    isHelpModalOpen, setIsHelpModalOpen
+    isSettingsModalOpen, setIsSettingsModalOpen,                         // 환경설정 모달 열림/닫힘 상태
+    settingsModalInitialTab, setSettingsModalInitialTab,                 // 환경설정 모달 초기 탭 설정
+    isStyleModalOpen, setIsStyleModalOpen,                                 // 서식 모달 열림/닫힘 상태
+    isExportModalOpen, setIsExportModalOpen,                             // 내보내기 모달 열림/닫힘 상태
+    isImageModalOpen, setIsImageModalOpen,                                 // 이미지 모달 열림/닫힘 상태
+    editingImageInfo, setEditingImageInfo,                                 // 이미지 모달 편집 정보 상태
+    isMergeModalOpen, setIsMergeModalOpen,                                   // 병합 모달 열림/닫힘 상태
+    isYoutubeModalOpen, setIsYoutubeModalOpen,                             // 유튜브 모달 열림/닫힘 상태
+    youtubeInitialUrl, setYoutubeInitialUrl,                             // 유튜브 모달 초기 URL 설정
+    isAboutModalOpen, setIsAboutModalOpen,                                 // 정보 모달 열림/닫힘 상태
+    isLicenseModalOpen, setIsLicenseModalOpen,                             // 라이선스 모달 열림/닫힘 상태
+    isFormulaModalOpen, setIsFormulaModalOpen,                             // 수식 모달 열림/닫힘 상태
+    promptConfig, setPromptConfig,                                         // 프롬프트 모달 설정 상태
+    confirmConfig, setConfirmConfig,                                         // 확인 모달 설정 상태
+    isMapModalOpen, setIsMapModalOpen,                                     // 지도 모달 열림/닫힘 상태
+    isTableModalOpen, setIsTableModalOpen,                                 // 표 모달 열림/닫힘 상태
+    isHelpModalOpen, setIsHelpModalOpen                                  // 도움말 모달 열림/닫힘 상태
   } = modals;
 
   // deps에서 필요한 속성들 추출
   const {
-    isDarkMode, setIsDarkMode, fontSize, setFontSize, wordWrap, setWordWrap,
-    autoSave, setAutoSave, rootFolder, rootFolderRef, selectRootFolder, driveLetter, setDriveLetter,
-    workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
-    customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
-    geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
-    pdfHeader, setPdfHeader, pdfFooterStyle, setPdfFooterStyle, pdfExcludeCover, setPdfExcludeCover,
-    isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
-    setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
-    showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
-    handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId, setProfiles,
-    isSystemProfileId, getApiUrl, DEFAULT_PROFILE, SYSTEM_PROFILES, vfsCreateFile, vfsWriteFile, vfsCreateFolder,
-    helpTitle, helpContent, setHelpContent
+    isDarkMode, setIsDarkMode, fontSize, setFontSize, wordWrap, setWordWrap,   // 다크모드, 글자크기, 단어줄바꿈
+    autoSave, setAutoSave, rootFolder, rootFolderRef, selectRootFolder, driveLetter, setDriveLetter,    // 자동저장, 루트폴더, 루트폴더참조, 루트폴더선택, 드라이브문자
+    workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,       // 워크스페이스타입, 미리보기모드, 사용자지정단축키, 사용자지정단축키설정
+    customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,   // 사용자지정슬래시명령어, 사용자지정슬래시명령어설정, 라이선스키, 라이선스키설정, 테마팔레트, 테마변경
+    geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,                                       // geminiAPI키, geminiAPI키설정, ai모델이름, ai모델이름설정
+    pdfHeader, setPdfHeader, pdfFooterStyle, setPdfFooterStyle, pdfExcludeCover, setPdfExcludeCover,     // pdf머리글, pdf머리글설정, pdf바닥글스타일, pdf바닥글스타일설정, pdf표지제외, pdf표지제외설정
+    pdfUseWatermark, setPdfUseWatermark,
+    pdfWatermark, setPdfWatermark, pdfWatermarkOpacity, setPdfWatermarkOpacity,
+    isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,  // 활성화여부, 라이선스상태, 디바이스ID, 성공적인활성화처리, 핸들러, 콘텐츠, 현재파일노드참조
+    setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,       // 현재파일이름설정, 현재파일노드설정, 마지막저장콘텐츠참조, 저장상태설정, 파일목록갱신
+    showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,   // 토스트보이기, 에디터참조, 커서에삽입, 병합모드설정, 선택된병합노드, 선택된병합노드설정
+    handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId, setProfiles,   // 파일클릭핸들러, 프로필, 활성프로필ID, 동적CSS문자열, 활성프로필ID설정, 프로필설정
+    isSystemProfileId, getApiUrl, DEFAULT_PROFILE, SYSTEM_PROFILES, vfsCreateFile, vfsWriteFile, vfsCreateFolder,   // 시스템프로파일ID, API URL 얻기, 기본프로파일, 시스템프로파일, 가상파일시스템생성파일, 가상파일시스템쓰기파일, 가상파일시스템생성폴더
+    helpTitle, helpContent, setHelpContent                                                                  // 도움말제목, 도움말콘텐츠, 도움말콘텐츠설정
   } = deps;
 
   return (
     <>
+      {/* 환경설정 모달 */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
@@ -107,11 +114,24 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         setPdfFooterStyle={setPdfFooterStyle}
         pdfExcludeCover={pdfExcludeCover}
         setPdfExcludeCover={setPdfExcludeCover}
+        pdfUseWatermark={pdfUseWatermark}
+        setPdfUseWatermark={setPdfUseWatermark}
+        pdfWatermark={pdfWatermark}
+        setPdfWatermark={setPdfWatermark}
+        pdfWatermarkOpacity={pdfWatermarkOpacity}
+        setPdfWatermarkOpacity={setPdfWatermarkOpacity}
       />
 
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
+        isDarkMode={isDarkMode}
+        pdfUseWatermark={pdfUseWatermark}
+        setPdfUseWatermark={setPdfUseWatermark}
+        pdfWatermark={pdfWatermark}
+        setPdfWatermark={setPdfWatermark}
+        pdfWatermarkOpacity={pdfWatermarkOpacity}
+        setPdfWatermarkOpacity={setPdfWatermarkOpacity}
         onExport={(format: any) => {
           if (!isActivated) {
             showToast("정품 라이선스 키 등록이 필요합니다. (설정 -> 애플리케이션 탭에서 등록)", 'error');
@@ -122,7 +142,6 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           else if (format === 'png') handlers.exportPNG();
           else if (format === 'epub') handlers.exportEPUB();
         }}
-        isDarkMode={isDarkMode}
       />
       {promptConfig.isOpen && (
         <PromptModal
@@ -141,7 +160,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                 const safeValue = value.replace(/[\/\\]/g, '');
                 const finalName = safeValue.endsWith('.md') ? safeValue : `${safeValue}.md`;
                 const api = (window as any).electronAPI;
-                if (api && rootFolder?.name && rootFolder.name !== '브라우저 스토리지') {
+                if (api && rootFolder?.name && rootFolder.name !== BROWSER_STORAGE_NAME) {
                   const fullPath = rootFolder.name + '\\' + finalName;
                   const success = await api.saveFile(fullPath, content);
                   if (success) {
@@ -300,7 +319,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
             if (lastSlashIndex !== -1) {
               folder = filePath.substring(0, lastSlashIndex);
             }
-          } else if (rootFolderRef?.current?.name && rootFolderRef.current.name !== '브라우저 스토리지') {
+          } else if (rootFolderRef?.current?.name && rootFolderRef.current.name !== BROWSER_STORAGE_NAME) {
             folder = rootFolderRef.current.name;
           }
           return folder;

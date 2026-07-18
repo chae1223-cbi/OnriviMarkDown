@@ -24,13 +24,13 @@ export interface ConfirmConfig {
  * MainEditorApp에 산재해 있던 모든 모달 및 팝업의 열림/닫힘 상태를 한 곳에서 중앙 관리하는 훅
  */
 export const useEditorModals = () => {
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');
-  const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [editingImageInfo, setEditingImageInfo] = useState<{
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);   // 환경설정 모달 열림/닫힘 상태
+  const [settingsModalInitialTab, setSettingsModalInitialTab] = useState<'editor' | 'app' | 'shortcuts'>('editor');   // 환경설정 모달 초기 탭 설정
+  const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);   // 서식 모달 열림/닫힘 상태
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);   // 내보내기 모달 열림/닫힘 상태
+
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);   // 이미지 모달 열림/닫힘 상태
+  const [editingImageInfo, setEditingImageInfo] = useState<{   // 이미지 모달 편집 정보 상태
     range: any;
     alt: string;
     path: string;
@@ -39,24 +39,24 @@ export const useEditorModals = () => {
     align: string;
   } | null>(null);
 
-  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
-  
-  const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);
-  const [youtubeInitialUrl, setYoutubeInitialUrl] = useState<string | null>(null);
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);   // 지도 모달 열림/닫힘 상태
+  const [isTableModalOpen, setIsTableModalOpen] = useState(false);   // 표 모달 열림/닫힘 상태
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);   // 병합 모달 열림/닫힘 상태
 
-  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
-  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
-  const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);
-  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-  
-  const [promptConfig, setPromptConfig] = useState<PromptConfig>({
+  const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);   // 유튜브 모달 열림/닫힘 상태
+  const [youtubeInitialUrl, setYoutubeInitialUrl] = useState<string | null>(null);   // 유튜브 모달 초기 URL 설정
+
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);   // 정보 모달 열림/닫힘 상태
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);   // 라이선스 모달 열림/닫힘 상태
+  const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);   // 수식 모달 열림/닫힘 상태
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);   // 도움말 모달 열림/닫힘 상태
+
+  const [promptConfig, setPromptConfig] = useState<PromptConfig>({      // 프롬프트 모달 설정 상태
     isOpen: false, title: "", defaultValue: "", type: null, error: ""
   });
-  
-  const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig>({
-    isOpen: false, title: "", message: "", onConfirm: () => {}
+
+  const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig>({   // 확인 모달 설정 상태
+    isOpen: false, title: "", message: "", onConfirm: () => { }
   });
 
   return {

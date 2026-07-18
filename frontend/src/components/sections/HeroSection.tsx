@@ -7,12 +7,12 @@
 //             **2026-06-22** — 미리보기 카드를 원본 긴 버전(5가지 포인트 전체 + 스크롤)으로 복원 패치; 비로그인 상태 진입 유도 제거(무료로 시작하기 버튼 제거) 패치
 // 🔗 @CALLS : motion.div, Link
 // ====================================================================
-"use client";
+"use client"; // "use client" : 클라이언트 사이드 렌더링을 위한 지시어    
 
-import { motion } from "framer-motion";
-import Link from "next/link";
+import { motion } from "framer-motion"; // framer-motion : 애니메이션을 위한 라이브러리  
+import Link from "next/link"; // Link : Next.js의 링크 컴포넌트  
 
-export function HeroSection() {
+export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 섹션을 위한 컴포넌트  
   return (
     <section
       className="pt-32 pb-24 sm:pt-44 sm:pb-32 overflow-hidden relative"

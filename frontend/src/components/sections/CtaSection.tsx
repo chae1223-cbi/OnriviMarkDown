@@ -8,11 +8,11 @@
 // ====================================================================
 "use client";
 
-import { motion } from "framer-motion";
-import { CheckCircle2 } from "lucide-react";
-import Link from "next/link";
+import { motion } from "framer-motion"; // framer-motion : motion.div 컴포넌트를 사용하기 위해 임포트
+import { CheckCircle2 } from "lucide-react"; // CheckCircle2 : 체크 아이콘을 사용하기 위해 임포트 
+import Link from "next/link"; // Link : 링크를 사용하기 위해 임포트 
 
-export function CtaSection() {
+export function CtaSection() { // CtaSection : 사용자 가입 전환(CTA)을 강력하게 소구하고 회원가입 경로로 리다이렉트하는 랜딩페이지 마지막 전환 유도 영역 
   return (
     <section
       style={{

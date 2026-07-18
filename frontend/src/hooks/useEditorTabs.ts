@@ -198,7 +198,7 @@ export const useEditorTabs = (
   //              (preview 모드에서 model.getValue()가 부정확한 값을 반환하여 content 초기화 유발하는 버그 방지)
   // 🔗 @CALLS : getWelcomeContent, setContent, setTabs, setActiveTabId, setCurrentFileName, setCurrentFileNode, setPreviewModeRaw
   // ====================================================================
-  const createNewTab = useCallback((initialContent?: string, name?: string, isStyleTab?: boolean) => {
+  const createNewTab = useCallback((initialContent?: string, name?: string, isStyleTab?: boolean, path?: string | null, node?: FileNode | null) => {
     const monaco = (window as any).monaco;
     const contentVal = initialContent !== undefined ? initialContent : getWelcomeContent();
     const tabName = name || '새 파일.md';
@@ -222,8 +222,8 @@ export const useEditorTabs = (
     const newTab: EditorTab = {
       id: tabId,
       name: tabName,
-      path: null,
-      node: null,
+      path: path || null,
+      node: node || null,
       content: contentVal,
       isModified: false,
       model: model,

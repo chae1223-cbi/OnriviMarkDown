@@ -13,6 +13,7 @@ import { msg } from '@/lib/systemMessages';
 import { useUIStore } from '@/store/useUIStore';
 
 import { useEditorContext } from '@/context/EditorContext';
+import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
@@ -465,7 +466,7 @@ export default function LeftSidebar() {
                 🔄 워크스페이스 복구
               </button>
             </div>
-          ) : rootFolder?.handle || (isDesktop && rootFolder?.name) || rootFolder?.name === '브라우저 스토리지' ? (
+          ) : rootFolder?.handle || (isDesktop && rootFolder?.name) || rootFolder?.name === BROWSER_STORAGE_NAME ? (
             // 폴더 연결됨 → 파일 트리 표시
             // 🛡️ [빈 폴더 방어] fileList가 비어있어도 루트 폴더 헤더(풀경로+버튼)를 항상 유지
             <div className="space-y-0.5">
@@ -735,7 +736,7 @@ export default function LeftSidebar() {
             currentFileName={currentFileName}
             tabs={tabs}
             fileList={fileList}
-            workspacePath={rootFolder?.name && rootFolder.name !== '브라우저 스토리지' ? rootFolder.name : undefined}
+            workspacePath={rootFolder?.name && rootFolder.name !== BROWSER_STORAGE_NAME ? rootFolder.name : undefined}
             rootFolderHandle={rootFolder?.handle}
             workspaceType={workspaceType}
             onSelectFolder={onSelectRootFolder}

@@ -5,6 +5,7 @@ import { getVfsFiles, vfsReadFile, vfsWriteFile } from '@/lib/virtualFileSystem'
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import { EditorTab } from '@/components/UnifiedTabBar';
+import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 
 /**
  * [ONR-16-005] useFileExplorer 커스텀 훅
@@ -13,7 +14,8 @@ import { EditorTab } from '@/components/UnifiedTabBar';
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
 // 🎯 @KICK  : 워크스페이스 폴더 연결, 파일 트리 스캔, 파일 열기/저장 I/O 전담
 // 🛡️ @GUARD : 각 환경별 API 실패 시 예외 처리 및 fallback
-// 🚨 @PATCH : **2026-07-04** — 탭 전환/닫기 시 제한(만료) 사용자의 경우 항상 미리보기('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 설정된 에디터 뷰잉 모드를 그대로 보존 및 상속하도록 UI 모드 자동 보정 연동 패치
+// 🚨 @PATCH : **2026-07-18** — 서로 다른 폴더 내에 동일 파일명이 존재할 때, existingTab 탐색기에서 핸들/이름 매칭 가드 오동작으로 탭 열기가 씹히는 결함 수정 (경로 존재 시 절대 경로 불일치 조건으로 3순위 파일명 일치 가드 스킵 처리)
+//             **2026-07-04** — 탭 전환/닫기 시 제한(만료) 사용자의 경우 항상 미리보기('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 설정된 에디터 뷰잉 모드를 그대로 보존 및 상속하도록 UI 모드 자동 보정 연동 패치
 // 🔗 @CALLS : scanDirectory, getVfsFiles, fetch, vfsReadFile, vfsWriteFile, stripFrontmatter, idb.get, api.saveFile, api.listDirectory, api.readFromPath
 // ====================================================================
 export const useFileExplorer = ({
@@ -119,7 +121,7 @@ export const useFileExplorer = ({
             const savedRoot = localStorage.getItem('rootFolder');
             if (savedRoot) {
               const parsed = JSON.parse(savedRoot);
-              if (parsed && parsed.name && parsed.name !== '브라우저 스토리지') {
+              if (parsed && parsed.name && parsed.name !== BROWSER_STORAGE_NAME) {
                 currentLocalPath = parsed.name;
               }
             }
@@ -174,11 +176,11 @@ export const useFileExplorer = ({
           showToast("폴더 선택이 취소되었습니다.", "info");
         }
       } else {
-        const folder = { name: '브라우저 스토리지' };
+        const folder = { name: BROWSER_STORAGE_NAME };
         await idb.set('rootFolderHandle', null);
         setRootFolder(folder);
         setWorkspaceType('browser');
-        localStorage.setItem('rootFolder', JSON.stringify({ name: '브라우저 스토리지' }));
+        localStorage.setItem('rootFolder', JSON.stringify({ name: BROWSER_STORAGE_NAME }));
         localStorage.setItem('workspaceType', 'browser');
         showToast("로컬 스토리지 워크스페이스가 연결되었습니다.", "success");
       }
@@ -368,7 +370,15 @@ export const useFileExplorer = ({
         const normNode = node.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
         const normTab = t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
         if (normNode === normTab) return true;
+        // 💡 [치명적 가드] 경로가 서로 다르면 동일 파일이 아니므로 다른 비교를 무시하고 무조건 false 반환
+        return false;
       }
+
+      // 만약 둘 중 하나만 경로를 가지고 있는 경우에도 동일 파일이 아니므로 false
+      if ((node.path && !t.path) || (!node.path && t.path)) {
+        return false;
+      }
+
       // 2순위: 이름과 경로가 모두 일치 (vfs 등)
       if (!node.path && !t.path && node.name === t.name) return true;
 

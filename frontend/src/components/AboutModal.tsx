@@ -1,21 +1,21 @@
-"use client";
+"use client";   // "use client" : 클라이언트 사이드 렌더링을 위한 지시어 
 
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
-import OAIcon from '../app/icon_onriveauther.png';
+import React, { useState, useEffect } from 'react'; // useState : 상태 관리를 위해 임포트 
+import { createPortal } from 'react-dom'; // createPortal : 포털을 생성하기 위해 임포트 
+import { X } from 'lucide-react'; // X : 닫기 버튼을 위한 아이콘 
+import OAIcon from '../app/icon_onriveauther.png'; // OAIcon : 온리비 아서 프로그램 아이콘  
 
 /**
  * [ONR-UI-007] AboutModalProps 인터페이스
  * @description 프로그램 정보 팝업창인 AboutModal에 전달되는 상태값들과 정품 라이선스 키 상태 명세입니다.
  */
-interface AboutModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  isDarkMode: boolean;
-  licenseKey: string;
-  setLicenseKey: (v: string) => void;
-  isActivated: boolean;
+interface AboutModalProps {   // AboutModalProps : 온리비 아서 프로그램 정보 모달에 전달되는 상태값들의 인터페이스  
+  isOpen: boolean; // isOpen : 모달 열림 여부를 위한 상태  
+  onClose: () => void; // onClose : 모달 닫기 버튼 클릭 시 실행될 함수  
+  isDarkMode: boolean; // isDarkMode : 다크 모드 여부를 위한 상태  
+  licenseKey: string; // licenseKey : 정품 라이선스 키 상태  
+  setLicenseKey: (v: string) => void; // setLicenseKey : 정품 라이선스 키 상태를 변경하기 위한 함수 
+  isActivated: boolean; // isActivated : 정품 인증 여부를 위한 상태 
 }
 
 /**
@@ -30,28 +30,27 @@ interface AboutModalProps {
 // 🔗 @CALLS : 없음
 // ====================================================================
 export default function AboutModal({
-  isOpen,
-  onClose,
-  isDarkMode,
-  licenseKey,
-  setLicenseKey,
-  isActivated
+  isOpen, // isOpen : 모달 열림 여부를 위한 상태  
+  onClose, // onClose : 모달 닫기 버튼 클릭 시 실행될 함수  
+  isDarkMode, // isDarkMode : 다크 모드 여부를 위한 상태  
+  licenseKey, // licenseKey : 정품 라이선스 키 상태  
+  setLicenseKey, // setLicenseKey : 정품 라이선스 키 상태를 변경하기 위한 함수 
+  isActivated // isActivated : 정품 인증 여부를 위한 상태 
 }: AboutModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(false); // mounted : 컴포넌트 마운트 여부를 위한 상태 
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { // useEffect : 컴포넌트 마운트 시 실행될 함수 
+    setMounted(true); // mounted : 컴포넌트 마운트 여부를 true로 변경 
+  }, []); // [] : 의존성 배열 (빈 배열이므로 컴포넌트 마운트 시 한 번만 실행)
 
-  if (!isOpen) return null;
-  if (!mounted) return null;
+  if (!isOpen) return null; // if : 모달 열림 여부를 확인하고, false이면 null을 반환 
+  if (!mounted) return null; // if : 컴포넌트 마운트 여부를 확인하고, false이면 null을 반환
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose} style={{ overflowY: "auto" }}>
       <div
-        className={`relative w-full max-w-sm rounded-2xl shadow-2xl border animate-in zoom-in-95 duration-200 flex flex-col ${
-          isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-black/5'
-        }`}
+        className={`relative w-full max-w-sm rounded-2xl shadow-2xl border animate-in zoom-in-95 duration-200 flex flex-col ${isDarkMode ? 'bg-zinc-900 border-white/10' : 'bg-white border-black/5'
+          }`}
         style={{ maxHeight: "90dvh", overflow: "hidden" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -70,10 +69,9 @@ export default function AboutModal({
             <img src={OAIcon.src} alt="온리비 어서 브랜드 아이콘" className="w-12 h-12 object-contain" />
             <h3 className="text-xl font-bold">온리비 어서</h3>
           </div>
-          
-          <div className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold border ${
-            isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200'
-          }`}>
+
+          <div className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold border ${isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200'
+            }`}>
             v1.2.0-beta
           </div>
 
@@ -110,11 +108,10 @@ export default function AboutModal({
                     }
                   }
                 }}
-                className={`w-full px-3 py-1.5 text-xs font-mono rounded border outline-none focus:ring-1 focus:ring-blue-500 shadow-sm ${
-                  isDarkMode 
-                    ? 'bg-zinc-800 border-white/10 text-white' 
+                className={`w-full px-3 py-1.5 text-xs font-mono rounded border outline-none focus:ring-1 focus:ring-blue-500 shadow-sm ${isDarkMode
+                    ? 'bg-zinc-800 border-white/10 text-white'
                     : 'bg-zinc-50 border-black/10 text-black'
-                }`}
+                  }`}
                 placeholder="인증 키를 입력하세요"
               />
               <p className="text-[9px] opacity-50 mt-1">

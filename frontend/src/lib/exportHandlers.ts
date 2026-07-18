@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-07-16** — PDF 내보내기 및 인쇄 기능 고도화: 설정된 상단 머리글 텍스트 및 하단 페이지 번호 서식(- 1 -, 1 / n)을 동적으로 캡처하여 인쇄 출력 본문 프레임에 counter(page) 기반으로 자동 인젝션 구현, 표지 페이지 번호 제외 조건부 가드 CSS 구현
+// 🚨 @PATCH : **2026-07-18** — PDF 내보내기 시 배경 대각선 반투명 워터마크(pdfWatermark, pdfWatermarkOpacity) 설정 및 가상 DOM/CSS 템플릿 인젝션 기능 추가
+//             **2026-07-16** — PDF 내보내기 및 인쇄 기능 고도화: 설정된 상단 머리글 텍스트 및 하단 페이지 번호 서식(- 1 -, 1 / n)을 동적으로 캡처하여 인쇄 출력 본문 프레임에 counter(page) 기반으로 자동 인젝션 구현, 표지 페이지 번호 제외 조건부 가드 CSS 구현
 //             **2026-06-20** — HTML/PNG 내보내기 시 로컬 및 확장프로그램 스타일시트를 런타임에 인라인화하여 테마 서식 동기화 결함 해결; 다크모드 무력화에 대응하여 내보내기 시 라이트모드 기준 스타일 생성(generateExportCss) 및 activeProfile 연동 처리 구현; PDF/HTML/PNG 내보내기 시 @page margin 0 및 body padding 레이아웃을 통해 가장자리 여백 영역까지 배경색이 단일 톤으로 빈틈없이 흐르도록 여백 분리 결함 해결; PDF 내보내기 시 배경색이 흰색으로 누락되는 custom-preview-container transparent 강제 투명화 가드 버그 수정 및 KaTeX 수식 전용 CDN 웹폰트 주입으로 찌그러짐 현상 해결; generateExportCss 선택자 구체성을 .custom-preview-container .markdown-viewer-root 기반으로 대폭 상향하여 사용자 커스텀 서식 100% 보장; HTML 내보내기 시 body 배경색을 용지 배경색(pageBg)과 완벽 동합; PDF 인쇄 템플릿 내의 mm 여백 단위 중복(25mmmm) 결함 수정으로 여백 소실 결함 해결; HTML 내보내기 시 Tailwind CDN에 의한 body 배경색 리셋을 차단하기 위해 body 및 시트지에 인라인 스타일 배경색 강제 지정 적용; PDF 내보내기 및 HTML 인쇄 시 페이지 분할(쪼개짐) 구역의 상하 여백 소실을 차단하기 위해 임시 패딩 래퍼를 롤백하고 표준 @page { margin: ... } 바인딩으로 전환하되, 여백 잘림(흰색 영역)을 막기 위해 html/body 전체 배경색 지정 및 print-color-adjust 강제화 구현; 일렉트론 및 크롬 인쇄 시 여백(마진) 영역의 흰색 잘림 결함을 완벽히 해결하기 위해 @page 지시자 규칙에 background-color 지정을 추가하여 용지 가장자리 영역까지 배경색이 가득 차도록 최종 동기화
 
 import { getApiUrl } from '@/lib/apiUrlBuilder';
@@ -23,6 +24,9 @@ interface ExportOptions {
   pdfHeader?: string;
   pdfFooterStyle?: 'none' | 'hyphen' | 'slash';
   pdfExcludeCover?: boolean;
+  pdfUseWatermark?: boolean;
+  pdfWatermark?: string;
+  pdfWatermarkOpacity?: number;
 }
 
 /** 항상 라이트모드 기준으로 서식 프로필의 dynamic CSS를 재생성하는 헬퍼 함수 */
@@ -202,11 +206,14 @@ function generateExportCss(profile: any): string {
 
     css += `
 .custom-preview-container .task-list-item {
-  display: flex !important;
-  align-items: center !important;
-  gap: ${textGap} !important;
+  position: relative !important;
+  padding-left: calc(${boxSize} + ${textGap}) !important;
+  list-style-type: none !important;
 }
 .custom-preview-container .task-list-item input[type="checkbox"] {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0.2em !important;
   width: ${boxSize} !important;
   height: ${boxSize} !important;
   margin: 0 !important;
@@ -864,7 +871,7 @@ async function saveToDownloads(filename: string, content: string, type: 'base64'
 export async function exportPDF({ 
   previewEl, currentFileName, isDarkMode, showToast, orientation, paperSize, 
   dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, 
-  activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover 
+  activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity
 }: ExportOptions) {
   try {
     showToast('PDF 내보내기 준비 중...', 'info');
@@ -917,7 +924,7 @@ export async function exportPDF({
   <meta charset="utf-8">
   <title>${currentFileName}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
   ${linkTags}
   <style>
     ${inlineStyles}
@@ -1112,20 +1119,38 @@ export async function exportPDF({
         margin-top: ${marginTop || '20mm'} !important;
         margin-bottom: ${marginBottom || '20mm'} !important;
       }
-      /* 첫 번째 페이지에서는 fixed 요소 감춤 */
-      .print-header-area, .print-footer-area {
-        display: none !important;
-      }
-      /* 두 번째 페이지부터 다시 활성화 */
-      .page-break-container ~ .print-header-area,
-      .page-break-container ~ .print-footer-area {
-        display: block !important;
+      /* 브라우저 네이티브 인쇄에서는 첫 페이지 고정요소 숨김이 CSS만으로는 완벽하지 않아, 
+         통상적으로는 margin만 복구하여 텍스트 겹침을 방지하는 선에서 처리합니다. */
+      ` : ''}
+      
+      /* ──────────────── 배경 워터마크 CSS (body::after 매 페이지 반복 보장) ──────────────── */
+      ${pdfUseWatermark && pdfWatermark ? `
+      @media print {
+        body::after {
+          content: "${pdfWatermark}";
+          position: fixed !important;
+          top: 50% !important;
+          left: 50% !important;
+          transform: translate(-50%, -50%) rotate(-45deg) !important;
+          z-index: 2147483647 !important;
+          pointer-events: none !important;
+          display: flex !important;
+          justify-content: center !important;
+          align-items: center !important;
+          font-size: 80pt !important;
+          font-weight: 900 !important;
+          font-family: 'Pretendard', sans-serif !important;
+          color: rgba(120, 120, 120, ${pdfWatermarkOpacity !== undefined ? pdfWatermarkOpacity : 0.08}) !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          white-space: nowrap !important;
+        }
       }
       ` : ''}
     }
   </style>
 </head>
-<body class="prose prose-base max-w-none custom-preview-container">
+<body class="prose prose-base max-w-none custom-preview-container ${pdfExcludeCover ? 'print-exclude-cover' : ''}">
   ${pdfHeader ? `
     <div class="print-header-area">
       <span>${pdfHeader}</span>

@@ -6,12 +6,18 @@
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 피처 카드, Inter 폰트)
 // 🔗 @CALLS : FeatureCard, constants
 // ====================================================================
-import { features } from "@/lib/constants";
-import { FeatureCard } from "@/components/ui/FeatureCard";
+import { features } from "@/lib/constants"; // features : constants에서 피처 데이터를 가져오기 위해 임포트 
+import { FeatureCard } from "@/components/ui/FeatureCard"; // FeatureCard : 피처 카드를 사용하기 위해 임포트
 
-export function FeaturesSection() {
-  return (
-    <section
+// =====================================================================
+// FeaturesSection : 제품의 6대 핵심 편의 기능 명세를 그리드 형식으로 바인딩하여 렌더링하는 피처 소개 섹션  
+// 🛡️ @GUARD : constants 에 정의된 features 리스트 구조 체크 및 FeatureCard index 바인딩
+// 🚨 @PATCH : **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치
+//             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 피처 카드, Inter 폰트)
+// 🔗 @CALLS : FeatureCard, constant  s
+export function FeaturesSection() { // FeaturesSection : 제품의 6대 핵심 편의 기능 명세를 그리드 형식으로 바인딩하여 렌더링하는 피처 소개 섹션  
+  return ( // return : 값을 반환
+    <section // section : HTML 문서의 주요 콘텐츠를 정의하는 요소
       id="features"
       style={{ padding: "96px 0", background: "rgba(255,255,255,0.7)", fontFamily: "Inter, sans-serif" }}
     >

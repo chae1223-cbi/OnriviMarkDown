@@ -18,6 +18,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import VideoCard from '@/components/VideoCard';
 import SocialVideoCard from '@/components/SocialVideoCard';
+import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { rehypePreserveFootnotes } from '@/lib/rehypePreserveFootnotes';
 import { useToast } from '@/components/ToastProvider';
 
@@ -1277,7 +1278,7 @@ export default function MarkdownViewer({
 
                 if (!isAbsolute && currentFilePath && !isWelcomeAsset) {
                   absolutePath = resolveRelativeImagePath(pureSrc, currentFilePath);
-                } else if (!isAbsolute && rootFolderPath && rootFolderPath !== '브라우저 스토리지' && !isWelcomeAsset) {
+                } else if (!isAbsolute && rootFolderPath && rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
                   const sep = rootFolderPath.includes('/') ? '/' : '\\';
                   const folder = rootFolderPath.endsWith(sep) ? rootFolderPath : rootFolderPath + sep;
                   absolutePath = folder + pureSrc;

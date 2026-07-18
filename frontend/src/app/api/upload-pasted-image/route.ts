@@ -1,3 +1,7 @@
+// 🚨 @PATCH : **2026-07-18** — 빌드 시 NEXT_STATIC_GEN_BAILOUT 방지를 위해 dynamic = 'force-dynamic' 세션 예외 지정 추가
+// ====================================================================
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';

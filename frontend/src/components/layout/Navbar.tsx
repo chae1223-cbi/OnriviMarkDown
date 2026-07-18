@@ -10,12 +10,22 @@
 // ====================================================================
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { NAV_LINKS, SITE_NAME } from "@/lib/constants";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import React, { useState, useEffect } from "react";  // useState, useEffect : 상태관리 hook 
+import { NAV_LINKS, SITE_NAME } from "@/lib/constants"; //NAV_LINKS, SITE_NAME : 상수들 
+import Link from "next/link"; // next/link : 페이지 이동
+import { useRouter } from "next/navigation"; // useRouter : 페이지 이동
+import { supabase } from "@/lib/supabaseClient"; // supabase : 데이터베이스 연동
 
+// =====================================================================
+// 인터페이스 선언 
+// NavbarContent : Navbar 컴포넌트의 props를 정의하는 타입
+// navLinks : 네비게이션 링크
+// dashboardLabel : 대시보드 페이지 이동
+// editorLabel : 에디터 페이지 이동
+// logoutLabel : 로그아웃 버튼
+// startLabel : 시작하기 버튼 
+// 인터페이스 타입 선언 끝
+// =====================================================================
 export interface NavbarContent {
   navLinks: { label: string; href: string }[];
   dashboardLabel: string;
@@ -24,71 +34,88 @@ export interface NavbarContent {
   startLabel: string;
 }
 
+// =====================================================================
+// 네비게이션 구현 
+// Navbar 컴포넌트는 사용자가 로그인했는지 여부에 따라 다른 UI를 표시합니다.
+//  - 로그아웃 상태 : '시작하기' 버튼과 '로그인' 버튼을 표시합니다.
+//  - 로그인 상태 : '대시보드', '에디터', '로그아웃' 버튼을 표시합니다.
+// =====================================================================
 export function Navbar({ content }: { content?: NavbarContent }) {
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const router = useRouter(); // useRouter : 페이지 이동
+  const [mounted, setMounted] = useState(false); // mounted : 컴포넌트가 마운트되었는지 여부
+  const [userEmail, setUserEmail] = useState<string | null>(null); // userEmail : 사용자 이메일
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // isLoggedIn : 로그인 상태
+  const [scrolled, setScrolled] = useState(false); // scrolled : 스크롤 상태
 
+  // =====================================================================
+  // 네비게이션 컴포넌트의 생명 주기 동안 필요한 초기화 및 이벤트 리스너 설정
+  // =====================================================================
   useEffect(() => {
-    setMounted(true);
-    
-    // 비밀번호 재설정 페이지(/reset-password)에서는 임시 세션이 활성화되므로 Navbar의 로그인 상태를 강제로 비활성화
-    const isResetPasswordPage = typeof window !== "undefined" && window.location.pathname.includes("/reset-password");
+    setMounted(true); // mounted : 컴포넌트가 마운트되었음을 true로 설정
 
-    if (isResetPasswordPage) {
-      setIsLoggedIn(false);
-      setUserEmail(null);
-    } else {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          setUserEmail(session.user.email || null);
-          setIsLoggedIn(true);
+    // 비밀번호 재설정 페이지(/reset-password)에서는 임시 세션이 활성화되므로 Navbar의 로그인 상태를 강제로 비활성화
+    const isResetPasswordPage = typeof window !== "undefined" && window.location.pathname.includes("/reset-password"); // isResetPasswordPage : 비밀번호 재설정 페이지 여부 
+
+    if (isResetPasswordPage) { // 비밀번호 재설정 페이지인 경우
+      setIsLoggedIn(false); // 로그인 상태를 false로 설정
+      setUserEmail(null); // 사용자 이메일을 null로 설정
+    } else { // 비밀번호 재설정 페이지가 아닌 경우
+      supabase.auth.getSession().then(({ data: { session } }) => { // Supabase Auth 세션 정보를 가져옴 
+        if (session?.user) { // 세션에 사용자 정보가 있는 경우
+          setUserEmail(session.user.email || null); // 사용자 이메일을 설정 
+          setIsLoggedIn(true); // 로그인 상태를 true로 설정
         }
       });
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (isResetPasswordPage) {
-        setUserEmail(null);
-        setIsLoggedIn(false);
-      } else if (session?.user) {
-        setUserEmail(session.user.email || null);
-        setIsLoggedIn(true);
-      } else {
-        setUserEmail(null);
-        setIsLoggedIn(false);
+    // =====================================================================
+    // Supabase Auth 상태 변경 시 처리
+    // =====================================================================
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { // auth state change : 로그인, 로그아웃, 세션 만료 등authStateChange 이벤트 구독 
+      if (isResetPasswordPage) { // 비밀번호 재설정 페이지인 경우 
+        setUserEmail(null); // 사용자 이메일을 null로 설정 
+        setIsLoggedIn(false); // 로그인 상태를 false로 설정 
+      } else if (session?.user) { // 세션에 사용자 정보가 있는 경우
+        setUserEmail(session.user.email || null); // 사용자 이메일을 설정 
+        setIsLoggedIn(true); // 로그인 상태를 true로 설정
+      } else { // 세션에 사용자 정보가 없는 경우
+        setUserEmail(null); // 사용자 이메일을 null로 설정 
+        setIsLoggedIn(false); // 로그인 상태를 false로 설정 
       }
     });
-    const handleScroll = () => setScrolled(window.scrollY > 12);
-    window.addEventListener("scroll", handleScroll);
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener("scroll", handleScroll);
+
+    const handleScroll = () => setScrolled(window.scrollY > 12); // handleScroll : 스크롤 이벤트를 처리하는 함수 
+
+    window.addEventListener("scroll", handleScroll); // scroll 이벤트 리스너 설정 
+    return () => { // 클린업 함수 
+      subscription.unsubscribe(); // auth state change 구독 해제 
+      window.removeEventListener("scroll", handleScroll); // scroll 이벤트 리스너 해제
     };
   }, []);
 
+  // =====================================================================
+  // 로그아웃 처리
+  // =====================================================================
   const handleLogout = async () => {
-    try {
-      const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
-      const paymentNo = localStorage.getItem('onrivi_payment_no');
-      if (sessionId && paymentNo) {
-        await supabase.rpc('deactivate_session_on_logout', { p_payment_no: paymentNo, p_device_uuid: sessionId });
+    try { // try : 예외 처리를 위한 블록 
+      const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'); // sessionId : 세션 ID
+      const paymentNo = localStorage.getItem('onrivi_payment_no'); // paymentNo : 결제 번호 
+      if (sessionId && paymentNo) { // 세션 ID와 결제 번호가 모두 있는 경우
+        await supabase.rpc('deactivate_session_on_logout', { p_payment_no: paymentNo, p_device_uuid: sessionId }); // Supabase RPC 호출로 세션 비활성화 
       }
-      ['onrivi_session_id', 'onrivi_payment_no', 'onrivi_user_id', 'onrivi_license_key'].forEach(k => localStorage.removeItem(k));
-      await supabase.auth.signOut();
-      setUserEmail(null);
-      setIsLoggedIn(false);
-      router.push("/");
-    } catch (e) {
-      console.error("[Navbar] 로그아웃 에러:", e);
+      ['onrivi_session_id', 'onrivi_payment_no', 'onrivi_user_id', 'onrivi_license_key'].forEach(k => localStorage.removeItem(k)); // 로컬 스토리지에서 세션 ID, 결제 번호, 사용자 ID, 라이선스 키를 삭제 
+      await supabase.auth.signOut(); // 로그아웃 
+      setUserEmail(null); // 사용자 이메일을 null로 설정 
+      setIsLoggedIn(false); // 로그인 상태를 false로 설정 
+      router.push("/"); // 메인 페이지로 이동
+    } catch (e) { // catch : 예외 처리를 위한 블록 
+      console.error("[Navbar] 로그아웃 에러:", e); // 에러 로그 출력
     }
   };
 
   // 데스크톱 앱(Electron) 내부에서 작동 중일 때는 웹 상단 헤더가 레이아웃을 해치지 않도록 아예 렌더링하지 않습니다.
   const isDesktop = typeof window !== "undefined" && (
-    !!(window as any).electronAPI || 
+    !!(window as any).electronAPI ||
     navigator.userAgent.toLowerCase().includes('electron') ||
     new URLSearchParams(window.location.search).get('env') === 'desktop'
   );

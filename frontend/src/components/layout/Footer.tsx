@@ -9,7 +9,7 @@
 // ====================================================================
 "use client";
 
-import { SITE_NAME, SITE_TAGLINE } from "@/lib/constants";
+import { SITE_NAME, SITE_TAGLINE, COMPANY_INFO } from "@/lib/constants";
 import Link from "next/link";
 
 const footerLinks = {
@@ -98,22 +98,12 @@ export function Footer() {
               }}
             >
               <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                {[
-                  ["상호명", "온리비"],
-                  ["대표자", "채병익"],
-                  ["사업자등록번호", "870-36-01561"],
-                  ["통신판매업", "[신고 예정]"],
-                  ["이메일", "support@onrivi.com"],
-                  ["전화번호", "010-2262-1324"],
-                ].map(([label, value]) => (
+                {COMPANY_INFO.map(([label, value]) => (
                   <div key={label} style={{ display: "flex", gap: 6, fontSize: 11, lineHeight: "18px" }}>
                     <span style={{ color: "#6e7881", whiteSpace: "nowrap" }}>{label}:</span>
                     <span style={{ color: "#3e4850", fontWeight: 500 }}>{value}</span>
                   </div>
                 ))}
-              </div>
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(14,165,233,0.08)", fontSize: 11, color: "#6e7881" }}>
-                <strong>주소:</strong> 경기도 안양시 만안구 경수대로 1219번길 8, 101동 302호
               </div>
             </div>
           </div>

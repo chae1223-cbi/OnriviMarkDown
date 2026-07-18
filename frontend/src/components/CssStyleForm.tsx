@@ -20,13 +20,13 @@
  *             — window.confirm → ConfirmModal 공통 모달로 전환 (handleDeleteClick, resetToDefault)
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { CssProfile, CssRuleSet } from '@/types/cssProfile';
-import { DEFAULT_PROFILE, isSystemProfileId } from '@/constants/cssProfile';
-import { PAPER_SIZES } from '@/constants/paperSizes';
-import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide';
-import FontSelectorModal from './FontSelectorModal';
-import ConfirmModal from './ConfirmModal';
+import React, { useState, useEffect, useRef } from 'react'; // useState : 상태 관리, useEffect : 컴포넌트 생명주기 관리, useRef : 참조 관리
+import { CssProfile, CssRuleSet } from '@/types/cssProfile'; // CssProfile : 서식 프로필 타입, CssRuleSet : 서식 규칙 타입
+import { DEFAULT_PROFILE, isSystemProfileId } from '@/constants/cssProfile'; // DEFAULT_PROFILE : 기본 프로필, isSystemProfileId : 시스템 프로필인지 확인
+import { PAPER_SIZES } from '@/constants/paperSizes'; // PAPER_SIZES : 종이 크기
+import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide'; // CSS_PROFILE_GUIDE_MD : CSS 프로필 가이드
+import FontSelectorModal from './FontSelectorModal'; // FontSelectorModal : 폰트 선택 모달
+import ConfirmModal from './ConfirmModal'; // ConfirmModal : 확인 모달
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
@@ -34,40 +34,41 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  */
 
 
-interface CssStyleFormProps {
-  profiles: CssProfile[];
-  activeProfileId: string;
-  onSelectProfile: (id: string) => void;
-  onUpdateProfile: (profile: CssProfile) => void;
-  onAddProfile?: () => void;
-  onDeleteProfile?: (id: string) => void;
-  onImportProfile?: (profile: CssProfile) => void;
-  onClose: () => void;
-  isDarkMode?: boolean;
-  geminiApiKey?: string;
-  aiModelName?: string;
+// ================================================================================
+// CssStyleFormProps 인터페이스 정의서
+//
+// ================================================================================
+interface CssStyleFormProps { // CssStyleForm 컴포넌트가 받을 속성(props)들의 타입 정의 
+  profiles: CssProfile[]; // CssProfile[] : 서식 프로필 배열 
+  activeProfileId: string; // activeProfileId : 활성화된 서식 프로필 ID 
+  onSelectProfile: (id: string) => void; // onSelectProfile : 서식 프로필 선택 콜백 함수
+  onUpdateProfile: (profile: CssProfile) => void; // onUpdateProfile : 서식 프로필 업데이트 콜백 함수
+  onAddProfile?: () => void; // onAddProfile : 새 서식 프로필 추가 콜백 함수
+  onDeleteProfile?: (id: string) => void; // onDeleteProfile : 서식 프로필 삭제 콜백 함수
+  onImportProfile?: (profile: CssProfile) => void; // onImportProfile : 서식 프로필 불러오기 콜백 함수
+  onClose: () => void; // onClose : 모달 닫기 콜백 함수
+  isDarkMode?: boolean; // isDarkMode : 다크 모드 여부
+  geminiApiKey?: string; // geminiApiKey : Google Gemini API 키
+  aiModelName?: string; // aiModelName : AI 모델 이름
 }
 
-/* ────────────────────────────────────────────────────────
-   🧩 [서브 위젯 컴포넌트]
-   ──────────────────────────────────────────────────────── */
-
 // ====================================================================
-// 📊 [OMD-CORE-CssStyleForm-0001] CssStyleForm ➔ AccordionSection
-// 🎯 @KICK  : 접이식 아코디언 섹션 래퍼 컴포넌트 - 타이틀 클릭으로 열기/닫기 토글
-// 🛡️ @GUARD : isOpen 상태에 따라 자식 렌더링 조건 분기
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : 없음
-// ====================================================================
+// [OMD-CORE-CssStyleForm-0001] CssStyleForm ➔ AccordionSection
 // 1. 아코디언 섹션 래퍼 (글씨 크기를 시원하게 상향)
-interface AccordionSectionProps {
-  id: string;
-  title: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
+// ====================================================================
+// AccordionSection 컴포넌트 정의
+// ====================================================================
+interface AccordionSectionProps { // AccordionSection 컴포넌트가 받을 속성(props)들의 타입 정의 
+  id: string; // id : 아코디언 섹션 ID 
+  title: string; // title : 아코디언 섹션 제목 
+  isOpen: boolean; // isOpen : 아코디언 섹션 열림 여부 
+  onToggle: () => void; // onToggle : 아코디언 섹션 토글 콜백 함수 
+  children: React.ReactNode; // children : 아코디언 섹션 자식 컴포넌트
 }
 
+// ====================================================================
+// AccordionSection 컴포넌트 구현
+// ==================================================================== 
 function AccordionSection({ title, isOpen, onToggle, children }: AccordionSectionProps) {
   return (
     <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-950 shadow-sm transition-all duration-200">
@@ -90,6 +91,7 @@ function AccordionSection({ title, isOpen, onToggle, children }: AccordionSectio
   );
 }
 
+
 // 0 또는 '0' 값(Falsy)을 누락시키지 않고 기본값을 안전하게 처리하는 헬퍼 함수
 const getNumValue = (val: string | number | undefined | null, defaultVal: number): number => {
   if (val === undefined || val === null || val === '') return defaultVal;
@@ -105,17 +107,20 @@ const getNumValue = (val: string | number | undefined | null, defaultVal: number
 // 🔗 @CALLS : getNumValue
 // ====================================================================
 // 2. HTML5 표준 슬라이더 위젯 (가독성 높은 폰트 크기 및 두툼한 슬라이더 적용)
-interface SliderWidgetProps {
-  label: string;
-  min: number;
-  max: number;
-  step?: number;
-  value: number | string;
-  unit: string;
-  disabled: boolean;
-  onChange: (val: string) => void;
+interface SliderWidgetProps { // SliderWidget 컴포넌트가 받을 속성(props)들의 타입 정의 
+  label: string; // label : 슬라이더 레이블 
+  min: number; // min : 슬라이더 최소값 
+  max: number; // max : 슬라이더 최대값 
+  step?: number; // step : 슬라이더 스텝 
+  value: number | string; // value : 슬라이더 값 
+  unit: string; // unit : 슬라이더 단위 
+  disabled: boolean; // disabled : 슬라이더 비활성화 여부 
+  onChange: (val: string) => void; // onChange : 슬라이더 값 변경 콜백 함수 
 }
 
+// ====================================================================
+// SliderWidget 컴포넌트 구현
+// ==================================================================== 
 function SliderWidget({ label, min, max, step = 1, value, unit, disabled, onChange }: SliderWidgetProps) {
   const numVal = getNumValue(value, min);
   return (
@@ -147,14 +152,17 @@ function SliderWidget({ label, min, max, step = 1, value, unit, disabled, onChan
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : 없음
 // ====================================================================
-// 3. 브라우저 내장 컬러 피커 연동 위젯
-interface ColorPickerWidgetProps {
-  label: string;
-  value: string;
-  disabled: boolean;
-  onChange: (val: string) => void;
+// 3. 브라우저 내장 컬러 피커 연동 위젯 
+interface ColorPickerWidgetProps { // ColorPickerWidget 컴포넌트가 받을 속성(props)들의 타입 정의 
+  label: string; // label : 컬러 피커 레이블 
+  value: string; // value : 컬러 피커 값 
+  disabled: boolean; // disabled : 컬러 피커 비활성화 여부 
+  onChange: (val: string) => void; // onChange : 컬러 피커 값 변경 콜백 함수 
 }
 
+// ===================================================================
+// ColorPickerWidget 컴포넌트 구현
+// ===================================================================  
 function ColorPickerWidget({ label, value, disabled, onChange }: ColorPickerWidgetProps) {
   const hexValue = value && value.startsWith('#') ? value : '#000000';
   return (
@@ -195,16 +203,19 @@ function ColorPickerWidget({ label, value, disabled, onChange }: ColorPickerWidg
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : onUpdateRule, onRemoveRule
 // ====================================================================
-// 4. 복합 태그용 간편 편집 에디터
-interface TagRuleEditorProps {
-  tag: string;
-  label: string;
-  rules: CssRuleSet;
-  isSystemProfile: boolean;
-  onUpdateRule: (tag: string, property: string, value: string) => void;
-  onRemoveRule: (tag: string, property: string) => void;
+// 4. 복합 태그용 간편 편집 에디터 
+interface TagRuleEditorProps { // TagRuleEditor 컴포넌트가 받을 속성(props)들의 타입 정의 
+  tag: string; // tag : HTML 태그 
+  label: string; // label : 태그 레이블 
+  rules: CssRuleSet; // rules : CSS 규칙 세트 
+  isSystemProfile: boolean; // isSystemProfile : 시스템 프로파일 여부 
+  onUpdateRule: (tag: string, property: string, value: string) => void; // onUpdateRule : CSS 속성 업데이트 콜백 함수 
+  onRemoveRule: (tag: string, property: string) => void; // onRemoveRule : CSS 속성 제거 콜백 함수 
 }
 
+// ===================================================================
+// TagRuleEditor 컴포넌트 구현
+// ===================================================================  
 function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRemoveRule }: TagRuleEditorProps) {
   const entries = Object.entries(rules).filter(([, v]) => v !== '');
 
@@ -255,49 +266,57 @@ function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRem
 // 🚨 @PATCH : RAF 기반 triggerUpdate로 고속 업데이트 병합 최적화
 // 🔗 @CALLS : AccordionSection, SliderWidget, ColorPickerWidget, TagRuleEditor, FontSelectorModal
 // ====================================================================
-export default function CssStyleForm({
+// CssStyleForm 컴포넌트가 받을 속성(props)들의 타입 정의 
+
+// ===================================================================
+// CssStyleForm 컴포넌트 구현 
+// ===================================================================
+export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현 
   profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, isDarkMode, geminiApiKey, aiModelName
-}: CssStyleFormProps) {
-  const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+}: CssStyleFormProps) { // CssStyleForm 컴포넌트 속성(props) 해체 
+  const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE; // 현재 프로파일 
   const isSystemProfile = isSystemProfileId(currentProfile.id);
 
   /* ─── 아코디언 상태 관리 ─── */
   const [openAccordion, setOpenAccordion] = useState<string | null>('typography');
 
   /* ─── 폰트 선택 및 위계 탭 관리 ─── */
-  const [isFontModalOpen, setIsFontModalOpen] = useState(false);
-  const [activeHeadingTab, setActiveHeadingTab] = useState(2);
-  const [activeInlineTab, setActiveInlineTab] = useState<'strong' | 'em' | 'u' | 'del'>('strong');
-  const [showJson, setShowJson] = useState<string | null>(null);
+  const [isFontModalOpen, setIsFontModalOpen] = useState(false); // 폰트 선택 모달 상태 
+  const [activeHeadingTab, setActiveHeadingTab] = useState(2); // 활성 헤딩 탭 
+  const [activeInlineTab, setActiveInlineTab] = useState<'strong' | 'em' | 'u' | 'del'>('strong'); // 활성 인라인 탭 
+  const [showJson, setShowJson] = useState<string | null>(null); // JSON 보기 상태 
 
   /* ─── 가져오기/내보내기 상태 ─── */
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importJsonText, setImportJsonText] = useState('');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false); // 가져오기 모달 상태 
+  const [importJsonText, setImportJsonText] = useState(''); // 가져오기 JSON 텍스트 
+  const [toastMessage, setToastMessage] = useState<string | null>(null); // 토스트 메시지 
 
   /* ─── 인라인 이름 변경 상태 ─── */
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempName, setTempName] = useState('');
-  const [showAllProfiles, setShowAllProfiles] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false); // 이름 편집 상태 
+  const [tempName, setTempName] = useState(''); // 임시 이름 
+  const [showAllProfiles, setShowAllProfiles] = useState(false); // 모든 프로파일 표시 여부 
 
   /* ─── AI 서식 테마 자동 생성 상태 및 함수 ─── */
-  const [showAiGenerator, setShowAiGenerator] = useState(false);
-  const [aiPromptInput, setAiPromptInput] = useState('');
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [showAiGenerator, setShowAiGenerator] = useState(false); // AI 생성기 표시 여부 
+  const [aiPromptInput, setAiPromptInput] = useState(''); // AI 생성기 입력값 
+  const [isAiGenerating, setIsAiGenerating] = useState(false); // AI 생성기 상태 
 
   /* ─── 커스텀 컨펌 모달 상태 ─── */
-  const [confirmConfig, setConfirmConfig] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-    isDanger?: boolean;
-  } | null>(null);
+  // [ONR-MD-006] 서식 설정 마법사 프롬프트 모달: 사용자가 AI 테마 생성 기능을 사용할 때, 입력값 검증 및 실행 전 확정을 위해 이 모달을 사용합니다. 
+  // [ONR-MD-007] 서식 규칙 충돌 경고: 사용자가 이미 존재하는 다른 프로파일과 동일한 CSS 규칙(property=value)을 추가하려고 할 때 충돌을 감지하고 사용자에게 경고하는 기능입니다.    
+  const [confirmConfig, setConfirmConfig] = useState<{ // 확인 모달 설정 
+    isOpen: boolean; // 확인 모달 열림 상태 
+    title: string; // 확인 모달 제목 
+    message: string; // 확인 모달 메시지 
+    onConfirm: () => void; // 확인 모달 확인 함수 
+    isDanger?: boolean; // 확인 모달 위험 여부 
+  } | null>(null); // 확인 모달 설정 
 
-  const handleGenerateAiProfile = async () => {
-    if (!aiPromptInput.trim() || !geminiApiKey) return;
+  /* ─── AI 서식 테마 자동 생성 함수 ─── */
+  const handleGenerateAiProfile = async () => { // AI 서식 테마 자동 생성 함수 
+    if (!aiPromptInput.trim() || !geminiApiKey) return; // AI 생성기 입력값 또는 API 키가 없으면 반환 
 
-    setIsAiGenerating(true);
+    setIsAiGenerating(true); // AI 생성기 상태를 true로 변경 
     try {
       const promptText = `당신은 마크다운 조판 서식 디자이너입니다. 사용자가 입력한 설명에 부합하는 세련되고 아름다운 CSS 서식 테마(CssProfile) 데이터를 생성해 주세요.
 사용자 요청: "${aiPromptInput}"
@@ -380,7 +399,7 @@ export default function CssStyleForm({
       });
       const result = await model.generateContent(promptText);
       const responseText = result.response.text();
-      
+
       // JSON 문자열 정제 (코드 블록 및 사족 제거)
       let cleanedText = responseText.trim();
       const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
@@ -396,7 +415,7 @@ export default function CssStyleForm({
         let inString = false;
         let escape = false;
         let foundEnd = false;
-        
+
         for (let i = startIdx; i < cleanedText.length; i++) {
           const char = cleanedText[i];
           if (escape) {
@@ -424,7 +443,7 @@ export default function CssStyleForm({
             }
           }
         }
-        
+
         if (!foundEnd) {
           const endIdx = cleanedText.lastIndexOf('}');
           if (endIdx > startIdx) {
@@ -601,7 +620,7 @@ export default function CssStyleForm({
     const tagKey = tag as keyof CssProfile['rules'];
     const baseRule = getTagRules(tag);
     let newRules: CssRuleSet = { ...baseRule, 'display': 'block', 'float': 'none' };
-    
+
     if (align === 'left') {
       newRules['margin-left'] = '0px';
       newRules['margin-right'] = 'auto';
@@ -613,7 +632,7 @@ export default function CssStyleForm({
       newRules['margin-left'] = 'auto';
       newRules['margin-right'] = 'auto';
     }
-    
+
     const updated = {
       ...currentProfile,
       rules: {
@@ -745,11 +764,11 @@ export default function CssStyleForm({
   };
 
   // ====================================================================
-// 📊 [OMD-CORE-CssStyleForm-0018] CssStyleForm ➔ handlePageStyleChange
-// 🎯 @KICK  : 용지 레이아웃 속성(글꼴, 글자 크기, 줄 간격, 용지 크기, 여백 등) 업데이트
-// 🛡️ @GUARD : isSystemProfile true면 실행 차단
-// 🚨 @PATCH : paperSize(용지 크기) 선택 기능 추가
-// 🔗 @CALLS : triggerUpdate
+  // 📊 [OMD-CORE-CssStyleForm-0018] CssStyleForm ➔ handlePageStyleChange
+  // 🎯 @KICK  : 용지 레이아웃 속성(글꼴, 글자 크기, 줄 간격, 용지 크기, 여백 등) 업데이트
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : paperSize(용지 크기) 선택 기능 추가
+  // 🔗 @CALLS : triggerUpdate
   // ====================================================================
   const handlePageStyleChange = (key: keyof CssProfile['pageStyle'], value: string) => {
     if (isSystemProfile) return;
@@ -922,15 +941,15 @@ export default function CssStyleForm({
 
   return (
     <div className="w-[420px] shrink-0 h-full bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col select-none text-sm animate-fadeIn relative">
-      
+
       {/* 1단계: 최상단 메가 메뉴 토글 타이틀 바 (항상 보임) */}
       <div className="px-4 py-3 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 shrink-0 z-20 flex flex-col gap-2">
-        
+
         <div className="flex items-center justify-between">
           <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
             📌 현재 선택된 테마
           </div>
-          
+
           {/* 이름 편집 / 삭제 / 추가 버튼 모음 */}
           <div className="flex items-center gap-1 shrink-0">
             {onAddProfile && (
@@ -939,15 +958,15 @@ export default function CssStyleForm({
               </button>
             )}
             {onImportProfile && (
-              <button 
+              <button
                 onClick={() => {
                   if (!geminiApiKey) {
                     showToast("AI 기능을 사용하려면 설정에서 Gemini API Key를 등록해 주세요.");
                     return;
                   }
                   setShowAiGenerator(!showAiGenerator);
-                }} 
-                className={`p-1.5 rounded-md transition-colors ${showAiGenerator ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50'}`} 
+                }}
+                className={`p-1.5 rounded-md transition-colors ${showAiGenerator ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50'}`}
                 title="AI 서식 테마 자동 생성"
               >
                 ✨
@@ -961,30 +980,30 @@ export default function CssStyleForm({
             </button>
             <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-700 mx-1"></div>
             {!isEditingName && (
-              <button 
+              <button
                 onClick={() => {
                   if (isSystemProfile) {
                     showToast("시스템 기본 서식은 이름을 변경할 수 없습니다.");
                     return;
                   }
                   handleRenameClick();
-                }} 
-                className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-blue-600 dark:hover:text-blue-400'}`} 
+                }}
+                className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-blue-600 dark:hover:text-blue-400'}`}
                 title="이름 변경"
               >
                 ✏️
               </button>
             )}
             {onDeleteProfile && !isEditingName && (
-              <button 
+              <button
                 onClick={() => {
                   if (isSystemProfile) {
                     showToast("시스템 기본 서식은 삭제할 수 없습니다.");
                     return;
                   }
                   handleDeleteClick();
-                }} 
-                className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-red-500'}`} 
+                }}
+                className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-red-500'}`}
                 title="서식 삭제"
               >
                 🗑️
@@ -999,7 +1018,7 @@ export default function CssStyleForm({
             <div className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
               <span>✨ AI 테마 스타일 생성기</span>
             </div>
-            
+
             {/* AI 퀵 스타일 선택 칩 */}
             <div className="flex flex-wrap gap-1.5 mt-0.5 mb-0.5">
               {[
@@ -1068,7 +1087,7 @@ export default function CssStyleForm({
             className="w-full p-2.5 border-2 border-blue-400 rounded-lg outline-none text-base font-extrabold bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
           />
         ) : (
-          <button 
+          <button
             onClick={() => setShowAllProfiles(!isGalleryOpen)}
             className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800/50 hover:shadow-md transition-all group"
           >
@@ -1210,11 +1229,10 @@ export default function CssStyleForm({
                   type="button"
                   disabled={isSystemProfile}
                   onClick={() => handlePageStyleChange('orientation', 'portrait')}
-                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${
-                    currentProfile.pageStyle.orientation === 'portrait'
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
-                  }`}
+                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${currentProfile.pageStyle.orientation === 'portrait'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
+                    : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
+                    }`}
                 >
                   세로
                 </button>
@@ -1222,11 +1240,10 @@ export default function CssStyleForm({
                   type="button"
                   disabled={isSystemProfile}
                   onClick={() => handlePageStyleChange('orientation', 'landscape')}
-                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${
-                    currentProfile.pageStyle.orientation === 'landscape'
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
-                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
-                  }`}
+                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${currentProfile.pageStyle.orientation === 'landscape'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
+                    : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
+                    }`}
                 >
                   가로
                 </button>
@@ -1322,7 +1339,7 @@ export default function CssStyleForm({
                       ...currentProfile,
                       rules: { ...currentProfile.rules, p: parsed }
                     });
-                  } catch {}
+                  } catch { }
                 }}
                 className="w-full h-32 p-2 border border-zinc-200 dark:border-zinc-800 rounded bg-zinc-900 text-emerald-400 font-mono text-sm leading-relaxed"
               />
@@ -1992,7 +2009,7 @@ export default function CssStyleForm({
           {/* 표 (Table) 설정 */}
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
             <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📊 표 (Table) 스타일</span>
-            
+
             {/* 표 전체 너비 */}
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">표 전체 너비</span>
@@ -2092,14 +2109,14 @@ export default function CssStyleForm({
           {/* 하이퍼링크 (A) 설정 */}
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
             <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🔗 하이퍼링크 (Link) 스타일</span>
-            
+
             <ColorPickerWidget
               label="링크 글자 색상"
               value={getTagRules('a')['color'] || ''}
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('a', 'color', v)}
             />
-            
+
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 밑줄 여부</span>
               <select
@@ -2112,7 +2129,7 @@ export default function CssStyleForm({
                 <option value="none">밑줄 소거</option>
               </select>
             </div>
-            
+
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 글자 굵기</span>
               <select
@@ -2130,7 +2147,7 @@ export default function CssStyleForm({
           {/* 소스코드 및 코드 블록 설정 */}
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
             <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 소스코드 및 코드 블록</span>
-            
+
             <ColorPickerWidget
               label="코드 블록 타이틀 배경색"
               value={getTagRules('codeBlockTitle')['background-color'] || ''}
@@ -2165,7 +2182,7 @@ export default function CssStyleForm({
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'font-size', v + 'px')}
             />
-            
+
             <SliderWidget
               label="코드 블록 내부 패딩"
               min={0}
@@ -2175,7 +2192,7 @@ export default function CssStyleForm({
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'padding', v + 'px')}
             />
-            
+
             <SliderWidget
               label="코드 블록 테두리 둥글기"
               min={0}
@@ -2575,7 +2592,7 @@ export default function CssStyleForm({
               <span className="font-bold text-zinc-800 dark:text-zinc-200 text-base">📥 외부 서식 가져오기 / 업로드</span>
               <button onClick={() => { setShowImportModal(false); setImportJsonText(''); }} className="text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 font-bold text-base leading-none">X</button>
             </div>
-            
+
             <div className="space-y-3.5">
               {/* 파일 선택 방식 */}
               <div className="space-y-1.5">

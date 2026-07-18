@@ -51,6 +51,12 @@ interface SettingsModalProps {
   setPdfFooterStyle: (v: 'none' | 'hyphen' | 'slash') => void;
   pdfExcludeCover: boolean;
   setPdfExcludeCover: (v: boolean) => void;
+  pdfUseWatermark: boolean;
+  setPdfUseWatermark: (v: boolean) => void;
+  pdfWatermark: string;
+  setPdfWatermark: (v: string) => void;
+  pdfWatermarkOpacity: number;
+  setPdfWatermarkOpacity: (v: number) => void;
 }
 
 const THEMES = [
@@ -95,7 +101,10 @@ export default function SettingsModal({
   aiModelName, setAiModelName,
   pdfHeader, setPdfHeader,
   pdfFooterStyle, setPdfFooterStyle,
-  pdfExcludeCover, setPdfExcludeCover
+  pdfExcludeCover, setPdfExcludeCover,
+  pdfUseWatermark, setPdfUseWatermark,
+  pdfWatermark, setPdfWatermark,
+  pdfWatermarkOpacity, setPdfWatermarkOpacity
 }: SettingsModalProps) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
@@ -422,6 +431,50 @@ export default function SettingsModal({
                   <ThemeButton active={pdfExcludeCover === false} onClick={() => setPdfExcludeCover(false)} label="포함함" colors={colors} />
                 </div>
               </div>
+
+              <div className="flex justify-between items-center text-sm font-medium border-t pt-3" style={{ color: colors.onSurface, borderColor: colors.border }}>
+                <span>배경 텍스트 워터마크 (Watermark)</span>
+                <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
+                  <ThemeButton active={pdfUseWatermark === true} onClick={() => setPdfUseWatermark(true)} label="적용" colors={colors} />
+                  <ThemeButton active={pdfUseWatermark === false} onClick={() => setPdfUseWatermark(false)} label="미적용" colors={colors} />
+                </div>
+              </div>
+
+              {pdfUseWatermark && (
+                <>
+                  <div className="flex flex-col gap-2 pl-2 animate-fade-in">
+                    <span className="text-xs font-semibold" style={{ color: colors.onSurface }}>워터마크 텍스트 입력</span>
+                    <input
+                      type="text"
+                      placeholder="예: DRAFT, CONFIDENTIAL, 대외비"
+                      value={pdfWatermark || ''}
+                      onChange={(e) => setPdfWatermark(e.target.value)}
+                      className="px-3 py-2 rounded text-xs outline-none w-full font-sans"
+                      style={{
+                        backgroundColor: colors.container,
+                        color: colors.onSurface,
+                        border: `1px solid ${colors.border}`
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between items-center text-sm font-medium pl-2 animate-fade-in">
+                    <span style={{ color: colors.onSurface }}>워터마크 투명도 (Opacity: {Math.round(pdfWatermarkOpacity * 100)}%)</span>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="0.01"
+                        max="0.4"
+                        step="0.01"
+                        value={pdfWatermarkOpacity}
+                        onChange={(e) => setPdfWatermarkOpacity(parseFloat(e.target.value))}
+                        className="w-32 cursor-pointer accent-current"
+                        style={{ color: colors.primary }}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </section>
 

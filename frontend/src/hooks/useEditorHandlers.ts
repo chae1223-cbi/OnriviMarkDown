@@ -6,6 +6,7 @@ import { vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import { supabase } from '@/lib/supabaseClient';
+import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 
 /**
  * [ONR-16-004] useEditorHandlers 커스텀 훅
@@ -76,9 +77,7 @@ export const useEditorHandlers = ({
     setTabs,
     activeTabIdRef,
     licenseStatusRef,
-    pdfHeader,
-    pdfFooterStyle,
-    pdfExcludeCover
+    pdfSettingsRef
 }: any) => {
 
   const handlers = {
@@ -326,7 +325,7 @@ export const useEditorHandlers = ({
       if (api) {
         try {
           const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
-          const defaultDir = rootFolderRef.current?.name && rootFolderRef.current.name !== '브라우저 스토리지' ? rootFolderRef.current.name : undefined;
+          const defaultDir = rootFolderRef.current?.name && rootFolderRef.current.name !== BROWSER_STORAGE_NAME ? rootFolderRef.current.name : undefined;
           const file = await api.saveFileAs(currentVal, suggestedName, defaultDir);
           if (file) {
             const normalizedPath = file.path.replace(/\\/g, '/');
@@ -451,7 +450,7 @@ export const useEditorHandlers = ({
       const currentVal = contentRef.current;
 
       const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
-      const defaultDir = rootFld?.name && rootFld.name !== '브라우저 스토리지' ? rootFld.name : undefined;
+      const defaultDir = rootFld?.name && rootFld.name !== BROWSER_STORAGE_NAME ? rootFld.name : undefined;
 
       setSaveStatus('saving');
 
@@ -567,14 +566,16 @@ export const useEditorHandlers = ({
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover });
+      const { pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity } = pdfSettingsRef?.current || {};
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity });
     },
     exportPDF: async () => {
       if (!previewRef.current) return;
       const activeProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
       const orientation = activeProfile.pageStyle.orientation as 'portrait' | 'landscape';
       const { marginTop, marginBottom, marginLeft, marginRight, backgroundColor, paperSize } = activeProfile.pageStyle;
-      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover });
+      const { pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity } = pdfSettingsRef?.current || {};
+      await exportPDF({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, orientation, paperSize, dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, activeProfile, pdfHeader, pdfFooterStyle, pdfExcludeCover, pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity });
     },
     exportHTML: async () => {
       if (!previewRef.current) return;

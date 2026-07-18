@@ -4,6 +4,7 @@ import { getDefaultHotkeys, getDefaultCommands } from "@/lib/toolbarConfig";
 import { THEME_MAP } from "@/lib/editorThemes";
 import { idb } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
+import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 
 /**
  * [ONR-16-002] useEditorSettings 커스텀 훅
@@ -48,6 +49,7 @@ export const useEditorSettings = (
   const [pdfHeader, setPdfHeader] = useState<string>('');
   const [pdfFooterStyle, setPdfFooterStyle] = useState<'none' | 'hyphen' | 'slash'>('none');
   const [pdfExcludeCover, setPdfExcludeCover] = useState<boolean>(false);
+  const [pdfUseWatermark, setPdfUseWatermark] = useState<boolean>(false);
   const [pdfWatermark, setPdfWatermark] = useState<string>('');
   const [pdfWatermarkOpacity, setPdfWatermarkOpacity] = useState<number>(0.08);
 
@@ -101,6 +103,7 @@ export const useEditorSettings = (
         pdfHeader: '',
         pdfFooterStyle: 'none' as 'none' | 'hyphen' | 'slash',
         pdfExcludeCover: false,
+        pdfUseWatermark: false,
         pdfWatermark: '',
         pdfWatermarkOpacity: 0.08
       };
@@ -152,6 +155,18 @@ export const useEditorSettings = (
         const backupModelName = localStorage.getItem('onrivi_ai_model_name');
         if (backupModelName) {
           baseSettings.aiModelName = backupModelName;
+        }
+        const backupUseWatermark = localStorage.getItem('onrivi_pdf_use_watermark');
+        if (backupUseWatermark !== null) {
+          baseSettings.pdfUseWatermark = backupUseWatermark === 'true';
+        }
+        const backupWatermark = localStorage.getItem('onrivi_pdf_watermark');
+        if (backupWatermark !== null) {
+          baseSettings.pdfWatermark = backupWatermark;
+        }
+        const backupWatermarkOpacity = localStorage.getItem('onrivi_pdf_watermark_opacity');
+        if (backupWatermarkOpacity !== null) {
+          baseSettings.pdfWatermarkOpacity = parseFloat(backupWatermarkOpacity);
         }
       } catch (e) {
         console.error('로컬스토리지 로드 실패:', e);
@@ -220,6 +235,7 @@ export const useEditorSettings = (
       setPdfHeader(baseSettings.pdfHeader || '');
       setPdfFooterStyle(baseSettings.pdfFooterStyle || 'none');
       setPdfExcludeCover(!!baseSettings.pdfExcludeCover);
+      setPdfUseWatermark(!!baseSettings.pdfUseWatermark);
       setPdfWatermark(baseSettings.pdfWatermark || '');
       setPdfWatermarkOpacity(baseSettings.pdfWatermarkOpacity !== undefined ? baseSettings.pdfWatermarkOpacity : 0.08);
 
@@ -285,7 +301,7 @@ export const useEditorSettings = (
               localStorage.removeItem('rootFolder');
               localStorage.removeItem('workspaceType');
               setRootFolder(null);
-            } else if (folder.name && folder.name !== '브라우저 스토리지' && folder.name !== 'C:\\') {
+            } else if (folder.name && folder.name !== BROWSER_STORAGE_NAME && folder.name !== 'C:\\') {
               setRootFolder(folder);
             } else {
               localStorage.removeItem('rootFolder');
@@ -327,6 +343,7 @@ export const useEditorSettings = (
       pdfHeader,
       pdfFooterStyle,
       pdfExcludeCover,
+      pdfUseWatermark,
       geminiApiKey,
       aiModelName,
       pdfWatermark,
@@ -344,6 +361,9 @@ export const useEditorSettings = (
     localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
     localStorage.setItem('onrivi_gemini_api_key', geminiApiKey);
     localStorage.setItem('onrivi_ai_model_name', aiModelName);
+    localStorage.setItem('onrivi_pdf_use_watermark', pdfUseWatermark ? 'true' : 'false');
+    localStorage.setItem('onrivi_pdf_watermark', pdfWatermark || '');
+    localStorage.setItem('onrivi_pdf_watermark_opacity', (pdfWatermarkOpacity !== undefined ? pdfWatermarkOpacity : 0.08).toString());
     if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
 
     const chromeStorage = (window as any).chrome?.storage?.local;
@@ -373,6 +393,7 @@ export const useEditorSettings = (
     pdfHeader,
     pdfFooterStyle,
     pdfExcludeCover,
+    pdfUseWatermark,
     pdfWatermark,
     pdfWatermarkOpacity
   ]);
@@ -409,6 +430,12 @@ export const useEditorSettings = (
     pdfFooterStyle,
     setPdfFooterStyle,
     pdfExcludeCover,
-    setPdfExcludeCover
+    setPdfExcludeCover,
+    pdfUseWatermark,
+    setPdfUseWatermark,
+    pdfWatermark,
+    setPdfWatermark,
+    pdfWatermarkOpacity,
+    setPdfWatermarkOpacity
   };
 };

@@ -8,19 +8,20 @@
 // ====================================================================
 "use client";
 
-import { useState } from "react";
+import { useState } from "react";    // useState : 상태 관리를 위해 임포트 
 import { faqs } from "@/lib/constants";
 import { FaqItem } from "@/components/ui/FaqItem";
 
-export function FaqSection() {
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+export function FaqSection() { // FaqSection : 자주 묻는 질문(FAQ)의 목록을 바인딩하고 아코디언 컴포넌트를 호출하여 상태를 매핑하는 섹션 
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0); // openFaqIndex : 열린 FAQ 인덱스
 
-  const toggleFaq = (index: number) => {
-    setOpenFaqIndex(openFaqIndex === index ? null : index);
+  // toggleFaq : FAQ 토글 함수  
+  const toggleFaq = (index: number) => { // toggleFaq : FAQ 토글 함수 
+    setOpenFaqIndex(openFaqIndex === index ? null : index); // openFaqIndex : 열린 FAQ 인덱스 
   };
 
-  return (
-    <section
+  return ( // return : 값을 반환 
+    <section // section : HTML 문서의 주요 콘텐츠를 정의하는 요소 
       id="faq"
       style={{ padding: "96px 0", background: "rgba(255,255,255,0.7)", fontFamily: "Inter, sans-serif" }}
     >

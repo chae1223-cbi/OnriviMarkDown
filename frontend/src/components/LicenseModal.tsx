@@ -30,7 +30,8 @@ const maskSecret = (val: string | null | undefined) => {
 // 📊 [OMD-AUTH-LicenseModal-0004] LicenseModal ➔ LicenseModal
 // 🎯 @KICK  : 라이선스 정품 인증 UI - Supabase 직접 수동 인증 (이메일 + 비밀번호 로그인)
 // 🛡️ @GUARD : isOpen이 false이면 null 반환
-// 🚨 @PATCH : **2026-06-28** — 웹과 동일한 방식(이메일+비밀번호 로그인)으로 데스크탑 라이선스 자동 연동 개편; 결제번호 입력 제거
+// 🚨 @PATCH : **2026-07-18** — 라이선스 입력 필드 타이핑 시 keydown 이벤트가 전역 document.body로 버블링되어 Monaco 에디터에서 getModifierState 런타임 크래시를 유발하는 현상 해결을 위해 최외각 wrapper에 stopPropagation 가드 추가
+//             **2026-06-28** — 웹과 동일한 방식(이메일+비밀번호 로그인)으로 데스크탑 라이선스 자동 연동 개편; 결제번호 입력 제거
 //             **2026-06-28** — 백엔드 서버(localhost:5000) 의존 티켓 발급 방식 완전 제거
 //             **2026-06-20** — 결제번호(paymentNo) 보안 연동 패치
 // 🔗 @CALLS : handleManualActivate, handleCopyText, handleGoToPurchase
@@ -147,7 +148,14 @@ export default function LicenseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 transition-all" style={{ overflowY: "auto" }}>
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 transition-all" 
+      style={{ overflowY: "auto" }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+      }}
+    >
       <div className="w-[520px] max-w-full bg-white dark:bg-zinc-950 border border-slate-200/80 dark:border-zinc-800/80 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] select-none relative animate-fade-in text-slate-800 dark:text-zinc-200 flex flex-col" style={{ maxHeight: "90dvh" }}>
 
         {/* 닫기 버튼 */}

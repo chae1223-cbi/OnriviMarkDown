@@ -173,4 +173,15 @@ export const NAV_LINKS = [
 
 export const SITE_NAME = "Onrivi Author";
 export const SITE_TAGLINE = "온리비(Onrivi)는 문서 본연의 가치와 완벽한 한글 타이핑 사용성을 지향합니다.";
+export const SITE_COMPANY_NAME = "Onrivi";
+
+export const COMPANY_INFO = [
+  ["상호명", "온리비"],
+  ["대표자", "채병익"],
+  ["사업자등록번호", "870-36-01561"],
+  ["통신판매업", "[신고 예정]"],
+  ["주소", "경기도 안양시 만안구 경수대로 1219번길 8, 101동 302호"],
+  ["이메일", "firstonrivi@onrivi.com"],
+  ["전화번호", "010-2262-1324"],
+] as const;
 

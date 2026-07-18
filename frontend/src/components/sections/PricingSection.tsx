@@ -4,17 +4,21 @@
 // 🚨 @PATCH : **2026-07-09** — 4계급 멤버십 구조 (Reader/Apprentice/Regular/Elite Pro) 전면 개편
 // 🔗 @CALLS : plans constants
 // ====================================================================
-"use client";
+"use client"; // "use client" : 클라이언트 사이드 렌더링을 위한 지시어 
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { plans } from "@/lib/constants";
-import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useState } from "react"; // useState : 상태 관리를 위해 임포트 
+import { motion } from "framer-motion"; // framer-motion : 애니메이션을 위한 라이브러리 
+import { plans } from "@/lib/constants"; // plans : 멤버십 가격표 데이터를 위한 상수 
+import { ConfirmModal } from "@/components/ui/ConfirmModal"; // ConfirmModal : 확인 모달 컴포넌트 
 
-export function PricingSection() {
+// ====================================================================
+// 🎯 PricingSection ➔ PricingSection
+// PricingSection : 온리비 아서 서비스 멤버십 가격표를 위한 컴포넌트  
+// ====================================================================
+export function PricingSection() {   // PricingSection : 온리비 아서 서비스 멤버십 가격표를 위한 컴포넌트  
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean; title: string; message: string; onConfirm: () => void;
-  }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
+  }>({ isOpen: false, title: "", message: "", onConfirm: () => { } }); // modalConfig : 모달 설정을 위한 상태  
 
   return (
     <section
@@ -44,23 +48,23 @@ export function PricingSection() {
             const priceDisplay = isFree
               ? "0원"
               : plan.name === "Regular" && plan.priceMonthly
-              ? `₩${(plan.priceMonthly).toLocaleString()} / 월`
-              : plan.name === "Elite Pro" && plan.priceYearly
-              ? `₩${(plan.priceYearly).toLocaleString()} / 년`
-              : "";
+                ? `₩${(plan.priceMonthly).toLocaleString()} / 월`
+                : plan.name === "Elite Pro" && plan.priceYearly
+                  ? `₩${(plan.priceYearly).toLocaleString()} / 년`
+                  : "";
 
             const usdDisplay = isFree
               ? ""
               : plan.name === "Regular" && plan.priceUSD
-              ? `($${plan.priceUSD} / 월)`
-              : plan.name === "Elite Pro" && plan.priceUSD
-              ? `($${plan.priceUSD} / 년)`
-              : "";
+                ? `($${plan.priceUSD} / 월)`
+                : plan.name === "Elite Pro" && plan.priceUSD
+                  ? `($${plan.priceUSD} / 년)`
+                  : "";
 
             const envLabel =
               plan.environment === "web" ? "웹 브라우저" :
-              plan.environment === "desktop" ? "PC 설치형 + 웹" :
-              plan.environment;
+                plan.environment === "desktop" ? "PC 설치형 + 웹" :
+                  plan.environment;
 
             return (
               <motion.div
@@ -74,17 +78,17 @@ export function PricingSection() {
                   borderRadius: "1rem",
                   ...(isHighlighted
                     ? {
-                        background: "linear-gradient(135deg, #006591 0%, #0ea5e9 100%)",
-                        border: "none",
-                        boxShadow: "0 8px 24px rgba(14,165,233,0.25)",
-                      }
+                      background: "linear-gradient(135deg, #006591 0%, #0ea5e9 100%)",
+                      border: "none",
+                      boxShadow: "0 8px 24px rgba(14,165,233,0.25)",
+                    }
                     : {
-                        background: "rgba(255,255,255,0.6)",
-                        backdropFilter: "blur(20px)",
-                        WebkitBackdropFilter: "blur(20px)",
-                        border: "1px solid rgba(255,255,255,0.5)",
-                        boxShadow: "0 2px 12px rgba(14,165,233,0.06)",
-                      }),
+                      background: "rgba(255,255,255,0.6)",
+                      backdropFilter: "blur(20px)",
+                      WebkitBackdropFilter: "blur(20px)",
+                      border: "1px solid rgba(255,255,255,0.5)",
+                      boxShadow: "0 2px 12px rgba(14,165,233,0.06)",
+                    }),
                 }}
               >
                 {/* Header: Tier emoji + Name + Environment + Price */}
@@ -133,10 +137,10 @@ export function PricingSection() {
       </div>
 
       <ConfirmModal
-        isOpen={modalConfig.isOpen}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        onConfirm={modalConfig.onConfirm}
+        isOpen={modalConfig.isOpen} // isOpen : 모달 열림 여부를 위한 상태
+        title={modalConfig.title} // title : 모달 제목
+        message={modalConfig.message} // message : 모달 메시지
+        onConfirm={modalConfig.onConfirm} // onConfirm : 모달 확인 버튼 클릭 시 실행될 함수
       />
     </section>
   );
