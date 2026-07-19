@@ -1,5 +1,7 @@
 // ====================================================================
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 let fs: any;
 let path: any;
 if (typeof process !== 'undefined' && process.versions && process.versions.node) {
