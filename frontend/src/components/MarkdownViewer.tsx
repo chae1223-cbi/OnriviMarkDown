@@ -73,10 +73,11 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, workspaceType, api, qu
         if (api) {
           // Electron 환경
           setImgSrc(src);
-        } else if (workspaceType === 'browser' && !src.startsWith('http') && !src.startsWith('data:')) {
+        } else if ((workspaceType === 'browser' || workspaceType === 'local') && !src.startsWith('http') && !src.startsWith('data:')) {
           // 브라우저 웹 로컬 환경: OPFS 또는 VFS 읽기 시도
           if (rootFolder?.handle) {
-            let pathParts = src.split(/[/\\]/).filter(Boolean);
+            const pureSrc = src.split('?')[0].split('#')[0];
+            let pathParts = pureSrc.split(/[/\\]/).filter(Boolean);
             if (pathParts[0] === rootFolder.name) pathParts.shift(); // root명 중복 제거
             
             let currentHandle = rootFolder.handle;
@@ -90,7 +91,8 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, workspaceType, api, qu
           } else {
             // VFS fallback
             const { vfsReadFile } = await import('@/lib/virtualFileSystem');
-            const b64 = vfsReadFile(src);
+            const pureSrc = src.split('?')[0].split('#')[0];
+            const b64 = vfsReadFile(pureSrc);
             if (b64) setImgSrc(`data:image/png;base64,${b64}`);
             else throw new Error('VFS file not found');
           }
@@ -238,7 +240,7 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
 
 
   return (
-    <div className="codeblock-area my-4 rounded-lg bg-blue-50/20  overflow-hidden shadow-sm select-text">
+    <div className="codeblock-area my-4 rounded-lg bg-blue-50/20 overflow-hidden shadow-sm select-text max-w-full">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
       <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 ">
         <span className="codeblock-header-text text-xs font-semibold text-blue-600  uppercase tracking-wider">
@@ -251,11 +253,13 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
           {copied ? '✓ 복사됨' : '복사'}
         </button>
       </div>
-      <pre className="m-0 p-4 overflow-x-auto font-mono text-sm leading-relaxed bg-transparent">
-        <code className={`${className || ''} block`} {...props}>
-          {code}
-        </code>
-      </pre>
+      <div className="overflow-x-auto w-full custom-scrollbar">
+        <pre className="m-0 p-4 font-mono text-sm leading-relaxed bg-transparent w-max min-w-full">
+          <code className={className || ''} style={{ whiteSpace: 'pre' }} {...props}>
+            {code}
+          </code>
+        </pre>
+      </div>
     </div>
   );
 }
@@ -948,6 +952,15 @@ export default function MarkdownViewer({
 }: MarkdownViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef(content);
+  const originalContentRef = useRef(originalContent);
+  const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, workspaceType });
+
+  useEffect(() => {
+    contentRef.current = content;
+    originalContentRef.current = originalContent;
+    dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, workspaceType };
+  }, [content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, workspaceType]);
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0003] MarkdownViewer ➔ cleanContent
@@ -978,7 +991,7 @@ export default function MarkdownViewer({
       return `[${text}](<${trimmedTarget}>)`;
     });
 
-    const mdLinkRegex = /\[([^\]]+)\]\(((?:[^()]+|\([^()]*\))+)\)/g;
+    const mdLinkRegex = /\[([^\]]+)\]\(((?:[^()]|\([^()]*\))+)\)/g;
     return processed.replace(mdLinkRegex, (match, text, url) => {
       if (url.startsWith('<') && url.endsWith('>')) {
         return match;
@@ -987,18 +1000,11 @@ export default function MarkdownViewer({
     });
   }, [content]);
 
-  // 최신 content 및 originalContent 상태를 참조하기 위한 Ref
-  const contentRef = useRef(content);
-  const originalContentRef = useRef(originalContent);
-  useEffect(() => {
-    contentRef.current = content;
-    originalContentRef.current = originalContent;
-  }, [content, originalContent]);
-
   // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
   const getIndentStyle = useCallback((node: any) => {
     const line = node?.position?.start?.line;
-    const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
+    const currentLineMap = dynamicPropsRef.current.lineMap || [];
+    const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
     if (!origLine) return {};
 
     const targetContent = originalContentRef.current || contentRef.current;
@@ -1032,7 +1038,7 @@ export default function MarkdownViewer({
       return { marginLeft: `${marginLeft}px` };
     }
     return {};
-  }, [lineMap, listIndent]);
+  }, [listIndent]);
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0002] MarkdownViewer ➔ rehypeSourceLinesPlugin
@@ -1050,7 +1056,8 @@ export default function MarkdownViewer({
             node.properties = {};
           }
           const processedLine = node.position.start.line;
-          const originalLine = (lineMap || [])[processedLine - 1] || processedLine;
+          const currentLineMap = dynamicPropsRef.current.lineMap || [];
+          const originalLine = currentLineMap[processedLine - 1] || processedLine;
           node.properties['data-line'] = originalLine;
         }
         if (node.children) {
@@ -1059,7 +1066,7 @@ export default function MarkdownViewer({
       };
       visit(tree);
     };
-  }, [lineMap]);
+  }, []);
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0001] MarkdownViewer ➔ rehypeBrRaw
@@ -1150,7 +1157,7 @@ export default function MarkdownViewer({
           return value.trim();
         } else {
           let value = '';
-          while (start < body.length && body[start] !== ',' && body[start] !== '}') {
+          while (start < body.length && start < body.length && body[start] !== ',' && body[start] !== '}') {
             value += body[start];
             start++;
           }
@@ -1340,25 +1347,25 @@ export default function MarkdownViewer({
                 // 워크스페이스의 루트 폴더를 기준으로 하는 상대 경로(Root-Relative)로 해석해야 합니다.
                 const isRootRelative = pureSrc.startsWith('/');
 
-                const isWelcomePage = currentFilePath && (
-                  currentFilePath.endsWith('Welcome.md') || 
-                  currentFilePath.endsWith('Welcome.markdown') || 
-                  currentFilePath === 'Welcome.md'
+                const isWelcomePage = dynamicPropsRef.current.currentFilePath && (
+                  dynamicPropsRef.current.currentFilePath.endsWith('Welcome.md') || 
+                  dynamicPropsRef.current.currentFilePath.endsWith('Welcome.markdown') || 
+                  dynamicPropsRef.current.currentFilePath === 'Welcome.md'
                 );
 
                 const isWelcomeAsset = pureSrc === './hero.png' || pureSrc === 'hero.png' || isWelcomePage;
 
-                if (isRootRelative && rootFolderPath && rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
+                if (isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
                   // 워크스페이스 루트 상대 경로 처리 (예: /assets/img.png -> 워크스페이스경로/assets/img.png)
-                  const sep = rootFolderPath.includes('\\') ? '\\' : '/';
-                  const cleanRoot = rootFolderPath.endsWith(sep) ? rootFolderPath.slice(0, -1) : rootFolderPath;
+                  const sep = dynamicPropsRef.current.rootFolderPath.includes('\\') ? '\\' : '/';
+                  const cleanRoot = dynamicPropsRef.current.rootFolderPath.endsWith(sep) ? dynamicPropsRef.current.rootFolderPath.slice(0, -1) : dynamicPropsRef.current.rootFolderPath;
                   const normalizedSrc = sep === '\\' ? pureSrc.replace(/\//g, '\\') : pureSrc;
                   absolutePath = cleanRoot + normalizedSrc;
-                } else if (!isAbsoluteWin && !isRootRelative && currentFilePath && !isWelcomeAsset) {
-                  absolutePath = resolveRelativeImagePath(pureSrc, currentFilePath);
-                } else if (!isAbsoluteWin && !isRootRelative && rootFolderPath && rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
-                  const sep = rootFolderPath.includes('/') ? '/' : '\\';
-                  const folder = rootFolderPath.endsWith(sep) ? rootFolderPath : rootFolderPath + sep;
+                } else if (!isAbsoluteWin && !isRootRelative && dynamicPropsRef.current.currentFilePath && !isWelcomeAsset) {
+                  absolutePath = resolveRelativeImagePath(pureSrc, dynamicPropsRef.current.currentFilePath);
+                } else if (!isAbsoluteWin && !isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
+                  const sep = dynamicPropsRef.current.rootFolderPath.includes('/') ? '/' : '\\';
+                  const folder = dynamicPropsRef.current.rootFolderPath.endsWith(sep) ? dynamicPropsRef.current.rootFolderPath : dynamicPropsRef.current.rootFolderPath + sep;
                   absolutePath = folder + pureSrc;
                 } else if (isWelcomeAsset) {
                   absolutePath = pureSrc.startsWith('./') ? pureSrc.slice(2) : pureSrc.startsWith('/') ? pureSrc.slice(1) : pureSrc;
@@ -1382,11 +1389,14 @@ export default function MarkdownViewer({
 
               let width: string | undefined;
               let height: string | undefined;
+              let align: string | undefined;
               try {
                 const wMatch = src.match(/[?&](?:width|w)=([^&#]+)/);
                 const hMatch = src.match(/[?&](?:height|h)=([^&#]+)/);
+                const aMatch = src.match(/[?&](?:align|a)=([^&#]+)/);
                 if (wMatch) width = decodeURIComponent(wMatch[1]);
                 if (hMatch) height = decodeURIComponent(hMatch[1]);
+                if (aMatch) align = decodeURIComponent(aMatch[1]);
               } catch (e) {}
 
               // 💡 [단위 자동 보완 가드]
@@ -1399,24 +1409,47 @@ export default function MarkdownViewer({
               imgStyle.width = width || undefined;
               if (!width) imgStyle.maxWidth = 'min(100%, 600px)';
               
+              let figureStyle: React.CSSProperties = {
+                display: 'flex',
+                flexDirection: 'column',
+                width: '100%',
+                marginTop: '1.5rem',
+                marginBottom: '1.5rem',
+                clear: 'both',
+              };
+
+              let forceAlignClass = 'force-align-center';
+              if (align === 'left') {
+                figureStyle.alignItems = 'flex-start';
+                figureStyle.textAlign = 'left';
+                forceAlignClass = 'force-align-left';
+              } else if (align === 'right') {
+                figureStyle.alignItems = 'flex-end';
+                figureStyle.textAlign = 'right';
+                forceAlignClass = 'force-align-right';
+              } else {
+                figureStyle.alignItems = 'center';
+                figureStyle.textAlign = 'center';
+              }
+              
               const imgElement = (
                 <AsyncImage 
                   src={finalSrc} 
                   alt={alt} 
                   absolutePath={absolutePath} 
-                  rootFolder={rootFolder} 
-                  workspaceType={workspaceType} 
+                  rootFolder={dynamicPropsRef.current.rootFolder} 
+                  workspaceType={dynamicPropsRef.current.workspaceType} 
                   api={typeof window !== 'undefined' ? (window as any).electronAPI : null} 
                   queryString={queryString} 
                   style={imgStyle} 
-                  className="rounded-lg shadow-sm border border-zinc-200/30 my-3 mx-auto block" 
+                  className={`rounded-lg shadow-sm border border-zinc-200/30 my-3 ${forceAlignClass}`} 
                   {...props} 
                 />
               );
               
               if (alt && alt.trim() !== '') {
                 return (
-                  <figure className="my-6 text-center flex flex-col items-center">
+                  <figure style={figureStyle}>
                     {imgElement}
                     <figcaption className="text-[0.9em] text-zinc-500 mt-2 font-medium">
                       {alt}
@@ -1424,7 +1457,11 @@ export default function MarkdownViewer({
                   </figure>
                 );
               }
-              return imgElement;
+              return (
+                <div style={figureStyle}>
+                  {imgElement}
+                </div>
+              );
             },
             a: ({ node, href, children, ...props }: any) => {
               const isWebLink = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:'));
@@ -1465,12 +1502,12 @@ export default function MarkdownViewer({
               if (href && !isWebLink && (href.endsWith('.md') || href.endsWith('.markdown') || href.includes('.md#') || href.includes('.markdown#'))) {
                 const handleClick = (e: React.MouseEvent) => {
                   e.preventDefault();
-                  if (onFileOpen) {
+                  if (dynamicPropsRef.current.onFileOpen) {
                     const cleanHref = href.split('#')[0];
-                    const resolved = resolveRelativeImagePath(cleanHref, currentFilePath);
+                    const resolved = resolveRelativeImagePath(cleanHref, dynamicPropsRef.current.currentFilePath);
                     
                     const normalizePath = (p: string | undefined) => (p || '').replace(/\\/g, '/').toLowerCase();
-                    const isSameFile = normalizePath(resolved) === normalizePath(currentFilePath);
+                    const isSameFile = normalizePath(resolved) === normalizePath(dynamicPropsRef.current.currentFilePath);
 
                     if (isSameFile) {
                       // 💡 [동일 파일 가드] 같은 파일인 경우 파일을 다시 로드하지 않고 헤딩 위치로 즉시 스크롤 이동합니다.
@@ -1497,7 +1534,7 @@ export default function MarkdownViewer({
                     } else {
                       // 다른 파일인 경우 파일을 열고 헤딩이 있다면 대기 후 이동합니다.
                       const hashPart = href.split('#')[1];
-                      onFileOpen(resolved, hashPart || undefined);
+                      dynamicPropsRef.current.onFileOpen(resolved, hashPart || undefined);
                     }
                   }
                 };
@@ -1534,7 +1571,7 @@ export default function MarkdownViewer({
               if (isVideo) {
                 let videoSrc = apiHref.startsWith('http://') || apiHref.startsWith('https://') || apiHref.startsWith('media://')
                   ? apiHref
-                  : resolveRelativeImagePath(apiHref, currentFilePath);
+                  : resolveRelativeImagePath(apiHref, dynamicPropsRef.current.currentFilePath);
                   
                 // 데스크탑 및 로컬 Dev 환경에서 R2 경로(/api/image/users/...) 처리
                 if (videoSrc.startsWith('/api/image/')) {
@@ -1589,32 +1626,38 @@ export default function MarkdownViewer({
             },
             h1: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
+              const currentLineMap = dynamicPropsRef.current.lineMap || [];
+              const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               return <h1 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h1>;
             },
             h2: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
+              const currentLineMap = dynamicPropsRef.current.lineMap || [];
+              const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               return <h2 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h2>;
             },
             h3: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
+              const currentLineMap = dynamicPropsRef.current.lineMap || [];
+              const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               return <h3 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h3>;
             },
             h4: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
+              const currentLineMap = dynamicPropsRef.current.lineMap || [];
+              const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               return <h4 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h4>;
             },
             h5: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
+              const currentLineMap = dynamicPropsRef.current.lineMap || [];
+              const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               return <h5 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h5>;
             },
             h6: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;
-              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
+              const currentLineMap = dynamicPropsRef.current.lineMap || [];
+              const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               return <h6 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
             },
             input: ({ node, ...props }: any) => <input {...props} />,
@@ -1661,15 +1704,16 @@ export default function MarkdownViewer({
               }
 
               const line = (node as any).position?.start?.line;
-              const origLine = line ? ((lineMap || [])[line - 1] || line) : undefined;
+              const currentLineMap = dynamicPropsRef.current.lineMap || [];
+              const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               const modifiedChildren = React.Children.map(children, (child) => {
                 if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
                   return React.cloneElement(child as React.ReactElement<any>, {
                     disabled: false,
                     className: "w-4 h-4 rounded border-emerald-500/20 text-emerald-600 focus:ring-emerald-500 cursor-pointer mr-2 align-middle",
                     onChange: (e: any) => {
-                      if (origLine && onCheckboxToggle) {
-                        onCheckboxToggle(origLine, e.target.checked);
+                      if (origLine && dynamicPropsRef.current.onCheckboxToggle) {
+                        dynamicPropsRef.current.onCheckboxToggle(origLine, e.target.checked);
                       }
                     }
                   });
@@ -1780,7 +1824,7 @@ export default function MarkdownViewer({
                 </blockquote>
               );
             }
-          }), [lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, getIndentStyle, rootFolder, workspaceType])}
+          }), [getIndentStyle])}
         >
           {processedContent}
         </ReactMarkdown>

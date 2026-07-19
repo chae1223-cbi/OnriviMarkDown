@@ -1799,6 +1799,14 @@ ${guideContent}
                 </select>
               </div>
 
+              {/* 체크박스 색상 */}
+              <ColorPickerWidget
+                label="체크박스 색상"
+                value={checkboxStructure.color || ''}
+                disabled={isSystemProfile}
+                onChange={(v) => updateCheckboxStructure('color', v)}
+              />
+
               {/* 박스 크기 슬라이더 */}
               <SliderWidget
                 label="체크박스 물리 크기"

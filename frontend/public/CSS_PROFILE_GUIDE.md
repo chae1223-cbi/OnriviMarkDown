@@ -28,13 +28,14 @@
     "h2": { "font-size": "26px", "font-weight": "800", "color": "#222222", "border-bottom": "2px solid #eeeeee" },
     "h3": { "font-size": "22px", "color": "#333333" },
     "p": { "margin-bottom": "15px" },
-    "ul": { "padding-left": "24px", "color": "#333333" },
-    "ol": { "padding-left": "24px", "color": "#333333" },
+    "ul": { "padding-left": "24px", "color": "#333333", "list-style-type": "disc" },
+    "ol": { "padding-left": "24px", "color": "#333333", "list-style-type": "decimal" },
     "blockquote": { "border-left": "4px solid #0058bc", "padding-left": "16px", "color": "#555555" },
     "table": { "border-collapse": "collapse", "width": "100%" },
     "th": { "background-color": "#f8f9fa", "font-weight": "bold", "border": "1px solid #dee2e6", "padding": "12px" },
     "td": { "border": "1px solid #dee2e6", "padding": "12px" },
-    "code": { "background-color": "#f1f5f9", "color": "#0000ee", "padding": "2px 4px", "border-radius": "2px" }
+    "code": { "background-color": "#f1f5f9", "color": "#2563eb", "padding": "2px 4px", "border-radius": "2px" },
+    "math": { "color": "#1e3a8a", "font-size": "16px", "text-align": "center", "margin-top": "16px", "margin-bottom": "16px" }
   },
   "hrStructure": {
     "borderTopStyle": "solid",
@@ -45,7 +46,8 @@
   "checkboxStructure": {
     "boxSize": "16px",
     "checkedEffect": "none",
-    "textGap": "10px"
+    "textGap": "10px",
+    "color": "#333333"
   }
 }
 ```
@@ -58,17 +60,19 @@
 
 - **h1 ~ h6**: 제목. (h2~h6의 경우 시스템이 `headingSizeOffset`을 기반으로 글자 크기를 자동 연산하기도 하지만 명시할 수 있습니다.)
 - **p**: 일반 문단. 글꼴과 줄 간격은 기본적으로 `pageStyle`을 상속받으므로 색상이나 마진 정도만 정의합니다.
-- **ul, ol, li**: 목록. 들여쓰기(`padding-left`)와 텍스트 색상(`color`) 등을 정의합니다. 글머리 기호(마커) 색상은 기본적으로 `color: inherit`을 통해 텍스트 색상을 자동으로 따라갑니다.
+- **ul, ol, li**: 목록. 들여쓰기(`padding-left`), 텍스트 색상(`color`), 그리고 마커 스타일(`list-style-type`)을 정의합니다. `ul`은 기본적으로 `"list-style-type": "disc"`, `ol`은 `"list-style-type": "decimal"`을 권장합니다. 글머리 기호 색상은 텍스트 색상을 자동으로 따라갑니다.
 - **blockquote**: 인용구. 주로 왼쪽 테두리(`border-left`)나 배경색을 정의합니다. (다크모드에서는 전용 컬러로 오버라이드 됨)
 - **hr**: 구분선. 굵기와 선 스타일(`border-top`)을 정의합니다. 특정 값을 지정하지 않으면 옅은 회색(`#d1d5db`)이 기본 적용됩니다.
 - **table, th, td**: 표. 표의 테두리와 셀 간격(`padding`) 등을 정의합니다.
-- **code, pre**: 코드 블록. 인라인 코드의 텍스트 색상은 기본 `#0000ee`(파란색)으로 지정되어 있습니다.
+- **code, pre**: 코드 블록. 인라인 코드의 텍스트 색상은 기본 `#2563eb`(파란색)으로 지정되어 있습니다.
+- **math**: 수학 수식(KaTeX). 디스플레이 수식의 정렬(`text-align`), 상하 여백(`margin-top`, `margin-bottom`), 그리고 수식 글자 색상(`color`)과 크기(`font-size`)를 지정합니다.
 
 ### 체크박스 세부 설정 (`checkboxStructure`)
 체크박스 목록의 렌더링 스타일을 설정합니다.
 - `checkedEffect`: 항목 완료 시 적용할 시각적 효과 (`"none"`: 효과 없음 기본값, `"line-through-and-dim"`: 취소선+반투명, `"dim-only"`: 반투명만)
 - `boxSize`: 체크박스 크기 (예: `"16px"`)
 - `textGap`: 체크박스와 텍스트 사이 간격 (예: `"10px"`)
+- `color`: 체크박스 테두리 및 체크 마크 색상. 주로 리스트(ul/ol)의 글자 색상과 통일되도록 설정합니다. (예: `"#333333"`)
 
 ---
 
@@ -81,4 +85,6 @@
 > - 글꼴은 'KoPubDotum'
 > - 제목(h1)은 파란색 계열, 왼쪽 굵은 테두리(border-left) 적용
 > - 줄 간격은 1.6, 글자 크기는 14px
+> - 글머리 기호(ul)는 채워진 원(disc), 숫자 목록(ol)은 1,2,3(decimal) 기본 적용
+> - 체크박스 색상은 본문 리스트 색상과 동일하게 맞춤
 > 위 JSON 결과물만 코드블록으로 출력해."

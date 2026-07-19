@@ -80,5 +80,6 @@ export interface CssProfile {
     boxSize: string;
     checkedEffect: string;
     textGap: string;
+    color?: string;
   };
 }

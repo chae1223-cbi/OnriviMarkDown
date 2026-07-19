@@ -85,7 +85,7 @@ export default function ImageModal({
       if (saveResult && saveResult.success) {
         finalPath = saveResult.isRelative ? `/assets/${fileName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
       }
-    } else if (workspaceType === 'browser') {
+    } else if (workspaceType === 'browser' || workspaceType === 'local') {
       try {
         const assetsDir = 'assets';
         if (rootFolder?.handle) {
@@ -207,7 +207,7 @@ export default function ImageModal({
     const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
     if (api) return;
     
-    if (workspaceType !== 'browser') {
+    if (workspaceType !== 'browser' && workspaceType !== 'local') {
       setLocalBlobUrl(`/api/view?filePath=${encodeURIComponent(cleanImagePath)}`);
       return;
     }
@@ -288,7 +288,7 @@ export default function ImageModal({
       const params: string[] = [];
       if (imageWidth.trim()) params.push(`width=${encodeURIComponent(imageWidth.trim())}`);
       if (imageHeight.trim()) params.push(`height=${encodeURIComponent(imageHeight.trim())}`);
-      if (imageAlign && imageAlign !== 'left') params.push(`align=${imageAlign}`);
+      if (imageAlign) params.push(`align=${imageAlign}`);
       if (params.length > 0) {
         finalPath += (finalPath.includes('?') ? '&' : '?') + params.join('&');
       }

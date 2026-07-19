@@ -1,6 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 강제 정렬 클래스 (사용자 서식 프로필의 !important 오버라이드용) */
+.custom-preview-container .force-align-left {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  display: block !important;
+}
+.custom-preview-container .force-align-center {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  display: block !important;
+}
+.custom-preview-container .force-align-right {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  display: block !important;
+}
 
 /* ============================================================
    Luminous Arctic Design System — Component Utilities
@@ -443,25 +462,18 @@ option {
 .monaco-strikethrough-text,
 .monaco-md-syntax {
   display: inline !important;
-  letter-spacing: normal !important;
-  word-spacing: normal !important;
   font-size: inherit !important;
   font-weight: inherit !important;
 }
 
-/* 모나코 에디터 내부의 모든 글자에 대해 한글 고정폭 폰트 강제 적용 (해상도 및 브라우저 애드온 환경 오차 방지) */
-.monaco-editor, 
-.monaco-editor .view-lines, 
-.monaco-editor .view-line, 
-.monaco-editor .view-line * {
-  font-family: 'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace !important;
-}
+/* 모나코 에디터 내부의 폰트는 MainEditorApp.tsx의 JS option(fontFamily)에서 전적으로 제어하도록 위임. 
+   (CSS에서 !important로 강제하면 에디터의 글자 폭 계산 로직과 실제 렌더링 폰트가 어긋나서 드래그 선택 영역이 틀어지는 치명적 버그 발생) */
 
 /* 에디터 실시간 입력(IME 한글 조합) 시 브라우저 기본 textarea에 나타나는 원본 텍스트 잔상 투명화 */
 .monaco-editor textarea.inputarea {
   color: transparent !important;
   background: transparent !important;
-  font-family: 'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', '굴림체', 'GulimChe', '돋움체', 'DotumChe', Consolas, 'Courier New', Courier, monospace !important;
+  font-family: 'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', Consolas, '굴림체', 'GulimChe', '돋움체', 'DotumChe', 'Courier New', Courier, monospace !important;
   caret-color: transparent !important; /* 커서는 모나코 에디터가 별도 레이어로 그리므로 깜빡임 중복 방지 */
 }
 
@@ -526,6 +538,7 @@ option {
 /* 커스텀 스크롤바 유틸리티 (기존 GlobalSearch, FormulaModal, EmojiPicker, MergeModal에서 사용) */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
@@ -542,7 +555,6 @@ option {
 .monaco-editor, .monaco-editor .view-lines, .monaco-editor .mtk {
   font-variant-ligatures: none !important;
   letter-spacing: 0px !important;
-  text-rendering: optimizeLegibility !important;
   -webkit-font-smoothing: antialiased !important;
 }
 
@@ -551,7 +563,6 @@ option {
 .monaco-editor .strong {
   font-weight: bold !important;
   font-variant-ligatures: none !important;
-  letter-spacing: -0.01em !important; /* 💡 미세하게 자간을 압착하여 픽셀 이탈을 원천 차단 */
 }
 
 /* 이탤릭 텍스트 자간 고정 */
@@ -559,7 +570,6 @@ option {
 .monaco-editor .emphasis {
   font-style: italic !important;
   font-variant-ligatures: none !important;
-  letter-spacing: -0.005em !important;
 }
 
 /* 📊 마크다운 표(Table) 현대적 디자인 시스템 - 가독성 극대화 */
@@ -572,6 +582,16 @@ option {
   border-radius: 8px !important;
   overflow: hidden !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* 💡 긴 영문 텍스트가 강제 개행되도록 하여 양쪽 정렬 시 발생하는 거대 공백 방지 */
+.prose {
+  overflow-wrap: anywhere !important;
+  word-break: break-all !important;
+}
+.prose p {
+  overflow-wrap: anywhere !important;
+  word-break: break-all !important;
 }
 
 
@@ -746,11 +766,13 @@ div.onrivi-list-spacer {
 /* ❶-1 인라인 코드(pre 태그 내부에 있지 않은 code 태그)의 높이 및 수직 정렬 정밀 보정 */
 .prose :not(pre) > code,
 .custom-preview-container :not(pre) > code {
-  display: inline-block !important;
-  vertical-align: 0 !important;
+  /* display: inline-block !important; -> 인라인 텍스트가 줄바꿈되지 않고 덩어리째 다음 줄로 넘어가는 현상(거대 공백 유발) 방지를 위해 제거 */
+  color: #2563eb; /* 서식에서 색상이 지정되지 않았을 때의 기본 파란색 (AI 가이드 반영) */
   line-height: 1.35 !important;
   padding: 1px 4.5px !important;
   margin: 0 2px !important;
+  box-decoration-break: clone; /* 줄바꿈 시 배경색/패딩이 각 줄마다 예쁘게 적용되도록 설정 */
+  -webkit-box-decoration-break: clone;
 }
 
 /* ❷ 코드블록 내부에서 이중으로 발생하는 p 태그 마진 폭발 및 행간 진압 */

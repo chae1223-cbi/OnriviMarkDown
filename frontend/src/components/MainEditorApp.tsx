@@ -2152,12 +2152,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       editorRef.current.updateOptions({
         fontSize: fontSize,
         wordWrap: wordWrap,
+        wordBreak: 'normal',
         readOnly: tabs.length === 0 || licenseStatus.isExpired,
         domReadOnly: tabs.length === 0 || licenseStatus.isExpired,
       });
-      // 3. 레이아웃 리플로우 강제 트리거 (찌그러짐 방지)
+      // 3. 레이아웃 리플로우 강제 트리거 및 비동기 웹폰트 로딩 후 글자 폭 재계산 (핵심 버그 수정)
       requestAnimationFrame(() => {
         editorRef.current?.layout();
+      });
+      document.fonts.ready.then(() => {
+        if ((window as any).monaco) {
+          (window as any).monaco.editor.remeasureFonts();
+        }
       });
     }
   }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, licenseStatus.isExpired, previewMode, tabs.length]);
@@ -3517,7 +3523,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     Object.entries(prof.rules).forEach(([tag, ruleObj]) => {
       /* h2~h6의 font-size는 headingSizeOffset 자동 계산으로 대체 */
       const skipFontSize = ['h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
-      const entries = Object.entries(ruleObj).filter(([prop, v]) => {
+      const entries = Object.entries(ruleObj).map(([prop, v]) => {
+        // 💡 [OMD-PATCH] 구버전 유저 프로필에 저장된 keep-all이 불러와지면서 거대 공백 버그를 유발하는 것을 막기 위해 강제 마이그레이션
+        if (prop === 'word-break' && v === 'keep-all') return [prop, 'break-all'];
+        return [prop, v];
+      }).filter(([prop, v]) => {
         if (v === '') return false;
         if (skipFontSize && prop === 'font-size') return false;
         return true;
@@ -3561,14 +3571,60 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
         // 💡 프리뷰 모드에서 중첩된 테두리와 배경색(박스 안의 박스 현상) 원천 차단
         css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code {\n  border: none !important;\n  background: transparent !important;\n}\n`;
+
+        // 💡 코드블록 전용 명시적 가로 스크롤바 (테마의 글자 색상을 바탕으로 한층 더 밝고 두껍게)
+        const trackColor = color ? `color-mix(in srgb, ${color} 15%, transparent)` : 'rgba(200, 200, 200, 0.1)';
+        const thumbColor = color ? `color-mix(in srgb, ${color} 60%, transparent)` : 'rgba(200, 200, 200, 0.6)';
+        const thumbHoverColor = color ? `color-mix(in srgb, ${color} 85%, transparent)` : 'rgba(200, 200, 200, 0.8)';
+
+        css += `.custom-preview-container .codeblock-area .custom-scrollbar::-webkit-scrollbar {\n  height: 10px !important;\n}\n`;
+        css += `.custom-preview-container .codeblock-area .custom-scrollbar::-webkit-scrollbar-track {\n  background: ${trackColor} !important;\n  border-radius: 5px !important;\n}\n`;
+        css += `.custom-preview-container .codeblock-area .custom-scrollbar::-webkit-scrollbar-thumb {\n  background: ${thumbColor} !important;\n  border-radius: 5px !important;\n}\n`;
+        css += `.custom-preview-container .codeblock-area .custom-scrollbar::-webkit-scrollbar-thumb:hover {\n  background: ${thumbHoverColor} !important;\n}\n`;
+        return;
+      }
+
+      if (tag === 'math') {
+        const layoutProps = ['text-align', 'margin-top', 'margin-bottom'];
+        
+        // 1. 블록 레이아웃(디스플레이 수식) 속성
+        css += `.custom-preview-container .katex-display {\n`;
+        entries.forEach(([prop, val]) => {
+          if (layoutProps.includes(prop)) {
+            css += `  ${prop}: ${val} !important;\n`;
+          }
+        });
+        css += `}\n`;
+        
+        // 1-1. 수식이 <p>로 감싸져 있는 경우 <p>의 마진을 강제 소거 (수식의 마진만 온전히 적용)
+        css += `.custom-preview-container p:has(> .katex-display) {\n`;
+        css += `  margin: 0 !important;\n`;
+        css += `}\n`;
+
+        // 1-2. 내부 .katex 요소에도 정렬 방식을 강제 주입하여 globals.css의 left 강제화 돌파
+        if (entries.some(([prop]) => prop === 'text-align')) {
+          const alignVal = entries.find(([prop]) => prop === 'text-align')[1];
+          css += `.custom-preview-container .katex-display > .katex {\n`;
+          css += `  text-align: ${alignVal} !important;\n`;
+          css += `}\n`;
+        }
+        
+        // 2. 인라인 및 텍스트 속성 (색상, 크기 등)
+        css += `.custom-preview-container .katex-display .katex, .custom-preview-container :not(.katex-display) > .katex {\n`;
+        entries.forEach(([prop, val]) => {
+          if (!layoutProps.includes(prop)) {
+            css += `  ${prop}: ${val} !important;\n`;
+          }
+        });
+        css += `}\n`;
         return;
       }
 
       const selector = tag === 'taskList' ? '.task-list-item' :
         tag === 'code' ? ':not(pre) > code' :
           tag === 'map' ? 'iframe[src*="map"]' :
-            tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' :
-              tag === 'math' ? '.katex-display, .katex' : tag;
+            tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' : tag;
+            
       const isMediaTag = tag === 'img' || tag === 'video' || tag === 'map';
       const sizeProps = ['width', 'height', 'max-width', 'max-height'];
       css += `.custom-preview-container ${selector} {\n`;
@@ -3628,14 +3684,32 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const cbSize = prof.checkboxStructure.boxSize || '16px';
       const cbGap = prof.checkboxStructure.textGap || '10px';
       const cbEffect = prof.checkboxStructure.checkedEffect || 'none';
+      const cbColor = prof.checkboxStructure.color || 'currentColor';
       css += `
 .custom-preview-container input[type="checkbox"] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
   width: ${cbSize} !important;
   height: ${cbSize} !important;
   margin-right: ${cbGap} !important;
-  accent-color: currentColor !important;
-  border: 1px solid currentColor !important;
+  border: 1px solid ${cbColor} !important;
   border-radius: 3px !important;
+  background-color: transparent !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  vertical-align: middle !important;
+  flex-shrink: 0 !important;
+}
+
+.custom-preview-container input[type="checkbox"]:checked {
+  background-color: ${cbColor} !important;
+  border-color: ${cbColor} !important;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E") !important;
+  background-size: 100% 100% !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
 }
 `;
       if (cbEffect === 'line-through-and-dim') {
@@ -4709,7 +4783,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           automaticLayout: true,
                           fontSize,
                           lineHeight: 1.7, // 시원한 줄간격 유지 (세련됨)
-                          fontFamily: "ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Mono', 'Pretendard Std', 'D2Coding', Consolas, 'Courier New', monospace",
+                          fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', Consolas, 'GulimChe', 'DotumChe', 'Courier New', Courier, monospace",
                           fontLigatures: false, // 글자 폭 계산 오차를 유발할 수 있는 합자(Ligature) 기능 해제
                           letterSpacing: 0,
                           'semanticHighlighting.enabled': true,
