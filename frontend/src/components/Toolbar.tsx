@@ -40,6 +40,14 @@ export default function Toolbar() {
             <span className="text-zinc-500 dark:text-zinc-400">⚡</span>
           </button>
 
+          <button
+            onMouseDown={(e) => { e.preventDefault(); dispatch('AI_DRAFT'); }}
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-base"
+            title="AI 맞춤형 초안 작성"
+          >
+            <span className="text-zinc-500 dark:text-zinc-400">✨</span>
+          </button>
+
           <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600/60 my-1" />
         </>
       )}

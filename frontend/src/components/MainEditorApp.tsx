@@ -78,7 +78,7 @@ import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐�
 import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/virtualFileSystem'; // 가상 파일 시스템 헬퍼
-import { processTextWithAI, processTextWithAIStream, AI_ACTIONS, AiActionType } from '@/lib/gemini'; // Gemini AI 모듈
+import { processTextWithAI, processTextWithAIStream, generateDraftWithAIStream, AI_ACTIONS, AiActionType } from '@/lib/gemini'; // Gemini AI 모듈
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import ExportModal from '@/components/ExportModal'; // 모달
 import OAIcon from './icon_onriveauther.png'; // 아이콘 
@@ -99,6 +99,7 @@ import MergeModal from '@/components/MergeModal'; // 모달
 import YoutubeModal from '@/components/YoutubeModal'; // 모달
 import AboutModal from '@/components/AboutModal'; // 모달
 import LicenseModal from '@/components/LicenseModal'; // 라이선스 모달
+import AIDraftModal from '@/components/AIDraftModal'; // 초안 생성 모달
 import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import UnifiedTabBar, { EditorTab } from '@/components/UnifiedTabBar';
@@ -665,6 +666,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [currentFileNode]);
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAIDraftModalOpen, setIsAIDraftModalOpen] = useState(false);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0013] MainEditorApp.tsx ➔ searchOpen_sidebar_behavior
@@ -3936,6 +3938,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'HELP': handlers.help(); return;
       case 'LICENSE': handlers.license(); return;
       case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
+      case 'AI_DRAFT': setIsAIDraftModalOpen(true); return;
       case 'OPEN_AI_WRITER': {
         const editor = editorRef.current;
         const selection = editor ? editor.getSelection() : null;
@@ -4648,6 +4651,64 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     docLinkPickerStyle = { top: fixedTop + 44, left: fixedLeft };
   }
+  const handleAIDraftGenerate = async (domain: string, docType: string, topic: string) => {
+    setIsAIDraftModalOpen(false); // Close modal
+    showToast(`${docType} 초안을 생성 중입니다...`, 'success');
+    
+    // Check if API key is present
+    const geminiApiKey = loadSecureData('geminiApiKey');
+    if (!geminiApiKey) {
+      showToast('설정에서 Gemini API 키를 먼저 등록해주세요.', 'warning');
+      setIsSettingsModalOpen(true);
+      return;
+    }
+
+    try {
+      setSaveStatus('saving');
+      const aiModelName = loadSecureData('geminiAiModel') || 'gemini-1.5-flash';
+      let draftContent = '';
+      
+      await generateDraftWithAIStream(
+        geminiApiKey,
+        aiModelName,
+        domain,
+        docType,
+        topic,
+        (chunkText) => {
+          draftContent = chunkText;
+        }
+      );
+      
+      // Insert draftContent into editor
+      if (editorRef.current) {
+        const editor = editorRef.current;
+        const position = editor.getPosition() || { lineNumber: 1, column: 1 };
+        const monacoObj = typeof window !== 'undefined' && (window as any).monaco ? (window as any).monaco : null;
+        
+        if (monacoObj) {
+          const insertText = `\n\n${draftContent}\n\n`;
+          editor.executeEdits("AI_DRAFT_INSERT", [{
+            range: new monacoObj.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: insertText,
+            forceMoveMarkers: true
+          }]);
+          
+          const newPos = editor.getPosition();
+          if (newPos) {
+            editor.setPosition(newPos);
+            editor.revealPositionInCenter(newPos);
+          }
+          editor.focus();
+        }
+        showToast('초안 작성이 완료되었습니다.', 'success');
+        updateContent(editor.getValue());
+      }
+    } catch (e: any) {
+      showToast(`AI 초안 생성 실패: ${e.message}`, 'error');
+      setSaveStatus('saved');
+    }
+  };
+
 
   return (
     <>
@@ -5271,6 +5332,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           </div>
 
           <StatusBar />
+
+          {isAIDraftModalOpen && (
+            <AIDraftModal 
+              onClose={() => setIsAIDraftModalOpen(false)} 
+              onGenerate={handleAIDraftGenerate} 
+            />
+          )}
 
           {/* 💡 [Step 4 리팩토링 완료] 모든 모달 껍데기들을 ModalManager로 완벽하게 이관 완료! */}
           <ModalManager

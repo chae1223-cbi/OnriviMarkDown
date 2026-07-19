@@ -992,26 +992,29 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                   </ul>
                   <button
                     onClick={() => handleSelectPlan(plan)}
-                    disabled={isCurrentPlan || actionLoading === 'plan_' + plan.name}
+                    disabled={isCurrentPlan || actionLoading === 'plan_' + plan.name || plan.name === 'Regular' || plan.name === 'Elite Pro'}
                     style={{
                       width: "100%", padding: "9px 0", borderRadius: "0.75rem",
                       fontSize: 12, fontWeight: 700,
-                      cursor: (isCurrentPlan || actionLoading === 'plan_' + plan.name) ? "not-allowed" : "pointer",
+                      cursor: (isCurrentPlan || actionLoading === 'plan_' + plan.name || plan.name === 'Regular' || plan.name === 'Elite Pro') ? "not-allowed" : "pointer",
                       transition: "all 0.15s",
                       background: isCurrentPlan
                         ? "rgba(16,185,129,0.1)"
+                        : (plan.name === 'Regular' || plan.name === 'Elite Pro') ? "rgba(156,163,175,0.15)"
                         : (plan.highlighted ? T.primary : "rgba(99,102,241,0.06)"),
                       color: isCurrentPlan
                         ? T.success
+                        : (plan.name === 'Regular' || plan.name === 'Elite Pro') ? T.muted
                         : (plan.highlighted ? "#fff" : T.primaryDark),
                       border: `1px solid ${
                         isCurrentPlan ? "rgba(16,185,129,0.3)" :
+                        (plan.name === 'Regular' || plan.name === 'Elite Pro') ? "rgba(156,163,175,0.3)" :
                         plan.highlighted ? "transparent" : "rgba(99,102,241,0.25)"
                       }`,
-                      opacity: (isCurrentPlan || actionLoading === 'plan_' + plan.name) ? 0.6 : 1,
+                      opacity: (isCurrentPlan || actionLoading === 'plan_' + plan.name || plan.name === 'Regular' || plan.name === 'Elite Pro') ? 0.6 : 1,
                     }}
                   >
-                    {actionLoading === 'plan_' + plan.name ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : plan.isFree ? plan.cta : plan.cta}
+                    {actionLoading === 'plan_' + plan.name ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : (plan.name === 'Regular' || plan.name === 'Elite Pro') ? '🚧 공사중' : plan.cta}
                   </button>
                 </div>
               );
