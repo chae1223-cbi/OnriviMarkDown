@@ -19,7 +19,6 @@ export interface LicenseStatus {
 export const useEditorAuth = () => {
   const [deviceId, setDeviceId] = useState<string>('');
   const [isLicenseChecking, setIsLicenseChecking] = useState(true);
-  const [graceRemainingSeconds, setGraceRemainingSeconds] = useState<number | null>(null);
   
   const [licenseStatus, setLicenseStatus] = useState<LicenseStatus>({
     isActivated: false,
@@ -38,8 +37,6 @@ export const useEditorAuth = () => {
     licenseStatus,
     setLicenseStatus,
     isLicenseChecking,
-    setIsLicenseChecking,
-    graceRemainingSeconds,
-    setGraceRemainingSeconds
+    setIsLicenseChecking
   };
 };

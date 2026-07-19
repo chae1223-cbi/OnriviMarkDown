@@ -21,14 +21,27 @@ export async function GET(request: Request) {
     let actualPath = filePath;
 
     if (!fs.existsSync(actualPath)) {
-      // 💡 가상 경로이거나 상대 경로일 경우, 프론트엔드의 public/assets 폴더에서 파일명으로 폴백 검색합니다.
+      const parentWorkspacePath = path.join(process.cwd(), '..', filePath);
       const fileName = path.basename(filePath);
       const publicAssetsPath = path.join(process.cwd(), 'public', 'assets', fileName);
       
-      if (fs.existsSync(publicAssetsPath)) {
+      if (fs.existsSync(parentWorkspacePath)) {
+        actualPath = parentWorkspacePath;
+      } else if (fs.existsSync(publicAssetsPath)) {
         actualPath = publicAssetsPath;
       } else {
-        return new NextResponse('File not found', { status: 404 });
+        // [ONR-FIX] 브라우저 콘솔 404 에러 방지를 위해, 파일을 찾을 수 없는 경우
+        // 404 상태코드 대신 '이미지 없음' 안내용 SVG를 200 OK로 반환합니다.
+        const notFoundSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100">
+          <rect width="100%" height="100%" fill="#f1f5f9" rx="8" ry="8"/>
+          <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#94a3b8">
+            이미지를 찾을 수 없습니다
+          </text>
+        </svg>`;
+        return new NextResponse(notFoundSvg, { 
+          status: 200, 
+          headers: { 'Content-Type': 'image/svg+xml' } 
+        });
       }
     }
 

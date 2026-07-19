@@ -450,8 +450,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const {
     deviceId, setDeviceId,
     licenseStatus, setLicenseStatus,
-    isLicenseChecking, setIsLicenseChecking,
-    graceRemainingSeconds, setGraceRemainingSeconds
+    isLicenseChecking, setIsLicenseChecking
   } = useEditorAuth();
 
   // 💡 [Step 2 리팩토링 완료] 수십 개에 달하던 모달/팝업 상태를 단 하나의 Hook으로 완전히 분리!
@@ -1275,7 +1274,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH: 2026-07-05 - 사용자 지시에 따라 무거운 백그라운드 실시간 감시(Polling) 및 강제 로그아웃 차단 로직 전면 제거.
   // 오직 초기 진입 시(loadAndVerifyLicense)에만 권한을 1회 판별하여 웰컴 페이지 제어로 대체합니다.
 
-  // G. 만료일 자정(24:00) 차단 백그라운드 타이머 및 10분 유예
+  // G. 만료일 자정(24:00) 차단 백그라운드 타이머 (유예 없이 즉시 차단)
   useEffect(() => {
     if (!licenseStatus.nextPaymentDate || licenseStatus.isActivated) return;
 
@@ -1285,9 +1284,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     const checkExpiry = () => {
       const now = Date.now();
-      if (now >= expiryTime && graceRemainingSeconds === null) {
-        showToast("⚠️ 라이선스가 만료되었습니다. 작성 중인 문서를 저장할 수 있도록 10분의 유예 시간을 드립니다.", "warning");
-        setGraceRemainingSeconds(600); // 10분 유예
+      if (now >= expiryTime && !licenseStatus.isExpired) {
+        showToast("🔒 라이선스가 만료되었습니다. 에디터가 미리보기 전용 모드로 잠깁니다.", "error");
+        setPreviewModeRaw('preview');
+        setLicenseStatus(prev => ({ ...prev, isExpired: true }));
       }
     };
 
@@ -1296,25 +1296,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [licenseStatus.nextPaymentDate, licenseStatus.isActivated, graceRemainingSeconds, showToast]);
-
-  useEffect(() => {
-    if (graceRemainingSeconds === null) return;
-    if (graceRemainingSeconds <= 0) {
-      showToast("🔒 유예 시간이 만료되었습니다. 에디터가 미리보기 전용 모드로 잠깁니다.", "error");
-      setPreviewModeRaw('preview');
-      setLicenseStatus(prev => ({ ...prev, isExpired: true }));
-      setGraceRemainingSeconds(null);
-      return;
-    }
-
-    const timerId = setTimeout(() => {
-      setGraceRemainingSeconds(prev => (prev !== null ? prev - 1 : null));
-    }, 1000);
-
-    return () => clearTimeout(timerId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graceRemainingSeconds, showToast]);
+  }, [licenseStatus.nextPaymentDate, licenseStatus.isActivated, licenseStatus.isExpired, showToast]);
 
   // ====================================================================
   // 📊 [OMD-LICENSE-MainEditorApp-0090] MainEditorApp.tsx ➔ license_force_preview
@@ -4517,7 +4499,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     dispatchCommand,
     isDarkMode, setIsDarkMode,
     themePalette, handleThemeChange,
-    licenseStatus, isExpired: licenseStatus.isExpired, graceRemainingSeconds,
+    licenseStatus, isExpired: licenseStatus.isExpired,
     isAddonEnv, editorRef, previewRef, showToast, openTabPaths, refreshFileList,
     driveLetter, profiles, activeProfileId, DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
     saveStatus, isToolbarOpen, setIsToolbarOpen, isSidebarOpen, setIsSidebarOpen, isActivated, THEME_MAP,
@@ -4533,7 +4515,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     onRestoreFolder: restoreFolderPermission,
     isHelpModalOpen, setIsHelpModalOpen, helpTitle, setHelpTitle, helpContent, setHelpContent,
     tabs,
-    geminiApiKey
+    geminiApiKey,
+    aiModelName
   };
 
   const { handleMount } = useMonacoSetup({
@@ -4647,6 +4630,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       lineMap={[]}
                       onFileOpen={handleFileOpenByPath}
                       rootFolderPath={rootFolder?.name}
+                      rootFolder={rootFolder}
+                      workspaceType={workspaceType}
                     />
                   </div>
                 </div>
@@ -5160,6 +5145,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 marginLeft={pLeft}
                                 marginRight={pRight}
                                 bibContent={bibContent}
+                                rootFolder={rootFolder}
+                                workspaceType={workspaceType}
                               />
                             </div>
                           );
@@ -5566,15 +5553,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                         {/* 2. Loading State Visualization Overlay (생성 중) */}
                         {aiPreviewState.isStarted && !aiPreviewState.streamingText && (
-                          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center select-none h-full">
-                            <div className="relative w-14 h-14 flex items-center justify-center">
-                              <div className="absolute inset-0 border-4 border-purple-500/10 rounded-full"></div>
-                              <div className="absolute inset-0 border-4 border-t-purple-600 rounded-full animate-spin"></div>
+                          <div className="flex flex-col items-center justify-center py-16 gap-4 text-center select-none h-full rounded-2xl bg-[#0B1120]/95 border border-slate-700/50 m-4 shadow-xl">
+                            <div className="relative w-20 h-20 mb-2 flex items-center justify-center">
+                              <div className="absolute inset-0 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                              <img src="/icon.png" alt="Onrivi" className="w-10 h-10 object-contain animate-pulse" />
                             </div>
                             <div className="space-y-1">
-                              <h3 className="text-sm font-bold text-purple-600 dark:text-purple-400 animate-pulse">에디토리얼 논리 분석 중</h3>
-                              <p className="text-[11px] text-slate-400 dark:text-zinc-500 max-w-xs mx-auto leading-relaxed">
-                                기술적 문맥과 원고의 구조를 교차 참조하고 있습니다...
+                              <h3 className="text-base font-bold text-white animate-pulse">에디토리얼 논리 분석 및 생성 중...</h3>
+                              <p className="text-[12px] text-slate-300 opacity-90 max-w-xs mx-auto leading-relaxed">
+                                기술적 문맥과 원고의 구조를 교차 참조하여<br/>최적의 답변을 작성하고 있습니다.
                               </p>
                             </div>
                           </div>

@@ -55,7 +55,77 @@ interface MarkdownViewerProps {
   marginLeft?: string;
   marginRight?: string;
   bibContent?: string;
+  rootFolder?: any;
+  workspaceType?: string;
 }
+
+// ====================================================================
+// 🖼️ [ONR-MD-006] AsyncImage 커스텀 컴포넌트
+// @description 웹 브라우저 환경에서 로컬 파일(OPFS/VFS)을 비동기적으로 읽어와 렌더링합니다.
+// ====================================================================
+const AsyncImage = ({ src, alt, absolutePath, rootFolder, workspaceType, api, queryString, style, className, ...props }: any) => {
+  const [imgSrc, setImgSrc] = useState<string>('');
+  
+  useEffect(() => {
+    let objectUrl = '';
+    const loadLocalImage = async () => {
+      try {
+        if (api) {
+          // Electron 환경
+          setImgSrc(src);
+        } else if (workspaceType === 'browser' && !src.startsWith('http') && !src.startsWith('data:')) {
+          // 브라우저 웹 로컬 환경: OPFS 또는 VFS 읽기 시도
+          if (rootFolder?.handle) {
+            let pathParts = src.split(/[/\\]/).filter(Boolean);
+            if (pathParts[0] === rootFolder.name) pathParts.shift(); // root명 중복 제거
+            
+            let currentHandle = rootFolder.handle;
+            for (let i = 0; i < pathParts.length - 1; i++) {
+              currentHandle = await currentHandle.getDirectoryHandle(pathParts[i]);
+            }
+            const fileHandle = await currentHandle.getFileHandle(pathParts[pathParts.length - 1]);
+            const file = await fileHandle.getFile();
+            objectUrl = URL.createObjectURL(file);
+            setImgSrc(objectUrl);
+          } else {
+            // VFS fallback
+            const { vfsReadFile } = await import('@/lib/virtualFileSystem');
+            const b64 = vfsReadFile(src);
+            if (b64) setImgSrc(`data:image/png;base64,${b64}`);
+            else throw new Error('VFS file not found');
+          }
+        } else {
+          // 일반적인 URL이거나 개발 서버 public/assets 경로
+          setImgSrc(src);
+        }
+      } catch (e) {
+        // 모든 로컬 읽기 실패 시, 최종적으로 서버 /api/view 폴백 시도 (이전 안전망 유지)
+        const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
+        setImgSrc(queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc);
+      }
+    };
+    
+    loadLocalImage();
+    
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src, absolutePath, rootFolder, workspaceType, api, queryString]);
+
+  if (!imgSrc) return <span className="inline-block animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-32" />;
+
+  const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.dataset.fallbackAttempted) return;
+    img.dataset.fallbackAttempted = 'true';
+    if (!api && !src.startsWith('/api/image/') && !src.startsWith('http')) {
+      const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
+      img.src = queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc;
+    }
+  };
+
+  return <img src={imgSrc} alt={alt} style={style} className={className} onError={onImgError} {...props} />;
+};
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
   if (!srcPath) return "";
@@ -874,7 +944,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
 // ====================================================================
 export default function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
-  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent
+  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, workspaceType
 }: MarkdownViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1223,6 +1293,7 @@ export default function MarkdownViewer({
               }
 
               let finalSrc = pureSrc;
+              let absolutePath = pureSrc;
               const isHttp = pureSrc.startsWith('http://') || pureSrc.startsWith('https://');
               const isBlobOrData = pureSrc.startsWith('data:') || pureSrc.startsWith('blob:');
               const isExternal = isHttp || isBlobOrData;
@@ -1263,10 +1334,11 @@ export default function MarkdownViewer({
                 }
               } else if (!isExternal && typeof window !== 'undefined') {
                 const api = (window as any).electronAPI;
-                let absolutePath = pureSrc;
                 const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(pureSrc);
-                const isAbsoluteUnix = pureSrc.startsWith('/');
-                const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
+                // 💡 [마크다운 루트 상대경로 지원]
+                // 마크다운 문법에서 /assets/img.png 처럼 최상단 슬래시(/)로 시작하는 경로는 
+                // 워크스페이스의 루트 폴더를 기준으로 하는 상대 경로(Root-Relative)로 해석해야 합니다.
+                const isRootRelative = pureSrc.startsWith('/');
 
                 const isWelcomePage = currentFilePath && (
                   currentFilePath.endsWith('Welcome.md') || 
@@ -1276,21 +1348,26 @@ export default function MarkdownViewer({
 
                 const isWelcomeAsset = pureSrc === './hero.png' || pureSrc === 'hero.png' || isWelcomePage;
 
-                if (!isAbsolute && currentFilePath && !isWelcomeAsset) {
+                if (isRootRelative && rootFolderPath && rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
+                  // 워크스페이스 루트 상대 경로 처리 (예: /assets/img.png -> 워크스페이스경로/assets/img.png)
+                  const sep = rootFolderPath.includes('\\') ? '\\' : '/';
+                  const cleanRoot = rootFolderPath.endsWith(sep) ? rootFolderPath.slice(0, -1) : rootFolderPath;
+                  const normalizedSrc = sep === '\\' ? pureSrc.replace(/\//g, '\\') : pureSrc;
+                  absolutePath = cleanRoot + normalizedSrc;
+                } else if (!isAbsoluteWin && !isRootRelative && currentFilePath && !isWelcomeAsset) {
                   absolutePath = resolveRelativeImagePath(pureSrc, currentFilePath);
-                } else if (!isAbsolute && rootFolderPath && rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
+                } else if (!isAbsoluteWin && !isRootRelative && rootFolderPath && rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
                   const sep = rootFolderPath.includes('/') ? '/' : '\\';
                   const folder = rootFolderPath.endsWith(sep) ? rootFolderPath : rootFolderPath + sep;
                   absolutePath = folder + pureSrc;
                 } else if (isWelcomeAsset) {
-                  absolutePath = pureSrc.startsWith('./') ? pureSrc.slice(2) : pureSrc;
+                  absolutePath = pureSrc.startsWith('./') ? pureSrc.slice(2) : pureSrc.startsWith('/') ? pureSrc.slice(1) : pureSrc;
                 }
                 
                 if (api) {
                   finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
-                } else if (process.env.NODE_ENV === 'development') {
-                  finalSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
                 } else {
+                  // 웹 환경에서는 브라우저 로컬(상대/절대) 경로를 가장 먼저 시도합니다.
                   finalSrc = pureSrc;
                 }
                 
@@ -1313,8 +1390,6 @@ export default function MarkdownViewer({
               } catch (e) {}
 
               // 💡 [단위 자동 보완 가드]
-              // 가로/세로 크기에 단위가 없는 순수 숫자가 들어오는 경우(예: 300), 
-              // 브라우저 CSS 스펙에 부합하도록 px 단위를 기본적으로 붙여 렌더링에 실질 반영되게 합니다.
               if (width && /^\d+$/.test(width)) width = `${width}px`;
               if (height && /^\d+$/.test(height)) height = `${height}px`;
 
@@ -1323,30 +1398,27 @@ export default function MarkdownViewer({
               };
               imgStyle.width = width || undefined;
               if (!width) imgStyle.maxWidth = 'min(100%, 600px)';
-              const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-                const img = e.currentTarget;
-                if (img.dataset.fallbackAttempted) return;
-                img.dataset.fallbackAttempted = 'true';
-                const api = (window as any).electronAPI;
-                if (!api) return;
-                const isR2Path = pureSrc.startsWith('/api/image/') || img.src.includes('/api/image/');
-                if (!isR2Path) return;
-                const match = pureSrc.match(/\/api\/image\/users\/[^/]+\/(.+)/) || img.src.match(/\/api\/image\/users\/[^/]+\/([^?#]+)/);
-                if (!match) return;
-                const localFileName = match[1];
-                const baseFolder = currentFilePath?.replace(/\\/g, '/').replace(/\/[^/]+$/, '') || '';
-                if (baseFolder) {
-                  const localPath = baseFolder + '/assets/' + localFileName;
-                  img.src = `media://local/serve?url=${encodeURIComponent(localPath)}`;
-                }
-              };
-              const imgElement = <img src={finalSrc} alt={alt} style={imgStyle} className="rounded-lg shadow-sm border border-zinc-200/30  my-3 mx-auto block" onError={onImgError} {...props} />;
+              
+              const imgElement = (
+                <AsyncImage 
+                  src={finalSrc} 
+                  alt={alt} 
+                  absolutePath={absolutePath} 
+                  rootFolder={rootFolder} 
+                  workspaceType={workspaceType} 
+                  api={typeof window !== 'undefined' ? (window as any).electronAPI : null} 
+                  queryString={queryString} 
+                  style={imgStyle} 
+                  className="rounded-lg shadow-sm border border-zinc-200/30 my-3 mx-auto block" 
+                  {...props} 
+                />
+              );
               
               if (alt && alt.trim() !== '') {
                 return (
                   <figure className="my-6 text-center flex flex-col items-center">
                     {imgElement}
-                    <figcaption className="text-[0.9em] text-zinc-500  mt-2 font-medium">
+                    <figcaption className="text-[0.9em] text-zinc-500 mt-2 font-medium">
                       {alt}
                     </figcaption>
                   </figure>
@@ -1708,7 +1780,7 @@ export default function MarkdownViewer({
                 </blockquote>
               );
             }
-          }), [lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, getIndentStyle])}
+          }), [lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, getIndentStyle, rootFolder, workspaceType])}
         >
           {processedContent}
         </ReactMarkdown>

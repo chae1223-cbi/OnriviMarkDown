@@ -1,7 +1,8 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import GlobalSearch from './GlobalSearch';
 import FileTreeItem from './FileTreeItem';
@@ -34,7 +35,8 @@ export default function LeftSidebar() {
     toggleMergeNodeSelect, onOpenMergeModal,
     onSelectRootFolder, onRestoreFolder, previewMode, setPreviewMode,
     tabs = [], licenseStatus,
-    setIsMergeMode, setSelectedMergeNodes
+    setIsMergeMode, setSelectedMergeNodes,
+    geminiApiKey, aiModelName
   } = useEditorContext();
 
   const isRestrictedUser = false;
@@ -54,6 +56,7 @@ export default function LeftSidebar() {
   const [isDrivesLoading, setIsDrivesLoading] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [collapsedH1s, setCollapsedH1s] = useState<Record<string, boolean>>({});
+  const [isImporting, setIsImporting] = useState(false);
   
   // TOC 스크롤 추적을 위한 활성화된 헤딩 ID 상태
   const [activeTocId, setActiveTocId] = useState<string>('');
@@ -158,6 +161,8 @@ export default function LeftSidebar() {
     error?: string;
   }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
 
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0006] LeftSidebar ➔ onPromptConfirm
 // 🎯 @KICK  : PromptModal 확인 시 파일/폴더 생성 (브라우저/로컬/LocalStorage VFS 대응)
@@ -254,6 +259,136 @@ export default function LeftSidebar() {
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
       } catch(e) { showToast("생성 실패: " + e, 'error'); }
     }
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      showToast('파일에서 텍스트를 추출 중입니다...', 'info');
+      const imageSaveCallback = async (base64Data: string, contentType: string) => {
+        const ext = contentType.split('/')[1] || 'png';
+        const imgName = `img_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
+        const assetsDir = 'assets';
+        const imgPath = `${assetsDir}/${imgName}`;
+
+        if (workspaceType === 'browser') {
+          if (rootFolder?.handle) {
+            const assetsHandle = await rootFolder.handle.getDirectoryHandle(assetsDir, { create: true });
+            const fileHandle = await assetsHandle.getFileHandle(imgName, { create: true });
+            const writable = await fileHandle.createWritable();
+            const res = await fetch(`data:${contentType};base64,${base64Data}`);
+            const blob = await res.blob();
+            await writable.write(blob);
+            await writable.close();
+            return `/${imgPath}`;
+          } else {
+            const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
+            vfsCreateFile("", imgPath);
+            vfsWriteFile(imgPath, base64Data); // Assuming VFS supports base64 string
+            return `/${imgPath}`;
+          }
+        } else {
+          // Electron 데스크톱 환경
+          const api = (window as any).electronAPI;
+          if (api && api.saveImage) {
+            const saveResult = await api.saveImage(rootFolder?.name || "", base64Data, fileName);
+            if (saveResult && saveResult.success) {
+              return saveResult.isRelative ? `/assets/${fileName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+            }
+          }
+        }
+        
+        // 만약 파일 저장을 건너뛰었다면 (Electron API 한계 등), 그냥 HTML 상에 base64로 직접 내장 (Data URI 반환)
+        return `data:${contentType};base64,${base64Data}`;
+      };
+
+      const { convertFileToMarkdown } = await import('@/lib/fileImporter');
+      let markdown = await convertFileToMarkdown(file, imageSaveCallback);
+
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      const isAlreadyTextOrMd = ['md', 'markdown', 'txt'].includes(extension || '');
+
+      if (!isAlreadyTextOrMd) {
+        const MAX_CHARS = 30000;
+        if (markdown.length > MAX_CHARS) {
+          throw new Error(`문서 내용이 너무 큽니다. (현재 약 ${Math.floor(markdown.length / 1000)}k자 / 최대 허용 30k자). AI 변환 품질 저하 방지를 위해 문서를 나누어 가져와주세요.`);
+        }
+      }
+
+      if (geminiApiKey && !isAlreadyTextOrMd) {
+        showToast('AI가 문서를 분석하여 마크다운으로 구조화 중입니다... (최대 30초 소요)', 'info');
+        const { formatRawTextToMarkdown } = await import('@/lib/aiFormatter');
+        markdown = await formatRawTextToMarkdown(markdown, geminiApiKey, aiModelName || 'gemini-1.5-pro');
+      }
+      const originalName = file.name.split('.').slice(0, -1).join('.') || file.name;
+      let finalName = `${originalName}.md`;
+
+      let counter = 1;
+      while (fileList.some((c: any) => c.name.toLowerCase() === finalName.toLowerCase())) {
+        finalName = `${originalName}_${counter}.md`;
+        counter++;
+      }
+
+      const rootPath = rootFolder?.name || "";
+
+      if (workspaceType === 'browser') {
+        if (rootFolder?.handle) {
+          const handle = await rootFolder.handle.getFileHandle(finalName, { create: true });
+          const writable = await handle.createWritable();
+          await writable.write(markdown);
+          await writable.close();
+          await refreshFileList();
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          openFile({ name: finalName, kind: 'file', handle, path: finalName }, rootFolder?.handle);
+        } else {
+          const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
+          vfsCreateFile("", finalName);
+          vfsWriteFile(finalName, markdown);
+          await refreshFileList();
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          openFile({ name: finalName, kind: 'file', path: finalName });
+        }
+      } else {
+        const api = (window as any).electronAPI;
+        if (api?.createFile && api?.saveFile) {
+          const result = await api.createFile(rootPath, finalName);
+          if (result.success) {
+            await api.saveFile(result.path, markdown);
+            await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            openFile({ name: finalName, kind: 'file', path: result.path });
+          }
+        } else {
+          const res = await fetch(getApiUrl('/api/create-file'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parentPath: rootPath, name: finalName })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            await fetch(getApiUrl('/api/save-file'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: data.path, content: markdown })
+            });
+            await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            openFile({ name: finalName, kind: 'file', path: data.path });
+          }
+        }
+      }
+      showToast(`'${file.name}' 문서를 성공적으로 가져왔습니다.`, 'success');
+    } catch (error: any) {
+      showToast(error.message || '파일을 가져오는 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsImporting(false);
+    }
+    
+    // input 초기화
+    e.target.value = '';
   };
 
 // ====================================================================
@@ -515,6 +650,25 @@ export default function LeftSidebar() {
                     >
                       <RefreshCw size={14} />
                     </button>
+                    <>
+                      <input 
+                        type="file" 
+                        ref={importFileInputRef} 
+                        style={{ display: 'none' }} 
+                        accept=".docx,.hwp,.pdf,.txt,.md,.markdown,.html" 
+                        onChange={handleImportFile} 
+                      />
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          importFileInputRef.current?.click();
+                        }} 
+                        className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                        title="문서 변환 및 가져오기 (DOCX, HWP, PDF, TXT, MD, HTML)"
+                      >
+                        <span className="text-sm">📥</span>
+                      </button>
+                    </>
                   </div>
                 )}
               </div>
@@ -849,6 +1003,25 @@ export default function LeftSidebar() {
         onConfirm={onPromptConfirm}
         onCancel={() => setPromptConfig({ ...promptConfig, isOpen: false, error: '' })}
       />
+      
+      {isImporting && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999999] flex items-center justify-center bg-[#0B1120]/95 backdrop-blur-md">
+          <div className="bg-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center max-w-sm mx-4 border border-slate-700/50 text-center animate-in fade-in zoom-in duration-200">
+            <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
+              <div className="absolute inset-0 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+              <img src="./icon.png" alt="Onrivi" className="w-10 h-10 object-contain animate-pulse" />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">문서 구조화 및 분석 중...</h3>
+            <p className="text-sm text-slate-300 opacity-90 leading-relaxed">
+              AI가 문서의 맥락을 유추하여<br/>마크다운으로 예쁘게 포맷팅하고 있습니다.
+            </p>
+            <p className="text-xs text-blue-400 mt-4 font-medium animate-pulse">
+              문서 크기에 따라 30초에서 5분 정도 소요될 수 있습니다. 잠시만 기다려주세요.
+            </p>
+          </div>
+        </div>,
+        document.body
+      )}
     </aside>
   );
 }

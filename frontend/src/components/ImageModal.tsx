@@ -21,6 +21,8 @@ interface ImageModalProps {
   } | null;
   targetFolder?: string;
   showToast?: (message: string, type: 'success' | 'error') => void;
+  workspaceType?: string;
+  rootFolder?: any;
 }
 
 // ====================================================================
@@ -38,6 +40,8 @@ export default function ImageModal({
   initialData,
   targetFolder,
   showToast,
+  workspaceType,
+  rootFolder,
 }: ImageModalProps) {
   const [imagePath, setImagePath] = useState("");
   const [appliedPath, setAppliedPath] = useState("");
@@ -45,6 +49,7 @@ export default function ImageModal({
   const [imageWidth, setImageWidth] = useState("");
   const [imageHeight, setImageHeight] = useState("");
   const [imageAlign, setImageAlign] = useState("center");
+  const [localBlobUrl, setLocalBlobUrl] = useState("");
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -71,46 +76,45 @@ export default function ImageModal({
     }
   }, [isOpen, initialData]);
 
-  const handleDesktopImageUpload = async (base64Data: string, fileName: string, imageFile: File) => {
+  const handleLocalImageSave = async (base64Data: string, fileName: string, imageFile: File) => {
     let finalPath = '';
-    let r2Success = false;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const resp = await fetch('https://onrivi.com/api/upload-image', {
-        method: 'POST', headers,
-        body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
-      });
-      if (resp.ok) {
-        const d = await resp.json();
-        if (d.status === 'success' && d.relativePath) {
-          finalPath = d.relativePath;
-          r2Success = true;
-        }
+    const api = (window as any).electronAPI;
+    
+    if (api) {
+      const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
+      if (saveResult && saveResult.success) {
+        finalPath = saveResult.isRelative ? `/assets/${fileName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
       }
-    } catch {}
-    if (!r2Success) {
-      const api = (window as any).electronAPI;
-      if (api) {
-        const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
-        if (saveResult && saveResult.success) {
-          finalPath = saveResult.isRelative ? `assets/${fileName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+    } else if (workspaceType === 'browser') {
+      try {
+        const assetsDir = 'assets';
+        if (rootFolder?.handle) {
+          const assetsHandle = await rootFolder.handle.getDirectoryHandle(assetsDir, { create: true });
+          const fileHandle = await assetsHandle.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(imageFile);
+          await writable.close();
+          finalPath = `/${assetsDir}/${fileName}`;
+        } else {
+          const { vfsWriteFile } = await import('@/lib/virtualFileSystem');
+          const imgPath = `${assetsDir}/${fileName}`;
+          vfsWriteFile(imgPath, base64Data);
+          finalPath = `/${imgPath}`;
         }
+      } catch (e) {
+        console.error('로컬 이미지 저장 실패', e);
       }
     }
+
     if (finalPath) {
-      setImagePath(finalPath);
+      const blobPreview = URL.createObjectURL(imageFile);
+      setImagePath(blobPreview);
       setAppliedPath(finalPath);
-      if (showToast) {
-        if (r2Success) showToast('R2 업로드 완료 — 적용 경로가 설정되었습니다.', 'success');
-        else showToast('R2 업로드 실패 — 로컬 assets에 저장되었습니다.', 'success');
-      }
+      if (showToast) showToast('로컬 assets 폴더에 저장되었습니다.', 'success');
     } else {
       const blobPreview = URL.createObjectURL(imageFile);
       setImagePath(blobPreview);
-      if (showToast) showToast('이미지 저장 실패', 'error');
+      if (showToast) showToast('이미지 로컬 저장 실패 (임시 렌더링)', 'error');
     }
   };
 
@@ -156,44 +160,8 @@ export default function ImageModal({
         if (showToast) showToast('이미지 데이터를 읽을 수 없습니다.', 'error');
         return;
       }
-      const api = (window as any).electronAPI;
-      if (api) {
-        const fileName = `image_${Date.now()}.png`;
-        await handleDesktopImageUpload(base64Data, fileName, imageFile!);
-      } else {
-        const blobPreview = URL.createObjectURL(imageFile!);
-        setImagePath(blobPreview);
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          const token = session?.access_token;
-          const isDev = process.env.NODE_ENV === 'development';
-          const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
-          const headers: any = { 'Content-Type': 'application/json' };
-          if (token) headers['Authorization'] = `Bearer ${token}`;
-          const response = await fetch(uploadEndpoint, {
-            method: 'POST', headers,
-            body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
-          });
-          if (response.ok) {
-            const data = await response.json();
-            if (data.status === 'success' && data.relativePath) {
-              setImagePath(data.relativePath);
-              setAppliedPath(data.relativePath);
-              if (showToast) {
-                if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
-                else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
-              }
-            } else {
-              if (showToast) showToast('이미지 클라우드 업로드 실패: ' + (data.error || ''), 'error');
-            }
-          } else {
-            if (showToast) showToast(`서버 오류 발생 (${response.status})`, 'error');
-          }
-        } catch (err) {
-          console.error(err);
-          if (showToast) showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
-        }
-      }
+      const fileName = `image_${Date.now()}.png`;
+      await handleLocalImageSave(base64Data, fileName, imageFile!);
     };
     reader.onerror = () => {
       if (showToast) showToast('이미지 파일을 읽는데 실패했습니다.', 'error');
@@ -225,6 +193,54 @@ export default function ImageModal({
 
     return url;
   }, [imagePath]);
+
+  useEffect(() => {
+    let active = true;
+    let createdBlob = '';
+    
+    setLocalBlobUrl('');
+    
+    if (!cleanImagePath) return;
+    const isExternal = cleanImagePath.startsWith('http://') || cleanImagePath.startsWith('https://') || cleanImagePath.startsWith('data:') || cleanImagePath.startsWith('blob:') || cleanImagePath.startsWith('media://');
+    if (isExternal) return;
+    
+    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+    if (api) return;
+    
+    if (workspaceType !== 'browser') {
+      setLocalBlobUrl(`/api/view?filePath=${encodeURIComponent(cleanImagePath)}`);
+      return;
+    }
+
+    const loadLocal = async () => {
+      try {
+        let pathParts = cleanImagePath.split(/[/\\]/).filter(Boolean);
+        if (rootFolder?.handle) {
+          if (pathParts[0] === rootFolder.name) pathParts.shift();
+          let currentHandle = rootFolder.handle;
+          for (let i = 0; i < pathParts.length - 1; i++) {
+            currentHandle = await currentHandle.getDirectoryHandle(pathParts[i]);
+          }
+          const fileHandle = await currentHandle.getFileHandle(pathParts[pathParts.length - 1]);
+          const file = await fileHandle.getFile();
+          createdBlob = URL.createObjectURL(file);
+          if (active) setLocalBlobUrl(createdBlob);
+        } else {
+          const { vfsReadFile } = await import('@/lib/virtualFileSystem');
+          const cleanVfsPath = cleanImagePath.startsWith('/') ? cleanImagePath.substring(1) : cleanImagePath;
+          const b64 = vfsReadFile(cleanVfsPath);
+          if (b64 && active) setLocalBlobUrl(`data:image/png;base64,${b64}`);
+        }
+      } catch (e) {
+        if (active) setLocalBlobUrl(`/api/view?filePath=${encodeURIComponent(cleanImagePath)}`);
+      }
+    };
+    loadLocal();
+    return () => {
+      active = false;
+      if (createdBlob) URL.revokeObjectURL(createdBlob);
+    };
+  }, [cleanImagePath, workspaceType, rootFolder]);
 
   const previewSrc = useMemo(() => {
     if (!cleanImagePath) return "";
@@ -258,8 +274,12 @@ export default function ImageModal({
       return `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
     }
 
+    if (workspaceType === 'browser') {
+      return localBlobUrl;
+    }
+
     return cleanImagePath;
-  }, [cleanImagePath, targetFolder]);
+  }, [cleanImagePath, targetFolder, localBlobUrl, workspaceType]);
 
   const handleInsert = () => {
     const insertPath = appliedPath || cleanImagePath;
@@ -290,48 +310,9 @@ export default function ImageModal({
       reader.onload = async () => {
         const result = reader.result as string;
         const base64Data = result.split(',')[1];
-        const api = (window as any).electronAPI;
-        if (api) {
-          const fileName = `image_${Date.now()}.png`;
-          await handleDesktopImageUpload(base64Data, fileName, file);
-          setImageAlt("이미지 설명");
-        } else {
-          const blobPreview = URL.createObjectURL(file);
-          setImagePath(blobPreview);
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            const isDev = process.env.NODE_ENV === 'development';
-            const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
-            const headers: any = { 'Content-Type': 'application/json' };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
-            const response = await fetch(uploadEndpoint, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ base64Data, targetFolder: targetFolder || '' }),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              if (data.status === 'success' && data.relativePath) {
-                setImagePath(data.relativePath);
-                setImageAlt("이미지 설명");
-                if (showToast) {
-                  if (isDev) showToast('개발 환경: 로컬 프록시를 통해 assets 폴더에 저장되었습니다.', 'success');
-                  else showToast('웹 환경: 클라우드 서버(R2)에 성공적으로 업로드되었습니다.', 'success');
-                }
-              } else {
-                if (showToast) showToast('이미지 클라우드 업로드 실패: ' + (data.error || ''), 'error');
-              }
-            } else {
-              if (showToast) showToast(`서버 오류 발생 (${response.status})`, 'error');
-            }
-          } catch (err) {
-            console.error(err);
-            if (showToast) showToast('웹 이미지 업로드 전송 중 네트워크 오류가 발생했습니다.', 'error');
-          }
-        }
+        const fileName = `image_${Date.now()}.png`;
+        await handleLocalImageSave(base64Data, fileName, file);
+        setImageAlt("이미지 설명");
       };
       reader.readAsDataURL(file);
     }

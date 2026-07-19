@@ -22,6 +22,15 @@ const nextConfig = {
       config.cache = false;
     }
 
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+    }
+
     // ?�적 ?�보?�기�??�해 추출??CSS ?�의 ?��? ?�트 URL ?�정
     if (!isServer) {
       class FixCssFontUrlsPlugin {
