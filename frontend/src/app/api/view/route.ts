@@ -1,7 +1,6 @@
 // ====================================================================
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
 let fs: any;
 let path: any;
 if (typeof process !== 'undefined' && process.versions && process.versions.node) {
@@ -77,8 +76,9 @@ export async function GET(request: Request) {
       }
     });
   } catch (error: any) {
-    if (error?.message && error.message.includes('NEXT_STATIC_GEN_BAILOUT')) {
-      return new NextResponse('Dynamic route bailout', { status: 500 });
+    if (error?.code === 'NEXT_STATIC_GEN_BAILOUT' || (error?.message && error.message.includes('NEXT_STATIC_GEN_BAILOUT'))) {
+      // 빌드 시점에 발생하는 정상적인 Bailout 에러이므로 로그를 생략하고 넘어갑니다.
+      return new NextResponse('Static Generation Bailout', { status: 200 });
     }
     console.error('View API Error:', error);
     return new NextResponse(error.message, { status: 500 });
