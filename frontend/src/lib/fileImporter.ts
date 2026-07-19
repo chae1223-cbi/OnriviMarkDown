@@ -55,11 +55,17 @@ async function importDocx(
       };
       // 이미지 콜백이 있을 경우 HTML 변환 후 반환
       result = await mammoth.convertToHtml({ arrayBuffer }, options);
+      // 추출된 HTML에서 <img src="..."> 태그를 찾아 마크다운 ![...](...) 문법으로 강제 변환
+      let htmlContent = result.value;
+      htmlContent = htmlContent.replace(/<img[^>]*src="([^"]+)"[^>]*>/gi, '![]($1)');
+      // 쓸데없는 <p>, </p> 등 기본 HTML 래퍼 제거 (AI가 헷갈리지 않도록 평문화)
+      htmlContent = htmlContent.replace(/<\/?p[^>]*>/gi, '\n\n');
+      return htmlContent.trim();
     } else {
       // 텍스트 추출 방식 사용
       result = await mammoth.extractRawText({ arrayBuffer });
     }
-    return result.value;
+    return result.value.trim();
   } catch (error: any) {
     console.error('DOCX Import Error:', error);
     throw new Error('워드 파일(DOCX)을 읽는 중 오류가 발생했습니다.');

@@ -294,9 +294,9 @@ export default function LeftSidebar() {
           // Electron 데스크톱 환경
           const api = (window as any).electronAPI;
           if (api && api.saveImage) {
-            const saveResult = await api.saveImage(rootFolder?.name || "", base64Data, fileName);
+            const saveResult = await api.saveImage(rootFolder?.name || "", base64Data, imgName);
             if (saveResult && saveResult.success) {
-              return saveResult.isRelative ? `/assets/${fileName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+              return saveResult.isRelative ? `/assets/${imgName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
             }
           }
         }
