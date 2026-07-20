@@ -12,8 +12,36 @@ import { ToastProvider } from "@/components/ToastProvider";
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const metadata: Metadata = {
+  metadataBase: new URL('https://onrivi.com'),
   title: "온리비 어서 - 프로페셔널 마크다운 에디터",
-  description: "Next-generation web based markdown editor",
+  description: "AI 시대의 무결점 지식 자산화 인프라. 마크다운의 생산성과 전문가 수준의 출판 품질을 결합한 로컬 우선 저작 플랫폼.",
+  keywords: ["마크다운 에디터", "마크다운 PDF 변환", "테크니컬 라이터", "Markdown Editor", "지식 관리", "온리비 어서", "로컬 우선 에디터", "AI 초안 작성", "문서 양식"],
+  authors: [{ name: "Onrivi" }],
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: "온리비 어서 - 프로페셔널 마크다운 에디터",
+    description: "AI 시대의 무결점 지식 자산화 인프라. 마크다운의 생산성과 전문가 수준의 출판 품질을 결합한 로컬 우선 저작 플랫폼.",
+    url: 'https://onrivi.com',
+    siteName: 'Onrivi Author',
+    images: [
+      {
+        url: '/hero.png',
+        width: 1200,
+        height: 630,
+        alt: 'Onrivi Author Preview',
+      }
+    ],
+    locale: 'ko_KR',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "온리비 어서 - 프로페셔널 마크다운 에디터",
+    description: "AI 시대의 무결점 지식 자산화 인프라. 마크다운의 생산성과 전문가 수준의 출판 품질을 결합한 로컬 우선 저작 플랫폼.",
+    images: ['/hero.png'],
+  },
   icons: {
     icon: "./icon_onriveauther.png?v=1",
     shortcut: "./icon_onriveauther.png?v=1",

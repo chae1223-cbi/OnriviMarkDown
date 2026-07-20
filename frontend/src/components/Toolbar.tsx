@@ -14,14 +14,14 @@ function openExternal(url: string) {
 }
 
 export default function Toolbar() {
-  const { dispatchCommand: dispatch, previewMode, isExpired } = useEditorContext();
+  const { dispatchCommand: dispatch, previewMode, isExpired, activeTabId, geminiApiKey, showToast } = useEditorContext();
   const router = useRouter();
-  const showProductivity = previewMode !== 'preview' && !isExpired;
+  const showProductivity = previewMode !== 'preview' && !isExpired && activeTabId;
 
   return (
     <div className="flex flex-col items-center gap-2 pb-1 mt-auto">
       
-      {/* ⚡ 생산성 단축 도구 (미리보기 모드/라이선스 만료 시 숨김) */}
+      {/* ⚡ 생산성 단축 도구 (미리보기 모드/라이선스 만료 시 숨김/문서 열려있을때만) */}
       {showProductivity && (
         <>
           <button
@@ -40,15 +40,7 @@ export default function Toolbar() {
             <span className="text-zinc-500 dark:text-zinc-400">⚡</span>
           </button>
 
-          <button
-            onMouseDown={(e) => { e.preventDefault(); dispatch('AI_DRAFT'); }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-base"
-            title="AI 맞춤형 초안 작성"
-          >
-            <span className="text-zinc-500 dark:text-zinc-400">✨</span>
-          </button>
 
-          <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600/60 my-1" />
         </>
       )}
 

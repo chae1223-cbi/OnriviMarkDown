@@ -190,35 +190,18 @@ export const processTextWithAIStream = async (
 export const generateDraftWithAIStream = async (
   apiKey: string,
   modelName: string,
-  domain: string,
-  docType: string,
-  topic: string,
+  systemPrompt: string,
+  userPrompt: string,
   onChunk: (chunkText: string) => void
 ): Promise<string> => {
   const genAI = getGenAI(apiKey);
   
-  let systemPrompt = '';
-  const tagRule = ' [중요 규칙] 당신이 작성한 초안의 마크다운 본문은 반드시 첫 시작 부분에 [출력결과] 라는 한글 태그를 달고 시작하십시오. 이 태그 밖(앞부분)에는 당신의 생각 과정이나 개요를 영어로 자유롭게 작성하셔도 좋으나, 태그 이하에는 오직 마크다운 형식의 초안 문서만 출력해야 합니다.';
-  
-  switch (domain) {
-    case '직장인 (비즈니스 및 실무)':
-      systemPrompt = `당신은 비즈니스 문서 작성 전문가입니다. 사용자의 주제를 바탕으로 [${docType}] 초안을 작성하세요. 반드시 '결론 우선(피라미드 원칙)'과 'S-C-Q-A 도입부'를 따르고, 문장은 간결하고 구체적인 개조식으로 작성하세요. 수치를 활용할 수 있다면 활용하고, 불필요한 서술어는 배제하십시오.` + tagRule;
-      break;
-    case '작가 (문학적·창의적)':
-      systemPrompt = `당신은 예술적 감동을 전달하는 작가입니다. 사용자의 주제를 바탕으로 [${docType}] 초안을 작성하세요. 상상력과 감수성을 발휘하며, 직접적으로 설명하기보다는 '보여주기(Show, Don't Tell)' 기법을 사용하세요. 독자의 흥미를 유발하는 매력적인 첫 문장으로 시작하세요.` + tagRule;
-      break;
-    case '학생 (학술적)':
-      systemPrompt = `당신은 학술 문서 작성 전문가입니다. 사용자의 주제를 바탕으로 [${docType}] 초안을 작성하세요. 객관적이고 체계적인 논증 구조를 갖추며, 명확한 근거와 깊이 있는 분석을 제시하십시오. 정제된 학술적 어조를 유지하십시오.` + tagRule;
-      break;
-    case '생활 (실용적·논리적)':
-    default:
-      systemPrompt = `당신은 실용적 글쓰기 전문가입니다. 사용자의 주제를 바탕으로 [${docType}] 초안을 작성하세요. 타인이 읽었을 때 오해가 없도록 명확하고 논리적인 지침 형태로 전달하세요. 정보를 체계적으로 구성하여 소통의 목적을 달성하십시오.` + tagRule;
-      break;
-  }
+  const tagRule = '\n\n[중요 규칙] 당신이 작성한 초안의 마크다운 본문은 반드시 첫 시작 부분에 [출력결과] 라는 한글 태그를 달고 시작하십시오. 이 태그 밖(앞부분)에는 당신의 생각 과정이나 개요를 영어로 자유롭게 작성하셔도 좋으나, 태그 이하에는 오직 마크다운 형식의 초안 문서만 출력해야 합니다.';
+  const finalSystemPrompt = systemPrompt + tagRule;
 
   const model = genAI.getGenerativeModel({ 
     model: modelName || 'gemini-3.5-flash',
-    systemInstruction: systemPrompt
+    systemInstruction: finalSystemPrompt
   });
 
   const cleanOuterCodeBlock = (val: string): string => {
@@ -247,7 +230,7 @@ export const generateDraftWithAIStream = async (
   };
 
   try {
-    const prompt = `주제 및 내용:\n${topic}`;
+    const prompt = userPrompt;
     const result = await model.generateContentStream(prompt);
     let fullText = '';
     for await (const chunk of result.stream) {

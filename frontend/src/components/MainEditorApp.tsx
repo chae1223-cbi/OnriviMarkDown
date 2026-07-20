@@ -667,6 +667,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAIDraftModalOpen, setIsAIDraftModalOpen] = useState(false);
+  const [aiDraftInitialMode, setAiDraftInitialMode] = useState<'draft' | 'editorial'>('draft');
+  const [aiEditorContext, setAiEditorContext] = useState<{ selectedText: string; fullText: string }>({ selectedText: '', fullText: '' });
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0013] MainEditorApp.tsx ➔ searchOpen_sidebar_behavior
@@ -3937,31 +3939,59 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'ABOUT': handlers.about(); return;
       case 'HELP': handlers.help(); return;
       case 'LICENSE': handlers.license(); return;
-      case 'TOGGLE_FLOATING_TOOLBAR': handlers.toggleFloatingToolbar(); return;
-      case 'AI_DRAFT': setIsAIDraftModalOpen(true); return;
+      case 'TOGGLE_FLOATING_TOOLBAR': {
+        if (!activeTabId || previewMode === 'preview') {
+          showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
+          return;
+        }
+        handlers.toggleFloatingToolbar(); 
+        return;
+      }
+      case 'AI_DRAFT': {
+        if (!geminiApiKey) {
+          showToast('설정에서 Gemini API 키를 먼저 등록해주세요.', 'warning');
+          setIsSettingsModalOpen(true);
+          return;
+        }
+        if (!activeTabId || previewMode === 'preview') {
+          showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
+          return;
+        }
+        setAiDraftInitialMode('draft');
+        setIsAIDraftModalOpen(true); 
+        return;
+      }
       case 'OPEN_AI_WRITER': {
+        if (!geminiApiKey) {
+          showToast('설정에서 Gemini API 키를 먼저 등록해주세요.', 'warning');
+          setIsSettingsModalOpen(true);
+          return;
+        }
+        if (!activeTabId || previewMode === 'preview') {
+          showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
+          return;
+        }
         const editor = editorRef.current;
         const selection = editor ? editor.getSelection() : null;
         const model = editor ? editor.getModel() : null;
         let selectedText = '';
-        if (editor && model && selection && !selection.isEmpty()) {
-          selectedText = model.getValueInRange(selection);
+        let fullText = '';
+        if (editor && model) {
+          fullText = model.getValue();
+          if (selection && !selection.isEmpty()) {
+            selectedText = model.getValueInRange(selection);
+          }
         }
-        generationIdRef.current++;
-        setAiPreviewState(prev => ({
-          ...prev,
-          isModalOpen: true,
-          promptInput: '',
-          streamingText: '',
-          isFinished: false,
-          isStarted: false,
-          originalRange: selection,
-          originalText: selectedText,
-          targetScope: selectedText ? 'selection' : 'none'
-        }));
+        setAiEditorContext({ selectedText, fullText });
+        setAiDraftInitialMode('editorial');
+        setIsAIDraftModalOpen(true);
         return;
       }
       case 'SLASH_COMMAND': {
+        if (!activeTabId || previewMode === 'preview') {
+          showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
+          return;
+        }
         const editor = editorRef.current;
         if (editor) {
           editor.focus();
@@ -4007,31 +4037,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'MERGE':
         setIsMergeMode(true);
         return;
-      case 'AI_HELP': {
-        const editor = editorRef.current;
-        if (!editor) return;
-        if (!geminiApiKey) {
-          showToast("환경설정에서 API Key를 먼저 입력해주세요.", 'error');
-          return;
-        }
-
-        const selection = editor.getSelection();
-        // 중앙 플로팅 모달을 띄워 입력 및 결과 감상 지원
-        generationIdRef.current++;
-        setAiPreviewState({
-          isOpen: false,
-          isModalOpen: true,
-          promptInput: '',
-          originalRange: selection,
-          streamingText: '',
-          action: 'expand',
-          originalText: '',
-          isFinished: false,
-          isStarted: false,
-          targetScope: 'document'
-        });
-        return;
-      }
     }
 
     // 2. 에디터 본문 서식 조작 명령어 (포커스 가드 강제 추적)
@@ -4042,6 +4047,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const MODAL_COMMANDS: EditorCommandType[] = ['IMAGE', 'VIDEO', 'YOUTUBE', 'MAP', 'TABLE', 'LATEX', 'MATH', 'LINK'];
 
     const selection = editor.getSelection();
+
     const model = editor.getModel();
     if (!model || !selection) return;
 
@@ -4184,7 +4190,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       toggleMode: 'TOGGLE_MODE',
       toggleTheme: 'TOGGLE_THEME',
       'wrap-h1': 'WRAP_H1',
-      aiHelp: 'AI_HELP',
+      aiHelp: 'AI_DRAFT',
       'wrap-h2': 'WRAP_H2',
       'wrap-h3': 'WRAP_H3',
       'wrap-quote': 'WRAP_QUOTE',
@@ -4651,61 +4657,55 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     docLinkPickerStyle = { top: fixedTop + 44, left: fixedLeft };
   }
-  const handleAIDraftGenerate = async (domain: string, docType: string, topic: string) => {
+  const handleAIDraftApply = (draftContent: string, action: 'insert' | 'replace' | 'append') => {
     setIsAIDraftModalOpen(false); // Close modal
-    showToast(`${docType} 초안을 생성 중입니다...`, 'success');
     
-    // Check if API key is present
-    const geminiApiKey = loadSecureData('geminiApiKey');
-    if (!geminiApiKey) {
-      showToast('설정에서 Gemini API 키를 먼저 등록해주세요.', 'warning');
-      setIsSettingsModalOpen(true);
-      return;
-    }
-
-    try {
-      setSaveStatus('saving');
-      const aiModelName = loadSecureData('geminiAiModel') || 'gemini-1.5-flash';
-      let draftContent = '';
+    if (editorRef.current) {
+      const editor = editorRef.current;
+      const position = editor.getPosition() || { lineNumber: 1, column: 1 };
+      const selection = editor.getSelection();
+      const model = editor.getModel();
+      const monacoObj = typeof window !== 'undefined' && (window as any).monaco ? (window as any).monaco : null;
       
-      await generateDraftWithAIStream(
-        geminiApiKey,
-        aiModelName,
-        domain,
-        docType,
-        topic,
-        (chunkText) => {
-          draftContent = chunkText;
-        }
-      );
-      
-      // Insert draftContent into editor
-      if (editorRef.current) {
-        const editor = editorRef.current;
-        const position = editor.getPosition() || { lineNumber: 1, column: 1 };
-        const monacoObj = typeof window !== 'undefined' && (window as any).monaco ? (window as any).monaco : null;
-        
-        if (monacoObj) {
+      if (model && monacoObj) {
+        if (action === 'insert') {
           const insertText = `\n\n${draftContent}\n\n`;
           editor.executeEdits("AI_DRAFT_INSERT", [{
             range: new monacoObj.Range(position.lineNumber, position.column, position.lineNumber, position.column),
             text: insertText,
             forceMoveMarkers: true
           }]);
-          
-          const newPos = editor.getPosition();
-          if (newPos) {
-            editor.setPosition(newPos);
-            editor.revealPositionInCenter(newPos);
+          editor.setPosition({ lineNumber: position.lineNumber + 2, column: 1 });
+          editor.revealPositionInCenter({ lineNumber: position.lineNumber + 2, column: 1 }, 1);
+          showToast("작성된 초안이 본문에 삽입되었습니다. (Ctrl+Z 실행취소 가능)", "success");
+        } else if (action === 'replace') {
+          if (selection && !selection.isEmpty()) {
+            editor.executeEdits("AI_MODAL_REPLACE", [{
+              range: selection,
+              text: draftContent,
+              forceMoveMarkers: true
+            }]);
+            showToast("기존 텍스트가 덮어씌워졌습니다. (Ctrl+Z 실행취소 가능)", "success");
           }
-          editor.focus();
+        } else if (action === 'append') {
+          let endLine = model.getLineCount();
+          if (selection && !selection.isEmpty()) {
+            endLine = selection.endLineNumber;
+          }
+          const endCol = model.getLineMaxColumn(endLine);
+          const insertRange = new monacoObj.Range(endLine, endCol, endLine, endCol);
+          
+          const formattedText = `\n\n---\n#### [AI 교정문]\n${draftContent}\n---\n`;
+          editor.executeEdits("AI_MODAL_APPEND", [{
+            range: insertRange,
+            text: formattedText,
+            forceMoveMarkers: true
+          }]);
+          showToast("텍스트 하단에 이어쓰기가 완료되었습니다. (Ctrl+Z 실행취소 가능)", "success");
         }
-        showToast('초안 작성이 완료되었습니다.', 'success');
+        editor.focus();
         updateContent(editor.getValue());
       }
-    } catch (e: any) {
-      showToast(`AI 초안 생성 실패: ${e.message}`, 'error');
-      setSaveStatus('saved');
     }
   };
 
@@ -4981,6 +4981,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     >
                                       <Sparkles size={14} className={geminiApiKey ? "animate-pulse" : ""} />
                                     </button>
+
                                   </div>
                                   <div className="w-px h-5 bg-black/10 dark:bg-white/10 shrink-0" />
 
@@ -5011,7 +5012,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="인용구">❝</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CHECK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="체크리스트">☑️</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="태그 취소"><Eraser size={14} className="text-red-500 opacity-80 hover:opacity-100" /></button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="문서 서식 일괄 정리">✨</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('AI_DRAFT'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="AI 맞춤형 초안 작성">✨</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="문서 서식 일괄 정리">🧹</button>
                                   </div>
                                   <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
                                   {/* 삽입 */}
@@ -5336,7 +5338,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           {isAIDraftModalOpen && (
             <AIDraftModal 
               onClose={() => setIsAIDraftModalOpen(false)} 
-              onGenerate={handleAIDraftGenerate} 
+              onApply={handleAIDraftApply} 
+              geminiApiKey={geminiApiKey || ''}
+              aiModelName={aiModelName || 'gemini-1.5-flash'}
+              initialMode={aiDraftInitialMode}
+              editorContext={aiEditorContext}
             />
           )}
 
@@ -5382,384 +5388,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             }}
           />
 
-          {/* 🔮 AI 글쓰기 어시스턴트 중앙 플로팅 모달 */}
-          {aiPreviewState.isModalOpen && (() => {
-            const handleStartGeneration = async () => {
-              if (!aiPreviewState.promptInput.trim()) {
-                showToast("AI에게 지시할 글쓰기 주제나 명령을 입력해 주세요.", "warning");
-                return;
-              }
 
-              const currentGenId = ++generationIdRef.current;
-
-              setAiPreviewState(prev => ({
-                ...prev,
-                streamingText: '',
-                isFinished: false,
-                isStarted: true
-              }));
-
-              const editor = editorRef.current;
-              let finalPrompt = aiPreviewState.promptInput;
-
-              // 적용 범위에 맞춰 원본 본문을 지시문 문맥으로 결합
-              if (aiPreviewState.targetScope === 'selection' && aiPreviewState.originalText) {
-                finalPrompt = `${aiPreviewState.promptInput}\n\n[대상 영역 텍스트]\n${aiPreviewState.originalText}`;
-              } else if (aiPreviewState.targetScope === 'document' && editor) {
-                finalPrompt = `${aiPreviewState.promptInput}\n\n[대상 문서 전체 내용]\n${editor.getValue()}`;
-              }
-
-              try {
-                await processTextWithAIStream(
-                  geminiApiKey,
-                  aiModelName,
-                  finalPrompt,
-                  'general',
-                  (chunkText) => {
-                    if (currentGenId !== generationIdRef.current) return;
-                    // [출력결과] 태그가 포함되기 전까지는 렌더링 스킵하여 로딩 상태 유지
-                    if (chunkText === '') {
-                      return;
-                    }
-                    setAiPreviewState(prev => ({
-                      ...prev,
-                      streamingText: chunkText
-                    }));
-                  }
-                );
-                if (currentGenId !== generationIdRef.current) return;
-                setAiPreviewState(prev => ({
-                  ...prev,
-                  isFinished: true
-                }));
-                showToast("AI가 글쓰기를 완료했습니다. 결과를 본문에 적용해 보세요!", "success");
-              } catch (err: any) {
-                if (currentGenId !== generationIdRef.current) return;
-                setAiPreviewState(prev => ({ ...prev, isStarted: false }));
-                showToast(err.message || "AI 글쓰기 요청 실패", "error");
-              }
-            };
-
-            const handleApplyInsertModal = () => {
-              const editor = editorRef.current;
-              const model = editor ? editor.getModel() : null;
-              if (!editor || !model) return;
-              const monaco = (window as any).monaco;
-
-              // 적용 범위에 따른 타겟 영역 결정
-              let targetRange = aiPreviewState.originalRange;
-              if (aiPreviewState.targetScope === 'document') {
-                targetRange = model.getFullModelRange();
-              } else if (aiPreviewState.targetScope === 'none') {
-                const position = editor.getPosition();
-                if (position) {
-                  targetRange = new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
-                } else {
-                  targetRange = model.getFullModelRange();
-                }
-              } else if (!targetRange) {
-                // 선택 영역 스코프인데 range가 유실된 경우 전체 치환 폴백
-                targetRange = model.getFullModelRange();
-              }
-
-              editor.executeEdits("AI_MODAL_INSERT", [{
-                range: targetRange,
-                text: aiPreviewState.streamingText,
-                forceMoveMarkers: true
-              }]);
-
-              const lines = aiPreviewState.streamingText.split('\n');
-              const startLine = targetRange.startLineNumber;
-              const startCol = targetRange.startColumn;
-              const endLine = startLine + lines.length - 1;
-              const endCol = lines.length === 1 ? startCol + aiPreviewState.streamingText.length : lines[lines.length - 1].length + 1;
-              const newRange = new monaco.Range(startLine, startCol, endLine, endCol);
-
-              // 💡 커서를 반영된 문장의 가장 처음 위치로 이동하고 포커스
-              editor.setPosition({ lineNumber: startLine, column: startCol });
-              editor.revealPositionInCenter({ lineNumber: startLine, column: startCol }, 1);
-              editor.focus();
-
-              const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
-              aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
-              setTimeout(() => {
-                if (editorRef.current) aiDecorationsRef.current = editorRef.current.deltaDecorations(aiDecorationsRef.current, []);
-              }, 1500);
-
-              setAiPreviewState(prev => ({ ...prev, isModalOpen: false }));
-              showToast("작성된 글이 에디터 본문에 주입되었습니다. (Ctrl+Z 실행취소 가능)", "success");
-            };
-
-            const handleApplyAppendModal = () => {
-              const editor = editorRef.current;
-              const model = editor?.getModel();
-              if (!editor || !model) return;
-              const monaco = (window as any).monaco;
-
-              // 적용 범위가 selection이면 선택 영역 아래, document면 문서 맨 끝 라인 결정
-              let endLine = model.getLineCount();
-              if (aiPreviewState.targetScope === 'selection' && aiPreviewState.originalRange) {
-                endLine = aiPreviewState.originalRange.endLineNumber;
-              } else if (aiPreviewState.targetScope === 'none') {
-                const position = editor.getPosition();
-                if (position) {
-                  endLine = position.lineNumber;
-                }
-              }
-
-              const endCol = model.getLineMaxColumn(endLine);
-              const insertRange = new monaco.Range(endLine, endCol, endLine, endCol);
-
-              const formattedText = `\n\n---\n#### [AI 교정문]\n${aiPreviewState.streamingText}\n---\n`;
-
-              editor.executeEdits("AI_MODAL_APPEND", [{
-                range: insertRange,
-                text: formattedText,
-                forceMoveMarkers: true
-              }]);
-
-              const lines = formattedText.split('\n');
-              const startLine = endLine;
-              const startCol = endCol;
-              const endLineNum = startLine + lines.length - 1;
-              const endColNum = lines.length === 1 ? startCol + formattedText.length : lines[lines.length - 1].length + 1;
-              const newRange = new monaco.Range(startLine, startCol, endLineNum, endColNum);
-
-              // 💡 커서를 반영된 문장의 가장 처음 위치로 이동하고 포커스
-              editor.setPosition({ lineNumber: startLine, column: startCol });
-              editor.revealPositionInCenter({ lineNumber: startLine, column: startCol }, 1);
-              editor.focus();
-
-              const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
-              aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
-              setTimeout(() => {
-                if (editorRef.current) aiDecorationsRef.current = editorRef.current.deltaDecorations(aiDecorationsRef.current, []);
-              }, 1500);
-
-              setAiPreviewState(prev => ({ ...prev, isModalOpen: false }));
-              showToast("글쓰기 결과물이 본문 아랫줄에 덧붙여졌습니다. (Ctrl+Z 실행취소 가능)", "success");
-            };
-
-            const handleCloseModal = () => {
-              generationIdRef.current++;
-              setAiPreviewState(prev => ({ ...prev, isModalOpen: false, isStarted: false }));
-            };
-
-            const handleCopyResult = async () => {
-              try {
-                await navigator.clipboard.writeText(aiPreviewState.streamingText);
-                setAiCopied(true);
-                showToast("AI 생성 결과가 클립보드에 복사되었습니다.", "success");
-                setTimeout(() => setAiCopied(false), 2000);
-              } catch (err) {
-                showToast("클립보드 복사 실패", "error");
-              }
-            };
-
-            return (
-              <div className="fixed inset-0 bg-black/65 dark:bg-black/85 z-[99999] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200">
-                {/* Main Editorial Assistant Modal */}
-                <main
-                  className="relative w-full max-w-5xl bg-white dark:bg-zinc-950 border border-slate-200/80 dark:border-zinc-800/80 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] rounded-2xl overflow-hidden flex flex-col h-[700px] max-h-[90dvh] text-slate-800 dark:text-zinc-200 animate-in zoom-in-95 duration-200"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Header */}
-                  <header className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-zinc-800/80 shrink-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 flex items-center justify-center bg-purple-600 dark:bg-purple-500/20 text-white dark:text-purple-400 rounded-xl shadow-inner">
-                        <Sparkles size={16} className="animate-pulse" />
-                      </div>
-                      <div>
-                        <h1 className="text-sm font-black bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400 bg-clip-text text-transparent tracking-tight">
-                          AI 에디토리얼 어시스턴트
-                        </h1>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-bold">협업 준비 완료</p>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleCloseModal}
-                      className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-900 rounded-full transition-all duration-200"
-                      title="닫기"
-                    >
-                      <X size={16} />
-                    </button>
-                  </header>
-
-                  {/* Content Shell */}
-                  <div className="flex flex-1 overflow-hidden min-h-0">
-                    {/* Left Panel: Command & Context */}
-                    <section className="w-full md:w-[350px] border-r border-slate-100 dark:border-zinc-800/80 flex flex-col p-6 gap-6 overflow-y-auto bg-slate-50/50 dark:bg-zinc-900/10 shrink-0">
-                      {/* Prompt Area */}
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-700 dark:text-zinc-300 uppercase tracking-wider">
-                          에디토리얼 명령 (EDITORIAL COMMAND)
-                        </label>
-                        <textarea
-                          value={aiPreviewState.promptInput}
-                          onChange={(e) => setAiPreviewState(prev => ({ ...prev, promptInput: e.target.value }))}
-                          placeholder="AI에게 요청할 편집 명령이나 주제를 입력하세요..."
-                          rows={5}
-                          className="w-full text-xs p-3.5 border border-slate-200 dark:border-zinc-800/80 rounded-2xl bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500/80 transition-all placeholder:text-slate-400 dark:placeholder:text-zinc-650 resize-none font-medium leading-relaxed shadow-sm"
-                          autoFocus
-                        />
-                      </div>
-
-                      {/* Context Scope */}
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-700 dark:text-zinc-300 uppercase tracking-wider">
-                          컨텍스트 범위 (CONTEXT SCOPE)
-                        </label>
-                        <div className="flex bg-slate-100 dark:bg-zinc-900 p-1 rounded-xl gap-1">
-                          <button
-                            onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'selection' }))}
-                            disabled={!aiPreviewState.originalText}
-                            className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${aiPreviewState.targetScope === 'selection'
-                              ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-sm font-black'
-                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
-                              } disabled:opacity-30 disabled:cursor-not-allowed`}
-                            title={aiPreviewState.originalText ? `선택된 본문: "${aiPreviewState.originalText.substring(0, 15)}..."` : '에디터에서 텍스트를 드래그한 후 사용해 주세요.'}
-                          >
-                            선택 영역
-                          </button>
-                          <button
-                            onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'document' }))}
-                            className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${aiPreviewState.targetScope === 'document'
-                              ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-sm font-black'
-                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
-                              }`}
-                          >
-                            문서 전체
-                          </button>
-                          <button
-                            onClick={() => setAiPreviewState(prev => ({ ...prev, targetScope: 'none' }))}
-                            className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${aiPreviewState.targetScope === 'none'
-                              ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-400 shadow-sm font-black'
-                              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
-                              }`}
-                            title="에디터 문서 내용을 참고하지 않고 일반적인 AI 질문을 보냅니다."
-                          >
-                            없음 (일반 질문)
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Generate Button Container */}
-                      <div className="mt-auto pt-4">
-                        <button
-                          onClick={handleStartGeneration}
-                          disabled={!aiPreviewState.promptInput.trim() || (aiPreviewState.isStarted && !aiPreviewState.isFinished)}
-                          className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 active:scale-[0.98] disabled:scale-100 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-500/10"
-                        >
-                          <Sparkles size={14} />
-                          {aiPreviewState.isStarted && !aiPreviewState.isFinished ? 'AI 글 생성 중...' : 'AI 글 생성 시작'}
-                        </button>
-                      </div>
-                    </section>
-
-                    {/* Right Panel: Workspace Preview Canvas */}
-                    <section className="flex-1 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden relative">
-                      {/* Sub-header for Workspace */}
-                      <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100 dark:border-zinc-900 bg-slate-50/20 dark:bg-zinc-950/20 shrink-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-black text-slate-400 dark:text-zinc-500 uppercase tracking-wider">
-                            결과 미리보기 (Output Preview)
-                          </span>
-                        </div>
-                        {aiPreviewState.isFinished && (
-                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 px-2 py-0.5 bg-emerald-500/10 rounded-full">
-                            생성 성공
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Preview Canvas Area */}
-                      <div className="flex-1 overflow-y-auto p-8 relative min-h-0">
-                        {/* 1. Initial State Placeholder (시작 전) */}
-                        {!aiPreviewState.isStarted && (
-                          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center select-none h-full">
-                            <div className="p-4 bg-purple-50 dark:bg-zinc-900 border border-purple-100 dark:border-zinc-800/80 rounded-full text-purple-600 dark:text-purple-400">
-                              <Lock size={32} />
-                            </div>
-                            <div className="space-y-2">
-                              <p className="font-black text-sm text-slate-800 dark:text-zinc-100">AI 글 생성이 대기 중입니다</p>
-                              <p className="text-xs text-slate-600 dark:text-zinc-400 max-w-sm leading-relaxed font-bold">
-                                좌측 입력창에 편집 또는 글쓰기 명령을 입력하고 <br />
-                                아래 <span className="text-purple-600 dark:text-purple-400 font-black">AI 글 생성 시작</span> 버튼을 눌러주세요.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 2. Loading State Visualization Overlay (생성 중) */}
-                        {aiPreviewState.isStarted && !aiPreviewState.streamingText && (
-                          <div className="flex flex-col items-center justify-center py-16 gap-4 text-center select-none h-full rounded-2xl bg-[#0B1120]/95 border border-slate-700/50 m-4 shadow-xl">
-                            <div className="relative w-20 h-20 mb-2 flex items-center justify-center">
-                              <div className="absolute inset-0 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-                              <img src="/icon.png" alt="Onrivi" className="w-10 h-10 object-contain animate-pulse" />
-                            </div>
-                            <div className="space-y-1">
-                              <h3 className="text-base font-bold text-white animate-pulse">에디토리얼 논리 분석 및 생성 중...</h3>
-                              <p className="text-[12px] text-slate-300 opacity-90 max-w-xs mx-auto leading-relaxed">
-                                기술적 문맥과 원고의 구조를 교차 참조하여<br/>최적의 답변을 작성하고 있습니다.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 3. Output Content (생성 진행/종료 시 노출) */}
-                        {aiPreviewState.isStarted && aiPreviewState.streamingText && (
-                          <div className="max-w-2xl mx-auto space-y-6 select-text cursor-text">
-                            <div className="p-5 bg-purple-500/5 dark:bg-purple-500/10 border-l-4 border-purple-600 rounded-r-xl">
-                              <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1.5">실시간 AI 답변 생성 프리뷰</p>
-                              <div className="text-xs text-slate-700 dark:text-zinc-300 leading-relaxed font-mono whitespace-pre-wrap">
-                                {aiPreviewState.streamingText}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Footer Actions */}
-                      {aiPreviewState.isFinished && aiPreviewState.streamingText && (
-                        <footer className="p-4 bg-slate-50/50 dark:bg-zinc-900/30 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-end shrink-0">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={handleCloseModal}
-                              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-600 dark:text-zinc-400 font-bold text-xs transition-all active:scale-[0.98]"
-                            >
-                              취소
-                            </button>
-                            <button
-                              onClick={handleCopyResult}
-                              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-600 dark:text-zinc-400 font-bold text-xs transition-all flex items-center gap-1.5 active:scale-[0.98]"
-                            >
-                              {aiCopied ? <Check size={13} className="text-emerald-500 animate-pulse" /> : <Copy size={13} />}
-                              {aiCopied ? '복사 완료' : '결과 복사'}
-                            </button>
-                            <button
-                              onClick={handleApplyAppendModal}
-                              className="px-4 py-2 rounded-lg border border-purple-500/20 bg-purple-500/5 hover:bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold text-xs transition-all active:scale-[0.98]"
-                            >
-                              아래에 추가
-                            </button>
-                            <button
-                              onClick={handleApplyInsertModal}
-                              className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg font-black text-xs shadow-md shadow-purple-500/10 hover:shadow-lg transition-all active:scale-[0.98]"
-                            >
-                              본문에 적용
-                            </button>
-                          </div>
-                        </footer>
-                      )}
-                    </section>
-                  </div>
-                </main>
-              </div>
-            );
-          })()}
 
           {/* 🔮 AI 인라인 프리뷰 카드 (수락/취소 안전장치) */}
           {aiPreviewState.isOpen && (() => {

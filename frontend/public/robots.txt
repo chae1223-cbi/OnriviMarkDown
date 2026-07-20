@@ -1,0 +1,13 @@
+User-agent: GPTBot # 오픈AI 크롤러
+Allow: /
+
+User-agent: PerplexityBot # 퍼플렉시티 크롤러
+Allow: /
+
+User-agent: Google-Extended # 구글 AI 크롤러
+Allow: /
+
+User-agent: ClaudeBot # 앤스로픽 크롤러
+Allow: /
+
+Sitemap: https://onrivi.com/sitemap.xml # AI에게 전체 지도 제공

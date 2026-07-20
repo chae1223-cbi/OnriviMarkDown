@@ -45,9 +45,8 @@ export function FeatureCard({ feature, index }: FeatureCardProps) {
           color: "#3e4850",
           lineHeight: "22px",
         }}
-      >
-        {feature.description}
-      </p>
+        dangerouslySetInnerHTML={{ __html: feature.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+      />
     </motion.div>
   );
 }

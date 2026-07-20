@@ -51,7 +51,7 @@ export function FeaturesSection() { // FeaturesSection : 제품의 6대 핵심 �
             온리비 어서가 당신의 문서를 프로의 문정으로
           </h2>
           <p style={{ fontSize: 18, color: "#3e4850", lineHeight: "28px" }}>
-            단 1픽셀의 오차도 용납하지 않는 6가지 핵심 역량.
+            단 <strong>1픽셀</strong>의 오차도 용납하지 않는 <strong>6가지</strong> 핵심 역량.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -15,6 +15,28 @@ import {
 export default function HomePage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Onrivi Author",
+            "operatingSystem": "Windows, macOS",
+            "applicationCategory": "BusinessApplication",
+            "description": "AI 시대의 무결점 지식 자산화 인프라. 마크다운의 생산성과 전문가 수준의 출판 품질을 결합한 로컬 우선 저작 플랫폼.",
+            "offers": {
+              "@type": "Offer",
+              "price": "구독형",
+              "priceCurrency": "KRW"
+            },
+            "author": {
+              "@type": "Organization",
+              "name": "Onrivi"
+            }
+          })
+        }}
+      />
       <div style={{ minHeight: "100vh", background: "#f7f9fb", fontFamily: "Inter, sans-serif" }}>
         <Navbar />
         <HeroSection />

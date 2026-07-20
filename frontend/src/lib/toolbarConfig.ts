@@ -35,7 +35,7 @@ export const TOOLBAR_ITEMS = [
   // 6. 문서 (Document)
   { id: 'divider', icon: '—', name: '구분선', group: '문서', tagFormat: '---', defaultHotkey: 'Ctrl+Alt+-', defaultCommand: 'hr', insertText: '\n---\n', kind: 15 },
   { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '문서', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },
-  { id: 'cleanDoc', icon: '✨', name: '문서 서식 일괄 정리', group: '문서', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleandoc', insertText: '', kind: 17 },
+  { id: 'cleanDoc', icon: '🧹', name: '문서 서식 일괄 정리', group: '문서', tagFormat: '없음', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: 'cleandoc', insertText: '', kind: 17 },
   
   // 7. 부가기능 (Extra)
   { id: 'save', icon: '💾', name: '저장', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+S', defaultCommand: '', insertText: '', kind: 17 },
