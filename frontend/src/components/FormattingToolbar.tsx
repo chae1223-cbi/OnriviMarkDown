@@ -1,5 +1,15 @@
+/**
+ * 프로그램명 : OnriviAuthor 
+ * 파일명 : FormattingToolbar.tsx
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026.05.31> 최초작성
+ * 작성자 : 채병익
+ * 🚨 @PATCH : **2026-07-20** — 툴바의 '문서 서식 일괄 정리' 버튼 아이콘을 플로팅 툴바 및 환경설정과 동일하게 `🧹`로 변경하여, AI 글쓰기 어시스턴트 아이콘(`✨`)과의 시각적 중복 및 혼선 방지 패치
+ * -----------------------------------------------------------------------
+ */
 "use client";
-
 import React from 'react';
 import { Eraser, Sparkles } from 'lucide-react';
 
@@ -41,6 +51,7 @@ export default function FormattingToolbar() {
     e.preventDefault();
     if (headingLevel < 6) setHeadingLevel(prev => prev + 1);
   };
+
 
   if (previewMode === 'preview') return null;
 
@@ -90,7 +101,7 @@ export default function FormattingToolbar() {
       <FormatBtn label="❝" title={tooltip('인용구', SHORTCUTS.quote)} onAction={() => dispatch('QUOTE')} />
       <FormatBtn label="☑️" title={tooltip('체크리스트', SHORTCUTS.check)} onAction={() => dispatch('CHECK')} />
       <FormatBtn label={<Eraser size={15} className="text-red-500 opacity-80" />} title={tooltip('태그 취소', SHORTCUTS.eraser)} onAction={() => dispatch('REMOVE_PREFIX')} />
-      <FormatBtn label="✨" title={tooltip('문서 서식 일괄 정리', SHORTCUTS.cleanDoc)} onAction={() => dispatch('CLEAN_DOC')} />
+      <FormatBtn label="🧹" title={tooltip('문서 서식 일괄 정리', SHORTCUTS.cleanDoc)} onAction={() => dispatch('CLEAN_DOC')} />
 
       <Divider />
 

@@ -1,3 +1,14 @@
+/**
+ * 프로그램명 : OnriviAuthor 
+ * 파일명 : AIDraftModal.tsx
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026.05.31> 최초작성
+ * 작성자 : 채병익
+ * 🚨 @PATCH : **2026-07-20** — AI 모달창의 '프리셋 불러오기' 및 '현재 설정 저장' 팝업 드롭다운이 외부 영역(outside) 클릭 시 자동으로 닫히도록 `useRef` 및 이벤트 리스너(handleClickOutside) 로직 추가 적용
+ * -----------------------------------------------------------------------
+ */
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -80,6 +91,23 @@ export default function AIDraftModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const previewRef = useRef<HTMLDivElement>(null);
+  const presetContainerRef = useRef<HTMLDivElement>(null);
+
+  // Click outside to close preset dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (presetContainerRef.current && !presetContainerRef.current.contains(event.target as Node)) {
+        setShowPresetDropdown(false);
+        setIsSavingPreset(false);
+      }
+    };
+    if (showPresetDropdown || isSavingPreset) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPresetDropdown, isSavingPreset]);
 
   // Load presets on mount
   useEffect(() => {
@@ -295,6 +323,12 @@ export default function AIDraftModal({
       <div
         className="bg-white dark:bg-zinc-900 w-[1300px] max-w-[95vw] h-[750px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col border border-zinc-200 dark:border-zinc-700/50 transition-all duration-300 overflow-hidden"
         onMouseDown={e => e.stopPropagation()}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.nativeEvent) {
+            e.nativeEvent.stopImmediatePropagation?.();
+          }
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
@@ -351,7 +385,7 @@ export default function AIDraftModal({
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 relative">
+              <div ref={presetContainerRef} className="flex items-center gap-2 relative">
                 <button
                   onClick={() => { setShowPresetDropdown(!showPresetDropdown); setIsSavingPreset(false); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
