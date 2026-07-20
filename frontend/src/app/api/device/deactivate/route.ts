@@ -1,57 +1,65 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@/lib/db';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { p_activation_id, p_payment_no, p_device_uuid } = body;
 
-    const result = await sql.begin(async (tx) => {
-      // 1. Activation ID로 바로 삭제하는 경우 (대시보드 기기 해제)
-      if (p_activation_id) {
-        const deleted = await tx`
-          DELETE FROM license_activations
-          WHERE id = ${p_activation_id}
-          RETURNING id
-        `;
-        if (deleted.length === 0) {
-          return { success: false, code: 'NOT_FOUND', message: '해당 기기 접속 정보를 찾을 수 없습니다.' };
-        }
-        return { success: true, code: 'SUCCESS', message: '기기가 해제되었습니다.' };
+    // 1. Activation ID로 바로 삭제하는 경우 (대시보드 기기 해제)
+    if (p_activation_id) {
+      const { data, error } = await supabase
+        .from('license_activations')
+        .delete()
+        .eq('id', p_activation_id)
+        .select();
+
+      if (error) {
+        return NextResponse.json({ success: false, code: 'ERROR', message: error.message });
+      }
+      if (!data || data.length === 0) {
+        return NextResponse.json({ success: false, code: 'NOT_FOUND', message: '해당 기기 접속 정보를 찾을 수 없습니다.' });
+      }
+      return NextResponse.json({ success: true, code: 'SUCCESS', message: '기기가 해제되었습니다.' });
+    }
+
+    // 2. 결제번호 + 디바이스 UUID로 삭제하는 경우 (에디터 로그아웃)
+    if (p_payment_no && p_device_uuid) {
+      const { data: licenses, error: licError } = await supabase
+        .from('software_licenses')
+        .select('id')
+        .eq('payment_no', p_payment_no)
+        .limit(1);
+        
+      if (licError) return NextResponse.json({ success: false, code: 'ERROR', message: licError.message });
+
+      if (!licenses || licenses.length === 0) {
+        return NextResponse.json({ success: false, code: 'NOT_FOUND', message: '해당 결제번호의 라이선스를 찾을 수 없습니다.' });
       }
 
-      // 2. 결제번호 + 디바이스 UUID로 삭제하는 경우 (에디터 로그아웃)
-      if (p_payment_no && p_device_uuid) {
-        const licenses = await tx`
-          SELECT id FROM software_licenses
-          WHERE payment_no = ${p_payment_no}
-          LIMIT 1
-        `;
+      const v_license_id = licenses[0].id;
 
-        if (licenses.length === 0) {
-          return { success: false, code: 'NOT_FOUND', message: '해당 결제번호의 라이선스를 찾을 수 없습니다.' };
-        }
+      const { data: deleted, error: delError } = await supabase
+        .from('license_activations')
+        .delete()
+        .eq('license_id', v_license_id)
+        .eq('device_uuid', p_device_uuid)
+        .select();
 
-        const v_license_id = licenses[0].id;
+      if (delError) return NextResponse.json({ success: false, code: 'ERROR', message: delError.message });
 
-        const deleted = await tx`
-          DELETE FROM license_activations
-          WHERE license_id = ${v_license_id}
-            AND device_uuid = ${p_device_uuid}
-          RETURNING id
-        `;
-
-        if (deleted.length === 0) {
-          return { success: false, code: 'NOT_FOUND', message: '해당 세션을 찾을 수 없습니다.' };
-        }
-
-        return { success: true, code: 'SUCCESS', message: '세션이 해제되었습니다.' };
+      if (!deleted || deleted.length === 0) {
+        return NextResponse.json({ success: false, code: 'NOT_FOUND', message: '해당 세션을 찾을 수 없습니다.' });
       }
 
-      return { success: false, code: 'INVALID_PARAMS', message: '필수 파라미터가 누락되었습니다.' };
-    });
+      return NextResponse.json({ success: true, code: 'SUCCESS', message: '세션이 해제되었습니다.' });
+    }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ success: false, code: 'INVALID_PARAMS', message: '필수 파라미터가 누락되었습니다.' });
   } catch (error: any) {
     console.error('[/api/device/deactivate] Transaction failed:', error);
     return NextResponse.json({ success: false, code: 'ERROR', message: error.message }, { status: 500 });

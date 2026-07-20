@@ -1086,11 +1086,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               const targetDate = (sub.plan_end_date && sub.plan_end_date !== '99991231') ? sub.plan_end_date : (sub.current_period_end || sub.trial_end_at);
               if (targetDate) expiryMs = parseDateStringToMs(targetDate);
               
-              // 🚨 @PATCH : 2026-07-20 - 무료 체험(FREE) 요금제의 경우, 백엔드 데이터(99991231 등) 오류와 무관하게 가입일(created_at) 기준 +7일 강제 만료 하드 리미트 적용
+              // 🚨 @PATCH : 2026-07-20 - 무료 체험(FREE) 요금제의 경우, 백엔드 데이터(99991231 등) 오류시에만 가입일(created_at) 기준 강제 만료 리미트 적용 (정상적인 만료일이 있으면 DB 값 우선)
               if (sub.plan_status === 'FREE' && sub.created_at) {
-                const strictFreeEndMs = new Date(sub.created_at).getTime() + 7 * 24 * 60 * 60 * 1000;
-                if (strictFreeEndMs < expiryMs || expiryMs === 0 || expiryMs === Number.MAX_SAFE_INTEGER) {
-                  expiryMs = strictFreeEndMs;
+                if (expiryMs === 0 || expiryMs === Number.MAX_SAFE_INTEGER) {
+                  expiryMs = new Date(sub.created_at).getTime() + 7 * 24 * 60 * 60 * 1000;
                 }
               }
             }
@@ -1100,20 +1099,34 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             const isFreeTrial = sub?.plan_name === 'FREE' || savedPaymentNo.startsWith('FREE_TRIAL_');
             let planName = isFreeTrial ? '무료 체험판 플랜' : `${sub?.plan_name || 'PRO'} 프리미엄 플랜`;
 
-            const { data: actResult } = await supabase.rpc('insert_license_activation', {
-              p_license_id: license.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS'
-            });
-            if (actResult && !actResult.success) {
-              isExpired = true;
-              planName = actResult.code === 'ERR_MAX_DEVICES_EXCEEDED' ? `동시 접속 초과 (${actResult.max_devices || '?'}대) - 제한 사용자` : `라이선스 오류: ${actResult.message || '알 수 없는 오류'}`;
-            }
+            if (!isExpired) {
+              let activationFailed = false;
+              let activationError = '';
 
-            const { data: chk2 } = await supabase.rpc('check_license_session', { p_payment_no: savedPaymentNo, p_device_uuid: sessionId });
-            if (chk2) {
-              if (!chk2.success || !chk2.has_session) {
-                isExpired = true;
-                planName = `동시 접속 초과 (${chk2.max_devices || '?'}대) - 제한 사용자`;
+              const { data: actResult, error: actErr } = await supabase.rpc('insert_license_activation', {
+                p_license_id: license.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS'
+              });
+              
+              if (actErr || (actResult && !actResult.success)) {
+                activationFailed = true;
+                activationError = actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' 
+                  ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자` 
+                  : `라이선스 오류: ${actResult?.message || actErr?.message || '알 수 없는 오류'}`;
               }
+
+              if (activationFailed) {
+                // insert 실패 시, 혹시 이미 유효한 세션이 존재하는지 2차 확인
+                const { data: chk2 } = await supabase.rpc('check_license_session', { p_payment_no: savedPaymentNo, p_device_uuid: sessionId });
+                
+                if (chk2 && chk2.success && chk2.has_session) {
+                  // 이미 내 세션이 존재하므로 정상! (이전 탭 등에서 획득한 세션 유지)
+                } else {
+                  // 2차 확인도 실패했으면 진짜 제한 사용자
+                  isExpired = true;
+                  planName = activationError;
+                }
+              }
+              // activationFailed가 false면 insert 성공이므로 isExpired는 그대로 false 유지!
             }
             if (isExpired && !planName.includes('초과')) {
               planName = '기간 만료 (제한 사용자)';
