@@ -199,6 +199,23 @@ if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용�
 
 
 // ====================================================================
+// 📊 [OMD-FILE-MainEditorApp-0000] MainEditorApp.tsx ➔ parseDateStringToMs
+// 🎯 @KICK  : 날짜 문자열(YYYYMMDD 또는 ISO)을 ms 타임스탬프로 안전하게 파싱
+// ====================================================================
+export const parseDateStringToMs = (str?: string): number => {
+  if (!str) return 0;
+  if (str === '99991231') return Number.MAX_SAFE_INTEGER;
+  if (/^\d{8}$/.test(str)) {
+    const y = parseInt(str.substring(0, 4), 10);
+    const m = parseInt(str.substring(4, 6), 10) - 1;
+    const d = parseInt(str.substring(6, 8), 10);
+    return new Date(y, m, d, 23, 59, 59, 999).getTime();
+  }
+  const parsed = new Date(str).getTime();
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+// ====================================================================
 // 📊 [OMD-FILE-MainEditorApp-0001] MainEditorApp.tsx ➔ getMdFiles
 // 🎯 @KICK  : FileNode 트리를 순회하여 모든 .md 파일을 재귀적으로 수집합니다
 // 🛡️ @GUARD : None
@@ -864,7 +881,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
           // 오프라인 유예기간(Grace Period) 검증 (Supabase가 network error를 response로 반환)
           if (savedNextPaymentDate) {
-            const expiryMs = new Date(savedNextPaymentDate).getTime();
+            const expiryMs = parseDateStringToMs(savedNextPaymentDate);
             const remainingDays = Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
             if (remainingDays > 0) {
               console.log('[loadAndVerifyLicense] Offline grace period active. Days remaining:', remainingDays);
@@ -885,27 +902,46 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             planName: '제한사용자', nextPaymentDate: ''
           });
         } else {
-          const expiryMs = data.next_payment_date ? new Date(data.next_payment_date).getTime() : 0;
+          const expiryMs = data.next_payment_date ? parseDateStringToMs(data.next_payment_date) : 0;
+          const isExpired = expiryMs === 0 ? true : (Date.now() > expiryMs);
           const remainingDays = expiryMs === 0 ? 0 : Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
 
-          const newStatus = {
-            isActivated: true, isExpired: false, remainingDays,
-            userId: savedUserId, licenseKey: data.license_key || '', paymentNo: data.payment_no || '',
-            planName: data.plan_name || '프리미엄 요금제',
-            nextPaymentDate: data.next_payment_date || data.trial_end_at || ''
-          };
-
-          setLicenseStatus(newStatus);
-
-          // 인증 성공 시 최신 라이선스 정보로 로컬 오프라인 토큰 갱신
-          if (typeof api.saveLicenseFull === 'function') {
-            await api.saveLicenseFull({
-              userId: savedUserId,
-              lastRunTime: Date.now(),
-              nextPaymentDate: newStatus.nextPaymentDate,
-              licenseKey: newStatus.licenseKey,
-              planName: newStatus.planName
+          if (isExpired) {
+            setLicenseStatus({
+              isActivated: false, isExpired: true, remainingDays: 0,
+              userId: savedUserId, licenseKey: '', paymentNo: '',
+              planName: '기간 만료 (제한 사용자)', nextPaymentDate: ''
             });
+
+            if (typeof api.saveLicenseFull === 'function') {
+              await api.saveLicenseFull({
+                userId: savedUserId,
+                lastRunTime: Date.now(),
+                nextPaymentDate: data.next_payment_date || '',
+                licenseKey: '',
+                planName: '기간 만료 (제한 사용자)'
+              });
+            }
+          } else {
+            const newStatus = {
+              isActivated: true, isExpired: false, remainingDays,
+              userId: savedUserId, licenseKey: data.license_key || '', paymentNo: data.payment_no || '',
+              planName: data.plan_name || '프리미엄 요금제',
+              nextPaymentDate: data.next_payment_date || data.trial_end_at || ''
+            };
+
+            setLicenseStatus(newStatus);
+
+            // 인증 성공 시 최신 라이선스 정보로 로컬 오프라인 토큰 갱신
+            if (typeof api.saveLicenseFull === 'function') {
+              await api.saveLicenseFull({
+                userId: savedUserId,
+                lastRunTime: Date.now(),
+                nextPaymentDate: newStatus.nextPaymentDate,
+                licenseKey: newStatus.licenseKey,
+                planName: newStatus.planName
+              });
+            }
           }
         }
       } catch (err) {
@@ -913,7 +949,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
         // 🚨 오프라인 유예기간(Grace Period) 검증 🚨
         if (savedNextPaymentDate) {
-          const expiryMs = new Date(savedNextPaymentDate).getTime();
+          const expiryMs = parseDateStringToMs(savedNextPaymentDate);
           const remainingDays = Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
 
           if (remainingDays > 0) {
@@ -1032,7 +1068,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (license) {
             const { data: sub } = await supabase
               .from('subscriptions')
-              .select('plan_name, plan_status, trial_end_at, current_period_end, max_devices')
+              .select('plan_name, plan_status, trial_end_at, current_period_end, plan_end_date, created_at, max_devices')
               .eq('id', lic.subscription_id)
               .maybeSingle();
 
@@ -1047,8 +1083,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 });
                 return;
               }
-              const targetDate = sub.current_period_end || sub.trial_end_at;
-              if (targetDate) expiryMs = new Date(targetDate).getTime();
+              const targetDate = (sub.plan_end_date && sub.plan_end_date !== '99991231') ? sub.plan_end_date : (sub.current_period_end || sub.trial_end_at);
+              if (targetDate) expiryMs = parseDateStringToMs(targetDate);
+              
+              // 🚨 @PATCH : 2026-07-20 - 무료 체험(FREE) 요금제의 경우, 백엔드 데이터(99991231 등) 오류와 무관하게 가입일(created_at) 기준 +7일 강제 만료 하드 리미트 적용
+              if (sub.plan_status === 'FREE' && sub.created_at) {
+                const strictFreeEndMs = new Date(sub.created_at).getTime() + 7 * 24 * 60 * 60 * 1000;
+                if (strictFreeEndMs < expiryMs || expiryMs === 0 || expiryMs === Number.MAX_SAFE_INTEGER) {
+                  expiryMs = strictFreeEndMs;
+                }
+              }
             }
 
             let isExpired = expiryMs === 0 ? true : (Date.now() > expiryMs);
@@ -1073,6 +1117,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             }
             if (isExpired && !planName.includes('초과')) {
               planName = '기간 만료 (제한 사용자)';
+              
+              // 🚨 @PATCH : 오늘 날짜보다 종료일이 이전 날짜일 때 DB 상의 요금제 상태를 명시적으로 종료(EXPIRED) 처리
+              // 단일 API 호출로 구독 종료, 연동 라이선스 비활성화, 세션 삭제를 한 번에 처리합니다.
+              if (sub && sub.id && sub.plan_status !== 'EXPIRED') {
+                fetch('/api/subscription/expire', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ p_subscription_id: sub.id })
+                })
+                  .then(res => res.json())
+                  .then(result => {
+                    if (!result.success) console.error('[LICENSE] Failed to execute expire_subscription_and_license API:', result.message);
+                    else console.log('[LICENSE] Subscription and related licenses successfully marked as EXPIRED in database.');
+                  })
+                  .catch(err => console.error('[LICENSE] Failed to execute expire API:', err));
+              }
             }
 
             const isActivated = !isExpired;
@@ -1102,10 +1162,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (cached && cached.licenseKey === savedKey && cached.userId === savedUserId) {
       const elapsedSinceVerify = Date.now() - (cached.lastVerifiedAt || 0);
       if (elapsedSinceVerify < 3 * 24 * 60 * 60 * 1000) {
+        
+        // 🚨 @PATCH : 2026-07-20 - 이전 버그로 인해 isExpired=false로 잘못 캐시된 좀비 상태를 방어
+        let isActuallyExpired = cached.isExpired;
+        let finalPlanName = cached.planName || '오프라인 캐시 모드';
+        
+        if (cached.nextPaymentDate) {
+          const expMs = parseDateStringToMs(cached.nextPaymentDate);
+          if (expMs > 0 && Date.now() > expMs) {
+            isActuallyExpired = true;
+            finalPlanName = '기간 만료 (제한 사용자)';
+          }
+        } else if (cached.remainingDays === 0 && !finalPlanName.includes('캐시')) {
+          isActuallyExpired = true;
+        }
+
         setLicenseStatus({
-          isActivated: cached.isActivated, isExpired: cached.isExpired, remainingDays: cached.remainingDays,
-          userId: cached.userId, licenseKey: cached.isActivated ? cached.licenseKey : '',
-          paymentNo: cached.paymentNo || '', planName: cached.planName || '오프라인 캐시 모드',
+          isActivated: !isActuallyExpired && cached.isActivated, 
+          isExpired: isActuallyExpired, 
+          remainingDays: cached.remainingDays,
+          userId: cached.userId, 
+          licenseKey: (!isActuallyExpired && cached.isActivated) ? cached.licenseKey : '',
+          paymentNo: cached.paymentNo || '', 
+          planName: finalPlanName,
           nextPaymentDate: cached.nextPaymentDate
         });
         return;
@@ -1170,6 +1249,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             // 정상 복구/유지인 경우 상태 동기화
             setLicenseStatus(prev => {
               if (prev.isExpired) {
+                // 🚨 @PATCH : 이미 날짜 만료로 판단되어 EXPIRED 처리된 경우 강제로 복구시키지 않도록 방어 로직 추가
+                let isActuallyExpired = false;
+                if (prev.nextPaymentDate) {
+                  const expMs = parseDateStringToMs(prev.nextPaymentDate);
+                  if (expMs > 0 && Date.now() > expMs) isActuallyExpired = true;
+                } else if (prev.remainingDays === 0 && !prev.planName.includes('캐시')) {
+                  isActuallyExpired = true;
+                }
+
+                if (isActuallyExpired) {
+                  return prev; // 날짜 만료로 판명되었으면 해제 불가
+                }
+
                 return {
                   ...prev,
                   isActivated: true,

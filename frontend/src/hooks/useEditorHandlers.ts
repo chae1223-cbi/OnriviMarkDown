@@ -630,7 +630,7 @@ export const useEditorHandlers = ({
       const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
       const paymentNo = localStorage.getItem('onrivi_payment_no');
       if (sessionId && paymentNo) {
-        await supabase.rpc('delete_license_activation', { p_payment_no: paymentNo, p_device_uuid: sessionId });
+        await fetch('/api/device/deactivate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId }) });
       }
       localStorage.removeItem('onrivi_session_id');
       Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));

@@ -101,7 +101,7 @@ export function Navbar({ content }: { content?: NavbarContent }) {
       const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'); // sessionId : 세션 ID
       const paymentNo = localStorage.getItem('onrivi_payment_no'); // paymentNo : 결제 번호 
       if (sessionId && paymentNo) { // 세션 ID와 결제 번호가 모두 있는 경우
-        await supabase.rpc('deactivate_session_on_logout', { p_payment_no: paymentNo, p_device_uuid: sessionId }); // Supabase RPC 호출로 세션 비활성화 
+        await fetch('/api/device/deactivate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId }) }); // API 호출로 세션 비활성화 
       }
       ['onrivi_session_id', 'onrivi_payment_no', 'onrivi_user_id', 'onrivi_license_key'].forEach(k => localStorage.removeItem(k)); // 로컬 스토리지에서 세션 ID, 결제 번호, 사용자 ID, 라이선스 키를 삭제 
       await supabase.auth.signOut(); // 로그아웃 

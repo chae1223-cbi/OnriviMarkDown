@@ -465,3 +465,51 @@ EXCEPTION
     RETURN jsonb_build_object('success', false, 'code', 'ERROR', 'message', SQLERRM);
 END;
 $$;
+
+-- ====================================================================
+-- 12. expire_subscription_and_license
+-- 자동 만료 시 단일 트랜잭션으로 구독, 라이선스 비활성화 및 세션 해제 처리
+-- ====================================================================
+DROP FUNCTION IF EXISTS expire_subscription_and_license(p_subscription_id uuid);
+CREATE OR REPLACE FUNCTION expire_subscription_and_license(
+  p_subscription_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_now text;
+BEGIN
+  v_now := to_char(now() AT TIME ZONE 'Asia/Seoul', 'YYYYMMDD');
+
+  -- 1. 구독 상태를 EXPIRED로 변경
+  UPDATE subscriptions
+  SET plan_status = 'EXPIRED',
+      is_expired = 'Y',
+      plan_end_date = v_now
+  WHERE id = p_subscription_id
+    AND is_expired = 'N';
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'code', 'NOT_FOUND', 'message', '만료 처리할 구독을 찾을 수 없거나 이미 만료되었습니다.');
+  END IF;
+
+  -- 2. 해당 구독에 연결된 라이선스 비활성화
+  UPDATE software_licenses
+  SET is_active = false
+  WHERE subscription_id = p_subscription_id;
+
+  -- 3. 해당 라이선스의 활성 기기 세션 모두 삭제
+  DELETE FROM license_activations
+  WHERE license_id IN (
+    SELECT id FROM software_licenses WHERE subscription_id = p_subscription_id
+  );
+
+  RETURN jsonb_build_object('success', true, 'code', 'SUCCESS', 'message', '구독 만료 처리가 완료되었습니다.');
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN jsonb_build_object('success', false, 'code', 'ERROR', 'message', SQLERRM);
+END;
+$$;
+

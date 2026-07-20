@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import { EDITOR_THEMES } from '@/lib/editorThemes';
 import { useRouter } from 'next/navigation';
 import { useEditorContext } from '@/context/EditorContext';
+import { supabase } from '@/lib/supabaseClient';
 
 const localTranslations: Record<string, Record<string, string>> = {
   ko: {
@@ -105,12 +106,22 @@ export default function MenuBar() {
     isDarkMode, setIsDarkMode, 
     isSidebarOpen, setIsSidebarOpen, 
     isToolbarOpen, setIsToolbarOpen, 
-    themePalette 
+    themePalette,
+    licenseStatus
   } = useEditorContext();
   
   const router = useRouter();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        setUserEmail(session.user.email);
+      }
+    }).catch(() => {});
+  }, []);
 
 // ====================================================================
 // 📊 [OMD-EDIT-MenuBar-0003] MenuBar ➔ handleThemeSelect
@@ -256,6 +267,20 @@ export default function MenuBar() {
             { label: t('about'), icon: <span>🍀</span>, onClick: () => dispatch('ABOUT') },
           ]}
       />
+      
+      {/* 📊 [OMD-EDIT-MenuBar-USER] 우측 끝 로그인 사용자 이메일 표시 (시연용) */}
+      <div className="ml-auto flex items-center pr-4">
+        {(userEmail || licenseStatus?.userId) && (
+          <div className="flex items-center gap-2 px-2 py-1 bg-white/50 dark:bg-black/20 rounded-md border border-black/5 dark:border-white/5 shadow-sm">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white flex items-center justify-center font-bold text-[10px]">
+              {(userEmail || licenseStatus?.userId).charAt(0).toUpperCase()}
+            </div>
+            <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              {userEmail || licenseStatus?.userId}
+            </span>
+          </div>
+        )}
+      </div>
     </nav>
   );
 }

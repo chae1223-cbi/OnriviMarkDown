@@ -281,7 +281,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'); // 💻 현재 브라우저 세션 ID
     const paymentNo = localStorage.getItem('onrivi_payment_no'); // 🔑 현재 결제번호
     if (sessionId && paymentNo) { // 🔑 세션/결제번호 모두 있을 때만 DB 세션 제거
-      await supabase.rpc('deactivate_session_on_logout', { p_payment_no: paymentNo, p_device_uuid: sessionId }); // 🔗 Supabase RPC 호출 — license_activations에서 해당 세션 삭제
+      await fetch('/api/device/deactivate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId }) }); // 🔗 API 호출 — license_activations에서 해당 세션 삭제
     }
     localStorage.removeItem('onrivi_session_id'); // 🗑️ 로컬 세션 ID 제거
     await supabase.auth.signOut({ scope: 'local' }); // 🚪 Supabase Auth 로컬 로그아웃
@@ -293,9 +293,11 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     const confirmed = await showConfirm('구독 해지', '정말로 현재 요금제를 해지하시겠습니까?', { confirmText: '해지', isDanger: true }); // ⚠️ 해지 확인 컨펌
     if (!confirmed) return;
     try {
-      const { data: result, error } = await supabase.rpc('cancel_subscription', { p_subscription_id: subscription.id, p_user_id: user.id }); // 🔗 cancel_subscription RPC 호출
-      if (error) throw new Error(error.message); // ❌ RPC 에러
-      if (!result || !result.success) throw new Error(result?.message || '구독 해지에 실패했습니다.'); // ❌ RPC 실패 응답
+      const res = await fetch('/api/subscription/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_subscription_id: subscription.id, p_user_id: user.id }) });
+      const result = await res.json();
+      const error = !result.success ? new Error(result.message) : null;
+      if (error) throw new Error(error.message); // ❌ API 에러
+      if (!result || !result.success) throw new Error(result?.message || '구독 해지에 실패했습니다.'); // ❌ API 실패 응답
       showToast('요금제가 해지되었습니다.', 'success'); // ✅ 성공 토스트
       await loadDashboardData(); // 🔄 대시보드 데이터 새로고침
     } catch (err: any) {
@@ -308,7 +310,9 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     const confirmed = await showConfirm('구독 해지', '정말로 데스크탑 요금제를 해지하시겠습니까?', { confirmText: '해지', isDanger: true });
     if (!confirmed) return;
     try {
-      const { data: result, error } = await supabase.rpc('cancel_subscription', { p_subscription_id: desktopSubscription.id, p_user_id: user.id });
+      const res = await fetch('/api/subscription/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_subscription_id: desktopSubscription.id, p_user_id: user.id }) });
+      const result = await res.json();
+      const error = !result.success ? new Error(result.message) : null;
       if (error) throw new Error(error.message);
       if (!result || !result.success) throw new Error(result?.message || '구독 해지에 실패했습니다.');
       showToast('데스크탑 요금제가 해지되었습니다.', 'success');
@@ -349,11 +353,13 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     if (!confirmed) return;
     setActionLoading(activationId); // ⏳ 로딩 상태 설정
     try {
-      const { data: result, error } = await supabase.rpc('delete_device_activation', { p_activation_id: activationId }); // 🔗 delete_device_activation RPC 호출
+      const res = await fetch('/api/device/deactivate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_activation_id: activationId }) });
+      const result = await res.json();
+      const error = !result.success ? new Error(result.message) : null;
 
-      if (error) throw new Error(error.message); // ❌ RPC 에러
+      if (error) throw new Error(error.message); // ❌ API 에러
 
-      if (!result || !result.success) throw new Error(result?.message || '기기 해제에 실패했습니다.'); // ❌ RPC 실패 응답
+      if (!result || !result.success) throw new Error(result?.message || '기기 해제에 실패했습니다.'); // ❌ API 실패 응답
 
       showToast('접속 연동이 성공적으로 해제되었습니다.', 'success'); // ✅ 성공 토스트
 
@@ -493,21 +499,27 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       const deviceName = typeof navigator !== 'undefined' ? (navigator.userAgent || 'Web Browser') : 'Web Browser'; // 🛡️ 디바이스 이름 설정
       const calculatedStatus = plan.isFree ? 'FREE' : 'ACTIVE'; // 🛡️ 상태 계산
 
-      // 📢 스토어드 프로시저 호출 (subscriptions, software_licenses, license_activations 업데이트/생성 단일 트랜잭션 처리)
-      const { data: result, error: rpcErr } = await supabase.rpc('subscribe_user_plan', {
-        p_user_id: user.id, // 🔑 사용자 ID
-        p_plan_name: plan.name, // 🎯 요금제 이름
-        p_plan_status: calculatedStatus, // 🛡️ 상태
-        p_billing_interval: interval, // 🛡️ 구독 간격
-        p_max_devices: maxDevices, // 🔒 최대 기기 수
-        p_period_end: periodEnd, // 🛡️ 기간 종료일
-        p_plan_end_date: '99991231', // 🛡️ 최대 종료일
-        p_today_str: todayStr, // ⏰ 오늘 날짜
-        p_device_uuid: deviceUuid, // 🔐 디바이스 UUID
-        p_device_name: deviceName // 🛡️ 디바이스 이름
+      // 📢 API 라우트 호출 (subscriptions, software_licenses, license_activations 업데이트/생성 단일 트랜잭션 처리)
+      const res = await fetch('/api/subscription/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p_user_id: user.id, // 🔑 사용자 ID
+          p_plan_name: plan.name, // 🎯 요금제 이름
+          p_plan_status: calculatedStatus, // 🛡️ 상태
+          p_billing_interval: interval, // 🛡️ 구독 간격
+          p_max_devices: maxDevices, // 🔒 최대 기기 수
+          p_period_end: periodEnd, // 🛡️ 기간 종료일
+          p_plan_end_date: '99991231', // 🛡️ 최대 종료일
+          p_today_str: todayStr, // ⏰ 오늘 날짜
+          p_device_uuid: deviceUuid, // 🔐 디바이스 UUID
+          p_device_name: deviceName // 🛡️ 디바이스 이름
+        })
       });
+      const result = await res.json();
+      const rpcErr = !result.success ? new Error(result.message) : null;
 
-      if (rpcErr) throw new Error(rpcErr.message); // ❌ RPC 오류
+      if (rpcErr) throw new Error(rpcErr.message); // ❌ API 오류
       if (!result || !result.success) throw new Error(result.message || '플랜 활성화 실패'); // ❌ 결과 오류
 
       // -------------------------------------------------------------------------------------------
