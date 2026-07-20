@@ -29,6 +29,7 @@ interface ImageModalProps {
 // 📊 [OMD-EDIT-ImageModal-0007] ImageModal ➔ ImageModal
 // 🎯 @KICK  : 이미지 삽입 모달 - URL/파일/클립보드 이미지 경로 입력 및 크기/정렬 설정
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환; cleanImagePath 없으면 삽입 버튼 비활성화
+// 🚨 @PATCH : 2026-07-20 — 이미지 모달 내 클립보드 붙여넣기 영역(슬림 붙여넣기 바) 클릭 시 윈도우 파일 탐색기가 뜨던 불편함 해소 (onClick 팝업 제거 및 focus 적용으로 순수 붙여넣기 대기 상태 전환)
 // 🚨 @PATCH : 2026-07-15 — 2단 분할 레이아웃(좌:입력, 우:미리보기), 슬림 붙여넣기 바, 인코딩 정상화
 // 🔗 @CALLS : handleInsert, handlePasteEvent, handleFileChange, cleanImagePath, previewSrc, createPortal
 // ====================================================================
@@ -420,8 +421,8 @@ export default function ImageModal({
             <div
               tabIndex={0}
               onPaste={handlePasteEvent}
-              onClick={() => fileInputRef.current?.click()}
-              className={`group flex items-center gap-3 px-4 py-2.5 rounded-lg border border-dashed cursor-pointer transition-all ${
+              onClick={(e) => e.currentTarget.focus()}
+              className={`group flex items-center gap-3 px-4 py-2.5 rounded-lg border border-dashed cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
                 isDarkMode
                   ? 'bg-zinc-900 border-zinc-700 hover:border-indigo-500 hover:bg-zinc-800'
                   : 'bg-white border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30'
@@ -429,7 +430,7 @@ export default function ImageModal({
             >
               <Upload className="text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" size={14} />
               <span className="font-bold text-xs text-slate-500 dark:text-zinc-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                클립보드 이미지 붙여넣기 (Ctrl+V)
+                여기를 클릭 후 클립보드 이미지 붙여넣기 (Ctrl+V)
               </span>
             </div>
 
