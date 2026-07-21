@@ -571,17 +571,30 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const systemPart = prev.filter(p => isSystemProfileId(p.id));
         return [...systemPart, ...userProfiles];
       });
+      setIsProfilesLoaded(true);
     };
     loadUserProfiles();
   }, [mounted]);
   const [activeProfileId, setActiveProfileId] = useState<string>(
     () => SYSTEM_PROFILES[0].id
   );
+  const [isProfilesLoaded, setIsProfilesLoaded] = useState(false);
   const [isAddonEnv, setIsAddonEnv] = useState(false);
   const [helpContent, setHelpContent] = useState<string | null>(null);
   const [helpTitle, setHelpTitle] = useState('');
   const helpContentRef = useRef(helpContent);
   helpContentRef.current = helpContent;
+
+  // 🌟 존재하지 않는 삭제된 테마(프로필) ID가 localStorage에 남아있을 경우 
+  // 시스템 기본 프로필로 자동 복구하여 테마 찌꺼기를 안전하게 소거합니다.
+  useEffect(() => {
+    if (isProfilesLoaded && activeProfileId) {
+      const exists = profiles.some(p => p.id === activeProfileId);
+      if (!exists) {
+        setActiveProfileId(SYSTEM_PROFILES[0].id);
+      }
+    }
+  }, [isProfilesLoaded, profiles, activeProfileId]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0008] MainEditorApp.tsx ➔ previewModeRef_sync

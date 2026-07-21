@@ -289,7 +289,7 @@ export async function generateEpub({
     <link rel="stylesheet" type="text/css" href="../styles/style.css" />
   </head>
   <body>
-    <section class="epub-body">
+    <section class="epub-body markdown-viewer-root prose">
       ${sec.html}
     </section>
   </body>

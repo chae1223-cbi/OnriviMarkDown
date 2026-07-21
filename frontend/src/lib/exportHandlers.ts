@@ -1394,7 +1394,7 @@ export async function exportHTML({
 // 📊 [OMD-IO-exportHandlers-0012] exportHandlers.ts ➔ exportEPUB
 // 🎯 @KICK  : 미리보기 DOM을 EPUB으로 내보내기 (generateEpub 호출, 이미지 인라인)
 // 🛡️ @GUARD : Electron saveFileAs 브랜치, fontFamily computed 적용, export-style-element 제거
-// 🚨 @PATCH : **2026-06-19** — EPUB 내보내기 가로폭 제약 초기화 패치: clone 객체의 인라인 가로폭 제약을 제거하여 리더기 뷰포트에 맞게 자연스러운 흐름을 보장하도록 보정
+// 🚨 @PATCH : **2026-07-21** — EPUB 내보내기 시 배경색 누락 방지를 위해 activeCss 문자열 자체에 백그라운드 컬러 룰 명시적 병합 탑재; **2026-06-19** — EPUB 내보내기 가로폭 제약 초기화 패치: clone 객체의 인라인 가로폭 제약을 제거하여 리더기 뷰포트에 맞게 자연스러운 흐름을 보장하도록 보정
 // 🔗 @CALLS : clonePreview, inlineLocalImages, injectExportStyles, generateEpub, downloadBlob, saveToDownloads
 // ====================================================================
 export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showToast, dynamicCssString, backgroundColor, activeProfile }: ExportOptions) {
@@ -1411,8 +1411,15 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
     clone.style.maxWidth = 'none';
 
     // 🌟 공유 스타일 주입 (인디케이터 숨김 + 동적 CSS 프로필)
-    const pageBg = backgroundColor || '#ffffff';
-    const activeCss = activeProfile ? generateExportCss(activeProfile) : (dynamicCssString || '');
+    const pageBg = backgroundColor || (activeProfile && activeProfile.pageStyle ? activeProfile.pageStyle.backgroundColor : null) || '#ffffff';
+    let activeCss = activeProfile ? generateExportCss(activeProfile) : (dynamicCssString || '');
+    
+    // 🌟 EPUB 전용 배경색 보존 패치: injectExportStyles 내부에서 생성하는 <style> 태그는 EPUB 내보내기 시 제거되므로,
+    // activeCss 자체에 배경색을 명시적으로 주입하여 generateEpub() 내부의 style.css에 전달되도록 보장합니다.
+    if (pageBg && pageBg !== 'transparent') {
+      activeCss += `\n.custom-preview-container {\n  background-color: ${pageBg} !important;\n}\n.custom-preview-container .prose {\n  background-color: ${pageBg} !important;\n}\n`;
+    }
+
     injectExportStyles(clone, activeCss, { hideIndicators: true }, pageBg);
 
     // 💡 미리보기에 실제 렌더링된 font-family를 EPUB style.css body에도 반영
