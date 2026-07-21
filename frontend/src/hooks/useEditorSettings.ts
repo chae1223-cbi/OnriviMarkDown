@@ -188,6 +188,13 @@ export const useEditorSettings = (
         }
       });
 
+      // 🌟 [OMD-EDIT-USEEDITORSETTINGS-0002] 패치 확장: 이전 기기(노트북 등)에 남아있는 
+      // 다크모드/다크테마 찌꺼기 설정(localStorage)을 원천 무효화하고 강제 라이트 모드(onrivi-light)로 정화합니다.
+      baseSettings.isDarkMode = false;
+      if (baseSettings.themePalette && (baseSettings.themePalette.includes('dark') || baseSettings.themePalette === 'vs-dark')) {
+        baseSettings.themePalette = 'onrivi-light';
+      }
+
       setIsDarkMode(baseSettings.isDarkMode);
       setFontSize(baseSettings.fontSize);
       setWordWrap(baseSettings.wordWrap);

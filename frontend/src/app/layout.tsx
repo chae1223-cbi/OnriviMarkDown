@@ -68,6 +68,7 @@ export default function RootLayout({
           httpEquiv="Content-Security-Policy"
           content="default-src 'self' app: media:; script-src 'self' app: 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://maps.gstatic.com https://maps.googleapis.com https://static.cloudflareinsights.com; style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' app: https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' app: data: blob: http: https: file: media:; connect-src 'self' app: http://localhost:5000 http://localhost:4000 http://localhost:3000 data: media: https: ws: wss: https://fonts.googleapis.com https://fonts.gstatic.com https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; child-src 'self' app: blob: media: https: https://maps.google.com https://www.google.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com; media-src 'self' app: media: https:;"
         />
+        <meta name="color-scheme" content="light" />
         <link rel="icon" href="./icon_onriveauther.png?v=1" type="image/png" />
       </head>
       <body suppressHydrationWarning>
