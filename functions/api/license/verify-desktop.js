@@ -44,7 +44,7 @@ export async function onRequestPost(context) {
 
     // 2. 데스크탑 활성 구독 확인
     // postgREST에서 like '%데스크탑%' 은 ilike.*데스크탑* 로 표현
-    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&plan_status=in.(ACTIVE,FREE,active,free)&plan_name=ilike.*데스크탑*&order=current_period_end.desc&select=*&limit=1`, { headers });
+    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&plan_status=in.(ACTIVE,FREE,active,free)&plan_name=ilike.*Elite Pro*&order=current_period_end.desc&select=*&limit=1`, { headers });
     const subRows = await subRes.json();
     if (!subRows || subRows.length === 0) {
       return new Response(JSON.stringify({ success: false, code: 'NO_PLAN', message: 'No active desktop subscription.' }), { status: 200, headers: corsHeaders });

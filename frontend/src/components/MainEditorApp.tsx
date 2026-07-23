@@ -895,10 +895,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const data = verifyRes.ok ? await verifyRes.json() : null;
         const error = !verifyRes.ok ? new Error('서버 오류') : null;
 
-        if (error || !data || !data.success) {
-          console.warn('[loadAndVerifyLicense] Desktop verification failed:', error || data?.message);
-
-          // 오프라인 유예기간(Grace Period) 검증 (Supabase가 network error를 response로 반환)
+        if (error || !data) {
+          console.warn('[loadAndVerifyLicense] Desktop verification network error:', error);
+          // 오프라인 유예기간(Grace Period) 검증 (네트워크 오류 시에만 작동)
           if (savedNextPaymentDate) {
             const expiryMs = parseDateStringToMs(savedNextPaymentDate);
             const remainingDays = Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
@@ -911,15 +910,38 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 planName: savedPlanName || '오프라인 프리미엄 요금제',
                 nextPaymentDate: savedNextPaymentDate
               });
+              setIsLicenseChecking(false);
               return;
             }
           }
-
           setLicenseStatus({
             isActivated: false, isExpired: true, remainingDays: 0,
             userId: savedUserId, licenseKey: '', paymentNo: '',
             planName: '제한사용자', nextPaymentDate: ''
           });
+        } else if (!data.success) {
+          console.warn('[loadAndVerifyLicense] Desktop verification explicitly rejected:', data.message);
+          if (data.code === 'ERR_MAX_DEVICES_EXCEEDED') {
+            setLicenseStatus({
+              isActivated: false, isExpired: true, remainingDays: 0,
+              userId: savedUserId, licenseKey: '', paymentNo: '',
+              planName: data.message, nextPaymentDate: ''
+            });
+          } else {
+            // NO_PLAN, NOT_FOUND 등 구독 자체가 없는 경우 로컬 라이선스 완전 초기화
+            if (typeof api !== 'undefined' && api.saveLicenseFull) {
+              await api.saveLicenseFull({});
+            }
+            localStorage.removeItem('onrivi_license_key');
+            localStorage.removeItem('onrivi_payment_no');
+            localStorage.removeItem('onrivi_verify_key');
+            localStorage.removeItem('onrivi_user_id');
+            setLicenseStatus({
+              isActivated: false, isExpired: true, remainingDays: 0,
+              userId: '', licenseKey: '', paymentNo: '',
+              planName: '제한사용자', nextPaymentDate: ''
+            });
+          }
         } else {
           const expiryMs = data.next_payment_date ? parseDateStringToMs(data.next_payment_date) : 0;
           const isExpired = expiryMs === 0 ? true : (Date.now() > expiryMs);

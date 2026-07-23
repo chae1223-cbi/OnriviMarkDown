@@ -15,12 +15,15 @@
 // ====================================================================
 export const getApiUrl = (path: string): string => {
   if (typeof window !== 'undefined') {
-    if (window.location.protocol === 'chrome-extension:' || window.location.protocol === 'file:' || window.location.protocol === 'app:') {
+    if (window.location.protocol === 'app:') {
+      // 데스크탑 프로덕션 앱 (app:// 프로토콜)에서는 실서버 API를 강제로 호출합니다.
+      return `https://onrivi.com${path}`;
+    }
+    if (window.location.protocol === 'chrome-extension:' || window.location.protocol === 'file:') {
       return `http://localhost:4000${path}`;
     }
     const port = parseInt(window.location.port, 10);
     const isNextDev = port >= 3000 && port < 4000;
-    // Next.js 내부 API(/api/*)를 직접 호출하도록 포트 4000 프록시를 제거합니다.
     const base = isNextDev ? '' : ''; 
     return `${base}${path}`;
   }

@@ -294,6 +294,21 @@ app.on('ready', async () => {
       else if (pathname === '/dashboard') pathname = '/dashboard.html';
       
       pathname = pathname.replace(/^\//, '');  // path.join이 앞 경로를 먹는 버그 방지
+      
+      // 데스크탑에서 프론트엔드가 실수로 /api/... 로컬 경로로 fetch 할 경우 실서버로 프록시
+      if (pathname.startsWith('api/')) {
+        const fetchUrl = `https://onrivi.com/${pathname}`;
+        const options = {
+          method: request.method,
+          headers: request.headers
+        };
+        if (request.method !== 'GET' && request.method !== 'HEAD' && request.body) {
+          options.body = request.body;
+          options.duplex = 'half';
+        }
+        return fetch(fetchUrl, options);
+      }
+
       let targetPath = path.join(__dirname, 'frontend/out', pathname);
       
       // html 파일 확장자 보완 (Next.js 정적 빌드 대응)
