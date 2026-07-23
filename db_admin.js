@@ -26,9 +26,9 @@ const commands = {
       return;
     }
     const query = `
-      SELECT device_uuid, device_name, activated_at, last_active_at 
-      FROM license_activations WHERE license_id = (
-        SELECT id FROM software_licenses WHERE payment_no = $1
+      SELECT device_uuid, device_name, activated_at, deactivated_at, is_active 
+      FROM license_activations WHERE subscription_id = (
+        SELECT id FROM subscriptions WHERE payment_no = $1
       );
     `;
     const res = await executeSql(query, [paymentNo]);

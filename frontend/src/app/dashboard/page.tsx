@@ -832,17 +832,19 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                       });
                       return sortedDevices.map((device) => {
                         const isCurrent = currentSessionId === device.device_uuid;
+                        const isDesktop = device.device_name?.toLowerCase().includes('desktop');
+                        const cannotDeactivate = isCurrent || isDesktop;
                         return (
                           <tr
                             key={device.id}
                             style={{
                               borderBottom: "1px solid rgba(14,165,233,0.06)",
-                              background: isCurrent ? "rgba(16,185,129,0.03)" : "transparent",
+                              background: isCurrent ? "rgba(16,185,129,0.03)" : isDesktop ? "rgba(99,102,241,0.03)" : "transparent",
                             }}
                           >
                             <td style={{ padding: "10px 12px", verticalAlign: "middle" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <Laptop size={14} style={{ color: isCurrent ? T.success : T.primary, flexShrink: 0 }} />
+                                <Laptop size={14} style={{ color: isCurrent ? T.success : isDesktop ? T.primaryDark : T.primary, flexShrink: 0 }} />
                                 <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                                   <span style={{ fontWeight: 600, color: T.onSurface, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: 120 }} title={device.device_name}>
                                     {device.device_name}
@@ -851,8 +853,13 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                                     {device.device_uuid}
                                   </span>
                                   {isCurrent && (
-                                    <span style={{ fontSize: 9, fontWeight: 700, color: T.success, alignSelf: "flex-start" }}>
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: T.success, alignSelf: "flex-start", marginTop: 2 }}>
                                       [현재 접속]
+                                    </span>
+                                  )}
+                                  {isDesktop && !isCurrent && (
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: T.primaryDark, alignSelf: "flex-start", marginTop: 2 }}>
+                                      [앱 구동중]
                                     </span>
                                   )}
                                 </div>
@@ -865,18 +872,18 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                             <td style={{ padding: "10px 12px", textAlign: "right", verticalAlign: "middle" }}>
                               <button
                                 onClick={() => handleDeactivateDevice(device.id)}
-                                disabled={actionLoading === device.id || isCurrent}
+                                disabled={actionLoading === device.id || cannotDeactivate}
                                 style={{
                                   padding: "4px 8px", borderRadius: "0.375rem", fontSize: 11, fontWeight: 600,
-                                  cursor: (actionLoading === device.id || isCurrent) ? "not-allowed" : "pointer",
-                                  background: isCurrent ? "transparent" : "rgba(239,68,68,0.06)",
-                                  color: isCurrent ? T.subtle : T.danger,
-                                  border: `1px solid ${isCurrent ? "transparent" : "rgba(239,68,68,0.20)"}`,
-                                  opacity: (actionLoading === device.id || isCurrent) ? 0.5 : 1,
+                                  cursor: (actionLoading === device.id || cannotDeactivate) ? "not-allowed" : "pointer",
+                                  background: cannotDeactivate ? "transparent" : "rgba(239,68,68,0.06)",
+                                  color: cannotDeactivate ? T.subtle : T.danger,
+                                  border: `1px solid ${cannotDeactivate ? "transparent" : "rgba(239,68,68,0.20)"}`,
+                                  opacity: (actionLoading === device.id || cannotDeactivate) ? 0.5 : 1,
                                   transition: "all 0.15s",
                                 }}
                               >
-                                {actionLoading === device.id ? '...' : isCurrent ? '보안' : '해제'}
+                                {actionLoading === device.id ? '...' : isCurrent ? '보안' : isDesktop ? '연동됨' : '해제'}
                               </button>
                             </td>
                           </tr>

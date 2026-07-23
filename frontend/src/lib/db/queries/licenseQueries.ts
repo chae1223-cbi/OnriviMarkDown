@@ -2,7 +2,7 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
   return db.begin(async (tx: any) => {
     // 1. 해당 구독(subscriptions) 정보 조회
     const licenseInfo = await tx`
-      SELECT max_devices
+      SELECT max_devices, plan_name
       FROM subscriptions
       WHERE id = ${licenseId}
     `;
@@ -11,7 +11,31 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
       throw new Error('구독/라이선스 정보를 찾을 수 없습니다.');
     }
 
-    const { max_devices } = licenseInfo[0];
+    const { max_devices, plan_name } = licenseInfo[0];
+
+    const checkLimits = async () => {
+      if (max_devices !== null && max_devices > 0) {
+        const activeSessions = await tx`
+          SELECT device_name
+          FROM license_activations
+          WHERE subscription_id = ${licenseId} AND is_active = true
+        `;
+        
+        const isElitePro = plan_name?.toUpperCase() === 'ELITEPRO';
+        const isDesktopReq = deviceName?.toLowerCase().includes('desktop');
+
+        if (isElitePro) {
+          const desktopCount = activeSessions.filter((s: any) => s.device_name?.toLowerCase().includes('desktop')).length;
+          const webCount = activeSessions.length - desktopCount;
+          
+          if (isDesktopReq && desktopCount >= 1) return false;
+          if (!isDesktopReq && webCount >= 1) return false;
+        } else {
+          if (activeSessions.length >= max_devices) return false;
+        }
+      }
+      return true;
+    };
 
     // 2. 기존 동일 기기 세션 확인
     const currentDeviceRes = await tx`
@@ -27,16 +51,8 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
       isCurrentlyActive = currentDeviceRes[0].is_active;
       
       // 3. max_devices 제한 검사 (현재 기기가 활성 상태가 아니었던 경우에만 검사)
-      if (!isCurrentlyActive && max_devices !== null && max_devices > 0) {
-        const activeCountRes = await tx`
-          SELECT COUNT(*) as count
-          FROM license_activations
-          WHERE subscription_id = ${licenseId} AND is_active = true
-        `;
-        const count = parseInt(activeCountRes[0].count, 10);
-        if (count >= max_devices) {
-          newIsActive = false;
-        }
+      if (!isCurrentlyActive) {
+        newIsActive = await checkLimits();
       }
 
       // 기존 기록 UPDATE (DELETE 후 INSERT 하면 Supabase Realtime DELETE 이벤트가 발생해 다른 탭이 강제 로그아웃됨)
@@ -47,17 +63,7 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
       `;
     } else {
       // 3. max_devices 제한 검사 (완전 신규 기기)
-      if (max_devices !== null && max_devices > 0) {
-        const activeCountRes = await tx`
-          SELECT COUNT(*) as count
-          FROM license_activations
-          WHERE subscription_id = ${licenseId} AND is_active = true
-        `;
-        const count = parseInt(activeCountRes[0].count, 10);
-        if (count >= max_devices) {
-          newIsActive = false;
-        }
-      }
+      newIsActive = await checkLimits();
 
       // 4. 신규 세션 등록
       if (userId) {
