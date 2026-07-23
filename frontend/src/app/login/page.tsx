@@ -124,9 +124,12 @@ export default function LoginPage() {
         const isValid = targetDate ? Date.now() < new Date(targetDate).getTime() : false;  // 🎯 구독 유효성 확인
 
         if (isValid && subData) {  // 🎯 구독 유효성 및 구독 정보 확인
-          const sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') 
-            ? crypto.randomUUID() 
-            : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
+          let sessionId = localStorage.getItem('onrivi_session_id');
+          if (!sessionId) {
+            sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') 
+              ? crypto.randomUUID() 
+              : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
+          }
           localStorage.setItem('onrivi_session_id', sessionId);  // 🎯 세션 ID 저장
           localStorage.setItem('onrivi_user_id', loggedInUser.id);  // 🎯 사용자 ID 저장
           localStorage.setItem('onrivi_payment_no', subData.payment_no || '');  // 🎯 결제 번호 저장

@@ -1,16 +1,13 @@
-import postgres from 'postgres';
-const sql = postgres('postgresql://postgres.niyvcgvayofdqbebmche:chaetangsu6!@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres', { max: 1 });
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 async function run() {
-  try {
-    const res = await sql`
-      SELECT *
-      FROM license_activations;
-    `;
-    console.log(res);
-  } catch (err) {
-    console.error(err);
-  } finally {
-    process.exit(0);
-  }
+  const { data, error } = await supabase.from('license_activations').select('*').limit(5);
+  console.log(data);
 }
 run();

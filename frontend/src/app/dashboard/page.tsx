@@ -824,7 +824,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                         ? (localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'))
                         : null;
                       return devices.map((device) => {
-                        const isCurrent = currentSessionId === device.device_uuid && device.is_active_license;
+                        const isCurrent = currentSessionId === device.device_uuid;
                         return (
                           <tr
                             key={device.id}

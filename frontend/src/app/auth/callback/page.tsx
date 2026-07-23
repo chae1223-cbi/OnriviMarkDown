@@ -120,9 +120,12 @@ export default function AuthCallbackPage() {
 
           // 활성 라이선스 있으면 세션 등록
           if (typeof window !== 'undefined' && redirectPath === "/editor") {
-            const sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') 
-              ? crypto.randomUUID() 
-              : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
+            let sessionId = localStorage.getItem('onrivi_session_id');
+            if (!sessionId) {
+              sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') 
+                ? crypto.randomUUID() 
+                : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
+            }
             localStorage.setItem('onrivi_session_id', sessionId);
             localStorage.setItem('onrivi_user_id', userId);
             localStorage.setItem('onrivi_payment_no', subData.payment_no || '');
