@@ -179,13 +179,15 @@ export default function LicenseModal({
 // ====================================================================
   const handleGoToPurchase = () => {
     let url = '';
+    const userIdVal = isEmailReadOnly ? (licenseStatus.userId || '') : inputUserId;
+    const emailParam = userIdVal.trim() ? encodeURIComponent(userIdVal.trim()) : '';
+    const deviceParam = deviceId ? encodeURIComponent(deviceId) : '';
+
     if (sessionData) {
       // 💡 [Saga/Handoff] 보안 토큰을 브라우저 해시 프래그먼트로 안전하게 넘김
-      url = `https://onrivi.com/auth/handoff#access_token=${sessionData.accessToken}&refresh_token=${sessionData.refreshToken}&redirect=/dashboard`;
+      const targetPath = encodeURIComponent(`/dashboard?email=${emailParam}&device=${deviceParam}`);
+      url = `https://onrivi.com/auth/handoff#access_token=${sessionData.accessToken}&refresh_token=${sessionData.refreshToken}&redirect=${targetPath}`;
     } else {
-      const userIdVal = isEmailReadOnly ? (licenseStatus.userId || '') : inputUserId;
-      const emailParam = userIdVal.trim() ? encodeURIComponent(userIdVal.trim()) : '';
-      const deviceParam = deviceId ? encodeURIComponent(deviceId) : '';
       url = `https://onrivi.com/dashboard?email=${emailParam}&device=${deviceParam}`;
     }
     const api = (window as any).electronAPI;
