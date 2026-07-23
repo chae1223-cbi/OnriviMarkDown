@@ -887,7 +887,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
 
       try {
-        const verifyRes = await fetch('/api/license/verify-desktop', {
+        const verifyRes = await fetch(getApiUrl('/api/license/verify-desktop'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ p_email: savedUserId, p_device_uuid: deviceId })
@@ -1109,7 +1109,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               let activationError = '';
 
               console.log('[loadAndVerifyLicense] p_user_id to send:', savedUserId, 'sessionId:', sessionId);
-              const actRes = await fetch('/api/rpc/license/insert', {
+              const actRes = await fetch(getApiUrl('/api/rpc/license/insert'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ p_license_id: license.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: savedUserId })
@@ -1126,7 +1126,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
               if (activationFailed) {
                 // insert 실패 시, 혹시 이미 유효한 세션이 존재하는지 2차 확인
-                const chk2Res = await fetch('/api/license/check-session', {
+                const chk2Res = await fetch(getApiUrl('/api/license/check-session'), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ p_payment_no: savedPaymentNo, p_device_uuid: sessionId })
@@ -1149,7 +1149,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               // 🚨 @PATCH : 오늘 날짜보다 종료일이 이전 날짜일 때 DB 상의 요금제 상태를 명시적으로 종료(EXPIRED) 처리
               // 단일 API 호출로 구독 종료, 연동 라이선스 비활성화, 세션 삭제를 한 번에 처리합니다.
               if (sub && sub.id && sub.plan_status !== 'EXPIRED') {
-                fetch('/api/subscription/expire', {
+                fetch(getApiUrl('/api/subscription/expire'), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ p_subscription_id: sub.id })
@@ -1253,7 +1253,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       try {
         // p_device_uuid는 로컬의 sessionId를 넘겨야 현재 브라우저 탭 세션을 추적함
         const currentSessionId = localStorage.getItem('onrivi_session_id') || deviceId;
-        const chkRes = await fetch('/api/license/check-session', {
+        const chkRes = await fetch(getApiUrl('/api/license/check-session'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: currentSessionId })
@@ -1269,7 +1269,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 const pNo = localStorage.getItem('onrivi_payment_no');
                 const sId = localStorage.getItem('onrivi_session_id') || deviceId;
                 if (pNo && sId) {
-                  await fetch('/api/device/deactivate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: pNo, p_device_uuid: sId }) });
+                  await fetch(getApiUrl('/api/device/deactivate'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: pNo, p_device_uuid: sId }) });
                 }
                 localStorage.removeItem('onrivi_session_id');
                 Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
