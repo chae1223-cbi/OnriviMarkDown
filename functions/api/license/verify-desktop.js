@@ -42,16 +42,16 @@ export async function onRequestPost(context) {
     }
     const userId = userRows[0].id;
 
-    // 2. 데스크탑 활성 구독 확인
-    // 3. 사용자의 데스크탑 구독 활성 상태 조회 (Elite Pro 또는 데스크탑 요금제만 필터링)
-    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&plan_status=in.(ACTIVE,FREE,active,free)&or=(plan_name.ilike.*Elite Pro*,plan_name.ilike.*데스크탑*)&order=current_period_end.desc&select=*&limit=1`, { headers });
+    // 2. 데스크탑 활성 구독 확인 (ELITEPRO 요금제 필터링 버그 수정)
+    // plan_name.eq.ELITEPRO 조건을 사용하여 띄어쓰기 없이 정확히 일치하는 요금제 찾기
+    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&plan_status=in.(ACTIVE,FREE,active,free)&or=(plan_name.eq.ELITEPRO,plan_name.ilike.*데스크탑*)&order=current_period_end.desc&select=*&limit=1`, { headers });
     const subRows = await subRes.json();
     if (!subRows || subRows.length === 0) {
       return new Response(JSON.stringify({ success: false, code: 'NO_PLAN', message: 'No active desktop subscription.' }), { status: 200, headers: corsHeaders });
     }
     const sub = subRows[0];
 
-    // 3. 라이선스 키 확인 (software_licenses 통합됨, subscriptions에서 직접 읽음)
+    // 3. 라이선스 키 확인
     if (!sub.license_key) {
       return new Response(JSON.stringify({ success: false, code: 'NO_LICENSE', message: 'No license found for subscription.' }), { status: 200, headers: corsHeaders });
     }
@@ -95,7 +95,8 @@ export async function onRequestPost(context) {
       body: JSON.stringify({
         subscription_id: sub.id,
         device_uuid: p_device_uuid,
-        activated_at: new Date().toISOString()
+        activated_at: new Date().toISOString(),
+        is_active: true
       })
     });
 

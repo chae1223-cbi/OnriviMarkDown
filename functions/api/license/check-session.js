@@ -36,7 +36,6 @@ export async function onRequestPost(context) {
     };
 
     // 1. payment_no → subscriptions → license_id 조회
-    // UPPER(plan_status) IN ('ACTIVE', 'FREE') 대신 in 필터 사용
     const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?payment_no=eq.${encodeURIComponent(p_payment_no)}&is_active=eq.true&plan_status=in.(ACTIVE,FREE,active,free)&select=id,max_devices&limit=1`, { headers });
     const subRows = await subRes.json();
 
