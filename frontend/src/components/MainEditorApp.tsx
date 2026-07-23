@@ -831,24 +831,33 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     let savedLicenseKey = '';
     let savedPlanName = '';
 
-    // A. 스토리지 로드 (웹/데스크탑 분리)
+    // A. 스토리지 로드 (로컬스토리지를 최우선 단일 진실 공급원(SSOT)으로 사용)
+    savedKey = localStorage.getItem('onrivi_license_key') || '';
+    savedUserId = localStorage.getItem('onrivi_user_id') || '';
+    savedPaymentNo = localStorage.getItem('onrivi_payment_no') || '';
+    savedLastRunTime = parseInt(localStorage.getItem('onrivi_last_run_time') || '0', 10);
+
+    const cachedStatus = loadSecureData<any>('onrivi_license_status');
+    if (cachedStatus && cachedStatus.userId === savedUserId) {
+      savedNextPaymentDate = cachedStatus.nextPaymentDate || '';
+      savedPlanName = cachedStatus.planName || '';
+      // 캐시된 라이선스 키가 있으면 병합
+      if (!savedKey && cachedStatus.licenseKey) savedKey = cachedStatus.licenseKey;
+    }
+
     if (isDesktop) {
       if (typeof api.loadLicenseFull === 'function') {
         const fullData = await api.loadLicenseFull();
-        if (fullData) {
-          savedUserId = fullData.userId || '';
-          savedLastRunTime = fullData.lastRunTime || 0;
-          savedNextPaymentDate = fullData.nextPaymentDate || '';
-          savedLicenseKey = fullData.licenseKey || '';
-          savedPlanName = fullData.planName || '';
+        if (fullData && fullData.userId) {
+          savedUserId = fullData.userId || savedUserId;
+          savedLastRunTime = fullData.lastRunTime || savedLastRunTime;
+          savedNextPaymentDate = fullData.nextPaymentDate || savedNextPaymentDate;
+          savedLicenseKey = fullData.licenseKey || savedKey;
+          savedPlanName = fullData.planName || savedPlanName;
         }
       }
     } else {
-      // 확장프로그램(chrome.storage.local) 조회 로직 제거 -> 오직 localStorage만 사용 (동기화 좀비 현상 방지)
-      savedKey = localStorage.getItem('onrivi_license_key') || '';
-      savedUserId = localStorage.getItem('onrivi_user_id') || '';
-      savedPaymentNo = localStorage.getItem('onrivi_payment_no') || '';
-      savedLastRunTime = parseInt(localStorage.getItem('onrivi_last_run_time') || '0', 10);
+      savedLicenseKey = savedKey;
     }
 
     const nowTime = Date.now();
@@ -963,6 +972,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 planName: '기간 만료 (제한 사용자)'
               });
             }
+            
+            localStorage.setItem('onrivi_license_key', '');
+            localStorage.setItem('onrivi_last_run_time', Date.now().toString());
+            saveSecureData('onrivi_license_status', {
+              isActivated: false, isExpired: true, remainingDays: 0,
+              userId: savedUserId, licenseKey: '', paymentNo: '',
+              planName: '기간 만료 (제한 사용자)', nextPaymentDate: data.next_payment_date || '',
+              lastVerifiedAt: Date.now()
+            });
           } else {
             const newStatus = {
               isActivated: true, isExpired: false, remainingDays,
@@ -983,6 +1001,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 planName: newStatus.planName
               });
             }
+            
+            // 데스크탑 환경에서도 로컬스토리지를 최신 DB 정보로 완벽하게 동기화 (오프라인 폴백 용도)
+            localStorage.setItem('onrivi_license_key', newStatus.licenseKey);
+            localStorage.setItem('onrivi_payment_no', newStatus.paymentNo);
+            localStorage.setItem('onrivi_user_id', newStatus.userId);
+            localStorage.setItem('onrivi_last_run_time', Date.now().toString());
+            
+            saveSecureData('onrivi_license_status', {
+              ...newStatus,
+              lastVerifiedAt: Date.now()
+            });
           }
         }
       } catch (err) {
@@ -1585,13 +1614,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         userId: userId,
         paymentNo: paymentNo
       });
-    } else {
-      // chromeStorage.set 로직 제거 (순수 localStorage만 유지)
-      localStorage.setItem('onrivi_license_key', finalLicenseKey);
-      localStorage.setItem('onrivi_verify_key', verifyKey);
-      localStorage.setItem('onrivi_user_id', userId);
-      localStorage.setItem('onrivi_payment_no', paymentNo);
-    }
+    } 
+    
+    // 데스크탑(Electron) 환경이라 하더라도 웹뷰 내부의 범용적인 활용 및 폴백을 위해 항상 로컬스토리지에 저장합니다.
+    localStorage.setItem('onrivi_license_key', finalLicenseKey);
+    localStorage.setItem('onrivi_verify_key', verifyKey);
+    localStorage.setItem('onrivi_user_id', userId);
+    localStorage.setItem('onrivi_payment_no', paymentNo);
 
     await loadAndVerifyLicense();
   };

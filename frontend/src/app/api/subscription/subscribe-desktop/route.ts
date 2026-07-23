@@ -4,11 +4,8 @@
  *             subscriptions 단일 테이블 구조에 맞게 서버 코드단에서 라이선스 키 생성 및 삽입 처리
  */
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+import { sql } from '@/lib/db';
+import crypto from 'crypto';
 
 function generateHex(size: number) {
   const bytes = new Uint8Array(size);
@@ -28,58 +25,41 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const periodEndTs = new Date(Date.now() + 365 * 86400000).toISOString();
 
-    // 1. 기존 구독 만료 처리
-    await supabaseAdmin
-      .from('subscriptions')
-      .update({ plan_status: 'EXPIRED', is_active: false, updated_at: now })
-      .eq('user_id', p_user_id);
-
-    // 2. 신규 데스크탑 구독 생성
     const subId = crypto.randomUUID();
     const licenseKey = `OMD-${generateHex(4)}-${generateHex(4)}`;
     const verifyKey = generateHex(8);
     const paymentNo = `PAY-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${generateHex(4)}`;
 
-    const { error: insertSubError } = await supabaseAdmin
-      .from('subscriptions')
-      .insert({
-        id: subId,
-        created_by: p_user_id,
-        updated_by: p_user_id,
-        user_id: p_user_id,
-        plan_name: 'ELITEPRO',
-        plan_status: 'ACTIVE',
-        billing_cycle: 'YEARLY',
-        license_key: licenseKey,
-        verify_key: verifyKey,
-        payment_no: paymentNo,
-        max_devices: 2,
-        current_period_start: now,
-        current_period_end: periodEndTs,
-        is_active: true,
-        created_at: now,
-        updated_at: now
-      });
+    await sql.begin(async (tx) => {
+      // 1. 기존 구독 만료 처리
+      await tx`
+        UPDATE subscriptions
+        SET plan_status = 'EXPIRED', is_active = false, updated_at = now()
+        WHERE user_id = ${p_user_id}
+      `;
 
-    if (insertSubError) {
-      console.error('[/api/subscription/subscribe-desktop] Sub Insert error:', insertSubError);
-      return NextResponse.json({ success: false, message: insertSubError.message || '구독 생성 실패' }, { status: 500 });
-    }
+      // 2. 신규 데스크탑 구독 생성
+      await tx`
+        INSERT INTO subscriptions (
+          id, created_by, updated_by, user_id, plan_name, plan_status, billing_cycle,
+          license_key, verify_key, payment_no, max_devices,
+          current_period_start, current_period_end, is_active, created_at, updated_at
+        ) VALUES (
+          ${subId}, ${p_user_id}, ${p_user_id}, ${p_user_id}, 'ELITEPRO', 'ACTIVE', 'YEARLY',
+          ${licenseKey}, ${verifyKey}, ${paymentNo}, 2,
+          now(), ${periodEndTs}::timestamptz, true, now(), now()
+        )
+      `;
 
-    // 3. 기기 활성화
-    const { error: deviceError } = await supabaseAdmin
-      .from('license_activations')
-      .insert({
-        subscription_id: subId,
-        device_uuid: p_device_uuid,
-        device_name: p_device_name || 'Desktop App',
-        activated_at: now
-      });
-
-    if (deviceError) {
-      console.error('[/api/subscription/subscribe-desktop] Device Insert error:', deviceError);
-      // 기기 등록 실패하더라도 플랜 자체는 생성됨. 일단 에러 무시하거나 응답은 성공으로 할 수 있음.
-    }
+      // 3. 기기 활성화
+      await tx`
+        INSERT INTO license_activations (
+          subscription_id, device_uuid, device_name, activated_at, is_active, created_by, updated_by
+        ) VALUES (
+          ${subId}, ${p_device_uuid}, ${p_device_name || 'Desktop App'}, now(), true, ${p_user_id}, ${p_user_id}
+        )
+      `;
+    });
 
     return NextResponse.json({
       success: true,
