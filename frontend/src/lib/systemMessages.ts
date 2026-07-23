@@ -1,10 +1,10 @@
-const PREFIX = '[온리비 어서]';
+const PREFIX = '[Onrivi Author]';
 
 type Level = 'info' | 'success' | 'warn' | 'error';
 
 // ====================================================================
 // 📊 [OMD-IO-systemMessages-0001] systemMessages.ts ➔ format
-// 🎯 @KICK  : 로그 메시지를 [온리비 어서] 프리픽스 + 레벨 포맷
+// 🎯 @KICK  : 로그 메시지를 [Onrivi Author] 프리픽스 + 레벨 포맷
 // 🛡️ @GUARD : 없음
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : 없음
@@ -15,7 +15,7 @@ function format(level: Level, message: string): string {
 
 // ====================================================================
 // 📊 [OMD-IO-systemMessages-0002] systemMessages.ts ➔ msg
-// 🎯 @KICK  : [온리비 어서] 프리픽스 기반 통합 로깅 객체 (info/success/warn/error)
+// 🎯 @KICK  : [Onrivi Author] 프리픽스 기반 통합 로깅 객체 (info/success/warn/error)
 // 🛡️ @GUARD : 없음
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : format

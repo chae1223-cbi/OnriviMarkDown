@@ -59,9 +59,9 @@ export default function Toolbar() {
           }
         }}
         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-        title="온리비 어서 홈으로"
+        title="Onrivi Author 홈으로"
       >
-        <img src="./icon.png" alt="온리비" className="w-4 h-4 object-contain" />
+        <img src="./icon.png" alt="Onrivi" className="w-4 h-4 object-contain" />
       </button>
 
       <button 

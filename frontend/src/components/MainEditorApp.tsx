@@ -7,6 +7,8 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-07-22** — 클라이언트 직접 supabase.rpc() 호출 전량 서버단 API Route fetch()로 이전: insert_license_activation→/api/rpc/license/insert, check_license_session(×2)→/api/license/check-session, verify_desktop_license→/api/license/verify-desktop; Realtime 구독 테이블명 license_activations→license_activations 전환
+ *   * 🚨 @PATCH : **2026-07-22** — subscriptions 단일 통합 테이블 개편에 맞춰 software_licenses 및 users 레거시 쿼리 참조를 subscriptions 단일 쿼리로 일괄 마이그레이션 적용
  *   * 🚨 @PATCH : **2026-07-20** — 플로팅 툴바의 단독 AI Sparkles(✨) 아이콘 클릭 시 기존의 미작동하던 인라인 미리보기(setAiPreviewState)를 제거하고, 정상적인 AI 에디토리얼 어시스턴트 모달(AiDraftModal)이 열리도록 OPEN_AI_WRITER 커맨드 디스패치로 수정. 또한 텍스트/마크다운 조작 그룹에 중복으로 존재하던 텍스트 이모지(✨) 버튼을 제거하여 툴바 장황성 개선 및 기능 단일화 패치 적용 | **2026-07-18** — 라이선스 만료 및 미승인 상태(isExpired)일 때 Monaco 에디터가 편집 불가(readOnly, domReadOnly) 상태로 전환되도록 강제화 보강, 웰컴페이지 유예 시간 빨간색 경고 메시지 배너 UI 제거
    *             **2026-07-15** — ModalManager deps 객체에서 window.SYSTEM_PROFILES/DEFAULT_PROFILE/isSystemProfileId를 window 전역에서 읽던 잘못된 코드를 모듈 import 상수 직접 참조로 수정 (window에 주입되지 않아 항상 빈 배열/객체로 폴백 → 서식 삭제 시 SYSTEM_PROFILES[0] undefined TypeError 버그 수정) | AI 재생성 및 모달 닫기/취소 시 백그라운드 스트리밍을 무효화하는 generationIdRef 가드 추가(동일 모달 재진입 또는 재생성 시 이전 버퍼가 오버랩되는 현상 완벽 조치), 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
    *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
@@ -813,7 +815,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   //              2026-06-23 — payment_no 미존재 시의 subscriptions 폴백 쿼리에 다중구독 cardinality violation 방지용 활성 구독 필터(is_expired/plan_end_date/plan_status 등) 추가 개편;
   //              2026-06-22 — payment_no 미존재 시 supabase Auth 세션 → subscriptions → software_licenses fallback;
   //              웹 SaaS: count 조회만 수행, upsert/device UUID 완전 제거 (auth callback에서 insert 담당)
-  // 🔗 @CALLS : api.loadLicenseFull, supabase.from.license_activations.select, crypto.subtle.digest, saveSecureData, loadSecureData, setLicenseStatus, setLicenseKey
+  // 🔗 @CALLS : api.loadLicenseFull, fetch(/api/rpc/license/insert, /api/license/check-session), crypto.subtle.digest, saveSecureData, loadSecureData, setLicenseStatus, setLicenseKey
   // ====================================================================
   const loadAndVerifyLicense = useCallback(async () => {
     if (typeof window === 'undefined' || !deviceId) return;
@@ -885,10 +887,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
 
       try {
-        const { data, error } = await supabase.rpc('verify_desktop_license', {
-          p_email: savedUserId,
-          p_device_uuid: deviceId
+        const verifyRes = await fetch('/api/license/verify-desktop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_email: savedUserId, p_device_uuid: deviceId })
         });
+        const data = verifyRes.ok ? await verifyRes.json() : null;
+        const error = !verifyRes.ok ? new Error('서버 오류') : null;
 
         if (error || !data || !data.success) {
           console.warn('[loadAndVerifyLicense] Desktop verification failed:', error || data?.message);
@@ -1000,24 +1005,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (session?.user) {
           const { data: userSub } = await supabase
             .from('subscriptions')
-            .select('id, plan_name, plan_status, trial_end_at, current_period_end, max_devices')
+            .select('id, plan_name, plan_status, current_period_end, max_devices, license_key, payment_no')
             .eq('user_id', session.user.id)
+            .eq('is_active', true)
             .in('plan_status', ['ACTIVE', 'FREE'])
-            .not('plan_name', 'like', '%데스크탑%')
+            .neq('plan_name', 'ELITEPRO')
+            .not('plan_name', 'ilike', '%DESKTOP%')
             .order('current_period_end', { ascending: false })
             .limit(1)
             .maybeSingle();
-          if (userSub) {
-            const { data: userLic } = await supabase
-              .from('software_licenses')
-              .select('license_key, payment_no')
-              .eq('subscription_id', userSub.id)
-              .maybeSingle();
-            if (userLic?.payment_no) {
-              savedPaymentNo = userLic.payment_no;
-              savedKey = userLic.license_key || '';
-              savedUserId = session.user.id;
-            }
+          if (userSub?.payment_no) {
+            savedPaymentNo = userSub.payment_no;
+            savedKey = userSub.license_key || '';
+            savedUserId = session.user.id;
           }
         }
       } catch (e) {
@@ -1054,17 +1054,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       try {
         let sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
         if (!sessionId) {
-          sessionId = crypto.randomUUID();
+          sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+            ? crypto.randomUUID()
+            : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
           localStorage.setItem('onrivi_session_id', sessionId);
         }
 
-        const { data: lic } = await supabase
-          .from('software_licenses')
-          .select('id, subscription_id')
+        const { data: license } = await supabase
+          .from('subscriptions')
+          .select('id, is_active, license_key, payment_no, plan_name, plan_status, current_period_end, created_at, max_devices')
           .eq('payment_no', savedPaymentNo)
           .maybeSingle();
 
-        if (!lic) {
+        if (!license) {
           console.warn('[loadAndVerifyLicense] web: license not found for payment_no. Auto-clearing cache...');
           // 잘못된 결제 번호 캐시가 남아 영원히 에러가 나는 좀비 현상(무한루프) 방지를 위해 캐시 자동 강제 삭제
           localStorage.removeItem('onrivi_payment_no');
@@ -1072,23 +1074,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           localStorage.removeItem('onrivi_session_id');
           return;
         } else {
-          const { data: license } = await supabase
-            .from('software_licenses')
-            .select('id, is_active, license_key, payment_no, subscription_id')
-            .eq('id', lic.id)
-            .eq('payment_no', savedPaymentNo)
-            .maybeSingle();
-
-          if (license) {
-            const { data: sub } = await supabase
-              .from('subscriptions')
-              .select('plan_name, plan_status, trial_end_at, current_period_end, plan_end_date, created_at, max_devices')
-              .eq('id', lic.subscription_id)
-              .maybeSingle();
+            const sub = license;
 
             let expiryMs = 0;
             if (sub) {
-              if (sub.plan_name && sub.plan_name.includes('데스크탑')) {
+              if (sub.plan_name && (sub.plan_name === 'ELITEPRO' || sub.plan_name.toUpperCase().includes('DESKTOP'))) {
                 console.warn('[loadAndVerifyLicense] Desktop plan cannot be used in Web SaaS.');
                 setLicenseStatus({
                   isActivated: false, isExpired: true, remainingDays: 0, userId: savedUserId,
@@ -1097,8 +1087,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 });
                 return;
               }
-              const targetDate = (sub.plan_end_date && sub.plan_end_date !== '99991231') ? sub.plan_end_date : (sub.current_period_end || sub.trial_end_at);
+              const targetDate = sub.current_period_end;
               if (targetDate) expiryMs = parseDateStringToMs(targetDate);
+              else expiryMs = Number.MAX_SAFE_INTEGER;
               
               // 🚨 @PATCH : 2026-07-20 - 무료 체험(FREE) 요금제의 경우, 백엔드 데이터(99991231 등) 오류시에만 가입일(created_at) 기준 강제 만료 리미트 적용 (정상적인 만료일이 있으면 DB 값 우선)
               if (sub.plan_status === 'FREE' && sub.created_at) {
@@ -1117,20 +1108,30 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               let activationFailed = false;
               let activationError = '';
 
-              const { data: actResult, error: actErr } = await supabase.rpc('insert_license_activation', {
-                p_license_id: license.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS'
+              console.log('[loadAndVerifyLicense] p_user_id to send:', savedUserId, 'sessionId:', sessionId);
+              const actRes = await fetch('/api/rpc/license/insert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ p_license_id: license.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: savedUserId })
               });
+              const actResult = actRes.ok ? await actRes.json() : null;
+              const actErr = !actRes.ok ? new Error('서버 오류') : null;
               
               if (actErr || (actResult && !actResult.success)) {
                 activationFailed = true;
-                activationError = actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' 
+                activationError = (actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' || actResult?.code === 'EXCEED_MAX_DEVICES')
                   ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자` 
                   : `라이선스 오류: ${actResult?.message || actErr?.message || '알 수 없는 오류'}`;
               }
 
               if (activationFailed) {
                 // insert 실패 시, 혹시 이미 유효한 세션이 존재하는지 2차 확인
-                const { data: chk2 } = await supabase.rpc('check_license_session', { p_payment_no: savedPaymentNo, p_device_uuid: sessionId });
+                const chk2Res = await fetch('/api/license/check-session', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ p_payment_no: savedPaymentNo, p_device_uuid: sessionId })
+                });
+                const chk2 = chk2Res.ok ? await chk2Res.json() : null;
                 
                 if (chk2 && chk2.success && chk2.has_session) {
                   // 이미 내 세션이 존재하므로 정상! (이전 탭 등에서 획득한 세션 유지)
@@ -1178,7 +1179,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               lastVerifiedAt: Date.now()
             });
             return;
-          }
         }
       } catch (err) {
         console.warn('[loadAndVerifyLicense] web unexpected error:', err);
@@ -1253,17 +1253,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       try {
         // p_device_uuid는 로컬의 sessionId를 넘겨야 현재 브라우저 탭 세션을 추적함
         const currentSessionId = localStorage.getItem('onrivi_session_id') || deviceId;
-        const { data: chk } = await supabase.rpc('check_license_session', {
-          p_payment_no: paymentNo,
-          p_device_uuid: currentSessionId
+        const chkRes = await fetch('/api/license/check-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: currentSessionId })
         });
+        const chk = chkRes.ok ? await chkRes.json() : null;
 
         if (chk) {
-          if (!chk.success || !chk.has_session) {
-            // 다른 기기 접속이나 만료로 세션이 초과/소멸되었다면 즉시 제한 사용자로 상태 전이
+          if (chk.success && chk.has_session === false && chk.is_restricted === false) {
+            // 세션 자체가 DB에서 완전히 삭제(DELETE)된 경우 (대시보드 기기 해제 등) -> 무조건 강제 로그아웃
+            setLicenseStatus(prev => {
+              showToast("🛑 동시접속 관리에 의해 현재 기기의 세션이 강제 해제되었습니다. 보호를 위해 로그아웃됩니다.", "error");
+              setTimeout(async () => {
+                const pNo = localStorage.getItem('onrivi_payment_no');
+                const sId = localStorage.getItem('onrivi_session_id') || deviceId;
+                if (pNo && sId) {
+                  await fetch('/api/device/deactivate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: pNo, p_device_uuid: sId }) });
+                }
+                localStorage.removeItem('onrivi_session_id');
+                Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+                await supabase.auth.signOut({ scope: 'local' });
+                window.location.href = '/login';
+              }, 3000);
+              return { ...prev, isActivated: false, isExpired: true, planName: '세션 해제 (로그아웃 중...)' };
+            });
+          } else if (chk.success && chk.has_session === false && chk.is_restricted !== false) {
+            // 세션은 존재하지만 활성화되지 않은 제한 사용자 상태인 경우 -> 제한 모드 유지
             setLicenseStatus(prev => {
               if (!prev.isExpired) {
-                showToast("⚠️ 다른 브라우저/기기에서 접속하여 본 세션의 편집 권한이 제한모드로 해제되었습니다.", "warning");
+                showToast("⚠️ 동시 접속 한도를 초과하여 본 세션은 제한 모드(읽기 전용)로 동작합니다.", "warning");
               }
               return {
                 ...prev,
@@ -1448,8 +1467,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-PAY-MainEditorApp-0017] MainEditorApp.tsx ➔ supabaseRealtime_license
   // 🎯 @KICK  : 실시간 활성화를 위해 license_activations의 Supabase postgres_changes 구독, 데스크톱 프로토콜 폴백 포함
   // 🛡️ @GUARD : 언마운트 시 채널 및 리스너 정리; device_uuid 필터로 중복 제거
-  // 🚨 @PATCH : Electron 환경을 위한 데스크톱 onLicenseActivated 백업 및 결제번호(paymentNo) 전달 보완
-  // 🔗 @CALLS : supabase.channel, supabase.from.software_licenses.select, handleSuccessActivation, showToast
+  // 🚨 @PATCH : **2026-07-22** — Realtime 구독 테이블명 license_activations→license_activations 전환; Electron 환경을 위한 데스크톱 onLicenseActivated 백업 및 결제번호(paymentNo) 전달 보완
+  // 🔗 @CALLS : supabase.channel, supabase.from.license_activations.select, handleSuccessActivation, showToast
   // ====================================================================
   useEffect(() => {
     if (!deviceId) return;
@@ -1484,25 +1503,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           filter: `device_uuid=eq.${deviceId}`
         },
         async (payload: any) => {
+          // 🚨 @PATCH : 대시보드(기기 관리)에서 세션을 강제 해제(DELETE)할 경우, 하트비트를 기다리지 않고 즉시 강제 로그아웃
+          if (payload.eventType === 'DELETE') {
+            showToast("🛑 동시접속 관리에 의해 현재 기기의 세션이 강제 해제되었습니다. 보호를 위해 로그아웃됩니다.", "error");
+            setTimeout(async () => {
+              localStorage.removeItem('onrivi_session_id');
+              Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+              await supabase.auth.signOut({ scope: 'local' });
+              window.location.href = '/login';
+            }, 3000);
+            return;
+          }
+
           const newRecord = payload.new;
-          if (newRecord && newRecord.license_id) {
+          if (newRecord && newRecord.subscription_id) {
             const { data, error } = await supabase
-              .from('software_licenses')
+              .from('subscriptions')
               .select(`
                 verify_key,
-                subscription_id,
-                users (
-                  email
-                )
+                license_key,
+                user_id
               `)
-              .eq('id', newRecord.license_id)
+              .eq('id', newRecord.subscription_id)
               .single();
 
             if (!error && data && data.verify_key) {
-              const userEmail = (data as any).users?.email || licenseStatus.userId || 'user@onrivi.com';
-              handleSuccessActivation(data.verify_key, userEmail, data.subscription_id || '', data.license_key || '');
+              const userEmail = licenseStatus.userId || 'user@onrivi.com';
+              handleSuccessActivation(data.verify_key, userEmail, data.id || '', data.license_key || '');
               showToast("🎉 정품 라이선스가 결제 즉시 안전하게 승인되었습니다!", "success");
             }
+
           }
         }
       )
@@ -1852,8 +1882,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         tabToClose.model.dispose();
       }
 
-      // 💡 웰컴페이지 전용 '온리비 어서 시작하기.md' 탭을 닫거나 도움말을 닫을 때의 모드 조정
-      if (tabToClose.name === '온리비 어서 시작하기.md' || tabToClose.name === '도움말.md') {
+      // 💡 웰컴페이지 전용 'Onrivi Author 시작하기.md' 탭을 닫거나 도움말을 닫을 때의 모드 조정
+      if (tabToClose.name === 'Onrivi Author 시작하기.md' || tabToClose.name === '도움말.md') {
         const targetMode = licenseStatus.isExpired ? 'preview' : (previewModeRef.current === 'css-style' ? 'both' : previewModeRef.current);
         setPreviewModeRaw(targetMode);
         previewModeRef.current = targetMode;
@@ -2398,9 +2428,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     if (!isRestrictedUser) {
       setTabs(prev => {
-        const hasWelcome = prev.some(t => t.name === '온리비 어서 시작하기.md' && !t.isStyleTab);
+        const hasWelcome = prev.some(t => t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab);
         if (!hasWelcome) return prev;
-        const cleaned = prev.filter(t => !(t.name === '온리비 어서 시작하기.md' && !t.isStyleTab));
+        const cleaned = prev.filter(t => !(t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab));
         if (cleaned.length === 0) {
           setActiveTabId(null);
           setContent(localStorage.getItem('onrivi_content') || '');
@@ -2530,14 +2560,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0040] MainEditorApp.tsx ➔ dynamicTitleBar
-  // 🎯 @KICK  : document.title을 '온리비 어서'로 고정 (탭 UI가 파일명 표시하므로)
+  // 🎯 @KICK  : document.title을 'Onrivi Author'로 고정 (탭 UI가 파일명 표시하므로)
   // 🛡️ @GUARD : None
-  // 🚨 @PATCH : 2026-06-22 — 파일명 제거, '온리비 어서'만 표시 (탭으로 대체)
+  // 🚨 @PATCH : 2026-06-22 — 파일명 제거, 'Onrivi Author'만 표시 (탭으로 대체)
   // 🔗 @CALLS : None
   // ====================================================================
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = '온리비 어서';
+      document.title = 'Onrivi Author';
     }
   }, []);
 
@@ -2729,12 +2759,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       licenseStatus.planName?.includes('제한사용자');
 
     // tabs 상태값 대신 refs로 현재 상황을 안전하게 스냅샷
-    const hasWelcome = tabsRef.current.some(t => t.name === '온리비 어서 시작하기.md' && !t.isStyleTab);
+    const hasWelcome = tabsRef.current.some(t => t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab);
 
     if (!isRestrictedUser) {
       // 1. [정상/전체 사용자]: 웰컴 페이지 강제 삭제 (빈 문서 시작)
       if (hasWelcome) {
-        const cleaned = tabsRef.current.filter(t => !(t.name === '온리비 어서 시작하기.md' && !t.isStyleTab));
+        const cleaned = tabsRef.current.filter(t => !(t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab));
         setTabs(cleaned);
         if (cleaned.length === 0) {
           setActiveTabId(null);
@@ -3727,6 +3757,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         // 1-2. 내부 .katex 요소에도 정렬 방식을 강제 주입하여 globals.css의 left 강제화 돌파
         if (entries.some(([prop]) => prop === 'text-align')) {
           const alignVal = entries.find(([prop]) => prop === 'text-align')[1];
+          css += `.custom-preview-container .katex-display {\n`;
+          css += `  display: flex !important;\n`;
+          if (alignVal === 'center') {
+            css += `  justify-content: center !important;\n`;
+          } else if (alignVal === 'right') {
+            css += `  justify-content: flex-end !important;\n`;
+          } else {
+            css += `  justify-content: flex-start !important;\n`;
+          }
+          css += `}\n`;
           css += `.custom-preview-container .katex-display > .katex {\n`;
           css += `  text-align: ${alignVal} !important;\n`;
           css += `}\n`;

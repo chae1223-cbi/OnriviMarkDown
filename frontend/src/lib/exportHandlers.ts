@@ -848,7 +848,7 @@ async function saveToDownloads(filename: string, content: string, type: 'base64'
     });
     return res.ok;
   } catch (err) {
-    console.error("[온리비 어서] saveToDownloads API 호출 실패 (서버 미구동 상태일 수 있음):", err);
+    console.error("[Onrivi Author] saveToDownloads API 호출 실패 (서버 미구동 상태일 수 있음):", err);
     return false;
   }
 }

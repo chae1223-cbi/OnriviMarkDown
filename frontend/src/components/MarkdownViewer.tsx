@@ -234,7 +234,7 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('[온리비 어서] 복사 실패', err);
+      console.error('[Onrivi Author] 복사 실패', err);
     }
   };
 
@@ -313,7 +313,7 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('[온리비 어서] 시트/표형식 복사 실패', err);
+      console.error('[Onrivi Author] 시트/표형식 복사 실패', err);
     }
   };
 
@@ -507,7 +507,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
       <html>
       <head>
         <meta charset="utf-8">
-        <title>온리비 다이어그램 돋보기</title>
+        <title>Onrivi 다이어그램 돋보기</title>
         <style>
           html, body {
             margin: 0;
@@ -810,7 +810,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
 
           if (!isValid) {
             if (active) {
-              setError(`🎨 온리비 어서: 다이어그램 문법을 입력하는 중이거나 문법이 불완전합니다. (${parserErrorMsg.substring(0, 150)})`);
+              setError(`🎨 Onrivi Author: 다이어그램 문법을 입력하는 중이거나 문법이 불완전합니다. (${parserErrorMsg.substring(0, 150)})`);
               setLoading(false);
             }
             return;
@@ -831,9 +831,9 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
             setLoading(false);
           }
         } catch (err: any) {
-          console.warn('[온리비 어서] Mermaid 렌더링 실패 가드 가동', err);
+          console.warn('[Onrivi Author] Mermaid 렌더링 실패 가드 가동', err);
           if (active) {
-            setError('🎨 온리비 어서: 다이어그램 렌더링 중 문법 충돌로 오류가 발생했습니다.');
+            setError('🎨 Onrivi Author: 다이어그램 렌더링 중 문법 충돌로 오류가 발생했습니다.');
             setLoading(false);
           }
           const badEl = document.getElementById(renderId);

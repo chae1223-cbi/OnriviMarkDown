@@ -125,7 +125,7 @@ export default function PrivacyPage() {
               <p>회사는 개인정보 처리에 관한 업무를 총괄해서 책임지고, 개인정보 처리와 관련한 정보주체의 불만처리 및 피해구제 등을 위하여 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li><strong>개인정보 보호책임자</strong></li>
-                <li>담당 부서: 온리비 개발운영팀 (Security &amp; DevOps)</li>
+                <li>담당 부서: Onrivi 개발운영팀 (Security &amp; DevOps)</li>
                 <li>연락처/이메일: <a href="mailto:support@onrivi.com" className="text-[#6366f1] hover:underline">support@onrivi.com</a></li>
                 <li>문의 대응 가능 시간: 평일 10:00 ~ 18:00 (주말 및 공지 휴일 제외)</li>
               </ul>

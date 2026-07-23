@@ -1,6 +1,6 @@
 // ====================================================================
 // 📊 [OMD-UI-PricingSection-0023 ✅ FIXED] PricingSection ➔ PricingSection
-// 🎯 @KICK  : 온리비 아서 서비스 멤버십 가격표 출력
+// 🎯 @KICK  : Onrivi Author 서비스 멤버십 가격표 출력
 // 🚨 @PATCH : **2026-07-09** — 4계급 멤버십 구조 (Reader/Apprentice/Regular/Elite Pro) 전면 개편
 // 🔗 @CALLS : plans constants
 // ====================================================================
@@ -13,9 +13,9 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal"; // ConfirmModal : �
 
 // ====================================================================
 // 🎯 PricingSection ➔ PricingSection
-// PricingSection : 온리비 아서 서비스 멤버십 가격표를 위한 컴포넌트  
+// PricingSection : Onrivi Author 서비스 멤버십 가격표를 위한 컴포넌트  
 // ====================================================================
-export function PricingSection() {   // PricingSection : 온리비 아서 서비스 멤버십 가격표를 위한 컴포넌트  
+export function PricingSection() {   // PricingSection : Onrivi Author 서비스 멤버십 가격표를 위한 컴포넌트  
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean; title: string; message: string; onConfirm: () => void;
   }>({ isOpen: false, title: "", message: "", onConfirm: () => { } }); // modalConfig : 모달 설정을 위한 상태  
@@ -32,7 +32,7 @@ export function PricingSection() {   // PricingSection : 온리비 아서 서비
             MEMBERSHIP
           </span>
           <h2 style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 600, letterSpacing: "-0.01em", color: "#0f172a", marginBottom: 12 }}>
-            🎮 온리비 아서 서비스 멤버십 가격표
+            🎮 Onrivi Author 서비스 멤버십 가격표
           </h2>
           <p style={{ fontSize: 18, color: "#3e4850", lineHeight: "28px" }}>
             당신의 창작 여정에 맞는 멤버십을 선택하세요.

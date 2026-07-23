@@ -16,9 +16,30 @@ export type ToastType = 'success' | 'error' | 'info' | 'warning';
 // 📊 [OMD-EDIT-toast-0001] toast ➔ showToast
 // 🎯 @KICK  : 화면 우측 상단에 프리미엄 토마토 테마 Toast 알림을 동적으로 생성하여 표시한다
 // 🛡️ @GUARD : SSR 환경에서는 early return, 컨테이너 미존재 시 생성
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-07-22** — 영문 예외 및 서버 메시지가 노출되는 현상을 방지하도록 Supabase/서버 오류용 자동 한글 변환 맵(translateToKorean)을 탑재하여 모든 알림이 친절한 한글 메시지로 보정되어 표출되도록 개선 패치
 // 🔗 @CALLS : ToastType
 // ====================================================================
+
+function translateToKorean(msg: string): string {
+  if (!msg) return "요청 처리 중 오류가 발생했습니다.";
+  const lower = msg.toLowerCase();
+  if (lower.includes("invalid login credentials")) return "이메일 또는 비밀번호가 올바르지 않습니다.";
+  if (lower.includes("user already registered") || lower.includes("already exists")) return "이미 가입되어 있는 이메일 주소입니다.";
+  if (lower.includes("email not confirmed")) return "이메일 인증이 완료되지 않았습니다. 메일함을 확인해 주세요.";
+  if (lower.includes("password should be at least")) return "비밀번호는 최소 8자 이상이어야 합니다.";
+  if (lower.includes("rate limit") || lower.includes("too many requests")) return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+  if (lower.includes("network error") || lower.includes("failed to fetch")) return "네트워크 연결 상태를 확인해 주세요.";
+  if (lower.includes("user not found")) return "존재하지 않는 회원 정보입니다.";
+  if (lower.includes("session expired") || lower.includes("jwt expired")) return "세션이 만료되었습니다. 다시 로그인해 주세요.";
+  
+  // 영문 메시지인 경우 기본 한글 에러 텍스트로 자동 치환
+  if (/^[a-zA-Z0-9\s.,:;!?'"()_/\-[\]{}#@$%&*+=<>]+$/.test(msg.trim()) && msg.trim().length > 3) {
+    return "요청을 처리하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  
+  return msg;
+}
+
 /**
  * 화면 우측 상단에 프리미엄 토마토 테마의 Toast 알림을 동적으로 생성하여 띄워줍니다.
  * @param message 표시할 알림 메시지 내용
@@ -36,10 +57,11 @@ export const showToast = (message: string, type: ToastType = 'info') => {
     document.body.appendChild(container);
   }
 
-  // 2. 알림 메시지에 기본 토마토 접두사 바인딩 및 정제 (일치하지 않는 일반 메시지 보정)
-  let formattedMessage = message;
-  if (!message.startsWith('🍅')) {
-    formattedMessage = `🍅 [온리비 어서] ${message}`;
+  // 2. 알림 메시지에 기본 토마토 접두사 바인딩 및 한글 변환 정제
+  const koreanMessage = translateToKorean(message);
+  let formattedMessage = koreanMessage;
+  if (!koreanMessage.startsWith('🍅')) {
+    formattedMessage = `🍅 [Onrivi Author] ${koreanMessage}`;
   }
 
   // 3. 알림 본체 엘리먼트 생성 및 고급스러운 글래스모피즘(Glassmorphism) 스타일 장착

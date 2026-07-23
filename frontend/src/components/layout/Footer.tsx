@@ -16,7 +16,6 @@ const footerLinks = {
   제품: [
     { label: "기능 소개", href: "#features" },
     { label: "요금제", href: "#pricing" },
-    { label: "서식 템플릿", href: "/cssformat", external: true },
     { label: "도움말 센터", href: "/docs" },
     { label: "문의하기", href: "/contact" },
   ],
@@ -42,10 +41,38 @@ export function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <img src="/icon.png" alt="온리비" style={{ width: 32, height: 32, borderRadius: 8 }} />
-              <span style={{ fontWeight: 700, fontSize: 17, color: "#0f172a" }}>온리비</span>
+              <img src="/icon.png" alt="Onrivi" style={{ width: 32, height: 32, borderRadius: 8 }} />
+              <span style={{ fontWeight: 700, fontSize: 17, color: "#0f172a" }}>Onrivi</span>
             </div>
-            <p style={{ fontSize: 13, color: "#6e7881", lineHeight: "20px" }}>{SITE_TAGLINE}</p>
+            <p style={{ fontSize: 13, color: "#6e7881", lineHeight: "20px", marginBottom: "16px" }}>{SITE_TAGLINE}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <a
+                href="https://www.youtube.com/@Onrivi-d4p"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#6e7881", textDecoration: "none", transition: "color 0.15s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "#ff0000")}
+                onMouseLeave={e => (e.currentTarget.style.color = "#6e7881")}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                </svg>
+                유튜브
+              </a>
+              <a
+                href="https://blog.naver.com/onrivi"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#6e7881", textDecoration: "none", transition: "color 0.15s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "#03c75a")}
+                onMouseLeave={e => (e.currentTarget.style.color = "#6e7881")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16.273 12.845L7.376 0H0v24h7.727V11.155L16.624 24H24V0h-7.727v12.845z" />
+                </svg>
+                블로그
+              </a>
+            </div>
           </div>
 
           {/* Links */}

@@ -11,7 +11,7 @@ const MainEditorApp = dynamic(() => import('@/components/MainEditorApp'), {
           <div className="absolute inset-0 m-auto w-24 h-24 border-[4px] border-blue-500/30 border-t-blue-400 rounded-full animate-spin" />
           <img src="/icon.png" alt="Onrivi Logo" className="w-10 h-10 object-contain animate-pulse z-10" />
         </div>
-        <div className="text-sm font-medium tracking-wide">온리비 어서 로딩 중...</div>
+        <div className="text-sm font-medium tracking-wide">Onrivi Author 로딩 중...</div>
       </div>
     </div>
   )

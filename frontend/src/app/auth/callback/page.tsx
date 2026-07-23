@@ -2,8 +2,9 @@
 // 📊 [OMD-AUTH-callback-0001] page ➔ AuthCallbackPage
 // 🎯 @KICK  : 구글 OAuth 콜백 처리. 웹 SaaS 로그인 시 license_activations에 세션 등록(접속자수+1)
 // 🛡️ @GUARD : 비인증 진입 가드, 소프트웨어 라이선스 없으면 세션 생성 스킵
-// 🚨 @PATCH : **2026-06-21** — OAuth 콜백 경로 신설; **2026-06-22** — 로그인 시 session UUID 생성, localStorage 저장, license_activations.insert로 접속자수 증가 (장비 미체크, 순수 접속자수 기반)
-// 🔗 @CALLS : supabase.auth, supabase.from, useRouter, crypto.randomUUID
+// 🚨 @PATCH : **2026-07-22** — supabase.rpc('insert_license_activation') 클라이언트 직접 호출을 fetch('/api/rpc/license/insert') 서버단 API Route 호출로 전환; license_activations 테이블명 전환 대응
+//             **2026-06-21** — OAuth 콜백 경로 신설; **2026-06-22** — 로그인 시 session UUID 생성, localStorage 저장, license_activations.insert로 접속자수 증가 (장비 미체크, 순수 접속자수 기반)
+// 🔗 @CALLS : supabase.auth, supabase.from, useRouter, crypto.randomUUID, fetch
 // ====================================================================
 "use client";
 
@@ -40,10 +41,13 @@ export default function AuthCallbackPage() {
         const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
         const mode = params.get('mode') || 'login';
 
-        // 2. public.users 조회 (RPC로 RLS 우회)
-        const { data: userCheck } = await supabase.rpc('check_user_by_email', {
-          p_email: session.user.email
+        // 2. users / users 존재 조회 및 회원가입 동기화
+        const checkRes = await fetch('/api/rpc/user/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_email: session.user.email })
         });
+        const userCheck = checkRes.ok ? await checkRes.json() : null;
 
         let redirectPath = "/dashboard";
 
@@ -62,71 +66,77 @@ export default function AuthCallbackPage() {
 
         } else {
           // ================================================================
-          // 구글 회원가입  
+          // 구글 회원가입 / 복구
           // ================================================================
-          if (!userCheck?.exists) {
-            // 신규 → public.users 생성
-            setStatus("신규 계정을 등록 중입니다...");
-            const { error: regErr } = await supabase.rpc('register_user', {
-              p_user_id: userId,
-              p_email: session.user.email,
-              p_provider: 'google'
-            });
-            if (regErr) throw new Error(`회원가입 실패: ${regErr.message}`);
-            setStatus("신규 계정이 등록되었습니다.");
+          if (!userCheck?.exists || userCheck.is_deleted) {
+            setStatus(userCheck?.is_deleted ? "계정을 복구 중입니다..." : "신규 계정을 등록 중입니다...");
 
-          } else if (userCheck.is_deleted) {
-            // 탈퇴자 → 복구
-            setStatus("계정을 복구 중입니다...");
-            const { error: restoreErr } = await supabase.rpc('upsert_user', {
-              p_id: userCheck.id,
-              p_email: session.user.email,
-              p_provider: 'google'
-            });
-            if (restoreErr) throw new Error(`계정 복구 실패: ${restoreErr.message}`);
-            setStatus("계정이 복구되었습니다.");
+            let nickName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || null;
+            if (typeof window !== 'undefined') {
+              const savedNick = localStorage.getItem('onrivi_signup_nick_name');
+              if (savedNick) {
+                nickName = savedNick;
+                localStorage.removeItem('onrivi_signup_nick_name');
+              }
+            }
 
+            const upsertRes = await fetch('/api/rpc/user/upsert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                p_id: userId,
+                p_email: session.user.email,
+                p_provider: 'google',
+                p_nick_name: nickName
+              })
+            });
+            const upsertData = await upsertRes.json();
+            if (!upsertData.success) throw new Error(`회원가입 처리 실패: ${upsertData.message}`);
+            setStatus("계정 동기화가 완료되었습니다.");
           } else {
-            // 기존 활성 사용자 → 로그인 페이지로 이동
-            setStatus("이미 가입된 계정입니다. 로그인해주세요.");
-            setTimeout(() => router.push("/login"), 2000);
+            // 기존 활성 사용자 → 로그인 페이지로 안내 후 이동
+            await supabase.auth.signOut();
+            setStatus("이미 가입된 계정입니다. 로그인 페이지로 이동합니다...");
+            setTimeout(() => router.push("/login"), 1500);
             return;
           }
         }
 
-        // 현재사용자: 라이선스 유효성 확인 후 분기
+        // 현재사용자: 라이선스 유효성 확인 후 분기 (subscriptions 단일 조회)
         const { data: subData } = await supabase
           .from('subscriptions')
-          .select('id, trial_end_at, current_period_end')
+          .select('id, current_period_end, payment_no, license_key')
           .eq('user_id', userId)
+          .eq('is_active', true)
           .in('plan_status', ['ACTIVE', 'FREE'])
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (subData) {
-          const targetDate = subData.current_period_end || subData.trial_end_at;
+          const targetDate = subData.current_period_end;
           const isValid = targetDate ? Date.now() < new Date(targetDate).getTime() : false;
           redirectPath = isValid ? "/editor" : "/dashboard";
 
           // 활성 라이선스 있으면 세션 등록
           if (typeof window !== 'undefined' && redirectPath === "/editor") {
-            const { data: licData } = await supabase
-              .from('software_licenses')
-              .select('id, payment_no, license_key')
-              .eq('user_id', userId)
-              .eq('is_active', true)
-              .maybeSingle();
-            if (licData) {
-              const sessionId = crypto.randomUUID();
-              localStorage.setItem('onrivi_session_id', sessionId);
-              localStorage.setItem('onrivi_user_id', userId);
-              localStorage.setItem('onrivi_payment_no', licData.payment_no || '');
-              localStorage.setItem('onrivi_license_key', licData.license_key || '');
-              await supabase.rpc('insert_license_activation', { p_license_id: licData.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS' });
-            }
+            const sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') 
+              ? crypto.randomUUID() 
+              : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('onrivi_session_id', sessionId);
+            localStorage.setItem('onrivi_user_id', userId);
+            localStorage.setItem('onrivi_payment_no', subData.payment_no || '');
+            localStorage.setItem('onrivi_license_key', subData.license_key || '');
+            await fetch('/api/rpc/license/insert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ p_license_id: subData.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: userId })
+            });
           }
         } else {
           redirectPath = "/dashboard";
         }
+
         setStatus("인증이 완료되었습니다. 이동합니다...");
         router.push(redirectPath);
 

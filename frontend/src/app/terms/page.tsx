@@ -29,7 +29,7 @@ export default function TermsPage() {
             <section className="space-y-2">
               <h2 className="text-sm md:text-base font-bold text-gray-900 dark:text-white">제1조 (목적)</h2>
               <p>
-                본 약관은 &quot;온리비 어서&quot;(이하 &quot;서비스&quot; 또는 &quot;회사&quot;)가 제공하는 에디터 소프트웨어, 웹 대시보드 및 이에 부수되는 모든 서비스의 이용과 관련하여, 회사와 회원(이하 &quot;이용자&quot;) 간의 권리, 의무, 책임사항 및 기타 필요한 사항을 규정함을 목적으로 합니다.
+                본 약관은 &quot;Onrivi Author&quot;(이하 &quot;서비스&quot; 또는 &quot;회사&quot;)가 제공하는 에디터 소프트웨어, 웹 대시보드 및 이에 부수되는 모든 서비스의 이용과 관련하여, 회사와 회원(이하 &quot;이용자&quot;) 간의 권리, 의무, 책임사항 및 기타 필요한 사항을 규정함을 목적으로 합니다.
               </p>
             </section>
 

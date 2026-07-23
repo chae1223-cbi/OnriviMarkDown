@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     // 2. 결제번호 + 디바이스 UUID로 삭제하는 경우 (에디터 로그아웃)
     if (p_payment_no && p_device_uuid) {
       const { data: licenses, error: licError } = await supabase
-        .from('software_licenses')
+        .from('subscriptions')
         .select('id')
         .eq('payment_no', p_payment_no)
         .limit(1);
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       if (licError) return NextResponse.json({ success: false, code: 'ERROR', message: licError.message });
 
       if (!licenses || licenses.length === 0) {
-        return NextResponse.json({ success: false, code: 'NOT_FOUND', message: '해당 결제번호의 라이선스를 찾을 수 없습니다.' });
+        return NextResponse.json({ success: false, code: 'NOT_FOUND', message: '해당 결제번호의 구독 정보를 찾을 수 없습니다.' });
       }
 
       const v_license_id = licenses[0].id;
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       const { data: deleted, error: delError } = await supabase
         .from('license_activations')
         .delete()
-        .eq('license_id', v_license_id)
+        .eq('subscription_id', v_license_id)
         .eq('device_uuid', p_device_uuid)
         .select();
 

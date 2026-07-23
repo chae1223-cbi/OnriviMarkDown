@@ -2,7 +2,7 @@
 
 // ====================================================================
 // 📊 [OMD-CORE-docs-page-0001] page ➔ HelpCenterPage
-// 🎯 @KICK  : 도움말 센터 화면 - 온리비 어서 소개, 마크다운 문법, 단축키, 세션 연동 해제 방법 안내
+// 🎯 @KICK  : 도움말 센터 화면 - Onrivi Author 소개, 마크다운 문법, 단축키, 세션 연동 해제 방법 안내
 // 🛡️ @GUARD : Client Component로 전환하여 마크다운 동적 렌더링 적용
 // 🚨 @PATCH : **2026-07-06** — 도움말 센터를 HelpModal과 동일한 마크다운 동적 렌더링 2-Pane 구조로 전면 개편 패치
 //             **2026-06-21** — 도움말 폴더 내의 실물 사용 설명서 및 상세 기능 명세서 내용을 심층 이식하여 전문 사용자 매뉴얼 페이지로 전면 개편 패치
@@ -108,10 +108,10 @@ export default function HelpCenterPage() {
               Onrivi Help Center
             </span>
             <h1 className="text-3xl md:text-5xl font-black text-gray-900 dark:text-white mt-4 tracking-tight leading-tight">
-              온리비 어서 사용 설명서
+              Onrivi Author 사용 설명서
             </h1>
             <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 mt-4 leading-relaxed">
-              온리비 어서(Onrivi Author)의 마크다운 문법부터 미디어 삽입, 핵심 파싱 엔진 명세 및 트러블슈팅까지 상세 가이드를 제공합니다.
+              Onrivi Author의 마크다운 문법부터 미디어 삽입, 핵심 파싱 엔진 명세 및 트러블슈팅까지 상세 가이드를 제공합니다.
             </p>
           </div>
 

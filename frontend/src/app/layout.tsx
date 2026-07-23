@@ -13,21 +13,21 @@ import { ToastProvider } from "@/components/ToastProvider";
 // ====================================================================
 export const metadata: Metadata = {
   metadataBase: new URL('https://onrivi.com'),
-  title: "온리비 어서 - 프로페셔널 마크다운 에디터",
-  description: "AI 시대의 무결점 지식 자산화 인프라. 마크다운의 생산성과 전문가 수준의 출판 품질을 결합한 로컬 우선 저작 플랫폼.",
-  keywords: ["마크다운 에디터", "마크다운 PDF 변환", "테크니컬 라이터", "Markdown Editor", "지식 관리", "온리비 어서", "로컬 우선 에디터", "AI 초안 작성", "문서 양식"],
-  authors: [{ name: "Onrivi" }],
+  title: "Onrivi Author - 마크다운 뷰어 & 마크다운 에디터 (Markdown Viewer & Edit) | 온리비 어서",
+  description: "AI는 마크다운으로, 사람은 문서로. 한글 입력 결함(Input Glitch) 없는 무결점 마크다운 뷰어 및 마크다운 에디터. KaTeX 수식, Mermaid 다이어그램, JSON 서식 프로필을 통한 원클릭 PDF/EPUB 출판 및 로컬 우선(Local-First) 보안 환경을 제공합니다.",
+  keywords: ["마크다운", "마크다운 에디터", "마크다운 뷰어", "마크다운viewer", "마크다운edit", "마크다운문서viwer", "Markdown Viewer", "Markdown Edit", "Markdown Editor", "Onrivi Author", "온리비어서", "Local-First", "로컬우선", "KaTeX", "Mermaid", "RAG전처리", "PDF변환", "EPUB출판", "1인개발"],
+  authors: [{ name: "Onrivi (온리비) 채병익" }],
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: "온리비 어서 - 프로페셔널 마크다운 에디터",
-    description: "AI 시대의 무결점 지식 자산화 인프라. 마크다운의 생산성과 전문가 수준의 출판 품질을 결합한 로컬 우선 저작 플랫폼.",
+    title: "Onrivi Author - 완벽한 마크다운 뷰어 & 마크다운 에디터 플랫폼",
+    description: "한글 입력 오류 제로, 인쇄소 품질의 PDF/EPUB 변환, 로컬 우선 보안 마크다운 뷰어 및 에디터 Onrivi Author를 만나보세요.",
     url: 'https://onrivi.com',
     siteName: 'Onrivi Author',
     images: [
       {
-        url: '/hero.png',
+        url: 'https://onrivi.com/og-image.png',
         width: 1200,
         height: 630,
         alt: 'Onrivi Author Preview',
@@ -38,9 +38,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: "온리비 어서 - 프로페셔널 마크다운 에디터",
-    description: "AI 시대의 무결점 지식 자산화 인프라. 마크다운의 생산성과 전문가 수준의 출판 품질을 결합한 로컬 우선 저작 플랫폼.",
-    images: ['/hero.png'],
+    title: "Onrivi Author - 완벽한 마크다운 뷰어 & 마크다운 에디터 플랫폼",
+    description: "한글 입력 오류 제로, 인쇄소 품질의 PDF/EPUB 변환, 로컬 우선 보안 마크다운 뷰어 및 에디터 Onrivi Author를 만나보세요.",
+    images: ['https://onrivi.com/og-image.png'],
   },
   icons: {
     icon: "./icon_onriveauther.png?v=1",
@@ -70,6 +70,31 @@ export default function RootLayout({
         />
         <meta name="color-scheme" content="light" />
         <link rel="icon" href="./icon_onriveauther.png?v=1" type="image/png" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "Onrivi Author",
+              "alternateName": ["온리비 어서", "Onrivi", "마크다운 뷰어", "마크다운 에디터", "마크다운viewer", "마크다운edit", "마크다운문서viwer"],
+              "operatingSystem": "Windows, Web",
+              "applicationCategory": "DeveloperApplication, ProductivityApplication",
+              "offers": {
+                "@type": "Offer",
+                "price": "3000",
+                "priceCurrency": "KRW",
+                "priceValidUntil": "2027-12-31"
+              },
+              "description": "마크다운 작성(Markdown Edit)과 인쇄소 품질의 뷰어/출판 서식을 결합한 로컬 우선(Local-First) 저작 플랫폼. KaTeX, Mermaid, JSON 서식 프로필 및 AI 연동 지원.",
+              "url": "https://onrivi.com",
+              "author": {
+                "@type": "Person",
+                "name": "채병익 (Chae Byeong-ik)"
+              }
+            })
+          }}
+        />
       </head>
       <body suppressHydrationWarning>
         <ToastProvider>

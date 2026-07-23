@@ -2,7 +2,8 @@
 // 📊 [OMD-AUTH-login-page-0001] page ➔ LoginPage
 // 🎯 @KICK  : Supabase Auth 기반 이메일/구글 소셜 로그인 및 마스킹 해제 기능 지원 로그인 화면
 // 🛡️ @GUARD : 이메일/비밀번호 빈 값 방지, Supabase 연동 검증 및 마우스 패럴랙스 예외 방어
-// 🚨 @PATCH : **2026-06-23** — 화면 내 고정식 {errorMessage} 경고 영역을 제거하고 모든 로그인 단계의 오류 알림 메시지를 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치;
+// 🚨 @PATCH : **2026-07-22** — 로그인 시 users 존재 확인 API(/api/rpc/user/check) 1차 연동 및 subscriptions / subscriptions 이중 유효성 검증 폴백 구조 적용 패치
+//             **2026-06-23** — 화면 내 고정식 {errorMessage} 경고 영역을 제거하고 모든 로그인 단계의 오류 알림 메시지를 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치;
 //             **2026-06-21** — OMDLanding 로그인 폼 디자인 이식 및 Supabase 구글 소셜 로그인 연동 패치; 깨진 logo 이미지 아이콘을 /icon.png로 변경
 //             **2026-06-21** — 로그인 성공 후 리다이렉션 경로를 /dashboard에서 /editor(실제 편집화면)로 변경 패치
 //             **2026-06-22** — Luminous Arctic 디자인 적용 (Neomorphic 그림자 shadow-2xl 및 버튼 배경색 #6366f1 일원화) 패치; 이메일 로그인 성공 시 세션 UUID/라이선스 정보를 localStorage에 기록하고 license_activations 세션을 삽입하여 에디터 진입 후 로그인 강제 튕김 현상 수정 패치
@@ -65,10 +66,13 @@ export default function LoginPage() {
     setLoading(true);  // 🎯 로딩 시작
 
     try {
-      // 0. 등록되지 않았거나 탈퇴한 계정 사전 차단 (RPC로 RLS 우회)
-      const { data: preUser } = await supabase.rpc('check_user_by_email', {
-        p_email: email.trim()
+      // 0. users / users 상용 계정 사전 차단 검증
+      const preUserRes = await fetch('/api/rpc/user/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_email: email.trim() })
       });
+      const preUser = preUserRes.ok ? await preUserRes.json() : null;
 
       if (!preUser?.exists || preUser.is_deleted) {
         showToast('회원가입 후 로그인하십시오.', 'warning');
@@ -90,10 +94,13 @@ export default function LoginPage() {
       // ==================================================================
       const { data: { user: loggedInUser } } = await supabase.auth.getUser();  // 🎯 Supabase 사용자 정보
       if (loggedInUser) {  // 🎯 사용자 정보 확인
-        // 0. public.users 존재 확인 (RPC로 RLS 우회)
-        const { data: userCheck } = await supabase.rpc('check_user_by_email', {
-          p_email: loggedInUser.email
+        // 0. users 존재 확인
+        const userCheckRes = await fetch('/api/rpc/user/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_email: loggedInUser.email })
         });
+        const userCheck = userCheckRes.ok ? await userCheckRes.json() : null;
 
         if (!userCheck?.exists) {
           showToast('회원가입이 필요한 계정입니다. 먼저 회원가입을 진행해주세요.', 'warning');
@@ -102,39 +109,43 @@ export default function LoginPage() {
           return;
         }
 
-        // 1. 활성 구독 및 라이선스 정보 조회
-        const { data: subData } = await supabase  // 🎯 Supabase 구독 정보
-          .from('subscriptions')  // 🎯 구독 테이블
-          .select('id, plan_name, plan_status, trial_end_at, current_period_end')  // 🎯 구독 정보 조회
-          .eq('user_id', loggedInUser.id)  // 🎯 사용자 ID
-          .in('plan_status', ['ACTIVE', 'FREE'])  // 🎯 구독 상태
-          .order('created_at', { ascending: false })  // 🎯 생성 시간 순서
+        // 1. 활성 구독 및 라이선스 정보 조회 (subscriptions 단일 조회)
+        const { data: subData } = await supabase
+          .from('subscriptions')
+          .select('id, plan_name, plan_status, current_period_end, payment_no, license_key')
+          .eq('user_id', loggedInUser.id)
+          .eq('is_active', true)
+          .in('plan_status', ['ACTIVE', 'FREE'])
+          .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
 
-        const targetDate = subData?.current_period_end || subData?.trial_end_at;  // 🎯 구독 만료일
+        const targetDate = subData?.current_period_end;  // 🎯 구독 만료일
         const isValid = targetDate ? Date.now() < new Date(targetDate).getTime() : false;  // 🎯 구독 유효성 확인
 
         if (isValid && subData) {  // 🎯 구독 유효성 및 구독 정보 확인
-          const { data: licData } = await supabase  // 🎯 Supabase 라이선스 정보
-            .from('software_licenses')  // 🎯 라이선스 테이블
-            .select('id, payment_no, license_key')  // 🎯 라이선스 정보 조회
-            .eq('subscription_id', subData.id)  // 🎯 구독 ID
-            .eq('is_active', true)  // 🎯 라이선스 상태
-            .maybeSingle();  // 🎯 단일 레코드 조회
+          const sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') 
+            ? crypto.randomUUID() 
+            : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
+          localStorage.setItem('onrivi_session_id', sessionId);  // 🎯 세션 ID 저장
+          localStorage.setItem('onrivi_user_id', loggedInUser.id);  // 🎯 사용자 ID 저장
+          localStorage.setItem('onrivi_payment_no', subData.payment_no || '');  // 🎯 결제 번호 저장
+          localStorage.setItem('onrivi_license_key', subData.license_key || '');  // 🎯 라이선스 키 저장
 
-          if (licData) {  // 🎯 라이선스 정보 확인
-            const sessionId = crypto.randomUUID();  // 🎯 세션 ID 생성
-            localStorage.setItem('onrivi_session_id', sessionId);  // 🎯 세션 ID 저장
-            localStorage.setItem('onrivi_user_id', loggedInUser.id);  // 🎯 사용자 ID 저장
-            localStorage.setItem('onrivi_payment_no', licData.payment_no || '');  // 🎯 결제 번호 저장
-            localStorage.setItem('onrivi_license_key', licData.license_key || '');  // 🎯 라이선스 키 저장
-
-            const { data: actResult, error: actError } = await supabase.rpc('insert_license_activation', { p_license_id: licData.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS' });  // 🎯 라이선스 활성화
-            if (actError) console.error('[ACTIVATION] RPC error:', actError);  // 🎯 오류 처리
-            else if (actResult) console.log('[ACTIVATION]', actResult);  // 🎯 성공 처리
+          try {
+            const actRes = await fetch('/api/rpc/license/insert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ p_license_id: subData.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: loggedInUser.id })
+            });
+            const actResult = await actRes.json();
+            if (!actResult.success) console.error('[ACTIVATION] API error:', actResult.message);
+            else console.log('[ACTIVATION]', actResult);
+          } catch (actError) {
+            console.error('[ACTIVATION] Fetch error:', actError);
           }
           router.push("/editor");  // 🎯 에디터로 리다이렉션
+
         } else {  // 🎯 구독 만료 또는 구독 없음
           router.push("/dashboard");  // 🎯 대시보드로 리다이렉션
         }

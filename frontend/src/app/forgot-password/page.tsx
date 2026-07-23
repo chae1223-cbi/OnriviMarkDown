@@ -2,10 +2,11 @@
 // 📊 [OMD-AUTH-forgot-password-0001] page ➔ ForgotPasswordPage
 // 🎯 @KICK  : Supabase Auth 기반 비밀번호 재설정 보안 링크 메일 발송 기능 제공 비밀번호 찾기 화면
 // 🛡️ @GUARD : 이메일 빈 값 및 오작동 가드, redirectUrl 분기 처리
-// 🚨 @PATCH : **2026-06-27** — Supabase Auth resetPasswordForEmail 직접 호출로 복원 (static export에선 API route 불가)
+// 🚨 @PATCH : **2026-07-22** — /api/rpc/password/request 원트랜잭션 API 연동: users 존재확인 + password_resets INSERT + Supabase 메일발송을 단일 흐름으로 처리
+//             **2026-06-27** — Supabase Auth resetPasswordForEmail 직접 호출로 복원 (static export에선 API route 불가)
 //             **2026-06-23** — 화면 내 고정식 {errorMessage} 경고 및 success 안내 문구를 제거하고 성공/실패 알림을 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치;
 //             **2026-06-22** — Luminous Arctic 디자인 적용 (Neomorphic 그림자 shadow-2xl 및 버튼 배경색 #6366f1 일원화) 패치
-// 🔗 @CALLS : fetch, Navbar, Footer, Link, useToast
+// 🔗 @CALLS : /api/rpc/password/request, Navbar, Footer, Link, useToast
 // ====================================================================
 "use client";
 
@@ -13,7 +14,6 @@ import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/components/ToastProvider";
 
 export default function ForgotPasswordPage() {
@@ -31,18 +31,12 @@ export default function ForgotPasswordPage() {
       const blob1 = document.getElementById("blob-1");
       const blob2 = document.getElementById("blob-2");
       
-      if (blob1) {
-        blob1.style.transform = `translate(${x * 50}px, ${y * 50}px)`;
-      }
-      if (blob2) {
-        blob2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;
-      }
+      if (blob1) blob1.style.transform = `translate(${x * 50}px, ${y * 50}px)`;
+      if (blob2) blob2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;
     };
     
     document.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-    };
+    return () => document.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,17 +50,27 @@ export default function ForgotPasswordPage() {
     setSuccess(false);
 
     try {
-
-      const redirectUrl = typeof window !== "undefined" 
-        ? `${window.location.origin}/reset-password` 
+      const redirectUrl = typeof window !== "undefined"
+        ? `${window.location.origin}/reset-password`
         : "http://localhost:3100/reset-password";
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: redirectUrl,
+      // ================================================================
+      // 원트랜잭션 API 호출:
+      // users 존재확인 → password_resets INSERT → Supabase 메일발송
+      // ================================================================
+      const res = await fetch('/api/rpc/password/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p_email: email.trim(),
+          p_redirect_url: redirectUrl
+        })
       });
 
-      if (error) {
-        throw new Error(error.message);
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.message || "요청 처리에 실패했습니다.");
       }
 
       setSuccess(true);
@@ -99,6 +103,9 @@ export default function ForgotPasswordPage() {
           <section className="space-y-6">
             <div className="text-center mb-4">
               <h1 className="font-display-sm text-display-sm text-on-surface dark:text-gray-100 leading-tight font-bold">비밀번호 찾기</h1>
+              <p className="mt-2 text-sm text-on-surface-variant dark:text-gray-400">
+                가입하신 이메일 주소를 입력하시면<br/>비밀번호 재설정 링크를 발송해 드립니다.
+              </p>
             </div>
 
             <form className="space-y-6" id="forgot-password-form" onSubmit={handleSubmit} method="POST">
@@ -154,6 +161,7 @@ export default function ForgotPasswordPage() {
                 </button>
               </div>
             </form>
+
             <nav className="flex justify-center pt-4 border-t border-gray-100 dark:border-gray-800">
               <Link className="font-label-sm text-label-sm text-on-surface-variant dark:text-gray-400 hover:text-[#6366f1] transition-colors flex items-center space-x-2 group cursor-pointer" href="/login">
                 <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform">keyboard_backspace</span>
@@ -161,7 +169,6 @@ export default function ForgotPasswordPage() {
               </Link>
             </nav>
           </section>
-
         </div>
       </main>
 

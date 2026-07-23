@@ -11,16 +11,15 @@ export async function POST(request: Request) {
     }
 
     const result = await sql.begin(async (tx) => {
-      const v_now = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-
-      // 1. 구독 상태를 EXPIRED로 변경
+      // 1. 구독 상태를 EXPIRED 및 is_active = false로 변경
       const updatedSub = await tx`
         UPDATE subscriptions
         SET plan_status = 'EXPIRED',
-            is_expired = 'Y',
-            plan_end_date = ${v_now}
+            is_active = false,
+            canceled_at = now(),
+            updated_at = now()
         WHERE id = ${p_subscription_id}
-          AND is_expired = 'N'
+          AND is_active = true
         RETURNING id
       `;
 
@@ -28,19 +27,10 @@ export async function POST(request: Request) {
         return { success: false, code: 'NOT_FOUND', message: '만료 처리할 구독을 찾을 수 없거나 이미 만료되었습니다.' };
       }
 
-      // 2. 해당 구독에 연결된 라이선스 비활성화
-      await tx`
-        UPDATE software_licenses
-        SET is_active = false
-        WHERE subscription_id = ${p_subscription_id}
-      `;
-
-      // 3. 해당 라이선스의 활성 기기 세션 모두 삭제
+      // 2. 해당 구독의 활성 기기 세션 모두 삭제
       await tx`
         DELETE FROM license_activations
-        WHERE license_id IN (
-          SELECT id FROM software_licenses WHERE subscription_id = ${p_subscription_id}
-        )
+        WHERE subscription_id = ${p_subscription_id}
       `;
 
       return { success: true, code: 'SUCCESS', message: '구독 만료 처리가 완료되었습니다.' };

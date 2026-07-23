@@ -48,7 +48,7 @@ export function FeaturesSection() { // FeaturesSection : 제품의 6대 핵심 �
               marginBottom: 12,
             }}
           >
-            온리비 어서가 당신의 문서를 프로의 문정으로
+            Onrivi Author가 당신의 문서를 프로의 문정으로
           </h2>
           <p style={{ fontSize: 18, color: "#3e4850", lineHeight: "28px" }}>
             단 <strong>1픽셀</strong>의 오차도 용납하지 않는 <strong>6가지</strong> 핵심 역량.

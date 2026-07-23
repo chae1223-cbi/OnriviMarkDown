@@ -2,7 +2,9 @@
 // 📊 [OMD-AUTH-signup-page-0001] page ➔ SignupPage
 // 🎯 @KICK  : Supabase Auth 기반 이메일/구글 소셜 가입 및 7일 무료 1대 라이선스 자동 발급 병합 회원가입 화면
 // 🛡️ @GUARD : 비밀번호 영문소문자/숫자/특수문자 조합 8~20자 유효성, 비밀번호 확인 일치성 검증 및 소셜 가입 유입 가드
-// 🚨 @PATCH : **2026-06-23** — 화면 내 고정식 {errorMessage}/{successMessage} 경고 영역을 제거하고 모든 회원가입 단계의 성공/오류/경고 알림 메시지를 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치; 회원가입 시 public.users 테이블 동기화 처리를 프론트엔드 직접 INSERT/UPSERT에서 Supabase Stored Procedure (register_user) RPC 단일 호출 방식으로 위임하여 보안 및 RLS 호환성을 강화하고, 에러 발생 시 단계별 원천 예외 텍스트를 화면으로 리턴받아 처리하도록 개편 패치; 회원가입 및 소셜 가입 진행 시 이용약관/개인정보 동의 미체크 상태인 경우 경고 문구 노출과 동시에 Toast 알림 창을 띄워 인지성을 높이도록 동의 밸리데이션 가드 강화 패치
+// 🚨 @PATCH : **2026-07-22** — 회원가입 및 소셜가입 시 회원 원장 동기화 타겟을 users 상용 이관 테이블로 변경하고 created_by, updated_by, provider(EMAIL, GOOGLE) 대문자 코드 동기화 보강 패치; 브라우저 기본 HTML5 폼 밸리데이션 차단(required) 현상을 방지하도록 <form noValidate> 속성을 추가하고 토스트 피드백 연동
+
+//             **2026-06-23** — 화면 내 고정식 {errorMessage}/{successMessage} 경고 영역을 제거하고 모든 회원가입 단계의 성공/오류/경고 알림 메시지를 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치; 회원가입 시 public.users 테이블 동기화 처리를 프론트엔드 직접 INSERT/UPSERT에서 Supabase Stored Procedure (register_user) RPC 단일 호출 방식으로 위임하여 보안 및 RLS 호환성을 강화하고, 에러 발생 시 단계별 원천 예외 텍스트를 화면으로 리턴받아 처리하도록 개편 패치; 회원가입 및 소셜 가입 진행 시 이용약관/개인정보 동의 미체크 상태인 경우 경고 문구 노출과 동시에 Toast 알림 창을 띄워 인지성을 높이도록 동의 밸리데이션 가드 강화 패치
 //             **2026-06-22** — Luminous Arctic 디자인 적용 (Neomorphic 그림자 shadow-2xl 및 버튼 배경색 #6366f1 일원화) 패치
 //             **2026-06-21** — OMDLanding 가입 폼 디자인 이식 및 Supabase 구글 소셜 가입 연동 패치; 깨진 logo 이미지 아이콘을 /icon.png로 변경; 기기 대수 용어를 접속 횟수(최대 접속 횟수)로 용어 개편 패치
 // 🔗 @CALLS : supabase.auth, supabase.rpc, useToast, Navbar, Footer, useRouter
@@ -84,39 +86,72 @@ export default function SignupPage() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agreedTerms) {
-      showToast("이용약관 및 개인정보처리방침 동의는 필수입니다.", "warning");
+
+    if (!name.trim()) {
+      showToast("이름을 입력해 주세요.", "warning");
       return;
     }
-    if (!isFormValid) {
-      showToast("비밀번호 유효성 조건과 비밀번호 확인 일치 여부를 점검해 주세요.", "warning");
+    if (!email.trim()) {
+      showToast("이메일 주소를 입력해 주세요.", "warning");
+      return;
+    }
+    if (!email.includes("@") || !email.includes(".")) {
+      showToast("올바른 이메일 주소 형식을 입력해 주세요.", "warning");
+      return;
+    }
+    if (!password) {
+      showToast("비밀번호를 입력해 주세요.", "warning");
+      return;
+    }
+    if (!hasMinLength || !hasLowercase || !hasNumber || !hasSpecialChar) {
+      showToast("비밀번호 유효성 조건(영문 소문자, 숫자, 특수문자 조합 8~20자)을 점검해 주세요.", "warning");
+      return;
+    }
+    if (!confirmPassword) {
+      showToast("비밀번호 확인을 입력해 주세요.", "warning");
+      return;
+    }
+    if (!isPasswordMatched) {
+      showToast("비밀번호와 비밀번호 확인이 일치하지 않습니다.", "warning");
+      return;
+    }
+    if (!agreedTerms) {
+      showToast("이용약관 및 개인정보 처리방침 동의는 필수입니다.", "warning");
       return;
     }
 
     setLoading(true);
 
     try {
-      // 0. 기존 users 레코드 확인 (RLS 우회 RPC 사용)
-      const { data: checkResult, error: checkErr } = await supabase.rpc('check_user_by_email', {
-        p_email: email.trim()
+      // 0. 기존 users 레코드 확인 (Source-level API 호출로 대체)
+      const checkRes = await fetch('/api/rpc/user/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_email: email.trim() })
       });
-
-      if (checkErr) throw new Error(`사용자 확인 실패: ${checkErr.message}`);
+      if (!checkRes.ok) throw new Error(`서버 에러: ${checkRes.status}`);
+      const checkResult = await checkRes.json();
 
       if (checkResult?.exists) {
-        if (checkResult.is_deleted) {
-          // 탈퇴자: auth.users는 유지, public.users만 upsert_user로 복구
-          const { error: restoreErr } = await supabase.rpc('upsert_user', {
-            p_id: checkResult.id,
-            p_email: email.trim(),
-            p_provider: 'email'
+          // 탈퇴자 복구 (새로 입력한 비밀번호, 이름, 이메일로 전면 업데이트)
+          const restoreRes = await fetch('/api/rpc/user/upsert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              p_id: checkResult.id,
+              p_email: email.trim(),
+              p_provider: 'email',
+              p_nick_name: name.trim(),
+              p_password: password
+            })
           });
-          if (restoreErr) throw new Error(`계정 복구 실패: ${restoreErr.message}`);
-          showToast("계정이 복구되었습니다. 로그인해주세요.", "success");
+          const restoreResult = await restoreRes.json();
+          if (!restoreResult.success) throw new Error(`계정 복구 실패: ${restoreResult.message}`);
+
+          showToast("탈퇴했던 계정이 새로 입력하신 정보 및 비밀번호로 성공적으로 복구되었습니다. 다시 로그인해주세요.", "success");
           setLoading(false);
           router.push("/login");
           return;
-        }
         // 기존 활성 유저 → 중복 가입 차단
         throw new Error("User already registered");
       }
@@ -141,40 +176,38 @@ export default function SignupPage() {
         throw new Error(error.message);
       }
 
-      // 💡 Supabase "이메일 인증" 기능이 활성화된 경우:
-      //    signUp() 성공 시 data.user가 null이 아닌 identities가 빈 배열로 반환됩니다.
-      //    data.session이 null이면 인증 메일 발송 상태 (확인 대기)
       if (!data.user && !data.session) {
-        // 이메일 인증 메일 발송됨 → 사용자에게 안내
         showToast("입력하신 이메일로 인증 메일을 발송했습니다. 메일함을 확인해 주세요!", "success");
         setLoading(false);
         return;
       }
 
-      // data.user가 있거나 identities가 있으면 정상 진행
       const userId = data.user?.id;
       if (!userId) {
         throw new Error("회원가입 결과를 받아올 수 없습니다.");
       }
 
-      // 2. public.users 동기화 (Stored Procedure 'register_user' RPC 호출로 단일 처리하여 RLS 우회 및 예외 추적 제공)
+      // 2. users 동기화 (p_nick_name 전달)
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data: regResult, error: regErr } = await supabase.rpc("register_user", {
-          p_user_id: userId,
-          p_email: email.trim(),
-          p_provider: "email"
+        const regRes = await fetch('/api/rpc/user/upsert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            p_id: userId,
+            p_email: email.trim(),
+            p_provider: "email",
+            p_nick_name: name.trim()
+          })
         });
 
-        if (regErr) throw new Error(`[RPC 호출 실패] ${regErr.message}`);
-        if (regResult && !regResult.success) throw new Error(regResult.message);
+        if (!regRes.ok) throw new Error(`[API 호출 실패] 서버 상태: ${regRes.status}`);
+        const regResult = await regRes.json();
+        if (!regResult.success) throw new Error(regResult.message);
       }
-
-      // 구독/라이선스는 자동 생성하지 않음 — 대시보드에서 요금제 선택 후 결제 시 생성됨
 
       showToast("회원가입이 완료되었습니다! 로그인 후 대시보드에서 요금제를 선택해 주세요.", "success");
       
-      // 입력 폼 비우기
       setName("");
       setEmail("");
       setPassword("");
@@ -204,6 +237,11 @@ export default function SignupPage() {
       showToast("이용약관 및 개인정보처리방침 동의는 필수입니다.", "warning");
       return;
     }
+    if (name.trim()) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('onrivi_signup_nick_name', name.trim());
+      }
+    }
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -213,7 +251,8 @@ export default function SignupPage() {
             : "http://localhost:3100/auth/callback?mode=signup",
           queryParams: {
             prompt: 'select_account',
-          },
+            name: name.trim()
+          }
         }
       });
       if (error) {
@@ -247,7 +286,7 @@ export default function SignupPage() {
               <h1 className="font-display-sm text-display-sm text-on-surface dark:text-gray-100 leading-tight font-bold">회원가입</h1>
             </div>
 
-            {/* 이용약관 & 개인정보 동의 여부 (구글 가입 버튼 상단) */}
+            {/* 1. 이용약관 & 개인정보 동의 여부 (최상단) */}
             <div className="bg-blue-50/30 dark:bg-gray-850/30 border border-gray-100 dark:border-gray-800 p-4 rounded-xl space-y-3">
               <label className="flex items-start gap-3 cursor-pointer text-sm">
                 <input
@@ -264,7 +303,27 @@ export default function SignupPage() {
               </label>
             </div>
 
-            {/* Google Signup Button */}
+            {/* 2. 활동명(별명) Input (동의란 바로 밑) */}
+            <div className="group space-y-2">
+              <label className="font-label-md text-label-md text-on-surface-variant dark:text-gray-400 block ml-1 uppercase tracking-wider font-semibold" htmlFor="name">활동명(별명)</label>
+              <div className="relative">
+                <input
+                  className="w-full bg-blue-50/50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4 font-sans text-on-surface dark:text-gray-100 placeholder:text-outline-variant dark:placeholder:text-gray-500 focus:ring-1 focus:ring-[#6366f1]/20 dark:focus:ring-indigo-500/30 focus:bg-white dark:focus:bg-gray-850 transition-all duration-300 outline-none"
+                  id="name"
+                  name="name"
+                  type="text"
+                  placeholder="활동명(별명) 입력"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
+                  <span className="material-symbols-outlined text-[#6366f1]">person</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Google Signup Button (활동명 바로 밑) */}
             <div>
               <button
                 type="button"
@@ -294,26 +353,8 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <form className="space-y-4" id="register-form" onSubmit={handleRegisterSubmit} method="POST">
-              {/* Name Input */}
-              <div className="group space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant dark:text-gray-400 block ml-1 uppercase tracking-wider font-semibold" htmlFor="name">활동명(별명)</label>
-                <div className="relative">
-                  <input
-                    className="w-full bg-blue-50/50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4 font-sans text-on-surface dark:text-gray-100 placeholder:text-outline-variant dark:placeholder:text-gray-500 focus:ring-1 focus:ring-[#6366f1]/20 dark:focus:ring-indigo-500/30 focus:bg-white dark:focus:bg-gray-850 transition-all duration-300 outline-none"
-                    id="name"
-                    name="name"
-                    type="text"
-                    placeholder="활동명(별명) 입력"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                  <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
-                    <span className="material-symbols-outlined text-[#6366f1]">person</span>
-                  </div>
-                </div>
-              </div>
+            <form className="space-y-4" id="register-form" onSubmit={handleRegisterSubmit} noValidate method="POST">
+
 
               {/* Email Input */}
               <div className="group space-y-2">

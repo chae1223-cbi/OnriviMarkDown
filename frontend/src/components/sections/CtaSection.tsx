@@ -53,10 +53,10 @@ export function CtaSection() { // CtaSection : 사용자 가입 전환(CTA)을 �
             글쓰기를 혁신할 준비가 되셨나요?
           </h2>
           <p style={{ fontSize: 16, fontWeight: 600, color: "#0ea5e9", marginBottom: 12 }}>
-            오직 지금만, 온리비 어서의 첫 번째 주인공이 되어보세요.
+            오직 지금만, Onrivi Author의 첫 번째 주인공이 되어보세요.
           </p>
           <p style={{ fontSize: 15, color: "#475569", lineHeight: "24px", marginBottom: 36, maxWidth: 520, margin: "0 auto 36px" }}>
-            복잡한 설정 없이 텍스트 본연에만 집중하는 정밀 에디터. 정식 출시 전 온리비의 무결점 생산성을 먼저 경험해 보세요.
+            복잡한 설정 없이 텍스트 본연에만 집중하는 정밀 에디터. 정식 출시 전 Onrivi의 무결점 생산성을 먼저 경험해 보세요.
           </p>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
             <p style={{ fontSize: 13, color: "#6e7881", display: "flex", alignItems: "center", gap: 6 }}>

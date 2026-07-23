@@ -1,6 +1,6 @@
 // ====================================================================
 // 📊 [OMD-UI-HelpCenterModal-0002] HelpCenterModal ➔ HelpCenterModal
-// 🎯 @KICK  : 온리비 어서 도움말 문서를 아코디언 메뉴와 함께 딤드 배경 모달 형식으로 노출하고 markdown 실시간 렌더링 지원
+// 🎯 @KICK  : Onrivi Author 도움말 문서를 아코디언 메뉴와 함께 딤드 배경 모달 형식으로 노출하고 markdown 실시간 렌더링 지원
 // 🛡️ @GUARD : 모달 비활성 상태(open이 false)일 때 로딩 방지; 네트워크 에러 시 오류 메시지 표시 처리
 // 🚨 @PATCH : **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치
 // 🔗 @CALLS : loadArticle, stripFrontmatter, mdToHtml

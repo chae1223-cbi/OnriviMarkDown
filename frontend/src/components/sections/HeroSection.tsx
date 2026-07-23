@@ -1,6 +1,6 @@
 // ====================================================================
 // 📊 [OMD-UI-HeroSection-0022] HeroSection ➔ HeroSection
-// 🎯 @KICK  : 첫인사 가치 제안 및 온리비 어서 제품의 특장점 미리보기(원고 타건 샘플)를 보여주는 랜딩페이지 메인 히어로 영역
+// 🎯 @KICK  : 첫인사 가치 제안 및 Onrivi Author 제품의 특장점 미리보기(원고 타건 샘플)를 보여주는 랜딩페이지 메인 히어로 영역
 // 🛡️ @GUARD : Framer Motion 애니메이션 적용 및 Next.js Link 동작 가드
 // 🚨 @PATCH : **2026-06-21** — OMDLanding UI 디자인 이식 및 /login 리다이렉트 변경 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (프리즘 배경, 글래스 프리뷰 카드, Ice Blue 그래디언트)
@@ -135,31 +135,31 @@ export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 �
           >
             <div style={{ padding: "24px 32px", textAlign: "left", fontSize: 14, lineHeight: "24px", color: "#1e293b", fontFamily: "Inter, sans-serif" }}>
               <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0f172a", marginBottom: 12 }}>
-                ✨ 글쓰기가 10배가 되는 순간, 온리비 아서(Onrivi Author)에 오신 것을 환영합니다! ✨
+                ✨ 글쓰기가 10배가 되는 순간, Onrivi Author에 오신 것을 환영합니다! ✨
               </h1>
-              <p style={{ marginBottom: 10, color: "#475569" }}>안녕하세요! 온리비 아서와 함께 창작의 기분 좋은 첫걸음을 내딛게 된 사용자 여러분을 진심으로 환영합니다! 🥰</p>
+              <p style={{ marginBottom: 10, color: "#475569" }}>안녕하세요! Onrivi Author와 함께 창작의 기분 좋은 첫걸음을 내딛게 된 사용자 여러분을 진심으로 환영합니다! 🥰</p>
               <p style={{ marginBottom: 10, color: "#475569" }}>
-                온리비 아서는 글의 본질을 사랑하는 작가님, 매일 문서의 뼈대를 짓는 디자이너님, 그리고 나만의 지식을 성공적으로 자산화하고 싶은 개발자님을 위해 태어난{" "}
+                Onrivi Author는 글의 본질을 사랑하는 작가님, 매일 문서의 뼈대를 짓는 디자이너님, 그리고 나만의 지식을 성공적으로 자산화하고 싶은 개발자님을 위해 태어난{" "}
                 <strong style={{ color: "#0f172a" }}>하이브리드 마크다운 지식 저작 시스템</strong>입니다. 그동안 메모장이나 일반 편집기를 쓰며 느끼셨던 소소한 렌더링 스트레스를 완벽히 해소해 드리고, 오직 글쓰기에만 몰입할 수 있는 명품 필기 환경을 선사합니다.
               </p>
               <p style={{ marginBottom: 10, color: "#475569" }}>
-                &quot;마크다운이 뭐지? 문법이 어려우면 어쩌지?&quot; 걱정하지 마세요! 온리비 아서가 당신의 가장 다정한 창작 파트너가 되어, 딱딱한 기호들이 어떻게 아름다운 지면으로 사출되는지 직관적으로 증명해 드립니다. 🎈
+                &quot;마크다운이 뭐지? 문법이 어려우면 어쩌지?&quot; 걱정하지 마세요! Onrivi Author가 당신의 가장 다정한 창작 파트너가 되어, 딱딱한 기호들이 어떻게 아름다운 지면으로 사출되는지 직관적으로 증명해 드립니다. 🎈
               </p>
               <hr style={{ borderColor: "#e2e8f0", margin: "16px 0" }} />
               <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", marginBottom: 12 }}>
-                🌟 써본 사람만 감탄하는 온리비 아서의 &apos;독보적 단짝 포인트 5가지&apos;
+                🌟 써본 사람만 감탄하는 Onrivi Author의 &apos;독보적 단짝 포인트 5가지&apos;
               </h2>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: "#006591", marginBottom: 6 }}>
                 1. 🎨 단순 텍스트를 넘어 시각 자료까지 완벽 도킹, &apos;무결점 멀티미디어 연결&apos;
               </h3>
               <p style={{ marginBottom: 14, color: "#475569" }}>
-                온리비 아서는 딱딱한 마크다운 기호 위에 이미지, YouTube 동영상, Google/Yandex 지도 등 다양한 시각 자료와 멀티미디어 자산을 실시간으로 매끄럽게 연결합니다. 클립보드 복사·붙여넣기만으로 로컬이나 웹상의 자산을 즉시 무결하게 임베드할 수 있으며, 다이어그램(Mermaid)과 전문 수식(KaTeX)까지 터치 한 번으로 완벽하게 녹여내어 가장 풍부하고 입체적인 지식 공간을 완성합니다.
+                Onrivi Author는 딱딱한 마크다운 기호 위에 이미지, YouTube 동영상, Google/Yandex 지도 등 다양한 시각 자료와 멀티미디어 자산을 실시간으로 매끄럽게 연결합니다. 클립보드 복사·붙여넣기만으로 로컬이나 웹상의 자산을 즉시 무결하게 임베드할 수 있으며, 다이어그램(Mermaid)과 전문 수식(KaTeX)까지 터치 한 번으로 완벽하게 녹여내어 가장 풍부하고 입체적인 지식 공간을 완성합니다.
               </p>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: "#006591", marginBottom: 6 }}>
                 2. 🤝 AI와 빌드하고 세상과 공유하다, &apos;소통과 발행을 위한 단일 신뢰 소스(SSoT)&apos;
               </h3>
               <p style={{ marginBottom: 14, color: "#475569" }}>
-                에디터 안에서 AI와 마크다운으로 초고속 소통하며 원고의 뼈대를 다듬고 정렬하지만, 글쓰기의 종착지는 결국 &apos;타인과의 완벽한 공유&apos;입니다. 온리비 아서는 기호가 섞인 딱딱한 AI의 언어를 사람이 읽는 가장 따뜻하고 정갈한 출판본 규격의 지면으로 실시간 조판해 내며, 완벽한 CSS 프로필이 주입된 PDF, HTML, EPUB, PNG 등의 프로페셔널 포맷으로 원클릭 사출하여 사용자 여러분의 생각을 세상에 가장 프로답게 공유하도록 돕습니다.
+                에디터 안에서 AI와 마크다운으로 초고속 소통하며 원고의 뼈대를 다듬고 정렬하지만, 글쓰기의 종착지는 결국 &apos;타인과의 완벽한 공유&apos;입니다. Onrivi Author는 기호가 섞인 딱딱한 AI의 언어를 사람이 읽는 가장 따뜻하고 정갈한 출판본 규격의 지면으로 실시간 조판해 내며, 완벽한 CSS 프로필이 주입된 PDF, HTML, EPUB, PNG 등의 프로페셔널 포맷으로 원클릭 사출하여 사용자 여러분의 생각을 세상에 가장 프로답게 공유하도록 돕습니다.
               </p>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: "#006591", marginBottom: 6 }}>
                 3. 🖥️ 내 글이 어떻게 변하는지 실시간 확인하는 &apos;듀얼 스플릿 뷰&apos;
@@ -177,7 +177,7 @@ export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 �
                 5. 🗺️ 긴 호흡의 글도 길을 잃지 않는 &apos;실시간 문서 목차(TOC)&apos;
               </h3>
               <p style={{ marginBottom: 4, color: "#475569" }}>
-                책 한 권 분량의 긴 글이나 방대한 기획서를 작성할 때, 내가 지금 어디쯤을 집필하고 있는지 헤매기 쉽습니다. 온리비 아서는 문서 내의 제목 표시(
+                책 한 권 분량의 긴 글이나 방대한 기획서를 작성할 때, 내가 지금 어디쯤을 집필하고 있는지 헤매기 쉽습니다. Onrivi Author는 문서 내의 제목 표시(
                 <code style={{ background: "rgba(14,165,233,0.08)", color: "#006591", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace" }}>#</code>
                 )를 정밀 추적하여 오른쪽에 실시간 내비게이션 목차(TOC)를 자동으로 빌드합니다. 목차의 제목을 클릭하는 즉시 해당 본문 위치로 고속 스크롤되어, 대용량 문서 작업의 효율이 압도적으로 늘어납니다.
               </p>

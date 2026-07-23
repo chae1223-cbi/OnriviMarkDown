@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from 'react'; // useState : 상태 관리를 위해 임포트 
 import { createPortal } from 'react-dom'; // createPortal : 포털을 생성하기 위해 임포트 
 import { X } from 'lucide-react'; // X : 닫기 버튼을 위한 아이콘 
-import OAIcon from '../app/icon_onriveauther.png'; // OAIcon : 온리비 아서 프로그램 아이콘  
+import OAIcon from '../app/icon_onriveauther.png'; // OAIcon : Onrivi Author 프로그램 아이콘  
 
 /**
  * [ONR-UI-007] AboutModalProps 인터페이스
  * @description 프로그램 정보 팝업창인 AboutModal에 전달되는 상태값들과 정품 라이선스 키 상태 명세입니다.
  */
-interface AboutModalProps {   // AboutModalProps : 온리비 아서 프로그램 정보 모달에 전달되는 상태값들의 인터페이스  
+interface AboutModalProps {   // AboutModalProps : Onrivi Author 프로그램 정보 모달에 전달되는 상태값들의 인터페이스  
   isOpen: boolean; // isOpen : 모달 열림 여부를 위한 상태  
   onClose: () => void; // onClose : 모달 닫기 버튼 클릭 시 실행될 함수  
   isDarkMode: boolean; // isDarkMode : 다크 모드 여부를 위한 상태  
@@ -66,8 +66,8 @@ export default function AboutModal({
 
         <div className="flex-1 overflow-y-auto min-h-0 p-6 text-center space-y-5">
           <div className="flex items-center justify-center gap-3">
-            <img src={OAIcon.src} alt="온리비 어서 브랜드 아이콘" className="w-12 h-12 object-contain" />
-            <h3 className="text-xl font-bold">온리비 어서</h3>
+            <img src={OAIcon.src} alt="Onrivi Author 브랜드 아이콘" className="w-12 h-12 object-contain" />
+            <h3 className="text-xl font-bold">Onrivi Author</h3>
           </div>
 
           <div className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold border ${isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200'

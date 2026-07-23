@@ -11,30 +11,22 @@ export async function POST(request: Request) {
     }
 
     const result = await sql.begin(async (tx) => {
-      const v_now = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-
-      // 1. 구독 상태를 CANCELED로 변경
+      // 1. 구독 상태를 CANCELED 및 is_active = false로 변경
       const updatedSub = await tx`
         UPDATE subscriptions
         SET plan_status = 'CANCELED',
-            is_expired = 'Y',
-            plan_end_date = ${v_now}
+            is_active = false,
+            canceled_at = now(),
+            updated_at = now()
         WHERE id = ${p_subscription_id}
           AND user_id = ${p_user_id}
-          AND is_expired = 'N'
+          AND is_active = true
         RETURNING id
       `;
 
       if (updatedSub.length === 0) {
         return { success: false, code: 'NOT_FOUND', message: '해지할 구독을 찾을 수 없습니다.' };
       }
-
-      // 2. 해당 구독에 연결된 라이선스 비활성화
-      await tx`
-        UPDATE software_licenses
-        SET is_active = false
-        WHERE subscription_id = ${p_subscription_id}
-      `;
 
       return { success: true, code: 'SUCCESS', message: '구독이 해지되었습니다.' };
     });

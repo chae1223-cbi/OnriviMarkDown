@@ -2,11 +2,12 @@
 // 📊 [OMD-AUTH-reset-password-0001] page ➔ ResetPasswordPage
 // 🎯 @KICK  : Supabase Auth 기반 새로운 비밀번호 변경 입력창 및 패스워드 재설정 화면
 // 🛡️ @GUARD : 비밀번호 영문소문자/숫자/특수문자 조합 8~20자 유효성, 비밀번호 확인 일치성 검증 가드
-// 🚨 @PATCH : **2026-06-28** — 비밀번호 변경 성공 시 즉시 signOut()을 호출하여 메일 복구 링크(토큰 세션)를 일회성으로 즉각 영구 파괴하도록 보안 강화 패치
+// 🚨 @PATCH : **2026-07-22** — /api/rpc/password/confirm 원트랜잭션 API 연동: password_resets 토큰검증 + used=true 선소비 + Supabase 비밀번호변경을 단일 흐름으로 처리; 사용자 세션 토큰(access_token)을 서버에 전달하여 비밀번호 변경 수행
+//             **2026-06-28** — 비밀번호 변경 성공 시 즉시 signOut()을 호출하여 메일 복구 링크(토큰 세션)를 일회성으로 즉각 영구 파괴하도록 보안 강화 패치
 //             **2026-06-27** — Supabase Auth 대신 Next.js API Route Handler(/api/auth/reset-password-confirm)에 이메일 인증 토큰을 대조해 비밀번호를 변경하도록 개편 패치
 //             **2026-06-23** — 화면 내 고정식 {errorMessage}/{successMessage} 경고 및 안내 문구를 제거하고 성공/실패 알림을 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치;
 //             **2026-06-22** — Luminous Arctic 디자인 적용 (Neomorphic 그림자 shadow-2xl 및 버튼 배경색 #6366f1 일원화) 패치
-// 🔗 @CALLS : supabase.auth, Navbar, Footer, useRouter, useToast
+// 🔗 @CALLS : /api/rpc/password/confirm, supabase.auth, Navbar, Footer, useRouter, useToast
 // ====================================================================
 "use client";
 
@@ -25,8 +26,11 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const [loading, setLoading] = useState(false);
+
+  // 세션 정보 (URL hash에서 복원)
+  const [sessionAccessToken, setSessionAccessToken] = useState<string | null>(null);
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
 
   // 실시간 유효성 체크 상태
   const [hasMinLength, setHasMinLength] = useState(false);
@@ -39,7 +43,7 @@ export default function ResetPasswordPage() {
     setHasMinLength(password.length >= 8 && password.length <= 20);
     setHasLowercase(/[a-z]/.test(password));
     setHasNumber(/\d/.test(password));
-    setHasSpecialChar(/[!@#$%^&*()_+={}\[\]|\\:;"'<>,.?/-]/.test(password));
+    setHasSpecialChar(/[!@#$%^&*()_+={}[\]|\\:;"'<>,.?/-]/.test(password));
   }, [password]);
 
   useEffect(() => {
@@ -53,40 +57,48 @@ export default function ResetPasswordPage() {
     const handleMouseMove = (e: MouseEvent) => {
       const x = e.clientX / window.innerWidth;
       const y = e.clientY / window.innerHeight;
-      
       const blob1 = document.getElementById("blob-1");
       const blob2 = document.getElementById("blob-2");
-      
-      if (blob1) {
-        blob1.style.transform = `translate(${x * 50}px, ${y * 50}px)`;
-      }
-      if (blob2) {
-        blob2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;
-      }
+      if (blob1) blob1.style.transform = `translate(${x * 50}px, ${y * 50}px)`;
+      if (blob2) blob2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;
     };
-    
     document.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-    };
+    return () => document.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  // URL hash에서 Supabase Auth 세션 복원
+  // URL hash에서 Supabase Auth 세션 복원 및 access_token 추출
   useEffect(() => {
     const hash = window.location.hash;
     if (hash) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session) {
-          // hash에 access_token이 있으면 수동 세션 설정
-          const params = new URLSearchParams(hash.replace('#', '?'));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-          if (accessToken) {
-            supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken || '',
-            }).catch(() => {});
+      const params = new URLSearchParams(hash.replace('#', '?'));
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken) {
+        setSessionAccessToken(accessToken);
+        // 세션 설정 후 이메일 추출
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || '',
+        }).then(({ data }) => {
+          if (data?.user?.email) {
+            setSessionEmail(data.user.email);
           }
+        }).catch(() => {});
+      } else {
+        // hash가 없으면 기존 세션에서 추출
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            setSessionAccessToken(session.access_token);
+            setSessionEmail(session.user?.email || null);
+          }
+        });
+      }
+    } else {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setSessionAccessToken(session.access_token);
+          setSessionEmail(session.user?.email || null);
         }
       });
     }
@@ -98,18 +110,35 @@ export default function ResetPasswordPage() {
       showToast("비밀번호 유효성 조건과 비밀번호 확인 일치 여부를 점검해 주세요.", "warning");
       return;
     }
+    if (!sessionAccessToken) {
+      showToast("세션이 만료되었습니다. 비밀번호 찾기를 다시 진행해 주세요.", "error");
+      return;
+    }
 
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      // ================================================================
+      // 원트랜잭션 API 호출:
+      // password_resets 유효 요청 확인 → used=true 선소비 → Supabase 비밀번호 변경
+      // ================================================================
+      const res = await fetch('/api/rpc/password/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p_email: sessionEmail,
+          p_new_password: password,
+          p_user_access_token: sessionAccessToken
+        })
+      });
 
-      if (error) {
-        throw new Error(error.message);
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.message || "비밀번호 변경에 실패했습니다.");
       }
 
-      // 비밀번호 업데이트가 성공한 직후 세션을 강제로 원천 파괴(로그아웃) 시킵니다.
-      // 이 처리를 통해 메일에 들어 있던 일회성 리커버리 링크는 즉각 서버 단에서 영구 무력화(만료) 됩니다.
+      // 비밀번호 변경 성공 후 세션 즉시 파괴 (일회성 복구 링크 영구 무력화)
       await supabase.auth.signOut();
 
       showToast("비밀번호가 성공적으로 변경되었습니다! 로그인 페이지로 이동합니다.", "success");
@@ -156,8 +185,6 @@ export default function ResetPasswordPage() {
                 보안 규칙에 부합하는 새로운 비밀번호를 입력하여 복구 절차를 완료해 주세요.
               </p>
             </div>
-
-
 
             <form className="space-y-6" id="reset-password-form" onSubmit={handleSubmit} method="POST">
               {/* Password Input */}

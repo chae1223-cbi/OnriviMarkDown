@@ -332,7 +332,7 @@ export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현
       const promptText = `당신은 마크다운 조판 서식 디자이너입니다. 사용자가 입력한 설명에 부합하는 세련되고 아름다운 CSS 서식 테마(CssProfile) 데이터를 생성해 주세요.
 사용자 요청: "${aiPromptInput}"
 
-다음은 온리비 어서의 공식 CSS 서식 프로필 가이드 문서입니다. 이를 바탕으로 JSON 객체 규격을 완벽하게 준수하여 생성하세요:
+다음은 Onrivi Author의 공식 CSS 서식 프로필 가이드 문서입니다. 이를 바탕으로 JSON 객체 규격을 완벽하게 준수하여 생성하세요:
 --- 가이드 시작 ---
 ${guideContent}
 --- 가이드 끝 ---

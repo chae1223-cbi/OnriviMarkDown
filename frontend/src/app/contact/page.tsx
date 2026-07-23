@@ -1,6 +1,9 @@
+/**
+ * 🚨 @PATCH (2026-07-22): 공통코드(common_codes) INQUIRY_TYPE 그룹을 DB에서 동적으로 조회하고 등록 시 대문자 코드값(GENERAL, BILLING, TECH, SUGGESTION)으로 저장되도록 개편
+ */
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { useToast } from "@/components/ToastProvider";
@@ -10,6 +13,13 @@ import { supabase } from "@/lib/supabaseClient";
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+const FALLBACK_INQUIRY_TYPES = [
+  { code_value: "GENERAL", code_name: "일반 문의 / 기타" },
+  { code_value: "BILLING", code_name: "요금제 / 결제 / 환불 문의" },
+  { code_value: "TECH", code_name: "기술 지원 / 오류 제보" },
+  { code_value: "SUGGESTION", code_name: "서비스 건의 / 파트너 제휴" },
+];
+
 export default function ContactPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -18,10 +28,32 @@ export default function ContactPage() {
   const [uploading, setUploading] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [type, setType] = useState("general");
+  const [type, setType] = useState("GENERAL");
+  const [inquiryTypes, setInquiryTypes] = useState<Array<{ code_value: string; code_name: string }>>(FALLBACK_INQUIRY_TYPES);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+
+  useEffect(() => {
+    async function loadInquiryTypes() {
+      try {
+        const { data, error } = await supabase
+          .from("common_codes")
+          .select("code_value, code_name")
+          .eq("group_code", "INQUIRY_TYPE")
+          .eq("is_use", true)
+          .order("sort_order", { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          setInquiryTypes(data);
+        }
+      } catch (err) {
+        console.warn("[Contact] common_codes 조회 실패 (폴백 사용):", err);
+      }
+    }
+    loadInquiryTypes();
+  }, []);
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
@@ -78,7 +110,10 @@ export default function ContactPage() {
         if (resp.ok) {
           const d = await resp.json();
           if (d.status === 'success' && d.relativePath) {
-            urls.push('https://onrivi.com' + d.relativePath + '?name=' + encodeURIComponent(file.name));
+            const fullUrl = d.relativePath.startsWith('http')
+              ? d.relativePath
+              : 'https://onrivi.com' + d.relativePath + '?name=' + encodeURIComponent(file.name);
+            urls.push(fullUrl);
           } else {
             console.error('[Contact] R2 업로드 실패:', d.error);
           }
@@ -92,6 +127,8 @@ export default function ContactPage() {
     return urls;
   };
 
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { showToast("이름을 입력해 주세요.", "warning"); return; }
@@ -103,15 +140,22 @@ export default function ContactPage() {
       let attachmentUrls: string[] = [];
       if (files.length > 0) { setUploading(true); attachmentUrls = await uploadFiles(); setUploading(false); }
       const { data: { session } } = await supabase.auth.getSession();
-      const { data: rpcResult, error: rpcError } = await supabase.rpc("insert_support_inquiry", {
-        p_name: name.trim(), p_email: email.trim(), p_type: type, p_title: title.trim(),
-        p_content: content.trim(), p_user_id: session?.user?.id || null,
-        p_attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null
+      const response = await fetch('/api/rpc/support/insert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p_name: name.trim(), p_email: email.trim(), p_type: type, p_title: title.trim(),
+          p_content: content.trim(), p_user_id: session?.user?.id || null,
+          p_attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null
+        })
       });
-      if (rpcError) throw new Error("문의 사항을 데이터베이스에 저장하는 중 오류가 발생했습니다.");
-      if (rpcResult && rpcResult.success === false) throw new Error(`데이터베이스 기록 실패: ${rpcResult.error}`);
+
+      if (!response.ok) throw new Error(`서버 응답 오류: ${response.status}`);
+      const rpcResult = await response.json();
+      
+      if (!rpcResult.success) throw new Error(`접수 실패: ${rpcResult.message}`);
       showToast("문의가 성공적으로 접수되었습니다. 최대한 빠른 시일 내에 답변해 드리겠습니다.", "success");
-      setName(""); setEmail(""); setType("general"); setTitle(""); setContent(""); setFiles([]);
+      setName(""); setEmail(""); setType("GENERAL"); setTitle(""); setContent(""); setFiles([]);
       setTimeout(() => router.push("/"), 3000);
     } catch (err: any) {
       console.error("[Contact] 문의 전송 오류:", err);
@@ -171,12 +215,14 @@ export default function ContactPage() {
                     backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1.2em'
                   }}
                 >
-                  <option value="general">일반 문의 / 기타</option>
-                  <option value="billing">요금제 / 결제 / 환불 문의</option>
-                  <option value="tech">기술 지원 / 오류 제보</option>
-                  <option value="suggestion">서비스 건의 / 파트너 제휴</option>
+                  {inquiryTypes.map((item) => (
+                    <option key={item.code_value} value={item.code_value}>
+                      {item.code_name}
+                    </option>
+                  ))}
                 </select>
               </div>
+
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">문의 제목</label>

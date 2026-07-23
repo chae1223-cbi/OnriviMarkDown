@@ -80,10 +80,13 @@ export default function LicenseModal({
       const isDesktop = !!api;
 
       if (isDesktop) {
-        const { data, error } = await supabase.rpc('verify_desktop_license', {
-          p_email: inputUserId.trim(),
-          p_device_uuid: deviceId
+        const verifyRes = await fetch('/api/license/verify-desktop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_email: inputUserId.trim(), p_device_uuid: deviceId })
         });
+        const data = verifyRes.ok ? await verifyRes.json() : null;
+        const error = !verifyRes.ok ? new Error('서버 오류') : null;
 
         if (error) throw new Error(error.message);
 
@@ -111,7 +114,13 @@ export default function LicenseModal({
           }, 1500);
         }
       } else {
-        const { data, error } = await supabase.rpc('check_user_by_email', { p_email: inputUserId.trim() });
+        const chkRes = await fetch('/api/rpc/user/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_email: inputUserId.trim() })
+        });
+        const data = chkRes.ok ? await chkRes.json() : null;
+        const error = !chkRes.ok ? new Error('서버 오류') : null;
         if (error) throw new Error(error.message);
 
         if (!data || !data.exists) {

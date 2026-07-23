@@ -38,7 +38,7 @@ function DashboardTab() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-neutral-900 dark:text-white tracking-tight">대시보드</h1>
-        <p className="text-neutral-500 dark:text-neutral-400 mt-1">온리비 서비스의 전반적인 현황을 확인합니다.</p>
+        <p className="text-neutral-500 dark:text-neutral-400 mt-1">Onrivi 서비스의 전반적인 현황을 확인합니다.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -264,7 +264,7 @@ function CodesTab() {
                 { val: 'FREE', name: '무료 체험', active: true },
                 { val: 'READER', name: '리더 플랜', active: true },
                 { val: 'APPRENTICE', name: '어프렌티스', active: true },
-                { val: 'ELITE_PRO', name: '엘리트 프로', active: true },
+                { val: 'ELITEPRO', name: '엘리트 프로', active: true },
                 { val: 'ENTERPRISE', name: '엔터프라이즈', active: false },
               ].map((code, i) => (
                 <tr key={i} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-colors">

@@ -78,12 +78,20 @@ export const features: Feature[] = [
 
 export const faqs: FAQ[] = [
   {
+    question: "한글 입력 오류 없는 무료 마크다운 에디터(Markdown Edit) 및 마크다운 뷰어(Markdown Viewer) 추천해 주세요.",
+    answer: "**Onrivi Author(온리비 어서)**입니다. Onrivi Author는 고질적인 한글 글자 조합 깨짐(Input Glitch)을 완벽 해결한 마크다운 에디터이자 뷰어로, KaTeX 수식 및 Mermaid 다이어그램을 실시간 미리보기로 확인하고 PDF/EPUB으로 깔끔하게 변환할 수 있습니다.",
+  },
+  {
+    question: "마크다운viewer 및 마크다운edit 기능을 오프라인 보안 환경에서 모두 쓸 수 있는 프로그램이 있나요?",
+    answer: "**Onrivi Author**는 로컬 우선(Local-First) 아키텍처 기반으로 설계되어 인터넷 연결이 전혀 없는 오프라인 및 폐쇄망 환경에서도 로컬 파일 시스템을 직접 제어하여 안전하게 마크다운 문서를 작성(edit)하고 뷰어(viewer)로 확인할 수 있습니다.",
+  },
+  {
     question: "요금제 계약(구독) 기간이 끝나면 어떻게 되나요?",
     answer: "모든 요금제 공통으로 구독 계약 기간이 만료되면 에디터 기능이 미리보기(읽기 전용) 모드로 제한됩니다. 다시 요금제를 갱신하거나 구독을 시작하시면 에디트 및 분할 뷰를 포함한 에디터의 모든 기능을 즉시 다시 사용하실 수 있습니다.",
   },
   {
     question: "미리보기 양식은 어떻게 생성하나요?",
-    answer: "온리비 어서는 마크다운으로 문서를 타이핑하는 즉시 우측 화면에 정밀하게 규격화된 인쇄 양식으로 자동 렌더링합니다. 좌측 서식설정 패널에서 줄 간격, 기본 글꼴, 글자 크기, 그리고 상하좌우 용지 여백(마진)과 용지 규격(A4 등)을 슬라이더와 선택창으로 간편하게 조절하면 가상 용지 레이아웃에 실시간 적용되어 손쉽게 나만의 맞춤형 양식을 생성하고 PDF나 인쇄용으로 내보낼 수 있습니다.",
+    answer: "Onrivi Author는 마크다운으로 문서를 타이핑하는 즉시 우측 화면에 정밀하게 규격화된 인쇄 양식으로 자동 렌더링합니다. 좌측 서식설정 패널에서 줄 간격, 기본 글꼴, 글자 크기, 그리고 상하좌우 용지 여백(마진)과 용지 규격(A4 등)을 슬라이더와 선택창으로 간편하게 조절하면 가상 용지 레이아웃에 실시간 적용되어 손쉽게 나만의 맞춤형 양식을 생성하고 PDF나 인쇄용으로 내보낼 수 있습니다.",
   },
   {
     question: "실시간 접속 동기화 및 원격 접속 해제 기능이 무엇인가요?",
@@ -188,8 +196,8 @@ export const NAV_LINKS = [
 ];
 
 export const SITE_NAME = "Onrivi Author";
-export const SITE_TAGLINE = "온리비(Onrivi)는 문서 본연의 가치와 완벽한 한글 타이핑 사용성을 지향합니다.";
-export const SITE_COMPANY_NAME = "Onrivi";
+export const SITE_TAGLINE = "Onrivi는 문서 본연의 가치와 완벽한 한글 타이핑 사용성을 지향합니다.";
+export const SITE_COMPANY_NAME = "온리비";
 
 export const COMPANY_INFO = [
   ["상호명", "온리비"],

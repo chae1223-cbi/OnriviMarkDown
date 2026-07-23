@@ -1,0 +1,13 @@
+import postgres from 'postgres';
+const sql = postgres('postgresql://postgres.niyvcgvayofdqbebmche:chaetangsu6!@aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres', { max: 1 });
+async function run() {
+  try {
+    const subs = await sql`SELECT id, plan_name, payment_no, is_active FROM subscriptions`;
+    console.log(subs);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    await sql.end();
+  }
+}
+run();

@@ -14,8 +14,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     tools: "도구(T)",
     help: "도움말(H)",
     newFile: "새문서",
-    openFolder: "불러오기",
-    openWorkspace: "폴더 열기",
+    openFolder: "파일 열기",
+    openWorkspace: "작업장 폴더 열기",
     saveFile: "저장",
     saveFileAs: "다른 이름으로 저장",
     export: "내보내기",
@@ -55,7 +55,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     help: "Help",
     newFile: "New File",
     openFolder: "Open File",
-    openWorkspace: "Open Folder",
+    openWorkspace: "Open Workspace Folder",
     saveFile: "Save File",
     saveFileAs: "Save File As",
     export: "Export",
@@ -93,7 +93,7 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-MenuBar-0004] MenuBar ➔ MenuBar
 // 🎯 @KICK  : 상단 메뉴바 렌더링 - 파일/편집/도구/도움말 드롭다운 메뉴 제공
 // 🛡️ @GUARD : previewMode가 'preview'일 때 편집 메뉴 숨김
-// 🚨 @PATCH : **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 리팩토링; PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
+// 🚨 @PATCH : **2026-07-23** — 파일 메뉴 용어 변경: '불러오기'→'파일 열기', '폴더 열기'→'작업장 폴더 열기' (ko/en 모두 적용); **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 리팩토링; PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
 // 🔗 @CALLS : MenuDropdown, dispatch, setIsSidebarOpen, setIsToolbarOpen, setPreviewMode
 // ====================================================================
 export default function MenuBar() {
