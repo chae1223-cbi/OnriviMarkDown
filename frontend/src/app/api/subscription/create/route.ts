@@ -59,7 +59,13 @@ export async function POST(request: Request) {
       const verifyKey = crypto.randomBytes(8).toString('hex').toUpperCase();
       const paymentNo = `PAY-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
       const isActive = p_plan_status === 'ACTIVE' || p_plan_status === 'FREE';
-      const billingCycle = p_billing_interval ? p_billing_interval.toUpperCase() : 'MONTHLY';
+      let billingCycle = 'MONTHLY';
+      if (p_billing_interval) {
+        const upperInterval = p_billing_interval.toUpperCase();
+        if (upperInterval === 'YEAR' || upperInterval === 'YEARLY') billingCycle = 'YEARLY';
+        else if (upperInterval === 'MONTH' || upperInterval === 'MONTHLY') billingCycle = 'MONTHLY';
+        else billingCycle = upperInterval;
+      }
 
       await tx`
         INSERT INTO subscriptions (

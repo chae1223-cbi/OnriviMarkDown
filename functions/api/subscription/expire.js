@@ -59,10 +59,26 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ success: false, code: 'NOT_FOUND', message: '만료 처리할 구독을 찾을 수 없거나 이미 만료되었습니다.' }), { status: 200, headers: corsHeaders });
     }
 
-    await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_subscription_id}`, {
+    const delRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_subscription_id}`, {
       method: 'DELETE',
       headers
     });
+
+    if (!delRes.ok) {
+      // 🚨 기기 정보 삭제 실패 시, 구독 상태 원상 복구(롤백)
+      await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${p_subscription_id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          plan_status: 'ACTIVE',
+          is_active: true,
+          canceled_at: null,
+          updated_at: now
+        })
+      });
+      const delErr = await delRes.json();
+      return new Response(JSON.stringify({ success: false, code: 'ERROR', message: '기기 해제 중 오류가 발생하여 만료 처리가 롤백되었습니다. ' + (delErr.message || '') }), { status: 500, headers: corsHeaders });
+    }
 
     return new Response(JSON.stringify({ success: true, code: 'SUCCESS', message: '구독 만료 처리가 완료되었습니다.' }), { status: 200, headers: corsHeaders });
   } catch (error) {

@@ -37,17 +37,16 @@ export async function onRequestPost(context) {
 
     const now = new Date().toISOString();
 
-    // 1. Get user subscriptions
-    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${p_user_id}&select=id`, { headers });
-    const subRows = await subRes.json();
+    // 1. Update users (Soft delete)
+    const userUpdateRes = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${p_user_id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ is_deleted: true, deleted_at: now, updated_at: now })
+    });
 
-    if (subRes.ok && subRows && subRows.length > 0) {
-      const subIds = subRows.map(r => r.id).join(',');
-      // Delete license_activations
-      await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=in.(${subIds})`, {
-        method: 'DELETE',
-        headers
-      });
+    if (!userUpdateRes.ok) {
+      const err = await userUpdateRes.json();
+      return new Response(JSON.stringify({ success: false, code: 'ERROR', message: '회원 탈퇴 처리 중 오류가 발생했습니다. ' + (err.message || '') }), { status: 500, headers: corsHeaders });
     }
 
     // 2. Update subscriptions
@@ -57,12 +56,17 @@ export async function onRequestPost(context) {
       body: JSON.stringify({ is_active: false, plan_status: 'CANCELED', updated_at: now })
     });
 
-    // 3. Update users (Soft delete)
-    await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${p_user_id}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({ is_deleted: true, deleted_at: now, updated_at: now })
-    });
+    // 3. Get user subscriptions & Delete license_activations
+    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${p_user_id}&select=id`, { headers });
+    const subRows = await subRes.json();
+
+    if (subRes.ok && subRows && subRows.length > 0) {
+      const subIds = subRows.map(r => r.id).join(',');
+      await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=in.(${subIds})`, {
+        method: 'DELETE',
+        headers
+      });
+    }
 
     return new Response(JSON.stringify({ success: true, code: 'SUCCESS', message: '회원 탈퇴가 성공적으로 처리되었습니다.' }), { status: 200, headers: corsHeaders });
   } catch (error) {

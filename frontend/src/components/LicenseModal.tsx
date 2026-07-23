@@ -45,6 +45,8 @@ export default function LicenseModal({
   isDarkMode
 }: LicenseModalProps) {
   const [inputUserId, setInputUserId] = useState(licenseStatus.userId || '');
+  const [inputPassword, setInputPassword] = useState('');
+  const [sessionData, setSessionData] = useState<{ accessToken: string, refreshToken: string } | null>(null);
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -72,12 +74,36 @@ export default function LicenseModal({
       setMessage({ text: '가입하신 이메일(유저 ID)을 입력해 주세요.', type: 'error' });
       return;
     }
+    if (!inputPassword && !isEmailReadOnly) {
+      setMessage({ text: '비밀번호를 입력해 주세요.', type: 'error' });
+      return;
+    }
     
     setMessage({ text: '계정 정보를 확인 중입니다...', type: 'info' });
     setIsVerifyingEmail(true);
     setIsUserVerified(false);
+    setSessionData(null);
     
     try {
+      if (!isEmailReadOnly) {
+        // 1. 진짜 로그인 시도 (비밀번호 검증 및 토큰 발급)
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: inputUserId.trim(),
+          password: inputPassword,
+        });
+
+        if (authError || !authData.session) {
+          setMessage({ text: '로그인 실패: 비밀번호가 일치하지 않거나 없는 계정입니다.', type: 'error' });
+          setIsVerifyingEmail(false);
+          return;
+        }
+
+        // 로그인 성공 시 토큰 저장 (웹 자동 로그인 핸드오프용)
+        setSessionData({
+          accessToken: authData.session.access_token,
+          refreshToken: authData.session.refresh_token
+        });
+      }
       const api = (window as any).electronAPI;
       const isDesktop = !!api;
 
@@ -152,10 +178,16 @@ export default function LicenseModal({
 // 🔗 @CALLS : electronAPI.openExternal, window.open
 // ====================================================================
   const handleGoToPurchase = () => {
-    const userIdVal = isEmailReadOnly ? (licenseStatus.userId || '') : inputUserId;
-    const emailParam = userIdVal.trim() ? encodeURIComponent(userIdVal.trim()) : '';
-    const deviceParam = deviceId ? encodeURIComponent(deviceId) : '';
-    const url = `https://onrivi.com/dashboard?email=${emailParam}&device=${deviceParam}`;
+    let url = '';
+    if (sessionData) {
+      // 💡 [Saga/Handoff] 보안 토큰을 브라우저 해시 프래그먼트로 안전하게 넘김
+      url = `https://onrivi.com/auth/handoff#access_token=${sessionData.accessToken}&refresh_token=${sessionData.refreshToken}&redirect=/dashboard`;
+    } else {
+      const userIdVal = isEmailReadOnly ? (licenseStatus.userId || '') : inputUserId;
+      const emailParam = userIdVal.trim() ? encodeURIComponent(userIdVal.trim()) : '';
+      const deviceParam = deviceId ? encodeURIComponent(deviceId) : '';
+      url = `https://onrivi.com/dashboard?email=${emailParam}&device=${deviceParam}`;
+    }
     const api = (window as any).electronAPI;
     if (api && typeof api.openExternal === 'function') {
       api.openExternal(url);
@@ -228,10 +260,10 @@ export default function LicenseModal({
 
         <div className="flex flex-col gap-5">
 
-          {/* 1. 가입 이메일 (유저 ID) */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">가입 이메일 (유저 ID)</label>
-            <div className="flex gap-2">
+          {/* 1. 가입 이메일 (유저 ID) & 비밀번호 */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">가입 이메일 (유저 ID)</label>
               <input
                 type="text"
                 readOnly={isEmailReadOnly}
@@ -240,16 +272,30 @@ export default function LicenseModal({
                 placeholder="onrivi.com 가입 이메일 입력"
                 className={`w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 ${isEmailReadOnly ? 'cursor-not-allowed' : 'focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'}`}
               />
-              {!isEmailReadOnly && (
-                <button
-                  onClick={handleVerifyEmail}
-                  disabled={isVerifyingEmail || !inputUserId.trim()}
-                  className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50 whitespace-nowrap"
-                >
-                  {isVerifyingEmail ? '확인 중...' : '계정 확인'}
-                </button>
-              )}
             </div>
+
+            {!isEmailReadOnly && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">비밀번호</label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={inputPassword}
+                    onChange={(e) => setInputPassword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyEmail(); }}
+                    placeholder="비밀번호 입력"
+                    className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <button
+                    onClick={handleVerifyEmail}
+                    disabled={isVerifyingEmail || !inputUserId.trim() || !inputPassword}
+                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {isVerifyingEmail ? '확인 중...' : '로그인 & 확인'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 디바이스 정보 */}

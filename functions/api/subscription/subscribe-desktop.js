@@ -63,7 +63,7 @@ export async function onRequestPost(context) {
         created_by: p_user_id,
         updated_by: p_user_id,
         user_id: p_user_id,
-        plan_name: '데스크탑 에디터 (연간)',
+        plan_name: 'ELITEPRO',
         plan_status: 'ACTIVE',
         billing_cycle: 'YEARLY',
         license_key: licenseKey,
