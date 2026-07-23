@@ -26,6 +26,19 @@ const maskSecret = (val: string | null | undefined) => {
   return val.length > 6 ? val.substring(0, 6) + '*'.repeat(val.length - 6) : val;
 };
 
+const getPlanDisplayName = (planCode: string | undefined | null) => {
+  if (!planCode) return '-';
+  const code = planCode.toUpperCase();
+  switch (code) {
+    case 'ELITEPRO': return '엘리트 프로 (ELITEPRO)';
+    case 'REGULAR': return '레귤러 (REGULAR)';
+    case 'APPRENTICE': return '어프렌티스 (APPRENTICE)';
+    case 'FREE': return '무료 체험 (FREE)';
+    default: return planCode;
+  }
+};
+
+
 // ====================================================================
 // 📊 [OMD-AUTH-LicenseModal-0004] LicenseModal ➔ LicenseModal
 // 🎯 @KICK  : 라이선스 정품 인증 UI - Supabase 직접 수동 인증 (이메일 + 비밀번호 로그인)
@@ -240,7 +253,7 @@ export default function LicenseModal({
               </p>
               {licenseStatus.planName && (
                 <div className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1 pl-5 space-y-0.5">
-                  <p>• 요금제: <span className="font-semibold text-slate-700 dark:text-zinc-300">{licenseStatus.planName}</span></p>
+                  <p>• 요금제: <span className="font-semibold text-slate-700 dark:text-zinc-300">{getPlanDisplayName(licenseStatus.planName)}</span></p>
                   {licenseStatus.nextPaymentDate && (
                     <p>• 다음 결제일: <span className="font-semibold text-slate-700 dark:text-zinc-300">{new Date(licenseStatus.nextPaymentDate).toLocaleDateString()}</span></p>
                   )}
@@ -340,7 +353,7 @@ export default function LicenseModal({
               <input
                 type="text"
                 readOnly
-                value={licenseStatus.planName || '-'}
+                value={getPlanDisplayName(licenseStatus.planName)}
                 className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 cursor-not-allowed"
               />
             </div>
