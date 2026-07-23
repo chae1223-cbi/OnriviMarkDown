@@ -298,9 +298,19 @@ app.on('ready', async () => {
       // 데스크탑에서 프론트엔드가 실수로 /api/... 로컬 경로로 fetch 할 경우 실서버로 프록시
       if (pathname.startsWith('api/')) {
         const fetchUrl = `https://onrivi.com/${pathname}`;
+        
+        // 🚨 @PATCH: Host 헤더 등 클라우드플레어 라우팅을 방해하는 커스텀 프로토콜 헤더 제거
+        const cleanHeaders = new Headers();
+        for (const [key, value] of request.headers.entries()) {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey !== 'host' && lowerKey !== 'origin' && lowerKey !== 'referer') {
+            cleanHeaders.set(key, value);
+          }
+        }
+        
         const options = {
           method: request.method,
-          headers: request.headers
+          headers: cleanHeaders
         };
         if (request.method !== 'GET' && request.method !== 'HEAD' && request.body) {
           options.body = request.body;

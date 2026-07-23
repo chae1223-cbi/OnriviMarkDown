@@ -643,7 +643,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
           <div style={{ ...glassCard, padding: "20px 22px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <ShieldCheck size={14} style={{ color: T.subtle }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: T.subtle, letterSpacing: "0.06em", textTransform: "uppercase" }}>라이선스 상태</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: T.subtle, letterSpacing: "0.06em", textTransform: "uppercase" }}>웹구독상품</span>
             </div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 9999, background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, fontSize: 12, fontWeight: 600, marginBottom: 14 }}>
               {badge.icon} {badge.label}
@@ -697,14 +697,14 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
           {/* Desktop Connector - 카드 형태는 상시 유지하되 Elite Pro가 아닌 경우 내부 결제번호/인증 데이터 미표시 */}
           <div style={{ ...glassCard, padding: "24px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: T.subtle, letterSpacing: "0.06em", textTransform: "uppercase" }}>Desktop Connector</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: T.subtle, letterSpacing: "0.06em", textTransform: "uppercase" }}>데스크탑구독상품</span>
               <Key size={16} style={{ color: T.primary }} />
             </div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: T.onSurface, marginBottom: 8 }}>데스크톱 앱 원클릭 정품인증</h2>
             <p style={{ fontSize: 13, color: T.muted, lineHeight: "20px", marginBottom: 16 }}>
               사용 중인 로컬 PC에 설치된 Onrivi Author 데스크톱 앱의 잠금을 해제합니다.
             </p>
-            {((subscription?.plan_name || '').toUpperCase() === 'ELITEPRO' || !!desktopSubscription || !!desktopLicense) ? (
+            {((subscription?.plan_name || '').toUpperCase() === 'ELITEPRO' || !!desktopSubscription || !!desktopLicense || !!desktopDevice) ? (
               desktopDevice ? (
                 <div style={{ padding: "12px 14px", background: "rgba(14,165,233,0.05)", border: `1px solid rgba(14,165,233,0.15)`, borderRadius: "0.75rem", marginBottom: 16, fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -776,15 +776,15 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             )}
             <button
               onClick={handleDesktopActivate}
-              disabled={(!desktopLicense?.payment_no && !desktopDevice) || (subscription?.plan_name || '').toUpperCase() !== 'ELITEPRO'}
+              disabled={!desktopLicense?.payment_no && !desktopDevice}
               style={{
                 width: "100%", padding: "10px", borderRadius: "0.75rem",
-                background: (!desktopLicense?.payment_no && !desktopDevice && (subscription?.plan_name || '').toUpperCase() !== 'ELITEPRO') ? "rgba(14,165,233,0.05)" : T.primary,
-                color: (!desktopLicense?.payment_no && !desktopDevice && (subscription?.plan_name || '').toUpperCase() !== 'ELITEPRO') ? T.subtle : "#fff",
-                border: `1px solid ${(!desktopLicense?.payment_no && !desktopDevice && (subscription?.plan_name || '').toUpperCase() !== 'ELITEPRO') ? T.border : "transparent"}`,
-                fontSize: 13, fontWeight: 600, cursor: ((subscription?.plan_name || '').toUpperCase() !== 'ELITEPRO') ? "not-allowed" : "pointer",
+                background: (!desktopLicense?.payment_no && !desktopDevice) ? "rgba(14,165,233,0.05)" : T.primary,
+                color: (!desktopLicense?.payment_no && !desktopDevice) ? T.subtle : "#fff",
+                border: `1px solid ${(!desktopLicense?.payment_no && !desktopDevice) ? T.border : "transparent"}`,
+                fontSize: 13, fontWeight: 600, cursor: (!desktopLicense?.payment_no && !desktopDevice) ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                transition: "all 0.15s", opacity: ((subscription?.plan_name || '').toUpperCase() !== 'ELITEPRO') ? 0.6 : 1,
+                transition: "all 0.15s", opacity: (!desktopLicense?.payment_no && !desktopDevice) ? 0.6 : 1,
               }}
             >
               <ShieldCheck size={15} /> 
