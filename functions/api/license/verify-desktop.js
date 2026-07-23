@@ -51,67 +51,62 @@ export async function onRequestPost(context) {
     }
     const sub = subRows[0];
 
-    // 3. 라이선스 키 확인
-    const licRes = await fetch(`${supabaseUrl}/rest/v1/software_licenses?subscription_id=eq.${sub.id}&select=*&limit=1`, { headers });
-    const licRows = await licRes.json();
-    if (!licRows || licRows.length === 0) {
+    // 3. 라이선스 키 확인 (software_licenses 통합됨, subscriptions에서 직접 읽음)
+    if (!sub.license_key) {
       return new Response(JSON.stringify({ success: false, code: 'NO_LICENSE', message: 'No license found for subscription.' }), { status: 200, headers: corsHeaders });
     }
-    const lic = licRows[0];
 
-    // 4. 기기 세션 갱신 또는 생성
-    // (insert.js의 로직과 유사하지만 데스크탑 전용이므로 데스크탑용 처리를 함)
-    // 원래 RPC에서는 무조건 upsert 후 rank를 계산함.
-    // 여기서는 간단히 is_active 처리를 함.
-    const actCheckRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${sub.id}&device_uuid=eq.${p_device_uuid}&select=id,is_active`, { headers });
-    const actCheckRows = await actCheckRes.json();
+    // 4. 기기 검증
+    const maxDevices = sub.max_devices || 1;
+    const deviceRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${sub.id}&select=device_uuid,device_name,activated_at`, { headers });
+    const deviceRows = await deviceRes.json();
+    const currentDevices = deviceRows || [];
 
-    let sessionActive = true;
-    let rank = 1;
+    // 동일 기기가 이미 활성화되어 있는지 확인
+    const existingDevice = currentDevices.find(d => d.device_uuid === p_device_uuid);
 
-    // 만약 세션이 없다면 추가 (is_active 여부는 초과 시 false)
-    if (!actCheckRows || actCheckRows.length === 0) {
-      const activeCountRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${sub.id}&is_active=eq.true&select=id`, { headers });
-      const activeCountRows = await activeCountRes.json();
-      if (activeCountRows && activeCountRows.length >= sub.max_devices) {
-        sessionActive = false;
-      }
-      
-      await fetch(`${supabaseUrl}/rest/v1/license_activations`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          subscription_id: sub.id,
-          device_uuid: p_device_uuid,
-          device_name: 'Desktop App',
-          is_active: sessionActive,
-          activated_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          user_id: userId
-        })
-      });
-      // 임시 랭크
-      rank = activeCountRows ? activeCountRows.length + 1 : 1;
-    } else {
-      sessionActive = actCheckRows[0].is_active;
-      // PATCH 업데이트
-      await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${sub.id}&device_uuid=eq.${p_device_uuid}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ updated_at: new Date().toISOString() })
-      });
-    }
-
-    if (!sessionActive) {
+    if (existingDevice) {
       return new Response(JSON.stringify({
-        success: false, code: 'ERR_MAX_DEVICES_EXCEEDED', message: '동시 접속 가능 기기 수를 초과했습니다. 제한 사용자로 접근합니다.',
-        max_devices: sub.max_devices, verify_key: lic.verify_key, payment_no: lic.payment_no, license_key: lic.license_key, plan_name: sub.plan_name, next_payment_date: sub.current_period_end, rank
+        success: true,
+        code: 'SUCCESS',
+        message: 'Subscription is active and device is verified.',
+        subscription_id: sub.id,
+        license_id: sub.id,
+        device_uuid: p_device_uuid,
+        max_devices: maxDevices, verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: sub.plan_name, next_payment_date: sub.current_period_end, rank: 1
       }), { status: 200, headers: corsHeaders });
     }
 
+    if (currentDevices.length >= maxDevices) {
+      return new Response(JSON.stringify({
+        success: false,
+        code: 'ERR_MAX_DEVICES_EXCEEDED',
+        message: 'Maximum number of devices exceeded.',
+        max_devices: maxDevices,
+        current_devices: currentDevices.length,
+        verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: sub.plan_name, next_payment_date: sub.current_period_end, rank: 1
+      }), { status: 200, headers: corsHeaders });
+    }
+
+    // 5. 새 기기 추가
+    await fetch(`${supabaseUrl}/rest/v1/license_activations`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        subscription_id: sub.id,
+        device_uuid: p_device_uuid,
+        activated_at: new Date().toISOString()
+      })
+    });
+
     return new Response(JSON.stringify({
-      success: true, code: 'SUCCESS', message: 'Desktop activated.',
-      verify_key: lic.verify_key, payment_no: lic.payment_no, license_key: lic.license_key, plan_name: sub.plan_name, next_payment_date: sub.current_period_end, rank
+      success: true,
+      code: 'SUCCESS',
+      message: 'Subscription is active and new device registered.',
+      subscription_id: sub.id,
+      license_id: sub.id,
+      device_uuid: p_device_uuid,
+      max_devices: maxDevices, verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: sub.plan_name, next_payment_date: sub.current_period_end, rank: 1
     }), { status: 200, headers: corsHeaders });
 
   } catch (err) {
