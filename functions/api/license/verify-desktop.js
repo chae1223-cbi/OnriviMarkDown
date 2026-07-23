@@ -51,6 +51,16 @@ export async function onRequestPost(context) {
     }
     const sub = subRows[0];
 
+    // 2-1. 공통코드에서 plan_name 명칭(code_name) 가져오기
+    let displayPlanName = sub.plan_name;
+    const ccRes = await fetch(`${supabaseUrl}/rest/v1/common_codes?group_code=eq.PLAN_NAME&code_value=eq.${sub.plan_name}&select=code_name&limit=1`, { headers });
+    if (ccRes.ok) {
+      const ccRows = await ccRes.json();
+      if (ccRows && ccRows.length > 0 && ccRows[0].code_name) {
+        displayPlanName = ccRows[0].code_name;
+      }
+    }
+
     // 3. 라이선스 키 확인
     if (!sub.license_key) {
       return new Response(JSON.stringify({ success: false, code: 'NO_LICENSE', message: 'No license found for subscription.' }), { status: 200, headers: corsHeaders });
@@ -73,7 +83,7 @@ export async function onRequestPost(context) {
         subscription_id: sub.id,
         license_id: sub.id,
         device_uuid: p_device_uuid,
-        max_devices: maxDevices, verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: sub.plan_name, next_payment_date: sub.current_period_end, rank: 1
+        max_devices: maxDevices, verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: displayPlanName, next_payment_date: sub.current_period_end, rank: 1
       }), { status: 200, headers: corsHeaders });
     }
 
@@ -84,7 +94,7 @@ export async function onRequestPost(context) {
         message: 'Maximum number of devices exceeded.',
         max_devices: maxDevices,
         current_devices: currentDevices.length,
-        verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: sub.plan_name, next_payment_date: sub.current_period_end, rank: 1
+        verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: displayPlanName, next_payment_date: sub.current_period_end, rank: 1
       }), { status: 200, headers: corsHeaders });
     }
 
@@ -109,7 +119,7 @@ export async function onRequestPost(context) {
       subscription_id: sub.id,
       license_id: sub.id,
       device_uuid: p_device_uuid,
-      max_devices: maxDevices, verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: sub.plan_name, next_payment_date: sub.current_period_end, rank: 1
+      max_devices: maxDevices, verify_key: sub.verify_key, payment_no: sub.payment_no, license_key: sub.license_key, plan_name: displayPlanName, next_payment_date: sub.current_period_end, rank: 1
     }), { status: 200, headers: corsHeaders });
 
   } catch (err) {

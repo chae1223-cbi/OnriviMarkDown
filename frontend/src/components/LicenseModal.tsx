@@ -30,10 +30,10 @@ const getPlanDisplayName = (planCode: string | undefined | null) => {
   if (!planCode) return '-';
   const code = planCode.toUpperCase();
   switch (code) {
-    case 'ELITEPRO': return '엘리트 프로 (ELITEPRO)';
-    case 'REGULAR': return '레귤러 (REGULAR)';
-    case 'APPRENTICE': return '어프렌티스 (APPRENTICE)';
-    case 'FREE': return '무료 체험 (FREE)';
+    case 'ELITEPRO': return 'Elite Pro 플랜';
+    case 'REGULAR': return 'Regular 플랜';
+    case 'APPRENTICE': return 'Apprentice 플랜';
+    case 'FREE': return 'Free 플랜';
     default: return planCode;
   }
 };

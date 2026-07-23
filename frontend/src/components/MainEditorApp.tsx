@@ -1236,38 +1236,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
+    // 웹 버전에서도 3일 캐시를 사용하지 않고 매번 DB/서버를 통해 인증을 진행하도록 수정 (요청 사항 반영)
     const cached = loadSecureData<any>('onrivi_license_status');
-    if (cached && cached.licenseKey === savedKey && cached.userId === savedUserId) {
-      const elapsedSinceVerify = Date.now() - (cached.lastVerifiedAt || 0);
-      if (elapsedSinceVerify < 3 * 24 * 60 * 60 * 1000) {
-        
-        // 🚨 @PATCH : 2026-07-20 - 이전 버그로 인해 isExpired=false로 잘못 캐시된 좀비 상태를 방어
-        let isActuallyExpired = cached.isExpired;
-        let finalPlanName = cached.planName || '오프라인 캐시 모드';
-        
-        if (cached.nextPaymentDate) {
-          const expMs = parseDateStringToMs(cached.nextPaymentDate);
-          if (expMs > 0 && Date.now() > expMs) {
-            isActuallyExpired = true;
-            finalPlanName = '기간 만료 (제한 사용자)';
-          }
-        } else if (cached.remainingDays === 0 && !finalPlanName.includes('캐시')) {
-          isActuallyExpired = true;
-        }
-
-        setLicenseStatus({
-          isActivated: !isActuallyExpired && cached.isActivated, 
-          isExpired: isActuallyExpired, 
-          remainingDays: cached.remainingDays,
-          userId: cached.userId, 
-          licenseKey: (!isActuallyExpired && cached.isActivated) ? cached.licenseKey : '',
-          paymentNo: cached.paymentNo || '', 
-          planName: finalPlanName,
-          nextPaymentDate: cached.nextPaymentDate
-        });
-        return;
-      }
-    }
 
     const finalPlanName = cached?.planName || (savedPaymentNo ? '프리미엄 요금제' : '미인증 라이선스');
     console.log('[LICENSE] FINAL setLicenseStatus isExpired=true planName=%o', finalPlanName);
