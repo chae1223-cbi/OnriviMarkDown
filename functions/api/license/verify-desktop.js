@@ -96,7 +96,9 @@ export async function onRequestPost(context) {
         subscription_id: sub.id,
         device_uuid: p_device_uuid,
         activated_at: new Date().toISOString(),
-        is_active: true
+        is_active: true,
+        created_by: userId,
+        updated_by: userId
       })
     });
 

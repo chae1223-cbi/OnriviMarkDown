@@ -36,14 +36,15 @@ export async function onRequestPost(context) {
       'Prefer': 'return=representation'
     };
 
-    // 1. Fetch max_devices
-    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${p_license_id}&select=max_devices&limit=1`, { headers });
+    // 1. Fetch max_devices and user_id
+    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${p_license_id}&select=max_devices,user_id&limit=1`, { headers });
     const subRows = await subRes.json();
     
     if (!subRes.ok || !subRows || subRows.length === 0) {
       return new Response(JSON.stringify({ success: false, code: 'ERROR', message: '구독/라이선스 정보를 찾을 수 없습니다.' }), { status: 200, headers: corsHeaders });
     }
     const max_devices = subRows[0].max_devices;
+    const userId = subRows[0].user_id;
 
     // 2. Fetch existing session
     const actRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&device_uuid=eq.${p_device_uuid}&select=id,is_active&limit=1`, { headers });
@@ -71,7 +72,8 @@ export async function onRequestPost(context) {
           activated_at: now,
           updated_at: now,
           is_active: newIsActive,
-          device_name: p_device_name
+          device_name: p_device_name,
+          updated_by: p_user_id || userId
         })
       });
       if (!updateRes.ok) {
@@ -91,12 +93,10 @@ export async function onRequestPost(context) {
         device_uuid: p_device_uuid,
         device_name: p_device_name,
         activated_at: now,
-        is_active: newIsActive
+        is_active: newIsActive,
+        created_by: p_user_id || userId,
+        updated_by: p_user_id || userId
       };
-      if (p_user_id) {
-        payload.created_by = p_user_id;
-        payload.updated_by = p_user_id;
-      }
 
       const insertRes = await fetch(`${supabaseUrl}/rest/v1/license_activations`, {
         method: 'POST',

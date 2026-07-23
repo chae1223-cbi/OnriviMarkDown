@@ -36,7 +36,7 @@ export async function onRequestPost(context) {
     };
 
     // 1. payment_no → subscriptions → license_id 조회
-    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?payment_no=eq.${encodeURIComponent(p_payment_no)}&is_active=eq.true&plan_status=in.(ACTIVE,FREE,active,free)&select=id,max_devices&limit=1`, { headers });
+    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?payment_no=eq.${encodeURIComponent(p_payment_no)}&is_active=eq.true&plan_status=in.(ACTIVE,FREE,active,free)&select=id,max_devices,user_id&limit=1`, { headers });
     const subRows = await subRes.json();
 
     if (!subRows || subRows.length === 0) {
@@ -45,6 +45,7 @@ export async function onRequestPost(context) {
 
     const licenseId = subRows[0].id;
     const max_devices = subRows[0].max_devices;
+    const userId = subRows[0].user_id;
 
     // 2. license_activations에서 해당 device_uuid 세션 존재 여부 확인
     const actRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&device_uuid=eq.${p_device_uuid}&select=id,is_active&limit=1`, { headers });
@@ -66,7 +67,7 @@ export async function onRequestPost(context) {
 
     // 4. updated_at 갱신 (하트비트) 및 필요시 is_active 승급
     if (sessionExists) {
-      const patchBody = { updated_at: new Date().toISOString() };
+      const patchBody = { updated_at: new Date().toISOString(), updated_by: userId };
       if (promoted) patchBody.is_active = true;
       
       await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&device_uuid=eq.${p_device_uuid}`, {
