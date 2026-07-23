@@ -27,15 +27,21 @@ async function run() {
         
         IF v_sub.id IS NULL THEN RETURN jsonb_build_object('success', false, 'code', 'NO_PLAN', 'message', 'No active desktop subscription.'); END IF;
 
-        INSERT INTO public.license_activations (license_id, device_uuid, device_name, activated_at, last_active_at)
-        VALUES (v_sub.id, p_device_uuid, 'Desktop App', now(), now())
-        ON CONFLICT (license_id, device_uuid) DO UPDATE SET last_active_at = now();
+        IF NOT EXISTS (SELECT 1 FROM public.license_activations WHERE subscription_id = v_sub.id AND device_uuid = p_device_uuid) THEN
+          IF (SELECT COUNT(*) FROM public.license_activations WHERE subscription_id = v_sub.id) >= 1 THEN
+            RETURN jsonb_build_object('success', false, 'code', 'ERR_MAX_DEVICES_EXCEEDED', 'message', '동시 접속 가능 기기 수를 초과했습니다.');
+          END IF;
+          INSERT INTO public.license_activations (subscription_id, device_uuid, device_name, activated_at, updated_at)
+          VALUES (v_sub.id, p_device_uuid, 'Desktop App', now(), now());
+        END IF;
+
+        UPDATE public.license_activations SET updated_at = now() WHERE subscription_id = v_sub.id AND device_uuid = p_device_uuid;
 
         SELECT rank INTO v_rank
         FROM (
           SELECT device_uuid, ROW_NUMBER() OVER (ORDER BY activated_at ASC) as rank
           FROM public.license_activations
-          WHERE license_id = v_sub.id AND device_name = 'Desktop App'
+          WHERE subscription_id = v_sub.id AND device_name = 'Desktop App'
         ) ranked
         WHERE device_uuid = p_device_uuid;
 
