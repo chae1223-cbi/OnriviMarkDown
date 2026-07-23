@@ -52,14 +52,28 @@ export async function onRequestPost(context) {
     const actRows = await actRes.json();
 
     const sessionExists = actRows && actRows.length > 0;
-    const isActiveSession = sessionExists && actRows[0].is_active;
+    let isActiveSession = sessionExists && actRows[0].is_active;
+    let promoted = false;
 
-    // 3. updated_at 갱신 (하트비트)
+    // 3. Auto-promote if restricted but capacity available
+    if (sessionExists && !isActiveSession && max_devices > 0) {
+      const countRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&is_active=eq.true&select=id`, { headers });
+      const activeRows = await countRes.json();
+      if (activeRows && activeRows.length < max_devices) {
+        isActiveSession = true;
+        promoted = true;
+      }
+    }
+
+    // 4. updated_at 갱신 (하트비트) 및 필요시 is_active 승급
     if (sessionExists) {
+      const patchBody = { updated_at: new Date().toISOString() };
+      if (promoted) patchBody.is_active = true;
+      
       await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&device_uuid=eq.${p_device_uuid}`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ updated_at: new Date().toISOString() })
+        body: JSON.stringify(patchBody)
       });
     }
 

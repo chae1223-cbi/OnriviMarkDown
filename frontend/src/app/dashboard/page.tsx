@@ -823,7 +823,14 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                       const currentSessionId = typeof window !== 'undefined'
                         ? (localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'))
                         : null;
-                      return devices.map((device) => {
+                      const sortedDevices = [...devices].sort((a, b) => {
+                        const aIsCurrent = a.device_uuid === currentSessionId;
+                        const bIsCurrent = b.device_uuid === currentSessionId;
+                        if (aIsCurrent && !bIsCurrent) return -1;
+                        if (!aIsCurrent && bIsCurrent) return 1;
+                        return 0;
+                      });
+                      return sortedDevices.map((device) => {
                         const isCurrent = currentSessionId === device.device_uuid;
                         return (
                           <tr
