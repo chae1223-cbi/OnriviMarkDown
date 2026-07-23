@@ -129,7 +129,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     setIsLoading(true);                                                                    // ⏳ 최초 로딩 플래그
     try {
       const { data: { user: currentUser }, error: authErr } = await supabase.auth.getUser(); // 🔗 Supabase Auth 세션 조회
-      if (authErr || !currentUser) { router.push('/login'); return; }                      // 🚫 인증 실패 시 로그인 페이지로 리다이렉트
+      if (authErr || !currentUser) { router.push(`/login${window.location.search}`); return; }                      // 🚫 인증 실패 시 로그인 페이지로 리다이렉트
       setUser(currentUser);                                                                // 🧑 로그인 유저 정보 저장
 
       // 👤 users / users 테이블 존재 확인 (API 호출)

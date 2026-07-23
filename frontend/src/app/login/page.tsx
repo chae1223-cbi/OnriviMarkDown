@@ -31,6 +31,14 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);     // 🎯 비밀번호 표시 상태
   const [loading, setLoading] = useState(false);             // 🎯 로딩 상태
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const emailParam = params.get('email');
+      if (emailParam) setEmail(emailParam);
+    }
+  }, []);
+
   // 배경 블롭 마우스 무브 효과 (패럴랙스)
   useEffect(() => {  // 🎯 useEffect 훅 
     // 🎯 마우스 무브 이벤트 리스너
@@ -147,13 +155,13 @@ export default function LoginPage() {
           } catch (actError) {
             console.error('[ACTIVATION] Fetch error:', actError);
           }
-          router.push("/editor");  // 🎯 에디터로 리다이렉션
+          router.push(`/editor${window.location.search}`);  // 🎯 에디터로 리다이렉션
 
         } else {  // 🎯 구독 만료 또는 구독 없음
-          router.push("/dashboard");  // 🎯 대시보드로 리다이렉션
+          router.push(`/dashboard${window.location.search}`);  // 🎯 대시보드로 리다이렉션
         }
       } else {  // 🎯 사용자 정보 없음
-        router.push("/dashboard");  // 🎯 대시보드로 리다이렉션
+        router.push(`/dashboard${window.location.search}`);  // 🎯 대시보드로 리다이렉션
       }
     } catch (err: any) {
       console.error("로그인 에러:", err);

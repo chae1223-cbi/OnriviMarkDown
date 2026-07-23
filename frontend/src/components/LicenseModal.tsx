@@ -46,6 +46,7 @@ export default function LicenseModal({
 }: LicenseModalProps) {
   const [inputUserId, setInputUserId] = useState(licenseStatus.userId || '');
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [isUserVerified, setIsUserVerified] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 
   if (!isOpen) return null;
@@ -74,6 +75,7 @@ export default function LicenseModal({
     
     setMessage({ text: '계정 정보를 확인 중입니다...', type: 'info' });
     setIsVerifyingEmail(true);
+    setIsUserVerified(false);
     
     try {
       const api = (window as any).electronAPI;
@@ -90,9 +92,9 @@ export default function LicenseModal({
 
         if (error) throw new Error(error.message);
 
-        if (!data || (!data.success && data.code !== 'ERR_MAX_DEVICES_EXCEEDED')) {
-          setMessage({ text: '등록되지 않은 이메일이거나 활성화된 구독이 없습니다. 회원가입 및 결제를 진행해주세요.', type: 'error' });
-        } else {
+        if (!data) {
+          setMessage({ text: '서버 응답을 받을 수 없습니다.', type: 'error' });
+        } else if (data.success || data.code === 'ERR_MAX_DEVICES_EXCEEDED') {
           if (!data.success && data.code === 'ERR_MAX_DEVICES_EXCEEDED') {
             setMessage({ text: '동시 접속 제한을 초과하여 제한 사용자로 접근합니다.', type: 'warning' });
           } else {
@@ -112,6 +114,11 @@ export default function LicenseModal({
             onClose();
             window.location.reload(); 
           }, 1500);
+        } else if (data.code === 'NO_PLAN') {
+          setMessage({ text: '가입된 계정이 확인되었습니다. 구독 페이지로 이동하여 결제를 진행해 주세요.', type: 'warning' });
+          setIsUserVerified(true);
+        } else {
+          setMessage({ text: '등록되지 않은 이메일이거나 활성화된 구독이 없습니다. 회원가입 및 결제를 진행해주세요.', type: 'error' });
         }
       } else {
         const chkRes = await fetch('/api/rpc/user/check', {
@@ -127,6 +134,7 @@ export default function LicenseModal({
           setMessage({ text: '등록되지 않은 이메일입니다. 먼저 회원가입 후 진행해 주세요.', type: 'error' });
         } else {
           setMessage({ text: '✅ 이메일이 확인되었습니다. 구독 페이지로 이동하여 결제를 진행해 주세요.', type: 'success' });
+          setIsUserVerified(true);
         }
       }
     } catch (err: any) {
@@ -299,7 +307,7 @@ export default function LicenseModal({
             </div>
           </div>
 
-          {!licenseStatus.isActivated && (
+          {!licenseStatus.isActivated && isUserVerified && (
             <div className="flex flex-col gap-5 border-t border-slate-150 dark:border-zinc-800/60 pt-5">
               {/* 결제 안내 박스 → onrivi.com 직접 링크 */}
               <div className="flex justify-between items-center bg-gradient-to-r from-indigo-500/5 to-purple-500/5 dark:from-indigo-500/10 dark:to-purple-500/10 p-4 rounded-xl border border-indigo-500/10 dark:border-indigo-500/20">
