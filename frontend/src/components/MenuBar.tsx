@@ -42,7 +42,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     copyPreview: "마크다운 복사",
     toolbarToggle: "툴바 표시/숨김",
     search: "검색(S)",
-    settings: "환경 설정",
+    settings: "설정",
     userManual: "사용 설명서",
     shortcuts: "단축키 안내",
     license: "라이선스 등록",
@@ -211,22 +211,14 @@ export default function MenuBar() {
             { label: t('undo'), icon: <span>↩️</span>, shortcut: 'Ctrl+Z', onClick: () => dispatch('UNDO') },
             { label: t('redo'), icon: <span>↪️</span>, shortcut: 'Ctrl+Y', onClick: () => dispatch('REDO') },
             { divider: true },
+            { label: t('find'), icon: <span>🔍</span>, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
+            { label: t('replace'), icon: <span>🔄</span>, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE') },
+            { divider: true },
             { label: t('zoomIn'), icon: <span>🔎</span>, onClick: () => dispatch('ZOOM_IN') },
             { label: t('zoomOut'), icon: <span>🔍</span>, onClick: () => dispatch('ZOOM_OUT') },
           ]}
         />
       )}
-      <MenuDropdown 
-        label={t('search')}
-        isOpen={activeMenu === 'search'} 
-        onClick={() => setActiveMenu(activeMenu === 'search' ? null : 'search')}
-        onClose={() => setActiveMenu(null)}
-        isDarkMode={isDarkMode}
-        items={[
-          { label: t('find'), icon: <span>🔍</span>, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
-          { label: t('replace'), icon: <span>🔄</span>, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE') },
-        ]}
-      />
       <MenuDropdown 
         label={t('tools')} 
         isOpen={activeMenu === 'tools'} 
@@ -263,8 +255,6 @@ export default function MenuBar() {
           items={[
             { label: "사용 설명서", icon: <span>📖</span>, onClick: () => dispatch('HELP') },
             { label: t('license'), icon: <span>🔑</span>, onClick: () => dispatch('LICENSE') },
-            { divider: true },
-            { label: t('about'), icon: <span>🍀</span>, onClick: () => dispatch('ABOUT') },
           ]}
       />
       

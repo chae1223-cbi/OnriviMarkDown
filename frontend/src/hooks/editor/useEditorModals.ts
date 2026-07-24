@@ -46,7 +46,6 @@ export const useEditorModals = () => {
   const [isYoutubeModalOpen, setIsYoutubeModalOpen] = useState(false);   // 유튜브 모달 열림/닫힘 상태
   const [youtubeInitialUrl, setYoutubeInitialUrl] = useState<string | null>(null);   // 유튜브 모달 초기 URL 설정
 
-  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);   // 정보 모달 열림/닫힘 상태
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);   // 라이선스 모달 열림/닫힘 상태
   const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);   // 수식 모달 열림/닫힘 상태
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);   // 도움말 모달 열림/닫힘 상태
@@ -71,7 +70,6 @@ export const useEditorModals = () => {
     isMergeModalOpen, setIsMergeModalOpen,
     isYoutubeModalOpen, setIsYoutubeModalOpen,
     youtubeInitialUrl, setYoutubeInitialUrl,
-    isAboutModalOpen, setIsAboutModalOpen,
     isLicenseModalOpen, setIsLicenseModalOpen,
     isFormulaModalOpen, setIsFormulaModalOpen,
     isHelpModalOpen, setIsHelpModalOpen,

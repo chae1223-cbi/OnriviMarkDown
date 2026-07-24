@@ -1,14 +1,11 @@
-// 🚨 @PATCH : **2026-07-16** — 단축키 설정 인풋의 onKeyDown 이벤트가 전역 body/window로 버블링되는 것을 차단하여 Monaco Editor 내부의 getModifierState 런타임 크래시 오류 해결, PDF & 인쇄 설정 모달 인터페이스 추가
-// ====================================================================
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/components/ToastProvider';
 import { createPortal } from 'react-dom';
-import { X, Settings, Palette, Pen, Command, ShieldCheck, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Settings, Command, Loader2, CheckCircle, AlertCircle, KeyRound, Type, AlignLeft, Braces, Save, RotateCcw } from 'lucide-react';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
 import { testGeminiConnection } from '@/lib/gemini';
-
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -47,32 +44,6 @@ interface SettingsModalProps {
   setAiModelName: (v: string) => void;
 }
 
-const THEMES = [
-  { id: 'editorial', name: 'The Technical Editorial (기본)', monaco: 'onrivi-light', isDark: false },
-  { id: 'dark', name: 'GitHub Dark Dimmed', monaco: 'github-dark-dimmed', isDark: true },
-  { id: 'slate', name: 'Solarized Dark', monaco: 'solarized-dark', isDark: true },
-];
-
-const THEME_CLASSES = THEMES.map(t => `theme-${t.id}`);
-
-const MONACO_TO_USER_THEME: Record<string, string> = {
-  'onrivi-light': 'editorial',
-  'github-dark-dimmed': 'dark',
-  'solarized-dark': 'slate',
-  // backward compatibility with legacy saved settings
-  'onrivi-dark': 'dark',
-  'midnight-neon': 'slate',
-  'github-light': 'editorial',
-  'solarized-light': 'editorial',
-};
-
-// ====================================================================
-// 📊 [OMD-EDIT-SettingsModal-0006] SettingsModal ➔ SettingsModal
-// 🎯 @KICK  : 환경 설정 모달 - 일반 설정, 정품 인증, 단축키/명령어 테이블, 테마 선택 제공
-// 🛡️ @GUARD : isOpen/mounted false 시 null 반환
-// 🚨 @PATCH : **2026-07-15** — 단축키 중복 할당 시 alert() 호출을 useToast showToast('warning')로 교체 (공통 토스트 UI 통일)
-// 🔗 @CALLS : handleThemeSelect, handleSaveLicense, ThemeButton, ModeButton
-// ====================================================================
 export default function SettingsModal({
   isOpen, onClose, isDarkMode, setIsDarkMode,
   fontSize, setFontSize, wordWrap, setWordWrap,
@@ -90,9 +61,32 @@ export default function SettingsModal({
 }: SettingsModalProps) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
-  const [restoreSession, setRestoreSession] = useState(true);
+  const [closing, setClosing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'general' | 'hotkeys'>('general');
+  
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setClosing(false);
+    }
+  }, [isOpen]);
+
+  if (!isOpen && !closing) return null;
+  if (!mounted) return null;
+
+  const handleClose = () => {
+    setClosing(true);
+    setTimeout(() => {
+      onClose();
+      setClosing(false);
+    }, 300); 
+  };
 
   const handleTestGemini = async () => {
     if (!geminiApiKey) {
@@ -104,7 +98,7 @@ export default function SettingsModal({
     try {
       const isOk = await testGeminiConnection(geminiApiKey, aiModelName);
       if (isOk) {
-        setTestResult({ success: true, msg: '연동 테스트 성공! API 키 및 모델이 유효합니다.' });
+        setTestResult({ success: true, msg: '테스트 성공! API 키 및 모델이 유효합니다.' });
       } else {
         setTestResult({ success: false, msg: '응답이 올바르지 않습니다.' });
       }
@@ -115,453 +109,384 @@ export default function SettingsModal({
     }
   };
 
-  const initialTheme = (() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('ONRIVI_SELECTED_THEME');
-      if (stored && THEMES.some(t => t.id === stored)) return stored;
-    }
-    return MONACO_TO_USER_THEME[themePalette] || 'editorial';
-  })();
-  const [selectedTheme, setSelectedTheme] = useState(initialTheme);
-
-// ====================================================================
-// 📊 [OMD-EDIT-SettingsModal-0005] SettingsModal ➔ useEffect (mounted)
-// 🎯 @KICK  : 마운트 시 마운트 상태 설정 및 세션 복원 설정 로드
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : setMounted, setRestoreSession, localStorage.getItem
-// ====================================================================
-  useEffect(() => {
-    setMounted(true);
-    if (typeof window !== 'undefined') {
-      const rs = localStorage.getItem('ONRIVI_RESTORE_SESSION');
-      if (rs !== null) setRestoreSession(rs === 'true');
-    }
-  }, []);
-
-  if (!isOpen) return null;
-  if (!mounted) return null;
-
-// ====================================================================
-// 📊 [OMD-EDIT-SettingsModal-0004] SettingsModal ➔ handleThemeSelect
-// 🎯 @KICK  : 테마 선택 시 DOM 클래스/로컬스토리지/다크모드/onThemeChange를 일괄 적용
-// 🛡️ @GUARD : 테마 ID가 THEMES에 존재하는지 확인
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : setIsDarkMode, onThemeChange, localStorage.setItem
-// ====================================================================
-  const handleThemeSelect = (themeId: string) => {
-    setSelectedTheme(themeId);
-    const theme = THEMES.find(t => t.id === themeId);
-    if (!theme) return;
-
-    const root = document.documentElement;
-    root.classList.remove(...THEME_CLASSES);
-    root.classList.add(`theme-${themeId}`);
-    localStorage.setItem('ONRIVI_SELECTED_THEME', themeId);
-
-    setIsDarkMode(theme.isDark);
-    onThemeChange(theme.monaco);
-  };
-
-// ====================================================================
-// 📊 [OMD-EDIT-SettingsModal-0003] SettingsModal ➔ handleSaveLicense
-// 🎯 @KICK  : 라이선스 키를 localStorage, chrome.storage, electronAPI에 동시 저장
-// 🛡️ @GUARD : 각 storage API 존재 여부 확인 후 저장
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : setLicenseKey, localStorage.setItem, chrome.storage.local.set, api.saveLicense
-// ====================================================================
-  const handleSaveLicense = (key: string) => {
-    setLicenseKey(key);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('onrivi_license_key', key);
-      const chromeStorage = (window as any).chrome?.storage?.local;
-      if (chromeStorage) {
-        chromeStorage.set({ onrivi_license_key: key });
-      }
-      const api = (window as any).electronAPI;
-      if (api && typeof api.saveLicense === 'function') {
-        api.saveLicense(key);
-      }
-    }
-  };
-
-  const colors = isDarkMode ? {
-    surface: '#1e1e1e',
-    container: '#252526',
-    onSurface: '#e5e5e5',
-    onSurfaceVariant: '#c1c6d7',
-    primary: '#adc6ff',
-    border: '#333333',
-  } : {
-    surface: '#ffffff',
-    container: '#f5f5f5',
-    onSurface: '#1a1a1a',
-    onSurfaceVariant: '#49454f',
-    primary: '#0058bc',
-    border: '#e0e0e0',
-  };
-
   return createPortal(
     <div 
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 animate-in fade-in duration-200" 
-      style={{ overflowY: "auto" }}
+      className={`fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${closing ? 'opacity-0' : 'opacity-100'}`} 
+      onClick={handleClose}
       onKeyDown={(e) => {
-        // 모달 내부의 키보드 입력이 Monaco Editor의 전역 keydown 이벤트 핸들러로 전달되어
-        // getModifierState 런타임 크래시를 유발하는 것을 완벽하게 원천 차단
         e.stopPropagation();
         if (e.nativeEvent) {
           e.nativeEvent.stopImmediatePropagation?.();
         }
       }}
     >
-      <div
-        className="relative w-full max-w-3xl flex flex-col rounded-xl shadow-2xl border animate-in zoom-in-95 duration-200"
-        style={{ maxHeight: "90dvh", backgroundColor: colors.surface, borderColor: colors.border }}
+      <style dangerouslySetInnerHTML={{__html: `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;500;600;700&family=Geist+Mono&display=swap');
+        
+        .settings-shadow {
+            box-shadow: 0 40px 100px rgba(15, 0, 109, 0.04), 0 10px 30px rgba(0, 0, 0, 0.04);
+        }
+        
+        .settings-paper-feel {
+            background-image: radial-gradient(#1e00a9 0.5px, transparent 0.5px);
+            background-size: 24px 24px;
+            background-color: transparent;
+            opacity: 0.02;
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+      `}} />
+      
+      <main 
+        className={`w-full max-w-6xl h-[85vh] flex flex-col md:flex-row ${isDarkMode ? 'bg-zinc-900 border border-white/10' : 'bg-white'} rounded-2xl settings-shadow overflow-hidden relative z-10 transition-all duration-300 font-sans`}
+        style={{
+          transform: closing ? 'translateY(20px) scale(0.98)' : 'translateY(0) scale(1)',
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* 헤더 */}
-        <div className="flex items-center gap-2 px-6 py-4 border-b shrink-0" style={{ borderColor: colors.border }}>
-          <Settings size={16} style={{ color: colors.primary }} />
-          <h2 className="text-sm font-bold" style={{ color: colors.onSurface }}>환경 설정</h2>
-          <button
-            onClick={onClose}
-            className="ml-auto p-1.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-          >
-            <X size={18} style={{ color: colors.onSurface }} />
-          </button>
-        </div>
+        {!isDarkMode && <div className="settings-paper-feel"></div>}
 
-        {/* 본문 (스크롤) */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-6 py-6 space-y-8">
-          {/* ---------- 일반 설정 ---------- */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold px-2" style={{ color: colors.primary }}>
-              <Settings size={16} />
-              <span>일반 설정</span>
-            </div>
-            <div className="pl-6 space-y-4">
-              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>자동 줄 바꿈 (Word Wrap)</span>
-                <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
-                  <ThemeButton active={wordWrap === 'on'} onClick={() => setWordWrap('on')} label="켜기" colors={colors} />
-                  <ThemeButton active={wordWrap === 'off'} onClick={() => setWordWrap('off')} label="끄기" colors={colors} />
-                </div>
-              </div>
+        {/* Sidebar */}
+        <aside className={`w-full md:w-[240px] shrink-0 border-r ${isDarkMode ? 'border-white/10' : 'border-outline-variant/15'} p-8 flex flex-col relative z-10`}>
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="font-serif text-[28px] text-on-surface font-bold tracking-tight">설정</h2>
+            <button onClick={handleClose} className="md:hidden text-outline hover:text-primary-container p-2">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <nav className="flex flex-col gap-2">
+            <button 
+              onClick={() => setActiveTab('general')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-[14px] transition-all ${
+                activeTab === 'general' 
+                  ? 'bg-primary-container/10 text-primary-container dark:text-primary-fixed-dim' 
+                  : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              <Settings size={18} />
+              일반 설정
+            </button>
+            <button 
+              onClick={() => setActiveTab('hotkeys')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-[14px] transition-all ${
+                activeTab === 'hotkeys' 
+                  ? 'bg-primary-container/10 text-primary-container dark:text-primary-fixed-dim' 
+                  : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              <Command size={18} />
+              단축키 / 명령어
+            </button>
+          </nav>
 
-              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span>괄호 자동 완성 (Auto Closing Brackets)</span>
-                <div className="flex p-1 rounded-lg gap-1" style={{ backgroundColor: colors.container }}>
-                  <ThemeButton active={autoClosingBrackets === true} onClick={() => setAutoClosingBrackets(true)} label="켜기" colors={colors} />
-                  <ThemeButton active={autoClosingBrackets === false} onClick={() => setAutoClosingBrackets(false)} label="끄기" colors={colors} />
-                </div>
-              </div>
+          <div className="mt-auto pt-8">
+             <button
+              onClick={handleClose}
+              className="w-full py-3 bg-on-surface text-white dark:bg-white dark:text-black rounded-xl font-bold text-sm shadow-md hover:opacity-90 transition-opacity flex justify-center items-center gap-2"
+             >
+               저장 및 닫기
+             </button>
+          </div>
+        </aside>
 
-              <div className="flex justify-between items-center text-sm font-medium" style={{ color: colors.onSurface }}>
-                <span className="flex items-center gap-2">
-                  자동 저장 (Auto Save)
-                </span>
-                <select
-                  value={autoSave}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    setAutoSave(val);
-                  }}
-                  className="px-3 py-1.5 rounded text-xs outline-none cursor-pointer"
-                  style={{
-                    backgroundColor: colors.container,
-                    color: colors.onSurface,
-                    border: `1px solid ${colors.border}`
-                  }}
-                >
-                  <option value={0}>사용 안함</option>
-                  <option value={5}>5초</option>
-                  <option value={10}>10초</option>
-                  <option value={30}>30초</option>
-                  <option value={60}>1분</option>
-                </select>
-              </div>
+        {/* Content Area */}
+        <section className="flex-1 overflow-y-auto relative z-10 p-8 md:p-12">
+          
+          {activeTab === 'general' && (
+            <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-300">
               
-              <div className="flex flex-col gap-2 pt-2">
-                <span className="text-sm font-medium" style={{ color: colors.onSurface }}>Google Gemma API Key (AI 어시스턴트용)</span>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    placeholder="AI 통신을 위한 구글 API 키를 입력하세요"
-                    value={geminiApiKey || ''}
-                    onChange={(e) => {
-                      setGeminiApiKey(e.target.value);
-                      if (testResult) setTestResult(null);
-                    }}
-                    onCopy={(e) => e.preventDefault()}
-                    onCut={(e) => e.preventDefault()}
-                    onContextMenu={(e) => e.preventDefault()}
-                    className="px-3 py-2 rounded text-sm outline-none flex-1 font-mono"
-                    style={{
-                      backgroundColor: colors.container,
-                      color: colors.onSurface,
-                      border: `1px solid ${colors.border}`
-                    }}
-                  />
-                  <button
-                    onClick={handleTestGemini}
-                    disabled={isTestingKey || !geminiApiKey}
-                    className="px-4 py-2 text-xs font-bold rounded flex items-center gap-2 whitespace-nowrap transition-colors disabled:opacity-50"
-                    style={{
-                      backgroundColor: colors.primary,
-                      color: '#ffffff'
-                    }}
-                  >
-                    {isTestingKey ? <Loader2 size={14} className="animate-spin" /> : '연동 테스트'}
-                  </button>
-                </div>
-                {testResult && (
-                  <div className={`text-[11px] font-bold flex items-center gap-1.5 ${testResult.success ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {testResult.success ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
-                    {testResult.msg}
-                  </div>
-                )}
-                <div className="flex flex-col gap-2 pt-2 text-sm font-medium" style={{ color: colors.onSurface }}>
-                  <span>AI 모델 식별자 (Model Name)</span>
-                  <input
-                    type="text"
-                    placeholder="예) gemini-3.5-flash, gemma-4-9b-it"
-                    value={aiModelName || ''}
-                    onChange={(e) => {
-                      setAiModelName(e.target.value);
-                      if (testResult) setTestResult(null);
-                    }}
-                    className="px-3 py-2 rounded text-xs outline-none w-full"
-                    style={{
-                      backgroundColor: colors.container,
-                      color: colors.onSurface,
-                      border: `1px solid ${colors.border}`
-                    }}
-                  />
-                  <span className="text-[11px] opacity-70">원하시는 모델의 공식 API 식별자를 입력하세요. (기본: gemma-4-26b-a4b-it)</span>
-                  
-                  {/* 추천 모델 빠른 선택 칩 */}
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {[
-                      { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4 (최신 오픈모델)' },
-                    ].map(model => (
-                      <button
-                        key={model.id}
-                        onClick={() => {
-                          setAiModelName(model.id);
-                          if (testResult) setTestResult(null);
-                        }}
-                        className="px-2 py-1 text-[10px] rounded-full border hover:opacity-80 transition-opacity"
-                        style={{
-                          backgroundColor: aiModelName === model.id ? colors.primary : 'transparent',
-                          color: aiModelName === model.id ? '#ffffff' : colors.onSurface,
-                          borderColor: aiModelName === model.id ? colors.primary : colors.border
-                        }}
-                      >
-                        {model.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+              {/* 에디터 설정 그룹 */}
+              <div className="space-y-6">
+                <h3 className="font-serif text-[20px] font-semibold text-on-surface border-b pb-2 border-outline-variant/20 dark:border-white/10">에디터 동작</h3>
+                
+                <SettingRow 
+                  icon={<AlignLeft size={18} />}
+                  title="자동 줄 바꿈 (Word Wrap)"
+                  description="에디터 너비에 맞춰 텍스트를 자동으로 줄바꿈합니다."
+                  control={
+                    <ToggleSwitch 
+                      active={wordWrap === 'on'} 
+                      onChange={() => setWordWrap(wordWrap === 'on' ? 'off' : 'on')} 
+                    />
+                  }
+                />
 
+                <SettingRow 
+                  icon={<Braces size={18} />}
+                  title="괄호 자동 완성 (Auto Closing Brackets)"
+                  description="여는 괄호를 입력할 때 닫는 괄호를 자동으로 추가합니다."
+                  control={
+                    <ToggleSwitch 
+                      active={autoClosingBrackets} 
+                      onChange={() => setAutoClosingBrackets(!autoClosingBrackets)} 
+                    />
+                  }
+                />
 
-          {/* ---------- 단축키/명령어 ---------- */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-2 text-sm font-bold" style={{ color: colors.primary }}>
-                <Command size={16} />
-                <span>단축키/명령어</span>
+                <SettingRow 
+                  icon={<Save size={18} />}
+                  title="자동 저장 (Auto Save)"
+                  description="문서를 자동으로 저장하는 주기를 설정합니다."
+                  control={
+                    <select
+                      value={autoSave}
+                      onChange={(e) => setAutoSave(parseInt(e.target.value))}
+                      className={`px-4 py-2 rounded-lg text-[13px] font-medium outline-none cursor-pointer border transition-colors ${
+                        isDarkMode ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-surface-container-low border-outline-variant/30 text-on-surface'
+                      }`}
+                    >
+                      <option value={0}>사용 안함</option>
+                      <option value={5}>5초</option>
+                      <option value={10}>10초</option>
+                      <option value={30}>30초</option>
+                      <option value={60}>1분</option>
+                    </select>
+                  }
+                />
               </div>
-              <button
-                onClick={() => {
-                  const defaultHotkeys = getDefaultHotkeys();
-                  const defaultCmds = getDefaultCommands();
-                  setCustomHotkeys(defaultHotkeys);
-                  setCustomSlashCommands(defaultCmds);
-                  localStorage.setItem('customHotkeys', JSON.stringify(defaultHotkeys));
-                  localStorage.setItem('customSlashCommands', JSON.stringify(defaultCmds));
-                }}
-                className="px-3 py-1 text-[11px] font-bold rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all border border-red-500/20"
-              >
-                기본값 초기화
-              </button>
-            </div>
-            <div className="pl-6 overflow-x-auto rounded-lg border" style={{ borderColor: colors.border }}>
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b" style={{ backgroundColor: colors.container, borderColor: colors.border, color: colors.onSurface }}>
-                    <th className="px-4 py-3 text-xs font-bold w-12 text-center">아이콘</th>
-                    <th className="px-4 py-3 text-xs font-bold w-28">이름</th>
-                    <th className="px-4 py-3 text-xs font-bold">태그</th>
-                    <th className="px-4 py-3 text-xs font-bold w-44 text-center">단축키</th>
-                    <th className="px-4 py-3 text-xs font-bold w-44 text-center">명령어 (/)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y text-sm" style={{ borderColor: colors.border, color: colors.onSurface }}>
-                  {TOOLBAR_ITEMS.map((item) => (
-                    <tr key={item.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                      <td className="px-4 py-2 text-center text-base">{item.icon}</td>
-                      <td className="px-4 py-2 text-xs whitespace-nowrap">{item.name}</td>
-                      <td className="px-4 py-2 font-mono text-[11px] truncate max-w-[120px]">{item.tagFormat}</td>
-                      <td className="px-4 py-2 text-center">
+
+              {/* AI 설정 그룹 */}
+              <div className="space-y-6">
+                <h3 className="font-serif text-[20px] font-semibold text-on-surface border-b pb-2 border-outline-variant/20 dark:border-white/10">AI 어시스턴트</h3>
+                
+                <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/10' : 'bg-surface-container-low/50 border-outline-variant/20'}`}>
+                  <div className="flex items-start gap-4 mb-6">
+                    <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      <KeyRound size={20} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[15px] font-semibold text-on-surface mb-1">Google Gemma API Key</label>
+                      <p className="text-[13px] text-on-surface-variant mb-4">AI 통신을 위한 구글 Gemini/Gemma API 키를 입력하세요.</p>
+                      
+                      <div className="flex gap-2">
                         <input
-                          type="text"
-                          value={customHotkeys[item.id] !== undefined ? customHotkeys[item.id] : ''}
+                          type="password"
+                          placeholder="AI0xxxx..."
+                          value={geminiApiKey || ''}
                           onChange={(e) => {
-                            const newHotkeys = { ...customHotkeys, [item.id]: e.target.value };
-                            setCustomHotkeys(newHotkeys);
-                            localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
+                            setGeminiApiKey(e.target.value);
+                            if (testResult) setTestResult(null);
                           }}
-                          onKeyDown={(e) => {
-                            // Monaco 및 전역 키보드 리스너로 전파되는 것 방지하여 getModifierState 런타임 크래시 예방
-                            e.stopPropagation();
-                            if (e.nativeEvent) {
-                              e.nativeEvent.stopImmediatePropagation?.();
-                            }
-                            
-                            // 단축키 입력 레코딩 처리
-                            if (e.key === 'Backspace' || e.key === 'Delete') {
-                              e.preventDefault();
-                              const newHotkeys = { ...customHotkeys, [item.id]: '' };
-                              setCustomHotkeys(newHotkeys);
-                              localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
-                              return;
-                            }
-                            if (e.key === 'Tab' || e.key === 'Escape' || e.key === 'Enter') return;
-                            
-                            const isCtrl = e.ctrlKey || e.metaKey;
-                            const isShift = e.shiftKey;
-                            const isAlt = e.altKey;
-                            
-                            // Modifier만 누른 상태면 리턴
-                            if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta') return;
-                            
-                            e.preventDefault();
-                            
-                            let key = e.key.toUpperCase();
-                            if (e.code && e.code.startsWith('Key')) {
-                              key = e.code.substring(3).toUpperCase();
-                            } else if (e.code && e.code.startsWith('Digit')) {
-                              key = e.code.substring(5);
-                            }
-                            
-                            const parts = [];
-                            if (isCtrl) parts.push('Ctrl');
-                            if (isShift) parts.push('Shift');
-                            if (isAlt) parts.push('Alt');
-                            parts.push(key);
-                            
-                            const combo = parts.join('+');
-                            
-                            // 단축키 중복 방지 검증
-                            const conflictItem = TOOLBAR_ITEMS.find(
-                              t => t.id !== item.id && (customHotkeys[t.id] || t.defaultHotkey) === combo
-                            );
-                            if (conflictItem) {
-                              showToast(`⚠️ 이미 [${conflictItem.name}] 기능에 할당된 단축키입니다.`, 'warning');
-                              return;
-                            }
-                            
-                            const newHotkeys = { ...customHotkeys, [item.id]: combo };
-                            setCustomHotkeys(newHotkeys);
-                            localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
-                          }}
-                          className="w-full px-2 py-1 text-xs font-mono text-center rounded outline-none transition-colors focus:ring-1 focus:ring-primary focus:bg-black/5 dark:focus:bg-white/5"
-                          style={{
-                            backgroundColor: colors.container,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.onSurface
-                          }}
-                          placeholder="클릭 후 단축키 누르기"
-                          readOnly
+                          className={`flex-1 px-4 py-2.5 rounded-xl text-[14px] font-mono outline-none border transition-all ${
+                            isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white focus:border-primary-fixed-dim' : 'bg-white border-outline-variant/30 text-on-surface focus:border-primary-container'
+                          }`}
                         />
-                      </td>
-                      <td className="px-4 py-2 text-center">
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono text-xs opacity-50">/</span>
+                        <button
+                          onClick={handleTestGemini}
+                          disabled={isTestingKey || !geminiApiKey}
+                          className="px-5 py-2.5 rounded-xl text-[13px] font-bold bg-primary-container text-white dark:bg-primary-fixed-dim dark:text-black hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center min-w-[100px]"
+                        >
+                          {isTestingKey ? <Loader2 size={16} className="animate-spin" /> : '연동 테스트'}
+                        </button>
+                      </div>
+                      
+                      {testResult && (
+                        <div className={`mt-3 px-4 py-2.5 rounded-lg text-[13px] font-medium flex items-center gap-2 ${
+                          testResult.success ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                        }`}>
+                          {testResult.success ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                          {testResult.msg}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                      <Type size={20} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[15px] font-semibold text-on-surface mb-1">AI 모델 식별자 (Model Name)</label>
+                      <p className="text-[13px] text-on-surface-variant mb-4">사용하실 AI 모델의 공식 식별자를 입력하세요.</p>
+                      
+                      <input
+                        type="text"
+                        value={aiModelName || ''}
+                        onChange={(e) => setAiModelName(e.target.value)}
+                        placeholder="예) gemini-1.5-flash"
+                        className={`w-full px-4 py-2.5 rounded-xl text-[14px] font-mono outline-none border transition-all mb-3 ${
+                          isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white focus:border-primary-fixed-dim' : 'bg-white border-outline-variant/30 text-on-surface focus:border-primary-container'
+                        }`}
+                      />
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4' },
+                          { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+                        ].map(model => (
+                          <button
+                            key={model.id}
+                            onClick={() => setAiModelName(model.id)}
+                            className={`px-3 py-1.5 text-[12px] font-medium rounded-full border transition-all ${
+                              aiModelName === model.id 
+                                ? 'bg-primary-container text-white border-primary-container dark:bg-primary-fixed-dim dark:text-black dark:border-primary-fixed-dim'
+                                : 'bg-transparent text-on-surface-variant border-outline-variant/30 hover:border-outline-variant/60'
+                            }`}
+                          >
+                            {model.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'hotkeys' && (
+            <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between pb-4 border-b border-outline-variant/20 dark:border-white/10">
+                <div>
+                  <h3 className="font-serif text-[20px] font-semibold text-on-surface">단축키 및 명령어 매핑</h3>
+                  <p className="text-[13px] text-on-surface-variant mt-1">마크다운 에디터 내에서 사용할 단축키와 슬래시(/) 명령어를 커스텀하세요.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    const defaultHotkeys = getDefaultHotkeys();
+                    const defaultCmds = getDefaultCommands();
+                    setCustomHotkeys(defaultHotkeys);
+                    setCustomSlashCommands(defaultCmds);
+                    localStorage.setItem('customHotkeys', JSON.stringify(defaultHotkeys));
+                    localStorage.setItem('customSlashCommands', JSON.stringify(defaultCmds));
+                    showToast('초기화 되었습니다.', 'success');
+                  }}
+                  className="px-4 py-2 text-[13px] font-bold rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-all flex items-center gap-2"
+                >
+                  <RotateCcw size={14} />
+                  초기화
+                </button>
+              </div>
+
+              <div className={`rounded-xl border overflow-hidden ${isDarkMode ? 'border-white/10' : 'border-outline-variant/20'}`}>
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className={`text-[12px] font-bold uppercase tracking-wider ${isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-surface-container-low text-on-surface-variant'}`}>
+                      <th className="px-5 py-4 w-12 text-center">아이콘</th>
+                      <th className="px-5 py-4 w-40">기능명</th>
+                      <th className="px-5 py-4 text-center">단축키 조합</th>
+                      <th className="px-5 py-4 text-center">명령어 (/)</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y text-[14px] ${isDarkMode ? 'divide-white/5 text-zinc-200' : 'divide-outline-variant/10 text-on-surface'}`}>
+                    {TOOLBAR_ITEMS.map((item) => (
+                      <tr key={item.id} className={`transition-colors ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'}`}>
+                        <td className="px-5 py-3 text-center text-lg">{item.icon}</td>
+                        <td className="px-5 py-3 font-medium">{item.name}</td>
+                        <td className="px-5 py-3 text-center">
                           <input
                             type="text"
-                            value={customSlashCommands[item.id] !== undefined ? customSlashCommands[item.id] : ''}
-                            onChange={(e) => {
-                              const newCmds = { ...customSlashCommands, [item.id]: e.target.value };
-                              setCustomSlashCommands(newCmds);
-                              localStorage.setItem('customSlashCommands', JSON.stringify(newCmds));
+                            value={customHotkeys[item.id] !== undefined ? customHotkeys[item.id] : ''}
+                            onChange={() => {}}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.nativeEvent) e.nativeEvent.stopImmediatePropagation?.();
+                              if (e.key === 'Backspace' || e.key === 'Delete') {
+                                e.preventDefault();
+                                const newHotkeys = { ...customHotkeys, [item.id]: '' };
+                                setCustomHotkeys(newHotkeys);
+                                localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
+                                return;
+                              }
+                              if (e.key === 'Tab' || e.key === 'Escape' || e.key === 'Enter') return;
+                              const isCtrl = e.ctrlKey || e.metaKey;
+                              const isShift = e.shiftKey;
+                              const isAlt = e.altKey;
+                              if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta') return;
+                              e.preventDefault();
+                              let key = e.key.toUpperCase();
+                              if (e.code && e.code.startsWith('Key')) key = e.code.substring(3).toUpperCase();
+                              else if (e.code && e.code.startsWith('Digit')) key = e.code.substring(5);
+                              
+                              const parts = [];
+                              if (isCtrl) parts.push('Ctrl');
+                              if (isShift) parts.push('Shift');
+                              if (isAlt) parts.push('Alt');
+                              parts.push(key);
+                              const combo = parts.join('+');
+                              
+                              const conflictItem = TOOLBAR_ITEMS.find(t => t.id !== item.id && (customHotkeys[t.id] || t.defaultHotkey) === combo);
+                              if (conflictItem) {
+                                showToast(`⚠️ 이미 [${conflictItem.name}] 기능에 할당된 단축키입니다.`, 'warning');
+                                return;
+                              }
+                              const newHotkeys = { ...customHotkeys, [item.id]: combo };
+                              setCustomHotkeys(newHotkeys);
+                              localStorage.setItem('customHotkeys', JSON.stringify(newHotkeys));
                             }}
-                            className="flex-1 px-2 py-1 text-xs font-mono rounded outline-none transition-colors"
-                            style={{
-                              backgroundColor: colors.container,
-                              border: `1px solid ${colors.border}`,
-                              color: colors.onSurface
-                            }}
-                            placeholder="명령어"
+                            className={`w-full max-w-[120px] mx-auto px-3 py-1.5 text-[12px] font-mono font-bold text-center rounded-lg outline-none transition-all cursor-pointer border ${
+                              isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white focus:border-primary-fixed-dim' : 'bg-white border-outline-variant/30 text-on-surface focus:border-primary-container shadow-sm'
+                            }`}
+                            placeholder="클릭 후 입력"
+                            readOnly
                           />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border focus-within:border-primary-container transition-all ${
+                            isDarkMode ? 'bg-zinc-900 border-zinc-700 focus-within:border-primary-fixed-dim' : 'bg-white border-outline-variant/30 shadow-sm'
+                          }`}>
+                            <span className="font-mono font-bold opacity-40">/</span>
+                            <input
+                              type="text"
+                              value={customSlashCommands[item.id] !== undefined ? customSlashCommands[item.id] : ''}
+                              onChange={(e) => {
+                                const newCmds = { ...customSlashCommands, [item.id]: e.target.value };
+                                setCustomSlashCommands(newCmds);
+                                localStorage.setItem('customSlashCommands', JSON.stringify(newCmds));
+                              }}
+                              className="w-[80px] text-[12px] font-mono font-bold outline-none bg-transparent"
+                              placeholder="명령어"
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </section>
-        </div>
-
-        {/* 하단 확인 버튼 */}
-        <div className="px-6 py-4 border-t flex justify-end shrink-0" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-          <button
-            onClick={onClose}
-            className="px-5 py-2 text-xs font-bold rounded-lg hover:opacity-90 transition-all active:scale-95 shadow-lg"
-            style={{ backgroundColor: colors.primary, color: isDarkMode ? '#002e69' : '#ffffff' }}
-          >
-            확인
-          </button>
-        </div>
-      </div>
+          )}
+        </section>
+      </main>
     </div>,
     document.body
   );
 }
 
-// ====================================================================
-// 📊 [OMD-EDIT-SettingsModal-0002] SettingsModal ➔ ThemeButton
-// 🎯 @KICK  : 설정 창의 토글 버튼(켜기/끄기) 렌더링
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : 없음
-// ====================================================================
-function ThemeButton({ active, onClick, label, colors }: { active: boolean; onClick: () => void; label: string; colors: any }) {
+function SettingRow({ icon, title, description, control }: { icon: React.ReactNode, title: string, description: string, control: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 text-[11px] rounded-md transition-all ${active ? 'shadow-sm font-bold' : 'opacity-50 hover:opacity-80'}`}
-      style={{
-        color: colors.onSurface
-      }}
-    >
-      {label}
-    </button>
+    <div className="flex items-center justify-between gap-6 py-1">
+      <div className="flex items-start gap-4">
+        <div className="mt-0.5 text-on-surface-variant/70">
+          {icon}
+        </div>
+        <div>
+          <div className="text-[15px] font-semibold text-on-surface mb-0.5">{title}</div>
+          <div className="text-[13px] text-on-surface-variant">{description}</div>
+        </div>
+      </div>
+      <div className="shrink-0">
+        {control}
+      </div>
+    </div>
   );
 }
 
-// ====================================================================
-// 📊 [OMD-EDIT-SettingsModal-0001] SettingsModal ➔ ModeButton
-// 🎯 @KICK  : 화면 보기 모드(편집/분할/미리보기) 전환 버튼 렌더링
-// 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : 없음
-// ====================================================================
-function ModeButton({ active, onClick, label, colors }: { active: boolean; onClick: () => void; label: string; colors: any }) {
+function ToggleSwitch({ active, onChange }: { active: boolean; onChange: () => void }) {
   return (
     <button
-      onClick={onClick}
-      className={`px-3 py-1.5 text-[11px] rounded border transition-all ${active ? 'font-bold' : 'opacity-60'}`}
-      style={{
-        borderColor: active ? colors.primary : colors.border,
-        color: active ? colors.primary : colors.onSurface,
-        backgroundColor: active ? `${colors.primary}15` : 'transparent'
-      }}
+      onClick={onChange}
+      className={`relative w-[44px] h-[24px] rounded-full transition-colors duration-300 outline-none ${
+        active ? 'bg-green-500' : 'bg-zinc-300 dark:bg-zinc-700'
+      }`}
     >
-      {label}
+      <div 
+        className={`absolute top-[2px] left-[2px] w-[20px] h-[20px] bg-white rounded-full shadow-sm transition-transform duration-300 ${
+          active ? 'translate-x-[20px]' : 'translate-x-0'
+        }`}
+      />
     </button>
   );
 }

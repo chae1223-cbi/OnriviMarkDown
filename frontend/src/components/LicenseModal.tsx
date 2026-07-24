@@ -213,197 +213,215 @@ export default function LicenseModal({
 
   return (
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 transition-all" 
-      style={{ overflowY: "auto" }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 dark:bg-black/80 backdrop-blur-sm transition-all tech-bg overflow-y-auto p-6 font-['Inter'] text-[16px] leading-[1.6] license-modal-wrap"
       onKeyDown={(e) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
       }}
     >
-      <div className="w-[520px] max-w-full bg-white dark:bg-zinc-950 border border-slate-200/80 dark:border-zinc-800/80 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] select-none relative animate-fade-in text-slate-800 dark:text-zinc-200 flex flex-col" style={{ maxHeight: "90dvh" }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@500;600;700&family=Geist:wght@400;500&display=swap');
+        
+        .license-modal-wrap .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .license-modal-wrap .editorial-shadow {
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+        }
+        .tech-bg {
+            background-image: radial-gradient(circle at 2px 2px, rgba(15, 0, 109, 0.03) 1px, transparent 0);
+            background-size: 24px 24px;
+        }
+        .dark .tech-bg {
+            background-image: radial-gradient(circle at 2px 2px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
+        }
+      ` }} />
+      
+      <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 
-        {/* 닫기 버튼 */}
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 w-8 h-8 rounded-full border border-slate-100 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-900 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-all flex items-center justify-center font-bold text-sm"
-        >
-          ✕
-        </button>
-
-        <div className="flex-1 overflow-y-auto min-h-0 px-6 py-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center text-lg shadow-inner">
-            🔑
+      {/* Modal Container */}
+      <div className="relative w-full max-w-[720px] bg-surface-bright editorial-shadow overflow-hidden p-[48px] flex flex-col gap-[40px] animate-in fade-in zoom-in duration-500 rounded-xl my-8">
+        
+        {/* Header Section */}
+        <header className="flex justify-between items-start w-full">
+          <div className="flex items-center gap-6">
+            <div className="w-14 h-14 bg-surface-container flex items-center justify-center rounded-lg">
+              <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>key</span>
+            </div>
+            <div>
+              <h1 className="font-['Source_Serif_4'] text-[32px] font-medium leading-[1.3] text-primary tracking-tight">라이선스 정품 인증</h1>
+              <p className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant uppercase mt-1">Onrivi Author Premium License Guard</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-black tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-zinc-300 bg-clip-text text-transparent">
-              라이선스 정품 인증
-            </h3>
-            <p className="text-[11px] text-slate-400 dark:text-zinc-500 font-medium">Onrivi Author Premium License Guard</p>
-          </div>
-        </div>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center hover:bg-surface-container transition-colors duration-200 rounded-full">
+            <span className="material-symbols-outlined text-on-surface-variant">close</span>
+          </button>
+        </header>
 
-        {/* 상태 요약 배너 */}
-        <div className="mb-6 p-4 rounded-xl text-xs bg-slate-50/50 dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800/80 shadow-sm">
-          {licenseStatus.isActivated ? (
-            <div className="space-y-1">
-              <p className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
-                <span>💎</span>
-                <span>정품 인증이 승인되어 모든 PRO 기능이 활성화 상태입니다.</span>
-              </p>
-              {licenseStatus.planName && (
-                <div className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1 pl-5 space-y-0.5">
-                  <p>• 요금제: <span className="font-semibold text-slate-700 dark:text-zinc-300">{getPlanDisplayName(licenseStatus.planName)}</span></p>
+        {/* Status Banner */}
+        {licenseStatus.isActivated ? (
+          <section className="bg-surface-container-low p-[32px] border-l-4 border-primary">
+            <div className="flex items-start gap-4">
+              <span className="material-symbols-outlined text-primary mt-1" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+              <div>
+                <h2 className="font-['Inter'] text-[18px] leading-[1.8] tracking-[-0.01em] font-semibold text-primary mb-2">정품 인증이 승인되어 모든 PRO 기능이 활성화 상태입니다.</h2>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col">
+                    <span className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant uppercase">요금제</span>
+                    <span className="font-['Inter'] text-[16px] leading-[1.6] font-bold text-on-surface">{getPlanDisplayName(licenseStatus.planName)}</span>
+                  </div>
                   {licenseStatus.nextPaymentDate && (
-                    <p>• 다음 결제일: <span className="font-semibold text-slate-700 dark:text-zinc-300">{new Date(licenseStatus.nextPaymentDate).toLocaleDateString()}</span></p>
+                  <div className="flex flex-col">
+                    <span className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant uppercase">다음 결제일</span>
+                    <span className="font-['Inter'] text-[16px] leading-[1.6] font-bold text-on-surface">{new Date(licenseStatus.nextPaymentDate).toLocaleDateString()}</span>
+                  </div>
                   )}
                 </div>
-              )}
+              </div>
             </div>
-          ) : licenseStatus.isExpired ? (
-            <p className="text-rose-500 font-bold flex items-center gap-1.5">
-              <span>⚠️</span>
-              <span>체험 기간이 만료되었습니다. 에디터 잠금 해제를 위해 라이선스를 연동해 주세요.</span>
-            </p>
-          ) : (
-            <p className="text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1.5">
-              <span>⚡</span>
-              <span>무료 체험 기간이 작동 중입니다. (남은 기한: {licenseStatus.remainingDays}일)</span>
-            </p>
-          )}
-        </div>
+          </section>
+        ) : licenseStatus.isExpired ? (
+          <section className="bg-error-container p-[32px] border-l-4 border-error">
+            <div className="flex items-start gap-4">
+              <span className="material-symbols-outlined text-error mt-1" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              <div>
+                <h2 className="font-['Inter'] text-[18px] leading-[1.8] tracking-[-0.01em] font-semibold text-error mb-2">체험 기간이 만료되었습니다. 에디터 잠금 해제를 위해 라이선스를 연동해 주세요.</h2>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="bg-secondary-container p-[32px] border-l-4 border-secondary">
+            <div className="flex items-start gap-4">
+              <span className="material-symbols-outlined text-secondary mt-1" style={{ fontVariationSettings: "'FILL' 1" }}>timer</span>
+              <div>
+                <h2 className="font-['Inter'] text-[18px] leading-[1.8] tracking-[-0.01em] font-semibold text-secondary mb-2">무료 체험 기간이 작동 중입니다. (남은 기한: {licenseStatus.remainingDays}일)</h2>
+              </div>
+            </div>
+          </section>
+        )}
 
-        <div className="flex flex-col gap-5">
-
-          {/* 1. 가입 이메일 (유저 ID) & 비밀번호 */}
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">가입 이메일 (유저 ID)</label>
-              <input
+        {/* Data Grid */}
+        <section className="flex flex-col gap-[32px] z-10 relative">
+          
+          {/* Row 1: Email */}
+          <div className="flex flex-col gap-2">
+            <label className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant px-1 uppercase">가입 이메일 (유저 ID)</label>
+            {isEmailReadOnly ? (
+              <div className="bg-surface-container-lowest border-b-2 border-outline-variant hover:border-primary transition-colors p-4 font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface truncate">
+                  {licenseStatus.userId || 'onrivi@naver.com'}
+              </div>
+            ) : (
+              <input 
                 type="text"
-                readOnly={isEmailReadOnly}
-                value={isEmailReadOnly ? (licenseStatus.userId || '') : inputUserId}
+                value={inputUserId}
                 onChange={(e) => setInputUserId(e.target.value)}
-                placeholder="onrivi.com 가입 이메일 입력"
-                className={`w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 ${isEmailReadOnly ? 'cursor-not-allowed' : 'focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'}`}
+                placeholder="이메일 입력"
+                className="bg-surface-container-lowest border-b-2 border-outline-variant hover:border-primary focus:border-primary focus:outline-none transition-colors p-4 font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface w-full"
               />
-            </div>
+            )}
+          </div>
 
-            {!isEmailReadOnly && (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">비밀번호</label>
-                <div className="flex gap-2">
-                  <input
+          {/* Row 2: Password (and Verify Button if needed) */}
+          {!isEmailReadOnly && (
+            <div className="flex flex-col gap-2">
+              <label className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant px-1 uppercase">비밀번호</label>
+              <div className="flex gap-2">
+                <input 
                     type="password"
                     value={inputPassword}
                     onChange={(e) => setInputPassword(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyEmail(); }}
                     placeholder="비밀번호 입력"
-                    className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="bg-surface-container-lowest border-b-2 border-outline-variant hover:border-primary focus:border-primary focus:outline-none transition-colors p-4 font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface w-full"
                   />
-                  <button
-                    onClick={handleVerifyEmail}
-                    disabled={isVerifyingEmail || !inputUserId.trim() || !inputPassword}
-                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {isVerifyingEmail ? '확인 중...' : '로그인 & 확인'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 디바이스 정보 */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">디바이스 정보 (기기 고유 ID)</label>
-            <input
-              type="text"
-              readOnly
-              value={deviceId || '기기 식별 불가'}
-              className="w-full px-3.5 py-2 text-[12px] font-mono bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-400 dark:text-zinc-500 cursor-not-allowed"
-            />
-          </div>
-
-          {/* 2. 내 라이선스 식별 코드 */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">내 라이선스 식별 코드</label>
-            <input
-              type="text"
-              readOnly
-              value={maskSecret(licenseStatus.licenseKey)}
-              className="w-full px-3.5 py-2 font-mono text-[11px] bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg select-all focus:outline-none text-slate-600 dark:text-zinc-400 cursor-not-allowed"
-            />
-          </div>
-
-          {/* 3. 정품 결제번호 */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">정품 결제번호</label>
-            <input
-              type="text"
-              readOnly
-              value={maskSecret(licenseStatus.paymentNo)}
-              className="w-full px-3.5 py-2 text-sm font-mono bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 cursor-not-allowed"
-            />
-          </div>
-
-          {/* 4. 요금제 및 다음 결제일 */}
-          <div className="flex gap-3">
-            <div className="flex-1 flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">현재 요금제</label>
-              <input
-                type="text"
-                readOnly
-                value={getPlanDisplayName(licenseStatus.planName)}
-                className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 cursor-not-allowed"
-              />
-            </div>
-            <div className="flex-1 flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 tracking-wide uppercase">다음 결제일</label>
-              <input
-                type="text"
-                readOnly
-                value={licenseStatus.nextPaymentDate ? new Date(licenseStatus.nextPaymentDate).toLocaleDateString() : '-'}
-                className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800/80 rounded-lg focus:outline-none text-slate-600 dark:text-zinc-400 cursor-not-allowed"
-              />
-            </div>
-          </div>
-
-          {!licenseStatus.isActivated && isUserVerified && (
-            <div className="flex flex-col gap-5 border-t border-slate-150 dark:border-zinc-800/60 pt-5">
-              {/* 결제 안내 박스 → onrivi.com 직접 링크 */}
-              <div className="flex justify-between items-center bg-gradient-to-r from-indigo-500/5 to-purple-500/5 dark:from-indigo-500/10 dark:to-purple-500/10 p-4 rounded-xl border border-indigo-500/10 dark:border-indigo-500/20">
-                <div>
-                  <span className="block text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
-                    아직 결제하지 않으셨나요?
-                  </span>
-                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5 block">
-                    onrivi.com 대시보드에서 구독 후 결제번호를 확인하세요.
-                  </span>
-                </div>
-                <button
-                  onClick={handleGoToPurchase}
-                  className="px-4 py-2 text-[11px] font-black text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 rounded-lg transition-all active:scale-[0.98] shadow-lg shadow-indigo-600/10 whitespace-nowrap ml-3"
+                <button 
+                  onClick={handleVerifyEmail}
+                  disabled={isVerifyingEmail || !inputUserId.trim() || (!inputPassword && !isEmailReadOnly)}
+                  className="bg-primary text-on-primary px-8 py-3 font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] uppercase hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
                 >
-                  구독 페이지 이동 ↗
+                  {isVerifyingEmail ? '확인 중...' : '로그인 & 확인'}
                 </button>
               </div>
-
             </div>
           )}
-        </div>
+
+          {/* Row 3: Device ID */}
+          <div className="flex flex-col gap-2">
+            <label className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant px-1 uppercase">디바이스 정보 (기기 고유 ID)</label>
+            <div 
+              onClick={() => handleCopyText(deviceId, '디바이스 정보')}
+              title="클릭하여 복사"
+              className="cursor-pointer bg-surface-container-lowest border-b-2 border-outline-variant hover:border-primary transition-colors p-4 font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface truncate active:bg-surface-container select-none"
+            >
+              {deviceId}
+            </div>
+          </div>
+
+          {/* Row 4: License ID */}
+          <div className="flex flex-col gap-2">
+            <label className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant px-1 uppercase">내 라이선스 식별 코드</label>
+            <div 
+              onClick={() => handleCopyText(licenseStatus.licenseKey, '라이선스 코드')}
+              title="클릭하여 복사"
+              className="cursor-pointer bg-surface-container-lowest border-b-2 border-outline-variant hover:border-primary transition-colors p-4 font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.2em] text-on-surface active:bg-surface-container select-none"
+            >
+                {maskSecret(licenseStatus.licenseKey) || '미발급'}
+            </div>
+          </div>
+
+          {/* Row 5: Payment No */}
+          <div className="flex flex-col gap-2">
+            <label className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant px-1 uppercase">정품 결제번호</label>
+            <div 
+              onClick={() => handleCopyText(licenseStatus.paymentNo || '', '결제번호')}
+              title="클릭하여 복사"
+              className="cursor-pointer bg-surface-container-lowest border-b-2 border-outline-variant hover:border-primary transition-colors p-4 font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.2em] text-on-surface active:bg-surface-container select-none"
+            >
+                {maskSecret(licenseStatus.paymentNo) || '미발급'}
+            </div>
+          </div>
+        </section>
 
         {/* 안내 메시지 출력 */}
         {message.text && (
-          <div className={`mt-4 p-2.5 rounded text-[11px] font-bold ${
-            message.type === 'error'   ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
-            message.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
-            'bg-slate-500/10 text-slate-600 dark:text-zinc-400 border border-slate-500/20'
+          <div className={`p-4 font-['Inter'] text-[14px] font-bold z-10 relative ${
+            message.type === 'error'   ? 'bg-error-container text-error border-l-4 border-error' :
+            message.type === 'success' ? 'bg-surface-container-low text-primary border-l-4 border-primary' :
+            'bg-surface-container text-on-surface-variant border-l-4 border-outline-variant'
           }`}>
             {message.text}
           </div>
         )}
 
+        {/* Footer / Secondary Details */}
+        <footer className="mt-[32px] flex flex-col md:flex-row justify-between items-end border-t border-outline-variant pt-[32px] z-10 relative">
+          <div className="flex flex-col gap-1 w-full md:w-auto">
+            <span className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant uppercase">시스템 상태</span>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+              <span className="font-['Inter'] text-[16px] leading-[1.6] text-on-surface font-medium">Onrivi Author Engine v1.0.4 - Local Secure</span>
+            </div>
+          </div>
+          <div className="flex gap-4 mt-6 md:mt-0">
+            {!licenseStatus.isActivated && isUserVerified && (
+              <button 
+                onClick={handleGoToPurchase}
+                className="bg-primary text-on-primary px-8 py-3 font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] uppercase hover:opacity-90 active:scale-95 transition-all shadow-md shadow-primary/20"
+              >
+                구독 페이지 이동 ↗
+              </button>
+            )}
+          </div>
+        </footer>
+
+        {/* Atmospheric Design Element */}
+        <div className="absolute bottom-0 right-0 p-8 opacity-[0.03] pointer-events-none z-0">
+          <span className="font-['Source_Serif_4'] text-[64px] font-semibold leading-[1.1] tracking-[-0.02em] text-primary select-none">
+            {licenseStatus.isActivated ? 'AUTHORIZED' : 'LOCKED'}
+          </span>
         </div>
+
       </div>
     </div>
   );

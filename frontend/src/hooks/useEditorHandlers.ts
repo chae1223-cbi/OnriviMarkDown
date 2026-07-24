@@ -46,7 +46,6 @@ export const useEditorHandlers = ({
   setIsTableModalOpen,
   setIsFormulaModalOpen,
   setIsSearchOpen,
-  setIsAboutModalOpen,
   setIsLicenseModalOpen,
   setIsSettingsModalOpen,
   setIsImageModalOpen,
@@ -834,7 +833,6 @@ export const useEditorHandlers = ({
       setSettingsModalInitialTab(tab);
       setIsSettingsModalOpen(true);
     },
-    about: () => setIsAboutModalOpen(true),
     // ====================================================================
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0003] useEditorHandlers.ts ➔ help
     // 🎯 @KICK  : 도움말 문서를 Electron/웹 환경에서 읽어와 별도 탭으로 표시

@@ -21,7 +21,6 @@ import TableModal from '@/components/TableModal';        // 표 모달 컴포넌
 import MergeModal from '@/components/MergeModal';        // 병합 모달 컴포넌트
 import YoutubeModal from '@/components/YoutubeModal';        // 유튜브 모달 컴포넌트
 import HelpModal from '@/components/HelpModal';        // 도움말 모달 컴포넌트
-import AboutModal from '@/components/AboutModal';        // 정보 모달 컴포넌트
 import LicenseModal from '@/components/LicenseModal';        // 라이선스 모달 컴포넌트
 import FormulaModal from '@/components/FormulaModal';        // 수식 모달 컴포넌트
 import CssStyleModal from '@/components/CssStyleModal';        // 서식 모달 컴포넌트
@@ -53,7 +52,6 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     isMergeModalOpen, setIsMergeModalOpen,                                   // 병합 모달 열림/닫힘 상태
     isYoutubeModalOpen, setIsYoutubeModalOpen,                             // 유튜브 모달 열림/닫힘 상태
     youtubeInitialUrl, setYoutubeInitialUrl,                             // 유튜브 모달 초기 URL 설정
-    isAboutModalOpen, setIsAboutModalOpen,                                 // 정보 모달 열림/닫힘 상태
     isLicenseModalOpen, setIsLicenseModalOpen,                             // 라이선스 모달 열림/닫힘 상태
     isFormulaModalOpen, setIsFormulaModalOpen,                             // 수식 모달 열림/닫힘 상태
     promptConfig, setPromptConfig,                                         // 프롬프트 모달 설정 상태
@@ -266,14 +264,6 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         workspaceType={workspaceType}
         refreshParent={refreshFileList}
         openFile={handleFileClick}
-      />
-      <AboutModal
-        isOpen={isAboutModalOpen}
-        onClose={() => setIsAboutModalOpen(false)}
-        isDarkMode={isDarkMode}
-        licenseKey={licenseKey}
-        setLicenseKey={setLicenseKey}
-        isActivated={isActivated}
       />
       <LicenseModal
         isOpen={isLicenseModalOpen}
