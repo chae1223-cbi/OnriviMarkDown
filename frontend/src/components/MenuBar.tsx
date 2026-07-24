@@ -200,25 +200,23 @@ export default function MenuBar() {
         items={fileItems}
         isDarkMode={isDarkMode}
       />
-      {previewMode !== 'preview' && (
-        <MenuDropdown 
-          label={t('edit')} 
-          isOpen={activeMenu === 'edit'} 
-          onClick={() => setActiveMenu(activeMenu === 'edit' ? null : 'edit')}
-          onClose={() => setActiveMenu(null)}
-          isDarkMode={isDarkMode}
-          items={[
-            { label: t('undo'), icon: <span>↩️</span>, shortcut: 'Ctrl+Z', onClick: () => dispatch('UNDO') },
-            { label: t('redo'), icon: <span>↪️</span>, shortcut: 'Ctrl+Y', onClick: () => dispatch('REDO') },
-            { divider: true },
-            { label: t('find'), icon: <span>🔍</span>, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
-            { label: t('replace'), icon: <span>🔄</span>, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE') },
-            { divider: true },
-            { label: t('zoomIn'), icon: <span>🔎</span>, onClick: () => dispatch('ZOOM_IN') },
-            { label: t('zoomOut'), icon: <span>🔍</span>, onClick: () => dispatch('ZOOM_OUT') },
-          ]}
-        />
-      )}
+      <MenuDropdown 
+        label={t('edit')} 
+        isOpen={activeMenu === 'edit'} 
+        onClick={() => setActiveMenu(activeMenu === 'edit' ? null : 'edit')}
+        onClose={() => setActiveMenu(null)}
+        isDarkMode={isDarkMode}
+        items={[
+          { label: t('undo'), icon: <span>↩️</span>, shortcut: 'Ctrl+Z', onClick: () => dispatch('UNDO'), disabled: previewMode === 'preview' },
+          { label: t('redo'), icon: <span>↪️</span>, shortcut: 'Ctrl+Y', onClick: () => dispatch('REDO'), disabled: previewMode === 'preview' },
+          { divider: true },
+          { label: t('find'), icon: <span>🔍</span>, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
+          { label: t('replace'), icon: <span>🔄</span>, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE'), disabled: previewMode === 'preview' },
+          { divider: true },
+          { label: t('zoomIn'), icon: <span>🔎</span>, onClick: () => dispatch('ZOOM_IN') },
+          { label: t('zoomOut'), icon: <span>🔍</span>, onClick: () => dispatch('ZOOM_OUT') },
+        ]}
+      />
       <MenuDropdown 
         label={t('tools')} 
         isOpen={activeMenu === 'tools'} 
