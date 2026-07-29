@@ -1128,7 +1128,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             let expiryMs = 0;
             if (sub) {
-              if (sub.plan_name && (sub.plan_name === 'ELITEPRO' || sub.plan_name.toUpperCase().includes('DESKTOP'))) {
+              if (sub.plan_name && (sub.plan_name.toUpperCase() === 'DESKTOP_ONLY' || sub.plan_name.toUpperCase().includes('DESKTOP'))) {
                 console.warn('[loadAndVerifyLicense] Desktop plan cannot be used in Web SaaS.');
                 setLicenseStatus({
                   isActivated: false, isExpired: true, remainingDays: 0, userId: savedUserId,
@@ -2501,7 +2501,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 // 기존 모델에 외부에서 바뀐 최신 텍스트를 강제로 덮어씌움
                 existingTab.model.setValue(file.content);
                 if (editorRef.current) {
-                  editorRef.current.setModel(existingTab.model);
+                  try {
+                    editorRef.current.setModel(existingTab.model);
+                  } catch (e) {
+                    console.warn("[Monaco] setModel failed on existing tab:", e);
+                  }
                 }
               }
 
@@ -2540,7 +2544,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
 
           if (editorRef.current && model) {
-            editorRef.current.setModel(model);
+            try {
+              editorRef.current.setModel(model);
+            } catch (e) {
+              console.warn("[Monaco] setModel failed on new tab:", e);
+            }
           }
           showToast(`📂 ${file.name}`, "info");
           return;
@@ -4764,8 +4772,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     isAddonEnv, editorRef, previewRef, showToast, openTabPaths, refreshFileList,
     driveLetter, profiles, activeProfileId, DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
     saveStatus, isToolbarOpen, setIsToolbarOpen, isSidebarOpen, setIsSidebarOpen, isActivated, THEME_MAP,
-    cursorLine: cursorPositionRef.current?.lineNumber,
-    cursorColumn: cursorPositionRef.current?.column,
+    cursorLine,
+    cursorColumn,
     switchTab, closeTab, createNewTab,
     isSearchOpen, setIsSearchOpen,
     sidebarWidth, setSidebarWidth, sidebarTab, setSidebarTab,
@@ -4930,8 +4938,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
               {/* 탭 바를 오른쪽 에디터/미리보기 영역에만 위치하도록 main 상단에 배치 */}
               {!showEmbeddedWelcome && (
-                <div className="no-print">
+                <div className="no-print flex flex-col w-full">
                   <UnifiedTabBar />
+                  {activeTab && (
+                    <div className="flex items-center px-4 py-1 border-b border-black/5 dark:border-white/5 bg-zinc-100 dark:bg-zinc-900/80 text-[10px] text-zinc-500 font-semibold shadow-inner z-10">
+                      <span className="truncate max-w-full opacity-70 hover:opacity-100 transition-opacity cursor-default">
+                        📁 {workspaceType === 'browser' ? (rootFolder?.name ? `${rootFolder.name} \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}` : `🌐 Browser Storage \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}`) : (workspaceType === 'cloud' ? `[${cloudProvider || 'Cloud'}] \\ ${rootFolder?.name || 'Sync'} \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}` : (currentFileNode?.path?.includes(':') ? currentFileNode.path : `${driveLetter}\\새 문서\\${currentFileName}`))}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
               {showEmbeddedWelcome ? (

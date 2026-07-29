@@ -477,10 +477,16 @@ export const useFileExplorer = ({
       setCurrentFileNode(node);
 
       if (editorRef.current && model) {
-        editorRef.current.setModel(model);
-        requestAnimationFrame(() => {
-          editorRef.current.setScrollTop(0);
-        });
+        try {
+          editorRef.current.setModel(model);
+          requestAnimationFrame(() => {
+            if (editorRef.current) {
+              try { editorRef.current.setScrollTop(0); } catch(e) {}
+            }
+          });
+        } catch (e) {
+          console.warn("[Monaco] setModel failed, editor might be disposed:", e);
+        }
       }
 
       if (node.name === '도움말.md' || node.name.startsWith('도움말 - ')) {

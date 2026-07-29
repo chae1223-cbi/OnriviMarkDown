@@ -265,6 +265,9 @@ export default function MenuBar() {
             </div>
             <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
               {userEmail || licenseStatus?.userId}
+              <span className="ml-1.5 opacity-80 font-bold">
+                ({(licenseStatus?.isExpired || licenseStatus?.planName?.includes('동시 접속 초과') || licenseStatus?.planName?.includes('미인증') || licenseStatus?.planName?.includes('제한사용자')) ? '제한사용자' : '전체사용자'})
+              </span>
             </span>
           </div>
         )}

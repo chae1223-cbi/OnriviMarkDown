@@ -1440,7 +1440,11 @@ export function useMonacoSetup(deps: any) {
                   // ⛔ [반반 스크롤 동기화 제거] — 타이핑 시 Monaco 자동 스크롤이 프리뷰를 흔들던 문제 수정
                   // 프리뷰 → 에디터 단방향 동기화만 유지 (프리뷰 onScroll)
 
-
+                  editor.onDidDispose(() => {
+                    if (editorRef.current === editor) {
+                      editorRef.current = null;
+                    }
+                  });
   };
 
   return { handleMount };

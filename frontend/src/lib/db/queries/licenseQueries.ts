@@ -21,7 +21,7 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
           WHERE subscription_id = ${licenseId} AND is_active = true
         `;
         
-        const isElitePro = plan_name?.toUpperCase() === 'ELITEPRO';
+        const isElitePro = plan_name?.toUpperCase().replace(/\s/g, '').includes('ELITE');
         const isDesktopReq = deviceName?.toLowerCase().includes('desktop');
 
         if (isElitePro) {

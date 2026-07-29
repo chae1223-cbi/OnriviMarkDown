@@ -103,14 +103,42 @@ export default function StatusBar() {
     themePalette, handleThemeChange: onThemeChange,
     isActivated,
     isExpired,
-    activeProfileId, profiles, DEFAULT_PROFILE
+    activeProfileId, profiles, DEFAULT_PROFILE,
+    editorRef
   } = useEditorContext();
 
   const folderName = rootFolder?.name;
   const relativePath = currentFileNode?.path;
   const activeProfileName = profiles?.find((p: any) => p.id === activeProfileId)?.name || DEFAULT_PROFILE?.name;
 
-  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const [localCursor, setLocalCursor] = useState({ line: cursorLine || 1, column: cursorColumn || 1 });
+
+  // 💡 [커서 실시간 업데이트 픽스] Editor의 Cursor 이벤트를 직접 감지하여 Context 지연/렌더링 블락 방지
+  React.useEffect(() => {
+    let disposable: any;
+    
+    const attachListener = () => {
+      const editor = editorRef?.current || (window as any).monaco?.editor?.getEditors?.()?.[0];
+      if (editor) {
+        disposable = editor.onDidChangeCursorPosition((e: any) => {
+          setLocalCursor({ line: e.position.lineNumber, column: e.position.column });
+        });
+        // 현재 위치 동기화
+        const pos = editor.getPosition();
+        if (pos) setLocalCursor({ line: pos.lineNumber, column: pos.column });
+      } else {
+        // 에디터가 아직 마운트되지 않은 경우 0.5초 후 재시도
+        setTimeout(attachListener, 500);
+      }
+    };
+    
+    attachListener();
+    
+    return () => {
+      if (disposable) disposable.dispose();
+    };
+  }, [editorRef, workspaceType, activeProfileId, fileName]); // 탭이나 모드가 변경될 때마다 재연결
+
   const currentTheme = EDITOR_THEMES.find(t => t.id === themePalette) || EDITOR_THEMES[0];
   const charCount = content.length;
   const charCountNoSpace = content.replace(/\s/g, '').length;
@@ -166,20 +194,7 @@ export default function StatusBar() {
   return (
     <footer className="h-12 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[12px] font-bold text-gray-700 dark:text-zinc-300 relative z-40 whitespace-nowrap select-none">
       <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
-        {/* 💡 [인증 키 가드] 라이선스 활성화/만료 마크 */}
-        {isExpired ? (
-          <span className="text-[11px] text-rose-600 dark:text-rose-400 font-extrabold px-2 py-1 rounded-md bg-rose-500/10 border border-rose-500/20 shrink-0 animate-pulse">
-            🔒 미리보기 전용
-          </span>
-        ) : isActivated ? (
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-extrabold px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 shrink-0">
-            정품 인증됨
-          </span>
-        ) : (
-          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-extrabold px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 shrink-0">
-            체험판 (인증 필요)
-          </span>
-        )}
+        {/* 💡 라이선스 뱃지(isExpired/isActivated)는 SettingsModal로 이동되었습니다. */}
         <span className="shrink-0">|</span>
         <span className="shrink-0">{t('charCount')}: {charCount.toLocaleString()} (공백제외 {charCountNoSpace.toLocaleString()})</span>
         <span className="shrink-0">|</span>
@@ -201,14 +216,11 @@ export default function StatusBar() {
             {Math.min(charCount, targetCharCount).toLocaleString()}/{targetCharCount.toLocaleString()} ({progressPercent}%)
           </span>
         </div>
-        <span className="hidden sm:inline shrink-0">|</span>
-        <span className="hidden sm:inline truncate max-w-[120px] md:max-w-[240px] lg:max-w-[400px]" title={getFullPath()}>
-          {t('path')}: {getFullPath()}
-        </span>
+
         {activeProfileName && (
           <>
             <span className="hidden md:inline shrink-0">|</span>
-            <span className="hidden md:inline truncate max-w-[150px] text-blue-600 dark:text-blue-400 font-semibold" title={`현재 서식: ${activeProfileName}`}>
+            <span className="hidden md:inline text-blue-600 dark:text-blue-400 font-semibold" title={`현재 서식: ${activeProfileName}`}>
               서식: {activeProfileName}
             </span>
           </>
@@ -299,9 +311,7 @@ export default function StatusBar() {
         )}
 
         <span className="text-gray-300 dark:text-zinc-600 mx-1">|</span>
-        <span className="hover:text-[#0058bc] cursor-default text-[12px]">UTF-8</span>
-        <span className="hover:text-[#0058bc] cursor-default text-[12px]">.md</span>
-        <span className="hover:text-[#0058bc] cursor-default text-[12px] tabular-nums">Ln {cursorLine || 1}, Col {cursorColumn || 1}</span>
+        <span className="hover:text-[#0058bc] cursor-default text-[12px] tabular-nums ml-2">Ln {localCursor.line}, Col {localCursor.column}</span>
       </div>
     </footer>
   );

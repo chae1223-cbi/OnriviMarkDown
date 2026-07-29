@@ -97,6 +97,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         themePalette={themePalette}
         onThemeChange={handleThemeChange}
         isActivated={isActivated}
+        isExpired={licenseStatus?.isExpired || false}
         autoClosingBrackets={deps.autoClosingBrackets}
         setAutoClosingBrackets={deps.setAutoClosingBrackets}
         geminiApiKey={geminiApiKey}

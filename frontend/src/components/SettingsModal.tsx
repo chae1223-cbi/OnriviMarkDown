@@ -38,6 +38,7 @@ interface SettingsModalProps {
   themePalette: string;
   onThemeChange: (themeId: string) => void;
   isActivated: boolean;
+  isExpired: boolean;
   geminiApiKey: string;
   setGeminiApiKey: (v: string) => void;
   aiModelName: string;
@@ -54,7 +55,7 @@ export default function SettingsModal({
   licenseKey, setLicenseKey,
   themePalette,
   onThemeChange,
-  isActivated,
+  isActivated, isExpired,
   autoClosingBrackets, setAutoClosingBrackets,
   geminiApiKey, setGeminiApiKey,
   aiModelName, setAiModelName
@@ -181,7 +182,25 @@ export default function SettingsModal({
             </button>
           </nav>
 
-          <div className="mt-auto pt-8">
+          <div className="mt-auto pt-8 flex flex-col gap-4">
+             {/* 💡 라이선스 뱃지 (StatusBar에서 이동) */}
+             <div className={`px-4 py-3 rounded-xl ${isDarkMode ? 'bg-black/20' : 'bg-black/5'} border border-outline-variant/10 flex flex-col gap-2 items-center justify-center text-center`}>
+               <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">라이선스 상태</span>
+               {isExpired ? (
+                 <span className="text-[12px] text-rose-600 dark:text-rose-400 font-extrabold px-3 py-1.5 rounded-md bg-rose-500/10 border border-rose-500/20 w-full animate-pulse">
+                   🔒 미리보기 전용
+                 </span>
+               ) : isActivated ? (
+                 <span className="text-[12px] text-emerald-600 dark:text-emerald-400 font-extrabold px-3 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 w-full">
+                   ✅ 정품 인증됨
+                 </span>
+               ) : (
+                 <span className="text-[12px] text-amber-600 dark:text-amber-400 font-extrabold px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 w-full">
+                   ⚠️ 체험판 (인증 필요)
+                 </span>
+               )}
+             </div>
+
              <button
               onClick={handleClose}
               className="w-full py-3 bg-on-surface text-white dark:bg-white dark:text-black rounded-xl font-bold text-sm shadow-md hover:opacity-90 transition-opacity flex justify-center items-center gap-2"
