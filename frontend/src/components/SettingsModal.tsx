@@ -43,6 +43,8 @@ interface SettingsModalProps {
   setGeminiApiKey: (v: string) => void;
   aiModelName: string;
   setAiModelName: (v: string) => void;
+  resourceFolder: string | null;
+  onSelectResourceFolder: () => void;
 }
 
 export default function SettingsModal({
@@ -58,7 +60,8 @@ export default function SettingsModal({
   isActivated, isExpired,
   autoClosingBrackets, setAutoClosingBrackets,
   geminiApiKey, setGeminiApiKey,
-  aiModelName, setAiModelName
+  aiModelName, setAiModelName,
+  resourceFolder, onSelectResourceFolder
 }: SettingsModalProps) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
@@ -148,13 +151,18 @@ export default function SettingsModal({
       >
         {!isDarkMode && <div className="settings-paper-feel"></div>}
 
+        {/* Global Close Button (Top Right) */}
+        <button 
+          onClick={handleClose} 
+          className="absolute top-6 right-6 p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors z-50 text-outline hover:text-on-surface"
+        >
+          <X size={24} />
+        </button>
+
         {/* Sidebar */}
         <aside className={`w-full md:w-[240px] shrink-0 border-r ${isDarkMode ? 'border-white/10' : 'border-outline-variant/15'} p-8 flex flex-col relative z-10`}>
           <div className="flex items-center justify-between mb-8">
             <h2 className="font-serif text-[28px] text-on-surface font-bold tracking-tight">설정</h2>
-            <button onClick={handleClose} className="md:hidden text-outline hover:text-primary-container p-2">
-              <X size={20} />
-            </button>
           </div>
           
           <nav className="flex flex-col gap-2">
@@ -202,10 +210,10 @@ export default function SettingsModal({
              </div>
 
              <button
-              onClick={handleClose}
+              onClick={() => showToast('설정이 성공적으로 저장되었습니다.', 'success')}
               className="w-full py-3 bg-on-surface text-white dark:bg-white dark:text-black rounded-xl font-bold text-sm shadow-md hover:opacity-90 transition-opacity flex justify-center items-center gap-2"
              >
-               저장 및 닫기
+               저장
              </button>
           </div>
         </aside>
@@ -262,6 +270,30 @@ export default function SettingsModal({
                       <option value={30}>30초</option>
                       <option value={60}>1분</option>
                     </select>
+                  }
+                />
+              </div>
+
+              {/* 자원 관리 설정 그룹 */}
+              <div className="space-y-6">
+                <h3 className="font-serif text-[20px] font-semibold text-on-surface border-b pb-2 border-outline-variant/20 dark:border-white/10">자원 관리 (서식 & 미디어)</h3>
+                
+                <SettingRow 
+                  icon={<Save size={18} />}
+                  title="공통 자원 폴더 (Resource Folder)"
+                  description="모든 서식(프로필)과 미디어(이미지/영상)가 저장될 PC 내 공통 폴더를 지정합니다."
+                  control={
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs text-gray-500 max-w-[200px] truncate" title={resourceFolder || "지정 안 됨"}>
+                        {resourceFolder || "지정 안 됨"}
+                      </div>
+                      <button
+                        onClick={() => onSelectResourceFolder()}
+                        className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 rounded-lg text-[13px] font-semibold transition-colors whitespace-nowrap"
+                      >
+                        폴더 선택
+                      </button>
+                    </div>
                   }
                 />
               </div>

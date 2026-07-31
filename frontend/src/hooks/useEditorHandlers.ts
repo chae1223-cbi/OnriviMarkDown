@@ -725,6 +725,7 @@ export const useEditorHandlers = ({
       setIsImageModalOpen(true);
     },
     video: () => setIsYoutubeModalOpen(true),
+    vidio: () => setIsYoutubeModalOpen(true),
     youtube: () => setIsYoutubeModalOpen(true),
     now: () => insertAtCursor(new Date().toLocaleString()),
     map: () => setIsMapModalOpen(true),

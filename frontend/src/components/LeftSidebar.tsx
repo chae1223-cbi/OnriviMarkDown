@@ -29,7 +29,7 @@ export default function LeftSidebar() {
     content, currentFileName, setCurrentFileName,
     setCurrentFileNode, setContent, lastSavedContentRef,
     editorRef, previewRef, toc = [], scrollToLine,
-    showToast, fileList, rootFolder, workspaceType,
+    showToast, fileList, rootFolder, resourceFolder, resourceFolderHandle, workspaceType,
     openFile, currentFileNode, refreshFileList, openTabPaths = [],
     askConfirm, isMergeMode = false, selectedMergeNodes = [],
     toggleMergeNodeSelect, onOpenMergeModal,
@@ -270,12 +270,35 @@ export default function LeftSidebar() {
       showToast('파일에서 텍스트를 추출 중입니다...', 'info');
       const imageSaveCallback = async (base64Data: string, contentType: string) => {
         const ext = contentType.split('/')[1] || 'png';
-        const imgName = `img_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
+        let imgName = `img_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
+        try {
+          const binaryString = atob(base64Data);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+          }
+          const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+          imgName = `img_${hashHex}.${ext}`;
+        } catch (e) {
+          console.warn('해시 생성 실패, 기본 시간 기반 이름 사용', e);
+        }
         const assetsDir = 'assets';
         const imgPath = `${assetsDir}/${imgName}`;
 
         if (workspaceType === 'browser') {
-          if (rootFolder?.handle) {
+          if (resourceFolderHandle) {
+            const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
+            const fileHandle = await mediaDir.getFileHandle(imgName, { create: true });
+            const writable = await fileHandle.createWritable();
+            const res = await fetch(`data:${contentType};base64,${base64Data}`);
+            const blob = await res.blob();
+            await writable.write(blob);
+            await writable.close();
+            return `/media/${imgName}`;
+          } else if (rootFolder?.handle) {
             const assetsHandle = await rootFolder.handle.getDirectoryHandle(assetsDir, { create: true });
             const fileHandle = await assetsHandle.getFileHandle(imgName, { create: true });
             const writable = await fileHandle.createWritable();
@@ -294,9 +317,14 @@ export default function LeftSidebar() {
           // Electron 데스크톱 환경
           const api = (window as any).electronAPI;
           if (api && api.saveImage) {
-            const saveResult = await api.saveImage(rootFolder?.name || "", base64Data, imgName);
+            const targetFolder = resourceFolder ? resourceFolder + '\\media' : (rootFolder?.name || "");
+            const saveResult = await api.saveImage(targetFolder, base64Data, imgName);
             if (saveResult && saveResult.success) {
-              return saveResult.isRelative ? `/assets/${imgName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+              if (saveResult.mediaPath) {
+                return saveResult.mediaPath;
+              } else if (saveResult.absolutePath) {
+                return `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+              }
             }
           }
         }

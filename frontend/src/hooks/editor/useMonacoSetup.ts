@@ -1014,6 +1014,27 @@ export function useMonacoSetup(deps: any) {
 
                   // 💡 다른 문서에서 글을 마우스로 드래그앤드롭(Drag & Drop)하여 옮길 때 끝에 $0이 붙는 버그 방지 커스텀 핸들러
                   container.addEventListener('drop', (e: DragEvent) => {
+                    const files = e.dataTransfer?.files;
+                    if (files && files.length > 0) {
+                      const file = files[0];
+                      if (file.type.startsWith('image/')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
+                        const position = target?.position || editor.getPosition();
+                        
+                        if (position) {
+                          editor.setPosition(position);
+                          editor.focus();
+                        }
+                        
+                        if (deps.handlePasteImageFile) {
+                          deps.handlePasteImageFile(file);
+                        }
+                        return;
+                      }
+                    }
+
                     const text = e.dataTransfer?.getData('text');
                     if (text) {
                       e.preventDefault();

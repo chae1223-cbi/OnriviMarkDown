@@ -121,6 +121,7 @@ import { useEditorModals } from '@/hooks/editor/useEditorModals';
 // import EditorLayout from '@/components/editor/layout/EditorLayout';
 // import EditorCore from '@/components/editor/core/EditorCore';
 import ModalManager from '@/components/editor/modals/ModalManager';
+import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 
 
 /**
@@ -547,26 +548,55 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       let userProfiles: CssProfile[] = [];
       if (api) {
         // Desktop: electronAPI
-        userProfiles = await api.readProfiles();
+        const savedResourceFolder = loadSecureData('resourceFolder') || null;
+        userProfiles = await api.readProfiles(savedResourceFolder);
       } else {
-        // Addon/Browser: localStorage
+        // Addon/Browser: localStorage & File System Access API
         try {
-          const saved = localStorage.getItem('userCssProfiles');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) userProfiles = parsed;
-          } else {
-            // 구버전 마이그레이션
-            const oldSaved = localStorage.getItem('cssProfiles');
-            if (oldSaved) {
-              const parsed = JSON.parse(oldSaved);
-              if (Array.isArray(parsed)) {
-                userProfiles = (parsed as CssProfile[]).filter(p => !isSystemProfileId(p.id) && p.id !== 'default');
+          const handle = await idb.get('resourceFolderHandle');
+          if (handle) {
+            setResourceFolderHandle(handle);
+            try {
+              // 권한 확인 없이 읽기 시도 (크롬은 세션 내에서는 허용될 수 있음)
+              const profilesDir = await handle.getDirectoryHandle('profiles', { create: false });
+              const fileHandle = await profilesDir.getFileHandle('userCssProfiles.json', { create: false });
+              const file = await fileHandle.getFile();
+              const text = await file.text();
+              const parsed = JSON.parse(text);
+              if (Array.isArray(parsed)) userProfiles = parsed;
+              (window as any)._resourceFolderSynced = true; // 읽기 권한 획득 성공
+            } catch (err: any) {
+              if (err.name === 'NotFoundError') {
+                // 파일이나 폴더가 없을 뿐 권한은 있는 상태이므로 동기화 허용
+                (window as any)._resourceFolderSynced = true;
               }
-              localStorage.removeItem('cssProfiles');
+              console.warn('[loadUserProfiles] Failed to read from resource folder handle, falling back to localStorage:', err);
+              // 권한이 없거나 파일이 없는 경우 아래 localStorage 로직으로 폴백
             }
           }
-        } catch { }
+        } catch (err) {
+          console.warn('[loadUserProfiles] Failed to get resourceFolderHandle from idb:', err);
+        }
+
+        if (userProfiles.length === 0) {
+          try {
+            const saved = localStorage.getItem('userCssProfiles');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) userProfiles = parsed;
+            } else {
+              // 구버전 마이그레이션
+              const oldSaved = localStorage.getItem('cssProfiles');
+              if (oldSaved) {
+                const parsed = JSON.parse(oldSaved);
+                if (Array.isArray(parsed)) {
+                  userProfiles = (parsed as CssProfile[]).filter(p => !isSystemProfileId(p.id) && p.id !== 'default');
+                }
+                localStorage.removeItem('cssProfiles');
+              }
+            }
+          } catch { }
+        }
       }
       setProfiles(prev => {
         const systemPart = prev.filter(p => isSystemProfileId(p.id));
@@ -611,6 +641,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
 
   const [rootFolder, setRootFolder] = useState<{ name: string, handle?: any } | null>(null);
+  const [resourceFolder, setResourceFolder] = useState<string | null>(() => loadSecureData('resourceFolder') || null);
+  const [resourceFolderHandle, setResourceFolderHandle] = useState<any>(null);
   const [fileList, setFileList] = useState<FileNode[]>([]);
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
   const [currentFileName, setCurrentFileName] = useState<string>('새 파일.md');
@@ -1762,6 +1794,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : None
   // ====================================================================
   useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
+  const resourceFolderRef = useRef(resourceFolder);
+  useEffect(() => { resourceFolderRef.current = resourceFolder; }, [resourceFolder]);
+
+  const resourceFolderHandleRef = useRef(resourceFolderHandle);
+  useEffect(() => { resourceFolderHandleRef.current = resourceFolderHandle; }, [resourceFolderHandle]);
   // ====================================================================
   // 📊 [OMD-LICENSE-MainEditorApp-0075] MainEditorApp.tsx ➔ licenseStatusRef_sync
   // 🎯 @KICK  : 핸들러에서 스테일 클로저 방지를 위해 licenseStatusRef 동기화
@@ -1827,6 +1864,88 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     restoreFolderPermission,
     handleFileOpenByPath
   } = useFileExplorerResult;
+
+  const selectResourceFolder = async () => {
+    const api = (window as any).electronAPI;
+    if (api && api.selectFolder) {
+      const result = await api.selectFolder(resourceFolder || '');
+      if (result && result.status !== 'canceled' && result.path) {
+        setResourceFolder(result.path);
+        try { saveSecureData('resourceFolder', result.path); } catch { }
+        
+        // 💡 새 폴더 연동 시 폴더 내 기존 서식이 있다면 로드
+        try {
+          const loadedProfiles = await api.readProfiles(result.path);
+          if (Array.isArray(loadedProfiles) && loadedProfiles.length > 0) {
+            setProfiles(prev => {
+              const systemPart = prev.filter(p => isSystemProfileId(p.id));
+              return [...systemPart, ...loadedProfiles];
+            });
+            showToast('공통 폴더에서 기존 서식을 불러왔습니다.', 'success');
+          } else {
+             showToast('자원 관리 폴더가 설정되었습니다.', 'success');
+             // 빈 폴더라면 현재 로컬 서식을 저장 유도
+             setProfiles(prev => {
+               if (prev.length > SYSTEM_PROFILES.length) {
+                 (window as any)._lastSavedProfilesHash = null;
+                 return [...prev];
+               }
+               return prev;
+             });
+          }
+        } catch (e) {
+          showToast('자원 관리 폴더가 설정되었습니다.', 'success');
+        }
+      }
+    } else if (typeof (window as any).showDirectoryPicker === 'function') {
+      try {
+        const handle = await (window as any).showDirectoryPicker();
+        setResourceFolderHandle(handle);
+        setResourceFolder(handle.name);
+        await idb.set('resourceFolderHandle', handle);
+        try { saveSecureData('resourceFolder', handle.name); } catch { }
+        
+        // 💡 새 폴더 연동 시 폴더 내 기존 서식(profiles)이 있다면 로드하여 덮어쓰기 방지
+        try {
+          const profilesDir = await handle.getDirectoryHandle('profiles', { create: false });
+          const fileHandle = await profilesDir.getFileHandle('userCssProfiles.json', { create: false });
+          const file = await fileHandle.getFile();
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProfiles(prev => {
+              const systemPart = prev.filter(p => isSystemProfileId(p.id));
+              return [...systemPart, ...parsed];
+            });
+            showToast('공통 폴더에서 기존 서식을 불러왔습니다.', 'success');
+          } else {
+             showToast('자원 관리 폴더가 설정되었습니다.', 'success');
+          }
+          (window as any)._resourceFolderSynced = true;
+        } catch (err) {
+          // 파일이 없으면 기존 로컬/빈 상태 유지
+          showToast('자원 관리 폴더가 설정되었습니다.', 'success');
+          (window as any)._resourceFolderSynced = true; // 파일이 없는 신규 폴더라도 동기화 권한은 획득함
+          
+          // 기존에 로컬 스토리지에 들고 있던 서식들을 방금 연동한 폴더에 즉시 저장하도록 유도
+          setProfiles(prev => {
+            if (prev.length > SYSTEM_PROFILES.length) {
+               // 내용물의 변경 없이 참조만 갱신하여 profilesSave effect 트리거
+               (window as any)._lastSavedProfilesHash = null; // 강제 저장 유도
+               return [...prev];
+            }
+            return prev;
+          });
+        }
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          showToast('폴더 선택 중 오류가 발생했습니다.', 'error');
+        }
+      }
+    } else {
+      showToast('이 브라우저에서는 폴더 선택 기능을 지원하지 않습니다.', 'warning');
+    }
+  };
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0026 ✅ FIXED] MainEditorApp.tsx ➔ setPreviewMode
@@ -2356,21 +2475,43 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-CORE-MainEditorApp-0035] MainEditorApp.tsx ➔ profilesSave
   // 🎯 @KICK  : 변경 시마다 사용자 CSS 프로필을 플랫폼 저장소에 유지
   // 🛡️ @GUARD : 중복 방지를 위해 저장 전 시스템 프로필 필터링
-  // 🚨 @PATCH : None
+  // 🚨 @PATCH : 2026-07-30 — resourceFolderHandle이 변경될 때 이전 빈 프로필(profiles) 상태로 덮어쓰는 버그 방지 (의존성 분리)
   // 🔗 @CALLS : api.saveProfiles, localStorage.setItem
   // ====================================================================
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !isProfilesLoaded) return;
     const userProfiles = profiles.filter(p => !isSystemProfileId(p.id));
     const api = (window as any).electronAPI;
+    
+    // Check if the profiles array actually changed to avoid redundant saves
+    const savedHash = JSON.stringify(userProfiles);
+    if ((window as any)._lastSavedProfilesHash === savedHash) return;
+    (window as any)._lastSavedProfilesHash = savedHash;
+
     if (api) {
       // Desktop: electronAPI 저장
-      api.saveProfiles(userProfiles);
+      api.saveProfiles(userProfiles, resourceFolder);
     } else {
       // Addon/Browser: localStorage
       try { localStorage.setItem('userCssProfiles', JSON.stringify(userProfiles)); } catch { }
+      
+      // File System Access API를 통한 로컬 폴더 저장
+      const handle = resourceFolderHandleRef?.current || resourceFolderHandle;
+      if (handle && (window as any)._resourceFolderSynced) {
+        (async () => {
+          try {
+            const fileHandle = await (handle as any).getFileHandle('user_profiles.json', { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(JSON.stringify(userProfiles, null, 2));
+            await writable.close();
+          } catch (err) {
+            console.warn('[profilesSave] Failed to save profiles to resource folder handle:', err);
+          }
+        })();
+      }
     }
-  }, [profiles, mounted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0036] MainEditorApp.tsx ➔ activeProfileSave
@@ -2384,6 +2525,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       localStorage.setItem('activeCssProfileId', activeProfileId);
     }
   }, [activeProfileId, mounted]);
+
+
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0000] MainEditorApp.tsx ➔ Sync Frontmatter Profile
+  // 🎯 @KICK  : 에디터 본문(content)이 변경될 때 Frontmatter에서 css_profile을 추출하여 현재 서식(activeProfileId)을 동기화
+  // 🛡️ @GUARD : 기존 activeProfileId와 다를 때만 업데이트하여 무한루프 방지
+  // 🚨 @PATCH : 2026-07-30 (Frontmatter 서식 개별 지정 지원)
+  // 🔗 @CALLS : extractFrontmatter, setActiveProfileId
+  // ====================================================================
+  useEffect(() => {
+    const { data } = extractFrontmatter(content);
+    if (data.css_profile && data.css_profile !== activeProfileId) {
+      setActiveProfileId(data.css_profile);
+    }
+  }, [content, activeProfileId]);
 
   // ====================================================================
   // 📊 [OMD-IO-MainEditorApp-0037] MainEditorApp.tsx ➔ electronAPI_listeners
@@ -2431,6 +2587,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, content, currentFileNode]);
+
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0001] MainEditorApp.tsx ➔ handleProfileChange
+  // 🎯 @KICK  : 사이드바 UI에서 서식을 변경했을 때, 에디터 본문에 Frontmatter를 주입/갱신하고 상태를 업데이트한다.
+  // 🛡️ @GUARD : Monaco 모델 값이 변경될 때 자동으로 onDidChangeContent가 트리거되므로 setContent는 별도 호출하지 않음.
+  // 🚨 @PATCH : 2026-07-30 (Frontmatter 서식 개별 지정 지원)
+  // 🔗 @CALLS : updateCssProfileInFrontmatter, setActiveProfileId
+  // ====================================================================
+  const handleProfileChange = useCallback((newProfileId: string) => {
+    setActiveProfileId(newProfileId);
+    
+    if (editorRef.current) {
+      const currentModel = editorRef.current.getModel();
+      if (currentModel) {
+        const currentContent = currentModel.getValue();
+        const newContent = updateCssProfileInFrontmatter(currentContent, newProfileId);
+        if (currentContent !== newContent) {
+          currentModel.setValue(newContent);
+          // Monaco onDidChangeContent 이벤트가 발생하여 탭과 content 상태가 자동으로 갱신됨
+        }
+      }
+    }
+  }, [setActiveProfileId, editorRef]);
 
   // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 영구 잠금 및 강제 노출 로직 2026-07-05]
   const prevRestrictedRef = useRef<boolean | null>(null);
@@ -3299,14 +3478,48 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       try {
         const base64DataClean = base64Data.split(',')[1] || base64Data;
         const api = (window as any).electronAPI;
-        const fileName = `image_${Date.now()}.png`;
-        const targetFolder = currentFilePath || rootFolderRef.current?.name || '';
+        
+        let fileName = `image_${Date.now()}.png`;
+        try {
+          const binaryString = atob(base64DataClean);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+          }
+          const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+          fileName = `img_${hashHex}.png`;
+        } catch (e) {
+          console.warn('해시 생성 실패, 기본 시간 기반 이름 사용', e);
+        }
+        
+        let targetFolder = currentFilePath || rootFolderRef.current?.name || '';
+        if (resourceFolderRef.current) {
+          targetFolder = resourceFolderRef.current + '\\media';
+        }
 
         if (api) {
           // 🖥️ 데스크탑 (Electron): 우선적으로 R2 업로드를 시도하고, 실패 시 로컬 assets/ 에 저장
           await insertWithR2Fallback(base64DataClean, targetFolder, fileName);
         } else {
-          // 🌐 웹 브라우저 (SaaS): R2 클라우드 저장
+          // 🌐 웹 브라우저 (SaaS)
+          if (resourceFolderHandle) {
+            try {
+              const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
+              const fileHandle = await mediaDir.getFileHandle(fileName, { create: true });
+              const writable = await fileHandle.createWritable();
+              await writable.write(fileOrBlob);
+              await writable.close();
+              insertImageMarkdown(`/media/${fileName}`);
+              showToast('로컬 공통 폴더(media)에 이미지가 저장되었습니다.', 'success');
+              return;
+            } catch (err) {
+              console.warn('[Paste Image] Failed to save to resource folder:', err);
+              // 실패하면 아래 R2 업로드로 폴백
+            }
+          }
           await webUploadImage(base64Data);
         }
       } catch (err) {
@@ -3327,62 +3540,27 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : 2026-07-06 우선 R2 클라우드 업로드 시도 후 실패 시 api.saveImage로 로컬 assets에 저장하도록 재설계
   // 🔗 @CALLS : fetch, api.saveImage, showToast
   // ====================================================================
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0031] MainEditorApp ➔ insertWithLocalSave
+  // 🎯 @KICK  : 데스크탑 이미지 붙여넣기 시 무조건 로컬(resourceFolder) 저장
+  // 🛡️ @GUARD : api.saveImage 실패 시 toast 안내
+  // 🚨 @PATCH : 2026-07-30 — R2 업로드 제거, 무조건 로컬 저장으로 단순화
+  // 🔗 @CALLS : api.saveImage, showToast
+  // ====================================================================
   const insertWithR2Fallback = async (base64DataClean: string, targetFolder: string, fileName: string) => {
-    let r2Path = null;
-    let r2Error = '';
-    let isR2Success = false;
+    const api = (window as any).electronAPI;
+    if (!api) return;
 
-    // 1. 우선적으로 R2(클라우드) 업로드 시도
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const resp = await fetch('https://onrivi.com/api/upload-image', {
-        method: 'POST', headers,
-        body: JSON.stringify({ base64Data: base64DataClean, targetFolder, fileName }),
-      });
-      if (resp.ok) {
-        const d = await resp.json();
-        if (d.status === 'success' && d.relativePath) {
-          r2Path = d.relativePath;
-          isR2Success = true;
-        } else {
-          r2Error = d.error || `status=${d.status}`;
-        }
-      } else {
-        r2Error = `HTTP ${resp.status}`;
-        try { const d = await resp.json(); r2Error += ': ' + (d.error || JSON.stringify(d)); } catch { }
-      }
-    } catch (e: any) {
-      r2Error = e?.message || String(e);
-    }
-
-    // 2. 경로 설정 및 로컬 Fallback 처리
-    let finalPath = '';
-    if (isR2Success && r2Path) {
-      finalPath = r2Path;
+    const saveResult = await api.saveImage(targetFolder, base64DataClean, fileName);
+    if (saveResult && saveResult.success) {
+      const finalPath = saveResult.mediaPath
+        ? saveResult.mediaPath
+        : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+      insertImageMarkdown(finalPath);
+      showToast('이미지가 로컬 폴더에 저장되었습니다.', 'success');
     } else {
-      // R2 업로드 실패 시 데스크탑 로컬 파일시스템에 저장
-      const api = (window as any).electronAPI;
-      if (api) {
-        const saveResult = await api.saveImage(targetFolder, base64DataClean, fileName);
-        if (saveResult && saveResult.success) {
-          if (saveResult.isRelative) {
-            finalPath = `assets/${fileName}`;
-          } else {
-            const encodedUrl = encodeURIComponent(saveResult.absolutePath);
-            finalPath = `media://local/serve?url=${encodedUrl}`;
-          }
-        } else {
-          showToast('클라우드 및 로컬 폴더 저장 모두 실패했습니다.', 'error');
-          return;
-        }
-      }
+      showToast('이미지 로컬 저장에 실패했습니다.', 'error');
     }
-
-    insertImageMarkdown(finalPath);
-    showToast(isR2Success ? '이미지가 클라우드(R2)에 저장되었습니다.' : `R2 업로드 실패(${r2Error}) — 로컬 assets 폴더에 대체 저장되었습니다.`, isR2Success ? 'success' : 'error');
   };
 
   // ====================================================================
@@ -3669,7 +3847,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     const profileBg = ps.backgroundColor || '#ffffff';
     const bg = profileBg;
-    const fg = 'inherit';
+    // Set a very dark gray/black color instead of 'inherit' for much better contrast on white backgrounds
+    const fg = '#1a1a1a';
 
     let css = `
 .custom-preview-container {
@@ -3679,6 +3858,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   font-size: ${ps.fontSize} !important;
   line-height: ${ps.lineHeight} !important;
   letter-spacing: ${ps.letterSpacing} !important;
+  -webkit-font-smoothing: subpixel-antialiased !important;
+  -moz-osx-font-smoothing: auto !important;
+  text-rendering: optimizeLegibility !important;
 }
 .custom-preview-container p,
 .custom-preview-container li,
@@ -3712,7 +3894,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (v === '') return false;
         if (skipFontSize && prop === 'font-size') return false;
         return true;
-      });
+      }).sort((a, b) => a[0].localeCompare(b[0]));
       if (entries.length === 0) return;
 
       if (tag === 'codeBlockTitle') {
@@ -3808,6 +3990,31 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
         });
         css += `}\n`;
+        return;
+      }
+
+      if (tag === 'footnote') {
+        const color = ruleObj['color'];
+        const fontSize = ruleObj['font-size'];
+        const lineHeight = ruleObj['line-height'];
+        const marginTop = ruleObj['margin-top'];
+        const fontWeight = ruleObj['font-weight'];
+
+        if (marginTop) {
+          css += `.custom-preview-container .footnotes {\n  margin-top: ${marginTop} !important;\n}\n`;
+        }
+        if (color) {
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  color: ${color} !important;\n}\n`;
+        }
+        if (fontSize) {
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
+        }
+        if (lineHeight) {
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
+        }
+        if (fontWeight) {
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-weight: ${fontWeight} !important;\n}\n`;
+        }
         return;
       }
 
@@ -4358,6 +4565,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       taglink: 'DOCLINK',
       image: 'IMAGE',
       video: 'VIDEO',
+      vidio: 'VIDEO',
       youtube: 'YOUTUBE',
       calendar: 'NOW',
       now: 'NOW',
@@ -4764,6 +4972,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     currentFileNode, setCurrentFileNode,
     workspaceType, setWorkspaceType,
     rootFolder, setRootFolder,
+    resourceFolder, resourceFolderHandle,
     fileList, setFileList,
     dispatchCommand,
     isDarkMode, setIsDarkMode,
@@ -4796,7 +5005,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     decorationsCollectionRef, isEditorHovered, prevCursorLineRef,
     setActiveLine, setCursorLine, setCursorColumn, tabSizeRef, setFloatingToolbar, lastSelectionRef,
     completionProviderRef, getSlashCommands, customSlashCommandsRef,
-    handleEditorPaste,
+    handleEditorPaste, handlePasteImageFile,
     wikilinkProviderRef, docLinkFilesRef, readFileTextRef, extractHeadings, getRelativePath,
     isEditorMountedRef, updateContent
   });
@@ -4959,6 +5168,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       onFileOpen={handleFileOpenByPath}
                       rootFolderPath={rootFolder?.name}
                       rootFolder={rootFolder}
+                      resourceFolderHandle={resourceFolderHandle}
+                      resourceFolder={resourceFolder}
                       workspaceType={workspaceType}
                     />
                   </div>
@@ -5431,8 +5642,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           return (
                             <div
                               className={isPreviewOnly
-                                ? "preview-page-sheet mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top"
-                                : `preview-page-sheet mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full p-10 bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top`
+                                ? "preview-page-sheet mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden"
+                                : `preview-page-sheet mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden`
                               }
                               style={pageStyle}
                             >
@@ -5451,6 +5662,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 marginRight={pRight}
                                 bibContent={bibContent}
                                 rootFolder={rootFolder}
+                                resourceFolderHandle={resourceFolderHandle}
+                                resourceFolder={resourceFolder}
                                 workspaceType={workspaceType}
                               />
                             </div>
@@ -5543,7 +5756,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
               setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
               showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
-              handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId, setProfiles,
+              handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId: handleProfileChange, setProfiles,
               isSystemProfileId,
               getApiUrl,
               DEFAULT_PROFILE,
@@ -5551,7 +5764,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               vfsCreateFile,
               vfsWriteFile,
               vfsCreateFolder,
-              helpTitle, helpContent, setHelpContent
+              helpTitle, helpContent, setHelpContent,
+              resourceFolder, resourceFolderRef, resourceFolderHandle, selectResourceFolder
             }}
           />
 

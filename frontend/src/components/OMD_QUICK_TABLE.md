@@ -122,8 +122,8 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-HOOK-0007 ✅ FIXED | useFileExplorer.ts | useFileExplorer | saveFile, refreshFileList, handleFileClick, selectRootFolder | 파일 탐색·열기·저장·워크스페이스 제어 *(수정: 2026-06-18 — handleFileClick disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리)* |
 | OMD-HOOK-0008 | useEditorHandlers.ts | useEditorHandlers | 각종 핸들러 | 에디터 액션 로직 통합 핸들러 |
 | OMD-HOOK-0009 | usePageBreak.ts | usePageBreak | handleResetPageBreaks, executeAutoPageBreak | 자동 페이지 나누기 |
-| OMD-EDIT-0065 ✅ FIXED | MEA.tsx:2861 | handlePasteImageFile | insertWithR2Fallback, webUploadImage | 클립보드 이미지 처리 (데스크탑 R2 선 시도) |
-| OMD-EDIT-0066 ✅ FIXED | MEA.tsx:2900 | insertWithR2Fallback | fetch, api.saveImage | R2 선 시도 및 실패 시 로컬 assets 저장 로직 |
+| OMD-EDIT-0065 ✅ FIXED | MEA.tsx:2861 | handlePasteImageFile | insertWithR2Fallback, webUploadImage | 클립보드 이미지 처리 (데스크탑 R2 선 시도) 🚨 2026-07-30 — R2 제거, 무조건 로컬(resourceFolder) 저장으로 단순화 |
+| OMD-EDIT-0066 ✅ FIXED | MEA.tsx:2900 | insertWithR2Fallback | api.saveImage | 🚨 2026-07-30 — R2 업로드 로직 제거, api.saveImage → mediaPath 우선 사용, 로컬 저장 전용으로 리팩토링 |
 | OMD-EDIT-0067 ✅ FIXED | VideoCard.tsx:29 | useEffect | - | 로컬 환경(데스크탑/dev) 동영상 썸네일 생략 및 텍스트 설명 표시 |
 | OMD-EDIT-0068 ✅ FIXED | VideoCard.tsx:49 | useEffect | - | 동영상 썸네일 추출 시 검은 화면 방지를 위해 1초 시점으로 이동(seeking) 후 추출 |
 | OMD-EDIT-0069 ✅ FIXED | MarkdownViewer.tsx:1400 | p | - | 중첩된 이미지에서 p 태그 Hydration 에러 방지를 위해 mdast가 아닌 hast 속성(tagName === 'img')을 기준으로 재귀적 노드 검사하도록 수정 |

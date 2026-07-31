@@ -9,10 +9,14 @@ export interface CssProfile {
   id: string;
   /** 프로필 표시 이름 (사용자 지정 가능) */
   name: string;
+  /** 프로필 설명 (옵션) */
+  description?: string;
   /** 선택 용지 전역 타이포그래피 및 페이지 설정 */
   pageStyle: {
     /** 인쇄 대표 서체 (예: "휴먼명조", serif) */
     fontFamily: string;
+    /** 웹 폰트 로드용 URL (옵션, 예: 구글 폰트 주소) */
+    fontUrl?: string;
     /** 기본 글자 크기 (예: '15px') */
     fontSize: string;
     /** 기본 줄 간격 (예: '1.8') */

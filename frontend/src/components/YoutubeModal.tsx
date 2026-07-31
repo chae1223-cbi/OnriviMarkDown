@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, Video, Upload, ExternalLink, Play, Link as LinkIcon } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
+import { loadSecureData } from '@/lib/secureStorage';
 import { supabase } from '@/lib/supabaseClient';
 
 interface YoutubeModalProps {
@@ -13,6 +14,10 @@ interface YoutubeModalProps {
   isDarkMode: boolean;
   targetFolder?: string;
   initialUrl?: string;
+  resourceFolderHandle?: any;
+  workspaceType?: string;
+  rootFolder?: any;
+  resourceFolder?: string | null;
 }
 
 // ====================================================================
@@ -29,6 +34,10 @@ export default function YoutubeModal({
   isDarkMode,
   targetFolder,
   initialUrl,
+  resourceFolderHandle,
+  workspaceType,
+  rootFolder,
+  resourceFolder,
 }: YoutubeModalProps) {
   const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
@@ -54,43 +63,55 @@ export default function YoutubeModal({
   }, [isOpen, initialUrl]);
 
   const uploadVideo = async (file: File, base64Data: string) => {
-    const fileName = `video_${Date.now()}.${file.name.split('.').pop() || 'mp4'}`;
+    const ext = file.name.split('.').pop() || 'mp4';
+    const fileName = file.name ? file.name.replace(/\s+/g, '_') : `video_${Date.now()}.${ext}`;
     const api = (window as any).electronAPI;
     if (api) {
-      let finalPath = '';
-      let r2Success = false;
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const resp = await fetch('https://onrivi.com/api/upload-image', {
-          method: 'POST', headers,
-          body: JSON.stringify({ base64Data, targetFolder: targetFolder || '', fileName }),
-        });
-        if (resp.ok) {
-          const d = await resp.json();
-          if (d.status === 'success' && d.relativePath) {
-            finalPath = d.relativePath;
-            r2Success = true;
-          }
-        }
-      } catch {}
-      if (!r2Success) {
-        const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
-        if (saveResult && saveResult.success) {
-          finalPath = saveResult.isRelative ? `assets/${fileName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
-        }
-      }
-      if (finalPath) {
+      // 🖥️ 데스크탑: 무조건 로컬(resourceFolder) 저장
+      const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
+      const effectiveTargetFolder = freshResourceFolder
+        ? freshResourceFolder + '\\media'
+        : (targetFolder || '');
+      const saveResult = await api.saveImage(effectiveTargetFolder, base64Data, fileName);
+      if (saveResult && saveResult.success) {
+        const finalPath = saveResult.mediaPath
+          ? saveResult.mediaPath
+          : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
         setSourceUrl(finalPath);
         setAppliedPath(finalPath);
-        showToast(r2Success ? 'R2 업로드 완료' : 'R2 실패 — 로컬 assets 저장', r2Success ? 'success' : 'error');
+        showToast('동영상이 로컬 폴더에 저장되었습니다.', 'success');
       } else {
         showToast('동영상 저장 실패', 'error');
       }
     } else {
       setSourceUrl(URL.createObjectURL(file));
+      let finalPath = '';
+      if (workspaceType === 'browser' || workspaceType === 'local') {
+        try {
+          if (resourceFolderHandle) {
+            const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
+            const fileHandle = await mediaDir.getFileHandle(fileName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(file);
+            await writable.close();
+            finalPath = `/media/${fileName}`;
+          } else if (rootFolder?.handle) {
+            const assetsDir = await rootFolder.handle.getDirectoryHandle('assets', { create: true });
+            const fileHandle = await assetsDir.getFileHandle(fileName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(file);
+            await writable.close();
+            finalPath = `/assets/${fileName}`;
+          }
+        } catch (e) {
+          console.error('브라우저 로컬 저장 실패:', e);
+        }
+      }
+      if (finalPath) {
+        setAppliedPath(finalPath);
+        showToast('로컬 폴더에 저장되었습니다.', 'success');
+        return;
+      }
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
@@ -105,11 +126,10 @@ export default function YoutubeModal({
         if (response.ok) {
           const data = await response.json();
           if (data.status === 'success' && data.relativePath) {
-            setSourceUrl(data.relativePath);
             setAppliedPath(data.relativePath);
-            showToast('클라우드 업로드 완료', 'success');
+            showToast('동영상이 업로드되었습니다.', 'success');
           } else {
-            showToast('업로드 실패: ' + (data.error || ''), 'error');
+            showToast('서버 저장 실패', 'error');
           }
         } else {
           showToast(`서버 오류 (${response.status})`, 'error');
@@ -176,7 +196,32 @@ export default function YoutubeModal({
   }, [cleanPath]);
 
   const isYoutube = !!detectedVideoId;
-  const displayName = isYoutube ? 'YouTube 동영상' : (cleanPath.split('/').pop()?.split('?')[0] || '동영상');
+  const originalFileName = useMemo(() => {
+    if (appliedPath && appliedPath.startsWith('/media/')) {
+      return appliedPath.split('/').pop()?.split('?')[0];
+    }
+    return null;
+  }, [appliedPath]);
+  const displayName = isYoutube ? 'YouTube 동영상' : (originalFileName || cleanPath.split('/').pop()?.split('?')[0] || '동영상');
+
+  const previewSrc = useMemo(() => {
+    let raw = sourceUrl;
+    try { if (raw) raw = decodeURI(raw); } catch(e){}
+    if (raw && raw.startsWith('/media/')) {
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      if (api) {
+        const freshRF = loadSecureData<string>('resourceFolder') || resourceFolder;
+        if (freshRF) {
+          const sep = freshRF.includes('\\') ? '\\' : '/';
+          const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
+          const normalizedSrc = sep === '\\' ? raw.replace(/\//g, '\\') : raw;
+          let absolutePath = cleanRoot + normalizedSrc;
+          return `media-local://serve?url=${encodeURIComponent(absolutePath)}`;
+        }
+      }
+    }
+    return raw;
+  }, [sourceUrl, resourceFolder]);
 
   const handleInsert = () => {
     const url = appliedPath || cleanPath;
@@ -368,17 +413,21 @@ export default function YoutubeModal({
                             onError={(e) => { (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${detectedVideoId}/0.jpg`; }}
                           />
                         ) : (
-                          <div className="flex flex-col items-center gap-2 text-slate-400">
-                            <Video size={40} className="opacity-30" />
-                            <span className="text-[10px] font-mono">{displayName}</span>
+                          <video 
+                            src={previewSrc} 
+                            controls 
+                            className="w-full h-full object-contain"
+                            preload="metadata"
+                          />
+                        )}
+                        {/* 유튜브일 때만 커스텀 플레이 오버레이 표시 */}
+                        {isYoutube && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+                              <Play size={18} className="text-indigo-600 fill-indigo-600 ml-0.5" />
+                            </div>
                           </div>
                         )}
-                        {/* 플레이 오버레이 */}
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
-                            <Play size={18} className="text-indigo-600 fill-indigo-600 ml-0.5" />
-                          </div>
-                        </div>
                       </div>
                     </div>
                     {/* 메타데이터 오버레이 */}

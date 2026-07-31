@@ -143,8 +143,7 @@ export default function StatusBar() {
   const charCount = content.length;
   const charCountNoSpace = content.replace(/\s/g, '').length;
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-  // 기자들을 위해 원고지 매수를 소수점 첫째 자리까지 표시
-  const manuscriptPages = (charCount / 200).toFixed(1);
+  // 기자들을 위해 원고지 매수를 소수점 첫째 자리까지 표시 (제거됨)
   const targetCharCount = 2000;
   const progressPercent = Math.min(100, Math.round((charCount / targetCharCount) * 100));
 
@@ -196,11 +195,9 @@ export default function StatusBar() {
       <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
         {/* 💡 라이선스 뱃지(isExpired/isActivated)는 SettingsModal로 이동되었습니다. */}
         <span className="shrink-0">|</span>
-        <span className="shrink-0">{t('charCount')}: {charCount.toLocaleString()} (공백제외 {charCountNoSpace.toLocaleString()})</span>
+        <span className="shrink-0 tabular-nums">{t('charCount')}: {charCount.toLocaleString()} (공백제외 {charCountNoSpace.toLocaleString()})</span>
         <span className="shrink-0">|</span>
-        <span className="shrink-0">{t('wordCount')}: {wordCount.toLocaleString()}</span>
-        <span className="hidden md:inline shrink-0">|</span>
-        <span className="hidden md:inline shrink-0">{t('manuscript')}: {manuscriptPages}{t('page')}</span>
+        <span className="shrink-0 tabular-nums">{t('wordCount')}: {wordCount.toLocaleString()}</span>
         <span className="hidden lg:inline shrink-0">|</span>
         <div className="hidden lg:flex items-center gap-1.5 shrink-0">
           <div className="w-16 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
@@ -212,27 +209,27 @@ export default function StatusBar() {
               }}
             />
           </div>
-          <span className="tabular-nums">
+          <span className="tabular-nums shrink-0">
             {Math.min(charCount, targetCharCount).toLocaleString()}/{targetCharCount.toLocaleString()} ({progressPercent}%)
           </span>
         </div>
 
+      </div>
+      <div className="flex items-center gap-2 shrink-0 ml-2">
         {activeProfileName && (
           <>
-            <span className="hidden md:inline shrink-0">|</span>
             <span className="hidden md:inline text-blue-600 dark:text-blue-400 font-semibold" title={`현재 서식: ${activeProfileName}`}>
               서식: {activeProfileName}
             </span>
+            <span className="hidden md:inline shrink-0 text-black/20 dark:text-white/20">|</span>
           </>
         )}
-        {saveStatusText && (
-          <>
-            <span className="shrink-0">|</span>
-            <span className={`${saveStatusColor} font-semibold shrink-0`}>{saveStatusText}</span>
-          </>
-        )}
-      </div>
-      <div className="flex items-center gap-2 shrink-0 ml-2">
+        <div className="w-[85px] flex justify-center shrink-0">
+          {saveStatusText && (
+            <span className={`${saveStatusColor} font-semibold text-center`}>{saveStatusText}</span>
+          )}
+        </div>
+        <span className="shrink-0 text-black/20 dark:text-white/20">|</span>
         {/* 툴바 숨기기/보이기 */}
         {setIsToolbarOpen && (
           <button

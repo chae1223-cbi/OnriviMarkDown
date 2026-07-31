@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { X, Image as ImageIcon, Upload, Link as LinkIcon, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
+import { loadSecureData } from '@/lib/secureStorage';
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -21,8 +22,10 @@ interface ImageModalProps {
   } | null;
   targetFolder?: string;
   showToast?: (message: string, type: 'success' | 'error') => void;
+  resourceFolderHandle?: any;
   workspaceType?: string;
   rootFolder?: any;
+  resourceFolder?: string | null;
 }
 
 // ====================================================================
@@ -41,8 +44,10 @@ export default function ImageModal({
   initialData,
   targetFolder,
   showToast,
+  resourceFolderHandle,
   workspaceType,
   rootFolder,
+  resourceFolder,
 }: ImageModalProps) {
   const [imagePath, setImagePath] = useState("");
   const [appliedPath, setAppliedPath] = useState("");
@@ -82,14 +87,32 @@ export default function ImageModal({
     const api = (window as any).electronAPI;
     
     if (api) {
-      const saveResult = await api.saveImage(targetFolder || '', base64Data, fileName);
+      // 💡 [Desktop] targetFolder prop 대신 secureStorage에서 항상 최신 resourceFolder를 읽어 사용
+      const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
+      const effectiveTargetFolder = freshResourceFolder
+        ? freshResourceFolder + '\\media'
+        : (targetFolder || '');
+      const saveResult = await api.saveImage(effectiveTargetFolder, base64Data, fileName);
       if (saveResult && saveResult.success) {
-        finalPath = saveResult.isRelative ? `/assets/${fileName}` : `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+        if (saveResult.mediaPath) {
+          // main.js가 명시적으로 mediaPath를 반환한 경우 (가장 정확)
+          finalPath = saveResult.mediaPath;
+        } else if (saveResult.absolutePath) {
+          // absolutePath만 있는 경우 media:// 프로토콜로 렌더링
+          finalPath = `media://local/serve?url=${encodeURIComponent(saveResult.absolutePath)}`;
+        }
       }
     } else if (workspaceType === 'browser' || workspaceType === 'local') {
       try {
-        const assetsDir = 'assets';
-        if (rootFolder?.handle) {
+        if (resourceFolderHandle) {
+          const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
+          const fileHandle = await mediaDir.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(imageFile);
+          await writable.close();
+          finalPath = `/media/${fileName}`;
+        } else if (rootFolder?.handle) {
+          const assetsDir = 'assets';
           const assetsHandle = await rootFolder.handle.getDirectoryHandle(assetsDir, { create: true });
           const fileHandle = await assetsHandle.getFileHandle(fileName, { create: true });
           const writable = await fileHandle.createWritable();
@@ -97,6 +120,7 @@ export default function ImageModal({
           await writable.close();
           finalPath = `/${assetsDir}/${fileName}`;
         } else {
+          const assetsDir = 'assets';
           const { vfsWriteFile } = await import('@/lib/virtualFileSystem');
           const imgPath = `${assetsDir}/${fileName}`;
           vfsWriteFile(imgPath, base64Data);
@@ -161,7 +185,21 @@ export default function ImageModal({
         if (showToast) showToast('이미지 데이터를 읽을 수 없습니다.', 'error');
         return;
       }
-      const fileName = `image_${Date.now()}.png`;
+      let fileName = `image_${Date.now()}.png`;
+      try {
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+        fileName = `img_${hashHex}.png`;
+      } catch (e) {
+        console.warn('해시 생성 실패, 기본 시간 기반 이름 사용', e);
+      }
       await handleLocalImageSave(base64Data, fileName, imageFile!);
     };
     reader.onerror = () => {
@@ -263,14 +301,29 @@ export default function ImageModal({
 
     let absolutePath = cleanImagePath;
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(cleanImagePath);
-      const isAbsoluteUnix = cleanImagePath.startsWith('/');
-      const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
+      if (cleanImagePath.startsWith('/media/')) {
+        const freshRF = loadSecureData<string>('resourceFolder') || resourceFolder;
+        if (freshRF) {
+          const sep = freshRF.includes('\\') ? '\\' : '/';
+          const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
+          const normalizedSrc = sep === '\\' ? cleanImagePath.replace(/\//g, '\\') : cleanImagePath;
+          absolutePath = cleanRoot + normalizedSrc;
+        } else if (targetFolder) {
+          const sep = targetFolder.includes('\\') ? '\\' : '/';
+          const cleanRoot = targetFolder.endsWith(sep) ? targetFolder.slice(0, -1) : targetFolder;
+          const normalizedSrc = sep === '\\' ? cleanImagePath.replace(/\//g, '\\') : cleanImagePath;
+          absolutePath = cleanRoot + normalizedSrc;
+        }
+      } else {
+        const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(cleanImagePath);
+        const isAbsoluteUnix = cleanImagePath.startsWith('/');
+        const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
 
-      if (!isAbsolute && targetFolder) {
-        const sep = targetFolder.includes('/') ? '/' : '\\';
-        const folder = targetFolder.endsWith(sep) ? targetFolder : targetFolder + sep;
-        absolutePath = folder + cleanImagePath;
+        if (!isAbsolute && targetFolder) {
+          const sep = targetFolder.includes('/') ? '/' : '\\';
+          const folder = targetFolder.endsWith(sep) ? targetFolder : targetFolder + sep;
+          absolutePath = folder + cleanImagePath;
+        }
       }
       return `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
     }
@@ -280,7 +333,7 @@ export default function ImageModal({
     }
 
     return cleanImagePath;
-  }, [cleanImagePath, targetFolder, localBlobUrl, workspaceType]);
+  }, [cleanImagePath, targetFolder, localBlobUrl, workspaceType, resourceFolder]);
 
   const handleInsert = () => {
     const insertPath = appliedPath || cleanImagePath;
@@ -311,7 +364,7 @@ export default function ImageModal({
       reader.onload = async () => {
         const result = reader.result as string;
         const base64Data = result.split(',')[1];
-        const fileName = `image_${Date.now()}.png`;
+        const fileName = file.name ? file.name.replace(/\s+/g, '_') : `image_${Date.now()}.png`;
         await handleLocalImageSave(base64Data, fileName, file);
         setImageAlt("이미지 설명");
       };
@@ -561,7 +614,7 @@ export default function ImageModal({
                       <div>
                         <div className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Status</div>
                         <div className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                          {appliedPath ? 'R2 UPLOADED' : 'LOCAL'}
+                          {appliedPath ? 'SAVED' : 'LOCAL'}
                         </div>
                       </div>
                       {(imageWidth || imageHeight) && (

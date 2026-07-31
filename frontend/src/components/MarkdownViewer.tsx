@@ -21,6 +21,8 @@ import SocialVideoCard from '@/components/SocialVideoCard';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { rehypePreserveFootnotes } from '@/lib/rehypePreserveFootnotes';
 import { useToast } from '@/components/ToastProvider';
+import { extractFrontmatter } from '@/lib/frontmatter';
+import { loadSecureData } from '@/lib/secureStorage';
 
 
 const getTextFromChildren = (children: React.ReactNode): string => {
@@ -56,6 +58,8 @@ interface MarkdownViewerProps {
   marginRight?: string;
   bibContent?: string;
   rootFolder?: any;
+  resourceFolderHandle?: any;
+  resourceFolder?: string;
   workspaceType?: string;
 }
 
@@ -63,22 +67,59 @@ interface MarkdownViewerProps {
 // 🖼️ [ONR-MD-006] AsyncImage 커스텀 컴포넌트
 // @description 웹 브라우저 환경에서 로컬 파일(OPFS/VFS)을 비동기적으로 읽어와 렌더링합니다.
 // ====================================================================
-const AsyncImage = ({ src, alt, absolutePath, rootFolder, workspaceType, api, queryString, style, className, ...props }: any) => {
+const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, style, className, ...props }: any) => {
   const [imgSrc, setImgSrc] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string>('');
   
   useEffect(() => {
     let objectUrl = '';
     const loadLocalImage = async () => {
+      console.log(`[AsyncImage] loadLocalImage START. src=${src}, absolutePath=${absolutePath}`);
       try {
         if (api) {
-          // Electron 환경
-          setImgSrc(src);
+          let targetAbsolutePath = absolutePath;
+          if (src.startsWith('media://local/serve')) {
+             try {
+               const parsedUrl = new URL(src);
+               const extracted = parsedUrl.searchParams.get('url');
+               if (extracted) targetAbsolutePath = extracted;
+             } catch (e) {
+               const m = src.match(/[?&]url=([^&]+)/);
+               if (m) targetAbsolutePath = decodeURIComponent(m[1]);
+             }
+          }
+
+          if (targetAbsolutePath && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:') && (!src.startsWith('media://') || src.startsWith('media://local/serve'))) {
+            try {
+              console.log(`[AsyncImage] Calling readImageAsBase64 for: ${targetAbsolutePath}`);
+              const base64Str = await api.readImageAsBase64(targetAbsolutePath);
+              console.log(`[AsyncImage] Base64 SUCCESS for: ${targetAbsolutePath}`);
+              setImgSrc(base64Str);
+            } catch (err: any) {
+              console.error(`[AsyncImage] Base64 ERROR for: ${targetAbsolutePath}`, err);
+              setErrorMsg(`Base64 실패: ${targetAbsolutePath} (${err.message})`);
+              setImgSrc(`media://local/serve?url=${encodeURIComponent(targetAbsolutePath)}`);
+            }
+          } else {
+            console.log(`[AsyncImage] Skipping Base64. targetAbsolutePath=${targetAbsolutePath}, src=${src}`);
+            setImgSrc(src);
+          }
         } else if ((workspaceType === 'browser' || workspaceType === 'local') && !src.startsWith('http') && !src.startsWith('data:')) {
-          // 브라우저 웹 로컬 환경: OPFS 또는 VFS 읽기 시도
+          const pureSrc = src.split('?')[0].split('#')[0];
+          
+          if (pureSrc.startsWith('/media/') && resourceFolderHandle) {
+             const fileName = pureSrc.replace('/media/', '');
+             const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
+             const fileHandle = await mediaDir.getFileHandle(fileName);
+             const file = await fileHandle.getFile();
+             objectUrl = URL.createObjectURL(file);
+             setImgSrc(objectUrl);
+             return;
+          }
+
           if (rootFolder?.handle) {
-            const pureSrc = src.split('?')[0].split('#')[0];
             let pathParts = pureSrc.split(/[/\\]/).filter(Boolean);
-            if (pathParts[0] === rootFolder.name) pathParts.shift(); // root명 중복 제거
+            if (pathParts[0] === rootFolder.name) pathParts.shift();
             
             let currentHandle = rootFolder.handle;
             for (let i = 0; i < pathParts.length - 1; i++) {
@@ -89,19 +130,17 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, workspaceType, api, qu
             objectUrl = URL.createObjectURL(file);
             setImgSrc(objectUrl);
           } else {
-            // VFS fallback
             const { vfsReadFile } = await import('@/lib/virtualFileSystem');
-            const pureSrc = src.split('?')[0].split('#')[0];
             const b64 = vfsReadFile(pureSrc);
             if (b64) setImgSrc(`data:image/png;base64,${b64}`);
             else throw new Error('VFS file not found');
           }
         } else {
-          // 일반적인 URL이거나 개발 서버 public/assets 경로
           setImgSrc(src);
         }
-      } catch (e) {
-        // 모든 로컬 읽기 실패 시, 최종적으로 서버 /api/view 폴백 시도 (이전 안전망 유지)
+      } catch (e: any) {
+        console.error(`[AsyncImage] VFS ERROR:`, e);
+        setErrorMsg(`VFS 실패: ${absolutePath} (${e.message})`);
         const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
         setImgSrc(queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc);
       }
@@ -112,7 +151,19 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, workspaceType, api, qu
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [src, absolutePath, rootFolder, workspaceType, api, queryString]);
+  }, [src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString]);
+
+  console.log(`[AsyncImage] Render. errorMsg=${errorMsg}, imgSrc=${imgSrc ? imgSrc.substring(0, 30) + '...' : 'empty'}`);
+
+  if (errorMsg) {
+    return (
+      <div className="border border-red-500 bg-red-100 dark:bg-red-900/20 p-2 rounded text-xs text-red-600 dark:text-red-400 break-all my-2">
+        <strong>이미지 렌더링 에러:</strong><br/>
+        경로: {absolutePath}<br/>
+        에러: {errorMsg}
+      </div>
+    );
+  }
 
   if (!imgSrc) return <span className="inline-block animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-32" />;
 
@@ -127,6 +178,149 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, workspaceType, api, qu
   };
 
   return <img src={imgSrc} alt={alt} style={style} className={className} onError={onImgError} {...props} />;
+};
+
+const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, style, className, ...props }: any) => {
+  const [videoSrc, setVideoSrc] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string>('');
+  
+  useEffect(() => {
+    let objectUrl = '';
+    const loadLocalVideo = async () => {
+      try {
+        if (api) {
+          let targetAbsolutePath = absolutePath;
+          if (src.startsWith('media://local/serve') || src.startsWith('media-local://')) {
+             try {
+               if (src.startsWith('media-local://')) {
+                 targetAbsolutePath = decodeURIComponent(src.replace('media-local://', ''));
+                 if (targetAbsolutePath.startsWith('/')) targetAbsolutePath = targetAbsolutePath.substring(1);
+               } else {
+                 const parsedUrl = new URL(src);
+                 const extracted = parsedUrl.searchParams.get('url');
+                 if (extracted) targetAbsolutePath = extracted;
+               }
+             } catch (e) {
+               const m = src.match(/[?&]url=([^&]+)/);
+               if (m) targetAbsolutePath = decodeURIComponent(m[1]);
+             }
+          }
+          if (targetAbsolutePath && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:') && (!src.startsWith('media://') || src.startsWith('media://local/serve'))) {
+            // Electron의 registerFileProtocol을 타도록 media-local 스킴 사용
+            // 윈도우 경로 인코딩 문제를 피하기 위해 쿼리스트링(?url=) 방식 사용
+            setVideoSrc(`media-local://serve?url=${encodeURIComponent(targetAbsolutePath)}`);
+          } else {
+            setVideoSrc(src);
+          }
+        } else if ((workspaceType === 'browser' || workspaceType === 'local') && !src.startsWith('http') && !src.startsWith('data:')) {
+          const pureSrc = src.split('?')[0].split('#')[0];
+          
+          const createTypedBlobUrl = (file: File, filename: string) => {
+            const ext = filename.split('.').pop()?.toLowerCase();
+            const mimeMap: Record<string, string> = {
+              'mp4': 'video/mp4', 'webm': 'video/webm', 'ogg': 'video/ogg', 'mov': 'video/quicktime'
+            };
+            const type = mimeMap[ext || ''] || 'video/mp4';
+            return URL.createObjectURL(new Blob([file], { type }));
+          };
+
+          let webTargetSrc = pureSrc;
+          if (src.startsWith('media://local/serve') || src.startsWith('media-local://')) {
+             try {
+               let extractedPath = '';
+               if (src.startsWith('media-local://')) {
+                 extractedPath = decodeURIComponent(src.replace('media-local://', ''));
+                 if (extractedPath.startsWith('/')) extractedPath = extractedPath.substring(1);
+               } else {
+                 const parsedUrl = new URL(src);
+                 const extracted = parsedUrl.searchParams.get('url');
+                 if (extracted) extractedPath = extracted;
+               }
+               if (extractedPath) {
+                 // Convert absolute Windows path to root-relative path if it contains the root folder name
+                 if (rootFolder?.name && extractedPath.includes(rootFolder.name)) {
+                   const parts = extractedPath.replace(/\\/g, '/').split('/');
+                   const rootIdx = parts.indexOf(rootFolder.name);
+                   if (rootIdx !== -1) {
+                     webTargetSrc = '/' + parts.slice(rootIdx).join('/');
+                   } else {
+                     webTargetSrc = extractedPath;
+                   }
+                 } else {
+                   webTargetSrc = extractedPath;
+                 }
+               }
+             } catch (e) {
+               // ignore
+             }
+          }
+
+          if (webTargetSrc.startsWith('/media/') && resourceFolderHandle) {
+             const fileName = webTargetSrc.replace('/media/', '');
+             const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
+             const fileHandle = await mediaDir.getFileHandle(fileName);
+             const file = await fileHandle.getFile();
+             objectUrl = createTypedBlobUrl(file, fileName);
+             setVideoSrc(objectUrl);
+             return;
+          }
+          if (rootFolder?.handle) {
+            // Remove drive letters like D: before splitting
+            let cleanSrc = webTargetSrc.replace(/^[a-zA-Z]:[/\\]/, '');
+            let pathParts = cleanSrc.split(/[/\\]/).filter(Boolean);
+            if (pathParts[0] === rootFolder.name) pathParts.shift();
+            let currentHandle = rootFolder.handle;
+            
+            // Validate all path parts before traversing to avoid 'Name is not allowed' DOMException
+            const isValidName = (name: string) => !/[\\/:]/.test(name);
+            let valid = true;
+            for (let i = 0; i < pathParts.length - 1; i++) {
+              if (!isValidName(pathParts[i])) { valid = false; break; }
+              currentHandle = await currentHandle.getDirectoryHandle(pathParts[i]);
+            }
+            if (valid && pathParts.length > 0) {
+              const fileName = pathParts[pathParts.length - 1];
+              if (isValidName(fileName)) {
+                const fileHandle = await currentHandle.getFileHandle(fileName);
+                const file = await fileHandle.getFile();
+                objectUrl = createTypedBlobUrl(file, fileName);
+                setVideoSrc(objectUrl);
+                return;
+              }
+            }
+            setVideoSrc(src);
+          } else {
+            setVideoSrc(src);
+          }
+        } else {
+          setVideoSrc(src);
+        }
+      } catch (e: any) {
+        console.error(`[AsyncVideo] ERROR:`, e);
+        setErrorMsg(`비디오 로드 실패: ${absolutePath} (${e.message})`);
+        const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
+        setVideoSrc(queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc);
+      }
+    };
+    loadLocalVideo();
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString]);
+
+  if (errorMsg) {
+    return (
+      <div className="border border-red-500 bg-red-100 dark:bg-red-900/20 p-2 rounded text-xs text-red-600 dark:text-red-400 break-all my-2">
+        <strong>비디오 렌더링 에러:</strong><br/>
+        경로: {absolutePath}<br/>
+        에러: {errorMsg}
+      </div>
+    );
+  }
+  if (!videoSrc) return <div className="animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-48 flex items-center justify-center my-2 text-zinc-500 text-sm">비디오 불러오는 중...</div>;
+  return (
+    <video controls src={videoSrc} style={style} className={`rounded-lg shadow-sm border border-zinc-200/30 my-3 w-full max-w-full outline-none bg-black ${className || ''}`} preload="metadata" {...props} />
+  );
 };
 
 const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string | undefined): string => {
@@ -948,19 +1142,19 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
 // ====================================================================
 export default function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
-  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, workspaceType
+  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, resourceFolderHandle, resourceFolder, workspaceType
 }: MarkdownViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef(content);
   const originalContentRef = useRef(originalContent);
-  const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, workspaceType });
+  const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType });
 
   useEffect(() => {
     contentRef.current = content;
     originalContentRef.current = originalContent;
-    dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, workspaceType };
-  }, [content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, workspaceType]);
+    dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType };
+  }, [content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType]);
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0003] MarkdownViewer ➔ cleanContent
@@ -974,7 +1168,9 @@ export default function MarkdownViewer({
   const cleanContent = useMemo(() => {
     if (!content) return "";
     
-    let processed = content;
+    // 🛡️ [Frontmatter 메타데이터 숨김] 뷰어에 메타데이터(예: css_profile)가 노출되지 않도록 전처리
+    const { content: strippedContent } = extractFrontmatter(content);
+    let processed = strippedContent;
     
     // 🛡️ [목록 번호 변환 방어]
     // 1) 웹 모드 처럼 숫자에 괄호 닫기 패턴(예: 1) )을 라인 시작 지점에 작성했을 때,
@@ -1285,6 +1481,115 @@ export default function MarkdownViewer({
           ]}
           remarkRehypeOptions={{ handlers: extendedTableHandlers }}
           components={useMemo(() => ({
+            source: ({ node, src, ...props }: any) => {
+              if (!src) return <source {...props} />;
+              
+              let actualSrc = src;
+              try { if (actualSrc) actualSrc = decodeURI(actualSrc); } catch(e){}
+              
+              let absolutePath = actualSrc;
+              const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+
+              if (actualSrc && actualSrc.startsWith('/media/')) {
+                const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
+                if (freshRF) {
+                  const sep = freshRF.includes('\\') ? '\\' : '/';
+                  const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
+                  const normalizedSrc = sep === '\\' ? actualSrc.replace(/\//g, '\\') : actualSrc;
+                  absolutePath = cleanRoot + normalizedSrc;
+                } else {
+                   let baseDir = '';
+                   if (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
+                     baseDir = dynamicPropsRef.current.rootFolderPath;
+                     const sep = baseDir.includes('\\') ? '\\' : '/';
+                     if (baseDir.endsWith(sep)) baseDir = baseDir.slice(0, -1);
+                   } else if (dynamicPropsRef.current.currentFilePath) {
+                     baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
+                   }
+                   if (baseDir) {
+                     const fileName = actualSrc.replace('/media/', '');
+                     absolutePath = baseDir + '\\media\\' + fileName;
+                   }
+                }
+              }
+              
+              let finalSrc = actualSrc;
+              if (api) {
+                const isHttp = actualSrc.startsWith('http://') || actualSrc.startsWith('https://');
+                if (isHttp) {
+                  finalSrc = `media://?url=${encodeURIComponent(actualSrc)}`;
+                } else if (absolutePath && absolutePath !== actualSrc) {
+                  finalSrc = `media-local://serve?url=${encodeURIComponent(absolutePath)}`;
+                } else {
+                  finalSrc = absolutePath;
+                }
+              }
+
+              return <source src={finalSrc} {...props} />;
+            },
+            video: ({ node, src, children, ...props }: any) => {
+              let actualSrc = src;
+              if (!actualSrc && children) {
+                // Try to find source child
+                React.Children.forEach(children, (child: any) => {
+                  if (child && child.type === 'source' && child.props && child.props.src) {
+                    actualSrc = child.props.src;
+                  }
+                });
+              }
+
+              if (!actualSrc) return <video {...props}>{children}</video>;
+              try { if (actualSrc) actualSrc = decodeURI(actualSrc); } catch(e){}
+              
+              let videoSrc = actualSrc;
+              let absolutePath = actualSrc;
+              const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+
+              if (actualSrc && actualSrc.startsWith('/media/')) {
+                const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
+                if (freshRF) {
+                  const sep = freshRF.includes('\\') ? '\\' : '/';
+                  const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
+                  const normalizedSrc = sep === '\\' ? actualSrc.replace(/\//g, '\\') : actualSrc;
+                  absolutePath = cleanRoot + normalizedSrc;
+                } else {
+                   let baseDir = '';
+                   if (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
+                     baseDir = dynamicPropsRef.current.rootFolderPath;
+                     const sep = baseDir.includes('\\') ? '\\' : '/';
+                     if (baseDir.endsWith(sep)) baseDir = baseDir.slice(0, -1);
+                   } else if (dynamicPropsRef.current.currentFilePath) {
+                     baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
+                   }
+                   if (baseDir) {
+                     const fileName = actualSrc.replace('/media/', '');
+                     absolutePath = baseDir + '\\media\\' + fileName;
+                   }
+                }
+              }
+              
+              let finalSrc = api ? absolutePath : actualSrc;
+              
+              // 외부 비디오 URL도 media:// 프록시 우회 적용
+              const isHttp = actualSrc.startsWith('http://') || actualSrc.startsWith('https://');
+              if (isHttp && api) {
+                finalSrc = `media://?url=${encodeURIComponent(actualSrc)}`;
+              }
+
+              return (
+                <figure style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '1.5rem', marginBottom: '1.5rem', clear: 'both', alignItems: 'center' }}>
+                  <AsyncVideo
+                    src={finalSrc}
+                    absolutePath={absolutePath}
+                    rootFolder={dynamicPropsRef.current.rootFolder}
+                    resourceFolderHandle={dynamicPropsRef.current.resourceFolderHandle}
+                    workspaceType={dynamicPropsRef.current.workspaceType}
+                    api={api}
+                    {...props}
+                  />
+                </figure>
+              );
+            },
             img: ({ node, src, alt, style, ...props }: any) => {
               if (!src) return <img alt={alt} {...props} />;
               
@@ -1298,6 +1603,7 @@ export default function MarkdownViewer({
                 pureSrc = src.substring(0, qIndex);
                 queryString = src.substring(qIndex);
               }
+              try { if (pureSrc) pureSrc = decodeURI(pureSrc); } catch(e){}
 
               let finalSrc = pureSrc;
               let absolutePath = pureSrc;
@@ -1353,14 +1659,43 @@ export default function MarkdownViewer({
                   dynamicPropsRef.current.currentFilePath === 'Welcome.md'
                 );
 
-                const isWelcomeAsset = pureSrc === './hero.png' || pureSrc === 'hero.png' || isWelcomePage;
+                // hero.png만 웰컴 에셋으로 취급하거나, 순수하게 Welcome.md가 렌더링 중일 때만
+                const isWelcomeAsset = (pureSrc === './hero.png' || pureSrc === 'hero.png') && isWelcomePage;
 
-                if (isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
+                if (pureSrc.startsWith('/media/') && api) {
+                  // 💡 [핵심] 데스크탑: secureStorage에서 항상 최신 resourceFolder를 직접 읽어 경로 조합
+                  const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
+                  if (freshRF) {
+                    const sep = freshRF.includes('\\') ? '\\' : '/';
+                    const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
+                    const normalizedSrc = sep === '\\' ? pureSrc.replace(/\//g, '\\') : pureSrc;
+                    absolutePath = cleanRoot + normalizedSrc;
+                  } else {
+                    // resourceFolder 없음: 워크스페이스 루트를 최우선으로 하고, 없으면 현재 파일 경로 기준
+                    let baseDir = '';
+                    if (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
+                      baseDir = dynamicPropsRef.current.rootFolderPath;
+                      const sep = baseDir.includes('\\') ? '\\' : '/';
+                      if (baseDir.endsWith(sep)) baseDir = baseDir.slice(0, -1);
+                    } else if (dynamicPropsRef.current.currentFilePath) {
+                      baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
+                    }
+
+                    if (baseDir) {
+                      const fileName = pureSrc.replace('/media/', '');
+                      absolutePath = baseDir + '\\media\\' + fileName;
+                    }
+                  }
+                } else if (isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
                   // 워크스페이스 루트 상대 경로 처리 (예: /assets/img.png -> 워크스페이스경로/assets/img.png)
                   const sep = dynamicPropsRef.current.rootFolderPath.includes('\\') ? '\\' : '/';
                   const cleanRoot = dynamicPropsRef.current.rootFolderPath.endsWith(sep) ? dynamicPropsRef.current.rootFolderPath.slice(0, -1) : dynamicPropsRef.current.rootFolderPath;
                   const normalizedSrc = sep === '\\' ? pureSrc.replace(/\//g, '\\') : pureSrc;
                   absolutePath = cleanRoot + normalizedSrc;
+                } else if (isRootRelative && (!dynamicPropsRef.current.rootFolderPath || dynamicPropsRef.current.rootFolderPath === BROWSER_STORAGE_NAME) && dynamicPropsRef.current.currentFilePath && !isWelcomeAsset) {
+                  // 폴더 연동 없이 단일 파일만 연 상태에서 /assets/ 등 루트 상대 경로가 사용된 경우, 현재 파일 기준으로 풀이
+                  const srcWithoutSlash = pureSrc.startsWith('/') ? pureSrc.substring(1) : pureSrc;
+                  absolutePath = resolveRelativeImagePath(srcWithoutSlash, dynamicPropsRef.current.currentFilePath);
                 } else if (!isAbsoluteWin && !isRootRelative && dynamicPropsRef.current.currentFilePath && !isWelcomeAsset) {
                   absolutePath = resolveRelativeImagePath(pureSrc, dynamicPropsRef.current.currentFilePath);
                 } else if (!isAbsoluteWin && !isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
@@ -1372,7 +1707,8 @@ export default function MarkdownViewer({
                 }
                 
                 if (api) {
-                  finalSrc = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
+                  // Desktop API calls handle the absolutePath directly, so we just use it.
+                  finalSrc = absolutePath;
                 } else {
                   // 웹 환경에서는 브라우저 로컬(상대/절대) 경로를 가장 먼저 시도합니다.
                   finalSrc = pureSrc;
@@ -1384,6 +1720,16 @@ export default function MarkdownViewer({
                   } else {
                     finalSrc += queryString;
                   }
+                }
+              }
+
+              // 💡 [외부 HTTP 이미지 프록시 라우팅]
+              // 데스크탑 환경에서 외부 이미지가 403 Forbidden 등으로 로드 실패하는 것을 방지하기 위해 
+              // 메인 프로세스의 media:// 프록시로 넘깁니다.
+              if (isHttp && typeof window !== 'undefined') {
+                const api = (window as any).electronAPI;
+                if (api) {
+                  finalSrc = `media://?url=${encodeURIComponent(finalSrc)}`;
                 }
               }
 
@@ -1438,6 +1784,7 @@ export default function MarkdownViewer({
                   alt={alt} 
                   absolutePath={absolutePath} 
                   rootFolder={dynamicPropsRef.current.rootFolder} 
+                  resourceFolderHandle={dynamicPropsRef.current.resourceFolderHandle}
                   workspaceType={dynamicPropsRef.current.workspaceType} 
                   api={typeof window !== 'undefined' ? (window as any).electronAPI : null} 
                   queryString={queryString} 
@@ -1569,31 +1916,103 @@ export default function MarkdownViewer({
 
               const isVideo = apiHref && /\.(mp4|webm|ogg|mov|avi|mkv)(\?|#|$)/i.test(apiHref);
               if (isVideo) {
-                let videoSrc = apiHref.startsWith('http://') || apiHref.startsWith('https://') || apiHref.startsWith('media://')
-                  ? apiHref
-                  : resolveRelativeImagePath(apiHref, dynamicPropsRef.current.currentFilePath);
-                  
-                // 데스크탑 및 로컬 Dev 환경에서 R2 경로(/api/image/users/...) 처리
-                if (videoSrc.startsWith('/api/image/')) {
-                  const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+                // 쿼리 스트링 분리
+                let rawApiHref = apiHref;
+                try { if (rawApiHref) rawApiHref = decodeURI(rawApiHref); } catch(e){}
+                let pureSrc = rawApiHref;
+                let queryString = '';
+                const qIndex = apiHref.indexOf('?');
+                if (qIndex !== -1) {
+                  pureSrc = apiHref.substring(0, qIndex);
+                  queryString = apiHref.substring(qIndex);
+                }
+
+                let absolutePath = pureSrc;
+                const isAbsoluteWin = /^[a-zA-Z]:[\\/]/.test(pureSrc);
+                const isRootRelative = pureSrc.startsWith('/');
+                const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+
+                // [media 처리 논리] (AsyncImage와 동일)
+                const isMediaServe = pureSrc === 'media://local/serve';
+                let mediaFilePath = '';
+                if (isMediaServe && queryString) {
+                  const urlMatch = queryString.match(/[?&]url=([^&]+)/);
+                  if (urlMatch) mediaFilePath = decodeURIComponent(urlMatch[1]);
+                }
+
+                if (isMediaServe && mediaFilePath) {
+                  absolutePath = mediaFilePath;
+                  pureSrc = `media://local/serve?url=${encodeURIComponent(mediaFilePath)}`;
+                } else if (pureSrc.startsWith('/media/') && api) {
+                  const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
+                  if (freshRF) {
+                    const sep = freshRF.includes('\\') ? '\\' : '/';
+                    const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
+                    const normalizedSrc = sep === '\\' ? pureSrc.replace(/\//g, '\\') : pureSrc;
+                    absolutePath = cleanRoot + normalizedSrc;
+                  } else {
+                    let baseDir = '';
+                    if (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
+                      baseDir = dynamicPropsRef.current.rootFolderPath;
+                      const sep = baseDir.includes('\\') ? '\\' : '/';
+                      if (baseDir.endsWith(sep)) baseDir = baseDir.slice(0, -1);
+                    } else if (dynamicPropsRef.current.currentFilePath) {
+                      baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
+                    }
+                    if (baseDir) {
+                      const fileName = pureSrc.replace('/media/', '');
+                      absolutePath = baseDir + '\\media\\' + fileName;
+                    }
+                  }
+                } else if (isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
+                  const sep = dynamicPropsRef.current.rootFolderPath.includes('\\') ? '\\' : '/';
+                  const cleanRoot = dynamicPropsRef.current.rootFolderPath.endsWith(sep) ? dynamicPropsRef.current.rootFolderPath.slice(0, -1) : dynamicPropsRef.current.rootFolderPath;
+                  const normalizedSrc = sep === '\\' ? pureSrc.replace(/\//g, '\\') : pureSrc;
+                  absolutePath = cleanRoot + normalizedSrc;
+                } else if (isRootRelative && (!dynamicPropsRef.current.rootFolderPath || dynamicPropsRef.current.rootFolderPath === BROWSER_STORAGE_NAME) && dynamicPropsRef.current.currentFilePath) {
+                  const srcWithoutSlash = pureSrc.startsWith('/') ? pureSrc.substring(1) : pureSrc;
+                  absolutePath = resolveRelativeImagePath(srcWithoutSlash, dynamicPropsRef.current.currentFilePath);
+                } else if (!isAbsoluteWin && !isRootRelative && dynamicPropsRef.current.currentFilePath) {
+                  absolutePath = resolveRelativeImagePath(pureSrc, dynamicPropsRef.current.currentFilePath);
+                } else if (!isAbsoluteWin && !isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
+                  const sep = dynamicPropsRef.current.rootFolderPath.includes('/') ? '/' : '\\';
+                  const folder = dynamicPropsRef.current.rootFolderPath.endsWith(sep) ? dynamicPropsRef.current.rootFolderPath : dynamicPropsRef.current.rootFolderPath + sep;
+                  absolutePath = folder + pureSrc;
+                }
+
+                let finalSrc = api ? absolutePath : pureSrc;
+                if (pureSrc.startsWith('/api/image/')) {
                   if (api || process.env.NODE_ENV === 'development') {
-                    videoSrc = `https://onrivi.com${videoSrc}`;
+                    finalSrc = `https://onrivi.com${pureSrc}`;
+                  } else {
+                    finalSrc = pureSrc;
+                  }
+                  if (queryString) {
+                    finalSrc += finalSrc.includes('?') ? '&' + queryString.substring(1) : queryString;
                   }
                 }
-                
+
                 let finalDisplayName = displayName || apiHref.split('/').pop()?.split('?')[0] || '동영상';
-                // 만약 파일명(또는 링크 텍스트)이 단순히 UUID 형식이라면 친근한 이름으로 교체합니다.
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[a-zA-Z0-9]+)?$/i;
                 if (uuidRegex.test(finalDisplayName)) {
                   finalDisplayName = '로컬 첨부 동영상';
                 }
 
                 return (
-                  <VideoCard
-                    src={videoSrc}
-                    href={apiHref}
-                    displayName={finalDisplayName}
-                  />
+                  <figure style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '1.5rem', marginBottom: '1.5rem', clear: 'both', alignItems: 'center' }}>
+                    <AsyncVideo
+                      src={finalSrc}
+                      absolutePath={absolutePath}
+                      rootFolder={dynamicPropsRef.current.rootFolder}
+                      resourceFolderHandle={dynamicPropsRef.current.resourceFolderHandle}
+                      workspaceType={dynamicPropsRef.current.workspaceType}
+                      api={api}
+                      queryString={queryString}
+                    />
+                    <figcaption className="text-[0.9em] text-zinc-500 mt-2 font-medium">
+                      {finalDisplayName}
+                    </figcaption>
+                  </figure>
                 );
               }
               return <a href={apiHref} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;

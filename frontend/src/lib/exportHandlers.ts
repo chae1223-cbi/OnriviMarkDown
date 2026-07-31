@@ -66,11 +66,14 @@ function generateExportCss(profile: any): string {
 
   Object.entries(profile.rules || {}).forEach(([tag, ruleObj]: [string, any]) => {
     const skipFontSize = ['h2','h3','h4','h5','h6'].includes(tag);
-    const entries = Object.entries(ruleObj).filter(([prop, v]) => {
+    const entries = Object.entries(ruleObj).map(([prop, v]) => {
+      if (prop === 'word-break' && v === 'keep-all') return [prop, 'break-all'];
+      return [prop, v];
+    }).filter(([prop, v]) => {
       if (v === '') return false;
       if (skipFontSize && prop === 'font-size') return false;
       return true;
-    });
+    }).sort((a, b) => (a[0] as string).localeCompare(b[0] as string));
     if (entries.length === 0) return;
     
     if (tag === 'codeBlockTitle') {
@@ -111,16 +114,86 @@ function generateExportCss(profile: any): string {
       return;
     }
 
+    if (tag === 'math') {
+      const layoutProps = ['text-align', 'margin-top', 'margin-bottom'];
+      
+      // 1. 블록 레이아웃(디스플레이 수식) 속성
+      css += `.custom-preview-container .katex-display {\n`;
+      entries.forEach(([prop, val]) => {
+        if (layoutProps.includes(prop as string)) {
+          css += `  ${prop}: ${val} !important;\n`;
+        }
+      });
+      css += `}\n`;
+      
+      // 1-1. 수식이 <p>로 감싸져 있는 경우 <p>의 마진을 강제 소거
+      css += `.custom-preview-container p:has(> .katex-display) {\n`;
+      css += `  margin: 0 !important;\n`;
+      css += `}\n`;
+
+      // 1-2. 내부 .katex 요소 정렬 방식 강제 주입
+      if (entries.some(([prop]) => prop === 'text-align')) {
+        const alignVal = entries.find(([prop]) => prop === 'text-align')![1];
+        css += `.custom-preview-container .katex-display {\n`;
+        css += `  display: flex !important;\n`;
+        if (alignVal === 'center') {
+          css += `  justify-content: center !important;\n`;
+        } else if (alignVal === 'right') {
+          css += `  justify-content: flex-end !important;\n`;
+        } else {
+          css += `  justify-content: flex-start !important;\n`;
+        }
+        css += `}\n`;
+        css += `.custom-preview-container .katex-display > .katex {\n`;
+        css += `  text-align: ${alignVal} !important;\n`;
+        css += `}\n`;
+      }
+      
+      // 2. 인라인 및 텍스트 속성
+      css += `.custom-preview-container .katex-display .katex, .custom-preview-container :not(.katex-display) > .katex {\n`;
+      entries.forEach(([prop, val]) => {
+        if (!layoutProps.includes(prop as string)) {
+          css += `  ${prop}: ${val} !important;\n`;
+        }
+      });
+      css += `}\n`;
+      return;
+    }
+
+    if (tag === 'footnote') {
+      const color = ruleObj['color'];
+      const fontSize = ruleObj['font-size'];
+      const lineHeight = ruleObj['line-height'];
+      const marginTop = ruleObj['margin-top'];
+      const fontWeight = ruleObj['font-weight'];
+
+      if (marginTop) {
+        css += `.custom-preview-container .footnotes {\n  margin-top: ${marginTop} !important;\n}\n`;
+      }
+      if (color) {
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  color: ${color} !important;\n}\n`;
+      }
+      if (fontSize) {
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
+      }
+      if (lineHeight) {
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
+      }
+      if (fontWeight) {
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-weight: ${fontWeight} !important;\n}\n`;
+      }
+      return;
+    }
+
     const selector = tag === 'taskList' ? '.task-list-item' :
       tag === 'code' ? ':not(pre) > code' :
       tag === 'map' ? 'iframe[src*="map"]' :
-      tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' :
-      tag === 'math' ? '.katex-display, .katex' : tag;
+      tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' : tag;
     const isMediaTag = tag === 'img' || tag === 'video' || tag === 'map';
     const sizeProps = ['width', 'height', 'max-width', 'max-height'];
     css += `.custom-preview-container .markdown-viewer-root ${selector},\n.custom-preview-container ${selector} {\n`;
     entries.forEach(([prop, val]) => {
-      const skipImportant = isMediaTag && sizeProps.includes(prop);
+      const skipImportant = isMediaTag && sizeProps.includes(prop as string);
       css += `  ${prop}: ${val}${skipImportant ? '' : ' !important'};\n`;
     });
     css += `}\n`;

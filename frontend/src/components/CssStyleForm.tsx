@@ -343,7 +343,7 @@ ${guideContent}
       const genAI = new GoogleGenerativeAI((geminiApiKey || '').trim());
       const model = genAI.getGenerativeModel({
         model: aiModelName || 'gemini-1.5-pro',
-        systemInstruction: '당신은 CSS 서식 JSON 생성 전문가입니다. 오직 순수한 JSON 객체만 출력하십시오. 마크다운 코드 블록 기호, 설명 문구, 부연 텍스트는 절대 포함하지 마십시오.',
+        systemInstruction: '당신은 CSS 서식 JSON 생성 전문가입니다. 오직 순수한 JSON 객체만 출력하십시오. 마크다운 코드 블록 기호, 설명 문구, 부연 텍스트는 절대 포함하지 마십시오. 가이드에 정의된 모든 태그와 CSS 속성을 단 하나도 빠짐없이 완벽하게 채워서 JSON 결과물로 출력해야 합니다.',
       });
       const result = await model.generateContent(promptText);
       const responseText = result.response.text();
@@ -546,7 +546,9 @@ ${guideContent}
   /* ─── CssRuleSet 조작 헬퍼 ─── */
   const getTagRules = (tag: string): CssRuleSet => {
     const tagKey = tag as keyof CssProfile['rules'];
-    return currentProfile.rules[tagKey] || {};
+    const currentRules = currentProfile?.rules?.[tagKey] || {};
+    const defaultRules = DEFAULT_PROFILE?.rules?.[tagKey] || {};
+    return { ...defaultRules, ...currentRules };
   };
 
   const getMediaAlign = (tag: string): string => {
@@ -566,7 +568,7 @@ ${guideContent}
   const updateMediaAlign = (tag: string, align: string) => {
     if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
-    const baseRule = getTagRules(tag);
+    const baseRule = currentProfile.rules[tagKey] || {};
     let newRules: CssRuleSet = { ...baseRule, 'display': 'block', 'float': 'none' };
 
     if (align === 'left') {
@@ -601,11 +603,12 @@ ${guideContent}
   const updateCssRule = (tag: string, property: string, value: string) => {
     if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
+    const currentTagRules = currentProfile.rules[tagKey] || {};
     const updated = {
       ...currentProfile,
       rules: {
         ...currentProfile.rules,
-        [tagKey]: { ...getTagRules(tag), [property]: value },
+        [tagKey]: { ...currentTagRules, [property]: value },
       },
     };
     triggerUpdate(updated);
@@ -621,8 +624,8 @@ ${guideContent}
   const removeCssRule = (tag: string, property: string) => {
     if (isSystemProfile) return;
     const tagKey = tag as keyof CssProfile['rules'];
-    const current = getTagRules(tag);
-    const { [property]: _, ...rest } = current;
+    const currentTagRules = currentProfile.rules[tagKey] || {};
+    const { [property]: _, ...rest } = currentTagRules as any;
     const updated = {
       ...currentProfile,
       rules: { ...currentProfile.rules, [tagKey]: rest },
@@ -777,10 +780,11 @@ ${guideContent}
     lineWidth: '100%'
   };
 
-  const checkboxStructure = currentProfile.checkboxStructure || {
-    boxSize: '16px',
-    checkedEffect: 'none',
-    textGap: '10px'
+  const checkboxStructure = {
+    checkedEffect: currentProfile.checkboxStructure?.checkedEffect || DEFAULT_PROFILE.checkboxStructure?.checkedEffect || 'none',
+    boxSize: currentProfile.checkboxStructure?.boxSize || DEFAULT_PROFILE.checkboxStructure?.boxSize || '16px',
+    textGap: currentProfile.checkboxStructure?.textGap || DEFAULT_PROFILE.checkboxStructure?.textGap || '10px',
+    color: currentProfile.checkboxStructure?.color || DEFAULT_PROFILE.checkboxStructure?.color || '#333333'
   };
 
   // ====================================================================
@@ -1490,6 +1494,28 @@ ${guideContent}
                   ))}
                 </div>
               </div>
+
+              {/* H1 불필요한 장식 제거 */}
+              {(h1Rules['border-left'] || h1Rules['background-color'] || h1Rules['border'] || h1Rules['border-right'] || h1Rules['border-top']) && (
+                <div className="bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg shadow-sm border border-red-100 dark:border-red-900/30 flex flex-col sm:flex-row items-center justify-between gap-2 mt-2">
+                  <span className="text-xs font-semibold text-red-600 dark:text-red-400 text-center sm:text-left">비표준 장식(배경/왼쪽 테두리 등)이 감지되었습니다.</span>
+                  <button type="button" disabled={isSystemProfile}
+                    onClick={() => {
+                      const newRule = { ...(currentProfile.rules['h1'] || {}) };
+                      delete newRule['border-left'];
+                      delete newRule['border-right'];
+                      delete newRule['border-top'];
+                      delete newRule['border'];
+                      delete newRule['background-color'];
+                      delete newRule['padding'];
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, h1: newRule }});
+                    }}
+                    className="px-3 py-1.5 rounded text-xs font-bold bg-white dark:bg-zinc-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors whitespace-nowrap"
+                  >
+                    장식 모두 제거
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* H2~H6 세부 설정 구역 */}
@@ -1585,6 +1611,28 @@ ${guideContent}
                       disabled={isSystemProfile}
                       onChange={(v) => updateCssRule(tag, 'color', v)}
                     />
+
+                    {/* Hn 불필요한 장식 제거 */}
+                    {(tagRules['border-left'] || tagRules['background-color'] || tagRules['border'] || tagRules['border-right'] || tagRules['border-top']) && (
+                      <div className="bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg shadow-sm border border-red-100 dark:border-red-900/30 flex flex-col sm:flex-row items-center justify-between gap-2 mt-2">
+                        <span className="text-xs font-semibold text-red-600 dark:text-red-400 text-center sm:text-left">비표준 장식(배경/왼쪽 테두리 등)이 감지되었습니다.</span>
+                        <button type="button" disabled={isSystemProfile}
+                          onClick={() => {
+                            const newRule = { ...(currentProfile.rules[tag as keyof typeof currentProfile.rules] || {}) };
+                            delete newRule['border-left'];
+                            delete newRule['border-right'];
+                            delete newRule['border-top'];
+                            delete newRule['border'];
+                            delete newRule['background-color'];
+                            delete newRule['padding'];
+                            onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, [tag]: newRule }});
+                          }}
+                          className="px-3 py-1.5 rounded text-xs font-bold bg-white dark:bg-zinc-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors whitespace-nowrap"
+                        >
+                          장식 모두 제거
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -1914,6 +1962,82 @@ ${guideContent}
           {/* 인용구 (Blockquote) 설정 */}
           <div className="space-y-3.5">
             <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💬 인용구 (Blockquote) 스타일</span>
+            
+            {/* 인용구 형태 프리셋 버튼 */}
+            {(() => {
+              // 버튼 활성화 상태(선택 표시)는 DEFAULT_PROFILE과 병합된 getTagRules 대신 
+              // 현재 프로필에 실제로 저장된 raw 객체를 기준으로 판단해야 삭제된 속성이 되살아나지 않습니다.
+              const rawBq = currentProfile.rules.blockquote || {};
+              const hasBorderLeft = !!rawBq['border-left'] && rawBq['border-left'] !== 'none';
+              const hasBorder = !!rawBq['border'] && rawBq['border'] !== 'none';
+              const hasBoxShadow = !!rawBq['box-shadow'] && rawBq['box-shadow'] !== 'none';
+
+              const isLeftLine = hasBorderLeft && !hasBorder && !hasBoxShadow;
+              const isFullBox = hasBorder && !hasBorderLeft && !hasBoxShadow;
+              const isShadowBox = hasBoxShadow && !hasBorder && !hasBorderLeft;
+              
+              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
+              const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
+
+              return (
+                <div className="flex gap-2 mb-4">
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newBq = { ...(currentProfile.rules.blockquote || {}) };
+                      newBq['border-left'] = (newBq['border-left'] && newBq['border-left'] !== 'none') ? newBq['border-left'] : '4px solid #2563eb';
+                      delete newBq['border'];
+                      delete newBq['border-width'];
+                      delete newBq['border-color'];
+                      newBq['box-shadow'] = 'none';
+                      newBq['border-radius'] = '0 8px 8px 0';
+                      newBq['padding'] = '14px 20px';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isLeftLine ? activeClass : inactiveClass}`}
+                  >
+                    왼쪽 띠형
+                  </button>
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newBq = { ...(currentProfile.rules.blockquote || {}) };
+                      delete newBq['border-left'];
+                      delete newBq['border-left-width'];
+                      delete newBq['border-left-color'];
+                      newBq['border'] = (newBq['border'] && newBq['border'] !== 'none') ? newBq['border'] : '1px solid #cbd5e1';
+                      newBq['box-shadow'] = 'none';
+                      newBq['border-radius'] = '8px';
+                      newBq['padding'] = '16px';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isFullBox ? activeClass : inactiveClass}`}
+                  >
+                    전체 박스형
+                  </button>
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newBq = { ...(currentProfile.rules.blockquote || {}) };
+                      delete newBq['border-left'];
+                      delete newBq['border-left-width'];
+                      delete newBq['border-left-color'];
+                      delete newBq['border'];
+                      delete newBq['border-width'];
+                      delete newBq['border-color'];
+                      // 그림자 효과 강화 (더 진하고 넓게)
+                      newBq['box-shadow'] = '0 8px 24px rgba(0,0,0,0.15)';
+                      newBq['border-radius'] = '8px';
+                      newBq['padding'] = '16px';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isShadowBox ? activeClass : inactiveClass}`}
+                  >
+                    그림자 박스형
+                  </button>
+                </div>
+              );
+            })()}
 
             {/* 인용구 배경 색상 (컬러 피커 연동) */}
             <ColorPickerWidget
@@ -1925,21 +2049,49 @@ ${guideContent}
 
             {/* 강조선 색상 (컬러 피커 연동) */}
             <ColorPickerWidget
-              label="왼쪽 강조선 테두리 색상"
-              value={(currentProfile.rules.blockquote || {})['border-left-color'] || ''}
+              label="테두리/왼쪽 선 색상"
+              value={(currentProfile.rules.blockquote || {})['border-left-color'] || (currentProfile.rules.blockquote || {})['border-color'] || ''}
               disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('blockquote', 'border-left-color', v)}
+              onChange={(v) => {
+                const bq = currentProfile.rules.blockquote || {};
+                if (bq['border'] && bq['border'] !== 'none') {
+                  updateCssRule('blockquote', 'border-color', v);
+                } else {
+                  updateCssRule('blockquote', 'border-left-color', v);
+                }
+              }}
             />
 
-            {/* 강조선 두께 슬라이더 */}
+            {/* 테두리 두께 슬라이더 */}
             <SliderWidget
-              label="왼쪽 강조선 두께"
+              label="테두리/선 두께"
               min={0}
               max={20}
-              value={getNumValue((currentProfile.rules.blockquote || {})['border-left-width'], 4)}
+              value={getNumValue((currentProfile.rules.blockquote || {})['border-width'] || (currentProfile.rules.blockquote || {})['border-left-width'], 4)}
               unit="px"
               disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('blockquote', 'border-left-width', v + 'px')}
+              onChange={(v) => {
+                const newBq = { ...(currentProfile.rules.blockquote || {}) };
+                if (newBq['border'] && newBq['border'] !== 'none') {
+                  newBq['border-width'] = v + 'px';
+                  delete newBq['border-left-width'];
+                } else {
+                  newBq['border-left-width'] = v + 'px';
+                  delete newBq['border-width'];
+                }
+                onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }});
+              }}
+            />
+
+            {/* 모서리 둥글기 슬라이더 */}
+            <SliderWidget
+              label="모서리 둥글기 (Border Radius)"
+              min={0}
+              max={40}
+              value={getNumValue((currentProfile.rules.blockquote || {})['border-radius'], 8)}
+              unit="px"
+              disabled={isSystemProfile}
+              onChange={(v) => updateCssRule('blockquote', 'border-radius', v + 'px')}
             />
 
             {/* 바깥 상하 여백 슬라이더 */}
@@ -1976,11 +2128,110 @@ ${guideContent}
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('blockquote', 'padding', v + 'px')}
             />
+
+            {/* 인용구 글자 굵기 설정 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">인용 글자 굵기</span>
+              <select
+                value={getTagRules('blockquote')['font-weight'] || 'normal'}
+                disabled={isSystemProfile}
+                onChange={(e) => updateCssRule('blockquote', 'font-weight', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="normal">보통</option>
+                <option value="bold">굵게</option>
+              </select>
+            </div>
           </div>
 
           {/* 표 (Table) 설정 */}
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
             <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">📊 표 (Table) 스타일</span>
+
+            {/* 표 형태 프리셋 버튼 */}
+            {(() => {
+              const t = currentProfile.rules.table || {};
+              const th = currentProfile.rules.th || {};
+              const isGrid = !!t['border'] && t['border'] !== 'none' && !t['border-top'];
+              const isHorizontal = t['border-left'] === 'none' && !!t['border-top'];
+              const isMinimal = t['border'] === 'none' && !t['border-top'];
+              
+              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
+              const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
+
+              return (
+                <div className="flex gap-2 mb-4">
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newT = { ...(currentProfile.rules.table || {}) };
+                      const newTh = { ...(currentProfile.rules.th || {}) };
+                      const newTd = { ...(currentProfile.rules.td || {}) };
+                      const color = newT['border-color'] || '#cbd5e1';
+                      // 모든 테두리
+                      newT['border'] = `1px solid ${color}`;
+                      newTh['border'] = `1px solid ${color}`;
+                      newTd['border'] = `1px solid ${color}`;
+                      // 기존 가로선 설정 제거
+                      delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
+                      delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
+                      delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isGrid ? activeClass : inactiveClass}`}
+                  >
+                    모든 테두리 (Grid)
+                  </button>
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newT = { ...(currentProfile.rules.table || {}) };
+                      const newTh = { ...(currentProfile.rules.th || {}) };
+                      const newTd = { ...(currentProfile.rules.td || {}) };
+                      const color = newT['border-color'] || '#cbd5e1';
+                      // 가로선 강조
+                      newT['border-top'] = `2px solid ${color}`;
+                      newT['border-bottom'] = `2px solid ${color}`;
+                      newT['border-left'] = 'none';
+                      newT['border-right'] = 'none';
+                      newTh['border-bottom'] = `1px solid ${color}`;
+                      newTh['border-left'] = 'none';
+                      newTh['border-right'] = 'none';
+                      newTd['border-bottom'] = `1px solid ${color}`;
+                      newTd['border-left'] = 'none';
+                      newTd['border-right'] = 'none';
+                      // 기존 전체 테두리 제거
+                      delete newT['border']; delete newTh['border']; delete newTd['border'];
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isHorizontal ? activeClass : inactiveClass}`}
+                  >
+                    가로선 강조
+                  </button>
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newT = { ...(currentProfile.rules.table || {}) };
+                      const newTh = { ...(currentProfile.rules.th || {}) };
+                      const newTd = { ...(currentProfile.rules.td || {}) };
+                      // 미니멀 (테두리 없음)
+                      newT['border'] = 'none';
+                      newTh['border'] = 'none';
+                      newTd['border'] = 'none';
+                      newTh['background-color'] = '#f8fafc';
+                      // 기존 테두리 설정 모두 제거
+                      delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
+                      delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
+                      delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isMinimal ? activeClass : inactiveClass}`}
+                  >
+                    미니멀
+                  </button>
+                </div>
+              );
+            })()}
 
             {/* 표 전체 너비 */}
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
@@ -2120,6 +2371,76 @@ ${guideContent}
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 space-y-3.5">
             <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">💻 소스코드 및 코드 블록</span>
 
+            {/* 코드 블록 형태 프리셋 버튼 */}
+            {(() => {
+              const cb = getTagRules('codeBlock');
+              const isBasic = cb['background-color'] === '#f1f5f9';
+              const isMac = cb['background-color'] === '#282c34';
+              const isDark = cb['background-color'] === '#0f172a';
+              
+              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
+              const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
+
+              return (
+                <div className="flex gap-2 mb-4">
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newCb = { ...(currentProfile.rules.codeBlock || {}) };
+                      const newCbt = { ...(currentProfile.rules.codeBlockTitle || {}) };
+                      newCb['background-color'] = '#f1f5f9';
+                      newCb['color'] = '#1e293b';
+                      newCb['border-radius'] = '6px';
+                      newCbt['background-color'] = '#e2e8f0';
+                      newCbt['color'] = '#475569';
+                      newCbt['padding'] = '8px 12px';
+                      newCbt['border-radius'] = '6px 6px 0 0';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, codeBlock: newCb, codeBlockTitle: newCbt }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isBasic ? activeClass : inactiveClass}`}
+                  >
+                    기본 박스
+                  </button>
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newCb = { ...(currentProfile.rules.codeBlock || {}) };
+                      const newCbt = { ...(currentProfile.rules.codeBlockTitle || {}) };
+                      newCb['background-color'] = '#282c34';
+                      newCb['color'] = '#abb2bf';
+                      newCb['border-radius'] = '0 0 8px 8px';
+                      newCbt['background-color'] = '#21252b';
+                      newCbt['color'] = '#abb2bf';
+                      newCbt['padding'] = '10px 16px';
+                      newCbt['border-radius'] = '8px 8px 0 0';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, codeBlock: newCb, codeBlockTitle: newCbt }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isMac ? activeClass : inactiveClass}`}
+                  >
+                    Mac OS 테마
+                  </button>
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const newCb = { ...(currentProfile.rules.codeBlock || {}) };
+                      const newCbt = { ...(currentProfile.rules.codeBlockTitle || {}) };
+                      newCb['background-color'] = '#0f172a';
+                      newCb['color'] = '#e2e8f0';
+                      newCb['border-radius'] = '0 0 8px 8px';
+                      newCbt['background-color'] = '#1e293b';
+                      newCbt['color'] = '#94a3b8';
+                      newCbt['padding'] = '8px 12px';
+                      newCbt['border-radius'] = '8px 8px 0 0';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, codeBlock: newCb, codeBlockTitle: newCbt }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isDark ? activeClass : inactiveClass}`}
+                  >
+                    다크 테마 고정
+                  </button>
+                </div>
+              );
+            })()}
+
             <ColorPickerWidget
               label="코드 블록 타이틀 배경색"
               value={getTagRules('codeBlockTitle')['background-color'] || ''}
@@ -2191,15 +2512,7 @@ ${guideContent}
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('code', 'background-color', v)}
             />
-            <SliderWidget
-              label="코드 글자 크기"
-              min={10}
-              max={24}
-              value={parseInt(getTagRules('code')['font-size']) || 13}
-              unit="px"
-              disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('code', 'font-size', v + 'px')}
-            />
+
             <SliderWidget
               label="코드 테두리 둥글기"
               min={0}
@@ -2209,6 +2522,20 @@ ${guideContent}
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('code', 'border-radius', v + 'px')}
             />
+
+            {/* 인라인 코드 글자 굵기 설정 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">코드 글자 굵기</span>
+              <select
+                value={getTagRules('code')['font-weight'] || 'normal'}
+                disabled={isSystemProfile}
+                onChange={(e) => updateCssRule('code', 'font-weight', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="normal">보통</option>
+                <option value="bold">굵게</option>
+              </select>
+            </div>
           </div>
 
           {/* 각주 영역 (Footnote) 설정 */}
@@ -2220,6 +2547,18 @@ ${guideContent}
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('footnote', 'color', v)}
             />
+            <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+              <span className="text-[13.5px] font-bold text-zinc-700 dark:text-zinc-300">각주 굵기 (Font Weight)</span>
+              <select
+                value={getTagRules('footnote')['font-weight'] || 'normal'}
+                disabled={isSystemProfile}
+                onChange={(e) => updateCssRule('footnote', 'font-weight', e.target.value)}
+                className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
+              >
+                <option value="normal">보통</option>
+                <option value="bold">굵게</option>
+              </select>
+            </div>
             <SliderWidget
               label="각주 글자 크기"
               min={10}
@@ -2276,6 +2615,101 @@ ${guideContent}
           {/* 이미지 객체 (Image) 설정 */}
           <div className="space-y-3.5">
             <span className="text-[13.5px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block">🖼️ IMG - 이미지 객체 규격 조작</span>
+
+            {/* 이미지 형태 프리셋 버튼 */}
+            {(() => {
+              const imgRules = currentProfile.rules.img || {};
+              const hasImgBorderBottom = !!imgRules['border-bottom-width'] && imgRules['border-bottom-width'] !== 'none';
+              const hasImgBoxShadow = !!imgRules['box-shadow'] && imgRules['box-shadow'] !== 'none';
+              
+              const isBasic = imgRules['border-radius'] === '4px' && !hasImgBorderBottom && !hasImgBoxShadow;
+              const isPolaroid = imgRules['border-bottom-width'] === '32px';
+              const isThumbnail = imgRules['border-radius'] === '16px' && hasImgBoxShadow && !hasImgBorderBottom;
+              
+              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
+              const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
+
+              return (
+                <div className="flex gap-2 mb-4">
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const img = { ...(currentProfile.rules.img || {}) };
+                      delete img['border'];
+                      delete img['border-bottom-width'];
+                      delete img['box-shadow'];
+                      img['border-radius'] = '4px';
+                      img['padding'] = '0px';
+                      img['background-color'] = 'transparent';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, img }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isBasic ? activeClass : inactiveClass}`}
+                  >
+                    기본형
+                  </button>
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const img = { ...(currentProfile.rules.img || {}) };
+                      img['border'] = '10px solid white';
+                      img['border-bottom-width'] = '32px';
+                      img['box-shadow'] = '0 8px 16px rgba(0,0,0,0.15)';
+                      img['border-radius'] = '2px';
+                      img['background-color'] = 'white';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, img }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isPolaroid ? activeClass : inactiveClass}`}
+                  >
+                    폴라로이드형
+                  </button>
+                  <button 
+                    disabled={isSystemProfile}
+                    onClick={() => {
+                      const img = { ...(currentProfile.rules.img || {}) };
+                      delete img['border'];
+                      delete img['border-bottom-width'];
+                      img['box-shadow'] = '0 4px 12px rgba(0,0,0,0.1)';
+                      img['border-radius'] = '16px';
+                      img['padding'] = '0px';
+                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, img }});
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isThumbnail ? activeClass : inactiveClass}`}
+                  >
+                    둥근 썸네일형
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* 모서리 둥글기 슬라이더 */}
+            <SliderWidget
+              label="모서리 둥글기 (Border Radius)"
+              min={0}
+              max={60}
+              value={getNumValue((currentProfile.rules.img || {})['border-radius'], 4)}
+              unit="px"
+              disabled={isSystemProfile}
+              onChange={(v) => updateCssRule('img', 'border-radius', v + 'px')}
+            />
+
+            {/* 그림자 두께 슬라이더 */}
+            <SliderWidget
+              label="그림자 강도 (Shadow Blur)"
+              min={0}
+              max={40}
+              value={
+                (currentProfile.rules.img || {})['box-shadow'] 
+                  ? parseInt(((currentProfile.rules.img || {})['box-shadow'] || '').match(/0 \d+px (\d+)px/) ? ((currentProfile.rules.img || {})['box-shadow'] || '').match(/0 \d+px (\d+)px/)![1] : '0') 
+                  : 0
+              }
+              unit="px"
+              disabled={isSystemProfile}
+              onChange={(v) => {
+                const numV = parseInt(v);
+                const shadow = numV > 0 ? `0 ${Math.floor(numV/2)}px ${numV}px rgba(0,0,0,0.15)` : 'none';
+                updateCssRule('img', 'box-shadow', shadow);
+              }}
+            />
             <SliderWidget
               label="이미지 가로 너비"
               min={50}

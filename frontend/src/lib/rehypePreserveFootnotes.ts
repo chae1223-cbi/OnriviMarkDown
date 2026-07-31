@@ -16,9 +16,15 @@ export function rehypePreserveFootnotes() {
       }
     });
 
-    // 2. 하단 각주 목록을 원본 식별자 순으로 정렬 및 번호 강제 지정
+    // 2. 하단 각주 목록을 원본 식별자 순으로 정렬 및 번호 강제 지정, 제목 변경
     visit(tree, 'element', (node) => {
       if (node.tagName === 'section' && node.properties && node.properties.dataFootnotes !== undefined) {
+        // 제목 변경 (Footnotes -> 각주(Footnotes))
+        const h2 = node.children.find((c: any) => c.tagName === 'h2' && c.properties?.id === 'footnote-label');
+        if (h2 && h2.children && h2.children.length > 0 && h2.children[0].type === 'text') {
+          h2.children[0].value = '각주(Footnotes)';
+        }
+
         const ol = node.children.find((c: any) => c.tagName === 'ol');
         if (ol) {
           const lis = ol.children.filter((c: any) => c.tagName === 'li');
