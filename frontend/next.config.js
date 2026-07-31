@@ -65,46 +65,6 @@ const nextConfig = {
       config.plugins.push(new FixCssFontUrlsPlugin());
     }
 
-    // 🛡️ [보안] 상용 배포(Production) 시 프론트엔드 코드 난독화
-    if (!dev && !isServer) {
-      try {
-        const WebpackObfuscator = require('webpack-obfuscator');
-        config.plugins.push(
-          new WebpackObfuscator(
-            {
-              compact: true,
-              controlFlowFlattening: false,
-              deadCodeInjection: false,
-              debugProtection: false,
-              debugProtectionInterval: 0,
-              disableConsoleOutput: false,
-              identifierNamesGenerator: 'hexadecimal',
-              log: false,
-              numbersToExpressions: false,
-              renameGlobals: false,
-              selfDefending: false,
-              simplify: true,
-              splitStrings: false,
-              stringArray: true,
-              stringArrayCallsTransform: true,
-              stringArrayEncoding: [],
-              stringArrayIndexShift: true,
-              stringArrayRotate: true,
-              stringArrayShuffle: true,
-              stringArrayWrappersCount: 1,
-              stringArrayWrappersChainedCalls: true,
-              stringArrayWrappersParametersMaxCount: 2,
-              stringArrayWrappersType: 'variable',
-              stringArrayThreshold: 0.75,
-              unicodeEscapeSequence: false,
-            },
-            ['**/*.css'] // CSS 파일 제외
-          )
-        );
-      } catch (e) {
-        console.warn('Webpack Obfuscator not found, skipping obfuscation.');
-      }
-    }
 
     return config;
   },
