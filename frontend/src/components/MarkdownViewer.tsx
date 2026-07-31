@@ -107,6 +107,12 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
         } else if ((workspaceType === 'browser' || workspaceType === 'local') && !src.startsWith('http') && !src.startsWith('data:')) {
           const pureSrc = src.split('?')[0].split('#')[0];
           
+          // 리소스 폴더 지정 안 됨 경고
+          if (!resourceFolderHandle && !rootFolder?.handle && (pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || pureSrc.startsWith('/media/'))) {
+             setErrorMsg(`로컬 미디어를 보려면 좌측 하단의 '리소스 폴더 지정' 버튼을 클릭해 폴더를 연동해주세요.`);
+             return;
+          }
+
           if (pureSrc.startsWith('/media/') && resourceFolderHandle) {
              const fileName = pureSrc.replace('/media/', '');
              const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
@@ -253,6 +259,12 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
              } catch (e) {
                // ignore
              }
+          }
+
+          // 리소스 폴더 지정 안 됨 경고
+          if (!resourceFolderHandle && !rootFolder?.handle && (webTargetSrc.startsWith('./media/') || webTargetSrc.startsWith('media/') || webTargetSrc.startsWith('/media/'))) {
+             setErrorMsg(`로컬 비디오를 보려면 좌측 하단의 '리소스 폴더 지정' 버튼을 클릭해 폴더를 연동해주세요.`);
+             return;
           }
 
           if (webTargetSrc.startsWith('/media/') && resourceFolderHandle) {

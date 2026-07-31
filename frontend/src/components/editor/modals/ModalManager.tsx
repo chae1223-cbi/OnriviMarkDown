@@ -386,7 +386,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           }
         }}
         onImportProfile={(imported: any) => {
-          const newId = 'profile-' + Date.now();
+          // 공유 받은 서식을 임포트할 때 기존 마크다운 파일과의 연결을 유지하기 위해 기존 ID를 보존
+          const newId = imported.id || ('profile-' + Date.now());
           // null/undefined 필드를 필터링하여 DEFAULT_PROFILE 기본값이 보존되도록 보장 (AI 응답에 포함된 null 값 방어)
           const cleanPageStyle = Object.fromEntries(
             Object.entries(imported.pageStyle || {}).filter(([, v]) => v !== undefined && v !== null)

@@ -1412,7 +1412,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             }
           } catch { }
         };
-        await scanDir(rootFolder.name);
+        if (rootFolder?.name) await scanDir(rootFolder.name);
+        if (resourceFolder) await scanDir(resourceFolder);
       }
 
       // ② fileList 트리(1단계 + 운영 중인 children) 재귀 탐색
@@ -1426,6 +1427,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         });
       };
       scanTree(fileList);
+
+      // + Browser FileSystem Access API (리소스 폴더 탐색)
+      if (resourceFolderHandle && !api?.listDirectory) {
+         const scanHandle = async (handle: any) => {
+           try {
+             for await (const [name, childHandle] of handle.entries()) {
+               if (childHandle.kind === 'file' && name.toLowerCase().endsWith('.bib')) {
+                 addBib(name, childHandle);
+               } else if (childHandle.kind === 'directory') {
+                 await scanHandle(childHandle);
+               }
+             }
+           } catch (e) {}
+         };
+         await scanHandle(resourceFolderHandle);
+      }
 
       if (bibPaths.length === 0) { setBibContent(''); return; }
 
@@ -2598,18 +2615,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const handleProfileChange = useCallback((newProfileId: string) => {
     setActiveProfileId(newProfileId);
     
+    // 서식 이름 찾기
+    const selectedProfile = profiles.find(p => p.id === newProfileId);
+    const profileName = selectedProfile ? selectedProfile.name : undefined;
+    
     if (editorRef.current) {
       const currentModel = editorRef.current.getModel();
       if (currentModel) {
         const currentContent = currentModel.getValue();
-        const newContent = updateCssProfileInFrontmatter(currentContent, newProfileId);
+        const newContent = updateCssProfileInFrontmatter(currentContent, newProfileId, profileName);
         if (currentContent !== newContent) {
           currentModel.setValue(newContent);
           // Monaco onDidChangeContent 이벤트가 발생하여 탭과 content 상태가 자동으로 갱신됨
         }
       }
     }
-  }, [setActiveProfileId, editorRef]);
+  }, [setActiveProfileId, editorRef, profiles]);
 
   // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 영구 잠금 및 강제 노출 로직 2026-07-05]
   const prevRestrictedRef = useRef<boolean | null>(null);

@@ -37,16 +37,20 @@ export function extractFrontmatter(content: string): { content: string; data: Fr
 }
 
 /**
- * 주어진 텍스트의 Frontmatter에 css_profile 값을 주입하거나 업데이트합니다.
+ * 주어진 텍스트의 Frontmatter에 css_profile 및 css_profile_name 값을 주입하거나 업데이트합니다.
  * @param content 전체 마크다운 텍스트
  * @param profileId 새롭게 지정할 서식 ID
+ * @param profileName 새롭게 지정할 서식 이름 (선택사항)
  * @returns 업데이트된 새로운 마크다운 텍스트
  */
-export function updateCssProfileInFrontmatter(content: string, profileId: string): string {
+export function updateCssProfileInFrontmatter(content: string, profileId: string, profileName?: string): string {
   const { data, content: restContent } = extractFrontmatter(content);
   
   // Update or set the profile ID
   data['css_profile'] = profileId;
+  if (profileName) {
+    data['css_profile_name'] = `"${profileName}"`;
+  }
   
   // Reconstruct frontmatter
   let newYaml = '---\n';
