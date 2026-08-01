@@ -1161,4 +1161,93 @@ input::-ms-clear {
   display: none;
 }
 
+/* ============================================================
+   Ethereal Executive Design System (Admin Theme Scope)
+   ============================================================ */
+.admin-theme {
+  --admin-bg: #101415;
+  --admin-surface-bright: #363a3b;
+  --admin-surface-low: #191c1e;
+  --admin-surface: #1d2022;
+  --admin-surface-high: #272a2c;
+  --admin-text: #e0e3e5;
+  --admin-text-muted: #d0c5af;
+  --admin-primary: #f2ca50;
+  --admin-primary-dim: #e9c349;
+  --admin-on-primary: #3c2f00;
+  --admin-secondary: #95d3ba;
+  --admin-on-secondary: #003829;
+  --admin-border: #334155;
+  --admin-border-light: #4d4635;
+  --admin-error: #ffb4ab;
+  --admin-on-error: #690005;
 
+  background-color: var(--admin-bg);
+  color: var(--admin-text);
+}
+
+@layer components {
+  /* Cards & Containers */
+  .admin-glass-panel {
+    background: rgba(30, 41, 59, 0.8); /* Semi-transparent navy/charcoal for sidebar */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 0.5px solid var(--admin-border);
+  }
+  
+  .admin-glass-card {
+    background: rgba(30, 41, 59, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid var(--admin-border);
+    border-radius: 16px; /* rounded-2xl */
+    box-shadow: none; /* No drop shadows on static cards */
+  }
+
+  /* Ghost Inputs */
+  .admin-ghost-input {
+    background: transparent;
+    border: 1px solid var(--admin-border);
+    border-radius: 12px;
+    color: var(--admin-text);
+    transition: all 0.2s;
+  }
+  .admin-ghost-input:focus {
+    outline: none;
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 1px var(--admin-primary);
+  }
+
+  /* Primary Button */
+  .admin-btn-primary {
+    background: linear-gradient(180deg, var(--admin-primary) 0%, #d4af37 100%);
+    color: var(--admin-on-primary);
+    border: 1px inset rgba(255, 255, 255, 0.2);
+    border-radius: 12px; /* rounded-lg */
+    font-weight: 600;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  .admin-btn-primary:hover {
+    opacity: 0.9;
+  }
+  .admin-btn-primary:active {
+    transform: scale(0.98);
+  }
+
+  /* Status Chips */
+  .admin-chip-emerald {
+    background: rgba(11, 81, 61, 0.2);
+    color: var(--admin-secondary);
+    border: 1px solid rgba(11, 81, 61, 0.5);
+  }
+  .admin-chip-gold {
+    background: rgba(87, 69, 0, 0.2);
+    color: var(--admin-primary);
+    border: 1px solid rgba(87, 69, 0, 0.5);
+  }
+  .admin-chip-error {
+    background: rgba(105, 0, 5, 0.2);
+    color: var(--admin-error);
+    border: 1px solid rgba(105, 0, 5, 0.5);
+  }
+}

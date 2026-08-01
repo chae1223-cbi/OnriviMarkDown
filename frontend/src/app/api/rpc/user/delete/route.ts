@@ -1,5 +1,5 @@
 // 🎯 @KICK  : 회원 탈퇴 처리 API (DB Stored Procedure 제거 및 imsi_ 이관 테이블 원트랜잭션 적용)
-// 🚨 @PATCH : 2026-07-22 — DB Stored Procedure(delete_user_account)를 제거하고 Next.js API Route(postgres.js) 원트랜잭션으로 완전 이전
+// 🚨 @PATCH : 2026-08-01 — 회원 탈퇴 시 user_audit_logs에 내역(USER_WITHDRAW) 저장 로직 추가
 
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
@@ -38,6 +38,12 @@ export async function POST(request: Request) {
             deleted_at = NOW(),
             updated_at = NOW()
         WHERE id = ${p_user_id}
+      `;
+
+      // 4. 탈퇴 로그 기록 (user_audit_logs)
+      await transactionSql`
+        INSERT INTO user_audit_logs (target_user_id, admin_id, action_type, reason)
+        VALUES (${p_user_id}, null, 'USER_WITHDRAW', '사용자 본인 자진 탈퇴')
       `;
     });
 

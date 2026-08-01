@@ -13,7 +13,8 @@ const nodeNet = require('net'); // 빈 포트를 찾기 위한 네이티브 모�
 
 // 🌐 [ 프로토콜 Privilege 등록 - app.ready 이전에 호출되어야 함 ]
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'media', privileges: { bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+  { scheme: 'media', privileges: { standard: true, bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+  { scheme: 'media-local', privileges: { standard: true, bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
   { scheme: 'app', privileges: { standard: true, secure: true, bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
 ]);
 
@@ -352,6 +353,35 @@ app.on('ready', async () => {
     } catch (err) {
       console.error('app protocol serve error:', err);
       return new Response('File not found', { status: 404 });
+    }
+  });
+
+  // 🌐 [ 네이티브 미디어 스트리밍을 위한 media-local 프로토콜 핸들러 등록 ]
+  // JS Stream을 거치지 않고 C++ 네이티브 레벨에서 파일 스트리밍과 Range Request를 완벽히 지원
+  protocol.registerFileProtocol('media-local', (request, callback) => {
+    try {
+      const parsedUrl = new URL(request.url);
+      
+      // Chromium URL 파서가 커스텀 standard 프로토콜의 경로를 잘못 파싱하는 것을 방지하기 위해 ?url= 파라미터 우선 확인
+      let filePath = parsedUrl.searchParams.get('url');
+      if (!filePath) {
+        // 하위 호환성 및 폴백
+        filePath = decodeURIComponent(parsedUrl.pathname);
+      }
+      
+      if (process.platform === 'win32' && filePath.startsWith('/')) {
+        filePath = filePath.slice(1);
+      }
+      const normalizedPath = path.normalize(filePath);
+      
+      if (!fs.existsSync(normalizedPath)) {
+        console.error('[media-local] File not found:', normalizedPath);
+        return callback({ error: -6 });
+      }
+      callback({ path: normalizedPath });
+    } catch (err) {
+      console.error('[media-local] Error:', err);
+      callback({ error: -2 });
     }
   });
 
@@ -1001,11 +1031,13 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
     
     if (rawFolder && fs.existsSync(rawFolder)) {
       // 대상 워크스페이스/파일 디렉토리 하위에 'assets' 폴더를 생성 및 타겟팅
-      const assetsFolder = path.join(rawFolder, 'assets');
-      if (!fs.existsSync(assetsFolder)) {
-        fs.mkdirSync(assetsFolder, { recursive: true });
+      const folderName = path.basename(rawFolder).toLowerCase();
+      if (folderName !== 'assets' && folderName !== 'media') {
+        rawFolder = path.join(rawFolder, 'assets');
       }
-      rawFolder = assetsFolder;
+      if (!fs.existsSync(rawFolder)) {
+        fs.mkdirSync(rawFolder, { recursive: true });
+      }
       isRelative = true;
     } else {
       // 대상 폴더가 유효하지 않은 경우 사용자 문서 디렉토리 하위의 'OnriviAuthorAssets'에 임시 저장
@@ -1022,10 +1054,14 @@ ipcMain.handle('file:saveImage', async (event, targetFolder, base64Data, fileNam
     const buffer = Buffer.from(base64Data, 'base64');
     fs.writeFileSync(absolutePath, buffer);
 
+    const finalFolderName = path.basename(rawFolder);
+
     return {
       success: true,
+      fileName,
       absolutePath: absolutePath,
-      isRelative: isRelative
+      isRelative: isRelative,
+      mediaPath: isRelative ? `/${finalFolderName}/${fileName}` : null
     };
   } catch (e) {
     console.error('이미지 저장 실패 (Electron):', e);
@@ -1239,9 +1275,45 @@ ipcMain.handle('file:readImageAsBase64', async (event, filePath) => {
 // ──────────────────────────────────────────────
 // 사용자 서식 프로필 저장소 (Desktop 환경)
 // ──────────────────────────────────────────────
-ipcMain.handle('file:readProfiles', async () => {
+ipcMain.handle('file:readProfiles', async (event, resourceFolder) => {
   try {
-    const profilePath = path.join(app.getPath('userData'), 'userCssProfiles.json');
+    let profilePath;
+    if (resourceFolder && fs.existsSync(resourceFolder)) {
+      profilePath = path.join(resourceFolder, 'user_profiles.json');
+      const oldProfilePath = path.join(resourceFolder, 'userCssProfiles.json');
+      const webProfilePath = path.join(resourceFolder, 'profiles', 'userCssProfiles.json');
+      const webProfilePathNew = path.join(resourceFolder, 'profiles', 'user_profiles.json');
+      
+      let useFallback = false;
+      if (!fs.existsSync(profilePath)) {
+        useFallback = true;
+      } else {
+        try {
+          const raw = fs.readFileSync(profilePath, 'utf-8');
+          if (raw.trim() === '[]' || raw.trim() === '') {
+            useFallback = true;
+          }
+        } catch(e) {}
+      }
+
+      if (useFallback) {
+        if (fs.existsSync(oldProfilePath)) {
+          profilePath = oldProfilePath;
+        } else if (fs.existsSync(webProfilePathNew)) {
+          profilePath = webProfilePathNew;
+        } else if (fs.existsSync(webProfilePath)) {
+          profilePath = webProfilePath;
+        }
+      }
+    } else {
+      profilePath = path.join(app.getPath('userData'), 'user_profiles.json');
+      // 이전 버전 호환성 체크 (userCssProfiles.json이 있으면 마이그레이션)
+      const oldProfilePath = path.join(app.getPath('userData'), 'userCssProfiles.json');
+      if (!fs.existsSync(profilePath) && fs.existsSync(oldProfilePath)) {
+        profilePath = oldProfilePath;
+      }
+    }
+    
     if (!fs.existsSync(profilePath)) return [];
     const raw = fs.readFileSync(profilePath, 'utf-8');
     return JSON.parse(raw);
@@ -1251,9 +1323,12 @@ ipcMain.handle('file:readProfiles', async () => {
   }
 });
 
-ipcMain.handle('file:saveProfiles', async (event, profiles) => {
+ipcMain.handle('file:saveProfiles', async (event, profiles, resourceFolder) => {
   try {
-    const dataPath = path.join(app.getPath('userData'), 'user_profiles.json');
+    let dataPath = path.join(app.getPath('userData'), 'user_profiles.json');
+    if (resourceFolder && fs.existsSync(resourceFolder)) {
+      dataPath = path.join(resourceFolder, 'user_profiles.json');
+    }
     fs.writeFileSync(dataPath, JSON.stringify(profiles, null, 2), 'utf-8');
     return { success: true };
   } catch (error) {

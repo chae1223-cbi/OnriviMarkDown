@@ -62,7 +62,7 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
     "codeBlockTitle": {},
     "a": {},
     "img": { "width": "400px", "height": "300px", "margin-top": "16px", "margin-bottom": "16px", "display": "block", "margin-left": "auto", "margin-right": "auto" },
-    "code": { "background-color": "#f1f5f9", "color": "#e11d48", "font-size": "0.9em", "padding-top": "1px", "padding-bottom": "1px", "padding-left": "4px", "padding-right": "4px", "border-radius": "4px", "line-height": "1" },
+    "code": { "background-color": "#f1f5f9", "color": "#e11d48", "padding-top": "1px", "padding-bottom": "1px", "padding-left": "4px", "padding-right": "4px", "border-radius": "4px", "line-height": "1" },
     "video": { "width": "560px", "height": "315px", "margin-top": "16px", "margin-bottom": "16px", "display": "block", "margin-left": "auto", "margin-right": "auto" },
     "math": { "color": "#1e3a8a", "font-size": "16px", "margin-top": "16px", "margin-bottom": "16px", "text-align": "center" },
     "map": { "width": "600px", "height": "450px", "margin-top": "16px", "margin-bottom": "16px", "display": "block", "margin-left": "auto", "margin-right": "auto" },
@@ -152,7 +152,7 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
 | `codeBlockTitle` | 코드 블록 타이틀바 | ○ | `background-color`, `color`, `padding`, `font-size` |
 | `a` | 하이퍼링크 | — | `color`, `text-decoration` |
 | `img` | 이미지 | ○ (정렬 방식 선택 위젯) | `width`, `height`, `margin-top`, `margin-bottom`, `float`, `display`, `margin-left`, `margin-right` |
-| `code` | 인라인 코드 | ○ | `background-color`, `color`, `font-size`, `border-radius` |
+| `code` | 인라인 코드 | ○ | `background-color`, `color`, `border-radius` |
 | `video` | 동영상 | ○ | `width`, `height`, `margin-top`, `margin-bottom` |
 | `math` | KaTeX 수식 | ○ (색상, 크기, 정렬 위젯) | `color`, `font-size`, `margin-top`, `margin-bottom`, `text-align` |
 | `map` | 지도 (`<iframe>`) | ○ | `width`, `height`, `margin-top`, `margin-bottom` |
@@ -168,7 +168,7 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
 
 3. **색상 값**: 유효한 CSS 색상 포맷(Hex: `#1e40af`, HSL: `hsl(210, 100%, 50%)`, RGB: `rgb(30, 64, 175)`, named: `"navy"`)을 사용합니다. 다크모드 대응을 위해 배경색은 과도하게 어둡지 않은 소프트 톤을 권장합니다.
 
-4. **인라인 코드(`code`) 줄간격 보호**: 인라인 코드에 `padding-top: 1px`, `padding-bottom: 1px`, `line-height: 1`을 적용하면 텍스트 줄바꿈 시 줄간격이 흔들리거나 벌어지는 현상을 방지할 수 있습니다. Onrivi 기본값에도 이 3개 속성이 포함되어 있습니다.
+4. **인라인 코드(`code`) 줄간격 보호**: 인라인 코드에 `padding-top: 1px`, `padding-bottom: 1px`, `line-height: 1`을 적용하면 텍스트 줄바꿈 시 줄간격이 흔들리거나 벌어지는 현상을 방지할 수 있습니다. Onrivi 기본값에도 이 3개 속성이 포함되어 있습니다. (💡 주의: 인라인 코드의 `font-size` 속성은 시스템에서 강제로 통일하므로 적용되지 않습니다.)
 
 5. **이미지 정렬 제어**: `img` 태그의 정렬 방식은 아래 4가지 값을 조합하여 구현합니다.
    - `"center"` (중앙): `"float": "none"`, `"display": "block"`, `"margin-left": "auto"`, `"margin-right": "auto"`
@@ -180,6 +180,10 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
    ```json
    "display": "block", "margin-left": "auto", "margin-right": "auto"
    ```
+
+7. **주의(Deprecated)**: `word-break: keep-all` 속성은 브라우저에 따라 심각한 거대 공백(White Space) 버그를 유발하므로 사용이 금지되어 있습니다. 만약 기입될 경우 시스템이 강제로 `break-all`로 변환합니다.
+
+8. **테두리(Border) 속성 중복 선언 금지**: 표(`table`, `th`, `td`)나 인용구(`blockquote`) 등에서 `border` 단축 속성과 `border-width`, `border-color` 등 개별 속성을 혼용하여 선언하지 마십시오. 두 가지 중 하나의 방식만 사용해야 합니다. 특히 `blockquote`에 왼쪽 선형(띠형) 디자인을 적용할 때는 `border-left` 속성만 사용하고 다른 `border` 관련 속성은 배제하십시오.
 
 ---
 
@@ -241,14 +245,14 @@ Onrivi 서식 프로필은 아래의 **5개** 루트 키를 가집니다.
 | **img 정렬 방식**                | `img`        | `"float"`, `"display"`, `"margin-left"`, `"margin-right"` (4개 동시 제어)                                      |
 | **img 가로/세로/여백**           | `img`        | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px)                                                  |
 | **code 배경/글자색**             | `code`       | `"background-color"`, `"color"`                                                                                |
-| **code 글자/둥근정도**           | `code`       | `"font-size"` (px), `"border-radius"` (px)                                                                     |
+| **code 둥근정도**                | `code`       | `"border-radius"` (px)                                                                                         |
 | **codeBlock 배경/글자색**        | `codeBlock`  | `"background-color"`, `"color"`                                                                                |
 | **codeBlock 글자/패딩/둥근정도** | `codeBlock`  | `"font-size"` (px), `"padding"` (px), `"border-radius"` (px)                                                   |
 | **video 가로/세로/여백**         | `video`      | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px)                                                  |
 | **math 글자색/크기**             | `math`       | `"color"`, `"font-size"` (px)                                                                                  |
 | **math 상하 여백/정렬**          | `math`       | `"margin-top"`, `"margin-bottom"` (px), `"text-align"` (`left`/`center`/`right`)                               |
 | **map 가로/세로/여백**           | `map`        | `"width"`, `"height"`, `"margin-top"`, `"margin-bottom"` (px)                                                  |
-| **footnote 글자색/크기**         | `footnote`   | `"color"`, `"font-size"` (px)                                                                                  |
+| **footnote 텍스트/여백**         | `footnote`   | `"font-size"`, `"line-height"`, `"color"`, `"font-weight"`, `"margin-top"` (하단 각주 영역 스타일링)           |
 | **footnote 줄간격/여백**         | `footnote`   | `"line-height"`, `"margin-top"`, `"margin-bottom"` (px)                                                        |
 
 ---
@@ -312,11 +316,11 @@ Onrivi 서식 프로필은 5개의 루트 키(`name`, `pageStyle`, `rules`, `hrS
 | `codeBlock` | 코드 블록 | `background-color`, `color`, `padding`, `border-radius`, `font-size` |
 | `a` | 링크 | `color`, `text-decoration` |
 | `img` | 이미지 | `width`, `height`, `margin`, `float`, `display` (정렬: center/left/right/none) |
-| `code` | 인라인 코드 | `background-color`, `color`, `font-size`, `border-radius`, **`padding-top/bottom: 1px`, `line-height: 1`** |
+| `code` | 인라인 코드 | `background-color`, `color`, `border-radius`, **`padding-top/bottom: 1px`, `line-height: 1`** |
 | `video` | 동영상 | `width`, `height`, `margin` |
 | `math` | KaTeX 수식 | `color`, `font-size`, `margin`, `text-align` |
 | `map` | 지도 | `width`, `height`, `margin` |
-| `footnote` | 각주 | `color`, `font-size`, `line-height`, `margin` |
+| `footnote` | 각주 | `color`, `font-size`, `font-weight`, `line-height`, `margin-top` |
 
 ### hrStructure — 구분선 위젯 설정
 

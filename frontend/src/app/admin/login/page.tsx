@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { showToast } from '@/utils/toast';
 
 type LoginStep = 'GOOGLE_OAUTH' | 'OTP_ENROLL' | 'OTP_VERIFY' | 'LOADING';
 
@@ -12,6 +13,7 @@ export default function AdminLogin() {
   const [step, setStep] = useState<LoginStep>('LOADING');
   const [isLoading, setIsLoading] = useState(false);
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
+  const [timeLeft, setTimeLeft] = useState(120);
   
   // Supabase MFA States
   const [factorId, setFactorId] = useState('');
@@ -33,11 +35,11 @@ export default function AdminLogin() {
         .from('admins')
         .select('id')
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle();
 
       if (!adminData) {
         await supabase.auth.signOut();
-        alert('최고 관리자 권한이 없습니다.');
+        showToast('최고 관리자 권한이 없습니다.', 'error');
         if (mounted) setStep('GOOGLE_OAUTH');
         return;
       }
@@ -47,8 +49,8 @@ export default function AdminLogin() {
       const currentLevel = authLevel?.currentLevel;
       const nextLevel = authLevel?.nextLevel;
       
-      if (currentLevel === 'aal2' || currentLevel === nextLevel) {
-        // 이미 2단계 인증을 완료했거나 MFA 설정이 필요 없는 경우
+      if (currentLevel === 'aal2') {
+        // 이미 2단계 인증을 완료한 경우
         router.push('/admin');
         return;
       }
@@ -58,11 +60,23 @@ export default function AdminLogin() {
       const totpFactor = factorsData?.totp[0];
 
       if (!totpFactor || totpFactor.status !== 'verified') {
+        // 기존에 등록 시도만 하고 검증되지 않은(Unverified) 인스턴스가 남아있으면 싹 지워줍니다.
+        if (factorsData?.all) {
+          for (const factor of factorsData.all) {
+            if (factor.status === 'unverified') {
+              await supabase.auth.mfa.unenroll({ factorId: factor.id });
+            }
+          }
+        }
+
         // 기기 등록이 안 되어있거나 검증이 안 된 경우 -> 새 등록(Enroll) 진행
-        const { data: enrollData, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
+        const { data: enrollData, error: enrollError } = await supabase.auth.mfa.enroll({ 
+          factorType: 'totp',
+          friendlyName: `Admin Device ${Date.now()}`
+        });
         if (enrollError) {
           console.error('Enroll Error:', enrollError);
-          alert('OTP 등록 중 오류가 발생했습니다.');
+          showToast('OTP 등록 중 오류가 발생했습니다.', 'error');
           return;
         }
         if (mounted) {
@@ -75,7 +89,7 @@ export default function AdminLogin() {
         const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({ factorId: totpFactor.id });
         if (challengeError) {
           console.error('Challenge Error:', challengeError);
-          alert('인증 정보를 불러오는 중 오류가 발생했습니다.');
+          showToast('인증 정보를 불러오는 중 오류가 발생했습니다.', 'error');
           return;
         }
         if (mounted) {
@@ -91,6 +105,40 @@ export default function AdminLogin() {
     return () => { mounted = false; };
   }, [router]);
 
+  // OTP 시간 제한 (2분)
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (step === 'OTP_ENROLL' || step === 'OTP_VERIFY') {
+      setTimeLeft(120);
+      intervalId = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [step]);
+
+  useEffect(() => {
+    if (timeLeft <= 0 && (step === 'OTP_ENROLL' || step === 'OTP_VERIFY')) {
+      (async () => {
+        showToast('보안을 위해 2분이 지나 인증이 취소되었습니다. 다시 로그인해주세요.', 'warning');
+        await supabase.auth.signOut();
+        setStep('GOOGLE_OAUTH');
+        setOtpCode(['', '', '', '', '', '']);
+        setTimeLeft(120);
+      })();
+    }
+  }, [timeLeft, step]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
   const handleGoogleLogin = async (e: React.MouseEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -98,12 +146,15 @@ export default function AdminLogin() {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/admin/login`,
+        queryParams: {
+          prompt: 'select_account',
+        }
       }
     });
     if (error) {
       console.error(error);
       setIsLoading(false);
-      alert('구글 로그인 호출에 실패했습니다.');
+      showToast('구글 로그인 호출에 실패했습니다.', 'error');
     }
   };
 
@@ -113,7 +164,7 @@ export default function AdminLogin() {
     setIsLoading(false);
     
     if (challengeError) {
-      alert('오류가 발생했습니다.');
+      showToast('오류가 발생했습니다.', 'error');
       return;
     }
     setChallengeId(challengeData.id);
@@ -131,8 +182,9 @@ export default function AdminLogin() {
     setIsLoading(false);
     
     if (error) {
-      alert('인증 코드가 올바르지 않습니다. 다시 확인해주세요.');
+      showToast('OTP 인증에 실패했습니다. 코드를 다시 확인해주세요.', 'error');
     } else {
+      showToast('인증이 완료되었습니다.', 'success');
       router.push('/admin');
     }
   };
@@ -182,7 +234,7 @@ export default function AdminLogin() {
       }}
     >
       <style dangerouslySetInnerHTML={{__html: `
-        .glass-card {
+        .admin-glass-card {
           background: rgba(255, 255, 255, 0.1);
           backdrop-filter: blur(25px);
           -webkit-backdrop-filter: blur(25px);
@@ -215,7 +267,7 @@ export default function AdminLogin() {
       `}} />
 
       <main className="w-full max-w-[1336px] h-full flex items-center justify-center p-6 relative z-10">
-        <section className="glass-card w-full max-w-[650px] aspect-[1.1] flex flex-col items-center justify-center p-12 text-white animate-in zoom-in-95 duration-700">
+        <section className="admin-glass-card w-full max-w-[650px] aspect-[1.1] flex flex-col items-center justify-center p-12 text-white animate-in zoom-in-95 duration-700">
           
           <div className="mb-8">
             <svg className="drop-shadow-lg opacity-90" fill="none" height="110" viewBox="0 0 100 110" width="100" xmlns="http://www.w3.org/2000/svg">
@@ -232,6 +284,11 @@ export default function AdminLogin() {
             <p className="text-xl text-white/80 font-light">
               {step === 'GOOGLE_OAUTH' ? '관리자 전용 대시보드에 접속하세요' : '스마트폰 OTP 앱의 6자리 코드를 입력하세요'}
             </p>
+            {step !== 'GOOGLE_OAUTH' && (
+              <p className="mt-3 text-lg font-medium text-red-300 animate-pulse">
+                남은 시간: {formatTime(timeLeft)}
+              </p>
+            )}
           </div>
           
           {step === 'GOOGLE_OAUTH' && (
@@ -260,9 +317,9 @@ export default function AdminLogin() {
             <div className="w-full max-w-[450px] mb-12 flex flex-col items-center animate-in slide-in-from-bottom-4 duration-500">
               
               {step === 'OTP_ENROLL' && (
-                <div className="w-40 h-40 bg-white rounded-xl flex items-center justify-center mb-8 border border-white/20 shadow-lg p-2 overflow-hidden">
+                <div className="bg-white rounded-xl flex items-center justify-center mb-8 shadow-lg p-4">
                    {qrCodeSvg ? (
-                     <div className="w-full h-full" dangerouslySetInnerHTML={{ __html: qrCodeSvg }} />
+                     <div dangerouslySetInnerHTML={{ __html: qrCodeSvg }} />
                    ) : (
                      <div className="w-8 h-8 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin"></div>
                    )}

@@ -96,11 +96,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 22. 로컬 이미지 파일 Base64 변환 읽기 API
   readImageAsBase64: (filePath) => ipcRenderer.invoke('file:readImageAsBase64', filePath),
 
-  // 23. 사용자 서식 프로필 읽기 (Desktop — userData)
-  readProfiles: () => ipcRenderer.invoke('file:readProfiles'),
-
-  // 24. 사용자 서식 프로필 저장 (Desktop — userData)
-  saveProfiles: (profiles) => ipcRenderer.invoke('file:saveProfiles', profiles),
+  // 23. 사용자 서식 프로필 읽기/저장 (Desktop — userData or resourceFolder)
+  readProfiles: (resourceFolder) => ipcRenderer.invoke('file:readProfiles', resourceFolder),
+  saveProfiles: (profiles, resourceFolder) => ipcRenderer.invoke('file:saveProfiles', profiles, resourceFolder),
 
   // 25. 다중 파일 병합 (백엔드 서버 불필요, IPC 직접 처리)
   mergeFiles: (config) => ipcRenderer.invoke('file:mergeFiles', config),

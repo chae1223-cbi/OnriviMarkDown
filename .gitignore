@@ -11,6 +11,9 @@ build/
 **/out/
 **/.next/
 
+# TypeScript incremental build info (typecheck 시마다 재생성)
+**/tsconfig.tsbuildinfo
+
 # 임시 파일 및 로그 파일
 *.log
 npm-debug.log*
