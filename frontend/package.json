@@ -6,7 +6,7 @@
     "dev": "next dev -p 3100",
     "clean": "rd /s /q .next",
     "dev:clean": "npm run clean && next dev",
-    "build": "next build",
+    "build": "node web-build.js",
     "build:desktop": "node desktop-build.js",
     "build:extension": "npm run build && node fix-extension.js",
     "start": "next start",
