@@ -19,6 +19,8 @@ const BACKUP_DIR = path.join(__dirname, '_dev_api_backup');
 const DEV_ONLY_ROUTES = [
   { parent: API_DIR, route: 'view' },
   { parent: API_DIR, route: 'upload-pasted-image' },
+  { parent: API_DIR, route: 'admin' },
+  { parent: API_DIR, route: 'cron' },
   { parent: APP_DIR, route: 'auth' },
   { parent: APP_DIR, route: 'contact' },
   { parent: APP_DIR, route: 'dashboard' },
