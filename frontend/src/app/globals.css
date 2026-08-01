@@ -1,3 +1,195 @@
+/* ===================================================================
+ * 번들 임베드 웹폰트 모음
+ * public/fonts/ 에 직접 포함된 무료 배포 폰트들
+ * =================================================================== */
+
+/* ── 학교안심 글꼴 (경기도교육청 공식 배포) ── */
+
+@font-face {
+  font-family: '학교안심 포스터 B';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff2') format('woff2'),
+       url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff')  format('woff'),
+       url('/fonts/hakgyoansim/Hakgyoansim_PosterB.ttf')   format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '학교안심 포스터 OTF B';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterOTFB.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '학교안심 어항꾸미기 B';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiB.woff2') format('woff2'),
+       url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiB.woff')  format('woff'),
+       url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiB.ttf')   format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '학교안심 어항꾸미기 OTF B';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiOTFB.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '학교안심 붓펜M';
+  src: url('/fonts/hakgyoansim/HakgyoansimButpenM.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '학교안심 보드마카 R';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff2') format('woff2'),
+       url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff')  format('woff'),
+       url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.ttf')   format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '학교안심 보드마카 OTF R';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerOTFR.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── 디자인하우스체 (designhouse) ── */
+
+@font-face {
+  font-family: '디자인하우스체';
+  src: url('/fonts/designhouse/designhouseLight.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '디자인하우스체';
+  src: url('/fonts/designhouse/designhouseBold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── 더서클체 (TheCircle) ── */
+
+@font-face {
+  font-family: '더서클체';
+  src: url('/fonts/thecircle/TheCircleL.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '더서클체';
+  src: url('/fonts/thecircle/TheCircleM.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '더서클체';
+  src: url('/fonts/thecircle/TheCircleB.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── EBS 주시경체 ── */
+
+@font-face {
+  font-family: 'EBS 주시경체';
+  src: url('/fonts/ebs-jusigyeong/EBSJusigyeongL.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'EBS 주시경체';
+  src: url('/fonts/ebs-jusigyeong/EBSJusigyeongM.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'EBS 주시경체';
+  src: url('/fonts/ebs-jusigyeong/EBSJusigyeongB.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── EBS 훈민정음 새론 ── */
+
+@font-face {
+  font-family: 'EBS 훈민정음 새론';
+  src: url('/fonts/ebs-saeron/EBSSaeronL.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'EBS 훈민정음 새론';
+  src: url('/fonts/ebs-saeron/EBSSaeronR.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'EBS 훈민정음 새론';
+  src: url('/fonts/ebs-saeron/EBSSaeronSB.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── 이순신 돋움체 ── */
+
+@font-face {
+  font-family: '이순신 돋움체';
+  src: url('/fonts/yisunshin/YiSunShinDotumL.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '이순신 돋움체';
+  src: url('/fonts/yisunshin/YiSunShinDotumM.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: '이순신 돋움체';
+  src: url('/fonts/yisunshin/YiSunShinDotumB.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+
 @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&display=swap');
 
 @tailwind base;
