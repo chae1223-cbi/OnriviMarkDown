@@ -24,6 +24,8 @@ import HelpModal from '@/components/HelpModal';        // 도움말 모달 컴�
 import LicenseModal from '@/components/LicenseModal';        // 라이선스 모달 컴포넌트
 import FormulaModal from '@/components/FormulaModal';        // 수식 모달 컴포넌트
 import CssStyleModal from '@/components/CssStyleModal';        // 서식 모달 컴포넌트
+import ReferenceManagerModal from '@/components/ReferenceManagerModal'; // 참조 관리 모달 컴포넌트
+import CitationSelectionModal from '@/components/CitationSelectionModal'; // 참조자 선택 모달 컴포넌트
 
 import { useEditorModals } from '@/hooks/editor/useEditorModals';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage'; // 모달 관련 상태와 함수들을 hook으로 관리하는 hooks
@@ -58,7 +60,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     confirmConfig, setConfirmConfig,                                         // 확인 모달 설정 상태
     isMapModalOpen, setIsMapModalOpen,                                     // 지도 모달 열림/닫힘 상태
     isTableModalOpen, setIsTableModalOpen,                                 // 표 모달 열림/닫힘 상태
-    isHelpModalOpen, setIsHelpModalOpen                                  // 도움말 모달 열림/닫힘 상태
+    isHelpModalOpen, setIsHelpModalOpen,                                 // 도움말 모달 열림/닫힘 상태
+    isReferenceModalOpen, setIsReferenceModalOpen,                          // 참조 관리 모달 열림/닫힘 상태
+    isCitationModalOpen, setIsCitationModalOpen                             // 참조자 선택 모달 열림/닫힘 상태
   } = modals;
 
   // deps에서 필요한 속성들 추출
@@ -461,6 +465,37 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         title={helpTitle}
         content={helpContent}
         isDarkMode={isDarkMode}
+      />
+
+      {/* 참조 관리(BibTeX) 모달 */}
+      <ReferenceManagerModal
+        isOpen={isReferenceModalOpen}
+        onClose={() => setIsReferenceModalOpen(false)}
+        isDarkMode={isDarkMode}
+        resourceFolderHandle={deps.resourceFolderHandle}
+        workspaceType={workspaceType}
+        rootFolder={rootFolder}
+        resourceFolder={resourceFolder}
+      />
+      <CitationSelectionModal
+        isOpen={isCitationModalOpen}
+        onClose={() => setIsCitationModalOpen(false)}
+        isDarkMode={isDarkMode}
+        bibContent={deps.bibContent || ''}
+        onSelect={(citekey) => {
+          if (deps.editorRef.current) {
+            const editor = deps.editorRef.current;
+            const position = editor.getPosition();
+            if (position) {
+              editor.executeEdits('citation', [{
+                range: new (window as any).monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                text: `[@${citekey}]`,
+                forceMoveMarkers: true
+              }]);
+              editor.focus();
+            }
+          }
+        }}
       />
     </>
   );

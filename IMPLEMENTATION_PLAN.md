@@ -1,297 +1,32 @@
-# RPC Stored Procedure 전환 구현 계획서
+# [목표] 참조(BibTeX/Vibe) 파일 전용 관리자(CRUD) 기능 구현 및 서식 자동 주입 검증
 
-## 목표
+현재 제공되는 `ReferenceManagerModal`은 단순히 새로운 `.bib` 파일을 생성하는 역할만 수행하고 있습니다.
+사용자의 요청에 따라 이 화면을 **"기존 `.bib` 파일을 열어서 수정하고, 삭제하며, 새로 만들 수 있는 통합 관리자"** 형태로 전면 개편합니다.
+또한, 저장 시점에 서식이 강제 주입되는 기능이 완벽하게 동작하는지 점검 및 보완합니다.
 
-모든 Supabase DML을 SECURITY DEFINER Stored Procedure(RPC)로 전환하여 RLS를 우회하고, 각 단계별 오류를 JSONB로 반환하여 프론트엔드에서 일관된 에러 처리 가능하게 함.
+## User Review Required
 
----
+- ⚠️ **참조 관리 모달 레이아웃 변경**: 기존 단일 입력창 형태에서 좌측에는 `파일 목록`, 우측에는 `에디터`가 있는 분할 레이아웃(CssStyleModal과 유사)으로 개편됩니다.
+- ⚠️ **파일 스캔 범위**: 참조 모달 내 파일 목록은 원칙적으로 **리소스 폴더(Resource Folder)** 내부에 있는 `.bib` 파일들만 스캔하고 관리하도록 범위를 좁힙니다. (워크스페이스 전체를 스캔하면 일반 파일과 혼동될 여지가 있기 때문입니다.)
 
-## 1. 아키텍처
+## Proposed Changes
 
-### RPC 응답 JSONB 표준 형식
+### 1. `frontend/src/components/ReferenceManagerModal.tsx`
+- **[MODIFY]** 모달 레이아웃을 2-pane (좌측 목록, 우측 편집기) 구조로 리팩토링합니다.
+- **[MODIFY]** `useEffect`를 통해 모달이 열릴 때 리소스 폴더를 스캔하여 `.bib` 파일 목록과 내용을 불러오는 `loadBibFiles` 로직을 추가합니다.
+- **[MODIFY]** 파일 선택, 수정 후 저장(`handleSave`), 파일 삭제(`handleDelete`) 기능을 각각 Electron API 및 브라우저 FileSystem Access API에 맞게 구현합니다.
+- **[MODIFY]** '새로 만들기' 버튼을 눌러 비어있는 새 `.bib` 파일을 생성할 수 있게 합니다.
 
-```jsonc
-// 성공
-{ "success": true, "code": "OK", "step": "단계명", "message": "..." }
+### 2. `frontend/src/hooks/useEditorHandlers.ts`
+- **[MODIFY]** (확인용) 기존에 적용된 `updateCssProfileInFrontmatter` 함수가 Frontmatter 구역 자체가 아예 존재하지 않는 순수 마크다운 파일에서도 정상적으로 최상단에 `--- css_profile ... ---` 블록을 생성해 주입하는지 최종 검증하고, 부족한 점이 있다면 패치합니다.
 
-// 실패 (비즈니스 로직)
-{ "success": false, "code": "ERR_원인", "step": "단계명", "message": "사용자 친화적 메시지" }
+## Verification Plan
 
-// 실패 (시스템 오류)
-{ "success": false, "code": "ERR_INSERT_FAILED", "step": "단계명", "message": "DB 오류: SQLERRM" }
-```
+### Automated Tests
+- `npm run typecheck`를 통해 타입 안정성을 검증합니다.
 
-### 프론트엔드 호출 패턴
-
-```typescript
-const { data: result, error: rpcError } = await supabase.rpc('함수명', { ...params });
-
-if (rpcError) {
-  // RPC 호출 자체 실패 (404, network 등)
-  showToast('오류: ' + rpcError.message, 'error');
-} else if (result && !result.success) {
-  // 비즈니스 로직 실패 (RPC가 반환한 에러)
-  showToast(result.message, 'error');
-} else if (result && result.success) {
-  // 성공
-  console.log('[OK]', result.message);
-}
-```
-
----
-
-## 2. RPC 목록 (총 10개)
-
-### 완료 (2)
-| 함수 | 파일 | 상태 |
-|------|------|------|
-| `insert_license_activation` | (SQL + MainEditorApp/login/auth/callback) | ✅ |
-| `register_user` | (SQL + signup) | ✅ |
-
-### Phase 1 — 폴링/세션체크 (1)
-| # | 함수 | 설명 |
-|---|------|------|
-| 1 | `check_license_session` | payment_no + device_uuid로 세션 존재여부 + 접속자수 반환 |
-
-### Phase 2 — 로그아웃/종료 (2)
-| # | 함수 | 설명 |
-|---|------|------|
-| 2 | `delete_license_activation` | editor EXIT 시 단일 세션 제거 |
-| 3 | `deactivate_session_on_logout` | 로그아웃 시 세션 제거 (Navbar/dashboard) |
-
-### Phase 3 — 라이선스/기기관리 (2)
-| # | 함수 | 설명 |
-|---|------|------|
-| 4 | `upsert_license_activation` | LicenseModal 데스크탑 라이선스 등록 |
-| 5 | `delete_device_activation` | 대시보드 기기强제 해제 |
-
-### Phase 4 — 사용자/구독 (2)
-| # | 함수 | 설명 |
-|---|------|------|
-| 6 | `upsert_user` | users 테이블 동기화 |
-| 7 | `subscribe_user_plan` | 플랜 선택 → subscription + license + activation 트랜잭션 일괄처리 |
-
-### 보류 (1)
-| # | 함수 | 설명 |
-|---|------|------|
-| 8 | `change_plan` | 현재 호출하는 곳 없음, 필요시 구현 |
-
----
-
-## 3. 각 RPC 상세 설계
-
-### Phase 1-1: `check_license_session`
-
-```sql
-CREATE FUNCTION check_license_session(
-  p_payment_no TEXT,
-  p_device_uuid TEXT
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-```
-
-**검증 단계:**
-1. 입력값 검증 (payment_no, device_uuid)
-2. `software_licenses` 조회 (payment_no)
-3. `license_activations` 존재여부 확인
-4. 5분 기준 활성 세션 카운트
-5. `subscriptions.max_devices` 조회
-
-**반환:**
-```jsonc
-// 성공
-{ "success": true, "code": "OK", "has_session": true, "active_count": 3, "max_devices": 5 }
-// 실패
-{ "success": false, "code": "ERR_LICENSE_NOT_FOUND", "message": "..." }
-```
-
-**호출 위치 교체:**
-- `MainEditorApp.tsx` lines 1049-1066 (checkActivation 폴링)
-- `MainEditorApp.tsx` lines 943-954 (접속자수 초과 체크)
-
----
-
-### Phase 2-1: `delete_license_activation`
-
-```sql
-CREATE FUNCTION delete_license_activation(
-  p_license_id UUID,
-  p_device_uuid TEXT
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-```
-
-**검증 단계:**
-1. 입력값 검증
-2. 존재하는 activation인지 확인
-3. DELETE 실행
-
-**호출 위치:** `useEditorHandlers.ts:623` — editor `exit` 액션
-
----
-
-### Phase 2-2: `deactivate_session_on_logout`
-
-```sql
-CREATE FUNCTION deactivate_session_on_logout(
-  p_license_id UUID,
-  p_device_uuid TEXT
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-```
-
-**검증 단계:**
-1. 입력값 검증
-2. 존재하는 activation인지 확인
-3. DELETE 실행
-
-**호출 위치:**
-- `Navbar.tsx:59` — 로그아웃 버튼
-- `dashboard/page.tsx:180` — 대시보드 로그아웃
-
----
-
-### Phase 3-1: `upsert_license_activation`
-
-```sql
-CREATE FUNCTION upsert_license_activation(
-  p_license_id UUID,
-  p_device_uuid TEXT,
-  p_device_name TEXT DEFAULT 'MyPC'
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-```
-
-**검증 단계:**
-1. 입력값 검증
-2. 라이선스 존재 확인
-3. 기기 중복 확인 (다른 license_id에 같은 device_uuid가 있는지)
-4. INSERT ON CONFLICT UPSERT
-
-**호출 위치:** `LicenseModal.tsx:212`
-
----
-
-### Phase 3-2: `delete_device_activation`
-
-```sql
-CREATE FUNCTION delete_device_activation(
-  p_activation_id UUID
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-```
-
-**검증 단계:**
-1. 입력값 검증
-2. activation 존재 확인
-3. DELETE 실행
-
-**호출 위치:** `dashboard/page.tsx:196`
-**참고:** 현재 `o_error_message` 패턴 사용 중 → JSONB로 변경
-
----
-
-### Phase 4-1: `upsert_user`
-
-```sql
-CREATE FUNCTION upsert_user(
-  p_id UUID,
-  p_email TEXT,
-  p_provider TEXT DEFAULT 'email'
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-```
-
-**검증 단계:**
-1. 입력값 검증
-2. INSERT ON CONFLICT (id) DO UPDATE
-
-**호출 위치:** `dashboard/page.tsx:99`
-
----
-
-### Phase 4-2: `subscribe_user_plan`
-
-```sql
-CREATE FUNCTION subscribe_user_plan(
-  p_user_id UUID,
-  p_plan_name TEXT,
-  p_plan_status TEXT,
-  p_billing_interval TEXT,
-  p_max_devices INT,
-  p_period_end TIMESTAMPTZ,
-  p_today_str TEXT,
-  p_device_uuid TEXT,
-  p_device_name TEXT
-)
-RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-```
-
-**검증 단계:**
-1. 입력값 검증
-2. user 존재 확인
-3. subscription INSERT/UPSERT
-4. software_licenses INSERT/UPSERT
-5. license_activations INSERT/UPSERT
-
-**반환 (성공 시):**
-```jsonc
-{
-  "success": true, "code": "OK",
-  "payment_no": "PAY_...",
-  "license_key": "...",
-  "subscription_id": "UUID"
-}
-```
-
-**호출 위치:** `dashboard/page.tsx:278`
-**참고:** 현재 `o_error_message` / `o_verify_key` / `o_license_key` / `o_payment_no` 패턴 사용 중 → JSONB로 변경
-
----
-
-## 4. 프론트엔드 수정 범위
-
-| 파일 | 변경 내용 |
-|------|----------|
-| `MainEditorApp.tsx` | `checkActivation` 폴링 → `check_license_session` RPC로 교체 |
-| `MainEditorApp.tsx` | 접속자수 초과 체크 (line 943-954) → `check_license_session` RPC로 교체 |
-| `useEditorHandlers.ts` | `delete_license_activation` 응답 처리 추가 |
-| `Navbar.tsx` | `deactivate_session_on_logout` 응답 처리 추가 |
-| `dashboard/page.tsx` | `upsert_user` / `delete_device_activation` / `subscribe_user_plan` 응답 처리 변경 |
-| `LicenseModal.tsx` | `upsert_license_activation` 응답 처리 추가 |
-
----
-
-## 5. 마이그레이션 순서
-
-```
-Phase 1 (check_license_session)
-  ├─ SQL 생성
-  └─ MainEditorApp.tsx 폴링/체크 교체
-
-Phase 2 (delete_license_activation + deactivate_session_on_logout)
-  ├─ SQL 생성 (2개)
-  ├─ useEditorHandlers.ts 수정
-  └─ Navbar.tsx 수정
-
-Phase 3 (upsert_license_activation + delete_device_activation)
-  ├─ SQL 생성 (2개)
-  ├─ LicenseModal.tsx 수정
-  └─ dashboard/page.tsx 수정
-
-Phase 4 (upsert_user + subscribe_user_plan)
-  ├─ SQL 생성 (2개)
-  └─ dashboard/page.tsx 수정
-
-검증
-  ├─ TypeScript 컴파일 확인
-  ├─ npm run build
-  └─ Cloudflare Pages 배포
-```
+### Manual Verification
+- 📚 참조 도구 모달을 열었을 때, 기존에 만들었던 `.bib` 파일이 좌측 리스트에 잘 뜨는지 확인합니다.
+- 리스트에서 파일을 클릭해 내용을 수정한 뒤 저장 버튼을 눌러 정상 반영되는지 확인합니다.
+- 리스트의 삭제(🗑️) 아이콘을 눌러 파일이 지워지는지 확인합니다.
+- 새 파일(.md)을 생성하고 서식이 없는 상태에서 글을 쓴 뒤 저장(Ctrl+S)할 때, 최상단에 `css_profile` 속성이 강제로 잘 붙는지 확인합니다.

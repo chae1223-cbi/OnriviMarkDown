@@ -253,6 +253,16 @@ export default function ImageModal({
 
     const loadLocal = async () => {
       try {
+        if (cleanImagePath.startsWith('/media/') && resourceFolderHandle) {
+          const fileName = cleanImagePath.replace('/media/', '');
+          const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
+          const fileHandle = await mediaDir.getFileHandle(fileName);
+          const file = await fileHandle.getFile();
+          createdBlob = URL.createObjectURL(file);
+          if (active) setLocalBlobUrl(createdBlob);
+          return;
+        }
+
         let pathParts = cleanImagePath.split(/[/\\]/).filter(Boolean);
         if (rootFolder?.handle) {
           if (pathParts[0] === rootFolder.name) pathParts.shift();
@@ -279,7 +289,7 @@ export default function ImageModal({
       active = false;
       if (createdBlob) URL.revokeObjectURL(createdBlob);
     };
-  }, [cleanImagePath, workspaceType, rootFolder]);
+  }, [cleanImagePath, workspaceType, rootFolder, resourceFolderHandle]);
 
   const previewSrc = useMemo(() => {
     if (!cleanImagePath) return "";
@@ -328,7 +338,7 @@ export default function ImageModal({
       return `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
     }
 
-    if (workspaceType === 'browser') {
+    if (workspaceType === 'browser' || workspaceType === 'local') {
       return localBlobUrl;
     }
 

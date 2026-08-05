@@ -51,7 +51,6 @@ const FONT_NAME_MAP: Record<string, string> = {
   'NanumBarunGothic'       : '나눔바른고딕',
   'NanumBarunpen'          : '나눔바른펜',
   'NanumPen Script'        : '나눔펜스크립트',
-  // KoPub / KoPub World
   // 은 계열
   'UnBatang'               : '은바탕',
   'UnDotum'                : '은돋움',

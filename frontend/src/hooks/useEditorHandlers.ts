@@ -5,6 +5,7 @@ import { DEFAULT_PROFILE } from "@/constants/cssProfile";
 import { vfsWriteFile } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
+import { updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { supabase } from '@/lib/supabaseClient';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 
@@ -19,7 +20,8 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 🚨 @PATCH : **2026-07-16** — PDF 내보내기 시 머리글/바닥글 및 표지 페이지 제외 옵션을 exportPDF 파라미터 구조체에 매핑하여 전달하도록 패치.
 //             **2026-06-19** — 인쇄/PDF 기능 통합 처리: print 핸들러 실행 시 window.print() 인쇄 팝업 대신 직접 PDF 파일 저장 기능(exportPDF)을 다이렉트로 수행하도록 패치; exportPDF 호출 시 누락되었던 dynamicCssString(활성 CSS 프로필) 매개변수를 추가 전달하도록 패치; previewRef/setIsSettingsModalOpen 누락 복원 등
 //             **2026-06-20** — 내보내기(PDF/HTML/PNG/EPUB) 서식 및 배경색 완벽 동기화를 위해 activeProfile 서식 프로필 매개변수를 추가로 전달하도록 패치
-// 🔗 @CALLS : exportPDF, exportHTML, exportEPUB, exportPNG, vfsWriteFile, stripFrontmatter, sanitizePastedText, previewRef, setIsSettingsModalOpen
+//             **2026-08-05** — 저장(save, saveAs) 시 현재 적용 중인 서식을 Frontmatter(css_profile)에 자동 주입 및 에디터 동기화 처리 패치
+// 🔗 @CALLS : exportPDF, exportHTML, exportEPUB, exportPNG, vfsWriteFile, stripFrontmatter, sanitizePastedText, previewRef, setIsSettingsModalOpen, updateCssProfileInFrontmatter
 // ====================================================================
 export const useEditorHandlers = ({
   editorRef,
@@ -49,6 +51,7 @@ export const useEditorHandlers = ({
   setIsLicenseModalOpen,
   setIsSettingsModalOpen,
   setIsImageModalOpen,
+  setIsReferenceModalOpen,
   setEditingImageInfo,
   setSettingsModalInitialTab,
   setFontSize,
@@ -153,6 +156,29 @@ export const useEditorHandlers = ({
         editor.focus();
       }, 20);
     },
+
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-CITATION] useEditorHandlers.ts ➔ citation
+    // 🎯 @KICK  : 에디터 본문에 참조문헌(인용구) 구문 삽입
+    // ====================================================================
+    citation: () => {
+      if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
+      const editor = editorRef.current;
+      const model = editor.getModel();
+      if (!model) return;
+
+      const selection = editor.getSelection();
+      if (!selection) return;
+
+      editor.executeEdits('citation', [{ range: selection, text: '[@]', forceMoveMarkers: true }]);
+      
+      const position = editor.getPosition();
+      if (position) {
+        editor.setPosition({ lineNumber: position.lineNumber, column: position.column - 1 });
+      }
+      editor.focus();
+    },
+
     // ====================================================================
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0012] useEditorHandlers.ts ➔ insertText
     // 🎯 @KICK  : 커서 위치에 임의 텍스트를 삽입 (슬래시 명령어 등에서 호출)
@@ -241,8 +267,8 @@ export const useEditorHandlers = ({
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0008] useEditorHandlers.ts ➔ save
     // 🎯 @KICK  : 현재 문서를 Electron/웹/브라우저 환경에 맞게 저장
     // 🛡️ @GUARD : fileNode 경로/핸들 존재 여부, 저장 실패 시 fallback 처리
-    // 🚨 @PATCH : 없음
-    // 🔗 @CALLS : refreshFileList, showToast, vfsWriteFile, setPromptConfig
+    // 🚨 @PATCH : **2026-08-05** — 저장 시 현재 활성화된 서식을 문서 Frontmatter(css_profile)에 자동 주입/갱신 및 에디터 텍스트 동기화
+    // 🔗 @CALLS : refreshFileList, showToast, vfsWriteFile, setPromptConfig, updateCssProfileInFrontmatter
     // ====================================================================
     save: async () => {
       if (licenseStatusRef?.current?.isExpired) {
@@ -255,7 +281,27 @@ export const useEditorHandlers = ({
       const fileNode = currentFileNodeRef.current;
       const fileName = currentFileNameRef.current;
       const wType = workspaceTypeRef.current;
-      const currentVal = contentRef.current;
+      let currentVal = contentRef.current;
+
+      // [서식 자동 주입 패치] 현재 활성화된 프로필 정보를 Frontmatter에 자동 갱신
+      if (activeProfileId) {
+        const profile = profiles?.find((p: any) => p.id === activeProfileId);
+        const nextVal = updateCssProfileInFrontmatter(currentVal, activeProfileId, profile?.name);
+        if (nextVal !== currentVal) {
+          currentVal = nextVal;
+          contentRef.current = nextVal;
+          if (editorRef?.current) {
+            const model = editorRef.current.getModel();
+            if (model) {
+              model.pushEditOperations(
+                [],
+                [{ range: model.getFullModelRange(), text: nextVal }],
+                () => null
+              );
+            }
+          }
+        }
+      }
 
       const hasPathOrHandle = fileNode && (fileNode.path || fileNode.handle);
       if (hasPathOrHandle && fileName !== '새 파일.md') {
@@ -265,7 +311,9 @@ export const useEditorHandlers = ({
             if (success) {
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
-              setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+              setTimeout(() => {
+                setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+              }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               return;
             }
@@ -284,7 +332,9 @@ export const useEditorHandlers = ({
             if (res.ok) {
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
-              setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+              setTimeout(() => {
+                setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+              }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               return;
             }
@@ -301,7 +351,9 @@ export const useEditorHandlers = ({
               await writable.close();
               lastSavedContentRef.current = currentVal;
               setSaveStatus('saved');
-              setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+              setTimeout(() => {
+                setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+              }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
               return;
             } catch (e: any) {
@@ -437,15 +489,35 @@ export const useEditorHandlers = ({
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0007] useEditorHandlers.ts ➔ saveAs
     // 🎯 @KICK  : 새 경로/파일명으로 문서를 다른 이름으로 저장
     // 🛡️ @GUARD : Electron/File System Access/폴더 선택 각 환경별 예외 처리
-    // 🚨 @PATCH : 없음
-    // 🔗 @CALLS : refreshFileList, showToast, setPromptConfig
+    // 🚨 @PATCH : **2026-08-05** — 저장 시 현재 활성화된 서식을 문서 Frontmatter(css_profile)에 자동 주입/갱신 및 에디터 텍스트 동기화
+    // 🔗 @CALLS : refreshFileList, showToast, setPromptConfig, updateCssProfileInFrontmatter
     // ====================================================================
     saveAs: async () => {
       const api = (window as any).electronAPI;
       const fileName = currentFileNameRef.current;
       const fileNode = currentFileNodeRef.current;
       const rootFld = rootFolderRef.current;
-      const currentVal = contentRef.current;
+      let currentVal = contentRef.current;
+
+      // [서식 자동 주입 패치] 현재 활성화된 프로필 정보를 Frontmatter에 자동 갱신
+      if (activeProfileId) {
+        const profile = profiles?.find((p: any) => p.id === activeProfileId);
+        const nextVal = updateCssProfileInFrontmatter(currentVal, activeProfileId, profile?.name);
+        if (nextVal !== currentVal) {
+          currentVal = nextVal;
+          contentRef.current = nextVal;
+          if (editorRef?.current) {
+            const model = editorRef.current.getModel();
+            if (model) {
+              model.pushEditOperations(
+                [],
+                [{ range: model.getFullModelRange(), text: nextVal }],
+                () => null
+              );
+            }
+          }
+        }
+      }
 
       const suggestedName = fileName !== '새 파일.md' ? fileName : undefined;
       const defaultDir = rootFld?.name && rootFld.name !== BROWSER_STORAGE_NAME ? rootFld.name : undefined;

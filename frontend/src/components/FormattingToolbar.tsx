@@ -79,6 +79,7 @@ export default function FormattingToolbar() {
       <FormatBtn label="U" title={tooltip('밑줄', SHORTCUTS.underline)} onAction={() => dispatch('UNDERLINE')} underline />
       <FormatBtn label={<span className="line-through">S</span>} title={tooltip('취소선', SHORTCUTS.strikethrough)} onAction={() => dispatch('STRIKETHROUGH')} />
       <FormatBtn label="fn" title={tooltip('각주', SHORTCUTS.footnote)} onAction={() => dispatch('FOOTNOTE')} />
+      <FormatBtn label="📝" title={tooltip('인용(참조문헌)', 'Ctrl+Alt+C')} onAction={() => dispatch('CITE')} />
 
       <Divider />
 
@@ -110,6 +111,7 @@ export default function FormattingToolbar() {
       <FormatBtn label="🔖" title="문서 연결" onAction={() => dispatch('DOCLINK')} />
       <FormatBtn label="🖼️" title="이미지" onAction={() => dispatch('IMAGE')} />
       <FormatBtn label="🎞️" title="동영상삽입" onAction={() => dispatch('YOUTUBE')} />
+      <FormatBtn label="📚" title="바이브 (참조관리)" onAction={() => dispatch('ADD_REFERENCE')} />
       <FormatBtn label="📅" title="현재 날짜/시간" onAction={() => dispatch('NOW')} />
 
       <Divider />

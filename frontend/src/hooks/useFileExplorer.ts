@@ -562,7 +562,7 @@ export const useFileExplorer = ({
         setTabs(prev => prev.map(t => 
           (targetFile.path && t.path === targetFile.path) || 
           (targetFile.handle && t.node?.handle === targetFile.handle)
-            ? { ...t, isModified: false } 
+            ? { ...t, isModified: false, content: targetContent } 
             : t
         ));
       }

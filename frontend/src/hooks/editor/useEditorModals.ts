@@ -49,6 +49,8 @@ export const useEditorModals = () => {
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);   // 라이선스 모달 열림/닫힘 상태
   const [isFormulaModalOpen, setIsFormulaModalOpen] = useState(false);   // 수식 모달 열림/닫힘 상태
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);   // 도움말 모달 열림/닫힘 상태
+  const [isReferenceModalOpen, setIsReferenceModalOpen] = useState(false); // 참조 관리 모달 열림/닫힘 상태
+  const [isCitationModalOpen, setIsCitationModalOpen] = useState(false); // 인용구 선택 모달 열림/닫힘 상태
 
   const [promptConfig, setPromptConfig] = useState<PromptConfig>({      // 프롬프트 모달 설정 상태
     isOpen: false, title: "", defaultValue: "", type: null, error: ""
@@ -73,6 +75,8 @@ export const useEditorModals = () => {
     isLicenseModalOpen, setIsLicenseModalOpen,
     isFormulaModalOpen, setIsFormulaModalOpen,
     isHelpModalOpen, setIsHelpModalOpen,
+    isReferenceModalOpen, setIsReferenceModalOpen,
+    isCitationModalOpen, setIsCitationModalOpen,
     promptConfig, setPromptConfig,
     confirmConfig, setConfirmConfig
   };

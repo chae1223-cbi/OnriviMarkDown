@@ -158,6 +158,7 @@ export type EditorCommandType =
   | 'DOCLINK'                                                                          // ⑮ 문서링크
   | 'MERGE'                                                                             // ⑯ 파일 병합
   | 'AI_HELP'                                                                           // ⑰ AI 글쓰기 도우미
+  | 'ADD_REFERENCE'                                                                     // ⑱ 참조 파일 추가
   | 'AI_DRAFT' | 'OPEN_AI_WRITER' | 'SLASH_COMMAND';
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
@@ -491,6 +492,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     isLicenseModalOpen, setIsLicenseModalOpen,
     isFormulaModalOpen, setIsFormulaModalOpen,
     isHelpModalOpen, setIsHelpModalOpen,
+    isReferenceModalOpen, setIsReferenceModalOpen,
+    isCitationModalOpen, setIsCitationModalOpen,
     promptConfig, setPromptConfig,
     confirmConfig, setConfirmConfig
   } = useEditorModals();
@@ -3052,17 +3055,40 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       setSaveStatus('saving');
       const timer = setTimeout(async () => {
-        if (content === lastSavedContentRef.current) return;
+        let saveContent = content;
+        
+        // [서식 자동 주입 패치] 자동 저장 시에도 현재 활성화된 프로필 정보를 Frontmatter에 자동 갱신
+        if (activeProfileId) {
+          const profile = profiles?.find((p: any) => p.id === activeProfileId);
+          const nextVal = updateCssProfileInFrontmatter(content, activeProfileId, profile?.name);
+          if (nextVal !== content) {
+            saveContent = nextVal;
+            if (editorRef?.current) {
+              const model = editorRef.current.getModel();
+              if (model) {
+                model.pushEditOperations(
+                  [],
+                  [{ range: model.getFullModelRange(), text: nextVal }],
+                  () => null
+                );
+              }
+            }
+          }
+        }
 
-        const success = await saveFile(content, currentFileNode);
+        const success = await saveFile(saveContent, currentFileNode);
         setSaveStatus(success ? 'saved' : 'unsaved');
         if (success) {
           console.log(`✏️ [Onrivi Guard] 자동 저장 완료 (${autoSave}초)`);
+          // 자동 저장 후 현재 탭의 isModified 상태를 false로 복구
+          setTabs(prev => prev.map(t =>
+            t.id === activeTabIdRef.current ? { ...t, isModified: false } : t
+          ));
         }
       }, autoSave * 1000); // 🕒 설정된 초(seconds) 기반 디바운스
       return () => clearTimeout(timer);
     }
-  }, [content, autoSave, currentFileNode, saveFile, licenseStatus.isActivated]);
+  }, [content, autoSave, currentFileNode, saveFile, licenseStatus.isActivated, activeProfileId, profiles]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0048] MainEditorApp.tsx ➔ insertAtCursor
@@ -4229,6 +4255,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setIsLicenseModalOpen,
     setIsSettingsModalOpen,
     setIsImageModalOpen,
+    setIsReferenceModalOpen,
     setEditingImageInfo,
     setSettingsModalInitialTab,
     setFontSize,
@@ -4349,6 +4376,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return;
       case 'TOGGLE_CSS_STYLE':
         setIsStyleModalOpen(true);
+        return;
+      case 'ADD_REFERENCE':
+        setIsReferenceModalOpen(true);
         return;
       case 'ABOUT': handlers.about(); return;
       case 'HELP': handlers.help(); return;
@@ -4492,6 +4522,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'LINK': handlers.link(); break;
       case 'DOCLINK': handlers.doclink(); break;
       case 'IMAGE': handlers.image(); break;
+      case 'CITE': setIsCitationModalOpen(true); break;
       case 'YOUTUBE':
       case 'VIDEO': {
         const selText = model.getValueInRange(selection);
@@ -5766,7 +5797,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               promptConfig, setPromptConfig,
               confirmConfig, setConfirmConfig,
               isMapModalOpen, setIsMapModalOpen,
-              isTableModalOpen, setIsTableModalOpen
+              isTableModalOpen, setIsTableModalOpen,
+              isReferenceModalOpen, setIsReferenceModalOpen,
+              isCitationModalOpen, setIsCitationModalOpen
             }}
             deps={{
               isDarkMode, setIsDarkMode, fontSize, setFontSize, wordWrap, setWordWrap,

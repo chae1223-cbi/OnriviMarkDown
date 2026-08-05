@@ -72,7 +72,8 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-EDIT-0018 | MEA.tsx:1631 | startResizing | document.addEventListener | 사이드바 리사이즈 시작 |
 | OMD-FILE-0008 ✅ FIXED | MEA.tsx:1645 | saveStatusSync | setSaveStatus, setTabs | 콘텐츠 vs lastSaved 비교로 저장 상태·탭 수정 여부 갱신 *(수정: 2026-06-18 — onDidChangeContent 핸들러 val !== t.content 비교로 전환 시 false isModified 방지)* |
 | OMD-FILE-0009 | MEA.tsx:1657 | autoSave | saveFile, setSaveStatus, setTimeout, clearTimeout | 5초 디바운스 자동 저장 |
-| OMD-EDIT-0019 | MEA.tsx:1688 | insertAtCursor | utilsEditorActions.insertAtCursor | 커서 위치에 텍스트 삽입 |
+| OMD-EDIT-0047 ✅ FIXED | MainEditorApp.tsx | autoSave | 콘텐츠 변경 및 5초 디바운스 자동 저장 | 🚨 @PATCH: 2026-08-05 (자동 저장 시 isModified 초기화 복구 로직 추가) |
+| OMD-EDIT-0048 | MainEditorApp.tsx | insertAtCursor | 커서 위치 텍스트 삽입 (위임) | - |
 | OMD-CORE-0016 | MEA.tsx:1699 | findLineNumberByHeading | utilsEditorActions.findLineNumberByHeading | 제목으로 라인 번호 탐색 |
 | OMD-EDIT-0020 | MEA.tsx:1708 | scrollToLine | utilsEditorActions.scrollToLine | 에디터 특정 라인으로 스크롤 |
 | OMD-CORE-0017 | MEA.tsx:1717 | handlePreviewClick | scrollToLine, classList | 미리보기 클릭 시 에디터 해당 라인으로 스크롤 |
@@ -119,8 +120,11 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-HOOK-0004 | useEditorTabs.ts:35 | updateContent | setContent, setTabs | 콘텐츠 변경 탭 동기화(100ms 디바운스) |
 | OMD-HOOK-0005 ✅ FIXED | useEditorTabs.ts:59 | switchTab | editor.setModel, setActiveTabId | 탭 전환·스크롤 저장·모델 교체 *(수정: 2026-06-17 — css-style↔일반 탭 전환 시 모드 자동 전환, 도움말 탭 preview 모드 강제; 2026-06-18 — isDisposed() 가드로 Model is disposed! 크래시 방지 + stale ref 복원 버그 수정)* |
 | OMD-HOOK-0006 ✅ FIXED | useEditorTabs.ts:89 | createNewTab | monaco.editor.createModel, setTabs | 새 탭 생성 및 Monaco 모델 초기화 *(수정: 2026-06-18 — onDidChangeContent isModified: true → val !== t.content 비교)* |
-| OMD-HOOK-0007 ✅ FIXED | useFileExplorer.ts | useFileExplorer | saveFile, refreshFileList, handleFileClick, selectRootFolder | 파일 탐색·열기·저장·워크스페이스 제어 *(수정: 2026-06-18 — handleFileClick disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리)* |
-| OMD-HOOK-0008 | useEditorHandlers.ts | useEditorHandlers | 각종 핸들러 | 에디터 액션 로직 통합 핸들러 |
+| OMD-HOOK-0005 | useFileExplorer.ts | loadHelp | 도움말 마크다운 파일 로드 | - |
+| OMD-HOOK-0006 | useFileExplorer.ts | handleFileOpenByPath | 경로 문자열 기반 파일 탐색 및 탭 오픈 | - |
+| OMD-HOOK-0007 | useFileExplorer.ts | restoreFolderPermission | 브라우저 파일 시스템 권한 복구 유틸리티 | - |
+| OMD-HOOK-0008 ✅ FIXED | useFileExplorer.ts | saveFile | 파일 저장 로직 및 탭 상태(isModified) 동기화 | 🚨 @PATCH: 2026-08-05 (저장 후 t.content 갱신을 통해 영구적인 isModified 꼬임 버그 해결) |
+| OMD-EDIT-0050 ✅ FIXED | useEditorHandlers.ts | save, saveAs | api.saveFile, api.saveFileAs, updateCssProfileInFrontmatter | 에디터 내용을 파일로 저장 및 새 이름으로 저장 *(수정: 2026-08-05 — 저장 시점 css_profile 강제 주입 로직 추가 및 isModified 레이스 컨디션 버그 픽스)* |
 | OMD-HOOK-0009 | usePageBreak.ts | usePageBreak | handleResetPageBreaks, executeAutoPageBreak | 자동 페이지 나누기 |
 | OMD-EDIT-0065 ✅ FIXED | MEA.tsx:2861 | handlePasteImageFile | insertWithR2Fallback, webUploadImage | 클립보드 이미지 처리 (데스크탑 R2 선 시도) 🚨 2026-07-30 — R2 제거, 무조건 로컬(resourceFolder) 저장으로 단순화 |
 | OMD-EDIT-0066 ✅ FIXED | MEA.tsx:2900 | insertWithR2Fallback | api.saveImage | 🚨 2026-07-30 — R2 업로드 로직 제거, api.saveImage → mediaPath 우선 사용, 로컬 저장 전용으로 리팩토링 |
@@ -128,3 +132,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-EDIT-0068 ✅ FIXED | VideoCard.tsx:49 | useEffect | - | 동영상 썸네일 추출 시 검은 화면 방지를 위해 1초 시점으로 이동(seeking) 후 추출 |
 | OMD-EDIT-0069 ✅ FIXED | MarkdownViewer.tsx:1400 | p | - | 중첩된 이미지에서 p 태그 Hydration 에러 방지를 위해 mdast가 아닌 hast 속성(tagName === 'img')을 기준으로 재귀적 노드 검사하도록 수정 |
 | OMD-EDIT-0070 ✅ FIXED | VideoCard.tsx:35 | useEffect | - | "데스크탑은 원래대로": 데스크탑 썸네일 추출 유지. "로컬에서는 파일명": 로컬 웹서버(localhost)에서만 추출 건너뛰어 CORS 에러 방지 |
+| OMD-EDIT-0071 ✅ FIXED | ReferenceManagerModal.tsx | handleSave | vfsWriteFile, api.saveFile | 외부 참조 파일(.bib, .json 등)을 리소스 폴더에 생성 및 저장하는 별도의 도구 모달 추가 *(수정: 2026-08-05 — 좌측 목록 조회, 수정, 삭제를 포함한 2-Pane CRUD 관리자 형태로 완전 개편)* |
+| OMD-EDIT-0038 | ImageModal.tsx | handleInsert | 모달 완료 시 본문에 이미지 경로 삽입 | - |
+| OMD-EDIT-0039 ✅ FIXED | ImageModal.tsx | previewSrc_fix | 이미지 모달 미리보기 소스 경로 처리 버그 수정 | 🚨 @PATCH: 2026-08-05 (local 모드에서도 API view를 통한 Fallback SVG 표시 지원) |
+| OMD-EDIT-0040 | ImageModal.tsx | FileDrop | 이미지 드래그 앤 드롭 및 붙여넣기 이벤트 지원 | - |
