@@ -482,6 +482,10 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         onClose={() => setIsCitationModalOpen(false)}
         isDarkMode={isDarkMode}
         bibContent={deps.bibContent || ''}
+        resourceFolderHandle={deps.resourceFolderHandle}
+        workspaceType={workspaceType}
+        rootFolder={rootFolder}
+        resourceFolder={resourceFolder}
         onSelect={(citekey) => {
           if (deps.editorRef.current) {
             const editor = deps.editorRef.current;

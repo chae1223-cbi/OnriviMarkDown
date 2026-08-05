@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, FileText } from 'lucide-react';
 
@@ -6,8 +6,12 @@ interface CitationSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   isDarkMode: boolean;
-  bibContent: string;
+  bibContent?: string;
   onSelect: (citekey: string) => void;
+  resourceFolderHandle?: any;
+  workspaceType?: string;
+  rootFolder?: any;
+  resourceFolder?: string | null;
 }
 
 interface BibEntry {
@@ -26,7 +30,7 @@ function parseBibContent(content: string): BibEntry[] {
   // @type{citekey,
   //   title = {Title},
   // ...}
-  const entryRegex = /@([a-zA-Z0-9_]+)\s*{\s*([^,]+),/g;
+  const entryRegex = /@([a-zA-Z0-9_-]+)\s*{\s*([^,]+)/g;
   
   let match;
   while ((match = entryRegex.exec(content)) !== null) {
@@ -58,21 +62,92 @@ function parseBibContent(content: string): BibEntry[] {
   return entries;
 }
 
+import { loadSecureData } from '@/lib/secureStorage';
+
 export default function CitationSelectionModal({
   isOpen,
   onClose,
   isDarkMode,
   bibContent,
-  onSelect
+  onSelect,
+  resourceFolderHandle,
+  workspaceType,
+  rootFolder,
+  resourceFolder
 }: CitationSelectionModalProps) {
   const [mounted, setMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [localBibContent, setLocalBibContent] = useState('');
+
+  const loadBibFiles = useCallback(async () => {
+    try {
+      const api = (window as any).electronAPI;
+      const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
+      let mergedContent = '';
+
+      if (api && freshResourceFolder) {
+        // Desktop
+        try {
+          const bibleDir = `${freshResourceFolder}\\bible`;
+          const entries = await api.listDirectory(bibleDir);
+          for (const entry of entries) {
+            if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.bib') && entry.path) {
+              const fileObj = await api.readFromPath(entry.path);
+              if (fileObj?.content) mergedContent += '\n' + fileObj.content;
+            }
+          }
+        } catch (e) {
+          console.error("Desktop bible load error", e);
+        }
+      } else if (resourceFolderHandle) {
+        // Browser Resource Folder
+        try {
+          const bibleHandle = await resourceFolderHandle.getDirectoryHandle('bible');
+          for await (const [name, handle] of bibleHandle.entries()) {
+            if (handle.kind === 'file' && name.toLowerCase().endsWith('.bib')) {
+              const file = await handle.getFile();
+              const text = await file.text();
+              mergedContent += '\n' + text;
+            }
+          }
+        } catch (e) {
+          console.error("Browser resource folder bible load error", e);
+        }
+      } else if (rootFolder?.handle) {
+        // Browser Root Folder
+        try {
+          const bibleHandle = await rootFolder.handle.getDirectoryHandle('bible');
+          for await (const [name, handle] of bibleHandle.entries()) {
+            if (handle.kind === 'file' && name.toLowerCase().endsWith('.bib')) {
+              const file = await handle.getFile();
+              const text = await file.text();
+              mergedContent += '\n' + text;
+            }
+          }
+        } catch (e) {
+          console.error("Browser root folder bible load error", e);
+        }
+      } else {
+        // Web VFS fallback or bibContent prop
+        mergedContent = bibContent || '';
+      }
+      setLocalBibContent(mergedContent);
+    } catch (e) {
+      console.error("Error loading bib files", e);
+    }
+  }, [resourceFolderHandle, rootFolder, resourceFolder, bibContent]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const entries = useMemo(() => parseBibContent(bibContent), [bibContent]);
+  useEffect(() => {
+    if (isOpen) {
+      loadBibFiles();
+    }
+  }, [isOpen, loadBibFiles]);
+
+  const entries = useMemo(() => parseBibContent(localBibContent), [localBibContent]);
 
   const filteredEntries = useMemo(() => {
     if (!searchTerm.trim()) return entries;
