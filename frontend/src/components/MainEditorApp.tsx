@@ -1416,7 +1416,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           } catch { }
         };
         if (rootFolder?.name) await scanDir(rootFolder.name);
-        if (resourceFolder) await scanDir(resourceFolder);
+        if (resourceFolder) {
+          // 리소스 폴더의 경우 전체가 아닌 bible 폴더만 한정하여 스캔
+          await scanDir(`${resourceFolder}\\bible`);
+        }
       }
 
       // ② fileList 트리(1단계 + 운영 중인 children) 재귀 탐색
@@ -1431,7 +1434,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       };
       scanTree(fileList);
 
-      // + Browser FileSystem Access API (리소스 폴더 탐색)
+      // + Browser FileSystem Access API (리소스 폴더 탐색 - bible 한정)
       if (resourceFolderHandle && !api?.listDirectory) {
          const scanHandle = async (handle: any) => {
            try {
@@ -1444,7 +1447,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
              }
            } catch (e) {}
          };
-         await scanHandle(resourceFolderHandle);
+         try {
+           const bibleHandle = await resourceFolderHandle.getDirectoryHandle('bible');
+           await scanHandle(bibleHandle);
+         } catch (e) {
+           // bible 폴더가 없으면 무시
+         }
       }
 
       if (bibPaths.length === 0) { setBibContent(''); return; }
@@ -1482,7 +1490,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     };
     tryLoadBib();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentFileNode?.path, rootFolder?.name, fileList, workspaceType]);
+  }, [currentFileNode?.path, rootFolder?.name, fileList, workspaceType, resourceFolder, resourceFolderHandle]);
 
   // 📊 [OMD-LICENSE-MainEditorApp-POLLING]
   // 🚨 @PATCH: 2026-07-05 - 사용자 지시에 따라 무거운 백그라운드 실시간 감시(Polling) 및 강제 로그아웃 차단 로직 전면 제거.
