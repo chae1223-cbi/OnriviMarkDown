@@ -1,0 +1,12 @@
+- `[x]` 1. ReferenceManagerModal 레이아웃 2-Pane으로 개편
+  - 좌측: 파일 목록 (`.bib` 파일 리스트업)
+  - 우측: 선택된 파일 편집기 (제목 변경 불가, 내용 편집 가능)
+- `[x]` 2. 리소스 폴더 스캔 로직 (loadBibFiles) 구현
+  - `electronAPI.listDirectory` 또는 `resourceFolderHandle.entries()` 사용
+- `[x]` 3. CRUD 액션 구현
+  - 새로 만들기: 비어있는 에디터 상태로 진입, 저장 시 새 파일 생성
+  - 수정 및 저장: 기존 선택된 파일 덮어쓰기 저장
+  - 삭제: `api.deleteFile` 또는 `resourceFolderHandle.removeEntry()`로 파일 삭제 후 목록 갱신
+- `[x]` 4. 통합 검증 및 빌드 확인
+  - `npm run typecheck` 통과 확인
+  - `OMD_QUICK_TABLE.md` 에 업데이트 내역 추가

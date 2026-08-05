@@ -541,7 +541,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-CORE-MainEditorApp-0007] MainEditorApp.tsx ➔ loadUserProfiles
   // 🎯 @KICK  : 마운트 시 플랫폼 저장소(electronAPI 또는 localStorage)에서 사용자 CSS 프로필 로드
   // 🛡️ @GUARD : 사용자 저장 데이터에서 시스템 프로필 필터링, 레거시 형식 마이그레이션 병합
-  // 🚨 @PATCH : None
+  // 🚨 @PATCH : 2026-08-05 — 웹과 데스크탑 환경 모두 무조건 `profiles/userCssProfiles.json` 경로를 통합하여 서식 로드/저장하도록 표준화.
   // 🔗 @CALLS : api.readProfiles, localStorage.getItem, JSON.parse, setProfiles
   // ====================================================================
   useEffect(() => {
@@ -661,8 +661,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-EDIT-MainEditorApp-0012] MainEditorApp.tsx ➔ tabMetadata_sync
   // 🎯 @KICK  : 현재 파일 정보가 변경될 때 탭 메타데이터(fileName, path, node) 동기화
   // 🛡️ @GUARD : None
-  // 🚨 @PATCH : None
+  // 🚨 @PATCH : 2026-08-05 — 앱 시작 시 리소스 폴더 미지정 안내 메시지 표시 로직 추가 (hasShownResourceWarningRef)
   // 🔗 @CALLS : setTabs
+  // ====================================================================
+  const hasShownResourceWarningRef = useRef(false);
+
+  useEffect(() => {
+    if (hasShownResourceWarningRef.current) return;
+    const timer = setTimeout(() => {
+      hasShownResourceWarningRef.current = true;
+      const api = (window as any).electronAPI;
+      const savedFolder = loadSecureData('resourceFolder');
+      // 데스크탑은 문자열 경로 유무로, 웹은 핸들 유무로 판단
+      const isMissing = api ? !savedFolder : !resourceFolderHandle;
+      if (isMissing) {
+        showToast('환경설정에 리소스폴드가 미지정되어 서식과 멀티미디어를 사용할 수 없습니다.', 'warning');
+      }
+    }, 1500); // 초기 로딩 후 1.5초 뒤 확인
+    return () => clearTimeout(timer);
+  }, [resourceFolderHandle, showToast]);
+
   // ====================================================================
   useEffect(() => {
     if (activeTabId) {
@@ -2503,7 +2521,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-CORE-MainEditorApp-0035] MainEditorApp.tsx ➔ profilesSave
   // 🎯 @KICK  : 변경 시마다 사용자 CSS 프로필을 플랫폼 저장소에 유지
   // 🛡️ @GUARD : 중복 방지를 위해 저장 전 시스템 프로필 필터링
-  // 🚨 @PATCH : 2026-07-30 — resourceFolderHandle이 변경될 때 이전 빈 프로필(profiles) 상태로 덮어쓰는 버그 방지 (의존성 분리)
+  // 🚨 @PATCH : 2026-08-05 — 웹 브라우저 로컬 권한 파일시스템(handle) 사용 시에도 `profiles/userCssProfiles.json` 로 통일 저장하도록 로직 변경.
+  //             2026-07-30 — resourceFolderHandle이 변경될 때 이전 빈 프로필(profiles) 상태로 덮어쓰는 버그 방지 (의존성 분리)
   // 🔗 @CALLS : api.saveProfiles, localStorage.setItem
   // ====================================================================
   useEffect(() => {
@@ -2528,7 +2547,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (handle && (window as any)._resourceFolderSynced) {
         (async () => {
           try {
-            const fileHandle = await (handle as any).getFileHandle('user_profiles.json', { create: true });
+            const profilesDir = await (handle as any).getDirectoryHandle('profiles', { create: true });
+            const fileHandle = await profilesDir.getFileHandle('userCssProfiles.json', { create: true });
             const writable = await fileHandle.createWritable();
             await writable.write(JSON.stringify(userProfiles, null, 2));
             await writable.close();
@@ -4635,6 +4655,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       math: 'MATH',
       styleSettings: 'TOGGLE_CSS_STYLE',
       table: 'TABLE',
+      footnote: 'FOOTNOTE',
+      citation: 'CITE',
       quickTable: 'QUICK_TABLE',
       insertTableRow: 'INSERT_TABLE_ROW',
       deleteTableRow: 'DELETE_TABLE_ROW',
@@ -5432,7 +5454,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('INLINE_CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="인라인 코드">{'</>'}</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('UNDERLINE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] underline" title="밑줄">U</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="취소선"><span className="line-through">S</span></button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('FOOTNOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-bold font-serif" title="각주">fn</button>
                                   </div>
                                   <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
                                   {/* 제목 */}
@@ -5459,6 +5480,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   <div className="flex flex-row items-center gap-0.5">
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LINK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="링크">🔗</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('DOCLINK'); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="문서 연결">🔖</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CITE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="인용(참조문헌)">📝</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('FOOTNOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-bold font-serif" title="각주">fn</button>
+                                    <div className="w-px h-5 mx-0.5 bg-black/10 dark:bg-white/10 shrink-0" />
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('IMAGE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="이미지">🖼️</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('YOUTUBE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="동영상삽입">🎞️</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('NOW'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="현재 날짜/시간">📅</button>

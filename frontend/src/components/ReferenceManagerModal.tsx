@@ -142,6 +142,35 @@ export default function ReferenceManagerModal({
     }
   }, [isOpen, loadBibFiles, handleCreateNew]);
 
+  const handleInsertSample = () => {
+    const sampleBibTeX = `% 샘플을 참조하고 샘플을 지워주세요
+
+@article{kim2026ai,
+  title = {인공지능의 미래와 윤리적 고찰},
+  author = {김철수 and 이영희},
+  journal = {한국인공지능학회 논문지},
+  year = {2026}
+}
+
+@book{steve2011jobs,
+  title = {스티브 잡스 (Steve Jobs)},
+  author = {Walter Isaacson},
+  year = {2011},
+  publisher = {Simon & Schuster}
+}
+
+@misc{onrivi2026docs,
+  title = {온리비 마크다운 에디터 공식 문서},
+  author = {Onrivi Team},
+  year = {2026},
+  url = {https://onrivi.com/docs}
+}
+
+% --- 샘플 끝 ---`;
+    setContent(prev => prev ? prev + '\n\n' + sampleBibTeX : sampleBibTeX);
+    showToast("샘플 데이터가 삽입되었습니다.", "success");
+  };
+
   const handleSelectFile = (file: BibFile) => {
     setSelectedFile(file);
     setIsCreatingNew(false);
@@ -391,9 +420,19 @@ export default function ReferenceManagerModal({
 
             {/* Reference Data Input */}
             <div className="flex flex-col gap-2 flex-1 min-h-[250px]">
-              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                참조 데이터 내용 (BibTeX)
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  참조 데이터 내용 (BibTeX)
+                </label>
+                <button
+                  onClick={handleInsertSample}
+                  className="text-xs px-2 py-1 bg-zinc-100 dark:bg-[#2a2a2a] hover:bg-zinc-200 dark:hover:bg-[#333] text-zinc-600 dark:text-zinc-300 rounded transition-colors flex items-center gap-1 border border-zinc-200 dark:border-zinc-700"
+                  title="자주 쓰이는 논문/단행본/웹사이트 양식을 삽입합니다"
+                >
+                  <FileText className="w-3 h-3" />
+                  기본 샘플 삽입
+                </button>
+              </div>
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}

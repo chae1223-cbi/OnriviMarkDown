@@ -1279,10 +1279,9 @@ ipcMain.handle('file:readProfiles', async (event, resourceFolder) => {
   try {
     let profilePath;
     if (resourceFolder && fs.existsSync(resourceFolder)) {
-      profilePath = path.join(resourceFolder, 'user_profiles.json');
-      const oldProfilePath = path.join(resourceFolder, 'userCssProfiles.json');
-      const webProfilePath = path.join(resourceFolder, 'profiles', 'userCssProfiles.json');
-      const webProfilePathNew = path.join(resourceFolder, 'profiles', 'user_profiles.json');
+      profilePath = path.join(resourceFolder, 'profiles', 'userCssProfiles.json');
+      const fallbackPath1 = path.join(resourceFolder, 'user_profiles.json');
+      const fallbackPath2 = path.join(resourceFolder, 'userCssProfiles.json');
       
       let useFallback = false;
       if (!fs.existsSync(profilePath)) {
@@ -1297,12 +1296,10 @@ ipcMain.handle('file:readProfiles', async (event, resourceFolder) => {
       }
 
       if (useFallback) {
-        if (fs.existsSync(oldProfilePath)) {
-          profilePath = oldProfilePath;
-        } else if (fs.existsSync(webProfilePathNew)) {
-          profilePath = webProfilePathNew;
-        } else if (fs.existsSync(webProfilePath)) {
-          profilePath = webProfilePath;
+        if (fs.existsSync(fallbackPath1)) {
+          profilePath = fallbackPath1;
+        } else if (fs.existsSync(fallbackPath2)) {
+          profilePath = fallbackPath2;
         }
       }
     } else {
@@ -1327,7 +1324,11 @@ ipcMain.handle('file:saveProfiles', async (event, profiles, resourceFolder) => {
   try {
     let dataPath = path.join(app.getPath('userData'), 'user_profiles.json');
     if (resourceFolder && fs.existsSync(resourceFolder)) {
-      dataPath = path.join(resourceFolder, 'user_profiles.json');
+      const profilesDir = path.join(resourceFolder, 'profiles');
+      if (!fs.existsSync(profilesDir)) {
+        fs.mkdirSync(profilesDir, { recursive: true });
+      }
+      dataPath = path.join(profilesDir, 'userCssProfiles.json');
     }
     fs.writeFileSync(dataPath, JSON.stringify(profiles, null, 2), 'utf-8');
     return { success: true };

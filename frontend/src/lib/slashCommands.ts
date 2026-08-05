@@ -21,7 +21,8 @@ export const DEFAULT_SLASH_COMMANDS = [
   { id: 'checklist', label: 'Checklist (체크리스트)', kind: 17, insertText: '- [ ] ', detail: '할 일 목록' },
   { id: 'image', label: 'Image (이미지)', kind: 15, insertText: '![대체 텍스트](이미지_URL)', detail: '이미지 삽입' },
   { id: 'link', label: 'Link (링크)', kind: 15, insertText: '[링크 텍스트](URL)', detail: '링크 삽입' },
-  { id: 'divider', label: 'Divider (구분선)', kind: 15, insertText: '\n---\n', detail: '가로 구분선' }
+  { id: 'divider', label: 'Divider (구분선)', kind: 15, insertText: '\n---\n', detail: '가로 구분선' },
+  { id: 'cite', label: 'Cite (참조문헌 인용)', kind: 15, insertText: '', detail: '참조문헌(bib) 선택 및 인용 삽입', actionId: 'custom-action-citation' }
 ];
 
 // Monaco가 없어도 사용할 수 있도록 초기화 함수 작성
@@ -33,8 +34,18 @@ export const DEFAULT_SLASH_COMMANDS = [
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const getSlashCommands = (monaco: any, customCommands = DEFAULT_SLASH_COMMANDS) => {
-  return customCommands.map(cmd => ({
-    ...cmd,
-    kind: cmd.kind === 17 ? monaco.languages.CompletionItemKind.Keyword : monaco.languages.CompletionItemKind.Snippet
-  }));
+  return customCommands.map(cmd => {
+    const item: any = {
+      ...cmd,
+      kind: cmd.kind === 17 ? monaco.languages.CompletionItemKind.Keyword : monaco.languages.CompletionItemKind.Snippet
+    };
+    if (cmd.actionId) {
+      item.command = {
+        id: cmd.actionId,
+        title: cmd.label,
+        arguments: []
+      };
+    }
+    return item;
+  });
 };
