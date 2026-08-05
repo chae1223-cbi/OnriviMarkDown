@@ -723,6 +723,7 @@ const FileTreeItem = ({
         onCancel={() => setPromptConfig({ ...promptConfig, isOpen: false, error: '' })}
       />
       <div 
+        title={node.name}
         draggable={!isMergeMode && !isRestrictedUser}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
