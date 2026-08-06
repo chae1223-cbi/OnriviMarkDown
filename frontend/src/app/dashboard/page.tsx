@@ -10,11 +10,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'; // 🔗 React 코어 — 상태관리(useState), 부수효과(useEffect), 콜백 메모이제이션(useCallback), DOM/타이머 참조(useRef)
 import { useRouter } from 'next/navigation'; // 🔗 Next.js 라우터 — 페이지 이동(router.push) 및 쿼리 파라미터 접근
 import { supabase } from '@/lib/supabaseClient'; // 🔗 Supabase 클라이언트 — Auth 세션 관리, DB 쿼리(from), RPC 호출
-import { plans } from '@/lib/constants'; // 🔗 요금제 정의 상수 — 플랜 카드 렌더링용 plan.name/plan.isFree 등 메타정보
 import {
   Laptop, Power, RefreshCw, Key, ShieldCheck, AlertCircle,
   LogOut, ArrowRight, User, Calendar, CreditCard,
-  CheckCircle, XCircle, Zap, Crown
+  CheckCircle, XCircle, Zap, Crown, Loader2
 } from 'lucide-react'; // 🎨 아이콘 세트 — 기기/전원/새로고침/라이선스/보안/경고/로그아웃/화살표/사용자/달력/결제/성공/실패/번개/왕관
 import Link from 'next/link'; // 🔗 Next.js 링크 — 클라이언트 사이드 내비게이션 (<Link href=...>)
 import { useToast } from '@/components/ToastProvider'; // 🛡️ 토스트 알림 — 사용자 피드백 (showToast: success/error/info/warning)
@@ -102,6 +101,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   const [desktopLicense, setDesktopLicense] = useState<LicenseInfo | null>(null);
   const [desktopSubscription, setDesktopSubscription] = useState<SubscriptionInfo | null>(null);
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
+  const [dbPlans, setDbPlans] = useState<any[]>([]); // DB에서 가져온 요금제 정보
 
   useEffect(() => {
     // Read URL params
@@ -164,9 +164,18 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
         setCommonCodes(codeMap);
       }
 
-
-
-      // RLS 우회를 위해 서버사이드 API 라우트(/api/subscription/get) 호출
+      // 🛒 요금제 정보 패치
+      try {
+        const plansRes = await fetch('/api/plans');
+        if (plansRes.ok) {
+          const plansData = await plansRes.json();
+          if (Array.isArray(plansData)) {
+            setDbPlans(plansData);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch plans", err);
+      }      // RLS 우회를 위해 서버사이드 API 라우트(/api/subscription/get) 호출
       const dashRes = await fetch(`/api/subscription/get`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -449,21 +458,21 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   // -------------------------------------------------------------------------------------
   // 🚨 @PATCH : 2026-06-26 — 요금제 선택
   // -------------------------------------------------------------------------------------
-  const handleSelectPlan = async (plan: typeof plans[0]) => { // 🎯 요금제 선택
+  const handleSelectPlan = async (plan: any) => { // 🎯 요금제 선택
     if (!user) return; // 🛡️ 유저 정보가 없을 때
-    setActionLoading('plan_' + plan.name); // ⏳ 로딩 상태 설정
+    setActionLoading('plan_' + plan.id); // ⏳ 로딩 상태 설정
 
     try {
       // 🚨 [재가입 가드]: 과거 이력(무료/유료/만료/해지 상관없이)이 1건이라도 존재하는 경우 무료 요금제 신청 전면 차단
       const hasAnyHistory = historyList && historyList.length > 0;
-      if (plan.isFree && hasAnyHistory && plan.name !== 'Reader') {
+      if (plan.is_free && hasAnyHistory && plan.plan_code !== 'READER') {
         throw new Error("이미 구독 이용 이력이 존재하는 계정이므로 무료 요금제 재가입이 불가능합니다. 유료 플랜을 선택해 주세요.");
       }
-      const maxDevices = plan.name === 'Elite Pro' ? 1 : (plan.isFree ? 1 : 3); // 🔒 최대 기기 수
-      const isYearly = billingInterval === 'year' || plan.name === 'Elite Pro';
-      const trialDays = plan.isFree ? (plan.name === 'Reader' ? 36500 : 7) : (isYearly ? 365 : 30); // Reader=100년, Apprentice=7일
-      const interval = plan.name === 'Reader' ? 'free' : (plan.isFree ? 'trial' : (isYearly ? 'year' : 'month'));
-      const periodEnd = plan.name === 'Reader'
+      const maxDevices = plan.plan_code === 'ELITEPRO' ? 1 : (plan.is_free ? 1 : 3); // 🔒 최대 기기 수
+      const isYearly = billingInterval === 'year' || plan.plan_code === 'ELITEPRO';
+      const trialDays = plan.is_free ? (plan.plan_code === 'READER' ? 36500 : 7) : (isYearly ? 365 : 30); // Reader=100년, Apprentice=7일
+      const interval = plan.plan_code === 'READER' ? 'free' : (plan.is_free ? 'trial' : (isYearly ? 'year' : 'month'));
+      const periodEnd = plan.plan_code === 'READER'
         ? new Date(Date.now() + 36500 * 86400000).toISOString()
         : new Date(Date.now() + trialDays * 86400000).toISOString();
 
@@ -492,7 +501,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           p_user_id: user.id, // 🔑 사용자 ID
-          p_plan_name: plan.name.toUpperCase().replace(/\s+/g, ''), // 🎯 요금제 대문자 코드값 (e.g. FREE, APPRENTICE, REGULAR, ELITEPRO)
+          p_plan_name: plan.plan_code, // 🎯 요금제 코드값 (e.g. FREE, APPRENTICE, REGULAR, ELITEPRO)
           p_plan_status: calculatedStatus, // 🛡️ 상태
           p_billing_interval: interval, // 🛡️ 구독 간격
           p_max_devices: maxDevices, // 🔒 최대 기기 수
@@ -518,10 +527,6 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       localStorage.setItem('onrivi_payment_no', result.payment_no || ''); // 🔒 결제 번호 저장
       localStorage.setItem('onrivi_last_run_time', Date.now().toString()); // 🔒 마지막 실행 시간 저장
       // -------------------------------------------------------------------------------------------
-
-      // ------------------------------------------------------------------------------------------ 
-      // 🚨 [핵심]: 구독 신청 성공 시, 로컬 스토리지의 'onrivi_trial_claimed' 플래그를 즉시 삭제합니다.
-      // ------------------------------------------------------------------------------------------
 
       showToast(`${plan.name} 플랜이 성공적으로 활성화되었습니다!`, 'success'); // 📢 토스트 알림
       await loadDashboardData(); // 🔄 대시보드 데이터 로드
@@ -694,7 +699,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
 
         {/* 원클릭 연동 + 세션 관리 */}
         <div className="grid md:grid-cols-2 gap-6 mb-6">
-          {/* Desktop Connector - 카드 형태는 상시 유지하되 Elite Pro가 아닌 경우 내부 결제번호/인증 데이터 미표시 */}
+          {/* Desktop Connector */}
           <div style={{ ...glassCard, padding: "24px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: T.subtle, letterSpacing: "0.06em", textTransform: "uppercase" }}>데스크탑구독상품</span>
@@ -910,34 +915,34 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             </div>
           </div>
           <div className="grid md:grid-cols-3 gap-4">
-            {plans.filter(p => p.name !== 'Reader').map((plan) => {
-              const planInterval = plan.name === 'Elite Pro' ? 'year' : (plan.name === 'Regular' ? billingInterval : 'month');
-              const isSameInterval = plan.isFree ? true : subscription?.billing_interval === planInterval;
-              const planCode = plan.name.toUpperCase().replace(/\s+/g, '');
-              const isCurrentPlan = (subscription?.plan_name === planCode || subscription?.plan_name === plan.name) && (subscription?.plan_status === 'ACTIVE' || subscription?.plan_status === 'FREE') && isSameInterval;
+            {dbPlans.filter(p => p.plan_code !== 'READER').map((plan) => {
+              const planInterval = plan.plan_code === 'ELITEPRO' ? 'year' : (plan.plan_code === 'REGULAR' ? billingInterval : 'month');
+              const isSameInterval = plan.is_free ? true : subscription?.billing_interval === planInterval;
+              const planCode = plan.plan_code;
+              const isCurrentPlan = (subscription?.plan_name === planCode) && (subscription?.plan_status === 'ACTIVE' || subscription?.plan_status === 'FREE') && isSameInterval;
 
-              const priceVal = plan.isFree ? 0
-                : (planInterval === 'year' ? (plan.priceYearly || 0) : (plan.priceMonthly || 0));
-              const suffix = plan.isFree ? "" : (planInterval === 'year' ? "/년" : "/월");
+              const priceVal = plan.is_free ? 0
+                : (planInterval === 'year' ? (plan.price_yearly || 0) : (plan.price_monthly || 0));
+              const suffix = plan.is_free ? "" : (planInterval === 'year' ? "/년" : "/월");
 
-              const isPaidEnabled = plan.name === 'Regular' || plan.name === 'Elite Pro';
+              const isPaidEnabled = plan.plan_code === 'REGULAR' || plan.plan_code === 'ELITEPRO';
 
               return (
                 <div
-                  key={plan.name}
+                  key={plan.id}
                   style={{
                     position: "relative",
-                    background: plan.highlighted ? "linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0.12) 100%)" : "rgba(255,255,255,0.5)",
-                    border: `1px solid ${isCurrentPlan ? "rgba(16,185,129,0.35)" : plan.highlighted ? "rgba(99,102,241,0.35)" : T.border}`,
+                    background: plan.is_highlighted ? "linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0.12) 100%)" : "rgba(255,255,255,0.5)",
+                    border: `1px solid ${isCurrentPlan ? "rgba(16,185,129,0.35)" : plan.is_highlighted ? "rgba(99,102,241,0.35)" : T.border}`,
                     borderRadius: "1rem",
                     padding: "20px 16px",
                     display: "flex",
                     flexDirection: "column",
                     transition: "transform 0.15s, box-shadow 0.15s",
-                    boxShadow: plan.highlighted ? "0 4px 16px rgba(99,102,241,0.12)" : "none",
+                    boxShadow: plan.is_highlighted ? "0 4px 16px rgba(99,102,241,0.12)" : "none",
                   }}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 8px 24px rgba(99,102,241,0.12)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.boxShadow = plan.highlighted ? "0 4px 16px rgba(99,102,241,0.12)" : "none"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.boxShadow = plan.is_highlighted ? "0 4px 16px rgba(99,102,241,0.12)" : "none"; }}
                 >
                   {plan.badge && (
                     <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", padding: "2px 12px", background: "linear-gradient(135deg, #4f46e5, #6366f1)", borderRadius: 9999, fontSize: 10, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(99,102,241,0.3)" }}>
@@ -950,20 +955,20 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                     </div>
                   )}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <span style={{ fontSize: 18 }}>{plan.tierEmoji}</span>
+                    <span style={{ fontSize: 18 }}>{plan.tier_emoji}</span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: T.onSurface }}>{plan.name}</span>
                     <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 8px", borderRadius: 9999, background: "rgba(14,165,233,0.08)", color: T.primary }}>
-                      {plan.environment === "web" ? "Web" : plan.environment === "desktop" ? "Desktop+Web" : plan.environment}
+                      {plan.environment_name || plan.sys_type}
                     </span>
                   </div>
                   <div style={{ fontSize: 22, fontWeight: 800, color: T.onSurface, marginBottom: 2 }}>
-                    {plan.isFree ? '무료' : `${priceVal?.toLocaleString()}원`}
-                    {!plan.isFree && <span style={{ fontSize: 12, fontWeight: 400, color: T.subtle }}>{suffix}</span>}
+                    {plan.is_free ? '무료' : `${priceVal?.toLocaleString()}원`}
+                    {!plan.is_free && <span style={{ fontSize: 12, fontWeight: 400, color: T.subtle }}>{suffix}</span>}
                   </div>
                   <p style={{ fontSize: 11, color: T.subtle, marginBottom: 14 }}>{plan.tagline}</p>
 
                   {/* Billing interval toggle for Regular */}
-                  {plan.name === 'Regular' && (
+                  {plan.plan_code === 'REGULAR' && (
                     <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
                       <button
                         onClick={() => setBillingInterval('month')}
@@ -975,7 +980,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                           cursor: "pointer", transition: "all 0.15s",
                         }}
                       >
-                        월간 3,000원
+                        월간 {plan.price_monthly?.toLocaleString()}원
                       </button>
                       <button
                         onClick={() => setBillingInterval('year')}
@@ -987,13 +992,13 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                           cursor: "pointer", transition: "all 0.15s",
                         }}
                       >
-                        연간 30,000원
+                        연간 {plan.price_yearly?.toLocaleString()}원
                       </button>
                     </div>
                   )}
 
                   <ul style={{ listStyle: "none", padding: 0, margin: "0 0 16px", display: "flex", flexDirection: "column", gap: 6, flexGrow: 1 }}>
-                    {plan.features.map((f, i) => (
+                    {(plan.features || []).map((f: string, i: number) => (
                       <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 7, fontSize: 11, color: T.muted }}>
                         <CheckCircle size={12} style={{ color: T.success, flexShrink: 0, marginTop: 1 }} />
                         {f}
@@ -1002,29 +1007,26 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                   </ul>
                   <button
                     onClick={() => handleSelectPlan(plan)}
-                    disabled={isCurrentPlan || actionLoading === 'plan_' + plan.name || plan.name === 'Regular' || plan.name === 'Elite Pro'}
+                    disabled={isCurrentPlan || actionLoading === 'plan_' + plan.id}
                     style={{
                       width: "100%", padding: "9px 0", borderRadius: "0.75rem",
                       fontSize: 12, fontWeight: 700,
-                      cursor: (isCurrentPlan || actionLoading === 'plan_' + plan.name || plan.name === 'Regular' || plan.name === 'Elite Pro') ? "not-allowed" : "pointer",
+                      cursor: (isCurrentPlan || actionLoading === 'plan_' + plan.id) ? "not-allowed" : "pointer",
                       transition: "all 0.15s",
                       background: isCurrentPlan
                         ? "rgba(16,185,129,0.1)"
-                        : (plan.name === 'Regular' || plan.name === 'Elite Pro') ? "rgba(156,163,175,0.15)"
-                        : (plan.highlighted ? T.primary : "rgba(99,102,241,0.06)"),
+                        : (plan.is_highlighted ? T.primary : "rgba(99,102,241,0.06)"),
                       color: isCurrentPlan
                         ? T.success
-                        : (plan.name === 'Regular' || plan.name === 'Elite Pro') ? T.muted
-                        : (plan.highlighted ? "#fff" : T.primaryDark),
+                        : (plan.is_highlighted ? "#fff" : T.primaryDark),
                       border: `1px solid ${
                         isCurrentPlan ? "rgba(16,185,129,0.3)" :
-                        (plan.name === 'Regular' || plan.name === 'Elite Pro') ? "rgba(156,163,175,0.3)" :
-                        plan.highlighted ? "transparent" : "rgba(99,102,241,0.25)"
+                        plan.is_highlighted ? "transparent" : "rgba(99,102,241,0.25)"
                       }`,
-                      opacity: (isCurrentPlan || actionLoading === 'plan_' + plan.name || plan.name === 'Regular' || plan.name === 'Elite Pro') ? 0.6 : 1,
+                      opacity: (isCurrentPlan || actionLoading === 'plan_' + plan.id) ? 0.6 : 1,
                     }}
                   >
-                    {actionLoading === 'plan_' + plan.name ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : (plan.name === 'Regular' || plan.name === 'Elite Pro') ? '🚧 공사중' : plan.cta}
+                    {actionLoading === 'plan_' + plan.id ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : plan.cta}
                   </button>
                 </div>
               );

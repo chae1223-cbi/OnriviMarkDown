@@ -6,9 +6,8 @@
 // ====================================================================
 "use client"; // "use client" : 클라이언트 사이드 렌더링을 위한 지시어 
 
-import { useState } from "react"; // useState : 상태 관리를 위해 임포트 
+import { useState, useEffect } from "react"; // useState, useEffect : 상태 관리 및 데이터 패치를 위해 임포트 
 import { motion } from "framer-motion"; // framer-motion : 애니메이션을 위한 라이브러리 
-import { plans } from "@/lib/constants"; // plans : 멤버십 가격표 데이터를 위한 상수 
 import { ConfirmModal } from "@/components/ui/ConfirmModal"; // ConfirmModal : 확인 모달 컴포넌트 
 
 // ====================================================================
@@ -19,6 +18,29 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean; title: string; message: string; onConfirm: () => void;
   }>({ isOpen: false, title: "", message: "", onConfirm: () => { } }); // modalConfig : 모달 설정을 위한 상태  
+
+  const [dbPlans, setDbPlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/plans')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setDbPlans(data);
+        }
+      })
+      .catch(err => console.error("Failed to fetch plans:", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <section id="pricing" style={{ padding: "96px 0", background: "#f7f9fb", fontFamily: "Inter, sans-serif" }}>
+        <div className="text-center">요금제를 불러오는 중입니다...</div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -41,34 +63,31 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
 
         {/* Plan List */}
         <div className="max-w-3xl mx-auto" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {plans.map((plan, i) => {
-            const isHighlighted = plan.highlighted;
-            const isFree = plan.isFree;
+          {dbPlans.map((plan, i) => {
+            const isHighlighted = plan.is_highlighted;
+            const isFree = plan.is_free;
 
             const priceDisplay = isFree
               ? "0원"
-              : plan.name === "Regular" && plan.priceMonthly
-                ? `₩${(plan.priceMonthly).toLocaleString()} / 월`
-                : plan.name === "Elite Pro" && plan.priceYearly
-                  ? `₩${(plan.priceYearly).toLocaleString()} / 년`
-                  : "";
+              : plan.plan_code === "REGULAR" && plan.price_monthly
+                ? `₩${(plan.price_monthly).toLocaleString()} / 월`
+                : plan.plan_code === "ELITEPRO" && plan.price_yearly
+                  ? `₩${(plan.price_yearly).toLocaleString()} / 년`
+                  : plan.price_monthly ? `₩${(plan.price_monthly).toLocaleString()} / 월` : plan.price_yearly ? `₩${(plan.price_yearly).toLocaleString()} / 년` : "";
 
             const usdDisplay = isFree
               ? ""
-              : plan.name === "Regular" && plan.priceUSD
-                ? `($${plan.priceUSD} / 월)`
-                : plan.name === "Elite Pro" && plan.priceUSD
-                  ? `($${plan.priceUSD} / 년)`
-                  : "";
+              : plan.plan_code === "REGULAR" && plan.price_monthly_usd
+                ? `($${plan.price_monthly_usd} / 월)`
+                : plan.plan_code === "ELITEPRO" && plan.price_yearly_usd
+                  ? `($${plan.price_yearly_usd} / 년)`
+                  : plan.price_monthly_usd ? `($${plan.price_monthly_usd} / 월)` : plan.price_yearly_usd ? `($${plan.price_yearly_usd} / 년)` : "";
 
-            const envLabel =
-              plan.environment === "web" ? "웹 브라우저" :
-                plan.environment === "desktop" ? "PC 설치형 + 웹" :
-                  plan.environment;
+            const envLabel = plan.environment_name || plan.sys_type;
 
             return (
               <motion.div
-                key={plan.name}
+                key={plan.id}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -94,7 +113,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 {/* Header: Tier emoji + Name + Environment + Price */}
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 28 }}>{plan.tierEmoji}</span>
+                    <span style={{ fontSize: 28 }}>{plan.tier_emoji}</span>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span style={{ fontSize: 16, fontWeight: 700, color: isHighlighted ? "#fff" : "#0f172a" }}>
@@ -123,7 +142,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
 
                 {/* Features */}
                 <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                  {plan.features.map((f, fi) => (
+                  {(plan.features || []).map((f: string, fi: number) => (
                     <li key={fi} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "3px 0", fontSize: 13, lineHeight: "20px", color: isHighlighted ? "rgba(255,255,255,0.85)" : "#475569" }}>
                       <span style={{ color: isHighlighted ? "#bae6fd" : "#0ea5e9", fontWeight: 700, flexShrink: 0 }}>✓</span>
                       <span>{f}</span>

@@ -1376,7 +1376,14 @@ input::-ms-clear {
 
   background-color: var(--admin-bg);
   color: var(--admin-text);
+  color-scheme: dark;
 }
+
+.admin-theme select option {
+  background-color: var(--admin-surface);
+  color: var(--admin-text);
+}
+
 
 @layer components {
   /* Cards & Containers */

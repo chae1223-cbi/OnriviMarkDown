@@ -7,8 +7,21 @@
 // ====================================================================
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "./Button";
-import type { Plan } from "@/lib/constants";
 import Link from "next/link";
+
+export interface Plan {
+  id: string;
+  name: string;
+  tagline: string;
+  priceMonthly?: number;
+  priceUSD?: string;
+  isFree?: boolean;
+  isEnterprise?: boolean;
+  badge?: string;
+  highlighted?: boolean;
+  features: string[];
+  cta: string;
+}
 
 interface PlanCardProps {
   plan: Plan;

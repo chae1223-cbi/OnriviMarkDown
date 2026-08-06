@@ -7,7 +7,10 @@ import { showToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabaseClient';
 import UserDetailModal from './components/UserDetailModal';
 import AdminsTab from './components/AdminsTab';
+import CodesTab from './components/CodesTab';
+import PlansTab from './components/PlansTab';
 import OTPResetModal from './components/OTPResetModal';
+import InquiriesTab from './components/InquiriesTab';
 
 function AdminPageContent() {
   const searchParams = useSearchParams();
@@ -20,7 +23,8 @@ function AdminPageContent() {
       {tab === 'admins' && <AdminsTab />}
       {tab === 'subscriptions' && <SubscriptionsTab />}
       {tab === 'codes' && <CodesTab />}
-      {tab === 'support' && <SupportTab />}
+      {tab === 'plans' && <PlansTab />}
+      {tab === 'support' && <InquiriesTab />}
       {tab === 'audit' && <FutureFeatureTab title="감사 로그" features={['누가, 언제, 어떤 고객의 데이터를 건드렸는지 행동 기록 추적', '내부 직원의 실수나 어뷰징 방지 및 보안 강화']} />}
       {tab === 'promotions' && <FutureFeatureTab title="프로모션 관리" features={['할인 쿠폰 또는 무료 이용권(Free Trial) 코드 생성', '마케팅 이벤트 성과 분석 및 발급된 쿠폰 사용 내역 추적']} />}
       {tab === 'contents' && <FutureFeatureTab title="콘텐츠 관리" features={['사용자들이 업로드한 이미지 및 파일 첨부 내역 조회', '불법 콘텐츠 필터링 및 불필요한 대용량 파일 강제 삭제(서버 용량 관리)']} />}
@@ -745,146 +749,9 @@ function SubscriptionsTab() {
   );
 }
 
-function CodesTab() {
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] font-bold font-montserrat text-[var(--admin-text)] tracking-tight">공통 코드 관리</h1>
-          <p className="text-[var(--admin-text-muted)] mt-1">시스템에서 사용되는 정적 코드(sys_codes)를 관리합니다.</p>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-500/20">
-          <Plus className="w-4 h-4" /> 코드 추가
-        </button>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Group Selector */}
-        <div className="admin-glass-card p-4 h-fit">
-          <h3 className="text-sm font-semibold text-[var(--admin-text)] mb-4 uppercase tracking-wider">코드 그룹 (Group)</h3>
-          <div className="space-y-1">
-            {['PLAN_TYPE', 'PLAN_STATUS', 'DEVICE_TYPE', 'INQUIRY_CATEGORY'].map((group, i) => (
-              <button 
-                key={i}
-                className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-all ${
-                  i === 0 
-                    ? 'bg-[var(--admin-surface-bright)] text-[var(--admin-primary)] font-medium' 
-                    : 'text-[var(--admin-text-muted)] hover:bg-neutral-50 dark:hover:bg-neutral-800'
-                }`}
-              >
-                {group}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        {/* Code List */}
-        <div className="md:col-span-2 admin-glass-card overflow-hidden">
-          <div className="p-4 border-b border-[var(--admin-border)] bg-[var(--admin-surface-bright)]">
-            <h3 className="font-semibold text-[var(--admin-text)]">PLAN_TYPE 상세 코드</h3>
-          </div>
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="text-[var(--admin-text-muted)] text-xs uppercase tracking-wider border-b border-[var(--admin-border)]">
-                <th className="px-6 py-3 font-medium">코드 값 (Value)</th>
-                <th className="px-6 py-3 font-medium">표시명 (Name)</th>
-                <th className="px-6 py-3 font-medium">사용 여부</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--admin-border)]">
-              {[
-                { val: 'FREE', name: '무료 체험', active: true },
-                { val: 'READER', name: '리더 플랜', active: true },
-                { val: 'APPRENTICE', name: '어프렌티스', active: true },
-                { val: 'ELITEPRO', name: '엘리트 프로', active: true },
-                { val: 'ENTERPRISE', name: '엔터프라이즈', active: false },
-              ].map((code, i) => (
-                <tr key={i} className="hover:bg-[var(--admin-surface)] transition-colors">
-                  <td className="px-6 py-4 font-mono text-sm text-neutral-900 dark:text-neutral-200">{code.val}</td>
-                  <td className="px-6 py-4 text-sm text-[var(--admin-text-muted)]">{code.name}</td>
-                  <td className="px-6 py-4">
-                    <div className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${code.active ? 'bg-blue-600' : 'bg-neutral-300 dark:bg-neutral-700'}`}>
-                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${code.active ? 'translate-x-5' : 'translate-x-0'}`}></div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function SupportTab() {
-  return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] font-bold font-montserrat text-[var(--admin-text)] tracking-tight">문의 및 지원</h1>
-          <p className="text-[var(--admin-text-muted)] mt-1">고객의 1:1 문의 내역을 확인하고 답변을 관리합니다.</p>
-        </div>
-        <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-[var(--admin-surface)] border-[var(--admin-border)] border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
-            미답변만 보기
-          </button>
-        </div>
-      </div>
-
-      <div className="admin-glass-card overflow-hidden">
-        <div className="p-4 border-b border-[var(--admin-border)] flex gap-4">
-          <div className="relative flex-1 max-w-md">
-            <input 
-              type="text" 
-              placeholder="제목, 내용 또는 이메일로 검색..." 
-              className="w-full pl-4 pr-4 py-2 admin-ghost-input text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
-            />
-          </div>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[var(--admin-surface-bright)] text-[var(--admin-text-muted)] text-xs uppercase tracking-wider">
-                <th className="px-6 py-4 font-medium">상태</th>
-                <th className="px-6 py-4 font-medium">문의 제목</th>
-                <th className="px-6 py-4 font-medium">작성자</th>
-                <th className="px-6 py-4 font-medium">등록일</th>
-                <th className="px-6 py-4 font-medium text-right">관리</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--admin-border)]">
-              {[
-                { title: '마크다운 에디터 이미지 업로드 오류', author: 'user2@gmail.com', date: '2026-08-01', status: 'WAITING' },
-                { title: '결제 환불 요청합니다', author: 'ceo@onrivi.com', date: '2026-07-30', status: 'WAITING' },
-                { title: 'PDF 내보내기 폰트 깨짐 현상', author: 'tester@test.com', date: '2026-07-28', status: 'ANSWERED' },
-              ].map((item, i) => (
-                <tr key={i} className="hover:bg-[var(--admin-surface)] transition-colors">
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      item.status === 'ANSWERED' ? 'admin-chip-emerald' : 'admin-chip-gold'
-                    }`}>
-                      {item.status === 'ANSWERED' ? '답변완료' : '대기중'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 font-medium text-[var(--admin-text)]">{item.title}</td>
-                  <td className="px-6 py-4 text-sm text-[var(--admin-text-muted)]">{item.author}</td>
-                  <td className="px-6 py-4 text-sm text-[var(--admin-text-muted)]">{item.date}</td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 rounded-lg transition-colors">
-                      {item.status === 'ANSWERED' ? '답변 수정' : '답변 작성'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function FutureFeatureTab({ title, features }: { title: string, features: string[] }) {
   return (

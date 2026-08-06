@@ -8,7 +8,6 @@ import { CtaSection } from "@/components/sections/CtaSection";
 import {
   features,
   faqs,
-  plans,
   NAV_LINKS,
 } from "@/lib/constants";
 

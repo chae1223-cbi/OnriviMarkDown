@@ -292,8 +292,13 @@ CREATE TABLE IF NOT EXISTS public.support_inquiries_new (
     content text NOT NULL,                                -- 문의 본문 내용
     attachment_urls text[] DEFAULT '{}',                  -- 첨부파일 URL 저장 배열
     status text NOT NULL DEFAULT 'PENDING',               -- 처리 상태 코드 (공통코드 INQUIRY_STATUS: PENDING, IN_PROGRESS, RESOLVED)
+    answer_content text NULL,                             -- 관리자 답변 내용
+    answered_at timestamptz NULL,                         -- 관리자 답변 일시
+    answered_by uuid NULL,                                -- 답변을 작성한 관리자 UUID
+    answer_attachment_urls text[] DEFAULT '{}',           -- 관리자 답변 첨부파일 URL 저장 배열
     CONSTRAINT support_inquiries_new_pkey PRIMARY KEY (id),
-    CONSTRAINT support_inquiries_new_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users_new(id) ON DELETE SET NULL
+    CONSTRAINT support_inquiries_new_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users_new(id) ON DELETE SET NULL,
+    CONSTRAINT support_inquiries_new_answered_by_fkey FOREIGN KEY (answered_by) REFERENCES public.users_new(id) ON DELETE SET NULL
 );
 
 COMMENT ON TABLE public.support_inquiries_new IS '고객 문의하기 접수 원장 테이블';
@@ -310,13 +315,17 @@ COMMENT ON COLUMN public.support_inquiries_new.title IS '문의 제목';
 COMMENT ON COLUMN public.support_inquiries_new.content IS '문의 본문 내용';
 COMMENT ON COLUMN public.support_inquiries_new.attachment_urls IS '첨부파일 URL 저장 배열';
 COMMENT ON COLUMN public.support_inquiries_new.status IS '처리 상태 코드 (공통코드 INQUIRY_STATUS: PENDING, IN_PROGRESS, RESOLVED)';
+COMMENT ON COLUMN public.support_inquiries_new.answer_content IS '관리자 답변 내용';
+COMMENT ON COLUMN public.support_inquiries_new.answered_at IS '관리자 답변 일시';
+COMMENT ON COLUMN public.support_inquiries_new.answered_by IS '답변을 작성한 관리자 UUID';
+COMMENT ON COLUMN public.support_inquiries_new.answer_attachment_urls IS '관리자 답변 첨부파일 URL 저장 배열';
 
 DO $$
 BEGIN
     IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'support_inquiries') THEN
         INSERT INTO public.support_inquiries_new (
             id, created_by, created_at, updated_by, updated_at, user_id,
-            name, email, type, title, content, attachment_urls, status
+            name, email, type, title, content, attachment_urls, status, answer_content, answered_at, answered_by, answer_attachment_urls
         )
         SELECT 
             id,

@@ -3,7 +3,7 @@
 import React, { useState, Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, CreditCard, MonitorPlay, Settings, LogOut, Menu, X, MessageSquare, ShieldAlert, Ticket, Files, FileDown, Server, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, MonitorPlay, Settings, LogOut, Menu, X, MessageSquare, ShieldAlert, Ticket, Files, FileDown, Server, ShieldCheck, Tags } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { showToast } from '@/utils/toast';
 
@@ -100,6 +100,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     { name: '대시보드', href: '/admin?tab=dashboard', id: 'dashboard', icon: LayoutDashboard },
     { name: '사용자 관리', href: '/admin?tab=users', id: 'users', icon: Users },
     { name: '구독 및 라이선스', href: '/admin?tab=subscriptions', id: 'subscriptions', icon: CreditCard },
+    { name: '요금제 관리', href: '/admin?tab=plans', id: 'plans', icon: Tags },
     ...(adminRole === 'SUPER' ? [{ name: '관리자 계정 관리', href: '/admin?tab=admins', id: 'admins', icon: ShieldCheck }] : []),
     { name: '문의 및 지원', href: '/admin?tab=support', id: 'support', icon: MessageSquare },
     { name: '공통 코드 관리', href: '/admin?tab=codes', id: 'codes', icon: Settings },

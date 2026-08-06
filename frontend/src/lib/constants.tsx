@@ -21,27 +21,7 @@ export interface FAQ {
   answer: string;
 }
 
-export interface Plan {
-  name: string;
-  tagline: string;
-  badge?: string;
-  description?: string;
-  features: string[];
-  highlighted?: boolean;
-  cta: string;
-  ctaVariant: "primary" | "secondary";
-  isFree?: boolean;
-  isEnterprise?: boolean;
-  priceMonthly?: number;
-  priceYearly?: number;
-  priceUSD?: string;
-  addonMonthly?: number;
-  addonYearly?: number;
-  desktopMonthly?: number;
-  desktopYearly?: number;
-  environment: "web" | "desktop" | "both";
-  tierEmoji: string;
-}
+
 
 export const features: Feature[] = [
   {
@@ -123,71 +103,7 @@ export const faqs: FAQ[] = [
   }
 ];
 
-export const plans: Plan[] = [
-  {
-    name: "Reader",
-    tagline: "평생 무료 읽기 전용",
-    badge: "🥉",
-    isFree: true,
-    environment: "web",
-    tierEmoji: "🥉",
-    features: [
-      "회원가입 시 세상의 모든 마크다운 문서를 제한 없이 자유롭게 읽기 가능",
-    ],
-    cta: "무료 회원가입",
-    ctaVariant: "secondary",
-  },
-  {
-    name: "Apprentice",
-    tagline: "7일 무료 체험",
-    badge: "🥈",
-    isFree: true,
-    environment: "web",
-    tierEmoji: "🥈",
-    features: [
-      "가입 후 7일 동안 모든 문서 읽기 + 편집 기능 무료 체험",
-      "편집(Write): 단 1개의 브라우저에서만 작성 가능",
-      "웹 뷰어: 모든 마크다운 문서를 브라우저로 원클릭 공유!",
-    ],
-    cta: "무료 체험 시작",
-    ctaVariant: "secondary",
-  },
-  {
-    name: "Regular",
-    tagline: "월 3,000원 / 연 30,000원",
-    badge: "🥇",
-    highlighted: true,
-    environment: "web",
-    tierEmoji: "🥇",
-    priceMonthly: 3000,
-    priceYearly: 30000,
-    priceUSD: "$2",
-    features: [
-      "매달 가볍게 시작하는 월간 구독 또는 합리적인 연간 구독 선택",
-      "편집(Write): 1개의 브라우저에서만 문서 편집 가능",
-      "웹 뷰어: 모든 마크다운 문서를 브라우저로 원클릭 공유!",
-    ],
-    cta: "구독 시작",
-    ctaVariant: "primary",
-  },
-  {
-    name: "Elite Pro",
-    tagline: "오프라인 + 웹 듀얼 환경",
-    badge: "💎",
-    environment: "desktop",
-    tierEmoji: "💎",
-    priceYearly: 45000,
-    priceUSD: "$30",
-    features: [
-      "내 컴퓨터에 직접 설치하는 독립 설치형 프로그램 제공",
-      "설치 권한: 단 1대 PC 설치 및 고유 인증",
-      "설치한 PC에서 무제한 읽기/편집 가능",
-      "웹 뷰어: 모든 마크다운 문서를 브라우저로 원클릭 공유!",
-    ],
-    cta: "Elite Pro 구독",
-    ctaVariant: "primary",
-  },
-];
+
 
 export const NAV_LINKS = [
   { label: "기능 소개", href: "#features" },
