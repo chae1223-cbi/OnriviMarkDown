@@ -15,12 +15,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, has_session: false, message: '필수 파라미터가 누락되었습니다.' }, { status: 400 });
     }
 
-    // 1. payment_no → subscriptions → license_id 조회
+    // 1. payment_no -> subscriptions -> license_id 조회
     const subRows = await sql`
       SELECT id, max_devices
       FROM subscriptions
       WHERE payment_no = ${p_payment_no}
-        AND is_active = true
+        AND (is_active = true OR UPPER(plan_status) = 'FREE')
         AND UPPER(plan_status) IN ('ACTIVE', 'FREE')
       LIMIT 1
     `;
