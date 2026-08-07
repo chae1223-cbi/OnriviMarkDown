@@ -63,17 +63,22 @@ export default function FaqsTab() {
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       let res;
       if (editingFaq) {
         res = await fetch(`/api/faqs/${editingFaq.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(form)
         });
       } else {
         res = await fetch('/api/faqs', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(form)
         });
       }
@@ -92,11 +97,17 @@ export default function FaqsTab() {
   const handleDelete = async (id: string) => {
     if (!confirm('정말로 이 FAQ를 삭제하시겠습니까?')) return;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch(`/api/faqs/${id}`, {
         method: 'DELETE',
+        headers
       });
+      const json = await res.json();
       if (!res.ok) {
-        const json = await res.json();
         throw new Error(json.error);
       }
       showToast('FAQ가 삭제되었습니다.', 'success');

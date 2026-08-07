@@ -43,15 +43,24 @@ export default function AdminsTab() {
       const { data: { session } } = await supabase.auth.getSession();
       setCurrentAdminId(session?.user?.id || null);
 
-      const res = await fetch('/api/admin/admins');
-      const json = await res.json();
-      if (json.success) {
+      const res = await fetch('/api/admin/admins', {
+        headers: { 'Authorization': `Bearer ${session?.access_token || ''}` }
+      });
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Invalid JSON: ${text}`);
+      }
+      
+      if (res.ok && json.success) {
         setAdmins(json.data);
       } else {
-        showToast(json.error || '관리자 목록을 불러오지 못했습니다.', 'error');
+        throw new Error(json.error || '관리자 목록을 불러오지 못했습니다.');
       }
-    } catch (err) {
-      showToast('네트워크 오류가 발생했습니다.', 'error');
+    } catch (err: any) {
+      showToast(err.message || '네트워크 오류가 발생했습니다.', 'error');
     } finally {
       setLoading(false);
     }
@@ -67,9 +76,13 @@ export default function AdminsTab() {
       return;
     }
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/admin/admins', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({ email: inviteEmail, role: inviteRole, adminId: currentAdminId })
       });
       const data = await res.json();
@@ -92,9 +105,13 @@ export default function AdminsTab() {
       title: `${admin.email}의 권한을 ${newRole}(으)로 변경하시겠습니까?`,
       onConfirm: async () => {
         try {
+          const { data: { session } } = await supabase.auth.getSession();
           const res = await fetch('/api/admin/admins', {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token || ''}`
+            },
             body: JSON.stringify({ adminTargetId: admin.id, targetEmail: admin.email, newRole, adminId: currentAdminId })
           });
           const data = await res.json();
@@ -120,8 +137,12 @@ export default function AdminsTab() {
       isDanger: true,
       onConfirm: async () => {
         try {
+          const { data: { session } } = await supabase.auth.getSession();
           const res = await fetch(`/api/admin/admins?adminTargetId=${admin.id}&targetEmail=${admin.email}&adminId=${currentAdminId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 
+              'Authorization': `Bearer ${session?.access_token || ''}`
+            }
           });
           const data = await res.json();
           if (data.success) {

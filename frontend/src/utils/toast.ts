@@ -34,7 +34,7 @@ function translateToKorean(msg: string): string {
   
   // 영문 메시지인 경우 기본 한글 에러 텍스트로 자동 치환
   if (/^[a-zA-Z0-9\s.,:;!?'"()_/\-[\]{}#@$%&*+=<>]+$/.test(msg.trim()) && msg.trim().length > 3) {
-    return "요청을 처리하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+    return "요청을 처리하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. [" + msg + "]";
   }
   
   return msg;
