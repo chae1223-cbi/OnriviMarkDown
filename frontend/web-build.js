@@ -35,11 +35,12 @@ const ROOT_FUNCS_DEST = path.join(__dirname, '..', 'functions');
 
 if (fs.existsSync(FRONTEND_FUNCS_SRC)) {
   console.log('[web-build] Cloudflare Functions 전체를 루트 /functions/ 로 동기화합니다...');
-  if (fs.existsSync(ROOT_FUNCS_DEST)) {
-    fs.rmSync(ROOT_FUNCS_DEST, { recursive: true, force: true });
+  // 주의: ROOT_FUNCS_DEST 전체를 rmSync하면 기존 Cloudflare API(device, license 등)가 모두 날아가므로 절대 삭제하면 안 됨!
+  if (!fs.existsSync(ROOT_FUNCS_DEST)) {
+    fs.mkdirSync(ROOT_FUNCS_DEST, { recursive: true });
   }
-  fs.cpSync(FRONTEND_FUNCS_SRC, ROOT_FUNCS_DEST, { recursive: true });
-  console.log('  - 동기화 완료: /functions/');
+  fs.cpSync(FRONTEND_FUNCS_SRC, ROOT_FUNCS_DEST, { recursive: true, force: true });
+  console.log('  - 동기화 완료: /functions/ (병합 완료)');
 }
 
 // Cloudflare Functions가 존재하지 않아 정적 빌드에서 제외해야 하는 라우트들
