@@ -163,6 +163,14 @@ export default function LeftSidebar() {
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const handleTriggerImport = () => {
+      importFileInputRef.current?.click();
+    };
+    window.addEventListener('TRIGGER_IMPORT', handleTriggerImport);
+    return () => window.removeEventListener('TRIGGER_IMPORT', handleTriggerImport);
+  }, []);
+
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0006] LeftSidebar ➔ onPromptConfirm
 // 🎯 @KICK  : PromptModal 확인 시 파일/폴더 생성 (브라우저/로컬/LocalStorage VFS 대응)
@@ -344,6 +352,9 @@ export default function LeftSidebar() {
         if (markdown.length > MAX_CHARS) {
           throw new Error(`문서 내용이 너무 큽니다. (현재 약 ${Math.floor(markdown.length / 1000)}k자 / 최대 허용 30k자). AI 변환 품질 저하 방지를 위해 문서를 나누어 가져와주세요.`);
         }
+        if (markdown.trim().length === 0) {
+          throw new Error('문서에서 텍스트를 추출할 수 없습니다. 이미지로만 구성된 문서(스캔본 등)이거나 내용이 비어있습니다.');
+        }
       }
 
       if (geminiApiKey && !isAlreadyTextOrMd) {
@@ -405,6 +416,8 @@ export default function LeftSidebar() {
             await refreshFileList();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             openFile({ name: finalName, kind: 'file', path: data.path });
+          } else {
+            throw new Error(`파일 생성 API 호출 실패: ${res.status}`);
           }
         }
       }
@@ -537,9 +550,11 @@ export default function LeftSidebar() {
     return [];
   };
 
-  if (!isSidebarOpen) return null;
+  if (!isSidebarOpen) return <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.txt,.md,.markdown,.html" onChange={handleImportFile} />;
 
   return (
+    <>
+      <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.txt,.md,.markdown,.html" onChange={handleImportFile} />
       <aside 
         style={{ width: sidebarWidth }} 
         className="flex flex-col border-r border-outline-variant/20 bg-surface-container-low select-none relative z-10"
@@ -678,14 +693,6 @@ export default function LeftSidebar() {
                     >
                       <RefreshCw size={14} />
                     </button>
-                    <>
-                      <input 
-                        type="file" 
-                        ref={importFileInputRef} 
-                        style={{ display: 'none' }} 
-                        accept=".docx,.hwp,.pdf,.txt,.md,.markdown,.html" 
-                        onChange={handleImportFile} 
-                      />
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -696,8 +703,7 @@ export default function LeftSidebar() {
                       >
                         <span className="text-sm">📥</span>
                       </button>
-                    </>
-                  </div>
+                    </div>
                 )}
               </div>
 
@@ -1051,5 +1057,6 @@ export default function LeftSidebar() {
         document.body
       )}
     </aside>
+    </>
   );
 }

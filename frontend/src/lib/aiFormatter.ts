@@ -46,9 +46,9 @@ ${rawText}
     try {
       result = await model.generateContent(prompt);
     } catch (e: any) {
-      // 지정된 모델이 없는 경우(404) gemini-1.5-pro 또는 gemini-pro로 폴백
-      if (e.message && e.message.includes('404')) {
-        console.warn(`[AI] ${modelName} 모델을 찾을 수 없습니다. gemini-1.5-pro로 폴백합니다.`);
+      // 지정된 모델이 없는 경우(404)나 내부 서버 오류(500) 발생 시 gemini-1.5-pro로 안전하게 폴백
+      if (e.message && (e.message.includes('404') || e.message.includes('500'))) {
+        console.warn(`[AI] ${modelName} 모델을 찾을 수 없거나 에러가 발생했습니다. gemini-1.5-pro로 폴백합니다.`, e.message);
         const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
         result = await fallbackModel.generateContent(prompt);
       } else {

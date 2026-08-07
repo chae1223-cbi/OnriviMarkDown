@@ -3,9 +3,10 @@
 // 개발 전용 API 라우트(/api/view, /api/upload-pasted-image)는 정적 내보내기(output:export)와
 // 호환되지 않으므로, 데스크탑 빌드 시에만 해당 라우트를 빌드 대상에서 완전히 제외합니다.
 const isDesktopBuild = process.env.NEXT_BUILD_TARGET === 'desktop';
+const isDev = process.env.NODE_ENV === 'development';
 
 const nextConfig = {
-  output: 'export', // 데스크톱/애드온을 위한 정적 HTML 내보내기 생성
+  ...(isDev ? {} : { output: 'export' }), // 개발 환경에서는 API 라우트 활성화를 위해 export 제외
   productionBrowserSourceMaps: true, // 🔍 [임시] TDZ 에러 추적용 소스맵 활성화
   assetPrefix: process.env.ASSET_PREFIX !== undefined ? process.env.ASSET_PREFIX : '', // cloudflare/web: (기본) '', desktop: ASSET_PREFIX=./
   images: {

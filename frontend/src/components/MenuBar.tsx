@@ -165,6 +165,7 @@ export default function MenuBar() {
     { label: t('saveFile'), icon: <span>💾</span>, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
     { label: t('saveFileAs'), icon: <span>💿</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
     { divider: true },
+    { label: "문서 가져오기", icon: <span>📥</span>, onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
       icon: <span>📤</span>,

@@ -72,11 +72,14 @@ async function importDocx(
   }
 }
 
-async function importPdf(arrayBuffer: ArrayBuffer): Promise<string> {
+async function importPdf(
+  arrayBuffer: ArrayBuffer,
+  imageSaveCallback?: (base64Data: string, contentType: string) => Promise<string>
+): Promise<string> {
   try {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
-    const MAX_PAGES = 20;
+    const MAX_PAGES = 50;
     if (pdf.numPages > MAX_PAGES) {
       throw new Error(`PDF 문서가 너무 큽니다. (현재 ${pdf.numPages}페이지 / 최대 허용 ${MAX_PAGES}페이지). 분할하여 가져와주세요.`);
     }
@@ -86,7 +89,31 @@ async function importPdf(arrayBuffer: ArrayBuffer): Promise<string> {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
       const strings = content.items.map((item: any) => item.str);
-      text += strings.join(' ') + '\n\n';
+      const pageText = strings.join(' ').trim();
+      
+      text += pageText + '\n\n';
+
+      // 페이지에 텍스트가 거의 없는 경우(스캔본, 캔바 PPT 등) 페이지 전체를 이미지로 캡처하여 삽입
+      if (pageText.length < 100 && imageSaveCallback && typeof document !== 'undefined') {
+        try {
+          const viewport = page.getViewport({ scale: 2.0 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+            const dataUrl = canvas.toDataURL('image/png');
+            const base64 = dataUrl.split(',')[1];
+            if (base64) {
+              const src = await imageSaveCallback(base64, 'image/png');
+              text += `<img src="${src}" alt="PDF Page ${i}" />\n\n`;
+            }
+          }
+        } catch (e) {
+          console.warn(`PDF 페이지 ${i} 렌더링 실패:`, e);
+        }
+      }
     }
     
     return text.trim();

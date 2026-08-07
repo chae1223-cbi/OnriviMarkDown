@@ -364,8 +364,12 @@ export default function SettingsModal({
                       
                       <div className="flex flex-wrap gap-2">
                         {[
-                          { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4' },
-                          { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+                          { id: 'gemma-4-26b-a4b-it', label: 'gemma-4-26b-a4b-it' },
+                          { id: 'gemma-4-31b-it', label: 'Gemma 4 31B IT' },
+                          { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite' },
+                          { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+                          { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
+                          { id: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
                         ].map(model => (
                           <button
                             key={model.id}

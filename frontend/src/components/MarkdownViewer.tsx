@@ -73,6 +73,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
   
   useEffect(() => {
     let objectUrl = '';
+    setErrorMsg('');
     const loadLocalImage = async () => {
       console.log(`[AsyncImage] loadLocalImage START. src=${src}, absolutePath=${absolutePath}`);
       try {
@@ -192,6 +193,7 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
   
   useEffect(() => {
     let objectUrl = '';
+    setErrorMsg('');
     const loadLocalVideo = async () => {
       try {
         if (api) {
