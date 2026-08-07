@@ -30,22 +30,24 @@ const BACKUP_DIR = path.join(__dirname, '_dev_api_backup');
 // Cloudflare Pages는 functions_directory(wrangler.toml) 필드를 무시하고
 // 레포 루트의 /functions/ 디렉토리만 Functions로 배포합니다.
 // 따라서 admin Functions가 배포에 포함되려면 이 동기화가 필수입니다.
-const FRONTEND_ADMIN_FUNCS_SRC = path.join(__dirname, 'functions', 'api', 'admin');
-const ROOT_ADMIN_FUNCS_DEST = path.join(__dirname, '..', 'functions', 'api', 'admin');
+const FRONTEND_FUNCS_SRC = path.join(__dirname, 'functions');
+const ROOT_FUNCS_DEST = path.join(__dirname, '..', 'functions');
 
-if (fs.existsSync(FRONTEND_ADMIN_FUNCS_SRC)) {
-  console.log('[web-build] admin Functions를 루트 functions/api/admin/ 으로 동기화합니다...');
-  if (fs.existsSync(ROOT_ADMIN_FUNCS_DEST)) {
-    fs.rmSync(ROOT_ADMIN_FUNCS_DEST, { recursive: true, force: true });
+if (fs.existsSync(FRONTEND_FUNCS_SRC)) {
+  console.log('[web-build] Cloudflare Functions 전체를 루트 /functions/ 로 동기화합니다...');
+  if (fs.existsSync(ROOT_FUNCS_DEST)) {
+    fs.rmSync(ROOT_FUNCS_DEST, { recursive: true, force: true });
   }
-  fs.cpSync(FRONTEND_ADMIN_FUNCS_SRC, ROOT_ADMIN_FUNCS_DEST, { recursive: true });
-  console.log('  - 동기화 완료: functions/api/admin/');
+  fs.cpSync(FRONTEND_FUNCS_SRC, ROOT_FUNCS_DEST, { recursive: true });
+  console.log('  - 동기화 완료: /functions/');
 }
 
 // Cloudflare Functions가 존재하지 않아 정적 빌드에서 제외해야 하는 라우트들
 const DEV_ONLY_ROUTES = [
   { parent: API_DIR, route: 'admin' },
-  { parent: API_DIR, route: 'cron' }
+  { parent: API_DIR, route: 'cron' },
+  { parent: API_DIR, route: 'faqs' },
+  { parent: API_DIR, route: 'plans' }
 ];
 
 if (!fs.existsSync(BACKUP_DIR)) {
