@@ -1,4 +1,4 @@
-import { corsHeaders, jsonResponse, handleOptions, getSupabaseAdmin } from '../../_shared.js';
+import { corsHeaders, jsonResponse, handleOptions, getSupabaseAdmin } from '../_shared.js';
 
 export const onRequestOptions = handleOptions;
 
