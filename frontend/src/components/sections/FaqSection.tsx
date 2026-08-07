@@ -4,24 +4,51 @@
 // 🛡️ @GUARD : openFaqIndex 상태를 통해 오직 하나의 질문만 열릴 수 있도록 토글 제어
 // 🚨 @PATCH : **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 아코디언, Ice Blue 포인트)
-// 🔗 @CALLS : FaqItem, constants
+//             **2026-08-07** — 하드코딩된 faqs 상수를 DB API('/api/faqs') 호출 기반 동적 렌더링으로 마이그레이션
+// 🔗 @CALLS : FaqItem
 // ====================================================================
 "use client";
 
-import { useState } from "react";    // useState : 상태 관리를 위해 임포트 
-import { faqs } from "@/lib/constants";
+import { useState, useEffect } from "react";
 import { FaqItem } from "@/components/ui/FaqItem";
 
-export function FaqSection() { // FaqSection : 자주 묻는 질문(FAQ)의 목록을 바인딩하고 아코디언 컴포넌트를 호출하여 상태를 매핑하는 섹션 
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0); // openFaqIndex : 열린 FAQ 인덱스
+interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  sort_order: number;
+}
 
-  // toggleFaq : FAQ 토글 함수  
-  const toggleFaq = (index: number) => { // toggleFaq : FAQ 토글 함수 
-    setOpenFaqIndex(openFaqIndex === index ? null : index); // openFaqIndex : 열린 FAQ 인덱스 
+export function FaqSection() {
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFaqs = async () => {
+      try {
+        const res = await fetch('/api/faqs');
+        if (!res.ok) throw new Error('Failed to fetch FAQs');
+        const data = await res.json();
+        setFaqs(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFaqs();
+  }, []);
+
+  const toggleFaq = (index: number) => {
+    setOpenFaqIndex(openFaqIndex === index ? null : index);
   };
 
-  return ( // return : 값을 반환 
-    <section // section : HTML 문서의 주요 콘텐츠를 정의하는 요소 
+  const [showAll, setShowAll] = useState(false);
+  const displayedFaqs = showAll ? faqs : faqs.slice(0, 5);
+
+  return (
+    <section
       id="faq"
       style={{ padding: "96px 0", background: "rgba(255,255,255,0.7)", fontFamily: "Inter, sans-serif" }}
     >
@@ -38,14 +65,44 @@ export function FaqSection() { // FaqSection : 자주 묻는 질문(FAQ)의 목�
           </p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {faqs.map((faq, idx) => (
-            <FaqItem
-              key={idx}
-              faq={faq}
-              isOpen={openFaqIndex === idx}
-              onToggle={() => toggleFaq(idx)}
-            />
-          ))}
+          {loading ? (
+            <div className="text-center py-10 text-gray-500">불러오는 중...</div>
+          ) : faqs.length > 0 ? (
+            <>
+              {displayedFaqs.map((faq, idx) => (
+                <FaqItem
+                  key={faq.id}
+                  faq={faq}
+                  isOpen={openFaqIndex === idx}
+                  onToggle={() => toggleFaq(idx)}
+                />
+              ))}
+              {faqs.length > 5 && (
+                <div style={{ textAlign: 'center', marginTop: 16 }}>
+                  <button
+                    onClick={() => setShowAll(!showAll)}
+                    style={{
+                      padding: "8px 24px",
+                      borderRadius: 9999,
+                      background: "rgba(14,165,233,0.1)",
+                      color: "#0284c7",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "none",
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = "rgba(14,165,233,0.2)"}
+                    onMouseOut={(e) => e.currentTarget.style.background = "rgba(14,165,233,0.1)"}
+                  >
+                    {showAll ? '접기 ⬆' : `더보기 (${faqs.length - 5}개 더 있음) ⬇`}
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-10 text-gray-500">등록된 자주 묻는 질문이 없습니다.</div>
+          )}
         </div>
       </div>
     </section>

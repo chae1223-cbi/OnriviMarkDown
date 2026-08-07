@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+
+// ✅ 항상 최신 DB 데이터를 조회하도록 Next.js API 캐싱을 강제 비활성화
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     // 1. 활성 요금제 조회 (정렬 순서대로)
-    const { data: plans, error: plansError } = await supabase
+    const { data: plans, error: plansError } = await supabaseAdmin
       .from('pricing_plans')
       .select('*')
       .eq('is_active', true)
@@ -13,19 +16,29 @@ export async function GET() {
     if (plansError) throw plansError;
 
     // 2. 공통코드에서 표시명 가져오기
-    const { data: codes, error: codesError } = await supabase
+    const { data: codes, error: codesError } = await supabaseAdmin
       .from('common_codes')
       .select('group_code, code_value, code_name');
 
     if (codesError) throw codesError;
 
     // 3. 데이터 병합 (name과 environment 한글명 매핑)
-    const enrichedPlans = (plans || []).map(plan => {
-      const planCodeInfo = codes?.find(c => c.group_code === 'PLAN_NAME' && c.code_value === plan.plan_code);
-      const sysTypeInfo = codes?.find(c => c.group_code === 'SYS_TYPE' && c.code_value === plan.sys_type);
+    const enrichedPlans = (plans || []).map((plan: any) => {
+      const planCodeInfo = codes?.find((c: any) => c.group_code === 'PLAN_NAME' && c.code_value === plan.plan_code);
+      const sysTypeInfo = codes?.find((c: any) => c.group_code === 'SYS_TYPE' && c.code_value === plan.sys_type);
+
+      let parsedFeatures = plan.features;
+      if (typeof parsedFeatures === 'string') {
+        try {
+          parsedFeatures = JSON.parse(parsedFeatures);
+        } catch (e) {
+          parsedFeatures = [];
+        }
+      }
 
       return {
         ...plan,
+        features: parsedFeatures,
         name: planCodeInfo ? planCodeInfo.code_name : plan.plan_code,
         environment_name: sysTypeInfo ? sysTypeInfo.code_name : plan.sys_type
       };

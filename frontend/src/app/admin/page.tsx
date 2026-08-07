@@ -11,6 +11,7 @@ import CodesTab from './components/CodesTab';
 import PlansTab from './components/PlansTab';
 import OTPResetModal from './components/OTPResetModal';
 import InquiriesTab from './components/InquiriesTab';
+import FaqsTab from './components/FaqsTab';
 
 function AdminPageContent() {
   const searchParams = useSearchParams();
@@ -24,6 +25,7 @@ function AdminPageContent() {
       {tab === 'subscriptions' && <SubscriptionsTab />}
       {tab === 'codes' && <CodesTab />}
       {tab === 'plans' && <PlansTab />}
+      {tab === 'faqs' && <FaqsTab />}
       {tab === 'support' && <InquiriesTab />}
       {tab === 'audit' && <FutureFeatureTab title="감사 로그" features={['누가, 언제, 어떤 고객의 데이터를 건드렸는지 행동 기록 추적', '내부 직원의 실수나 어뷰징 방지 및 보안 강화']} />}
       {tab === 'promotions' && <FutureFeatureTab title="프로모션 관리" features={['할인 쿠폰 또는 무료 이용권(Free Trial) 코드 생성', '마케팅 이벤트 성과 분석 및 발급된 쿠폰 사용 내역 추적']} />}

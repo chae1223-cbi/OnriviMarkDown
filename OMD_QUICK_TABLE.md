@@ -365,3 +365,4 @@
 | OMD-ADMIN-layout-rbac-0001 ✅ FIXED | app/admin/layout.tsx | AdminLayoutContent | 관리자 레이아웃 — 세션 인증(aal2) 및 `admins.admin_role` 조회 후 SUPER 전용 사이드바 메뉴 노출 제어 | `admin_role` 미조회 시 관리자 계정 관리 메뉴 미노출(안전 기본값) | **2026-08-01** — `.select('role')` → `.select('admin_role')` 및 `adminData.role` → `adminData.admin_role`로 컬럼 리네임 동기화 | supabase.from('admins'), setAdminRole |
 
 
+| OMD-UI-FaqSection-0024 ✅ FIXED | FaqSection | FaqSection | 자주 묻는 질문(FAQ)의 목록을 바인딩하고 아코디언 컴포넌트를 호출하여 상태를 매핑하는 섹션 | openFaqIndex 상태를 통해 오직 하나의 질문만 열릴 수 있도록 토글 제어 | **2026-08-07** — 하드코딩된 faqs 상수를 DB API('/api/faqs') 호출 기반 동적 렌더링으로 마이그레이션; **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 아코디언, Ice Blue 포인트); **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치 | FaqItem |

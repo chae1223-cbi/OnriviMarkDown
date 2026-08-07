@@ -16,22 +16,31 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
     const checkLimits = async () => {
       if (max_devices !== null && max_devices > 0) {
         const activeSessions = await tx`
-          SELECT device_name
+          SELECT id, device_name, activated_at
           FROM license_activations
           WHERE subscription_id = ${licenseId} AND is_active = true
+          ORDER BY activated_at ASC
         `;
         
         const isElitePro = plan_name?.toUpperCase().replace(/\s/g, '').includes('ELITE');
         const isDesktopReq = deviceName?.toLowerCase().includes('desktop');
 
         if (isElitePro) {
-          const desktopCount = activeSessions.filter((s: any) => s.device_name?.toLowerCase().includes('desktop')).length;
-          const webCount = activeSessions.length - desktopCount;
+          const desktopSessions = activeSessions.filter((s: any) => s.device_name?.toLowerCase().includes('desktop'));
+          const webSessions = activeSessions.filter((s: any) => !s.device_name?.toLowerCase().includes('desktop'));
           
-          if (isDesktopReq && desktopCount >= 1) return false;
-          if (!isDesktopReq && webCount >= 1) return false;
+          if (isDesktopReq && desktopSessions.length >= 1) {
+            await tx`UPDATE license_activations SET is_active = false WHERE id = ${desktopSessions[0].id}`;
+          } else if (!isDesktopReq && webSessions.length >= 1) {
+            await tx`UPDATE license_activations SET is_active = false WHERE id = ${webSessions[0].id}`;
+          }
         } else {
-          if (activeSessions.length >= max_devices) return false;
+          if (activeSessions.length >= max_devices) {
+            const numToKick = activeSessions.length - max_devices + 1;
+            for (let i = 0; i < numToKick; i++) {
+              await tx`UPDATE license_activations SET is_active = false WHERE id = ${activeSessions[i].id}`;
+            }
+          }
         }
       }
       return true;

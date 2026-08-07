@@ -101,6 +101,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     { name: '사용자 관리', href: '/admin?tab=users', id: 'users', icon: Users },
     { name: '구독 및 라이선스', href: '/admin?tab=subscriptions', id: 'subscriptions', icon: CreditCard },
     { name: '요금제 관리', href: '/admin?tab=plans', id: 'plans', icon: Tags },
+    { name: '자주 묻는 질문', href: '/admin?tab=faqs', id: 'faqs', icon: MessageSquare },
     ...(adminRole === 'SUPER' ? [{ name: '관리자 계정 관리', href: '/admin?tab=admins', id: 'admins', icon: ShieldCheck }] : []),
     { name: '문의 및 지원', href: '/admin?tab=support', id: 'support', icon: MessageSquare },
     { name: '공통 코드 관리', href: '/admin?tab=codes', id: 'codes', icon: Settings },
