@@ -6,10 +6,17 @@
  * 빌드 대상에서 제외하여 정적 내보내기(output:export) 시 발생하는
  * NEXT_STATIC_GEN_BAILOUT 에러를 제거합니다.
  *
+ * 🚨 @PATCH 2026-08-07: Cloudflare Pages는 wrangler.toml의 functions_directory 필드를
+ * 지원하지 않으므로 무시됩니다 (빌드 로그에 WARNING 표시).
+ * 대신 레포 루트의 /functions/ 디렉토리를 자동으로 탐지하여 배포합니다.
+ * 따라서 frontend/functions/api/admin/ 에 있는 admin API Functions는
+ * 빌드 전에 루트 functions/api/admin/ 으로 반드시 동기화되어야 합니다.
+ *
  * 동작 순서:
- * 1. 제외 대상 라우트를 임시 이동 (_dev_backup/)
- * 2. next build 실행
- * 3. 임시 이동한 폴더 원위치 복원
+ * 1. frontend/functions/api/admin/ → 루트 functions/api/admin/ 동기화 (신규)
+ * 2. 제외 대상 라우트를 임시 이동 (_dev_backup/)
+ * 3. next build 실행
+ * 4. 임시 이동한 폴더 원위치 복원
  */
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -18,6 +25,22 @@ const path = require('path');
 const APP_DIR = path.join(__dirname, 'src', 'app');
 const API_DIR = path.join(APP_DIR, 'api');
 const BACKUP_DIR = path.join(__dirname, '_dev_api_backup');
+
+// 🚨 @PATCH 2026-08-07: admin Functions를 루트 /functions/api/admin/ 으로 동기화
+// Cloudflare Pages는 functions_directory(wrangler.toml) 필드를 무시하고
+// 레포 루트의 /functions/ 디렉토리만 Functions로 배포합니다.
+// 따라서 admin Functions가 배포에 포함되려면 이 동기화가 필수입니다.
+const FRONTEND_ADMIN_FUNCS_SRC = path.join(__dirname, 'functions', 'api', 'admin');
+const ROOT_ADMIN_FUNCS_DEST = path.join(__dirname, '..', 'functions', 'api', 'admin');
+
+if (fs.existsSync(FRONTEND_ADMIN_FUNCS_SRC)) {
+  console.log('[web-build] admin Functions를 루트 functions/api/admin/ 으로 동기화합니다...');
+  if (fs.existsSync(ROOT_ADMIN_FUNCS_DEST)) {
+    fs.rmSync(ROOT_ADMIN_FUNCS_DEST, { recursive: true, force: true });
+  }
+  fs.cpSync(FRONTEND_ADMIN_FUNCS_SRC, ROOT_ADMIN_FUNCS_DEST, { recursive: true });
+  console.log('  - 동기화 완료: functions/api/admin/');
+}
 
 // Cloudflare Functions가 존재하지 않아 정적 빌드에서 제외해야 하는 라우트들
 const DEV_ONLY_ROUTES = [
