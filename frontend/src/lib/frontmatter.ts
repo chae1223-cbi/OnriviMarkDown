@@ -53,7 +53,7 @@ export function updateCssProfileInFrontmatter(content: string, profileId: string
   }
   
   // Reconstruct frontmatter
-  let newYaml = '---\n';
+  let newYaml = '---\n메타영역\n#서식설정\n';
   for (const [k, v] of Object.entries(data)) {
     if (v !== undefined) {
       newYaml += `${k}: ${v}\n`;

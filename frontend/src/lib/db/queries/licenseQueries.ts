@@ -30,16 +30,13 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
           const webSessions = activeSessions.filter((s: any) => !s.device_name?.toLowerCase().includes('desktop'));
           
           if (isDesktopReq && desktopSessions.length >= 1) {
-            await tx`UPDATE license_activations SET is_active = false WHERE id = ${desktopSessions[0].id}`;
+            return false;
           } else if (!isDesktopReq && webSessions.length >= 1) {
-            await tx`UPDATE license_activations SET is_active = false WHERE id = ${webSessions[0].id}`;
+            return false;
           }
         } else {
           if (activeSessions.length >= max_devices) {
-            const numToKick = activeSessions.length - max_devices + 1;
-            for (let i = 0; i < numToKick; i++) {
-              await tx`UPDATE license_activations SET is_active = false WHERE id = ${activeSessions[i].id}`;
-            }
+            return false;
           }
         }
       }

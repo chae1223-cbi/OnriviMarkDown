@@ -139,7 +139,7 @@ export default function LoginPage() {
               : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
           }
           localStorage.setItem('onrivi_session_id', sessionId);  // 🎯 세션 ID 저장
-          localStorage.setItem('onrivi_user_id', loggedInUser.id);  // 🎯 사용자 ID 저장
+          localStorage.setItem('onrivi_user_id', loggedInUser.email || loggedInUser.id);  // 🎯 사용자 ID 저장
           localStorage.setItem('onrivi_payment_no', subData.payment_no || '');  // 🎯 결제 번호 저장
           localStorage.setItem('onrivi_license_key', subData.license_key || '');  // 🎯 라이선스 키 저장
 

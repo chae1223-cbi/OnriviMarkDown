@@ -22,6 +22,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 7. 디렉토리 파일 목록 조회
   listDirectory: (dirPath) => ipcRenderer.invoke('file:listDirectory', dirPath),
+  
+  // [Bug Fix] 워크스페이스 실시간 감지 시작
+  watchWorkspace: (workspacePath) => ipcRenderer.invoke('file:watchWorkspace', workspacePath),
+  onWorkspaceChanged: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('workspace-changed', handler);
+    return () => ipcRenderer.removeListener('workspace-changed', handler);
+  },
 
   // 9. 파일/폴더 이름 변경
   renameFile: (oldPath, newPath) => ipcRenderer.invoke('file:rename', oldPath, newPath),
@@ -114,5 +122,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('menu:save-file-as');
     ipcRenderer.removeAllListeners('open-external-md');
     ipcRenderer.removeAllListeners('dialog:openFontPicker');
+    ipcRenderer.removeAllListeners('workspace-changed');
   }
 });

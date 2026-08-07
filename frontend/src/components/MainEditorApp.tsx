@@ -1120,7 +1120,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (userSub?.payment_no) {
             savedPaymentNo = userSub.payment_no;
             savedKey = userSub.license_key || '';
-            savedUserId = session.user.id;
+            savedUserId = session.user.email || session.user.id;
           }
         }
       } catch (e) {
@@ -1361,7 +1361,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 ...prev,
                 isActivated: false,
                 isExpired: true,
-                planName: `동시 접속 초과 (${chk.max_devices || '?'}대) - 제한 사용자`
+                isRestricted: true
               };
             });
           } else {
@@ -2670,7 +2670,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우
     const isRestrictedUser = licenseStatus.isExpired ||
-      licenseStatus.planName?.includes('동시 접속 초과') ||
+      licenseStatus.isRestricted ||
       licenseStatus.planName?.includes('미인증') ||
       licenseStatus.planName?.includes('제한사용자');
 
@@ -2698,7 +2698,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setPreviewModeRaw('preview');
       previewModeRef.current = 'preview';
     }
-  }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName]);
+  }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName, licenseStatus.isRestricted]);
 
 
   // ====================================================================
@@ -2746,6 +2746,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
 
           // --- 이하 신규 탭 생성 로직은 기존과 동일 ---
+          // [Bug Fix] CRLF를 LF로 정규화하여 Monaco getValue()와의 비교 시 isModified가 오작동하는 문제 해결
+          file.content = file.content.replace(/\r\n/g, '\n');
+
           const monaco = (window as any).monaco;
           let model: any = null;
           if (monaco) {
@@ -3013,7 +3016,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우 (undefined 방어를 위해 Optional Chaining 추가)
     const isRestrictedUser = licenseStatus.isExpired ||
-      licenseStatus.planName?.includes('동시 접속 초과') ||
+      licenseStatus.isRestricted ||
       licenseStatus.planName?.includes('미인증') ||
       licenseStatus.planName?.includes('제한사용자');
 

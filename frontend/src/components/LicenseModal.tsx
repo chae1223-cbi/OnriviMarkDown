@@ -10,6 +10,7 @@ interface LicenseModalProps {
   licenseStatus: {
     isActivated: boolean;
     isExpired: boolean;
+    isRestricted?: boolean;
     remainingDays: number;
     userId: string;
     licenseKey: string;
@@ -269,7 +270,9 @@ export default function LicenseModal({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col">
                     <span className="font-['Geist'] text-[13px] font-medium leading-[1.2] tracking-[0.05em] text-on-surface-variant uppercase">요금제</span>
-                    <span className="font-['Inter'] text-[16px] leading-[1.6] font-bold text-on-surface">{getPlanDisplayName(licenseStatus.planName)}</span>
+                    <span className="font-['Inter'] text-[16px] leading-[1.6] font-bold text-on-surface">{getPlanDisplayName(licenseStatus.planName)}
+                      {licenseStatus.isRestricted && <span className="ml-2 text-error text-[13px] font-normal tracking-normal">(동시접속 제한)</span>}
+                    </span>
                   </div>
                   {licenseStatus.nextPaymentDate && (
                   <div className="flex flex-col">
@@ -286,7 +289,11 @@ export default function LicenseModal({
             <div className="flex items-start gap-4">
               <span className="material-symbols-outlined text-error mt-1" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
               <div>
-                <h2 className="font-['Inter'] text-[18px] leading-[1.8] tracking-[-0.01em] font-semibold text-error mb-2">체험 기간이 만료되었습니다. 에디터 잠금 해제를 위해 라이선스를 연동해 주세요.</h2>
+                <h2 className="font-['Inter'] text-[18px] leading-[1.8] tracking-[-0.01em] font-semibold text-error mb-2">
+                  {licenseStatus.isRestricted 
+                    ? "동시 접속 한도를 초과하여 제한 모드로 동작 중입니다. 다른 기기에서 로그아웃하거나 요금제를 업그레이드 해주세요." 
+                    : "체험 기간이 만료되었습니다. 에디터 잠금 해제를 위해 라이선스를 연동해 주세요."}
+                </h2>
               </div>
             </div>
           </section>

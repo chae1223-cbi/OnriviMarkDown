@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 export interface LicenseStatus {
   isActivated: boolean;
   isExpired: boolean;
+  isRestricted?: boolean; // 추가: 동시접속 초과 등으로 인한 읽기 전용 제한 모드 여부
   remainingDays: number;
   userId: string;
   licenseKey: string;

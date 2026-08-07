@@ -445,6 +445,9 @@ export const useFileExplorer = ({
         }
       }
 
+      // [Bug Fix] CRLF를 LF로 정규화하여 Monaco getValue()와의 비교 시 isModified가 오작동하는 문제 해결
+      fileContent = fileContent.replace(/\r\n/g, '\n');
+
       const monaco = (window as any).monaco;
       let model: any = null;
       const newTabId = node.path || node.handle?.name || 'tab-' + Date.now();
@@ -586,6 +589,17 @@ export const useFileExplorer = ({
   useEffect(() => {
     if (rootFolder) {
       refreshFileList();
+      // [Bug Fix] 워크스페이스 실시간 변경 감지 활성화
+      const api = (window as any).electronAPI;
+      if (workspaceType === 'local' && api?.watchWorkspace && api?.onWorkspaceChanged) {
+        api.watchWorkspace(rootFolder.path);
+        const unwatch = api.onWorkspaceChanged(() => {
+          refreshFileList();
+        });
+        return () => {
+          unwatch();
+        };
+      }
     } else {
       setFileList([]);
     }
@@ -597,7 +611,7 @@ export const useFileExplorer = ({
     return () => {
       window.removeEventListener('file:refresh-all-directories', handleGlobalRefresh);
     };
-  }, [rootFolder, refreshFileList, setFileList]);
+  }, [rootFolder, refreshFileList, setFileList, workspaceType]);
 
   const helpContentRef = useRef<any>(null);
   useEffect(() => {

@@ -523,7 +523,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       // -------------------------------------------------------------------------------------------
       localStorage.setItem('onrivi_license_key', result.license_key || ''); // 🔒 라이선스 키 저장
       localStorage.setItem('onrivi_verify_key', result.verify_key || ''); // 🔒 인증 키 저장
-      localStorage.setItem('onrivi_user_id', user.id); // 🔒 사용자 ID 저장
+      localStorage.setItem('onrivi_user_id', user.email || user.id); // 🔒 사용자 ID 저장
       localStorage.setItem('onrivi_payment_no', result.payment_no || ''); // 🔒 결제 번호 저장
       localStorage.setItem('onrivi_last_run_time', Date.now().toString()); // 🔒 마지막 실행 시간 저장
       // -------------------------------------------------------------------------------------------

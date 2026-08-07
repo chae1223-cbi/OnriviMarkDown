@@ -127,7 +127,7 @@ export default function AuthCallbackPage() {
                 : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
             }
             localStorage.setItem('onrivi_session_id', sessionId);
-            localStorage.setItem('onrivi_user_id', userId);
+            localStorage.setItem('onrivi_user_id', session.user.email || userId);
             localStorage.setItem('onrivi_payment_no', subData.payment_no || '');
             localStorage.setItem('onrivi_license_key', subData.license_key || '');
             await fetch('/api/rpc/license/insert', {
