@@ -313,7 +313,12 @@ function UsersTab() {
     setLoadingAudit(true);
     setOpenMenuId(null);
     try {
-      const res = await fetch(`/api/admin/audit-logs?userId=${user.id}`);
+      // 🚨 @PATCH 2026-08-07: checkAdminAuth 보호 엔드포인트에 Authorization 헤더 추가
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch(`/api/admin/audit-logs?userId=${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const json = await res.json();
       if (json.success) {
         setAuditLogs(json.data);

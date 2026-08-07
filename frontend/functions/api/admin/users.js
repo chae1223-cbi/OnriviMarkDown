@@ -157,7 +157,7 @@ export async function onRequestGet(context) {
       }
 
       let formattedData = admins.map(a => {
-        const authUser = authMap[a.id];
+        const authUser = authMap[a.user_id]; // 🚨 @PATCH 2026-08-07: a.id(admins PK) → a.user_id(auth FK) 수정
         return {
           id: a.id,
           email: a.email,
