@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, Check, X, GripVertical, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { showToast } from '@/utils/toast';
@@ -65,11 +65,38 @@ export default function PlansTab() {
   };
   const [form, setForm] = useState(defaultForm);
 
-  useEffect(() => {
-    initAuthAndFetchData();
+  const fetchPlans = useCallback(async (token: string) => {
+    try {
+      const res = await fetch('/api/admin/plans', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setPlans(json);
+      } else {
+        throw new Error(json.error);
+      }
+    } catch (err: any) {
+      showToast(err.message || '요금제를 불러오지 못했습니다.', 'error');
+    }
   }, []);
 
-  const initAuthAndFetchData = async () => {
+  const fetchDropdownCodes = useCallback(async (adminId: string) => {
+    try {
+      const res = await fetch(`/api/admin/common-codes?adminId=${adminId}`);
+      const json = await res.json();
+      
+      if (json.success && json.data) {
+        const data = json.data.filter((c: any) => c.is_use === true);
+        setPlanCodes(data.filter((c: any) => c.group_code === 'PLAN_NAME'));
+        setSysTypes(data.filter((c: any) => c.group_code === 'SYS_TYPE'));
+      }
+    } catch (err) {
+      console.error('Failed to fetch dropdown codes', err);
+    }
+  }, []);
+
+  const initAuthAndFetchData = useCallback(async () => {
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -89,38 +116,11 @@ export default function PlansTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchPlans, fetchDropdownCodes]);
 
-  const fetchPlans = async (token: string) => {
-    try {
-      const res = await fetch('/api/admin/plans', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const json = await res.json();
-      if (res.ok) {
-        setPlans(json);
-      } else {
-        throw new Error(json.error);
-      }
-    } catch (err: any) {
-      showToast(err.message || '요금제를 불러오지 못했습니다.', 'error');
-    }
-  };
-
-  const fetchDropdownCodes = async (adminId: string) => {
-    try {
-      const res = await fetch(`/api/admin/common-codes?adminId=${adminId}`);
-      const json = await res.json();
-      
-      if (json.success && json.data) {
-        const data = json.data.filter((c: any) => c.is_use === true);
-        setPlanCodes(data.filter((c: any) => c.group_code === 'PLAN_NAME'));
-        setSysTypes(data.filter((c: any) => c.group_code === 'SYS_TYPE'));
-      }
-    } catch (err) {
-      console.error('Failed to fetch dropdown codes', err);
-    }
-  };
+  useEffect(() => {
+    initAuthAndFetchData();
+  }, [initAuthAndFetchData]);
 
   const handleSave = async () => {
     if (!form.plan_code || !form.sys_type) {

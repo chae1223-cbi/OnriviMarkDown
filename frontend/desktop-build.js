@@ -21,6 +21,8 @@ const DEV_ONLY_ROUTES = [
   { parent: API_DIR, route: 'upload-pasted-image' },
   { parent: API_DIR, route: 'admin' },
   { parent: API_DIR, route: 'cron' },
+  { parent: API_DIR, route: 'faqs' },
+  { parent: API_DIR, route: 'plans' },
   { parent: APP_DIR, route: 'auth' },
   { parent: APP_DIR, route: 'contact' },
   { parent: APP_DIR, route: 'dashboard' },

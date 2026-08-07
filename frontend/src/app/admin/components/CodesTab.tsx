@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, CheckCircle2, XCircle, Search, Edit2, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { showToast } from '@/utils/toast';
@@ -42,19 +42,19 @@ export default function CodesTab() {
   const [editingCode, setEditingCode] = useState<CommonCode | null>(null);
   const [codeForm, setCodeForm] = useState({ code_value: '', code_name: '', description: '', sort_order: 0, is_use: true });
 
-  useEffect(() => {
-    initAuthAndFetchGroups();
-  }, []);
-
-  useEffect(() => {
-    if (selectedGroup) {
-      fetchCodes(selectedGroup);
-    } else {
-      setCodes([]);
+  const fetchGroups = useCallback(async (adminId: string | null = currentAdminId) => {
+    try {
+      const res = await fetch(`/api/admin/common-codes/groups?adminId=${adminId}`);
+      const json = await res.json();
+      if (json.success) {
+        setGroups(json.data);
+      }
+    } catch (err) {
+      showToast('그룹 목록을 불러오지 못했습니다.', 'error');
     }
-  }, [selectedGroup]);
+  }, [currentAdminId]);
 
-  const initAuthAndFetchGroups = async () => {
+  const initAuthAndFetchGroups = useCallback(async () => {
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -75,21 +75,9 @@ export default function CodesTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchGroups]);
 
-  const fetchGroups = async (adminId: string | null = currentAdminId) => {
-    try {
-      const res = await fetch(`/api/admin/common-codes/groups?adminId=${adminId}`);
-      const json = await res.json();
-      if (json.success) {
-        setGroups(json.data);
-      }
-    } catch (err) {
-      showToast('그룹 목록을 불러오지 못했습니다.', 'error');
-    }
-  };
-
-  const fetchCodes = async (group_code: string) => {
+  const fetchCodes = useCallback(async (group_code: string) => {
     setCodesLoading(true);
     try {
       const res = await fetch(`/api/admin/common-codes?adminId=${currentAdminId}&group_code=${group_code}`);
@@ -102,7 +90,19 @@ export default function CodesTab() {
     } finally {
       setCodesLoading(false);
     }
-  };
+  }, [currentAdminId]);
+
+  useEffect(() => {
+    initAuthAndFetchGroups();
+  }, [initAuthAndFetchGroups]);
+
+  useEffect(() => {
+    if (selectedGroup) {
+      fetchCodes(selectedGroup);
+    } else {
+      setCodes([]);
+    }
+  }, [selectedGroup, fetchCodes]);
 
   const handleSaveGroup = async () => {
     if (!isAdminSuper) {
