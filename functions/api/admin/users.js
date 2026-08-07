@@ -1,4 +1,4 @@
-import { corsHeaders, jsonResponse, handleOptions, getSupabaseAdmin, executeDeleteActivations, insertAuditLog } from './_shared.js';
+import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig, executeDeleteActivations, insertAuditLog } from './_shared.js';
 
 export const onRequestOptions = handleOptions;
 
@@ -12,15 +12,12 @@ export async function onRequestGet(context) {
     const filterStatus = url.searchParams.get('status') || 'ALL';
     const filterPlan = url.searchParams.get('plan') || 'ALL';
 
-    const supabaseAdmin = getSupabaseAdmin(env);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
     if (type === 'general') {
-      const { data: users, error } = await supabaseAdmin
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-        
-      if (error) throw error;
+      const usersRes = await fetch(`${supabaseUrl}/rest/v1/users?select=*&order=created_at.desc`, { headers });
+      if (!usersRes.ok) throw new Error(`Failed to fetch users: ${await usersRes.text()}`);
+      const users = await usersRes.json();
       
       const userIds = users.map(u => u.id);
       let subsMap = {};
@@ -28,13 +25,9 @@ export async function onRequestGet(context) {
       let subIds = [];
       
       if (userIds.length > 0) {
-        // Supabase REST limits typically to 1000 items in 'in' queries, so this might need chunking if scale is large
-        const { data: subs } = await supabaseAdmin.from('subscriptions')
-          .select('*')
-          .in('user_id', userIds)
-          .eq('plan_status', 'ACTIVE');
-          
-        if (subs) {
+        const subsRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=in.(${userIds.join(',')})&plan_status=eq.ACTIVE&select=*`, { headers });
+        if (subsRes.ok) {
+          const subs = await subsRes.json();
           subs.forEach(s => {
             subsMap[s.user_id] = s;
             subIdToUserIdMap[s.id] = s.user_id;
@@ -43,21 +36,20 @@ export async function onRequestGet(context) {
         }
       }
 
-      const { data: codesData } = await supabaseAdmin.from('common_codes')
-        .select('code_value, code_name')
-        .eq('group_code', 'PLAN_NAME')
-        .eq('is_use', true);
+      const codesRes = await fetch(`${supabaseUrl}/rest/v1/common_codes?group_code=eq.PLAN_NAME&is_use=eq.true&select=code_value,code_name`, { headers });
       const planCodeMap = {};
-      if (codesData) {
+      if (codesRes.ok) {
+        const codesData = await codesRes.json();
         codesData.forEach(c => {
           planCodeMap[c.code_value] = c.code_name;
         });
       }
 
-      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const authUsersRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, { headers });
       const authMap = {};
-      if (authUsers?.users) {
-        authUsers.users.forEach(au => {
+      if (authUsersRes.ok) {
+        const authUsers = await authUsersRes.json();
+        authUsers.users?.forEach(au => {
           authMap[au.id] = au;
         });
       }
@@ -66,18 +58,16 @@ export async function onRequestGet(context) {
       if (userIds.length > 0) {
         const actsList = [];
         
-        const { data: actsByUser } = await supabaseAdmin.from('license_activations')
-          .select('id, created_by, subscription_id, device_name, activated_at, is_active')
-          .in('created_by', userIds)
-          .eq('is_active', true);
-        if (actsByUser) actsList.push(...actsByUser);
+        const actsByUserRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?created_by=in.(${userIds.join(',')})&is_active=eq.true&select=id,created_by,subscription_id,device_name,activated_at,is_active`, { headers });
+        if (actsByUserRes.ok) {
+          actsList.push(...(await actsByUserRes.json()));
+        }
 
         if (subIds.length > 0) {
-          const { data: actsBySub } = await supabaseAdmin.from('license_activations')
-            .select('id, created_by, subscription_id, device_name, activated_at, is_active')
-            .in('subscription_id', subIds)
-            .eq('is_active', true);
-          if (actsBySub) actsList.push(...actsBySub);
+          const actsBySubRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=in.(${subIds.join(',')})&is_active=eq.true&select=id,created_by,subscription_id,device_name,activated_at,is_active`, { headers });
+          if (actsBySubRes.ok) {
+            actsList.push(...(await actsBySubRes.json()));
+          }
         }
 
         const seenActs = new Set();
@@ -141,17 +131,15 @@ export async function onRequestGet(context) {
 
       return jsonResponse({ success: true, data: paginatedData, total, page, limit });
     } else {
-      const { data: admins, error } = await supabaseAdmin
-        .from('admins')
-        .select('*')
-        .order('created_at', { ascending: false });
-        
-      if (error) throw error;
+      const adminsRes = await fetch(`${supabaseUrl}/rest/v1/admins?select=*&order=created_at.desc`, { headers });
+      if (!adminsRes.ok) throw new Error(`Failed to fetch admins: ${await adminsRes.text()}`);
+      const admins = await adminsRes.json();
 
-      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const authUsersRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, { headers });
       const authMap = {};
-      if (authUsers?.users) {
-        authUsers.users.forEach(au => {
+      if (authUsersRes.ok) {
+        const authUsers = await authUsersRes.json();
+        authUsers.users?.forEach(au => {
           authMap[au.id] = au;
         });
       }
@@ -195,16 +183,24 @@ export async function onRequestPatch(context) {
       return jsonResponse({ success: false, error: 'Missing parameters' }, 400);
     }
 
-    const supabaseAdmin = getSupabaseAdmin(env);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
     if (action === 'suspend') {
-      const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '87600h' });
-      if (banError) throw new Error('Failed to ban user in Auth: ' + banError.message);
+      const banRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ ban_duration: '87600h' })
+      });
+      if (!banRes.ok) throw new Error('Failed to ban user in Auth: ' + await banRes.text());
       
-      const { data: subs } = await supabaseAdmin.from('subscriptions').select('id').eq('user_id', userId);
-      const subIds = subs ? subs.map(s => s.id) : [];
-      await executeDeleteActivations(supabaseAdmin, subIds, [userId], null);
-      await insertAuditLog(supabaseAdmin, userId, adminId, 'SUSPEND', reason);
+      const subsRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&select=id`, { headers });
+      let subIds = [];
+      if (subsRes.ok) {
+        const subs = await subsRes.json();
+        subIds = subs.map(s => s.id);
+      }
+      await executeDeleteActivations(env, subIds, [userId], null);
+      await insertAuditLog(env, userId, adminId, 'SUSPEND', reason);
       
       return jsonResponse({ success: true, message: `User ${userId} suspended successfully.` });
     }
@@ -213,26 +209,34 @@ export async function onRequestPatch(context) {
       const deviceId = body.deviceId;
       if (!deviceId) throw new Error('Missing deviceId for kill_single_session');
       
-      await executeDeleteActivations(supabaseAdmin, null, null, deviceId);
-      await insertAuditLog(supabaseAdmin, userId, adminId, 'KILL_SESSION', null);
+      await executeDeleteActivations(env, null, null, deviceId);
+      await insertAuditLog(env, userId, adminId, 'KILL_SESSION', null);
 
       return jsonResponse({ success: true, message: `Session ${deviceId} terminated.` });
     }
 
     if (action === 'kill_session') {
-      const { data: subs } = await supabaseAdmin.from('subscriptions').select('id').eq('user_id', userId);
-      const subIds = subs ? subs.map(s => s.id) : [];
-      await executeDeleteActivations(supabaseAdmin, subIds, [userId], null);
-      await insertAuditLog(supabaseAdmin, userId, adminId, 'KILL_SESSION', null);
+      const subsRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&select=id`, { headers });
+      let subIds = [];
+      if (subsRes.ok) {
+        const subs = await subsRes.json();
+        subIds = subs.map(s => s.id);
+      }
+      await executeDeleteActivations(env, subIds, [userId], null);
+      await insertAuditLog(env, userId, adminId, 'KILL_SESSION', null);
 
       return jsonResponse({ success: true, message: `User ${userId} sessions terminated.` });
     }
 
     if (action === 'unban') {
-      const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: 'none' });
-      if (unbanError) throw new Error('Failed to unban user in Auth: ' + unbanError.message);
+      const unbanRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ ban_duration: 'none' })
+      });
+      if (!unbanRes.ok) throw new Error('Failed to unban user in Auth: ' + await unbanRes.text());
 
-      await insertAuditLog(supabaseAdmin, userId, adminId, 'UNBAN', null);
+      await insertAuditLog(env, userId, adminId, 'UNBAN', null);
       return jsonResponse({ success: true, message: `User ${userId} unbanned successfully.` });
     }
 

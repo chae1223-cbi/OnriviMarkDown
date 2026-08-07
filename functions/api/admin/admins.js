@@ -1,4 +1,4 @@
-import { corsHeaders, jsonResponse, handleOptions, getSupabaseAdmin, insertAuditLog } from './_shared.js';
+import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig, insertAuditLog } from './_shared.js';
 
 export const onRequestOptions = handleOptions;
 
@@ -7,10 +7,14 @@ const ROOT_ADMIN_EMAIL = 'chaetang1223@gmail.com';
 export async function onRequestGet(context) {
   try {
     const { env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
-    const { data: admins, error } = await supabaseAdmin.from('admins').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
+    const res = await fetch(`${supabaseUrl}/rest/v1/admins?select=*&order=created_at.desc`, {
+      method: 'GET',
+      headers
+    });
+    if (!res.ok) throw new Error(`Failed to fetch admins: ${await res.text()}`);
+    const admins = await res.json();
 
     return jsonResponse({ success: true, data: admins });
   } catch (error) {
@@ -22,7 +26,7 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
     
     const body = await request.json();
     const { email, role, adminId } = body;
@@ -32,46 +36,64 @@ export async function onRequestPost(context) {
     }
 
     if (adminId) {
-      const { data: requester } = await supabaseAdmin.from('admins').select('admin_role').eq('user_id', adminId).single();
+      const reqRes = await fetch(`${supabaseUrl}/rest/v1/admins?user_id=eq.${adminId}&select=admin_role`, { headers });
+      const reqRows = await reqRes.json();
+      const requester = reqRows && reqRows.length > 0 ? reqRows[0] : null;
       if (!requester || requester.admin_role !== 'SUPER') {
         return jsonResponse({ success: false, error: 'SUPER 권한이 필요합니다.' }, 403);
       }
     }
 
-    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-    const authUser = users?.find(u => u.email === email);
+    // List users
+    const usersRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, { headers });
+    const usersData = await usersRes.json();
+    const authUser = usersData.users?.find(u => u.email === email);
     let finalUserId = authUser ? authUser.id : null;
 
     if (!finalUserId) {
-      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        email_confirm: true,
+      // Create user
+      const createRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ email, email_confirm: true })
       });
-      if (createError) throw new Error('Failed to create auth user: ' + createError.message);
-      finalUserId = newUser.user.id;
+      if (!createRes.ok) throw new Error('Failed to create auth user: ' + await createRes.text());
+      const newUser = await createRes.json();
+      finalUserId = newUser.id;
       
-      await supabaseAdmin.from('users').insert({
-        id: finalUserId,
-        email,
-        nick_name: '관리자',
-        status: 'ACTIVE'
+      // Insert into users
+      await fetch(`${supabaseUrl}/rest/v1/users`, {
+        method: 'POST',
+        headers: { ...headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          id: finalUserId,
+          email,
+          nick_name: '관리자',
+          status: 'ACTIVE'
+        })
       });
     }
 
-    const { data: existingAdmin } = await supabaseAdmin.from('admins').select('id').eq('email', email).single();
-    if (existingAdmin) {
+    // Check existing admin
+    const checkRes = await fetch(`${supabaseUrl}/rest/v1/admins?email=eq.${encodeURIComponent(email)}&select=id`, { headers });
+    const checkRows = await checkRes.json();
+    if (checkRows && checkRows.length > 0) {
       return jsonResponse({ success: false, error: '이미 등록된 관리자입니다.' }, 400);
     }
 
-    const { error: insertError } = await supabaseAdmin.from('admins').insert({
-      user_id: finalUserId,
-      email: email,
-      admin_role: role
+    // Insert admin
+    const insertRes = await fetch(`${supabaseUrl}/rest/v1/admins`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        user_id: finalUserId,
+        email: email,
+        admin_role: role
+      })
     });
+    if (!insertRes.ok) throw new Error(`Failed to insert admin: ${await insertRes.text()}`);
 
-    if (insertError) throw insertError;
-
-    await insertAuditLog(supabaseAdmin, finalUserId, adminId, 'ADMIN_INVITE', 'Invited as ' + role);
+    await insertAuditLog(env, finalUserId, adminId, 'ADMIN_INVITE', 'Invited as ' + role);
 
     return jsonResponse({ success: true, message: '관리자가 성공적으로 등록되었습니다.' });
 
@@ -84,7 +106,7 @@ export async function onRequestPost(context) {
 export async function onRequestPatch(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
     const body = await request.json();
     const { adminTargetId, targetEmail, newRole, adminId } = body;
@@ -98,16 +120,22 @@ export async function onRequestPatch(context) {
     }
 
     if (adminId) {
-      const { data: requester } = await supabaseAdmin.from('admins').select('admin_role').eq('user_id', adminId).single();
+      const reqRes = await fetch(`${supabaseUrl}/rest/v1/admins?user_id=eq.${adminId}&select=admin_role`, { headers });
+      const reqRows = await reqRes.json();
+      const requester = reqRows && reqRows.length > 0 ? reqRows[0] : null;
       if (!requester || requester.admin_role !== 'SUPER') {
         return jsonResponse({ success: false, error: 'SUPER 권한이 필요합니다.' }, 403);
       }
     }
 
-    const { error: updateError } = await supabaseAdmin.from('admins').update({ admin_role: newRole }).eq('id', adminTargetId);
-    if (updateError) throw updateError;
+    const updateRes = await fetch(`${supabaseUrl}/rest/v1/admins?id=eq.${adminTargetId}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ admin_role: newRole })
+    });
+    if (!updateRes.ok) throw new Error(`Failed to update admin: ${await updateRes.text()}`);
 
-    await insertAuditLog(supabaseAdmin, null, adminId, 'ADMIN_ROLE_CHANGE', 'Changed role of ' + targetEmail + ' to ' + newRole);
+    await insertAuditLog(env, null, adminId, 'ADMIN_ROLE_CHANGE', 'Changed role of ' + targetEmail + ' to ' + newRole);
 
     return jsonResponse({ success: true, message: '관리자 권한이 성공적으로 변경되었습니다.' });
 
@@ -120,7 +148,7 @@ export async function onRequestPatch(context) {
 export async function onRequestDelete(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
     const url = new URL(request.url);
     const adminTargetId = url.searchParams.get('adminTargetId');
@@ -136,27 +164,39 @@ export async function onRequestDelete(context) {
     }
 
     if (adminId) {
-      const { data: requester } = await supabaseAdmin.from('admins').select('admin_role').eq('user_id', adminId).single();
+      const reqRes = await fetch(`${supabaseUrl}/rest/v1/admins?user_id=eq.${adminId}&select=admin_role`, { headers });
+      const reqRows = await reqRes.json();
+      const requester = reqRows && reqRows.length > 0 ? reqRows[0] : null;
       if (!requester || requester.admin_role !== 'SUPER') {
         return jsonResponse({ success: false, error: 'SUPER 권한이 필요합니다.' }, 403);
       }
     }
 
-    const { error: deleteError } = await supabaseAdmin.from('admins').delete().eq('id', adminTargetId);
-    if (deleteError) throw deleteError;
+    const deleteRes = await fetch(`${supabaseUrl}/rest/v1/admins?id=eq.${adminTargetId}`, {
+      method: 'DELETE',
+      headers
+    });
+    if (!deleteRes.ok) throw new Error(`Failed to delete admin: ${await deleteRes.text()}`);
 
-    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-    const targetAuthUser = users?.find(u => u.email === targetEmail);
+    const usersRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, { headers });
+    const usersData = await usersRes.json();
+    const targetAuthUser = usersData.users?.find(u => u.email === targetEmail);
 
     if (targetAuthUser) {
-      const { data: factorData } = await supabaseAdmin.auth.admin.mfa.listFactors({ userId: targetAuthUser.id });
-      const totpFactors = factorData?.factors?.filter(f => f.factor_type === 'totp') ?? [];
-      for (const factor of totpFactors) {
-        await supabaseAdmin.auth.admin.mfa.deleteFactor({ userId: targetAuthUser.id, id: factor.id });
+      const factorsRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${targetAuthUser.id}/factors`, { headers });
+      if (factorsRes.ok) {
+        const factorsData = await factorsRes.json();
+        const totpFactors = factorsData?.filter(f => f.factor_type === 'totp') ?? [];
+        for (const factor of totpFactors) {
+          await fetch(`${supabaseUrl}/auth/v1/admin/users/${targetAuthUser.id}/factors/${factor.id}`, {
+            method: 'DELETE',
+            headers
+          });
+        }
       }
     }
 
-    await insertAuditLog(supabaseAdmin, targetAuthUser?.id || null, adminId, 'ADMIN_REVOKE', 'Revoked admin access and deleted MFA for ' + targetEmail);
+    await insertAuditLog(env, targetAuthUser?.id || null, adminId, 'ADMIN_REVOKE', 'Revoked admin access and deleted MFA for ' + targetEmail);
 
     return jsonResponse({ success: true, message: '관리자 권한이 즉시 회수되었으며, OTP 재등록이 초기화되었습니다.' });
 

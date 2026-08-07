@@ -1,29 +1,27 @@
-import { corsHeaders, jsonResponse, handleOptions, getSupabaseAdmin, checkAdminAuth } from './_shared.js';
+import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig, checkAdminAuth } from './_shared.js';
 
 export const onRequestOptions = handleOptions;
 
 export async function onRequestGet(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
-
-    const authResult = await checkAdminAuth(request, supabaseAdmin, ['SUPER', 'SUPPORT']);
+    
+    const authResult = await checkAdminAuth(request, env, ['SUPER', 'SUPPORT']);
     if (authResult.error) {
       return jsonResponse({ error: authResult.error }, authResult.status);
     }
 
-    const { data: inquiries, error: inquiriesError } = await supabaseAdmin
-      .from('support_inquiries')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
-    if (inquiriesError) throw inquiriesError;
+    const inquiriesRes = await fetch(`${supabaseUrl}/rest/v1/support_inquiries?select=*&order=created_at.desc`, { headers });
+    if (!inquiriesRes.ok) throw new Error(`Failed to fetch inquiries: ${await inquiriesRes.text()}`);
+    const inquiries = await inquiriesRes.json();
 
-    const { data: codes, error: codesError } = await supabaseAdmin
-      .from('common_codes')
-      .select('group_code, code_value, code_name');
-
-    if (codesError) throw codesError;
+    const codesRes = await fetch(`${supabaseUrl}/rest/v1/common_codes?select=group_code,code_value,code_name`, { headers });
+    let codes = [];
+    if (codesRes.ok) {
+      codes = await codesRes.json();
+    }
 
     const enrichedInquiries = (inquiries || []).map(inquiry => {
       const typeInfo = codes?.find(c => c.group_code === 'INQUIRY_TYPE' && c.code_value === inquiry.type);
@@ -46,9 +44,8 @@ export async function onRequestGet(context) {
 export async function onRequestPatch(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
-
-    const authResult = await checkAdminAuth(request, supabaseAdmin, ['SUPER', 'SUPPORT']);
+    
+    const authResult = await checkAdminAuth(request, env, ['SUPER', 'SUPPORT']);
     if (authResult.error) {
       return jsonResponse({ error: authResult.error === 'Forbidden' ? '권한이 없습니다.' : authResult.error }, authResult.status);
     }
@@ -58,13 +55,14 @@ export async function onRequestPatch(context) {
 
     if (!id) return jsonResponse({ error: 'ID is required' }, 400);
 
-    const { data: inquiryData, error: inquiryError } = await supabaseAdmin
-      .from('support_inquiries')
-      .select('email, title, content')
-      .eq('id', id)
-      .single();
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
+
+    const inquiryRes = await fetch(`${supabaseUrl}/rest/v1/support_inquiries?id=eq.${id}&select=email,title,content`, { headers });
+    if (!inquiryRes.ok) throw new Error(`Failed to fetch inquiry: ${await inquiryRes.text()}`);
+    const inquiryRows = await inquiryRes.json();
+    const inquiryData = inquiryRows && inquiryRows.length > 0 ? inquiryRows[0] : null;
     
-    if (inquiryError || !inquiryData) {
+    if (!inquiryData) {
       return jsonResponse({ error: 'Inquiry not found' }, 404);
     }
 
@@ -153,14 +151,15 @@ export async function onRequestPatch(context) {
       }
     }
 
-    const { data: updatedInquiry, error: updateError } = await supabaseAdmin
-      .from('support_inquiries')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
+    const updateRes = await fetch(`${supabaseUrl}/rest/v1/support_inquiries?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Prefer': 'return=representation' },
+      body: JSON.stringify(updateData)
+    });
 
-    if (updateError) throw updateError;
+    if (!updateRes.ok) throw new Error(`Failed to update inquiry: ${await updateRes.text()}`);
+    const updatedDataRows = await updateRes.json();
+    const updatedInquiry = updatedDataRows && updatedDataRows.length > 0 ? updatedDataRows[0] : null;
 
     return jsonResponse({ ...updatedInquiry, emailSent });
   } catch (error) {

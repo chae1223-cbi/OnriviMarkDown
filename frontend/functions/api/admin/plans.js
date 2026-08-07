@@ -1,29 +1,27 @@
-import { corsHeaders, jsonResponse, handleOptions, getSupabaseAdmin, checkAdminAuth } from './_shared.js';
+import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig, checkAdminAuth } from './_shared.js';
 
 export const onRequestOptions = handleOptions;
 
 export async function onRequestGet(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
 
-    const authResult = await checkAdminAuth(request, supabaseAdmin, ['SUPER', 'SUPPORT']);
+    const authResult = await checkAdminAuth(request, env, ['SUPER', 'SUPPORT']);
     if (authResult.error) {
       return jsonResponse({ error: authResult.error }, authResult.status);
     }
 
-    const { data: plans, error: plansError } = await supabaseAdmin
-      .from('pricing_plans')
-      .select('*')
-      .order('sort_order', { ascending: true });
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
-    if (plansError) throw plansError;
+    const plansRes = await fetch(`${supabaseUrl}/rest/v1/pricing_plans?select=*&order=sort_order.asc`, { headers });
+    if (!plansRes.ok) throw new Error(`Failed to fetch plans: ${await plansRes.text()}`);
+    const plans = await plansRes.json();
 
-    const { data: codes, error: codesError } = await supabaseAdmin
-      .from('common_codes')
-      .select('group_code, code_value, code_name');
-
-    if (codesError) throw codesError;
+    const codesRes = await fetch(`${supabaseUrl}/rest/v1/common_codes?select=group_code,code_value,code_name`, { headers });
+    let codes = [];
+    if (codesRes.ok) {
+      codes = await codesRes.json();
+    }
 
     const enrichedPlans = (plans || []).map(plan => {
       const planCodeInfo = codes?.find(c => c.group_code === 'PLAN_NAME' && c.code_value === plan.plan_code);
@@ -46,13 +44,13 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
-
-    const authResult = await checkAdminAuth(request, supabaseAdmin, ['SUPER']);
+    
+    const authResult = await checkAdminAuth(request, env, ['SUPER']);
     if (authResult.error) {
       return jsonResponse({ error: authResult.error === 'Forbidden' ? 'SUPER 권한만 요금제를 추가할 수 있습니다.' : authResult.error }, authResult.status);
     }
 
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
     const body = await request.json();
     const { 
       plan_code, sys_type, tagline, badge, is_free, tier_emoji, 
@@ -60,20 +58,24 @@ export async function onRequestPost(context) {
       features, cta, cta_variant, is_highlighted, sort_order, is_active 
     } = body;
 
-    const { data, error } = await supabaseAdmin
-      .from('pricing_plans')
-      .insert([{
-        plan_code, sys_type, tagline, badge, is_free, tier_emoji,
-        price_monthly, price_monthly_usd, price_yearly, price_yearly_usd,
-        features, cta, cta_variant, is_highlighted, sort_order, is_active,
-        created_by: authResult.user.id,
-        updated_by: authResult.user.id
-      }])
-      .select()
-      .single();
+    const payload = {
+      plan_code, sys_type, tagline, badge, is_free, tier_emoji,
+      price_monthly, price_monthly_usd, price_yearly, price_yearly_usd,
+      features, cta, cta_variant, is_highlighted, sort_order, is_active,
+      created_by: authResult.user.id,
+      updated_by: authResult.user.id
+    };
 
-    if (error) throw error;
-    return jsonResponse(data);
+    const insertRes = await fetch(`${supabaseUrl}/rest/v1/pricing_plans`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'return=representation' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!insertRes.ok) throw new Error(`Failed to create plan: ${await insertRes.text()}`);
+    const data = await insertRes.json();
+
+    return jsonResponse(data && data.length > 0 ? data[0] : null);
   } catch (error) {
     console.error('[Admin API] Error creating plan:', error);
     return jsonResponse({ error: error.message }, 500);
@@ -83,9 +85,8 @@ export async function onRequestPost(context) {
 export async function onRequestPatch(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
-
-    const authResult = await checkAdminAuth(request, supabaseAdmin, ['SUPER']);
+    
+    const authResult = await checkAdminAuth(request, env, ['SUPER']);
     if (authResult.error) {
       return jsonResponse({ error: authResult.error === 'Forbidden' ? 'SUPER 권한만 요금제를 수정할 수 있습니다.' : authResult.error }, authResult.status);
     }
@@ -99,21 +100,26 @@ export async function onRequestPatch(context) {
 
     if (!id) return jsonResponse({ error: 'ID is required' }, 400);
 
-    const { data, error } = await supabaseAdmin
-      .from('pricing_plans')
-      .update({
-        plan_code, sys_type, tagline, badge, is_free, tier_emoji,
-        price_monthly, price_monthly_usd, price_yearly, price_yearly_usd,
-        features, cta, cta_variant, is_highlighted, sort_order, is_active,
-        updated_by: authResult.user.id,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
+    
+    const payload = {
+      plan_code, sys_type, tagline, badge, is_free, tier_emoji,
+      price_monthly, price_monthly_usd, price_yearly, price_yearly_usd,
+      features, cta, cta_variant, is_highlighted, sort_order, is_active,
+      updated_by: authResult.user.id,
+      updated_at: new Date().toISOString()
+    };
 
-    if (error) throw error;
-    return jsonResponse(data);
+    const updateRes = await fetch(`${supabaseUrl}/rest/v1/pricing_plans?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Prefer': 'return=representation' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!updateRes.ok) throw new Error(`Failed to update plan: ${await updateRes.text()}`);
+    const data = await updateRes.json();
+
+    return jsonResponse(data && data.length > 0 ? data[0] : null);
   } catch (error) {
     console.error('[Admin API] Error updating plan:', error);
     return jsonResponse({ error: error.message }, 500);
@@ -123,9 +129,8 @@ export async function onRequestPatch(context) {
 export async function onRequestDelete(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
 
-    const authResult = await checkAdminAuth(request, supabaseAdmin, ['SUPER']);
+    const authResult = await checkAdminAuth(request, env, ['SUPER']);
     if (authResult.error) {
       return jsonResponse({ error: authResult.error === 'Forbidden' ? 'SUPER 권한만 요금제를 삭제할 수 있습니다.' : authResult.error }, authResult.status);
     }
@@ -135,12 +140,15 @@ export async function onRequestDelete(context) {
 
     if (!id) return jsonResponse({ error: 'ID is required' }, 400);
 
-    const { error } = await supabaseAdmin
-      .from('pricing_plans')
-      .delete()
-      .eq('id', id);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
-    if (error) throw error;
+    const deleteRes = await fetch(`${supabaseUrl}/rest/v1/pricing_plans?id=eq.${id}`, {
+      method: 'DELETE',
+      headers
+    });
+
+    if (!deleteRes.ok) throw new Error(`Failed to delete plan: ${await deleteRes.text()}`);
+    
     return jsonResponse({ success: true });
   } catch (error) {
     console.error('[Admin API] Error deleting plan:', error);

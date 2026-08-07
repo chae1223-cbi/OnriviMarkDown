@@ -1,10 +1,14 @@
-import { corsHeaders, jsonResponse, handleOptions, getSupabaseAdmin } from '../_shared.js';
+import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig } from '../_shared.js';
 
 export const onRequestOptions = handleOptions;
 
-async function checkAdmin(supabaseAdmin, adminId, requiredRole = 'SUPPORT') {
-  if (!supabaseAdmin || !adminId) return false;
-  const { data } = await supabaseAdmin.from('admins').select('admin_role').eq('user_id', adminId).single();
+async function checkAdmin(env, adminId, requiredRole = 'SUPPORT') {
+  if (!env || !adminId) return false;
+  const { supabaseUrl, headers } = getSupabaseConfig(env);
+  const res = await fetch(`${supabaseUrl}/rest/v1/admins?user_id=eq.${adminId}&select=admin_role`, { headers });
+  if (!res.ok) return false;
+  const rows = await res.json();
+  const data = rows && rows.length > 0 ? rows[0] : null;
   if (!data) return false;
   if (requiredRole === 'SUPER' && data.admin_role !== 'SUPER') return false;
   return true;
@@ -13,7 +17,6 @@ async function checkAdmin(supabaseAdmin, adminId, requiredRole = 'SUPPORT') {
 export async function onRequestGet(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
 
     const url = new URL(request.url);
     const adminId = url.searchParams.get('adminId');
@@ -22,18 +25,16 @@ export async function onRequestGet(context) {
       return jsonResponse({ success: false, error: '관리자 ID(adminId)가 필요합니다.' }, 400);
     }
 
-    const hasAccess = await checkAdmin(supabaseAdmin, adminId, 'SUPPORT');
+    const hasAccess = await checkAdmin(env, adminId, 'SUPPORT');
     if (!hasAccess) {
       return jsonResponse({ success: false, error: '권한이 없습니다.' }, 403);
     }
 
-    const { data: groups, error } = await supabaseAdmin
-      .from('common_code_groups')
-      .select('*')
-      .order('sort_order', { ascending: true })
-      .order('group_code', { ascending: true });
-
-    if (error) throw error;
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
+    
+    const groupsRes = await fetch(`${supabaseUrl}/rest/v1/common_code_groups?select=*&order=sort_order.asc,group_code.asc`, { headers });
+    if (!groupsRes.ok) throw new Error(`Failed to fetch common code groups: ${await groupsRes.text()}`);
+    const groups = await groupsRes.json();
 
     return jsonResponse({ success: true, data: groups });
   } catch (error) {
@@ -45,7 +46,6 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
 
     const body = await request.json();
     const { adminId, group_code, group_name, description, sort_order, is_use } = body;
@@ -54,27 +54,37 @@ export async function onRequestPost(context) {
       return jsonResponse({ success: false, error: '필수 파라미터 누락' }, 400);
     }
 
-    const hasAccess = await checkAdmin(supabaseAdmin, adminId, 'SUPER');
+    const hasAccess = await checkAdmin(env, adminId, 'SUPER');
     if (!hasAccess) {
       return jsonResponse({ success: false, error: 'SUPER 권한이 필요합니다.' }, 403);
     }
 
-    const { data: existingGroup } = await supabaseAdmin.from('common_code_groups').select('group_code').eq('group_code', group_code.toUpperCase()).single();
-    if (existingGroup) {
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
+    const uppercaseGroupCode = group_code.toUpperCase();
+
+    const checkRes = await fetch(`${supabaseUrl}/rest/v1/common_code_groups?group_code=eq.${uppercaseGroupCode}&select=group_code`, { headers });
+    const checkRows = await checkRes.json();
+    if (checkRows && checkRows.length > 0) {
       return jsonResponse({ success: false, error: '이미 존재하는 그룹 코드입니다.' }, 400);
     }
 
-    const { error: insertError } = await supabaseAdmin.from('common_code_groups').insert({
-      group_code: group_code.toUpperCase(),
+    const payload = {
+      group_code: uppercaseGroupCode,
       group_name,
       description: description || '',
       sort_order: sort_order || 0,
       is_use: is_use !== undefined ? is_use : true,
       created_by: adminId,
       updated_by: adminId,
+    };
+
+    const insertRes = await fetch(`${supabaseUrl}/rest/v1/common_code_groups`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify(payload)
     });
 
-    if (insertError) throw insertError;
+    if (!insertRes.ok) throw new Error(`Failed to insert common code group: ${await insertRes.text()}`);
 
     return jsonResponse({ success: true, message: '그룹 코드가 생성되었습니다.' });
   } catch (error) {
@@ -86,7 +96,6 @@ export async function onRequestPost(context) {
 export async function onRequestPatch(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
 
     const body = await request.json();
     const { adminId, group_code, group_name, description, sort_order, is_use } = body;
@@ -95,7 +104,7 @@ export async function onRequestPatch(context) {
       return jsonResponse({ success: false, error: '필수 파라미터 누락' }, 400);
     }
 
-    const hasAccess = await checkAdmin(supabaseAdmin, adminId, 'SUPER');
+    const hasAccess = await checkAdmin(env, adminId, 'SUPER');
     if (!hasAccess) {
       return jsonResponse({ success: false, error: 'SUPER 권한이 필요합니다.' }, 403);
     }
@@ -106,12 +115,14 @@ export async function onRequestPatch(context) {
     if (sort_order !== undefined) updateData.sort_order = sort_order;
     if (is_use !== undefined) updateData.is_use = is_use;
 
-    const { error: updateError } = await supabaseAdmin
-      .from('common_code_groups')
-      .update(updateData)
-      .eq('group_code', group_code);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
+    const updateRes = await fetch(`${supabaseUrl}/rest/v1/common_code_groups?group_code=eq.${group_code}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify(updateData)
+    });
 
-    if (updateError) throw updateError;
+    if (!updateRes.ok) throw new Error(`Failed to update common code group: ${await updateRes.text()}`);
 
     return jsonResponse({ success: true, message: '그룹 코드가 수정되었습니다.' });
   } catch (error) {
@@ -123,7 +134,6 @@ export async function onRequestPatch(context) {
 export async function onRequestDelete(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
 
     const url = new URL(request.url);
     const adminId = url.searchParams.get('adminId');
@@ -133,17 +143,18 @@ export async function onRequestDelete(context) {
       return jsonResponse({ success: false, error: '필수 파라미터 누락' }, 400);
     }
 
-    const hasAccess = await checkAdmin(supabaseAdmin, adminId, 'SUPER');
+    const hasAccess = await checkAdmin(env, adminId, 'SUPER');
     if (!hasAccess) {
       return jsonResponse({ success: false, error: 'SUPER 권한이 필요합니다.' }, 403);
     }
 
-    const { error: deleteError } = await supabaseAdmin
-      .from('common_code_groups')
-      .delete()
-      .eq('group_code', group_code);
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
+    const deleteRes = await fetch(`${supabaseUrl}/rest/v1/common_code_groups?group_code=eq.${group_code}`, {
+      method: 'DELETE',
+      headers
+    });
 
-    if (deleteError) throw deleteError;
+    if (!deleteRes.ok) throw new Error(`Failed to delete common code group: ${await deleteRes.text()}`);
 
     return jsonResponse({ success: true, message: '그룹 코드가 삭제되었습니다.' });
   } catch (error) {

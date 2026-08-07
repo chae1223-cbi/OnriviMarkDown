@@ -1,18 +1,13 @@
-import { corsHeaders, jsonResponse, handleOptions, getSupabaseAdmin, checkAdminAuth } from './_shared.js';
+import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig, checkAdminAuth } from './_shared.js';
 
 export const onRequestOptions = handleOptions;
 
 export async function onRequestGet(context) {
   try {
     const { request, env } = context;
-    const supabaseAdmin = getSupabaseAdmin(env);
 
-    // Optional: Add admin auth check if needed, but the original route didn't have one explicitly.
-    // Adding it for security since it's an admin route.
-    const authResult = await checkAdminAuth(request, supabaseAdmin, ['SUPER', 'SUPPORT']);
+    const authResult = await checkAdminAuth(request, env, ['SUPER', 'SUPPORT']);
     if (authResult.error) {
-       // Since the original was completely open we might want to bypass or keep it secure
-       // I'll keep it secure.
        return jsonResponse({ error: authResult.error }, authResult.status);
     }
 
@@ -23,32 +18,29 @@ export async function onRequestGet(context) {
       return jsonResponse({ success: false, error: 'userId parameter is required' }, 400);
     }
 
-    // Use Supabase JS to join tables
-    const { data: logsData, error: logsError } = await supabaseAdmin
-      .from('user_audit_logs')
-      .select('id, action_type, reason, created_at, admin_id')
-      .eq('target_user_id', userId)
-      .order('created_at', { ascending: false });
+    const { supabaseUrl, headers } = getSupabaseConfig(env);
 
-    if (logsError) throw logsError;
+    const logsRes = await fetch(`${supabaseUrl}/rest/v1/user_audit_logs?target_user_id=eq.${userId}&select=id,action_type,reason,created_at,admin_id&order=created_at.desc`, { headers });
+    if (!logsRes.ok) throw new Error(`Failed to fetch logs: ${await logsRes.text()}`);
+    const logsData = await logsRes.json();
 
-    // Fetch common_codes
-    const { data: codes } = await supabaseAdmin
-      .from('common_codes')
-      .select('code_value, code_name')
-      .eq('group_code', 'AUDIT_ACTION');
+    const codesRes = await fetch(`${supabaseUrl}/rest/v1/common_codes?group_code=eq.AUDIT_ACTION&select=code_value,code_name`, { headers });
+    let codes = [];
+    if (codesRes.ok) {
+      codes = await codesRes.json();
+    }
 
-    // Fetch admin emails (to replicate the LEFT JOIN with users u)
     const adminIds = [...new Set((logsData || []).map(l => l.admin_id).filter(Boolean))];
     let adminEmails = {};
     if (adminIds.length > 0) {
-      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-      if (users) {
-         users.forEach(u => {
-            if (adminIds.includes(u.id)) {
-               adminEmails[u.id] = u.email;
-            }
-         });
+      const usersRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, { headers });
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        usersData.users?.forEach(u => {
+          if (adminIds.includes(u.id)) {
+            adminEmails[u.id] = u.email;
+          }
+        });
       }
     }
 
