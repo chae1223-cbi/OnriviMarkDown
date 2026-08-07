@@ -297,7 +297,7 @@ export default function FaqsTab() {
                 onClick={() => setModalOpen(false)}
                 className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface)] rounded-lg transition-colors"
               >
-                취소
+                닫기
               </button>
               <button
                 onClick={handleSave}
