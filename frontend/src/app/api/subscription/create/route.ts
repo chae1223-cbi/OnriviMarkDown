@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       // 1. [재가입 방지 검증]: 무료 요금제 신청 시 DB 전체 이력 중 어떤 구독(만료/취소 포함)이라도 존재하면 무료 재가입 전면 차단
       if (p_plan_name === 'APPRENTICE' || p_plan_name === 'FREE') {
         const pastSubs = await tx`
-          SELECT id FROM subscriptions WHERE user_id = ${p_user_id} LIMIT 1
+          SELECT id FROM subscriptions WHERE user_id = ${p_user_id} AND UPPER(plan_name) != 'READER' LIMIT 1
         `;
         if (pastSubs && pastSubs.length > 0) {
           throw new Error("이미 구독 신청 및 이용 이력이 존재하는 계정이므로 무료 체험 재가입이 불가능합니다. 유료 요금제를 선택해 주세요.");

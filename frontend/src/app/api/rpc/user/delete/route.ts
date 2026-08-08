@@ -3,6 +3,7 @@
 
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { verifyUser } from '@/lib/authVerify';
 
 export async function POST(request: Request) {
   try {
@@ -10,6 +11,11 @@ export async function POST(request: Request) {
 
     if (!p_user_id) {
       return NextResponse.json({ success: false, message: 'p_user_id가 필요합니다.' }, { status: 400 });
+    }
+
+    const { user, error: authError } = await verifyUser(request);
+    if (authError || !user || user.id !== p_user_id) {
+      return NextResponse.json({ success: false, message: '권한이 없습니다.' }, { status: 403 });
     }
 
     // postgres.js 원트랜잭션 실행

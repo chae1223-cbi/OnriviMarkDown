@@ -8,11 +8,11 @@ const supabase = createClient(
 
 async function check() {
   const { data, error } = await supabase
-    .from('license_activations')
-    .select('*')
-    .eq('subscription_id', '5efe5aab-fdc3-4138-9585-f9b6b3d805d5');
+    .from('subscriptions')
+    .select('id, plan_name, plan_status, is_active, max_devices, created_at')
+    .eq('user_id', '2ef98d8b-bd62-4a19-a0ad-564c83cb80e0')
+    .order('created_at', { ascending: false });
     
-  console.log('Activations:', data);
-  console.log('Error:', error);
+  console.log('Subscriptions:', data);
 }
 check();

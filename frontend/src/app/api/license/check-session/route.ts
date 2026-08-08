@@ -1,8 +1,3 @@
-/**
- * 🎯 @KICK  : check_license_session Supabase RPC를 서버단 API Route로 대체
- * 🚨 @PATCH : 2026-07-22 — supabase.rpc('check_license_session') 클라이언트 직접 호출을 서버단 postgres.js 쿼리로 이전
- *             license_activations 테이블 직접 조회 방식으로 대체 (RPC 의존성 제거)
- */
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 
@@ -16,22 +11,22 @@ export async function POST(request: Request) {
     }
 
     // 1. payment_no -> subscriptions -> license_id 조회
+    // 🚨 @PATCH : plan_status가 EXPIRED 인 경우도 우선 검색하여 제한사용자 여부를 판단할 수 있도록 쿼리 완화
     const subRows = await sql`
-      SELECT id, max_devices
+      SELECT id, max_devices, plan_status
       FROM subscriptions
       WHERE payment_no = ${p_payment_no}
-        AND (is_active = true OR UPPER(plan_status) = 'FREE')
-        AND UPPER(plan_status) IN ('ACTIVE', 'FREE')
       LIMIT 1
     `;
 
     if (!subRows || subRows.length === 0) {
-      return NextResponse.json({ success: true, has_session: false, max_devices: 0 });
+      return NextResponse.json({ success: true, has_session: false, is_restricted: true, max_devices: 0 });
     }
 
-    const { id: licenseId, max_devices } = subRows[0];
+    const { id: licenseId, max_devices, plan_status } = subRows[0];
+    const isExpiredPlan = plan_status === 'EXPIRED';
 
-    // 2. license_activations에서 해당 device_uuid 세션 존재 여부 확인 (활성화/제한 여부 모두 조회)
+    // 2. license_activations에서 해당 device_uuid 세션 존재 여부 확인 (활성 및 제한 모두 조회)
     const actRows = await sql`
       SELECT id, is_active
       FROM license_activations
@@ -41,9 +36,11 @@ export async function POST(request: Request) {
     `;
 
     const sessionExists = actRows && actRows.length > 0;
-    const isActiveSession = sessionExists && actRows[0].is_active;
+    
+    // 강제 만료된 플랜이면 무조건 활성화 안된 세션으로 취급
+    const isActiveSession = isExpiredPlan ? false : (sessionExists && actRows[0].is_active);
 
-    // 3. updated_at 갱신 (제한 사용자라도 세션(브라우저)이 존재하면 하트비트 적재 유지)
+    // 3. updated_at 갱신 (제한 사용자라도 세션(브라우저)이 존재하면 하트비트 생존 확인)
     if (sessionExists) {
       await sql`
         UPDATE license_activations
@@ -55,8 +52,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      has_session: isActiveSession, // 제한 사용자에게는 false를 반환하여 프론트가 계속 제한 상태를 유지하도록 함
-      is_restricted: sessionExists && !isActiveSession,
+      has_session: isActiveSession, // 제한 사용자에게는 false를 반환하여 프론트가 계속 제한 상태로 두도록 함
+      is_restricted: isExpiredPlan ? true : (sessionExists && !isActiveSession),
       max_devices: max_devices || 1
     });
   } catch (error: any) {

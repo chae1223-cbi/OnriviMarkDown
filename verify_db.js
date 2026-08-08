@@ -6,13 +6,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-async function check() {
+async function run() {
   const { data, error } = await supabase
-    .from('license_activations')
-    .select('*')
-    .eq('subscription_id', '5efe5aab-fdc3-4138-9585-f9b6b3d805d5');
+    .from('subscriptions')
+    .select('id, plan_status, is_active')
+    .eq('id', '5efe5aab-fdc3-4138-9585-f9b6b3d805d5');
     
-  console.log('Activations:', data);
-  console.log('Error:', error);
+  console.log('Select result:', data);
 }
-check();
+run();

@@ -886,6 +886,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // A. 스토리지 로드 (로컬스토리지를 최우선 단일 진실 공급원(SSOT)으로 사용)
     savedKey = localStorage.getItem('onrivi_license_key') || '';
     savedUserId = localStorage.getItem('onrivi_user_id') || '';
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) savedUserId = session.user.id;
+    } catch (e) {}
     savedPaymentNo = localStorage.getItem('onrivi_payment_no') || '';
     savedLastRunTime = parseInt(localStorage.getItem('onrivi_last_run_time') || '0', 10);
 
@@ -1110,8 +1114,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             .from('subscriptions')
             .select('id, plan_name, plan_status, current_period_end, max_devices, license_key, payment_no')
             .eq('user_id', session.user.id)
-            .eq('is_active', true)
-            .in('plan_status', ['ACTIVE', 'FREE'])
+            .eq('plan_status', 'ACTIVE')
             .neq('plan_name', 'ELITEPRO')
             .not('plan_name', 'ilike', '%DESKTOP%')
             .order('current_period_end', { ascending: false })
@@ -1120,7 +1123,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (userSub?.payment_no) {
             savedPaymentNo = userSub.payment_no;
             savedKey = userSub.license_key || '';
-            savedUserId = session.user.email || session.user.id;
+            savedUserId = session.user.id;
           }
         }
       } catch (e) {
@@ -1169,15 +1172,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           .eq('payment_no', savedPaymentNo)
           .maybeSingle();
 
-        if (!license) {
-          console.warn('[loadAndVerifyLicense] web: license not found for payment_no. Auto-clearing cache...');
-          // 잘못된 결제 번호 캐시가 남아 영원히 에러가 나는 좀비 현상(무한루프) 방지를 위해 캐시 자동 강제 삭제
-          localStorage.removeItem('onrivi_payment_no');
-          localStorage.removeItem('onrivi_license_key');
-          localStorage.removeItem('onrivi_session_id');
-          return;
-        } else {
-            const sub = license;
+          if (!license) {
+            console.warn('[loadAndVerifyLicense] web: license not found for payment_no. Auto-clearing cache...');
+            localStorage.removeItem('onrivi_payment_no');
+            localStorage.removeItem('onrivi_license_key');
+            localStorage.removeItem('onrivi_session_id');
+            return;
+          } else {
+            let sub = license;
+            let currentLicenseId = sub.id;
+            let currentPaymentNo = savedPaymentNo;
 
             let expiryMs = 0;
             if (sub) {
@@ -1194,7 +1198,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               if (targetDate) expiryMs = parseDateStringToMs(targetDate);
               else expiryMs = Number.MAX_SAFE_INTEGER;
               
-              // 🚨 @PATCH : 2026-07-20 - 무료 체험(FREE) 요금제의 경우, 백엔드 데이터(99991231 등) 오류시에만 가입일(created_at) 기준 강제 만료 리미트 적용 (정상적인 만료일이 있으면 DB 값 우선)
               if (sub.plan_status === 'FREE' && sub.created_at) {
                 if (expiryMs === 0 || expiryMs === Number.MAX_SAFE_INTEGER) {
                   expiryMs = new Date(sub.created_at).getTime() + 7 * 24 * 60 * 60 * 1000;
@@ -1203,66 +1206,66 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             }
 
             let isExpired = expiryMs === 0 ? true : (Date.now() > expiryMs);
+
+            // 🚨 @PATCH : 만료된 경우 API를 호출하여 상태를 EXPIRED로 변경하고 새로운 READER 발급
+            if (isExpired && sub.plan_status !== 'EXPIRED') {
+              try {
+                const expireRes = await fetch(getApiUrl('/api/subscription/expire'), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ p_subscription_id: sub.id, p_user_id: savedUserId })
+                });
+                const expireData = await expireRes.json();
+                if (expireData.success && expireData.new_subscription_id) {
+                  currentLicenseId = expireData.new_subscription_id;
+                  if (expireData.new_payment_no) {
+                    currentPaymentNo = expireData.new_payment_no;
+                    localStorage.setItem('onrivi_payment_no', currentPaymentNo);
+                    savedPaymentNo = currentPaymentNo;
+                  }
+                  sub.plan_name = 'READER';
+                  sub.plan_status = 'ACTIVE';
+                  isExpired = false; // 새로운 READER 구독이 활성화되었으므로 만료 아님 (하지만 READER 플랜이므로 insert시 제한됨)
+                }
+              } catch (err) {
+                console.error('[LICENSE] Failed to execute expire API:', err);
+              }
+            }
+
             const remainingDays = expiryMs === 0 ? 0 : Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
-            const isFreeTrial = sub?.plan_name === 'FREE' || savedPaymentNo.startsWith('FREE_TRIAL_');
-            let planName = isFreeTrial ? '무료 체험판 플랜' : `${sub?.plan_name || 'PRO'} 프리미엄 플랜`;
+            const isFreeTrial = sub?.plan_name === 'FREE' || currentPaymentNo.startsWith('FREE_TRIAL_');
+            let planName = isFreeTrial ? '무료 체험판 플랜' : (sub?.plan_name === 'READER' ? '기간 만료 (제한 사용자)' : `${sub?.plan_name || 'PRO'} 프리미엄 플랜`);
 
-            if (!isExpired) {
-              let activationFailed = false;
-              let activationError = '';
+            let activationFailed = false;
+            let activationError = '';
 
-              console.log('[loadAndVerifyLicense] p_user_id to send:', savedUserId, 'sessionId:', sessionId);
-              const actRes = await fetch(getApiUrl('/api/rpc/license/insert'), {
+            console.log('[loadAndVerifyLicense] insert: user=', savedUserId, 'session=', sessionId, 'licenseId=', currentLicenseId, 'isREADER=', sub?.plan_name === 'READER');
+            const actRes = await fetch(getApiUrl('/api/rpc/license/insert'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ p_license_id: currentLicenseId, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: savedUserId, p_is_expired: sub?.plan_name === 'READER' })
+            });
+            const actResult = actRes.ok ? await actRes.json() : null;
+            const actErr = !actRes.ok ? new Error('서버 오류') : null;
+            
+            if (actErr || (actResult && !actResult.success)) {
+              activationFailed = true;
+              activationError = (actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' || actResult?.code === 'EXCEED_MAX_DEVICES')
+                ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자` 
+                : `라이선스 오류: ${actResult?.message || actErr?.message || '알 수 없는 오류'}`;
+            }
+
+            if (activationFailed) {
+              const chk2Res = await fetch(getApiUrl('/api/license/check-session'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ p_license_id: license.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: savedUserId })
+                body: JSON.stringify({ p_payment_no: currentPaymentNo, p_device_uuid: sessionId })
               });
-              const actResult = actRes.ok ? await actRes.json() : null;
-              const actErr = !actRes.ok ? new Error('서버 오류') : null;
+              const chk2 = chk2Res.ok ? await chk2Res.json() : null;
               
-              if (actErr || (actResult && !actResult.success)) {
-                activationFailed = true;
-                activationError = (actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' || actResult?.code === 'EXCEED_MAX_DEVICES')
-                  ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자` 
-                  : `라이선스 오류: ${actResult?.message || actErr?.message || '알 수 없는 오류'}`;
-              }
-
-              if (activationFailed) {
-                // insert 실패 시, 혹시 이미 유효한 세션이 존재하는지 2차 확인
-                const chk2Res = await fetch(getApiUrl('/api/license/check-session'), {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ p_payment_no: savedPaymentNo, p_device_uuid: sessionId })
-                });
-                const chk2 = chk2Res.ok ? await chk2Res.json() : null;
-                
-                if (chk2 && chk2.success && chk2.has_session) {
-                  // 이미 내 세션이 존재하므로 정상! (이전 탭 등에서 획득한 세션 유지)
-                } else {
-                  // 2차 확인도 실패했으면 진짜 제한 사용자
-                  isExpired = true;
-                  planName = activationError;
-                }
-              }
-              // activationFailed가 false면 insert 성공이므로 isExpired는 그대로 false 유지!
-            }
-            if (isExpired && !planName.includes('초과')) {
-              planName = '기간 만료 (제한 사용자)';
-              
-              // 🚨 @PATCH : 오늘 날짜보다 종료일이 이전 날짜일 때 DB 상의 요금제 상태를 명시적으로 종료(EXPIRED) 처리
-              // 단일 API 호출로 구독 종료, 연동 라이선스 비활성화, 세션 삭제를 한 번에 처리합니다.
-              if (sub && sub.id && sub.plan_status !== 'EXPIRED') {
-                fetch(getApiUrl('/api/subscription/expire'), {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ p_subscription_id: sub.id })
-                })
-                  .then(res => res.json())
-                  .then(result => {
-                    if (!result.success) console.error('[LICENSE] Failed to execute expire_subscription_and_license API:', result.message);
-                    else console.log('[LICENSE] Subscription and related licenses successfully marked as EXPIRED in database.');
-                  })
-                  .catch(err => console.error('[LICENSE] Failed to execute expire API:', err));
+              if (!(chk2 && chk2.success && chk2.has_session)) {
+                isExpired = true;
+                planName = activationError;
               }
             }
 
@@ -1271,13 +1274,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             console.log('[LICENSE] VERIFIED setLicenseStatus isActivated=%o isExpired=%o planName=%o', isActivated, isExpired, planName);
             setLicenseStatus({
               isActivated, isExpired, remainingDays, userId: savedUserId,
-              licenseKey: isActivated ? savedKey : '', paymentNo: savedPaymentNo || license.payment_no || '',
+              licenseKey: isActivated ? savedKey : '', paymentNo: currentPaymentNo || '',
               planName, nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : '')
             });
 
             saveSecureData('onrivi_license_status', {
               isActivated, isExpired, remainingDays, userId: savedUserId,
-              licenseKey: isActivated ? savedKey : '', paymentNo: savedPaymentNo || license.payment_no || '',
+              licenseKey: isActivated ? savedKey : '', paymentNo: currentPaymentNo || '',
               planName, nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : ''),
               lastVerifiedAt: Date.now()
             });

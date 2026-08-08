@@ -1,4 +1,4 @@
-export const insertLicenseActivationQuery = async (db: any, licenseId: string, deviceUuid: string, deviceName: string, userId: string | null = null) => {
+export const insertLicenseActivationQuery = async (db: any, licenseId: string, deviceUuid: string, deviceName: string, userId: string | null = null, isExpired: boolean = false) => {
   return db.begin(async (tx: any) => {
     // 1. 해당 구독(subscriptions) 정보 조회
     const licenseInfo = await tx`
@@ -53,13 +53,19 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
     let isCurrentlyActive = false;
     let newIsActive = true;
 
+    // 1차 필터: READER 요금제이거나 명시적 만료 상태면 무조건 제한 사용자(is_active = false)
+    if (isExpired || plan_name?.toUpperCase() === 'READER') {
+      newIsActive = false;
+    }
+
     if (currentDeviceRes.length > 0) {
       isCurrentlyActive = currentDeviceRes[0].is_active;
       
-      // 3. max_devices 제한 검사 (현재 기기가 활성 상태가 아니었던 경우에만 검사)
-      if (!isCurrentlyActive) {
+      // 3. max_devices 제한 검사 (1차 필터 통과 && 현재 기기가 활성 상태가 아니었던 경우에만 검사)
+      if (newIsActive && !isCurrentlyActive) {
         newIsActive = await checkLimits();
       }
+      // 이미 활성이면서 1차 필터 통과(newIsActive===true)면 계속 true 유지 (checkLimits 생략)
 
       // 기존 기록 UPDATE (DELETE 후 INSERT 하면 Supabase Realtime DELETE 이벤트가 발생해 다른 탭이 강제 로그아웃됨)
       await tx`
@@ -68,8 +74,10 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
         WHERE subscription_id = ${licenseId} AND device_uuid = ${deviceUuid}
       `;
     } else {
-      // 3. max_devices 제한 검사 (완전 신규 기기)
-      newIsActive = await checkLimits();
+      // 3. max_devices 제한 검사 (완전 신규 기기, 1차 필터 통과시에만)
+      if (newIsActive) {
+        newIsActive = await checkLimits();
+      }
 
       // 4. 신규 세션 등록
       if (userId) {
@@ -86,7 +94,7 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
     }
 
     if (!newIsActive) {
-      return { success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하여 제한 모드로 연결됩니다.', max_devices };
+      return { success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하거나 만료(READER)되어 제한 모드로 연결됩니다.', max_devices };
     }
 
     return { success: true, code: 'SUCCESS', message: '기기가 활성화되었습니다.' };

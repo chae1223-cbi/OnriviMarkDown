@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { verifyAdmin } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
+    const { user, error: authErr } = await verifyAdmin(request);
+    if (authErr || !user) return NextResponse.json({ error: '관리자 권한이 없습니다.' }, { status: 403 });
     const { id } = params;
     const body = await request.json();
     const { question, answer, sort_order, is_active } = body;
@@ -33,6 +36,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
+    const { user, error: authErr } = await verifyAdmin(request);
+    if (authErr || !user) return NextResponse.json({ error: '관리자 권한이 없습니다.' }, { status: 403 });
+
     const { id } = params;
 
     const { error } = await supabaseAdmin

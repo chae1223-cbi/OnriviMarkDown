@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sql } from '@/lib/db';
+import { verifyAdmin } from '@/lib/adminAuth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -19,6 +20,9 @@ const ROOT_ADMIN_EMAIL = 'chaetang1223@gmail.com';
 
 export async function GET(req: Request) {
   try {
+    const { user, error: authErr } = await verifyAdmin(req);
+    if (authErr || !user) return NextResponse.json({ success: false, error: '권한이 없습니다.' }, { status: 403 });
+
     if (!supabaseAdmin) {
       return NextResponse.json({ success: false, error: 'Supabase Admin is not configured.' }, { status: 500 });
     }
@@ -35,20 +39,17 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const { user, adminRole, error: authErr } = await verifyAdmin(req, true);
+    if (authErr || !user || adminRole !== 'SUPER') return NextResponse.json({ success: false, error: 'SUPER 권한이 필요합니다.' }, { status: 403 });
+
     if (!supabaseAdmin) throw new Error('Supabase Admin is not configured.');
 
     const body = await req.json();
-    const { email, role, adminId } = body;
+    const { email, role } = body;
+    const adminId = user.id;
 
     if (!email || !role) {
       return NextResponse.json({ success: false, error: '이메일과 권한(Role)은 필수입니다.' }, { status: 400 });
-    }
-
-    if (adminId) {
-      const { data: requester } = await supabaseAdmin.from('admins').select('admin_role').eq('user_id', adminId).single();
-      if (!requester || requester.admin_role !== 'SUPER') {
-        return NextResponse.json({ success: false, error: 'SUPER 권한이 필요합니다.' }, { status: 403 });
-      }
     }
 
     const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
@@ -99,10 +100,14 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const { user, adminRole, error: authErr } = await verifyAdmin(req, true);
+    if (authErr || !user || adminRole !== 'SUPER') return NextResponse.json({ success: false, error: 'SUPER 권한이 필요합니다.' }, { status: 403 });
+
     if (!supabaseAdmin) throw new Error('Supabase Admin is not configured.');
 
     const body = await req.json();
-    const { adminTargetId, targetEmail, newRole, adminId } = body;
+    const { adminTargetId, targetEmail, newRole } = body;
+    const adminId = user.id;
 
     if (!adminTargetId || !newRole || !targetEmail) {
       return NextResponse.json({ success: false, error: '필수 파라미터가 누락되었습니다.' }, { status: 400 });
@@ -110,13 +115,6 @@ export async function PATCH(req: Request) {
 
     if (targetEmail === ROOT_ADMIN_EMAIL) {
       return NextResponse.json({ success: false, error: '최상위 관리자의 권한은 변경할 수 없습니다.' }, { status: 403 });
-    }
-
-    if (adminId) {
-      const { data: requester } = await supabaseAdmin.from('admins').select('admin_role').eq('user_id', adminId).single();
-      if (!requester || requester.admin_role !== 'SUPER') {
-        return NextResponse.json({ success: false, error: 'SUPER 권한이 필요합니다.' }, { status: 403 });
-      }
     }
 
     const { error: updateError } = await supabaseAdmin.from('admins').update({ admin_role: newRole }).eq('id', adminTargetId);
@@ -137,12 +135,15 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const { user, adminRole, error: authErr } = await verifyAdmin(req, true);
+    if (authErr || !user || adminRole !== 'SUPER') return NextResponse.json({ success: false, error: 'SUPER 권한이 필요합니다.' }, { status: 403 });
+
     if (!supabaseAdmin) throw new Error('Supabase Admin is not configured.');
 
     const { searchParams } = new URL(req.url);
     const adminTargetId = searchParams.get('adminTargetId');
     const targetEmail = searchParams.get('targetEmail');
-    const adminId = searchParams.get('adminId');
+    const adminId = user.id;
 
     if (!adminTargetId || !targetEmail) {
       return NextResponse.json({ success: false, error: '필수 파라미터가 누락되었습니다.' }, { status: 400 });
@@ -150,13 +151,6 @@ export async function DELETE(req: Request) {
 
     if (targetEmail === ROOT_ADMIN_EMAIL) {
       return NextResponse.json({ success: false, error: '최상위 관리자는 비활성화(회수)할 수 없습니다.' }, { status: 403 });
-    }
-
-    if (adminId) {
-      const { data: requester } = await supabaseAdmin.from('admins').select('admin_role').eq('user_id', adminId).single();
-      if (!requester || requester.admin_role !== 'SUPER') {
-        return NextResponse.json({ success: false, error: 'SUPER 권한이 필요합니다.' }, { status: 403 });
-      }
     }
 
     // 1) admins 테이블에서 삭제 (권한 회수)

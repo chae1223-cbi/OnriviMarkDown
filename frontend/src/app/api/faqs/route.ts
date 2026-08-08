@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { supabase } from '@/lib/supabaseClient';
+import { verifyAdmin } from '@/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,8 +29,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // 1. 관리자 권한 확인 (Session 확인)
-    // NOTE: 여기서는 간단한 예시로 진행하며, 실제로는 middleware나 auth.getUser()로 검증 권장
+    const { user, error: authErr } = await verifyAdmin(request);
+    if (authErr || !user) return NextResponse.json({ error: '관리자 권한이 없습니다.' }, { status: 403 });
+
     const body = await request.json();
     const { question, answer, sort_order, is_active } = body;
 

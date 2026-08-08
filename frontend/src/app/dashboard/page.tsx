@@ -53,6 +53,7 @@ interface DeviceActivation {
   license_id?: string;
   payment_no?: string;
   is_active_license?: boolean;
+  is_active?: boolean;
 }
 
 // ── 공통 스타일 토큰 ──────────────────────────────────────
@@ -218,32 +219,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadDashboardData(); }, []);   // ⏳ 최초 렌더링 시 로딩
 
-  // 📊 [OMD-DASHBOARD-POLLING] 활성 구독 있을 때만 세션 삭제 감지 (15초 폴링)
-  useEffect(() => { // ⏳ 15초 간격으로 세션 삭제 감지
-    const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'); // 💻 현재 브라우저 세션 ID
-    const currentPaymentNo = license?.payment_no || localStorage.getItem('onrivi_payment_no'); // 🔑 현재 결제번호 (상태에서 우선 가져옴)
-    if (!sessionId || !currentPaymentNo) return; // 🔑 결제번호가 없으면 감지 중단
-    let mounted = true; // ⏳ 마운트 플래그
-    const forceLogout = async () => { // ⏳ 강제 로그아웃 함수
-      if (!mounted) return; // ⏳ 마운트 플래그 체크
-      showToast('다른 브라우저에서 접속 세션이 해제되어 로그아웃합니다.', 'error');
-      Object.keys(localStorage).filter(k => k.startsWith('sb-') || k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
-      try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) { }
-      window.location.href = '/login';
-    };
-
-    const check = async () => { // ⏳ 세션 체크 함수
-      if (!mounted) return; // ⏳ 마운트 플래그 체크
-      if (!subscriptionRef.current) return; // 🔑 구독 정보 체크
-      const chkRes = await fetch('/api/license/check-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: currentPaymentNo, p_device_uuid: sessionId }) });
-      const chk = chkRes.ok ? await chkRes.json() : null; // 💻 현재 브라우저 세션 ID
-      if (chk && !chk.success) return; // 💻 현재 브라우저 세션 ID
-      if (chk && !chk.has_session) forceLogout(); // ⏳ 세션이 없으면 강제 로그아웃
-    };
-    const interval = setInterval(check, 15000); // ⏳ 15초 간격으로 세션 체크
-    return () => { mounted = false; clearInterval(interval); }; // ⏳ 컴포넌트 언마운트 시 인터벌 제거
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [license?.payment_no]); // 🚨 paymentNo가 변경되면 인터벌 재시작
+    // [OMD-DASHBOARD-POLLING] 삭제됨: 대시보드에서는 기기 관리 용도로만 접속하며, 세션이 없다고 해서 강제로 로그아웃시키지 않습니다.
 
   // 📊 [OMD-AUTH-dashboard-0005] 로그아웃 시 license_activation 제거
   // 🚨 @PATCH : 2026-06-22 — 로그아웃 시 접속 세션 자동 제거 (Navbar와 동일 로직)
@@ -336,6 +312,17 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       if (!result || !result.success) throw new Error(result?.message || '기기 해제에 실패했습니다.'); // ❌ API 실패 응답
 
       showToast('접속 연동이 성공적으로 해제되었습니다.', 'success'); // ✅ 성공 토스트
+
+      // 🚨 @PATCH : 해제한 기기가 '현재 접속 중인 브라우저 세션'과 동일하다면 즉시 로그아웃 처리 (단, 이미 제한된 세션은 예외)
+      const currentSessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
+      const deactivatedDevice = devices.find(d => d.id === activationId);
+      if (deactivatedDevice && deactivatedDevice.device_uuid === currentSessionId && deactivatedDevice.is_active !== false) {
+        showToast('현재 기기의 세션이 해제되어 로그아웃됩니다.', 'error');
+        Object.keys(localStorage).filter(k => k.startsWith('sb-') || k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
+        try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) { }
+        window.location.href = '/login';
+        return;
+      }
 
       await loadDashboardData(); // 🔄 대시보드 데이터 새로고침
     } catch (err: any) { // ❌ 에러
@@ -463,10 +450,10 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     setActionLoading('plan_' + plan.id); // ⏳ 로딩 상태 설정
 
     try {
-      // 🚨 [재가입 가드]: 과거 이력(무료/유료/만료/해지 상관없이)이 1건이라도 존재하는 경우 무료 요금제 신청 전면 차단
-      const hasAnyHistory = historyList && historyList.length > 0;
+      // 🚨 [재가입 가드]: 과거 이력(무료/유료/만료/해지 상관없이)이 1건이라도 존재하는 경우 무료 요금제 신청 전면 차단 (단, 자동 발급되는 READER는 제외)
+      const hasAnyHistory = historyList && historyList.filter(h => h.plan_name?.toUpperCase() !== 'READER').length > 0;
       if (plan.is_free && hasAnyHistory && plan.plan_code !== 'READER') {
-        throw new Error("이미 구독 이용 이력이 존재하는 계정이므로 무료 요금제 재가입이 불가능합니다. 유료 플랜을 선택해 주세요.");
+        throw new Error("이미 유료/무료(Apprentice) 구독 이용 이력이 존재하는 계정이므로 무료 요금제 재가입이 불가능합니다. 유료 플랜을 선택해 주세요.");
       }
       const maxDevices = plan.plan_code === 'ELITEPRO' ? 1 : (plan.is_free ? 1 : 3); // 🔒 최대 기기 수
       const isYearly = billingInterval === 'year' || plan.plan_code === 'ELITEPRO';
@@ -654,9 +641,9 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
               {badge.icon} {badge.label}
             </div>
             {[
-              ["현재 플랜", (isLicenseValid && subscription ? (subscription.plan_name_kr || commonCodes['PLAN_NAME']?.[subscription.plan_name] || subscription.plan_name) : '없음')],
-              ["동시 접속자", isLicenseValid ? `${devices.length || subscription?.active_device_count || 1}명 / 최대 ${subscription?.max_devices || 1}명` : '0명 / 최대 0명'],
-              ["결제번호", (isLicenseValid && license?.payment_no) ? license.payment_no.replace(/(?<=.{7})./g, '*') : '-'],
+              ["현재 플랜", (subscription ? (subscription.plan_name_kr || commonCodes['PLAN_NAME']?.[subscription.plan_name] || subscription.plan_name) : '없음')],
+              ["동시 접속자", subscription ? `${devices.length || subscription?.active_device_count || 1}명 / 최대 ${subscription?.max_devices || 1}명` : '0명 / 최대 0명'],
+              ["결제번호", (license?.payment_no) ? license.payment_no.replace(/(?<=.{7})./g, '*') : '-'],
             ].map(([label, value]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12 }}>
                 <span style={{ color: T.subtle }}>{label}</span>
@@ -672,17 +659,22 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
               <span style={{ fontSize: 11, fontWeight: 600, color: T.subtle, letterSpacing: "0.06em", textTransform: "uppercase" }}>구독 내역</span>
             </div>
             {[
-              ["시작일", (isLicenseValid && (subscription?.current_period_start || subscription?.created_at)) ? new Date(subscription.current_period_start || subscription.created_at!).toLocaleDateString() : '-'],
-              ["만료일", (isLicenseValid && (subscription?.trial_end_at || subscription?.current_period_end)) ? new Date(subscription.trial_end_at || subscription.current_period_end!).toLocaleDateString() : '-'],
-              ["남은 기간", isLicenseValid ? `${getRemainingDays()}일` : '-'],
-              ["청구 주기", (isLicenseValid && subscription ? (subscription.billing_cycle_kr || (subscription.billing_cycle ? commonCodes['BILLING_CYCLE']?.[subscription.billing_cycle] : undefined) || subscription.billing_cycle || subscription.billing_interval || '-') : '-')],
+              ["시작일", (subscription?.current_period_start || subscription?.created_at) ? new Date(subscription.current_period_start || subscription.created_at!).toLocaleDateString() : '-'],
+              ["만료일", (() => {
+                const end = subscription?.trial_end_at || subscription?.current_period_end;
+                if (!end) return '-';
+                if (end.startsWith('9999-12-31')) return '9999. 12. 31.';
+                return new Date(end).toLocaleDateString();
+              })()],
+              ["남은 기간", subscription ? `${getRemainingDays()}일` : '-'],
+              ["청구 주기", (subscription ? (subscription.billing_cycle_kr || (subscription.billing_cycle ? commonCodes['BILLING_CYCLE']?.[subscription.billing_cycle] : undefined) || subscription.billing_cycle || subscription.billing_interval || '-') : '-')],
             ].map(([label, value]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12 }}>
                 <span style={{ color: T.subtle }}>{label}</span>
-                <span style={{ color: label === "남은 기간" ? (isLicenseValid && !isTrialExpired ? T.success : T.danger) : T.onSurface, fontWeight: 500 }}>{value}</span>
+                <span style={{ color: label === "남은 기간" ? (!isTrialExpired ? T.success : T.danger) : T.onSurface, fontWeight: 500 }}>{value}</span>
               </div>
             ))}
-            {isLicenseValid && subscription && (
+            {subscription && (
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
                 <button
                   onClick={handleCancelSubscription}
@@ -802,7 +794,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0 }}>
               <div>
                 <h2 style={{ fontSize: 15, fontWeight: 700, color: T.onSurface }}>
-                  동시접속 세션 관리 ({isLicenseValid ? devices.length : 0} / {isLicenseValid ? (subscription?.max_devices || 1) : 0})
+                  동시접속 세션 관리 ({subscription ? devices.length : 0} / {subscription ? (subscription?.max_devices || 1) : 0})
                 </h2>
                 <p style={{ fontSize: 12, color: T.subtle, marginTop: 2 }}>한도 초과 시 기존 세션을 해제해 주세요.</p>
               </div>
@@ -810,7 +802,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", maxHeight: 180, border: "1px solid rgba(14,165,233,0.1)", borderRadius: "0.5rem" }} className="custom-scrollbar">
-              {(!isLicenseValid || devices.length === 0) ? (
+              {(!subscription || devices.length === 0) ? (
                 <div style={{ padding: "28px 0", textAlign: "center", fontSize: 13, color: T.subtle }}>
                   현재 활성화된 접속 세션이 없습니다.
                 </div>
@@ -836,6 +828,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                         return 0;
                       });
                       return sortedDevices.map((device) => {
+                        // 현재 브라우저 세션과 동일하면 보호 (상태 무관)
                         const isCurrent = currentSessionId === device.device_uuid;
                         const isDesktop = device.device_name?.toLowerCase().includes('desktop');
                         const cannotDeactivate = isCurrent || isDesktop;
@@ -865,6 +858,11 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                                   {isDesktop && !isCurrent && (
                                     <span style={{ fontSize: 9, fontWeight: 700, color: T.primaryDark, alignSelf: "flex-start", marginTop: 2 }}>
                                       [앱 구동중]
+                                    </span>
+                                  )}
+                                  {device.is_active === false && (
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: T.danger, alignSelf: "flex-start", marginTop: 2 }}>
+                                      [제한됨 (읽기전용)]
                                     </span>
                                   )}
                                 </div>
@@ -1104,6 +1102,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                     // 날짜 표시 포맷터 (current_period_start / current_period_end 기준)
                     const formatDateVal = (dateVal?: string) => {
                       if (!dateVal) return '-';
+                      if (dateVal.startsWith('9999-12-31')) return '9999. 12. 31.';
                       try {
                         const d = new Date(dateVal);
                         if (isNaN(d.getTime())) return dateVal;

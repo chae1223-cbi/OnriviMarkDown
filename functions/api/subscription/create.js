@@ -53,7 +53,7 @@ export async function onRequestPost(context) {
 
     // 1. 무료 요금제 재가입 방지
     if (p_plan_name === 'APPRENTICE' || p_plan_name === 'FREE') {
-      const pastRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${p_user_id}&select=id&limit=1`, { headers });
+      const pastRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${p_user_id}&plan_name=neq.READER&select=id&limit=1`, { headers });
       const pastSubs = await pastRes.json();
       if (pastSubs && pastSubs.length > 0) {
         return new Response(JSON.stringify({ success: false, code: 'ERROR', message: '이미 구독 신청 및 이용 이력이 존재하는 계정이므로 무료 체험 재가입이 불가능합니다. 유료 요금제를 선택해 주세요.' }), { status: 500, headers: corsHeaders });

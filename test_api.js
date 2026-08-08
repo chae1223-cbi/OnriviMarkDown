@@ -1,20 +1,23 @@
-async function test() {
-  try {
-    const res = await fetch('http://localhost:3100/api/faqs/0b082f22-26c2-4ef2-b8f7-75e51e97b870', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question: "오프라인 환경에서도 사용이 가능한가요?",
-        answer: "데스크탑 앱의 경우 인터넷 연결이 완전히 차단된 폐쇄형 환경에서도...",
-        sort_order: 10,
-        is_active: true
-      })
-    });
-    const text = await res.text();
-    console.log('Status:', res.status);
-    console.log('Response:', text);
-  } catch (err) {
-    console.error('Fetch error:', err);
+require('dotenv').config({ path: './frontend/.env.local' });
+const http = require('http');
+
+const data = JSON.stringify({ user_id: '2ef98d8b-bd62-4a19-a0ad-564c83cb80e0' });
+const options = {
+  hostname: 'localhost',
+  port: 3100,
+  path: '/api/subscription/get',
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Content-Length': data.length
   }
-}
-test();
+};
+
+const req = http.request(options, res => {
+  let body = '';
+  res.on('data', chunk => body += chunk);
+  res.on('end', () => console.log('Response:', body));
+});
+req.on('error', e => console.error(e));
+req.write(data);
+req.end();
