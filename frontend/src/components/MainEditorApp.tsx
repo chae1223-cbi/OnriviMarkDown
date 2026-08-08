@@ -3048,7 +3048,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setPreviewModeRaw('preview');
       previewModeRef.current = 'preview';
     }
-  }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName]);
+  }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName, licenseStatus.isRestricted]);
   useEffect(() => {
     if (currentFileNode && activeTabId) {
       if (prevActiveTabRef.current !== activeTabId) {
