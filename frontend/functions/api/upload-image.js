@@ -20,7 +20,7 @@ export async function onRequestPost(context) {
   try {
     const { request, env } = context;
     
-    // 1. Authorization 헤더 확인 (선택적 JWT)
+    // 1. Authorization 헤더 확인 (선택적 JWT — 없으면 anonymous)
     let userId = 'anonymous';
     const authHeader = request.headers.get('Authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -78,22 +78,13 @@ export async function onRequestPost(context) {
     const mimeMap = {
       'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
       'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml',
-      'bmp': 'image/bmp', 'ico': 'image/x-icon', 'tiff': 'image/tiff', 'tif': 'image/tiff',
       'mp4': 'video/mp4', 'webm': 'video/webm', 'ogg': 'video/ogg',
       'mov': 'video/quicktime', 'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska',
-      'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'flac': 'audio/flac', 'aac': 'audio/aac',
-      'pdf': 'application/pdf',
-      'doc': 'application/msword',
-      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'xls': 'application/vnd.ms-excel',
+      'md': 'text/markdown; charset=utf-8', 'txt': 'text/plain; charset=utf-8',
+      'pdf': 'application/pdf', 'zip': 'application/zip', 'rar': 'application/x-rar-compressed',
+      'hwp': 'application/x-hwp', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'ppt': 'application/vnd.ms-powerpoint',
-      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'zip': 'application/zip', 'rar': 'application/vnd.rar',
-      '7z': 'application/x-7z-compressed', 'tar': 'application/x-tar', 'gz': 'application/gzip',
-      'txt': 'text/plain', 'csv': 'text/csv', 'json': 'application/json',
-      'md': 'text/markdown', 'xml': 'application/xml',
-      'hwp': 'application/x-hwp',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
     };
     const contentType = mimeMap[ext] || 'application/octet-stream';
 
