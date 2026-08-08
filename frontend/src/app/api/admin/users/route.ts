@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { sql } from '@/lib/db';
 
 // Supabase Service Role Key is required to manage users globally
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 // Avoid crashing if keys are missing in build time
