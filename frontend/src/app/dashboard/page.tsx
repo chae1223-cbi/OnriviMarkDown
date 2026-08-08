@@ -192,21 +192,22 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       }
 
       if (dashData && dashData.success) {
-        setSubscription(dashData.subscription || null);
+        const sub = dashData.subscription || null;
+        setSubscription(sub);
         setHistoryList(dashData.historyList || []);
         setLicense(dashData.license || null);
 
-        const currentDeviceUuid = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
-        const fetchedDevices: DeviceActivation[] = dashData.devices || [];
-        if (currentDeviceUuid && !fetchedDevices.some(d => d.device_uuid === currentDeviceUuid)) {
-          fetchedDevices.unshift({
-            id: 'current-session',
-            device_uuid: currentDeviceUuid,
-            device_name: 'Web Browser',
-            activated_at: new Date().toISOString(),
-            is_active_license: true
-          });
+        // 🚨 새로 자동 생성된 요금제(READER 등)가 있을 경우, 
+        // 에디터(MainEditorApp)가 인식할 수 있도록 즉시 localStorage 에 동기화
+        if (sub && typeof window !== 'undefined') {
+          if (!localStorage.getItem('onrivi_payment_no') || localStorage.getItem('onrivi_payment_no') !== sub.payment_no) {
+            localStorage.setItem('onrivi_payment_no', sub.payment_no || '');
+            localStorage.setItem('onrivi_license_key', sub.license_key || '');
+            localStorage.setItem('onrivi_verify_key', sub.verify_key || '');
+          }
         }
+
+        const fetchedDevices: DeviceActivation[] = dashData.devices || [];
         setDevices(fetchedDevices);
       } else {
         setSubscription(null);
