@@ -250,8 +250,7 @@ export default function SignupPage() {
             ? `${window.location.origin}/auth/callback?mode=signup` 
             : "http://localhost:3100/auth/callback?mode=signup",
           queryParams: {
-            prompt: 'select_account',
-            name: name.trim()
+            prompt: 'select_account'
           }
         }
       });
