@@ -182,7 +182,14 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: targetUserId })
       });
+      
       const dashData = dashRes.ok ? await dashRes.json() : null;
+
+      if (!dashRes.ok) {
+        showToast(`서버 에러 (${dashRes.status}): 구독 정보를 불러올 수 없습니다.`, 'error');
+      } else if (dashData && !dashData.success) {
+        showToast(`API 오류: ${dashData.message || '알 수 없는 오류'}`, 'error');
+      }
 
       if (dashData && dashData.success) {
         setSubscription(dashData.subscription || null);
