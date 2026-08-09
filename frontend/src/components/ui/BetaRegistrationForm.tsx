@@ -46,7 +46,7 @@ export function BetaRegistrationForm() {
         <CheckCircle2 size={40} className="text-green-500 mb-3" />
         <h3 className="text-lg font-bold text-green-900 mb-1">사전 등록 완료!</h3>
         <p className="text-sm text-green-700 text-center">
-          베타 테스트 기간(8/11~8/25)에 맞춰 입력하신 이메일로<br />
+          베타 테스트 기간(8/10~8/25)에 맞춰 입력하신 이메일로<br />
           1년 Regular 플랜 라이선스를 보내드리겠습니다.
         </p>
       </motion.div>
@@ -60,7 +60,7 @@ export function BetaRegistrationForm() {
           🎁 얼리버드 특별 프로모션
         </span>
         <p className="text-sm font-semibold text-slate-700">
-          8월 11일 ~ 8월 25일 베타 테스트 참가 시<br/>
+          8월 10일 ~ 8월 25일 베타 테스트 참가 시<br/>
           <span className="text-sky-600 font-bold">1년 Regular 플랜</span>을 무료로 드립니다!
         </p>
       </div>
