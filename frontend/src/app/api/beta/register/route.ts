@@ -3,16 +3,18 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const { email, promotion_code } = await request.json();
 
     if (!email || !email.includes('@')) {
       return NextResponse.json({ success: false, message: '유효한 이메일 주소를 입력해주세요.' }, { status: 400 });
     }
+    if (!promotion_code) {
+      return NextResponse.json({ success: false, message: '유효하지 않은 프로모션입니다.' }, { status: 400 });
+    }
 
-    const { data, error } = await supabaseAdmin
-      .from('waitlist')
-      .insert([{ email }])
-      .select();
+    const { error } = await supabaseAdmin
+      .from('promotion_subscribers')
+      .insert([{ email, promotion_code }]);
 
     if (error) {
       if (error.code === '23505') {

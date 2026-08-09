@@ -12,6 +12,7 @@ import PlansTab from './components/PlansTab';
 import OTPResetModal from './components/OTPResetModal';
 import InquiriesTab from './components/InquiriesTab';
 import FaqsTab from './components/FaqsTab';
+import PromotionsTab from './components/PromotionsTab';
 
 function AdminPageContent() {
   const searchParams = useSearchParams();
@@ -28,7 +29,7 @@ function AdminPageContent() {
       {tab === 'faqs' && <FaqsTab />}
       {tab === 'support' && <InquiriesTab />}
       {tab === 'audit' && <FutureFeatureTab title="감사 로그" features={['누가, 언제, 어떤 고객의 데이터를 건드렸는지 행동 기록 추적', '내부 직원의 실수나 어뷰징 방지 및 보안 강화']} />}
-      {tab === 'promotions' && <FutureFeatureTab title="프로모션 관리" features={['할인 쿠폰 또는 무료 이용권(Free Trial) 코드 생성', '마케팅 이벤트 성과 분석 및 발급된 쿠폰 사용 내역 추적']} />}
+      {tab === 'promotions' && <PromotionsTab />}
       {tab === 'contents' && <FutureFeatureTab title="콘텐츠 관리" features={['사용자들이 업로드한 이미지 및 파일 첨부 내역 조회', '불법 콘텐츠 필터링 및 불필요한 대용량 파일 강제 삭제(서버 용량 관리)']} />}
       {tab === 'reports' && <FutureFeatureTab title="리포트 추출" features={['특정 기간 동안의 결제 내역 및 가입자 목록 조회', '세금 신고 및 투자자 보고용 엑셀(CSV) 파일 다운로드']} />}
       {tab === 'system' && <FutureFeatureTab title="시스템 현황" features={['현재 DB 용량 및 백업 상태 실시간 모니터링', '자동 결제 실패 등 중요 알림에 대한 슬랙(Slack) 웹훅 알림 설정']} />}
