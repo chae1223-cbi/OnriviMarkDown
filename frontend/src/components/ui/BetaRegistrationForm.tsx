@@ -54,18 +54,24 @@ export function BetaRegistrationForm() {
   }
 
   return (
-    <div className="flex flex-col items-center max-w-lg mx-auto mb-16 px-4">
-      <div className="mb-4 text-center">
-        <span className="inline-block px-3 py-1 bg-sky-100 text-sky-700 text-xs font-bold rounded-full mb-2">
+    <div className="flex flex-col items-center max-w-lg mx-auto mb-16 px-6 py-8 bg-gradient-to-b from-sky-50 to-white border border-sky-200 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+      {/* 장식용 글로우 효과 */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-sky-400/10 blur-2xl rounded-full pointer-events-none" />
+
+      <div className="mb-6 text-center relative z-10">
+        <span className="inline-block px-3 py-1 bg-sky-100 text-sky-700 text-xs font-bold rounded-full mb-3 shadow-sm border border-sky-200">
           🎁 얼리버드 특별 프로모션
         </span>
-        <p className="text-sm font-semibold text-slate-700">
+        <h3 className="text-xl font-bold text-slate-800 mb-2">
+          지금 사전 등록하고 <span className="text-sky-600">무료 혜택</span> 받으세요
+        </h3>
+        <p className="text-sm font-medium text-slate-600 leading-relaxed">
           8월 10일 ~ 8월 25일 베타 테스트 참가 시<br/>
-          <span className="text-sky-600 font-bold">1년 Regular 플랜</span>을 무료로 드립니다!
+          정식 출시 후 <span className="text-sky-600 font-bold">1년 Regular 플랜</span>을 무료로 발급해 드립니다.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="w-full relative flex items-center shadow-lg rounded-full bg-white border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-transparent transition-all">
+      <form onSubmit={handleSubmit} className="w-full relative flex items-center shadow-md hover:shadow-lg rounded-full bg-white border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-transparent transition-all z-10">
         <input
           type="email"
           required
@@ -73,23 +79,23 @@ export function BetaRegistrationForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={status === "loading"}
-          className="w-full py-4 pl-6 pr-32 text-slate-700 outline-none bg-transparent placeholder-slate-400 text-sm sm:text-base"
+          className="w-full py-4 pl-6 pr-[120px] sm:pr-[140px] text-slate-700 outline-none bg-transparent placeholder-slate-400 text-sm sm:text-base font-medium"
         />
         <button
           type="submit"
           disabled={status === "loading" || !email}
-          className="absolute right-1.5 top-1.5 bottom-1.5 bg-sky-500 hover:bg-sky-600 text-white px-5 sm:px-6 rounded-full text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="absolute right-1.5 top-1.5 bottom-1.5 bg-sky-500 hover:bg-sky-600 text-white px-4 sm:px-6 rounded-full text-sm font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
           {status === "loading" ? "등록 중..." : (
             <>
-              사전 등록 <ArrowRight size={16} />
+              사전 등록 <ArrowRight size={16} strokeWidth={2.5} />
             </>
           )}
         </button>
       </form>
 
       {status === "error" && (
-        <p className="mt-3 text-sm text-red-500 font-medium">{message}</p>
+        <p className="mt-4 text-sm text-red-500 font-semibold z-10">{message}</p>
       )}
     </div>
   );
