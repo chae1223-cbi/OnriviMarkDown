@@ -5,6 +5,7 @@ import { FeaturesSection } from "@/components/sections/FeaturesSection";
 import { PricingSection } from "@/components/sections/PricingSection";
 import { FaqSection } from "@/components/sections/FaqSection";
 import { CtaSection } from "@/components/sections/CtaSection";
+import { BetaModal } from "@/components/ui/BetaModal";
 import {
   features,
   faqs,
@@ -45,6 +46,7 @@ export default function HomePage() {
         <CtaSection />
         <Footer />
       </div>
+      <BetaModal />
     </>
   );
 }

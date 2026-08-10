@@ -9,9 +9,8 @@
 // ====================================================================
 "use client"; // "use client" : 클라이언트 사이드 렌더링을 위한 지시어    
 
-import { motion } from "framer-motion"; // framer-motion : 애니메이션을 위한 라이브러리  
-import Link from "next/link"; // Link : Next.js의 링크 컴포넌트  
-import { BetaRegistrationForm } from "@/components/ui/BetaRegistrationForm";
+import { motion } from "framer-motion";
+import Link from "next/link";
 
 export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 섹션을 위한 컴포넌트  
   return (
@@ -83,22 +82,13 @@ export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 �
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.12 }}
-          className="text-center mx-auto mb-10 max-w-2xl"
+          className="text-center mx-auto mb-16 max-w-2xl"
           style={{ fontSize: 18, fontWeight: 400, lineHeight: "28px", color: "#3e4850" }}
         >
           AI가 쏟아내는 기호와 코드가 섞인 복잡한 언어를 인간의 시각에 가장 최적화된 서식으로 재조판하여, 이 세상 모든 이들의 일상과 삶 속에서 온기가 흐르는 따뜻한 기록과 이야기로 피어나게 만듭니다.
         </motion.p>
 
-        {/* Beta Registration Form */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <BetaRegistrationForm />
-        </motion.div>
-
-        {/* Editor Preview Card — 원본 긴 버전 복원 (스크롤 포함) */}
+        {/* Editor Preview Card */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
