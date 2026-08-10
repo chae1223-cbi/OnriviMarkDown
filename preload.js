@@ -63,6 +63,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 9. 최초 실행 시 filePathToOpen 조회 (pull 방식, 경합 조건 없음)
   getInitialFilePath: () => ipcRenderer.invoke('get-initial-file-path'),
 
+  // 9-1. 마지막으로 열었던 파일 경로 저장 (앱 종료 전 자동 호출)
+  saveLastFilePath: (filePath) => ipcRenderer.invoke('session:saveLastFile', filePath),
+
+  // 9-2. 마지막으로 열었던 파일 경로 복원 (앱 기동 시 더블클릭 파일 없을 때 폴백)
+  getLastFilePath: () => ipcRenderer.invoke('session:getLastFile'),
+
   // 14. 시스템 네이티브 이모지 피커 호출
   showEmojiPicker: () => ipcRenderer.invoke('system:showEmojiPicker'),
 

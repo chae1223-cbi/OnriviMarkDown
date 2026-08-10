@@ -509,6 +509,37 @@ ipcMain.handle('get-initial-file-path', () => {
   return path;
 });
 
+// 0-1. 마지막 세션 파일 경로 저장 (renderer → main → userData/session.json)
+ipcMain.handle('session:saveLastFile', (event, filePath) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const sessionPath = path.join(userDataPath, 'session.json');
+    const data = { lastFilePath: filePath, savedAt: new Date().toISOString() };
+    fs.writeFileSync(sessionPath, JSON.stringify(data, null, 2), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('[session:saveLastFile] 오류:', e);
+    return false;
+  }
+});
+
+// 0-2. 마지막 세션 파일 경로 복원 (앱 기동 시 더블클릭 파일이 없을 때 폴백)
+ipcMain.handle('session:getLastFile', () => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const sessionPath = path.join(userDataPath, 'session.json');
+    if (!fs.existsSync(sessionPath)) return null;
+    const data = JSON.parse(fs.readFileSync(sessionPath, 'utf-8'));
+    const filePath = data?.lastFilePath;
+    // 파일이 실제로 존재하는지 검증
+    if (filePath && fs.existsSync(filePath)) return filePath;
+    return null;
+  } catch (e) {
+    console.error('[session:getLastFile] 오류:', e);
+    return null;
+  }
+});
+
 // 2. 현재 파일 덮어쓰기 저장 핸들러
 ipcMain.handle('file:save', async (event, filePath, content) => {
   try {

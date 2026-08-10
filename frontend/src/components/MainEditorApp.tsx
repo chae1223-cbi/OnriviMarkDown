@@ -2617,9 +2617,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       // 🆕 최초 실행 시: 앱이 .md 파일 더블클릭으로 기동된 경우 해당 파일 경로를 pull 방식으로 가져와 즉시 오픈
       if (api.getInitialFilePath) {
-        api.getInitialFilePath().then((filePath: string | null) => {
+        api.getInitialFilePath().then(async (filePath: string | null) => {
           if (filePath) {
+            // 더블클릭 파일 우선 오픈
             openExternalFile(filePath);
+          } else if (api.getLastFilePath) {
+            // 더블클릭 파일이 없으면 마지막 세션에서 복원
+            const lastPath = await api.getLastFilePath();
+            if (lastPath) {
+              openExternalFile(lastPath);
+            }
           }
         }).catch(() => { });
       }
@@ -2640,7 +2647,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [mounted, content, currentFileNode]);
 
   // ====================================================================
-  // 📊 [OMD-CORE-MainEditorApp-0001] MainEditorApp.tsx ➔ handleProfileChange
+  // 📊 [OMD-IO-MainEditorApp-0039] MainEditorApp.tsx ➔ session_auto_save
+  // 🎯 @KICK  : 현재 열린 파일이 변경될 때마다 electronAPI.saveLastFilePath()를 호출하여
+  //             userData/session.json에 마지막 파일 경로를 자동 저장.
+  //             앱 재시작 시 session:getLastFile IPC로 복원됨.
+  // 🛡️ @GUARD : Electron 환경에서만 동작. 경로가 없거나 빈 파일이면 저장 생략.
+  // 🚨 @PATCH : **2026-08-10** — 초기 생성 (자동 문서 복원 기능)
+  // 🔗 @CALLS : api.saveLastFilePath
+  // ====================================================================
+  useEffect(() => {
+    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+    if (!api?.saveLastFilePath) return;
+    const filePath = currentFileNode?.path;
+    if (filePath) {
+      api.saveLastFilePath(filePath).catch(() => {});
+    }
+  }, [currentFileNode]);
+
+
   // 🎯 @KICK  : 사이드바 UI에서 서식을 변경했을 때, 에디터 본문에 Frontmatter를 주입/갱신하고 상태를 업데이트한다.
   // 🛡️ @GUARD : Monaco 모델 값이 변경될 때 자동으로 onDidChangeContent가 트리거되므로 setContent는 별도 호출하지 않음.
   // 🚨 @PATCH : 2026-07-30 (Frontmatter 서식 개별 지정 지원)
