@@ -27,10 +27,6 @@ export function BetaModal() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    // 이미 본 사람은 다시 보여주지 않음 (세션 단위)
-    const dismissed = sessionStorage.getItem("beta_modal_dismissed");
-    if (dismissed) return;
-
     fetch("/api/beta/active-promotion")
       .then(r => r.json())
       .then(data => {
@@ -45,7 +41,6 @@ export function BetaModal() {
 
   const handleClose = () => {
     setOpen(false);
-    sessionStorage.setItem("beta_modal_dismissed", "1");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
