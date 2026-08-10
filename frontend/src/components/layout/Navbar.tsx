@@ -6,6 +6,7 @@
 //             **2026-06-23** — 로그아웃 시 license_activations 직접 delete DML을 Supabase Stored Procedure (deactivate_session_on_logout RPC) 호출 방식으로 위임 개편 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스모피즘 Navbar, Inter 폰트, Ice Blue 액센트); 비로그인 상태 진입 경로 제거(로그인/시작하기 버튼 숨김) 패치; 헤더에 비로그인용 '시작하기' 버튼 복원 패치
 //             **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 및 Supabase Auth 연동 패치; 깨진 logo 이미지 아이콘을 /icon.png로 변경; 다운로드 네비게이션 링크 제거 대응 패치
+//             **2026-08-10** — 진행 중 이벤트 동적 뱃지 링크 추가 (활성 프로모션 없으면 숨김)
 // 🔗 @CALLS : window.electronAPI, supabase.auth, supabase.rpc, Button, useRouter
 // ====================================================================
 "use client";
@@ -41,11 +42,12 @@ export interface NavbarContent {
 //  - 로그인 상태 : '대시보드', '에디터', '로그아웃' 버튼을 표시합니다.
 // =====================================================================
 export function Navbar({ content }: { content?: NavbarContent }) {
-  const router = useRouter(); // useRouter : 페이지 이동
-  const [mounted, setMounted] = useState(false); // mounted : 컴포넌트가 마운트되었는지 여부
-  const [userEmail, setUserEmail] = useState<string | null>(null); // userEmail : 사용자 이메일
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // isLoggedIn : 로그인 상태
-  const [scrolled, setScrolled] = useState(false); // scrolled : 스크롤 상태
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [hasActivePromo, setHasActivePromo] = useState(false);
 
   // =====================================================================
   // 네비게이션 컴포넌트의 생명 주기 동안 필요한 초기화 및 이벤트 리스너 설정
@@ -84,12 +86,18 @@ export function Navbar({ content }: { content?: NavbarContent }) {
       }
     });
 
-    const handleScroll = () => setScrolled(window.scrollY > 12); // handleScroll : 스크롤 이벤트를 처리하는 함수 
+    const handleScroll = () => setScrolled(window.scrollY > 12);
+    window.addEventListener("scroll", handleScroll);
 
-    window.addEventListener("scroll", handleScroll); // scroll 이벤트 리스너 설정 
-    return () => { // 클린업 함수 
-      subscription.unsubscribe(); // auth state change 구독 해제 
-      window.removeEventListener("scroll", handleScroll); // scroll 이벤트 리스너 해제
+    // 진행 중인 이벤트 여부 확인
+    fetch("/api/beta/active-promotion")
+      .then(r => r.json())
+      .then(data => { if (data.promotion) setHasActivePromo(true); })
+      .catch(() => {});
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("scroll", handleScroll);
     };
   }, []);
 
@@ -167,6 +175,41 @@ export function Navbar({ content }: { content?: NavbarContent }) {
                 {link.label}
               </a>
             ))}
+
+            {/* 진행 중인 이벤트 — 활성 프로모션 있을 때만 노출 */}
+            {hasActivePromo && (
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent("openBetaModal"))}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#0ea5e9",
+                  background: "rgba(14,165,233,0.08)",
+                  border: "1.5px solid rgba(14,165,233,0.25)",
+                  borderRadius: 9999,
+                  padding: "4px 12px",
+                  cursor: "pointer",
+                  letterSpacing: "0.01em",
+                  transition: "all 0.15s",
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(14,165,233,0.15)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(14,165,233,0.5)";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(14,165,233,0.08)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(14,165,233,0.25)";
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0ea5e9", display: "inline-block", animation: "pulse 1.5s infinite" }} />
+                진행 중인 이벤트
+              </button>
+            )}
           </div>
 
           {/* Right Actions */}
