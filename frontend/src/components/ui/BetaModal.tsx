@@ -27,12 +27,18 @@ export function BetaModal() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    // 오늘 이미 닫은 경우 다시 보여주지 않음 (하루 1번)
+    const lastDismissed = localStorage.getItem("beta_modal_last_dismissed");
+    if (lastDismissed) {
+      const today = new Date().toDateString();
+      if (lastDismissed === today) return;
+    }
+
     fetch("/api/beta/active-promotion")
       .then(r => r.json())
       .then(data => {
         if (data.promotion) {
           setPromotion(data.promotion);
-          // 1.5초 후 자동 팝업
           setTimeout(() => setOpen(true), 1500);
         }
       })
@@ -41,6 +47,8 @@ export function BetaModal() {
 
   const handleClose = () => {
     setOpen(false);
+    // 오늘 날짜 저장 → 내일 다시 방문하면 또 보임
+    localStorage.setItem("beta_modal_last_dismissed", new Date().toDateString());
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
