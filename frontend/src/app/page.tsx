@@ -6,6 +6,7 @@ import { PricingSection } from "@/components/sections/PricingSection";
 import { FaqSection } from "@/components/sections/FaqSection";
 import { CtaSection } from "@/components/sections/CtaSection";
 import { BetaModal } from "@/components/ui/BetaModal";
+import { EventsSection } from "@/components/sections/EventsSection";
 import {
   features,
   faqs,
@@ -40,6 +41,7 @@ export default function HomePage() {
       <div style={{ minHeight: "100vh", background: "#f7f9fb", fontFamily: "Inter, sans-serif" }}>
         <Navbar />
         <HeroSection />
+        <EventsSection />
         <FeaturesSection />
         <PricingSection />
         <FaqSection />

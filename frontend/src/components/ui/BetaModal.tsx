@@ -45,6 +45,28 @@ export function BetaModal() {
       .catch(() => {});
   }, []);
 
+  // EventsSection 버튼에서 강제로 모달 열기 가능
+  useEffect(() => {
+    const handleOpen = () => {
+      if (promotion) {
+        setOpen(true);
+      } else {
+        // 프로모션 아직 로드 안됐을 경우 재조회 후 열기
+        fetch("/api/beta/active-promotion")
+          .then(r => r.json())
+          .then(data => {
+            if (data.promotion) {
+              setPromotion(data.promotion);
+              setOpen(true);
+            }
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener("openBetaModal", handleOpen);
+    return () => window.removeEventListener("openBetaModal", handleOpen);
+  }, [promotion]);
+
   const handleClose = () => {
     setOpen(false);
     // 오늘 날짜 저장 → 내일 다시 방문하면 또 보임
