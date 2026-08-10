@@ -655,6 +655,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 💡 [Step 2 리팩토링으로 promptConfig 삭제됨 (useEditorModals로 이관)]
 
   const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
+  const sessionRestoredRef = useRef<boolean>(false); // 세션 복원 최초 1회 실행 가드
   const [driveLetter, setDriveLetter] = useState('D:');
 
   // ====================================================================
@@ -2615,8 +2616,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         });
       }
 
-      // 🆕 최초 실행 시: 앱이 .md 파일 더블클릭으로 기동된 경우 해당 파일 경로를 pull 방식으로 가져와 즉시 오픈
-      if (api.getInitialFilePath) {
+      // 🆕 최초 실행 시: .md 더블클릭 파일 우선, 없으면 마지막 세션 파일 복원
+      // sessionRestoredRef로 effect 재실행 시 중복 호출 방지
+      if (api.getInitialFilePath && !sessionRestoredRef.current) {
+        sessionRestoredRef.current = true; // 복원 시도 플래그 즉시 설정 (중복 방지)
         api.getInitialFilePath().then(async (filePath: string | null) => {
           if (filePath) {
             // 더블클릭 파일 우선 오픈
@@ -2628,7 +2631,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               openExternalFile(lastPath);
             }
           }
-        }).catch(() => { });
+        }).catch(() => { sessionRestoredRef.current = false; }); // 실패 시 재시도 허용
       }
 
       // restoreSettings에서 확보해 둔 pending 파일 경로 처리 (폴백)
