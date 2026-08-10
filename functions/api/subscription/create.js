@@ -25,8 +25,8 @@ export async function onRequestPost(context) {
 
   try {
     const body = await request.json();
+    let { p_user_id } = body;
     const {
-      p_user_id,
       p_plan_name,
       p_plan_status,
       p_billing_interval,
@@ -50,6 +50,18 @@ export async function onRequestPost(context) {
       'Accept': 'application/json',
       'Prefer': 'return=representation'
     };
+
+    // 0. UUID 검증 및 Email -> UUID 변환
+    const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isValidUUID(p_user_id)) {
+      const uRes = await fetch(`${supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(p_user_id)}&select=id&limit=1`, { headers });
+      const uData = await uRes.json();
+      if (uRes.ok && uData && uData.length > 0) {
+        p_user_id = uData[0].id;
+      } else {
+        return new Response(JSON.stringify({ success: false, code: 'INVALID_USER', message: '해당 이메일의 사용자를 찾을 수 없습니다.' }), { status: 404, headers: corsHeaders });
+      }
+    }
 
     // 1. 무료 요금제 재가입 방지
     if (p_plan_name === 'APPRENTICE' || p_plan_name === 'FREE') {
