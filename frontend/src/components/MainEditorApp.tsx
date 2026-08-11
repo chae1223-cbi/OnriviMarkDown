@@ -5363,7 +5363,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           automaticLayout: true,
                           fontSize,
                           lineHeight: 1.7, // 시원한 줄간격 유지 (세련됨)
-                          fontFamily: "'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', Consolas, 'GulimChe', 'DotumChe', 'Courier New', Courier, monospace",
+                          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
                           fontLigatures: false, // 글자 폭 계산 오차를 유발할 수 있는 합자(Ligature) 기능 해제
                           letterSpacing: 0,
                           'semanticHighlighting.enabled': true,
