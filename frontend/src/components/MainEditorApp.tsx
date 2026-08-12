@@ -2676,6 +2676,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
     if (!api?.saveLastSession) return;
     
+    // 💡 [치명적 버그 방어] 앱 마운트 초기 단계(세션 복원이 채 완료되지 않은 시점)에
+    // 초기 빈 탭 상태([])가 session.json을 덮어씌워 덮어버리는 결함을 차단합니다.
+    if (!sessionRestoredRef.current) return;
+
     const openFilePaths = tabs.map(t => t.path).filter((p): p is string => typeof p === 'string' && !!p);
     const activeFilePath = currentFileNode?.path || null;
 
