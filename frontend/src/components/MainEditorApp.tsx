@@ -2748,6 +2748,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (typeof window !== 'undefined') {
       try {
         const sessionTabsData = tabs.map(t => ({
+          id: t.id,
           name: t.name,
           path: t.path,
           isStyleTab: t.isStyleTab
@@ -2801,6 +2802,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (typeof window !== 'undefined') {
         try {
           const sessionTabsData = tabsRef.current.map(t => ({
+            id: t.id,
             name: t.name,
             path: t.path,
             isStyleTab: t.isStyleTab

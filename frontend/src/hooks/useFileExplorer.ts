@@ -291,6 +291,21 @@ export const useFileExplorer = ({
       return;
     }
 
+    // 💡 [VFS/IndexedDB 우선 예외 가드]
+    // 파일 트리 목록(fileList)이 기동 시점에 비동기 로딩 딜레이로 인해 비어있더라도,
+    // 브라우저 가상 파일 시스템(VFS) 상에 실제 존재하는 파일이라면 즉각 열기를 유도합니다.
+    const isVfsExist = typeof window !== 'undefined' && vfsReadFile(resolvedPath);
+    if (isVfsExist) {
+      const filename = resolvedPath.split(/[/\\]/).pop() || '파일.md';
+      const dummyNode: FileNode = {
+        name: filename,
+        path: resolvedPath,
+        kind: 'file'
+      };
+      await handleFileClick(dummyNode, rootFolder?.handle || null);
+      return;
+    }
+
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
     if (!isElectron) {
       try {
