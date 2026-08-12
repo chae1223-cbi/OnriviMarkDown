@@ -88,7 +88,7 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar ➔ StatusBar
 // 🎯 @KICK  : 상태 표시줄 컴포넌트 - 글자 수, 단어 수, 저장 상태, 라인/컬럼 정보, 테마, 프리뷰 모드 표시
 // 🛡️ @GUARD : StatusBarProps 인터페이스로 props 타입 검증
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-08-12** — 에디터 타이핑 중 상태바 서식 텍스트가 깜빡거리며 깜빡임/언마운트되는 현상을 이전 유효 서식명을 캐싱하는 Ref 기반 리텐션 가드 및 고정 렌더링으로 개편 완벽 해결;
 // 🔗 @CALLS : getFullPath, t
 // ====================================================================
 export default function StatusBar() {
@@ -110,6 +110,13 @@ export default function StatusBar() {
   const folderName = rootFolder?.name;
   const relativePath = currentFileNode?.path;
   const activeProfileName = profiles?.find((p: any) => p.id === activeProfileId)?.name || DEFAULT_PROFILE?.name;
+
+  // 💡 [서식 깜빡임 방지 리텐션 가드] 타이핑 도중 서식명이 undefined 가 되는 찰나에도 이전 이름을 유지
+  const lastActiveProfileNameRef = React.useRef('기본 서식');
+  if (activeProfileName) {
+    lastActiveProfileNameRef.current = activeProfileName;
+  }
+  const displayProfileName = activeProfileName || lastActiveProfileNameRef.current || '기본 서식';
 
   const [localCursor, setLocalCursor] = useState({ line: cursorLine || 1, column: cursorColumn || 1 });
 
@@ -216,10 +223,10 @@ export default function StatusBar() {
 
       </div>
       <div className="flex items-center gap-2 shrink-0 ml-2">
-        {activeProfileName && (
+        {displayProfileName && (
           <>
-            <span className="hidden md:inline text-blue-600 dark:text-blue-400 font-semibold" title={`현재 서식: ${activeProfileName}`}>
-              서식: {activeProfileName}
+            <span className="hidden md:inline text-blue-600 dark:text-blue-400 font-semibold" title={`현재 서식: ${displayProfileName}`}>
+              서식: {displayProfileName}
             </span>
             <span className="hidden md:inline shrink-0 text-black/20 dark:text-white/20">|</span>
           </>

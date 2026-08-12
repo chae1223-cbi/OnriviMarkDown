@@ -76,7 +76,7 @@ export interface ProcessedMarkdown {
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
 // 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, ordered/unordered list indent
-// 🚨 @PATCH : **2026-08-12** — YAML Frontmatter 제거 시 발생하는 라인 유실 오차를 계산하여 lineMap 에 오프셋(frontmatterOffset)을 주입 보정함으로써 미리보기 돔 ID 매칭 오류 및 스크롤 동기화 실패 버그 완벽 패치; 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
+// 🚨 @PATCH : **2026-08-12** — 리스트 최상단 들여쓰기를 기준선(listBlockBaseIndent)으로 삼아 하위 계층을 상대적 깊이(4칸 단위)로 보정해 렌더링하는 상대적 리스트 정규화 알고리즘 도입; YAML Frontmatter 제거 시 발생하는 라인 유실 오차를 계산하여 lineMap 에 오프셋(frontmatterOffset)을 주입 보정함으로써 미리보기 돔 ID 매칭 오류 및 스크롤 동기화 실패 버그 완벽 패치; 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
 // 🔗 @CALLS : stripFrontmatter, isAnyListLine, getIndentLevel
 // ====================================================================
 export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown {
@@ -116,6 +116,7 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
   let insideCodeBlock = false;
   let insideParagraph = false;
   let paragraphBaseIndent = "";
+  let listBlockBaseIndent = -1; // 💡 상대적 리스트 들여쓰기 기준선 트래킹용
 
   const correctedLines = expandedLines.map((line, index) => {
     const trimmed = line.trim();
@@ -179,50 +180,50 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
         const isDivider = /^---/.test(remainingText.trim());
 
         if (isListOrQuote) {
-          // 💡 공백 4칸(또는 탭 1개) 단위로만 들여쓰기 계층을 인정하고, 
-          // 1~3칸의 어정쩡한 미세 공백은 0칸으로 싹 다 제거(Trim)하여 이중 들여쓰기 꼬임을 방지합니다.
           const indentLength = indentSpaces.length;
+          
+          // 💡 [상대적 리스트 들여쓰기 보정 알고리즘]
+          // 리스트 블록 최상단의 시작 공백 깊이를 base로 삼아, 하위 항목들을 상대적 탭 단계로 정규화합니다.
+          if (listBlockBaseIndent === -1) {
+            listBlockBaseIndent = indentLength;
+          }
+          
+          const relativeIndent = Math.max(0, indentLength - listBlockBaseIndent);
           let normalizedIndent = "";
-          if (indentLength >= 4) {
-            const steps = Math.floor(indentLength / 4);
+          if (relativeIndent >= 4) {
+            const steps = Math.floor(relativeIndent / 4);
             normalizedIndent = "    ".repeat(steps);
           }
           processedLine = normalizedIndent + remainingText.trim();
-        } else if (isHeading || isDivider) {
-          processedLine = remainingText.trim();
+        } else {
+          // 리스트가 아닌 경우 리스트 블록 종료
+          listBlockBaseIndent = -1;
+          if (isHeading || isDivider) {
+            processedLine = remainingText.trim();
+          }
+        }
+      } else {
+        // 공백이 없는 리스트 기호로 시작하는 경우에도 listBlockBaseIndent를 0으로 설정하여 블록 시작
+        const isListOrQuote = /^(?:[-*+]\s|(?:\d+)\.\s|>|\s*\[[ xX]?\])/.test(processedLine.trim());
+        if (isListOrQuote) {
+          listBlockBaseIndent = 0;
+        } else {
+          listBlockBaseIndent = -1;
         }
       }
       
       return processedLine;
     }
     
+    // 일반 라인을 만나면 리스트 블록 종료
+    listBlockBaseIndent = -1;
+
     const indentMatch = processedLine.match(/^( +)/);
     const lineIndent = indentMatch ? indentMatch[1] : "";
     const remainingText = processedLine.substring(lineIndent.length);
     
-    if (!insideParagraph) {
-      insideParagraph = true;
-      let baseIndent = "";
-      let nextLineIndex = index + 1;
-      while (nextLineIndex < expandedLines.length) {
-        const nextLine = expandedLines[nextLineIndex];
-        if (nextLine.trim() === "") break;
-        
-        const isNextSpecial = /^(?:\s*#+\s|\s*[-*+]\s|\s*\d+\.\s|\s*>|\s*---|\s*\||\s*\$\$|\s*<[a-zA-Z])/.test(nextLine);
-        if (isNextSpecial) break;
-        
-        const nextLineProcessed = nextLine.replace(/\t/g, "  ");
-        const nextLineMatch = nextLineProcessed.match(/^( +)/);
-        baseIndent = nextLineMatch ? nextLineMatch[1] : "";
-        break;
-      }
-      
-      paragraphBaseIndent = baseIndent;
-      return " ".repeat(lineIndent.length) + remainingText;
-    } else {
-      let targetIndent = lineIndent.length > paragraphBaseIndent.length ? paragraphBaseIndent : lineIndent;
-      return " ".repeat(targetIndent.length) + remainingText;
-    }
+    // 💡 일반 문단 앞의 탭/들여쓰기를 트리밍하여 이전 리스트의 탭 오염 및 코드 블록 오탐 원천 해결
+    return remainingText;
   });
 
   // Step 2.5: 숫자 목록(Ordered List)의 촘촘한 리스트 간격 및 뭉침 현상 재현을 위해 순서 없는 목록 기호(- ) 강제 주입

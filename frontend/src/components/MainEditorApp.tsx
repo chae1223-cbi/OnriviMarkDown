@@ -1881,8 +1881,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : parseInt
   // ====================================================================
   useEffect(() => {
-    // 💡 [버그 픽스] 마크다운에서 하위 리스트(Nested List)로 파싱되려면 들여쓰기가 최소 3~4칸 필요합니다.
-    // 사용자가 CSS 프로필에서 탭 너비를 2 등으로 설정하더라도 에디터 편집 환경에서는 무조건 4를 강제해야 합니다.
+    // 💡 에디터 탭 너비를 스페이스 4칸으로 고정
     tabSizeRef.current = 4;
   }, []);
 
