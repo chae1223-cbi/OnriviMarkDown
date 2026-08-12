@@ -2633,11 +2633,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (filePath) {
             // 더블클릭 파일 우선 오픈
             openExternalFile(filePath);
-          } else if (api.getLastFilePath) {
-            // 더블클릭 파일이 없으면 마지막 세션에서 복원
-            const lastPath = await api.getLastFilePath();
-            if (lastPath) {
-              openExternalFile(lastPath);
+          } else if (api.getLastSession) {
+            // 더블클릭 파일이 없으면 마지막 멀티 세션 복원
+            const sessionData = await api.getLastSession();
+            if (sessionData && Array.isArray(sessionData.openFilePaths) && sessionData.openFilePaths.length > 0) {
+              // 모든 이전 탭 복원
+              for (const path of sessionData.openFilePaths) {
+                await openExternalFile(path);
+              }
+              // 마지막 활성 탭 포커스 복원
+              if (sessionData.activeFilePath) {
+                await openExternalFile(sessionData.activeFilePath);
+              }
             }
           }
         }).catch(() => { sessionRestoredRef.current = false; }); // 실패 시 재시도 허용
@@ -2660,21 +2667,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-IO-MainEditorApp-0039] MainEditorApp.tsx ➔ session_auto_save
-  // 🎯 @KICK  : 현재 열린 파일이 변경될 때마다 electronAPI.saveLastFilePath()를 호출하여
-  //             userData/session.json에 마지막 파일 경로를 자동 저장.
-  //             앱 재시작 시 session:getLastFile IPC로 복원됨.
-  // 🛡️ @GUARD : Electron 환경에서만 동작. 경로가 없거나 빈 파일이면 저장 생략.
-  // 🚨 @PATCH : **2026-08-10** — 초기 생성 (자동 문서 복원 기능)
-  // 🔗 @CALLS : api.saveLastFilePath
+  // 🎯 @KICK  : 현재 열려있는 탭 목록 또는 활성 탭이 변경될 때마다 electronAPI.saveLastSession()을
+  //             호출하여 모든 열린 파일 경로와 활성 파일 경로를 session.json에 자동 저장.
+  //             앱 재시작 시 session:getLastSession IPC로 그대로 복원됨.
+  // 🛡️ @GUARD : Electron 환경에서만 동작. 저장할 파일 목록이 없으면 빈 세션 저장.
+  // 🚨 @PATCH : **2026-08-12** — 멀티 탭 전체 복원 동기화 기능으로 고도화 개편
+  // 🔗 @CALLS : api.saveLastSession
   // ====================================================================
   useEffect(() => {
     const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
-    if (!api?.saveLastFilePath) return;
-    const filePath = currentFileNode?.path;
-    if (filePath) {
-      api.saveLastFilePath(filePath).catch(() => {});
-    }
-  }, [currentFileNode]);
+    if (!api?.saveLastSession) return;
+    
+    const openFilePaths = tabs.map(t => t.path).filter((p): p is string => typeof p === 'string' && !!p);
+    const activeFilePath = currentFileNode?.path || null;
+
+    api.saveLastSession({
+      openFilePaths,
+      activeFilePath
+    }).catch(() => {});
+  }, [tabs, currentFileNode]);
 
 
   // 🎯 @KICK  : 사이드바 UI에서 서식을 변경했을 때, 에디터 본문에 Frontmatter를 주입/갱신하고 상태를 업데이트한다.

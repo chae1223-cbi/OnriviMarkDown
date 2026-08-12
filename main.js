@@ -509,33 +509,45 @@ ipcMain.handle('get-initial-file-path', () => {
   return path;
 });
 
-// 0-1. 마지막 세션 파일 경로 저장 (renderer → main → userData/session.json)
-ipcMain.handle('session:saveLastFile', (event, filePath) => {
+// 0-1. 마지막 세션 데이터 저장 (오픈된 탭 파일 경로 목록 + 활성 탭 파일 경로)
+ipcMain.handle('session:saveLastSession', (event, sessionData) => {
   try {
     const userDataPath = app.getPath('userData');
     const sessionPath = path.join(userDataPath, 'session.json');
-    const data = { lastFilePath: filePath, savedAt: new Date().toISOString() };
+    const data = {
+      openFilePaths: sessionData?.openFilePaths || [],
+      activeFilePath: sessionData?.activeFilePath || null,
+      savedAt: new Date().toISOString()
+    };
     fs.writeFileSync(sessionPath, JSON.stringify(data, null, 2), 'utf-8');
     return true;
   } catch (e) {
-    console.error('[session:saveLastFile] 오류:', e);
+    console.error('[session:saveLastSession] 오류:', e);
     return false;
   }
 });
 
-// 0-2. 마지막 세션 파일 경로 복원 (앱 기동 시 더블클릭 파일이 없을 때 폴백)
-ipcMain.handle('session:getLastFile', () => {
+// 0-2. 마지막 세션 데이터 복원 (존재하는 파일들만 유효성 체크 후 반환)
+ipcMain.handle('session:getLastSession', () => {
   try {
     const userDataPath = app.getPath('userData');
     const sessionPath = path.join(userDataPath, 'session.json');
     if (!fs.existsSync(sessionPath)) return null;
     const data = JSON.parse(fs.readFileSync(sessionPath, 'utf-8'));
-    const filePath = data?.lastFilePath;
-    // 파일이 실제로 존재하는지 검증
-    if (filePath && fs.existsSync(filePath)) return filePath;
-    return null;
+    
+    // 파일이 디스크에 실제 존재하고 있는 것만 필터링
+    const validOpenPaths = (data?.openFilePaths || []).filter(filePath => 
+      filePath && fs.existsSync(filePath)
+    );
+    const activePath = data?.activeFilePath;
+    const validActivePath = (activePath && fs.existsSync(activePath)) ? activePath : null;
+
+    return {
+      openFilePaths: validOpenPaths,
+      activeFilePath: validActivePath
+    };
   } catch (e) {
-    console.error('[session:getLastFile] 오류:', e);
+    console.error('[session:getLastSession] 오류:', e);
     return null;
   }
 });
