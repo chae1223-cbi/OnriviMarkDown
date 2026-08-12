@@ -1,3 +1,14 @@
+/**
+ * 프로그램명 : 라이선스 활성화 쿼리 유틸 (licenseQueries.ts)
+ * 버전 정보 : 1.0.0
+ * 프로그램 ID : oaar-license-queries-001
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026.07.05> 최초작성
+ *   * 🚨 @PATCH : **2026-08-12** — 기기 재접속 시 동시접속 한도 검사를 우회하여 제한사용자가 정품으로 뚫리는 버그 수정을 위해 checkLimits 시 본인 세션을 제외하고 세는 로직 도입 및 !isCurrentlyActive 우회 가드 해제 적용
+ * -----------------------------------------------------------------------
+ */
 export const insertLicenseActivationQuery = async (db: any, licenseId: string, deviceUuid: string, deviceName: string, userId: string | null = null, isExpired: boolean = false) => {
   return db.begin(async (tx: any) => {
     // 1. 해당 구독(subscriptions) 정보 조회
@@ -18,7 +29,9 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
         const activeSessions = await tx`
           SELECT id, device_name, activated_at
           FROM license_activations
-          WHERE subscription_id = ${licenseId} AND is_active = true
+          WHERE subscription_id = ${licenseId} 
+            AND is_active = true
+            AND device_uuid != ${deviceUuid} -- 💡 본인 기기 세션은 카운트에서 제외하여 오판 방지
           ORDER BY activated_at ASC
         `;
         
@@ -61,8 +74,8 @@ export const insertLicenseActivationQuery = async (db: any, licenseId: string, d
     if (currentDeviceRes.length > 0) {
       isCurrentlyActive = currentDeviceRes[0].is_active;
       
-      // 3. max_devices 제한 검사 (1차 필터 통과 && 현재 기기가 활성 상태가 아니었던 경우에만 검사)
-      if (newIsActive && !isCurrentlyActive) {
+      // 3. max_devices 제한 검사 (1차 필터 통과 시 isCurrentlyActive 상태에 관계없이 무조건 항상 검사)
+      if (newIsActive) {
         newIsActive = await checkLimits();
       }
       // 이미 활성이면서 1차 필터 통과(newIsActive===true)면 계속 true 유지 (checkLimits 생략)

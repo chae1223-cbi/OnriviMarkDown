@@ -76,20 +76,28 @@ export interface ProcessedMarkdown {
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
 // 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, ordered/unordered list indent
-// 🚨 @PATCH : 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
+// 🚨 @PATCH : **2026-08-12** — YAML Frontmatter 제거 시 발생하는 라인 유실 오차를 계산하여 lineMap 에 오프셋(frontmatterOffset)을 주입 보정함으로써 미리보기 돔 ID 매칭 오류 및 스크롤 동기화 실패 버그 완벽 패치; 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
 // 🔗 @CALLS : stripFrontmatter, isAnyListLine, getIndentLevel
 // ====================================================================
 export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown {
   if (!content) return { text: "", lineMap: [] };
 
-  // Step 0: YAML frontmatter 제거
+  // Step 0: YAML frontmatter 줄 수(offset) 계산 및 제거
+  let frontmatterOffset = 0;
+  const frontmatterMatch = content.match(/^---([\s\S]*?)---\s*(?:\r?\n)?/);
+  if (frontmatterMatch) {
+    const fullMatch = frontmatterMatch[0];
+    const newlines = fullMatch.match(/\n/g);
+    frontmatterOffset = newlines ? newlines.length : 0;
+  }
+
   content = stripFrontmatter(content);
   const originalLines = content.split("\n");
   let expandedLines: string[] = [];
   let expandedLineMap: number[] = []; // 각 확장 라인이 원본의 몇 번째 줄(1-based)인지 기록
 
   originalLines.forEach((line, index) => {
-    const originalLineNumber = index + 1;
+    const originalLineNumber = index + 1 + frontmatterOffset;
     
     // 수식 기호 정규화 및 볼드 수식 분리
     let processedLine = line.replace(/\\/g, '\\');

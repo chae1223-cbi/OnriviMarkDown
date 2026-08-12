@@ -14,7 +14,8 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
 // 🎯 @KICK  : 워크스페이스 폴더 연결, 파일 트리 스캔, 파일 열기/저장 I/O 전담
 // 🛡️ @GUARD : 각 환경별 API 실패 시 예외 처리 및 fallback
-// 🚨 @PATCH : **2026-07-18** — 서로 다른 폴더 내에 동일 파일명이 존재할 때, existingTab 탐색기에서 핸들/이름 매칭 가드 오동작으로 탭 열기가 씹히는 결함 수정 (경로 존재 시 절대 경로 불일치 조건으로 3순위 파일명 일치 가드 스킵 처리)
+// 🚨 @PATCH : **2026-08-12** — 에디터를 열 때 제한사용자(만료, 동시접속 제한, 미인증 등) 권한 가드가 풀리는 현상 해결을 위해 isRestrictedUser 검사 기준으로 모드 전환 로직 단일화 및 보완 적용
+//             **2026-07-18** — 서로 다른 폴더 내에 동일 파일명이 존재할 때, existingTab 탐색기에서 핸들/이름 매칭 가드 오동작으로 탭 열기가 씹히는 결함 수정 (경로 존재 시 절대 경로 불일치 조건으로 3순위 파일명 일치 가드 스킵 처리)
 //             **2026-07-04** — 탭 전환/닫기 시 제한(만료) 사용자의 경우 항상 미리보기('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 설정된 에디터 뷰잉 모드를 그대로 보존 및 상속하도록 UI 모드 자동 보정 연동 패치
 // 🔗 @CALLS : scanDirectory, getVfsFiles, fetch, vfsReadFile, vfsWriteFile, stripFrontmatter, idb.get, api.saveFile, api.listDirectory, api.readFromPath
 // ====================================================================
@@ -52,6 +53,11 @@ export const useFileExplorer = ({
   setWorkspaceType,
   licenseStatus
 }: any) => {
+
+  const isRestrictedUser = licenseStatus?.isExpired ||
+    licenseStatus?.isRestricted ||
+    licenseStatus?.planName?.includes('미인증') ||
+    licenseStatus?.planName?.includes('제한사용자');
 
   const rootFolderRef = useRef(rootFolder);
   useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
@@ -416,7 +422,7 @@ export const useFileExplorer = ({
         const latestVal = editor.getValue();
         setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, content: latestVal } : t));
       }
-      const targetMode = licenseStatus?.isExpired ? 'preview' : 'both';
+      const targetMode = isRestrictedUser ? 'preview' : 'both';
       setPreviewModeRaw(targetMode);
       previewModeRef.current = targetMode;
       isEditorMountedRef.current = targetMode !== 'preview';
@@ -535,7 +541,7 @@ export const useFileExplorer = ({
         content: fileContent,
         isModified: false,
         model: model,
-        previewMode: licenseStatus?.isExpired ? 'preview' : (node.name === '도움말.md' ? 'preview' : previewModeRef.current)
+        previewMode: isRestrictedUser ? 'preview' : (node.name === '도움말.md' ? 'preview' : previewModeRef.current)
       };
 
       setTabs(prev => [...prev, newTab]);

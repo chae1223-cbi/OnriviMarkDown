@@ -20,7 +20,7 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
+// 🚨 @PATCH : **2026-08-12** — 개요(TOC) 클릭 시 preview/both(분할) 모드에 맞춰 스크롤 동작을 이원화하고 하위 수준 존재 여부와 무관하게 정상 스크롤되도록 보완; H3 이하의 뎁스 목차가 기본적으로 접힌 채 렌더링에서 누락되던 조건 버그(undefined!==false)를 ===true 접힘으로 전면 교정하여 전체 펼침 구현; **2026-08-12** — 미리보기 스크롤 시 좌측 개요(TOC) 탭 목록도 활성 헤딩 위치를 자동으로 추적하여 뷰포트 내로 자동 스크롤(Auto-scroll Follow)되는 지능형 연동 기능 구현; **2026-08-12** — 개요(TOC) 클릭 시 에디터-미리보기 간의 양방향 스크롤 동기화 간섭을 일시 차단하는 락킹(isScrollingRef) 루틴을 적용하고 미리보기 컨테이너(previewRef) 내에서 부드러운 스크롤(scrollTo)이 동작하도록 개선; **2026-08-12** — 사이드바 배경을 라이트모드에 최적화된 고급스러운 아이스 블루 및 실버 톤 그라데이션(linear-gradient)으로 교체하고 탭 헤더 및 워크스페이스 바를 반투명 처리하는 프리미엄 디자인 리뉴얼 패치 적용; **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
 export default function LeftSidebar() {
@@ -29,6 +29,7 @@ export default function LeftSidebar() {
     content, currentFileName, setCurrentFileName,
     setCurrentFileNode, setContent, lastSavedContentRef,
     editorRef, previewRef, toc = [], scrollToLine,
+    isScrollingRef, scrollTimeoutRef, // 💡 동기식 스크롤 락 제어용 refs 추가
     showToast, fileList, rootFolder, resourceFolder, resourceFolderHandle, workspaceType,
     openFile, currentFileNode, refreshFileList, openTabPaths = [],
     askConfirm, isMergeMode = false, selectedMergeNodes = [],
@@ -151,6 +152,21 @@ export default function LeftSidebar() {
       cancelAnimationFrame(rafId);
     };
   }, [toc, previewRef, activeTocId]);
+
+  const tocContainerRef = useRef<HTMLDivElement>(null); // 💡 개요 스크롤 동기화용 ref
+
+  // 📝 활성화된 개요(TOC) 항목이 화면 밖으로 벗어날 경우 개요 탭 목록 컨테이너 자동 스크롤 동기화
+  useEffect(() => {
+    if (!activeTocId || sidebarTab !== 'toc' || !tocContainerRef.current) return;
+
+    const activeItem = tocContainerRef.current.querySelector(`#toc-item-${activeTocId}`);
+    if (activeItem) {
+      activeItem.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest' // 💡 화면에 이미 보이면 대기, 화면 밖 이탈 시에만 부드럽게 복구
+      });
+    }
+  }, [activeTocId, sidebarTab]);
 
   // 📝 루트 디렉토리 생성을 위한 Prompt 상태 제어 및 비동기 처리
   const [promptConfig, setPromptConfig] = useState<{
@@ -558,12 +574,13 @@ export default function LeftSidebar() {
       <aside 
         style={{ 
           width: sidebarWidth,
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+          background: "linear-gradient(180deg, #f3f6fa 0%, #e7ecf5 100%)" // 💡 프리미엄 라이트모드 전용 아이스 블루 & 실버 그라데이션
         }} 
-        className="flex flex-col border-r border-outline-variant/20 bg-surface-container-low select-none relative z-10"
+        className="flex flex-col border-r border-outline-variant/10 select-none relative z-10"
       >
         {/* 탭 헤더 */}
-        <div className="h-10 border-b border-outline-variant/20 flex items-center px-2 bg-surface-container justify-between">
+        <div className="h-10 border-b border-outline-variant/10 flex items-center px-2 bg-black/[0.03] justify-between">
           <div className="flex gap-1.5 w-full">
             <button
               onClick={() => {
@@ -572,8 +589,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'explorer' 
-                  ? 'bg-surface text-primary font-bold shadow-sm' 
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
+                  ? 'bg-white/90 text-primary font-bold shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               📂 탐색기
@@ -585,8 +602,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'toc' 
-                  ? 'bg-surface text-primary font-bold shadow-sm' 
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
+                  ? 'bg-white/90 text-primary font-bold shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               📝 개요
@@ -598,8 +615,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'search' 
-                  ? 'bg-surface text-primary font-bold shadow-sm' 
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
+                  ? 'bg-white/90 text-primary font-bold shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               🔍 검색
@@ -608,7 +625,7 @@ export default function LeftSidebar() {
         </div>
       
       {/* 항상 표시되는 워크스페이스 선택 바 */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-outline-variant/20 bg-surface-container-low">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-outline-variant/10 bg-black/[0.05]">
         <span className="text-[12px] font-bold text-on-surface-variant/60 uppercase tracking-wide shrink-0">작업장 실폴더</span>
         <button
           onClick={onSelectRootFolder}
@@ -779,7 +796,10 @@ export default function LeftSidebar() {
             </div>
           )}
         </div>
-        <div className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'toc' ? 'hidden' : ''}`}>
+        <div 
+          ref={tocContainerRef}
+          className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'toc' ? 'hidden' : ''}`}
+        >
           <div className="space-y-1 text-[12px] font-bold">
             {!toc || toc.length === 0 ? (
                 <div className="text-zinc-400 dark:text-zinc-500 text-center py-5">목차가 없습니다.</div>
@@ -815,15 +835,15 @@ export default function LeftSidebar() {
                   } else if (item.level === 3) {
                     if (item.parentH1Id && collapsedH1s[item.parentH1Id] === true) {
                       isCollapsed = true;
-                    } else if (item.parentH2Id && collapsedH1s[item.parentH2Id] !== false) {
+                    } else if (item.parentH2Id && collapsedH1s[item.parentH2Id] === true) {
                       isCollapsed = true;
                     }
                   } else if (item.level >= 4) {
                     if (item.parentH1Id && collapsedH1s[item.parentH1Id] === true) {
                       isCollapsed = true;
-                    } else if (item.parentH2Id && collapsedH1s[item.parentH2Id] !== false) {
+                    } else if (item.parentH2Id && collapsedH1s[item.parentH2Id] === true) {
                       isCollapsed = true;
-                    } else if (item.parentH3Id && collapsedH1s[item.parentH3Id] !== false) {
+                    } else if (item.parentH3Id && collapsedH1s[item.parentH3Id] === true) {
                       isCollapsed = true;
                     }
                   }
@@ -837,6 +857,7 @@ export default function LeftSidebar() {
                   return (
                     <div 
                       key={i} 
+                      id={`toc-item-${item.id}`} // 💡 자동 스크롤 동기화 추적용 ID
                       style={{ paddingLeft: `${(item.level - 1) * 8}px` }}
                       className={`cursor-pointer py-1 px-1.5 rounded-md transition-all truncate flex items-center gap-1 ${
                         activeTocId === item.id 
@@ -844,16 +865,62 @@ export default function LeftSidebar() {
                           : 'hover:bg-zinc-200/70 dark:hover:bg-zinc-800/50 hover:text-blue-600 dark:hover:text-blue-400 text-zinc-600 dark:text-zinc-300 border border-transparent'
                       }`}
                       onClick={() => {
-                        const el = document.getElementById(item.id);
-                        if (el) {
-                          el.scrollIntoView({ behavior: 'smooth' });
-                          if (previewRef.current) {
-                            const elements = Array.from(previewRef.current.querySelectorAll('[data-line]'));
+                        const isPreviewOnly = previewMode === 'preview';
+
+                        if (isPreviewOnly) {
+                          // A. [미리보기 전용 모드] - 동기화 락 없이 즉시 미리보기 스크롤 이동
+                          const el = document.getElementById(item.id);
+                          if (el && previewRef.current) {
+                            const container = previewRef.current;
+                            const containerRect = container.getBoundingClientRect();
+                            const elRect = el.getBoundingClientRect();
+                            const relativeTop = elRect.top - containerRect.top + container.scrollTop;
+
+                            container.scrollTo({
+                              top: relativeTop - 20, // 상단 20px 보정 마진
+                              behavior: 'smooth'
+                            });
+
+                            // 줄 하이라이트 시각 효과
+                            const elements = Array.from(container.querySelectorAll('[data-line]'));
                             elements.forEach(e => e.classList.remove('preview-highlight-line'));
                             el.classList.add('preview-highlight-line');
                           }
+                          // 백그라운드 에디터 커서 이동
+                          scrollToLine(item.lineNumber);
+                        } else {
+                          // B. [분할/에디터 모드] - 동기화 스크롤 간섭 락킹 후 순차 스크롤 연동
+                          if (isScrollingRef && scrollTimeoutRef) {
+                            isScrollingRef.current = 'preview';
+                            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                          }
+
+                          const el = document.getElementById(item.id);
+                          if (el && previewRef.current) {
+                            const container = previewRef.current;
+                            const containerRect = container.getBoundingClientRect();
+                            const elRect = el.getBoundingClientRect();
+                            const relativeTop = elRect.top - containerRect.top + container.scrollTop;
+
+                            container.scrollTo({
+                              top: relativeTop - 20,
+                              behavior: 'smooth'
+                            });
+
+                            const elements = Array.from(container.querySelectorAll('[data-line]'));
+                            elements.forEach(e => e.classList.remove('preview-highlight-line'));
+                            el.classList.add('preview-highlight-line');
+                          }
+
+                          // Monaco 에디터 줄 이동
+                          scrollToLine(item.lineNumber);
+
+                          if (isScrollingRef && scrollTimeoutRef) {
+                            scrollTimeoutRef.current = setTimeout(() => {
+                              isScrollingRef.current = null;
+                            }, 500);
+                          }
                         }
-                        scrollToLine(item.lineNumber);
                       }}
                     >
                       {item.level === 1 ? (
@@ -876,12 +943,12 @@ export default function LeftSidebar() {
                           <button 
                             onClick={(e) => { 
                               e.stopPropagation(); 
-                              setCollapsedH1s(prev => ({ ...prev, [item.id]: prev[item.id] === false })); 
+                              setCollapsedH1s(prev => ({ ...prev, [item.id]: !prev[item.id] })); 
                             }}
                             className="mr-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 w-5 h-5 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[10px]"
-                            title={collapsedH1s[item.id] === false ? "접기" : "펼치기"}
+                            title={collapsedH1s[item.id] === true ? "펼치기" : "접기"}
                           >
-                            {collapsedH1s[item.id] === false ? '▼' : '▶'}
+                            {collapsedH1s[item.id] === true ? '▶' : '▼'}
                           </button>
                         ) : (
                           <div className="w-5 h-5 mr-1 shrink-0" />
@@ -891,13 +958,12 @@ export default function LeftSidebar() {
                           <button 
                             onClick={(e) => { 
                               e.stopPropagation(); 
-                              // H3은 기본 접힘(true)이므로 false(펼침) <-> true(접힘) 토글
-                              setCollapsedH1s(prev => ({ ...prev, [item.id]: prev[item.id] === false })); 
+                              setCollapsedH1s(prev => ({ ...prev, [item.id]: !prev[item.id] })); 
                             }}
                             className="mr-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 w-5 h-5 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[10px]"
-                            title={collapsedH1s[item.id] === false ? "접기" : "펼치기"}
+                            title={collapsedH1s[item.id] === true ? "펼치기" : "접기"}
                           >
-                            {collapsedH1s[item.id] === false ? '▼' : '▶'}
+                            {collapsedH1s[item.id] === true ? '▶' : '▼'}
                           </button>
                         ) : (
                           <div className="w-5 h-5 mr-1 shrink-0" />

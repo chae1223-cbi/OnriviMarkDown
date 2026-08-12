@@ -7,6 +7,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-08-12** — 에디터를 열거나 탭을 닫고 전환할 때 제한사용자(만료, 동시접속 제한, 미인증 등)의 권한 가드가 누락되어 편집 가능해지던 버그 해결을 위해 isRestrictedUser 검사 통합 적용 및 Monaco readOnly/domReadOnly 옵션 동기화 보완; 최초 검증 시 동시접속 실패 시 이중 검증 복구 우회로를 차단하고 isRestricted 필드를 로컬 보안 캐시와 setLicenseStatus에 밀봉 연동하여 캐시 뚫림 현상 원천 해결
  *   * 🚨 @PATCH : **2026-08-12** — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 postContentScrollCorrection 훅에 setTimeout(50ms) 기반 지연 최하단 밀착 스크롤 보강 적용
  *   * 🚨 @PATCH : **2026-07-22** — 클라이언트 직접 supabase.rpc() 호출 전량 서버단 API Route fetch()로 이전: insert_license_activation→/api/rpc/license/insert, check_license_session(×2)→/api/license/check-session, verify_desktop_license→/api/license/verify-desktop; Realtime 구독 테이블명 license_activations→license_activations 전환
  *   * 🚨 @PATCH : **2026-07-22** — subscriptions 단일 통합 테이블 개편에 맞춰 software_licenses 및 users 레거시 쿼리 참조를 subscriptions 단일 쿼리로 일괄 마이그레이션 적용
@@ -487,6 +488,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     licenseStatus, setLicenseStatus,
     isLicenseChecking, setIsLicenseChecking
   } = useEditorAuth();
+
+  // 💡 [권한 기반 제한사용자 판별 플래그] 사용 기간 만료 또는 동시 접속 초과, 혹은 미인증/제한 플랜 사용 여부를 판별
+  const isRestrictedUser = useMemo(() => {
+    return licenseStatus.isExpired ||
+      licenseStatus.isRestricted ||
+      licenseStatus.planName?.includes('미인증') ||
+      licenseStatus.planName?.includes('제한사용자');
+  }, [licenseStatus.isExpired, licenseStatus.isRestricted, licenseStatus.planName]);
 
   // 💡 [Step 2 리팩토링 완료] 수십 개에 달하던 모달/팝업 상태를 단 하나의 Hook으로 완전히 분리!
   const {
@@ -1268,31 +1277,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 : `라이선스 오류: ${actResult?.message || actErr?.message || '알 수 없는 오류'}`;
             }
 
+            const isRestricted = activationFailed || sub?.plan_name === 'READER';
+
             if (activationFailed) {
-              const chk2Res = await fetch(getApiUrl('/api/license/check-session'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ p_payment_no: currentPaymentNo, p_device_uuid: sessionId })
-              });
-              const chk2 = chk2Res.ok ? await chk2Res.json() : null;
-              
-              if (!(chk2 && chk2.success && chk2.has_session)) {
-                isExpired = true;
-                planName = activationError;
-              }
+              isExpired = true;
+              planName = activationError;
             }
 
-            const isActivated = !isExpired;
+            const isActivated = !isExpired && !isRestricted;
 
-            console.log('[LICENSE] VERIFIED setLicenseStatus isActivated=%o isExpired=%o planName=%o', isActivated, isExpired, planName);
+            console.log('[LICENSE] VERIFIED setLicenseStatus isActivated=%o isExpired=%o isRestricted=%o planName=%o', isActivated, isExpired, isRestricted, planName);
             setLicenseStatus({
               isActivated, isExpired, remainingDays, userId: savedUserId,
+              isRestricted, // 💡 제한 상태 명시적 반영
               licenseKey: isActivated ? savedKey : '', paymentNo: currentPaymentNo || '',
               planName, nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : '')
             });
 
             saveSecureData('onrivi_license_status', {
               isActivated, isExpired, remainingDays, userId: savedUserId,
+              isRestricted, // 💡 로컬 보안 캐시에도 제한 상태 밀봉
               licenseKey: isActivated ? savedKey : '', paymentNo: currentPaymentNo || '',
               planName, nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : ''),
               lastVerifiedAt: Date.now()
@@ -2031,7 +2035,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setPreviewModeRaw(prev => {
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
 
-      if (licenseStatus.isExpired) {
+      if (isRestrictedUser) {
         if (next !== 'preview') {
           showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
         }
@@ -2088,7 +2092,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       // 💡 웰컴페이지 전용 'Onrivi Author 시작하기.md' 탭을 닫거나 도움말을 닫을 때의 모드 조정
       if (tabToClose.name === 'Onrivi Author 시작하기.md' || tabToClose.name === '도움말.md') {
-        const targetMode = licenseStatus.isExpired ? 'preview' : (previewModeRef.current === 'css-style' ? 'both' : previewModeRef.current);
+        const targetMode = isRestrictedUser ? 'preview' : (previewModeRef.current === 'css-style' ? 'both' : previewModeRef.current);
         setPreviewModeRaw(targetMode);
         previewModeRef.current = targetMode;
         isEditorMountedRef.current = targetMode !== 'preview';
@@ -2510,8 +2514,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         fontSize: fontSize,
         wordWrap: wordWrap,
         wordBreak: 'normal',
-        readOnly: tabs.length === 0 || licenseStatus.isExpired,
-        domReadOnly: tabs.length === 0 || licenseStatus.isExpired,
+        readOnly: tabs.length === 0 || isRestrictedUser,
+        domReadOnly: tabs.length === 0 || isRestrictedUser,
       });
       // 3. 레이아웃 리플로우 강제 트리거 및 비동기 웹폰트 로딩 후 글자 폭 재계산 (핵심 버그 수정)
       requestAnimationFrame(() => {
@@ -2523,7 +2527,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       });
     }
-  }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, licenseStatus.isExpired, previewMode, tabs.length]);
+  }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, isRestrictedUser, previewMode, tabs.length]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0034] MainEditorApp.tsx ➔ darkModePaletteSync
@@ -3205,14 +3209,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 💡 2. 서식설정 전용 탭: 모드 전환 없이 현재 모드 유지 (CssStyleForm은 Ctrl+Shift+S로만 토글)
     } else {
       // 💡 3. 그 외 일반 마크다운 문서들은 전역으로 공유되는 마크다운 보기 모드를 그대로 상속 및 유지
-      const target = licenseStatus.isExpired ? 'preview' : lastGeneralPreviewModeRef.current;
+      const target = isRestrictedUser ? 'preview' : lastGeneralPreviewModeRef.current;
       if (previewModeRef.current !== target) {
         setPreviewModeRaw(target);
         previewModeRef.current = target;
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabId, mounted, licenseStatus.isExpired, helpContent]);
+  }, [activeTabId, mounted, isRestrictedUser, helpContent]);
   // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 차단 및 강제 노출 로직 2026-07-05]
   // 초기 로딩 후 제한 사용자인지 판단하여 웰컴 페이지를 남기거나, 일반 사용자면 지웁니다.
   const hasHandledWelcomeRef = useRef(false);
@@ -5537,8 +5541,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         }}
                         onMount={handleMount}
                         options={{
-                          readOnly: tabs.length === 0 || licenseStatus.isExpired,
-                          domReadOnly: tabs.length === 0 || licenseStatus.isExpired,
+                          readOnly: tabs.length === 0 || isRestrictedUser,
+                          domReadOnly: tabs.length === 0 || isRestrictedUser,
                           padding: { top: 48, bottom: 0, right: 64 }, // 적절한 포커스 패딩 (bottom 0으로 설정하여 마지막 줄 흔들림 버그 해결)
                           scrollBeyondLastLine: false,
                           automaticLayout: true,
