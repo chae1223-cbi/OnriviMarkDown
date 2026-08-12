@@ -291,6 +291,57 @@ export const useFileExplorer = ({
       return;
     }
 
+    // 💡 [FileSystemAccess 로컬 폴더 직접 탐색 가드]
+    // 파일 트리 목록(fileList) 스캔이 늦어지더라도, 연결된 로컬 디렉토리 핸들(rootFolder.handle)이 존재한다면,
+    // 해당 경로의 하위 디렉토리를 깊숙이 추적하여 FileSystemFileHandle을 다이렉트로 확보합니다.
+    if (workspaceType === 'browser' && rootFolder?.handle) {
+      try {
+        let relativePath = resolvedPath.replace(/\\/g, '/');
+        const parts = relativePath.split('/');
+        
+        if (parts[0] === rootFolder.handle.name) {
+          parts.shift();
+        }
+        
+        let currentDir = rootFolder.handle;
+        let foundHandle: FileSystemFileHandle | null = null;
+        let isSearchSuccess = true;
+
+        for (let i = 0; i < parts.length - 1; i++) {
+          const dirName = parts[i];
+          if (!dirName) continue;
+          try {
+            currentDir = await currentDir.getDirectoryHandle(dirName, { create: false });
+          } catch {
+            isSearchSuccess = false;
+            break;
+          }
+        }
+
+        if (isSearchSuccess && parts.length > 0) {
+          const targetFileName = parts[parts.length - 1];
+          try {
+            foundHandle = await currentDir.getFileHandle(targetFileName, { create: false });
+          } catch {
+            foundHandle = null;
+          }
+        }
+
+        if (foundHandle) {
+          const dummyNode: FileNode = {
+            name: foundHandle.name,
+            path: resolvedPath,
+            kind: 'file',
+            handle: foundHandle
+          };
+          await handleFileClick(dummyNode, currentDir);
+          return;
+        }
+      } catch (err) {
+        console.warn('[handleFileOpenByPath] FileSystemAccess 직접 스캔 실패:', err);
+      }
+    }
+
     // 💡 [VFS/IndexedDB 우선 예외 가드]
     // 파일 트리 목록(fileList)이 기동 시점에 비동기 로딩 딜레이로 인해 비어있더라도,
     // 브라우저 가상 파일 시스템(VFS) 상에 실제 존재하는 파일이라면 즉각 열기를 유도합니다.
