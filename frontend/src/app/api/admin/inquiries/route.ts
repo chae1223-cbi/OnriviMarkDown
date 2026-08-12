@@ -1,3 +1,15 @@
+/**
+ * 프로그램명 : 고객 문의 관리 API (Admin Inquiries API)
+ * 버전 정보 : 1.0.0
+ * 프로그램 ID : oaar-api-inquiries-001
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026.05.29> 최초작성
+ *   * 🚨 @PATCH : **2026-08-12** — API 인증(401 Unauthorized) 실패 시 구체적인 Supabase Auth 에러 로그를 서버 콘솔에 출력하도록 console.error 디버깅 로그 추가
+ * -----------------------------------------------------------------------
+ */
+
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { sendMail } from '@/lib/mail';
@@ -9,7 +21,10 @@ export async function GET(request: Request) {
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authError || !user) {
+      console.error('[Admin Inquiries GET] User auth failed:', authError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // 권한 확인 (SUPER 또는 SUPPORT)
     const { data: adminData } = await supabaseAdmin
@@ -63,7 +78,10 @@ export async function PATCH(request: Request) {
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authError || !user) {
+      console.error('[Admin Inquiries PATCH] User auth failed:', authError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // 권한 확인 (SUPER 또는 SUPPORT)
     const { data: adminData } = await supabaseAdmin

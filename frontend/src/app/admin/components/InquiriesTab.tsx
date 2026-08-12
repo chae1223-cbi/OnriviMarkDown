@@ -1,5 +1,17 @@
 'use client';
 
+/**
+ * 프로그램명 : 1:1 문의사항 탭 컴포넌트 (InquiriesTab Component)
+ * 버전 정보 : 1.0.0
+ * 프로그램 ID : oaar-admin-inquiries-tab-001
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026.05.29> 최초작성
+ *   * 🚨 @PATCH : **2026-08-12** — 답변 저장 시 처리 상태를 자동으로 'RESOLVED'(완료됨)로 변경하도록 PATCH 데이터 전송 강제화 및 드롭다운/필터 목록에서 'IN_PROGRESS'(처리중) 상태 배제 처리
+ * -----------------------------------------------------------------------
+ */
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { showToast } from '@/utils/toast';
@@ -105,7 +117,8 @@ export default function InquiriesTab() {
   const openModal = (inquiry: Inquiry) => {
     setSelectedInquiry(inquiry);
     setAnswerContent(inquiry.answer_content || '');
-    setStatusToUpdate(inquiry.status);
+    // 💡 답변 저장 시 자동으로 RESOLVED로 완료 처리되므로 기본 표시 상태를 'RESOLVED'로 설정
+    setStatusToUpdate('RESOLVED');
     setSendEmail(true);
     setReplyFiles([]);
     setExistingUrls(inquiry.answer_attachment_urls || []);
@@ -208,7 +221,7 @@ export default function InquiriesTab() {
         },
         body: JSON.stringify({
           id: selectedInquiry.id,
-          status: statusToUpdate,
+          status: 'RESOLVED', // 💡 답변 저장 시 자동으로 'RESOLVED'(완료됨)로 변경
           answer_content: answerContent,
           send_email: sendEmail,
           answer_attachment_urls: finalAttachmentUrls,
@@ -263,7 +276,7 @@ export default function InquiriesTab() {
             className="px-4 py-2 bg-[var(--admin-surface)] border-[var(--admin-border)] border text-[var(--admin-text)] rounded-xl text-sm font-medium hover:bg-[var(--admin-surface-bright)] transition-colors outline-none"
           >
             <option value="ALL">모든 문의</option>
-            {statusCodes.map(code => (
+            {statusCodes.filter(code => code.code_value !== 'IN_PROGRESS').map(code => (
               <option key={code.code_value} value={code.code_value}>{code.code_name}</option>
             ))}
           </select>
@@ -377,12 +390,11 @@ export default function InquiriesTab() {
                     onChange={(e) => setStatusToUpdate(e.target.value)}
                     className="w-full sm:w-auto px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
                   >
-                    {statusCodes.length > 0 ? statusCodes.map(code => (
+                    {statusCodes.length > 0 ? statusCodes.filter(code => code.code_value !== 'IN_PROGRESS').map(code => (
                       <option key={code.code_value} value={code.code_value}>{code.code_name} ({code.code_value})</option>
                     )) : (
                       <>
                         <option value="PENDING">대기중 (PENDING)</option>
-                        <option value="IN_PROGRESS">처리중 (IN_PROGRESS)</option>
                         <option value="RESOLVED">완료됨 (RESOLVED)</option>
                       </>
                     )}
