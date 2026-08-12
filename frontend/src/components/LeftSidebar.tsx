@@ -20,7 +20,7 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
+// 🚨 @PATCH : **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
 export default function LeftSidebar() {
@@ -556,7 +556,10 @@ export default function LeftSidebar() {
     <>
       <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.txt,.md,.markdown,.html" onChange={handleImportFile} />
       <aside 
-        style={{ width: sidebarWidth }} 
+        style={{ 
+          width: sidebarWidth,
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
+        }} 
         className="flex flex-col border-r border-outline-variant/20 bg-surface-container-low select-none relative z-10"
       >
         {/* 탭 헤더 */}
@@ -567,7 +570,7 @@ export default function LeftSidebar() {
                 setSidebarTab('explorer');
                 setIsSearchOpen(false);
               }}
-              className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
+              className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'explorer' 
                   ? 'bg-surface text-primary font-bold shadow-sm' 
                   : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
@@ -580,7 +583,7 @@ export default function LeftSidebar() {
                 setSidebarTab('toc');
                 setIsSearchOpen(false);
               }}
-              className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
+              className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'toc' 
                   ? 'bg-surface text-primary font-bold shadow-sm' 
                   : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
@@ -593,7 +596,7 @@ export default function LeftSidebar() {
                 setSidebarTab('search');
                 setIsSearchOpen(true);
               }}
-              className={`flex-1 py-1.5 text-[13px] font-bold rounded-md transition-all text-center ${
+              className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'search' 
                   ? 'bg-surface text-primary font-bold shadow-sm' 
                   : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50'
@@ -606,10 +609,10 @@ export default function LeftSidebar() {
       
       {/* 항상 표시되는 워크스페이스 선택 바 */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-outline-variant/20 bg-surface-container-low">
-        <span className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wide shrink-0">폴더</span>
+        <span className="text-[12px] font-bold text-on-surface-variant/60 uppercase tracking-wide shrink-0">작업장 실폴더</span>
         <button
           onClick={onSelectRootFolder}
-          className="flex-1 min-w-0 flex items-center gap-1 px-2 py-1 rounded-md text-left text-[11px] font-medium transition-colors
+          className="flex-1 min-w-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-left text-[12px] font-bold transition-colors
             bg-surface hover:bg-surface-container-high/30
             border border-outline-variant/30 hover:border-primary-container
             text-on-surface-variant hover:text-primary
@@ -628,18 +631,18 @@ export default function LeftSidebar() {
         <div className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}>
           {(rootFolder as any)?.needPermission ? (
             // 이전 워크스페이스 권한 복구 안내
-            <div className="text-zinc-500 dark:text-zinc-400 text-xs text-center py-8 space-y-4 px-4">
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2 text-left">
+            <div className="text-zinc-500 dark:text-zinc-400 text-[12px] text-center py-5 space-y-2.5 px-3">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 space-y-1.5 text-left">
                 <p className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                   ⚠️ 이전 폴더 연결 대기
                 </p>
-                <p className="text-[11px] leading-relaxed opacity-90">
+                <p className="text-[12px] leading-relaxed opacity-90">
                   브라우저 보안 제약으로 인해 새로고침 후 폴더 권한 승인이 필요합니다. 아래 버튼을 눌러 이전 폴더(<strong>{rootFolder?.name}</strong>)의 복구를 승인하세요.
                 </p>
               </div>
               <button
                 onClick={onRestoreFolder}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-amber-500/20"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[12px] font-bold transition-all shadow-md shadow-amber-500/20"
               >
                 🔄 워크스페이스 복구
               </button>
@@ -648,10 +651,10 @@ export default function LeftSidebar() {
             // 폴더 연결됨 → 파일 트리 표시
             // 🛡️ [빈 폴더 방어] fileList가 비어있어도 루트 폴더 헤더(풀경로+버튼)를 항상 유지
             <div className="space-y-0.5">
-              <div className="group relative flex items-center justify-between px-1 py-2 text-[15px] font-bold text-on-surface border-b border-outline-variant/20 mb-1">
+              <div className="group relative flex items-center justify-between px-1 py-1 text-[12px] font-bold text-on-surface border-b border-outline-variant/20 mb-1">
                 <span className="truncate">📁 {rootFolder.name}</span>
                 {!isRestrictedUser && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -662,10 +665,10 @@ export default function LeftSidebar() {
                           type: 'createFile'
                         });
                       }} 
-                      className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
                       title="새 파일"
                     >
-                      <span className="text-sm">📖</span>
+                      <span className="text-[9px]">📖</span>
                     </button>
                     <button 
                       onClick={(e) => {
@@ -677,10 +680,10 @@ export default function LeftSidebar() {
                           type: 'createFolder'
                         });
                       }} 
-                      className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
                       title="새 폴더"
                     >
-                      <span className="text-sm">📁</span>
+                      <span className="text-[9px]">📁</span>
                     </button>
                     <button 
                       onClick={async (e) => {
@@ -688,29 +691,29 @@ export default function LeftSidebar() {
                         await refreshFileList();
                         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                       }} 
-                      className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
                       title="새로고침"
                     >
-                      <RefreshCw size={14} />
+                      <RefreshCw size={9} />
                     </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          importFileInputRef.current?.click();
-                        }} 
-                        className="p-1 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
-                        title="문서 변환 및 가져오기 (DOCX, HWP, PDF, TXT, MD, HTML)"
-                      >
-                        <span className="text-sm">📥</span>
-                      </button>
-                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        importFileInputRef.current?.click();
+                      }} 
+                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      title="문서 변환 및 가져오기 (DOCX, HWP, PDF, TXT, MD, HTML)"
+                    >
+                      <span className="text-[9px]">📥</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
               {isMergeMode && (
-                <div className="flex flex-col gap-1.5 px-2 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mx-0.5 mb-1">
+                <div className="flex flex-col gap-1 px-1.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mx-0.5 mb-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                    <span className="text-[8px] font-semibold text-blue-700 dark:text-blue-300">
                       병합 모드 ({selectedMergeNodes.length}개 선택됨)
                     </span>
                     <button
@@ -718,13 +721,13 @@ export default function LeftSidebar() {
                       className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded text-blue-500 hover:text-blue-700 dark:hover:text-blue-200 transition-colors"
                       title="병합 취소"
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
                   <button
                     onClick={onOpenMergeModal}
                     disabled={selectedMergeNodes.length < 2}
-                    className="w-full px-2 py-1 text-xs font-bold bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 dark:disabled:bg-blue-800 text-white rounded-md transition-all active:scale-[0.98] disabled:cursor-not-allowed"
+                    className="w-full px-1.5 py-0.5 text-[12px] font-bold bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 dark:disabled:bg-blue-800 text-white rounded-md transition-all active:scale-[0.98] disabled:cursor-not-allowed"
                   >
                     병합 실행
                   </button>
@@ -732,7 +735,7 @@ export default function LeftSidebar() {
               )}
 
               {fileList.length === 0 ? (
-                <div className="text-zinc-400 dark:text-zinc-500 text-xs text-center py-8">
+                <div className="text-zinc-400 dark:text-zinc-500 text-[12px] text-center py-5">
                   <p>연결된 폴더에 파일이 없습니다.</p>
                 </div>
               ) : (
@@ -770,16 +773,16 @@ export default function LeftSidebar() {
               </div>
           ) : (
             // 폴더 미연결 상태 — 간결한 안내
-            <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-zinc-400 dark:text-zinc-500 text-xs text-center space-y-3 px-4">
-              <span className="text-3xl opacity-40">📁</span>
+            <div className="flex flex-col items-center justify-center h-full min-h-[150px] text-zinc-400 dark:text-zinc-500 text-[8px] text-center space-y-2 px-4">
+              <span className="text-xl opacity-40">📁</span>
               <p className="font-medium opacity-70">위의 폴더 선택 바를 눌러<br/>워크스페이스를 시작하세요.</p>
             </div>
           )}
         </div>
-        <div className={`flex-1 overflow-y-auto p-3 ${sidebarTab !== 'toc' ? 'hidden' : ''}`}>
-          <div className="space-y-1.5 text-sm">
+        <div className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'toc' ? 'hidden' : ''}`}>
+          <div className="space-y-1 text-[12px] font-bold">
             {!toc || toc.length === 0 ? (
-                <div className="text-zinc-400 dark:text-zinc-500 text-center py-8">목차가 없습니다.</div>
+                <div className="text-zinc-400 dark:text-zinc-500 text-center py-5">목차가 없습니다.</div>
               ) : (() => {
                 let currentH1Id = '';
                 let currentH2Id = '';
@@ -803,11 +806,6 @@ export default function LeftSidebar() {
                 });
 
                 return processedToc.map((item, i) => {
-                  // 접힘 여부 판정 로직:
-                  // H1: 기본 펼침 (collapsedH1s[id] === true 이면 숨김)
-                  // H2: 기본 펼침 (H1이 접혀있으면 숨김)
-                  // H3: 기본 펼침 (H1 or H2가 접혀있으면 숨김)
-                  // H4 이하: 기본 접힘 (H1 or H2 or H3가 접혀있으면 숨김. H3은 기본이 접힘이므로 collapsedH1s[parentH3Id] !== false 이면 숨김)
                   let isCollapsed = false;
 
                   if (item.level === 2) {
@@ -832,7 +830,6 @@ export default function LeftSidebar() {
 
                   if (isCollapsed) return null;
 
-                  // 각 레벨별 자식 유무 체크
                   const hasH1Children = item.level === 1 && processedToc.some(child => child.level >= 2 && child.parentH1Id === item.id);
                   const hasH2Children = item.level === 2 && processedToc.some(child => child.level >= 3 && child.parentH2Id === item.id);
                   const hasH3Children = item.level === 3 && processedToc.some(child => child.level >= 4 && child.parentH3Id === item.id);
@@ -840,8 +837,8 @@ export default function LeftSidebar() {
                   return (
                     <div 
                       key={i} 
-                      style={{ paddingLeft: `${(item.level - 1) * 16}px` }}
-                      className={`cursor-pointer py-1.5 px-3 rounded-md transition-all truncate flex items-center gap-1.5 ${
+                      style={{ paddingLeft: `${(item.level - 1) * 8}px` }}
+                      className={`cursor-pointer py-1 px-1.5 rounded-md transition-all truncate flex items-center gap-1 ${
                         activeTocId === item.id 
                           ? 'bg-blue-100/60 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-semibold shadow-sm border border-blue-200 dark:border-blue-800/50' 
                           : 'hover:bg-zinc-200/70 dark:hover:bg-zinc-800/50 hover:text-blue-600 dark:hover:text-blue-400 text-zinc-600 dark:text-zinc-300 border border-transparent'
@@ -866,13 +863,13 @@ export default function LeftSidebar() {
                               e.stopPropagation(); 
                               setCollapsedH1s(prev => ({ ...prev, [item.id]: !prev[item.id] })); 
                             }}
-                            className="mr-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 w-5 h-5 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[10px]"
+                            className="mr-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 text-[7px]"
                             title={collapsedH1s[item.id] === true ? "펼치기" : "접기"}
                           >
                             {collapsedH1s[item.id] === true ? '▶' : '▼'}
                           </button>
                         ) : (
-                          <div className="w-5 h-5 mr-1 shrink-0" />
+                          <div className="w-3.5 h-3.5 mr-1 shrink-0" />
                         )
                       ) : item.level === 2 ? (
                         hasH2Children ? (
@@ -908,7 +905,7 @@ export default function LeftSidebar() {
                       ) : (
                         <div className="w-5 h-5 mr-1 shrink-0" />
                       )}
-                      <span className="truncate flex-1 font-medium">
+                      <span className="truncate flex-1 font-bold">
                         {item.text}
                       </span>
                     </div>

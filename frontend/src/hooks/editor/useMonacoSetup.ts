@@ -3,10 +3,35 @@
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 탭/스페이스 매칭 최적화
 // 🛡️ @GUARD : hasList 체크 후 순차적으로 이전 줄의 탭 깊이와 숫자를 비교하여 번호 갱신
-// 🚨 @PATCH : 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
+// 🚨 @PATCH : 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
 // 🔗 @CALLS : model.getLineContent, editor.executeEdits
 // ====================================================================
 import { useRef } from 'react';
+
+// 💡 [수평 스크롤 시프트 방지 헬퍼] scrollIntoView 대신 scrollTop만 직접 조절하는 수직 전용 스크롤 함수
+const verticalScrollToElement = (parent: HTMLElement, child: HTMLElement, block: 'center' | 'nearest', behavior: 'smooth' | 'auto' | 'instant' = 'smooth') => {
+  const parentRect = parent.getBoundingClientRect();
+  const childRect = child.getBoundingClientRect();
+  const relativeTop = childRect.top - parentRect.top + parent.scrollTop;
+  
+  let targetScrollTop = parent.scrollTop;
+  if (block === 'center') {
+    targetScrollTop = relativeTop - (parentRect.height / 2) + (childRect.height / 2);
+  } else {
+    // nearest
+    const relativeBottom = relativeTop + childRect.height;
+    if (relativeTop < parent.scrollTop) {
+      targetScrollTop = relativeTop;
+    } else if (relativeBottom > parent.scrollTop + parentRect.height) {
+      targetScrollTop = relativeBottom - parentRect.height;
+    }
+  }
+  
+  parent.scrollTo({
+    top: Math.max(0, targetScrollTop),
+    behavior: behavior === 'instant' ? 'auto' : (behavior as ScrollBehavior)
+  });
+};
 
 export function useMonacoSetup(deps: any) {
   const handleMount = (editor: any, monaco: any) => {
@@ -162,9 +187,9 @@ export function useMonacoSetup(deps: any) {
                                       scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 200);
                                       setTimeout(() => {
                                         if (previewRef.current) {
-                                          const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`);
+                                          const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`) as HTMLElement;
                                           if (targetElement) {
-                                            targetElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+                                            verticalScrollToElement(previewRef.current, targetElement, 'nearest', 'auto');
                                           }
                                         }
                                       }, 50);
@@ -202,9 +227,9 @@ export function useMonacoSetup(deps: any) {
                                 scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 300);
                                 setTimeout(() => {
                                   if (previewRef.current) {
-                                    const targetElement = previewRef.current.querySelector(`[data-line="${newRowNumber}"]`);
+                                    const targetElement = previewRef.current.querySelector(`[data-line="${newRowNumber}"]`) as HTMLElement;
                                     if (targetElement) {
-                                      targetElement.scrollIntoView({ behavior: 'auto', block: 'center' });
+                                      verticalScrollToElement(previewRef.current, targetElement, 'center', 'auto');
                                     }
                                   }
                                 }, 80);
@@ -720,9 +745,9 @@ export function useMonacoSetup(deps: any) {
                                     scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 200);
                                     setTimeout(() => {
                                       if (previewRef.current) {
-                                        const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`);
+                                        const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`) as HTMLElement;
                                         if (targetElement) {
-                                          targetElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+                                          verticalScrollToElement(previewRef.current, targetElement, 'nearest', 'auto');
                                         }
                                       }
                                     }, 50);
@@ -1088,9 +1113,23 @@ export function useMonacoSetup(deps: any) {
 
                     // 분할모드에서 커서가 새로운 행으로 이동 시 미리보기 동기화
                     if (prevLine !== null && prevLine !== currentLine && previewModeRef.current === 'both' && previewRef.current) {
-                      const targetEl = previewRef.current.querySelector(`[data-line="${currentLine}"]`) as HTMLElement;
-                      if (targetEl) {
-                        targetEl.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                      const totalLines = editor.getModel()?.getLineCount() || 1;
+                      
+                      // 💡 [최하단 라인 대응 최적화] 커서가 에디터의 마지막 2줄 이내(totalLines - 1 이상)에 도달했다면 
+                      // 무조건 스크롤을 맨 아래로 밀착시켜 끝부분이 잘려 보이지 않게 만듭니다.
+                      if (currentLine >= totalLines - 1) {
+                        isScrollingRef.current = 'editor';
+                        previewRef.current.scrollTo({
+                          top: previewRef.current.scrollHeight,
+                          behavior: 'smooth'
+                        });
+                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 150);
+                      } else {
+                        const targetEl = previewRef.current.querySelector(`[data-line="${currentLine}"]`) as HTMLElement;
+                        if (targetEl) {
+                          verticalScrollToElement(previewRef.current, targetEl, 'nearest', 'instant');
+                        }
                       }
                     }
 
@@ -1140,6 +1179,22 @@ export function useMonacoSetup(deps: any) {
                       const range = editor.getVisibleRanges();
                       if (range && range.length > 0) {
                         const firstVisible = range[0].startLineNumber;
+                        const lastVisible = range[0].endLineNumber;
+                        const totalLines = editor.getModel()?.getLineCount() || 1;
+
+                        // 💡 [에디터 최하단 스크롤 밀착 가드] 
+                        // 에디터 뷰포트에 문서의 맨 끝(마지막 3줄 이내)이 보이고 있다면, 미리보기도 맨 아래로 밀착 스크롤하여 고정합니다.
+                        // 이 가드가 없으면 타이핑 시 에디터 스크롤 싱크가 firstVisible 라인을 꼭대기에 맞추느라 미리보기 끝부분 10줄 가량이 화면 아래로 잘려 숨어버립니다.
+                        if (lastVisible >= totalLines - 2) {
+                          isScrollingRef.current = 'editor';
+                          parent.scrollTo({
+                            top: parent.scrollHeight,
+                            behavior: 'auto'
+                          });
+                          if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                          scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 100);
+                          return;
+                        }
 
                         // 1. 역추적으로 가장 가까운 data-line을 검색하여 라인 누락 방어
                         let targetEl: HTMLElement | null = null;
@@ -1167,59 +1222,8 @@ export function useMonacoSetup(deps: any) {
                     });
                   });
 
-                  // 💡 [커서 위치 실시간 비율 싱크 및 Typewriter Scroll]
-                  let cursorSyncRafId: number | null = null;
-                  editor.onDidChangeCursorPosition((e) => {
-                    if (e.reason === 2) return; // 드래그 선택 복구 시 등 예외 제외
-
-                    // 1. [뷰포트 및 커서 Y축 비율 계산] (Typewriter 스크롤 기능 취소 - 사용자 요청)
-                    const viewportHeight = editor.getLayoutInfo().height;
-                    const curLine = e.position.lineNumber;
-                    const cursorTop = editor.getTopForLineNumber(curLine);
-                    const scrollTop = editor.getScrollTop();
-                    const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight) || 20;
-
-                    const cursorYInViewport = cursorTop + lineHeight - scrollTop;
-                    const ratio = cursorYInViewport / viewportHeight;
-                    const targetRatio = ratio;
-
-                    // 2. [미리보기 실시간 비율 싱크] 에디터 커서의 뷰포트 Y축 비율을 미리보기에 1:1 동기화하여 완벽한 수평선 유지
-                    if (previewModeRef.current !== 'both' || !previewRef.current) return;
-                    if (isScrollingRef.current === 'preview') return;
-                    if (cursorSyncRafId !== null) return;
-
-                    cursorSyncRafId = requestAnimationFrame(() => {
-                      cursorSyncRafId = null;
-
-                      const actualLine = editor.getPosition()?.lineNumber || curLine;
-                      const parent = previewRef.current;
-                      if (!parent) return;
-
-                      let targetEl: HTMLElement | null = null;
-                      for (let line = actualLine; line >= 1; line--) {
-                        const found = parent.querySelector(`[data-line="${line}"]`) as HTMLElement;
-                        if (found) {
-                          targetEl = found;
-                          break;
-                        }
-                      }
-
-                      if (targetEl) {
-                        isScrollingRef.current = 'editor';
-
-                        const parentRect = parent.getBoundingClientRect();
-                        const childRect = targetEl.getBoundingClientRect();
-
-                        // 에디터의 커서 상대 비율(targetRatio)과 동일한 높이에 미리보기 단락이 위치하도록 scrollTop 연산
-                        const relativeTop = childRect.top - parentRect.top + parent.scrollTop - (parentRect.height * targetRatio);
-
-                        parent.scrollTop = Math.max(0, relativeTop);
-
-                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 80);
-                      }
-                    });
-                  });
+                  // 💡 [커서 위치 실시간 비율 싱크 기능은 버그 유발로 제거되었습니다]
+                  // 스크롤 동기화는 에디터 스크롤 이벤트 및 라인 변경 시의 커서 리스너에서 전담하여 동작합니다.
 
                   // 💡 [Enter 즉시 저장] 엔터를 치면 곧바로 저장 — 5초 디바운스 기다림 없음
                   editor.onKeyDown((e) => {
@@ -1272,12 +1276,9 @@ export function useMonacoSetup(deps: any) {
                           return;
                         }
 
-                        const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`);
+                        const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`) as HTMLElement;
                         if (targetElement) {
-                          targetElement.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                          });
+                          verticalScrollToElement(previewRef.current, targetElement, 'center', 'smooth');
                         } else {
                           // 일치하는 엘리먼트가 없으면, 클릭한 라인보다 작거나 같은 가장 가까운 상위 엘리먼트를 찾아 스크롤
                           const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
@@ -1288,16 +1289,13 @@ export function useMonacoSetup(deps: any) {
                             if (lineStr) {
                               const line = parseInt(lineStr, 10);
                               if (line <= clickedLine && line > maxLine) {
-                                maxLine = line;
-                                targetEl = el;
+                                  maxLine = line;
+                                  targetEl = el;
                               }
                             }
                           }
                           if (targetEl) {
-                            targetEl.scrollIntoView({
-                              behavior: 'smooth',
-                              block: 'center'
-                            });
+                            verticalScrollToElement(previewRef.current, targetEl, 'center', 'smooth');
                           }
                         }
                       }

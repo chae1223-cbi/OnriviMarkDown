@@ -35,7 +35,7 @@ interface FileTreeItemProps {
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
 // 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
-// 🚨 @PATCH : **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
+// 🚨 @PATCH : **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
 // 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
 // ====================================================================
 const FileTreeItem = ({ 
@@ -731,17 +731,20 @@ const FileTreeItem = ({
         onDrop={handleDrop}
         className={`group relative flex items-center w-full py-0.5 pr-2 transition-all cursor-pointer border-l-2 ${
           isSelected 
-            ? 'bg-blue-500/10 border-blue-500 text-blue-600 dark:text-blue-400 font-semibold' 
+            ? 'bg-blue-500/10 border-blue-500 text-blue-600 dark:text-blue-400 font-bold' 
             : isDragOver
               ? 'bg-blue-500/20 border-blue-500 scale-[1.02]'
               : 'border-transparent text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'
         }`}
-        style={{ paddingLeft: `${(level * 12) + 8}px` }}
+        style={{ 
+          paddingLeft: `${(level * 12) + 8}px`,
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
+        }}
         onClick={handleClick}
       >
-        <span className="w-5 h-5 flex items-center justify-center mr-0.5 opacity-60">
+        <span className="w-3.5 h-3.5 flex items-center justify-center mr-0.5 opacity-60 origin-center">
           {node.kind === 'directory' ? (
-            isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+            isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />
           ) : null}
         </span>
         
@@ -750,14 +753,16 @@ const FileTreeItem = ({
             type="checkbox" 
             checked={isMergeSelected}
             onChange={() => toggleMergeNodeSelect?.(node)}
-            className="w-3.5 h-3.5 mr-2 rounded text-blue-600 border-gray-300 focus:ring-blue-500 focus:ring-1 cursor-pointer shrink-0"
+            className="w-2.5 h-2.5 mr-1.5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 focus:ring-1 cursor-pointer shrink-0"
             onClick={(e) => e.stopPropagation()}
           />
         )}
         
-        {getFileIcon(node, isSelected)}
+        <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 origin-center">
+          {getFileIcon(node, isSelected)}
+        </span>
         
-        <span className="ml-1.5 truncate text-[15px] text-left flex-1">{node.name}</span>
+        <span className="ml-1.5 truncate text-[12px] font-bold text-left flex-1">{node.name}</span>
 
         {/* Hover Actions */}
         {!isMergeMode && !isRestrictedUser && (() => {
@@ -774,17 +779,17 @@ const FileTreeItem = ({
           })();
 
           return (
-            <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
               {node.kind === 'directory' && (
                 <>
-                  <button onClick={handleCreateFile} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-sm" title={"새 파일"}>📖</button>
-                  <button onClick={handleCreateFolder} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-sm" title={"새 폴더"}>📁</button>
+                  <button onClick={handleCreateFile} className="p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-[9px]" title={"새 파일"}>📖</button>
+                  <button onClick={handleCreateFolder} className="p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-[9px]" title={"새 폴더"}>📁</button>
                 </>
               )}
               <button
                 onClick={isOpenInTab ? undefined : handleRename}
                 disabled={isOpenInTab}
-                className={`p-1 rounded transition-colors text-sm ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+                className={`p-0.5 rounded transition-colors text-[9px] ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
                 title={isOpenInTab ? "탭에서 열려있는 파일은 이름을 변경할 수 없습니다" : "이름 변경"}
               >
                 ✏️
@@ -792,7 +797,7 @@ const FileTreeItem = ({
               <button
                 onClick={isOpenInTab ? undefined : handleDelete}
                 disabled={isOpenInTab}
-                className={`p-1 rounded transition-colors text-sm ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+                className={`p-0.5 rounded transition-colors text-[9px] ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
                 title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
               >
                 ❎

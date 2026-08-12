@@ -7,6 +7,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-08-12** — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 postContentScrollCorrection 훅에 setTimeout(50ms) 기반 지연 최하단 밀착 스크롤 보강 적용
  *   * 🚨 @PATCH : **2026-07-22** — 클라이언트 직접 supabase.rpc() 호출 전량 서버단 API Route fetch()로 이전: insert_license_activation→/api/rpc/license/insert, check_license_session(×2)→/api/license/check-session, verify_desktop_license→/api/license/verify-desktop; Realtime 구독 테이블명 license_activations→license_activations 전환
  *   * 🚨 @PATCH : **2026-07-22** — subscriptions 단일 통합 테이블 개편에 맞춰 software_licenses 및 users 레거시 쿼리 참조를 subscriptions 단일 쿼리로 일괄 마이그레이션 적용
  *   * 🚨 @PATCH : **2026-07-20** — 플로팅 툴바의 단독 AI Sparkles(✨) 아이콘 클릭 시 기존의 미작동하던 인라인 미리보기(setAiPreviewState)를 제거하고, 정상적인 AI 에디토리얼 어시스턴트 모달(AiDraftModal)이 열리도록 OPEN_AI_WRITER 커맨드 디스패치로 수정. 또한 텍스트/마크다운 조작 그룹에 중복으로 존재하던 텍스트 이모지(✨) 버튼을 제거하여 툴바 장황성 개선 및 기능 단일화 패치 적용 | **2026-07-18** — 라이선스 만료 및 미승인 상태(isExpired)일 때 Monaco 에디터가 편집 불가(readOnly, domReadOnly) 상태로 전환되도록 강제화 보강, 웰컴페이지 유예 시간 빨간색 경고 메시지 배너 UI 제거
@@ -3066,7 +3067,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-CORE-MainEditorApp-0042] MainEditorApp.tsx ➔ postContentScrollCorrection
   // 🎯 @KICK  : 콘텐츠 변경/파싱 후 에디터 커서 비율에 맞게 미리보기 스크롤 위치 동기화
   // 🛡️ @GUARD : 에디터 커서에서 뷰포트 비율 계산하여 미리보기 스크롤에 동일 비율 적용
-  // 🚨 @PATCH : isScrollingRef 잠금으로 스크롤 루프 방지; 정확한 타이밍을 위한 requestAnimationFrame
+  // 🚨 @PATCH : 2026-08-12 — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 최하단 고정 예외 처리 보강
   // 🔗 @CALLS : requestAnimationFrame, editor.getPosition, editor.getTopForLineNumber, editor.getScrollTop
   // ====================================================================
   useEffect(() => {
@@ -3091,6 +3092,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       const parent = previewRef.current;
       if (!parent) return;
+
+      const totalLines = editor.getModel()?.getLineCount() || 1;
+
+      // 💡 [최하단 라인 대응 최적화] 커서가 에디터의 마지막 2줄 이내(totalLines - 1 이상)에 도달했다면
+      // 돔 렌더링 및 브라우저 레이아웃이 완전히 끝난 시점(setTimeout 50ms)에 최종 scrollHeight로 맨 아래 밀착시킵니다.
+      if (curLine >= totalLines - 1) {
+        isScrollingRef.current = 'editor';
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => {
+          if (previewRef.current) {
+            previewRef.current.scrollTop = previewRef.current.scrollHeight;
+          }
+          isScrollingRef.current = null;
+        }, 50);
+        return;
+      }
 
       let targetEl: HTMLElement | null = null;
       for (let line = curLine; line >= 1; line--) {
