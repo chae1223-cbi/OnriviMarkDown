@@ -444,7 +444,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     return 'both';
   });
-  const [isA4GuardEnabled, setIsA4GuardEnabled] = useState<boolean>(false);
+  const [isA4GuardEnabled, setIsA4GuardEnabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('isA4GuardEnabled') === 'true';
+    }
+    return false;
+  });
   const [previewZoomScale, setPreviewZoomScale] = useState<number>(1);
   const previewModeRef = useRef(previewMode);
   // 💡 서식설정(css-style)이나 도움말 진입 전의 일반 마크다운 모드를 격리 보관하여 복원하는 Ref
@@ -2686,6 +2691,40 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       activeFilePath
     }).catch(() => {});
   }, [tabs, currentFileNode]);
+
+  // ====================================================================
+  // 📊 [OMD-IO-MainEditorApp-0041] MainEditorApp.tsx ➔ a4_guard_auto_save
+  // 🎯 @KICK  : isA4GuardEnabled 가드 상태가 변경될 때마다 localStorage에 즉시 보존.
+  // 🛡️ @GUARD : Electron 및 일반 브라우저 환경 지원
+  // 🚨 @PATCH : **2026-08-12** — 초기 생성 (A4 가드 레이아웃 보존 기능)
+  // 🔗 @CALLS : 없음
+  // ====================================================================
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('isA4GuardEnabled', String(isA4GuardEnabled));
+    }
+  }, [isA4GuardEnabled]);
+
+  // ====================================================================
+  // 📊 [OMD-IO-MainEditorApp-0042] MainEditorApp.tsx ➔ beforeunload_safety_flush
+  // 🎯 @KICK  : 브라우저가 예기치 않게 닫히거나 강제 종료될 때, React 갱신 지연 상태를 무시하고
+  //             Ref(tabsRef, currentFileNodeRef)를 직접 읽어 session.json에 즉각 플러시 저장.
+  // 🛡️ @GUARD : React 최신 Ref 참조로 동기화 누락 방지.
+  // 🚨 @PATCH : **2026-08-12** — 초기 생성 (강제 종료 유실 방지 가드)
+  // 🔗 @CALLS : api.saveLastSession
+  // ====================================================================
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      if (api?.saveLastSession) {
+        const openFilePaths = tabsRef.current.map(t => t.path).filter((p): p is string => typeof p === 'string' && !!p);
+        const activeFilePath = currentFileNodeRef.current?.path || null;
+        api.saveLastSession({ openFilePaths, activeFilePath }).catch(() => {});
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
 
   // 🎯 @KICK  : 사이드바 UI에서 서식을 변경했을 때, 에디터 본문에 Frontmatter를 주입/갱신하고 상태를 업데이트한다.
