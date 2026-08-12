@@ -518,40 +518,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : useState (React)
   // ====================================================================
   // 💡 [초기화 순서 방어] useEditorTabs 반환 바인딩 전 하위 함수들이 참조하는 탭 관리 상태의 선행 선언
-  const [tabs, setTabs] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('onrivi_tabs_session');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
-            return parsed.tabs.map((t: any) => ({
-              ...t,
-              content: '',
-              model: null
-            }));
-          }
-        }
-      } catch (e) {
-        console.error('[restore tabs state] 로드 실패:', e);
-      }
-    }
-    return [];
-  });
-  const [activeTabId, setActiveTabId] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('onrivi_tabs_session');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && parsed.activeTabId) {
-            return parsed.activeTabId;
-          }
-        }
-      } catch (e) {}
-    }
-    return null;
-  });
+  const [tabs, setTabs] = useState<any[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const tabsRef = useRef<any[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
 
@@ -2665,19 +2633,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 🆕 최초 실행 시: .md 더블클릭 파일 우선, 없으면 마지막 세션 파일 복원
       // sessionRestoredRef로 effect 재실행 시 중복 호출 방지
       if (api.getInitialFilePath && !sessionRestoredRef.current) {
-        sessionRestoredRef.current = true; // 복원 시도 플래그 즉시 설정 (중복 방지)
         api.getInitialFilePath().then(async (filePath: string | null) => {
           if (filePath) {
-            // 더블클릭 파일 우선 오픈
+            sessionRestoredRef.current = true;
             openExternalFile(filePath);
           } else if (api.getLastSession && tabs.length === 0) {
-            // 더블클릭 파일이 없으며 로컬 스토리지 복원 탭도 없을 때만 마지막 멀티 세션 복원
             const sessionData = await api.getLastSession();
             if (sessionData && Array.isArray(sessionData.openFilePaths) && sessionData.openFilePaths.length > 0) {
               await restoreSessionTabs(sessionData.openFilePaths, sessionData.activeFilePath);
+            } else {
+              sessionRestoredRef.current = true; // 복원할 세션 없음
             }
+          } else {
+            sessionRestoredRef.current = true; // 복원할 더블클릭 경로 없음
           }
-        }).catch(() => { sessionRestoredRef.current = false; }); // 실패 시 재시도 허용
+        }).catch(() => { sessionRestoredRef.current = true; });
       }
 
       // restoreSettings에서 확보해 둔 pending 파일 경로 처리 (폴백)
@@ -2710,7 +2680,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     // 일렉트론이 아닌 일반 웹 환경이고 아직 복원이 되지 않았다면 복구 프로세스 가동
     if (!isElectron && !sessionRestoredRef.current) {
-      sessionRestoredRef.current = true;
       try {
         const saved = localStorage.getItem('onrivi_tabs_session');
         if (saved) {
@@ -2719,11 +2688,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             const openFilePaths = parsed.tabs.map((t: any) => t.path).filter(Boolean);
             const activeFilePath = parsed.activeTabId || null;
             restoreSessionTabs(openFilePaths, activeFilePath);
+            return;
           }
         }
       } catch (e) {
         console.error('[web session restore] 실패:', e);
       }
+      sessionRestoredRef.current = true; // 복원할 정보 없으면 플래그 해제
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
@@ -2740,7 +2711,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     // 💡 [치명적 버그 방어] 앱 마운트 초기 단계(세션 복원이 채 완료되지 않은 시점)에
     // 초기 빈 탭 상태([])가 session.json이나 localStorage를 덮어씌워 날려버리는 결함을 차단합니다.
-    if (!mounted) return;
+    if (!mounted || !sessionRestoredRef.current) return;
 
     const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
@@ -2901,12 +2872,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 💡 [정식 문서 열기 적용] 단순히 탭만 임의로 배열에 쑤셔넣지 않고, 
       // 기존 파일 탐색기의 실제 파일 오픈 파이프라인(handleFileOpenByPath)을 순차 구동시킵니다.
       // 이렇게 해야 실제 로컬 파일 시스템 핸들 및 VFS 상태가 정상 바인딩되어 물리적 저장이 작동합니다.
-      // React 상태 배치 갱신 지연으로 인한 탭 유실을 방지하기 위해 탭당 120ms의 마이크로 대기 시간을 부여합니다.
+      // React 상태 배치 갱신 지연으로 인한 탭 유실을 방지하기 위해 탭당 150ms의 마이크로 대기 시간을 부여합니다.
       
+      sessionRestoredRef.current = true; // 복원 프로세스 시작과 동시에 true 설정하여 덮어쓰기 즉시 차단!
+
       for (const filePath of openFilePaths) {
         if (handleFileOpenByPath) {
           await handleFileOpenByPath(filePath);
-          await new Promise(resolve => setTimeout(resolve, 120));
+          await new Promise(resolve => setTimeout(resolve, 150));
         }
       }
 
