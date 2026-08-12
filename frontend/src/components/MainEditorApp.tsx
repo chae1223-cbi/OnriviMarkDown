@@ -2896,78 +2896,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   const restoreSessionTabs = async (openFilePaths: string[], activeFilePath: string | null) => {
     try {
-      const api = (window as any).electronAPI;
-      const isElectron = !!api;
-
-      const loadedTabs: EditorTab[] = [];
-      const monaco = (window as any).monaco;
-
-      // 1. 순서대로 파일 콘텐츠들을 비동기로 미리 다 로드 (크로스플랫폼)
+      // 💡 [정식 문서 열기 적용] 단순히 탭만 임의로 배열에 쑤셔넣지 않고, 
+      // 기존 파일 탐색기의 실제 파일 오픈 파이프라인(handleFileOpenByPath)을 순차 구동시킵니다.
+      // 이렇게 해야 실제 로컬 파일 시스템 핸들 및 VFS 상태가 정상 바인딩되어 물리적 저장이 작동합니다.
+      // React 상태 배치 갱신 지연으로 인한 탭 유실을 방지하기 위해 탭당 120ms의 마이크로 대기 시간을 부여합니다.
+      
       for (const filePath of openFilePaths) {
-        try {
-          let fileContent = '';
-          let fileName = filePath.split(/[/\\]/).pop() || '파일.md';
-
-          if (isElectron && api.readFromPath) {
-            const file = await api.readFromPath(filePath);
-            if (file) {
-              fileContent = file.content;
-              fileName = file.name;
-            }
-          } else {
-            // 일반 웹 환경: 가상 파일 시스템(VFS) 또는 fallback
-            fileContent = vfsReadFile(filePath) || '';
-          }
-
-          // 줄바꿈 정규화
-          fileContent = fileContent.replace(/\r\n/g, '\n');
-          
-          let model: any = null;
-          if (monaco) {
-            model = monaco.editor.createModel(fileContent, 'markdown');
-            model.onDidChangeContent(() => {
-              const val = model.getValue();
-              setContent(val);
-              setTabs(prev => prev.map(t => t.id === filePath ? { ...t, content: val, isModified: val !== t.content } : t));
-            });
-          }
-
-          loadedTabs.push({
-            id: filePath,
-            name: fileName,
-            path: filePath,
-            node: { name: fileName, kind: 'file', path: filePath },
-            content: fileContent,
-            isModified: false,
-            model: model
-          });
-        } catch (e) {
-          console.error(`[restoreSessionTabs] Failed to read ${filePath}:`, e);
+        if (handleFileOpenByPath) {
+          await handleFileOpenByPath(filePath);
+          await new Promise(resolve => setTimeout(resolve, 120));
         }
       }
 
-      if (loadedTabs.length === 0) return;
-
-      // 2. 단 한 번의 setTabs 호출로 React 탭 전체를 동시에 세팅
-      setTabs(loadedTabs);
-
-      // 3. activeFilePath가 존재하고 로드된 탭 중에 있다면, 해당 탭으로 즉시 포커싱
-      const activeTab = loadedTabs.find(t => t.path === activeFilePath) || loadedTabs[loadedTabs.length - 1];
-      if (activeTab) {
-        setActiveTabId(activeTab.id);
-        setContent(activeTab.content);
-        setCurrentFileName(activeTab.name);
-        setCurrentFileNode({ name: activeTab.name, kind: 'file', path: activeTab.path });
-
-        if (editorRef.current && activeTab.model) {
-          try {
-            editorRef.current.setModel(activeTab.model);
-          } catch (e) {
-            console.warn("[Monaco] setModel failed on restored active tab:", e);
-          }
-        }
+      // 마지막에 원래 활성화 상태였던 탭으로 한 번 더 정식 포커스를 잡아줍니다.
+      if (activeFilePath && handleFileOpenByPath) {
+        await handleFileOpenByPath(activeFilePath);
       }
-      showToast(`📂 이전 세션에서 ${loadedTabs.length}개의 탭이 복원되었습니다.`, "success");
+      
+      showToast(`📂 이전 세션의 문서 ${openFilePaths.length}개가 온전히 복원되었습니다.`, "success");
     } catch (err) {
       console.error("[restoreSessionTabs] 오류:", err);
     }
