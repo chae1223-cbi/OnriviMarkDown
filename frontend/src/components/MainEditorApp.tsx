@@ -527,6 +527,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
             return parsed.tabs.map((t: any) => ({
               ...t,
+              content: '',
               model: null
             }));
           }
@@ -2695,6 +2696,39 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [mounted, content, currentFileNode]);
 
   // ====================================================================
+  // 📊 [OMD-IO-MainEditorApp-0044] MainEditorApp.tsx ➔ cross_platform_session_restore
+  // 🎯 @KICK  : 일반 웹 브라우저 및 데스크탑 공용으로 최초 기동 시 localStorage의 세션 정보를 읽어 탭 복원을 개시.
+  // 🛡️ @GUARD : 이미 데스크탑 복원 가드가 돌았거나 탭이 복원된 상태라면 중복 로드 차단.
+  // 🚨 @PATCH : **2026-08-12** — 초기 생성 (웹/데스크탑 공용 탭 세션 복원 복구)
+  // 🔗 @CALLS : restoreSessionTabs
+  // ====================================================================
+  useEffect(() => {
+    if (!mounted) return;
+
+    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+    const isElectron = !!api;
+
+    // 일렉트론이 아닌 일반 웹 환경이고 아직 복원이 되지 않았다면 복구 프로세스 가동
+    if (!isElectron && !sessionRestoredRef.current) {
+      sessionRestoredRef.current = true;
+      try {
+        const saved = localStorage.getItem('onrivi_tabs_session');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+            const openFilePaths = parsed.tabs.map((t: any) => t.path).filter(Boolean);
+            const activeFilePath = parsed.activeTabId || null;
+            restoreSessionTabs(openFilePaths, activeFilePath);
+          }
+        }
+      } catch (e) {
+        console.error('[web session restore] 실패:', e);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
+
+  // ====================================================================
   // 📊 [OMD-IO-MainEditorApp-0039] MainEditorApp.tsx ➔ session_auto_save
   // 🎯 @KICK  : 현재 열려있는 탭 목록 또는 활성 탭이 변경될 때마다 electronAPI.saveLastSession()을
   //             호출하여 모든 열린 파일 경로와 활성 파일 경로를 session.json에 자동 저장.
@@ -2716,7 +2750,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const sessionTabsData = tabs.map(t => ({
           name: t.name,
           path: t.path,
-          content: t.content, // 수정본 텍스트 유실 방지
           isStyleTab: t.isStyleTab
         }));
         localStorage.setItem('onrivi_tabs_session', JSON.stringify({
@@ -2764,13 +2797,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const handleBeforeUnload = () => {
       const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
       
-      // 1. 브라우저 로컬 스토리지에 마지막 작성중인 문서 내용까지 완전 밀봉 플러시
+      // 1. 브라우저 로컬 스토리지에 마지막 작성중인 문서 메타데이터 밀봉 플러시
       if (typeof window !== 'undefined') {
         try {
           const sessionTabsData = tabsRef.current.map(t => ({
             name: t.name,
             path: t.path,
-            content: t.content,
             isStyleTab: t.isStyleTab
           }));
           localStorage.setItem('onrivi_tabs_session', JSON.stringify({
@@ -2865,39 +2897,50 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const restoreSessionTabs = async (openFilePaths: string[], activeFilePath: string | null) => {
     try {
       const api = (window as any).electronAPI;
-      if (!api?.readFromPath) return;
+      const isElectron = !!api;
 
       const loadedTabs: EditorTab[] = [];
       const monaco = (window as any).monaco;
 
-      // 1. 순서대로 파일 콘텐츠들을 비동기로 미리 다 로드
+      // 1. 순서대로 파일 콘텐츠들을 비동기로 미리 다 로드 (크로스플랫폼)
       for (const filePath of openFilePaths) {
         try {
-          const file = await api.readFromPath(filePath);
-          if (file) {
-            // 줄바꿈 정규화
-            file.content = file.content.replace(/\r\n/g, '\n');
-            
-            let model: any = null;
-            if (monaco) {
-              model = monaco.editor.createModel(file.content, 'markdown');
-              model.onDidChangeContent(() => {
-                const val = model.getValue();
-                setContent(val);
-                setTabs(prev => prev.map(t => t.id === file.path ? { ...t, content: val, isModified: val !== t.content } : t));
-              });
-            }
+          let fileContent = '';
+          let fileName = filePath.split(/[/\\]/).pop() || '파일.md';
 
-            loadedTabs.push({
-              id: file.path,
-              name: file.name,
-              path: file.path,
-              node: { name: file.name, kind: 'file', path: file.path },
-              content: file.content,
-              isModified: false,
-              model: model
+          if (isElectron && api.readFromPath) {
+            const file = await api.readFromPath(filePath);
+            if (file) {
+              fileContent = file.content;
+              fileName = file.name;
+            }
+          } else {
+            // 일반 웹 환경: 가상 파일 시스템(VFS) 또는 fallback
+            fileContent = vfsReadFile(filePath) || '';
+          }
+
+          // 줄바꿈 정규화
+          fileContent = fileContent.replace(/\r\n/g, '\n');
+          
+          let model: any = null;
+          if (monaco) {
+            model = monaco.editor.createModel(fileContent, 'markdown');
+            model.onDidChangeContent(() => {
+              const val = model.getValue();
+              setContent(val);
+              setTabs(prev => prev.map(t => t.id === filePath ? { ...t, content: val, isModified: val !== t.content } : t));
             });
           }
+
+          loadedTabs.push({
+            id: filePath,
+            name: fileName,
+            path: filePath,
+            node: { name: fileName, kind: 'file', path: filePath },
+            content: fileContent,
+            isModified: false,
+            model: model
+          });
         } catch (e) {
           console.error(`[restoreSessionTabs] Failed to read ${filePath}:`, e);
         }
