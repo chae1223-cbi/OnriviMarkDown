@@ -19,24 +19,32 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  // 초기 상태
-  isDarkMode: false, // MainEditorApp 내부의 useEffect에서 로컬 스토리지에 따라 업데이트 됨
-  isSidebarOpen: true,
-  isToolbarOpen: true,
+  // 초기 상태 - 로컬 스토리지에서 마지막으로 설정된 상태 복원
+  isDarkMode: false,
+  isSidebarOpen: typeof window !== 'undefined' ? localStorage.getItem('onrivi_sidebar_open') !== 'false' : true,
+  isToolbarOpen: typeof window !== 'undefined' ? localStorage.getItem('onrivi_toolbar_open') !== 'false' : true,
   themePalette: 'vs-dark',
   sidebarWidth: 300,
   sidebarTab: 'explorer',
 
-  // 액션
+  // 액션 - 설정 시 로컬 스토리지에 즉시 동기화
   setIsDarkMode: (val) => set((state) => ({ 
     isDarkMode: typeof val === 'function' ? val(state.isDarkMode) : val 
   })),
-  setIsSidebarOpen: (val) => set((state) => ({ 
-    isSidebarOpen: typeof val === 'function' ? val(state.isSidebarOpen) : val 
-  })),
-  setIsToolbarOpen: (val) => set((state) => ({ 
-    isToolbarOpen: typeof val === 'function' ? val(state.isToolbarOpen) : val 
-  })),
+  setIsSidebarOpen: (val) => set((state) => {
+    const nextVal = typeof val === 'function' ? val(state.isSidebarOpen) : val;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('onrivi_sidebar_open', String(nextVal));
+    }
+    return { isSidebarOpen: nextVal };
+  }),
+  setIsToolbarOpen: (val) => set((state) => {
+    const nextVal = typeof val === 'function' ? val(state.isToolbarOpen) : val;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('onrivi_toolbar_open', String(nextVal));
+    }
+    return { isToolbarOpen: nextVal };
+  }),
   setThemePalette: (val) => set({ themePalette: val }),
   setSidebarWidth: (val) => set((state) => ({ 
     sidebarWidth: typeof val === 'function' ? val(state.sidebarWidth) : val 

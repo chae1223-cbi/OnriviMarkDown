@@ -437,7 +437,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     contentRef.current = content;
   }, [content]);
 
-  const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>('both');
+  const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('previewMode');
+      if (saved && saved !== 'css-style') return saved as any;
+    }
+    return 'both';
+  });
   const [isA4GuardEnabled, setIsA4GuardEnabled] = useState<boolean>(false);
   const [previewZoomScale, setPreviewZoomScale] = useState<number>(1);
   const previewModeRef = useRef(previewMode);
@@ -2040,6 +2046,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
 
       previewModeRef.current = next;
+      if (typeof window !== 'undefined' && next !== 'css-style') {
+        localStorage.setItem('previewMode', next);
+      }
       if (next === 'preview') {
         isEditorMountedRef.current = false;
       } else {
