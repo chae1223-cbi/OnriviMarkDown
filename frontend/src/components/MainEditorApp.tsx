@@ -2642,14 +2642,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             // 더블클릭 파일이 없으면 마지막 멀티 세션 복원
             const sessionData = await api.getLastSession();
             if (sessionData && Array.isArray(sessionData.openFilePaths) && sessionData.openFilePaths.length > 0) {
-              // 모든 이전 탭 복원
-              for (const path of sessionData.openFilePaths) {
-                await openExternalFile(path);
-              }
-              // 마지막 활성 탭 포커스 복원
-              if (sessionData.activeFilePath) {
-                await openExternalFile(sessionData.activeFilePath);
-              }
+              await restoreSessionTabs(sessionData.openFilePaths, sessionData.activeFilePath);
             }
           }
         }).catch(() => { sessionRestoredRef.current = false; }); // 실패 시 재시도 허용
@@ -2788,6 +2781,82 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       previewModeRef.current = 'preview';
     }
   }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName, licenseStatus.isRestricted]);
+
+  // ====================================================================
+  // 📊 [OMD-FILE-MainEditorApp-0043] MainEditorApp.tsx ➔ restoreSessionTabs
+  // 🎯 @KICK  : 앱 재시작 시, 이전 세션의 파일 목록 전체를 일괄 로드하여 탭 리스트를 생성 및 바인딩.
+  //             단일 일괄 트랜잭션 처리로 React 상태 갱신 배치 충돌 및 Monaco 모델 중복 방지.
+  // 🛡️ @GUARD : 비인증 사용자 복원 제한, 디스크 삭제 파일 예외 가드.
+  // 🚨 @PATCH : **2026-08-12** — 초기 생성 (멀티 탭 복원 충돌 버그 해결)
+  // 🔗 @CALLS : api.readFromPath, setTabs, setActiveTabId, setContent, showToast
+  // ====================================================================
+  const restoreSessionTabs = async (openFilePaths: string[], activeFilePath: string | null) => {
+    try {
+      const api = (window as any).electronAPI;
+      if (!api?.readFromPath) return;
+
+      const loadedTabs: EditorTab[] = [];
+      const monaco = (window as any).monaco;
+
+      // 1. 순서대로 파일 콘텐츠들을 비동기로 미리 다 로드
+      for (const filePath of openFilePaths) {
+        try {
+          const file = await api.readFromPath(filePath);
+          if (file) {
+            // 줄바꿈 정규화
+            file.content = file.content.replace(/\r\n/g, '\n');
+            
+            let model: any = null;
+            if (monaco) {
+              model = monaco.editor.createModel(file.content, 'markdown');
+              model.onDidChangeContent(() => {
+                const val = model.getValue();
+                setContent(val);
+                setTabs(prev => prev.map(t => t.id === file.path ? { ...t, content: val, isModified: val !== t.content } : t));
+              });
+            }
+
+            loadedTabs.push({
+              id: file.path,
+              name: file.name,
+              path: file.path,
+              node: { name: file.name, kind: 'file', path: file.path },
+              content: file.content,
+              isModified: false,
+              model: model
+            });
+          }
+        } catch (e) {
+          console.error(`[restoreSessionTabs] Failed to read ${filePath}:`, e);
+        }
+      }
+
+      if (loadedTabs.length === 0) return;
+
+      // 2. 단 한 번의 setTabs 호출로 React 탭 전체를 동시에 세팅
+      setTabs(loadedTabs);
+
+      // 3. activeFilePath가 존재하고 로드된 탭 중에 있다면, 해당 탭으로 즉시 포커싱
+      const activeTab = loadedTabs.find(t => t.path === activeFilePath) || loadedTabs[loadedTabs.length - 1];
+      if (activeTab) {
+        setActiveTabId(activeTab.id);
+        setContent(activeTab.content);
+        setCurrentFileName(activeTab.name);
+        setCurrentFileNode({ name: activeTab.name, kind: 'file', path: activeTab.path });
+
+        if (editorRef.current && activeTab.model) {
+          try {
+            editorRef.current.setModel(activeTab.model);
+          } catch (e) {
+            console.warn("[Monaco] setModel failed on restored active tab:", e);
+          }
+        }
+      }
+      showToast(`📂 이전 세션에서 ${loadedTabs.length}개의 탭이 복원되었습니다.`, "success");
+    } catch (err) {
+      console.error("[restoreSessionTabs] 오류:", err);
+    }
+  };
 
 
   // ====================================================================
