@@ -518,8 +518,39 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : useState (React)
   // ====================================================================
   // 💡 [초기화 순서 방어] useEditorTabs 반환 바인딩 전 하위 함수들이 참조하는 탭 관리 상태의 선행 선언
-  const [tabs, setTabs] = useState<any[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('onrivi_tabs_session');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+            return parsed.tabs.map((t: any) => ({
+              ...t,
+              model: null
+            }));
+          }
+        }
+      } catch (e) {
+        console.error('[restore tabs state] 로드 실패:', e);
+      }
+    }
+    return [];
+  });
+  const [activeTabId, setActiveTabId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('onrivi_tabs_session');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.activeTabId) {
+            return parsed.activeTabId;
+          }
+        }
+      } catch (e) {}
+    }
+    return null;
+  });
   const tabsRef = useRef<any[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
 
@@ -2638,8 +2669,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (filePath) {
             // 더블클릭 파일 우선 오픈
             openExternalFile(filePath);
-          } else if (api.getLastSession) {
-            // 더블클릭 파일이 없으면 마지막 멀티 세션 복원
+          } else if (api.getLastSession && tabs.length === 0) {
+            // 더블클릭 파일이 없으며 로컬 스토리지 복원 탭도 없을 때만 마지막 멀티 세션 복원
             const sessionData = await api.getLastSession();
             if (sessionData && Array.isArray(sessionData.openFilePaths) && sessionData.openFilePaths.length > 0) {
               await restoreSessionTabs(sessionData.openFilePaths, sessionData.activeFilePath);
@@ -2673,21 +2704,40 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : api.saveLastSession
   // ====================================================================
   useEffect(() => {
-    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
-    if (!api?.saveLastSession) return;
-    
     // 💡 [치명적 버그 방어] 앱 마운트 초기 단계(세션 복원이 채 완료되지 않은 시점)에
-    // 초기 빈 탭 상태([])가 session.json을 덮어씌워 덮어버리는 결함을 차단합니다.
-    if (!sessionRestoredRef.current) return;
+    // 초기 빈 탭 상태([])가 session.json이나 localStorage를 덮어씌워 날려버리는 결함을 차단합니다.
+    if (!mounted) return;
 
-    const openFilePaths = tabs.map(t => t.path).filter((p): p is string => typeof p === 'string' && !!p);
-    const activeFilePath = currentFileNode?.path || null;
+    const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
-    api.saveLastSession({
-      openFilePaths,
-      activeFilePath
-    }).catch(() => {});
-  }, [tabs, currentFileNode]);
+    // 1. 브라우저 로컬 스토리지 보존 (웹 & 데스크탑 공용)
+    if (typeof window !== 'undefined') {
+      try {
+        const sessionTabsData = tabs.map(t => ({
+          name: t.name,
+          path: t.path,
+          content: t.content, // 수정본 텍스트 유실 방지
+          isStyleTab: t.isStyleTab
+        }));
+        localStorage.setItem('onrivi_tabs_session', JSON.stringify({
+          tabs: sessionTabsData,
+          activeTabId
+        }));
+      } catch (e) {
+        console.error('[session_auto_save] localStorage 쓰기 실패:', e);
+      }
+    }
+
+    // 2. 일렉트론 세션 보존 (데스크탑 전용 파일 백업)
+    if (api?.saveLastSession) {
+      const openFilePaths = tabs.map(t => t.path).filter((p): p is string => typeof p === 'string' && !!p);
+      const activeFilePath = currentFileNode?.path || null;
+      api.saveLastSession({
+        openFilePaths,
+        activeFilePath
+      }).catch(() => {});
+    }
+  }, [mounted, tabs, activeTabId, currentFileNode]);
 
   // ====================================================================
   // 📊 [OMD-IO-MainEditorApp-0041] MainEditorApp.tsx ➔ a4_guard_auto_save
@@ -2705,7 +2755,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   // 📊 [OMD-IO-MainEditorApp-0042] MainEditorApp.tsx ➔ beforeunload_safety_flush
   // 🎯 @KICK  : 브라우저가 예기치 않게 닫히거나 강제 종료될 때, React 갱신 지연 상태를 무시하고
-  //             Ref(tabsRef, currentFileNodeRef)를 직접 읽어 session.json에 즉각 플러시 저장.
+  //             Ref(tabsRef, currentFileNodeRef)를 직접 읽어 localStorage 및 session.json에 즉각 플러시 저장.
   // 🛡️ @GUARD : React 최신 Ref 참조로 동기화 누락 방지.
   // 🚨 @PATCH : **2026-08-12** — 초기 생성 (강제 종료 유실 방지 가드)
   // 🔗 @CALLS : api.saveLastSession
@@ -2713,6 +2763,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     const handleBeforeUnload = () => {
       const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      
+      // 1. 브라우저 로컬 스토리지에 마지막 작성중인 문서 내용까지 완전 밀봉 플러시
+      if (typeof window !== 'undefined') {
+        try {
+          const sessionTabsData = tabsRef.current.map(t => ({
+            name: t.name,
+            path: t.path,
+            content: t.content,
+            isStyleTab: t.isStyleTab
+          }));
+          localStorage.setItem('onrivi_tabs_session', JSON.stringify({
+            tabs: sessionTabsData,
+            activeTabId: activeTabIdRef.current
+          }));
+        } catch (e) {}
+      }
+
+      // 2. 데스크탑 파일 백업 플러시
       if (api?.saveLastSession) {
         const openFilePaths = tabsRef.current.map(t => t.path).filter((p): p is string => typeof p === 'string' && !!p);
         const activeFilePath = currentFileNodeRef.current?.path || null;
