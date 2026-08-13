@@ -3,7 +3,7 @@
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 탭/스페이스 매칭 최적화
 // 🛡️ @GUARD : hasList 체크 후 순차적으로 이전 줄의 탭 깊이와 숫자를 비교하여 번호 갱신
-// 🚨 @PATCH : 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
+// 🚨 @PATCH : 2026-08-13 - onDidScrollChange 에디터 스크롤 동기화 시 짧은 문서 튕김 방지 가드(pureScrollHeight) 및 최하단 밀착 시 텍스트 시야 이탈 차단을 위해 120px 마진 보존 연동 패치 | 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
 // 🔗 @CALLS : model.getLineContent, editor.executeEdits
 // ====================================================================
 import { useRef } from 'react';
@@ -1113,23 +1113,34 @@ export function useMonacoSetup(deps: any) {
 
                     // 분할모드에서 커서가 새로운 행으로 이동 시 미리보기 동기화
                     if (prevLine !== null && prevLine !== currentLine && previewModeRef.current === 'both' && previewRef.current) {
-                      const totalLines = editor.getModel()?.getLineCount() || 1;
-                      
-                      // 💡 [최하단 라인 대응 최적화] 커서가 에디터의 마지막 2줄 이내(totalLines - 1 이상)에 도달했다면 
-                      // 무조건 스크롤을 맨 아래로 밀착시켜 끝부분이 잘려 보이지 않게 만듭니다.
-                      if (currentLine >= totalLines - 1) {
-                        isScrollingRef.current = 'editor';
-                        previewRef.current.scrollTo({
-                          top: previewRef.current.scrollHeight,
-                          behavior: 'smooth'
-                        });
-                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 150);
-                      } else {
-                        const targetEl = previewRef.current.querySelector(`[data-line="${currentLine}"]`) as HTMLElement;
-                        if (targetEl) {
-                          verticalScrollToElement(previewRef.current, targetEl, 'nearest', 'instant');
+                      const parent = previewRef.current;
+
+                      let targetEl: HTMLElement | null = null;
+                      let foundLine = 1;
+                      for (let line = currentLine; line >= 1; line--) {
+                        const found = parent.querySelector(`[data-line="${line}"]`) as HTMLElement;
+                        if (found) {
+                          targetEl = found;
+                          foundLine = line;
+                          break;
                         }
+                      }
+
+                      if (targetEl) {
+                        isScrollingRef.current = 'editor';
+                        const parentRect = parent.getBoundingClientRect();
+                        const childRect = targetEl.getBoundingClientRect();
+
+                        const baseTop = childRect.top - parentRect.top + parent.scrollTop;
+                        const diffLines = currentLine - foundLine;
+                        const lineOffset = diffLines * 26;
+
+                        // 💡 [하단 바닥선 정렬 공식] 입력 중인 라인이 미리보기 화면 하단(바닥)에 걸치도록 스크롤 정렬
+                        const targetScroll = baseTop + lineOffset - parentRect.height + 60;
+                        parent.scrollTop = Math.max(0, targetScroll);
+
+                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 100);
                       }
                     }
 
@@ -1185,35 +1196,44 @@ export function useMonacoSetup(deps: any) {
                         // 💡 [에디터 최하단 스크롤 밀착 가드] 
                         // 에디터 뷰포트에 문서의 맨 끝(마지막 3줄 이내)이 보이고 있다면, 미리보기도 맨 아래로 밀착 스크롤하여 고정합니다.
                         // 이 가드가 없으면 타이핑 시 에디터 스크롤 싱크가 firstVisible 라인을 꼭대기에 맞추느라 미리보기 끝부분 10줄 가량이 화면 아래로 잘려 숨어버립니다.
-                        if (lastVisible >= totalLines - 2) {
-                          isScrollingRef.current = 'editor';
-                          parent.scrollTo({
-                            top: parent.scrollHeight,
-                            behavior: 'auto'
-                          });
-                          if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                          scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 100);
+                        // 🛡️ [짧은 문서 튕김 및 하단 텅빔 방지 가드]
+                        // 여백(Margin, Padding) 및 조판지 최소 높이 등을 모두 제외한, 진짜 글자 텍스트 내용물만의 순수 렌더링 높이를 측정합니다.
+                        // 이를 위해 .markdown-viewer-root 내부에서 <style> 태그를 제외한 실제 텍스트 렌더링 자식 엘리먼트를 추출합니다.
+                        const rootViewer = parent.querySelector('.markdown-viewer-root') as HTMLElement;
+                        const pureTextEl = rootViewer 
+                          ? (Array.from(rootViewer.children).find(el => el.tagName !== 'STYLE') as HTMLElement) 
+                          : null;
+                        const contentHeight = pureTextEl ? pureTextEl.getBoundingClientRect().height : parent.scrollHeight - 160;
+
+                        // 순수 본문 높이가 뷰포트 높이 이하인 경우(한 페이지 미만), 에디터의 스크롤/커서 위치와 무관하게 
+                        // 스크롤을 0(맨 위)으로 완벽하게 고정하고 움직이지 않도록 early return 처리합니다.
+                        if (contentHeight <= parent.clientHeight) {
+                          parent.scrollTop = 0;
                           return;
                         }
 
                         // 1. 역추적으로 가장 가까운 data-line을 검색하여 라인 누락 방어
                         let targetEl: HTMLElement | null = null;
+                        let foundLine = 1;
                         for (let line = firstVisible; line >= 1; line--) {
                           const found = parent.querySelector(`[data-line="${line}"]`) as HTMLElement;
                           if (found) {
                             targetEl = found;
+                            foundLine = line;
                             break;
                           }
                         }
 
                         if (targetEl) {
                           isScrollingRef.current = 'editor';
-                          // 2. scrollIntoView 대신 offset 기반 직접 scrollTop 제어로 화면 요동 방지 및 정밀 제어
                           const parentRect = parent.getBoundingClientRect();
                           const childRect = targetEl.getBoundingClientRect();
-                          const relativeTop = childRect.top - parentRect.top + parent.scrollTop;
 
-                          parent.scrollTop = relativeTop;
+                          const baseTop = childRect.top - parentRect.top + parent.scrollTop;
+                          const diffLines = firstVisible - foundLine;
+                          const lineOffset = diffLines * 26;
+
+                          parent.scrollTop = Math.max(0, baseTop + lineOffset);
 
                           if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                           scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 100);

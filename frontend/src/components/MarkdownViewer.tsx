@@ -75,7 +75,6 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     let objectUrl = '';
     setErrorMsg('');
     const loadLocalImage = async () => {
-      console.log(`[AsyncImage] loadLocalImage START. src=${src}, absolutePath=${absolutePath}`);
       try {
         if (api) {
           let targetAbsolutePath = absolutePath;
@@ -92,9 +91,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
 
           if (targetAbsolutePath && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('blob:') && (!src.startsWith('media://') || src.startsWith('media://local/serve'))) {
             try {
-              console.log(`[AsyncImage] Calling readImageAsBase64 for: ${targetAbsolutePath}`);
               const base64Str = await api.readImageAsBase64(targetAbsolutePath);
-              console.log(`[AsyncImage] Base64 SUCCESS for: ${targetAbsolutePath}`);
               setImgSrc(base64Str);
             } catch (err: any) {
               console.error(`[AsyncImage] Base64 ERROR for: ${targetAbsolutePath}`, err);
@@ -102,7 +99,6 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
               setImgSrc(`media://local/serve?url=${encodeURIComponent(targetAbsolutePath)}`);
             }
           } else {
-            console.log(`[AsyncImage] Skipping Base64. targetAbsolutePath=${targetAbsolutePath}, src=${src}`);
             setImgSrc(src);
           }
         } else if ((workspaceType === 'browser' || workspaceType === 'local') && !src.startsWith('http') && !src.startsWith('data:')) {
@@ -159,8 +155,6 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString]);
-
-  console.log(`[AsyncImage] Render. errorMsg=${errorMsg}, imgSrc=${imgSrc ? imgSrc.substring(0, 30) + '...' : 'empty'}`);
 
   if (errorMsg) {
     return (

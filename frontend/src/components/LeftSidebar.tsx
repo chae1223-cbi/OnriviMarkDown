@@ -362,21 +362,34 @@ export default function LeftSidebar() {
 
       const extension = file.name.split('.').pop()?.toLowerCase();
       const isAlreadyTextOrMd = ['md', 'markdown', 'txt'].includes(extension || '');
+      let skipAiFormatting = false;
 
       if (!isAlreadyTextOrMd) {
         const MAX_CHARS = 30000;
         if (markdown.length > MAX_CHARS) {
-          throw new Error(`문서 내용이 너무 큽니다. (현재 약 ${Math.floor(markdown.length / 1000)}k자 / 최대 허용 30k자). AI 변환 품질 저하 방지를 위해 문서를 나누어 가져와주세요.`);
+          // 💡 [초과 크기 폴백] 30,000자 초과 시 전체 에러 대신 AI 구조화만 스킵 처리
+          skipAiFormatting = true;
+          showToast('문서 내용이 너무 커서 AI 마크다운 변환 없이 원본 문서 그대로 신속히 가져옵니다.', 'warning');
         }
         if (markdown.trim().length === 0) {
           throw new Error('문서에서 텍스트를 추출할 수 없습니다. 이미지로만 구성된 문서(스캔본 등)이거나 내용이 비어있습니다.');
         }
       }
 
-      if (geminiApiKey && !isAlreadyTextOrMd) {
+      if (geminiApiKey && !isAlreadyTextOrMd && !skipAiFormatting) {
         showToast('AI가 문서를 분석하여 마크다운으로 구조화 중입니다... (최대 30초 소요)', 'info');
-        const { formatRawTextToMarkdown } = await import('@/lib/aiFormatter');
-        markdown = await formatRawTextToMarkdown(markdown, geminiApiKey, aiModelName || 'gemini-1.5-pro');
+        try {
+          const { formatRawTextToMarkdown } = await import('@/lib/aiFormatter');
+          markdown = await formatRawTextToMarkdown(markdown, geminiApiKey, aiModelName || 'gemini-1.5-pro');
+        } catch (aiError: any) {
+          console.warn('AI 마크다운 구조화 실패, 원본 텍스트로 대체합니다:', aiError);
+          const errMsg = aiError?.message || String(aiError);
+          if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Quota')) {
+            showToast('AI API 호출 제한(429 Quota Exceeded)으로 인해 AI 포맷팅 없이 원본 문서 내용만 그대로 가져옵니다.', 'warning');
+          } else {
+            showToast('AI 구조화 처리에 실패하여 원본 문서 내용으로 가져옵니다.', 'warning');
+          }
+        }
       }
       const originalName = file.name.split('.').slice(0, -1).join('.') || file.name;
       let finalName = `${originalName}.md`;

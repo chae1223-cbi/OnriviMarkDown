@@ -76,7 +76,7 @@ export interface ProcessedMarkdown {
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
 // 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, ordered/unordered list indent
-// 🚨 @PATCH : **2026-08-12** — 리스트 최상단 들여쓰기를 기준선(listBlockBaseIndent)으로 삼아 하위 계층을 상대적 깊이(4칸 단위)로 보정해 렌더링하는 상대적 리스트 정규화 알고리즘 도입; YAML Frontmatter 제거 시 발생하는 라인 유실 오차를 계산하여 lineMap 에 오프셋(frontmatterOffset)을 주입 보정함으로써 미리보기 돔 ID 매칭 오류 및 스크롤 동기화 실패 버그 완벽 패치; 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
+// 🚨 @PATCH : **2026-08-13** — 첫 번째 리스트가 들여쓰기(탭)로 시작할 때 마크다운 파서가 코드 블록으로 오인해 리스트 구조가 파괴되던 현상을 방지하기 위해, 기저 들여쓰기(listBlockBaseIndent)에 맞춰 리스트 블록 전체를 padding-left div 돔으로 감싸고 리스트 시작 위치를 복원하는 지능형 인덴트 래퍼 이식 | **2026-08-12** — 리스트 최상단 들여쓰기를 기준선(listBlockBaseIndent)으로 삼아 하위 계층을 상대적 깊이(4칸 단위)로 보정해 렌더링하는 상대적 리스트 정규화 알고리즘 도입; YAML Frontmatter 제거 시 발생하는 라인 유실 오차를 계산하여 lineMap 에 오프셋(frontmatterOffset)을 주입 보정함으로써 미리보기 돔 ID 매칭 오류 및 스크롤 동기화 실패 버그 완벽 패치; 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
 // 🔗 @CALLS : stripFrontmatter, isAnyListLine, getIndentLevel
 // ====================================================================
 export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown {
@@ -117,6 +117,7 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
   let insideParagraph = false;
   let paragraphBaseIndent = "";
   let listBlockBaseIndent = -1; // 💡 상대적 리스트 들여쓰기 기준선 트래킹용
+  let listHasActiveDiv = false; // 💡 현재 div 태그가 열려 있는지 추적하는 플래그
 
   const correctedLines = expandedLines.map((line, index) => {
     const trimmed = line.trim();
@@ -124,7 +125,14 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     if (trimmed.startsWith("```")) {
       insideCodeBlock = !insideCodeBlock;
       insideParagraph = false;
-      return line;
+      
+      let suffix = "";
+      if (listHasActiveDiv) {
+        suffix = "\n\n</div>\n\n";
+        listHasActiveDiv = false;
+        listBlockBaseIndent = -1;
+      }
+      return suffix + line;
     }
     
     if (insideCodeBlock) {
@@ -182,10 +190,16 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
         if (isListOrQuote) {
           const indentLength = indentSpaces.length;
           
+          let prefix = "";
           // 💡 [상대적 리스트 들여쓰기 보정 알고리즘]
           // 리스트 블록 최상단의 시작 공백 깊이를 base로 삼아, 하위 항목들을 상대적 탭 단계로 정규화합니다.
           if (listBlockBaseIndent === -1) {
             listBlockBaseIndent = indentLength;
+            if (listBlockBaseIndent > 0 && !listHasActiveDiv) {
+              // 💡 들여쓰기가 있는 첫 리스트 블록 진입 시 래핑 div 생성 (4칸당 20px)
+              prefix = `<div style="padding-left: ${listBlockBaseIndent * 5}px;">\n\n`;
+              listHasActiveDiv = true;
+            }
           }
           
           const relativeIndent = Math.max(0, indentLength - listBlockBaseIndent);
@@ -194,28 +208,46 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
             const steps = Math.floor(relativeIndent / 4);
             normalizedIndent = "    ".repeat(steps);
           }
-          processedLine = normalizedIndent + remainingText.trim();
+          processedLine = prefix + normalizedIndent + remainingText.trim();
         } else {
           // 리스트가 아닌 경우 리스트 블록 종료
+          let suffix = "";
+          if (listHasActiveDiv) {
+            suffix = "\n\n</div>\n\n";
+            listHasActiveDiv = false;
+          }
           listBlockBaseIndent = -1;
           if (isHeading || isDivider) {
-            processedLine = remainingText.trim();
+            processedLine = suffix + remainingText.trim();
+          } else {
+            processedLine = suffix + processedLine;
           }
         }
       } else {
         // 공백이 없는 리스트 기호로 시작하는 경우에도 listBlockBaseIndent를 0으로 설정하여 블록 시작
         const isListOrQuote = /^(?:[-*+]\s|(?:\d+)\.\s|>|\s*\[[ xX]?\])/.test(processedLine.trim());
+        let suffix = "";
+        if (listHasActiveDiv) {
+          suffix = "\n\n</div>\n\n";
+          listHasActiveDiv = false;
+        }
         if (isListOrQuote) {
           listBlockBaseIndent = 0;
         } else {
           listBlockBaseIndent = -1;
         }
+        processedLine = suffix + processedLine;
       }
       
       return processedLine;
     }
     
     // 일반 라인을 만나면 리스트 블록 종료
+    let suffix = "";
+    if (listHasActiveDiv) {
+      suffix = "\n\n</div>\n\n";
+      listHasActiveDiv = false;
+    }
     listBlockBaseIndent = -1;
 
     const indentMatch = processedLine.match(/^( +)/);
@@ -223,7 +255,7 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     const remainingText = processedLine.substring(lineIndent.length);
     
     // 💡 일반 문단 앞의 탭/들여쓰기를 트리밍하여 이전 리스트의 탭 오염 및 코드 블록 오탐 원천 해결
-    return remainingText;
+    return suffix + remainingText;
   });
 
   // Step 2.5: 숫자 목록(Ordered List)의 촘촘한 리스트 간격 및 뭉침 현상 재현을 위해 순서 없는 목록 기호(- ) 강제 주입
@@ -335,8 +367,13 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     }
   }
 
+  let finalText = finalLines.join("\n");
+  if (listHasActiveDiv) {
+    finalText += "\n\n</div>\n\n";
+  }
+
   return {
-    text: finalLines.join("\n"),
+    text: finalText,
     lineMap: finalLineMap
   };
 }
