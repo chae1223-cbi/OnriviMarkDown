@@ -7,7 +7,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
- *   * 🚨 @PATCH : **2026-08-13** — 에디터 입력 도중 스크롤이 맨 위로 튀어 오르고 커서가 가려지던 버그 해결을 위해 미리보기 onScroll 내 target.scrollTop === 0 조건에 isPreviewHovered 및 isScrollingRef 가드 보완, 분할 모드('both')에서 복사 및 포인터 기능을 완전히 유지(pointer-events 복구)하면서 수동 휠/터치 조작만 차단하는 이벤트 리스너(wheel, touchmove) 및 수직 스크롤바 비노출(no-scrollbar)을 적용하고 에디터 하단 5줄 타이핑 및 스크롤바 최하단 도달 시 미리보기 스크롤의 강제 하단 밀착(scrollHeight) 연동 보강, 짧은 문서(한 페이지 미만) 작성 시 미리보기 하단 패딩(pb-32 = 128px)을 제하는 순수 높이 계산식(parent.scrollHeight - 160)을 가드 조건에 적용하여 마지막 줄 입력 시 화면이 텅 비던 튕김 현상 완벽 조치, 최하단 밀착 시 텍스트가 화면 밖으로 이탈해 가려지는 현상 차단을 위해 120px 하단 마진을 준수하도록 스크롤 정밀 연동 적용
+ *   * 🚨 @PATCH : **2026-08-13** — 스크롤 요동 및 튕김 현상의 근본적 해결을 위해 MainEditorApp 내의 모든 이중/중복 스크롤 보정 훅(postContentScrollCorrection) 및 휠/터치 강제 차단 훅을 완전히 삭제하고, Monaco Setup의 단일 스크롤 리스너로 동기화 구조를 전량 이관 및 정밀 간소화함
  *   * 🚨 @PATCH : **2026-08-12** — 에디터를 열거나 탭을 닫고 전환할 때 제한사용자(만료, 동시접속 제한, 미인증 등)의 권한 가드가 누락되어 편집 가능해지던 버그 해결을 위해 isRestrictedUser 검사 통합 적용 및 Monaco readOnly/domReadOnly 옵션 동기화 보완; 최초 검증 시 동시접속 실패 시 이중 검증 복구 우회로를 차단하고 isRestricted 필드를 로컬 보안 캐시와 setLicenseStatus에 밀봉 연동하여 캐시 뚫림 현상 원천 해결
  *   * 🚨 @PATCH : **2026-08-12** — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 postContentScrollCorrection 훅에 setTimeout(50ms) 기반 지연 최하단 밀착 스크롤 보강 적용
  *   * 🚨 @PATCH : **2026-07-22** — 클라이언트 직접 supabase.rpc() 호출 전량 서버단 API Route fetch()로 이전: insert_license_activation→/api/rpc/license/insert, check_license_session(×2)→/api/license/check-session, verify_desktop_license→/api/license/verify-desktop; Realtime 구독 테이블명 license_activations→license_activations 전환
@@ -3067,115 +3067,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, [activeLine, previewMode]);
 
-  // ====================================================================
-  // 📊 [OMD-CORE-MainEditorApp-0042] MainEditorApp.tsx ➔ postContentScrollCorrection
-  // 🎯 @KICK  : 콘텐츠 변경/파싱 후 에디터 커서 비율에 맞게 미리보기 스크롤 위치 동기화
-  // 🛡️ @GUARD : 에디터 커서에서 뷰포트 비율 계산하여 미리보기 스크롤에 동일 비율 적용
-  // 🚨 @PATCH : 2026-08-12 — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 최하단 고정 예외 처리 보강
-  // 🔗 @CALLS : requestAnimationFrame, editor.getPosition, editor.getTopForLineNumber, editor.getScrollTop
-  // ====================================================================
-  useEffect(() => {
-    if (previewMode !== 'both' || !previewRef.current || !editorRef.current) return;
-
-    requestAnimationFrame(() => {
-      const editor = editorRef.current;
-      if (!editor) return;
-
-      const position = editor.getPosition();
-      const curLine = position ? position.lineNumber : 1;
-
-      // 에디터 내 커서 뷰포트 Y축 비율(ratio) 계산
-      const viewportHeight = editor.getLayoutInfo().height;
-      if (viewportHeight <= 0) return;
-
-      const cursorTop = editor.getTopForLineNumber(curLine);
-      const scrollTop = editor.getScrollTop();
-      const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight) || 20;
-      const cursorYInViewport = cursorTop + lineHeight - scrollTop;
-      const targetRatio = cursorYInViewport / viewportHeight;
-
-      const parent = previewRef.current;
-      if (!parent) return;
-
-      // 🛡️ [짧은 문서 튕김 및 하단 텅빔 방지 가드]
-      // 여백(Margin, Padding) 및 조판지 최소 높이 등을 모두 제외한, 진짜 글자 텍스트 내용물만의 순수 렌더링 높이를 측정합니다.
-      // 이를 위해 .markdown-viewer-root 내부에서 <style> 태그를 제외한 실제 텍스트 렌더링 자식 엘리먼트를 추출합니다.
-      const rootViewer = parent.querySelector('.markdown-viewer-root') as HTMLElement;
-      const pureTextEl = rootViewer 
-        ? (Array.from(rootViewer.children).find(el => el.tagName !== 'STYLE') as HTMLElement) 
-        : null;
-      const contentHeight = pureTextEl ? pureTextEl.getBoundingClientRect().height : parent.scrollHeight - 160;
-
-      // 순수 본문 높이가 뷰포트 높이 이하인 경우(한 페이지 미만), 에디터의 스크롤/커서 위치와 무관하게 
-      // 스크롤을 0(맨 위)으로 완벽하게 고정하고 움직이지 않도록 early return 처리합니다.
-      if (contentHeight <= parent.clientHeight) {
-        parent.scrollTop = 0;
-        return;
-      }
-
-      const totalLines = editor.getModel()?.getLineCount() || 1;
-
-
-
-      // 1. 에디터 현재 커서 라인 번호 획득 (이미 위에 선언된 curLine 변수를 직접 활용)
-      const currentLine = curLine;
-
-      // 2. 해당 라인 또는 이전의 가장 가까운 매핑 DOM 요소 역추적
-      let targetEl: HTMLElement | null = null;
-      let foundLine = 1;
-      for (let line = currentLine; line >= 1; line--) {
-        const found = parent.querySelector(`[data-line="${line}"]`) as HTMLElement;
-        if (found) {
-          targetEl = found;
-          foundLine = line;
-          break;
-        }
-      }
-
-      if (targetEl) {
-        isScrollingRef.current = 'editor';
-        const parentRect = parent.getBoundingClientRect();
-        const childRect = targetEl.getBoundingClientRect();
-        
-        // 3. 찾은 실제 DOM의 오프셋 탑 좌표 계산
-        const baseTop = childRect.top - parentRect.top + parent.scrollTop;
-        
-        // 4. 누락된 빈 줄(diffLines) 만큼의 높이(예: 대략 1줄당 26px)를 보정
-        const diffLines = currentLine - foundLine;
-        const lineOffset = diffLines * 26; 
-
-        // 5. 💡 [하단 바닥선 정렬 공식] 20라인 입력 시 미리보기의 하단 끝부분에 20라인이 걸치도록 스크롤 지정
-        // parentRect.height 만큼 빼주고 가독성을 위해 60px 만큼 위로 마진을 둡니다.
-        const targetScroll = baseTop + lineOffset - parentRect.height + 60;
-        parent.scrollTop = Math.max(0, targetScroll);
-
-        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 80);
-      }
-    });
-  }, [content, previewMode]);
-
-  // ====================================================================
-  // 🔒 [OMD-SYNC-005] 분할 모드에서 미리보기 영역 수동 휠/터치 스크롤 차단 (복사 및 클릭 기능은 허용)
-  // ====================================================================
-  useEffect(() => {
-    const previewEl = previewRef.current;
-    if (!previewEl) return;
-
-    const preventScroll = (e: Event) => {
-      if (previewModeRef.current === 'both') {
-        e.preventDefault();
-      }
-    };
-
-    previewEl.addEventListener('wheel', preventScroll, { passive: false });
-    previewEl.addEventListener('touchmove', preventScroll, { passive: false });
-
-    return () => {
-      previewEl.removeEventListener('wheel', preventScroll);
-      previewEl.removeEventListener('touchmove', preventScroll);
-    };
-  }, [previewMode]);
+  // 💡 [OMD-SYNC-DEPRECATED] 스크롤 동기화 및 휠 차단 로직은 Monaco Setup 내부 단일 리스너(onDidScrollChange)로 완전히 마이그레이션되어 이곳의 중복 훅은 삭제되었습니다.
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0043] MainEditorApp.tsx ➔ handleMouseMove
@@ -3698,6 +3590,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : 없음
   // ====================================================================
   const resolveClipboardImage = async (e: any, imageItem: any): Promise<Blob | null> => {
+    // 0) [Electron] 네이티브 클립보드 이미지 읽기 우선 시도 (크로미움 버그 및 0바이트 우회)
+    try {
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      if (api && api.readClipboardImage) {
+        const dataUrl = await api.readClipboardImage();
+        if (dataUrl) {
+          const res = await fetch(dataUrl);
+          return await res.blob();
+        }
+      }
+    } catch (err) {
+      console.warn('[Clipboard] Native read fallback', err);
+    }
+
     // 1) clipboardData.items[i].getAsFile()
     if (imageItem) {
       const file = imageItem.getAsFile();
@@ -3707,7 +3613,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (files && files.length > 0 && files[0].type.startsWith('image/')) return files[0];
     }
     // 2) clipboardData.files (items에 이미지가 없을 때)
-    const files = e.clipboardData.files;
+    const files = e.clipboardData?.files;
     if (files && files.length > 0 && files[0].type.startsWith('image/')) return files[0];
     // 3) navigator.clipboard.read() (Async Clipboard API, 권한 필요)
     try {
@@ -3746,50 +3652,60 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
-    const resolvedBlob = await resolveClipboardImage(e, imageItem);
+    // 💡 [긴급 수정] async 함수 특성상 await를 만나면 이벤트 루프가 양보되어 브라우저/모나코의 
+    // 기본 붙여넣기 동작이 실행되어 버립니다. 따라서 await 이전에 동기적으로 데이터를 검사하고 
+    // 우리가 처리할 대상이면 e.preventDefault()를 즉시 호출해야 합니다.
 
-    if (resolvedBlob) {
+    const htmlData = hasHtml ? e.clipboardData.getData('text/html') : '';
+    const hasTable = htmlData && htmlData.includes('<table');
+    const textData = hasText ? e.clipboardData.getData('text/plain') : '';
+    
+    let processedText = textData;
+    let textChanged = false;
+    if (textData) {
+      processedText = sanitizePastedText(textData);
+      if (processedText.includes('|')) {
+        processedText = fixMarkdownTable(processedText);
+      }
+      if (processedText !== textData) {
+        textChanged = true;
+      }
+    }
+
+    const hasImageFile = !imageItem && e.clipboardData?.files?.length > 0 && e.clipboardData.files[0].type.startsWith('image/');
+
+    // 대상이 하나라도 있으면 즉시 기본 동작 차단
+    if (imageItem || hasImageFile || hasTable || textChanged) {
       e.preventDefault();
+    }
+
+    // 1. 이미지 처리
+    const resolvedBlob = await resolveClipboardImage(e, imageItem);
+    if (resolvedBlob) {
       handlePasteImageFile(resolvedBlob);
       return;
     }
 
-    // Try HTML Table extraction first
-    if (hasHtml) {
-      const htmlData = e.clipboardData.getData('text/html');
-      if (htmlData && htmlData.includes('<table')) {
-        const mdTable = parseHtmlTableToMarkdown(htmlData);
-        if (mdTable) {
-          e.preventDefault();
-          insertAtCursor(mdTable);
-          if (editorRef.current) {
-            updateContent(editorRef.current.getValue(), true);
-          }
-          showToast("웹 표 데이터가 마크다운으로 완벽하게 변환되었습니다.", "success");
-          return;
+    // 2. HTML Table 처리
+    if (hasTable) {
+      const mdTable = parseHtmlTableToMarkdown(htmlData);
+      if (mdTable) {
+        insertAtCursor(mdTable);
+        if (editorRef.current) {
+          updateContent(editorRef.current.getValue(), true);
         }
+        showToast("웹 표 데이터가 마크다운으로 완벽하게 변환되었습니다.", "success");
+        return;
       }
     }
 
-    // Fallback to text/plain
-    if (hasText) {
-      const text = e.clipboardData.getData('text/plain');
-      if (text) {
-        let processedText = sanitizePastedText(text);
-
-        if (processedText.includes('|')) {
-          processedText = fixMarkdownTable(processedText);
-        }
-
-        if (processedText !== text) {
-          e.preventDefault();
-          insertAtCursor(processedText);
-          if (editorRef.current) {
-            updateContent(editorRef.current.getValue(), true);
-          }
-          showToast("붙여넣은 텍스트가 자동으로 정제(교정)되었습니다.", "success");
-        }
+    // 3. 일반 텍스트 처리 (정제가 필요한 경우에만)
+    if (textChanged) {
+      insertAtCursor(processedText);
+      if (editorRef.current) {
+        updateContent(editorRef.current.getValue(), true);
       }
+      showToast("붙여넣은 텍스트가 자동으로 정제(교정)되었습니다.", "success");
     }
   };
 
@@ -5392,7 +5308,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
     docLinkPickerStyle = { top: fixedTop + 44, left: fixedLeft };
   }
-  const handleAIDraftApply = (draftContent: string, action: 'insert' | 'replace' | 'append') => {
+  const handleAIDraftApply = (draftContent: string, action: 'insert' | 'replace' | 'append', scope: 'selection' | 'document' | 'none' = 'none') => {
     setIsAIDraftModalOpen(false); // Close modal
     
     if (editorRef.current) {
@@ -5414,7 +5330,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           editor.revealPositionInCenter({ lineNumber: position.lineNumber + 2, column: 1 }, 1);
           showToast("작성된 초안이 본문에 삽입되었습니다. (Ctrl+Z 실행취소 가능)", "success");
         } else if (action === 'replace') {
-          if (selection && !selection.isEmpty()) {
+          if (scope === 'document') {
+            const fullRange = model.getFullModelRange();
+            editor.executeEdits("AI_MODAL_REPLACE_DOC", [{
+              range: fullRange,
+              text: draftContent,
+              forceMoveMarkers: true
+            }]);
+            showToast("문서 전체가 새로 작성된 내용으로 덮어씌워졌습니다.", "success");
+          } else if (selection && !selection.isEmpty()) {
             editor.executeEdits("AI_MODAL_REPLACE", [{
               range: selection,
               text: draftContent,
@@ -5424,7 +5348,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
         } else if (action === 'append') {
           let endLine = model.getLineCount();
-          if (selection && !selection.isEmpty()) {
+          if (selection && !selection.isEmpty() && scope !== 'document') {
             endLine = selection.endLineNumber;
           }
           const endCol = model.getLineMaxColumn(endLine);
@@ -5436,13 +5360,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             text: formattedText,
             forceMoveMarkers: true
           }]);
-          showToast("텍스트 하단에 이어쓰기가 완료되었습니다. (Ctrl+Z 실행취소 가능)", "success");
+          showToast("선택된 내용 아래에 덧붙여졌습니다.", "success");
         }
-        editor.focus();
-        updateContent(editor.getValue());
       }
+      editor.focus();
+      updateContent(editor.getValue());
     }
   };
+
 
 
   return (
@@ -5912,7 +5837,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-on-surface ${
                           previewMode === 'preview'
                             ? 'bg-surface-container-high p-4 overflow-y-auto'
-                            : 'bg-surface-container-low px-0 pt-0 pb-32 overflow-y-auto'
+                            : 'bg-surface-container-low px-0 pt-0 pb-0 overflow-y-auto'
                         } ${previewMode === 'both' ? 'no-scrollbar' : ''}`}
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
@@ -5987,8 +5912,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           return (
                             <div
                               className={isPreviewOnly
-                                ? "preview-page-sheet mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden"
-                                : `preview-page-sheet mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden`
+                                ? "preview-page-sheet mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-32"
+                                : `preview-page-sheet mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-32`
                               }
                               style={pageStyle}
                             >

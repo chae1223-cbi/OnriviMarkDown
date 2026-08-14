@@ -813,7 +813,7 @@ export default function LeftSidebar() {
           ref={tocContainerRef}
           className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'toc' ? 'hidden' : ''}`}
         >
-          <div className="space-y-1 text-[12px] font-bold">
+          <div className="space-y-0 text-[12px] font-bold">
             {!toc || toc.length === 0 ? (
                 <div className="text-zinc-400 dark:text-zinc-500 text-center py-5">목차가 없습니다.</div>
               ) : (() => {
@@ -872,7 +872,7 @@ export default function LeftSidebar() {
                       key={i} 
                       id={`toc-item-${item.id}`} // 💡 자동 스크롤 동기화 추적용 ID
                       style={{ paddingLeft: `${(item.level - 1) * 8}px` }}
-                      className={`cursor-pointer py-1 px-1.5 rounded-md transition-all truncate flex items-center gap-1 ${
+                      className={`cursor-pointer py-0.5 px-1.5 rounded-md transition-all truncate flex items-center gap-1 ${
                         activeTocId === item.id 
                           ? 'bg-blue-100/60 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-semibold shadow-sm border border-blue-200 dark:border-blue-800/50' 
                           : 'hover:bg-zinc-200/70 dark:hover:bg-zinc-800/50 hover:text-blue-600 dark:hover:text-blue-400 text-zinc-600 dark:text-zinc-300 border border-transparent'

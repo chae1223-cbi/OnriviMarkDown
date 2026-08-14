@@ -76,7 +76,7 @@ export interface ProcessedMarkdown {
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
 // 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, ordered/unordered list indent
-// 🚨 @PATCH : **2026-08-13** — 첫 번째 리스트가 들여쓰기(탭)로 시작할 때 마크다운 파서가 코드 블록으로 오인해 리스트 구조가 파괴되던 현상을 방지하기 위해, 기저 들여쓰기(listBlockBaseIndent)에 맞춰 리스트 블록 전체를 padding-left div 돔으로 감싸고 리스트 시작 위치를 복원하는 지능형 인덴트 래퍼 이식 | **2026-08-12** — 리스트 최상단 들여쓰기를 기준선(listBlockBaseIndent)으로 삼아 하위 계층을 상대적 깊이(4칸 단위)로 보정해 렌더링하는 상대적 리스트 정규화 알고리즘 도입; YAML Frontmatter 제거 시 발생하는 라인 유실 오차를 계산하여 lineMap 에 오프셋(frontmatterOffset)을 주입 보정함으로써 미리보기 돔 ID 매칭 오류 및 스크롤 동기화 실패 버그 완벽 패치; 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
+// 🚨 @PATCH : **2026-08-14** — 빈 리스트 항목(글씨 입력 전 공백만 있는 상태)에서 trim()으로 인해 탭 간격 정규식이 깨져 리스트 인덴트 래핑 로직이 무시되던 현상을 해결하기 위해 trim()을 제거하여 첫 탭부터 즉각 미리보기에 반영되도록 수정 | **2026-08-13** — 첫 번째 리스트가 들여쓰기(탭)로 시작할 때 마크다운 파서가 코드 블록으로 오인해 리스트 구조가 파괴되던 현상을 방지하기 위해, 기저 들여쓰기(listBlockBaseIndent)에 맞춰 리스트 블록 전체를 padding-left div 돔으로 감싸고 리스트 시작 위치를 복원하는 지능형 인덴트 래퍼 이식 | **2026-08-12** — 리스트 최상단 들여쓰기를 기준선(listBlockBaseIndent)으로 삼아 하위 계층을 상대적 깊이(4칸 단위)로 보정해 렌더링하는 상대적 리스트 정규화 알고리즘 도입; YAML Frontmatter 제거 시 발생하는 라인 유실 오차를 계산하여 lineMap 에 오프셋(frontmatterOffset)을 주입 보정함으로써 미리보기 돔 ID 매칭 오류 및 스크롤 동기화 실패 버그 완벽 패치; 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
 // 🔗 @CALLS : stripFrontmatter, isAnyListLine, getIndentLevel
 // ====================================================================
 export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown {
@@ -183,9 +183,9 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
         const indentSpaces = indentMatch[1];
         const remainingText = processedLine.substring(indentSpaces.length);
         
-        const isListOrQuote = /^(?:[-*+]\s|(?:\d+)\.\s|>|\s*\[[ xX]?\])/.test(remainingText.trim());
-        const isHeading = /^(#{1,6})\s/.test(remainingText.trim());
-        const isDivider = /^---/.test(remainingText.trim());
+        const isListOrQuote = /^(?:[-*+]\s|(?:\d+)\.\s|>|\s*\[[ xX]?\])/.test(remainingText);
+        const isHeading = /^(#{1,6})\s/.test(remainingText);
+        const isDivider = /^---/.test(remainingText);
 
         if (isListOrQuote) {
           const indentLength = indentSpaces.length;
@@ -225,7 +225,7 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
         }
       } else {
         // 공백이 없는 리스트 기호로 시작하는 경우에도 listBlockBaseIndent를 0으로 설정하여 블록 시작
-        const isListOrQuote = /^(?:[-*+]\s|(?:\d+)\.\s|>|\s*\[[ xX]?\])/.test(processedLine.trim());
+        const isListOrQuote = /^(?:[-*+]\s|(?:\d+)\.\s|>|\s*\[[ xX]?\])/.test(processedLine);
         let suffix = "";
         if (listHasActiveDiv) {
           suffix = "\n\n</div>\n\n";

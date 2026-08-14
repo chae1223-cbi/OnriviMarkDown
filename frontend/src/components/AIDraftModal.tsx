@@ -19,7 +19,7 @@ import { generateDraftWithAIStream } from '@/lib/gemini';
 
 interface AIDraftModalProps {
   onClose: () => void;
-  onApply: (draftContent: string, action: 'insert' | 'replace' | 'append') => void;
+  onApply: (content: string, action: 'insert' | 'replace' | 'append', scope: 'selection' | 'document' | 'none') => void;
   geminiApiKey: string;
   aiModelName: string;
   editorContext?: {
@@ -266,7 +266,8 @@ export default function AIDraftModal({
       if (targetScope === 'selection' && editorContext?.selectedText) {
         finalUserPrompt = `${editorialCommand}\n\n[대상 영역 텍스트]\n${editorContext.selectedText}`;
       } else if (targetScope === 'document' && editorContext?.fullText) {
-        finalUserPrompt = `${editorialCommand}\n\n[대상 문서 전체 내용]\n${editorContext.fullText}`;
+        finalSystemPrompt = "You are a professional editorial assistant. Your task is to write a COMPLETELY NEW document based on the user's command. The provided existing document is ONLY a reference for output formatting (layout, lists, tables), style, tone, and structural format (like heading levels). Do NOT summarize or edit the existing document. Create brand new content that matches the user's command, but strictly mimics the output format, layout, form, and feeling of the reference document. Return only the finalized text without markdown code blocks unless requested.";
+        finalUserPrompt = `[새 문서 작성 명령]\n${editorialCommand}\n\n[스타일/구조/출력양식 참고용 기존 문서]\n${editorContext.fullText}\n\n위의 '참고용 기존 문서'를 요약하거나 정리하지 마세요. 해당 문서는 오직 글의 출력 양식(레이아웃, 표, 목록 구조), 구조(제목 수준 등), 느낌(어조, 문체)을 파악하기 위한 '제공 자료'일 뿐입니다. 반드시 이 자료에 사용된 출력 양식과 톤앤매너 및 일관성을 똑같이 유지하면서, 맨 위 '[새 문서 작성 명령]'에 따라 '완전히 새로운 문서'를 창작해 주세요.`;
       } else {
         finalUserPrompt = editorialCommand;
       }
@@ -313,7 +314,7 @@ export default function AIDraftModal({
       showToast("생성된 결과가 없습니다.", "warning");
       return;
     }
-    onApply(draftResult, action);
+    onApply(draftResult, action, targetScope);
   };
 
   const currentDomainObj = DOMAIN_OPTIONS.find(d => d.id === selectedDomainId) || DOMAIN_OPTIONS[0];
