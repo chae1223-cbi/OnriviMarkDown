@@ -1063,6 +1063,31 @@ ipcMain.handle('license:get-device-id', async () => {
   return 'fallback-machine-id-' + process.platform;
 });
 
+// 23. 파일명 클립보드에 복사 API
+ipcMain.handle('clipboard:copyText', (event, text) => {
+  try {
+    const { clipboard } = require('electron');
+    clipboard.writeText(text);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// 24. 클립보드에서 네이티브 이미지 읽기 API (윈도우 캡쳐 0바이트/누락 버그 우회용)
+ipcMain.handle('clipboard:readImage', () => {
+  try {
+    const { clipboard } = require('electron');
+    const image = clipboard.readImage();
+    if (!image.isEmpty()) {
+      return image.toDataURL();
+    }
+    return null;
+  } catch (err) {
+    return null;
+  }
+});
+
 // 시스템 브라우저 외부 링크 실행 핸들러
 ipcMain.handle('system:openExternal', async (event, url) => {
   try {
@@ -1453,3 +1478,75 @@ ipcMain.handle('security:decrypt', async (event, cipherTextHex) => {
   }
   return cipherTextHex;
 });
+
+
+// --- AI Prompts and Presets IPC Handlers ---
+ipcMain.handle('prompts:load', async (event, resourceFolder) => {
+  try {
+    if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
+      return null;
+    }
+    const promptsFilePath = path.join(resourceFolder, 'prompt', 'ai_prompts.json');
+    if (fs.existsSync(promptsFilePath)) {
+      return JSON.parse(fs.readFileSync(promptsFilePath, 'utf-8'));
+    }
+    return null;
+  } catch (e) {
+    console.error('AI 프롬프트 로드 실패:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('prompts:save', async (event, prompts, resourceFolder) => {
+  fs.appendFileSync('d:/Developer/OnriviMarkDown/OnriviMarkDown/debug.log', `[prompts:save] resourceFolder: <${resourceFolder}>, type: ${typeof resourceFolder}, exists: ${fs.existsSync(resourceFolder)}\n`);
+  try {
+    if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
+      return { success: false, error: 'NO_RESOURCE_FOLDER', receivedPath: resourceFolder };
+    }
+    const promptDir = path.join(resourceFolder, 'prompt');
+    if (!fs.existsSync(promptDir)) {
+      fs.mkdirSync(promptDir, { recursive: true });
+    }
+    const promptsFilePath = path.join(promptDir, 'ai_prompts.json');
+    fs.writeFileSync(promptsFilePath, JSON.stringify(prompts, null, 2), 'utf-8');
+    return { success: true };
+  } catch (e) {
+    console.error('AI 프롬프트 저장 실패:', e);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('presets:load', async (event, resourceFolder) => {
+  try {
+    if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
+      return null;
+    }
+    const presetsFilePath = path.join(resourceFolder, 'prompt', 'ai_presets.json');
+    if (fs.existsSync(presetsFilePath)) {
+      return JSON.parse(fs.readFileSync(presetsFilePath, 'utf-8'));
+    }
+    return null;
+  } catch (e) {
+    console.error('AI 프리셋 로드 실패:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('presets:save', async (event, presets, resourceFolder) => {
+  try {
+    if (!resourceFolder || resourceFolder.trim() === '' || !fs.existsSync(resourceFolder)) {
+      return { success: false, error: 'NO_RESOURCE_FOLDER', receivedPath: resourceFolder };
+    }
+    const promptDir = path.join(resourceFolder, 'prompt');
+    if (!fs.existsSync(promptDir)) {
+      fs.mkdirSync(promptDir, { recursive: true });
+    }
+    const presetsFilePath = path.join(promptDir, 'ai_presets.json');
+    fs.writeFileSync(presetsFilePath, JSON.stringify(presets, null, 2), 'utf-8');
+    return { success: true };
+  } catch (e) {
+    console.error('AI 프리셋 저장 실패:', e);
+    return { success: false, error: e.message };
+  }
+});
+

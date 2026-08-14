@@ -1,4 +1,9 @@
-// 🚨 @PATCH : **2026-06-19** — EPUB 생성 시 수동 챕터 분할 흔적 코드를 전면 제거하고 단일 챕터 구조로 단순화
+// 🚨 @PATCH : **2026-08-14** — EPUB 내보내기 시 제목1(h1), 제목2(h2) 태그를 만날 때마다 자동으로 페이지를 넘겨(단원 분할) 깔끔한 챕터 구분이 되도록 page-break-before: always 속성 추가 (단, 첫 번째 요소 제외). 또한, 긴 코드 블록, 인용문(blockquote), 표(table)가 통째로 다음 페이지로 넘어가 거대한 빈 공간을 만드는 현상을 방지하기 위해 래퍼 컨테이너들에 page-break-inside: auto 강제 주입.
+//             **2026-06-25** — EPUB 내보내기 시 제목 배경색/글자색이 기본값(푸른색)으로만 고정되던 버그를 수정하고, 사용자가 CssStyleForm에서 커스텀한 h1~h6의 테두리(border), 둥근 모서리(border-radius), 그리고 본문 및 인용구 텍스트 정렬(text-align), 외부 여백(margin-top, bottom) 등 모든 커스텀 스타일이 완벽히 인젝션되도록 코드 생성 파이프라인 대폭 확장; clone.querySelector() 루틴을 유연하게 교체하여 모든 태그의 스타일 덮어쓰기 지원
+//             **2026-06-19** — blobURL 처리 누락 해결, 이미지 다운로드 3회 재시도 및 blob 다운스트림 병합
+//             **2026-06-03** — generateEpub 함수 구현, jszip 기반 epub3 생성 로직
+// 🔗 @CALLS : JSZip, dom-to-image
+// ====================================================================
 
 import JSZip from 'jszip';
 import { msg } from './systemMessages';
@@ -127,6 +132,7 @@ interface EpubOptions {
   contentHtml: string;
   dynamicCssString?: string;
   fontFamily?: string;
+  exportPageBreakLevel?: string;
 }
 
 interface EmbeddedImage {
@@ -148,7 +154,8 @@ export async function generateEpub({
   language = 'ko',
   contentHtml,
   dynamicCssString,
-  fontFamily
+  fontFamily,
+  exportPageBreakLevel = 'h2'
 }: EpubOptions): Promise<Blob> {
   const zip = new JSZip();
   const uuid = typeof crypto !== 'undefined' && crypto.randomUUID 
@@ -267,12 +274,55 @@ export async function generateEpub({
   // 4. XHTML 본문 데이터 변환 및 하이퍼링크 표준 조율
   const sanitizedBody = sanitizeToXHTML(processedHtml, title);
 
-  // 5. 📄 [EPUB 페이지 분할 코어 제거] 전체 내용을 단일 챕터로 즉시 생성
-  const sections = [{
-    id: 'section1',
-    html: sanitizedBody,
-    title: title
-  }];
+  // 5. 📄 EPUB 페이지 물리적 분할 (XHTML 파일 쪼개기)
+  let sections: { id: string; html: string; title: string; }[] = [];
+  const levelNum = exportPageBreakLevel !== 'none' ? parseInt(exportPageBreakLevel.replace('h', '')) : NaN;
+
+  if (!isNaN(levelNum) && levelNum >= 1 && levelNum <= 6) {
+    const splitRegex = new RegExp(`(<h[1-${levelNum}]\\b[^>]*>)`, 'i');
+    const parts = sanitizedBody.split(splitRegex);
+    
+    let currentHtml = parts[0];
+    let currentTitle = title;
+    let sectionIdx = 1;
+    
+    // 첫 헤딩 이전에 내용이 있다면 독립된 챕터로 저장
+    if (currentHtml.replace(/<[^>]*>/g, '').trim()) {
+      sections.push({ id: `section${sectionIdx++}`, html: currentHtml, title: currentTitle });
+    }
+    
+    for (let i = 1; i < parts.length; i += 2) {
+      const hTag = parts[i];
+      const hContentRest = parts[i+1] || '';
+      
+      // 목차(TOC) 생성을 위해 헤딩 내부 텍스트 추출 (</h1> 이전까지의 내용)
+      const closingTagMatch = hContentRest.match(/<\/h[1-6]>/i);
+      if (closingTagMatch && closingTagMatch.index !== undefined) {
+         const innerHTML = hContentRest.substring(0, closingTagMatch.index);
+         currentTitle = innerHTML.replace(/<[^>]*>/g, '').trim() || title;
+      } else {
+         currentTitle = title;
+      }
+      
+      currentHtml = hTag + hContentRest;
+      sections.push({
+        id: `section${sectionIdx++}`,
+        html: currentHtml,
+        title: currentTitle
+      });
+    }
+  } else {
+    // 단원 분할을 사용하지 않는 경우 단일 챕터로 생성
+    sections.push({
+      id: 'section1',
+      html: sanitizedBody,
+      title: title
+    });
+  }
+
+  if (sections.length === 0) {
+    sections = [{ id: 'section1', html: sanitizedBody, title: title }];
+  }
 
   // 6. 각 분 분할된 챕터(XHTML) 파일 개별 생성 및 매니페스트/스파인 리스트 빌드
   const manifestSectionItems: string[] = [];
@@ -394,17 +444,40 @@ blockquote {
   background-color: #f9f9f9;
   padding-top: 0.5em;
   padding-bottom: 0.5em;
+  page-break-inside: auto !important;
+  break-inside: auto !important;
 }
 pre {
   background-color: #f6f8fa;
   border: 1px solid #eaeaea;
   border-radius: 6px;
   padding: 1em;
-  overflow: auto;
+  overflow: visible; /* EPUB에서는 잘리지 않게 visible 처리 */
+  white-space: pre-wrap; /* EPUB 가로 스크롤 불가 대비 자동 줄바꿈 */
+  word-wrap: break-word;
+  page-break-inside: auto !important;
+  break-inside: auto !important;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
   font-size: 0.9em;
   tab-size: 4;
   -moz-tab-size: 4;
+}
+.codeblock-area {
+  page-break-inside: auto !important;
+  break-inside: auto !important;
+}
+.codeblock-area div {
+  page-break-inside: auto !important;
+  break-inside: auto !important;
+}
+pre code {
+  display: block !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  page-break-inside: auto !important;
+  break-inside: auto !important;
+  background-color: transparent !important;
+  padding: 0 !important;
 }
 code {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Nanum Gothic Coding', 'D2Coding', '맑은 고딕', 'Malgun Gothic', monospace !important;
@@ -432,6 +505,17 @@ table {
   width: 100%;
   margin-top: 1.5em;
   margin-bottom: 1.5em;
+  page-break-inside: auto !important;
+  break-inside: auto !important;
+}
+tr {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+.table-wrapper-area {
+  page-break-inside: auto !important;
+  break-inside: auto !important;
+  overflow: visible !important;
 }
 th, td {
   border: 1px solid #eaeaea;
@@ -518,10 +602,35 @@ del {
   // 사용자 CSS 프로필이 있으면 EPUB 스타일시트에 추가
   // (dynamicCssString의 .custom-preview-container 선택자를 EPUB용 body로 치환하여 전체 폰트 및 배경색 완벽 일치)
   if (dynamicCssString) {
-    const epubCss = dynamicCssString
-      .replace(/\.custom-preview-container\s/g, 'body ')
-      .replace(/\.custom-preview-container/g, 'body');
-    styleCss += `\n\n/* 사용자 지정 CSS 프로필 */\n${epubCss}`;
+    let epubCss = dynamicCssString
+    ? dynamicCssString.replace(/\.custom-preview-container\s/g, 'body ').replace(/\.custom-preview-container/g, 'body')
+    : '';
+
+  // EPUB용 동적 페이지 나누기 (exportPageBreakLevel)
+  if (exportPageBreakLevel !== 'none') {
+    const levelNum = parseInt(exportPageBreakLevel.replace('h', ''));
+    if (!isNaN(levelNum)) {
+      const breakSelectors = [];
+      const autoSelectors = [];
+      for (let i = 1; i <= levelNum; i++) {
+        breakSelectors.push(`body h${i}`);
+        autoSelectors.push(`body h${i}:first-child`);
+      }
+      const pageBreakCss = `
+${breakSelectors.join(',\n')} {
+  page-break-before: always !important;
+  break-before: page !important;
+}
+${autoSelectors.join(',\n')} {
+  page-break-before: auto !important;
+  break-before: auto !important;
+}
+`;
+      epubCss += pageBreakCss;
+    }
+  }
+
+  styleCss += `\n\n/* 사용자 지정 CSS 프로필 */\n${epubCss}`;
   }
   
   // 🌟 KaTeX 공식 CSS 코어 규칙 병합 탑재 (수식 정밀 렌더링용)

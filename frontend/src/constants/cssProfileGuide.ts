@@ -19,6 +19,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 Onrivi Author 서식 프로필 CSS �
     "paperSize": "a4, a3, b4, b5 등 (옵션)",
     "orientation": "portrait 또는 landscape (옵션)",
     "backgroundColor": "배경색 (예: #ffffff)",
+    "exportPageBreakLevel": "PDF/EPUB 내보내기 페이지 분할 기준 (예: 'none', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6')",
     "margins": {
       "top": "여백(상)", "bottom": "여백(하)", "left": "여백(좌)", "right": "여백(우)"
     }

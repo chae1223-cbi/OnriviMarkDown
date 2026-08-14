@@ -97,6 +97,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 18. 환경설정 저장 (데스크탑 영구 저장 연동)
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
 
+  // 18-1. AI 프롬프트 로드
+  loadPrompts: (resourceFolder) => ipcRenderer.invoke('prompts:load', resourceFolder),
+
+  // 18-2. AI 프롬프트 저장
+  savePrompts: (prompts, resourceFolder) => ipcRenderer.invoke('prompts:save', prompts, resourceFolder),
+
+  // 18-3. AI 프리셋 로드
+  loadPresets: (resourceFolder) => ipcRenderer.invoke('presets:load', resourceFolder),
+
+  // 18-4. AI 프리셋 저장
+  savePresets: (presets, resourceFolder) => ipcRenderer.invoke('presets:save', presets, resourceFolder),
+
   // 19. OS 네이티브 글꼴 선택 대화상자 호출
   openFontDialog: () => ipcRenderer.invoke('dialog:openFontPicker'),
 
@@ -109,6 +121,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 22. 로컬 이미지 파일 Base64 변환 읽기 API
   readImageAsBase64: (filePath) => ipcRenderer.invoke('file:readImageAsBase64', filePath),
+
+  // 23. 파일명 클립보드 복사 API
+  copyTextToClipboard: (text) => ipcRenderer.invoke('clipboard:copyText', text),
+
+  // 24. 클립보드 네이티브 이미지 읽기 API
+  readClipboardImage: () => ipcRenderer.invoke('clipboard:readImage'),
 
   // 23. 사용자 서식 프로필 읽기/저장 (Desktop — userData or resourceFolder)
   readProfiles: (resourceFolder) => ipcRenderer.invoke('file:readProfiles', resourceFolder),

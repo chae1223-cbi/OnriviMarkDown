@@ -3,7 +3,7 @@ export interface PromptTemplate {
   userInputTemplate: string;
 }
 
-export const PROMPT_TEMPLATES: Record<string, Record<string, PromptTemplate>> = {
+export const DEFAULT_PROMPTS: Record<string, Record<string, PromptTemplate>> = {
   '마케팅 및 SEO/GEO 최적화': {
     'GEO 최적화 블로그/가이드': {
       systemPrompt: `너는 구글(Google)과 같은 전통적인 검색 엔진뿐만 아니라, ChatGPT, Perplexity, Gemini 등 AI 검색 엔진(Generative Engine)의 데이터 수집 알고리즘을 완벽하게 파악하고 있는 GEO(Generative Engine Optimization) 전문가다.
@@ -392,14 +392,65 @@ export const PROMPT_TEMPLATES: Record<string, Record<string, PromptTemplate>> = 
   }
 };
 
-export const getPromptTemplate = (domain: string, docType: string): PromptTemplate => {
-  if (PROMPT_TEMPLATES[domain] && PROMPT_TEMPLATES[domain][docType]) {
-    return PROMPT_TEMPLATES[domain][docType];
+export async function getPromptTemplates(resourceFolder?: string, resourceFolderHandle?: any): Promise<Record<string, Record<string, PromptTemplate>>> {
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    try {
+      const templates = await (window as any).electronAPI.loadPrompts(resourceFolder);
+      if (templates) return templates;
+    } catch (e) {
+      console.error('Failed to load prompts via IPC', e);
+    }
+  } else if (resourceFolderHandle) {
+    try {
+      const promptDir = await resourceFolderHandle.getDirectoryHandle('prompt');
+      const fileHandle = await promptDir.getFileHandle('ai_prompts.json');
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('Failed to load prompts via File System Access API', e);
+    }
+  }
+  return DEFAULT_PROMPTS;
+}
+
+export async function savePromptTemplates(
+  prompts: Record<string, Record<string, PromptTemplate>>, 
+  resourceFolder?: string,
+  resourceFolderHandle?: any
+): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    try {
+      return await (window as any).electronAPI.savePrompts(prompts, resourceFolder);
+    } catch (e: any) {
+      console.error('Failed to save prompts via IPC', e);
+      return { success: false, error: e.message };
+    }
+  } else if (resourceFolderHandle) {
+    try {
+      const promptDir = await resourceFolderHandle.getDirectoryHandle('prompt', { create: true });
+      const fileHandle = await promptDir.getFileHandle('ai_prompts.json', { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify(prompts, null, 2));
+      await writable.close();
+      return { success: true };
+    } catch (e: any) {
+      console.error('Failed to save prompts via File System Access API', e);
+      return { success: false, error: e.message };
+    }
+  }
+  return { success: false, error: 'NO_ELECTRON_API' };
+}
+
+export async function getPromptTemplate(domain: string, docType: string, resourceFolder?: string, resourceFolderHandle?: any): Promise<PromptTemplate | null> {
+  const templates = await getPromptTemplates(resourceFolder, resourceFolderHandle);
+  if (templates[domain] && templates[domain][docType]) {
+    return templates[domain][docType];
   }
   return {
     systemPrompt: `당신은 ${domain} 분야의 전문가로서 ${docType} 문서를 작성해야 합니다. 
-아래의 필수 데이터를 바탕으로 최고의 마크다운 양식을 생성해주세요.
+아래의 필수 데이터를 바탕으로 최고의 마크다운 양식을 작성해주세요.
 가독성을 높이기 위해 제목, 개조식 리스트, 굵게 표시를 적절히 사용하세요.`,
-    userInputTemplate: `- 내용 요약:\n- 목적:\n- 대상:`
+    userInputTemplate: `- 내용 요약:\n- 목적:\n- 타겟:\n`
   };
-};
+}

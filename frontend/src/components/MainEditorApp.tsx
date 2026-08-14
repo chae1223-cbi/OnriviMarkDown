@@ -1965,7 +1965,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     } else if (typeof (window as any).showDirectoryPicker === 'function') {
       try {
-        const handle = await (window as any).showDirectoryPicker();
+        const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
         setResourceFolderHandle(handle);
         setResourceFolder(handle.name);
         await idb.set('resourceFolderHandle', handle);
@@ -4385,6 +4385,32 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 }
 `;
 
+    // 📄 내보내기 페이지 나누기(Page Break) 동적 반영
+    const pbLevel = prof.pageStyle.exportPageBreakLevel || 'h2';
+    if (pbLevel !== 'none') {
+      const levelNum = parseInt(pbLevel.replace('h', ''));
+      if (!isNaN(levelNum)) {
+        const breakSelectors = [];
+        const autoSelectors = [];
+        for (let i = 1; i <= levelNum; i++) {
+          breakSelectors.push(`.custom-preview-container h${i}`);
+          autoSelectors.push(`.custom-preview-container h${i}:first-child`);
+        }
+        css += `
+@media print {
+  ${breakSelectors.join(',\n  ')} {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+  ${autoSelectors.join(',\n  ')} {
+    page-break-before: auto !important;
+    break-before: auto !important;
+  }
+}
+`;
+      }
+    }
+
     return css;
   }, [profiles, activeProfileId]);
 
@@ -5435,6 +5461,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       rootFolder={rootFolder}
                       resourceFolderHandle={resourceFolderHandle}
                       resourceFolder={resourceFolder}
+
                       workspaceType={workspaceType}
                     />
                   </div>
@@ -5934,6 +5961,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 rootFolder={rootFolder}
                                 resourceFolderHandle={resourceFolderHandle}
                                 resourceFolder={resourceFolder}
+
                                 workspaceType={workspaceType}
                               />
                             </div>
@@ -5994,6 +6022,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               aiModelName={aiModelName || 'gemini-1.5-flash'}
               initialMode={aiDraftInitialMode}
               editorContext={aiEditorContext}
+              resourceFolder={resourceFolder}
+                resourceFolderHandle={resourceFolderHandle}
             />
           )}
 

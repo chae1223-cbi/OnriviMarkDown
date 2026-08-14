@@ -1531,7 +1531,13 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       container.style.setProperty('overflow', 'visible', 'important');
     });
 
-    const blob = await generateEpub({ title: epubTitle, contentHtml: clone.innerHTML, dynamicCssString: activeCss, fontFamily: computedFontFamily });
+    const blob = await generateEpub({ 
+      title: epubTitle, 
+      contentHtml: clone.innerHTML, 
+      dynamicCssString: activeCss, 
+      fontFamily: computedFontFamily,
+      exportPageBreakLevel: activeProfile?.pageStyle?.exportPageBreakLevel || 'h2'
+    });
 
     showToast('EPUB 저장 중...', 'info');
     if (typeof window !== 'undefined' && (window as any).electronAPI) {

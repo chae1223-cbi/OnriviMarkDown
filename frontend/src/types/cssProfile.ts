@@ -41,6 +41,8 @@ export interface CssProfile {
     headingSizeOffset: string;
     /** 탭 문자 렌더링 폭 (기본 4 = 공백 4개) */
     tabSize: string;
+    /** PDF/EPUB 내보내기 시 페이지 나누기 기준 (none, h1, h2, h3, h4, h5, h6) */
+    exportPageBreakLevel?: string;
   };
   /** 각 마크다운 요소별 CSS 룰셋 (빈 객체면 해당 요소는 기본 스타일 사용) */
   rules: {

@@ -1202,6 +1202,25 @@ ${guideContent}
               </div>
             </div>
 
+            {/* 내보내기 페이지 분할 기준 */}
+            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
+              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">내보내기 페이지 나누기</span>
+              <select
+                disabled={isSystemProfile}
+                value={currentProfile.pageStyle.exportPageBreakLevel || 'none'}
+                onChange={(e) => handlePageStyleChange('exportPageBreakLevel', e.target.value)}
+                className="px-3 py-2 rounded text-sm border bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-50"
+              >
+                <option value="none">사용 안함</option>
+                <option value="h1">제목 1단계 기준</option>
+                <option value="h2">제목 2단계 기준</option>
+                <option value="h3">제목 3단계 기준</option>
+                <option value="h4">제목 4단계 기준</option>
+                <option value="h5">제목 5단계 기준</option>
+                <option value="h6">제목 6단계 기준</option>
+              </select>
+            </div>
+
             {/* 페이지 배경색 */}
             <ColorPickerWidget
               label="페이지 배경색"

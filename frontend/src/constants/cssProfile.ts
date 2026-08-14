@@ -87,6 +87,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "orientation": "portrait",
       "headingSizeOffset": "3",
       "tabSize": "4",
+      "exportPageBreakLevel": "h2"
 
     },
     "rules": {
@@ -314,7 +315,8 @@ export const SYSTEM_PROFILES: CssProfile[] = [
     "marginRight": "15mm",
     "orientation": "portrait",
     "headingSizeOffset": "0",
-    "tabSize": "4"
+    "tabSize": "4",
+      "exportPageBreakLevel": "h2"
   },
   "rules": {
     "h1": {
@@ -495,7 +497,8 @@ export const SYSTEM_PROFILES: CssProfile[] = [
     "marginRight": "20mm",
     "orientation": "portrait",
     "headingSizeOffset": "0",
-    "tabSize": "4"
+    "tabSize": "4",
+      "exportPageBreakLevel": "h2"
   },
   "rules": {
     "h1": {
