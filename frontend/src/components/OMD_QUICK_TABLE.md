@@ -136,3 +136,6 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-EDIT-0038 | ImageModal.tsx | handleInsert | 모달 완료 시 본문에 이미지 경로 삽입 | - |
 | OMD-EDIT-0039 ✅ FIXED | ImageModal.tsx | previewSrc_fix | 이미지 모달 미리보기 소스 경로 처리 버그 수정 | 🚨 @PATCH: 2026-08-05 (local 모드에서도 API view를 통한 Fallback SVG 표시 지원) |
 | OMD-EDIT-0040 | ImageModal.tsx | FileDrop | 이미지 드래그 앤 드롭 및 붙여넣기 이벤트 지원 | - |
+| OMD-CORE-CSS-0001 ✅ FIXED | CssStyleModal.tsx | CssStyleModal | StyleManagerModal | **2026-08-15** — 모달 창 풀스크린 전환 / StyleManagerModal 신규 연동 / 헤더 [서식 관리] + [에디터로 이동] 버튼 대체 |
+| OMD-CORE-CSS-0002 ✅ FIXED | CssStyleForm.tsx | CssStyleForm | onOpenStyleManager | **2026-08-15** — 상단 헤더 간소화: 7개 이모지 버튼 제거 → [테마 드롭다운] + [⚙ 서식 관리] 버튼 2개로 정리 / onOpenStyleManager prop 추가 |
+| OMD-CORE-CSS-0003 ✅ FIXED | StyleManagerModal.tsx | StyleManagerModal (NEW) | CssProfile, isSystemProfileId, ConfirmModal, GoogleGenerativeAI | **2026-08-15** — 신규 풀스크린 서식 관리 전용 모달. 좌측 서식 목록 / 우측 이름변경·가져오기·내보내기·AI생성·삭제 기능 통합 |

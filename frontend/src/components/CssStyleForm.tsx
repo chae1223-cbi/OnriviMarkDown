@@ -13,6 +13,8 @@
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  *
  * 🚨 @PATCH
+ *   2026-08-15 — 상단 헤더 간소화: 7개 이모지 버튼 제거, [테마 선택 드롭다운] + [서식 관리 ⚙] 버튼 2개로 교체
+ *               onOpenStyleManager prop 추가 → StyleManagerModal 연동
  *   2026-07-15 — AI 서식 생성 기능 추가: GoogleGenerativeAI 직접 호출로 processTextWithAI 대체
  *               (이전 방식의 사전 코드블록 제거가 JSON 파싱과 충돌하는 버그 수정)
  *             — 브레이스 밸런싱 JSON 파서 도입 (AI 응답 후미 설명글/괄호 오염 원천 차단)
@@ -38,18 +40,19 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // CssStyleFormProps 인터페이스 정의서
 //
 // ================================================================================
-interface CssStyleFormProps { // CssStyleForm 컴포넌트가 받을 속성(props)들의 타입 정의 
-  profiles: CssProfile[]; // CssProfile[] : 서식 프로필 배열 
-  activeProfileId: string; // activeProfileId : 활성화된 서식 프로필 ID 
-  onSelectProfile: (id: string) => void; // onSelectProfile : 서식 프로필 선택 콜백 함수
-  onUpdateProfile: (profile: CssProfile) => void; // onUpdateProfile : 서식 프로필 업데이트 콜백 함수
-  onAddProfile?: () => void; // onAddProfile : 새 서식 프로필 추가 콜백 함수
-  onDeleteProfile?: (id: string) => void; // onDeleteProfile : 서식 프로필 삭제 콜백 함수
-  onImportProfile?: (profile: CssProfile) => void; // onImportProfile : 서식 프로필 불러오기 콜백 함수
-  onClose: () => void; // onClose : 모달 닫기 콜백 함수
-  isDarkMode?: boolean; // isDarkMode : 다크 모드 여부
-  geminiApiKey?: string; // geminiApiKey : Google Gemini API 키
-  aiModelName?: string; // aiModelName : AI 모델 이름
+interface CssStyleFormProps {
+  profiles: CssProfile[];
+  activeProfileId: string;
+  onSelectProfile: (id: string) => void;
+  onUpdateProfile: (profile: CssProfile) => void;
+  onAddProfile?: () => void;
+  onDeleteProfile?: (id: string) => void;
+  onImportProfile?: (profile: CssProfile) => void;
+  onClose: () => void;
+  onOpenStyleManager?: () => void;
+  isDarkMode?: boolean;
+  geminiApiKey?: string;
+  aiModelName?: string;
 }
 
 // ====================================================================
@@ -271,9 +274,9 @@ function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRem
 // ===================================================================
 // CssStyleForm 컴포넌트 구현 
 // ===================================================================
-export default function CssStyleForm({ // CssStyleForm 컴포넌트 구현 
-  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, isDarkMode, geminiApiKey, aiModelName
-}: CssStyleFormProps) { // CssStyleForm 컴포넌트 속성(props) 해체 
+export default function CssStyleForm({
+  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, onOpenStyleManager, isDarkMode, geminiApiKey, aiModelName
+}: CssStyleFormProps) {
   const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE; // 현재 프로파일 
   const isSystemProfile = isSystemProfileId(currentProfile.id);
 
@@ -892,139 +895,31 @@ ${guideContent}
   };
 
   return (
-    <div className="w-[420px] shrink-0 h-full bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col select-none text-sm animate-fadeIn relative">
+    <div className="w-full h-full bg-zinc-50 dark:bg-zinc-900 flex flex-col select-none text-sm animate-fadeIn relative">
 
-      {/* 1단계: 최상단 메가 메뉴 토글 타이틀 바 (항상 보임) */}
+      {/* 1단계: 최상단 헤더 (간결) */}
       <div className="px-4 py-3 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 shrink-0 z-20 flex flex-col gap-2">
-
-        <div className="flex items-center justify-between">
-          <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-            📌 현재 선택된 테마
-          </div>
-
-          {/* 이름 편집 / 삭제 / 추가 버튼 모음 */}
-          <div className="flex items-center gap-1 shrink-0">
-            {onAddProfile && (
-              <button onClick={onAddProfile} className="p-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors" title="새 테마 추가">
-                📖
-              </button>
-            )}
-            {onImportProfile && (
-              <button
-                onClick={() => {
-                  if (!geminiApiKey) {
-                    showToast("AI 기능을 사용하려면 설정에서 Gemini API Key를 등록해 주세요.");
-                    return;
-                  }
-                  setShowAiGenerator(!showAiGenerator);
-                }}
-                className={`p-1.5 rounded-md transition-colors ${showAiGenerator ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50'}`}
-                title="AI 서식 테마 자동 생성"
-              >
-                ✨
-              </button>
-            )}
-            <button onClick={() => setShowImportModal(true)} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 transition-colors" title="외부 서식 테마 가져오기 (JSON)">
-              📥
+        {/* 우측 상단 버튼 영역 */}
+        <div className="flex items-center justify-end gap-2 -mt-1 mb-1">
+          <button
+            onClick={downloadGuideSpec}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 transition-colors shadow-sm"
+            title="CSS 프로필 설정 가이드 다운로드"
+          >
+            📖 서식 설정 가이드
+          </button>
+          {onOpenStyleManager && (
+            <button
+              onClick={onOpenStyleManager}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 transition-colors shadow-sm"
+              title="서식 관리 (추가/삭제/가져오기/AI생성)"
+            >
+              ⚙ 서식 관리
             </button>
-            <button onClick={handleExportJson} className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 transition-colors" title="현재 테마 내보내기 (JSON)">
-              📤
-            </button>
-            <div className="w-px h-4 bg-zinc-300 dark:bg-zinc-700 mx-1"></div>
-            {!isEditingName && (
-              <button
-                onClick={() => {
-                  if (isSystemProfile) {
-                    showToast("시스템 기본 서식은 이름을 변경할 수 없습니다.");
-                    return;
-                  }
-                  handleRenameClick();
-                }}
-                className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-blue-600 dark:hover:text-blue-400'}`}
-                title="이름 변경"
-              >
-                ✏️
-              </button>
-            )}
-            {onDeleteProfile && !isEditingName && (
-              <button
-                onClick={() => {
-                  if (isSystemProfile) {
-                    showToast("시스템 기본 서식은 삭제할 수 없습니다.");
-                    return;
-                  }
-                  handleDeleteClick();
-                }}
-                className={`p-1.5 rounded-md shadow-sm border border-zinc-200 dark:border-zinc-700 transition-colors ${isSystemProfile ? 'opacity-40 cursor-not-allowed text-zinc-400' : 'bg-white dark:bg-zinc-800 text-zinc-500 hover:text-red-500'}`}
-                title="서식 삭제"
-              >
-                ❎
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* AI 서식 생성기 패널 */}
-        {showAiGenerator && (
-          <div className="p-3 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/50 rounded-xl flex flex-col gap-2 animate-slideIn">
-            <div className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
-              <span>✨ AI 테마 스타일 생성기</span>
-            </div>
-
-            {/* AI 퀵 스타일 선택 칩 */}
-            <div className="flex flex-wrap gap-1.5 mt-0.5 mb-0.5">
-              {[
-                { label: '#따뜻한 감성에세이', text: 'Noto Serif KR 명조체, 따뜻하고 은은한 아이보리 미색 배경(#FAF6ED), 넓고 부드러운 줄간격 1.8, 차분한 밤색 텍스트와 단정한 인용상자' },
-                { label: '#현대적인 기술보고서', text: 'Noto Sans KR 고딕체, 맑고 깨끗한 화이트 배경(#FFFFFF), 신뢰감을 주는 네이비 블루 강조색상(#0058BC), 정돈된 표 서식과 구분선' },
-                { label: '#영화 시나리오 대본', text: 'monospace 계열의 타자기 글꼴, 시선을 사로잡는 차분한 다크 슬레이트 배경(#1E1E24), 흑백 모노톤 강조색상, 단락 앞뒤 마진을 크게 주어 대본 느낌 극대화' },
-                { label: '#빈티지 미색잡지', text: '부드러운 바탕체, 예스러운 빈티지 황토 베이지 배경(#F4EDE0), 세련된 올리브 그린 포인트 색상, 넓은 자간과 여유로운 패딩 규칙' }
-              ].map((chip, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setAiPromptInput(chip.text)}
-                  disabled={isAiGenerating}
-                  className="px-2 py-0.5 text-[9px] rounded-full border border-purple-200 dark:border-purple-800 bg-white/70 dark:bg-zinc-800/70 text-purple-600 dark:text-purple-300 hover:bg-purple-100 transition-colors"
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
-
-            <textarea
-              placeholder="원하는 서식 스타일을 직접 적거나 위의 퀵 칩을 클릭해 보세요! (예: '나눔고딕 본문, 따뜻한 책 느낌, 줄간격 1.8, 주황색 강조색상')"
-              value={aiPromptInput}
-              onChange={(e) => setAiPromptInput(e.target.value)}
-              disabled={isAiGenerating}
-              className="w-full p-2 text-xs border border-purple-200 dark:border-purple-800 rounded-lg outline-none bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 h-16 resize-none focus:ring-1 focus:ring-purple-400"
-            />
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowAiGenerator(false)}
-                disabled={isAiGenerating}
-                className="px-2.5 py-1 text-[11px] font-semibold text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-              >
-                닫기
-              </button>
-              <button
-                onClick={handleGenerateAiProfile}
-                disabled={isAiGenerating || !aiPromptInput.trim()}
-                className="px-3 py-1 text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-1"
-              >
-                {isAiGenerating ? (
-                  <>
-                    <span className="animate-spin">⏳</span> 생성 중...
-                  </>
-                ) : (
-                  <>
-                    <span>🚀</span> 스타일 생성
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 메가 메뉴 토글 스위치 (이름 렌더링) */}
+        {/* 테마 선택 드롭다운 */}
         {isEditingName && !isSystemProfile ? (
           <input
             type="text"
@@ -1044,14 +939,16 @@ ${guideContent}
             className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800/50 hover:shadow-md transition-all group"
           >
             <div className="flex items-center gap-2">
-              <span className="text-xl">{isSystemProfile ? '🏛️' : '🖌️'}</span>
-              <span className="text-[17px] font-extrabold text-zinc-900 dark:text-zinc-100 truncate pr-2">
+              <span className="text-xl">{isSystemProfile ? '🏛️' : '🫆'}</span>
+              <span className="text-[16px] font-extrabold text-zinc-900 dark:text-zinc-100 truncate pr-2">
                 {currentProfile.name}
               </span>
             </div>
-            <span className={`text-zinc-400 group-hover:text-blue-500 transition-transform duration-200 ${isGalleryOpen ? 'rotate-180' : ''}`}>
-              ▼
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`text-zinc-400 group-hover:text-blue-500 transition-transform duration-200 ${isGalleryOpen ? 'rotate-180' : ''}`}>
+                ▼
+              </span>
+            </div>
           </button>
         )}
       </div>
@@ -1072,7 +969,7 @@ ${guideContent}
                   }}
                   className={`w-full h-[70px] rounded-xl border-2 flex flex-col items-center justify-center p-2 transition-all ${isActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm' : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 hover:border-blue-300 dark:hover:border-zinc-600'}`}
                 >
-                  <span className="text-[18px] mb-1">{isSystemProfileId(p.id) ? '🏛️' : '🖌️'}</span>
+                  <span className="text-[18px] mb-1">{isSystemProfileId(p.id) ? '🏛️' : '🫆'}</span>
                   <span className={`text-[11px] font-bold truncate w-full text-center ${isActive ? 'text-blue-700 dark:text-blue-300' : 'text-zinc-600 dark:text-zinc-400'}`}>
                     {p.name}
                   </span>

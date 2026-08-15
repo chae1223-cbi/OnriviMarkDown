@@ -5864,7 +5864,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-on-surface ${
                           previewMode === 'preview'
                             ? 'bg-surface-container-high p-4 overflow-y-auto'
-                            : 'bg-surface-container-low px-0 pt-0 pb-0 overflow-y-auto'
+                            : 'bg-surface-container-low px-0 pt-0 pb-0 overflow-hidden'
                         } ${previewMode === 'both' ? 'no-scrollbar' : ''}`}
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}

@@ -12,10 +12,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Wand2, Loader2, Check, Save, FolderOpen, Trash2, Copy, Paperclip, Edit2 } from 'lucide-react';
+import { X, Sparkles, Wand2, Loader2, Check, Save, FolderOpen, Trash2, Copy, Paperclip, Edit2, BookOpen, RotateCcw } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
-import { getPromptTemplates, savePromptTemplates, getPromptTemplate } from '@/lib/promptTemplates';
+import { getPromptTemplates, savePromptTemplates, getPromptTemplate, PromptTemplate } from '@/lib/promptTemplates';
 import { generateDraftWithAIStream } from '@/lib/gemini';
+import AIPromptLibrary from './AIPromptLibrary';
 
 interface AIDraftModalProps {
   onClose: () => void;
@@ -34,15 +35,17 @@ interface AIDraftModalProps {
 interface AIPreset {
   id: string;
   name: string;
-  mode: 'draft' | 'editorial';
-  // Draft specific
+  // Legacy fields for backwards compatibility during migration
+  mode?: 'draft' | 'editorial';
   domainId?: string;
   docType?: string;
   systemPrompt?: string;
   userPrompt?: string;
-  // Editorial specific
-  editorialCommand?: string;
+  
+  // Unified fields
+  editorialCommand: string;
   targetScope?: 'selection' | 'document' | 'none';
+  folder?: string;
 }
 
 
@@ -58,29 +61,27 @@ export default function AIDraftModal({
 }: AIDraftModalProps) {
   const { showToast } = useToast();
   
-  const [mode, setMode] = useState<'draft' | 'editorial'>(initialMode);
-  const [domainOptions, setDomainOptions] = useState<{id: string, label: string, docTypes: string[]}[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSavingPrompts, setIsSavingPrompts] = useState(false);
   const [presets, setPresets] = useState<AIPreset[]>([]);
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);
   
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [templatesDict, setTemplatesDict] = useState<Record<string, Record<string, PromptTemplate>>>({});
+
   // Preset Saving State
   const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [presetNameInput, setPresetNameInput] = useState('');
+  const [presetFolderInput, setPresetFolderInput] = useState('');
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [editingPresetName, setEditingPresetName] = useState<string>('');
   const [loadedPresetName, setLoadedPresetName] = useState<string>('');
+  const [loadedPresetFolder, setLoadedPresetFolder] = useState<string>('');
 
-  // Draft Mode State
-  const [selectedDomainId, setSelectedDomainId] = useState('');
-  const [selectedDocType, setSelectedDocType] = useState('');
-  const [systemPrompt, setSystemPrompt] = useState('');
-  const [userPrompt, setUserPrompt] = useState('');
-
-  // Editorial Mode State
+  // Editorial Command State
   const [editorialCommand, setEditorialCommand] = useState('');
   const [targetScope, setTargetScope] = useState<'selection' | 'document' | 'none'>('selection');
+  const [ignoreContext, setIgnoreContext] = useState(false);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -116,16 +117,12 @@ export default function AIDraftModal({
   useEffect(() => {
     async function load() {
       const templates = await getPromptTemplates(resourceFolder, resourceFolderHandle);
+      setTemplatesDict(templates);
       const options = Object.keys(templates).map(domain => ({
         id: domain,
         label: domain,
         docTypes: Object.keys(templates[domain])
       }));
-      setDomainOptions(options);
-      if (options.length > 0) {
-        setSelectedDomainId(options[0].id);
-        setSelectedDocType(options[0].docTypes[0]);
-      }
     }
     load();
   }, []);
@@ -153,6 +150,28 @@ export default function AIDraftModal({
     loadPresets();
   }, [resourceFolder]);
 
+  // Auto-Save Drafts logic
+  const AI_DRAFT_CACHE_KEY = 'omd_ai_draft_cache';
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(AI_DRAFT_CACHE_KEY);
+      if (cached) {
+        const data = JSON.parse(cached);
+        if (data.editorialCommand) setEditorialCommand(data.editorialCommand);
+        if (data.targetScope) setTargetScope(data.targetScope);
+      }
+    } catch(e) {}
+  }, []);
+
+  useEffect(() => {
+    const data = {
+      editorialCommand,
+      targetScope
+    };
+    localStorage.setItem(AI_DRAFT_CACHE_KEY, JSON.stringify(data));
+  }, [editorialCommand, targetScope]);
+
   // Set default targetScope if no selection
   useEffect(() => {
     if (!editorContext?.selectedText && targetScope === 'selection') {
@@ -160,20 +179,6 @@ export default function AIDraftModal({
     }
   }, [editorContext, targetScope]);
 
-  // Update prompts when domain or docType changes (Only for Draft mode)
-  useEffect(() => {
-    if (isGenerating || generationComplete || mode !== 'draft' || isEditMode) return;
-    async function updatePrompts() {
-      if (selectedDomainId && selectedDocType) {
-         const template = await getPromptTemplate(selectedDomainId, selectedDocType, resourceFolder, resourceFolderHandle);
-         if (template) {
-           setSystemPrompt(template.systemPrompt);
-           setUserPrompt(template.userInputTemplate);
-         }
-      }
-    }
-    updatePrompts();
-  }, [selectedDomainId, selectedDocType, mode, isGenerating, generationComplete, isEditMode]);
 
   // Auto-scroll the preview div as result streams in
   useEffect(() => {
@@ -183,44 +188,11 @@ export default function AIDraftModal({
   }, [draftResult, isGenerating]);
 
 
-  const handleSavePrompt = async () => {
-    setIsSavingPrompts(true);
-    try {
-      const templates = await getPromptTemplates(resourceFolder, resourceFolderHandle);
-      if (!templates[selectedDomainId]) templates[selectedDomainId] = {};
-      templates[selectedDomainId][selectedDocType] = {
-        systemPrompt,
-        userInputTemplate: userPrompt
-      };
-      const result = await savePromptTemplates(templates, resourceFolder, resourceFolderHandle);
-        if (result.success) {
-          showToast('프롬프트 템플릿이 성공적으로 저장되었습니다.', 'success');
-          setIsEditMode(false);
-        } else {
-          if (result.error === 'NO_RESOURCE_FOLDER') {
-            showToast('리소스 폴더가 지정되지 않았거나 존재하지 않습니다. 환경설정에서 확인해주세요.', 'error');
-          } else {
-            showToast('프롬프트 템플릿 저장에 실패했습니다.', 'error');
-          }
-        }
-    } catch(e) {
-      showToast('저장 중 오류가 발생했습니다.', 'error');
-    } finally {
-      setIsSavingPrompts(false);
-    }
-  };
-
-  const handleDomainChange = (domainId: string) => {
-    const domain = domainOptions.find(d => d.id === domainId) || domainOptions[0];
-    if (domain) {
-      setSelectedDomainId(domain.id);
-      setSelectedDocType(domain.docTypes[0]);
-    }
-  };
 
   const handleSavePresetClick = () => {
     setIsSavingPreset(true);
     setPresetNameInput(loadedPresetName || '');
+    setPresetFolderInput(loadedPresetFolder || '');
     setShowPresetDropdown(false);
   };
 
@@ -231,22 +203,16 @@ export default function AIDraftModal({
     }
 
     const trimmedName = presetNameInput.trim();
+    const trimmedFolder = presetFolderInput.trim();
     const existingIndex = presets.findIndex(p => p.name === trimmedName);
-    
     let updated;
     if (existingIndex !== -1) {
       const updatedPreset: AIPreset = {
         ...presets[existingIndex],
-        mode,
-        ...(mode === 'draft' ? {
-          domainId: selectedDomainId,
-          docType: selectedDocType,
-          systemPrompt,
-          userPrompt
-        } : {
-          editorialCommand,
-          targetScope
-        })
+        editorialCommand,
+        targetScope: ignoreContext ? 'none' : targetScope,
+        name: trimmedName,
+        folder: trimmedFolder || undefined
       };
       updated = [...presets];
       updated[existingIndex] = updatedPreset;
@@ -254,16 +220,9 @@ export default function AIDraftModal({
       const newPreset: AIPreset = {
         id: Date.now().toString(),
         name: trimmedName,
-        mode,
-        ...(mode === 'draft' ? {
-          domainId: selectedDomainId,
-          docType: selectedDocType,
-          systemPrompt,
-          userPrompt
-        } : {
-          editorialCommand,
-          targetScope
-        })
+        editorialCommand,
+        targetScope: ignoreContext ? 'none' : targetScope,
+        folder: trimmedFolder || undefined
       };
       updated = [...presets, newPreset];
     }
@@ -311,19 +270,36 @@ export default function AIDraftModal({
     setPresetNameInput('');
   };
 
+  const handleSelectTemplate = (domain: string, docType: string, template: PromptTemplate) => {
+    const combinedCommand = `[작성 규칙]\n${template.systemPrompt}\n\n[입력 데이터]\n${template.userInputTemplate}`;
+    setEditorialCommand(combinedCommand);
+    setTargetScope('document');
+    setShowLibrary(false);
+    setLoadedPresetName(docType);
+    setLoadedPresetFolder(domain);
+    showToast("템플릿을 불러왔습니다.", "success");
+  };
+
   const handleLoadPreset = (preset: AIPreset) => {
     setLoadedPresetName(preset.name);
-    setMode(preset.mode);
-    if (preset.mode === 'draft') {
-      setSelectedDomainId(preset.domainId || (domainOptions[0]?.id || ""));
-      setSelectedDocType(preset.docType || (domainOptions[0]?.docTypes?.[0] || ""));
-      setSystemPrompt(preset.systemPrompt || '');
-      setUserPrompt(preset.userPrompt || '');
+    setLoadedPresetFolder(preset.folder || '');
+    if (preset.mode === 'draft' || preset.systemPrompt || preset.userPrompt) {
+      // Legacy preset migration on load
+      const combined = `[작성 규칙]\n${preset.systemPrompt || ''}\n\n[입력 데이터]\n${preset.userPrompt || ''}`;
+      setEditorialCommand(combined.trim());
+      setTargetScope('document');
     } else {
       setEditorialCommand(preset.editorialCommand || '');
-      setTargetScope(preset.targetScope || 'none');
+      if (preset.targetScope === 'none') {
+        setIgnoreContext(true);
+        setTargetScope('document');
+      } else {
+        setIgnoreContext(false);
+        setTargetScope(preset.targetScope || 'selection');
+      }
     }
     setShowPresetDropdown(false);
+    setShowLibrary(false);
     showToast("프리셋을 불러왔습니다.", "success");
   };
 
@@ -369,7 +345,13 @@ export default function AIDraftModal({
       showToast("이름을 입력해주세요.", "warning");
       return;
     }
-    const updated = presets.map(p => p.id === id ? { ...p, name: editingPresetName.trim() } : p);
+    renamePreset(id, editingPresetName.trim());
+    setEditingPresetId(null);
+    setEditingPresetName('');
+  };
+
+  const renamePreset = (id: string, newName: string) => {
+    const updated = presets.map(p => p.id === id ? { ...p, name: newName } : p);
     
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       (window as any).electronAPI.savePresets(updated, resourceFolder).then((result: any) => {
@@ -397,8 +379,6 @@ export default function AIDraftModal({
     } else {
       showToast("리소스 폴더가 지정되지 않았습니다.", "error");
     }
-    setEditingPresetId(null);
-    setEditingPresetName('');
   };
 
   const handleCancelRename = (e: React.MouseEvent) => {
@@ -449,33 +429,21 @@ export default function AIDraftModal({
       return;
     }
 
-    let finalSystemPrompt = systemPrompt;
-    let finalUserPrompt = userPrompt;
+    if (!editorialCommand.trim()) {
+      showToast("에디토리얼 명령을 입력해 주세요.", "warning");
+      return;
+    }
 
-    if (mode === 'editorial') {
-      if (!editorialCommand.trim()) {
-        showToast("에디토리얼 명령을 입력해 주세요.", "warning");
-        return;
-      }
-      finalSystemPrompt = "You are a professional editorial assistant. Help the user edit or create document text based on their instructions. Return only the finalized text without markdown code blocks unless requested.";
-      
-      if (targetScope === 'selection' && editorContext?.selectedText) {
-        finalUserPrompt = `${editorialCommand}\n\n[대상 영역 텍스트]\n${editorContext.selectedText}`;
-      } else if (targetScope === 'document' && editorContext?.fullText) {
-        finalSystemPrompt = "You are a professional editorial assistant. Your task is to write a COMPLETELY NEW document based on the user's command. The provided existing document is ONLY a reference for output formatting (layout, lists, tables), style, tone, and structural format (like heading levels). Do NOT summarize or edit the existing document. Create brand new content that matches the user's command, but strictly mimics the output format, layout, form, and feeling of the reference document. Return only the finalized text without markdown code blocks unless requested.";
-        finalUserPrompt = `[새 문서 작성 명령]\n${editorialCommand}\n\n[스타일/구조/출력양식 참고용 기존 문서]\n${editorContext.fullText}\n\n위의 '참고용 기존 문서'를 요약하거나 정리하지 마세요. 해당 문서는 오직 글의 출력 양식(레이아웃, 표, 목록 구조), 구조(제목 수준 등), 느낌(어조, 문체)을 파악하기 위한 '제공 자료'일 뿐입니다. 반드시 이 자료에 사용된 출력 양식과 톤앤매너 및 일관성을 똑같이 유지하면서, 맨 위 '[새 문서 작성 명령]'에 따라 '완전히 새로운 문서'를 창작해 주세요.`;
-      } else {
-        finalUserPrompt = editorialCommand;
-      }
-    } else {
-      if (!systemPrompt.trim()) {
-        showToast("작성 규칙(System Prompt)을 입력해 주세요.", "warning");
-        return;
-      }
-      if (!userPrompt.trim()) {
-        showToast("입력 데이터(User Input)를 작성해 주세요.", "warning");
-        return;
-      }
+    let finalSystemPrompt = "You are a professional editorial assistant. Help the user edit or create document text based on their instructions. Return only the finalized text without markdown code blocks unless requested.";
+    let finalUserPrompt = editorialCommand;
+    
+    if (ignoreContext) {
+      // Do nothing, just pass the editorialCommand as the prompt
+    } else if (targetScope === 'selection' && editorContext?.selectedText) {
+      finalUserPrompt = `${editorialCommand}\n\n[대상 영역 텍스트]\n${editorContext.selectedText}`;
+    } else if (targetScope === 'document' && editorContext?.fullText) {
+      finalSystemPrompt = "You are a professional editorial assistant. Your task is to write a COMPLETELY NEW document based on the user's command. The provided existing document is ONLY a reference for output formatting (layout, lists, tables), style, tone, and structural format (like heading levels). Do NOT summarize or edit the existing document. Create brand new content that matches the user's command, but strictly mimics the output format, layout, form, and feeling of the reference document. Return only the finalized text without markdown code blocks unless requested.";
+      finalUserPrompt = `[새 문서 작성 명령]\n${editorialCommand}\n\n[스타일/구조/출력양식 참고용 기존 문서]\n${editorContext.fullText}\n\n위의 '참고용 기존 문서'를 요약하거나 정리하지 마세요. 해당 문서는 오직 글의 출력 양식(레이아웃, 표, 목록 구조), 구조(제목 수준 등), 느낌(어조, 문체)을 파악하기 위한 '제공 자료'일 뿐입니다. 반드시 이 자료에 사용된 출력 양식과 톤앤매너 및 일관성을 똑같이 유지하면서, 맨 위 '[새 문서 작성 명령]'에 따라 '완전히 새로운 문서' 창작해 주세요.`;
     }
 
     if (attachedFileContent) {
@@ -505,6 +473,20 @@ export default function AIDraftModal({
     }
   };
 
+  const handleReset = () => {
+    setEditorialCommand('');
+    setLoadedPresetName('');
+    setLoadedPresetFolder('');
+    setTargetScope('selection');
+    setIgnoreContext(false);
+    setAttachedFileName('');
+    setAttachedFileContent('');
+    setDraftResult('');
+    setGenerationComplete(false);
+    setIsGenerating(false);
+    showToast('모든 입력 내용과 설정이 초기화되었습니다.', 'success');
+  };
+
   const handleApply = (action: 'insert' | 'replace' | 'append') => {
     if (!draftResult.trim()) {
       showToast("생성된 결과가 없습니다.", "warning");
@@ -513,17 +495,35 @@ export default function AIDraftModal({
     onApply(draftResult, action, targetScope);
   };
 
-  const currentDomainObj = domainOptions.find(d => d.id === selectedDomainId) || domainOptions[0];
+
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm" onMouseDown={onClose}>
       <div
-        className="bg-white dark:bg-zinc-900 w-[1300px] max-w-[95vw] h-[750px] max-h-[90vh] rounded-2xl shadow-2xl flex flex-col border border-zinc-200 dark:border-zinc-700/50 transition-all duration-300 overflow-hidden"
+        className="relative bg-white dark:bg-zinc-900 w-full h-full flex flex-col transition-all duration-300 overflow-hidden outline-none"
         onMouseDown={e => e.stopPropagation()}
+        tabIndex={-1}
         onKeyDown={(e) => {
           e.stopPropagation();
           if (e.nativeEvent) {
             e.nativeEvent.stopImmediatePropagation?.();
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            handleGenerate();
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            handleSavePresetClick();
+          }
+          if (e.key === 'Escape') {
+            if (showLibrary) {
+              setShowLibrary(false);
+            } else if (isSavingPreset) {
+              handleCancelSavePreset();
+            } else {
+              onClose();
+            }
           }
         }}
       >
@@ -546,12 +546,25 @@ export default function AIDraftModal({
             </div>
           </div>
           {!isGenerating && (
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 transition-colors"
+                title="모든 입력 내용 및 설정 초기화"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="text-[12px] font-bold">초기화</span>
+              </button>
+              <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1"></div>
+              <button
+                onClick={onClose}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 transition-colors"
+                title="AI 모달을 닫고 에디터로 돌아갑니다"
+              >
+                <span className="text-[12px] font-bold">에디터로 이동</span>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -559,36 +572,23 @@ export default function AIDraftModal({
         <div className="flex flex-1 overflow-hidden">
           
           {/* Left Column: Prompts */}
-          <div className="w-[600px] bg-slate-50 dark:bg-zinc-800/50 border-r border-zinc-100 dark:border-zinc-800 flex flex-col relative overflow-hidden">
+          <div className="flex-1 bg-slate-50 dark:bg-zinc-800/50 border-r border-zinc-100 dark:border-zinc-800 flex flex-col relative overflow-hidden">
             
             {/* Mode & Preset Top Bar */}
             <div className="px-6 pt-5 pb-3 shrink-0 flex items-center justify-between z-10 relative">
               <div className="flex bg-zinc-200/50 dark:bg-zinc-800 p-1 rounded-lg">
-                <button
-                  onClick={() => setMode('draft')}
-                  className={`px-3 py-1.5 text-[12px] font-bold rounded-md transition-colors ${
-                    mode === 'draft' ? 'bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'
-                  }`}
-                >
-                  초안 생성
-                </button>
-                <button
-                  onClick={() => setMode('editorial')}
-                  className={`px-3 py-1.5 text-[12px] font-bold rounded-md transition-colors ${
-                    mode === 'editorial' ? 'bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'
-                  }`}
-                >
-                  편집 어시스턴트
-                </button>
+                <span className="px-3 py-1.5 text-[12px] font-bold bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 shadow-sm rounded-md">
+                  에디토리얼 모드
+                </span>
               </div>
 
               <div ref={presetContainerRef} className="flex items-center gap-2 relative">
                 <button
-                  onClick={() => { setShowPresetDropdown(!showPresetDropdown); setIsSavingPreset(false); }}
+                  onClick={() => { setShowLibrary(true); setIsSavingPreset(false); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
-                  <FolderOpen className="w-3.5 h-3.5" />
-                  불러오기
+                  <BookOpen className="w-3.5 h-3.5" />
+                  라이브러리 열기
                 </button>
                 <button
                   onClick={handleSavePresetClick}
@@ -602,71 +602,38 @@ export default function AIDraftModal({
                 {isSavingPreset && (
                   <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl overflow-hidden z-50 p-4 flex flex-col gap-3">
                     <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">새 프리셋 저장</span>
-                    <input 
-                      type="text" 
-                      value={presetNameInput}
-                      onChange={(e) => setPresetNameInput(e.target.value)}
-                      onKeyDown={(e) => { if(e.key === 'Enter') handleConfirmSavePreset(); if(e.key === 'Escape') handleCancelSavePreset(); }}
-                      placeholder="프리셋 이름을 입력하세요"
-                      autoFocus
-                      className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-purple-500"
-                    />
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-zinc-500 flex items-center gap-1">
+                          <FolderOpen className="w-3 h-3" /> 폴더명 (선택)
+                        </label>
+                        <input 
+                          type="text" 
+                          value={presetFolderInput}
+                          onChange={(e) => setPresetFolderInput(e.target.value)}
+                          onKeyDown={(e) => { if(e.key === 'Enter') handleConfirmSavePreset(); if(e.key === 'Escape') handleCancelSavePreset(); }}
+                          placeholder="새 폴더명 입력"
+                          className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-[#8b5cf6]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-bold text-zinc-500 flex items-center gap-1">
+                          <BookOpen className="w-3 h-3" /> 프리셋명 (필수)
+                        </label>
+                        <input 
+                          type="text" 
+                          value={presetNameInput}
+                          onChange={(e) => setPresetNameInput(e.target.value)}
+                          onKeyDown={(e) => { if(e.key === 'Enter') handleConfirmSavePreset(); if(e.key === 'Escape') handleCancelSavePreset(); }}
+                          placeholder="프리셋 이름 입력"
+                          autoFocus
+                          className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-[#8b5cf6]"
+                        />
+                      </div>
+                    </div>
                     <div className="flex items-center justify-end gap-2 mt-1">
                       <button onClick={handleCancelSavePreset} className="px-3 py-1.5 text-[11px] font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md">취소</button>
                       <button onClick={handleConfirmSavePreset} className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-md shadow-sm">저장하기</button>
-                    </div>
-                  </div>
-                )}
-
-                {showPresetDropdown && (
-                  <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl overflow-hidden z-50">
-                    <div className="px-4 py-2 bg-slate-50 dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-700">
-                      <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">저장된 프리셋</span>
-                    </div>
-                    <div className="max-h-60 overflow-y-auto">
-                      {presets.length === 0 ? (
-                        <div className="p-4 text-center text-zinc-400 text-[12px]">저장된 프리셋이 없습니다.</div>
-                      ) : (
-                        presets.map(p => (
-                          <div key={p.id} className="flex items-center justify-between group hover:bg-zinc-50 dark:hover:bg-zinc-700/50 cursor-pointer border-b border-zinc-50 dark:border-zinc-700/50 last:border-0" onClick={() => { if (editingPresetId !== p.id) handleLoadPreset(p); }}>
-                            {editingPresetId === p.id ? (
-                              <div className="px-4 py-2 flex flex-row w-full gap-2 items-center" onClick={e => e.stopPropagation()}>
-                                <input 
-                                  type="text" 
-                                  value={editingPresetName} 
-                                  onChange={e => setEditingPresetName(e.target.value)} 
-                                  onKeyDown={e => { if(e.key==='Enter') handleSaveRename(e as any, p.id); if(e.key==='Escape') handleCancelRename(e as any); }}
-                                  className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded px-2 py-1 text-[12px] focus:outline-none focus:border-purple-500"
-                                  autoFocus
-                                />
-                                <button onClick={(e) => handleSaveRename(e as any, p.id)} className="p-1 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"><Check className="w-4 h-4" /></button>
-                                <button onClick={handleCancelRename} className="p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"><X className="w-4 h-4" /></button>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="px-4 py-3 flex flex-col">
-                                  <span className="text-[13px] font-bold text-zinc-800 dark:text-zinc-200">{p.name}</span>
-                                  <span className="text-[10px] text-zinc-400 mt-0.5">{p.mode === 'draft' ? '초안 생성' : '편집 어시스턴트'}</span>
-                                </div>
-                                <div className="mr-3 flex opacity-0 group-hover:opacity-100 transition-all">
-                                  <button
-                                    onClick={(e) => handleStartRename(e, p)}
-                                    className="p-1.5 text-zinc-300 hover:text-blue-500 rounded-md hover:bg-blue-50 dark:hover:bg-blue-500/10 mr-1"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => handleDeletePreset(e, p.id)}
-                                    className="p-1.5 text-zinc-300 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        ))
-                      )}
                     </div>
                   </div>
                 )}
@@ -674,140 +641,88 @@ export default function AIDraftModal({
             </div>
 
             <div className="flex flex-col h-full overflow-y-auto custom-scrollbar px-6 pb-24 relative">
-              
               <div className="flex flex-col gap-6">
                 
-                {mode === 'draft' ? (
-                  <>
-                    {/* Domain & DocType */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
-                        문서 유형 설정 <span className="text-zinc-400 font-medium">(DOCUMENT TYPE)</span>
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <select
-                          value={selectedDomainId}
-                          onChange={(e) => handleDomainChange(e.target.value)}
-                          disabled={isGenerating}
-                          className="w-full bg-white dark:bg-zinc-900 border-2 border-transparent hover:border-[#e9d5ff] focus:border-[#a855f7] rounded-xl px-4 py-3 text-[12px] font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none transition-colors shadow-sm disabled:opacity-50"
-                        >
-                          {domainOptions.map(d => (
-                            <option key={d.id} value={d.id}>{d.label}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={selectedDocType}
-                          onChange={(e) => setSelectedDocType(e.target.value)}
-                          disabled={isGenerating}
-                          className="w-full bg-white dark:bg-zinc-900 border-2 border-transparent hover:border-[#e9d5ff] focus:border-[#a855f7] rounded-xl px-4 py-3 text-[12px] font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none transition-colors shadow-sm disabled:opacity-50"
-                        >
-                          {currentDomainObj.docTypes.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
-                        </select>
+                {loadedPresetName && (
+                  <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-white dark:bg-zinc-800 flex items-center justify-center">
+                        <BookOpen className="w-3.5 h-3.5 text-purple-500" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400">적용된 템플릿/프리셋</span>
+                        <span className="text-[12px] font-extrabold text-zinc-800 dark:text-zinc-200">{loadedPresetName}</span>
                       </div>
                     </div>
+                    <button onClick={() => setLoadedPresetName('')} className="p-1 hover:bg-purple-200 dark:hover:bg-purple-800/50 rounded-md text-purple-400 transition-colors">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
 
-                    {/* System Prompt */}
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
-                          AI 작성 규칙 <span className="text-zinc-400 font-medium">(SYSTEM PROMPT)</span>
-                        </label>
-                        <div className="flex items-center gap-2">
-                          {isEditMode ? (
-                            <>
-                              <button onClick={() => setIsEditMode(false)} className="text-[10px] px-2 py-1 bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300 rounded hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors">취소</button>
-                              <button onClick={handleSavePrompt} disabled={isSavingPrompts} className="text-[10px] px-2 py-1 bg-[#8b5cf6] text-white rounded hover:bg-[#7c3aed] transition-colors shadow-sm">{isSavingPrompts ? '저장 중...' : '템플릿 저장'}</button>
-                            </>
-                          ) : (
-                            <button onClick={() => setIsEditMode(true)} className="text-[10px] px-2 py-1 bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1">
-                              <span>⚙️</span> 템플릿 수정 모드
-                            </button>
-                          )}
+                {/* Editorial Mode Context Scope */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
+                      컨텍스트 범위 <span className="text-zinc-400 font-medium">(CONTEXT SCOPE)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer group">
+                      <div className="relative flex items-center justify-center">
+                        <input 
+                          type="checkbox" 
+                          checked={ignoreContext}
+                          onChange={(e) => setIgnoreContext(e.target.checked)}
+                          className="peer sr-only" 
+                        />
+                        <div className="w-3.5 h-3.5 border-2 border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 peer-checked:bg-[#8b5cf6] peer-checked:border-[#8b5cf6] transition-colors flex items-center justify-center">
+                          <svg className="w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
                         </div>
                       </div>
-                      <textarea
-                        value={systemPrompt}
-                        onChange={(e) => setSystemPrompt(e.target.value)}
-                        disabled={isGenerating}
-                        placeholder="AI에게 지시할 작성 원칙과 톤앤매너를 입력하세요."
-                        className="w-full bg-white dark:bg-zinc-900 border-2 border-transparent hover:border-[#e9d5ff] focus:border-[#a855f7] rounded-2xl p-4 text-[12px] text-zinc-700 dark:text-zinc-200 focus:outline-none transition-colors shadow-sm resize-none min-h-[200px] disabled:opacity-50 custom-scrollbar leading-relaxed"
-                      />
-                    </div>
+                      <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors">문서 적용 안함 (일반 질문)</span>
+                    </label>
+                  </div>
+                  <div className={`flex bg-white dark:bg-zinc-900 p-1.5 rounded-xl border-2 border-transparent shadow-sm gap-1 transition-opacity ${ignoreContext ? 'opacity-40 pointer-events-none' : ''}`}>
+                    <button
+                      onClick={() => setTargetScope('selection')}
+                      disabled={!editorContext?.selectedText}
+                      className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${
+                        targetScope === 'selection'
+                          ? 'bg-purple-100 dark:bg-purple-900/30 text-[#8b5cf6]'
+                          : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                      title={editorContext?.selectedText ? `선택된 본문 사용` : '에디터에서 텍스트를 드래그한 후 사용 가능'}
+                    >
+                      선택 영역
+                    </button>
+                    <button
+                      onClick={() => setTargetScope('document')}
+                      className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${
+                        targetScope === 'document'
+                          ? 'bg-purple-100 dark:bg-purple-900/30 text-[#8b5cf6]'
+                          : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+                      }`}
+                    >
+                      문서 전체
+                    </button>
+                  </div>
+                </div>
 
-                    {/* User Prompt */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
-                        입력 데이터 <span className="text-zinc-400 font-medium">(USER INPUT)</span>
-                      </label>
-                      <textarea
-                        value={userPrompt}
-                        onChange={(e) => setUserPrompt(e.target.value)}
-                        disabled={isGenerating}
-                        placeholder="문서 작성에 필요한 핵심 데이터나 키워드를 양식에 맞게 기입해 주세요."
-                        className="w-full bg-white dark:bg-zinc-900 border-2 border-[#e9d5ff] dark:border-[#8b5cf6]/30 focus:border-[#a855f7] rounded-2xl p-4 text-[12px] text-zinc-800 dark:text-zinc-100 focus:outline-none transition-colors shadow-sm resize-none min-h-[160px] disabled:opacity-50 custom-scrollbar leading-relaxed"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Editorial Mode Context Scope */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
-                        컨텍스트 범위 <span className="text-zinc-400 font-medium">(CONTEXT SCOPE)</span>
-                      </label>
-                      <div className="flex bg-white dark:bg-zinc-900 p-1.5 rounded-xl border-2 border-transparent shadow-sm gap-1">
-                        <button
-                          onClick={() => setTargetScope('selection')}
-                          disabled={!editorContext?.selectedText}
-                          className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${
-                            targetScope === 'selection'
-                              ? 'bg-purple-100 dark:bg-purple-900/30 text-[#8b5cf6]'
-                              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                          } disabled:opacity-40 disabled:cursor-not-allowed`}
-                          title={editorContext?.selectedText ? `선택된 본문 사용` : '에디터에서 텍스트를 드래그한 후 사용 가능'}
-                        >
-                          선택 영역
-                        </button>
-                        <button
-                          onClick={() => setTargetScope('document')}
-                          className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${
-                            targetScope === 'document'
-                              ? 'bg-purple-100 dark:bg-purple-900/30 text-[#8b5cf6]'
-                              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                          }`}
-                        >
-                          문서 전체
-                        </button>
-                        <button
-                          onClick={() => setTargetScope('none')}
-                          className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${
-                            targetScope === 'none'
-                              ? 'bg-purple-100 dark:bg-purple-900/30 text-[#8b5cf6]'
-                              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                          }`}
-                        >
-                          사용 안함 (일반 질문)
-                        </button>
-                      </div>
-                    </div>
+                {/* Editorial Command */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
+                    에디토리얼 명령 <span className="text-zinc-400 font-medium">(EDITORIAL COMMAND)</span>
+                  </label>
+                  <textarea
+                    value={editorialCommand}
+                    onChange={(e) => setEditorialCommand(e.target.value)}
+                    disabled={isGenerating}
+                    placeholder="AI에게 요청할 지시문이나 작성할 내용을 자유롭게 입력하세요..."
+                    className="w-full bg-white dark:bg-zinc-900 border-2 border-[#e9d5ff] dark:border-[#8b5cf6]/30 focus:border-[#a855f7] rounded-2xl p-4 text-[13px] text-zinc-800 dark:text-zinc-100 focus:outline-none transition-colors shadow-sm resize-none min-h-[450px] disabled:opacity-50 custom-scrollbar leading-relaxed"
+                  />
+                </div>
 
-                    {/* Editorial Command */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
-                        에디토리얼 명령 <span className="text-zinc-400 font-medium">(EDITORIAL COMMAND)</span>
-                      </label>
-                      <textarea
-                        value={editorialCommand}
-                        onChange={(e) => setEditorialCommand(e.target.value)}
-                        disabled={isGenerating}
-                        placeholder="AI에게 요청할 편집 명령이나 주제를 입력하세요..."
-                        className="w-full bg-white dark:bg-zinc-900 border-2 border-[#e9d5ff] dark:border-[#8b5cf6]/30 focus:border-[#a855f7] rounded-2xl p-4 text-[12px] text-zinc-800 dark:text-zinc-100 focus:outline-none transition-colors shadow-sm resize-none min-h-[350px] disabled:opacity-50 custom-scrollbar leading-relaxed"
-                      />
-                    </div>
-                  </>
-                )}
                 
                 {/* File Attachment UI (Shared between modes) */}
                 <div className="flex flex-col gap-2 mt-2">
@@ -858,7 +773,7 @@ export default function AIDraftModal({
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    AI {mode === 'draft' ? '초안 생성' : '작업 수행'} 중...
+                    AI 작업 수행 중...
                   </>
                 ) : generationComplete ? (
                   <>
@@ -868,7 +783,7 @@ export default function AIDraftModal({
                 ) : (
                   <>
                     <Sparkles className="w-5 h-5" />
-                    AI {mode === 'draft' ? '초안 생성' : '글 생성'} 시작
+                    AI 실행
                   </>
                 )}
               </button>
@@ -886,39 +801,43 @@ export default function AIDraftModal({
               
               {/* Apply Buttons (Only visible when generated) */}
               {generationComplete && !isGenerating && draftResult.trim() && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={handleCopyResult}
-                    className="px-4 py-1.5 text-[12px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-1.5 mr-2"
+                    className="px-2.5 py-1.5 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5 mr-1"
+                    title="클립보드에 복사"
                   >
                     {aiCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    {aiCopied ? '복사됨' : '결과 복사'}
+                    {aiCopied ? '복사됨' : '복사'}
                   </button>
 
-                  {mode === 'editorial' && targetScope !== 'none' && (
+                  {targetScope !== 'none' && (
                     <>
                       <button
                         onClick={() => handleApply('replace')}
-                        className="px-4 py-1.5 text-[12px] font-bold text-[#8b5cf6] border border-[#8b5cf6]/30 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
+                        className="px-3 py-1.5 text-[11px] font-bold text-[#8b5cf6] border border-[#8b5cf6]/30 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-md transition-colors"
+                        title="기존 내용을 지우고 이 결과로 덮어씁니다."
                       >
-                        기존 내용 덮어쓰기
+                        덮어쓰기
                       </button>
                       <button
                         onClick={() => handleApply('append')}
-                        className="px-4 py-1.5 text-[12px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-lg transition-colors flex items-center gap-1.5"
+                        className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-md transition-colors flex items-center gap-1"
+                        title="기존 내용은 유지하고 그 아래에 결과를 이어서 붙입니다."
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        본문 아래에 이어쓰기
+                        <Check className="w-3 h-3" />
+                        아래에 추가
                       </button>
                     </>
                   )}
-                  {(mode === 'draft' || targetScope === 'none') && (
+                  {true && (
                     <button
                       onClick={() => handleApply('insert')}
-                      className="px-4 py-1.5 text-[12px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-lg transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-md transition-colors flex items-center gap-1"
+                      title="에디터에서 현재 깜빡이고 있는 커서 위치에 결과를 삽입합니다."
                     >
-                      <Check className="w-3.5 h-3.5" />
-                      에디터에 적용하기
+                      <Check className="w-3 h-3" />
+                      커서 위치에 삽입
                     </button>
                   )}
                 </div>
@@ -960,6 +879,19 @@ export default function AIDraftModal({
 
           </div>
         </div>
+
+        {/* AI Prompt Library Overlay */}
+        <AIPromptLibrary 
+          isOpen={showLibrary}
+          onClose={() => setShowLibrary(false)}
+          templates={templatesDict}
+          presets={presets}
+          onSelectTemplate={handleSelectTemplate}
+          onSelectPreset={handleLoadPreset}
+          onDeletePreset={(id) => handleDeletePreset({ stopPropagation: () => {} } as any, id)}
+          onRenamePreset={renamePreset}
+        />
+
       </div>
     </div>
   );

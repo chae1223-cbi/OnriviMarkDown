@@ -1,12 +1,26 @@
+/**
+ * 프로그램명 : OnriviAuthor
+ * 파일명 : CssStyleModal.tsx
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026-08-15> 최초작성
+ * 🚨 @PATCH : **2026-08-15** — 모달 창을 풀스크린으로 전환 / 서식 관리 전용
+ *             StyleManagerModal 신규 연동 / 헤더에 [서식 관리] + [에디터로 가기] 버튼 추가
+ *             z-index를 z-[200]으로 상향 (MenuBar z-[100] 완전 덮기) /
+ *             좌측 CssStyleForm 패널 너비 480px로 확장 / CssStyleForm 내부 w-full로 변경
+ * -----------------------------------------------------------------------
+ */
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import CssStyleForm from './CssStyleForm';
+import StyleManagerModal from './StyleManagerModal';
 import MarkdownViewer from './MarkdownViewer';
 import { getWelcomeContent } from '@/constants/welcomeContent';
 import { CssProfile } from '@/types/cssProfile';
 import { DEFAULT_PROFILE } from '@/constants/cssProfile';
-import { X, BookOpen } from 'lucide-react';
+import { X, Settings2 } from 'lucide-react';
 
 interface CssStyleModalProps {
   isOpen: boolean;
@@ -39,6 +53,8 @@ export default function CssStyleModal({
   geminiApiKey,
   aiModelName
 }: CssStyleModalProps) {
+  const [isStyleManagerOpen, setIsStyleManagerOpen] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -52,59 +68,50 @@ export default function CssStyleModal({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !isStyleManagerOpen) {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isStyleManagerOpen]);
 
   if (!isOpen) return null;
 
-  const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
   const welcomeContent = getWelcomeContent();
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-8 backdrop-blur-sm transition-all duration-300 ${isDarkMode ? 'bg-black/70' : 'bg-slate-900/40'}`}>
-      <div className={`w-full max-w-[1600px] h-full max-h-[900px] flex flex-col rounded-2xl overflow-hidden shadow-2xl transition-all duration-300 ${isDarkMode ? 'bg-zinc-950 border border-zinc-800' : 'bg-white border border-slate-200'}`}>
-        
+    <div className={`fixed inset-0 z-[200] flex flex-col transition-all duration-300 ${isDarkMode ? 'bg-zinc-950' : 'bg-white'}`}>
+      <div className="w-full h-full flex flex-col overflow-hidden">
+
         {/* 상단 헤더 바 */}
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-slate-50'}`}>
+        <div className={`flex items-center justify-between px-6 py-3.5 border-b shrink-0 ${isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-slate-50'}`}>
           <div className="flex items-center gap-3">
             <span className="text-xl">🎨</span>
-            <h2 className={`text-lg font-bold ${isDarkMode ? 'text-zinc-100' : 'text-slate-800'}`}>
-              서식 테마 갤러리 (Style Settings)
+            <h2 className={`text-[15px] font-bold ${isDarkMode ? 'text-zinc-100' : 'text-slate-800'}`}>
+              서식 테마 설정
             </h2>
-            <span className={`text-sm px-2.5 py-0.5 rounded-full font-semibold ${isDarkMode ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`}>
-              실시간 샘플 검증 모드
+            <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold ${isDarkMode ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`}>
+              실시간 미리보기
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <a
-              href="/CSS_PROFILE_GUIDE.md"
-              download
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${isDarkMode ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300 hover:text-slate-900'}`}
-              title="서식설정 전용 CSS 문법 및 속성 설명서 다운로드"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>CSS 가이드 문서 다운로드</span>
-            </a>
+          <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold rounded-lg transition-colors ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'}`}
               title="닫기 (Esc)"
             >
-              <X className="w-5 h-5" />
+              <span>에디터로 가기</span>
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* 2분할 메인 콘텐츠 영역 */}
         <div className="flex flex-1 overflow-hidden relative">
-          
-          {/* 좌측: 서식 폼 (35%) */}
-          <div className={`w-[35%] min-w-[380px] max-w-[500px] h-full overflow-y-auto no-scrollbar border-r relative ${isDarkMode ? 'border-zinc-800 bg-zinc-950/50' : 'border-slate-200 bg-white'}`}>
+
+          {/* 좌측: 서식 폼 */}
+          <div className={`w-[480px] shrink-0 h-full overflow-y-auto no-scrollbar border-r relative ${isDarkMode ? 'border-zinc-800 bg-zinc-950/50' : 'border-slate-200 bg-white'}`}>
             <CssStyleForm
               profiles={profiles}
               activeProfileId={activeProfileId}
@@ -114,59 +121,56 @@ export default function CssStyleModal({
               onDeleteProfile={onDeleteProfile}
               onImportProfile={onImportProfile}
               onClose={onClose}
+              onOpenStyleManager={() => setIsStyleManagerOpen(true)}
               isDarkMode={isDarkMode}
               geminiApiKey={geminiApiKey}
               aiModelName={aiModelName}
             />
           </div>
 
-          {/* 우측: 샘플 검증 프리뷰 (65%) */}
+          {/* 우측: 샘플 검증 프리뷰 */}
           <div className={`flex-1 h-full overflow-y-auto ${isDarkMode ? 'bg-[#0E0E10]' : 'bg-slate-100'}`}>
-             {(() => {
-               const activeProfile = profiles.find((p: any) => p.id === activeProfileId) || DEFAULT_PROFILE;
-               const paperBgColor = activeProfile.pageStyle.backgroundColor || '#ffffff';
-               return (
-                 <div
-                   className="max-w-[900px] mx-auto p-8 lg:p-12 relative custom-preview-container shadow-sm border border-slate-200/50 my-8 rounded-xl"
-                   id="omd-modal-preview-container"
-                   style={{ backgroundColor: paperBgColor }}
-                 >
-                    {/* 실시간 CSS 인젝터 (MainEditorApp에서 생성된 동적 CSS를 받아서 주입) */}
-                    {dynamicCssString && (
-                      <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
-                    )}
-                    <MarkdownViewer
-                      content={welcomeContent}
-                      originalContent={welcomeContent}
-                    />
-                 </div>
-               );
-             })()}
+            {(() => {
+              const activeProfile = profiles.find((p: any) => p.id === activeProfileId) || DEFAULT_PROFILE;
+              const paperBgColor = activeProfile.pageStyle.backgroundColor || '#ffffff';
+              return (
+                <div
+                  className="max-w-[900px] mx-auto p-8 lg:p-12 relative custom-preview-container shadow-sm border border-slate-200/50 my-8 rounded-xl"
+                  id="omd-modal-preview-container"
+                  style={{ backgroundColor: paperBgColor }}
+                >
+                  {dynamicCssString && (
+                    <style dangerouslySetInnerHTML={{ __html: dynamicCssString }} />
+                  )}
+                  <MarkdownViewer
+                    content={welcomeContent}
+                    originalContent={welcomeContent}
+                  />
+                </div>
+              );
+            })()}
           </div>
 
-        </div>
-
-        {/* 하단 푸터 (적용 버튼) */}
-        <div className={`flex items-center justify-end px-6 py-4 border-t ${isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-slate-50'}`}>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className={`px-5 py-2 text-sm font-bold rounded-lg transition-colors border ${isDarkMode ? 'border-zinc-700 text-zinc-300 hover:bg-zinc-800' : 'border-slate-300 text-slate-600 hover:bg-slate-100'}`}
-            >
-              취소
-            </button>
-            <button
-              onClick={() => {
-                // 실시간 저장이므로 단순히 닫기만 해도 적용이 유지됨
-                onClose();
-              }}
-              className="px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors flex items-center gap-2"
-            >
-              <span>✅</span> 적용 및 닫기
-            </button>
-          </div>
         </div>
       </div>
+
+      {/* 서식 관리 모달 (풀스크린, z-index 더 높게) */}
+      {isStyleManagerOpen && (
+        <StyleManagerModal
+          profiles={profiles}
+          activeProfileId={activeProfileId}
+          onSelectProfile={onSelectProfile}
+          onUpdateProfile={onUpdateProfile}
+          onAddProfile={onAddProfile}
+          onDeleteProfile={onDeleteProfile}
+          onImportProfile={onImportProfile}
+          onClose={() => setIsStyleManagerOpen(false)}
+          isDarkMode={isDarkMode}
+          geminiApiKey={geminiApiKey}
+          aiModelName={aiModelName}
+        />
+      )}
     </div>
   );
 }
+
