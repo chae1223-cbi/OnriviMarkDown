@@ -14,8 +14,9 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
 // 🎯 @KICK  : 워크스페이스 폴더 연결, 파일 트리 스캔, 파일 열기/저장 I/O 전담
 // 🛡️ @GUARD : 각 환경별 API 실패 시 예외 처리 및 fallback
-// 🚨 @PATCH : **2026-08-12** — 에디터를 열 때 제한사용자(만료, 동시접속 제한, 미인증 등) 권한 가드가 풀리는 현상 해결을 위해 isRestrictedUser 검사 기준으로 모드 전환 로직 단일화 및 보완 적용
-//             **2026-07-18** — 서로 다른 폴더 내에 동일 파일명이 존재할 때, existingTab 탐색기에서 핸들/이름 매칭 가드 오동작으로 탭 열기가 씹히는 결함 수정 (경로 존재 시 절대 경로 불일치 조건으로 3순위 파일명 일치 가드 스킵 처리)
+// 🚨 @PATCH : **2026-08-19** — 새로운 작업장 폴더 연결 시 기존에 열려 있던 모든 탭과 문서를 초기화(닫기)하도록 기능 추가
+//             **2026-08-19** — 파일 저장 시 대상 경로와 탭 경로 비교 정규화 버그로 인해 자동저장 황금 도트 미해제 결함 픽스 (대소문자/슬래시 무시 매칭 적용)
+//             **2026-08-12** — 에디터를 열 때 제한사용자(만료, 동시접속 제한, 미인증 등) 권한 가드가 풀리는 현상 해결을 위해 isRestrictedUser 검사 기준으로 모드 전환 로직 단일화 및 보완 적용
 //             **2026-07-04** — 탭 전환/닫기 시 제한(만료) 사용자의 경우 항상 미리보기('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 설정된 에디터 뷰잉 모드를 그대로 보존 및 상속하도록 UI 모드 자동 보정 연동 패치
 // 🔗 @CALLS : scanDirectory, getVfsFiles, fetch, vfsReadFile, vfsWriteFile, stripFrontmatter, idb.get, api.saveFile, api.listDirectory, api.readFromPath
 // ====================================================================
@@ -148,6 +149,11 @@ export const useFileExplorer = ({
             setWorkspaceType('local');
             localStorage.setItem('rootFolder', JSON.stringify({ name: finalRoot }));
             localStorage.setItem('workspaceType', 'local');
+            setTabs([]);
+            setActiveTabId(null);
+            setContent('');
+            setCurrentFileNode(null);
+            setCurrentFileName('');
             showToast(`워크스페이스가 ${finalRoot}(으)로 변경되었습니다.`, 'success');
           } else if (result.status === 'canceled') {
             showToast("폴더 선택이 취소되었습니다.", "info");
@@ -174,6 +180,11 @@ export const useFileExplorer = ({
           setWorkspaceType('browser');
           localStorage.setItem('rootFolder', JSON.stringify({ name: handle.name }));
           localStorage.setItem('workspaceType', 'browser');
+          setTabs([]);
+          setActiveTabId(null);
+          setContent('');
+          setCurrentFileNode(null);
+          setCurrentFileName('');
           showToast("워크스페이스 폴더가 연결되었습니다.", "success");
         } catch (err) {
           if ((err as any)?.name !== 'AbortError' && (err as any)?.name !== 'SecurityError') {
@@ -188,6 +199,11 @@ export const useFileExplorer = ({
         setWorkspaceType('browser');
         localStorage.setItem('rootFolder', JSON.stringify({ name: BROWSER_STORAGE_NAME }));
         localStorage.setItem('workspaceType', 'browser');
+        setTabs([]);
+        setActiveTabId(null);
+        setContent('');
+        setCurrentFileNode(null);
+        setCurrentFileName('');
         showToast("로컬 스토리지 워크스페이스가 연결되었습니다.", "success");
       }
     }
@@ -394,7 +410,7 @@ export const useFileExplorer = ({
     }
 
     if (workspaceType !== 'browser') {
-      const filename = resolvedPath.split('/').pop() || '파일.md';
+      const filename = resolvedPath.split(/[/\\]/).pop() || '파일.md';
       const dummyNode: FileNode = {
         name: filename,
         path: resolvedPath,
@@ -414,6 +430,8 @@ export const useFileExplorer = ({
   // 🚨 @PATCH : disposed model 가드: 기존 탭 model.isDisposed() 시 스테일 탭 정리 (2026-06-18); **2026-07-06** — 브라우저 모드 핸들 재클릭 시 중복 탭 생성 버그 수정: 경로→핸들→파일명 3단계 fallback 비교로 existingTab 정확도 향상
   // 🔗 @CALLS : createNewTab, switchTab, setContent, setTabs, setActiveTabId, showToast
   // ====================================================================
+  const loadingFilesRef = useRef<Set<string>>(new Set());
+
   // 5. 파일 트리 클릭 시 파일 열기 및 신규 탭 로딩
   const handleFileClick = async (node: FileNode | null, parentHandle?: any) => {
     if (previewModeRef.current === 'css-style') {
@@ -478,6 +496,12 @@ export const useFileExplorer = ({
         return;
       }
     }
+
+    const fileKey = node.path || node.handle?.name || node.name;
+    if (fileKey && loadingFilesRef.current.has(fileKey)) {
+      return; // 이미 로딩 중인 파일 무시 (더블클릭 중복 탭 생성 방지)
+    }
+    if (fileKey) loadingFilesRef.current.add(fileKey);
 
     try {
       let activeMode = workspaceType;
@@ -575,6 +599,8 @@ export const useFileExplorer = ({
       setIsSidebarOpen(true);
     } catch (err) {
       showToast("파일을 여는데 실패했습니다.", "error");
+    } finally {
+      if (fileKey) loadingFilesRef.current.delete(fileKey);
     }
   };
 
@@ -634,12 +660,16 @@ export const useFileExplorer = ({
       }
 
       if (success) {
-        setTabs(prev => prev.map(t => 
-          (targetFile.path && t.path === targetFile.path) || 
-          (targetFile.handle && t.node?.handle === targetFile.handle)
-            ? { ...t, isModified: false, content: targetContent } 
-            : t
-        ));
+        setTabs(prev => prev.map(t => {
+          let isMatch = false;
+          if (targetFile.path && t.path) {
+            isMatch = t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC') === targetFile.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+          } else if (targetFile.handle && t.node?.handle) {
+            isMatch = t.node.handle === targetFile.handle;
+          }
+          
+          return isMatch ? { ...t, isModified: false, content: targetContent } : t;
+        }));
       }
       return success;
     } catch (e: any) {

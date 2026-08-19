@@ -91,7 +91,7 @@ import OAIcon from './icon_onriveauther.png'; // 아이콘
 // 분리된 컴포넌트들 임포트
 import MenuBar from '@/components/MenuBar'; // 메뉴바
 import Toolbar from '@/components/Toolbar'; // 툴바
-import FormattingToolbar from '@/components/FormattingToolbar'; // 서식 툴바
+
 import StatusBar from '@/components/StatusBar'; // 상태바
 import ImageModal from '@/components/ImageModal'; // 모달
 import MapModal from '@/components/MapModal'; // 모달
@@ -5434,7 +5434,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             <LeftSidebar />
 
             <main className="flex flex-1 flex-col overflow-hidden bg-transparent">
-              <FormattingToolbar />
+              
 
               {/* 탭 바를 오른쪽 에디터/미리보기 영역에만 위치하도록 main 상단에 배치 */}
               {!showEmbeddedWelcome && (

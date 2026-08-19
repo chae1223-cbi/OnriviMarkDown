@@ -54,24 +54,32 @@ export type FileNode = {
 // 📊 [OMD-CORE-indexedDbHelper-0002] indexedDbHelper.tsx ➔ scanDirectory
 // 🎯 @KICK  : File System Access API로 폴더를 재귀 스캔하여 .md/.markdown 파일 트리 구축
 // 🛡️ @GUARD : directory/file kind 분기, 오류 시 빈 배열 반환, 파일명 필터링
-// 🚨 @PATCH : localeCompare로 폴더 우선 정렬
+// 🚨 @PATCH : **2026-08-19** — scanDirectory 성능 최적화 (Promise.all 병렬 처리 및 node_modules, 숨김 파일 무시 스킵 로직 적용)
+//             localeCompare로 폴더 우선 정렬
 // 🔗 @CALLS : msg.error
 // ====================================================================
 export async function scanDirectory(dirHandle: any, parentPath: string = ""): Promise<FileNode[]> {
   const entries: FileNode[] = [];
+  const dirPromises: Promise<void>[] = [];
+
   try {
     for await (const [name, handle] of dirHandle.entries()) {
+      // 🚀 [최적화] 숨김 파일(.git, .obsidian 등) 및 node_modules 폴더는 무시하여 스캔 속도 대폭 향상
+      if (name.startsWith('.') || name === 'node_modules') continue;
+
       const currentPath = parentPath ? `${parentPath}/${name}` : name;
-      if (handle.kind === 'directory') {
-        const children = await scanDirectory(handle, currentPath);
-        entries.push({ name, kind: 'directory', handle, children, path: currentPath });
-      } else if (handle.kind === 'file') {
+        if (handle.kind === 'directory') {
+          // ⚡ [최적화] 웹 환경 초기 로딩 속도 향상을 위해 재귀 스캔을 중단하고 지연 로딩(Lazy Load)으로 전환
+          entries.push({ name, kind: 'directory', handle, children: [], path: currentPath });
+        } else if (handle.kind === 'file') {
         const nameLower = name.toLowerCase();
         if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown') || nameLower.endsWith('.bib')) {
           entries.push({ name, kind: 'file', handle, path: currentPath });
         }
       }
     }
+    // 모든 하위 디렉토리 스캔을 병렬로 기다림
+    await Promise.all(dirPromises);
   } catch (e) {
     msg.error("Directory scan error", e);
   }

@@ -802,10 +802,14 @@ ipcMain.handle('file:listDirectory', async (event, dirPath) => {
         return a.kind === 'directory' ? -1 : 1;
       });
     return nodes;
-  } catch (e) {
-    console.error(`[Electron] listDirectory 오류 - 경로: [${dirPath}]:`, e);
-    throw e; // 🛡️ 에러를 삼키지 않고 프론트엔드로 전파하여 파일 목록 유실 원인 추적 가능하게 함
-  }
+    } catch (e) {
+      if (e.code === 'ENOENT') {
+        // 폴더가 삭제되었거나 이동된 직후 React가 언마운트되기 전 호출된 경우 무시
+        return [];
+      }
+      console.error(`[Electron] listDirectory 오류 - 경로: [${dirPath}]:`, e);
+      throw e; // 하위 에러를 삼키지 않고 프론트엔드로 전파
+    }
 });
 
 // 9. 파일/폴더 이름 변경
@@ -848,7 +852,11 @@ ipcMain.handle('file:delete', async (event, targetPath) => {
     }
     const stat = fs.statSync(cleanPath);
     if (stat.isDirectory()) {
-      fs.rmSync(cleanPath, { recursive: true, force: true });
+      const items = fs.readdirSync(cleanPath);
+      if (items.length > 0) {
+        throw new Error('ENOTEMPTY: directory not empty');
+      }
+      fs.rmdirSync(cleanPath);
     } else {
       fs.unlinkSync(cleanPath);
     }

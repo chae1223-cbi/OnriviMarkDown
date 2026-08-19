@@ -19,10 +19,10 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  // 초기 상태 - 로컬 스토리지에서 마지막으로 설정된 상태 복원
+  // 초기 상태 - 로컬 스토리지에서 마지막으로 설정한 상태 복원
   isDarkMode: false,
   isSidebarOpen: typeof window !== 'undefined' ? localStorage.getItem('onrivi_sidebar_open') !== 'false' : true,
-  isToolbarOpen: typeof window !== 'undefined' ? localStorage.getItem('onrivi_toolbar_open') !== 'false' : true,
+  isToolbarOpen: typeof window !== 'undefined' ? localStorage.getItem('onrivi_toolbar_open') === 'true' : false,
   themePalette: 'vs-dark',
   sidebarWidth: 300,
   sidebarTab: 'explorer',

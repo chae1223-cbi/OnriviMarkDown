@@ -275,41 +275,66 @@ export async function generateEpub({
   const sanitizedBody = sanitizeToXHTML(processedHtml, title);
 
   // 5. 📄 EPUB 페이지 물리적 분할 (XHTML 파일 쪼개기)
+  //
+  // 🔑 분할 정책:
+  //   설정 레벨(h(level)) 헤딩이 등장할 때마다 '이전까지의 모든 내용포함' 하나의 단위가 됩니다.
+  //   상위 레벨 헤딩(h1~h(level-1))은 버퍼에 담아듖다가, 다음 h(level)이 나오면 버퍼와 함께 하나의 섹션으로 구성합니다.
+  //   예) h2 기준 : [h1+intro+h2#1+내용] / [h2#2+내용] / [h2#3+내용]
+  //   예) h3 기준 : [h2+h2내용+h3#1+내용] / [h3#2+내용] / [h2(신규)+h2내용+h3#3+내용] / [h3#4+내용]
   let sections: { id: string; html: string; title: string; }[] = [];
   const levelNum = exportPageBreakLevel !== 'none' ? parseInt(exportPageBreakLevel.replace('h', '')) : NaN;
 
   if (!isNaN(levelNum) && levelNum >= 1 && levelNum <= 6) {
-    const splitRegex = new RegExp(`(<h[1-${levelNum}]\\b[^>]*>)`, 'i');
-    const parts = sanitizedBody.split(splitRegex);
-    
-    let currentHtml = parts[0];
+    // h1 ~ h(level) 모든 헤딩에서 분리
+    const splitRegexAll = new RegExp(`(<h[1-${levelNum}]\\b[^>]*>)`, 'gi');
+    const allParts = sanitizedBody.split(splitRegexAll);
+
+    let buffer = allParts[0]; // 첫 헤딩 이전 내용
     let currentTitle = title;
     let sectionIdx = 1;
-    
-    // 첫 헤딩 이전에 내용이 있다면 독립된 챕터로 저장
-    if (currentHtml.replace(/<[^>]*>/g, '').trim()) {
-      sections.push({ id: `section${sectionIdx++}`, html: currentHtml, title: currentTitle });
-    }
-    
-    for (let i = 1; i < parts.length; i += 2) {
-      const hTag = parts[i];
-      const hContentRest = parts[i+1] || '';
-      
-      // 목차(TOC) 생성을 위해 헤딩 내부 텍스트 추출 (</h1> 이전까지의 내용)
-      const closingTagMatch = hContentRest.match(/<\/h[1-6]>/i);
-      if (closingTagMatch && closingTagMatch.index !== undefined) {
-         const innerHTML = hContentRest.substring(0, closingTagMatch.index);
-         currentTitle = innerHTML.replace(/<[^>]*>/g, '').trim() || title;
+    let firstLevelFound = false;
+
+    const extractHeadingTitle = (hContent: string): string => {
+      const match = hContent.match(/<\/h[1-6]>/i);
+      return match && match.index !== undefined
+        ? hContent.substring(0, match.index).replace(/<[^>]*>/g, '').trim()
+        : '';
+    };
+
+    for (let i = 1; i < allParts.length; i += 2) {
+      const hTag = allParts[i];
+      const hContent = allParts[i + 1] || '';
+      const tagLevelMatch = hTag.match(/<h(\d)/i);
+      const tagLevel = tagLevelMatch ? parseInt(tagLevelMatch[1]) : 0;
+
+      if (tagLevel < levelNum) {
+        // 상위 레벨 헤딩: 버퍼에 담아듖고 다음 h(level)을 기다림
+        buffer += hTag + hContent;
       } else {
-         currentTitle = title;
+        // 정확히 h(level) 헤딩: 버퍼 + 이 헤딩을 하나의 섹션으로 구성
+        const headingText = extractHeadingTitle(hContent);
+        currentTitle = headingText || title;
+
+        if (!firstLevelFound) {
+          // 첫 번째 h(level): 버퍼(h1+소개+상위레벨들) + h(level) 함께 첫 섹션으로
+          buffer += hTag + hContent;
+          sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
+          firstLevelFound = true;
+        } else {
+          // 이후 h(level): 버퍼(상위레벨 있다면 포함) + h(level) = 새 섹션
+          sections.push({
+            id: `section${sectionIdx++}`,
+            html: buffer + hTag + hContent,
+            title: currentTitle
+          });
+        }
+        buffer = ''; // 버퍼 초기화
       }
-      
-      currentHtml = hTag + hContentRest;
-      sections.push({
-        id: `section${sectionIdx++}`,
-        html: currentHtml,
-        title: currentTitle
-      });
+    }
+
+    // 남은 버퍼가 있는 경우 (마지막 상위 레벨 헤딩 뒱)
+    if (buffer.replace(/<[^>]*>/g, '').trim()) {
+      sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
     }
   } else {
     // 단원 분할을 사용하지 않는 경우 단일 챕터로 생성
@@ -508,6 +533,9 @@ table {
   page-break-inside: auto !important;
   break-inside: auto !important;
 }
+th {
+  text-align: center !important;
+}
 tr {
   page-break-inside: avoid !important;
   break-inside: avoid !important;
@@ -606,29 +634,9 @@ del {
     ? dynamicCssString.replace(/\.custom-preview-container\s/g, 'body ').replace(/\.custom-preview-container/g, 'body')
     : '';
 
-  // EPUB용 동적 페이지 나누기 (exportPageBreakLevel)
-  if (exportPageBreakLevel !== 'none') {
-    const levelNum = parseInt(exportPageBreakLevel.replace('h', ''));
-    if (!isNaN(levelNum)) {
-      const breakSelectors = [];
-      const autoSelectors = [];
-      for (let i = 1; i <= levelNum; i++) {
-        breakSelectors.push(`body h${i}`);
-        autoSelectors.push(`body h${i}:first-child`);
-      }
-      const pageBreakCss = `
-${breakSelectors.join(',\n')} {
-  page-break-before: always !important;
-  break-before: page !important;
-}
-${autoSelectors.join(',\n')} {
-  page-break-before: auto !important;
-  break-before: auto !important;
-}
-`;
-      epubCss += pageBreakCss;
-    }
-  }
+  // EPUB은 물리적 XHTML 파일 분할으로 챕터를 분리하므로 CSS page-break 불필요.
+  // CSS page-break를 적용하면 동일 섹션 내부에서 헤딩이 또 나뉘어지는 부작용이 발생함.
+  // (h1 다음 h2가 있는 쬫 섹션에서 h2에 page-break가 걸리면 h1만 따로 페이지가 됨)
 
   styleCss += `\n\n/* 사용자 지정 CSS 프로필 */\n${epubCss}`;
   }

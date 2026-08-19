@@ -125,14 +125,23 @@ const FileTreeItem = ({
 
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const dispatchMovedEvent = (srcPath: string, tgtPath: string) => {
+  const dispatchMovedEvent = (srcPath: string, tgtPath: string, newPath?: string, sourceName?: string, newHandle?: any) => {
     const normSrc = srcPath.replace(/\\/g, '/');
     const normTgt = tgtPath.replace(/\\/g, '/');
     const srcParentPath = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
     const tgtParentPath = normTgt.includes('/') ? normTgt.substring(0, normTgt.lastIndexOf('/')) : '';
+    
+    // 트리 목록 갱신용 이벤트
     window.dispatchEvent(new CustomEvent('file:moved', {
       detail: { sourceParentPath: srcParentPath, targetParentPath: tgtParentPath, targetPath: normTgt }
     }));
+
+    // 열린 탭 동기화용 이벤트 발송
+    if (newPath && sourceName) {
+      window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+        detail: { oldPath: srcPath, newPath, newName: sourceName, newHandle }
+      }));
+    }
   };
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -194,116 +203,100 @@ const FileTreeItem = ({
       }
     }
 
-    // 열린 탭에 포함된 파일/폴더인지 확인
-    if (openTabPaths && openTabPaths.length > 0 && sourcePath) {
-      const normSource = sourcePath.replace(/\\/g, '/');
-      if (draggedNode && draggedNode.kind === 'directory') {
-        // 폴더 이동 시: 열린 탭 중 해당 폴더 하위에 있는 파일이 있는지 확인
-        const hasOpenDescendant = openTabPaths.some(tp => {
-          const normTp = tp.replace(/\\/g, '/');
-          return normTp === normSource || normTp.startsWith(normSource + '/');
-        });
-        if (hasOpenDescendant) {
-          showToast("열려 있는 파일이 포함된 폴더는 이동할 수 없습니다.", "warning");
-          return;
-        }
-      } else {
-        // 파일 이동 시: 열린 탭에 해당 파일이 있는지 확인
-        if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normSource)) {
-          showToast("편집기에서 열려 있는 파일은 이동할 수 없습니다.", "warning");
-          return;
-        }
-      }
-    }
+    // 열린 탭 보호 해제: 이제 열려있는 문서도 이동 가능합니다.
 
-    try {
-      if (workspaceType === 'local') {
-        const newPath = node.path ? `${node.path}\\${sourceName}` : sourceName;
-        const api = (window as any).electronAPI;
-        if (api?.renameFile) {
-          await api.renameFile(sourcePath, newPath);
-          showToast(`'${sourceName}' 이동 완료`, 'success');
-          dispatchMovedEvent(sourcePath, node.path || '');
-          onRefreshAll?.();
-          refreshParent();
-          await refreshThisDirectory();
-        } else {
-          const res = await fetch(getApiUrl('/api/rename'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ oldPath: sourcePath, newPath })
-          });
-          if (res.ok) {
+      try {
+        if (workspaceType === 'local') {
+          const newPath = node.path ? `${node.path}\\${sourceName}` : sourceName;
+          const api = (window as any).electronAPI;
+          if (api?.renameFile) {
+            await api.renameFile(sourcePath, newPath);
             showToast(`'${sourceName}' 이동 완료`, 'success');
-            dispatchMovedEvent(sourcePath, node.path || '');
+            dispatchMovedEvent(sourcePath, node.path || '', newPath, sourceName);
+            onRefreshAll?.();
+            refreshParent();
+            await refreshThisDirectory();
+          } else {
+            const res = await fetch(getApiUrl('/api/rename'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ oldPath: sourcePath, newPath })
+            });
+            if (res.ok) {
+              showToast(`'${sourceName}' 이동 완료`, 'success');
+              dispatchMovedEvent(sourcePath, node.path || '', newPath, sourceName);
+              onRefreshAll?.();
+              refreshParent();
+              await refreshThisDirectory();
+            }
+          }
+        } else if (workspaceType === 'browser') {
+          if (draggedNode && draggedNode.handle) {
+            // FileSystem API 환경
+            const targetDirHandle = node.handle;
+            if (!targetDirHandle) return;
+  
+            let finalNewHandle: any = null;
+            if (draggedNode.kind === 'file') {
+              // 파일 이동: 새 파일 생성 후 복사 및 기존 파일 엔트리 제거
+              const file = await draggedNode.handle.getFile();
+              const text = await file.text();
+              const newFileHandle = await targetDirHandle.getFileHandle(draggedNode.name, { create: true });
+              const writable = await newFileHandle.createWritable();
+              await writable.write(text);
+              await writable.close();
+              if (draggedNodeParent) {
+                await draggedNodeParent.removeEntry(draggedNode.name);
+              }
+              finalNewHandle = newFileHandle;
+            } else if (draggedNode.kind === 'directory') {
+              // 폴더 이동: 새 폴더를 생성하고 하위 파일/폴더들을 재귀적으로 복사한 뒤 원본 폴더 엔트리 제거
+              const newDirHandle = await targetDirHandle.getDirectoryHandle(draggedNode.name, { create: true });
+              
+              const copyDirectory = async (srcDir: FileSystemDirectoryHandle, destDir: FileSystemDirectoryHandle) => {
+                for await (const entry of (srcDir as any).values()) {
+                  if (entry.kind === 'file') {
+                    const file = await entry.getFile();
+                    const text = await file.text();
+                    const newFileHandle = await destDir.getFileHandle(entry.name, { create: true });
+                    const writable = await newFileHandle.createWritable();
+                    await writable.write(text);
+                    await writable.close();
+                  } else if (entry.kind === 'directory') {
+                    const newSubDir = await destDir.getDirectoryHandle(entry.name, { create: true });
+                    await copyDirectory(entry, newSubDir);
+                  }
+                }
+              };
+              
+              await copyDirectory(draggedNode.handle, newDirHandle);
+              if (draggedNodeParent) {
+                await draggedNodeParent.removeEntry(draggedNode.name, { recursive: true });
+              }
+              finalNewHandle = newDirHandle;
+            }
+            showToast(`'${draggedNode.name}' 이동 완료`, 'success');
+            const newPath = node.path ? `${node.path}/${draggedNode.name}` : draggedNode.name;
+            dispatchMovedEvent(sourcePath, node.path || '', newPath, draggedNode.name, finalNewHandle);
+            onRefreshAll?.();
+            refreshParent();
+            await refreshThisDirectory();
+          } else if (sourcePath) {
+            // LocalStorage 가상 파일/폴더 이동
+            const oldPath = sourcePath;
+            const normalizedPath = oldPath.replace(/\\/g, '/');
+            const lastSlashIndex = normalizedPath.lastIndexOf('/');
+            const filename = lastSlashIndex !== -1 ? normalizedPath.substring(lastSlashIndex + 1) : normalizedPath;
+            const newPath = node.path ? `${node.path}/${filename}` : filename;
+            
+            vfsRename(oldPath, newPath);
+            showToast(`'${filename}' 이동 완료`, 'success');
+            dispatchMovedEvent(oldPath, node.path || '', newPath, filename);
             onRefreshAll?.();
             refreshParent();
             await refreshThisDirectory();
           }
         }
-      } else if (workspaceType === 'browser') {
-        if (draggedNode && draggedNode.handle) {
-          // FileSystem API 환경
-          const targetDirHandle = node.handle;
-          if (!targetDirHandle) return;
-
-          if (draggedNode.kind === 'file') {
-            // 파일 이동: 새 파일 생성 후 복사 및 기존 파일 엔트리 제거
-            const file = await draggedNode.handle.getFile();
-            const text = await file.text();
-            const newFileHandle = await targetDirHandle.getFileHandle(draggedNode.name, { create: true });
-            const writable = await newFileHandle.createWritable();
-            await writable.write(text);
-            await writable.close();
-            if (draggedNodeParent) {
-              await draggedNodeParent.removeEntry(draggedNode.name);
-            }
-          } else if (draggedNode.kind === 'directory') {
-            // 폴더 이동: 새 폴더를 생성하고 하위 파일/폴더들을 재귀적으로 복사한 뒤 원본 폴더 엔트리 제거
-            const newDirHandle = await targetDirHandle.getDirectoryHandle(draggedNode.name, { create: true });
-            
-            const copyDirectory = async (srcDir: FileSystemDirectoryHandle, destDir: FileSystemDirectoryHandle) => {
-              for await (const entry of (srcDir as any).values()) {
-                if (entry.kind === 'file') {
-                  const file = await entry.getFile();
-                  const text = await file.text();
-                  const newFileHandle = await destDir.getFileHandle(entry.name, { create: true });
-                  const writable = await newFileHandle.createWritable();
-                  await writable.write(text);
-                  await writable.close();
-                } else if (entry.kind === 'directory') {
-                  const newSubDir = await destDir.getDirectoryHandle(entry.name, { create: true });
-                  await copyDirectory(entry, newSubDir);
-                }
-              }
-            };
-            
-            await copyDirectory(draggedNode.handle, newDirHandle);
-            if (draggedNodeParent) {
-              await draggedNodeParent.removeEntry(draggedNode.name, { recursive: true });
-            }
-          }
-          showToast(`'${draggedNode.name}' 이동 완료`, 'success');
-          dispatchMovedEvent(sourcePath, node.path || '');
-          onRefreshAll?.();
-          refreshParent();
-          await refreshThisDirectory();
-        } else if (sourcePath) {
-          // LocalStorage 가상 파일/폴더 이동
-          const oldPath = sourcePath;
-          const normalizedPath = oldPath.replace(/\\/g, '/');
-          const lastSlashIndex = normalizedPath.lastIndexOf('/');
-          const filename = lastSlashIndex !== -1 ? normalizedPath.substring(lastSlashIndex + 1) : normalizedPath;
-          const newPath = node.path ? `${node.path}/${filename}` : filename;
-          
-          vfsRename(oldPath, newPath);
-          showToast(`'${filename}' 이동 완료`, 'success');
-          dispatchMovedEvent(oldPath, node.path || '');
-          onRefreshAll?.();
-          refreshParent();
-          await refreshThisDirectory();
-        }
-      }
     } catch (e) {
       showToast("이동 실패: " + e, 'error');
     }
@@ -325,7 +318,7 @@ const FileTreeItem = ({
     }
     if (node.kind === 'directory') {
       const willOpen = !isOpen;
-      if (willOpen && onLazyLoad && (!node.children || node.children.length === 0) && localChildren === null) {
+      if (willOpen && onLazyLoad && (!localChildren || localChildren.length === 0)) {
         setIsLoading(true);
         onLazyLoad(node).then((children: FileNode[]) => {
           setLocalChildren(children);
@@ -342,24 +335,7 @@ const FileTreeItem = ({
 
   const handleRename = async (e: any) => {
     e.stopPropagation();
-    if (openTabPaths && openTabPaths.length > 0 && node.path) {
-      const normPath = node.path.replace(/\\/g, '/');
-      if (node.kind === 'directory') {
-        const hasOpenDescendant = openTabPaths.some(tp => {
-          const normTp = tp.replace(/\\/g, '/');
-          return normTp === normPath || normTp.startsWith(normPath + '/');
-        });
-        if (hasOpenDescendant) {
-          showToast("열려 있는 파일이 포함된 폴더는 이름을 변경할 수 없습니다.", "warning");
-          return;
-        }
-      } else {
-        if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath)) {
-          showToast("편집기에서 열려 있는 파일은 이름을 변경할 수 없습니다.", "warning");
-          return;
-        }
-      }
-    }
+    // 열린 탭 보호 해제: 이제 열려있는 문서도 이름 변경 가능합니다.
     setPromptConfig({
       isOpen: true,
       title: `'${node.name}'의 새 이름을 입력하세요:`,
@@ -641,11 +617,10 @@ const FileTreeItem = ({
   const handleDelete = async (e: any) => {
     e.stopPropagation();
 
-    // 열린 탭에 포함된 파일/폴더인지 확인
+    // 열린 탭 보호 복구: 열려있는 문서나 그 문서가 포함된 폴더는 삭제 불가
     if (openTabPaths && openTabPaths.length > 0 && node.path) {
       const normPath = node.path.replace(/\\/g, '/');
       if (node.kind === 'directory') {
-        // 폴더 삭제 시: 열린 탭 중 해당 폴더 하위에 있는 파일이 있는지 확인
         const hasOpenDescendant = openTabPaths.some(tp => {
           const normTp = tp.replace(/\\/g, '/');
           return normTp === normPath || normTp.startsWith(normPath + '/');
@@ -655,11 +630,18 @@ const FileTreeItem = ({
           return;
         }
       } else {
-        // 파일 삭제 시: 열린 탭에 해당 파일이 있는지 확인
         if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath)) {
           showToast("편집기에서 열려 있는 파일은 삭제할 수 없습니다.", "warning");
           return;
         }
+      }
+    }
+    // 🚀 [비어있지 않은 폴더 삭제 방지] 클라이언트 상태 기반 1차 방어
+    if (node.kind === 'directory') {
+      const rawChildren = localChildren !== null ? localChildren : node.children;
+      if (rawChildren && rawChildren.length > 0) {
+        showToast("하위 폴더나 파일이 존재하는 폴더는 삭제할 수 없습니다. 내용을 먼저 비워주세요.", "warning");
+        return;
       }
     }
 
@@ -671,7 +653,8 @@ const FileTreeItem = ({
         try {
           if (workspaceType === 'browser') {
             if (node.handle) {
-              await parentHandle.removeEntry(node.name, { recursive: true });
+              // 🚀 [안전장치] recursive: true를 제거하여 하위 파일이 있을 때 삭제 실패를 유도함
+              await parentHandle.removeEntry(node.name);
               refreshParent();
               setTimeout(() => refreshParent(), 300); // 🛡️ 지연 인덱싱 동기화 갱신
             } else if (node.path) {
@@ -697,9 +680,17 @@ const FileTreeItem = ({
           if (currentFileName === node.name) {
             openFile(null); 
           }
-        } catch(e) { 
-          const deleteFailedMsg = "삭제 실패: ";
-          showToast(deleteFailedMsg + e, 'error'); 
+          // 🚀 삭제된 파일/폴더와 연관된 탭들을 닫도록 이벤트 발송
+          if (node.path) {
+            window.dispatchEvent(new CustomEvent('file:tab-deleted', { detail: { deletedPath: node.path } }));
+          }
+        } catch(e: any) { 
+          const errStr = e.message || e.toString();
+          if (errStr.includes('not empty') || errStr.includes('ENOTEMPTY') || errStr.includes('directory not empty')) {
+            showToast("하위 폴더나 파일이 존재하는 폴더는 삭제할 수 없습니다. 내용을 먼저 비워주세요.", 'error');
+          } else {
+            showToast("삭제 실패: " + errStr, 'error'); 
+          }
         }
       }
     });
@@ -787,10 +778,9 @@ const FileTreeItem = ({
                 </>
               )}
               <button
-                onClick={isOpenInTab ? undefined : handleRename}
-                disabled={isOpenInTab}
-                className={`p-0.5 rounded transition-colors text-[9px] ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
-                title={isOpenInTab ? "탭에서 열려있는 파일은 이름을 변경할 수 없습니다" : "이름 변경"}
+                onClick={handleRename}
+                className="p-0.5 rounded transition-colors text-[9px] hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                title="이름 변경"
               >
                 ✏️
               </button>

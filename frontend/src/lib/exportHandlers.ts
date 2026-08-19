@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-07-18** — PDF 내보내기 시 배경 대각선 반투명 워터마크(pdfWatermark, pdfWatermarkOpacity) 설정 및 가상 DOM/CSS 템플릿 인젝션 기능 추가
+// 🚨 @PATCH : **2026-08-16** — PDF 페이지 나누기: CSS page-break 선택자 방식의 한계(h3·h4 레벨에서 섹션 내부 이중 break 발생)를 해결하기 위해 DOM 직접 삽입 방식의 injectPageBreakMarkers() 유틸 함수 신규 구현. 버퍼 알고리즘으로 섹션 경계를 찾아 해당 요소 앞에 break-before:page 마커 div를 삽입함.
+//             **2026-07-18** — PDF 내보내기 시 배경 대각선 반투명 워터마크(pdfWatermark, pdfWatermarkOpacity) 설정 및 가상 DOM/CSS 템플릿 인젝션 기능 추가
 //             **2026-07-16** — PDF 내보내기 및 인쇄 기능 고도화: 설정된 상단 머리글 텍스트 및 하단 페이지 번호 서식(- 1 -, 1 / n)을 동적으로 캡처하여 인쇄 출력 본문 프레임에 counter(page) 기반으로 자동 인젝션 구현, 표지 페이지 번호 제외 조건부 가드 CSS 구현
 //             **2026-06-20** — HTML/PNG 내보내기 시 로컬 및 확장프로그램 스타일시트를 런타임에 인라인화하여 테마 서식 동기화 결함 해결; 다크모드 무력화에 대응하여 내보내기 시 라이트모드 기준 스타일 생성(generateExportCss) 및 activeProfile 연동 처리 구현; PDF/HTML/PNG 내보내기 시 @page margin 0 및 body padding 레이아웃을 통해 가장자리 여백 영역까지 배경색이 단일 톤으로 빈틈없이 흐르도록 여백 분리 결함 해결; PDF 내보내기 시 배경색이 흰색으로 누락되는 custom-preview-container transparent 강제 투명화 가드 버그 수정 및 KaTeX 수식 전용 CDN 웹폰트 주입으로 찌그러짐 현상 해결; generateExportCss 선택자 구체성을 .custom-preview-container .markdown-viewer-root 기반으로 대폭 상향하여 사용자 커스텀 서식 100% 보장; HTML 내보내기 시 body 배경색을 용지 배경색(pageBg)과 완벽 동합; PDF 인쇄 템플릿 내의 mm 여백 단위 중복(25mmmm) 결함 수정으로 여백 소실 결함 해결; HTML 내보내기 시 Tailwind CDN에 의한 body 배경색 리셋을 차단하기 위해 body 및 시트지에 인라인 스타일 배경색 강제 지정 적용; PDF 내보내기 및 HTML 인쇄 시 페이지 분할(쪼개짐) 구역의 상하 여백 소실을 차단하기 위해 임시 패딩 래퍼를 롤백하고 표준 @page { margin: ... } 바인딩으로 전환하되, 여백 잘림(흰색 영역)을 막기 위해 html/body 전체 배경색 지정 및 print-color-adjust 강제화 구현; 일렉트론 및 크롬 인쇄 시 여백(마진) 영역의 흰색 잘림 결함을 완벽히 해결하기 위해 @page 지시자 규칙에 background-color 지정을 추가하여 용지 가장자리 영역까지 배경색이 가득 차도록 최종 동기화
 
@@ -304,6 +305,67 @@ function generateExportCss(profile: any): string {
   }
 
   return css;
+}
+
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0000] exportHandlers.ts ➔ injectPageBreakMarkers
+// 🎯 @KICK  : 설정된 헤딩 레벨(exportPageBreakLevel)에 따라 DOM에 직접 page-break 마커를 삽입
+// 🛡️ @GUARD : CSS page-break 선택자 방식은 h3·h4 레벨에서 섹션 내부 이중 break가 발생하는 한계가 있어 DOM 직접 삽입 방식으로 대체
+// 🚨 @PATCH : **2026-08-16** — 신규 구현
+// 🔗 @CALLS : exportPDF
+// ====================================================================
+// 🔑 섹션 분할 정책 (EPUB과 동일한 버퍼 알고리즘):
+//   h(level) 헤딩이 등장할 때마다 이전까지의 내용이 하나의 단위가 됩니다.
+//   상위 레벨 헤딩(h1~h(level-1))은 버퍼에 쌓이다가, h(level)이 나올 때 함께 하나의 섹션을 구성합니다.
+//   예) h3 기준: [h2+h2내용+h3#1+내용] / [h3#2+내용] / [h2(새)+h2내용+h3#3+내용] / [h3#4+내용]
+function injectPageBreakMarkers(containerEl: HTMLElement, exportPageBreakLevel: string): void {
+  if (!exportPageBreakLevel || exportPageBreakLevel === 'none') return;
+  const levelNum = parseInt(exportPageBreakLevel.replace('h', ''));
+  if (isNaN(levelNum) || levelNum < 1 || levelNum > 6) return;
+
+  // 컨테이너의 직계 자식 요소들 (또는 마크다운 루트의 직계 자식)
+  const root = containerEl.querySelector('.markdown-viewer-root') as HTMLElement || containerEl;
+
+  // 모든 직계 자식 요소를 순회하며 섹션 경계를 찾음
+  const children = Array.from(root.children) as HTMLElement[];
+  let firstLevelFound = false;
+  // 🔑 마지막 h(level) 이후 등장한 첫 번째 상위 헤딩 요소 (break 삽입 기준점)
+  // ex) h3 설정: h3#2 이후 h2가 나오면 bufferStartEl = h2
+  //     다음 h3#3이 나올 때 → h2 앞에 break 삽입 → 섹션: [h2+내용+h3#3]
+  let bufferStartEl: HTMLElement | null = null;
+
+  for (let i = 0; i < children.length; i++) {
+    const el = children[i];
+    const tagName = el.tagName.toLowerCase();
+    const tagLevelMatch = tagName.match(/^h(\d)$/);
+    const tagLevel = tagLevelMatch ? parseInt(tagLevelMatch[1]) : 0;
+
+    if (tagLevel > 0 && tagLevel <= levelNum) {
+      if (tagLevel < levelNum) {
+        // 상위 레벨 헤딩(h1~h(level-1)): 첫 등장 시 bufferStartEl로 기록
+        if (firstLevelFound && bufferStartEl === null) {
+          bufferStartEl = el;
+        }
+      } else {
+        // 정확히 h(level) 헤딩
+        if (!firstLevelFound) {
+          // 첫 번째 h(level): 섹션1 시작 → break 없음
+          firstLevelFound = true;
+          bufferStartEl = null;
+        } else {
+          // 이후 h(level): break 마커 삽입
+          // bufferStartEl이 있으면 상위 헤딩 앞에, 없으면 현재 h(level) 앞에 삽입
+          const insertTarget = bufferStartEl || el;
+          const marker = document.createElement('div');
+          marker.style.cssText = 'break-before: page !important; page-break-before: always !important; height: 0; margin: 0; padding: 0; border: none;';
+          root.insertBefore(marker, insertTarget);
+          // 정적 스냅샷 순회이므로 i 조정 불필요 (DOM 변경이 children 배열에 반영 안 됨)
+          bufferStartEl = null;
+        }
+      }
+    }
+    // 일반 콘텐츠(p, ul 등): bufferStartEl 상태 유지 (버퍼 계속 쌓임)
+  }
 }
 
 // [ONR-EXP-001] 로컬 PDF / HTML 파일 출력 처리: 현재 문서 본문 DOM을 클론하여 지도/동영상 요소를 정적 변환하고 프린트 출력 스타일을 입혀 PDF/HTML 내보내기를 핸들링합니다.
@@ -968,6 +1030,12 @@ export async function exportPDF({
 
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
     applyExportInlineStyles(clone);
+
+    // 📄 페이지 나누기 마커 DOM 직접 삽입
+    // CSS page-break 선택자 방식은 h3·h4 레벨에서 섹션 내부 이중 break가 발생하는 한계가 있어
+    // 버퍼 알고리즘으로 정확한 섹션 경계를 찾아 break-before:page 마커 div를 직접 삽입함.
+    const pbLevelForDom = activeProfile?.pageStyle?.exportPageBreakLevel || 'none';
+    injectPageBreakMarkers(clone, pbLevelForDom);
 
     const filename = `${currentFileName.replace(/\.[^/.]+$/, '')}.pdf`;
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;

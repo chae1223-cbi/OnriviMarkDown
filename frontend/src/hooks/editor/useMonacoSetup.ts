@@ -1281,7 +1281,7 @@ export function useMonacoSetup(deps: any) {
                           const scrollPercent = scrollTop / editorMaxScroll;
                           
                           // 💡 미리보기 스크롤바의 최대 범위 대비 에디터 스크롤 백분율(%)로 100% 매끄럽게 동기화
-                          const maxPreviewScroll = contentHeight - parent.clientHeight;
+                          const maxPreviewScroll = parent.scrollHeight - parent.clientHeight;
                           parent.scrollTop = Math.max(0, scrollPercent * maxPreviewScroll);
 
                           if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
@@ -1340,9 +1340,9 @@ export function useMonacoSetup(deps: any) {
 
                         // 맨 아래(끝 줄) 클릭 시 최하단 스크롤
                         if (clickedLine === totalLines) {
-                          const maxScroll = contentHeight - previewRef.current.clientHeight;
+                          // ⚡ [최적화] 컨테이너의 실제 scrollHeight를 사용하여 정확히 최하단으로 스크롤
                           previewRef.current.scrollTo({
-                            top: maxScroll > 0 ? maxScroll : 0,
+                            top: previewRef.current.scrollHeight,
                             behavior: 'smooth'
                           });
                           return;

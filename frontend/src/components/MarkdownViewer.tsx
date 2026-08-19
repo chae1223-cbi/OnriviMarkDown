@@ -1469,6 +1469,9 @@ export default function MarkdownViewer({
           font-weight: 700;
           color: #3b82f6;
         }
+        .markdown-viewer-root th {
+          text-align: center !important;
+        }
       `}</style>
       <div className="print:!block">
         <ReactMarkdown

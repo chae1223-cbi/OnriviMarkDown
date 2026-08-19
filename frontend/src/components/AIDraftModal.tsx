@@ -6,7 +6,8 @@
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
  * 작성자 : 채병익
- * 🚨 @PATCH : **2026-07-20** — AI 모달창의 '프리셋 불러오기' 및 '현재 설정 저장' 팝업 드롭다운이 외부 영역(outside) 클릭 시 자동으로 닫히도록 `useRef` 및 이벤트 리스너(handleClickOutside) 로직 추가 적용
+ * 🚨 @PATCH : **2026-08-16** — useEffect 의존성 배열 누락 경고 해결: getPromptTemplates와 loadPresets useEffect에 resourceFolder, resourceFolderHandle 추가
+ *              **2026-07-20** — AI 모달창의 '프리셋 불러오기' 및 '현재 설정 저장' 팝업 드롭다운이 외부 영역(outside) 클릭 시 자동으로 닫히도록 `useRef` 및 이벤트 리스너(handleClickOutside) 로직 추가 적용
  * -----------------------------------------------------------------------
  */
 "use client";
@@ -125,7 +126,8 @@ export default function AIDraftModal({
       }));
     }
     load();
-  }, []);
+  // resourceFolder, resourceFolderHandle가 변경될 때 (e.g. 사용자가 폴더를 새로 선택) 템플릿을 다시 로드해야 함
+  }, [resourceFolder, resourceFolderHandle]);
 
   // Load presets on mount
   useEffect(() => {
@@ -148,7 +150,8 @@ export default function AIDraftModal({
       }
     }
     loadPresets();
-  }, [resourceFolder]);
+  // resourceFolderHandle이 변경될 때도 프리셋을 다시 로드해야 함
+  }, [resourceFolder, resourceFolderHandle]);
 
   // Auto-Save Drafts logic
   const AI_DRAFT_CACHE_KEY = 'omd_ai_draft_cache';

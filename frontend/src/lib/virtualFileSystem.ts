@@ -293,6 +293,11 @@ export function vfsDelete(path: string): void {
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       if (node.path === path) {
+        // 비어있지 않은 폴더 삭제 방지
+        if (node.kind === 'directory' && node.children && node.children.length > 0) {
+          throw new Error("ENOTEMPTY: directory not empty");
+        }
+
         // 삭제 대상 노드의 콘텐츠 정리
         const clearContents = (n: FileNode) => {
           if (n.kind === 'file' && n.path) {

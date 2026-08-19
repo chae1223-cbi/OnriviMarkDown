@@ -33,7 +33,7 @@ export const useEditorSettings = (
 ) => {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [fontSize, setFontSize] = useState<number>(14);
-  const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on');
+  const [wordWrap, setWordWrap] = useState<'on' | 'off'>('off');
   const [autoSave, setAutoSave] = useState<number>(5);
   const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
   const [themePalette, setThemePalette] = useState<string>('onrivi-light');
@@ -80,7 +80,7 @@ export const useEditorSettings = (
     const restoreSettings = async () => {
       let baseSettings = {
         isDarkMode: false,
-        fontSize: 15,
+        fontSize: 14,
         wordWrap: 'on' as 'on' | 'off',
         autoSave: 5,
         previewMode: 'both' as 'edit' | 'both' | 'preview' | 'css-style',
@@ -99,38 +99,45 @@ export const useEditorSettings = (
         if (localData) {
           Object.assign(baseSettings, JSON.parse(localData));
           if (baseSettings.previewMode === 'css-style') baseSettings.previewMode = 'both';
-        } else {
-          const legacyFontSize = localStorage.getItem('fontSize');
-          if (legacyFontSize) baseSettings.fontSize = parseInt(legacyFontSize);
-          const legacyWordWrap = localStorage.getItem('wordWrap');
-          if (legacyWordWrap) baseSettings.wordWrap = legacyWordWrap as any;
-          const legacyQuoteStyle = localStorage.getItem('quoteStyle');
-          if (legacyQuoteStyle) baseSettings.quoteStyle = legacyQuoteStyle as any;
-          const legacyTheme = localStorage.getItem('theme');
-          if (legacyTheme) baseSettings.isDarkMode = legacyTheme === 'dark';
-          const legacyThemePalette = localStorage.getItem('themePalette');
-          if (legacyThemePalette) {
-            const LEGACY_THEME_MAP: Record<string, string> = {
-              'onrivi-dark': 'github-dark-dimmed',
-              'midnight-neon': 'github-dark-dimmed',
-            };
-            baseSettings.themePalette = LEGACY_THEME_MAP[legacyThemePalette] || legacyThemePalette;
-          }
-          const legacyAutoSave = localStorage.getItem('autoSave');
-          if (legacyAutoSave) {
-            baseSettings.autoSave = legacyAutoSave === 'true' ? 5 : legacyAutoSave === 'false' ? 0 : parseInt(legacyAutoSave) || 0;
-          }
-          const legacyPreviewMode = localStorage.getItem('previewMode');
-          if (legacyPreviewMode) baseSettings.previewMode = legacyPreviewMode as any;
+        }
+        
+        // Migration to revert wordWrap back to 'on' per user request
+        const hasMigratedWordWrap3 = localStorage.getItem('wordWrapMigrated_v3');
+        if (!hasMigratedWordWrap3) {
+           baseSettings.wordWrap = 'on';
+           localStorage.setItem('wordWrap', 'on');
+           localStorage.setItem('wordWrapMigrated_v3', 'true');
+        }
 
-          const savedHotkeys = localStorage.getItem('customHotkeys');
-          if (savedHotkeys) {
-            Object.assign(baseSettings.customHotkeys, JSON.parse(savedHotkeys));
-          }
-          const savedSlashCmds = localStorage.getItem('customSlashCommands');
-          if (savedSlashCmds) {
-            Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
-          }
+        // Additional legacy keys fallback (if needed)
+        const legacyFontSize = localStorage.getItem('fontSize');
+        if (legacyFontSize) baseSettings.fontSize = parseInt(legacyFontSize, 10);
+        const legacyQuoteStyle = localStorage.getItem('quoteStyle');
+        if (legacyQuoteStyle) baseSettings.quoteStyle = legacyQuoteStyle as any;
+        const legacyTheme = localStorage.getItem('theme');
+        if (legacyTheme) baseSettings.isDarkMode = legacyTheme === 'dark';
+        const legacyThemePalette = localStorage.getItem('themePalette');
+        if (legacyThemePalette) {
+          const LEGACY_THEME_MAP: Record<string, string> = {
+            'onrivi-dark': 'github-dark-dimmed',
+            'midnight-neon': 'github-dark-dimmed',
+          };
+          baseSettings.themePalette = LEGACY_THEME_MAP[legacyThemePalette] || legacyThemePalette;
+        }
+        const legacyAutoSave = localStorage.getItem('autoSave');
+        if (legacyAutoSave) {
+          baseSettings.autoSave = legacyAutoSave === 'true' ? 5 : legacyAutoSave === 'false' ? 0 : parseInt(legacyAutoSave) || 0;
+        }
+        const legacyPreviewMode = localStorage.getItem('previewMode');
+        if (legacyPreviewMode) baseSettings.previewMode = legacyPreviewMode as any;
+
+        const savedHotkeys = localStorage.getItem('customHotkeys');
+        if (savedHotkeys) {
+          Object.assign(baseSettings.customHotkeys, JSON.parse(savedHotkeys));
+        }
+        const savedSlashCmds = localStorage.getItem('customSlashCommands');
+        if (savedSlashCmds) {
+          Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
         }
         
         // 2차 백업 키에서 API 키와 모델명 개별 복구

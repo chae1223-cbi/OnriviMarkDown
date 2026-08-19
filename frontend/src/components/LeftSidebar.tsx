@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import GlobalSearch from './GlobalSearch';
 import FileTreeItem from './FileTreeItem';
 import { FileNode } from '@/lib/indexedDbHelper';
+import { vfsRename } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
 import { Plus, FolderPlus, RefreshCw } from 'lucide-react';
@@ -58,9 +59,145 @@ export default function LeftSidebar() {
   const [isDesktop, setIsDesktop] = useState(false);
   const [collapsedH1s, setCollapsedH1s] = useState<Record<string, boolean>>({});
   const [isImporting, setIsImporting] = useState(false);
-  
-  // TOC 스크롤 추적을 위한 활성화된 헤딩 ID 상태
+  // TOC 활성 헤딩 상태
   const [activeTocId, setActiveTocId] = useState<string>('');
+
+  const [isDragOverRoot, setIsDragOverRoot] = useState(false);
+
+  const handleDragOverRoot = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverRoot(true);
+  };
+
+  const handleDragLeaveRoot = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverRoot(false);
+  };
+
+  const dispatchMovedEvent = (srcPath: string, tgtPath: string, newPath?: string, sourceName?: string, newHandle?: any) => {
+    const normSrc = srcPath.replace(/\\/g, '/');
+    const normTgt = tgtPath.replace(/\\/g, '/');
+    const srcParentPath = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
+    const tgtParentPath = normTgt.includes('/') ? normTgt.substring(0, normTgt.lastIndexOf('/')) : '';
+    
+    window.dispatchEvent(new CustomEvent('file:moved', {
+      detail: { sourceParentPath: srcParentPath, targetParentPath: tgtParentPath, targetPath: normTgt }
+    }));
+
+    if (newPath && sourceName) {
+      window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+        detail: { oldPath: srcPath, newPath, newName: sourceName, newHandle }
+      }));
+    }
+  };
+
+  const handleDropRoot = async (e: React.DragEvent) => {
+    if (isRestrictedUser) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverRoot(false);
+
+    const sourcePath = e.dataTransfer.getData("sourcePath");
+    const sourceName = e.dataTransfer.getData("sourceName");
+    const draggedNode = typeof window !== 'undefined' ? (window as any)._draggedNode : null;
+    const draggedNodeParent = typeof window !== 'undefined' ? (window as any)._draggedNodeParentHandle : null;
+    const sourceParentPath = typeof window !== 'undefined' ? (window as any)._draggedNodeParentPath : null;
+
+    const actualRootPath = (workspaceType === 'local' ? rootFolder?.name : rootFolder?.path) || '';
+
+    if (!sourcePath || sourcePath === actualRootPath) return;
+    // 이미 최상위(루트) 폴더에 있는 파일이면 이동하지 않음
+    if (sourceParentPath === actualRootPath) return;
+
+    try {
+      if (workspaceType === 'local') {
+        const rootPath = actualRootPath;
+        const newPath = rootPath ? `${rootPath}\\${sourceName}` : sourceName;
+        const api = (window as any).electronAPI;
+        if (api?.renameFile) {
+          await api.renameFile(sourcePath, newPath);
+          showToast(`'${sourceName}' 루트로 이동 완료`, 'success');
+          dispatchMovedEvent(sourcePath, rootPath, newPath, sourceName);
+          await refreshFileList();
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        } else {
+          const res = await fetch(getApiUrl('/api/rename'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oldPath: sourcePath, newPath })
+          });
+          if (res.ok) {
+            showToast(`'${sourceName}' 루트로 이동 완료`, 'success');
+            dispatchMovedEvent(sourcePath, rootPath, newPath, sourceName);
+            await refreshFileList();
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          }
+        }
+      } else if (workspaceType === 'browser') {
+        if (draggedNode && draggedNode.handle && rootFolder?.handle) {
+          const targetDirHandle = rootFolder.handle as FileSystemDirectoryHandle;
+          let finalNewHandle: any = null;
+
+          if (draggedNode.kind === 'file') {
+            const file = await draggedNode.handle.getFile();
+            const text = await file.text();
+            const newFileHandle = await targetDirHandle.getFileHandle(draggedNode.name, { create: true });
+            const writable = await newFileHandle.createWritable();
+            await writable.write(text);
+            await writable.close();
+            if (draggedNodeParent) {
+              await draggedNodeParent.removeEntry(draggedNode.name);
+            }
+            finalNewHandle = newFileHandle;
+          } else if (draggedNode.kind === 'directory') {
+            const newDirHandle = await targetDirHandle.getDirectoryHandle(draggedNode.name, { create: true });
+            const copyDirectory = async (srcDir: FileSystemDirectoryHandle, destDir: FileSystemDirectoryHandle) => {
+              for await (const entry of (srcDir as any).values()) {
+                if (entry.kind === 'file') {
+                  const file = await entry.getFile();
+                  const text = await file.text();
+                  const newFileHandle = await destDir.getFileHandle(entry.name, { create: true });
+                  const writable = await newFileHandle.createWritable();
+                  await writable.write(text);
+                  await writable.close();
+                } else if (entry.kind === 'directory') {
+                  const newSubDir = await destDir.getDirectoryHandle(entry.name, { create: true });
+                  await copyDirectory(entry, newSubDir);
+                }
+              }
+            };
+            await copyDirectory(draggedNode.handle, newDirHandle);
+            if (draggedNodeParent) {
+              await draggedNodeParent.removeEntry(draggedNode.name, { recursive: true });
+            }
+            finalNewHandle = newDirHandle;
+          }
+          showToast(`'${draggedNode.name}' 루트로 이동 완료`, 'success');
+          const newPath = rootFolder.path ? `${rootFolder.path}/${draggedNode.name}` : draggedNode.name;
+          dispatchMovedEvent(sourcePath, rootFolder.path || '', newPath, draggedNode.name, finalNewHandle);
+          await refreshFileList();
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        } else if (sourcePath) {
+          // LocalStorage 루트로 이동
+          const oldPath = sourcePath;
+          const normalizedPath = oldPath.replace(/\\/g, '/');
+          const lastSlashIndex = normalizedPath.lastIndexOf('/');
+          const filename = lastSlashIndex !== -1 ? normalizedPath.substring(lastSlashIndex + 1) : normalizedPath;
+          const newPath = rootFolder?.path ? `${rootFolder.path}/${filename}` : filename;
+          
+          vfsRename(oldPath, newPath);
+          showToast(`'${filename}' 루트로 이동 완료`, 'success');
+          dispatchMovedEvent(oldPath, rootFolder?.path || '', newPath, filename);
+          await refreshFileList();
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        }
+      }
+    } catch (e) {
+      showToast("이동 실패: " + e, 'error');
+    }
+  };
 
   useEffect(() => {
     const previewContainer = previewRef?.current;
@@ -680,7 +817,12 @@ export default function LeftSidebar() {
           ) : rootFolder?.handle || (isDesktop && rootFolder?.name) || rootFolder?.name === BROWSER_STORAGE_NAME ? (
             // 폴더 연결됨 → 파일 트리 표시
             // 🛡️ [빈 폴더 방어] fileList가 비어있어도 루트 폴더 헤더(풀경로+버튼)를 항상 유지
-            <div className="space-y-0.5">
+            <div 
+              className={`space-y-0.5 min-h-[50px] transition-colors rounded-lg ${isDragOverRoot ? 'bg-blue-500/10 border-2 border-dashed border-blue-500/50' : ''}`}
+              onDragOver={handleDragOverRoot}
+              onDragLeave={handleDragLeaveRoot}
+              onDrop={handleDropRoot}
+            >
               <div className="group relative flex items-center justify-between px-1 py-1 text-[12px] font-bold text-on-surface border-b border-outline-variant/20 mb-1">
                 <span className="truncate">📁 {rootFolder.name}</span>
                 {!isRestrictedUser && (
