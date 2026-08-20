@@ -457,12 +457,6 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
         </button>
       </div>
       
-      <style>{`
-        .dark .codeblock-area code * {
-          color: #ffffff !important;
-          background-color: transparent !important;
-        }
-      `}</style>
       <div className="overflow-x-auto w-full custom-scrollbar">
         <pre className="m-0 p-4 font-mono text-sm leading-normal bg-transparent w-max min-w-full text-zinc-800 dark:text-white">
           <code className={`hljs ${className || ''}`} style={{ whiteSpace: 'pre' }} {...props}>

@@ -328,45 +328,27 @@ function injectPageBreakMarkers(containerEl: HTMLElement, exportPageBreakLevel: 
 
   // 모든 직계 자식 요소를 순회하며 섹션 경계를 찾음
   const children = Array.from(root.children) as HTMLElement[];
-  let firstLevelFound = false;
-  // 🔑 마지막 h(level) 이후 등장한 첫 번째 상위 헤딩 요소 (break 삽입 기준점)
-  // ex) h3 설정: h3#2 이후 h2가 나오면 bufferStartEl = h2
-  //     다음 h3#3이 나올 때 → h2 앞에 break 삽입 → 섹션: [h2+내용+h3#3]
-  let bufferStartEl: HTMLElement | null = null;
-
-  for (let i = 0; i < children.length; i++) {
-    const el = children[i];
-    const tagName = el.tagName.toLowerCase();
-    const tagLevelMatch = tagName.match(/^h(\d)$/);
-    const tagLevel = tagLevelMatch ? parseInt(tagLevelMatch[1]) : 0;
-
-    if (tagLevel > 0 && tagLevel <= levelNum) {
-      if (tagLevel < levelNum) {
-        // 상위 레벨 헤딩(h1~h(level-1)): 첫 등장 시 bufferStartEl로 기록
-        if (firstLevelFound && bufferStartEl === null) {
-          bufferStartEl = el;
-        }
-      } else {
-        // 정확히 h(level) 헤딩
-        if (!firstLevelFound) {
-          // 첫 번째 h(level): 섹션1 시작 → break 없음
-          firstLevelFound = true;
-          bufferStartEl = null;
-        } else {
-          // 이후 h(level): break 마커 삽입
-          // bufferStartEl이 있으면 상위 헤딩 앞에, 없으면 현재 h(level) 앞에 삽입
-          const insertTarget = bufferStartEl || el;
+  
+    let lastSeenLevel = 0;
+    for (let i = 0; i < children.length; i++) {
+      const el = children[i];
+      const tagName = el.tagName.toLowerCase();
+      const tagLevelMatch = tagName.match(/^h(\d)$/);
+      if (!tagLevelMatch) continue;
+      
+      const tagLevel = parseInt(tagLevelMatch[1]);
+      
+      if (tagLevel <= levelNum) {
+        if (lastSeenLevel !== 0 && tagLevel <= lastSeenLevel) {
           const marker = document.createElement('div');
           marker.style.cssText = 'break-before: page !important; page-break-before: always !important; height: 0; margin: 0; padding: 0; border: none;';
-          root.insertBefore(marker, insertTarget);
-          // 정적 스냅샷 순회이므로 i 조정 불필요 (DOM 변경이 children 배열에 반영 안 됨)
-          bufferStartEl = null;
+          root.insertBefore(marker, el);
         }
+        lastSeenLevel = tagLevel;
       }
     }
     // 일반 콘텐츠(p, ul 등): bufferStartEl 상태 유지 (버퍼 계속 쌓임)
   }
-}
 
 // [ONR-EXP-001] 로컬 PDF / HTML 파일 출력 처리: 현재 문서 본문 DOM을 클론하여 지도/동영상 요소를 정적 변환하고 프린트 출력 스타일을 입혀 PDF/HTML 내보내기를 핸들링합니다.
 /** IME 조합 버퍼 강제 커밋: export 직전 한글 입력이 완성되지 않은 상태로 캡처되는 현상 차단 */

@@ -292,47 +292,34 @@ export async function generateEpub({
     let buffer = allParts[0]; // 첫 헤딩 이전 내용
     let currentTitle = title;
     let sectionIdx = 1;
-    let firstLevelFound = false;
+    
+      let lastSeenLevel = 0;
+      const extractHeadingTitle = (hContent: string): string => {
+        const match = hContent.match(/<\/h[1-6]>/i);
+        return match && match.index !== undefined
+          ? hContent.substring(0, match.index).replace(/<[^>]*>/g, '').trim()
+          : '';
+      };
 
-    const extractHeadingTitle = (hContent: string): string => {
-      const match = hContent.match(/<\/h[1-6]>/i);
-      return match && match.index !== undefined
-        ? hContent.substring(0, match.index).replace(/<[^>]*>/g, '').trim()
-        : '';
-    };
-
-    for (let i = 1; i < allParts.length; i += 2) {
-      const hTag = allParts[i];
-      const hContent = allParts[i + 1] || '';
-      const tagLevelMatch = hTag.match(/<h(\d)/i);
-      const tagLevel = tagLevelMatch ? parseInt(tagLevelMatch[1]) : 0;
-
-      if (tagLevel < levelNum) {
-        // 상위 레벨 헤딩: 버퍼에 담아듖고 다음 h(level)을 기다림
-        buffer += hTag + hContent;
-      } else {
-        // 정확히 h(level) 헤딩: 버퍼 + 이 헤딩을 하나의 섹션으로 구성
+      for (let i = 1; i < allParts.length; i += 2) {
+        const hTag = allParts[i];
+        const hContent = allParts[i + 1] || '';
+        const tagLevelMatch = hTag.match(/<h(\d)/i);
+        const tagLevel = tagLevelMatch ? parseInt(tagLevelMatch[1]) : 0;
+  
         const headingText = extractHeadingTitle(hContent);
-        currentTitle = headingText || title;
+        if (headingText) currentTitle = headingText;
 
-        if (!firstLevelFound) {
-          // 첫 번째 h(level): 버퍼(h1+소개+상위레벨들) + h(level) 함께 첫 섹션으로
-          buffer += hTag + hContent;
-          sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
-          firstLevelFound = true;
-        } else {
-          // 이후 h(level): 버퍼(상위레벨 있다면 포함) + h(level) = 새 섹션
-          sections.push({
-            id: `section${sectionIdx++}`,
-            html: buffer + hTag + hContent,
-            title: currentTitle
-          });
+        if (tagLevel > 0 && tagLevel <= levelNum) {
+          if (lastSeenLevel !== 0 && tagLevel <= lastSeenLevel) {
+             sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
+             buffer = '';
+          }
+          lastSeenLevel = tagLevel;
         }
-        buffer = ''; // 버퍼 초기화
+        buffer += hTag + hContent;
       }
-    }
-
-    // 남은 버퍼가 있는 경우 (마지막 상위 레벨 헤딩 뒱)
+      // 남은 버퍼가 있는 경우 (마지막 상위 레벨 헤딩 뒱)
     if (buffer.replace(/<[^>]*>/g, '').trim()) {
       sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
     }

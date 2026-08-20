@@ -1452,8 +1452,8 @@ input::-ms-clear {
 }
 
 /* --- Simple White Text for Dark Mode Code Blocks --- */
-.dark .hljs,
-.dark .hljs * {
+.dark .codeblock-area code,
+.dark .codeblock-area code * {
   color: #ffffff !important;
-  background: transparent !important;
+  background-color: transparent !important;
 }

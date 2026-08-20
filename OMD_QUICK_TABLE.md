@@ -378,3 +378,11 @@
 | OMD-AI-aiFormatter-0002 ✅ FIXED | aiFormatter.ts | formatRawTextToMarkdown | HWP 문서 추출 텍스트의 표 데이터가 뭉쳐나오는 현상 해결을 위한 AI 프롬프트 강화 | 뭉쳐진 텍스트를 탭/공백 문맥을 통해 논리적 행/열로 완벽 복원하라는 중요 지시 추가 | **2026-08-20** 🚨 HWP 표 데이터 분리 및 Markdown 복원 성능 향상 | prompt |
 
 | OMD-EDIT-fileImporter-0002 ✅ FIXED | fileImporter.ts | importHwp | HWP 파일에서 다수의 이미지가 존재할 경우 순서가 뒤죽박죽으로 섞이는 현상 및 표 구조 유실 현상 완벽 해결 | hwp.js 파서의 Picture/Table 객체를 직접 타겟팅하여 binID 기반의 정밀한 이미지 맵핑 로직 구축 및 Table 객체를 마크다운 표로 즉시 변환하는 AST 렌더러 탑재 | **2026-08-20** 🚨 HWP 표 및 이미지 뒤섞임 현상 근본 해결 | hwpLib.parse, binID |
+
+| OMD-EXP-PageBreak-0001 ✅ FIXED | exportHandlers.ts, epubGenerator.ts | injectPageBreakMarkers, generateEpub | 사용자가 지정한 페이지 나누기 수준에 따라 하위 섹션을 한 덩어리로 묶고 본문 내용이 끝난 직후에 정확하게 페이지가 분리되도록 계층 추적(Hierarchy Tracking) 알고리즘 탑재 | 제목 계층을 동적으로 추적하여 하위 레벨로 진입할 때는 버퍼에 누적(병합)하고, 대등하거나 상위 레벨로 되돌아갈 때만 페이지 분할(Break) 마커를 삽입/분리하도록 PDF 및 EPUB 생성 로직 전면 재작성 | **2026-08-20** 🚨 서식 설정 수준 기반 페이지 분할 로직 개편 | exportPageBreakLevel, lastSeenLevel |
+
+| OMD-UI-MainEditorApp-0004 ✅ FIXED | MainEditorApp.tsx | toc (useMemo) | 좌측 개요(TOC) 패널에 제목의 마크다운 기호가 필터링 없이 그대로 출력되어 지저분하게 보이는 현상 수정 | 정규식 치환 체인을 적용하여 개요 추출 시 굵게(**), 기울임(_), 취소선, 인라인 코드, 링크, HTML 태그 등 모든 렌더링용 기호를 깔끔하게 제거(Strip)하고 순수 텍스트만 표시되도록 정화 | **2026-08-20** 🚨 개요(TOC) 마크다운 태그 노출 방지 | text.replace |
+
+| OMD-UI-globals-0005 ✅ FIXED | globals.css | CSS | 다크 모드에서 언어 지정이 없는 코드블록(순수 텍스트 노드)이나 특정 구문 강조 테마가 적용된 경우 글씨가 흰색으로 덮어씌워지지 않고 어둡게 묻히는 현상 수정 | <code> 태그 내부의 자식(span 등)뿐만 아니라, <code> 태그 자체의 원시 텍스트 노드에도 강제 백색 스타일이 적용되도록 `.dark .codeblock-area code, .dark .codeblock-area code *` 로 선택자 커버리지 완벽 확장 | **2026-08-20** 🚨 다크 모드 코드블록 강제 백색 패치 | CSS !important |
+
+| OMD-EXP-PageBreak-0002 ✅ FIXED | exportHandlers.ts, epubGenerator.ts | injectPageBreakMarkers, generateEpub | 제목 2단계 수준 설정 시 제목 1단계에서도 페이지 나누기가 발생하는 논리적 오류 수정 | 사용자의 '수준2가 끝나는 부분만 잘라달라'는 요청에 맞게, 설정된 타겟 수준(levelNum)과 정확히 일치할 때(tagLevel === levelNum)에만 페이지를 나누도록 변경. 상위 헤딩(tagLevel < levelNum) 등장 시에는 덩어리(Chunk)의 시작으로 간주하여 firstLevelFound 플래그를 리셋함으로써, 상위 헤딩과 첫 하위 헤딩이 분리되지 않고 완벽하게 한 페이지에 묶이도록 개선. | **2026-08-20** 🚨 페이지 분할 알고리즘 타겟 레벨 단독 적용 패치 | firstLevelFound |

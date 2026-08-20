@@ -26,7 +26,8 @@ const DEV_ONLY_ROUTES = [
   { parent: APP_DIR, route: 'privacy' },
   { parent: APP_DIR, route: 'reset-password' },
   { parent: APP_DIR, route: 'signup' },
-  { parent: APP_DIR, route: 'terms' }
+  { parent: APP_DIR, route: 'terms' },
+  { parent: APP_DIR, route: 'sitemap.ts' }
 ];
 
 // 1. 개발 전용 API 라우트 및 SaaS 라우트들을 백업 폴더로 복사 후 원본 삭제
