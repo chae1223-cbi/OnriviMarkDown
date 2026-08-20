@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
 // 🚨 @PATCH : **2026-07-16** — 코드블록 및 인라인 코드의 하드코딩된 파란색 톤 배경 및 글자색을 제거하여, 사용자 CSS 프로필 서식 설정이 가로막힘 없이 실시간으로 올바르게 오버라이딩되도록 버그 수정.
 //             **2026-07-15** — MermaidBlock 내 alert() 호출을 useToast showToast('warning')로 교체 (브라우저 팝업 차단 알림을 공통 토스트 UI로 통일)
 //             **2026-07-07** — rehype-citation 플러그인 추가 (참고문헌/BibTeX 인용 파이프라인); bibContent prop으로 BibTeX 데이터를 주입받아 [@citekey] 문법을 인용/참고문헌 목록으로 자동 변환
@@ -427,7 +428,7 @@ function remarkDisableIndentedCode(this: any) {
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : handleCopy, navigator.clipboard.writeText
 // ====================================================================
-function CodeBlock({ lang, code, className, ...props }: { lang: string; code: string; className?: string; [key: string]: any }) {
+function CodeBlock({ lang, code, className, children, ...props }: { lang: string; code: string; className?: string; children?: React.ReactNode; [key: string]: any }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -442,24 +443,31 @@ function CodeBlock({ lang, code, className, ...props }: { lang: string; code: st
 
 
   return (
-    <div className="codeblock-area my-4 rounded-lg bg-blue-50/20 overflow-hidden shadow-sm select-text max-w-full">
+    <div className="codeblock-area my-4 rounded-lg bg-blue-50/20 dark:bg-black/20 overflow-hidden shadow-sm select-text max-w-full">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
-      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 ">
-        <span className="codeblock-header-text text-xs font-semibold text-blue-600  uppercase tracking-wider">
+      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 dark:bg-white/5">
+        <span className="codeblock-header-text text-xs font-semibold text-blue-600 dark:text-blue-300 uppercase tracking-wider">
           {lang || 'plaintext'}
         </span>
         <button
           onClick={handleCopy}
-          className="text-xs px-2.5 py-1 rounded bg-white  text-blue-600  hover:bg-blue-50 :bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium"
+          className="text-xs px-2.5 py-1 rounded bg-white dark:bg-zinc-800 text-blue-600 dark:text-zinc-300 hover:bg-blue-50 dark:hover:bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium"
         >
           {copied ? '✓ 복사됨' : '복사'}
         </button>
       </div>
+      
+      <style>{`
+        .dark .codeblock-area code * {
+          color: #ffffff !important;
+          background-color: transparent !important;
+        }
+      `}</style>
       <div className="overflow-x-auto w-full custom-scrollbar">
-        <pre className="m-0 p-4 font-mono text-sm leading-relaxed bg-transparent w-max min-w-full">
-          <code className={className || ''} style={{ whiteSpace: 'pre' }} {...props}>
-            {code}
-          </code>
+        <pre className="m-0 p-4 font-mono text-sm leading-normal bg-transparent w-max min-w-full text-zinc-800 dark:text-white">
+          <code className={`hljs ${className || ''}`} style={{ whiteSpace: 'pre' }} {...props}>
+            {children || code}
+            </code>
         </pre>
       </div>
     </div>
@@ -2041,18 +2049,18 @@ export default function MarkdownViewer({
               return <div className={className} {...props}>{children}</div>;
             },
             pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
-            code: ({ node, className, children, ...props }: any) => {
+            code: ({ node, inline, className, children, ...props }: any) => {
               const match = /language-(\S+)/.exec(className || '');
               const lang = match ? match[1] : '';
               const codeContent = getTextFromChildren(children).replace(/\n$/, '');
-              const isInline = !match && !getTextFromChildren(children).includes('\n');
+              const isInline = inline || (!match && !codeContent.includes('\n'));
               if (isInline) {
-                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-[0.9em]" {...props}>{children}</code>;
+                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-[0.9em] bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-white" {...props}>{children}</code>;
               }
               if (lang === 'mermaid') {
                 return <MermaidBlock code={codeContent} />;
               }
-              return <CodeBlock lang={lang} code={codeContent} className={className} {...props} />;
+              return <CodeBlock lang={lang} code={codeContent} className={className} {...props}>{children}</CodeBlock>;
             },
             h1: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;

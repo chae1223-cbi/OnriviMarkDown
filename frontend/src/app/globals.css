@@ -951,7 +951,7 @@ div.onrivi-list-spacer {
 .custom-preview-container code * {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Nanum Gothic Coding', 'D2Coding', '맑은 고딕', 'Malgun Gothic', monospace !important;
   /* 🌟 [영점 회복]: 본문 줄간격 변수에 오염되지 않도록 개발자 폰트 규격에 맞는 고정 가드선 투입 */
-  line-height: 1.6 !important; 
+  line-height: 1.45 !important; 
   letter-spacing: 0px !important; /* 고정폭 자간 유지 */
 }
 
@@ -960,7 +960,7 @@ div.onrivi-list-spacer {
 .custom-preview-container :not(pre) > code {
   /* display: inline-block !important; -> 인라인 텍스트가 줄바꿈되지 않고 덩어리째 다음 줄로 넘어가는 현상(거대 공백 유발) 방지를 위해 제거 */
   color: #2563eb; /* 서식에서 색상이 지정되지 않았을 때의 기본 파란색 (AI 가이드 반영) */
-  line-height: 1.35 !important;
+  line-height: 1.45 !important;
   padding: 1px 4.5px !important;
   margin: 0 2px !important;
   box-decoration-break: clone; /* 줄바꿈 시 배경색/패딩이 각 줄마다 예쁘게 적용되도록 설정 */
@@ -976,7 +976,7 @@ div.onrivi-list-spacer {
   margin-top: 0px !important;
   margin-bottom: 0px !important;
   /* 🌟 코드블록 내부의 모든 하위 문장 요소들도 1.6 배율로 강제 동기화 */
-  line-height: 1.6 !important; 
+  line-height: 1.45 !important; 
   font-size: inherit !important;
 }
 
@@ -1449,4 +1449,11 @@ input::-ms-clear {
     color: var(--admin-error);
     border: 1px solid rgba(105, 0, 5, 0.5);
   }
+}
+
+/* --- Simple White Text for Dark Mode Code Blocks --- */
+.dark .hljs,
+.dark .hljs * {
+  color: #ffffff !important;
+  background: transparent !important;
 }

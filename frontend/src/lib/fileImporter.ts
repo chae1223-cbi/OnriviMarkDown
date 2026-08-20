@@ -1,3 +1,9 @@
+// ====================================================================
+// 🚨 @PATCH : **2026-08-20** (2차) HWP 이미지 추출 시 순차 치환으로 인해 이미지가 뒤섞이는 현상을 완벽 해결하기 위해, hwp.js의 Picture 객체의 binID를 추출하여 정확한 플레이스홀더를 삽입하고 OLE/DocInfo와 매핑. 또한 표(Table) 객체를 감지하여 뭉친 텍스트 대신 완전한 마크다운 표 구조를 생성하도록 extractText를 재귀적으로 리팩토링함.
+// 🚀 [OMD-LIB-FileImporter-0001] fileImporter
+// 📝 @KICK : 외부 파일(HWP, DOCX, PDF 등) 텍스트/이미지 추출 모듈
+// 🚨 @PATCH : **2026-08-20** HWP 추출 시 표 데이터 뭉침 방지를 위해 hwp.js 배열 순회 시 탭(Tab) 공백 삽입. BMP/GIF 등 HWP 내장 이미지의 MIME 타입을 정확히 매핑하여 엑스박스 출력 해결. 이미지 위치 유지를 위해 hwp.js 파싱 중 그림 컨트롤 검출 시 ::HWP_IMAGE_PLACEHOLDER:: 꼬리표 삽입 로직 추가.
+// ====================================================================
 import * as mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as hwpLib from 'hwp.js';
@@ -153,29 +159,67 @@ async function importHwp(
     try {
       // 1단계: 기본 hwp.js 파서 작동 시도
       const hwpDoc = hwpLib.parse(view, { type: 'array' });
-      const extractText = (obj: any) => {
-        if (typeof obj === 'string') {
-          // HWP 텍스트 파편들에 대해 강제로 공백을 주지 않고 그대로 잇습니다.
-          // 공백은 HWP 내부에 이미 스페이스(' ')로 존재합니다.
-          text += obj;
-        } else if (Array.isArray(obj)) {
-          obj.forEach(extractText);
-        } else if (obj !== null && typeof obj === 'object') {
-          if (obj.text) extractText(obj.text);
-          else if (obj.chars) extractText(obj.chars);
-          else Object.values(obj).forEach(extractText);
-          
-          // hwp.js에서 '문단(Paragraph)'을 나타내는 전형적인 속성(controls, lines 등)이 있다면
-          // 해당 문단을 처리한 직후 줄바꿈을 두 번 넣어 문단을 분리해줍니다.
-          if ('controls' in obj || 'lines' in obj) {
-            text += '\n\n';
+      const extractTextNode = (obj: any): string => {
+          let result = '';
+          if (typeof obj === 'string') {
+            return obj;
+          } else if (Array.isArray(obj)) {
+            return obj.map(item => extractTextNode(item)).join(' ');
+          } else if (obj !== null && typeof obj === 'object') {
+            // Table (id = 543974004)
+            if (obj.id === 543974004 && Array.isArray(obj.content)) {
+              let mdTable = '\n\n';
+              obj.content.forEach((row: any, rIdx: number) => {
+                let rowText = '| ';
+                if (Array.isArray(row)) {
+                  row.forEach((cell: any) => {
+                    let cellStr = extractTextNode(cell).replace(/\r?\n/g, ' ').trim();
+                    rowText += cellStr + ' | ';
+                  });
+                }
+                mdTable += rowText + '\n';
+                if (rIdx === 0) {
+                  let sep = '|';
+                  if (Array.isArray(row)) {
+                    row.forEach(() => { sep += '---|'; });
+                  }
+                  mdTable += sep + '\n';
+                }
+              });
+              return mdTable + '\n\n';
+            }
+            
+            // Picture (type = 1667854372 or GenShapeObject = 544174951)
+            if (obj.type === 1667854372 || obj.id === 544174951) {
+              let placeholder = '::HWP_IMAGE_PLACEHOLDER::';
+              if (obj.info && obj.info.binID !== undefined) {
+                placeholder = '::HWP_IMAGE_PLACEHOLDER_' + obj.info.binID + '::';
+              }
+              return '\n\n' + placeholder + '\n\n';
+            }
+
+            if (obj.text) result += extractTextNode(obj.text);
+            else if (obj.chars) result += extractTextNode(obj.chars);
+            else {
+              Object.values(obj).forEach(v => {
+                if (typeof v === 'string' || typeof v === 'number' || (typeof v === 'object' && v !== null)) {
+                   result += extractTextNode(v);
+                }
+              });
+            }
+            
+            if ('controls' in obj || 'lines' in obj) {
+              result += '\n\n';
+            }
           }
+          return result;
+        };
+        
+        if (hwpDoc && hwpDoc.sections) {
+          text = extractTextNode(hwpDoc.sections);
+          // hwpDoc 객체를 외부에 노출하여 이미지 맵핑에 활용할 수 있도록 함
+          (view as any)._parsedHwpDoc = hwpDoc;
         }
-      };
-      
-      if (hwpDoc && hwpDoc.sections) {
-        extractText(hwpDoc.sections);
-      }
     } catch (parseError: any) {
       console.warn('hwp.js 파서 실패, 초경량 OLE 텍스트 복구 폴백 파서 기동:', parseError);
       
@@ -346,84 +390,126 @@ async function importHwp(
 
     // 💡 3단계: OLE BinData 내 첨부 이미지 디코딩 및 미디어 결합 파이프라인
     const imageTags: string[] = [];
-    try {
-      const cfb = await import('cfb');
-      const pako = (await import('pako')).default;
+    const imageMap: Record<number, string> = {};
+    let parsedDoc = (view as any)._parsedHwpDoc;
 
-      const cfbFile = cfb.read(view, { type: 'array' });
-      const imageEntries = cfbFile.FileIndex.filter(entry => 
-        entry.type === 2 && 
-        (
-          entry.name.toLowerCase().includes('bindata') ||
-          entry.name.toLowerCase().includes('bin00') ||
-          /bin\d+/i.test(entry.name)
-        ) && 
-        entry.size > 0 &&
-        !entry.name.toLowerCase().endsWith('.wmf') // WMF 웹 미지원 포맷 제외
-      );
-      
-      imageEntries.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-      
-      if (imageEntries.length > 0 && imageSaveCallback) {
-        for (const entry of imageEntries) {
-          const streamData = new Uint8Array(entry.content);
-          let decrypted: Uint8Array;
+    try {
+      if (parsedDoc && parsedDoc.info && parsedDoc.info.binData && parsedDoc.info.binData.length > 0 && imageSaveCallback) {
+        // hwp.js가 성공적으로 파싱한 경우, 해제된 이미지를 그대로 사용
+        const binDataArray = parsedDoc.info.binData;
+        for (let i = 0; i < binDataArray.length; i++) {
+          const image = binDataArray[i];
+          if (!image || !image.payload) continue;
           
-          try {
-            decrypted = pako.inflate(streamData);
-          } catch {
-            try {
-              decrypted = pako.inflateRaw(streamData);
-            } catch {
-              try {
-                decrypted = pako.inflateRaw(streamData.subarray(2));
-              } catch (err) {
-                // 💡 [비압축 폴백] 압축 해제가 모두 실패하면, 이 스트림 자체가 비압축 원본 이미지 바이너리입니다!
-                console.warn(`이미지 ${entry.name} 압축 해제 실패, 비압축 원본 데이터로 전환 적용합니다.`);
-                decrypted = streamData;
-              }
-            }
-          }
-          
-          // Uint8Array -> base64 변환 (Buffer 폴리필 안전 활용)
-          const base64 = Buffer.from(decrypted).toString('base64');
-          
-          const ext = entry.name.split('.').pop()?.toLowerCase() || 'png';
-          const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
+          const base64 = Buffer.from(image.payload).toString('base64');
+          const ext = (image.extension || 'png').toLowerCase();
+          let mimeType = 'image/png';
+          if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+          else if (ext === 'bmp') mimeType = 'image/bmp';
+          else if (ext === 'gif') mimeType = 'image/gif';
+          else if (ext === 'webp') mimeType = 'image/webp';
+          else if (ext === 'svg') mimeType = 'image/svg+xml';
           
           try {
             const src = await imageSaveCallback(base64, mimeType);
-            imageTags.push(`<img src="${src}" alt="${entry.name.split('/').pop()}" style="max-width: 100%; height: auto;" />`);
-          } catch (saveError) {
-            console.error('이미지 저장 콜백 실패:', saveError);
+            const imgTag = `<img src="${src}" alt="image_${i}" style="max-width: 100%; height: auto;" />`;
+            imageTags.push(imgTag);
+            imageMap[i] = imgTag;
+          } catch (e) {
+            console.error('이미지 저장 콜백 실패 (hwp.js):', e);
+          }
+        }
+      } else {
+        // fallbackText 등을 탔거나 binData가 비어있는 경우 OLE CFB로 강제 추출
+        const cfb = await import('cfb');
+        const pako = (await import('pako')).default;
+        const cfbFile = cfb.read(view, { type: 'array' });
+        const imageEntries = cfbFile.FileIndex.filter((entry: any) => 
+          entry.type === 2 && 
+          (
+            entry.name.toLowerCase().includes('bindata') ||
+            entry.name.toLowerCase().includes('bin00') ||
+            /bin\d+/i.test(entry.name)
+          ) && 
+          entry.size > 0 &&
+          !entry.name.toLowerCase().endsWith('.wmf')
+        );
+        
+        imageEntries.sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        
+        if (imageEntries.length > 0 && imageSaveCallback) {
+          for (const entry of imageEntries) {
+            const streamData = new Uint8Array(entry.content);
+            let decrypted: Uint8Array;
+            try { decrypted = pako.inflate(streamData); }
+            catch {
+              try { decrypted = pako.inflateRaw(streamData); }
+              catch {
+                try { decrypted = pako.inflateRaw(streamData.subarray(2)); }
+                catch (err) { decrypted = streamData; }
+              }
+            }
+            
+            const base64 = Buffer.from(decrypted).toString('base64');
+            const ext = entry.name.split('.').pop()?.toLowerCase() || 'png';
+            let mimeType = 'image/png';
+            if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+            else if (ext === 'bmp') mimeType = 'image/bmp';
+            else if (ext === 'gif') mimeType = 'image/gif';
+            else if (ext === 'webp') mimeType = 'image/webp';
+            else if (ext === 'svg') mimeType = 'image/svg+xml';
+            
+            try {
+              const src = await imageSaveCallback(base64, mimeType);
+              const imgTag = `<img src="${src}" alt="${entry.name.split('/').pop()}" style="max-width: 100%; height: auto;" />`;
+              imageTags.push(imgTag);
+              
+              // HEX ID 추출 (예: BIN000A.bmp -> A -> 10)
+              const binMatch = entry.name.match(/bin0*([0-9a-f]+)\./i);
+              if (binMatch) {
+                const binId = parseInt(binMatch[1], 16) - 1; // 1-based index in file -> 0-based binID
+                imageMap[binId] = imgTag;
+              }
+            } catch (saveError) {
+              console.error('이미지 저장 콜백 실패 (CFB):', saveError);
+            }
           }
         }
       }
     } catch (cfbError) {
-      console.warn('이미지 OLE 추출 실패:', cfbError);
+      console.warn('이미지 추출 실패:', cfbError);
     }
     
-    // 💡 이미지 플레이스홀더 순차 치환
+    // 💡 이미지 플레이스홀더 치환 (매핑된 binID 우선, 나머지는 순차)
     let replacedText = text;
+    
+    // 1. binID 매핑된 플레이스홀더 치환
+    for (const [binId, imgTag] of Object.entries(imageMap)) {
+      const ph = `::HWP_IMAGE_PLACEHOLDER_${binId}::`;
+      replacedText = replacedText.replaceAll(ph, imgTag);
+    }
+    
+    // 2. 매핑되지 못한 남은 특정 ID 플레이스홀더 정리
+    replacedText = replacedText.replace(/::HWP_IMAGE_PLACEHOLDER_\d+::/g, '');
+    
+    // 3. 범용 플레이스홀더 (fallbackText 등에서 삽입한 경우) 순차 치환
     let imageIdx = 0;
     while (replacedText.includes('::HWP_IMAGE_PLACEHOLDER::') && imageIdx < imageTags.length) {
       replacedText = replacedText.replace('::HWP_IMAGE_PLACEHOLDER::', imageTags[imageIdx]);
       imageIdx++;
     }
-    replacedText = replacedText.replaceAll('::HWP_IMAGE_PLACEHOLDER::', ''); // 매칭되지 않은 빈 지시자 제거
+    replacedText = replacedText.replaceAll('::HWP_IMAGE_PLACEHOLDER::', ''); 
     
     // 💡 남은 이미지는 하단 첨부 이미지 목록에 순차 나열
-    if (imageIdx < imageTags.length) {
+    // (이미 맵핑에 사용된 태그도 남을 수 있으나, 보통 fallback일때만 발생함)
+    if (imageIdx < imageTags.length && !parsedDoc) {
       replacedText += '\n\n---\n### 📎 첨부 이미지 목록\n\n';
       for (let i = imageIdx; i < imageTags.length; i++) {
         replacedText += imageTags[i] + '\n\n';
       }
     }
     replacedText = replacedText.replace(/\n{3,}/g, '\n\n');
-    
-    // 💡 지능형 표(Table) 마크다운 서식 보완 포스트-프로세서
-    // 각 라인별로 스캔하여 '|' 가 포함된 테이블 행들을 감지하고
-    // 표가 시작되는 첫 번째 행 바로 뒤에 마크다운 테이블 구분선(|---|---|...)을 자동 삽입합니다.
+
     const lines = replacedText.split('\n');
     let isInTable = false;
     for (let i = 0; i < lines.length; i++) {

@@ -17,12 +17,7 @@ const BACKUP_DIR = path.join(__dirname, '_dev_api_backup');
 
 // 임시 이동 대상 라우트들 정의
 const DEV_ONLY_ROUTES = [
-  { parent: API_DIR, route: 'view' },
-  { parent: API_DIR, route: 'upload-pasted-image' },
-  { parent: API_DIR, route: 'admin' },
-  { parent: API_DIR, route: 'cron' },
-  { parent: API_DIR, route: 'faqs' },
-  { parent: API_DIR, route: 'plans' },
+  { parent: APP_DIR, route: 'api' },
   { parent: APP_DIR, route: 'auth' },
   { parent: APP_DIR, route: 'contact' },
   { parent: APP_DIR, route: 'dashboard' },

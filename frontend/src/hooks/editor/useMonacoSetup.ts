@@ -311,7 +311,7 @@ export function useMonacoSetup(deps: any) {
                   // 💡 [에디터 스크롤 및 우측 여백 최적화]
                   editor.updateOptions({
                     scrollBeyondLastLine: false,   // 마지막 줄 도달 시 즉시 자동 스크롤
-                    padding: { top: 20, bottom: 0 }, // 마지막 줄 흔들림 버그 해결을 위해 bottom 패딩 0으로 설정
+                    padding: { top: 20, bottom: 160 }, // 마지막 줄 흔들림 버그 해결을 위해 bottom 패딩 0으로 설정
                     lineDecorationsWidth: 26,
                     lineNumbersMinChars: 4,
                     automaticLayout: true,

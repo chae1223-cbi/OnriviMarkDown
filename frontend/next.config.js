@@ -6,7 +6,7 @@ const isDesktopBuild = process.env.NEXT_BUILD_TARGET === 'desktop';
 const isDev = process.env.NODE_ENV === 'development';
 
 const nextConfig = {
-  ...(isDev ? {} : { output: 'export' }), // 개발 환경에서는 API 라우트 활성화를 위해 export 제외
+  ...(isDev && !isDesktopBuild ? {} : { output: 'export' }), // 개발 환경에서는 API 라우트 활성화를 위해 export 제외
   productionBrowserSourceMaps: true, // 🔍 [임시] TDZ 에러 추적용 소스맵 활성화
   assetPrefix: process.env.ASSET_PREFIX !== undefined ? process.env.ASSET_PREFIX : '', // cloudflare/web: (기본) '', desktop: ASSET_PREFIX=./
   images: {

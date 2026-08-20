@@ -227,6 +227,7 @@ export const parseDateStringToMs = (str?: string): number => {
 // 📊 [OMD-FILE-MainEditorApp-0001] MainEditorApp.tsx ➔ getMdFiles
 // 🎯 @KICK  : FileNode 트리를 순회하여 모든 .md 파일을 재귀적으로 수집합니다
 // 🛡️ @GUARD : None
+// 🚨 @PATCH : **2026-08-20** 하단 툴바에 가려지지 않도록 preview-page-sheet 및 custom-preview-container 하단 여백(padding-bottom) 대폭 확대.
 // 🚨 @PATCH : None
 // 🔗 @CALLS : None
 // ====================================================================
@@ -5863,8 +5864,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         ref={previewRef}
                         className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-on-surface ${
                           previewMode === 'preview'
-                            ? 'bg-surface-container-high p-4 overflow-y-auto'
-                            : 'bg-surface-container-low px-0 pt-0 pb-0 overflow-hidden'
+                            ? 'bg-surface-container-high p-4 pb-48 overflow-y-auto'
+                            : 'bg-surface-container-low px-0 pt-0 pb-48 overflow-hidden'
                         } ${previewMode === 'both' ? 'no-scrollbar' : ''}`}
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
@@ -5939,8 +5940,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           return (
                             <div
                               className={isPreviewOnly
-                                ? "preview-page-sheet mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-32"
-                                : `preview-page-sheet mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-32`
+                                ? "preview-page-sheet mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-56"
+                                : `preview-page-sheet mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-56`
                               }
                               style={pageStyle}
                             >
