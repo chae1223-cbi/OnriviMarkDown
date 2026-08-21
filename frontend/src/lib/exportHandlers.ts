@@ -270,7 +270,7 @@ function generateExportCss(profile: any): string {
 
   if (profile.checkboxStructure) {
     const boxSize = profile.checkboxStructure.boxSize || '16px';
-    const checkedEffect = profile.checkboxStructure.checkedEffect || 'line-through-and-dim';
+    const checkedEffect = profile.checkboxStructure.checkedEffect || 'none';
     const textGap = profile.checkboxStructure.textGap || '10px';
 
     css += `

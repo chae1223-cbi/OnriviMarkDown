@@ -153,6 +153,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     setCurrentFileNode({ name: finalName, kind: 'file', path: fullPath });
                     lastSavedContentRef.current = content;
                     setSaveStatus('saved');
+                      if (handlers && handlers.setTabs) {
+                        handlers.setTabs((prev: any[]) => prev.map(t => t.id === finalName || t.path === finalName ? { ...t, isModified: false } : t));
+                      }
                     await refreshFileList();
                     window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                     showToast(`${finalName} 저장 완료`, 'success');
@@ -170,6 +173,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     setCurrentFileNode({ name: finalName, kind: 'file', handle });
                     lastSavedContentRef.current = content;
                     setSaveStatus('saved');
+                      if (handlers && handlers.setTabs) {
+                        handlers.setTabs((prev: any[]) => prev.map(t => t.id === finalName || t.path === finalName ? { ...t, isModified: false } : t));
+                      }
                     await refreshFileList();
                     window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                     showToast(`${finalName} 저장 완료`, 'success');
@@ -181,6 +187,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     setCurrentFileNode({ name: finalName, kind: 'file', path: finalName });
                     lastSavedContentRef.current = content;
                     setSaveStatus('saved');
+                      if (handlers && handlers.setTabs) {
+                        handlers.setTabs((prev: any[]) => prev.map(t => t.id === finalName || t.path === finalName ? { ...t, isModified: false } : t));
+                      }
                     await refreshFileList();
                     window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                     showToast(`${finalName} 저장 완료`, 'success');
@@ -208,6 +217,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
                     setCurrentFileNode(newFileNode);
                     lastSavedContentRef.current = content;
                     setSaveStatus('saved');
+                      if (handlers && handlers.setTabs) {
+                        handlers.setTabs((prev: any[]) => prev.map(t => t.id === finalName || t.path === finalName ? { ...t, isModified: false } : t));
+                      }
                     showToast(`${finalName} 생성 및 저장 완료`, 'success');
                   }
                 }

@@ -91,78 +91,202 @@ export const useEditorHandlers = ({
     // 🔗 @CALLS : showToast
     // ====================================================================
     footnote: () => {
-      if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
-      const editor = editorRef.current;
-      const model = editor.getModel();
-      if (!model) return;
-
-      const selection = editor.getSelection();
-      const position = editor.getPosition();
-      if (!position || !selection) return;
-
-      const fullText = model.getValue();
-      const footnoteRegex = /\[\^(\d+)\]/g;
-      let maxNumber = 0;
-      let match;
-      while ((match = footnoteRegex.exec(fullText)) !== null) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNumber) {
-          maxNumber = num;
+        if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
+        const editor = editorRef.current;
+        const model = editor.getModel();
+        if (!model) return;
+  
+        const selection = editor.getSelection();
+        const position = editor.getPosition();
+        if (!position || !selection) return;
+  
+        const fullText = model.getValue();
+        const startOffset = model.getOffsetAt(selection.getStartPosition());
+        const endOffset = model.getOffsetAt(selection.getEndPosition());
+        
+        // 1. 최대 번호 추출
+        const footnoteRegex = /\[\^(\d+)\]/g;
+        let maxNumber = 0;
+        let match;
+        while ((match = footnoteRegex.exec(fullText)) !== null) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNumber) {
+            maxNumber = num;
+          }
         }
-      }
-      const nextNumber = maxNumber + 1;
-      const footnoteRef = `[^${nextNumber}]`;
-      const footnoteDef = `\n\n[^${nextNumber}]: `;
-
-      editor.pushUndoStop();
-      const Range = (window as any).monaco.Range;
-      
-      const range = new Range(
-        selection.startLineNumber,
-        selection.startColumn,
-        selection.endLineNumber,
-        selection.endColumn
-      );
-      
-      const lineCount = model.getLineCount();
-      const lastLineLength = model.getLineLength(lineCount);
-      const lastLineRange = new Range(
-        lineCount,
-        lastLineLength + 1,
-        lineCount,
-        lastLineLength + 1
-      );
-
-      editor.executeEdits("insertFootnote", [
-        {
-          range: range,
-          text: footnoteRef,
-          forceMoveMarkers: true
-        },
-        {
-          range: lastLineRange,
-          text: footnoteDef,
-          forceMoveMarkers: true
+        const nextNumber = maxNumber + 1;
+        const footnoteRef = `[^${nextNumber}]`;
+  
+        // 2. 인라인 각주 문자열 병합
+        const textWithRef = fullText.substring(0, startOffset) + footnoteRef + fullText.substring(endOffset);
+  
+        // 3. 전체 문서 파싱 및 각주 수집
+        const lines = textWithRef.split('\n');
+        let newLines: string[] = [];
+        let footnotes: { num: number, lines: string[] }[] = [];
+        let currentFootnote: { num: number, lines: string[] } | null = null;
+  
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const fnMatch = line.match(/^\[\^(\d+)\]:(.*)/);
+          
+          if (fnMatch) {
+            if (currentFootnote) {
+              footnotes.push(currentFootnote);
+            }
+            const num = parseInt(fnMatch[1], 10);
+            currentFootnote = { num, lines: [line] };
+          } else if (currentFootnote) {
+            // 빈 줄이거나 들여쓰기된 줄은 각주 내용으로 간주
+            if (line.trim() === '' || /^[ \t]+/.test(line)) {
+              currentFootnote.lines.push(line);
+            } else {
+              footnotes.push(currentFootnote);
+              currentFootnote = null;
+              newLines.push(line);
+            }
+          } else {
+            newLines.push(line);
+          }
         }
-      ]);
-      editor.pushUndoStop();
-
-      setTimeout(() => {
-        const newLineCount = model.getLineCount();
-        const newLastLineLength = model.getLineLength(newLineCount);
-        editor.setPosition({
-          lineNumber: newLineCount,
-          column: newLastLineLength + 1
+        if (currentFootnote) {
+          footnotes.push(currentFootnote);
+        }
+  
+        // 새 각주 정의 추가
+        footnotes.push({ num: nextNumber, lines: [`[^${nextNumber}]: `] });
+  
+        // 각주 블록 내의 불필요한 후행 빈 줄 제거
+        footnotes.forEach(f => {
+          while (f.lines.length > 1 && f.lines[f.lines.length - 1].trim() === '') {
+            f.lines.pop();
+          }
         });
-        editor.focus();
-      }, 20);
-    },
+  
+        // 본문 하단의 불필요한 후행 빈 줄 제거
+        while (newLines.length > 0 && newLines[newLines.length - 1].trim() === '') {
+          newLines.pop();
+        }
+  
+        // 각주 번호순 정렬
+        footnotes.sort((a, b) => a.num - b.num);
+  
+        // 본문 하단에 각주 블록 결합 (빈 줄 하나로 구분)
+        if (footnotes.length > 0) {
+          if (newLines.length > 0) newLines.push('');
+          footnotes.forEach(f => {
+            newLines.push(...f.lines);
+          });
+        }
+  
+        const finalString = newLines.join('\n');
+  
+        // 4. 에디터에 일괄 적용
+        editor.pushUndoStop();
+        const Range = (window as any).monaco.Range;
+        editor.executeEdits("gatherFootnotes", [{
+          range: model.getFullModelRange(),
+          text: finalString,
+          forceMoveMarkers: true
+        }]);
+        editor.pushUndoStop();
+  
+        // 5. 커서를 맨 마지막으로 이동시켜 입력 대기
+        setTimeout(() => {
+          const newLineCount = model.getLineCount();
+          const newLastLineLength = model.getLineLength(newLineCount);
+          editor.setPosition({
+            lineNumber: newLineCount,
+            column: newLastLineLength + 1
+          });
+          editor.focus();
+        }, 20);
+      },
+  
+      // ====================================================================
+      // 💡 [OMD-EDIT-USEEDITORHANDLERS-CITATION] useEditorHandlers.ts 의 citation
+      // 📝 @KICK  : 에디터 본문에 참조문헌(인용) 구문 삽입
+      // ====================================================================
+      organizeFootnotes: () => {
+        if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
+        const editor = editorRef.current;
+        const model = editor.getModel();
+        if (!model) return;
 
-    // ====================================================================
-    // 📊 [OMD-EDIT-USEEDITORHANDLERS-CITATION] useEditorHandlers.ts ➔ citation
-    // 🎯 @KICK  : 에디터 본문에 참조문헌(인용구) 구문 삽입
-    // ====================================================================
-    citation: () => {
+        const fullText = model.getValue();
+
+        // 3. 전체 문서 파싱 및 각주 수집
+        const lines = fullText.split('\n');
+        let newLines: string[] = [];
+        let footnotes: { num: number, lines: string[] }[] = [];
+        let currentFootnote: { num: number, lines: string[] } | null = null;
+  
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const fnMatch = line.match(/^\[\^(\d+)\]:(.*)/);
+          
+          if (fnMatch) {
+            if (currentFootnote) {
+              footnotes.push(currentFootnote);
+            }
+            const num = parseInt(fnMatch[1], 10);
+            currentFootnote = { num, lines: [line] };
+          } else if (currentFootnote) {
+            // 빈 줄이거나 들여쓰기된 줄은 각주 내용으로 간주
+            if (line.trim() === '' || /^[ \t]+/.test(line)) {
+              currentFootnote.lines.push(line);
+            } else {
+              footnotes.push(currentFootnote);
+              currentFootnote = null;
+              newLines.push(line);
+            }
+          } else {
+            newLines.push(line);
+          }
+        }
+        if (currentFootnote) {
+          footnotes.push(currentFootnote);
+        }
+  
+        // 각주 블록 내의 불필요한 후행 빈 줄 제거
+        footnotes.forEach(f => {
+          while (f.lines.length > 1 && f.lines[f.lines.length - 1].trim() === '') {
+            f.lines.pop();
+          }
+        });
+  
+        // 본문 하단의 불필요한 후행 빈 줄 제거
+        while (newLines.length > 0 && newLines[newLines.length - 1].trim() === '') {
+          newLines.pop();
+        }
+  
+        // 각주 번호순 정렬
+        footnotes.sort((a, b) => a.num - b.num);
+  
+        // 본문 하단에 각주 블록 결합 (빈 줄 하나로 구분)
+        if (footnotes.length > 0) {
+          if (newLines.length > 0) newLines.push('');
+          footnotes.forEach(f => {
+            newLines.push(...f.lines);
+          });
+        }
+  
+        const finalString = newLines.join('\n');
+  
+        if (finalString === fullText) return; // No changes needed
+
+        // 4. 에디터에 일괄 적용
+        editor.pushUndoStop();
+        const Range = (window as any).monaco.Range;
+        editor.executeEdits("gatherFootnotes", [{
+          range: model.getFullModelRange(),
+          text: finalString,
+          forceMoveMarkers: true
+        }]);
+        editor.pushUndoStop();
+      },
+
+      citation: () => {
       if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
       const editor = editorRef.current;
       const model = editor.getModel();
@@ -545,9 +669,10 @@ export const useEditorHandlers = ({
             localStorage.setItem('workspaceType', 'local');
             setCurrentFileName(file.name);
             setCurrentFileNode({ name: file.name, kind: 'file', path: file.path });
-            lastSavedContentRef.current = currentVal;
-            setSaveStatus('saved');
-            await refreshFileList();
+              lastSavedContentRef.current = currentVal;
+              setSaveStatus('saved');
+              setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+              await refreshFileList();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             showToast(`'${file.name}' 저장 완료`, 'success');
           } else {
@@ -587,9 +712,10 @@ export const useEditorHandlers = ({
 
           setCurrentFileName(fileHandle.name);
           setCurrentFileNode({ name: fileHandle.name, kind: 'file', handle: fileHandle });
-          lastSavedContentRef.current = currentVal;
-          setSaveStatus('saved');
-          await refreshFileList();
+            lastSavedContentRef.current = currentVal;
+            setSaveStatus('saved');
+            setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
+            await refreshFileList();
           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
           showToast(`'${fileHandle.name}' 파일이 저장되었습니다.`, 'success');
         } catch (e: any) {
@@ -1048,7 +1174,8 @@ export const useEditorHandlers = ({
     // ====================================================================
     toggleFloatingToolbar: () => {
       setFloatingToolbar(prev => {
-        if (prev.visible) return { ...prev, visible: false };
+        if (prev.visible) return {
+    setTabs, ...prev, visible: false };
         if (editorRef.current) {
           const editor = editorRef.current;
           editor.focus();

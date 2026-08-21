@@ -1752,14 +1752,14 @@ ${guideContent}
               <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
                 <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">완료 항목 스타일</span>
                 <select
-                  value={checkboxStructure.checkedEffect}
+                  value={checkboxStructure.checkedEffect || 'none'}
                   disabled={isSystemProfile}
                   onChange={(e) => updateCheckboxStructure('checkedEffect', e.target.value)}
                   className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
                 >
+                  <option value="none">효과 없음</option>
                   <option value="line-through-and-dim">취소선 + 반투명</option>
                   <option value="dim-only">반투명 효과만</option>
-                  <option value="none">효과 없음</option>
                 </select>
               </div>
 

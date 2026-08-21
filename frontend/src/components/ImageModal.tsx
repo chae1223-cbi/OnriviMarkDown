@@ -253,8 +253,8 @@ export default function ImageModal({
 
     const loadLocal = async () => {
       try {
-        if (cleanImagePath.startsWith('/media/') && resourceFolderHandle) {
-          const fileName = cleanImagePath.replace('/media/', '');
+        if ((cleanImagePath.startsWith('/media/') || cleanImagePath.startsWith('./media/')) && resourceFolderHandle) {
+          const fileName = cleanImagePath.replace(/^\.?\/media\//, '');
           const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
           const fileHandle = await mediaDir.getFileHandle(fileName);
           const file = await fileHandle.getFile();
@@ -311,12 +311,13 @@ export default function ImageModal({
 
     let absolutePath = cleanImagePath;
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      if (cleanImagePath.startsWith('/media/')) {
+      if (cleanImagePath.startsWith('/media/') || cleanImagePath.startsWith('./media/')) {
         const freshRF = loadSecureData<string>('resourceFolder') || resourceFolder;
         if (freshRF) {
           const sep = freshRF.includes('\\') ? '\\' : '/';
           const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
-          const normalizedSrc = sep === '\\' ? cleanImagePath.replace(/\//g, '\\') : cleanImagePath;
+          const strippedPath = cleanImagePath.startsWith('./') ? cleanImagePath.substring(1) : cleanImagePath;
+            const normalizedSrc = sep === '\\' ? strippedPath.replace(/\//g, '\\') : strippedPath;
           absolutePath = cleanRoot + normalizedSrc;
         } else if (targetFolder) {
           const sep = targetFolder.includes('\\') ? '\\' : '/';

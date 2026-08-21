@@ -71,6 +71,8 @@ interface MarkdownViewerProps {
 const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, style, className, ...props }: any) => {
   const [imgSrc, setImgSrc] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
+    const [copied, setCopied] = useState(false);
+    const imgRef = useRef<HTMLImageElement>(null);
   
   useEffect(() => {
     let objectUrl = '';
@@ -106,13 +108,13 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           const pureSrc = src.split('?')[0].split('#')[0];
           
           // 리소스 폴더 지정 안 됨 경고
-          if (!resourceFolderHandle && !rootFolder?.handle && (pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || pureSrc.startsWith('/media/'))) {
+          if (!resourceFolderHandle && !rootFolder?.handle && (pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || (pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')))) {
              setErrorMsg(`로컬 미디어를 보려면 좌측 하단의 '리소스 폴더 지정' 버튼을 클릭해 폴더를 연동해주세요.`);
              return;
           }
 
-          if (pureSrc.startsWith('/media/') && resourceFolderHandle) {
-             const fileName = pureSrc.replace('/media/', '');
+          if ((pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')) && resourceFolderHandle) {
+             const fileName = pureSrc.replace(/^\.?\/media\//, '');
              const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
              const fileHandle = await mediaDir.getFileHandle(fileName);
              const file = await fileHandle.getFile();
@@ -179,7 +181,61 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     }
   };
 
-  return <img src={imgSrc} alt={alt} style={style} className={className} onError={onImgError} {...props} />;
+  
+
+    const handleCopy = async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        let blob;
+        if (imgSrc.startsWith('data:')) {
+          const response = await fetch(imgSrc);
+          blob = await response.blob();
+        } else if (imgRef.current) {
+          const canvas = document.createElement('canvas');
+          canvas.width = imgRef.current.naturalWidth || imgRef.current.width;
+          canvas.height = imgRef.current.naturalHeight || imgRef.current.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(imgRef.current, 0, 0);
+            blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+          }
+        }
+        
+        if (blob) {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }
+      } catch (err) {
+        console.error('Image copy failed', err);
+      }
+    };
+
+    return (
+      <div className="relative group inline-block" style={style}>
+        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} {...props} style={{ width: '100%', height: '100%', objectFit: 'contain' }} crossOrigin="anonymous" />
+        <button
+          onClick={handleCopy}
+          className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1 z-10 hover:bg-black/80"
+          title="이미지 복사"
+        >
+          {copied ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              복사됨
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              복사
+            </>
+          )}
+        </button>
+      </div>
+    );
+
+
 };
 
 const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, style, className, ...props }: any) => {
@@ -259,13 +315,13 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
           }
 
           // 리소스 폴더 지정 안 됨 경고
-          if (!resourceFolderHandle && !rootFolder?.handle && (webTargetSrc.startsWith('./media/') || webTargetSrc.startsWith('media/') || webTargetSrc.startsWith('/media/'))) {
+          if (!resourceFolderHandle && !rootFolder?.handle && (webTargetSrc.startsWith('./media/') || webTargetSrc.startsWith('media/') || (webTargetSrc.startsWith('/media/') || webTargetSrc.startsWith('./media/')))) {
              setErrorMsg(`로컬 비디오를 보려면 좌측 하단의 '리소스 폴더 지정' 버튼을 클릭해 폴더를 연동해주세요.`);
              return;
           }
 
-          if (webTargetSrc.startsWith('/media/') && resourceFolderHandle) {
-             const fileName = webTargetSrc.replace('/media/', '');
+          if ((webTargetSrc.startsWith('/media/') || webTargetSrc.startsWith('./media/')) && resourceFolderHandle) {
+             const fileName = webTargetSrc.replace(/^\.?\/media\//, '');
              const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
              const fileHandle = await mediaDir.getFileHandle(fileName);
              const file = await fileHandle.getFile();
@@ -1503,12 +1559,13 @@ export default function MarkdownViewer({
               let absolutePath = actualSrc;
               const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
-              if (actualSrc && actualSrc.startsWith('/media/')) {
+              if (actualSrc && (actualSrc.startsWith('/media/') || actualSrc.startsWith('./media/'))) {
                 const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
                 if (freshRF) {
                   const sep = freshRF.includes('\\') ? '\\' : '/';
                   const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
-                  const normalizedSrc = sep === '\\' ? actualSrc.replace(/\//g, '\\') : actualSrc;
+                  const strippedSrc = actualSrc.startsWith('./') ? actualSrc.substring(1) : actualSrc;
+                    const normalizedSrc = sep === '\\' ? strippedSrc.replace(/\//g, '\\') : strippedSrc;
                   absolutePath = cleanRoot + normalizedSrc;
                 } else {
                    let baseDir = '';
@@ -1520,7 +1577,7 @@ export default function MarkdownViewer({
                      baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
                    }
                    if (baseDir) {
-                     const fileName = actualSrc.replace('/media/', '');
+                     const fileName = actualSrc.replace(/^\.?\/media\//, '');
                      absolutePath = baseDir + '\\media\\' + fileName;
                    }
                 }
@@ -1558,7 +1615,7 @@ export default function MarkdownViewer({
               let absolutePath = actualSrc;
               const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
-              if (actualSrc && actualSrc.startsWith('/media/')) {
+              if (actualSrc && (actualSrc.startsWith('/media/') || actualSrc.startsWith('./media/'))) {
                 const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
                 if (freshRF) {
                   const sep = freshRF.includes('\\') ? '\\' : '/';
@@ -1575,7 +1632,7 @@ export default function MarkdownViewer({
                      baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
                    }
                    if (baseDir) {
-                     const fileName = actualSrc.replace('/media/', '');
+                     const fileName = actualSrc.replace(/^\.?\/media\//, '');
                      absolutePath = baseDir + '\\media\\' + fileName;
                    }
                 }
@@ -1675,13 +1732,14 @@ export default function MarkdownViewer({
                 // hero.png만 웰컴 에셋으로 취급하거나, 순수하게 Welcome.md가 렌더링 중일 때만
                 const isWelcomeAsset = (pureSrc === './hero.png' || pureSrc === 'hero.png') && isWelcomePage;
 
-                if (pureSrc.startsWith('/media/') && api) {
+                if ((pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')) && api) {
                   // 💡 [핵심] 데스크탑: secureStorage에서 항상 최신 resourceFolder를 직접 읽어 경로 조합
                   const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
                   if (freshRF) {
                     const sep = freshRF.includes('\\') ? '\\' : '/';
                     const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
-                    const normalizedSrc = sep === '\\' ? pureSrc.replace(/\//g, '\\') : pureSrc;
+                    const strippedSrc = pureSrc.startsWith('./') ? pureSrc.substring(1) : pureSrc;
+                      const normalizedSrc = sep === '\\' ? strippedSrc.replace(/\//g, '\\') : strippedSrc;
                     absolutePath = cleanRoot + normalizedSrc;
                   } else {
                     // resourceFolder 없음: 워크스페이스 루트를 최우선으로 하고, 없으면 현재 파일 경로 기준
@@ -1695,7 +1753,7 @@ export default function MarkdownViewer({
                     }
 
                     if (baseDir) {
-                      const fileName = pureSrc.replace('/media/', '');
+                      const fileName = pureSrc.replace(/^\.?\/media\//, '');
                       absolutePath = baseDir + '\\media\\' + fileName;
                     }
                   }
@@ -1956,7 +2014,7 @@ export default function MarkdownViewer({
                 if (isMediaServe && mediaFilePath) {
                   absolutePath = mediaFilePath;
                   pureSrc = `media://local/serve?url=${encodeURIComponent(mediaFilePath)}`;
-                } else if (pureSrc.startsWith('/media/') && api) {
+                } else if ((pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')) && api) {
                   const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
                   if (freshRF) {
                     const sep = freshRF.includes('\\') ? '\\' : '/';
@@ -1973,7 +2031,7 @@ export default function MarkdownViewer({
                       baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
                     }
                     if (baseDir) {
-                      const fileName = pureSrc.replace('/media/', '');
+                      const fileName = pureSrc.replace(/^\.?\/media\//, '');
                       absolutePath = baseDir + '\\media\\' + fileName;
                     }
                   }

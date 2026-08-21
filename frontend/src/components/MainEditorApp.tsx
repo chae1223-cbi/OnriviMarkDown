@@ -44,7 +44,7 @@ loader.config({ paths: { vs: _monacoVsPath } });
 import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
 import Script from 'next/script'; // 넥스트 스크립트 - 
 import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더링
-import 'highlight.js/styles/github.css'; // 코드 하이라이팅 스타일
+// import 'highlight.js/styles/github.css'; // 코드 하이라이팅 스타일
 
 /**
  * ==================================================================================
@@ -156,13 +156,13 @@ export type EditorCommandType =
   | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME'                  //⑩ 스타일 적용 
   | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE'                       // ⑪ 스타일 적용 
   | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS'                                                                // ⑫ 스타일 적용 
-  | 'FOOTNOTE'                                                                         // ⑬ 각주 삽입 
+  | 'FOOTNOTE' | 'ORGANIZE_FOOTNOTES'                                                                         // ⑬ 각주 삽입 
   | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW'                                               // ⑭ 표 행 편집 명령
   | 'DOCLINK'                                                                          // ⑮ 문서링크
   | 'MERGE'                                                                             // ⑯ 파일 병합
   | 'AI_HELP'                                                                           // ⑰ AI 글쓰기 도우미
   | 'ADD_REFERENCE'                                                                     // ⑱ 참조 파일 추가
-  | 'AI_DRAFT' | 'OPEN_AI_WRITER' | 'SLASH_COMMAND';
+  | 'AI_DRAFT' | 'OPEN_AI_WRITER' | 'SLASH_COMMAND' | 'AUTO_RENUMBER';
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -2188,7 +2188,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const handleAiAction = async (action: AiActionType) => {
     if (!geminiApiKey) {
-      showToast("환경설정(애플리케이션)에서 Google Gemma API Key를 먼저 입력해주세요.", 'error');
+      showToast("환경설정(애플리케이션)에서 Google Gemini API Key를 먼저 입력해주세요.", 'error');
       return;
     }
     const editor = editorRef.current;
@@ -3198,11 +3198,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (currentFileNode && activeTabId) {
       if (prevActiveTabRef.current !== activeTabId) {
         prevActiveTabRef.current = activeTabId;
-        lastSavedContentRef.current = content;
-        // 탭 전환 시 saveStatus를 현재 탭의 isModified에 맞게 동기화
-        const activeTab = tabsRef.current.find(t => t.id === activeTabId);
-        setSaveStatus(activeTab?.isModified ? 'unsaved' : 'saved');
-        return;
+          const activeTab = tabsRef.current.find(t => t.id === activeTabId);
+          if (!activeTab?.isModified) lastSavedContentRef.current = content;
+          setSaveStatus(activeTab?.isModified ? 'unsaved' : 'saved');
+          return;
       }
       const isUnsaved = content !== lastSavedContentRef.current;
       setSaveStatus(isUnsaved ? 'unsaved' : 'saved');
@@ -3258,6 +3257,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const success = await saveFile(saveContent, currentFileNode);
         setSaveStatus(success ? 'saved' : 'unsaved');
         if (success) {
+          lastSavedContentRef.current = saveContent;
           console.log(`✏️ [Onrivi Guard] 자동 저장 완료 (${autoSave}초)`);
           // 자동 저장 후 현재 탭의 isModified 상태를 false로 복구
           setTabs(prev => prev.map(t =>
@@ -3591,55 +3591,60 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : 없음
   // ====================================================================
   const resolveClipboardImage = async (e: any, imageItem: any): Promise<Blob | null> => {
-    // 0) [Electron] 네이티브 클립보드 이미지 읽기 우선 시도 (크로미움 버그 및 0바이트 우회)
-    try {
-      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
-      if (api && api.readClipboardImage) {
-        const dataUrl = await api.readClipboardImage();
-        if (dataUrl) {
-          const res = await fetch(dataUrl);
-          return await res.blob();
-        }
+      // 비동기(await) 호출 이전에 동기적으로 브라우저 DataTransferItem 객체에서 File을 즉시 추출해야 합니다.
+      // 크롬 등에서는 await 이후에 getAsFile()을 호출하면 보안상 null을 반환합니다.
+      let syncFile = null;
+      let syncFiles = null;
+      if (imageItem) {
+        syncFile = imageItem.getAsFile();
       }
-    } catch (err) {
-      console.warn('[Clipboard] Native read fallback', err);
-    }
+      if (e.clipboardData?.files?.length > 0) {
+        syncFiles = e.clipboardData.files;
+      }
 
-    // 1) clipboardData.items[i].getAsFile()
-    if (imageItem) {
-      const file = imageItem.getAsFile();
-      if (file) return file;
-      // 1b) items에서 찾았지만 getAsFile()이 null → clipboardData.files 폴백
-      const files = e.clipboardData.files;
-      if (files && files.length > 0 && files[0].type.startsWith('image/')) return files[0];
-    }
-    // 2) clipboardData.files (items에 이미지가 없을 때)
-    const files = e.clipboardData?.files;
-    if (files && files.length > 0 && files[0].type.startsWith('image/')) return files[0];
-    // 3) navigator.clipboard.read() (Async Clipboard API, 권한 필요)
-    try {
-      if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
-        const clipboardItems = await navigator.clipboard.read();
-        for (const ci of clipboardItems) {
-          for (const type of ci.types) {
-            if (type.startsWith('image/')) {
-              return await ci.getType(type);
+      // 만약 동기적으로 추출한 파일이 유효하다면 즉시 반환
+      // (단, 크롬 프로미스 버그 등으로 크기가 0바이트인 경우는 제외)
+      if (syncFile && syncFile.size > 0) return syncFile;
+      if (syncFiles && syncFiles.length > 0 && syncFiles[0].type.startsWith('image/') && syncFiles[0].size > 0) return syncFiles[0];
+
+      // 0) [Electron] 네이티브 클립보드 이미지 읽기 우선 시도 (프로미스 버그 시 0바이트 우회)
+      try {
+        const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+        if (api && api.readClipboardImage) {
+          const dataUrl = await api.readClipboardImage();
+          if (dataUrl) {
+            const res = await fetch(dataUrl);
+            return await res.blob();
+          }
+        }
+      } catch (err) {
+        console.warn('[Clipboard] Native read fallback', err);
+      }
+  
+      // 3) navigator.clipboard.read() (Async Clipboard API, 권한 필요)
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const ci of clipboardItems) {
+            for (const type of ci.types) {
+              if (type.startsWith('image/')) {
+                return await ci.getType(type);
+              }
             }
           }
         }
-      }
-    } catch { }
-    return null;
-  };
+      } catch { }
+      return null;
+    };
 
-  // ====================================================================
-  // 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handleEditorPaste
-  // 🎯 @KICK  : 붙여넣기 이벤트 처리: 이미지 업로드, HTML 표 변환, 텍스트 정제
-  // 🛡️ @GUARD : 이미지 붙여넣기 시 기본 동작 차단, 일반 텍스트 폴백 전 HTML 표 시도
-  // 🚨 @PATCH : None
-  // 🔗 @CALLS : fetch, FileReader, parseHtmlTableToMarkdown, sanitizePastedText, fixMarkdownTable, insertAtCursor, updateContent, showToast
-  // ====================================================================
-  const handleEditorPaste = async (e: any) => {
+    // ====================================================================
+    // 💡 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx 의 handleEditorPaste
+    // 📝 @KICK  : 붙여넣기 이벤트 처리: 이미지 업로드, HTML 표 변환, 텍스트 정제
+    // 🛡️ @GUARD : 이미지 붙여넣기 시 기본 동작 차단, 일반 텍스트 폴백 및 HTML 표 시도
+    // 🚨 @PATCH : None
+    // 🔄 @CALLS : fetch, FileReader, parseHtmlTableToMarkdown, sanitizePastedText, fixMarkdownTable, insertAtCursor, updateContent, showToast
+    // ====================================================================
+    const handleEditorPaste = async (e: any) => {
     const items = e.clipboardData?.items;
     let hasText = false;
     let hasHtml = false;
@@ -3979,6 +3984,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
 
     editor.executeEdits("applyPrefix", edits);
+      setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
 
     // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
     try {
@@ -4043,7 +4049,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     cleanedText = processedLines.join('\n');
 
-    editor.executeEdits("removeMarkdownTags", [
+    setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+      editor.executeEdits("removeMarkdownTags", [
       {
         range: rangeToProcess,
         text: cleanedText,
@@ -4660,6 +4667,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setIsAIDraftModalOpen(true);
         return;
       }
+      case 'AUTO_RENUMBER':
+        console.log('[DEBUG] AUTO_RENUMBER dispatched! Triggering autoRenumberList...');
+        setTimeout(() => editorRef.current?.getAction('autoRenumberList')?.run(), 100);
+        break;
       case 'SLASH_COMMAND': {
         if (!activeTabId || previewMode === 'preview') {
           showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
@@ -4728,6 +4739,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 서식 관련
       case 'BOLD': handlers.bold(); break;
       case 'FOOTNOTE': handlers.footnote(); break;
+      case 'ORGANIZE_FOOTNOTES': handlers.organizeFootnotes(); break;
       case 'ITALIC': handlers.italic(); break;
       case 'INLINE_CODE': handlers.inlineCode(); break;
       case 'UNDERLINE': handlers.underline(); break;
@@ -5892,6 +5904,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                           // 💡 [요구사항 3 / SYNC-03] 미리보기 마우스 오버 상태일 때만 에디터로 스크롤 송신 허용 (관성 튕김 루프 원천 방쇄)
                           if (!isPreviewHovered.current || previewModeRef.current !== 'both' || !editorRef.current) return;
+                            if (isScrollingRef.current === 'editor') return;
 
                           isScrollingRef.current = 'preview';
                           if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
@@ -5899,29 +5912,58 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                           const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
 
-                          let targetLine = -1;
-                          for (const element of elements) {
-                            const rect = element.getBoundingClientRect();
-                            const containerRect = target.getBoundingClientRect();
-                            if (rect.top >= containerRect.top) {
-                              const lineStr = element.getAttribute('data-line');
-                              if (lineStr) {
-                                targetLine = parseInt(lineStr, 10);
+                          let elA = null;
+                            let elB = null;
+                            
+                            for (let i = 0; i < elements.length; i++) {
+                              const rect = elements[i].getBoundingClientRect();
+                              const containerRect = target.getBoundingClientRect();
+                              
+                              if (rect.bottom >= containerRect.top) {
+                                elA = elements[i];
+                                if (i + 1 < elements.length) {
+                                  elB = elements[i + 1];
+                                }
                                 break;
                               }
                             }
-                          }
-
-                          if (targetLine !== -1 && editorRef.current) {
-                            const editor = editorRef.current;
-                            if (typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
-                              editor.setScrollPosition({
-                                scrollTop: editor.getTopForLineNumber(targetLine)
-                              });
-                            } else if (typeof editor.revealLine === 'function') {
-                              editor.revealLine(targetLine);
-                            }
-                          }
+                            
+                            if (elA && editorRef.current) {
+                              const editor = editorRef.current;
+                              const lineStrA = elA.getAttribute('data-line');
+                              
+                              if (lineStrA && typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
+                                const lineA = parseInt(lineStrA, 10);
+                                const topA = editor.getTopForLineNumber(lineA);
+                                
+                                let interpolatedScrollTop = topA;
+                                
+                                if (elB) {
+                                  const lineStrB = elB.getAttribute('data-line');
+                                  if (lineStrB) {
+                                    const lineB = parseInt(lineStrB, 10);
+                                    const topB = editor.getTopForLineNumber(lineB);
+                                    
+                                    const rectA = elA.getBoundingClientRect();
+                                    const rectB = elB.getBoundingClientRect();
+                                    const containerRect = target.getBoundingClientRect();
+                                    
+                                    const previewTopA = rectA.top - containerRect.top + target.scrollTop;
+                                    const previewTopB = rectB.top - containerRect.top + target.scrollTop;
+                                    
+                                    const editorRange = topB - topA;
+                                    const previewRange = previewTopB - previewTopA;
+                                    
+                                    if (previewRange > 0) {
+                                      const progress = Math.max(0, Math.min(1, (target.scrollTop - previewTopA) / previewRange));
+                                      interpolatedScrollTop = topA + progress * editorRange;
+                                    }
+                                  }
+                                }
+                                
+                                editor.setScrollPosition({ scrollTop: interpolatedScrollTop });
+                                }
+                              }
                         }}
                       >
                         {(() => {

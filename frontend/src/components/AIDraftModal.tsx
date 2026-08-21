@@ -82,7 +82,7 @@ export default function AIDraftModal({
   // Editorial Command State
   const [editorialCommand, setEditorialCommand] = useState('');
   const [targetScope, setTargetScope] = useState<'selection' | 'document' | 'none'>('selection');
-  const [ignoreContext, setIgnoreContext] = useState(false);
+  const [ignoreContext, setIgnoreContext] = useState(true);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -157,14 +157,8 @@ export default function AIDraftModal({
   const AI_DRAFT_CACHE_KEY = 'omd_ai_draft_cache';
 
   useEffect(() => {
-    try {
-      const cached = localStorage.getItem(AI_DRAFT_CACHE_KEY);
-      if (cached) {
-        const data = JSON.parse(cached);
-        if (data.editorialCommand) setEditorialCommand(data.editorialCommand);
-        if (data.targetScope) setTargetScope(data.targetScope);
-      }
-    } catch(e) {}
+    // [OMD-EDIT-AI] AI 모달 열릴 때 무조건 초기화 (캐시 로드 방지)
+    localStorage.removeItem(AI_DRAFT_CACHE_KEY);
   }, []);
 
   useEffect(() => {
@@ -481,7 +475,7 @@ export default function AIDraftModal({
     setLoadedPresetName('');
     setLoadedPresetFolder('');
     setTargetScope('selection');
-    setIgnoreContext(false);
+    setIgnoreContext(true);
     setAttachedFileName('');
     setAttachedFileContent('');
     setDraftResult('');

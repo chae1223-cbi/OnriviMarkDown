@@ -57,7 +57,11 @@ export function useMonacoSetup(deps: any) {
                   const updatedTabs = tabsRef.current.map((tab: any) => {
                     if (!tab.model) {
                       const model = monaco.editor.createModel(tab.content, 'markdown');
-                      model.onDidChangeContent(() => {
+                      model.onDidChangeContent((e) => {
+                          console.log('[DEBUG] onDidChangeContent changes:', e.changes);
+                          if (e && e.changes && e.changes.some(c => c.text === '1. ' || c.text === '1.')) {
+                            setTimeout(() => editor.getAction('autoRenumberList')?.run(), 100);
+                          }
                         const val = model.getValue();
                         setContent(val);
                         setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, content: val, isModified: val !== t.content } : t));
@@ -95,15 +99,14 @@ export function useMonacoSetup(deps: any) {
                   }, 100);
 
                   // 🔒 [Tab 키 공식 editor.onKeyDown 안전 가드]
-                  editor.onKeyDown((e: any) => {
-                    if (e.keyCode === monaco.KeyCode.Tab && !e.shiftKey) {
+                  editor.addCommand(monaco.KeyCode.Tab, () => {
+                      {
                       try {
                         const contextKeyService = (editor as any)._contextKeyService;
                         const isSuggestVisible = contextKeyService?.getContextKeyValue('suggestWidgetVisible') === true;
                         const isSnippetMode = contextKeyService?.getContextKeyValue('inSnippetMode') === true;
-                        if (isSuggestVisible || isSnippetMode) {
-                          return; // 자동완성/스니펫 모드 시 Monaco 코어에 양보
-                        }
+                        if (isSuggestVisible) { editor.trigger('keyboard', 'acceptSelectedSuggestion', null); return; }
+                          if (isSnippetMode) { editor.trigger('keyboard', 'jumpToNextSnippetPlaceholder', null); return; }
                       } catch (_) {}
 
                       const selection = editor.getSelection();
@@ -117,12 +120,9 @@ export function useMonacoSetup(deps: any) {
                         let lineContent = model.getLineContent(position.lineNumber);
                         if (isTableLine(lineContent) && !isTableDividerLine(lineContent)) {
                           isTable = true;
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (e.browserEvent) {
-                            e.browserEvent.preventDefault();
-                            e.browserEvent.stopPropagation();
-                          }
+                          // 
+                          // 
+                          
 
                           // 사용자가 표를 작성 중인데 줄 끝에 | 를 안 닫고 Tab을 누른 경우 자동 보정
                           if (!lineContent.trimEnd().endsWith('|')) {
@@ -254,12 +254,9 @@ export function useMonacoSetup(deps: any) {
                       }
 
                       if (hasList && !isTable) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (e.browserEvent) {
-                          e.browserEvent.preventDefault();
-                          e.browserEvent.stopPropagation();
-                        }
+                        // 
+                        // 
+                        
 
                         editor.pushUndoStop();
                         const edits: any[] = [];
@@ -303,8 +300,17 @@ export function useMonacoSetup(deps: any) {
                           }
                         }
                         editor.executeEdits("indentList", edits);
-                        editor.pushUndoStop();
-                      }
+                          editor.pushUndoStop();
+                          setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+                        } else if (!isTable) {
+                          const contextKeyService = (editor as any)._contextKeyService;
+                          const isSuggestVisible = contextKeyService?.getContextKeyValue('suggestWidgetVisible') === true;
+                          if (isSuggestVisible) {
+                            editor.trigger('keyboard', 'acceptSelectedSuggestion', null);
+                          } else {
+                            editor.trigger("keyboard", "tab", null);
+                          }
+                        }
                     }
                   });
 
@@ -471,6 +477,7 @@ export function useMonacoSetup(deps: any) {
                   if (!(monaco.editor as any)._customActionCommandRegistered) {
                     (monaco.editor as any)._customActionCommandRegistered = true;
                     (monaco.editor as any).registerCommand('trigger-custom-action', (accessor: any, actionId: string) => {
+console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                       if (typeof window !== 'undefined' && (window as any).dispatchEditorCommand) {
                         (window as any).dispatchEditorCommand(actionId);
                       }
@@ -842,13 +849,135 @@ export function useMonacoSetup(deps: any) {
 
                     // 일반 문장이면 기본 아웃덴트 기능 트리거
                     editor.trigger('keyboard', 'outdent', null);
+                      setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
                   }, "textInputFocus && !suggestWidgetVisible && !inSnippetMode");
 
                   // 🛡️ [한글 주석 탑재] 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
                   // 자동완성(Suggest Widget)이 열려 있으면 Enter → 자동완성 수락에 양보
                   // 그 외에는 리스트 상태에서 엔터를 치면 다음 줄에 불릿 기호를 자동 주입합니다.
-                  editor.addAction({
-                    id: 'custom-enter-list-auto',
+                  
+                    editor.addAction({
+  id: 'autoRenumberList',
+  label: 'Auto Renumber Lists',
+  run: () => {
+    const model = editor.getModel();
+    if (!model) return;
+    
+    const selection = editor.getSelection();
+    if (!selection) return;
+    
+    const position = selection.startLineNumber;
+    let blockStart = position;
+    let blockEnd = position;
+    
+    // Use standard space and tab to avoid encoding issues
+    const isListLine = (lineStr: string) => /^[ \t]*(?:[-*+]|\d+\.)/.test(lineStr);
+    
+    while (blockStart > 1) {
+      const prevContent = model.getLineContent(blockStart - 1);
+      if (isListLine(prevContent)) {
+        blockStart--;
+      } else if (prevContent.trim() === '') {
+        let foundList = false;
+        for (let j = blockStart - 2; j >= 1; j--) {
+          const upContent = model.getLineContent(j);
+          if (isListLine(upContent)) {
+            foundList = true;
+            blockStart = j;
+            break;
+          } else if (upContent.trim() !== '') {
+            break;
+          }
+        }
+        if (!foundList) break;
+      } else {
+        break;
+      }
+    }
+    
+    const lineCount = model.getLineCount();
+    while (blockEnd < lineCount) {
+      const nextContent = model.getLineContent(blockEnd + 1);
+      if (isListLine(nextContent)) {
+        blockEnd++;
+      } else if (nextContent.trim() === '') {
+        let foundList = false;
+        for (let j = blockEnd + 2; j <= lineCount; j++) {
+          const downContent = model.getLineContent(j);
+          if (isListLine(downContent)) {
+            foundList = true;
+            blockEnd = j;
+            break;
+          } else if (downContent.trim() !== '') {
+            break;
+          }
+        }
+        if (!foundList) break;
+      } else {
+        break;
+      }
+    }
+    
+    const edits: any[] = [];
+    const indentStack: { indent: string, count: number }[] = [];
+    
+    for (let i = blockStart; i <= blockEnd; i++) {
+      const lineContent = model.getLineContent(i);
+      const match = lineContent.match(/^([ \t]*)([-*+]|\d+\.)([ \t]+)(.*)/);
+      if (!match) continue;
+      
+      const currentIndent = match[1];
+      const marker = match[2];
+      const isNumbered = /^\d+\.$/.test(marker);
+      
+      let stackIndex = -1;
+      for (let s = 0; s < indentStack.length; s++) {
+        if (indentStack[s].indent === currentIndent) {
+          stackIndex = s;
+          break;
+        }
+      }
+      
+      if (stackIndex !== -1) {
+        indentStack.splice(stackIndex + 1);
+      } else {
+        while (indentStack.length > 0 && indentStack[indentStack.length - 1].indent.length > currentIndent.length) {
+          indentStack.pop();
+        }
+        if (indentStack.length === 0 || indentStack[indentStack.length - 1].indent !== currentIndent) {
+          indentStack.push({ indent: currentIndent, count: 1 });
+        }
+        stackIndex = indentStack.length - 1;
+      }
+      
+      if (isNumbered) {
+        const currentCount = indentStack[stackIndex].count;
+        const newMarker = currentCount + ".";
+        if (marker !== newMarker) {
+          const oldPrefixLength = currentIndent.length + marker.length + match[3].length;
+          const newPrefix = currentIndent + newMarker + match[3];
+          edits.push({
+            range: new (window as any).monaco.Range(i, 1, i, oldPrefixLength + 1),
+            text: newPrefix
+          });
+        }
+        indentStack[stackIndex].count++;
+      } else {
+        indentStack[stackIndex].count = 1;
+      }
+    }
+    
+    if (edits.length > 0) {
+      editor.pushUndoStop();
+      editor.executeEdits("autoRenumber", edits);
+      editor.pushUndoStop();
+    }
+  }
+});
+
+                    editor.addAction({
+                      id: 'custom-enter-list-auto',
+
                     label: '리스트 자동완성 (Enter)',
                     keybindings: [monaco.KeyCode.Enter],
                     // suggestWidgetVisible = true 이면 이 액션 발동 안됨 → Monaco 기본 Enter(자동완성 수락)에 양보
@@ -903,7 +1032,8 @@ export function useMonacoSetup(deps: any) {
 
                         // 사용자가 아무것도 적지 않고 연속 엔터를 칠 경우 불릿 기호 말끔히 삭제 (리스트 탈출)
                         if (text.trim() === '' && afterCursor.trim() === '') {
-                          editor.executeEdits("removeBullet", [{
+                          setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+                            editor.executeEdits("removeBullet", [{
                             range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
                             text: indent,
                             forceMoveMarkers: true
@@ -919,6 +1049,7 @@ export function useMonacoSetup(deps: any) {
                           const nextLine = lineNumber + 1;
                           const nextColumn = indent.length + marker.length + 6 + 1;
                           editor.setPosition({ lineNumber: nextLine, column: nextColumn });
+                            setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
                         }
                         return;
                       }
@@ -931,7 +1062,8 @@ export function useMonacoSetup(deps: any) {
 
                         // 연속 엔터 시 번호 기호 자동 철거
                         if (text.trim() === '' && afterCursor.trim() === '') {
-                          editor.executeEdits("removeBullet", [{
+                          setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+                            editor.executeEdits("removeBullet", [{
                             range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
                             text: indent,
                             forceMoveMarkers: true
@@ -948,6 +1080,7 @@ export function useMonacoSetup(deps: any) {
                           const nextLine = lineNumber + 1;
                           const nextColumn = indent.length + String(nextNum).length + 2 + 1;
                           editor.setPosition({ lineNumber: nextLine, column: nextColumn });
+                            setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
                         }
                         return;
                       }
@@ -960,7 +1093,8 @@ export function useMonacoSetup(deps: any) {
 
                         // 연속 엔터 시 리스트 불릿 소거
                         if (text.trim() === '' && afterCursor.trim() === '') {
-                          editor.executeEdits("removeBullet", [{
+                          setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+                            editor.executeEdits("removeBullet", [{
                             range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
                             text: indent,
                             forceMoveMarkers: true
@@ -976,6 +1110,7 @@ export function useMonacoSetup(deps: any) {
                           const nextLine = lineNumber + 1;
                           const nextColumn = indent.length + marker.length + 1 + 1;
                           editor.setPosition({ lineNumber: nextLine, column: nextColumn });
+                            setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
                         }
                         return;
                       }
@@ -988,7 +1123,8 @@ export function useMonacoSetup(deps: any) {
 
                         // 연속 엔터 시 인용구 기호 소거
                         if (text.trim() === '' && afterCursor.trim() === '') {
-                          editor.executeEdits("removeBullet", [{
+                          setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+                            editor.executeEdits("removeBullet", [{
                             range: new monaco.Range(lineNumber, 1, lineNumber, position.column + afterCursor.length),
                             text: indent,
                             forceMoveMarkers: true
@@ -1004,6 +1140,7 @@ export function useMonacoSetup(deps: any) {
                           const nextLine = lineNumber + 1;
                           const nextColumn = indent.length + quote.length + 1 + 1;
                           editor.setPosition({ lineNumber: nextLine, column: nextColumn });
+                            setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
                         }
                         return;
                       }
@@ -1134,8 +1271,8 @@ export function useMonacoSetup(deps: any) {
                     if (files && files.length > 0) {
                       const file = files[0];
                       if (file.type.startsWith('image/')) {
-                        e.preventDefault();
-                        e.stopPropagation();
+                        // 
+                        // 
                         const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
                         const position = target?.position || editor.getPosition();
                         
@@ -1153,8 +1290,8 @@ export function useMonacoSetup(deps: any) {
 
                     const text = e.dataTransfer?.getData('text');
                     if (text) {
-                      e.preventDefault();
-                      e.stopPropagation();
+                      // 
+                      // 
 
                       const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
                       const position = target?.position || editor.getPosition();
@@ -1192,7 +1329,12 @@ export function useMonacoSetup(deps: any) {
                     editorMouseAnchor = null;
                   });
 
-                  editor.onDidChangeCursorPosition((e) => {
+                  editor.onDidChangeModelContent((e) => {
+                    if (e && e.changes && e.changes.some(c => c.text === '1. ' || c.text === '1.')) {
+                      setTimeout(() => editor.getAction('autoRenumberList')?.run(), 150);
+                    }
+});
+editor.onDidChangeCursorPosition((e) => {
                     setActiveLine(e.position.lineNumber);
                     setCursorLine(e.position.lineNumber);
                     setCursorColumn(e.position.column);
@@ -1276,17 +1418,67 @@ export function useMonacoSetup(deps: any) {
                         const viewportHeight = layoutInfo.height || 800;
 
                         const editorMaxScroll = scrollHeight - viewportHeight;
-                        if (editorMaxScroll > 0) {
-                          isScrollingRef.current = 'editor';
-                          const scrollPercent = scrollTop / editorMaxScroll;
-                          
-                          // 💡 미리보기 스크롤바의 최대 범위 대비 에디터 스크롤 백분율(%)로 100% 매끄럽게 동기화
-                          const maxPreviewScroll = parent.scrollHeight - parent.clientHeight;
-                          parent.scrollTop = Math.max(0, scrollPercent * maxPreviewScroll);
-
-                          if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                          scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
-                        }
+                          if (editorMaxScroll > 0) {
+                            isScrollingRef.current = 'editor';
+                            
+                            const firstVisible = range[0].startLineNumber;
+                            const totalLines = editor.getModel()?.getLineCount() || 1;
+                            
+                            // 1. 현재 보이는 줄(firstVisible)과 같거나 위에 있는 가장 가까운 data-line 찾기 (요소 A)
+                            let elA = null;
+                            let lineA = 1;
+                            for (let line = firstVisible; line >= 1; line--) {
+                              const found = parent.querySelector(`[data-line="${line}"]`);
+                              if (found) {
+                                elA = found;
+                                lineA = line;
+                                break;
+                              }
+                            }
+                            
+                            // 2. 현재 보이는 줄(firstVisible)보다 아래에 있는 가장 가까운 data-line 찾기 (요소 B)
+                            let elB = null;
+                            let lineB = totalLines;
+                            for (let line = firstVisible + 1; line <= totalLines; line++) {
+                              const found = parent.querySelector(`[data-line="${line}"]`);
+                              if (found) {
+                                elB = found;
+                                lineB = line;
+                                break;
+                              }
+                            }
+                            
+                            if (elA) {
+                              const parentRect = parent.getBoundingClientRect();
+                              
+                              const topA = editor.getTopForLineNumber(lineA);
+                              const previewTopA = elA.getBoundingClientRect().top - parentRect.top + parent.scrollTop;
+                              
+                              let interpolatedScrollTop = previewTopA;
+                              
+                              if (elB && lineB > lineA) {
+                                const topB = editor.getTopForLineNumber(lineB);
+                                const previewTopB = elB.getBoundingClientRect().top - parentRect.top + parent.scrollTop;
+                                
+                                const editorRange = topB - topA;
+                                const previewRange = previewTopB - previewTopA;
+                                
+                                if (editorRange > 0) {
+                                  const progress = Math.max(0, Math.min(1, (scrollTop - topA) / editorRange));
+                                  interpolatedScrollTop = previewTopA + progress * previewRange;
+                                }
+                              } else {
+                                // 다음 요소가 없으면(문서 끝부분) 그냥 원래 비율대로 미세 조정
+                                const exactOffset = scrollTop - topA;
+                                interpolatedScrollTop = previewTopA + exactOffset;
+                              }
+                              
+                              parent.scrollTop = Math.max(0, interpolatedScrollTop);
+                            }
+                            
+                            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                            scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+                          }
                       }
                     });
                   });
@@ -1403,10 +1595,10 @@ export function useMonacoSetup(deps: any) {
                     }
                   });
 
-                  if (completionProviderRef.current) {
-                    completionProviderRef.current.dispose();
-                  }
-                  completionProviderRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
+                  if ((monaco.languages as any)._customSlashProvider) {
+                      (monaco.languages as any)._customSlashProvider.dispose();
+                    }
+                    (monaco.languages as any)._customSlashProvider = monaco.languages.registerCompletionItemProvider('markdown', {
                     // 슬래시(/)와 일반 문자 모두에서 자동완성 트리거
                     triggerCharacters: ['/'],  // '/' 입력 시에만 슬래시 커맨드 팝업
                     provideCompletionItems: (model: any, position: any) => {
@@ -1465,10 +1657,10 @@ export function useMonacoSetup(deps: any) {
                   });
 
                   // [[ 위키 링크 자동완성 (파일 + 헤딩)
-                  if (wikilinkProviderRef.current) {
-                    wikilinkProviderRef.current.dispose();
-                  }
-                  wikilinkProviderRef.current = monaco.languages.registerCompletionItemProvider('markdown', {
+                  if ((monaco.languages as any)._customWikilinkProvider) {
+                      (monaco.languages as any)._customWikilinkProvider.dispose();
+                    }
+                    (monaco.languages as any)._customWikilinkProvider = monaco.languages.registerCompletionItemProvider('markdown', {
                     triggerCharacters: ['[', '#'],
                     provideCompletionItems: async (model: any, position: any) => {
                       const textUntilPos = model.getValueInRange({

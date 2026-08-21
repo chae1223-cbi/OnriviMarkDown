@@ -16,7 +16,7 @@ export const DEFAULT_SLASH_COMMANDS = [
   { id: 'table', label: 'Table (표)', kind: 15, insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', detail: '기본 표 삽입' },
   { id: 'quote', label: 'Quote (인용구)', kind: 17, insertText: '> ', detail: '인용문 블록' },
   { id: 'codeblock', label: 'Code Block (코드)', kind: 15, insertText: '```javascript\n\n```', detail: '코드 블록 삽입' },
-  { id: 'orderedlist', label: 'Ordered List (숫자 목록)', kind: 17, insertText: '1. ', detail: '숫자 목록' },
+  { id: 'orderedlist', label: 'Ordered List (숫자 목록)', kind: 17, insertText: '1. ', detail: '숫자 목록', actionId: 'AUTO_RENUMBER' },
   { id: 'list', label: 'List (글머리 기호)', kind: 17, insertText: '- ', detail: '기호 목록' },
   { id: 'checklist', label: 'Checklist (체크리스트)', kind: 17, insertText: '- [ ] ', detail: '할 일 목록' },
   { id: 'image', label: 'Image (이미지)', kind: 15, insertText: '![대체 텍스트](이미지_URL)', detail: '이미지 삽입' },
@@ -41,9 +41,9 @@ export const getSlashCommands = (monaco: any, customCommands = DEFAULT_SLASH_COM
     };
     if (cmd.actionId) {
       item.command = {
-        id: cmd.actionId,
+        id: 'trigger-custom-action',
         title: cmd.label,
-        arguments: []
+        arguments: [cmd.actionId]
       };
     }
     return item;

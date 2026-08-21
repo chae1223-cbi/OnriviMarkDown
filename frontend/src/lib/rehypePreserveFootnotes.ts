@@ -22,13 +22,49 @@ export function rehypePreserveFootnotes() {
         // 제목 변경 (Footnotes -> 각주(Footnotes))
         const h2 = node.children.find((c: any) => c.tagName === 'h2' && c.properties?.id === 'footnote-label');
         if (h2 && h2.children && h2.children.length > 0 && h2.children[0].type === 'text') {
-          h2.children[0].value = '각주(Footnotes)';
+          h2.children[0].value = '각주( FootNote )';
+        }
+        if (h2 && h2.properties) {
+          // Remove sr-only to make it visible, and add Tailwind classes for styling
+          h2.properties.className = ['text-sm', 'font-bold', 'text-gray-500', 'mb-2', 'mt-2', 'dark:text-gray-400'];
+        }
+        
+        // Add a line separator (hr) before the h2 if it doesn't exist
+        const hrIndex = node.children.findIndex((c: any) => c.tagName === 'hr');
+        if (hrIndex === -1 && h2) {
+          const h2Index = node.children.indexOf(h2);
+          node.children.splice(h2Index, 0, {
+            type: 'element',
+            tagName: 'hr',
+            properties: { className: ['my-4', 'border-t-2', 'border-gray-200', 'dark:border-gray-700'] },
+            children: []
+          });
         }
 
         const ol = node.children.find((c: any) => c.tagName === 'ol');
         if (ol) {
           const lis = ol.children.filter((c: any) => c.tagName === 'li');
+          // ol 태그에 여백 제거 클래스 부여
+          ol.properties = ol.properties || {};
+          ol.properties.className = ['!space-y-0', '!my-0', '!py-0', 'text-sm'];
+          ol.properties.style = 'margin-top: 0 !important; margin-bottom: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; gap: 0 !important;';
+
           lis.forEach((li: any) => {
+            // li 태그에 여백 제거 클래스 부여
+            li.properties = li.properties || {};
+            li.properties.className = ['!my-0', '!py-0', '!leading-tight'];
+            li.properties.style = 'margin-top: 0 !important; margin-bottom: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; line-height: 1.25 !important;';
+
+            // li 내부의 p 태그 찾아서 여백 제거
+            if (li.children) {
+              const p = li.children.find((c: any) => c.tagName === 'p');
+              if (p) {
+                p.properties = p.properties || {};
+                p.properties.className = ['!my-0', '!py-0'];
+                p.properties.style = 'margin-top: 0 !important; margin-bottom: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important;';
+              }
+            }
+
             const id = li.properties.id;
             if (typeof id === 'string') {
               const match = id.match(/^user-content-fn-(.+)$/);
@@ -57,10 +93,8 @@ export function rehypePreserveFootnotes() {
 
           ol.children = [];
           lis.forEach((li: any) => {
-            ol.children.push({ type: 'text', value: '\n' });
             ol.children.push(li);
           });
-          ol.children.push({ type: 'text', value: '\n' });
         }
       }
     });

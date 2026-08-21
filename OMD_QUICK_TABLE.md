@@ -386,3 +386,11 @@
 | OMD-UI-globals-0005 ✅ FIXED | globals.css | CSS | 다크 모드에서 언어 지정이 없는 코드블록(순수 텍스트 노드)이나 특정 구문 강조 테마가 적용된 경우 글씨가 흰색으로 덮어씌워지지 않고 어둡게 묻히는 현상 수정 | <code> 태그 내부의 자식(span 등)뿐만 아니라, <code> 태그 자체의 원시 텍스트 노드에도 강제 백색 스타일이 적용되도록 `.dark .codeblock-area code, .dark .codeblock-area code *` 로 선택자 커버리지 완벽 확장 | **2026-08-20** 🚨 다크 모드 코드블록 강제 백색 패치 | CSS !important |
 
 | OMD-EXP-PageBreak-0002 ✅ FIXED | exportHandlers.ts, epubGenerator.ts | injectPageBreakMarkers, generateEpub | 제목 2단계 수준 설정 시 제목 1단계에서도 페이지 나누기가 발생하는 논리적 오류 수정 | 사용자의 '수준2가 끝나는 부분만 잘라달라'는 요청에 맞게, 설정된 타겟 수준(levelNum)과 정확히 일치할 때(tagLevel === levelNum)에만 페이지를 나누도록 변경. 상위 헤딩(tagLevel < levelNum) 등장 시에는 덩어리(Chunk)의 시작으로 간주하여 firstLevelFound 플래그를 리셋함으로써, 상위 헤딩과 첫 하위 헤딩이 분리되지 않고 완벽하게 한 페이지에 묶이도록 개선. | **2026-08-20** 🚨 페이지 분할 알고리즘 타겟 레벨 단독 적용 패치 | firstLevelFound |
+
+| OMD-EDIT-FOOTNOTE-ORGANIZE | 🚨 @PATCH | useEditorHandlers.ts, MainEditorApp.tsx, MenuBar.tsx | organizeFootnotes | 각주들을 스캔하여 문서 맨 하단으로 번호순으로 정렬하는 기능 추가 및 도구 메뉴에 바인딩 |
+| OMD-EDIT-IMAGE-PASTE | 🚨 @PATCH | MainEditorApp.tsx | resolveClipboardImage | 웹사이트 이미지 우클릭 복사 후 에디터 붙여넣기 시 브라우저 보안 이슈(await 후 getAsFile() 시 null 반환) 해결을 위해 동기적 파일 추출 우선 처리 |
+| OMD-EDIT-SYNC-SCROLL | 🚨 @PATCH | MainEditorApp.tsx, useMonacoSetup.ts | onScroll, onDidChangeModelContent | 타이핑 후 미리보기로 마우스를 옮기면 스크롤이 위아래로 튀는 현상(핑퐁 버그) 해결을 위해 스크롤 우선권 잠금(isScrollingRef) 강화 |
+| OMD-UI-PREVIEW-MARKER | 🚨 @PATCH | globals.css | .preview-highlight-line | 미리보기의 행 위치 표시(하이라이트) 색상을 기존 파란색에서 에디터와 동일한 주황색 계열(rgba(255, 152, 0))로 일치시킴 |
+| OMD-EDIT-SYNC-LARGE-IMG | 🚨 @PATCH | MainEditorApp.tsx, useMonacoSetup.ts | onScroll, onMouseWheel | 미리보기에서 세로로 긴 이미지 스크롤 시 rect.bottom을 기준으로 잡아 에디터가 점프하는 현상 해결 및 마우스 휠 조작 시 타이핑 스크롤 락 즉시 해제 |
+| OMD-EDIT-SYNC-MOUSEDOWN | 🚨 @PATCH | useMonacoSetup.ts | onMouseDown | 마우스 클릭 시 미리보기로 스무스 스크롤 이동하는 도중 에디터 스크롤 시 발생하는 튕김(핑퐁 버그) 해결을 위해 클릭 이벤트에도 스크롤 락(isScrollingRef) 도입 |
+| OMD-EDIT-SYNC-PROPORTIONAL | 🚨 @PATCH | useMonacoSetup.ts, MainEditorApp.tsx | onDidScrollChange, onScroll | 에디터와 미리보기 간 스크롤 연동 시 백분율(Percentage) 방식과 커서(Line) 방식이 혼용되어 발생하는 점프 현상(핑퐁)을 근본적으로 해결하기 위해, 양방향 모두 1:1 라인 매핑(data-line) 기반의 비율 보간(Interpolation) 스크롤 방식으로 통일 |

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/components/ToastProvider';
 import { createPortal } from 'react-dom';
-import { X, Settings, Command, Loader2, CheckCircle, AlertCircle, KeyRound, Type, AlignLeft, Braces, Save, RotateCcw } from 'lucide-react';
+import { X, Settings, Command, Loader2, CheckCircle, AlertCircle, KeyRound, Type, AlignLeft, Braces, Save, RotateCcw, Copy } from 'lucide-react';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
 import { testGeminiConnection } from '@/lib/gemini';
 
@@ -308,8 +308,8 @@ export default function SettingsModal({
                       <KeyRound size={20} />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-[15px] font-semibold text-on-surface mb-1">Google Gemma API Key</label>
-                      <p className="text-[13px] text-on-surface-variant mb-4">AI 통신을 위한 구글 Gemini/Gemma API 키를 입력하세요.</p>
+                      <label className="block text-[15px] font-semibold text-on-surface mb-1">Google Gemini API Key</label>
+                      <p className="text-[13px] text-on-surface-variant mb-4">AI 통신을 위한 구글 Gemini API 키를 입력하세요.</p>
                       
                       <div className="flex gap-2">
                         <input
@@ -398,9 +398,29 @@ export default function SettingsModal({
                   <h3 className="font-serif text-[20px] font-semibold text-on-surface">단축키 및 명령어 매핑</h3>
                   <p className="text-[13px] text-on-surface-variant mt-1">마크다운 에디터 내에서 사용할 단축키와 슬래시(/) 명령어를 커스텀하세요.</p>
                 </div>
-                <button
-                  onClick={() => {
-                    const defaultHotkeys = getDefaultHotkeys();
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const textLines = ['[단축키 및 명령어 매핑]'];
+                      TOOLBAR_ITEMS.forEach(item => {
+                        const hk = customHotkeys[item.id] || '없음';
+                        const cmd = customSlashCommands[item.id] || '없음';
+                        textLines.push(`- ${item.name}: 단축키 [${hk}], 명령어 [/${cmd}]`);
+                      });
+                      navigator.clipboard.writeText(textLines.join('\n')).then(() => {
+                        showToast('단축키 및 명령어가 복사되었습니다.', 'success');
+                      }).catch(() => {
+                        showToast('복사에 실패했습니다.', 'error');
+                      });
+                    }}
+                    className="px-4 py-2 text-[13px] font-bold rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-all flex items-center gap-2"
+                  >
+                    <Copy size={14} />
+                    복사하기
+                  </button>
+                  <button
+                    onClick={() => {
+                      const defaultHotkeys = getDefaultHotkeys();
                     const defaultCmds = getDefaultCommands();
                     setCustomHotkeys(defaultHotkeys);
                     setCustomSlashCommands(defaultCmds);
@@ -412,7 +432,8 @@ export default function SettingsModal({
                 >
                   <RotateCcw size={14} />
                   초기화
-                </button>
+                  </button>
+                </div>
               </div>
 
               <div className={`rounded-xl border overflow-hidden ${isDarkMode ? 'border-white/10' : 'border-outline-variant/20'}`}>

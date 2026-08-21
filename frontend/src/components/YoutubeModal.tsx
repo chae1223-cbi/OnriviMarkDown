@@ -197,7 +197,7 @@ export default function YoutubeModal({
 
   const isYoutube = !!detectedVideoId;
   const originalFileName = useMemo(() => {
-    if (appliedPath && appliedPath.startsWith('/media/')) {
+    if (appliedPath && (appliedPath.startsWith('/media/') || appliedPath.startsWith('./media/'))) {
       return appliedPath.split('/').pop()?.split('?')[0];
     }
     return null;
@@ -207,14 +207,15 @@ export default function YoutubeModal({
   const previewSrc = useMemo(() => {
     let raw = sourceUrl;
     try { if (raw) raw = decodeURI(raw); } catch(e){}
-    if (raw && raw.startsWith('/media/')) {
+    if (raw && (raw.startsWith('/media/') || raw.startsWith('./media/'))) {
       const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
       if (api) {
         const freshRF = loadSecureData<string>('resourceFolder') || resourceFolder;
         if (freshRF) {
           const sep = freshRF.includes('\\') ? '\\' : '/';
           const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
-          const normalizedSrc = sep === '\\' ? raw.replace(/\//g, '\\') : raw;
+          const strippedSrc = raw.startsWith('./') ? raw.substring(1) : raw;
+          const normalizedSrc = sep === '\\' ? strippedSrc.replace(/\//g, '\\') : strippedSrc;
           let absolutePath = cleanRoot + normalizedSrc;
           return `media-local://serve?url=${encodeURIComponent(absolutePath)}`;
         }

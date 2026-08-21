@@ -242,6 +242,7 @@ export default function MenuBar() {
           { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <span>📋</span>, onClick: () => dispatch('COPY_ALL') },
           { label: "문서 병합", icon: <span>🔀</span>, onClick: () => dispatch('MERGE') },
+            { label: "각주 정리", icon: <span>📑</span>, onClick: () => dispatch('ORGANIZE_FOOTNOTES') },
           { label: "환경 설정", icon: <span>⚙️</span>, onClick: () => dispatch('SETTINGS') },
         ]}
       />
