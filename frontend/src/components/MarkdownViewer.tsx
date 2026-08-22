@@ -216,22 +216,23 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
       <div className="relative group inline-block" style={style}>
         <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} {...props} style={{ width: '100%', height: '100%', objectFit: 'contain' }} crossOrigin="anonymous" />
         <button
-          onClick={handleCopy}
-          className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1 z-10 hover:bg-black/80"
-          title="이미지 복사"
-        >
-          {copied ? (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              복사됨
-            </>
-          ) : (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              복사
-            </>
-          )}
-        </button>
+            onClick={handleCopy}
+            className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
+            title="복사"
+            style={{ userSelect: 'none' }}
+          >
+            {copied ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span style={{ color: '#4ade80' }}>복사 완료</span>
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>복사</span>
+              </>
+            )}
+          </button>
       </div>
     );
 
@@ -384,7 +385,7 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
   }
   if (!videoSrc) return <div className="animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-48 flex items-center justify-center my-2 text-zinc-500 text-sm">비디오 불러오는 중...</div>;
   return (
-    <video controls src={videoSrc} style={style} className={`rounded-lg shadow-sm border border-zinc-200/30 my-3 w-full max-w-full outline-none bg-black ${className || ''}`} preload="metadata" {...props} />
+    <video controls src={videoSrc} style={style} className={`rounded-lg shadow-sm border border-zinc-200/30 w-full max-w-full outline-none bg-black ${className || ''}`} preload="metadata" {...props} />
   );
 };
 
@@ -506,11 +507,23 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
           {lang || 'plaintext'}
         </span>
         <button
-          onClick={handleCopy}
-          className="text-xs px-2.5 py-1 rounded bg-white dark:bg-zinc-800 text-blue-600 dark:text-zinc-300 hover:bg-blue-50 dark:hover:bg-zinc-700 active:scale-95 transition-all shadow-sm font-medium"
-        >
-          {copied ? '✓ 복사됨' : '복사'}
-        </button>
+            onClick={handleCopy}
+            className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
+            title="복사"
+            style={{ userSelect: 'none' }}
+          >
+            {copied ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span style={{ color: '#4ade80' }}>복사 완료</span>
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>복사</span>
+              </>
+            )}
+          </button>
       </div>
       
       <div className="overflow-x-auto w-full custom-scrollbar">
@@ -581,15 +594,24 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
   return (
     <div ref={tableRef} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-x-auto shadow-sm bg-white  select-text">
       {/* 마우스 호버 시 우측 상단에 노출되는 미려한 시트/표형식 복사 단추 */}
-      <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-        <button
-          onClick={handleCopy}
-          className="text-xs px-2.5 py-1.5 rounded-md bg-white  border border-zinc-200  text-zinc-600  hover:bg-zinc-50 :bg-zinc-700 hover:text-blue-600 :text-blue-400 active:scale-95 transition-all shadow-md font-semibold flex items-center gap-1.5 cursor-pointer"
-        >
-          <span>{copied ? '✓' : '📋'}</span>
-          <span>{copied ? '시트/표형식 복사 완료' : '시트/표형식 복사'}</span>
-        </button>
-      </div>
+      <button
+            onClick={handleCopy}
+            className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
+            title="복사"
+            style={{ userSelect: 'none' }}
+          >
+            {copied ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span style={{ color: '#4ade80' }}>복사 완료</span>
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>복사</span>
+              </>
+            )}
+          </button>
       <div className="p-4">
         {children}
       </div>
@@ -1520,8 +1542,16 @@ export default function MarkdownViewer({
           counter-reset: onrivi-figure;
         }
         .markdown-viewer-root figure {
-          counter-increment: onrivi-figure;
-        }
+            counter-increment: onrivi-figure;
+          }
+          .markdown-viewer-root figure img,
+          .markdown-viewer-root figure video {
+            margin: 0 !important;
+          }
+          .markdown-viewer-root figure figcaption {
+            margin-top: 0.5rem !important;
+            margin-bottom: 0 !important;
+          }
         .markdown-viewer-root figcaption::before {
           content: "[그림 " counter(onrivi-figure) "] ";
           font-weight: 700;
@@ -1860,7 +1890,7 @@ export default function MarkdownViewer({
                   api={typeof window !== 'undefined' ? (window as any).electronAPI : null} 
                   queryString={queryString} 
                   style={imgStyle} 
-                  className={`rounded-lg shadow-sm border border-zinc-200/30 my-3 ${forceAlignClass}`} 
+                  className={`rounded-lg shadow-sm border border-zinc-200/30 ${forceAlignClass}`} 
                   {...props} 
                 />
               );
@@ -1869,7 +1899,7 @@ export default function MarkdownViewer({
                 return (
                   <figure style={figureStyle}>
                     {imgElement}
-                    <figcaption className="text-[0.9em] text-zinc-500 mt-2 font-medium">
+                    <figcaption className="text-[0.9em] text-zinc-500 mt-1 font-medium">
                       {alt}
                     </figcaption>
                   </figure>
@@ -2080,7 +2110,7 @@ export default function MarkdownViewer({
                       api={api}
                       queryString={queryString}
                     />
-                    <figcaption className="text-[0.9em] text-zinc-500 mt-2 font-medium">
+                    <figcaption className="text-[0.9em] text-zinc-500 mt-1 font-medium">
                       {finalDisplayName}
                     </figcaption>
                   </figure>

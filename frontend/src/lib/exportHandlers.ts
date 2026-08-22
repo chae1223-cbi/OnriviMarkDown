@@ -265,6 +265,18 @@ function generateExportCss(profile: any): string {
   img, video, iframe, .katex-display {
     page-break-inside: avoid !important;
   }
+  .injected-page-break-marker {
+      break-before: page !important;
+      page-break-before: always !important;
+    }
+    hr:not(.page-break) {
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: avoid !important;
+    break-before: avoid !important;
+    break-inside: avoid !important;
+  }
 }
 `;
 
@@ -326,29 +338,37 @@ function injectPageBreakMarkers(containerEl: HTMLElement, exportPageBreakLevel: 
   // 컨테이너의 직계 자식 요소들 (또는 마크다운 루트의 직계 자식)
   const root = containerEl.querySelector('.markdown-viewer-root') as HTMLElement || containerEl;
 
-  // 모든 직계 자식 요소를 순회하며 섹션 경계를 찾음
-  const children = Array.from(root.children) as HTMLElement[];
+  // .markdown-viewer-root 내부에 래퍼 div가 있을 수 있으므로 querySelectorAll로 모든 헤딩을 추출합니다.
+    const children = Array.from(root.querySelectorAll('h1, h2, h3, h4, h5, h6')) as HTMLElement[];
   
     let lastSeenLevel = 0;
-    for (let i = 0; i < children.length; i++) {
-      const el = children[i];
-      const tagName = el.tagName.toLowerCase();
-      const tagLevelMatch = tagName.match(/^h(\d)$/);
-      if (!tagLevelMatch) continue;
-      
-      const tagLevel = parseInt(tagLevelMatch[1]);
-      
-      if (tagLevel <= levelNum) {
-        if (lastSeenLevel !== 0 && tagLevel <= lastSeenLevel) {
-          const marker = document.createElement('div');
-          marker.style.cssText = 'break-before: page !important; page-break-before: always !important; height: 0; margin: 0; padding: 0; border: none;';
-          root.insertBefore(marker, el);
+        for (let i = 0; i < children.length; i++) {
+          const el = children[i];
+          const tagName = el.tagName.toLowerCase();
+          const tagLevelMatch = tagName.match(/^h(\d)$/);
+          if (!tagLevelMatch) continue;
+          
+          const tagLevel = parseInt(tagLevelMatch[1]);
+          
+          if (tagLevel <= levelNum) {
+            // 사용자님의 "Keep with Next" 의도 (예: 2 다음에 오는 첫 3은 자르지 않고 묶음)
+            // 정확히 구현된 오리지널 lastSeenLevel 알고리즘을 복원합니다.
+            if (lastSeenLevel !== 0 && tagLevel <= lastSeenLevel) {
+                const marker = document.createElement('div');
+                marker.className = 'page-break';
+                marker.style.setProperty('break-before', 'page', 'important');
+                marker.style.setProperty('page-break-before', 'always', 'important');
+                marker.style.setProperty('height', '0', 'important');
+                marker.style.setProperty('margin', '0', 'important');
+                marker.style.setProperty('padding', '0', 'important');
+                marker.style.setProperty('border', 'none', 'important');
+                el.parentNode?.insertBefore(marker, el);
+            }
+            lastSeenLevel = tagLevel;
+          }
         }
-        lastSeenLevel = tagLevel;
-      }
-    }
     // 일반 콘텐츠(p, ul 등): bufferStartEl 상태 유지 (버퍼 계속 쌓임)
-  }
+}
 
 // [ONR-EXP-001] 로컬 PDF / HTML 파일 출력 처리: 현재 문서 본문 DOM을 클론하여 지도/동영상 요소를 정적 변환하고 프린트 출력 스타일을 입혀 PDF/HTML 내보내기를 핸들링합니다.
 /** IME 조합 버퍼 강제 커밋: export 직전 한글 입력이 완성되지 않은 상태로 캡처되는 현상 차단 */
@@ -1016,7 +1036,7 @@ export async function exportPDF({
     // 📄 페이지 나누기 마커 DOM 직접 삽입
     // CSS page-break 선택자 방식은 h3·h4 레벨에서 섹션 내부 이중 break가 발생하는 한계가 있어
     // 버퍼 알고리즘으로 정확한 섹션 경계를 찾아 break-before:page 마커 div를 직접 삽입함.
-    const pbLevelForDom = activeProfile?.pageStyle?.exportPageBreakLevel || 'none';
+    const pbLevelForDom = activeProfile?.pageStyle?.exportPageBreakLevel || 'h2';
     injectPageBreakMarkers(clone, pbLevelForDom);
 
     const filename = `${currentFileName.replace(/\.[^/.]+$/, '')}.pdf`;

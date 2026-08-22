@@ -10,7 +10,7 @@ import { FileNode } from '@/lib/indexedDbHelper';
 import { vfsRename } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
-import { Plus, FolderPlus, RefreshCw } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { msg } from '@/lib/systemMessages';
 import { useUIStore } from '@/store/useUIStore';
 
@@ -41,7 +41,12 @@ export default function LeftSidebar() {
     geminiApiKey, aiModelName
   } = useEditorContext();
 
-  const isRestrictedUser = false;
+  const isRestrictedUser = !!(
+    licenseStatus?.isExpired ||
+    licenseStatus?.isRestricted ||
+    licenseStatus?.planName?.includes('제한') ||
+    licenseStatus?.planName?.includes('만료')
+  );
   const onCancelMerge = () => {
     if (setIsMergeMode) setIsMergeMode(false);
     if (setSelectedMergeNodes) setSelectedMergeNodes([]);
@@ -837,10 +842,10 @@ export default function LeftSidebar() {
                           type: 'createFile'
                         });
                       }} 
-                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-1 rounded transition-all hover:scale-110 active:scale-95" 
                       title="새 파일"
                     >
-                      <span className="text-[9px]">📖</span>
+                      <img src="/icons/icon-file-plus.png" width={20} height={20} alt="새 파일" className="rounded-md" />
                     </button>
                     <button 
                       onClick={(e) => {
@@ -852,10 +857,10 @@ export default function LeftSidebar() {
                           type: 'createFolder'
                         });
                       }} 
-                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-1 rounded transition-all hover:scale-110 active:scale-95" 
                       title="새 폴더"
                     >
-                      <span className="text-[9px]">📁</span>
+                      <img src="/icons/icon-folder-plus.png" width={20} height={20} alt="새 폴더" className="rounded-md" />
                     </button>
                     <button 
                       onClick={async (e) => {
@@ -863,20 +868,20 @@ export default function LeftSidebar() {
                         await refreshFileList();
                         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                       }} 
-                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-1 rounded transition-all hover:scale-110 active:scale-95" 
                       title="새로고침"
                     >
-                      <RefreshCw size={9} />
+                      <img src="/icons/icon-refresh.png" width={20} height={20} alt="새로고침" className="rounded-md" />
                     </button>
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
                         importFileInputRef.current?.click();
                       }} 
-                      className="p-0.5 hover:bg-blue-500 hover:text-white rounded transition-colors text-zinc-400" 
+                      className="p-1 rounded transition-all hover:scale-110 active:scale-95" 
                       title="문서 변환 및 가져오기 (DOCX, HWP, PDF, TXT, MD, HTML)"
                     >
-                      <span className="text-[9px]">📥</span>
+                      <img src="/icons/icon-import.png" width={20} height={20} alt="가져오기" className="rounded-md" />
                     </button>
                   </div>
                 )}

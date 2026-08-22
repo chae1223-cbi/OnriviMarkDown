@@ -18,7 +18,7 @@ interface PromptModalProps {
 // 📊 [OMD-IO-PromptModal-0004] PromptModal ➔ PromptModal
 // 🎯 @KICK  : 사용자 입력을 받는 모달 다이얼로그 - 파일명/폴더명 입력 등
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환; Escape 키로 취소
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-08-23** — ConfirmModal과 동일한 스타일로 통일: 상단 코너 회색 제거(rounded-t-xl), Dim 35% 완화, 다층 입체 그림자, 제목 내 파일명 따옴표 강조 표시
 // 🔗 @CALLS : handleSubmit, handleKeyDown, onConfirm, onCancel
 // ====================================================================
 export default function PromptModal({ 
@@ -81,16 +81,32 @@ export default function PromptModal({
     if (e.key === 'Escape') onCancel();
   };
 
+  // 제목 내 따옴표/대괄호로 감싸진 항목명 강조 처리
+  const renderTitle = (t: string) => {
+    const parts = t.split(/(\[.*?\]|'.*?')/g);
+    return parts.map((part, i) =>
+      (part.startsWith('[') && part.endsWith(']')) || (part.startsWith("'") && part.endsWith("'")) ? (
+        <span key={i} className="font-bold text-blue-600 dark:text-blue-400">{part}</span>
+      ) : part
+    );
+  };
+
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
-      <div 
-        className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-black/10 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col"
-        style={{ maxHeight: "90dvh" }}
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200"
+      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.35)" }}
+    >
+      <div
+        className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl border border-black/8 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col"
+        style={{
+          maxHeight: "90dvh",
+          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.07), 0 10px 24px -4px rgba(0,0,0,0.14), 0 32px 64px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)"
+        }}
         onKeyDown={handleKeyDown}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 shrink-0">
-          <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{title}</h3>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 rounded-t-xl shrink-0">
+          <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{renderTitle(title)}</h3>
           <button 
             onClick={onCancel}
             className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
@@ -100,7 +116,7 @@ export default function PromptModal({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto min-h-0 p-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto min-h-0 px-5 py-5">
           <input
             ref={inputRef}
             type="text"
@@ -129,7 +145,7 @@ export default function PromptModal({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/25 transition-all active:scale-95"
             >
               확인
             </button>

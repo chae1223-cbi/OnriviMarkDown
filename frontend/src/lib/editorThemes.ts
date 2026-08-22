@@ -15,21 +15,28 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     icon: '☀️',
     isDark: false,
     base: 'vs',
-    rules: [
-      { token: '', foreground: '1e293b' },
-      { token: 'keyword', fontStyle: 'bold', foreground: '0f172a' },
-      { token: 'keyword.markdown', fontStyle: 'bold', foreground: '0f172a' },
-      { token: 'comment', fontStyle: '', foreground: '64748b' },
-      { token: 'comment.markdown', fontStyle: '', foreground: '64748b' },
-      { token: 'strong', fontStyle: 'bold', foreground: '0f172a' },
-      { token: 'strong.markdown', fontStyle: 'bold', foreground: '0f172a' },
-      { token: 'emphasis', fontStyle: 'italic', foreground: '2563eb' },
-      { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '2563eb' },
-      { token: 'string.link', fontStyle: '', foreground: '2563eb' },
-      { token: 'string.link.markdown', fontStyle: '', foreground: '2563eb' },
-      { token: 'string', fontStyle: '', foreground: '2563eb' },
-      { token: 'variable', fontStyle: '', foreground: '64748b' },
-    ],
+          rules: [
+        { token: '', foreground: '1e293b' },
+        { token: 'keyword', fontStyle: 'bold', foreground: '6366f1' }, // Headings & Keywords
+        { token: 'keyword.markdown', fontStyle: 'bold', foreground: '6366f1' },
+        { token: 'comment', fontStyle: 'italic', foreground: '64748b' }, // Quotes
+        { token: 'comment.markdown', fontStyle: 'italic', foreground: '64748b' },
+        { token: 'strong', fontStyle: 'bold', foreground: '0f172a' }, // Bold
+        { token: 'strong.markdown', fontStyle: 'bold', foreground: '0f172a' },
+        { token: 'emphasis', fontStyle: 'italic', foreground: '059669' }, // Italic
+        { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '059669' },
+        { token: 'string.link', fontStyle: 'underline', foreground: '2563eb' }, // Links
+        { token: 'string.link.markdown', fontStyle: 'underline', foreground: '2563eb' },
+        { token: 'string', foreground: '2563eb' },
+        { token: 'variable', foreground: 'd946ef' }, // Code blocks
+        { token: 'variable.source', foreground: 'd946ef' },
+        { token: 'type', foreground: 'ea580c' }, // List markers / html tags
+        { token: 'type.markdown', foreground: 'ea580c' },
+        { token: 'meta', foreground: '0ea5e9' }, // Light blue for metadata
+        { token: 'meta.content', foreground: '0ea5e9' },
+        { token: 'meta.separator', foreground: '0284c7', fontStyle: 'bold' },
+
+      ],
     colors: {
       'editor.background': '#ffffff',
       'editor.foreground': '#1e293b',
@@ -110,21 +117,28 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     icon: '🐨',
     isDark: true,
     base: 'vs-dark',
-    rules: [
-      { token: '', foreground: 'ffffff' },
-      { token: 'keyword', fontStyle: '', foreground: 'ffffff' },
-      { token: 'keyword.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'comment', fontStyle: '', foreground: 'ffffff' },
-      { token: 'comment.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'strong', fontStyle: '', foreground: 'ffffff' },
-      { token: 'strong.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'emphasis', fontStyle: '', foreground: 'ffffff' },
-      { token: 'emphasis.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string.link', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string.link.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string', fontStyle: '', foreground: 'ffffff' },
-      { token: 'variable', fontStyle: '', foreground: 'ffffff' },
-    ],
+          rules: [
+        { token: '', foreground: 'e2e8f0' },
+        { token: 'keyword', fontStyle: 'bold', foreground: '818cf8' }, // Headings
+        { token: 'keyword.markdown', fontStyle: 'bold', foreground: '818cf8' },
+        { token: 'comment', fontStyle: 'italic', foreground: '94a3b8' }, // Quotes
+        { token: 'comment.markdown', fontStyle: 'italic', foreground: '94a3b8' },
+        { token: 'strong', fontStyle: 'bold', foreground: 'f8fafc' }, // Bold
+        { token: 'strong.markdown', fontStyle: 'bold', foreground: 'f8fafc' },
+        { token: 'emphasis', fontStyle: 'italic', foreground: '34d399' }, // Italic
+        { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '34d399' },
+        { token: 'string.link', fontStyle: 'underline', foreground: '60a5fa' }, // Links
+        { token: 'string.link.markdown', fontStyle: 'underline', foreground: '60a5fa' },
+        { token: 'string', foreground: '60a5fa' },
+        { token: 'variable', foreground: 'e879f9' }, // Code blocks
+        { token: 'variable.source', foreground: 'e879f9' },
+        { token: 'type', foreground: 'fb923c' }, // List markers
+        { token: 'type.markdown', foreground: 'fb923c' },
+        { token: 'meta', foreground: '38bdf8' }, // Light blue for metadata
+        { token: 'meta.content', foreground: '38bdf8' },
+        { token: 'meta.separator', foreground: '7dd3fc', fontStyle: 'bold' },
+
+      ],
     colors: {
       'editor.background': '#22272E',
       'editor.foreground': '#ADBAC7',

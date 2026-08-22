@@ -2394,11 +2394,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     });
 
-    if (decorationsCollectionRef.current) {
-      decorationsCollectionRef.current.set(newDecorations);
-    }
-  }, []);
-  const isResizing = useRef(false);
+      if (decorationsCollectionRef.current) {
+        decorationsCollectionRef.current.set(newDecorations);
+      }
+    }, []);
+    const isResizing = useRef(false);
   // autoSaveRef, lastSavedContentRef는 위(L1101)에서 이미 선언됨
   const isScrollingRef = useRef<'editor' | 'preview' | null>(null);
   const scrollTimeoutRef = useRef<any>(null);
@@ -2842,7 +2842,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (prevRestrictedRef.current === isRestrictedUser) return;
     prevRestrictedRef.current = isRestrictedUser;
 
-    if (!isRestrictedUser) {
+    
       setTabs(prev => {
         const hasWelcome = prev.some(t => t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab);
         if (!hasWelcome) return prev;
@@ -2855,14 +2855,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
         return cleaned;
       });
-    } else {
-      // 🛡️ [EMBEDDED WELCOME 2026-07-07] 제한사용자 — welcome tab을 만들지 않고
-      // activeTabId=null로 유지. embedded 환영 페이지가 렌더링에서 직접 표시됩니다.
-      setTabs([]);
-      setActiveTabId(null);
-      setPreviewModeRaw('preview');
-      previewModeRef.current = 'preview';
-    }
+    
   }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName, licenseStatus.isRestricted]);
 
   // ====================================================================
@@ -3171,7 +3164,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // tabs 상태값 대신 refs로 현재 상황을 안전하게 스냅샷
     const hasWelcome = tabsRef.current.some(t => t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab);
 
-    if (!isRestrictedUser) {
       // 1. [정상/전체 사용자]: 웰컴 페이지 강제 삭제 (빈 문서 시작)
       if (hasWelcome) {
         const cleaned = tabsRef.current.filter(t => !(t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab));
@@ -3184,14 +3176,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           setCurrentFileName('새 파일.md');
           setCurrentFileNode(null);
         }
-      }
-    } else {
-      // 🛡️ [EMBEDDED WELCOME 2026-07-07] 제한사용자 — 탭을 만들지 않고
-      // 빈 탭 상태로 유지하면 embedded 환영 페이지가 렌더링됩니다.
-      setTabs([]);
-      setActiveTabId(null);
-      setPreviewModeRaw('preview');
-      previewModeRef.current = 'preview';
     }
   }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName, licenseStatus.isRestricted]);
   useEffect(() => {
@@ -4393,31 +4377,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 }
 `;
 
-    // 📄 내보내기 페이지 나누기(Page Break) 동적 반영
-    const pbLevel = prof.pageStyle.exportPageBreakLevel || 'h2';
-    if (pbLevel !== 'none') {
-      const levelNum = parseInt(pbLevel.replace('h', ''));
-      if (!isNaN(levelNum)) {
-        const breakSelectors = [];
-        const autoSelectors = [];
-        for (let i = 1; i <= levelNum; i++) {
-          breakSelectors.push(`.custom-preview-container h${i}`);
-          autoSelectors.push(`.custom-preview-container h${i}:first-child`);
-        }
-        css += `
-@media print {
-  ${breakSelectors.join(',\n  ')} {
-    page-break-before: always !important;
-    break-before: page !important;
-  }
-  ${autoSelectors.join(',\n  ')} {
-    page-break-before: auto !important;
-    break-before: auto !important;
-  }
-}
-`;
-      }
-    }
+    // Legacy CSS page-break logic removed in favor of injectPageBreakMarkers.
 
     return css;
   }, [profiles, activeProfileId]);
@@ -5513,7 +5473,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   <div className="flex flex-1 overflow-hidden">
 
                     <div
-                      className="flex-1 min-w-0 relative border-r border-transparent hover:border-black/5 dark:hover:border-white/5 transition-colors duration-500 no-print bg-surface-container-low dark:bg-zinc-950"
+                      className="flex-1 min-w-0 relative border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-300 no-print bg-surface-container-low dark:bg-zinc-950"
                       style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
                     >
                       <Editor
@@ -5994,12 +5954,90 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           return (
                             <div
                               className={isPreviewOnly
-                                ? "preview-page-sheet mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-56"
-                                : `preview-page-sheet mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-56`
+                                ? "preview-page-sheet group relative mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-56"
+                                : `preview-page-sheet group relative mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-56`
                               }
                               style={pageStyle}
                             >
-                              <MarkdownViewer
+                              {/* 미리보기 복사 버튼 */}
+                                <div className="absolute top-4 right-4 z-50 no-print opacity-30 hover:opacity-100 transition-opacity duration-200">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!previewRef.current) return;
+                                      
+                                      const btn = e.currentTarget;
+                                      const originalText = btn.innerHTML;
+                                      
+                                      try {
+                                        const selection = window.getSelection();
+                                        const originalRange = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+                                        
+                                        const range = document.createRange();
+                                        const targetEl = previewRef.current.querySelector('.markdown-viewer-root') || previewRef.current;
+                                        
+                                        // 이미지 blob URL을 base64로 임시 변환 (Electron fetch 차단 대비 캔버스 사용)
+                                        const imgs = Array.from(targetEl.querySelectorAll('img'));
+                                        const restoredImgs = [];
+                                        for (const img of imgs) {
+                                          const src = img.src;
+                                          if (src && src.startsWith('blob:')) {
+                                            try {
+                                              if (img.complete && img.naturalWidth > 0) {
+                                                const canvas = document.createElement('canvas');
+                                                canvas.width = img.naturalWidth;
+                                                canvas.height = img.naturalHeight;
+                                                const ctx = canvas.getContext('2d');
+                                                if (ctx) {
+                                                  ctx.drawImage(img, 0, 0);
+                                                  img.dataset.originalSrc = src;
+                                                  img.src = canvas.toDataURL('image/png');
+                                                  restoredImgs.push(img);
+                                                }
+                                              }
+                                            } catch (e) { console.error(e); }
+                                          }
+                                        }
+
+                                        // 복사 버튼 훅 숨기기
+                                          const hooks = Array.from(targetEl.querySelectorAll('.copy-button-hook'));
+                                          const hookDisplays = hooks.map(h => h.style.display);
+                                          hooks.forEach(h => h.style.display = 'none');
+                                          
+                                          range.selectNodeContents(targetEl);
+                                          selection.removeAllRanges();
+                                          selection.addRange(range);
+                                          
+                                          document.execCommand('copy');
+                                          
+                                          selection.removeAllRanges();
+                                          if (originalRange) selection.addRange(originalRange);
+                                          
+                                          // 복사 버튼 훅 원상 복구
+                                          hooks.forEach((h, i) => h.style.display = hookDisplays[i]);
+                                        
+                                        // 이미지 URL 원상 복구
+                                        for (const img of restoredImgs) {
+                                          if (img.dataset.originalSrc) {
+                                            img.src = img.dataset.originalSrc;
+                                            delete img.dataset.originalSrc;
+                                          }
+                                        }
+                                        
+                                        btn.innerHTML = '서식 복사 완료!';
+                                        setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+                                      } catch (err) {
+                                        console.error("서식 복사 실패:", err);
+                                      }
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/90 dark:bg-zinc-800/90 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 shadow-sm hover:bg-zinc-50 dark:hover:bg-zinc-700 backdrop-blur-sm active:scale-95 transition-all"
+                                    title="미리보기 결과 복사 (서식 포함)"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                    복사
+                                  </button>
+                                </div>
+                                <MarkdownViewer
                                 content={processedContent}
                                 originalContent={content}
                                 lineMap={lineMap}

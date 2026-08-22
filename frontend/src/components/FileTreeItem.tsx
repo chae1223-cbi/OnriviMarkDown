@@ -35,7 +35,7 @@ interface FileTreeItemProps {
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
 // 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
-// 🚨 @PATCH : **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
+// 🚨 @PATCH : **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
 // 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
 // ====================================================================
 const FileTreeItem = ({ 
@@ -106,12 +106,25 @@ const FileTreeItem = ({
       }
     };
 
+    // 🆕 폴더 생성 후 자동 선택: 이 노드가 대상 경로와 일치하면 openFile 호출
+    const selectNodeHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.path || !node.path) return;
+      const normTarget = detail.path.replace(/\\/g, '/');
+      const normThis = node.path.replace(/\\/g, '/');
+      if (normTarget === normThis && node.kind === 'directory') {
+        openFile(node, parentHandle);
+      }
+    };
+
     window.addEventListener('file:moved', handler);
     window.addEventListener('file:refresh-all-directories', refreshAllHandler);
+    window.addEventListener('file:select-node', selectNodeHandler);
     
     return () => {
       window.removeEventListener('file:moved', handler);
       window.removeEventListener('file:refresh-all-directories', refreshAllHandler);
+      window.removeEventListener('file:select-node', selectNodeHandler);
     };
   }, [node.kind, node.path, isOpen]);
   const [isLoading, setIsLoading] = useState(false);
@@ -601,8 +614,15 @@ const FileTreeItem = ({
           }
         }
         await refreshThisDirectory();
+        // 🆕 생성 직후 부모 폴더를 열고 새 폴더를 자동 선택/하이라이트
+        setIsOpen(true);
+        const newFolderPath = node.path ? `${node.path}/${name}` : name;
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-        setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 300);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          // 새로 생성된 폴더 자동 선택 이벤트
+          window.dispatchEvent(new CustomEvent('file:select-node', { detail: { path: newFolderPath } }));
+        }, 300);
       } catch(e) { showToast("생성 실패: " + e, 'error'); }
     }
   };
@@ -773,24 +793,36 @@ const FileTreeItem = ({
             <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
               {node.kind === 'directory' && (
                 <>
-                  <button onClick={handleCreateFile} className="p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-[9px]" title={"새 파일"}>📖</button>
-                  <button onClick={handleCreateFolder} className="p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors text-[9px]" title={"새 폴더"}>📁</button>
+                  <button
+                    onClick={handleCreateFile}
+                    className="p-1 rounded transition-all hover:scale-110 active:scale-95"
+                    title="새 파일"
+                  >
+                    <img src="/icons/icon-file-plus.png" width={20} height={20} alt="새 파일" className="rounded-md" />
+                  </button>
+                  <button
+                    onClick={handleCreateFolder}
+                    className="p-1 rounded transition-all hover:scale-110 active:scale-95"
+                    title="새 폴더"
+                  >
+                    <img src="/icons/icon-folder-plus.png" width={20} height={20} alt="새 폴더" className="rounded-md" />
+                  </button>
                 </>
               )}
               <button
                 onClick={handleRename}
-                className="p-0.5 rounded transition-colors text-[9px] hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                className="p-1 rounded transition-all hover:scale-110 active:scale-95"
                 title="이름 변경"
               >
-                ✏️
+                <img src="/icons/icon-rename.png" width={20} height={20} alt="이름 변경" className="rounded-md" />
               </button>
               <button
                 onClick={isOpenInTab ? undefined : handleDelete}
                 disabled={isOpenInTab}
-                className={`p-0.5 rounded transition-colors text-[9px] ${isOpenInTab ? 'opacity-30 cursor-not-allowed text-zinc-400' : 'hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+                className={`p-1 rounded transition-all ${isOpenInTab ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
                 title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
               >
-                ❎
+                <img src="/icons/icon-delete.png" width={20} height={20} alt="삭제" className={`rounded-md ${isOpenInTab ? 'grayscale' : ''}`} />
               </button>
             </div>
           );

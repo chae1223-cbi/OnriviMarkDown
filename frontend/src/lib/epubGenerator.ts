@@ -316,9 +316,9 @@ export async function generateEpub({
              buffer = '';
           }
           lastSeenLevel = tagLevel;
+          }
+          buffer += hTag + hContent;
         }
-        buffer += hTag + hContent;
-      }
       // 남은 버퍼가 있는 경우 (마지막 상위 레벨 헤딩 뒱)
     if (buffer.replace(/<[^>]*>/g, '').trim()) {
       sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });

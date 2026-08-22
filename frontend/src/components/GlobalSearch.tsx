@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Search, CaseSensitive, FileText } from 'lucide-react';
+import { X, Search, FileText } from 'lucide-react';
 import { FileNode } from '@/lib/indexedDbHelper';
 import { msg } from '@/lib/systemMessages';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
@@ -190,34 +190,23 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
     <div className="w-full h-full flex flex-col min-h-0 select-none">
       {/* 검색 설정 패널 */}
       <div className={`p-3 border-b ${isDarkMode ? 'border-white/10' : 'border-black/5'}`}>
-        {/* 사용자 피드백에 의해 검색 대상 폴더 경로 바 및 폴더 선택 버튼 제거 */}
-
         <div className="relative mb-2">
-          <input 
-            type="text" 
-            placeholder={searchFolder ? "폴더 내 모든 md 파일 검색..." : fileList && fileList.length > 0 ? "워크스페이스 전체 검색..." : tabs && tabs.length > 0 ? "열린 탭 전체 검색..." : "현재 문서 내용 검색..."} 
+          <input
+            type="text"
+            placeholder={searchFolder ? "폴더 내 모든 md 파일 검색..." : fileList && fileList.length > 0 ? "워크스페이스 전체 검색..." : tabs && tabs.length > 0 ? "열린 탭 전체 검색..." : "현재 문서 내용 검색..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             autoFocus
-            className={`w-full pl-9 pr-12 py-2.5 text-base rounded-lg border outline-none transition-all ${
-              isDarkMode 
-                ? 'bg-zinc-900 border-white/10 focus:ring-1 focus:ring-blue-500' 
+            className={`w-full pl-9 pr-4 py-2.5 text-base rounded-lg border outline-none transition-all ${
+              isDarkMode
+                ? 'bg-zinc-900 border-white/10 focus:ring-1 focus:ring-blue-500'
                 : 'bg-zinc-100 border-black/5 focus:ring-2 focus:ring-blue-500/20'
             }`}
           />
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30" />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40">
-            <button 
-              onClick={() => setMatchCase(!matchCase)}
-              className={`hover:text-blue-500 transition-colors ${matchCase ? 'text-blue-500 opacity-100' : ''}`}
-              title="대소문자 구분"
-            >
-              <CaseSensitive size={16} />
-            </button>
-          </div>
         </div>
 
-        <div className="flex items-center gap-3 text-sm opacity-60">
+        <div className="flex items-center justify-end gap-3 text-sm opacity-60">
           <label className="flex items-center gap-1.5 cursor-pointer hover:opacity-100">
             <input type="checkbox" checked={matchCase} onChange={() => setMatchCase(!matchCase)} className="rounded-sm w-4 h-4" />
             <span>대소문자 구분</span>

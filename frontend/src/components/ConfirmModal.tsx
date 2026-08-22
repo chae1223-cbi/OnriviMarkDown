@@ -27,7 +27,7 @@ interface ConfirmModalProps {
 // 📊 [OMD-CORE-ConfirmModal-0001] ConfirmModal ➔ ConfirmModal
 // 🎯 @KICK  : 확인/취소 선택과 위험 경고 아이콘을 표시하는 포털 기반 범용 컨펌 모달
 // 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 렌더링, isDanger에 따라 스타일 분기
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-08-23** — 다이얼로그 UX 개선: 상단 코너 회색 제거(rounded-t-2xl 추가), Dim 반투명 완화(bg-black/30), 다층 그림자로 입체감 강화, 메시지 내 파일명 따옴표 강조 표시
 // 🔗 @CALLS : 없음
 // ====================================================================
 export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과 위험 경고 아이콘을 표시하는 포털 기반 범용 컨펌 모달
@@ -68,14 +68,32 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
   if (!isOpen) return null; // if : 모달이 열려 있지 않으면 null을 반환
   if (!mounted) return null; // if : 모달이 마운트되지 않았으면 null을 반환
 
+  // 메시지 내 따옴표로 감싸진 항목명 강조 처리
+  const renderMessage = (msg: string) => {
+    const parts = msg.split(/('.*?')/g);
+    return parts.map((part, i) =>
+      part.startsWith("'") && part.endsWith("'") ? (
+        <span key={i} className={`font-bold ${isDanger ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
+          {part}
+        </span>
+      ) : part
+    );
+  };
+
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" style={{ overflowY: "auto" }}>
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200"
+      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.35)" }}
+    >
       <div
-        className="w-full max-w-sm bg-white dark:bg-[#1e1e1e] rounded-2xl shadow-2xl border border-black/10 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col"
-        style={{ maxHeight: "90dvh" }}
+        className="w-full max-w-sm bg-white dark:bg-[#1e1e1e] rounded-2xl border border-black/8 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col"
+        style={{
+          maxHeight: "90dvh",
+          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.07), 0 10px 24px -4px rgba(0,0,0,0.14), 0 32px 64px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)"
+        }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-2">
             <AlertCircle size={18} className={isDanger ? "text-red-500" : "text-blue-500"} />
             <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{title}</h3>
@@ -89,9 +107,9 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-6">
+        <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5">
           <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-            {message}
+            {renderMessage(message)}
           </p>
         </div>
 
@@ -106,8 +124,8 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
           <button
             onClick={onConfirm}
             className={`px-5 py-2.5 ${isDanger
-              ? 'bg-red-600 hover:bg-red-500 shadow-red-500/20'
-              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'
+              ? 'bg-red-600 hover:bg-red-500 shadow-red-500/25'
+              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/25'
               } text-white text-xs font-bold rounded-xl shadow-lg transition-all active:scale-95`}
           >
             {confirmText}
