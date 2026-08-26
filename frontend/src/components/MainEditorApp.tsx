@@ -7,6 +7,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-08-26** — 분할모드에서 마우스 휠 동작에 의해 우측 실시간 미리보기 스크롤이 단독으로 움직이는 것을 차단하고(onWheel preventDefault) 에디터 스크롤 동기화에 의해서만 구동되도록 제어 및 런타임 contentText ReferenceError 보정 수정
  *   * 🚨 @PATCH : **2026-08-13** — 스크롤 요동 및 튕김 현상의 근본적 해결을 위해 MainEditorApp 내의 모든 이중/중복 스크롤 보정 훅(postContentScrollCorrection) 및 휠/터치 강제 차단 훅을 완전히 삭제하고, Monaco Setup의 단일 스크롤 리스너로 동기화 구조를 전량 이관 및 정밀 간소화함
  *   * 🚨 @PATCH : **2026-08-12** — 에디터를 열거나 탭을 닫고 전환할 때 제한사용자(만료, 동시접속 제한, 미인증 등)의 권한 가드가 누락되어 편집 가능해지던 버그 해결을 위해 isRestrictedUser 검사 통합 적용 및 Monaco readOnly/domReadOnly 옵션 동기화 보완; 최초 검증 시 동시접속 실패 시 이중 검증 복구 우회로를 차단하고 isRestricted 필드를 로컬 보안 캐시와 setLicenseStatus에 밀봉 연동하여 캐시 뚫림 현상 원천 해결
  *   * 🚨 @PATCH : **2026-08-12** — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 postContentScrollCorrection 훅에 setTimeout(50ms) 기반 지연 최하단 밀착 스크롤 보강 적용
@@ -1796,6 +1797,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const licenseStatusRef = useRef(licenseStatus);
   const tabSizeRef = useRef(4);
   // 🚨 @PATCH : A4 조판 가드 스케일링 로직
+  // 💡 [Desktop 이미지 비동기 로딩 대응] 미리보기 내용 높이 변경 감지 및 자동 하단 스크롤
+  useEffect(() => {
+    const container = previewRef.current;
+    if (!container) return;
+    const contentWrapper = container.firstElementChild as HTMLElement;
+    if (!contentWrapper) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      const editor = editorRef.current;
+      if (editor) {
+        const scrollTop = editor.getScrollTop();
+        const layoutInfo = editor.getLayoutInfo();
+        const viewportHeight = layoutInfo.height || 800;
+        const scrollHeight = editor.getScrollHeight();
+        const editorMaxScroll = scrollHeight - viewportHeight;
+        
+        // 에디터가 맨 아래에 위치해 있다면, 미리보기 높이가 늘어나도(이미지 로딩 완료 등) 강제로 맨 아래로 유지
+        if (editorMaxScroll > 0 && scrollTop >= editorMaxScroll - 5) {
+          const previewMaxScroll = container.scrollHeight - container.clientHeight;
+          if (previewMaxScroll > 0) {
+            container.scrollTop = previewMaxScroll;
+          }
+        }
+      }
+    });
+    
+    resizeObserver.observe(contentWrapper);
+    return () => resizeObserver.disconnect();
+  }, [previewRef, content]);
+
   useEffect(() => {
     if (!isA4GuardEnabled) {
       setPreviewZoomScale(1);
@@ -2316,8 +2347,56 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const newDecorations: any[] = [];
     const Range = (window as any).monaco.Range;
 
+    let inCodeBlock = false;
+
     lines.forEach((line: string, i: number) => {
       const lineNumber = i + 1;
+
+      // ✏️ [Code Block] 시작/종료 감지 및 라인 배경 데코레이션 주입
+      if (line.trim().startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        newDecorations.push({
+          range: new Range(lineNumber, 1, lineNumber, Math.max(2, line.length + 1)),
+          options: {
+            isWholeLine: true,
+            className: 'monaco-codeblock-line'
+          }
+        });
+        return;
+      }
+
+      if (inCodeBlock) {
+        newDecorations.push({
+          range: new Range(lineNumber, 1, lineNumber, Math.max(2, line.length + 1)),
+          options: {
+            isWholeLine: true,
+            className: 'monaco-codeblock-line'
+          }
+        });
+        return;
+      }
+
+      // ✏️ [Quote] 인용문 라인 배경 및 테두리 데코레이션 주입
+      if (line.trim().startsWith('>')) {
+        newDecorations.push({
+          range: new Range(lineNumber, 1, lineNumber, Math.max(2, line.length + 1)),
+          options: {
+            isWholeLine: true,
+            className: 'monaco-quote-line'
+          }
+        });
+      }
+
+      // ✏️ [Table] 표 구문 라인 배경 및 테두리 데코레이션 주입
+      if (line.trim().startsWith('|')) {
+        newDecorations.push({
+          range: new Range(lineNumber, 1, lineNumber, Math.max(2, line.length + 1)),
+          options: {
+            isWholeLine: true,
+            className: 'monaco-table-line'
+          }
+        });
+      }
 
       // Heading
       const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
@@ -5849,10 +5928,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-on-surface ${
                           previewMode === 'preview'
                             ? 'bg-surface-container-high p-4 pb-48 overflow-y-auto'
-                            : 'bg-surface-container-low px-0 pt-0 pb-48 overflow-hidden'
+                            : 'bg-surface-container-low px-0 pt-0 pb-48 overflow-y-auto'
                         } ${previewMode === 'both' ? 'no-scrollbar' : ''}`}
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
+                        onWheel={(e) => {
+                          if (previewMode === 'both') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
                         onScroll={(e) => {
                           const target = e.target as HTMLElement;
 
@@ -5870,58 +5955,76 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                           scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
 
-                          const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
-
-                          let elA = null;
-                            let elB = null;
+                          const previewScrollTop = target.scrollTop;
+                            const previewScrollHeight = target.scrollHeight;
+                            const previewViewportHeight = target.clientHeight;
+                            const previewMaxScroll = previewScrollHeight - previewViewportHeight;
+                            
+                            if (previewMaxScroll <= 0) return;
+                            
+                            const isAtBottom = previewScrollTop >= previewMaxScroll - 2;
+                            const scrollRatio = isAtBottom ? 1 : Math.max(0, Math.min(1, previewScrollTop / previewMaxScroll));
+                            const targetPreviewY = previewScrollTop + previewViewportHeight * scrollRatio;
+                            
+                            const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
+                            if (elements.length === 0) return;
+                            
+                            let elA: HTMLElement | null = null;
+                            let elB: HTMLElement | null = null;
+                            const containerRect = target.getBoundingClientRect();
                             
                             for (let i = 0; i < elements.length; i++) {
                               const rect = elements[i].getBoundingClientRect();
-                              const containerRect = target.getBoundingClientRect();
-                              
-                              if (rect.bottom >= containerRect.top) {
-                                elA = elements[i];
-                                if (i + 1 < elements.length) {
-                                  elB = elements[i + 1];
-                                }
+                              const elementTop = rect.top - containerRect.top + previewScrollTop;
+                              if (elementTop > targetPreviewY) {
                                 break;
                               }
+                              elA = elements[i];
                             }
                             
                             if (elA && editorRef.current) {
                               const editor = editorRef.current;
-                              const lineStrA = elA.getAttribute('data-line');
+                              const lineAStr = elA.getAttribute('data-line');
                               
-                              if (lineStrA && typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
-                                const lineA = parseInt(lineStrA, 10);
-                                const topA = editor.getTopForLineNumber(lineA);
-                                
-                                let interpolatedScrollTop = topA;
-                                
-                                if (elB) {
-                                  const lineStrB = elB.getAttribute('data-line');
-                                  if (lineStrB) {
-                                    const lineB = parseInt(lineStrB, 10);
-                                    const topB = editor.getTopForLineNumber(lineB);
-                                    
-                                    const rectA = elA.getBoundingClientRect();
-                                    const rectB = elB.getBoundingClientRect();
-                                    const containerRect = target.getBoundingClientRect();
-                                    
-                                    const previewTopA = rectA.top - containerRect.top + target.scrollTop;
-                                    const previewTopB = rectB.top - containerRect.top + target.scrollTop;
-                                    
-                                    const editorRange = topB - topA;
-                                    const previewRange = previewTopB - previewTopA;
-                                    
-                                    if (previewRange > 0) {
-                                      const progress = Math.max(0, Math.min(1, (target.scrollTop - previewTopA) / previewRange));
-                                      interpolatedScrollTop = topA + progress * editorRange;
-                                    }
+                              if (lineAStr && typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
+                                const lineA = parseInt(lineAStr, 10);
+                                const indexA = elements.indexOf(elA);
+                                for (let j = indexA + 1; j < elements.length; j++) {
+                                  const nextEl = elements[j];
+                                  const lineBStr = nextEl.getAttribute('data-line');
+                                  if (lineBStr && parseInt(lineBStr, 10) > lineA) {
+                                    elB = nextEl;
+                                    break;
                                   }
                                 }
                                 
-                                editor.setScrollPosition({ scrollTop: interpolatedScrollTop });
+                                const viewportHeight = editor.getLayoutInfo().height || 800;
+                                const scrollHeight = editor.getScrollHeight();
+                                const editorMaxScroll = scrollHeight - viewportHeight;
+                                
+                                const topA = lineA === 1 ? 0 : editor.getTopForLineNumber(lineA);
+                                const topB = elB ? editor.getTopForLineNumber(parseInt(elB.getAttribute('data-line')!, 10)) : scrollHeight;
+                                
+                                const previewTopA = elA.getBoundingClientRect().top - containerRect.top + previewScrollTop;
+                                const previewTopB = elB ? (elB.getBoundingClientRect().top - containerRect.top + previewScrollTop) : previewScrollHeight;
+                                
+                                const previewRange = previewTopB - previewTopA;
+                                const editorRange = topB - topA;
+                                
+                                let interpolatedEditorTop = topA;
+                                if (previewRange > 0) {
+                                  const progress = Math.max(0, Math.min(1, (targetPreviewY - previewTopA) / previewRange));
+                                  interpolatedEditorTop = topA + progress * editorRange;
+                                }
+                                
+                                let targetEditorScroll = interpolatedEditorTop - viewportHeight * scrollRatio;
+                                targetEditorScroll = Math.max(0, Math.min(editorMaxScroll, targetEditorScroll));
+                                
+                                if (isAtBottom) {
+                                  targetEditorScroll = editorMaxScroll;
+                                }
+                                
+                                editor.setScrollPosition({ scrollTop: targetEditorScroll });
                                 }
                               }
                         }}

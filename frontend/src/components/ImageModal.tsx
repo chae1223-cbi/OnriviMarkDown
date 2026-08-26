@@ -32,6 +32,7 @@ interface ImageModalProps {
 // 📊 [OMD-EDIT-ImageModal-0007] ImageModal ➔ ImageModal
 // 🎯 @KICK  : 이미지 삽입 모달 - URL/파일/클립보드 이미지 경로 입력 및 크기/정렬 설정
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환; cleanImagePath 없으면 삽입 버튼 비활성화
+// 🚨 @PATCH : 2026-08-26 — 데스크탑 및 웹 환경에서 리소스 폴더 이미지를 찾아보기로 선택 시 미리보기가 노출되지 않는 버그 및 자동저장 시 상태가 blob으로 원복되는 문제를 해결하기 위해 useEffect의 의존성 배열에서 initialData를 제거하고, 데스크탑 환경은 readImageAsBase64 API를 활용해 웹 보안 샌드박스를 우회하도록 함; 미리보기 컨테이너 div에 onWheel preventDefault를 연동해 마우스 스크롤 전파를 차단함
 // 🚨 @PATCH : 2026-07-20 — 이미지 모달 내 클립보드 붙여넣기 영역(슬림 붙여넣기 바) 클릭 시 윈도우 파일 탐색기가 뜨던 불편함 해소 (onClick 팝업 제거 및 focus 적용으로 순수 붙여넣기 대기 상태 전환)
 // 🚨 @PATCH : 2026-07-15 — 2단 분할 레이아웃(좌:입력, 우:미리보기), 슬림 붙여넣기 바, 인코딩 정상화
 // 🔗 @CALLS : handleInsert, handlePasteEvent, handleFileChange, cleanImagePath, previewSrc, createPortal
@@ -56,8 +57,11 @@ export default function ImageModal({
   const [imageHeight, setImageHeight] = useState("");
   const [imageAlign, setImageAlign] = useState("center");
   const [localBlobUrl, setLocalBlobUrl] = useState("");
+  const [tempPreviewUrl, setTempPreviewUrl] = useState("");
+  const [imageLoadError, setImageLoadError] = useState(false);
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     setMounted(true);
@@ -66,6 +70,7 @@ export default function ImageModal({
   useEffect(() => {
     if (isOpen) {
       setAppliedPath("");
+      setTempPreviewUrl("");
       if (initialData) {
         setImagePath(initialData.path);
         setImageAlt(initialData.alt);
@@ -80,7 +85,7 @@ export default function ImageModal({
         setImageAlign("center");
       }
     }
-  }, [isOpen, initialData]);
+  }, [isOpen]);
 
   const handleLocalImageSave = async (base64Data: string, fileName: string, imageFile: File) => {
     let finalPath = '';
@@ -132,12 +137,12 @@ export default function ImageModal({
     }
 
     if (finalPath) {
-      const blobPreview = URL.createObjectURL(imageFile);
-      setImagePath(blobPreview);
+      setImagePath(finalPath);
       setAppliedPath(finalPath);
       if (showToast) showToast('로컬 assets 폴더에 저장되었습니다.', 'success');
     } else {
       const blobPreview = URL.createObjectURL(imageFile);
+      setTempPreviewUrl(blobPreview);
       setImagePath(blobPreview);
       if (showToast) showToast('이미지 로컬 저장 실패 (임시 렌더링)', 'error');
     }
@@ -292,7 +297,17 @@ export default function ImageModal({
   }, [cleanImagePath, workspaceType, rootFolder, resourceFolderHandle]);
 
   const previewSrc = useMemo(() => {
+    if (tempPreviewUrl) {
+      return tempPreviewUrl;
+    }
+
     if (!cleanImagePath) return "";
+
+    // 💡 [데스크탑 가드] 이미 만료된 blob URL은 로딩 시 net::ERR_UPLOAD_FILE_CHANGED 에러를 대량 유발하므로 즉시 차단
+    const isDesktop = typeof window !== 'undefined' && (window as any).electronAPI;
+    if (isDesktop && cleanImagePath.startsWith('blob:')) {
+      return "";
+    }
 
     const isExternal = cleanImagePath.startsWith('http://') || cleanImagePath.startsWith('https://') || cleanImagePath.startsWith('data:') || cleanImagePath.startsWith('blob:');
     if (isExternal) return cleanImagePath;
@@ -311,18 +326,27 @@ export default function ImageModal({
 
     let absolutePath = cleanImagePath;
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      if (cleanImagePath.startsWith('/media/') || cleanImagePath.startsWith('./media/')) {
+      const isMediaOrAssets = cleanImagePath.startsWith('/media/') || cleanImagePath.startsWith('./media/') || cleanImagePath.startsWith('/assets/') || cleanImagePath.startsWith('./assets/');
+      const isRootRelative = cleanImagePath.startsWith('/');
+      
+      if (isMediaOrAssets) {
         const freshRF = loadSecureData<string>('resourceFolder') || resourceFolder;
         if (freshRF) {
           const sep = freshRF.includes('\\') ? '\\' : '/';
           const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
           const strippedPath = cleanImagePath.startsWith('./') ? cleanImagePath.substring(1) : cleanImagePath;
-            const normalizedSrc = sep === '\\' ? strippedPath.replace(/\//g, '\\') : strippedPath;
+          const normalizedSrc = sep === '\\' ? strippedPath.replace(/\//g, '\\') : strippedPath;
           absolutePath = cleanRoot + normalizedSrc;
         } else if (targetFolder) {
           const sep = targetFolder.includes('\\') ? '\\' : '/';
-          const cleanRoot = targetFolder.endsWith(sep) ? targetFolder.slice(0, -1) : targetFolder;
-          const normalizedSrc = sep === '\\' ? cleanImagePath.replace(/\//g, '\\') : cleanImagePath;
+          // targetFolder가 .md 파일이면 폴더로 잘라냄
+          let rawDir = targetFolder;
+          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
+            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
+          }
+          const cleanRoot = rawDir.endsWith(sep) ? rawDir.slice(0, -1) : rawDir;
+          const strippedPath = cleanImagePath.startsWith('./') ? cleanImagePath.substring(1) : cleanImagePath;
+          const normalizedSrc = sep === '\\' ? strippedPath.replace(/\//g, '\\') : strippedPath;
           absolutePath = cleanRoot + normalizedSrc;
         }
       } else {
@@ -331,11 +355,39 @@ export default function ImageModal({
         const isAbsolute = isAbsoluteWin || isAbsoluteUnix;
 
         if (!isAbsolute && targetFolder) {
-          const sep = targetFolder.includes('/') ? '/' : '\\';
-          const folder = targetFolder.endsWith(sep) ? targetFolder : targetFolder + sep;
-          absolutePath = folder + cleanImagePath;
+          const sep = targetFolder.includes('\\') ? '\\' : '/';
+          let rawDir = targetFolder;
+          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
+            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
+          }
+          const cleanRoot = rawDir.endsWith(sep) ? rawDir.slice(0, -1) : rawDir;
+          const normalizedSrc = sep === '\\' ? cleanImagePath.replace(/\//g, '\\') : cleanImagePath;
+          absolutePath = cleanRoot + sep + normalizedSrc;
+        } else if (isRootRelative && targetFolder) {
+          // 일반적인 /images/ 류의 루트 상대경로 처리
+          const sep = targetFolder.includes('\\') ? '\\' : '/';
+          let rawDir = targetFolder;
+          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
+            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
+          }
+          const cleanRoot = rawDir.endsWith(sep) ? rawDir.slice(0, -1) : rawDir;
+          const normalizedSrc = sep === '\\' ? cleanImagePath.replace(/\//g, '\\') : cleanImagePath;
+          absolutePath = cleanRoot + normalizedSrc;
         }
       }
+    }
+
+    if (workspaceType === 'browser' || workspaceType === 'local') {
+      if (localBlobUrl) {
+        return localBlobUrl;
+      }
+    }
+    
+    if (absolutePath.startsWith('http') || absolutePath.startsWith('data:') || absolutePath.startsWith('blob:')) {
+      return absolutePath;
+    }
+    
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
       return `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
     }
 
@@ -344,7 +396,11 @@ export default function ImageModal({
     }
 
     return cleanImagePath;
-  }, [cleanImagePath, targetFolder, localBlobUrl, workspaceType, resourceFolder]);
+  }, [cleanImagePath, targetFolder, localBlobUrl, workspaceType, resourceFolder, tempPreviewUrl]);
+
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [previewSrc]);
 
   const handleInsert = () => {
     const insertPath = appliedPath || cleanImagePath;
@@ -371,10 +427,82 @@ export default function ImageModal({
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      const api = (window as any).electronAPI;
+      
+      // 💡 [데스크탑 환경] Web Security 샌드박스를 우회하고 파일 잠금 에러를 원천 방지하기 위해 media:// 프로토콜 활용
+      if (api && (file as any).path) {
+        const filePath = (file as any).path;
+        
+        // 1. 즉시 media:// 주소로 미리보기 설정 (FileReader 호출 없음 -> ERR_UPLOAD_FILE_CHANGED 원천 예방)
+        const localMediaUrl = `media://local/serve?url=${encodeURIComponent(filePath)}`;
+        setTempPreviewUrl(localMediaUrl);
+
+        // 2. 복사 생략(리소스 폴더 내부 파일) 체크
+        const freshResourceFolder = loadSecureData<string>('resourceFolder') || resourceFolder;
+        let targetDir = '';
+        if (freshResourceFolder) {
+          targetDir = freshResourceFolder + (freshResourceFolder.includes('\\') ? '\\media' : '/media');
+        } else if (targetFolder) {
+          let rawDir = targetFolder;
+          if (rawDir.endsWith('.md') || rawDir.endsWith('.markdown')) {
+            rawDir = rawDir.substring(0, Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')));
+          }
+          const folderName = rawDir.substring(Math.max(rawDir.lastIndexOf('\\'), rawDir.lastIndexOf('/')) + 1).toLowerCase();
+          if (folderName !== 'assets' && folderName !== 'media') {
+            targetDir = rawDir + (rawDir.includes('\\') ? '\\assets' : '/assets');
+          } else {
+            targetDir = rawDir;
+          }
+        }
+
+        if (targetDir) {
+          const normFilePath = filePath.replace(/\\/g, '/').toLowerCase();
+          const normTargetDir = targetDir.replace(/\\/g, '/').toLowerCase();
+          
+          if (normFilePath.startsWith(normTargetDir + '/')) {
+            const fileName = filePath.substring(Math.max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/')) + 1);
+            const isMediaDir = normTargetDir.endsWith('/media') || normTargetDir.endsWith('/assets');
+            const finalFolderName = targetDir.substring(Math.max(targetDir.lastIndexOf('\\'), targetDir.lastIndexOf('/')) + 1);
+            
+            let finalPath = '';
+            if (isMediaDir && targetFolder) {
+              finalPath = `/${finalFolderName}/${fileName}`;
+            } else {
+              finalPath = localMediaUrl;
+            }
+            
+            setImagePath(finalPath);
+            setAppliedPath(finalPath);
+            setImageAlt("이미지 설명");
+            if (showToast) showToast('리소스 폴더의 기존 파일을 선택하여 복사 없이 바로 적용합니다.', 'success');
+            return; // 중단 (디스크 파일 변경 및 쓰기가 없으므로 잠금 에러 0%)
+          }
+        }
+
+        // 외부 파일인 경우 로컬 저장 프로세스 진행
+        try {
+          const dataUrl = await api.readImageAsBase64(filePath);
+          if (dataUrl) {
+            const base64Data = dataUrl.split(',')[1] || '';
+            const fileName = file.name ? file.name.replace(/\s+/g, '_') : `image_${Date.now()}.png`;
+            await handleLocalImageSave(base64Data, fileName, file);
+            setImageAlt("이미지 설명");
+          }
+        } catch (err) {
+          console.error('데스크탑 이미지 로드 실패:', err);
+          if (showToast) showToast('이미지를 로드하는 중 오류가 발생했습니다.', 'error');
+        }
+        return;
+      }
+
+      // 💡 [웹 환경] Web Security 샌드박스 내부이므로 기존 FileReader 방식으로 안전하게 획득
       const reader = new FileReader();
       reader.onload = async () => {
         const result = reader.result as string;
         const base64Data = result.split(',')[1];
+        
+        setTempPreviewUrl(result);
+
         const fileName = file.name ? file.name.replace(/\s+/g, '_') : `image_${Date.now()}.png`;
         await handleLocalImageSave(base64Data, fileName, file);
         setImageAlt("이미지 설명");
@@ -387,7 +515,7 @@ export default function ImageModal({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-6" style={{ overflowY: "auto" }}>
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-6" style={{ overflowY: "auto" }} onPaste={handlePasteEvent}>
       <div className="absolute inset-0 bg-black/65" onClick={onClose} />
 
       {/* PREMIUM WIDE MODAL (SCR-014) */}
@@ -600,18 +728,31 @@ export default function ImageModal({
 
             <div className="flex-grow flex flex-col p-5 gap-3">
               {/* 이미지 표시 영역 */}
-              <div className={`relative flex-grow rounded-lg overflow-hidden border flex items-center justify-center ${
-                isDarkMode ? 'bg-zinc-800 border-zinc-700' : 'bg-slate-100 border-slate-200'
-              }`} style={{ minHeight: '280px' }}>
+              <div
+                className={`relative flex-grow rounded-lg overflow-hidden border flex items-center justify-center ${
+                  isDarkMode ? 'bg-zinc-800 border-zinc-700' : 'bg-slate-100 border-slate-200'
+                }`}
+                style={{ minHeight: '280px' }}
+                onWheel={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+              >
                 {previewSrc ? (
                   <>
-                    <img
-                      src={previewSrc}
-                      alt="미리보기"
-                      className="w-full h-full object-contain"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      onLoad={(e) => { e.currentTarget.style.display = 'block'; }}
-                    />
+                    {!imageLoadError ? (
+                      <img
+                        src={previewSrc}
+                        alt="미리보기"
+                        className="w-full h-full object-contain"
+                        onError={() => setImageLoadError(true)}
+                      />
+                    ) : (
+                      <div className="text-center p-8 text-slate-400 dark:text-zinc-500">
+                        <ImageIcon size={28} className="mx-auto mb-2 opacity-50" />
+                        <p className="text-xs font-bold">이미지를 불러올 수 없습니다</p>
+                      </div>
+                    )}
                     {/* 메타데이터 오버레이 */}
                     <div className={`absolute bottom-0 inset-x-0 px-4 py-2.5 border-t flex gap-4 items-center ${
                       isDarkMode ? 'bg-zinc-900/95 border-zinc-700' : 'bg-white/95 border-slate-200'
@@ -619,7 +760,17 @@ export default function ImageModal({
                       <div>
                         <div className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Format</div>
                         <div className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                          {cleanImagePath.split('.').pop()?.toUpperCase() || 'IMG'}
+                          {(() => {
+                            if (cleanImagePath.startsWith('data:image/')) {
+                              return cleanImagePath.split(';')[0].split('/')[1]?.toUpperCase() || 'IMG';
+                            }
+                            if (cleanImagePath.startsWith('blob:')) {
+                              if (appliedPath) return appliedPath.split('.').pop()?.toUpperCase() || 'IMG';
+                              return 'BLOB';
+                            }
+                            const ext = cleanImagePath.split('.').pop()?.split('?')[0]?.toUpperCase();
+                            return ext && ext.length <= 4 ? ext : 'IMG';
+                          })()}
                         </div>
                       </div>
                       <div>
@@ -646,7 +797,10 @@ export default function ImageModal({
                       <ImageIcon size={28} className="text-slate-400 dark:text-zinc-500" />
                     </div>
                     <p className="text-xs font-bold text-slate-400 dark:text-zinc-500 leading-relaxed">
-                      이미지 주소 입력 또는<br />파일을 선택하면<br />여기에 미리보기가 표시됩니다
+                      {cleanImagePath.startsWith('blob:')
+                        ? <>만료된 임시 미리보기 경로입니다.<br />찾아보기를 눌러 로컬 파일을 다시 선택해주세요.</>
+                        : <>이미지 주소 입력 또는<br />파일을 선택하면<br />여기에 미리보기가 표시됩니다</>
+                      }
                     </p>
                   </div>
                 )}

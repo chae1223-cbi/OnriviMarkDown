@@ -68,6 +68,19 @@ export default function LeftSidebar() {
   const [activeTocId, setActiveTocId] = useState<string>('');
 
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const handleClose = () => setContextMenu(null);
+    if (contextMenu) {
+      window.addEventListener('click', handleClose);
+      window.addEventListener('close-context-menus', handleClose);
+      return () => {
+        window.removeEventListener('click', handleClose);
+        window.removeEventListener('close-context-menus', handleClose);
+      };
+    }
+  }, [contextMenu]);
 
   const handleDragOverRoot = (e: React.DragEvent) => {
     e.preventDefault();
@@ -828,62 +841,92 @@ export default function LeftSidebar() {
               onDragLeave={handleDragLeaveRoot}
               onDrop={handleDropRoot}
             >
-              <div className="group relative flex items-center justify-between px-1 py-1 text-[12px] font-bold text-on-surface border-b border-outline-variant/20 mb-1">
+              <div 
+                className="group relative flex items-center justify-between px-1 py-1 text-[12px] font-bold text-on-surface border-b border-outline-variant/20 mb-1 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer rounded-t transition-colors"
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('close-context-menus'));
+                  setContextMenu({ x: e.clientX, y: e.clientY });
+                }}
+              >
                 <span className="truncate">📁 {rootFolder.name}</span>
-                {!isRestrictedUser && (
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPromptConfig({
-                          isOpen: true,
-                          title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요:",
-                          defaultValue: "untitled.md",
-                          type: 'createFile'
-                        });
-                      }} 
-                      className="p-1 rounded transition-all hover:scale-110 active:scale-95" 
-                      title="새 파일"
-                    >
-                      <img src="/icons/icon-file-plus.png" width={20} height={20} alt="새 파일" className="rounded-md" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPromptConfig({
-                          isOpen: true,
-                          title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요:",
-                          defaultValue: "",
-                          type: 'createFolder'
-                        });
-                      }} 
-                      className="p-1 rounded transition-all hover:scale-110 active:scale-95" 
-                      title="새 폴더"
-                    >
-                      <img src="/icons/icon-folder-plus.png" width={20} height={20} alt="새 폴더" className="rounded-md" />
-                    </button>
-                    <button 
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        await refreshFileList();
-                        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-                      }} 
-                      className="p-1 rounded transition-all hover:scale-110 active:scale-95" 
-                      title="새로고침"
-                    >
-                      <img src="/icons/icon-refresh.png" width={20} height={20} alt="새로고침" className="rounded-md" />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        importFileInputRef.current?.click();
-                      }} 
-                      className="p-1 rounded transition-all hover:scale-110 active:scale-95" 
-                      title="문서 변환 및 가져오기 (DOCX, HWP, PDF, TXT, MD, HTML)"
-                    >
-                      <img src="/icons/icon-import.png" width={20} height={20} alt="가져오기" className="rounded-md" />
-                    </button>
-                  </div>
+                {/* Context Menu Portal */}
+                {contextMenu && createPortal(
+                  <div
+                    className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+                    style={{ 
+                      top: Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 150 : contextMenu.y), 
+                      left: Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 180 : contextMenu.x) 
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    onContextMenu={(e) => e.preventDefault()}
+                  >
+                    <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium">
+                      {!isRestrictedUser && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContextMenu(null);
+                              setPromptConfig({
+                                isOpen: true,
+                                title: "루트 워크스페이스에 생성할 새 파일의 이름을 입력하세요:",
+                                defaultValue: "untitled.md",
+                                type: 'createFile'
+                              });
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                          >
+                            <img src="/icons/icon-file-plus.png" width={16} height={16} alt="새 파일" className="opacity-90" />
+                            <span>새 파일</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContextMenu(null);
+                              setPromptConfig({
+                                isOpen: true,
+                                title: "루트 워크스페이스에 생성할 새 폴더의 이름을 입력하세요:",
+                                defaultValue: "",
+                                type: 'createFolder'
+                              });
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                          >
+                            <img src="/icons/icon-folder-plus.png" width={16} height={16} alt="새 폴더" className="opacity-90" />
+                            <span>새 폴더</span>
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setContextMenu(null);
+                          await refreshFileList();
+                          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-green-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                      >
+                        <img src="/icons/icon-refresh.png" width={16} height={16} alt="새로고침" className="opacity-90" />
+                        <span>새로고침</span>
+                      </button>
+                      {!isRestrictedUser && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setContextMenu(null);
+                            importFileInputRef.current?.click();
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 hover:bg-purple-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                        >
+                          <img src="/icons/icon-import.png" width={16} height={16} alt="가져오기" className="opacity-90" />
+                          <span>가져오기</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>,
+                  document.body
                 )}
               </div>
 

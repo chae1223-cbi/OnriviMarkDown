@@ -268,11 +268,33 @@ export async function generateEpub({
         }
       }
     }
-    processedHtml = doc.body.innerHTML;
+    // 💡 [XML 파편화 방지 래퍼 제거]
+    // 만약 본문이 <div class="prose"> 처럼 단일 래퍼로 감싸져 있으면, 
+    // 나중에 h1~h6 기준으로 문자열을 분리할 때 <div> </div> 쌍이 깨지게 됩니다.
+    // 이를 방지하기 위해 단일 루트 컨테이너를 모두 벗겨내고 평탄화(Flatten) 시킵니다.
+    let rootNode = doc.body;
+    while (
+      rootNode.children.length === 1 &&
+      rootNode.firstElementChild?.tagName.toLowerCase() === 'div'
+    ) {
+      rootNode = rootNode.firstElementChild as HTMLElement;
+    }
+    
+    // `.prose` 안에 여러 요소가 있더라도, 첫번째 자식이 .prose 라면 그것도 벗겨냅니다.
+    // 보통 ReactMarkdown 렌더링 결과물이 <div class="prose">...</div> 안에 들어있기 때문입니다.
+    if (rootNode.children.length > 0 && rootNode.firstElementChild?.classList.contains('prose') && rootNode.children.length === 1) {
+      rootNode = rootNode.firstElementChild as HTMLElement;
+    }
+
+    processedHtml = rootNode.innerHTML;
   }
 
   // 4. XHTML 본문 데이터 변환 및 하이퍼링크 표준 조율
-  const sanitizedBody = sanitizeToXHTML(processedHtml, title);
+  let sanitizedBody = sanitizeToXHTML(processedHtml, title);
+
+  // [OMD-EPUB] 개요수준 페이지나누기와 수동 페이지나누기(---) 충돌 방지:
+  // 헤딩 태그 바로 앞에 있는 수동 페이지 나누기 hr 태그를 제거하여 빈 페이지가 생성되는 것을 막습니다.
+  sanitizedBody = sanitizedBody.replace(/<hr[^>]*class="[^"]*page-break[^"]*"[^>]*>\s*(?=<h[1-6])/gi, '');
 
   // 5. 📄 EPUB 페이지 물리적 분할 (XHTML 파일 쪼개기)
   //
@@ -285,11 +307,11 @@ export async function generateEpub({
   const levelNum = exportPageBreakLevel !== 'none' ? parseInt(exportPageBreakLevel.replace('h', '')) : NaN;
 
   if (!isNaN(levelNum) && levelNum >= 1 && levelNum <= 6) {
-    // h1 ~ h(level) 모든 헤딩에서 분리
-    const splitRegexAll = new RegExp(`(<h[1-${levelNum}]\\b[^>]*>)`, 'gi');
+    // h1 ~ h(level) 헤딩과 수동 page-break hr 태그에서 분리
+    const splitRegexAll = new RegExp(`(<h[1-${levelNum}]\\b[^>]*>|<hr\\b[^>]*class="[^"]*page-break[^"]*"[^>]*>)`, 'gi');
     const allParts = sanitizedBody.split(splitRegexAll);
 
-    let buffer = allParts[0]; // 첫 헤딩 이전 내용
+    let buffer = allParts[0]; // 첫 헤딩/구분선 이전 내용
     let currentTitle = title;
     let sectionIdx = 1;
     
@@ -304,32 +326,71 @@ export async function generateEpub({
       for (let i = 1; i < allParts.length; i += 2) {
         const hTag = allParts[i];
         const hContent = allParts[i + 1] || '';
+
+        // 수동 페이지 나누기(---)인 경우 즉시 챕터 분할
+        if (hTag.toLowerCase().startsWith('<hr')) {
+          if (buffer.trim()) {
+            sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
+          }
+          buffer = hContent; // hr 태그 자체는 버리고 내용만 새 버퍼에 담음
+          lastSeenLevel = 0;
+          continue;
+        }
+
         const tagLevelMatch = hTag.match(/<h(\d)/i);
         const tagLevel = tagLevelMatch ? parseInt(tagLevelMatch[1]) : 0;
   
         const headingText = extractHeadingTitle(hContent);
-        if (headingText) currentTitle = headingText;
 
         if (tagLevel > 0 && tagLevel <= levelNum) {
-          if (lastSeenLevel !== 0 && tagLevel <= lastSeenLevel) {
-             sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
+          // 버퍼 내부에 헤딩(h1~h6) 외의 실제 본문 콘텐츠(<p>, <img> 등)가 있는지 확인
+          const contentWithoutHeadings = buffer.replace(/<h[1-6]\b[^>]*>.*?<\/h[1-6]>/gi, '').trim();
+          const hasContent = contentWithoutHeadings.length > 0;
+
+          // 1. 현재 헤딩이 이전 헤딩보다 상위/동일 레벨이거나 (예: h2 -> h2, h3 -> h2)
+          // 2. 버퍼 내부에 실제 본문 콘텐츠가 이미 존재하는 경우 (예: h1 -> (본문) -> h3)
+          // 챕터를 분리하여 독립된 페이지로 렌더링합니다.
+          if ((lastSeenLevel !== 0 && tagLevel <= lastSeenLevel) || (lastSeenLevel !== 0 && hasContent) || (lastSeenLevel === 0 && hasContent)) {
+             if (buffer.trim()) {
+               sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
+             }
              buffer = '';
           }
           lastSeenLevel = tagLevel;
-          }
-          buffer += hTag + hContent;
         }
-      // 남은 버퍼가 있는 경우 (마지막 상위 레벨 헤딩 뒱)
-    if (buffer.replace(/<[^>]*>/g, '').trim()) {
+        
+        if (headingText) currentTitle = headingText;
+        buffer += hTag + hContent;
+      }
+      // 남은 버퍼가 있는 경우
+    if (buffer.trim()) {
       sections.push({ id: `section${sectionIdx++}`, html: buffer, title: currentTitle });
     }
   } else {
-    // 단원 분할을 사용하지 않는 경우 단일 챕터로 생성
-    sections.push({
-      id: 'section1',
-      html: sanitizedBody,
-      title: title
-    });
+    // 개요수준 단원 분할은 안 하지만, 수동 페이지 나누기(---)는 챕터로 분할 처리
+    const manualBreakRegex = /(<hr\b[^>]*class="[^"]*page-break[^"]*"[^>]*>)/gi;
+    const parts = sanitizedBody.split(manualBreakRegex);
+    if (parts.length > 1) {
+      let buffer = parts[0];
+      let sectionIdx = 1;
+      
+      for (let i = 1; i < parts.length; i += 2) {
+        // parts[i] is the <hr> tag, parts[i+1] is the content after it
+        if (buffer.trim()) {
+          sections.push({ id: `section${sectionIdx++}`, html: buffer, title: title });
+        }
+        buffer = parts[i + 1] || '';
+      }
+      if (buffer.trim()) {
+        sections.push({ id: `section${sectionIdx++}`, html: buffer, title: title });
+      }
+    } else {
+      sections.push({
+        id: 'section1',
+        html: sanitizedBody,
+        title: title
+      });
+    }
   }
 
   if (sections.length === 0) {
@@ -351,14 +412,14 @@ export async function generateEpub({
     <link rel="stylesheet" type="text/css" href="../styles/style.css" />
   </head>
   <body>
-    <section class="epub-body markdown-viewer-root prose">
+    <section class="custom-preview-container epub-body markdown-viewer-root prose" style="width: 100%; max-width: none; margin: 0 auto; padding: 0;">
       ${sec.html}
     </section>
   </body>
 </html>`;
     zip.file(`OEBPS/text/${sec.id}.xhtml`, sectionHtml);
     
-    manifestSectionItems.push(`<item id="${sec.id}" href="text/${sec.id}.xhtml" media-type="application/xhtml+xml" properties="math svg"/>`);
+    manifestSectionItems.push(`<item id="${sec.id}" href="text/${sec.id}.xhtml" media-type="application/xhtml+xml"/>`);
     spineSectionItems.push(`<itemref idref="${sec.id}"/>`);
   });
 
@@ -624,6 +685,7 @@ del {
   // EPUB은 물리적 XHTML 파일 분할으로 챕터를 분리하므로 CSS page-break 불필요.
   // CSS page-break를 적용하면 동일 섹션 내부에서 헤딩이 또 나뉘어지는 부작용이 발생함.
   // (h1 다음 h2가 있는 쬫 섹션에서 h2에 page-break가 걸리면 h1만 따로 페이지가 됨)
+  epubCss = epubCss.replace(/page-break-before\s*:\s*[^;]+;/gi, '').replace(/break-before\s*:\s*[^;]+;/gi, '');
 
   styleCss += `\n\n/* 사용자 지정 CSS 프로필 */\n${epubCss}`;
   }

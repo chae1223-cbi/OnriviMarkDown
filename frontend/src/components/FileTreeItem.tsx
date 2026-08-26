@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/virtualFileSystem';
@@ -53,6 +54,19 @@ const FileTreeItem = ({
   
   const [isOpen, setIsOpen] = useState(false);
   const [localChildren, setLocalChildren] = useState<FileNode[] | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const handleClose = () => setContextMenu(null);
+    if (contextMenu) {
+      window.addEventListener('click', handleClose);
+      window.addEventListener('close-context-menus', handleClose);
+      return () => {
+        window.removeEventListener('click', handleClose);
+        window.removeEventListener('close-context-menus', handleClose);
+      };
+    }
+  }, [contextMenu]);
 
   // ====================================================================
   // 📊 [OMD-FILE-FileTreeItem-0002] FileTreeItem ➔ useEffect (syncChildren)
@@ -752,6 +766,13 @@ const FileTreeItem = ({
           fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
         }}
         onClick={handleClick}
+        onContextMenu={(e) => {
+          if (isMergeMode || isRestrictedUser) return;
+          e.preventDefault();
+          e.stopPropagation();
+          window.dispatchEvent(new CustomEvent('close-context-menus'));
+          setContextMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <span className="w-3.5 h-3.5 flex items-center justify-center mr-0.5 opacity-60 origin-center">
           {node.kind === 'directory' ? (
@@ -775,58 +796,82 @@ const FileTreeItem = ({
         
         <span className="ml-1.5 truncate text-[12px] font-bold text-left flex-1">{node.name}</span>
 
-        {/* Hover Actions */}
-        {!isMergeMode && !isRestrictedUser && (() => {
-          // 탭에 열려있는지 확인
-          const isOpenInTab = !!node.path && !!openTabPaths?.length && (() => {
-            const normPath = node.path.replace(/\\/g, '/');
-            if (node.kind === 'directory') {
-              return openTabPaths.some(tp => {
-                const normTp = tp.replace(/\\/g, '/');
-                return normTp === normPath || normTp.startsWith(normPath + '/');
-              });
-            }
-            return openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath);
-          })();
+        {/* Context Menu Portal */}
+        {contextMenu && !isMergeMode && !isRestrictedUser && createPortal(
+          <div
+            className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+            style={{ 
+              top: Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 150 : contextMenu.y), 
+              left: Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 180 : contextMenu.x) 
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            {(() => {
+              // 탭에 열려있는지 확인
+              const isOpenInTab = !!node.path && !!openTabPaths?.length && (() => {
+                const normPath = node.path.replace(/\\/g, '/');
+                if (node.kind === 'directory') {
+                  return openTabPaths.some(tp => {
+                    const normTp = tp.replace(/\\/g, '/');
+                    return normTp === normPath || normTp.startsWith(normPath + '/');
+                  });
+                }
+                return openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath);
+              })();
 
-          return (
-            <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              {node.kind === 'directory' && (
-                <>
+              return (
+                <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium">
+                  {node.kind === 'directory' && (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleCreateFile(e); }}
+                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                      >
+                        <img src="/icons/icon-file-plus.png" width={16} height={16} alt="새 파일" className="opacity-90" />
+                        <span>새 파일</span>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleCreateFolder(e); }}
+                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                      >
+                        <img src="/icons/icon-folder-plus.png" width={16} height={16} alt="새 폴더" className="opacity-90" />
+                        <span>새 폴더</span>
+                      </button>
+                    </>
+                  )}
                   <button
-                    onClick={handleCreateFile}
-                    className="p-1 rounded transition-all hover:scale-110 active:scale-95"
-                    title="새 파일"
+                    onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleRename(e); }}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-amber-50 dark:hover:bg-white/5 w-full text-left transition-colors"
                   >
-                    <img src="/icons/icon-file-plus.png" width={20} height={20} alt="새 파일" className="rounded-md" />
+                    <img src="/icons/icon-rename.png" width={16} height={16} alt="이름 변경" className="opacity-90" />
+                    <span>이름 변경</span>
                   </button>
                   <button
-                    onClick={handleCreateFolder}
-                    className="p-1 rounded transition-all hover:scale-110 active:scale-95"
-                    title="새 폴더"
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      if (!isOpenInTab) {
+                        setContextMenu(null); 
+                        handleDelete(e); 
+                      }
+                    }}
+                    disabled={isOpenInTab}
+                    className={`flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors ${
+                      isOpenInTab 
+                        ? 'opacity-40 cursor-not-allowed' 
+                        : 'hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400'
+                    }`}
+                    title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
                   >
-                    <img src="/icons/icon-folder-plus.png" width={20} height={20} alt="새 폴더" className="rounded-md" />
+                    <img src="/icons/icon-delete.png" width={16} height={16} alt="삭제" className={`opacity-90 ${isOpenInTab ? 'grayscale' : ''}`} />
+                    <span>삭제</span>
                   </button>
-                </>
-              )}
-              <button
-                onClick={handleRename}
-                className="p-1 rounded transition-all hover:scale-110 active:scale-95"
-                title="이름 변경"
-              >
-                <img src="/icons/icon-rename.png" width={20} height={20} alt="이름 변경" className="rounded-md" />
-              </button>
-              <button
-                onClick={isOpenInTab ? undefined : handleDelete}
-                disabled={isOpenInTab}
-                className={`p-1 rounded transition-all ${isOpenInTab ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
-                title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
-              >
-                <img src="/icons/icon-delete.png" width={20} height={20} alt="삭제" className={`rounded-md ${isOpenInTab ? 'grayscale' : ''}`} />
-              </button>
-            </div>
-          );
-        })()}
+                </div>
+              );
+            })()}
+          </div>,
+          document.body
+        )}
       </div>
 
       {node.kind === 'directory' && isOpen && (() => {

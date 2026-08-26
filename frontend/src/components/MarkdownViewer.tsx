@@ -500,15 +500,15 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
 
 
   return (
-    <div className="codeblock-area my-4 rounded-lg bg-blue-50/20 dark:bg-black/20 overflow-hidden shadow-sm select-text max-w-full">
+    <div className="codeblock-area group my-4 rounded-lg bg-blue-50/20 dark:bg-black/20 overflow-hidden shadow-sm select-text max-w-full">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
-      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 dark:bg-white/5">
+      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 dark:bg-white/5 h-9">
         <span className="codeblock-header-text text-xs font-semibold text-blue-600 dark:text-blue-300 uppercase tracking-wider">
           {lang || 'plaintext'}
         </span>
         <button
             onClick={handleCopy}
-            className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
+            className="copy-button-hook px-2.5 py-1 bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 rounded opacity-60 hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 font-medium no-print"
             title="복사"
             style={{ userSelect: 'none' }}
           >

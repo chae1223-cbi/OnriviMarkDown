@@ -88,7 +88,7 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar ➔ StatusBar
 // 🎯 @KICK  : 상태 표시줄 컴포넌트 - 글자 수, 단어 수, 저장 상태, 라인/컬럼 정보, 테마, 프리뷰 모드 표시
 // 🛡️ @GUARD : StatusBarProps 인터페이스로 props 타입 검증
-// 🚨 @PATCH : **2026-08-12** — 에디터 타이핑 중 상태바 서식 텍스트가 깜빡거리며 깜빡임/언마운트되는 현상을 이전 유효 서식명을 캐싱하는 Ref 기반 리텐션 가드 및 고정 렌더링으로 개편 완벽 해결;
+// 🚨 @PATCH : **2026-08-26** — StatusBar에서 커서 위치 동기화(setLocalCursor) 시 이전 값과 동일하면 업데이트를 무시하도록 방어 로직을 추가하여 무한 렌더링(Maximum update depth exceeded) 에러 해결; **2026-08-12** — 에디터 타이핑 중 상태바 서식 텍스트가 깜빡거리며 깜빡임/언마운트되는 현상을 이전 유효 서식명을 캐싱하는 Ref 기반 리텐션 가드 및 고정 렌더링으로 개편 완벽 해결;
 // 🔗 @CALLS : getFullPath, t
 // ====================================================================
 export default function StatusBar() {
@@ -128,11 +128,19 @@ export default function StatusBar() {
       const editor = editorRef?.current || (window as any).monaco?.editor?.getEditors?.()?.[0];
       if (editor) {
         disposable = editor.onDidChangeCursorPosition((e: any) => {
-          setLocalCursor({ line: e.position.lineNumber, column: e.position.column });
+          setLocalCursor(prev => {
+            if (prev.line === e.position.lineNumber && prev.column === e.position.column) return prev;
+            return { line: e.position.lineNumber, column: e.position.column };
+          });
         });
         // 현재 위치 동기화
         const pos = editor.getPosition();
-        if (pos) setLocalCursor({ line: pos.lineNumber, column: pos.column });
+        if (pos) {
+          setLocalCursor(prev => {
+            if (prev.line === pos.lineNumber && prev.column === pos.column) return prev;
+            return { line: pos.lineNumber, column: pos.column };
+          });
+        }
       } else {
         // 에디터가 아직 마운트되지 않은 경우 0.5초 후 재시도
         setTimeout(attachListener, 500);

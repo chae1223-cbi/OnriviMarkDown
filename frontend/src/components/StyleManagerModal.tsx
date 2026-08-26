@@ -291,23 +291,23 @@ ${guideContent}
         <div className={`w-[280px] shrink-0 border-r ${border} ${sidebarBg} flex flex-col overflow-hidden`}>
           <div className={`px-4 py-3 flex items-center justify-between border-b ${border}`}>
             <span className={`text-[11px] font-bold tracking-widest uppercase ${textSub}`}>등록된 서식</span>
-            <div className="flex items-center gap-1">
-              {onDeleteProfile && !isSystem && (
-                <button
-                  onClick={handleDeleteClick}
-                  className={`p-1.5 rounded-md transition-colors ${dk ? 'text-red-400 hover:text-red-300 hover:bg-red-900/30' : 'text-red-500 hover:text-red-600 hover:bg-red-50'}`}
-                  title="현재 선택된 서식 삭제"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
+            <div className="flex items-center gap-0">
               {onAddProfile && (
                 <button
                   onClick={onAddProfile}
-                  className={`p-1.5 rounded-md transition-colors ${dk ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'}`}
+                  className={`p-1 rounded-md transition-colors ${dk ? 'hover:bg-zinc-800' : 'hover:bg-slate-200'}`}
                   title="새 서식 추가"
                 >
-                  <Plus className="w-4 h-4" />
+                  <img src="/icons/icon-file-plus.png" width={16} height={16} alt="새 서식" className="opacity-90" />
+                </button>
+              )}
+              {onDeleteProfile && !isSystem && (
+                <button
+                  onClick={handleDeleteClick}
+                  className={`p-1 rounded-md transition-colors ${dk ? 'hover:bg-red-900/30' : 'hover:bg-red-50'}`}
+                  title="현재 선택된 서식 삭제"
+                >
+                  <img src="/icons/icon-delete.png" width={16} height={16} alt="삭제" className="opacity-90" />
                 </button>
               )}
             </div>
@@ -406,8 +406,8 @@ ${guideContent}
                       disabled={isSystem}
                       className={btnSecondary}
                     >
-                      <div className="flex items-center gap-1.5">
-                        <Edit2 className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-2">
+                        <img src="/icons/icon-rename.png" width={14} height={14} alt="이름 변경" className="opacity-90" />
                         이름 변경
                       </div>
                     </button>
@@ -423,22 +423,26 @@ ${guideContent}
                 
                 <div className="grid grid-cols-2 gap-4">
                   {/* JSON 파일 가져오기 */}
-                  <div className={`p-5 rounded-xl border ${border} ${dk ? 'bg-zinc-900/30 hover:bg-zinc-900/50' : 'bg-slate-50 hover:bg-slate-100/70'} transition-colors group cursor-pointer`} onClick={() => fileInputRef.current?.click()}>
-                    <div className={`w-8 h-8 rounded-lg mb-3 flex items-center justify-center ${dk ? 'bg-zinc-800 text-zinc-300' : 'bg-white shadow-sm text-slate-600 border border-slate-200'}`}>
-                      <Upload className="w-4 h-4" />
+                  <div className={`p-4 rounded-xl border ${border} ${dk ? 'bg-zinc-900/30 hover:bg-zinc-900/50' : 'bg-slate-50 hover:bg-slate-100/70'} transition-colors group cursor-pointer flex items-center gap-3`} onClick={() => fileInputRef.current?.click()}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-transparent shrink-0`}>
+                      <img src="/icons/icon-import.png" width={24} height={24} alt="가져오기" className="opacity-90" />
                     </div>
-                    <h4 className={`text-[13px] font-bold ${textMain} mb-1`}>파일 불러오기</h4>
-                    <p className={`text-[11px] ${textSub} leading-relaxed`}>기기에 저장된 서식 JSON 파일을 로드합니다.</p>
+                    <div>
+                      <h4 className={`text-[13px] font-bold ${textMain}`}>파일 불러오기</h4>
+                      <p className={`text-[11px] ${textSub} leading-relaxed mt-0.5`}>기기에 저장된 서식 JSON 파일을 로드합니다.</p>
+                    </div>
                     <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
                   </div>
 
                   {/* 내보내기 */}
-                  <div className={`p-5 rounded-xl border ${border} ${dk ? 'bg-zinc-900/30 hover:bg-zinc-900/50' : 'bg-slate-50 hover:bg-slate-100/70'} transition-colors group cursor-pointer`} onClick={handleExport}>
-                    <div className={`w-8 h-8 rounded-lg mb-3 flex items-center justify-center ${dk ? 'bg-zinc-800 text-zinc-300' : 'bg-white shadow-sm text-slate-600 border border-slate-200'}`}>
+                  <div className={`p-4 rounded-xl border ${border} ${dk ? 'bg-zinc-900/30 hover:bg-zinc-900/50' : 'bg-slate-50 hover:bg-slate-100/70'} transition-colors group cursor-pointer flex items-center gap-3`} onClick={handleExport}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${dk ? 'bg-zinc-800 text-zinc-300' : 'bg-white shadow-sm text-slate-600 border border-slate-200'} shrink-0`}>
                       <Download className="w-4 h-4" />
                     </div>
-                    <h4 className={`text-[13px] font-bold ${textMain} mb-1`}>파일 내보내기</h4>
-                    <p className={`text-[11px] ${textSub} leading-relaxed`}>현재 서식을 JSON 파일로 기기에 저장합니다.</p>
+                    <div>
+                      <h4 className={`text-[13px] font-bold ${textMain}`}>파일 내보내기</h4>
+                      <p className={`text-[11px] ${textSub} leading-relaxed mt-0.5`}>현재 서식을 JSON 파일로 기기에 저장합니다.</p>
+                    </div>
                   </div>
                 </div>
 

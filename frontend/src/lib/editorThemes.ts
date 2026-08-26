@@ -15,28 +15,29 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     icon: '☀️',
     isDark: false,
     base: 'vs',
-          rules: [
-        { token: '', foreground: '1e293b' },
-        { token: 'keyword', fontStyle: 'bold', foreground: '6366f1' }, // Headings & Keywords
-        { token: 'keyword.markdown', fontStyle: 'bold', foreground: '6366f1' },
-        { token: 'comment', fontStyle: 'italic', foreground: '64748b' }, // Quotes
-        { token: 'comment.markdown', fontStyle: 'italic', foreground: '64748b' },
-        { token: 'strong', fontStyle: 'bold', foreground: '0f172a' }, // Bold
-        { token: 'strong.markdown', fontStyle: 'bold', foreground: '0f172a' },
-        { token: 'emphasis', fontStyle: 'italic', foreground: '059669' }, // Italic
-        { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '059669' },
-        { token: 'string.link', fontStyle: 'underline', foreground: '2563eb' }, // Links
-        { token: 'string.link.markdown', fontStyle: 'underline', foreground: '2563eb' },
-        { token: 'string', foreground: '2563eb' },
-        { token: 'variable', foreground: 'd946ef' }, // Code blocks
-        { token: 'variable.source', foreground: 'd946ef' },
-        { token: 'type', foreground: 'ea580c' }, // List markers / html tags
-        { token: 'type.markdown', foreground: 'ea580c' },
-        { token: 'meta', foreground: '0ea5e9' }, // Light blue for metadata
-        { token: 'meta.content', foreground: '0ea5e9' },
-        { token: 'meta.separator', foreground: '0284c7', fontStyle: 'bold' },
-
-      ],
+    rules: [
+      { token: '', foreground: '1e293b' },
+      { token: 'keyword', fontStyle: 'bold', foreground: '4f46e5' }, // 헤더/키워드 (강렬한 로열 블루)
+      { token: 'keyword.markdown', fontStyle: 'bold', foreground: '4f46e5' },
+      { token: 'comment', fontStyle: 'italic', foreground: '78716c' }, // 인용구 (돌빛 회색)
+      { token: 'comment.markdown', fontStyle: 'italic', foreground: '78716c' },
+      { token: 'strong', fontStyle: 'bold', foreground: 'db2777' }, // Bold (진한 핑크)
+      { token: 'strong.markdown', fontStyle: 'bold', foreground: 'db2777' },
+      { token: 'emphasis', fontStyle: 'italic', foreground: '059669' }, // Italic (청록색)
+      { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '059669' },
+      { token: 'string.link', fontStyle: 'underline', foreground: '2563eb' }, // 링크 주소 (블루)
+      { token: 'string.link.markdown', fontStyle: 'underline', foreground: '2563eb' },
+      { token: 'string', foreground: '1e293b' }, // 일반 텍스트
+      { token: 'variable', foreground: '7c3aed' }, // 코드 블록 / 인라인 코드 (자수정 보라)
+      { token: 'variable.source', foreground: '7c3aed' },
+      { token: 'type', foreground: 'ea580c', fontStyle: 'bold' }, // 리스트 기호 (오렌지)
+      { token: 'type.markdown', foreground: 'ea580c', fontStyle: 'bold' },
+      { token: 'tag', foreground: '0ea5e9' }, // HTML 태그 (하늘색)
+      { token: 'tag.markdown', foreground: '0ea5e9' },
+      { token: 'meta', foreground: '0891b2' }, // 메타데이터
+      { token: 'meta.content', foreground: '0891b2' },
+      { token: 'meta.separator', foreground: '0891b2', fontStyle: 'bold' },
+    ],
     colors: {
       'editor.background': '#ffffff',
       'editor.foreground': '#1e293b',
@@ -55,17 +56,23 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     base: 'vs',
     rules: [
       { token: '', foreground: '657B83' },
-      { token: 'keyword', fontStyle: '', foreground: 'CB4B16' },
-      { token: 'keyword.markdown', fontStyle: '', foreground: 'CB4B16' },
-      { token: 'comment', fontStyle: '', foreground: '859900' },
-      { token: 'comment.markdown', fontStyle: '', foreground: '859900' },
-      { token: 'strong', fontStyle: '', foreground: 'ffffff' },
-      { token: 'strong.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'emphasis', fontStyle: '', foreground: 'ffffff' },
-      { token: 'emphasis.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string.link', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string.link.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string', fontStyle: '', foreground: 'D33682' },
+      { token: 'keyword', fontStyle: 'bold', foreground: 'CB4B16' }, // 헤더/키워드 (황토 오렌지)
+      { token: 'keyword.markdown', fontStyle: 'bold', foreground: 'CB4B16' },
+      { token: 'comment', fontStyle: 'italic', foreground: '859900' }, // 인용구/의견 (올리브 그린)
+      { token: 'comment.markdown', fontStyle: 'italic', foreground: '859900' },
+      { token: 'strong', fontStyle: 'bold', foreground: 'b58900' }, // Bold (황금 옐로우)
+      { token: 'strong.markdown', fontStyle: 'bold', foreground: 'b58900' },
+      { token: 'emphasis', fontStyle: 'italic', foreground: '2aa198' }, // Italic (청록 민트)
+      { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '2aa198' },
+      { token: 'string.link', fontStyle: 'underline', foreground: '268bd2' }, // 링크 (솔라 블루)
+      { token: 'string.link.markdown', fontStyle: 'underline', foreground: '268bd2' },
+      { token: 'string', foreground: '657B83' },
+      { token: 'variable', foreground: 'd33682' }, // 코드 블록 (매젠타 핑크)
+      { token: 'variable.source', foreground: 'd33682' },
+      { token: 'type', foreground: 'cb4b16', fontStyle: 'bold' }, // 리스트 (레드 오렌지)
+      { token: 'type.markdown', foreground: 'cb4b16', fontStyle: 'bold' },
+      { token: 'tag', foreground: '2aa198' }, // HTML 태그
+      { token: 'tag.markdown', foreground: '2aa198' },
     ],
     colors: {
       'editor.background': '#FDF6E3',
@@ -87,17 +94,23 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     base: 'vs',
     rules: [
       { token: '', foreground: '24292E' },
-      { token: 'keyword', fontStyle: '', foreground: '6F42C1' },
-      { token: 'keyword.markdown', fontStyle: '', foreground: '6F42C1' },
-      { token: 'comment', fontStyle: '', foreground: '22863A' },
-      { token: 'comment.markdown', fontStyle: '', foreground: '22863A' },
-      { token: 'strong', fontStyle: '', foreground: 'D73A49' },
-      { token: 'strong.markdown', fontStyle: '', foreground: 'D73A49' },
-      { token: 'emphasis', fontStyle: '', foreground: '005CC5' },
-      { token: 'emphasis.markdown', fontStyle: '', foreground: '005CC5' },
-      { token: 'string.link', fontStyle: '', foreground: '032F62' },
-      { token: 'string.link.markdown', fontStyle: '', foreground: '032F62' },
-      { token: 'string', fontStyle: '', foreground: 'CB4B16' },
+      { token: 'keyword', fontStyle: 'bold', foreground: '6f42c1' }, // 헤더/키워드 (짙은 보라)
+      { token: 'keyword.markdown', fontStyle: 'bold', foreground: '6f42c1' },
+      { token: 'comment', fontStyle: 'italic', foreground: '28a745' }, // 인용구 (그린)
+      { token: 'comment.markdown', fontStyle: 'italic', foreground: '28a745' },
+      { token: 'strong', fontStyle: 'bold', foreground: 'd73a49' }, // Bold (레드)
+      { token: 'strong.markdown', fontStyle: 'bold', foreground: 'd73a49' },
+      { token: 'emphasis', fontStyle: 'italic', foreground: '005cc5' }, // Italic (딥 블루)
+      { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '005cc5' },
+      { token: 'string.link', fontStyle: 'underline', foreground: '032f62' }, // 링크
+      { token: 'string.link.markdown', fontStyle: 'underline', foreground: '032f62' },
+      { token: 'string', foreground: '24292E' },
+      { token: 'variable', foreground: 'e36209' }, // 코드 블록 (오렌지 브라운)
+      { token: 'variable.source', foreground: 'e36209' },
+      { token: 'type', foreground: 'd73a49', fontStyle: 'bold' }, // 리스트 기호
+      { token: 'type.markdown', foreground: 'd73a49', fontStyle: 'bold' },
+      { token: 'tag', foreground: '22863a' }, // HTML 태그
+      { token: 'tag.markdown', foreground: '22863a' },
     ],
     colors: {
       'editor.background': '#FFFFFF',
@@ -117,28 +130,29 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     icon: '🐨',
     isDark: true,
     base: 'vs-dark',
-          rules: [
-        { token: '', foreground: 'e2e8f0' },
-        { token: 'keyword', fontStyle: 'bold', foreground: '818cf8' }, // Headings
-        { token: 'keyword.markdown', fontStyle: 'bold', foreground: '818cf8' },
-        { token: 'comment', fontStyle: 'italic', foreground: '94a3b8' }, // Quotes
-        { token: 'comment.markdown', fontStyle: 'italic', foreground: '94a3b8' },
-        { token: 'strong', fontStyle: 'bold', foreground: 'f8fafc' }, // Bold
-        { token: 'strong.markdown', fontStyle: 'bold', foreground: 'f8fafc' },
-        { token: 'emphasis', fontStyle: 'italic', foreground: '34d399' }, // Italic
-        { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '34d399' },
-        { token: 'string.link', fontStyle: 'underline', foreground: '60a5fa' }, // Links
-        { token: 'string.link.markdown', fontStyle: 'underline', foreground: '60a5fa' },
-        { token: 'string', foreground: '60a5fa' },
-        { token: 'variable', foreground: 'e879f9' }, // Code blocks
-        { token: 'variable.source', foreground: 'e879f9' },
-        { token: 'type', foreground: 'fb923c' }, // List markers
-        { token: 'type.markdown', foreground: 'fb923c' },
-        { token: 'meta', foreground: '38bdf8' }, // Light blue for metadata
-        { token: 'meta.content', foreground: '38bdf8' },
-        { token: 'meta.separator', foreground: '7dd3fc', fontStyle: 'bold' },
-
-      ],
+    rules: [
+      { token: '', foreground: 'e2e8f0' },
+      { token: 'keyword', fontStyle: 'bold', foreground: 'f69d50' }, // 헤더/키워드 (선명한 살구 오렌지)
+      { token: 'keyword.markdown', fontStyle: 'bold', foreground: 'f69d50' },
+      { token: 'comment', fontStyle: 'italic', foreground: '768390' }, // 인용구 (차분한 그레이)
+      { token: 'comment.markdown', fontStyle: 'italic', foreground: '768390' },
+      { token: 'strong', fontStyle: 'bold', foreground: 'ec4899' }, // Bold (화려한 매젠타)
+      { token: 'strong.markdown', fontStyle: 'bold', foreground: 'ec4899' },
+      { token: 'emphasis', fontStyle: 'italic', foreground: '34d399' }, // Italic (민트 그린)
+      { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '34d399' },
+      { token: 'string.link', fontStyle: 'underline', foreground: '58a6ff' }, // 링크
+      { token: 'string.link.markdown', fontStyle: 'underline', foreground: '58a6ff' },
+      { token: 'string', foreground: 'adbac7' },
+      { token: 'variable', foreground: 'd3b887' }, // 코드 블록 (브론즈 골드)
+      { token: 'variable.source', foreground: 'd3b887' },
+      { token: 'type', foreground: 'ff7b72', fontStyle: 'bold' }, // 리스트 기호 (체리 레드)
+      { token: 'type.markdown', foreground: 'ff7b72', fontStyle: 'bold' },
+      { token: 'tag', foreground: '56b6c2' }, // HTML 태그 (아쿠아)
+      { token: 'tag.markdown', foreground: '56b6c2' },
+      { token: 'meta', foreground: 'a5d6ff' }, // 메타데이터
+      { token: 'meta.content', foreground: 'a5d6ff' },
+      { token: 'meta.separator', foreground: 'a5d6ff', fontStyle: 'bold' },
+    ],
     colors: {
       'editor.background': '#22272E',
       'editor.foreground': '#ADBAC7',
@@ -158,18 +172,24 @@ export const EDITOR_THEMES: ThemeDefinition[] = [
     isDark: true,
     base: 'vs-dark',
     rules: [
-      { token: '', foreground: 'ffffff' },
-      { token: 'keyword', fontStyle: '', foreground: 'ffffff' },
-      { token: 'keyword.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'comment', fontStyle: '', foreground: 'ffffff' },
-      { token: 'comment.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'strong', fontStyle: '', foreground: 'ffffff' },
-      { token: 'strong.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'emphasis', fontStyle: '', foreground: 'ffffff' },
-      { token: 'emphasis.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string.link', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string.link.markdown', fontStyle: '', foreground: 'ffffff' },
-      { token: 'string', fontStyle: '', foreground: 'ffffff' },
+      { token: '', foreground: '839496' },
+      { token: 'keyword', fontStyle: 'bold', foreground: 'cb4b16' }, // 헤더/키워드 (오렌지)
+      { token: 'keyword.markdown', fontStyle: 'bold', foreground: 'cb4b16' },
+      { token: 'comment', fontStyle: 'italic', foreground: '586e75' }, // 인용구
+      { token: 'comment.markdown', fontStyle: 'italic', foreground: '586e75' },
+      { token: 'strong', fontStyle: 'bold', foreground: '268bd2' }, // Bold (블루)
+      { token: 'strong.markdown', fontStyle: 'bold', foreground: '268bd2' },
+      { token: 'emphasis', fontStyle: 'italic', foreground: '859900' }, // Italic (그린)
+      { token: 'emphasis.markdown', fontStyle: 'italic', foreground: '859900' },
+      { token: 'string.link', fontStyle: 'underline', foreground: '2aa198' }, // 링크
+      { token: 'string.link.markdown', fontStyle: 'underline', foreground: '2aa198' },
+      { token: 'string', foreground: '839496' },
+      { token: 'variable', foreground: 'd33682' }, // 코드 블록 (매젠타)
+      { token: 'variable.source', foreground: 'd33682' },
+      { token: 'type', foreground: 'b58900', fontStyle: 'bold' }, // 리스트 (옐로우)
+      { token: 'type.markdown', foreground: 'b58900', fontStyle: 'bold' },
+      { token: 'tag', foreground: '2aa198' }, // HTML 태그
+      { token: 'tag.markdown', foreground: '2aa198' },
     ],
     colors: {
       'editor.background': '#002B36',

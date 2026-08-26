@@ -684,6 +684,42 @@ option {
 
 .monaco-strikethrough-text { text-decoration: line-through !important; }
 
+/* ✏️ 모나코 에디터 코드 블록 및 인용구 라인 배경 스타일 */
+div.monaco-codeblock-line {
+  background-color: #f1f5f9 !important;
+  width: 100% !important;
+  left: 0 !important;
+}
+.vs-dark div.monaco-codeblock-line,
+.dark div.monaco-codeblock-line,
+.onrivi-dark div.monaco-codeblock-line {
+  background-color: #1e293b !important;
+}
+
+div.monaco-quote-line {
+  background-color: #f8fafc !important;
+  border-left: 4px solid #94a3b8 !important;
+  width: 100% !important;
+  left: 0 !important;
+}
+.vs-dark div.monaco-quote-line,
+.dark div.monaco-quote-line,
+.onrivi-dark div.monaco-quote-line {
+  background-color: #0f172a !important;
+  border-left: 4px solid #475569 !important;
+}
+
+div.monaco-table-line {
+  background-color: #f8fafc !important;
+  width: 100% !important;
+  left: 0 !important;
+}
+.vs-dark div.monaco-table-line,
+.dark div.monaco-table-line,
+.onrivi-dark div.monaco-table-line {
+  background-color: #0f172a !important;
+}
+
 /* 🛡️ 태스크 리스트 아이템의 중복 불릿 기호 제거 및 여백 보정 */
 .prose li.task-list-item {
   list-style-type: none !important;

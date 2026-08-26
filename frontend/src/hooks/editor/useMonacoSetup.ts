@@ -3,7 +3,7 @@
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 탭/스페이스 매칭 최적화
 // 🛡️ @GUARD : hasList 체크 후 순차적으로 이전 줄의 탭 깊이와 숫자를 비교하여 번호 갱신
-// 🚨 @PATCH : 2026-08-14 - 타이핑(Enter 등) 시 에디터 높이 변화로 인해 onDidScrollChange가 트리거되면서 미리보기가 비율 기반 스크롤로 튕기던 현상(Jumping)을 방지하기 위해 isTypingScrollLock 상태를 도입하여 타이핑 중에는 커서 위치 기반 스크롤(onDidChangeModelContent)만 100% 작동하도록 제어권 분리; 타이핑(입력) 시 미리보기 스크롤이 현재 커서 위치를 따라가도록 onDidChangeModelContent 내부에 디바운스된 스크롤 동기화 로직 추가하여 실시간 입력 시야 확보; 여러 줄이 선택된 상태에서 Enter 입력 시 리스트 자동완성이 오작동하는 문제를 해결하기 위해, 다중 행/텍스트 선택이 있는 경우 선택 영역을 삭제하고 줄바꿈(\n)으로 즉시 대치하도록 커스텀 Enter 단축키 동작 보강; 분할 영역에서 에디터의 마지막 줄 텍스트 입력 시, 미리보기의 scrollHeight 대신 getBoundingClientRect 기반 상대 좌표로 정확한 하단 여백 및 텍스트 실제 영역 크기를 계산하여, 텍스트가 시야에 들어오지 않고 위로 숨어 가려지던 동기화 결함 완벽 해결 | 2026-08-13 - 중복되던 커서 변경 연동 리스너(onDidChangeCursorPosition)를 영구 폐기하고, 오직 단 하나의 스크롤 이벤트(onDidScrollChange) 내부에 1:1 오프셋 탑 매핑 공식(firstVisible)만을 깔끔하게 부착하여 양방향 스크롤 요동 및 점프 버그를 근본적으로 종식함 | 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
+// 🚨 @PATCH : 2026-08-26 - 에디터 최초 로드 및 탭/파일 전환(모델 교체) 시점에 구문 강조 및 코드블럭/인용구 배경색이 즉각 렌더링되도록 onDidChangeModel 이벤트 리스너를 결합해 수정 | 2026-08-14 - 타이핑(Enter 등) 시 에디터 높이 변화로 인해 onDidScrollChange가 트리거되면서 미리보기가 비율 기반 스크롤로 튕기던 현상(Jumping)을 방지하기 위해 isTypingScrollLock 상태를 도입하여 타이핑 중에는 커서 위치 기반 스크롤(onDidChangeModelContent)만 100% 작동하도록 제어권 분리; 타이핑(입력) 시 미리보기 스크롤이 현재 커서 위치를 따라가도록 onDidChangeModelContent 내부에 디바운스된 스크롤 동기화 로직 추가하여 실시간 입력 시야 확보; 여러 줄이 선택된 상태에서 Enter 입력 시 리스트 자동완성이 오작동하는 문제를 해결하기 위해, 다중 행/텍스트 선택이 있는 경우 선택 영역을 삭제하고 줄바꿈(\n)으로 즉시 대치하도록 커스텀 Enter 단축키 동작 보강; 분할 영역에서 에디터의 마지막 줄 텍스트 입력 시, 미리보기의 scrollHeight 대신 getBoundingClientRect 기반 상대 좌표로 정확한 하단 여백 및 텍스트 실제 영역 크기를 계산하여, 텍스트가 시야에 들어오지 않고 위로 숨어 가려지던 동기화 결함 완벽 해결 | 2026-08-13 - 중복되던 커서 변경 연동 리스너(onDidChangeCursorPosition)를 영구 폐기하고, 오직 단 하나의 스크롤 이벤트(onDidScrollChange) 내부에 1:1 오프셋 탑 매핑 공식(firstVisible)만을 깔끔하게 부착하여 양방향 스크롤 요동 및 점프 버그를 근본적으로 종식함 | 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
 // 🔗 @CALLS : model.getLineContent, editor.executeEdits
 // ====================================================================
 import { useRef } from 'react';
@@ -404,6 +404,12 @@ export function useMonacoSetup(deps: any) {
                         isTypingScrollLock = false;
                       }, 500);
                     }
+                  });
+
+                  editor.onDidChangeModel(() => {
+                    requestAnimationFrame(() => {
+                      updateDecorations(editor);
+                    });
                   });
 
                   editor.onDidChangeModelContent(() => {
@@ -1344,7 +1350,25 @@ editor.onDidChangeCursorPosition((e) => {
                     const prevLine = prevCursorLineRef.current;
                     prevCursorLineRef.current = currentLine;
 
-                    // 💡 [OMD-SYNC-DEPRECATED] 커서 이동 시 동기화는 스크롤 이벤트(onDidScrollChange) 내부의 단일 정렬식으로 대통합되어 제거되었습니다.
+                    // 💡 [OMD-SYNC-DEPRECATED] 커서 이동 시 동기화는 기본적으로 스크롤(onDidScrollChange) 내부에서 처리되지만,
+                    // 에디터 내용이 짧아서 스크롤바가 없는 경우(editorMaxScroll <= 0)에는 커서 이벤트를 통한 동기화를 보완합니다.
+                    if (previewModeRef.current === 'both' && previewRef.current) {
+                      const layoutInfo = editor.getLayoutInfo();
+                      const viewportHeight = layoutInfo.height || 800;
+                      const scrollHeight = editor.getScrollHeight();
+                      const editorMaxScroll = scrollHeight - viewportHeight;
+                      
+                      if (editorMaxScroll <= 0) {
+                        const parent = previewRef.current;
+                        const el = parent.querySelector(`[data-line="${currentLine}"]`);
+                        if (el) {
+                          const parentRect = parent.getBoundingClientRect();
+                          const elTop = el.getBoundingClientRect().top - parentRect.top + parent.scrollTop;
+                          const targetScroll = elTop - (parent.clientHeight / 2) + (el.clientHeight / 2);
+                          parent.scrollTop = Math.max(0, targetScroll);
+                        }
+                      }
+                    }
 
                     // 💡 표(Table) 영역 이탈 시 자동 정렬 수행
                     if (prevLine && prevLine !== currentLine) {
@@ -1421,13 +1445,27 @@ editor.onDidChangeCursorPosition((e) => {
                           if (editorMaxScroll > 0) {
                             isScrollingRef.current = 'editor';
                             
-                            const firstVisible = range[0].startLineNumber;
+                            const scrollRatio = Math.max(0, Math.min(1, scrollTop / editorMaxScroll));
+                            const targetEditorY = scrollTop + viewportHeight * scrollRatio;
                             const totalLines = editor.getModel()?.getLineCount() || 1;
                             
-                            // 1. 현재 보이는 줄(firstVisible)과 같거나 위에 있는 가장 가까운 data-line 찾기 (요소 A)
+                            let targetLine = 1;
+                            const visibleRanges = editor.getVisibleRanges();
+                            if (visibleRanges && visibleRanges.length > 0) {
+                              let minDiff = Infinity;
+                              for (let line = visibleRanges[0].startLineNumber; line <= visibleRanges[visibleRanges.length - 1].endLineNumber; line++) {
+                                const top = editor.getTopForLineNumber(line);
+                                const diff = Math.abs(top - targetEditorY);
+                                if (diff < minDiff) {
+                                  minDiff = diff;
+                                  targetLine = line;
+                                }
+                              }
+                            }
+                            
                             let elA = null;
                             let lineA = 1;
-                            for (let line = firstVisible; line >= 1; line--) {
+                            for (let line = targetLine; line >= 1; line--) {
                               const found = parent.querySelector(`[data-line="${line}"]`);
                               if (found) {
                                 elA = found;
@@ -1436,10 +1474,9 @@ editor.onDidChangeCursorPosition((e) => {
                               }
                             }
                             
-                            // 2. 현재 보이는 줄(firstVisible)보다 아래에 있는 가장 가까운 data-line 찾기 (요소 B)
                             let elB = null;
-                            let lineB = totalLines;
-                            for (let line = firstVisible + 1; line <= totalLines; line++) {
+                            let lineB = totalLines + 1;
+                            for (let line = lineA + 1; line <= totalLines; line++) {
                               const found = parent.querySelector(`[data-line="${line}"]`);
                               if (found) {
                                 elB = found;
@@ -1448,33 +1485,27 @@ editor.onDidChangeCursorPosition((e) => {
                               }
                             }
                             
-                            if (elA) {
-                              const parentRect = parent.getBoundingClientRect();
-                              
-                              const topA = editor.getTopForLineNumber(lineA);
-                              const previewTopA = elA.getBoundingClientRect().top - parentRect.top + parent.scrollTop;
-                              
-                              let interpolatedScrollTop = previewTopA;
-                              
-                              if (elB && lineB > lineA) {
-                                const topB = editor.getTopForLineNumber(lineB);
-                                const previewTopB = elB.getBoundingClientRect().top - parentRect.top + parent.scrollTop;
-                                
-                                const editorRange = topB - topA;
-                                const previewRange = previewTopB - previewTopA;
-                                
-                                if (editorRange > 0) {
-                                  const progress = Math.max(0, Math.min(1, (scrollTop - topA) / editorRange));
-                                  interpolatedScrollTop = previewTopA + progress * previewRange;
-                                }
-                              } else {
-                                // 다음 요소가 없으면(문서 끝부분) 그냥 원래 비율대로 미세 조정
-                                const exactOffset = scrollTop - topA;
-                                interpolatedScrollTop = previewTopA + exactOffset;
-                              }
-                              
-                              parent.scrollTop = Math.max(0, interpolatedScrollTop);
+                            const parentRect = parent.getBoundingClientRect();
+                            const topA = lineA === 1 && !elA ? 0 : editor.getTopForLineNumber(lineA);
+                            const topB = elB ? editor.getTopForLineNumber(lineB) : scrollHeight;
+                            
+                            const previewTopA = elA ? (elA.getBoundingClientRect().top - parentRect.top + parent.scrollTop) : 0;
+                            const previewTopB = elB ? (elB.getBoundingClientRect().top - parentRect.top + parent.scrollTop) : parent.scrollHeight;
+                            
+                            const editorRange = topB - topA;
+                            const previewRange = previewTopB - previewTopA;
+                            
+                            let interpolatedPreviewTop = previewTopA;
+                            if (editorRange > 0) {
+                              const progress = Math.max(0, Math.min(1, (targetEditorY - topA) / editorRange));
+                              interpolatedPreviewTop = previewTopA + progress * previewRange;
                             }
+                            
+                            const previewMaxScroll = parent.scrollHeight - parent.clientHeight;
+                            let targetPreviewScroll = interpolatedPreviewTop - parent.clientHeight * scrollRatio;
+                            targetPreviewScroll = Math.max(0, Math.min(previewMaxScroll, targetPreviewScroll));
+                            
+                            parent.scrollTop = targetPreviewScroll;
                             
                             if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
                             scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);

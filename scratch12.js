@@ -1,0 +1,76 @@
+﻿const fs = require("fs");
+let content = fs.readFileSync("frontend/src/components/MainEditorApp.tsx", "utf8");
+
+// We want to replace from `const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];`
+// up to `editor.setScrollTop(interpolatedScrollTop);` and the two closing braces `}\n}`.
+
+const regex = /const elements = Array\.from\(target\.querySelectorAll\('\[data-line\]'\)\) as HTMLElement\[\];[\s\S]*?editor\.setScrollTop\(interpolatedScrollTop\);\s*\}\s*\}/;
+
+const newStr = `                          const previewScrollTop = target.scrollTop;
+                          const previewScrollHeight = target.scrollHeight;
+                          const previewViewportHeight = target.clientHeight;
+                          const previewMaxScroll = previewScrollHeight - previewViewportHeight;
+                          let scrollRatio = 0;
+                          if (previewMaxScroll > 0) {
+                            scrollRatio = previewScrollTop / previewMaxScroll;
+                          }
+                          const targetPreviewY = previewScrollTop + previewViewportHeight * scrollRatio;
+                          
+                          const elements = Array.from(target.querySelectorAll('[data-line]')) as HTMLElement[];
+                          let elA = null;
+                          let elB = null;
+                          const containerRect = target.getBoundingClientRect();
+                          
+                          for (let i = 0; i < elements.length; i++) {
+                            const rect = elements[i].getBoundingClientRect();
+                            const elementTop = rect.top - containerRect.top + previewScrollTop;
+                            if (elementTop > targetPreviewY) {
+                              break;
+                            }
+                            elA = elements[i];
+                          }
+                          
+                          if (elA && editorRef.current) {
+                            const editor = editorRef.current;
+                            const lineAStr = elA.getAttribute('data-line');
+                            if (lineAStr && typeof editor.getTopForLineNumber === 'function' && typeof editor.setScrollPosition === 'function') {
+                              const lineA = parseInt(lineAStr, 10);
+                              
+                              const indexA = elements.indexOf(elA);
+                              for (let j = indexA + 1; j < elements.length; j++) {
+                                const nextEl = elements[j];
+                                const lineBStr = nextEl.getAttribute('data-line');
+                                if (lineBStr && parseInt(lineBStr, 10) > lineA) {
+                                  elB = nextEl;
+                                  break;
+                                }
+                              }
+                              
+                              const topA = editor.getTopForLineNumber(lineA);
+                              const previewTopA = elA.getBoundingClientRect().top - containerRect.top + previewScrollTop;
+                              
+                              const scrollHeight = editor.getScrollHeight();
+                              const viewportHeight = editor.getLayoutInfo().height || 800;
+                              const editorMaxScroll = scrollHeight - viewportHeight;
+                              
+                              const topB = elB ? editor.getTopForLineNumber(parseInt(elB.getAttribute('data-line'), 10)) : scrollHeight;
+                              const previewTopB = elB ? (elB.getBoundingClientRect().top - containerRect.top + previewScrollTop) : previewScrollHeight;
+                              
+                              const previewRange = previewTopB - previewTopA;
+                              const editorRange = topB - topA;
+                              
+                              let interpolatedEditorTop = topA;
+                              if (previewRange > 0) {
+                                const progress = Math.max(0, Math.min(1, (targetPreviewY - previewTopA) / previewRange));
+                                interpolatedEditorTop = topA + progress * editorRange;
+                              }
+                              
+                              let targetEditorScroll = interpolatedEditorTop - viewportHeight * scrollRatio;
+                              targetEditorScroll = Math.max(0, Math.min(editorMaxScroll, targetEditorScroll));
+                              
+                              editor.setScrollTop(targetEditorScroll);
+                            }
+                          }`;
+
+content = content.replace(regex, newStr);
+fs.writeFileSync("frontend/src/components/MainEditorApp.tsx", content, "utf8");
