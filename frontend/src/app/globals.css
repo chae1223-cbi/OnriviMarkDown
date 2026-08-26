@@ -1494,3 +1494,22 @@ input::-ms-clear {
 .dark .codeblock-area code * {
   color: #ffffff !important;
 }
+
+/* 📌 모든 모달 백드롭 딤(Dim) 및 블러(Blur) 오버레이 일괄 제거 */
+.fixed[class*="z-"][class*="bg-black"],
+.fixed[class*="z-"][class*="backdrop-blur"],
+.fixed[class*="z-"] .absolute.inset-0[class*="bg-black"],
+.fixed[class*="z-"] .absolute.inset-0[class*="backdrop-blur"],
+.fixed.z-50[class*="bg-black"],
+.fixed.z-50 .absolute.inset-0[class*="bg-black"],
+.fixed[class*="z-"] div[className*="bg-black"],
+.fixed[class*="z-"] div[class*="bg-black"],
+.fixed[class*="z-"] .absolute.inset-0[class*="bg-background"],
+div[class*="z-[99999]"] .absolute.inset-0,
+div[class*="z-[9999]"] .absolute.inset-0,
+div[class*="z-[100]"] .absolute.inset-0 {
+  background-color: transparent !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
