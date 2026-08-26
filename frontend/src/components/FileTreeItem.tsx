@@ -36,7 +36,7 @@ interface FileTreeItemProps {
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
 // 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
-// 🚨 @PATCH : **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
+// 🚨 @PATCH : **2026-08-27** — 탐색기 새로고침/폴더 생성 시 전체 트리가 다시 패치되어 모든 노드가 강제 닫힘(Collapse) 상태로 초기화되어 파일/폴더 위치를 매번 다시 찾아야 하는 불편을 해결하기 위해, localStorage(onrivi_expanded_paths) 기반의 폴더 펼침(isOpen) 상태 영구 보존 및 동기화 구현하고 마운트 시 열린 폴더의 자식 노드 목록을 자동 비동기 지연 로딩(onLazyLoad) 복원하도록 이펙트 보완 및 부모 리팩토링 시 빈 자식 props 주입에 의해 기존 지연 로딩 데이터가 깡통(length=0)으로 덮어써져 사라지는 리셋 버그 차단 가드 적용; 파일/폴더 삭제 시 확인 모달 타이틀("폴더 삭제"/"파일 삭제") 및 메시지 본문("폴더를 정말 삭제하시겠습니까?"/"파일을 정말 삭제하시겠습니까?")을 노드 종류에 맞춰 분기하여 정확하게 표시하도록 갱신; 이름 변경(Rename) 시 팝업 프롬프트 제목 및 실패 토스트 피드백 문구에서 폴더와 파일을 명확히 분리("폴더의 새 이름을 입력하세요"/"파일의 새 이름을 입력하세요")하여 노출하도록 리펙토링; **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
 // 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
 // ====================================================================
 const FileTreeItem = ({ 
@@ -52,9 +52,61 @@ const FileTreeItem = ({
     return { ...rawNode, kind };
   }, [rawNode]);
   
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const saved = localStorage.getItem('onrivi_expanded_paths');
+      if (saved && node.path) {
+        const paths: string[] = JSON.parse(saved);
+        const normalizedPath = node.path.replace(/\\/g, '/');
+        return paths.some(p => p.replace(/\\/g, '/') === normalizedPath);
+      }
+    } catch (e) {
+      // Safe guard
+    }
+    return false;
+  });
+
   const [localChildren, setLocalChildren] = useState<FileNode[] | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  // 📌 폴더 펼침/접힘 상태 변경 시 localStorage 동기화
+  useEffect(() => {
+    if (node.kind !== 'directory' || !node.path) return;
+    try {
+      const saved = localStorage.getItem('onrivi_expanded_paths');
+      let paths: string[] = saved ? JSON.parse(saved) : [];
+      const normalizedPath = node.path.replace(/\\/g, '/');
+
+      if (isOpen) {
+        if (!paths.some(p => p.replace(/\\/g, '/') === normalizedPath)) {
+          paths.push(node.path);
+        }
+      } else {
+        paths = paths.filter(p => p.replace(/\\/g, '/') !== normalizedPath);
+      }
+      localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+    } catch (e) {
+      // Safe guard
+    }
+  }, [isOpen, node.path, node.kind]);
+
+  // 📌 폴더가 열려있는(isOpen) 상태로 복구되었는데 자식 데이터가 없는 경우 자동으로 비동기 지연 로드 복원
+  useEffect(() => {
+    if (isOpen && node.kind === 'directory' && !localChildren && onLazyLoad) {
+      setIsLoading(true);
+      onLazyLoad(node)
+        .then((children) => {
+          setLocalChildren(children);
+        })
+        .catch((err) => {
+          console.error("폴더 자동 갱신 실패", err);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }
+  }, [isOpen, node, localChildren, onLazyLoad]);
 
   useEffect(() => {
     const handleClose = () => setContextMenu(null);
@@ -76,10 +128,15 @@ const FileTreeItem = ({
   // 🔗 @CALLS : 없음
   // ====================================================================
   React.useEffect(() => {
-    if (node.children !== undefined) {
+    if (node.children !== undefined && node.children !== null) {
+      // 🛡️ [지연 로드 덮어쓰기 방어 가드] 이미 로컬로 지연 로딩 완료된 자식이 있는데,
+      // 부모로부터 빈 자식 목록(refresh 시의 깡통 노드)이 유입되면 덮어쓰지 않고 기존 자식을 유지함
+      if (node.children.length === 0 && localChildren && localChildren.length > 0) {
+        return;
+      }
       setLocalChildren(node.children);
     }
-  }, [node.children]);
+  }, [node.children, localChildren]);
   // ====================================================================
   // 📊 [OMD-FILE-FileTreeItem-0003] FileTreeItem ➔ refreshThisDirectory
   // 🎯 @KICK  : 현재 디렉토리 노드의 자식 목록을 지연 로딩(onLazyLoad)으로 갱신
@@ -363,10 +420,12 @@ const FileTreeItem = ({
 
   const handleRename = async (e: any) => {
     e.stopPropagation();
-    // 열린 탭 보호 해제: 이제 열려있는 문서도 이름 변경 가능합니다.
+    const isDir = node.kind === 'directory';
     setPromptConfig({
       isOpen: true,
-      title: `'${node.name}'의 새 이름을 입력하세요:`,
+      title: isDir 
+        ? `'${node.name}' 폴더의 새 이름을 입력하세요:` 
+        : `'${node.name}' 파일의 새 이름을 입력하세요:`,
       defaultValue: node.name,
       type: 'rename'
     });
@@ -548,7 +607,10 @@ const FileTreeItem = ({
             }
           }
         }
-      } catch(e) { showToast("이름 변경 실패: " + e, 'error'); }
+      } catch(e) { 
+        const isDir = node.kind === 'directory';
+        showToast((isDir ? "폴더" : "파일") + " 이름 변경 실패: " + e, 'error'); 
+      }
     } else if (type === 'createFile') {
       const finalName = (name.toLowerCase().endsWith('.md') || name.toLowerCase().endsWith('.bib')) ? name : `${name}.md`;
       
@@ -628,12 +690,13 @@ const FileTreeItem = ({
             });
           }
         }
-        await refreshThisDirectory();
         // 🆕 생성 직후 부모 폴더를 열고 새 폴더를 자동 선택/하이라이트
         setIsOpen(true);
         const newFolderPath = node.path ? `${node.path}/${name}` : name;
-        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-        setTimeout(() => {
+        
+        // 🛡️ [OS 파일 인덱싱 지연 보정 가드] 300ms의 마진을 두고 자식 리스트 갱신 및 파일 시스템 전역 리플래시 연동
+        setTimeout(async () => {
+          await refreshThisDirectory();
           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
           // 새로 생성된 폴더 자동 선택 이벤트
           window.dispatchEvent(new CustomEvent('file:select-node', { detail: { path: newFolderPath } }));
@@ -680,9 +743,12 @@ const FileTreeItem = ({
       }
     }
 
+    const isDir = node.kind === 'directory';
     askConfirm({
-      title: "파일 삭제",
-      message: `'${node.name}'을(를) 정말 삭제하시겠습니까?`,
+      title: isDir ? "폴더 삭제" : "파일 삭제",
+      message: isDir 
+        ? `'${node.name}' 폴더를 정말 삭제하시겠습니까?` 
+        : `'${node.name}' 파일을 정말 삭제하시겠습니까?`,
       isDanger: true,
       onConfirm: async () => {
         try {

@@ -10,7 +10,7 @@
     "dev": "concurrently \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
     "dev:r2": "cd frontend && npx wrangler pages dev ./out --compatibility-date=2026-06-23 --r2=R2_BUCKET --remote",
     "electron": "electron .",
-    "electron:prod": "set NO_SERVER=true&& electron .",
+    "electron:prod": "set NODE_NO_WARNINGS=1&& set NO_SERVER=true&& electron .",
     "build:frontend": "cd frontend && npm install && npm run build:desktop",
     "build": "npm run build:frontend",
     "build:extension": "cd frontend && npm run build:extension",
