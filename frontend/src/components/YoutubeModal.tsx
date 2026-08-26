@@ -249,7 +249,7 @@ export default function YoutubeModal({
       }
     }
     return raw;
-  }, [sourceUrl, resourceFolder]);
+  }, [sourceUrl, resourceFolder, targetFolder]);
 
   const handleInsert = () => {
     const url = appliedPath || cleanPath;

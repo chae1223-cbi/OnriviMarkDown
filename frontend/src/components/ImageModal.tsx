@@ -85,6 +85,7 @@ export default function ImageModal({
         setImageAlign("center");
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleLocalImageSave = async (base64Data: string, fileName: string, imageFile: File) => {

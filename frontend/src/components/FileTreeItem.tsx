@@ -140,6 +140,7 @@ const FileTreeItem = ({
       window.removeEventListener('file:refresh-all-directories', refreshAllHandler);
       window.removeEventListener('file:select-node', selectNodeHandler);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.kind, node.path, isOpen]);
   const [isLoading, setIsLoading] = useState(false);
   const [promptConfig, setPromptConfig] = useState<{
