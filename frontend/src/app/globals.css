@@ -698,7 +698,6 @@ div.monaco-codeblock-line {
 
 div.monaco-quote-line {
   background-color: #f8fafc !important;
-  border-left: 4px solid #94a3b8 !important;
   width: 100% !important;
   left: 0 !important;
 }
@@ -706,7 +705,6 @@ div.monaco-quote-line {
 .dark div.monaco-quote-line,
 .onrivi-dark div.monaco-quote-line {
   background-color: #0f172a !important;
-  border-left: 4px solid #475569 !important;
 }
 
 div.monaco-table-line {

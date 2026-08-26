@@ -1,4 +1,4 @@
-// 🚨 @PATCH : **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
+// 🚨 @PATCH : **2026-08-26** — 코드 블록 헤더 복사 버튼의 글자색이 어두운 배경 위에서 묻히던 시각성 결함을 해결하기 위해 항상 선명한 텍스트 컬러(text-slate-100) 및 불투명도 보정을 적용하고 언어명 텍스트 레이블을 볼드체(font-bold)로 강화 | **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
 // 🚨 @PATCH : **2026-07-16** — 코드블록 및 인라인 코드의 하드코딩된 파란색 톤 배경 및 글자색을 제거하여, 사용자 CSS 프로필 서식 설정이 가로막힘 없이 실시간으로 올바르게 오버라이딩되도록 버그 수정.
 //             **2026-07-15** — MermaidBlock 내 alert() 호출을 useToast showToast('warning')로 교체 (브라우저 팝업 차단 알림을 공통 토스트 UI로 통일)
 //             **2026-07-07** — rehype-citation 플러그인 추가 (참고문헌/BibTeX 인용 파이프라인); bibContent prop으로 BibTeX 데이터를 주입받아 [@citekey] 문법을 인용/참고문헌 목록으로 자동 변환
@@ -503,12 +503,12 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
     <div className="codeblock-area group my-4 rounded-lg bg-blue-50/20 dark:bg-black/20 overflow-hidden shadow-sm select-text max-w-full">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
       <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 dark:bg-white/5 h-9">
-        <span className="codeblock-header-text text-xs font-semibold text-blue-600 dark:text-blue-300 uppercase tracking-wider">
+        <span className="codeblock-header-text text-xs font-bold text-blue-600 dark:text-blue-300 uppercase tracking-wider">
           {lang || 'plaintext'}
         </span>
         <button
             onClick={handleCopy}
-            className="copy-button-hook px-2.5 py-1 bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 rounded opacity-60 hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 font-medium no-print"
+            className="copy-button-hook px-2.5 py-1 bg-black/20 dark:bg-white/10 hover:bg-black/40 dark:hover:bg-white/20 text-slate-100 rounded opacity-90 hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 font-medium no-print"
             title="복사"
             style={{ userSelect: 'none' }}
           >

@@ -5,8 +5,8 @@ import { FileNode } from '@/lib/indexedDbHelper';
 // 📊 [OMD-EDIT-pasteHandlers-0003 ✅ FIXED] pasteHandlers ➔ sanitizePastedText
 // 🎯 @KICK  : 붙여넣기 문자열을 마크다운에 적합하도록 정제한다
 // 🛡️ @GUARD : 줄바꿈 통일, 유령 문자 제거, HTML 찌꺼기 제거, TSV 자동 변환
-// 🚨 @PATCH : NBSP(\u00a0) → 일반 공백 치환 추가 (Mermaid 컴파일러 호환성) | 2026-06-18
-// 🔗 @CALLS : 없음
+// 🚨 @PATCH : 2026-08-26 - /cleandoc 구동 시 문서 내 마크다운 표(Table)의 기형적 하이픈 구분선 및 빈 셀 공백을 깨끗하게 정리해 주는 formatMarkdownTables 로직 추가 적용 | NBSP(\u00a0) → 일반 공백 치환 추가 (Mermaid 컴파일러 호환성) | 2026-06-18
+// 🔗 @CALLS : formatMarkdownTables
 // ====================================================================
 /**
  * [ONR-15-001] sanitizePastedText 함수 (추출된 유틸리티)
@@ -62,6 +62,7 @@ export const sanitizePastedText = (text: string, skipTsvConversion = false) => {
     }
   }
 
+  sanitized = formatMarkdownTables(sanitized);
   return sanitized;
 };
 
@@ -189,4 +190,150 @@ export const parseHtmlTableToMarkdown = (html: string, showToast?: (msg: string,
     }
     return null;
   }
+};
+
+/**
+ * [ONR-15-004] formatMarkdownTables 함수 (추출된 유틸리티)
+ * @description 문서 내 마크다운 표 영역을 스캔하여, 기형적으로 길게 늘어진 하이픈(---) 구분선을 단정히 축소하고 각 셀의 무의미한 여백을 일률 정리합니다.
+ * @param text 마크다운 텍스트
+ * @returns 일괄 정돈된 마크다운 텍스트
+ */
+export const formatMarkdownTables = (text: string): string => {
+  if (!text.includes('|')) return text;
+
+  const lines = text.split('\n');
+  const cleanLines: string[] = [];
+
+  // 1단계. 표 내부의 기형적인 공백 줄 및 단순 파이프 단독 찌꺼기 줄(|) 필터링 전처리
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    const isGarbagePipe = trimmed === '|' || trimmed === '| ' || /^\|\s*$/.test(trimmed);
+
+    if (isGarbagePipe) {
+      let hasPrevTable = false;
+      for (let j = cleanLines.length - 1; j >= 0; j--) {
+        const pTrimmed = cleanLines[j].trim();
+        if (pTrimmed === '') continue;
+        if (pTrimmed.startsWith('|') && pTrimmed.includes('|', 1)) {
+          hasPrevTable = true;
+        }
+        break;
+      }
+
+      let hasNextTable = false;
+      for (let j = i + 1; j < lines.length; j++) {
+        const nTrimmed = lines[j].trim();
+        if (nTrimmed === '') continue;
+        if (nTrimmed.startsWith('|') && nTrimmed.includes('|', 1)) {
+          hasNextTable = true;
+        }
+        break;
+      }
+
+      if (hasPrevTable && hasNextTable) {
+        continue; // 표 중간의 찌꺼기 라인은 필터링(건너뜀)
+      }
+    }
+
+    if (trimmed === '') {
+      let hasPrevTable = false;
+      for (let j = cleanLines.length - 1; j >= 0; j--) {
+        const pTrimmed = cleanLines[j].trim();
+        if (pTrimmed === '') continue;
+        if (pTrimmed.startsWith('|') && pTrimmed.includes('|', 1)) {
+          hasPrevTable = true;
+        }
+        break;
+      }
+
+      let hasNextTable = false;
+      for (let j = i + 1; j < lines.length; j++) {
+        const nTrimmed = lines[j].trim();
+        if (nTrimmed === '') continue;
+        if (nTrimmed.startsWith('|') && nTrimmed.includes('|', 1)) {
+          hasNextTable = true;
+        }
+        break;
+      }
+
+      if (hasPrevTable && hasNextTable) {
+        continue; // 표 중간의 빈 줄도 필터링하여 붙여줌
+      }
+    }
+
+    cleanLines.push(line);
+  }
+
+  // 2단계. 정제된 라인들을 기반으로 표 리빌딩 및 정렬 수행
+  const result: string[] = [];
+  let currentTable: string[][] = [];
+
+  const flushTable = () => {
+    if (currentTable.length === 0) return;
+
+    const formattedRows: string[] = [];
+
+    currentTable.forEach((rowCells) => {
+      const isDivider = rowCells.every(cell => {
+        const trimmed = cell.trim();
+        if (trimmed === '') return true;
+        return /^[:\-\s]+$/.test(trimmed) && trimmed.includes('-');
+      });
+
+      if (isDivider) {
+        const newCells = rowCells.map(cell => {
+          const trimmed = cell.trim();
+          if (trimmed === '') return '';
+          const alignLeft = trimmed.startsWith(':');
+          const alignRight = trimmed.endsWith(':');
+          if (alignLeft && alignRight) return ' :---: ';
+          if (alignLeft) return ' :--- ';
+          if (alignRight) return ' ---: ';
+          return ' --- ';
+        });
+        formattedRows.push('|' + newCells.join('|') + '|');
+      } else {
+        const newCells = rowCells.map(cell => {
+          const trimmed = cell.trim();
+          return trimmed ? ` ${trimmed} ` : ' ';
+        });
+        formattedRows.push('|' + newCells.join('|') + '|');
+      }
+    });
+
+    result.push(...formattedRows);
+    currentTable = [];
+  };
+
+  for (let i = 0; i < cleanLines.length; i++) {
+    const line = cleanLines[i];
+    const trimmed = line.trim();
+
+    let isTableLine = trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 1;
+
+    if (!isTableLine && currentTable.length > 0 && trimmed.startsWith('|')) {
+      const pipeCount = (trimmed.match(/\|/g) || []).length;
+      if (pipeCount >= 2) {
+        isTableLine = true;
+      }
+    }
+
+    if (isTableLine) {
+      let cleanLine = trimmed;
+      if (!cleanLine.endsWith('|')) {
+        cleanLine = cleanLine + ' |';
+      }
+      const parts = cleanLine.split('|');
+      const cells = parts.slice(1, parts.length - 1);
+      currentTable.push(cells);
+    } else {
+      flushTable();
+      result.push(line);
+    }
+  }
+
+  flushTable();
+  return result.join('\n');
 };
