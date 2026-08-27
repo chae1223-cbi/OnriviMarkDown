@@ -271,7 +271,12 @@ export function Navbar({ content }: { content?: NavbarContent }) {
                 <>
                   <h3 className="text-lg font-bold text-red-600 dark:text-red-400 mb-4 flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2"><span>⚠️</span> 체험 접속 횟수 초과 안내</span>
-                    {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                    {typeof window !== 'undefined' && (
+                      window.location.hostname.includes('localhost') || 
+                      window.location.hostname.includes('127.0.0.1') || 
+                      window.location.port === '3100' ||
+                      process.env.NODE_ENV === 'development'
+                    ) && (
                       <button
                         onClick={() => {
                           localStorage.removeItem('onrivi_guest_expired');
@@ -304,9 +309,7 @@ export function Navbar({ content }: { content?: NavbarContent }) {
                       onClick={() => {
                         setIsTryoutGuideOpen(false);
                         localStorage.removeItem('onrivi_guest_mode');
-                        localStorage.removeItem('onrivi_guest_expired');
                         localStorage.removeItem('onrivi_guest_start_time');
-                        localStorage.removeItem('onrivi_guest_try_count');
                         router.push("/signup");
                       }}
                       className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition duration-150 shadow-md cursor-pointer text-center border-none"
@@ -317,8 +320,28 @@ export function Navbar({ content }: { content?: NavbarContent }) {
                 </>
               ) : (
                 <>
-                  <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                    <span>🚀</span> Onrivi Author 즉시 체험판 안내
+                  <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2"><span>🚀</span> Onrivi Author 즉시 체험판 안내</span>
+                    {typeof window !== 'undefined' && (
+                      window.location.hostname.includes('localhost') || 
+                      window.location.hostname.includes('127.0.0.1') || 
+                      window.location.port === '3100' ||
+                      process.env.NODE_ENV === 'development'
+                    ) && (
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem('onrivi_guest_expired');
+                          localStorage.removeItem('onrivi_guest_start_time');
+                          localStorage.setItem('onrivi_guest_try_count', '0');
+                          setIsTryoutGuideOpen(false);
+                          alert('체험 횟수 및 만료 정보가 초기화되었습니다.');
+                        }}
+                        className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline bg-transparent border-none cursor-pointer font-normal flex-shrink-0"
+                        title="개발자 전용 체험 횟수 초기화"
+                      >
+                        테스트용 리셋
+                      </button>
+                    )}
                   </h3>
                   
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed mb-5">
@@ -366,7 +389,12 @@ export function Navbar({ content }: { content?: NavbarContent }) {
                           localStorage.setItem("onrivi_workspace_type", "browser");
                           localStorage.removeItem("onrivi_guest_expired");
                           localStorage.removeItem("onrivi_guest_start_time");
-                          localStorage.setItem("onrivi_guest_try_count", "0"); // 진입 즉시 1/3로 증가
+                          
+                          // 🌟 카운트가 없는 경우에만 0으로 셋팅 (에디터 진입 시 1로 안전 증가)
+                          if (!localStorage.getItem("onrivi_guest_try_count")) {
+                            localStorage.setItem("onrivi_guest_try_count", "0");
+                          }
+                          
                           router.push("/editor");
                         }
                       }}

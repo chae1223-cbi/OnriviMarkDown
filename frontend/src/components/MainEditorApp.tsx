@@ -552,15 +552,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ⏳ [게스트 즉시 체험판 인터랙티브 플로팅 가이드 상태]
   const [guideStep, setGuideStep] = useState<number>(1);
   const [isGuideMinimized, setIsGuideMinimized] = useState<boolean>(false);
+  const guestCountedRef = useRef<boolean>(false);
 
   // ⏳ [게스트 타이머 구동 및 재접속 제한 이펙트]
   useEffect(() => {
     if (!isGuestMode) return;
-
+    
     const tryCount = parseInt(localStorage.getItem('onrivi_guest_try_count') || '0', 10);
 
     // 1. 이미 만료 낙인이 찍혔거나 재접속 횟수를 초과한 게스트인 경우
-    if (isGuestExpired || tryCount > 5) {
+    if (isGuestExpired || tryCount >= 5) {
       setIsGuestExpired(true);
       localStorage.setItem('onrivi_guest_expired', 'Y');
       setLicenseStatus({
@@ -576,9 +577,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       return;
     }
 
-    // 2. 신규 진입 세션에 대해 접속 횟수 카운터 증가 (최초 1회만 누적)
-    const newCount = tryCount + 1;
-    localStorage.setItem('onrivi_guest_try_count', newCount.toString());
+    // 2. 신규 진입 세션에 대해 접속 횟수 카운터 증가 (Strict Mode 중복 연산 방지 가드)
+    let newCount = tryCount;
+    if (!guestCountedRef.current) {
+      guestCountedRef.current = true;
+      newCount = tryCount + 1;
+      localStorage.setItem('onrivi_guest_try_count', newCount.toString());
+    }
 
     // 3. 증가된 카운트가 제한(5회)을 초과한 경우
     if (newCount > 5) {
@@ -1033,7 +1038,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       localStorage.setItem('onrivi_workspace_type', 'browser');
       localStorage.removeItem('onrivi_guest_expired');
       localStorage.removeItem('onrivi_guest_start_time');
-      localStorage.setItem('onrivi_guest_try_count', '1');
+      localStorage.setItem('onrivi_guest_try_count', localStorage.getItem('onrivi_guest_try_count') || '0');
     }
 
     // 🛡️ [게스트 즉시 체험 모드 가드] 게스트 모드로 동작 시 라이선스 검증 스킵하고 활성화 처리
@@ -5656,8 +5661,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
                 <span className="text-3xl">⏱️</span>
               </div>
-              <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-3">
-                정식으로 회원가입 후 사용하세요
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-3 flex items-center justify-between gap-2">
+                <span>정식으로 회원가입 후 사용하세요</span>
+                {typeof window !== 'undefined' && (
+                  window.location.hostname.includes('localhost') || 
+                  window.location.hostname.includes('127.0.0.1') || 
+                  window.location.port === '3100' ||
+                  process.env.NODE_ENV === 'development'
+                ) && (
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('onrivi_guest_expired');
+                      localStorage.removeItem('onrivi_guest_start_time');
+                      localStorage.setItem('onrivi_guest_try_count', '0');
+                      setIsGuestExpired(false);
+                      setGuestRemainingSeconds(300);
+                      window.location.reload();
+                    }}
+                    className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline bg-transparent border-none cursor-pointer font-normal flex-shrink-0"
+                    title="개발자 전용 체험 횟수 초기화"
+                  >
+                    테스트용 리셋
+                  </button>
+                )}
               </h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed mb-8">
                 동일 브라우저당 허용되는 <strong>5회 체험 접속</strong>을 모두 사용하셨거나, <strong>5분 편집 제한 시간</strong>이 경과하였습니다. 작성하신 소중한 원고는 브라우저에 임시 안전 보관 중입니다. 계속해서 원고를 이어서 작성하고 무제한 클라우드 백업 및 AI 어시스턴트를 활용하시려면 지금 가입하세요!
@@ -5666,38 +5692,57 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 <button
                   onClick={() => {
                     localStorage.removeItem('onrivi_guest_mode');
-                    localStorage.removeItem('onrivi_guest_expired');
                     localStorage.removeItem('onrivi_guest_start_time');
-                    localStorage.removeItem('onrivi_guest_try_count');
                     window.location.href = '/signup';
                   }}
                   className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-150 shadow-md cursor-pointer border-none text-center"
                 >
                   3초 만에 무료 회원가입
                 </button>
+                {/* 🌟 접속 횟수가 5회 미만일 때만 '체험판 계속하기' 단추 노출 (5회 완료 시 완전 차단) */}
+                {(() => {
+                  const currentTryCount = typeof window !== 'undefined' ? parseInt(localStorage.getItem('onrivi_guest_try_count') || '0', 10) : 0;
+                  if (currentTryCount < 5) {
+                    return (
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem('onrivi_guest_expired');
+                          localStorage.removeItem('onrivi_guest_start_time');
+                          
+                          // 🌟 계속하기 클릭 역시 새로운 5분 세션을 시작하는 행위이므로 접속 카운트를 1회 추가 소진(증가)시킵니다!
+                          const nextCount = currentTryCount + 1;
+                          localStorage.setItem('onrivi_guest_try_count', nextCount.toString());
+
+                          setIsGuestExpired(false);
+                          setGuestRemainingSeconds(300);
+                          setLicenseStatus({
+                            isActivated: true,
+                            isExpired: false,
+                            remainingDays: 999,
+                            userId: 'GUEST_USER',
+                            licenseKey: 'GUEST_LICENSE_KEY',
+                            paymentNo: 'GUEST_PAYMENT_NO',
+                            planName: '체험판 게스트 요금제',
+                            nextPaymentDate: '2999-12-31'
+                          });
+                        }}
+                        className="w-full py-3 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold rounded-xl transition duration-150 cursor-pointer border-none text-center"
+                      >
+                        체험판 계속하기
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
                 <button
                   onClick={() => {
                     localStorage.removeItem('onrivi_guest_mode');
-                    localStorage.removeItem('onrivi_guest_expired');
                     localStorage.removeItem('onrivi_guest_start_time');
-                    localStorage.removeItem('onrivi_guest_try_count');
-                    window.location.href = '/login';
-                  }}
-                  className="w-full py-3 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold rounded-xl transition duration-150 cursor-pointer border-none text-center"
-                >
-                  기존 계정으로 로그인
-                </button>
-                <button
-                  onClick={() => {
-                    localStorage.removeItem('onrivi_guest_mode');
-                    localStorage.removeItem('onrivi_guest_expired');
-                    localStorage.removeItem('onrivi_guest_start_time');
-                    localStorage.removeItem('onrivi_guest_try_count');
                     window.location.href = '/';
                   }}
                   className="w-full py-3 px-4 bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-900/40 dark:hover:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl transition duration-150 cursor-pointer text-center"
                 >
-                  메인페이지 가기
+                  홈페이지 가기
                 </button>
               </div>
               <div className="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-center">
@@ -5705,9 +5750,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   href="/" 
                   onClick={() => {
                     localStorage.removeItem('onrivi_guest_mode');
-                    localStorage.removeItem('onrivi_guest_expired');
                     localStorage.removeItem('onrivi_guest_start_time');
-                    localStorage.removeItem('onrivi_guest_try_count');
                   }}
                   className="flex items-center gap-2 hover:opacity-85 transition-opacity"
                 >
@@ -5741,7 +5784,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     <button 
                       onClick={() => setIsGuideMinimized(false)}
                       className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-lg transition duration-150 cursor-pointer border-none text-base font-bold"
-                      title="체험판 가이드 열기"
+                      title={`체험판 가이드 열기 (남은 시간: ${formatTime(guestRemainingSeconds)})`}
                     >
                       🌟
                     </button>
@@ -5749,7 +5792,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     <div className="w-[320px] bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xl text-left select-none text-zinc-800 dark:text-zinc-200">
                       <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-zinc-100 dark:border-zinc-800">
                         <span className="font-extrabold text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                          🌟 5분 체험 챌린지 ({guideStep}/5)
+                          🌟 5분 체험 가이드 ({guideStep}단계 / 5단계)
                         </span>
                         <button 
                           onClick={() => setIsGuideMinimized(true)}
@@ -5757,6 +5800,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         >
                           접기
                         </button>
+                      </div>
+
+                      {/* ⏱️ 체험 남은 시간 및 접속 횟수 상시 노출 영역 */}
+                      <div className="mb-3.5 p-2.5 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100/50 dark:border-indigo-900/40 rounded-xl flex justify-between items-center text-[10px] font-bold text-indigo-700 dark:text-indigo-300">
+                        <div className="flex items-center gap-1.5 animate-pulse">
+                          <span>⏱️ 남은 시간:</span>
+                          <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{formatTime(guestRemainingSeconds)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 border-l border-zinc-200 dark:border-zinc-800 pl-2.5">
+                          <span>🔄 접속:</span>
+                          <span className="text-zinc-600 dark:text-zinc-400">{typeof window !== 'undefined' ? localStorage.getItem('onrivi_guest_try_count') || '1' : '1'} / 5회</span>
+                        </div>
                       </div>
 
                       {/* 단계별 내용 */}
@@ -5852,12 +5907,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       <span className="truncate max-w-full opacity-70 hover:opacity-100 transition-opacity cursor-default">
                         📁 {workspaceType === 'browser' ? (rootFolder?.name ? `${rootFolder.name} \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}` : `🌐 Browser Storage \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}`) : (workspaceType === 'cloud' ? `[${cloudProvider || 'Cloud'}] \\ ${rootFolder?.name || 'Sync'} \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}` : (currentFileNode?.path?.includes(':') ? currentFileNode.path : `${driveLetter}\\새 문서\\${currentFileName}`))}
                       </span>
-                      {isGuestMode && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 animate-pulse flex-shrink-0 font-bold ml-4">
-                          <span>⏱️ 5분 체험 남은 시간 (접속 {typeof window !== 'undefined' ? localStorage.getItem('onrivi_guest_try_count') || '1' : '1'}/5):</span>
-                          <span className="font-mono text-xs">{formatTime(guestRemainingSeconds)}</span>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
