@@ -1033,6 +1033,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (session?.user) hasSession = true;
     } catch (_) {}
 
+    // 🌟 [정식 회원 로그인 가드] 회원 로그인 세션이 정상적으로 확인되는 경우,
+    // 혹시라도 남아 있을 수 있는 게스트 체험판 플래그를 즉시 소멸하여 체험판 작동을 완전히 중단시킵니다!
+    if (hasSession) {
+      localStorage.removeItem('onrivi_guest_mode');
+      localStorage.removeItem('onrivi_guest_expired');
+      localStorage.removeItem('onrivi_guest_start_time');
+      setIsGuestMode(false);
+      setIsGuestExpired(false);
+    }
+
     if (!hasSession && !hasPayment && !hasLicense && !initialGuestCheck) {
       console.log('[ONRIVI GUARD] No Auth Session / License found. Initiating Auto-Guest Mode!');
       localStorage.setItem('onrivi_guest_mode', 'Y');
