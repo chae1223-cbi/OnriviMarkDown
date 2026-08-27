@@ -804,10 +804,13 @@ div.monaco-table-line {
   border-collapse: separate !important; /* 둥근 모서리 적용을 위해 collapse 분리 */
   border-spacing: 0 !important;
   margin: 1.5rem 0 !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
   border-radius: 8px !important;
   overflow: hidden !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02) !important;
+}
+.dark .prose table {
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
 }
 
 /* 💡 긴 영문 텍스트가 강제 개행되도록 하여 양쪽 정렬 시 발생하는 거대 공백 방지 */
@@ -820,19 +823,22 @@ div.monaco-table-line {
   word-break: break-all !important;
 }
 
-
-
 /* 표 헤더 스타일 */
 .prose th {
-  background-color: rgba(243, 244, 246, 0.8) !important;
-  color: #1f2937 !important;
+  background-color: rgba(229, 231, 235, 0.95) !important;
+  color: #111827 !important;
   font-weight: 600 !important;
   font-size: 0.875rem !important;
   padding: 10px 14px !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15) !important;
   text-align: left;
   vertical-align: middle !important; /* 세로 정렬 보정 (가운데 정렬) */
   word-break: keep-all !important; /* 단어 단위 줄바꿈으로 가독성 보정 */
+}
+.dark .prose th {
+  background-color: rgba(31, 41, 55, 0.95) !important;
+  color: #f3f4f6 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
 }
 
 /* 표 바디 셀 스타일 */
@@ -853,12 +859,18 @@ div.monaco-table-line {
 
 /* 얼룩무늬 행 (Zebra striping)으로 가독성 향상 */
 .prose tbody tr:nth-child(even) {
-  background-color: rgba(249, 250, 251, 0.4) !important;
+  background-color: rgba(243, 244, 246, 0.6) !important;
+}
+.dark .prose tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03) !important;
 }
 
 /* 마우스 호버 시 행 은은한 하이라이트 효과 */
 .prose tbody tr:hover {
-  background-color: rgba(59, 130, 246, 0.02) !important;
+  background-color: rgba(59, 130, 246, 0.04) !important;
+}
+.dark .prose tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
 }
 /* 🔒 하단 클릭 시 에디터 내부의 뷰포트 컨테이너가 transform이나 margin으로 위로 밀려 올라가는 오작동 제어 */
 .monaco-editor .view-lines {

@@ -107,10 +107,14 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
         } else if ((workspaceType === 'browser' || workspaceType === 'local') && !src.startsWith('http') && !src.startsWith('data:')) {
           const pureSrc = src.split('?')[0].split('#')[0];
           
-          // 🛡️ [정적 자산 우회 가드]
-          // public 폴더의 정적 리소스이거나 웹서버 루트 절대 경로(/)인 경우 VFS나 로컬 드라이브를 타지 않고
-          // 브라우저의 기본 정적 자산 파일 로더로 직결시킵니다.
-          const isStaticAsset = pureSrc.startsWith('/') || pureSrc.startsWith('frontend/public/') || pureSrc.startsWith('public/');
+          // 🛡️ [정적 자산 우회 가드 개선]
+          // 웹서버의 public/ 하위 정적 에셋이거나 확실한 빌트인 에셋인 경우에만 
+          // 로컬 드라이브/VFS 검색을 생략하고 웹서버 정적 로더로 직결합니다.
+          const isStaticAsset = (
+            pureSrc.startsWith('frontend/public/') || 
+            pureSrc.startsWith('public/') || 
+            (pureSrc.startsWith('/') && !pureSrc.startsWith('/media/') && !pureSrc.startsWith('/assets/'))
+          );
           if (isStaticAsset) {
             let webSrc = pureSrc;
             if (webSrc.startsWith('frontend/public/')) webSrc = webSrc.replace('frontend/public/', '/');
@@ -121,13 +125,13 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
           }
 
           // 리소스 폴더 지정 안 됨 경고
-          if (!resourceFolderHandle && !rootFolder?.handle && (pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || (pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')))) {
+          if (!resourceFolderHandle && !rootFolder?.handle && (pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || pureSrc.startsWith('/media/') || pureSrc.includes('media/'))) {
              setErrorMsg(`로컬 미디어를 보려면 좌측 하단의 '리소스 폴더 지정' 버튼을 클릭해 폴더를 연동해주세요.`);
              return;
           }
 
-          if ((pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')) && resourceFolderHandle) {
-             const fileName = pureSrc.replace(/^\.?\/media\//, '');
+          if ((pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || pureSrc.includes('media/')) && resourceFolderHandle) {
+             const fileName = pureSrc.replace(/^\.?\/media\//, '').replace(/^media\//, '');
              const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
              const fileHandle = await mediaDir.getFileHandle(fileName);
              const file = await fileHandle.getFile();
@@ -150,9 +154,23 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
             setImgSrc(objectUrl);
           } else {
             const { vfsReadFile } = await import('@/lib/virtualFileSystem');
-            const b64 = vfsReadFile(pureSrc);
-            if (b64) setImgSrc(`data:image/png;base64,${b64}`);
-            else throw new Error('VFS file not found');
+            // 🛡️ [앞슬래시 비대칭 조회 보완] /media/ 와 media/ 양쪽 모두 조회하여 매칭되는 이미지 바이너리를 확보합니다.
+            let b64 = vfsReadFile(pureSrc);
+            if (!b64) {
+              const alternativePath = pureSrc.startsWith('/') ? pureSrc.substring(1) : '/' + pureSrc;
+              b64 = vfsReadFile(alternativePath);
+            }
+
+            if (b64) {
+              // 💡 [2중 접두사 방어 가드] 이미 data:image 로 시작하는 완전한 Base64 데이터 스키마이면 그대로 주입합니다.
+              if (b64.startsWith('data:image/')) {
+                setImgSrc(b64);
+              } else {
+                setImgSrc(`data:image/png;base64,${b64}`);
+              }
+            } else {
+              throw new Error('VFS file not found');
+            }
           }
         } else {
           setImgSrc(src);
@@ -160,7 +178,9 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
       } catch (e: any) {
         console.error(`[AsyncImage] VFS ERROR:`, e);
         setErrorMsg(`VFS 실패: ${absolutePath} (${e.message})`);
-        const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
+        const fallbackSrc = api 
+          ? `media://local/serve?url=${encodeURIComponent(absolutePath)}`
+          : `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
         setImgSrc(queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc);
       }
     };
@@ -188,9 +208,14 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     const img = e.currentTarget;
     if (img.dataset.fallbackAttempted) return;
     img.dataset.fallbackAttempted = 'true';
-    if (!api && !src.startsWith('/api/image/') && !src.startsWith('http')) {
-      const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
-      img.src = queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc;
+    if (api && absolutePath) {
+      img.src = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
+    } else if (!api && absolutePath && !src.startsWith('/api/image/') && !src.startsWith('http')) {
+      const isDevServer = typeof window !== 'undefined' && (window.location.port === '3000' || window.location.port === '3100');
+      if (isDevServer) {
+        const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
+        img.src = queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc;
+      }
     }
   };
 
@@ -227,7 +252,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
 
     return (
       <div className="relative group inline-block" style={style}>
-        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} {...props} style={{ width: '100%', height: '100%', objectFit: 'contain' }} crossOrigin="anonymous" />
+        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} {...props} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         <button
             onClick={handleCopy}
             className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
@@ -513,10 +538,10 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
 
 
   return (
-    <div className="codeblock-area group my-4 rounded-lg bg-blue-50/20 dark:bg-black/20 overflow-hidden shadow-sm select-text max-w-full">
+    <div className="codeblock-area group my-4 rounded-lg bg-zinc-100/90 dark:bg-zinc-900/95 overflow-hidden shadow-sm select-text max-w-full border border-zinc-200/70 dark:border-zinc-800/90">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
-      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-blue-100/50 dark:bg-white/5 h-9">
-        <span className="codeblock-header-text text-xs font-bold text-blue-600 dark:text-blue-300 uppercase tracking-wider">
+      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-zinc-200/80 dark:bg-zinc-800/95 h-9 border-b border-zinc-200/70 dark:border-zinc-800/90">
+        <span className="codeblock-header-text text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
           {lang || 'plaintext'}
         </span>
         <button
@@ -1775,15 +1800,33 @@ export default function MarkdownViewer({
                 // hero.png만 웰컴 에셋으로 취급하거나, 순수하게 Welcome.md가 렌더링 중일 때만
                 const isWelcomeAsset = (pureSrc === './hero.png' || pureSrc === 'hero.png') && isWelcomePage;
 
-                if ((pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')) && api) {
-                  // 💡 [핵심] 데스크탑: secureStorage에서 항상 최신 resourceFolder를 직접 읽어 경로 조합
-                  const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
-                  if (freshRF) {
+                const isLocalMedia = !isExternal && (
+                  pureSrc.includes('media/') || 
+                  pureSrc.endsWith('.png') || 
+                  pureSrc.endsWith('.jpg') || 
+                  pureSrc.endsWith('.jpeg') || 
+                  pureSrc.endsWith('.gif') || 
+                  pureSrc.endsWith('.webp')
+                );
+
+                if (isLocalMedia && (api || (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME))) {
+                  // 💡 [핵심] 데스크탑 및 웹 로컬 연동: secureStorage 또는 rootFolderPath에서 항상 최신 폴더 경로를 읽어 절대 경로 조합
+                  const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder || dynamicPropsRef.current.rootFolderPath;
+                  if (freshRF && freshRF !== BROWSER_STORAGE_NAME) {
                     const sep = freshRF.includes('\\') ? '\\' : '/';
                     const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
-                    const strippedSrc = pureSrc.startsWith('./') ? pureSrc.substring(1) : pureSrc;
-                      const normalizedSrc = sep === '\\' ? strippedSrc.replace(/\//g, '\\') : strippedSrc;
-                    absolutePath = cleanRoot + normalizedSrc;
+                    
+                    let cleanSrc = pureSrc;
+                    if (cleanSrc.startsWith('./')) cleanSrc = cleanSrc.substring(2);
+                    if (cleanSrc.startsWith('/')) cleanSrc = cleanSrc.substring(1);
+                    
+                    // 만약 media 폴더가 경로에 직접 없는 경우, 기본 media 하위 파일로 매칭해 줍니다.
+                    if (!cleanSrc.startsWith('media/') && !cleanSrc.startsWith('media\\')) {
+                      cleanSrc = 'media' + sep + cleanSrc;
+                    }
+                    
+                    const normalizedSrc = sep === '\\' ? cleanSrc.replace(/\//g, '\\') : cleanSrc.replace(/\\/g, '/');
+                    absolutePath = cleanRoot + sep + normalizedSrc;
                   } else {
                     // resourceFolder 없음: 워크스페이스 루트를 최우선으로 하고, 없으면 현재 파일 경로 기준
                     let baseDir = '';
@@ -1796,8 +1839,8 @@ export default function MarkdownViewer({
                     }
 
                     if (baseDir) {
-                      const fileName = pureSrc.replace(/^\.?\/media\//, '');
-                      absolutePath = baseDir + '\\media\\' + fileName;
+                      let cleanSrc = pureSrc.replace(/^\.?\/media\//, '').replace(/^media\//, '');
+                      absolutePath = baseDir + '\\media\\' + cleanSrc;
                     }
                   }
                 } else if (isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
@@ -2177,7 +2220,7 @@ export default function MarkdownViewer({
               const codeContent = getTextFromChildren(children).replace(/\n$/, '');
               const isInline = inline || (!match && !codeContent.includes('\n'));
               if (isInline) {
-                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-[0.9em] bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-white" {...props}>{children}</code>;
+                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-[0.9em] bg-zinc-200/80 dark:bg-zinc-700/90 text-zinc-900 dark:text-zinc-100" {...props}>{children}</code>;
               }
               if (lang === 'mermaid') {
                 return <MermaidBlock code={codeContent} />;
@@ -2377,7 +2420,7 @@ export default function MarkdownViewer({
               return (
                 <blockquote
                   style={{ ...style, ...getIndentStyle(node) }}
-                  className="my-4 p-4 rounded-r-lg border-l-4 border-zinc-400 bg-zinc-50  text-zinc-700  font-normal not-italic"
+                  className="my-4 p-4 rounded-r-lg border-l-4 border-zinc-500 dark:border-zinc-600 bg-zinc-100/90 dark:bg-zinc-800/80 text-zinc-800 dark:text-zinc-200 font-normal not-italic"
                   {...props}
                 >
                   {children}
