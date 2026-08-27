@@ -7,7 +7,7 @@ import { useEditorContext } from '@/context/EditorContext';
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
 // 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : **2026-07-04** — 저장이 필요한 경우에만 탭명 옆에 황금색 도트(#FFD700)를 노출하고, 닫기 버튼은 저장 여부와 상관없이 항시 우측에 배치하여 언제든지 탭을 닫을 수 있도록 UI 편의성 보정 패치
+// 🚨 @PATCH : **2026-08-27** — 에디터 개별 문서 탭을 마우스 드래그 앤 드롭(HTML5 Drag & Drop)으로 원하는 순서대로 자유롭게 이동시킬 수 있도록 UI 지원하고, 변경된 탭 순서를 localStorage(onrivi_tabs_order)에 저장 및 다음 접속/새로고침 시 해당 순서로 자동 복원 및 정렬 동기화 구현; **2026-07-04** — 저장이 필요한 경우에만 탭명 옆에 황금색 도트(#FFD700)를 노출하고, 닫기 버튼은 저장 여부와 상관없이 항시 우측에 배치하여 언제든지 탭을 닫을 수 있도록 UI 편의성 보정 패치
 // 🔗 @CALLS : 없음
 // ====================================================================
 export interface EditorTab {
@@ -24,8 +24,42 @@ export interface EditorTab {
 }
 
 export default function UnifiedTabBar() {
-  const { tabs, activeTabId, switchTab: onSwitchTab, closeTab: onCloseTab, isDarkMode } = useEditorContext();
+  const { tabs, activeTabId, switchTab: onSwitchTab, closeTab: onCloseTab, isDarkMode, setTabs } = useEditorContext();
   
+  // 📌 드래그 앤 드롭 탭 순서 제어 상태
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedTabId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedTabId || draggedTabId === targetId) return;
+
+    const sourceIndex = tabs.findIndex((t: EditorTab) => t.id === draggedTabId);
+    const targetIndex = tabs.findIndex((t: EditorTab) => t.id === targetId);
+
+    if (sourceIndex !== -1 && targetIndex !== -1) {
+      const updatedTabs = [...tabs];
+      const [draggedTab] = updatedTabs.splice(sourceIndex, 1);
+      updatedTabs.splice(targetIndex, 0, draggedTab);
+      
+      if (setTabs) {
+        setTabs(updatedTabs);
+        // 💾 [탭 순서 영구 보존] localStorage 에 저장
+        const tabOrder = updatedTabs.map(t => t.id);
+        localStorage.setItem('onrivi_tabs_order', JSON.stringify(tabOrder));
+      }
+    }
+    setDraggedTabId(null);
+  };
+
   // 💡 Context Menu State
   const [contextMenu, setContextMenu] = useState<{ visible: boolean, x: number, y: number, tabId: string } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -89,6 +123,10 @@ export default function UnifiedTabBar() {
             return (
               <div
                 key={tab.id}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, tab.id)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, tab.id)}
                 onClick={() => { if (!isActive) onSwitchTab(tab.id); }}
                 onContextMenu={(e) => handleContextMenu(e, tab.id)}
                 className={`group relative flex items-center gap-2 px-3.5 py-1.5 rounded-t-md text-sm cursor-pointer transition-all duration-200 border-t border-x font-semibold ${
@@ -99,7 +137,7 @@ export default function UnifiedTabBar() {
                     : isDarkMode
                       ? 'bg-zinc-900/50 text-zinc-400 border-transparent hover:bg-zinc-800/30 hover:text-zinc-200'
                       : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100/70 hover:text-slate-700'
-                }`}
+                } ${draggedTabId === tab.id ? 'opacity-40 scale-[0.98] border-dashed border-indigo-500/50' : ''}`}
                 style={{
                   marginBottom: '-1.5px',
                   zIndex: isActive ? 2 : 1,

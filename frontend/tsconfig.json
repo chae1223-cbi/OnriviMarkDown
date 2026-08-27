@@ -37,6 +37,7 @@
   "exclude": [
     "node_modules",
     ".next",
+    ".wrangler",
     "_dev_api_backup"
   ]
 }

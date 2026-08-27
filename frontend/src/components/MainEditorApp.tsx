@@ -536,6 +536,33 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const tabsRef = useRef<any[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
 
+  // 💾 [탭 순서 영구 보존 이펙트] localStorage에 기록된 순서가 있다면 tabs 배열의 순서를 복원
+  useEffect(() => {
+    if (tabs.length === 0) return;
+    try {
+      const savedOrder = localStorage.getItem('onrivi_tabs_order');
+      if (savedOrder) {
+        const order: string[] = JSON.parse(savedOrder);
+        // 저장된 순서 리스트대로 정렬하며, 순서 목록에 없는 탭은 원래 순서대로 뒤에 보존
+        const sorted = [...tabs].sort((a, b) => {
+          const idxA = order.indexOf(a.id);
+          const idxB = order.indexOf(b.id);
+          if (idxA === -1 && idxB === -1) return 0;
+          if (idxA === -1) return 1;
+          if (idxB === -1) return -1;
+          return idxA - idxB;
+        });
+
+        const isSame = tabs.length === sorted.length && tabs.every((t, i) => t.id === sorted[i].id);
+        if (!isSame) {
+          setTabs(sorted);
+        }
+      }
+    } catch (e) {
+      // Safe guard
+    }
+  }, [tabs]);
+
   // 💡 미리보기 업데이트 지연 디바운스 타이머 Ref (타이핑 시 번쩍거림/깜빡거림 방쇄)
   const previewDebounceRef = useRef<NodeJS.Timeout | null>(null);
   // 💡 [IME 락 가드] 한글 IME 조합 진행 여부를 저장하는 Ref
