@@ -1015,6 +1015,27 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const loadAndVerifyLicense = useCallback(async () => {
     if (typeof window === 'undefined' || !deviceId) return;
     
+    // 🛡️ [무인증 진입 시 자동 게스트 모드 전환 가드]
+    // 로그인 세션이 없고 등록된 라이선스 결제 정보도 없는 비인증 사용자가 /editor로 접근한 경우,
+    // 로그인 화면으로 튕구는 대신 즉석에서 편리하게 체험할 수 있도록 즉시 게스트 모드로 자동 부팅시켜 줍니다.
+    const initialGuestCheck = localStorage.getItem('onrivi_guest_mode') === 'Y';
+    const hasPayment = !!localStorage.getItem('onrivi_payment_no');
+    const hasLicense = !!localStorage.getItem('onrivi_license_key');
+    let hasSession = false;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) hasSession = true;
+    } catch (_) {}
+
+    if (!hasSession && !hasPayment && !hasLicense && !initialGuestCheck) {
+      console.log('[ONRIVI GUARD] No Auth Session / License found. Initiating Auto-Guest Mode!');
+      localStorage.setItem('onrivi_guest_mode', 'Y');
+      localStorage.setItem('onrivi_workspace_type', 'browser');
+      localStorage.removeItem('onrivi_guest_expired');
+      localStorage.removeItem('onrivi_guest_start_time');
+      localStorage.setItem('onrivi_guest_try_count', '1');
+    }
+
     // 🛡️ [게스트 즉시 체험 모드 가드] 게스트 모드로 동작 시 라이선스 검증 스킵하고 활성화 처리
     const isGuestMode = localStorage.getItem('onrivi_guest_mode') === 'Y';
     if (isGuestMode) {
@@ -1480,7 +1501,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // 💻 [Heartbeat 가드] 20초마다 라이선스 세션의 활동 시각(last_active_at)을 갱신하고 강탈 여부를 검사
   useEffect(() => {
-    if (typeof window === 'undefined' || !deviceId || isLicenseChecking) return;
+    if (typeof window === 'undefined' || !deviceId || isLicenseChecking || isGuestMode) return;
 
     const intervalId = setInterval(async () => {
       const paymentNo = localStorage.getItem('onrivi_payment_no');
@@ -1561,7 +1582,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }, 20000); // 20초마다 주기적 검사 수행 (60초 DB 만료 대비 충분한 신뢰성 확보)
 
     return () => clearInterval(intervalId);
-  }, [deviceId, isLicenseChecking, setLicenseStatus, showToast]);
+  }, [deviceId, isLicenseChecking, setLicenseStatus, showToast, isGuestMode]);
 
   // 📊 [OMD-CITATION-MainEditorApp] .bib 워크스페이스 자동 로드
   // 🎯 @KICK  : 워크스페이스 전체를 재귀 탐색하여 .bib 파일을 모두 병합 로드
@@ -5711,7 +5732,115 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           <div className="flex flex-1 overflow-hidden relative">
             <LeftSidebar />
 
-            <main className="flex flex-1 flex-col overflow-hidden bg-transparent">
+            <main className="flex flex-1 flex-col overflow-hidden bg-transparent relative">
+              
+              {/* ⏳ [게스트 즉시 체험판 인터랙티브 플로팅 가이드 위젯] */}
+              {isGuestMode && (
+                <div className="absolute top-16 right-6 z-[99] no-print" translate="no">
+                  {isGuideMinimized ? (
+                    <button 
+                      onClick={() => setIsGuideMinimized(false)}
+                      className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-lg transition duration-150 cursor-pointer border-none text-base font-bold"
+                      title="체험판 가이드 열기"
+                    >
+                      🌟
+                    </button>
+                  ) : (
+                    <div className="w-[320px] bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xl text-left select-none text-zinc-800 dark:text-zinc-200">
+                      <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <span className="font-extrabold text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                          🌟 5분 체험 챌린지 ({guideStep}/5)
+                        </span>
+                        <button 
+                          onClick={() => setIsGuideMinimized(true)}
+                          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-xs bg-none border-none cursor-pointer"
+                        >
+                          접기
+                        </button>
+                      </div>
+
+                      {/* 단계별 내용 */}
+                      {guideStep === 1 && (
+                        <div>
+                          <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">1단계: 작업장 폴더 설정 📂</h4>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                            윈도우 탐색기에서 <strong>my_writing</strong> 폴더를 만든 후, 온리비 메뉴바의 <strong>파일(F) &gt; 작업장 폴더 열기</strong>를 눌러 해당 폴더를 연동해 주세요.
+                          </p>
+                        </div>
+                      )}
+                      {guideStep === 2 && (
+                        <div>
+                          <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">2단계: 공통 자원폴더 지정 ⚙️</h4>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                            모든 서식과 미디어가 저장될 공통 자원 폴더를 PC에 만들고, 온리비 메뉴바의 <strong>도구(T) &gt; 환경설정 &gt; 일반설정 &gt; 자원관리</strong>에서 폴더를 지정해 주세요.
+                          </p>
+                        </div>
+                      )}
+                      {guideStep === 3 && (
+                        <div>
+                          <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">3단계: 간단한 문서 만들기 ✍️</h4>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-2.5">
+                            아래 첨부파일을 다운받아 메모장으로 열고, 전체 내용을 복사해서 새 파일(Onrivi_Author)에 붙여넣어 주세요. (에디터 하단 <strong>분할모드</strong> 활성화 권장)
+                          </p>
+                          <a 
+                            href="/onrivi_author.md" 
+                            download 
+                            className="inline-block py-1.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-400 font-bold text-[10px] rounded-lg transition duration-150 cursor-pointer border-none text-center no-underline"
+                          >
+                            📥 실습용 onrivi_author.md 다운로드
+                          </a>
+                        </div>
+                      )}
+                      {guideStep === 4 && (
+                        <div>
+                          <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">4단계: 내보내기 및 인쇄 (출력) 🖨️</h4>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                            오른쪽 <strong>서식설정(프로필)</strong>을 열어 원하는 서식을 선택한 후, 상단 메뉴바의 <strong>파일(F) &gt; 내보내기 &gt; 인쇄/PDF</strong>를 클릭하여 문서를 PDF나 프린터로 고품질 출력하세요.
+                          </p>
+                        </div>
+                      )}
+                      {guideStep === 5 && (
+                        <div>
+                          <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">5단계: 자유로운 글쓰기 시작 🍀</h4>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-2.5">
+                            기본 1~4단계를 무사히 마치셨습니다! 이제 체험 챌린지 가이드를 닫고, 온리비 어서(Onrivi Author) 공간에서 자유롭고 멋지게 나만의 원고를 창작해 보셔요!
+                          </p>
+                          <button 
+                            onClick={() => {
+                              localStorage.removeItem('onrivi_guest_mode');
+                              localStorage.removeItem('onrivi_guest_expired');
+                              localStorage.removeItem('onrivi_guest_start_time');
+                              localStorage.removeItem('onrivi_guest_try_count');
+                              window.location.href = '/signup';
+                            }}
+                            className="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg transition duration-150 cursor-pointer border-none text-center"
+                          >
+                            무료 회원가입하고 계속 사용하기
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 이전/다음 버튼 */}
+                      <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 text-[10px]">
+                        <button 
+                          disabled={guideStep === 1}
+                          onClick={() => setGuideStep(p => p - 1)}
+                          className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-600 dark:text-zinc-300 rounded disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer border-none"
+                        >
+                          이전
+                        </button>
+                        <button 
+                          disabled={guideStep === 5}
+                          onClick={() => setGuideStep(p => p + 1)}
+                          className="px-2 py-1 bg-indigo-50 dark:bg-indigo-950/45 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/70 rounded disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer border-none"
+                        >
+                          다음
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               
 
               {/* 탭 바를 오른쪽 에디터/미리보기 영역에만 위치하도록 main 상단에 배치 */}
@@ -5771,98 +5900,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 ) : (
                   <div className="flex flex-1 overflow-hidden relative">
 
-                    {/* ⏳ [게스트 즉시 체험판 인터랙티브 플로팅 가이드 위젯] */}
-                    {isGuestMode && (
-                      <div className="absolute top-4 right-6 z-[20] no-print" translate="no">
-                        {isGuideMinimized ? (
-                          <button 
-                            onClick={() => setIsGuideMinimized(false)}
-                            className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-lg transition duration-150 cursor-pointer border-none text-base"
-                            title="체험판 가이드 열기"
-                          >
-                            🌟
-                          </button>
-                        ) : (
-                          <div className="w-[320px] bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xl text-left select-none text-zinc-800 dark:text-zinc-200">
-                            <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-zinc-100 dark:border-zinc-800">
-                              <span className="font-extrabold text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                                🌟 5분 체험 챌린지 ({guideStep}/4)
-                              </span>
-                              <button 
-                                onClick={() => setIsGuideMinimized(true)}
-                                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-xs bg-none border-none cursor-pointer"
-                              >
-                                접기
-                              </button>
-                            </div>
 
-                            {/* 단계별 내용 */}
-                            {guideStep === 1 && (
-                              <div>
-                                <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">1단계: 폴더 & 파일 생성 📂</h4>
-                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                                  왼쪽 파일 탐색기 빈 공간을 마우스 우클릭하여 <strong>나의_첫_원고</strong> 폴더를 만들고, 그 밑에 <strong>아이디어.md</strong> 문서를 만들어 더블클릭해 보세요.
-                                </p>
-                              </div>
-                            )}
-                            {guideStep === 2 && (
-                              <div>
-                                <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">2단계: 실시간 조판 체감 ✍️</h4>
-                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                                  새로 연 문서에 마크다운 기호들을 자유롭게 적어 보세요. 기호들이 우측 미리보기에 <strong>0.1초 만에 실제 서적 디자인으로 실시간 조판</strong>되는 속도를 느낍니다.
-                                </p>
-                              </div>
-                            )}
-                            {guideStep === 3 && (
-                              <div>
-                                <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">3단계: 특허받은 무결성 검증 📊</h4>
-                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                                  웰컴 문서 탭으로 돌아가 표 안의 단어들을 <strong>더블클릭</strong>해 보셔요. 온리비만의 특허 기술로 표 깨짐 없이 깔끔하게 선택 영역만 지정되는 안전성을 검증합니다.
-                                </p>
-                              </div>
-                            )}
-                            {guideStep === 4 && (
-                              <div>
-                                <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">4단계: 복원 & 회원가입 💾</h4>
-                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-2.5">
-                                  키보드 <strong>F5(새로고침)</strong>를 눌러보세요. 5분 시간이 충전되며 작성 중인 폴더가 그대로 복원됩니다. 최대 5회만 허용되므로 영구 잠금 전에 가입하세요!
-                                </p>
-                                <button 
-                                  onClick={() => {
-                                    localStorage.removeItem('onrivi_guest_mode');
-                                    localStorage.removeItem('onrivi_guest_expired');
-                                    localStorage.removeItem('onrivi_guest_start_time');
-                                    localStorage.removeItem('onrivi_guest_try_count');
-                                    window.location.href = '/signup';
-                                  }}
-                                  className="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg transition duration-150 cursor-pointer border-none text-center"
-                                >
-                                  무료 회원가입하고 계속 사용하기
-                                </button>
-                              </div>
-                            )}
-
-                            {/* 이전/다음 버튼 */}
-                            <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 text-[10px]">
-                              <button 
-                                disabled={guideStep === 1}
-                                onClick={() => setGuideStep(p => p - 1)}
-                                className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-600 dark:text-zinc-300 rounded disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer border-none"
-                              >
-                                이전
-                              </button>
-                              <button 
-                                disabled={guideStep === 4}
-                                onClick={() => setGuideStep(p => p + 1)}
-                                className="px-2 py-1 bg-indigo-50 dark:bg-indigo-950/45 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/70 rounded disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer border-none"
-                              >
-                                다음
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
 
                     <div
                       className="flex-1 min-w-0 relative border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-300 no-print bg-surface-container-low dark:bg-zinc-950"

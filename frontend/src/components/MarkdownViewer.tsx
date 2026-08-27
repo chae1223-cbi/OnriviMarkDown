@@ -107,6 +107,19 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
         } else if ((workspaceType === 'browser' || workspaceType === 'local') && !src.startsWith('http') && !src.startsWith('data:')) {
           const pureSrc = src.split('?')[0].split('#')[0];
           
+          // 🛡️ [정적 자산 우회 가드]
+          // public 폴더의 정적 리소스이거나 웹서버 루트 절대 경로(/)인 경우 VFS나 로컬 드라이브를 타지 않고
+          // 브라우저의 기본 정적 자산 파일 로더로 직결시킵니다.
+          const isStaticAsset = pureSrc.startsWith('/') || pureSrc.startsWith('frontend/public/') || pureSrc.startsWith('public/');
+          if (isStaticAsset) {
+            let webSrc = pureSrc;
+            if (webSrc.startsWith('frontend/public/')) webSrc = webSrc.replace('frontend/public/', '/');
+            else if (webSrc.startsWith('public/')) webSrc = webSrc.replace('public/', '/');
+            
+            setImgSrc(queryString ? (webSrc.includes('?') ? webSrc + '&' + queryString.substring(1) : webSrc + queryString) : webSrc);
+            return;
+          }
+
           // 리소스 폴더 지정 안 됨 경고
           if (!resourceFolderHandle && !rootFolder?.handle && (pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || (pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')))) {
              setErrorMsg(`로컬 미디어를 보려면 좌측 하단의 '리소스 폴더 지정' 버튼을 클릭해 폴더를 연동해주세요.`);
@@ -1816,12 +1829,39 @@ export default function MarkdownViewer({
                 }
                 
                 if (queryString) {
-                  if (finalSrc.includes('?')) {
-                    finalSrc += '&' + queryString.substring(1);
-                  } else {
-                    finalSrc += queryString;
+                  // 💡 온리비 고유의 크기/정렬 파라미터들 (width, height, align, w, h, a)을 제거하여 외부 CDN 서버 오작동 방지
+                  const cleanQuery = queryString
+                    .replace(/([?&])(?:width|w)=[^&]*/gi, '')
+                    .replace(/([?&])(?:height|h)=[^&]*/gi, '')
+                    .replace(/([?&])(?:align|a)=[^&]*/gi, '')
+                    .replace(/&&+/g, '&')
+                    .replace(/\?&/, '?')
+                    .replace(/[?&]$/, '');
+
+                  if (cleanQuery && cleanQuery !== '?') {
+                    if (finalSrc.includes('?')) {
+                      finalSrc += '&' + cleanQuery.substring(1);
+                    } else {
+                      finalSrc += cleanQuery.startsWith('?') ? cleanQuery : '?' + cleanQuery;
+                    }
                   }
                 }
+              }
+
+              // 🛡️ [GitHub CORS 방어 가드]
+              // github.com의 blob 웹페이지 주소는 CORS 차단이 걸리므로 raw.githubusercontent.com 원본 데이터 주소로 자동 교정합니다.
+              if (finalSrc.startsWith('https://github.com/') && finalSrc.includes('/blob/')) {
+                finalSrc = finalSrc
+                  .replace('https://github.com/', 'https://raw.githubusercontent.com/')
+                  .replace('/blob/', '/');
+              }
+
+              // 🛡️ [로컬 public 경로 보정 가드]
+              // 마크다운에 frontend/public/ 또는 public/ 형태로 경로가 삽입된 경우 웹서버 루트(/) 주소로 자동 치환하여 VFS 오류를 방지합니다.
+              if (finalSrc.startsWith('frontend/public/')) {
+                finalSrc = finalSrc.replace('frontend/public/', '/');
+              } else if (finalSrc.startsWith('public/')) {
+                finalSrc = finalSrc.replace('public/', '/');
               }
 
               // 💡 [외부 HTTP 이미지 프록시 라우팅]
