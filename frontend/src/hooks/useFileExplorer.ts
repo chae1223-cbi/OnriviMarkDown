@@ -52,7 +52,8 @@ export const useFileExplorer = ({
   setFileList,
   workspaceType,
   setWorkspaceType,
-  licenseStatus
+  licenseStatus,
+  sessionRestoringRef
 }: any) => {
 
   const isRestrictedUser = licenseStatus?.isExpired ||
@@ -619,7 +620,9 @@ export const useFileExplorer = ({
       }
 
       const openedMsg = `${node.name} 파일을 열었습니다.`;
-      showToast(openedMsg, "info");
+      if (!sessionRestoringRef?.current) {
+        showToast(openedMsg, "info");
+      }
       setIsSidebarOpen(true);
     } catch (err) {
       showToast("파일을 여는데 실패했습니다.", "error");

@@ -561,7 +561,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const tryCount = parseInt(localStorage.getItem('onrivi_guest_try_count') || '0', 10);
 
     // 1. 이미 만료 낙인이 찍혔거나 재접속 횟수를 초과한 게스트인 경우
-    if (isGuestExpired || tryCount >= 5) {
+    if (isGuestExpired || tryCount > 5) {
       setIsGuestExpired(true);
       localStorage.setItem('onrivi_guest_expired', 'Y');
       setLicenseStatus({
@@ -803,6 +803,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const pendingExternalFileRef = useRef<string | null>(null); // 윈도우 파일 연결 경로 (마운트 전 확보용)
   const sessionRestoredRef = useRef<boolean>(false); // 세션 복원 최초 1회 실행 가드
+  const sessionRestoringRef = useRef<boolean>(false); // 세션 복원 진행 중 스킵 락
   const [driveLetter, setDriveLetter] = useState('D:');
 
   // ====================================================================
@@ -2116,7 +2117,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setFileList,
     workspaceType,
     setWorkspaceType,
-    licenseStatus
+    licenseStatus,
+    sessionRestoringRef
   });
 
   // 💡 [TDZ 방어] useFileExplorer 반환값에서 즉시 구조분해 할당하여 참조 에러 방지
@@ -3113,6 +3115,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   const restoreSessionTabs = async (openFilePaths: string[], activeFilePath: string | null) => {
     try {
+      sessionRestoringRef.current = true;
       // 💡 [정식 문서 열기 적용] 단순히 탭만 임의로 배열에 쑤셔넣지 않고, 
       // 기존 파일 탐색기의 실제 파일 오픈 파이프라인(handleFileOpenByPath)을 순차 구동시킵니다.
       // 이렇게 해야 실제 로컬 파일 시스템 핸들 및 VFS 상태가 정상 바인딩되어 물리적 저장이 작동합니다.
@@ -3132,9 +3135,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         await handleFileOpenByPath(activeFilePath);
       }
       
-      showToast(`📂 이전 세션의 문서 ${openFilePaths.length}개가 온전히 복원되었습니다.`, "success");
+      showToast(`📂 이전 세션의 문서 ${openFilePaths.length}개가 온전히 복원되었습니다.`, "info");
     } catch (err) {
       console.error("[restoreSessionTabs] 오류:", err);
+    } finally {
+      sessionRestoringRef.current = false;
     }
   };
 
