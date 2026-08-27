@@ -2,7 +2,7 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
-// 🚨 @PATCH : **2026-06-28** — 데스크톱 앱(Electron) 환경 진입 시 웹 상단 헤더가 레이아웃을 해쳐 에디터 집중을 방해하지 않도록 렌더링 무조건 스킵(return null) 가드 패치; 비밀번호 재설정(/reset-password) 화면 진입 시 임시 토큰으로 로그인 상태의 헤더 UI가 노출되지 않도록 강제 필터링 우회 패치
+// 🚨 @PATCH : **2026-08-27** — 비로그인 상태 헤더 우측 영역에 '즉시 체험하기' 버튼을 추가하고, 클릭 시 로컬 스토리지 게스트 플래그(onrivi_guest_mode)를 셋업하여 복잡한 로그인/가입 없이 브라우저 가상 스페이스 에디터로 즉시 진입하도록 액션 탑재; **2026-06-28** — 데스크톱 앱(Electron) 환경 진입 시 웹 상단 헤더가 레이아웃을 해쳐 에디터 집중을 방해하지 않도록 렌더링 무조건 스킵(return null) 가드 패치; 비밀번호 재설정(/reset-password) 화면 진입 시 임시 토큰으로 로그인 상태의 헤더 UI가 노출되지 않도록 강제 필터링 우회 패치
 //             **2026-06-23** — 로그아웃 시 license_activations 직접 delete DML을 Supabase Stored Procedure (deactivate_session_on_logout RPC) 호출 방식으로 위임 개편 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스모피즘 Navbar, Inter 폰트, Ice Blue 액센트); 비로그인 상태 진입 경로 제거(로그인/시작하기 버튼 숨김) 패치; 헤더에 비로그인용 '시작하기' 버튼 복원 패치
 //             **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 및 Supabase Auth 연동 패치; 깨진 logo 이미지 아이콘을 /icon.png로 변경; 다운로드 네비게이션 링크 제거 대응 패치
@@ -48,6 +48,11 @@ export function Navbar({ content }: { content?: NavbarContent }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hasActivePromo, setHasActivePromo] = useState(false);
+  const [isTryoutGuideOpen, setIsTryoutGuideOpen] = useState(false);
+
+  const handleInstantTry = () => {
+    setIsTryoutGuideOpen(true);
+  };
 
   // =====================================================================
   // 네비게이션 컴포넌트의 생명 주기 동안 필요한 초기화 및 이벤트 리스너 설정
@@ -236,14 +241,146 @@ export function Navbar({ content }: { content?: NavbarContent }) {
                   </button>
                 </>
               ) : (
-                <Link href="/login">
-                  <button className="btn-primary" style={{ fontSize: 13, padding: "6px 16px" }}>{content?.startLabel ?? "시작하기"}</button>
-                </Link>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={handleInstantTry} 
+                    className="btn-secondary" 
+                    style={{ fontSize: 13, padding: "6px 16px" }}
+                  >
+                    즉시 체험하기
+                  </button>
+                  <Link href="/login">
+                    <button className="btn-primary" style={{ fontSize: 13, padding: "6px 16px" }}>{content?.startLabel ?? "시작하기"}</button>
+                  </Link>
+                </div>
               )
             )}
           </div>
         </div>
       </div>
+      {/* ⏱️ 게스트 체험판 이용 가이드 안내 모달 */}
+      {isTryoutGuideOpen && (() => {
+        const isAlreadyExpired = typeof window !== 'undefined' && (
+          localStorage.getItem('onrivi_guest_expired') === 'Y' ||
+          parseInt(localStorage.getItem('onrivi_guest_try_count') || '0', 10) >= 5
+        );
+        return (
+          <div className="fixed inset-0 h-screen w-screen z-[9999] flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm p-4 select-none animate-fadeIn" translate="no">
+            <div className="max-w-md w-full max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 rounded-2xl p-7 shadow-2xl text-left transform scale-100 transition-all duration-300 scrollbar-none">
+              {isAlreadyExpired ? (
+                <>
+                  <h3 className="text-lg font-bold text-red-600 dark:text-red-400 mb-4 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2"><span>⚠️</span> 체험 접속 횟수 초과 안내</span>
+                    {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                      <button
+                        onClick={() => {
+                          localStorage.removeItem('onrivi_guest_expired');
+                          localStorage.removeItem('onrivi_guest_start_time');
+                          localStorage.setItem('onrivi_guest_try_count', '0');
+                          setIsTryoutGuideOpen(false);
+                        }}
+                        className="text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline bg-transparent border-none cursor-pointer font-normal flex-shrink-0"
+                        title="개발자 전용 체험 횟수 초기화"
+                      >
+                        테스트용 리셋
+                      </button>
+                    )}
+                  </h3>
+                  
+                  <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed mb-6">
+                    이미 동일 브라우저당 허용되는 <strong>최대 5회 즉시 체험</strong> 접속 횟수를 모두 소진하셨습니다.
+                    <br /><br />
+                    기존에 작성하셨던 가상 공간의 임시 원고는 안전하게 로컬 브라우저에 임시 보존 중입니다. 계속해서 원고를 이어서 작성하고, 무제한 클라우드 백업 및 AI 어시스턴트를 온전히 사용하시려면 <strong>정식 회원으로 가입하여 사용</strong>해 주세요!
+                  </p>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setIsTryoutGuideOpen(false)}
+                      className="flex-1 py-2.5 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-semibold rounded-xl transition duration-150 cursor-pointer text-center border-none"
+                    >
+                      닫기
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsTryoutGuideOpen(false);
+                        localStorage.removeItem('onrivi_guest_mode');
+                        localStorage.removeItem('onrivi_guest_expired');
+                        localStorage.removeItem('onrivi_guest_start_time');
+                        localStorage.removeItem('onrivi_guest_try_count');
+                        router.push("/signup");
+                      }}
+                      className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition duration-150 shadow-md cursor-pointer text-center border-none"
+                    >
+                      정식 회원가입
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                    <span>🚀</span> Onrivi Author 즉시 체험판 안내
+                  </h3>
+                  
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed mb-5">
+                    회원가입 없이 브라우저 가상 공간을 통해 에디터의 명품 조판과 렌더링 성능을 즉석에서 검증할 수 있는 체험판 세션입니다.
+                  </p>
+
+                  <div className="space-y-3.5 mb-6 text-sm text-zinc-700 dark:text-zinc-300">
+                    <div className="flex gap-3 items-start p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
+                      <span className="text-lg flex-shrink-0">⏱️</span>
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-white text-xs mb-0.5">회당 5분 제한</h4>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">진입 시 5분 타이머가 기동되며, 만료 시 편집 잠금(읽기전용) 상태로 전환됩니다.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 items-start p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
+                      <span className="text-lg flex-shrink-0">🔄</span>
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-white text-xs mb-0.5">최대 5회 재접속</h4>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">새로고침이나 재접속 시 5분이 충전되지만, 동일 브라우저당 최대 5회까지만 허용됩니다.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 items-start p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
+                      <span className="text-lg flex-shrink-0">💾</span>
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-white text-xs mb-0.5">작성 데이터 보존</h4>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">재접속 시 기존에 작성해 둔 파일 목록과 디렉토리, 탭 순서는 데이터 유실 없이 그대로 자동 복원됩니다.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setIsTryoutGuideOpen(false)}
+                      className="flex-1 py-2.5 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-semibold rounded-xl transition duration-150 cursor-pointer text-center border-none"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsTryoutGuideOpen(false);
+                        if (typeof window !== "undefined") {
+                          localStorage.setItem("onrivi_guest_mode", "Y");
+                          localStorage.setItem("onrivi_workspace_type", "browser");
+                          localStorage.removeItem("onrivi_guest_expired");
+                          localStorage.removeItem("onrivi_guest_start_time");
+                          localStorage.setItem("onrivi_guest_try_count", "0"); // 진입 즉시 1/3로 증가
+                          router.push("/editor");
+                        }
+                      }}
+                      className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition duration-150 shadow-md cursor-pointer text-center border-none"
+                    >
+                      확인하고 체험 시작
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </nav>
   );
 }

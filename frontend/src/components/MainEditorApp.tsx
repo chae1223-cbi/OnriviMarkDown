@@ -7,6 +7,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-08-27** — 비로그인 즉시 체험 모드(onrivi_guest_mode) 가동 시, 최초 라이선스/세션 검증(loadAndVerifyLicense)을 스킵하고 가상의 프리미엄 등급 라이선스 상태로 즉시 활성화 셋업하여 에디터 편집 잠금을 원천 패스하도록 가드 적용; 게스트 무단 점유/재접속 방지를 위해 10분 타이머(countdown) 및 로컬스토리지 만료 낙인(onrivi_guest_expired) 차단막 시스템을 구축하여 시간 만료 시 에디터 강제 읽기 전용 전환 및 닫기 없는 풀스크린 가입 권유 모달 팝업 바인딩
  *   * 🚨 @PATCH : **2026-08-26** — 분할모드에서 마우스 휠 동작에 의해 우측 실시간 미리보기 스크롤이 단독으로 움직이는 것을 차단하고(onWheel preventDefault) 에디터 스크롤 동기화에 의해서만 구동되도록 제어 및 런타임 contentText ReferenceError 보정 수정
  *   * 🚨 @PATCH : **2026-08-13** — 스크롤 요동 및 튕김 현상의 근본적 해결을 위해 MainEditorApp 내의 모든 이중/중복 스크롤 보정 훅(postContentScrollCorrection) 및 휠/터치 강제 차단 훅을 완전히 삭제하고, Monaco Setup의 단일 스크롤 리스너로 동기화 구조를 전량 이관 및 정밀 간소화함
  *   * 🚨 @PATCH : **2026-08-12** — 에디터를 열거나 탭을 닫고 전환할 때 제한사용자(만료, 동시접속 제한, 미인증 등)의 권한 가드가 누락되어 편집 가능해지던 버그 해결을 위해 isRestrictedUser 검사 통합 적용 및 Monaco readOnly/domReadOnly 옵션 동기화 보완; 최초 검증 시 동시접속 실패 시 이중 검증 복구 우회로를 차단하고 isRestricted 필드를 로컬 보안 캐시와 setLicenseStatus에 밀봉 연동하여 캐시 뚫림 현상 원천 해결
@@ -536,6 +537,96 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const tabsRef = useRef<any[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
 
+  // ⏳ [게스트 즉시 체험판 시간 및 횟수 제한(Paywall) 상태]
+  const [isGuestMode, setIsGuestMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('onrivi_guest_mode') === 'Y';
+  });
+  const [guestRemainingSeconds, setGuestRemainingSeconds] = useState<number>(300); // 5분 (300초)
+  const [isGuestExpired, setIsGuestExpired] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const tryCount = parseInt(localStorage.getItem('onrivi_guest_try_count') || '0', 10);
+    return localStorage.getItem('onrivi_guest_expired') === 'Y' || tryCount > 5;
+  });
+
+  // ⏳ [게스트 즉시 체험판 인터랙티브 플로팅 가이드 상태]
+  const [guideStep, setGuideStep] = useState<number>(1);
+  const [isGuideMinimized, setIsGuideMinimized] = useState<boolean>(false);
+
+  // ⏳ [게스트 타이머 구동 및 재접속 제한 이펙트]
+  useEffect(() => {
+    if (!isGuestMode) return;
+
+    const tryCount = parseInt(localStorage.getItem('onrivi_guest_try_count') || '0', 10);
+
+    // 1. 이미 만료 낙인이 찍혔거나 재접속 횟수를 초과한 게스트인 경우
+    if (isGuestExpired || tryCount > 5) {
+      setIsGuestExpired(true);
+      localStorage.setItem('onrivi_guest_expired', 'Y');
+      setLicenseStatus({
+        isActivated: false,
+        isExpired: true,
+        remainingDays: 0,
+        userId: 'GUEST_USER',
+        licenseKey: '',
+        paymentNo: '',
+        planName: '체험판 재접속 횟수 초과',
+        nextPaymentDate: ''
+      });
+      return;
+    }
+
+    // 2. 신규 진입 세션에 대해 접속 횟수 카운터 증가 (최초 1회만 누적)
+    const newCount = tryCount + 1;
+    localStorage.setItem('onrivi_guest_try_count', newCount.toString());
+
+    // 3. 증가된 카운트가 제한(5회)을 초과한 경우
+    if (newCount > 5) {
+      setIsGuestExpired(true);
+      localStorage.setItem('onrivi_guest_expired', 'Y');
+      setLicenseStatus({
+        isActivated: false,
+        isExpired: true,
+        remainingDays: 0,
+        userId: 'GUEST_USER',
+        licenseKey: '',
+        paymentNo: '',
+        planName: '체험판 재접속 횟수 초과',
+        nextPaymentDate: ''
+      });
+      return;
+    }
+
+    // 4. 타이머를 5분(300초)으로 매 접속마다 독립적으로 새로 기동
+    setGuestRemainingSeconds(300);
+    const interval = setInterval(() => {
+      setGuestRemainingSeconds(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setIsGuestExpired(true);
+          // 5분 만료 시점에 접속 카운트가 5회 이상이었다면 완전히 영구 낙인 찍기
+          if (newCount >= 5) {
+            localStorage.setItem('onrivi_guest_expired', 'Y');
+          }
+          setLicenseStatus({
+            isActivated: false,
+            isExpired: true,
+            remainingDays: 0,
+            userId: 'GUEST_USER',
+            licenseKey: '',
+            paymentNo: '',
+            planName: '체험판 시간 만료',
+            nextPaymentDate: ''
+          });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isGuestMode, isGuestExpired]);
+
   // 💾 [탭 순서 영구 보존 이펙트] localStorage에 기록된 순서가 있다면 tabs 배열의 순서를 복원
   useEffect(() => {
     if (tabs.length === 0) return;
@@ -923,6 +1014,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   const loadAndVerifyLicense = useCallback(async () => {
     if (typeof window === 'undefined' || !deviceId) return;
+    
+    // 🛡️ [게스트 즉시 체험 모드 가드] 게스트 모드로 동작 시 라이선스 검증 스킵하고 활성화 처리
+    const isGuestMode = localStorage.getItem('onrivi_guest_mode') === 'Y';
+    if (isGuestMode) {
+      setLicenseStatus({
+        isActivated: true,
+        isExpired: false,
+        remainingDays: 999,
+        userId: 'GUEST_USER',
+        licenseKey: 'GUEST_LICENSE_KEY',
+        paymentNo: 'GUEST_PAYMENT_NO',
+        planName: '체험판 게스트 요금제',
+        nextPaymentDate: '2999-12-31'
+      });
+      return;
+    }
+
     console.log('[LICENSE] loadAndVerifyLicense START deviceId=%o', deviceId);
     const api = (window as any).electronAPI;
     const isDesktop = !!api;
@@ -1352,6 +1460,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId]);
 
+  const formatTime = (seconds: number) => {
+    const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
+    const ss = String(seconds % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+  };
 
   useEffect(() => {
     if (!deviceId) {
@@ -5515,6 +5628,80 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       `}</style>
       <EditorProvider value={contextValue}>
+        {/* ⏳ [게스트 즉시 체험 만료 가입 유도 모달 차단막] */}
+        {isGuestMode && isGuestExpired && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-zinc-950/85 backdrop-blur-md p-6 select-none" translate="no">
+            <div className="max-w-md w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-8 shadow-2xl text-center transform scale-100 transition-all duration-300">
+              <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-3xl">⏱️</span>
+              </div>
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-3">
+                정식으로 회원가입 후 사용하세요
+              </h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed mb-8">
+                동일 브라우저당 허용되는 <strong>5회 체험 접속</strong>을 모두 사용하셨거나, <strong>5분 편집 제한 시간</strong>이 경과하였습니다. 작성하신 소중한 원고는 브라우저에 임시 안전 보관 중입니다. 계속해서 원고를 이어서 작성하고 무제한 클라우드 백업 및 AI 어시스턴트를 활용하시려면 지금 가입하세요!
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('onrivi_guest_mode');
+                    localStorage.removeItem('onrivi_guest_expired');
+                    localStorage.removeItem('onrivi_guest_start_time');
+                    localStorage.removeItem('onrivi_guest_try_count');
+                    window.location.href = '/signup';
+                  }}
+                  className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-150 shadow-md cursor-pointer border-none text-center"
+                >
+                  3초 만에 무료 회원가입
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('onrivi_guest_mode');
+                    localStorage.removeItem('onrivi_guest_expired');
+                    localStorage.removeItem('onrivi_guest_start_time');
+                    localStorage.removeItem('onrivi_guest_try_count');
+                    window.location.href = '/login';
+                  }}
+                  className="w-full py-3 px-4 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold rounded-xl transition duration-150 cursor-pointer border-none text-center"
+                >
+                  기존 계정으로 로그인
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('onrivi_guest_mode');
+                    localStorage.removeItem('onrivi_guest_expired');
+                    localStorage.removeItem('onrivi_guest_start_time');
+                    localStorage.removeItem('onrivi_guest_try_count');
+                    window.location.href = '/';
+                  }}
+                  className="w-full py-3 px-4 bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-900/40 dark:hover:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl transition duration-150 cursor-pointer text-center"
+                >
+                  메인페이지 가기
+                </button>
+              </div>
+              <div className="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-center">
+                <a 
+                  href="/" 
+                  onClick={() => {
+                    localStorage.removeItem('onrivi_guest_mode');
+                    localStorage.removeItem('onrivi_guest_expired');
+                    localStorage.removeItem('onrivi_guest_start_time');
+                    localStorage.removeItem('onrivi_guest_try_count');
+                  }}
+                  className="flex items-center gap-2 hover:opacity-85 transition-opacity"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="#10B981" />
+                  </svg>
+                  <span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 tracking-wider uppercase">
+                    Onrivi Author
+                  </span>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className={`flex h-screen overflow-hidden flex-col text-on-surface transition-colors duration-300 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-surface'}`}>
 
           <MenuBar />
@@ -5532,10 +5719,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 <div className="no-print flex flex-col w-full">
                   <UnifiedTabBar />
                   {activeTab && (
-                    <div className="flex items-center px-4 py-1 border-b border-black/5 dark:border-white/5 bg-zinc-100 dark:bg-zinc-900/80 text-[10px] text-zinc-500 font-semibold shadow-inner z-10">
+                    <div className="flex items-center justify-between px-4 py-1 border-b border-black/5 dark:border-white/5 bg-zinc-100 dark:bg-zinc-900/80 text-[10px] text-zinc-500 font-semibold shadow-inner z-10">
                       <span className="truncate max-w-full opacity-70 hover:opacity-100 transition-opacity cursor-default">
                         📁 {workspaceType === 'browser' ? (rootFolder?.name ? `${rootFolder.name} \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}` : `🌐 Browser Storage \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}`) : (workspaceType === 'cloud' ? `[${cloudProvider || 'Cloud'}] \\ ${rootFolder?.name || 'Sync'} \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}` : (currentFileNode?.path?.includes(':') ? currentFileNode.path : `${driveLetter}\\새 문서\\${currentFileName}`))}
                       </span>
+                      {isGuestMode && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 animate-pulse flex-shrink-0 font-bold ml-4">
+                          <span>⏱️ 5분 체험 남은 시간 (접속 {typeof window !== 'undefined' ? localStorage.getItem('onrivi_guest_try_count') || '1' : '1'}/5):</span>
+                          <span className="font-mono text-xs">{formatTime(guestRemainingSeconds)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -5576,7 +5769,100 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-1 overflow-hidden">
+                  <div className="flex flex-1 overflow-hidden relative">
+
+                    {/* ⏳ [게스트 즉시 체험판 인터랙티브 플로팅 가이드 위젯] */}
+                    {isGuestMode && (
+                      <div className="absolute top-4 right-6 z-[20] no-print" translate="no">
+                        {isGuideMinimized ? (
+                          <button 
+                            onClick={() => setIsGuideMinimized(false)}
+                            className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-lg transition duration-150 cursor-pointer border-none text-base"
+                            title="체험판 가이드 열기"
+                          >
+                            🌟
+                          </button>
+                        ) : (
+                          <div className="w-[320px] bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 shadow-xl text-left select-none text-zinc-800 dark:text-zinc-200">
+                            <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                              <span className="font-extrabold text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                                🌟 5분 체험 챌린지 ({guideStep}/4)
+                              </span>
+                              <button 
+                                onClick={() => setIsGuideMinimized(true)}
+                                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-xs bg-none border-none cursor-pointer"
+                              >
+                                접기
+                              </button>
+                            </div>
+
+                            {/* 단계별 내용 */}
+                            {guideStep === 1 && (
+                              <div>
+                                <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">1단계: 폴더 & 파일 생성 📂</h4>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                  왼쪽 파일 탐색기 빈 공간을 마우스 우클릭하여 <strong>나의_첫_원고</strong> 폴더를 만들고, 그 밑에 <strong>아이디어.md</strong> 문서를 만들어 더블클릭해 보세요.
+                                </p>
+                              </div>
+                            )}
+                            {guideStep === 2 && (
+                              <div>
+                                <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">2단계: 실시간 조판 체감 ✍️</h4>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                  새로 연 문서에 마크다운 기호들을 자유롭게 적어 보세요. 기호들이 우측 미리보기에 <strong>0.1초 만에 실제 서적 디자인으로 실시간 조판</strong>되는 속도를 느낍니다.
+                                </p>
+                              </div>
+                            )}
+                            {guideStep === 3 && (
+                              <div>
+                                <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">3단계: 특허받은 무결성 검증 📊</h4>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                                  웰컴 문서 탭으로 돌아가 표 안의 단어들을 <strong>더블클릭</strong>해 보셔요. 온리비만의 특허 기술로 표 깨짐 없이 깔끔하게 선택 영역만 지정되는 안전성을 검증합니다.
+                                </p>
+                              </div>
+                            )}
+                            {guideStep === 4 && (
+                              <div>
+                                <h4 className="font-bold text-xs mb-1 text-zinc-900 dark:text-white">4단계: 복원 & 회원가입 💾</h4>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed mb-2.5">
+                                  키보드 <strong>F5(새로고침)</strong>를 눌러보세요. 5분 시간이 충전되며 작성 중인 폴더가 그대로 복원됩니다. 최대 5회만 허용되므로 영구 잠금 전에 가입하세요!
+                                </p>
+                                <button 
+                                  onClick={() => {
+                                    localStorage.removeItem('onrivi_guest_mode');
+                                    localStorage.removeItem('onrivi_guest_expired');
+                                    localStorage.removeItem('onrivi_guest_start_time');
+                                    localStorage.removeItem('onrivi_guest_try_count');
+                                    window.location.href = '/signup';
+                                  }}
+                                  className="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg transition duration-150 cursor-pointer border-none text-center"
+                                >
+                                  무료 회원가입하고 계속 사용하기
+                                </button>
+                              </div>
+                            )}
+
+                            {/* 이전/다음 버튼 */}
+                            <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 text-[10px]">
+                              <button 
+                                disabled={guideStep === 1}
+                                onClick={() => setGuideStep(p => p - 1)}
+                                className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-600 dark:text-zinc-300 rounded disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer border-none"
+                              >
+                                이전
+                              </button>
+                              <button 
+                                disabled={guideStep === 4}
+                                onClick={() => setGuideStep(p => p + 1)}
+                                className="px-2 py-1 bg-indigo-50 dark:bg-indigo-950/45 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/70 rounded disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer border-none"
+                              >
+                                다음
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div
                       className="flex-1 min-w-0 relative border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-300 no-print bg-surface-container-low dark:bg-zinc-950"

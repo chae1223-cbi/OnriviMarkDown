@@ -22,12 +22,14 @@ const DEV_ONLY_ROUTES = [
   { parent: APP_DIR, route: 'auth' },
   { parent: APP_DIR, route: 'contact' },
   { parent: APP_DIR, route: 'dashboard' },
+  { parent: APP_DIR, route: 'docs' },
   { parent: APP_DIR, route: 'forgot-password' },
   { parent: APP_DIR, route: 'login' },
   { parent: APP_DIR, route: 'privacy' },
   { parent: APP_DIR, route: 'reset-password' },
   { parent: APP_DIR, route: 'signup' },
   { parent: APP_DIR, route: 'terms' },
+  { parent: APP_DIR, route: 'test' },
   { parent: APP_DIR, route: 'sitemap.ts' }
 ];
 
