@@ -1,4 +1,4 @@
-// 🚨 @PATCH : **2026-08-26** — 코드 블록 헤더 복사 버튼의 글자색이 어두운 배경 위에서 묻히던 시각성 결함을 해결하기 위해 항상 선명한 텍스트 컬러(text-slate-100) 및 불투명도 보정을 적용하고 언어명 텍스트 레이블을 볼드체(font-bold)로 강화 | **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
+// 🚨 @PATCH : **2026-08-28** — 이미지, 표, 코드블록 등의 가변 거대 요소가 포함되었을 때 비선형 리플로우로 인해 선형 스크롤 비율 보간이 어긋나서 싱크가 망가지던 현상을 해결하기 위해, React 컴포넌트 Props 카멜 케이스 변환 및 Properties 손실을 막아주는 extractDataLine 통합 스캐너를 이식하여 래퍼 돔의 data-line 상속 안전성을 확보함 | **2026-08-26** — 코드 블록 헤더 복사 버튼의 글자색이 어두운 배경 위에서 묻히던 시각성 결함을 해결하기 위해 항상 선명한 텍스트 컬러(text-slate-100) 및 불투명도 보정을 적용하고 언어명 텍스트 레이블을 볼드체(font-bold)로 강화 | **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
 // 🚨 @PATCH : **2026-07-16** — 코드블록 및 인라인 코드의 하드코딩된 파란색 톤 배경 및 글자색을 제거하여, 사용자 CSS 프로필 서식 설정이 가로막힘 없이 실시간으로 올바르게 오버라이딩되도록 버그 수정.
 //             **2026-07-15** — MermaidBlock 내 alert() 호출을 useToast showToast('warning')로 교체 (브라우저 팝업 차단 알림을 공통 토스트 UI로 통일)
 //             **2026-07-07** — rehype-citation 플러그인 추가 (참고문헌/BibTeX 인용 파이프라인); bibContent prop으로 BibTeX 데이터를 주입받아 [@citekey] 문법을 인용/참고문헌 목록으로 자동 변환
@@ -63,6 +63,17 @@ interface MarkdownViewerProps {
   resourceFolder?: string;
   workspaceType?: string;
 }
+
+// 💡 [하이브리드 data-line 추출 헬퍼] React 컴포넌트 Props 카멜 케이스 변환 및 AST Properties 누락 방지를 위한 통합 스캐너
+const extractDataLine = (props: any, node?: any): number | undefined => {
+  if (!props && !node) return undefined;
+  const val = props?.['data-line'] || props?.dataLine || props?.['dataLine'] || node?.properties?.['data-line'] || node?.properties?.dataLine;
+  if (val !== undefined && val !== null) {
+    const parsed = parseInt(val, 10);
+    return isNaN(parsed) ? undefined : parsed;
+  }
+  return undefined;
+};
 
 // ====================================================================
 // 🖼️ [ONR-MD-006] AsyncImage 커스텀 컴포넌트
@@ -202,7 +213,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     );
   }
 
-  if (!imgSrc) return <span className="inline-block animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-32" />;
+  if (!imgSrc) return <span data-line={extractDataLine(props)} className="inline-block animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-32" />;
 
   const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -216,6 +227,14 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
         const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
         img.src = queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc;
       }
+    }
+  };
+
+  const handleImgLoad = () => {
+    // 💡 [이미지 레이아웃 리플로우 싱크] 비동기로 이미지가 완벽히 다 그려지면,
+    // 텍스트 밀림 오차를 해결하기 위해 브라우저 레이아웃 강제 갱신 이벤트를 트리거합니다.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('resize'));
     }
   };
 
@@ -251,8 +270,8 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     };
 
     return (
-      <div className="relative group inline-block" style={style}>
-        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} {...props} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      <div data-line={extractDataLine(props)} className="relative group inline-block" style={style}>
+        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} onLoad={handleImgLoad} {...props} data-line={undefined} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         <button
             onClick={handleCopy}
             className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
@@ -538,7 +557,7 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
 
 
   return (
-    <div className="codeblock-area group my-4 rounded-lg bg-zinc-100/90 dark:bg-zinc-900/95 overflow-hidden shadow-sm select-text max-w-full border border-zinc-200/70 dark:border-zinc-800/90">
+    <div data-line={extractDataLine(props)} className="codeblock-area group my-4 rounded-lg bg-zinc-100/90 dark:bg-zinc-900/95 overflow-hidden shadow-sm select-text max-w-full border border-zinc-200/70 dark:border-zinc-800/90">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
       <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-zinc-200/80 dark:bg-zinc-800/95 h-9 border-b border-zinc-200/70 dark:border-zinc-800/90">
         <span className="codeblock-header-text text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
@@ -2203,7 +2222,7 @@ export default function MarkdownViewer({
             },
             table: ({ node, children, ...props }: any) => {
                return (
-                 <TableWrapper>
+                 <TableWrapper data-line={extractDataLine(props, node)}>
                    <table {...props}>
                      {children}
                    </table>

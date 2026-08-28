@@ -3,7 +3,7 @@
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 탭/스페이스 매칭 최적화
 // 🛡️ @GUARD : hasList 체크 후 순차적으로 이전 줄의 탭 깊이와 숫자를 비교하여 번호 갱신
-// 🚨 @PATCH : 2026-08-27 - 사용자가 단어 더블클릭/선택 시 다른 행들의 동일 단어들까지 일제히 하이라이팅되어 다중 선택된 것처럼 오해를 주던 현상을 방지하기 위해, occurrencesHighlight 및 selectionHighlight 옵션을 false로 변경 | 2026-08-26 - 사용자의 에디터 입력 경험 개선을 위해 표 영역 이탈 시 강제로 셀 크기를 자동 정렬 및 확장하여 셀을 공백으로 가득 채우던 formatTableBlock 호출 기능을 영구 제거; 에디터 최초 로드 및 탭/파일 전환(모델 교체) 시점에 구문 강조 및 코드블럭/인용구 배경색이 즉각 렌더링되도록 onDidChangeModel 이벤트 리스너를 결합해 수정 | 2026-08-14 - 타이핑(Enter 등) 시 에디터 높이 변화로 인해 onDidScrollChange가 트리거되면서 미리보기가 비율 기반 스크롤로 튕기던 현상(Jumping)을 방지하기 위해 isTypingScrollLock 상태를 도입하여 타이핑 중에는 커서 위치 기반 스크롤(onDidChangeModelContent)만 100% 작동하도록 제어권 분리; 타이핑(입력) 시 미리보기 스크롤이 현재 커서 위치를 따라가도록 onDidChangeModelContent 내부에 디바운스된 스크롤 동기화 로직 추가하여 실시간 입력 시야 확보; 여러 줄이 선택된 상태에서 Enter 입력 시 리스트 자동완성이 오작동하는 문제를 해결하기 위해, 다중 행/텍스트 선택이 있는 경우 선택 영역을 삭제하고 줄바꿈(\n)으로 즉시 대치하도록 커스텀 Enter 단축키 동작 보강; 분할 영역에서 에디터의 마지막 줄 텍스트 입력 시, 미리보기의 scrollHeight 대신 getBoundingClientRect 기반 상대 좌표로 정확한 하단 여백 및 텍스트 실제 영역 크기를 계산하여, 텍스트가 시야에 들어오지 않고 위로 숨어 가려지던 동기화 결함 완벽 해결 | 2026-08-13 - 중복되던 커서 변경 연동 리스너(onDidChangeCursorPosition)를 영구 폐기하고, 오직 단 하나의 스크롤 이벤트(onDidScrollChange) 내부에 1:1 오프셋 탑 매핑 공식(firstVisible)만을 깔끔하게 부착하여 양방향 스크롤 요동 및 점프 버그를 근본적으로 종식함 | 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
+// 🚨 @PATCH : 2026-08-28 - 에디터 맨 아래 영역 직전에서 앵커 조건 중복(firstVisibleLine >= totalLines - 8)으로 인해 미리보기가 갑자기 최하단으로 순간이동(Jumping)했다가 다시 앵커 매칭으로 위로 올라가던 들썩거림 오류를 해결하기 위해 중복 강제 조건문을 영구 프루닝(Pruning)하고 앵커링 스무스 매칭으로만 통일; 2026-08-28 - 에디터 최상단 메타데이터(Frontmatter) 등으로 인해 앵커 계산에 오차가 발생하여 끝바닥까지 내려가지 않던 한계 극복을 위해, 에디터 스크롤바가 최상단/최하단 5px 근처에 도달하면 메타데이터 유무와 상관없이 미리보기도 100% 최상단/최하단 끝으로 강제 밀착 정렬되도록 경계 동기화 가드 추가; 2026-08-28 - 에디터와 미리보기의 스크롤 싱크 알고리즘을 100% 절대 앵커 매칭 방식으로 완전히 단일 통합(syncEditorToPreview)하여 스크롤, 방향키 이동, 마우스 클릭 시의 포지션 불일치를 제거하고, 에디터 하단 8줄 이내 클릭/입력 시 강제 최하단 고정 가드를 도입하여 덜컹거리던 화면 흔들림(Jittering)을 완벽하게 해결 및 치료함 | 2026-08-27 - 사용자가 단어 더블클릭/선택 시 다른 행들의 동일 단어들까지 일제히 하이라이팅되어 다중 선택된 것처럼 오해를 주던 현상을 방지하기 위해, occurrencesHighlight 및 selectionHighlight 옵션을 false로 변경 | 2026-08-26 - 사용자의 에디터 입력 경험 개선을 위해 표 영역 이탈 시 강제로 셀 크기를 자동 정렬 및 확장하여 셀을 공백으로 가득 채우던 formatTableBlock 호출 기능을 영구 제거; 에디터 최초 로드 및 탭/파일 전환(모델 교체) 시점에 구문 강조 및 코드블럭/인용구 배경색이 즉각 렌더링되도록 onDidChangeModel 이벤트 리스너를 결합해 수정 | 2026-08-14 - 타이핑(Enter 등) 시 에디터 높이 변화로 인해 onDidScrollChange가 트리거되면서 미리보기가 비율 기반 스크롤로 튕기던 현상(Jumping)을 방지하기 위해 isTypingScrollLock 상태를 도입하여 타이핑 중에는 커서 위치 기반 스크롤(onDidChangeModelContent)만 100% 작동하도록 제어권 분리; 타이핑(입력) 시 미리보기 스크롤이 현재 커서 위치를 따라가도록 onDidChangeModelContent 내부에 디바운스된 스크롤 동기화 로직 추가하여 실시간 입력 시야 확보; 여러 줄이 선택된 상태에서 Enter 입력 시 리스트 자동완성이 오작동하는 문제를 해결하기 위해, 다중 행/텍스트 선택이 있는 경우 선택 영역을 삭제하고 줄바꿈(\n)으로 즉시 대치하도록 커스텀 Enter 단축키 동작 보강; 분할 영역에서 에디터의 마지막 줄 텍스트 입력 시, 미리보기의 scrollHeight 대신 getBoundingClientRect 기반 상대 좌표로 정확한 하단 여백 및 텍스트 실제 영역 크기를 계산하여, 텍스트가 시야에 들어오지 않고 위로 숨어 가려지던 동기화 결함 완벽 해결 | 2026-08-13 - 중복되던 커서 변경 연동 리스너(onDidChangeCursorPosition)를 영구 폐기하고, 오직 단 하나의 스크롤 이벤트(onDidScrollChange) 내부에 1:1 오프셋 탑 매핑 공식(firstVisible)만을 깔끔하게 부착하여 양방향 스크롤 요동 및 점프 버그를 근본적으로 종식함 | 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
 // 🔗 @CALLS : model.getLineContent, editor.executeEdits
 // ====================================================================
 import { useRef } from 'react';
@@ -425,59 +425,15 @@ export function useMonacoSetup(deps: any) {
                       isTypingScrollLock = false;
                     }, 500);
 
-                    // ⭐️ [신규 추가] 입력(타이핑) 시 현재 커서 위치로 미리보기 스크롤 동기화
+                    // ⭐️ [통합 타이핑 싱크] 입력(타이핑) 시에도 공통 앵커 싱크 함수를 호출하여
+                    // 모든 3대 조작(클릭, 스크롤, 타이핑)의 정렬 결과를 일관되게 일치시킵니다.
                     if (previewModeRef.current === 'both' && previewRef.current) {
                       if (typingScrollTimeout) clearTimeout(typingScrollTimeout);
                       typingScrollTimeout = setTimeout(() => {
-                        const position = editor.getPosition();
-                        if (!position) return;
-                        
-                        const clickedLine = position.lineNumber;
-                        const parent = previewRef.current;
-                        if (!parent) return;
-                        
-                        const rootViewer = parent.querySelector('.markdown-viewer-root') as HTMLElement;
-                        const pureTextEl = rootViewer ? (Array.from(rootViewer.children).find(el => el.tagName !== 'STYLE') as HTMLElement) : null;
-                        
-                        const contentBottomY = pureTextEl ? (pureTextEl.getBoundingClientRect().bottom - parent.getBoundingClientRect().top + parent.scrollTop) : 0;
-                        const contentHeight = contentBottomY > 0 ? contentBottomY + 48 : 0;
-                        
-                        if (contentHeight <= parent.clientHeight) return;
-                        
-                        const totalLines = editor.getModel()?.getLineCount() || 1;
-                        
-                        if (clickedLine === 1) {
-                          parent.scrollTo({ top: 0, behavior: 'smooth' });
-                          return;
+                        if (previewRef.current) {
+                          syncEditorToPreview(editor, previewRef.current);
                         }
-                        if (clickedLine === totalLines) {
-                          const maxScroll = contentHeight - parent.clientHeight;
-                          parent.scrollTo({ top: maxScroll > 0 ? maxScroll : 0, behavior: 'smooth' });
-                          return;
-                        }
-                        
-                        const targetElement = parent.querySelector(`[data-line="${clickedLine}"]`) as HTMLElement;
-                        if (targetElement) {
-                          verticalScrollToElement(parent, targetElement, 'center', 'smooth');
-                        } else {
-                          const elements = Array.from(parent.querySelectorAll('[data-line]')) as HTMLElement[];
-                          let targetEl: HTMLElement | null = null;
-                          let maxLine = -1;
-                          for (const el of elements) {
-                            const lineStr = el.getAttribute('data-line');
-                            if (lineStr) {
-                              const line = parseInt(lineStr, 10);
-                              if (line <= clickedLine && line > maxLine) {
-                                  maxLine = line;
-                                  targetEl = el;
-                              }
-                            }
-                          }
-                          if (targetEl) {
-                            verticalScrollToElement(parent, targetEl, 'center', 'smooth');
-                          }
-                        }
-                      }, 150);
+                      }, 200);
                     }
                   });
 
@@ -1351,24 +1307,10 @@ editor.onDidChangeCursorPosition((e) => {
                     const prevLine = prevCursorLineRef.current;
                     prevCursorLineRef.current = currentLine;
 
-                    // 💡 [OMD-SYNC-DEPRECATED] 커서 이동 시 동기화는 기본적으로 스크롤(onDidScrollChange) 내부에서 처리되지만,
-                    // 에디터 내용이 짧아서 스크롤바가 없는 경우(editorMaxScroll <= 0)에는 커서 이벤트를 통한 동기화를 보완합니다.
-                    if (previewModeRef.current === 'both' && previewRef.current) {
-                      const layoutInfo = editor.getLayoutInfo();
-                      const viewportHeight = layoutInfo.height || 800;
-                      const scrollHeight = editor.getScrollHeight();
-                      const editorMaxScroll = scrollHeight - viewportHeight;
-                      
-                      if (editorMaxScroll <= 0) {
-                        const parent = previewRef.current;
-                        const el = parent.querySelector(`[data-line="${currentLine}"]`);
-                        if (el) {
-                          const parentRect = parent.getBoundingClientRect();
-                          const elTop = el.getBoundingClientRect().top - parentRect.top + parent.scrollTop;
-                          const targetScroll = elTop - (parent.clientHeight / 2) + (el.clientHeight / 2);
-                          parent.scrollTop = Math.max(0, targetScroll);
-                        }
-                      }
+                    // 💡 [통합 커서 싱크] 방향키 조작 및 마우스 클릭 시, 스크롤바 유무와 관계없이
+                    // 공통 앵커 싱크 함수를 실행하여 결과를 100% 일치시킵니다.
+                    if (previewModeRef.current === 'both' && previewRef.current && e.reason !== 2) {
+                      syncEditorToPreview(editor, previewRef.current);
                     }
 
                     // 💡 표(Table) 영역 이탈 시 자동 정렬 수행 (사용자 요청으로 실시간 강제 공백 정렬 비활성화)
@@ -1406,113 +1348,114 @@ editor.onDidChangeCursorPosition((e) => {
                       }
                     }
                   });
-                  let scrollSyncRafId: number | null = null;
+                  // 💡 [통합 싱크 스크롤 메커니즘] 에디터 스크롤, 방향키 커서 이동, 마우스 클릭 등
+                  // 모든 조작의 스크롤 동기화 연산을 단 하나의 Absolute Anchor 방식으로 통합하여
+                  // 결과 좌표가 항상 100% 동일하게 일치하도록 통일합니다.
+                  const syncEditorToPreview = (editor, parent) => {
+                    const range = editor.getVisibleRanges();
+                    if (range && range.length > 0) {
+                      const rootViewer = parent.querySelector('.markdown-viewer-root');
+                      const pureTextEl = rootViewer 
+                        ? (Array.from(rootViewer.children).find(el => el.tagName !== 'STYLE')) 
+                        : null;
+                      
+                      const contentBottomY = pureTextEl 
+                        ? (pureTextEl.getBoundingClientRect().bottom - parent.getBoundingClientRect().top + parent.scrollTop) 
+                        : 0;
+                      const contentHeight = contentBottomY > 0 ? contentBottomY + 48 : 0;
+
+                      if (contentHeight <= parent.clientHeight) {
+                        parent.scrollTop = 0;
+                        return;
+                      }
+
+                      const totalLines = editor.getModel()?.getLineCount() || 1;
+                      const visibleRanges = editor.getVisibleRanges();
+                      const firstVisibleLine = (visibleRanges && visibleRanges.length > 0) ? visibleRanges[0].startLineNumber : 1;
+
+                      isScrollingRef.current = 'editor';
+
+                      const scrollTop = editor.getScrollTop();
+                      const scrollHeight = editor.getScrollHeight();
+                      const layoutInfo = editor.getLayoutInfo();
+                      const viewportHeight = layoutInfo.height || 800;
+                      const editorMaxScroll = scrollHeight - viewportHeight;
+
+                      // 🛡️ [에디터 스크롤 양끝단 강제 밀착 가드]
+                      // 에디터 스크롤바가 최상단(5px 이내) 혹은 최하단(5px 이내)에 다다르면
+                      // 메타데이터 유무나 앵커 매칭 오차에 관계없이 미리보기도 완전히 양끝으로 밀착시킵니다.
+                      if (scrollTop <= 5) {
+                        parent.scrollTop = 0;
+                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+                        return;
+                      }
+                      if (editorMaxScroll > 0 && scrollTop >= editorMaxScroll - 5) {
+                        parent.scrollTop = parent.scrollHeight - parent.clientHeight;
+                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+                        return;
+                      }
+
+                      // 🛡️ [하단 밀착 고정 가드]
+                      // 현재 에디터 커서 라인이 하단 8줄 이내이거나 에디터 자체가 맨 밑바닥 근처까지 스크롤되어 있다면
+                      // 위로 튕기거나 덜컹거리지 않도록 무조건 미리보기를 맨 밑바닥으로 완전히 밀착 고정합니다.
+                      const currentCursorLine = editor.getPosition()?.lineNumber || 1;
+                      const isBottomArea = (currentCursorLine >= totalLines - 8) || 
+                        (editor.getScrollTop() >= editor.getScrollHeight() - editor.getLayoutInfo().height - 30);
+                      
+                      if (isBottomArea) {
+                        parent.scrollTop = parent.scrollHeight - parent.clientHeight;
+                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+                        return;
+                      }
+
+                      // firstVisibleLine에 해당하는 돔 탐색하여 자연스러운 앵커 정렬을 끝까지 부드럽게 유지
+                      const targetElement = parent.querySelector(`[data-line="${firstVisibleLine}"]`);
+                      if (targetElement) {
+                        const parentRect = parent.getBoundingClientRect();
+                        const childRect = targetElement.getBoundingClientRect();
+                        const relativeTop = childRect.top - parentRect.top + parent.scrollTop;
+                        parent.scrollTop = relativeTop;
+                      } else {
+                        const elements = Array.from(parent.querySelectorAll('[data-line]'));
+                        let targetEl = null;
+                        let maxLine = -1;
+                        for (const el of elements) {
+                          const lineStr = el.getAttribute('data-line');
+                          if (lineStr) {
+                            const line = parseInt(lineStr, 10);
+                            if (line <= firstVisibleLine && line > maxLine) {
+                              maxLine = line;
+                              targetEl = el;
+                            }
+                          }
+                        }
+                        if (targetEl) {
+                          const parentRect = parent.getBoundingClientRect();
+                          const childRect = targetEl.getBoundingClientRect();
+                          const relativeTop = childRect.top - parentRect.top + parent.scrollTop;
+                          const lineDiff = firstVisibleLine - maxLine;
+                          parent.scrollTop = relativeTop + (lineDiff * 24);
+                        }
+                      }
+
+                      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                      scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
+                    }
+                  };
+
+                  let scrollSyncRafId = null;
                   editor.onDidScrollChange(() => {
                     if (isScrollingRef.current === 'preview') return;
-                    if (isTypingScrollLock) return; // 타이핑 중 스크롤 튕김 방지 (비율 동기화 차단)
+                    if (isTypingScrollLock) return;
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
                     if (scrollSyncRafId !== null) return;
                     scrollSyncRafId = requestAnimationFrame(() => {
                       scrollSyncRafId = null;
-
-                      const parent = previewRef.current;
-                      if (!parent) return;
-                      const range = editor.getVisibleRanges();
-                      if (range && range.length > 0) {
-                        // 🛡️ [짧은 문서 튕김 및 하단 텅빔 방지 가드]
-                        // 용지 여백(marginTop, marginBottom) 및 조판 가드 최소 높이(minHeight)를 모두 완전히 배제한, 진짜 글자 텍스트 내용물만의 순수 렌더링 높이를 측정합니다.
-                        const rootViewer = parent.querySelector('.markdown-viewer-root') as HTMLElement;
-                        const pureTextEl = rootViewer 
-                          ? (Array.from(rootViewer.children).find(el => el.tagName !== 'STYLE') as HTMLElement) 
-                          : null;
-                        
-                        // 💡 getBoundingClientRect를 사용하여 부모 컨테이너 기준 텍스트 영역 하단의 실제 절대 좌표(여백 포함)를 계산합니다.
-                        // (기존의 scrollHeight만 사용할 경우 A4 용지 등 상단 여백(margin-top)만큼 스크롤이 덜 내려가는 문제 해결)
-                        const contentBottomY = pureTextEl 
-                          ? (pureTextEl.getBoundingClientRect().bottom - parent.getBoundingClientRect().top + parent.scrollTop) 
-                          : 0;
-                        const contentHeight = contentBottomY > 0 ? contentBottomY + 48 : 0; // 하단 여백(48px) 추가로 입력 커서 시야 확보
-
-                        // 순수 본문 높이가 뷰포트 높이 이하인 경우(한 페이지 미만), 스크롤을 0(맨 위)으로 완벽하게 고정하고 움직이지 않도록 early return 처리합니다.
-                        if (contentHeight <= parent.clientHeight) {
-                          parent.scrollTop = 0;
-                          return;
-                        }
-
-                        const scrollTop = editor.getScrollTop();
-                        const scrollHeight = editor.getScrollHeight();
-                        const layoutInfo = editor.getLayoutInfo();
-                        const viewportHeight = layoutInfo.height || 800;
-
-                        const editorMaxScroll = scrollHeight - viewportHeight;
-                          if (editorMaxScroll > 0) {
-                            isScrollingRef.current = 'editor';
-                            
-                            const scrollRatio = Math.max(0, Math.min(1, scrollTop / editorMaxScroll));
-                            const targetEditorY = scrollTop + viewportHeight * scrollRatio;
-                            const totalLines = editor.getModel()?.getLineCount() || 1;
-                            
-                            let targetLine = 1;
-                            const visibleRanges = editor.getVisibleRanges();
-                            if (visibleRanges && visibleRanges.length > 0) {
-                              let minDiff = Infinity;
-                              for (let line = visibleRanges[0].startLineNumber; line <= visibleRanges[visibleRanges.length - 1].endLineNumber; line++) {
-                                const top = editor.getTopForLineNumber(line);
-                                const diff = Math.abs(top - targetEditorY);
-                                if (diff < minDiff) {
-                                  minDiff = diff;
-                                  targetLine = line;
-                                }
-                              }
-                            }
-                            
-                            let elA = null;
-                            let lineA = 1;
-                            for (let line = targetLine; line >= 1; line--) {
-                              const found = parent.querySelector(`[data-line="${line}"]`);
-                              if (found) {
-                                elA = found;
-                                lineA = line;
-                                break;
-                              }
-                            }
-                            
-                            let elB = null;
-                            let lineB = totalLines + 1;
-                            for (let line = lineA + 1; line <= totalLines; line++) {
-                              const found = parent.querySelector(`[data-line="${line}"]`);
-                              if (found) {
-                                elB = found;
-                                lineB = line;
-                                break;
-                              }
-                            }
-                            
-                            const parentRect = parent.getBoundingClientRect();
-                            const topA = lineA === 1 && !elA ? 0 : editor.getTopForLineNumber(lineA);
-                            const topB = elB ? editor.getTopForLineNumber(lineB) : scrollHeight;
-                            
-                            const previewTopA = elA ? (elA.getBoundingClientRect().top - parentRect.top + parent.scrollTop) : 0;
-                            const previewTopB = elB ? (elB.getBoundingClientRect().top - parentRect.top + parent.scrollTop) : parent.scrollHeight;
-                            
-                            const editorRange = topB - topA;
-                            const previewRange = previewTopB - previewTopA;
-                            
-                            let interpolatedPreviewTop = previewTopA;
-                            if (editorRange > 0) {
-                              const progress = Math.max(0, Math.min(1, (targetEditorY - topA) / editorRange));
-                              interpolatedPreviewTop = previewTopA + progress * previewRange;
-                            }
-                            
-                            const previewMaxScroll = parent.scrollHeight - parent.clientHeight;
-                            let targetPreviewScroll = interpolatedPreviewTop - parent.clientHeight * scrollRatio;
-                            targetPreviewScroll = Math.max(0, Math.min(previewMaxScroll, targetPreviewScroll));
-                            
-                            parent.scrollTop = targetPreviewScroll;
-                            
-                            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                            scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
-                          }
+                      if (previewRef.current) {
+                        syncEditorToPreview(editor, previewRef.current);
                       }
                     });
                   });
