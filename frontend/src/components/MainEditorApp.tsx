@@ -44,6 +44,7 @@ const _monacoVsPath = typeof window !== 'undefined' && !!(window as any).electro
   : 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs';
 loader.config({ paths: { vs: _monacoVsPath } });
 import MarkdownViewer from '@/components/MarkdownViewer'; // 마크다운 뷰어 - 마크다운 뷰어
+import { syncPreviewInterpolated } from '@/lib/syncEngine'; // 구간 선형 보간 동기화 엔진
 import Script from 'next/script'; // 넥스트 스크립트 - 
 import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더링
 // import 'highlight.js/styles/github.css'; // 코드 하이라이팅 스타일
@@ -430,6 +431,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   } = useUIStore();
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
   const [content, setContent] = useState('');   // @content : content state 
+  // 입력 모델은 즉시 유지하고, 무거운 Markdown 미리보기만 잠깐 입력이 멈춘 뒤 갱신합니다.
+  const [previewContent, setPreviewContent] = useState('');
 
   const contentRef = useRef(content);
   // ====================================================================
@@ -441,6 +444,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     contentRef.current = content;
+  }, [content]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPreviewContent(content), 180);
+    return () => window.clearTimeout(timer);
   }, [content]);
 
   const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>(() => {
@@ -2660,6 +2668,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const isScrollingRef = useRef<'editor' | 'preview' | null>(null);
   const scrollTimeoutRef = useRef<any>(null);
   const prevCursorLineRef = useRef<number | null>(null);
+  const frontmatterLinesRef = useRef<number>(0); // YAML frontmatter 라인 수 (syncPreviewInterpolated 전달용)
   const contentChangeTimeoutRef = useRef<any>(null);
   const completionProviderRef = useRef<any>(null);
   const wikilinkProviderRef = useRef<any>(null);
@@ -4326,13 +4335,31 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : preprocessMarkdownForPreview
   // ====================================================================
 
-  const { processedContent, lineMap } = useMemo(() => {
-    const res = preprocessMarkdownForPreview(content);
+  const { processedContent, lineMap, frontmatterLines } = useMemo(() => {
+    const res = preprocessMarkdownForPreview(previewContent);
     return {
       processedContent: res.text,
-      lineMap: res.lineMap
+      lineMap: res.lineMap,
+      frontmatterLines: res.frontmatterLines
     };
-  }, [content]);
+  }, [previewContent]);
+
+  // 💡 [frontmatter 라인 수 ref 동기화] useMemo 결과(frontmatterLines)를 ref에 반영하여
+  // useMonacoSetup 클로저 내부에서 항상 최신 frontmatter 오프셋을 참조할 수 있도록 합니다.
+  useEffect(() => {
+    frontmatterLinesRef.current = frontmatterLines;
+  }, [frontmatterLines]);
+
+  const handlePreviewImageLoaded = useCallback(() => {
+    // 이미지가 늦게 로드되어 높이가 변한 경우에만 현재 커서 기준으로 재정렬합니다.
+    const currentLine = editorRef.current?.getPosition()?.lineNumber || 1;
+    const totalLines = editorRef.current?.getModel()?.getLineCount() || 0;
+    syncPreviewInterpolated(previewRef.current, currentLine, {
+      smooth: false,
+      frontmatterLines,
+      totalEditorLines: totalLines,
+    });
+  }, [frontmatterLines]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0068] MainEditorApp.tsx ➔ dynamicCssString
@@ -5529,7 +5556,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     setContent, setTabs, activeTabId, setSaveStatus, currentFileNodeRef, lastSavedContentRef,
     saveFile, autoSaveRef, previewModeRef, previewRef, isScrollingRef, scrollTimeoutRef,
     isEditorReady, setIsEditorReady, themePalette, EDITOR_THEMES, updateDecorations,
-    decorationsCollectionRef, isEditorHovered, prevCursorLineRef,
+    decorationsCollectionRef, isEditorHovered, prevCursorLineRef, frontmatterLinesRef,
     setActiveLine, setCursorLine, setCursorColumn, tabSizeRef, setFloatingToolbar, lastSelectionRef,
     completionProviderRef, getSlashCommands, customSlashCommandsRef,
     handleEditorPaste, handlePasteImageFile,
@@ -5977,22 +6004,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         // 💡 value={content} 속성을 배제하고 defaultValue를 적용하여
                         // React 상태 갱신 시 모나코 내부의 불필요한 setValue 호출로 인한 한글 composition 깨짐 및 중복 입력을 원천 방어합니다.
                         defaultValue={content}
-                        onChange={(val) => {
-                          // 💡 [에디터 언마운트 데이터 유실 가드]
-                          // 에디터가 언마운트된 상태이거나 파괴 진행 중이면 모든 변경 입력을 무시하여 데이터 유실을 완전 가드합니다.
-                          if (!isEditorMountedRef.current) return;
-                          if (previewModeRef.current === 'preview') return; // 💡 [가드] 미리보기 모드일 땐 입력 버퍼 갱신 원천 방지
-
-                          const editor = editorRef.current;
-                          if (editor) {
-                            const dom = editor.getDomNode();
-                            const model = editor.getModel();
-                            if (!dom || !model) {
-                              return; // 에디터가 파괴 중이므로 빈 값 무시
-                            }
-                          }
-                          updateContent(val || '', true);
-                        }}
+                        // 콘텐츠 상태 갱신은 각 Monaco 모델의 onDidChangeContent 리스너가
+                        // 단일하게 담당합니다. 여기서도 updateContent를 호출하면 입력 한 번에
+                        // 즉시 갱신과 100ms 지연 갱신이 모두 발생해 미리보기가 두 번 리렌더링됩니다.
                         beforeMount={(monaco) => {
                           EDITOR_THEMES.forEach(t => {
                             monaco.editor.defineTheme(t.id, {
@@ -6022,6 +6036,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
                           fontLigatures: false, // 글자 폭 계산 오차를 유발할 수 있는 합자(Ligature) 기능 해제
                           letterSpacing: 0,
+                          // IME 조합 종료 뒤에도 삽입 지점이 계속 보이도록 커서를
+                          // 깜빡이지 않는 실선으로 표시합니다.
+                          cursorBlinking: 'solid',
+                          cursorStyle: 'line',
+                          cursorWidth: 2,
                           'semanticHighlighting.enabled': true,
                           wordWrap,
                           lineNumbers: 'on',
@@ -6557,7 +6576,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 </div>
                                 <MarkdownViewer
                                 content={processedContent}
-                                originalContent={content}
+                                originalContent={previewContent}
                                 lineMap={lineMap}
                                 onCheckboxToggle={handleCheckboxToggle}
                                 currentFilePath={currentFileNode?.path}
@@ -6574,6 +6593,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 resourceFolder={resourceFolder}
 
                                 workspaceType={workspaceType}
+                                onImageLoaded={handlePreviewImageLoaded}
                               />
                             </div>
                           );

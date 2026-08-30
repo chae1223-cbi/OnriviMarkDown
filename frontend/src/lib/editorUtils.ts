@@ -31,7 +31,9 @@ function isAnyListLine(line: string): boolean {
 // 🔗 @CALLS : 없음
 // ====================================================================
 export function stripFrontmatter(markdown: string): string {
-  return markdown.replace(/^---[\s\S]*?---\s*\n*/, '');
+  // 닫는 구분선은 반드시 독립된 줄이어야 합니다. YAML 값 안의 `---`가
+  // 문서 본문을 잘못 잘라 내거나, 파일 끝 Frontmatter의 줄 수가 틀어지는 것을 막습니다.
+  return markdown.replace(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '');
 }
 
 /**
@@ -60,6 +62,8 @@ function getIndentLevel(line: string): number {
 export interface ProcessedMarkdown {
   text: string;
   lineMap: number[];
+  /** YAML frontmatter 블록이 차지하는 에디터 라인 수 (없으면 0) */
+  frontmatterLines: number;
 }
 
 /**
@@ -80,15 +84,17 @@ export interface ProcessedMarkdown {
 // 🔗 @CALLS : stripFrontmatter, isAnyListLine, getIndentLevel
 // ====================================================================
 export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown {
-  if (!content) return { text: "", lineMap: [] };
+  if (!content) return { text: "", lineMap: [], frontmatterLines: 0 };
 
   // Step 0: YAML frontmatter 줄 수(offset) 계산 및 제거
   let frontmatterOffset = 0;
-  const frontmatterMatch = content.match(/^---([\s\S]*?)---\s*(?:\r?\n)?/);
+  const frontmatterMatch = content.match(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/);
   if (frontmatterMatch) {
     const fullMatch = frontmatterMatch[0];
     const newlines = fullMatch.match(/\n/g);
-    frontmatterOffset = newlines ? newlines.length : 0;
+    // 닫는 `---` 뒤에 줄바꿈이 없으면, 마지막 Frontmatter 줄도 포함해야 합니다.
+    const newlineCount = newlines ? newlines.length : 0;
+    frontmatterOffset = fullMatch.endsWith('\n') ? newlineCount : newlineCount + 1;
   }
 
   content = stripFrontmatter(content);
@@ -374,7 +380,8 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
 
   return {
     text: finalText,
-    lineMap: finalLineMap
+    lineMap: finalLineMap,
+    frontmatterLines: frontmatterOffset
   };
 }
 

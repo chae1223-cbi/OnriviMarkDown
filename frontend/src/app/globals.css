@@ -471,17 +471,25 @@ option {
 /* 프리뷰 라인 클릭/동기화 하이라이트 효과 — 좌측 네온 마커 + 소프트 블루 배경 */
 .preview-highlight-line {
   background-color: rgba(255, 152, 0, 0.06) !important;
-  border-left: 3px solid rgba(255, 152, 0, 0.45) !important;
-  box-shadow: inset 0 0 12px rgba(255, 152, 0, 0.05) !important;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  /* border는 본문 너비를 줄여 줄바꿈과 높이 재계산을 유발하므로,
+     동일한 시각 효과를 레이아웃에 영향을 주지 않는 inset shadow로 구현합니다. */
+  border-left: 0 !important;
+  box-shadow: inset 3px 0 0 rgba(255, 152, 0, 0.45), inset 0 0 12px rgba(255, 152, 0, 0.05) !important;
+  transition: none;
   border-radius: 4px;
 }
 
 /* 다크모드 프리뷰 하이라이트 대응 */
 .dark .preview-highlight-line {
   background-color: rgba(255, 152, 0, 0.10) !important;
-  border-left: 3px solid rgba(255, 152, 0, 0.50) !important;
-  box-shadow: inset 0 0 12px rgba(255, 152, 0, 0.08) !important;
+  border-left: 0 !important;
+  box-shadow: inset 3px 0 0 rgba(255, 152, 0, 0.50), inset 0 0 12px rgba(255, 152, 0, 0.08) !important;
+}
+
+/* 입력 중 본문 높이가 바뀌어도 브라우저가 스크롤 위치를 자동 보정하지 않게 합니다. */
+.custom-preview-container {
+  overflow-anchor: none;
+  scroll-behavior: auto;
 }
 
 /* Monaco 에디터 현재 행 하이라이트 — 단정한 주황색 계열 */
@@ -666,7 +674,17 @@ option {
   color: transparent !important;
   background: transparent !important;
   font-family: 'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', Consolas, '굴림체', 'GulimChe', '돋움체', 'DotumChe', 'Courier New', Courier, monospace !important;
-  caret-color: transparent !important; /* 커서는 모나코 에디터가 별도 레이어로 그리므로 깜빡임 중복 방지 */
+  /*
+   * Monaco는 한글 IME 조합 중 자체 커서 레이어를 잠시 숨기고 inputarea의
+   * 네이티브 커서를 사용합니다. 이를 투명하게 만들면 첫 글자 조합 뒤 커서가
+   * 사라져 보이므로, 입력 텍스트만 숨기고 커서는 항상 보이게 둡니다.
+   */
+  caret-color: #1f2937 !important;
+}
+
+.dark .monaco-editor textarea.inputarea,
+.vs-dark .monaco-editor textarea.inputarea {
+  caret-color: #f4f4f5 !important;
 }
 
 .monaco-h1-text { color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; }

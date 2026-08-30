@@ -2,11 +2,11 @@
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 탭/스페이스 매칭 최적화
-// 🛡️ @GUARD : hasList 체크 후 순차적으로 이전 줄의 탭 깊이와 숫자를 비교하여 번호 갱신
-// 🚨 @PATCH : 2026-08-28 - 에디터 최하단 앵커 매칭 연산(relativeTop + lineDiff * 24) 중 비정상적인 초과값 또는 음수 오프셋이 발생했을 때, 브라우저가 스크롤 값을 0 (최상단)으로 자동 강제 리셋하여 맨 위로 튕기던 심각한 튕김 결함을 원천 방지하기 위해, 모든 scrollTop 대입부의 범위를 0 과 maxScroll 사이로 가두는 Math.max(0, Math.min(maxScroll, value)) 2중 밴드 클램프(Clamp) 안전가드 보강 완료; 2026-08-28 - 미리보기 창 최하단의 본문 실제 높이를 잴 때 Style 이 아닌 첫 번째 요소(pureTextEl)만 탐색하여 높이가 대폭 누락되어 문서 끝부분 내용이 완전히 생략되고 잘리던 계산 버그를 해결하기 위해, markdown-viewer-root 최상위 돔 전체의 bottom 좌표를 직접 구하는 100% 무결 높이 측정 방식으로 개편 및 바닥 매칭 가드 임계 오프셋을 35px로 확장하여 마지막 메타 영역까지 완벽 정렬; 2026-08-28 - 에디터 맨 아래 영역 직전에서 앵커 조건 중복(firstVisibleLine >= totalLines - 8)으로 인해 미리보기가 갑자기 최하단으로 순간이동(Jumping)했다가 다시 앵커 매칭으로 위로 올라가던 들썩거림 오류를 해결하기 위해 중복 강제 조건문을 영구 프루닝(Pruning)하고 앵커링 스무스 매칭으로만 통일; 2026-08-28 - 에디터 최상단 메타데이터(Frontmatter) 등으로 인해 앵커 계산에 오차가 발생하여 끝바닥까지 내려가지 않던 한계 극복을 위해, 에디터 스크롤바가 최상단/최하단 5px 근처에 도달하면 메타데이터 유무와 상관없이 미리보기도 100% 최상단/최하단 끝으로 강제 밀착 정렬되도록 경계 동기화 가드 추가; 2026-08-28 - 에디터와 미리보기의 스크롤 싱크 알고리즘을 100% 절대 앵커 매칭 방식으로 완전히 단일 통합(syncEditorToPreview)하여 스크롤, 방향키 이동, 마우스 클릭 시의 포지션 불일치를 제거하고, 에디터 하단 8줄 이내 클릭/입력 시 강제 최하단 고정 가드를 도입하여 덜컹거리던 화면 흔들림(Jittering)을 완벽하게 해결 및 치료함 | 2026-08-27 - 사용자가 단어 더블클릭/선택 시 다른 행들의 동일 단어들까지 일제히 하이라이팅되어 다중 선택된 것처럼 오해를 주던 현상을 방지하기 위해, occurrencesHighlight 및 selectionHighlight 옵션을 false로 변경 | 2026-08-26 - 사용자의 에디터 입력 경험 개선을 위해 표 영역 이탈 시 강제로 셀 크기를 자동 정렬 및 확장하여 셀을 공백으로 가득 채우던 formatTableBlock 호출 기능을 영구 제거; 에디터 최초 로드 및 탭/파일 전환(모델 교체) 시점에 구문 강조 및 코드블럭/인용구 배경색이 즉각 렌더링되도록 onDidChangeModel 이벤트 리스너를 결합해 수정 | 2026-08-14 - 타이핑(Enter 등) 시 에디터 높이 변화로 인해 onDidScrollChange가 트리거되면서 미리보기가 비율 기반 스크롤로 튕기던 현상(Jumping)을 방지하기 위해 isTypingScrollLock 상태를 도입하여 타이핑 중에는 커서 위치 기반 스크롤(onDidChangeModelContent)만 100% 작동하도록 제어권 분리; 타이핑(입력) 시 미리보기 스크롤이 현재 커서 위치를 따라가도록 onDidChangeModelContent 내부에 디바운스된 스크롤 동기화 로직 추가하여 실시간 입력 시야 확보; 여러 줄이 선택된 상태에서 Enter 입력 시 리스트 자동완성이 오작동하는 문제를 해결하기 위해, 다중 행/텍스트 선택이 있는 경우 선택 영역을 삭제하고 줄바꿈(\n)으로 즉시 대치하도록 커스텀 Enter 단축키 동작 보강; 분할 영역에서 에디터의 마지막 줄 텍스트 입력 시, 미리보기의 scrollHeight 대신 getBoundingClientRect 기반 상대 좌표로 정확한 하단 여백 및 텍스트 실제 영역 크기를 계산하여, 텍스트가 시야에 들어오지 않고 위로 숨어 가려지던 동기화 결함 완벽 해결 | 2026-08-13 - 중복되던 커서 변경 연동 리스너(onDidChangeCursorPosition)를 영구 폐기하고, 오직 단 하나의 스크롤 이벤트(onDidScrollChange) 내부에 1:1 오프셋 탑 매핑 공식(firstVisible)만을 깔끔하게 부착하여 양방향 스크롤 요동 및 점프 버그를 근본적으로 종식함 | 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
+//// 🚨 @PATCH : 2026-08-30 - 에디터 ↔ 미리보기 스크롤 동기화 알고리즘을 구간 선형 보간(Piecewise Linear Interpolation) 방식으로 전면 교체. 기존 인라인 syncEditorToPreview 함수(Absolute Anchor 방식)를 삭제하고, 순수 독립 헬퍼 모듈 syncEngine.ts의 syncPreviewInterpolated로 대체. 타이핑(onDidChangeModelContent), 방향키/클릭(onDidChangeCursorPosition), 스크롤(onDidScrollChange), 마우스클릭(onMouseDown) 4개 이벤트 경로를 단일 파이프라인으로 통합하여 대형 이미지·표 구간 픽셀 점프 및 타이핑 시 덜컹거림 원천 차단. | 2026-08-28 - 에디터 최하단 앵커 매칭 연산(relativeTop + lineDiff * 24) 중 비정상적인 초과값 또는 음수 오프셋이 발생했을 때, 브라우저가 스크롤 값을 0 (최상단)으로 자동 강제 리셋하여 맨 위로 튕기던 심각한 튕김 결함을 원천 방지하기 위해, 모든 scrollTop 대입부의 범위를 0 과 maxScroll 사이로 가두는 Math.max(0, Math.min(maxScroll, value)) 2중 밴드 클램프(Clamp) 안전가드 보강 완료; 2026-08-28 - 미리보기 창 최하단의 본문 실제 높이를 잴 때 Style 이 아닌 첫 번째 요소(pureTextEl)만 탐색하여 높이가 대폭 누락되어 문서 끝부분 내용이 완전히 생략되고 잘리던 계산 버그를 해결하기 위해, markdown-viewer-root 최상위 돔 전체의 bottom 좌표를 직접 구하는 100% 무결 높이 측정 방식으로 개편 및 바닥 매칭 가드 임계 오프셋을 35px로 확장하여 마지막 메타 영역까지 완벽 정렬; 2026-08-28 - 에디터와 미리보기의 스크롤 싱크 알고리즘을 100% 절대 앵커 매칭 방식으로 완전히 단일 통합(syncEditorToPreview)하여 스크롤, 방향키 이동, 마우스 클릭 시의 포지션 불일치를 제거하고, 에디터 하단 8줄 이내 클릭/입력 시 강제 최하단 고정 가드를 도입하여 덜컹거리던 화면 흔들림(Jittering)을 완벽하게 해결 및 치료함�해를 주던 현상을 방지하기 위해, occurrencesHighlight 및 selectionHighlight 옵션을 false로 변경 | 2026-08-26 - 사용자의 에디터 입력 경험 개선을 위해 표 영역 이탈 시 강제로 셀 크기를 자동 정렬 및 확장하여 셀을 공백으로 가득 채우던 formatTableBlock 호출 기능을 영구 제거; 에디터 최초 로드 및 탭/파일 전환(모델 교체) 시점에 구문 강조 및 코드블럭/인용구 배경색이 즉각 렌더링되도록 onDidChangeModel 이벤트 리스너를 결합해 수정 | 2026-08-14 - 타이핑(Enter 등) 시 에디터 높이 변화로 인해 onDidScrollChange가 트리거되면서 미리보기가 비율 기반 스크롤로 튕기던 현상(Jumping)을 방지하기 위해 isTypingScrollLock 상태를 도입하여 타이핑 중에는 커서 위치 기반 스크롤(onDidChangeModelContent)만 100% 작동하도록 제어권 분리; 타이핑(입력) 시 미리보기 스크롤이 현재 커서 위치를 따라가도록 onDidChangeModelContent 내부에 디바운스된 스크롤 동기화 로직 추가하여 실시간 입력 시야 확보; 여러 줄이 선택된 상태에서 Enter 입력 시 리스트 자동완성이 오작동하는 문제를 해결하기 위해, 다중 행/텍스트 선택이 있는 경우 선택 영역을 삭제하고 줄바꿈(\n)으로 즉시 대치하도록 커스텀 Enter 단축키 동작 보강; 분할 영역에서 에디터의 마지막 줄 텍스트 입력 시, 미리보기의 scrollHeight 대신 getBoundingClientRect 기반 상대 좌표로 정확한 하단 여백 및 텍스트 실제 영역 크기를 계산하여, 텍스트가 시야에 들어오지 않고 위로 숨어 가려지던 동기화 결함 완벽 해결 | 2026-08-13 - 중복되던 커서 변경 연동 리스너(onDidChangeCursorPosition)를 영구 폐기하고, 오직 단 하나의 스크롤 이벤트(onDidScrollChange) 내부에 1:1 오프셋 탑 매핑 공식(firstVisible)만을 깔끔하게 부착하여 양방향 스크롤 요동 및 점프 버그를 근본적으로 종식함 | 2026-08-12 - 에디터가 마지막 줄 주변(하단 영역)에 있거나 입력할 때 미리보기 스크롤이 위로 밀려 올라가지 않고 맨 아래에 고정되도록 수정, 스크롤 싱크 가드 범위 보강 | 2026-07-15 - 마지막 줄 타이핑 시 흔들림(jitter)을 방지하기 위해 padding.bottom을 0으로 강제 조정 | 2026-07-13 - 탭 간격 들여쓰기 시 새로운 하위 단계로 넘어가는 경우 1번으로 리셋 처리 및 점 점 뒤의 공백 문자(\t 등) 유연 매칭 지원 패치
 // 🔗 @CALLS : model.getLineContent, editor.executeEdits
 // ====================================================================
 import { useRef } from 'react';
+import { syncPreviewInterpolated } from '@/lib/syncEngine';
 
 // 💡 [수평 스크롤 시프트 방지 헬퍼] scrollIntoView 대신 scrollTop만 직접 조절하는 수직 전용 스크롤 함수
 const verticalScrollToElement = (parent: HTMLElement, child: HTMLElement, block: 'center' | 'nearest', behavior: 'smooth' | 'auto' | 'instant' = 'smooth') => {
@@ -41,7 +41,7 @@ export function useMonacoSetup(deps: any) {
       setContent, setTabs, activeTabId, setSaveStatus, currentFileNodeRef, lastSavedContentRef,
       saveFile, autoSaveRef, previewModeRef, previewRef, isScrollingRef, scrollTimeoutRef,
       isEditorReady, setIsEditorReady, themePalette, EDITOR_THEMES, updateDecorations,
-      decorationsCollectionRef, isEditorHovered, prevCursorLineRef,
+      decorationsCollectionRef, isEditorHovered, prevCursorLineRef, frontmatterLinesRef,
       setActiveLine, setCursorLine, setCursorColumn, tabSizeRef, setFloatingToolbar, lastSelectionRef,
       completionProviderRef, getSlashCommands, customSlashCommandsRef,
       handleEditorPaste,
@@ -54,11 +54,50 @@ export function useMonacoSetup(deps: any) {
                     (window as any).monaco = monaco;
                   }
 
+                  // Monaco의 기본 커서 DOM은 IME 조합·장식 재렌더링 과정에서 일시적으로
+                  // 숨겨질 수 있습니다. 실제 Monaco 좌표를 따라가는 별도 표시기를 두어
+                  // 사용자가 언제나 현재 입력 위치를 찾을 수 있게 합니다.
+                  const editorDomNode = editor.getDomNode();
+                  const persistentCaret = document.createElement('div');
+                  persistentCaret.setAttribute('aria-hidden', 'true');
+                  persistentCaret.style.cssText = [
+                    'position:absolute',
+                    'z-index:1000',
+                    'width:2px',
+                    'min-width:2px',
+                    'background:#2563eb',
+                    'pointer-events:none',
+                    'display:none',
+                    'border-radius:1px',
+                    'box-shadow:0 0 1px rgba(37,99,235,.7)',
+                    'will-change:transform,height'
+                  ].join(';');
+                  editorDomNode?.appendChild(persistentCaret);
+
+                  const updatePersistentCaret = () => {
+                    if (!editorDomNode?.isConnected || !editor.hasTextFocus?.()) {
+                      persistentCaret.style.display = 'none';
+                      return;
+                    }
+                    const position = editor.getPosition();
+                    const visiblePosition = position && editor.getScrolledVisiblePosition(position);
+                    if (!visiblePosition) {
+                      persistentCaret.style.display = 'none';
+                      return;
+                    }
+                    persistentCaret.style.display = 'block';
+                    persistentCaret.style.height = `${Math.max(16, visiblePosition.height)}px`;
+                    persistentCaret.style.transform = `translate(${Math.round(visiblePosition.left)}px, ${Math.round(visiblePosition.top)}px)`;
+                  };
+
+                  editor.onDidFocusEditorText(() => requestAnimationFrame(updatePersistentCaret));
+                  editor.onDidBlurEditorText(() => { persistentCaret.style.display = 'none'; });
+                  editor.onDidLayoutChange(() => requestAnimationFrame(updatePersistentCaret));
+
                   const updatedTabs = tabsRef.current.map((tab: any) => {
                     if (!tab.model) {
                       const model = monaco.editor.createModel(tab.content, 'markdown');
                       model.onDidChangeContent((e) => {
-                          console.log('[DEBUG] onDidChangeContent changes:', e.changes);
                           if (e && e.changes && e.changes.some(c => c.text === '1. ' || c.text === '1.')) {
                             setTimeout(() => editor.getAction('autoRenumberList')?.run(), 100);
                           }
@@ -88,12 +127,19 @@ export function useMonacoSetup(deps: any) {
                       });
                       textarea.addEventListener('compositionend', () => {
                         isComposingRef.current = false;
-                        // 조합이 종료된 시점에 에디터 모델이 완전히 갱신되도록 10ms 지연 후 최종값 동기화
-                        setTimeout(() => {
-                          if (editorRef.current) {
-                            setContent(editorRef.current.getValue());
+                        // 조합이 종료된 뒤에만 장식 갱신을 수행합니다. 조합 중 DOM을
+                        // 다시 그리거나 포커스를 강제하면 Windows 한글 IME의 커서가
+                        // 사라지거나 조합 위치가 끊길 수 있습니다.
+                        requestAnimationFrame(() => {
+                          if (editorRef.current === editor) {
+                            updateDecorations(editor);
+                            setContent(editor.getValue());
+                            // 조합 완료 뒤에는 Monaco 자체 커서 레이어가 다시 활성화됩니다.
+                            // 이 시점에만 포커스를 복구해 커서가 사라진 상태로 남지 않게 합니다.
+                            editor.focus();
+                            updatePersistentCaret();
                           }
-                        }, 10);
+                        });
                       });
                     }
                   }, 100);
@@ -317,7 +363,9 @@ export function useMonacoSetup(deps: any) {
                   // 💡 [에디터 스크롤 및 우측 여백 최적화]
                   editor.updateOptions({
                     scrollBeyondLastLine: false,   // 마지막 줄 도달 시 즉시 자동 스크롤
-                    padding: { top: 20, bottom: 160 }, // 마지막 줄 흔들림 버그 해결을 위해 bottom 패딩 0으로 설정
+                    // JSX 초기 옵션과 동일하게 유지합니다. 서로 다른 하단 패딩은
+                    // 에디터와 미리보기의 최하단 기준점을 달라지게 만들었습니다.
+                    padding: { top: 20, bottom: 0 },
                     lineDecorationsWidth: 26,
                     lineNumbersMinChars: 4,
                     automaticLayout: true,
@@ -388,7 +436,6 @@ export function useMonacoSetup(deps: any) {
                     }, 100);
                   });
 
-                  let typingScrollTimeout: any = null;
                   let isTypingScrollLock = false;
                   let typingLockTimeout: any = null;
 
@@ -413,9 +460,73 @@ export function useMonacoSetup(deps: any) {
                     });
                   });
 
+                  // 에디터가 미리보기를 이동시키는 동안에는 미리보기 onScroll이
+                  // 역방향으로 에디터를 다시 움직이지 않도록 단일 락 경로를 사용합니다.
+                  const syncPreviewFromEditor = (lineNumber: number) => {
+                    if (previewModeRef.current !== 'both' || !previewRef.current) return;
+
+                    isScrollingRef.current = 'editor';
+                    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                    syncPreviewInterpolated(previewRef.current, lineNumber, {
+                      smooth: false,
+                      frontmatterLines: frontmatterLinesRef?.current || 0,
+                      totalEditorLines: editor.getModel()?.getLineCount() || 0,
+                    });
+                    scrollTimeoutRef.current = setTimeout(() => {
+                      isScrollingRef.current = null;
+                    }, 100);
+                  };
+
+                  const snapPreviewToBottomFromEditor = () => {
+                    if (!previewRef.current) return;
+
+                    isScrollingRef.current = 'editor';
+                    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                    previewRef.current.scrollTo({
+                      top: Math.max(0, previewRef.current.scrollHeight - previewRef.current.clientHeight),
+                      behavior: 'auto',
+                    });
+                    scrollTimeoutRef.current = setTimeout(() => {
+                      isScrollingRef.current = null;
+                    }, 100);
+                  };
+
+                  // 방향키/클릭으로 커서가 움직일 때 Monaco는 내부 스크롤 이벤트도
+                  // 함께 발생시킵니다. 두 이벤트가 서로 다른 기준 줄로 동기화하면
+                  // 위·아래 경계에서 미리보기가 한 번 더 튀므로, 직후 스크롤 이벤트는 건너뜁니다.
+                  let suppressEditorScrollSyncUntil = 0;
+
                   editor.onDidChangeModelContent(() => {
+                    // IME 조합 중에는 Monaco의 textarea와 후보창이 현재 DOM/포커스에
+                    // 의존합니다. 장식 재렌더링이나 focus/reveal은 조합 종료 뒤로
+                    // 미뤄 한글 입력 커서가 없어지는 현상을 막습니다.
+                    if (isComposingRef.current) {
+                      isTypingScrollLock = true;
+                      if (typingLockTimeout) clearTimeout(typingLockTimeout);
+                      typingLockTimeout = setTimeout(() => {
+                        isTypingScrollLock = false;
+                      }, 500);
+                      return;
+                    }
+
                     requestAnimationFrame(() => {
+                      const hadTextFocus = editor.hasTextFocus?.();
                       updateDecorations(editor);
+
+                      // 입력 후 줄바꿈/리플로우로 커서가 화면 밖으로 밀린 경우에만
+                      // Monaco가 최소한으로 에디터를 이동시켜 커서를 계속 보이게 합니다.
+                      // 이미 보이는 커서에는 스크롤을 발생시키지 않습니다.
+                      const position = editor.getPosition();
+                      if (position && typeof editor.revealPositionInCenterIfOutsideViewport === 'function') {
+                        editor.revealPositionInCenterIfOutsideViewport(
+                          position,
+                          monaco.editor.ScrollType.Immediate
+                        );
+                      }
+                      // 장식 갱신이 이미 활성화된 에디터의 포커스를 잃게 만든 경우에만
+                      // 복구합니다. 사용자가 다른 입력창으로 이동한 경우에는 방해하지 않습니다.
+                      if (hadTextFocus && !editor.hasTextFocus?.()) editor.focus();
+                      updatePersistentCaret();
                     });
 
                     // 💡 [타이핑 잠금 보완] 마우스 붙여넣기 등 키보드 이벤트 없이 내용이 바뀐 경우를 대비해 여기서도 락 갱신
@@ -424,17 +535,8 @@ export function useMonacoSetup(deps: any) {
                     typingLockTimeout = setTimeout(() => {
                       isTypingScrollLock = false;
                     }, 500);
-
-                    // ⭐️ [통합 타이핑 싱크] 입력(타이핑) 시에도 공통 앵커 싱크 함수를 호출하여
-                    // 모든 3대 조작(클릭, 스크롤, 타이핑)의 정렬 결과를 일관되게 일치시킵니다.
-                    if (previewModeRef.current === 'both' && previewRef.current) {
-                      if (typingScrollTimeout) clearTimeout(typingScrollTimeout);
-                      typingScrollTimeout = setTimeout(() => {
-                        if (previewRef.current) {
-                          syncEditorToPreview(editor, previewRef.current);
-                        }
-                      }, 200);
-                    }
+                    // 입력 중에는 React 렌더링만 수행합니다. 이 시점의 scrollTo는
+                    // DOM 리플로우와 경쟁해 스크롤 피드백 루프를 만들 수 있습니다.
                   });
 
                   if (!(monaco.editor as any)._customActionCommandRegistered) {
@@ -1298,6 +1400,7 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                     }
 });
 editor.onDidChangeCursorPosition((e) => {
+                    updatePersistentCaret();
                     setActiveLine(e.position.lineNumber);
                     setCursorLine(e.position.lineNumber);
                     setCursorColumn(e.position.column);
@@ -1306,11 +1409,14 @@ editor.onDidChangeCursorPosition((e) => {
                     const currentLine = e.position.lineNumber;
                     const prevLine = prevCursorLineRef.current;
                     prevCursorLineRef.current = currentLine;
+                    const hasLineChanged = prevLine !== currentLine;
 
-                    // 💡 [통합 커서 싱크] 방향키 조작 및 마우스 클릭 시, 스크롤바 유무와 관계없이
-                    // 공통 앵커 싱크 함수를 실행하여 결과를 100% 일치시킵니다.
-                    if (previewModeRef.current === 'both' && previewRef.current && e.reason !== 2) {
-                      syncEditorToPreview(editor, previewRef.current);
+                    // 💡 [구간 보간 커서 싱크] 방향키 조작 및 마우스 클릭 시에만 정렬.
+                    // reason=2(내용 변경으로 인한 커서 이동)는 입력 중 스크롤 금지 정책으로 skip.
+                    // 입력 중에는 동기화를 생략하고, 이동은 즉시(auto) 처리해 애니메이션 충돌을 막습니다.
+                    if (previewModeRef.current === 'both' && previewRef.current && e.reason !== 2 && hasLineChanged) {
+                      suppressEditorScrollSyncUntil = Date.now() + 120;
+                      syncPreviewFromEditor(e.position.lineNumber);
                     }
 
                     // 💡 표(Table) 영역 이탈 시 자동 정렬 수행 (사용자 요청으로 실시간 강제 공백 정렬 비활성화)
@@ -1348,120 +1454,31 @@ editor.onDidChangeCursorPosition((e) => {
                       }
                     }
                   });
-                  // 💡 [통합 싱크 스크롤 메커니즘] 에디터 스크롤, 방향키 커서 이동, 마우스 클릭 등
-                  // 모든 조작의 스크롤 동기화 연산을 단 하나의 Absolute Anchor 방식으로 통합하여
-                  // 결과 좌표가 항상 100% 동일하게 일치하도록 통일합니다.
-                  const syncEditorToPreview = (editor, parent) => {
-                    const range = editor.getVisibleRanges();
-                    if (range && range.length > 0) {
-                      const rootViewer = parent.querySelector('.markdown-viewer-root');
-                      if (!rootViewer) return;
-
-                      const parentRect = parent.getBoundingClientRect();
-                      const rootRect = rootViewer.getBoundingClientRect();
-                      
-                      // 진짜 100% 무결한 문서 전체 최하단 높이 측정 (style 제외 불필요)
-                      const contentBottomY = rootRect.bottom - parentRect.top + parent.scrollTop;
-                      const contentHeight = contentBottomY;
-
-                      if (contentHeight <= parent.clientHeight) {
-                        parent.scrollTop = 0;
-                        return;
-                      }
-
-                      const totalLines = editor.getModel()?.getLineCount() || 1;
-                      const visibleRanges = editor.getVisibleRanges();
-                      const firstVisibleLine = (visibleRanges && visibleRanges.length > 0) ? visibleRanges[0].startLineNumber : 1;
-
-                      isScrollingRef.current = 'editor';
-
-                      const scrollTop = editor.getScrollTop();
-                      const scrollHeight = editor.getScrollHeight();
-                      const layoutInfo = editor.getLayoutInfo();
-                      const viewportHeight = layoutInfo.height || 800;
-                      const editorMaxScroll = scrollHeight - viewportHeight;
-
-                      // 🛡️ [에디터 스크롤 양끝단 강제 밀착 가드]
-                      // 에디터 스크롤바가 최상단(5px 이내) 혹은 최하단(35px 이내)에 다다르면
-                      // 메타데이터 유무나 앵커 매칭 오차에 관계없이 미리보기도 완전히 양끝으로 밀착시킵니다.
-                      if (scrollTop <= 5) {
-                        parent.scrollTop = 0;
-                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
-                        return;
-                      }
-                      if (editorMaxScroll > 0 && scrollTop >= editorMaxScroll - 35) {
-                        parent.scrollTop = parent.scrollHeight - parent.clientHeight;
-                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
-                        return;
-                      }
-
-                      // 🛡️ [하단 밀착 고정 가드]
-                      // 현재 에디터 커서 라인이 하단 8줄 이내이거나 에디터 자체가 맨 밑바닥 근처까지 스크롤되어 있다면
-                      // 위로 튕기거나 덜컹거리지 않도록 무조건 미리보기를 맨 밑바닥으로 완전히 밀착 고정합니다.
-                      const currentCursorLine = editor.getPosition()?.lineNumber || 1;
-                      const isBottomArea = (currentCursorLine >= totalLines - 8) || 
-                        (editor.getScrollTop() >= editor.getScrollHeight() - editor.getLayoutInfo().height - 30);
-                      
-                      if (isBottomArea) {
-                        parent.scrollTop = parent.scrollHeight - parent.clientHeight;
-                        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                        scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
-                        return;
-                      }
-
-                      // firstVisibleLine에 해당하는 돔 탐색하여 자연스러운 앵커 정렬을 끝까지 부드럽게 유지
-                      const targetElement = parent.querySelector(`[data-line="${firstVisibleLine}"]`);
-                      const maxScroll = parent.scrollHeight - parent.clientHeight;
-                      const safeMaxScroll = maxScroll > 0 ? maxScroll : 0;
-
-                      if (targetElement) {
-                        const parentRect = parent.getBoundingClientRect();
-                        const childRect = targetElement.getBoundingClientRect();
-                        const relativeTop = childRect.top - parentRect.top + parent.scrollTop;
-                        parent.scrollTop = Math.max(0, Math.min(safeMaxScroll, relativeTop));
-                      } else {
-                        const elements = Array.from(parent.querySelectorAll('[data-line]'));
-                        let targetEl = null;
-                        let maxLine = -1;
-                        for (const el of elements) {
-                          const lineStr = el.getAttribute('data-line');
-                          if (lineStr) {
-                            const line = parseInt(lineStr, 10);
-                            if (line <= firstVisibleLine && line > maxLine) {
-                              maxLine = line;
-                              targetEl = el;
-                            }
-                          }
-                        }
-                        if (targetEl) {
-                          const parentRect = parent.getBoundingClientRect();
-                          const childRect = targetEl.getBoundingClientRect();
-                          const relativeTop = childRect.top - parentRect.top + parent.scrollTop;
-                          const lineDiff = firstVisibleLine - maxLine;
-                          const targetScroll = relativeTop + (lineDiff * 24);
-                          const maxScroll = parent.scrollHeight - parent.clientHeight;
-                          const safeMaxScroll = maxScroll > 0 ? maxScroll : 0;
-                          parent.scrollTop = Math.max(0, Math.min(safeMaxScroll, targetScroll));
-                        }
-                      }
-
-                      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-                      scrollTimeoutRef.current = setTimeout(() => { isScrollingRef.current = null; }, 50);
-                    }
-                  };
 
                   let scrollSyncRafId = null;
-                  editor.onDidScrollChange(() => {
+                  editor.onDidScrollChange((e) => {
+                    updatePersistentCaret();
                     if (isScrollingRef.current === 'preview') return;
                     if (isTypingScrollLock) return;
+                    if (Date.now() < suppressEditorScrollSyncUntil) return;
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
+                    if (!e.scrollTopChanged) return;
                     if (scrollSyncRafId !== null) return;
                     scrollSyncRafId = requestAnimationFrame(() => {
                       scrollSyncRafId = null;
-                      if (previewRef.current) {
-                        syncEditorToPreview(editor, previewRef.current);
+                      if (Date.now() < suppressEditorScrollSyncUntil) return;
+                      const visibleRanges = editor.getVisibleRanges();
+                      if (previewRef.current && visibleRanges.length > 0) {
+                        // Monaco의 최하단에서는 첫 가시 줄이 마지막 줄보다 위에 있습니다.
+                        // 첫 가시 줄만으로 보간하면 미리보기가 끝까지 도달하지 않으므로,
+                        // 실제 스크롤 끝에서는 양쪽을 같은 끝점으로 고정합니다.
+                        const editorMaxScroll = Math.max(0, editor.getScrollHeight() - editor.getLayoutInfo().height);
+                        if (editorMaxScroll > 0 && editor.getScrollTop() >= editorMaxScroll - 2) {
+                          snapPreviewToBottomFromEditor();
+                          return;
+                        }
+                        // 💡 [구간 보간 스크롤 싱크] 최상단 가시 줄번호 기준으로 즉각(auto) 보간.
+                        syncPreviewFromEditor(visibleRanges[0].startLineNumber);
                       }
                     });
                   });
@@ -1489,64 +1506,6 @@ editor.onDidChangeCursorPosition((e) => {
                     // 🔥 마우스 클릭 시 자동완성 팝업 즉시 닫기
                     // 다른 행 클릭 시 이전 입력 버퍼 잔재로 팝업이 엉뚱한 위치에 뜨는 현상 방지
                     editor.trigger('mouse', 'hideSuggestWidget', {});
-
-                    setTimeout(() => {
-                      const position = editor.getPosition();
-                      if (!position) return;
-                      const clickedLine = position.lineNumber;
-
-                      if (previewRef.current) {
-                        // 💡 반반(both) 모드이고 미리보기가 한 페이지를 초과하는 경우에만 연동 진행
-                        const rootViewer = previewRef.current.querySelector('.markdown-viewer-root') as HTMLElement;
-                        const pureTextEl = rootViewer ? (Array.from(rootViewer.children).find(el => el.tagName !== 'STYLE') as HTMLElement) : null;
-                        const contentHeight = pureTextEl ? pureTextEl.scrollHeight : 0;
-                        if (previewModeRef.current !== 'both' || contentHeight <= previewRef.current.clientHeight) return;
-
-                        const totalLines = editor.getModel()?.getLineCount() || 1;
-
-                        // 맨 위(첫 줄) 클릭 시 최상단 스크롤
-                        if (clickedLine === 1) {
-                          previewRef.current.scrollTo({
-                            top: 0,
-                            behavior: 'smooth'
-                          });
-                          return;
-                        }
-
-                        // 맨 아래(끝 줄) 클릭 시 최하단 스크롤
-                        if (clickedLine === totalLines) {
-                          // ⚡ [최적화] 컨테이너의 실제 scrollHeight를 사용하여 정확히 최하단으로 스크롤
-                          previewRef.current.scrollTo({
-                            top: previewRef.current.scrollHeight,
-                            behavior: 'smooth'
-                          });
-                          return;
-                        }
-
-                        const targetElement = previewRef.current.querySelector(`[data-line="${clickedLine}"]`) as HTMLElement;
-                        if (targetElement) {
-                          verticalScrollToElement(previewRef.current, targetElement, 'center', 'smooth');
-                        } else {
-                          // 일치하는 엘리먼트가 없으면, 클릭한 라인보다 작거나 같은 가장 가까운 상위 엘리먼트를 찾아 스크롤
-                          const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
-                          let targetEl: HTMLElement | null = null;
-                          let maxLine = -1;
-                          for (const el of elements) {
-                            const lineStr = el.getAttribute('data-line');
-                            if (lineStr) {
-                              const line = parseInt(lineStr, 10);
-                              if (line <= clickedLine && line > maxLine) {
-                                  maxLine = line;
-                                  targetEl = el;
-                              }
-                            }
-                          }
-                          if (targetEl) {
-                            verticalScrollToElement(previewRef.current, targetEl, 'center', 'smooth');
-                          }
-                        }
-                      }
-                    }, 10);
                   });
                   editor.onDidChangeCursorSelection((e) => {
                     // 실제 텍스트 선택 시에만 lastSelectionRef 갱신 (커서 이동으로 덮어써지는 버그 방지)

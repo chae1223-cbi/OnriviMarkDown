@@ -1,4 +1,4 @@
-// 🚨 @PATCH : **2026-08-28** — 이미지, 표, 코드블록 등의 가변 거대 요소가 포함되었을 때 비선형 리플로우로 인해 선형 스크롤 비율 보간이 어긋나서 싱크가 망가지던 현상을 해결하기 위해, React 컴포넌트 Props 카멜 케이스 변환 및 Properties 손실을 막아주는 extractDataLine 통합 스캐너를 이식하여 래퍼 돔의 data-line 상속 안전성을 확보함 | **2026-08-26** — 코드 블록 헤더 복사 버튼의 글자색이 어두운 배경 위에서 묻히던 시각성 결함을 해결하기 위해 항상 선명한 텍스트 컬러(text-slate-100) 및 불투명도 보정을 적용하고 언어명 텍스트 레이블을 볼드체(font-bold)로 강화 | **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
+// 🚨 @PATCH : **2026-08-30** — 대형 이미지 비동기 로딩 완료 시 DOM 높이 변화로 인한 스크롤 싱크 오차를 보정하기 위해 onImageLoaded 콜백 prop 추가 및 AsyncImage 내부 handleImgLoad에서 해당 콜백 호출 연결; MainEditorApp에서 syncPreviewInterpolated를 onImageLoaded 콜백으로 주입하여 이미지 로딩 완료 직후 에디터 커서 라인 기준 재정렬 트리거 파이프라인 완성 | **2026-08-28** — 이미지, 표, 코드블록 등의 가변 거대 요소가 포함되었을 때 비선형 리플로우로 인해 선형 스크롤 비율 보간이 어긋나서 싱크가 망가지던 현상을 해결하기 위해, React 컴포넌트 Props 카멜 케이스 변환 및 Properties 손실을 막아주는 extractDataLine 통합 스캐너를 이식하여 래퍼 돔의 data-line 상속 안전성을 확보함 | **2026-08-26** — 코드 블록 헤더 복사 버튼의 글자색이 어두운 배경 위에서 묻히던 시각성 결함을 해결하기 위해 항상 선명한 텍스트 컬러(text-slate-100) 및 불투명도 보정을 적용하고 언어명 텍스트 레이블을 볼드체(font-bold)로 강화 | **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
 // 🚨 @PATCH : **2026-07-16** — 코드블록 및 인라인 코드의 하드코딩된 파란색 톤 배경 및 글자색을 제거하여, 사용자 CSS 프로필 서식 설정이 가로막힘 없이 실시간으로 올바르게 오버라이딩되도록 버그 수정.
 //             **2026-07-15** — MermaidBlock 내 alert() 호출을 useToast showToast('warning')로 교체 (브라우저 팝업 차단 알림을 공통 토스트 UI로 통일)
 //             **2026-07-07** — rehype-citation 플러그인 추가 (참고문헌/BibTeX 인용 파이프라인); bibContent prop으로 BibTeX 데이터를 주입받아 [@citekey] 문법을 인용/참고문헌 목록으로 자동 변환
@@ -62,6 +62,8 @@ interface MarkdownViewerProps {
   resourceFolderHandle?: any;
   resourceFolder?: string;
   workspaceType?: string;
+  /** 💡 대형 이미지 비동기 로딩 완료 시 호출되는 콜백 — 스크롤 싱크 재정렬 트리거용 */
+  onImageLoaded?: () => void;
 }
 
 // 💡 [하이브리드 data-line 추출 헬퍼] React 컴포넌트 Props 카멜 케이스 변환 및 AST Properties 누락 방지를 위한 통합 스캐너
@@ -79,7 +81,7 @@ const extractDataLine = (props: any, node?: any): number | undefined => {
 // 🖼️ [ONR-MD-006] AsyncImage 커스텀 컴포넌트
 // @description 웹 브라우저 환경에서 로컬 파일(OPFS/VFS)을 비동기적으로 읽어와 렌더링합니다.
 // ====================================================================
-const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, style, className, ...props }: any) => {
+const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, workspaceType, api, queryString, style, className, onImageLoaded, ...props }: any) => {
   const [imgSrc, setImgSrc] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
     const [copied, setCopied] = useState(false);
@@ -235,6 +237,11 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     // 텍스트 밀림 오차를 해결하기 위해 브라우저 레이아웃 강제 갱신 이벤트를 트리거합니다.
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('resize'));
+    }
+    // 💡 [이미지 로딩 완료 싱크 보정] 대형 이미지가 뒤늦게 로드되어 DOM 높이가 변경된 직후,
+    // 현재 에디터 커서 라인 기준으로 미리보기 위치를 한 번 더 재정렬합니다.
+    if (typeof onImageLoaded === 'function') {
+      onImageLoaded();
     }
   };
 
@@ -1285,9 +1292,10 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
 // 🚨 @PATCH : 쿼리 스트링 분리 가드, 웰컴 페이지 예외 가드, 단위 자동 보완 가드
 // 🔗 @CALLS : CodeBlock, TableWrapper, MermaidBlock, rehypeSourceLinesPlugin, rehypeBrRaw, cleanContent
 // ====================================================================
-export default function MarkdownViewer({
+function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
-  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, resourceFolderHandle, resourceFolder, workspaceType
+  onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, resourceFolderHandle, resourceFolder, workspaceType,
+  onImageLoaded
 }: MarkdownViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1582,7 +1590,7 @@ export default function MarkdownViewer({
   return (
     <div
       ref={containerRef}
-      className="markdown-viewer-root bg-transparent mx-auto transition-all duration-200 relative"
+      className="markdown-viewer-root bg-transparent mx-auto relative"
       style={{
         width: '100%',
         minHeight: '100%',
@@ -1993,6 +2001,7 @@ export default function MarkdownViewer({
                   queryString={queryString} 
                   style={imgStyle} 
                   className={`rounded-lg shadow-sm border border-zinc-200/30 ${forceAlignClass}`} 
+                  onImageLoaded={onImageLoaded}
                   {...props} 
                 />
               );
@@ -2446,7 +2455,7 @@ export default function MarkdownViewer({
                 </blockquote>
               );
             }
-          }), [getIndentStyle])}
+          }), [getIndentStyle, onImageLoaded])}
         >
           {processedContent}
         </ReactMarkdown>
@@ -2454,3 +2463,7 @@ export default function MarkdownViewer({
     </div>
   );
 }
+
+// 에디터 커서 열·상태바처럼 미리보기와 무관한 상위 상태가 바뀌어도
+// Markdown AST와 DOM을 다시 만들지 않도록 보호합니다.
+export default React.memo(MarkdownViewer);
