@@ -33,5 +33,6 @@
 - **Content Document Scope (미리보기 서식 격리)**: 미리보기 내부의 마크다운 콘텐츠(`h1~h6`, `p`, `ul`, `ol`, `table`, `img`, `blockquote`, `pre`, `code` 등)는 오직 CSS Profile 및 User Custom CSS(`.onrivi-content-root` 하위)에 의해서만 결정됩니다. `globals.css` 등 전역 스타일에서 마크다운 태그를 직접 스타일링하여 콘텐츠를 오염시키는 행위를 절대 금지합니다.
 - **Sync Engine의 Geometry 기반 독립성**: Sync Engine(`syncEngine.ts`)은 콘텐츠의 구체적인 CSS 스타일(font-size, margin 등)을 참조하거나 변경하지 않고, 최종 렌더링된 실제 DOM Geometry와 Safe Zone(상단 40px, 하단 60px), Minimal Delta, Scroll Clamp만을 기반으로 위치를 동기화합니다.
 - **Sync 단일 진입점 원칙**: 에디터 ↔ 미리보기 간의 모든 위치 동기화 스크롤은 `syncPreviewInterpolated()` 단일 진입점을 통해서만 실행합니다.
+- **LNB 사이드바 메뉴/아이템 하이라이트 표준**: 에디터 탐색기 및 어드민 메뉴 등 모든 좌측 사이드바의 선택/활성 상태 표시 시 좌측 세로선(인디케이터 바 / `border-l` / `span.absolute`)을 일체 사용하지 않고, 오직 고대비 텍스트(`text-zinc-950 dark:text-white font-extrabold`) 및 라인 그린 라운드 배경 음영(`bg-[#06C755]/15 dark:bg-[#06C755]/25 shadow-xs rounded-lg`)만으로 심플하고 세련되게 하이라이트 통일합니다.
 
 

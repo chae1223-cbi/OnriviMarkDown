@@ -97,3 +97,14 @@
 - **Cards & Modals Border**:
   - `Card Border`: `1px solid #E2E8F0`, `box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05)`
   - `Modal Overlay (Backdrop)`: `rgba(15, 23, 42, 0.45)` (Slate 900 45% 딤으로 모달 폼 전면 부각)
+
+### 3.5 LNB 사이드바 메뉴 및 트리 아이템 하이라이트 표준 규칙 (세로바 금지 통일)
+모든 좌측 사이드바(에디터 탐색기, 어드민 메뉴 등)의 선택(Active) 및 호버(Hover) 시각 피드백은 통일된 단일 규칙을 따릅니다:
+- **좌측 세로선(Vertical Indicator Bar / `border-l` / `span.absolute`) 일체 금지**:
+  - 시각적 잡음과 어색한 띠를 유발하는 좌측 세로선은 사용하지 않고, 깔끔한 라운드 박스 음영으로만 하이라이트합니다.
+- **선택(Active) 상태**:
+  - `Text`: 고대비 굵은 글씨 (`text-zinc-950 dark:text-white font-extrabold`)
+  - `Background`: 라인 그린 음영 칩 (`bg-[#06C755]/15 dark:bg-[#06C755]/25 shadow-xs rounded-lg`)
+- **마우스 호버(Hover) 상태**:
+  - `Text`: 선명한 볼드 텍스트 (`hover:text-black dark:hover:text-white font-bold`)
+  - `Background`: 부드러운 그레이 음영 (`hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 rounded-lg`)
