@@ -1370,6 +1370,7 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                     updatePersistentCaret();
                     if (isScrollingRef.current === 'preview') return;
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
+                    if (isTyping) return; // 💡 타이핑/엔터 도중 불필요한 스크롤 재계산 간섭 방지
 
                     // 💡 [에디터 스크롤 이벤트 전담 1:1 실시간 미리보기 동기화]
                     syncPreviewFromEditor();
@@ -1378,15 +1379,9 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                   // 💡 [커서/타이핑/백스페이스 시 스크롤 간섭 0회 보장]
                   // 스크롤 동기화는 오직 사용자의 에디터 휠 및 스크롤바 조작(onDidScrollChange)에서만 구동됩니다.
 
-                  // 💡 [Enter 즉시 저장 및 마지막 줄 엔터 시 뷰포트 자동 확장]
+                  // 💡 [Enter 즉시 자동 저장 트리거]
                   editor.onKeyDown((e) => {
                     if (e.keyCode === monaco.KeyCode.Enter && !isComposingRef.current) {
-                      setTimeout(() => {
-                        const pos = editor.getPosition();
-                        if (pos) {
-                          editor.revealPosition(pos, 0);
-                        }
-                      }, 20);
                       if (autoSaveRef.current && currentFileNodeRef.current) {
                         const val = editor.getValue();
                         if (val && val !== lastSavedContentRef.current) {

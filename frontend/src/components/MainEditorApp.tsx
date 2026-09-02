@@ -7,6 +7,8 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-09-02** — 에디터 마지막 행 아래의 과도한 스크롤 빈 공간을 없애기 위해 scrollBeyondLastLine: false 및 padding.bottom: 24로 최적화
+ *   * 🚨 @PATCH : **2026-09-02** — 에디터 Monaco 패딩(top: 16, bottom: 24, right: 16) 및 미리보기 페이지 시트 상하 여백(my-3~4, pb-12)을 슬림하게 축소 조정하여 쾌적한 작업 공간 확보
  *   * 🚨 @PATCH : **2026-09-02** — 타이핑 시 180ms 지연 깜빡임을 완전히 제거하기 위해 React 18 useDeferredValue 기반 동시성 실시간 렌더링 적용 및 에디터 마지막 행 입력 시 미리보기가 가려지지 않고 실시간 바닥(최하단)을 즉시 추종하도록 동기화 개선
  *   * 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 전면 마이그레이션 (LINE Green #06C755, LDSG Blue #4D73FF, LDSG Grayscale 및 LineSeed 폰트 토큰 적용)
  *   * 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v4.1] Onrivi 통합 디자인 시스템 토큰 적용 및 미리보기 스크롤 컨테이너에 onrivi-preview-container 표준 클래스 적용
@@ -3498,7 +3500,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [activeTabId, previewMode, content]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId, previewMode]);
   // ====================================================================
   // 📊 [OMD-FILE-MainEditorApp-0047] MainEditorApp.tsx ➔ autoSave
   // 🎯 @KICK  : 콘텐츠 변경 및 autoSave 활성화 시 5초 디바운스 후 파일 자동 저장
@@ -6056,8 +6059,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         options={{
                           readOnly: tabs.length === 0 || isRestrictedUser,
                           domReadOnly: tabs.length === 0 || isRestrictedUser,
-                          padding: { top: 48, bottom: 160, right: 64 }, // 마지막 줄 엔터 시 여유 있는 스크롤 공간 확보
-                          scrollBeyondLastLine: true,
+                          padding: { top: 16, bottom: 24, right: 16 }, // 쾌적하고 슬림한 상하/우측 여백
+                          scrollBeyondLastLine: false, // 마지막 줄 아래 과도한 여백 제거
                           automaticLayout: true,
                           fontSize,
                           lineHeight: 1.7, // 시원한 줄간격 유지 (세련됨)
@@ -6523,8 +6526,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           return (
                             <div
                               className={isPreviewOnly
-                                ? "preview-page-sheet group relative mx-auto my-8 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-56"
-                                : `preview-page-sheet group relative mx-auto my-6 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-56`
+                                ? "preview-page-sheet group relative mx-auto my-4 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-12"
+                                : `preview-page-sheet group relative mx-auto my-3 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-12`
                               }
                               style={pageStyle}
                             >

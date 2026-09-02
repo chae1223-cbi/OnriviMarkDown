@@ -1,4 +1,6 @@
-// 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v4.1] Content Document Scope 격리를 위해 최상위 루트에 .onrivi-content-root 표준 클래스 적용 및 서식 스코프 완전 격리
+// 🚨 @PATCH : **2026-09-02** — break-spaces 환경에서 br 태그와의 이중 줄바꿈 충돌(들여쓰기 시 빈 행 추가 현상)을 해결하기 위해 .onrivi-content-root br { display: none !important; } 적용 및 p 렌더러 정밀화
+//             **2026-09-02** — 에디터 연속 스페이스/탭(Tab) 및 행 시작 들여쓰기 공백이 미리보기에 1:1로 정확하게 유지되도록 white-space: break-spaces, tab-size: 4 연동 적용
+//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v4.1] Content Document Scope 격리를 위해 최상위 루트에 .onrivi-content-root 표준 클래스 적용 및 서식 스코프 완전 격리
 //             **2026-08-31** — 미리보기가 위로 과도하게 치솟아 하얀 빈 화면이 노출되던 결함 해결을 위해 50vh 하단 스페이서 제거; 스크롤 싱크 엔진과 1:1 보간 일원화.
 //             **2026-08-30** — onImageLoaded prop을 AsyncImage에 전달할 때 ...props 스프레드로 DOM img에 흘러들어가 발생하던 Unknown event handler 경고 수정(명시적 destructure로 분리); 대형 이미지 비동기 로딩 완료 시 DOM 높이 변화로 인한 스크롤 싱크 오차를 보정하기 위해 onImageLoaded 콜백 prop 추가 및 AsyncImage 내부 handleImgLoad에서 해당 콜백 호출 연결 | **2026-08-28** — 이미지, 표, 코드블록 등의 가변 거대 요소가 포함되었을 때 비선형 리플로우로 인해 선형 스크롤 비율 보간이 어긋나서 싱크가 망가지던 현상을 해결하기 위해, React 컴포넌트 Props 카멜 케이스 변환 및 Properties 손실을 막아주는 extractDataLine 통합 스캐너를 이식하여 래퍼 돔의 data-line 상속 안전성을 확보함 | **2026-08-26** — 코드 블록 헤더 복사 버튼의 글자색이 어두운 배경 위에서 묻히던 시각성 결함을 해결하기 위해 항상 선명한 텍스트 컬러(text-slate-100) 및 불투명도 보정을 적용하고 언어명 텍스트 레이블을 볼드체(font-bold)로 강화 | **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
 // 🚨 @PATCH : **2026-07-16** — 코드블록 및 인라인 코드의 하드코딩된 파란색 톤 배경 및 글자색을 제거하여, 사용자 CSS 프로필 서식 설정이 가로막힘 없이 실시간으로 올바르게 오버라이딩되도록 버그 수정.
@@ -1608,8 +1610,33 @@ function MarkdownViewer({
       }}
     >
       <style>{`
-        .markdown-viewer-root {
+        .markdown-viewer-root,
+        .onrivi-content-root {
           counter-reset: onrivi-figure;
+          white-space: break-spaces !important;
+          tab-size: 4 !important;
+          -moz-tab-size: 4 !important;
+        }
+        .onrivi-content-root p,
+        .onrivi-content-root li,
+        .onrivi-content-root blockquote,
+        .onrivi-content-root h1,
+        .onrivi-content-root h2,
+        .onrivi-content-root h3,
+        .onrivi-content-root h4,
+        .onrivi-content-root h5,
+        .onrivi-content-root h6 {
+          white-space: break-spaces !important;
+          tab-size: 4 !important;
+          -moz-tab-size: 4 !important;
+        }
+        .onrivi-content-root br {
+          display: none !important;
+        }
+        .onrivi-content-root pre,
+        .onrivi-content-root pre code,
+        .onrivi-content-root code {
+          white-space: pre !important;
         }
         .markdown-viewer-root figure {
             counter-increment: onrivi-figure;

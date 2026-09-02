@@ -4,7 +4,9 @@
 // 🎯 @KICK  : 에디터 스크롤 이벤트 전담 1:1 미리보기 동기화 및 최상단/최하단 완벽 밀착
 // 🛡️ @GUARD : 상위 1,000자 동적 Frontmatter 감지, 에디터 바닥 도달 시 미리보기 maxScrollTop 밀착,
 //             SCROLL_EPSILON(1px) 미세 떨림 방어, 0~maxScroll 클램핑
-// 🚨 @PATCH : 2026-09-02 - 마우스 휠 위/아래 스크롤 시 커서 위치 간섭 없이 에디터 스크롤 탑과 100% 실시간 연동되도록 휠 전담 구간 선형 보간 독립 분리
+// 🚨 @PATCH : 2026-09-02 - 하단 엔터 및 타이핑 중 미리보기가 위로 솟구치거나 출렁거리는 현상을 막기 위해 상단 보정 앵커를 최상단 5줄 이내로 제한 및 솟구침 가드 보강
+//             2026-09-02 - 마지막 행 엔터 및 타이핑 시 미리보기 미세 진동(Jitter) 방어(JITTER_THRESHOLD 4px 클램핑) 적용
+//             2026-09-02 - 마우스 휠 위/아래 스크롤 시 커서 위치 간섭 없이 에디터 스크롤 탑과 100% 실시간 연동되도록 휠 전담 구간 선형 보간 독립 분리
 //             2026-09-02 - 마우스 휠 및 방향키 이동 시 인용문, 표, 코드블록, 이미지 등 대형 요소의 비선형 높이 격차를 해결하는 구간 선형 보간(Piecewise Linear Interpolation) 엔진 탑재
 //             2026-09-02 - 에디터 내 대형 미디어 등으로 인해 활성 타이핑/커서 줄이 미리보기 하단 밖으로 가려질 때 Safe Zone으로 자동 보정 연동 및 타이핑 즉시 추종 완벽 밀착
 // 🔗 @CALLS : previewContainer.querySelectorAll('[data-line]'), scrollTo
@@ -210,24 +212,31 @@ export function syncPreviewToTargetLine(
 
   // 대형 블록(표, 코드블록, 이미지, 긴 인용문)이 화면보다 큰 경우 상단 정렬 우선
   if (elementHeight > containerHeight - 100) {
-    if (elementTop < TOP_SAFE || elementTop > TOP_SAFE + 100) {
+    if (elementTop < TOP_SAFE) {
+      delta = elementTop - TOP_SAFE;
+    } else if (elementTop > TOP_SAFE + 100) {
       delta = elementTop - TOP_SAFE;
     }
   } else {
     // 일반 블록은 Safe Zone 범위 안으로 클램핑
     if (elementBottom > BOTTOM_SAFE) {
       delta = elementBottom - BOTTOM_SAFE;
-    } else if (elementTop < TOP_SAFE) {
+    } else if (elementTop < TOP_SAFE && targetLine <= 5) {
+      // 💡 [솟구침 원천 방어] 문서 최상단(5줄 이내)일 때만 위쪽 복귀 허용
       delta = elementTop - TOP_SAFE;
     } else {
-      return; // 이미 가시 영역 안에 있으므로 스크롤 스킵
+      return; // 이미 가시 영역 안에 있으므로 스크롤 스킵 (위아래 출렁거림 원천 차단)
+    }
+    const JITTER_THRESHOLD = 4;
+    if (Math.abs(delta) < JITTER_THRESHOLD) {
+      return; // 미세 진동 무시 (덜컹거림 방어)
     }
   }
 
   const previewMaxScroll = Math.max(0, previewContainer.scrollHeight - previewContainer.clientHeight);
   const targetScrollTop = Math.min(Math.max(0, previewContainer.scrollTop + delta), previewMaxScroll);
 
-  if (Math.abs(previewContainer.scrollTop - targetScrollTop) >= SCROLL_EPSILON) {
+  if (Math.abs(previewContainer.scrollTop - targetScrollTop) >= 3) {
     previewContainer.scrollTop = targetScrollTop;
   }
 }
