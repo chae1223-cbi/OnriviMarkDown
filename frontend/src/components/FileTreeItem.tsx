@@ -36,7 +36,8 @@ interface FileTreeItemProps {
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
 // 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
-// 🚨 @PATCH : **2026-09-02** — 탐색기 선택 하이라이트 왼쪽 세로선(border-l) 제거, 선택 노드 폰트 색상을 고대비 선명한 검정/흰색(text-zinc-950 dark:text-white font-extrabold)으로 강화 및 폴더/파일 경로 정규화 기반 정확한 단독 선택 동기화
+// 🚨 @PATCH : **2026-09-02** — 파일 노드 우클릭 시에도 부모 폴더를 대상으로 붙여넣기(Paste)를 직접 수행할 수 있도록 컨텍스트 메뉴 바인딩 개선
+//             **2026-09-02** — 탐색기 선택 하이라이트 왼쪽 세로선(border-l) 제거, 선택 노드 폰트 색상을 고대비 선명한 검정/흰색(text-zinc-950 dark:text-white font-extrabold)으로 강화 및 폴더/파일 경로 정규화 기반 정확한 단독 선택 동기화
 //             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #06C755 활성 노드 하이라이트 및 LineSeed 폰트)
 //             **2026-08-27** — 탐색기 새로고침/폴더 생성 시 전체 트리가 다시 패치되어 모든 노드가 강제 닫힘(Collapse) 상태로 초기화되어 파일/폴더 위치를 매번 다시 찾아야 하는 불편을 해결하기 위해, localStorage(onrivi_expanded_paths) 기반의 폴더 펼침(isOpen) 상태 영구 보존 및 동기화 구현하고 마운트 시 열린 폴더의 자식 노드 목록을 자동 비동기 지연 로딩(onLazyLoad) 복원하도록 이펙트 보완 및 부모 리팩토링 시 빈 자식 props 주입에 의해 기존 지연 로딩 데이터가 깡통(length=0)으로 덮어써져 사라지는 리셋 버그 차단 가드 적용; 파일/폴더 삭제 시 확인 모달 타이틀("폴더 삭제"/"파일 삭제") 및 메시지 본문("폴더를 정말 삭제하시겠습니까?"/"파일을 정말 삭제하시겠습니까?")을 노드 종류에 맞춰 분기하여 정확하게 표시하도록 갱신; 이름 변경(Rename) 시 팝업 프롬프트 제목 및 실패 토스트 피드백 문구에서 폴더와 파일을 명확히 분리("폴더의 새 이름을 입력하세요"/"파일의 새 이름을 입력하세요")하여 노출하도록 리펙토링; **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
 // 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
@@ -972,21 +973,22 @@ const FileTreeItem = ({
                     <img src="/icons/icon-copy.png" width={16} height={16} alt="복사하기" className="opacity-90" />
                     <span>복사하기</span>
                   </button>
-                  {node.kind === 'directory' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setContextMenu(null);
-                        window.dispatchEvent(new CustomEvent('file:paste-node', {
-                          detail: { targetDirNode: node, targetHandle: node.handle }
-                        }));
-                      }}
-                      className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
-                    >
-                      <img src="/icons/icon-paste.png" width={16} height={16} alt="붙여넣기" className="opacity-90" />
-                      <span>붙여넣기</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setContextMenu(null);
+                      window.dispatchEvent(new CustomEvent('file:paste-node', {
+                        detail: { 
+                          targetDirNode: node.kind === 'directory' ? node : undefined, 
+                          targetHandle: node.kind === 'directory' ? node.handle : parentHandle 
+                        }
+                      }));
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                  >
+                    <img src="/icons/icon-paste.png" width={16} height={16} alt="붙여넣기" className="opacity-90" />
+                    <span>붙여넣기</span>
+                  </button>
                   <button
                     onClick={(e) => { 
                       e.stopPropagation(); 

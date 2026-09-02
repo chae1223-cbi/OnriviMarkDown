@@ -852,6 +852,54 @@ ipcMain.handle('file:rename', async (event, oldPath, newPath) => {
   }
 });
 
+// 9-1. 파일/폴더 복사 (Copy & Paste)
+ipcMain.handle('file:copy', async (event, srcPath, destPath) => {
+  try {
+    const cleanSrc = srcPath.normalize('NFC');
+    let cleanDest = destPath.normalize('NFC');
+
+    if (!fs.existsSync(cleanSrc)) {
+      throw new Error(`원본 파일 또는 폴더가 존재하지 않습니다: ${cleanSrc}`);
+    }
+
+    const srcStat = fs.statSync(cleanSrc);
+    const isDir = srcStat.isDirectory();
+
+    // 만약 대상 경로에 이미 파일이나 폴더가 존재하면 중복 방지 이름 생성
+    if (fs.existsSync(cleanDest)) {
+      const parsed = path.parse(cleanDest);
+      const ext = isDir ? '' : parsed.ext;
+      const base = isDir ? parsed.base : parsed.name;
+      const dir = parsed.dir;
+
+      let counter = 1;
+      let candidate = path.join(dir, `${base}_copy${ext}`);
+      while (fs.existsSync(candidate)) {
+        counter++;
+        candidate = path.join(dir, `${base}_copy${counter}${ext}`);
+      }
+      cleanDest = candidate;
+    }
+
+    // 대상 부모 디렉토리가 없으면 생성
+    const destParent = path.dirname(cleanDest);
+    if (!fs.existsSync(destParent)) {
+      fs.mkdirSync(destParent, { recursive: true });
+    }
+
+    if (isDir) {
+      fs.cpSync(cleanSrc, cleanDest, { recursive: true });
+    } else {
+      fs.copyFileSync(cleanSrc, cleanDest);
+    }
+
+    return { success: true, newPath: cleanDest };
+  } catch (e) {
+    console.error('파일/폴더 복사 실패:', e);
+    throw e;
+  }
+});
+
 // 10. 파일/폴더 삭제
 ipcMain.handle('file:delete', async (event, targetPath) => {
   try {

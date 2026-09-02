@@ -21,7 +21,8 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-02** — 우클릭 팝업 메뉴(Context Menu) 마우스 벗어남(Mouse Leave) 시 자동 닫기 처리
+// 🚨 @PATCH : **2026-09-02** — File System Access API(브라우저 실폴더), Electron IPC(file:copy), VFS 3대 환경 전체에서 파일/폴더 복사 및 붙여넣기(Copy & Paste) 엔진 전면 고도화 및 중복 이름 충돌 방지 구현
+//             **2026-09-02** — 우클릭 팝업 메뉴(Context Menu) 마우스 벗어남(Mouse Leave) 시 자동 닫기 처리
 //             **2026-09-02** — 루트 상단 액션버튼 제거 및 신규 붙여넣기 아이콘(/icons/icon-paste.png) 컨텍스트 메뉴 동기화
 //             **2026-09-02** — 파일 및 폴더 복사/붙여넣기(Copy & Paste) 엔진 탑재
 //             **2026-09-02** — 좌측 사이드바 워크스페이스 실폴더 라벨 및 파일 트리/목차 폰트를 font-bold 및 고대비 색상으로 굵기/선명도 강화
@@ -134,9 +135,16 @@ export default function LeftSidebar() {
     }
 
     const srcNode = clip.node;
-    const destDirPath = targetDirNode ? (targetDirNode.path || '') : (rootFolder?.path || '');
+    let destDirPath = targetDirNode ? (targetDirNode.path || '') : (rootFolder?.path || '');
+
+    // 대상 노드가 파일인 경우 부모 디렉토리로 계산
+    if (targetDirNode && targetDirNode.kind === 'file') {
+      const lastSlash = Math.max(destDirPath.lastIndexOf('\\'), destDirPath.lastIndexOf('/'));
+      destDirPath = lastSlash >= 0 ? destDirPath.substring(0, lastSlash) : '';
+    }
 
     try {
+      // 1. Electron Desktop 환경
       if (workspaceType === 'local') {
         const api = (window as any).electronAPI;
         if (api?.copyFile && srcNode.path) {
@@ -145,16 +153,96 @@ export default function LeftSidebar() {
           showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
           await refreshFileList();
           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
           return;
         }
       }
 
-      // VFS (Web LocalStorage)
+      // 2. 브라우저 File System Access API 환경 (rootFolderHandle 또는 targetHandle이 존재하는 경우)
+      const effectiveDirHandle = targetHandle || (targetDirNode?.kind === 'directory' ? targetDirNode.handle : null) || rootFolderHandle;
+      if (effectiveDirHandle && typeof effectiveDirHandle.getFileHandle === 'function') {
+        const srcName = srcNode.name;
+        const isDir = srcNode.kind === 'directory';
+        let ext = '';
+        let baseName = srcName;
+        if (!isDir) {
+          const extMatch = srcName.match(/\.[^.]+$/);
+          ext = extMatch ? extMatch[0] : '';
+          baseName = ext ? srcName.slice(0, -ext.length) : srcName;
+        }
+
+        let newName = srcName;
+        let counter = 0;
+        while (true) {
+          try {
+            const checkName = counter === 0 
+              ? srcName 
+              : `${baseName}_copy${counter > 1 ? counter : ''}${ext}`;
+            if (isDir) {
+              await effectiveDirHandle.getDirectoryHandle(checkName);
+            } else {
+              await effectiveDirHandle.getFileHandle(checkName);
+            }
+            counter++;
+          } catch {
+            newName = (counter === 0 && destDirPath === (srcNode.path ? srcNode.path.substring(0, srcNode.path.lastIndexOf('/')) : ''))
+              ? `${baseName}_copy${ext}`
+              : (counter === 0 ? srcName : `${baseName}_copy${counter > 1 ? counter : ''}${ext}`);
+            break;
+          }
+        }
+
+        if (isDir && srcNode.handle) {
+          const copyDirRecursive = async (sourceDirHandle: any, targetParentHandle: any, dirName: string) => {
+            const newDir = await targetParentHandle.getDirectoryHandle(dirName, { create: true });
+            for await (const [entryName, entryHandle] of sourceDirHandle.entries()) {
+              if (entryHandle.kind === 'directory') {
+                await copyDirRecursive(entryHandle, newDir, entryName);
+              } else {
+                const f = await entryHandle.getFile();
+                const newF = await newDir.getFileHandle(entryName, { create: true });
+                const w = await newF.createWritable();
+                await w.write(f);
+                await w.close();
+              }
+            }
+          };
+          await copyDirRecursive(srcNode.handle, effectiveDirHandle, newName);
+        } else {
+          let content: any = null;
+          if (srcNode.handle && typeof srcNode.handle.getFile === 'function') {
+            content = await srcNode.handle.getFile();
+          } else if (srcNode.content) {
+            content = srcNode.content;
+          } else if (typeof readFileText === 'function') {
+            content = await readFileText(srcNode);
+          }
+
+          const newFileHandle = await effectiveDirHandle.getFileHandle(newName, { create: true });
+          const writable = await newFileHandle.createWritable();
+          if (content instanceof Blob || content instanceof File) {
+            await writable.write(content);
+          } else {
+            await writable.write(content || '');
+          }
+          await writable.close();
+        }
+
+        showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+        await refreshFileList();
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
+        return;
+      }
+
+      // 3. VFS (Web LocalStorage 가상 파일 시스템)
       if (srcNode.path) {
         vfsCopyItem(srcNode.path, destDirPath);
         showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
         await refreshFileList();
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
+        return;
       }
     } catch (e: any) {
       showToast('붙여넣기 실패: ' + (e.message || e), 'error');

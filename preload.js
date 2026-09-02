@@ -34,6 +34,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 9. 파일/폴더 이름 변경
   renameFile: (oldPath, newPath) => ipcRenderer.invoke('file:rename', oldPath, newPath),
 
+  // 9-1. 파일/폴더 복사 (Copy & Paste)
+  copyFile: (srcPath, destPath) => ipcRenderer.invoke('file:copy', srcPath, destPath),
+
   // 10. 파일/폴더 삭제
   deleteFile: (targetPath) => ipcRenderer.invoke('file:delete', targetPath),
 
