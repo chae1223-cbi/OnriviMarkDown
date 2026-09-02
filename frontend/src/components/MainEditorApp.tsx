@@ -7,6 +7,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-09-02** — 에디터 스크롤 전담 1:1 동기화 및 바닥 밀착 개편: 미리보기 onWheel preventDefault 제거, scrollBeyondLastLine 활성화 및 하단 160px 패딩 적용으로 마지막 줄 엔터 시 시야 자동 확보, 타이핑/방향키/백스페이스 시 스크롤 간섭 0회 분리
  *   * 🚨 @PATCH : **2026-08-27** — 비로그인 즉시 체험 모드(onrivi_guest_mode) 가동 시, 최초 라이선스/세션 검증(loadAndVerifyLicense)을 스킵하고 가상의 프리미엄 등급 라이선스 상태로 즉시 활성화 셋업하여 에디터 편집 잠금을 원천 패스하도록 가드 적용; 게스트 무단 점유/재접속 방지를 위해 10분 타이머(countdown) 및 로컬스토리지 만료 낙인(onrivi_guest_expired) 차단막 시스템을 구축하여 시간 만료 시 에디터 강제 읽기 전용 전환 및 닫기 없는 풀스크린 가입 권유 모달 팝업 바인딩
  *   * 🚨 @PATCH : **2026-08-26** — 분할모드에서 마우스 휠 동작에 의해 우측 실시간 미리보기 스크롤이 단독으로 움직이는 것을 차단하고(onWheel preventDefault) 에디터 스크롤 동기화에 의해서만 구동되도록 제어 및 런타임 contentText ReferenceError 보정 수정
  *   * 🚨 @PATCH : **2026-08-13** — 스크롤 요동 및 튕김 현상의 근본적 해결을 위해 MainEditorApp 내의 모든 이중/중복 스크롤 보정 훅(postContentScrollCorrection) 및 휠/터치 강제 차단 훅을 완전히 삭제하고, Monaco Setup의 단일 스크롤 리스너로 동기화 구조를 전량 이관 및 정밀 간소화함
@@ -4351,15 +4352,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   }, [frontmatterLines]);
 
   const handlePreviewImageLoaded = useCallback(() => {
-    // 이미지가 늦게 로드되어 높이가 변한 경우에만 현재 커서 기준으로 재정렬합니다.
-    const currentLine = editorRef.current?.getPosition()?.lineNumber || 1;
-    const totalLines = editorRef.current?.getModel()?.getLineCount() || 0;
-    syncPreviewInterpolated(previewRef.current, currentLine, {
-      smooth: false,
-      frontmatterLines,
-      totalEditorLines: totalLines,
-    });
-  }, [frontmatterLines]);
+    // 💡 타이핑 시 미리보기 치솟음 방지를 위해 이미지 로드 시 자동 스크롤 동기화를 차단합니다.
+  }, []);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0068] MainEditorApp.tsx ➔ dynamicCssString
@@ -6016,6 +6010,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                               colors: {
                                 ...t.colors,
                                 'editor.background': '#00000000', // 프리미엄 룩을 위한 완전 투명 배경 (부모 UI와 일체화)
+                                'editorCursor.foreground': t.base === 'vs-dark' ? '#60a5fa' : '#2563eb', // 🎯 뚜렷한 파란색 커서 보장
                                 'editor.lineHighlightBackground': '#88888810', // 연한 하이라이트
                                 'editorLineNumber.foreground': '#88888850', // 튀지 않는 줄번호
                                 'editorIndentGuide.background': '#88888815', // 은은한 들여쓰기 가이드
@@ -6028,17 +6023,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         options={{
                           readOnly: tabs.length === 0 || isRestrictedUser,
                           domReadOnly: tabs.length === 0 || isRestrictedUser,
-                          padding: { top: 48, bottom: 0, right: 64 }, // 적절한 포커스 패딩 (bottom 0으로 설정하여 마지막 줄 흔들림 버그 해결)
-                          scrollBeyondLastLine: false,
+                          padding: { top: 48, bottom: 160, right: 64 }, // 마지막 줄 엔터 시 여유 있는 스크롤 공간 확보
+                          scrollBeyondLastLine: true,
                           automaticLayout: true,
                           fontSize,
                           lineHeight: 1.7, // 시원한 줄간격 유지 (세련됨)
                           fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
                           fontLigatures: false, // 글자 폭 계산 오차를 유발할 수 있는 합자(Ligature) 기능 해제
                           letterSpacing: 0,
-                          // IME 조합 종료 뒤에도 삽입 지점이 계속 보이도록 커서를
-                          // 깜빡이지 않는 실선으로 표시합니다.
-                          cursorBlinking: 'solid',
+                          // 🎯 커서 항상 가시성 보장 (단독/분할 모드 공통)
+                          cursorBlinking: 'blink',
+                          cursorSmoothCaretAnimation: 'on',
                           cursorStyle: 'line',
                           cursorWidth: 2,
                           'semanticHighlighting.enabled': true,
@@ -6361,17 +6356,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         ref={previewRef}
                         className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-on-surface ${
                           previewMode === 'preview'
-                            ? 'bg-surface-container-high p-4 pb-48 overflow-y-auto'
-                            : 'bg-surface-container-low px-0 pt-0 pb-48 overflow-y-auto'
+                            ? 'bg-surface-container-high p-4 pb-8 overflow-y-auto'
+                            : 'bg-surface-container-low px-0 pt-0 pb-8 overflow-y-auto'
                         } ${previewMode === 'both' ? 'no-scrollbar' : ''}`}
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
-                        onWheel={(e) => {
-                          if (previewMode === 'both') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }
-                        }}
                         onScroll={(e) => {
                           const target = e.target as HTMLElement;
 

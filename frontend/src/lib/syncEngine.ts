@@ -1,124 +1,201 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 // ====================================================================
-// 📊 [OMD-CORE-syncEngine-0001] syncEngine ➔ syncPreviewInterpolated
-// 🎯 @KICK  : 에디터 타깃 라인 기준으로 미리보기 스크롤을 구간 선형 보간하여 1:1 정렬
-// 🛡️ @GUARD : prevEl/nextEl 앵커 탐색 후 보간, 앵커 없으면 폴백으로 첫 요소 사용
-//             scrollTop 범위를 Math.max(0, Math.min(maxScroll, value))로 클램프
-//             frontmatterLines: 미리보기에 렌더링되지 않는 메타정보 라인 수 보정
-//             마지막 앵커 이후 구간은 최하단 스냅 대신 선형 연장으로 부드럽게 처리
-// 🚨 @PATCH : 2026-08-30 - 핵심 버그 수정: frontmatterLines 파라미터 추가하여 에디터 라인과
-//             미리보기 data-line 좌표계 불일치 해결. YAML 메타정보 구간에서의 스크롤 최상단 고정.
-//             마지막 앵커 이후 선형 연장 처리로 문서 끝 불일치 해결.
-//           : 2026-08-30 - 버그 수정: topOffset 기본값 0, 최상단/최하단 스냅 가드 추가
-//           : 2026-08-30 - 신규 생성 — data-line 앵커 기반 구간 선형 보간(Piecewise Linear
-//             Interpolation). 타이핑·방향키·스크롤·마우스클릭 4개 이벤트를 단일 파이프라인 통합.
+// 📊 [OMD-CORE-syncEngine-0001] syncEngine ➔ syncPreviewFromEditorScroll
+// 🎯 @KICK  : 에디터 스크롤 이벤트 전담 1:1 미리보기 동기화 및 최상단/최하단 완벽 밀착
+// 🛡️ @GUARD : 상위 1,000자 동적 Frontmatter 감지, 에디터 바닥 도달 시 미리보기 maxScrollTop 밀착,
+//             SCROLL_EPSILON(1px) 미세 떨림 방어, 0~maxScroll 클램핑
+// 🚨 @PATCH : 2026-09-02 - 방향키/타이핑/백스페이스 시 스크롤 간섭 0회 분리 및 순수 에디터 휠/스크롤 1:1 밀착 동기화 전담 개편
 // 🔗 @CALLS : previewContainer.querySelectorAll('[data-line]'), scrollTo
 // ====================================================================
 
 export interface SyncOptions {
-  /** true: smooth 스크롤 (마우스 클릭), false: auto 즉각 (타이핑·방향키·스크롤) */
+  /** true: smooth 부드러운 스크롤, false: auto 즉각 (에디터 스크롤 연동) */
   smooth?: boolean;
-  /** 상단 오프셋 여백 — 기본값 0 */
-  topOffset?: number;
-  /**
-   * 에디터에서 YAML frontmatter가 차지하는 라인 수.
-   * 미리보기는 frontmatter를 렌더링하지 않으므로 이 구간의 에디터 라인은
-   * 최상단(scrollTop=0)으로 고정합니다.
-   * preprocessMarkdownForPreview()의 frontmatterLines 값을 넘겨주세요.
-   */
-  frontmatterLines?: number;
-  /**
-   * 에디터 총 라인 수. 마지막 앵커 이후 구간의 진행률 계산에 사용됩니다.
-   */
-  totalEditorLines?: number;
+}
+
+export interface FrontmatterInfo {
+  hasFrontmatter: boolean;
+  endLine: number;
+}
+
+const SCROLL_EPSILON = 1;
+
+/**
+ * 상위 1,000자 이내에서 닫는 '---' 물리 줄 번호를 초고속 파싱
+ */
+export function parseDynamicFrontmatter(content: string): FrontmatterInfo {
+  if (!content || !content.startsWith('---')) {
+    return { hasFrontmatter: false, endLine: 0 };
+  }
+
+  const headSnippet = content.slice(0, 1000);
+  const match = headSnippet.match(/^---\r?\n([\s\S]*?\r?\n)---(\r?\n|$)/);
+
+  if (match) {
+    const matchedBlock = match[0];
+    const lines = matchedBlock.split('\n');
+    const endLine = lines[lines.length - 1].trim() === '' ? lines.length - 1 : lines.length;
+    return { hasFrontmatter: true, endLine };
+  }
+
+  return { hasFrontmatter: true, endLine: 1 };
 }
 
 /**
- * 에디터의 타깃 라인 번호를 기준으로 미리보기 컨테이너를 구간 선형 보간하여 스크롤합니다.
- *
- * 알고리즘:
- *  1. frontmatter 구간(1 ~ frontmatterLines)이면 최상단 고정
- *  2. [data-line] DOM 노드에서 targetLine의 직전(prevEl) / 직후(nextEl) 앵커 탐색
- *  3. 두 앵커 사이 진행률(progress) = (targetLine - prevLine) / (nextLine - prevLine)
- *  4. 마지막 앵커 이후 구간: totalEditorLines 기준 선형 연장으로 최하단까지 부드럽게 매핑
- *  5. [0, maxScroll] 클램프 후 scrollTo 실행
+ * 에디터 스크롤(onDidScrollChange) 전담 1:1 미리보기 동기화 함수
  */
-export function syncPreviewInterpolated(
+export function syncPreviewFromEditorScroll(
   previewContainer: HTMLElement | null,
-  targetLine: number,
-  options: SyncOptions = {}
+  editor: any,
+  content: string = ''
 ): void {
-  if (!previewContainer) return;
+  if (!previewContainer || !editor || previewContainer.clientHeight === 0) return;
 
-  const { smooth = false, topOffset = 0, frontmatterLines = 0, totalEditorLines = 0 } = options;
+  const editorScrollTop = editor.getScrollTop?.() ?? 0;
+  const editorScrollHeight = editor.getScrollHeight?.() ?? 0;
+  const editorLayout = editor.getLayoutInfo?.();
+  const editorHeight = editorLayout ? editorLayout.height : 0;
+  const editorMaxScroll = Math.max(0, editorScrollHeight - editorHeight);
 
-  const maxScroll = previewContainer.scrollHeight - previewContainer.clientHeight;
-  const safeMax = maxScroll > 0 ? maxScroll : 0;
+  const previewMaxScroll = Math.max(0, previewContainer.scrollHeight - previewContainer.clientHeight);
 
-  // 🛡️ [최상단 스냅 가드] 라인 1 또는 frontmatter 구간이면 최상단 밀착
-  if (targetLine <= 1 || (frontmatterLines > 0 && targetLine <= frontmatterLines)) {
-    previewContainer.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+  // 1. 에디터 최상단(0점) 도달 시 미리보기도 최상단 영점 밀착
+  if (editorScrollTop <= 2) {
+    if (previewContainer.scrollTop !== 0) {
+      previewContainer.scrollTop = 0;
+    }
     return;
   }
 
-  const elements = Array.from(
-    previewContainer.querySelectorAll('[data-line]')
-  ) as HTMLElement[];
-  if (elements.length === 0) return;
+  // 2. 에디터 최하단(바닥) 도달 시 미리보기도 끝까지 100% 밀착
+  if (editorMaxScroll > 0 && editorScrollTop >= editorMaxScroll - 4) {
+    if (previewContainer.scrollTop !== previewMaxScroll) {
+      previewContainer.scrollTop = previewMaxScroll;
+    }
+    return;
+  }
 
-  let prevEl: HTMLElement | null = null;
+  const fmInfo = parseDynamicFrontmatter(content);
+  const visibleRanges = editor.getVisibleRanges?.();
+  if (!visibleRanges || visibleRanges.length === 0) return;
+
+  const topVisibleLine = visibleRanges[0].startLineNumber;
+
+  // 3. 에디터 최상단 가시 영역이 프론트매터 내부일 경우 미리보기 상단(0px) 유지
+  if (fmInfo.hasFrontmatter && topVisibleLine <= fmInfo.endLine) {
+    if (previewContainer.scrollTop !== 0) {
+      previewContainer.scrollTop = 0;
+    }
+    return;
+  }
+
+  // 4. [data-line] 앵커 기반 1:1 상단 정렬
+  const elements = Array.from(previewContainer.querySelectorAll('[data-line]')) as HTMLElement[];
+  if (elements.length === 0) {
+    // 앵커가 없으면 스크롤 비율로 폴백
+    const ratio = editorMaxScroll > 0 ? editorScrollTop / editorMaxScroll : 0;
+    previewContainer.scrollTop = Math.round(ratio * previewMaxScroll);
+    return;
+  }
+
+  let targetEl: HTMLElement | null = null;
   let nextEl: HTMLElement | null = null;
-  let prevLine = 1;
-  let nextLine = 1;
 
-  // 1. 직전(prevEl) 및 직후(nextEl) data-line 앵커 탐색
-  for (const el of elements) {
-    const line = parseInt(el.getAttribute('data-line') || '1', 10);
-    if (line <= targetLine) {
-      prevEl = el;
-      prevLine = line;
-    } else if (line > targetLine && !nextEl) {
-      nextEl = el;
-      nextLine = line;
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const line = parseInt(elements[i].getAttribute('data-line') || '1', 10);
+    if (line <= topVisibleLine) {
+      targetEl = elements[i];
+      nextEl = elements[i + 1] || null;
       break;
     }
   }
 
-  // 앵커가 전혀 없으면 첫 번째 요소를 폴백으로 사용
-  if (!prevEl) prevEl = elements[0];
+  if (!targetEl) targetEl = elements[0];
 
   const containerRect = previewContainer.getBoundingClientRect();
-  const prevRect = prevEl.getBoundingClientRect();
-  const prevTop = prevRect.top - containerRect.top + previewContainer.scrollTop;
+  const targetRect = targetEl.getBoundingClientRect();
+  const elRelativeTop = targetRect.top - containerRect.top + previewContainer.scrollTop;
 
-  let finalScrollTop = prevTop;
+  // 타깃 요소의 시작 지점을 미리보기 상단에 1:1로 정렬
+  const desiredScrollTop = Math.min(Math.max(0, elRelativeTop - 20), previewMaxScroll);
 
-  if (nextEl && nextLine > prevLine) {
-    // 2a. 직후 앵커가 있으면 구간 선형 보간
-    const nextRect = nextEl.getBoundingClientRect();
-    const nextTop = nextRect.top - containerRect.top + previewContainer.scrollTop;
-    const progress = (targetLine - prevLine) / (nextLine - prevLine);
-    finalScrollTop = prevTop + (nextTop - prevTop) * progress;
-  } else if (!nextEl && totalEditorLines > prevLine) {
-    // 2b. 🛡️ [마지막 앵커 이후 선형 연장]
-    // 마지막 data-line 앵커(prevEl) 이후부터 에디터 마지막 줄까지를
-    // 미리보기 나머지 스크롤 공간(prevTop ~ safeMax)에 선형으로 매핑합니다.
-    // 이렇게 하면 에디터 끝부분에서 미리보기도 자연스럽게 끝까지 도달합니다.
-    const remainingEditorLines = totalEditorLines - prevLine;
-    const remainingScrollSpace = safeMax - prevTop;
-    if (remainingEditorLines > 0 && remainingScrollSpace > 0) {
-      const editorProgress = (targetLine - prevLine) / remainingEditorLines;
-      finalScrollTop = prevTop + remainingScrollSpace * editorProgress;
-    } else {
-      // 나머지 스크롤 공간이 없으면 최하단 밀착
-      finalScrollTop = safeMax;
+  if (Math.abs(previewContainer.scrollTop - desiredScrollTop) >= SCROLL_EPSILON) {
+    previewContainer.scrollTop = desiredScrollTop;
+  }
+}
+
+/**
+ * 방향키(↑, ↓) 및 명시적 라인 이동 시 미리보기를 가시 뷰포트(Safe Zone) 내부로 부드럽게 추종
+ */
+export function syncPreviewToTargetLine(
+  previewContainer: HTMLElement | null,
+  targetLine: number,
+  content: string = ''
+): void {
+  if (!previewContainer || previewContainer.clientHeight === 0) return;
+
+  const fmInfo = parseDynamicFrontmatter(content);
+
+  // 1. 프론트매터 내부일 경우 최상단(0px) 유지
+  if (fmInfo.hasFrontmatter && targetLine <= fmInfo.endLine) {
+    if (previewContainer.scrollTop !== 0) {
+      previewContainer.scrollTop = 0;
+    }
+    return;
+  }
+
+  const elements = Array.from(previewContainer.querySelectorAll('[data-line]')) as HTMLElement[];
+  if (elements.length === 0) return;
+
+  // 2. 타깃 라인 이하 중 가장 가까운 앵커 탐색
+  let targetEl: HTMLElement | null = null;
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const line = parseInt(elements[i].getAttribute('data-line') || '1', 10);
+    if (line <= targetLine) {
+      targetEl = elements[i];
+      break;
     }
   }
-  // nextEl이 없고 totalEditorLines도 없으면 prevTop 그대로 사용
 
-  // 3. 클램프 후 스크롤 실행
-  previewContainer.scrollTo({
-    top: Math.max(0, Math.min(safeMax, finalScrollTop - topOffset)),
-    behavior: smooth ? 'smooth' : 'auto',
-  });
+  if (!targetEl) targetEl = elements[0];
+
+  const containerRect = previewContainer.getBoundingClientRect();
+  const targetRect = targetEl.getBoundingClientRect();
+
+  const elementTop = targetRect.top - containerRect.top;
+  const elementBottom = targetRect.bottom - containerRect.top;
+  const containerHeight = previewContainer.clientHeight;
+
+  const TOP_SAFE = 60;
+  const BOTTOM_SAFE = containerHeight - 80;
+
+  let delta = 0;
+
+  if (elementBottom > BOTTOM_SAFE) {
+    delta = elementBottom - BOTTOM_SAFE;
+  } else if (elementTop < TOP_SAFE) {
+    delta = elementTop - TOP_SAFE;
+  } else {
+    return; // 이미 가시 영역 안에 있으므로 스크롤 스킵
+  }
+
+  const previewMaxScroll = Math.max(0, previewContainer.scrollHeight - previewContainer.clientHeight);
+  const targetScrollTop = Math.min(Math.max(0, previewContainer.scrollTop + delta), previewMaxScroll);
+
+  if (Math.abs(previewContainer.scrollTop - targetScrollTop) >= SCROLL_EPSILON) {
+    previewContainer.scrollTop = targetScrollTop;
+  }
 }
+
+/**
+ * 하위 호환용 헬퍼
+ */
+export function syncPreviewInterpolated(
+  previewContainer: HTMLElement | null,
+  targetLine: number,
+  content: string = '',
+  options: SyncOptions = {}
+): void {
+  syncPreviewToTargetLine(previewContainer, targetLine, content);
+}
+

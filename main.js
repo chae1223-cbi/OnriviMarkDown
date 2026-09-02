@@ -17,7 +17,8 @@ const nodeNet = require('net'); // 빈 포트를 찾기 위한 네이티브 모�
 protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { standard: true, bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
   { scheme: 'media-local', privileges: { standard: true, bypassCSP: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
-  { scheme: 'app', privileges: { standard: true, secure: true, bypassCSP: true, supportFetchAPI: true, corsEnabled: true } }
+  // 앱 문서는 CSP가 실제로 적용되어야 하므로 bypassCSP를 사용하지 않습니다.
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }
 ]);
 
 
@@ -204,7 +205,9 @@ function createWindow(port) {
          nodeIntegration: false,
          contextIsolation: true,
          preload: path.join(__dirname, 'preload.js'),
-         webSecurity: false, // 🛡️ Monaco 워커(CDN) 및 미디어 CORS를 위한 보안 정책 완화 (패키징 시 경고 사라짐)
+         // renderer의 교차 출처 보호를 유지합니다. 로컬 미디어는 등록된 media
+         // 프로토콜을 통해 제공하므로 webSecurity를 끌 필요가 없습니다.
+         webSecurity: true,
          allowRunningInsecureContent: false,
        },
     // Windows 11 스타일의 깔끔한 프레임 디자인
@@ -254,7 +257,9 @@ function createWindow(port) {
   // Monaco Editor가 eval()과 blob: 워커를 사용하므로 필요한 권한만 허용
   const cspDirectives = [
     "default-src 'self' app:",
-    "script-src 'self' app: 'unsafe-eval' 'unsafe-inline' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net",
+    // Monaco와 Mermaid는 로컬 정적 스크립트 태그로 로드합니다. unsafe-eval을
+    // 허용하지 않아 Electron의 CSP 보안 경고와 임의 코드 실행 위험을 제거합니다.
+    "script-src 'self' app: 'unsafe-inline' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net",
     "worker-src 'self' app: blob:",
     "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
     "img-src 'self' app: data: blob: http: https: file: media:",
@@ -1561,4 +1566,3 @@ ipcMain.handle('presets:save', async (event, presets, resourceFolder) => {
     return { success: false, error: e.message };
   }
 });
-

@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-08-30** — 대형 이미지 비동기 로딩 완료 시 DOM 높이 변화로 인한 스크롤 싱크 오차를 보정하기 위해 onImageLoaded 콜백 prop 추가 및 AsyncImage 내부 handleImgLoad에서 해당 콜백 호출 연결; MainEditorApp에서 syncPreviewInterpolated를 onImageLoaded 콜백으로 주입하여 이미지 로딩 완료 직후 에디터 커서 라인 기준 재정렬 트리거 파이프라인 완성 | **2026-08-28** — 이미지, 표, 코드블록 등의 가변 거대 요소가 포함되었을 때 비선형 리플로우로 인해 선형 스크롤 비율 보간이 어긋나서 싱크가 망가지던 현상을 해결하기 위해, React 컴포넌트 Props 카멜 케이스 변환 및 Properties 손실을 막아주는 extractDataLine 통합 스캐너를 이식하여 래퍼 돔의 data-line 상속 안전성을 확보함 | **2026-08-26** — 코드 블록 헤더 복사 버튼의 글자색이 어두운 배경 위에서 묻히던 시각성 결함을 해결하기 위해 항상 선명한 텍스트 컬러(text-slate-100) 및 불투명도 보정을 적용하고 언어명 텍스트 레이블을 볼드체(font-bold)로 강화 | **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
+// 🚨 @PATCH : **2026-08-31** — 미리보기가 위로 과도하게 치솟아 하얀 빈 화면이 노출되던 결함 해결을 위해 50vh 하단 스페이서 제거; 스크롤 싱크 엔진과 1:1 보간 일원화.
+//             **2026-08-30** — onImageLoaded prop을 AsyncImage에 전달할 때 ...props 스프레드로 DOM img에 흘러들어가 발생하던 Unknown event handler 경고 수정(명시적 destructure로 분리); 대형 이미지 비동기 로딩 완료 시 DOM 높이 변화로 인한 스크롤 싱크 오차를 보정하기 위해 onImageLoaded 콜백 prop 추가 및 AsyncImage 내부 handleImgLoad에서 해당 콜백 호출 연결 | **2026-08-28** — 이미지, 표, 코드블록 등의 가변 거대 요소가 포함되었을 때 비선형 리플로우로 인해 선형 스크롤 비율 보간이 어긋나서 싱크가 망가지던 현상을 해결하기 위해, React 컴포넌트 Props 카멜 케이스 변환 및 Properties 손실을 막아주는 extractDataLine 통합 스캐너를 이식하여 래퍼 돔의 data-line 상속 안전성을 확보함 | **2026-08-26** — 코드 블록 헤더 복사 버튼의 글자색이 어두운 배경 위에서 묻히던 시각성 결함을 해결하기 위해 항상 선명한 텍스트 컬러(text-slate-100) 및 불투명도 보정을 적용하고 언어명 텍스트 레이블을 볼드체(font-bold)로 강화 | **2026-08-20** 다크모드에서 자바스크립트 등 언어 코드블록의 글자색이 어두워 보이지 않는 현상을 해결하기 위해 최상위 style 태그를 주입하여 텍스트 및 자식 요소 색상을 흰색으로 강제 고정.
 // 🚨 @PATCH : **2026-07-16** — 코드블록 및 인라인 코드의 하드코딩된 파란색 톤 배경 및 글자색을 제거하여, 사용자 CSS 프로필 서식 설정이 가로막힘 없이 실시간으로 올바르게 오버라이딩되도록 버그 수정.
 //             **2026-07-15** — MermaidBlock 내 alert() 호출을 useToast showToast('warning')로 교체 (브라우저 팝업 차단 알림을 공통 토스트 UI로 통일)
 //             **2026-07-07** — rehype-citation 플러그인 추가 (참고문헌/BibTeX 인용 파이프라인); bibContent prop으로 BibTeX 데이터를 주입받아 [@citekey] 문법을 인용/참고문헌 목록으로 자동 변환
@@ -64,6 +65,8 @@ interface MarkdownViewerProps {
   workspaceType?: string;
   /** 💡 대형 이미지 비동기 로딩 완료 시 호출되는 콜백 — 스크롤 싱크 재정렬 트리거용 */
   onImageLoaded?: () => void;
+  /** 💡 현재 에디터에서 포커스/커서가 위치한 활성 라인 번호 (미리보기 인디케이터용) */
+  activeLine?: number;
 }
 
 // 💡 [하이브리드 data-line 추출 헬퍼] React 컴포넌트 Props 카멜 케이스 변환 및 AST Properties 누락 방지를 위한 통합 스캐너
@@ -233,16 +236,7 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
   };
 
   const handleImgLoad = () => {
-    // 💡 [이미지 레이아웃 리플로우 싱크] 비동기로 이미지가 완벽히 다 그려지면,
-    // 텍스트 밀림 오차를 해결하기 위해 브라우저 레이아웃 강제 갱신 이벤트를 트리거합니다.
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('resize'));
-    }
-    // 💡 [이미지 로딩 완료 싱크 보정] 대형 이미지가 뒤늦게 로드되어 DOM 높이가 변경된 직후,
-    // 현재 에디터 커서 라인 기준으로 미리보기 위치를 한 번 더 재정렬합니다.
-    if (typeof onImageLoaded === 'function') {
-      onImageLoaded();
-    }
+    // 💡 타이핑 시 스크롤 간섭을 방지하기 위해 정적 로드로 유지합니다.
   };
 
   
@@ -1295,7 +1289,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
 function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
   onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, resourceFolderHandle, resourceFolder, workspaceType,
-  onImageLoaded
+  onImageLoaded, activeLine
 }: MarkdownViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1396,21 +1390,31 @@ function MarkdownViewer({
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : 없음
 // ====================================================================
-  // 🛡️ [마크다운 물리 줄번호 매핑 플러그인] 마크다운 노드가 화면에 렌더링될 때 data-line 속성에 원본 줄 번호를 매핑합니다.
+  // 🛡️ [마크다운 물리 줄번호 매핑 플러그인 — 줄단위 1:1 초정밀 매핑]
+  // 블록 요소뿐만 아니라 단락(p) 내부의 줄바꿈(br), 인라인 강조 등 모든 가시 요소에
+  // 원본 에디터 줄 번호(data-line)를 촘촘하게 부여하여, 연속된 줄 입력 시에도 모든 줄이 독립 앵커로 잡히도록 합니다.
   const rehypeSourceLinesPlugin = useMemo(() => {
     return () => (tree: any) => {
-      const visit = (node: any) => {
-        if (node.type === 'element' && node.position && node.position.start) {
-          if (!node.properties) {
-            node.properties = {};
+      let currentInheritedLine = 1;
+      const visit = (node: any, parentLine?: number) => {
+        if (node.type === 'element') {
+          if (!node.properties) node.properties = {};
+          
+          let line = node.position?.start?.line;
+          if (line) {
+            currentInheritedLine = line;
+          } else if (parentLine) {
+            line = parentLine;
           }
-          const processedLine = node.position.start.line;
-          const currentLineMap = dynamicPropsRef.current.lineMap || [];
-          const originalLine = currentLineMap[processedLine - 1] || processedLine;
-          node.properties['data-line'] = originalLine;
+
+          if (line) {
+            const currentLineMap = dynamicPropsRef.current.lineMap || [];
+            const originalLine = currentLineMap[line - 1] || line;
+            node.properties['data-line'] = originalLine;
+          }
         }
         if (node.children) {
-          node.children.forEach(visit);
+          node.children.forEach((child: any) => visit(child, node.type === 'element' && node.tagName === 'p' ? node.position?.start?.line : undefined));
         }
       };
       visit(tree);
@@ -1627,6 +1631,17 @@ function MarkdownViewer({
         }
       `}</style>
       <div className="print:!block">
+        {activeLine !== undefined && (
+          <style>{`
+            [data-line="${activeLine}"] {
+              outline: 2px dashed rgba(59, 130, 246, 0.4) !important;
+              outline-offset: 3px !important;
+              border-radius: 4px !important;
+              background-color: rgba(59, 130, 246, 0.04) !important;
+              transition: outline 0.15s ease, background-color 0.15s ease !important;
+            }
+          `}</style>
+        )}
         <ReactMarkdown
           urlTransform={(uri) => {
             // 🛡️ [보안 필터 강화] XSS 공격 방어 (javascript: 차단, blob: 등 허용)
@@ -1742,7 +1757,7 @@ function MarkdownViewer({
               }
 
               return (
-                <figure style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '1.5rem', marginBottom: '1.5rem', clear: 'both', alignItems: 'center' }}>
+                <figure data-line={extractDataLine(props, node)} style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '1.5rem', marginBottom: '1.5rem', clear: 'both', alignItems: 'center' }}>
                   <AsyncVideo
                     src={finalSrc}
                     absolutePath={absolutePath}
@@ -2008,7 +2023,7 @@ function MarkdownViewer({
               
               if (alt && alt.trim() !== '') {
                 return (
-                  <figure style={figureStyle}>
+                  <figure data-line={extractDataLine(props, node)} style={figureStyle}>
                     {imgElement}
                     <figcaption className="text-[0.9em] text-zinc-500 mt-1 font-medium">
                       {alt}

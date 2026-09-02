@@ -38,6 +38,8 @@
     "node_modules",
     ".next",
     ".wrangler",
-    "_dev_api_backup"
+    "_dev_api_backup",
+    "playwright.config.ts",
+    "src/__tests__"
   ]
 }
