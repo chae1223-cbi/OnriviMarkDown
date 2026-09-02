@@ -5,7 +5,8 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026-08-15> 최초작성
- * 🚨 @PATCH : **2026-08-15** — 서식 테마 관리(추가/삭제/이름변경/가져오기/내보내기/AI생성)를
+ * 🚨 @PATCH : **2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 좌측 서식 목록 사이드바 .bg-sidebar-luxury 럭셔리 그라데이션 적용 및 LDSG Green(#06C755)/Blue(#4D73FF) 컬러 시스템 100% 통일
+ *             **2026-08-15** — 서식 테마 관리(추가/삭제/이름변경/가져오기/내보내기/AI생성)를
  *             CssStyleForm 인라인 UI에서 분리하여 전용 풀스크린 모달로 독립
  *             z-index를 z-[210]으로 상향 (CssStyleModal z-[200] 위) /
  *             닫기 버튼 → "서식설정으로 가기" 로 변경
@@ -249,35 +250,34 @@ ${guideContent}
     showToast('서식 작성 가이드가 다운로드되었습니다.');
   };
 
-  // AIDraftModal 기반 디자인 시스템 색상 상수
-  const bg = dk ? 'bg-zinc-950' : 'bg-slate-50';
-  const border = dk ? 'border-zinc-800' : 'border-zinc-200';
-  const headerBg = dk ? 'bg-zinc-900' : 'bg-white';
-  const sidebarBg = dk ? 'bg-zinc-900/50' : 'bg-slate-50/50';
+  // LDSG 기반 디자인 시스템 색상 상수
+  const bg = dk ? 'bg-[#111216]' : 'bg-[#F8F9FA]';
+  const border = dk ? 'border-[#22242A]' : 'border-[#EFEFEF]';
+  const headerBg = dk ? 'bg-[#17191E]' : 'bg-white';
   const textMain = dk ? 'text-zinc-100' : 'text-slate-800';
   const textSub = dk ? 'text-zinc-400' : 'text-slate-500';
-  const cardBg = dk ? 'bg-zinc-900' : 'bg-white';
+  const cardBg = dk ? 'bg-[#17191E]' : 'bg-white';
   
-  const inputCls = `w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-[12px] text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-[#8b5cf6] transition-colors`;
-  const btnPrimary = `px-4 py-1.5 text-[12px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors`;
-  const btnSecondary = `px-3 py-1.5 text-[12px] font-bold rounded-lg transition-colors ${dk ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700' : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-slate-200'}`;
+  const inputCls = `w-full bg-slate-50 dark:bg-[#131519] border border-[#EFEFEF] dark:border-[#22242A] rounded-lg px-3 py-2 text-[12px] text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-[#06C755] transition-colors`;
+  const btnPrimary = `px-4 py-1.5 text-[12px] font-bold text-white bg-[#06C755] hover:bg-[#05B34C] rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors`;
+  const btnSecondary = `px-3 py-1.5 text-[12px] font-bold rounded-lg transition-colors ${dk ? 'bg-[#17191E] text-zinc-300 hover:bg-[#22242A] hover:text-white border border-[#22242A]' : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-[#EFEFEF]'}`;
 
   return (
     <div className={`fixed inset-0 z-[210] flex flex-col font-sans ${bg}`}>
-      {/* 프리미엄 헤더 */}
+      {/* LDSG 프리미엄 헤더 */}
       <div className={`flex items-center justify-between px-8 py-4 border-b shrink-0 ${headerBg} ${border}`}>
         <div className="flex items-center gap-3">
-          <div className={`flex items-center justify-center w-8 h-8 rounded-full ${dk ? 'bg-[#8b5cf6]/20 text-[#8b5cf6]' : 'bg-purple-100 text-[#8b5cf6]'}`}>
-            <span className="text-sm">🫆</span>
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#06C755]/15 text-[#06C755]">
+            <BookOpen className="w-4 h-4" />
           </div>
-          <h2 className={`text-[15px] font-bold tracking-tight ${textMain}`}>서식 관리 센터</h2>
-          <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold tracking-wide ${dk ? 'bg-[#8b5cf6]/10 text-[#a855f7]' : 'bg-purple-50 text-[#8b5cf6]'}`}>
+          <h2 className="text-base font-bold tracking-tight text-[#06C755]">서식 관리 센터</h2>
+          <span className="text-[11px] px-2.5 py-0.5 rounded-full font-bold tracking-wide bg-[#06C755]/10 text-[#06C755]">
             {profiles.length} Profiles
           </span>
         </div>
         <button
           onClick={onClose}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold rounded-lg transition-colors ${dk ? 'hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'}`}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[12px] font-bold rounded-lg transition-colors ${dk ? 'hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'}`}
         >
           <span>서식설정으로 가기</span>
           <X className="w-3.5 h-3.5" />
@@ -287,8 +287,8 @@ ${guideContent}
       {/* 본문 레이아웃 */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* 좌측: 서식 목록 사이드바 */}
-        <div className={`w-[280px] shrink-0 border-r ${border} ${sidebarBg} flex flex-col overflow-hidden`}>
+        {/* 좌측: 서식 목록 사이드바 (.bg-sidebar-luxury 표준) */}
+        <div className={`w-[280px] shrink-0 border-r ${border} bg-sidebar-luxury flex flex-col overflow-hidden`}>
           <div className={`px-4 py-3 flex items-center justify-between border-b ${border}`}>
             <span className={`text-[11px] font-bold tracking-widest uppercase ${textSub}`}>등록된 서식</span>
             <div className="flex items-center gap-0">
@@ -338,8 +338,8 @@ ${guideContent}
                   }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all duration-200 ${
                     isActive
-                      ? dk ? 'bg-[#8b5cf6]/20 text-[#c4b5fd]' : 'bg-purple-50 text-[#8b5cf6]'
-                      : dk ? 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200' : 'text-slate-600 hover:bg-black/5 hover:text-slate-900'
+                      ? dk ? 'bg-[#06C755]/20 text-[#06C755] font-bold shadow-sm' : 'bg-[#06C755]/10 text-[#06C755] font-bold shadow-sm'
+                      : dk ? 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200' : 'text-slate-600 hover:bg-black/5 hover:text-slate-900'
                   }`}
                 >
                   <span className={`flex items-center justify-center text-[14px] ${isActive ? '' : 'opacity-60'}`}>
@@ -371,7 +371,7 @@ ${guideContent}
                   onSelectProfile(selectedProfile.id);
                   onClose();
                 }}
-                className={`shrink-0 px-4 py-2.5 text-[13px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-xl shadow-md transition-all duration-200 flex items-center gap-2 hover:scale-105 active:scale-95`}
+                className={`shrink-0 px-4 py-2.5 text-[13px] font-bold text-white bg-[#06C755] hover:bg-[#05B34C] rounded-xl shadow-md transition-all duration-200 flex items-center gap-2 hover:scale-105 active:scale-95`}
               >
                 <Check className="w-4 h-4" />
                 이 서식 반영하고 돌아가기
@@ -477,16 +477,16 @@ ${guideContent}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className={`text-[13px] font-semibold tracking-wider uppercase ${textSub}`}>AI 제너레이터</h3>
-                <div className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider ${dk ? 'bg-[#8b5cf6]/20 text-[#c4b5fd]' : 'bg-purple-100 text-[#8b5cf6]'}`}>BETA</div>
+                <div className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider ${dk ? 'bg-[#06C755]/20 text-[#06C755]' : 'bg-[#06C755]/10 text-[#06C755]'}`}>BETA</div>
               </div>
               <div className={`p-6 rounded-2xl border ${border} ${cardBg} shadow-sm relative overflow-hidden group`}>
                 
                 {/* 은은한 배경 그라데이션 장식 */}
-                <div className={`absolute top-0 right-0 w-64 h-64 opacity-10 pointer-events-none transition-opacity duration-700 group-hover:opacity-20 ${dk ? 'bg-gradient-to-bl from-[#8b5cf6] to-transparent' : 'bg-gradient-to-bl from-purple-300 to-transparent'} rounded-bl-full`} />
+                <div className={`absolute top-0 right-0 w-64 h-64 opacity-10 pointer-events-none transition-opacity duration-700 group-hover:opacity-20 ${dk ? 'bg-gradient-to-bl from-[#06C755] to-transparent' : 'bg-gradient-to-bl from-emerald-300 to-transparent'} rounded-bl-full`} />
 
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className={`w-4 h-4 ${dk ? 'text-[#c4b5fd]' : 'text-[#8b5cf6]'}`} />
+                    <Sparkles className={`w-4 h-4 text-[#06C755]`} />
                     <span className={`text-[13px] font-bold ${textMain}`}>프롬프트로 서식 생성</span>
                   </div>
 
@@ -500,7 +500,7 @@ ${guideContent}
                         key={idx}
                         onClick={() => setAiPromptInput(chip.text)}
                         disabled={isAiGenerating}
-                        className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors ${dk ? 'bg-zinc-800 hover:bg-[#8b5cf6]/20 text-zinc-300 hover:text-[#c4b5fd] border border-zinc-700' : 'bg-slate-50 hover:bg-purple-50 text-slate-600 hover:text-[#8b5cf6] border border-slate-200'}`}
+                        className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors ${dk ? 'bg-zinc-800 hover:bg-[#06C755]/20 text-zinc-300 hover:text-[#06C755] border border-zinc-700' : 'bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-[#06C755] border border-slate-200'}`}
                       >
                         {chip.label}
                       </button>

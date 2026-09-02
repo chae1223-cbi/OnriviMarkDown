@@ -189,12 +189,22 @@
   font-display: swap;
 }
 
-
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
 @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 💡 [ONRIVI-DS-SYSTEM-002 v5.0] 전역 텍스트 렌더링 & 가독성 엔진 최적화 */
+html, body {
+  font-family: "Pretendard Variable", Pretendard, LineSeed, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  letter-spacing: -0.012em;
+}
 
 /* 강제 정렬 클래스 (사용자 서식 프로필의 !important 오버라이드용) */
 .custom-preview-container .force-align-left {
@@ -247,75 +257,94 @@
     background: rgba(255,255,255,0.9);
     box-shadow: 10px 10px 20px rgba(99, 102, 241, 0.12), -10px -10px 20px rgba(255, 255, 255, 0.9);
   }
-  /* Primary Button */
+  /* 💡 [ONRIVI-DS-SYSTEM-002 v5.0 LDSG] 공통 UI 컴포넌트 */
+  /* Primary Button (LDSG Green) */
   .btn-primary {
-    background: #6366f1;
+    background: #06c755;
     color: #ffffff;
-    border-radius: 0.75rem;
-    font-family: Inter, sans-serif;
-    font-weight: 600;
+    border-radius: 8px;
+    font-family: LineSeed, Pretendard, -apple-system, sans-serif;
+    font-weight: 700;
     font-size: 14px;
     line-height: 20px;
-    padding: 0.625rem 1.5rem;
-    box-shadow: 4px 4px 10px rgba(99, 102, 241, 0.3), -4px -4px 10px rgba(255, 255, 255, 0.8);
-    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    padding: 0.5rem 1.25rem;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
   }
   .btn-primary:hover {
-    background: #4f46e5;
-    box-shadow: 6px 6px 14px rgba(99, 102, 241, 0.4), -6px -6px 14px rgba(255, 255, 255, 0.9);
+    background-color: #05b04b;
+    box-shadow: 0 4px 12px rgba(6, 199, 85, 0.25);
   }
-  .btn-primary:active { transform: scale(0.97); }
+  .btn-primary:active { transform: scale(0.98); }
 
-  /* Secondary (Glass) Button */
+  /* Secondary Button (LDSG Blue / Outline) */
   .btn-secondary {
-    background: rgba(255,255,255,0.6);
-    color: #6366f1;
-    border: 1px solid #6366f1;
-    border-radius: 0.75rem;
-    font-family: Inter, sans-serif;
-    font-weight: 600;
+    background: transparent;
+    color: #06c755;
+    border: 1px solid #06c755;
+    border-radius: 8px;
+    font-family: LineSeed, Pretendard, -apple-system, sans-serif;
+    font-weight: 700;
     font-size: 14px;
-    padding: 0.625rem 1.5rem;
-    backdrop-filter: blur(20px);
-    box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.02), -2px -2px 6px rgba(255, 255, 255, 0.5);
-    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    padding: 0.5rem 1.25rem;
+    transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
   }
   .btn-secondary:hover {
-    background: rgba(99,102,241,0.08);
-    box-shadow: 4px 4px 12px rgba(99,102,241,0.15), -4px -4px 12px rgba(255, 255, 255, 0.8);
+    background-color: rgba(6, 199, 85, 0.08);
+    border-color: #05b04b;
   }
-  .btn-secondary:active { transform: scale(0.97); }
+  .btn-secondary:active { transform: scale(0.98); }
 
-  /* Chip */
+  /* Ghost Button */
+  .btn-ghost {
+    background: transparent;
+    color: rgb(var(--on-surface));
+    border: none;
+    border-radius: 8px;
+    font-family: LineSeed, Pretendard, -apple-system, sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 0.5rem 1rem;
+    transition: background-color 0.15s, transform 0.1s;
+  }
+  .btn-ghost:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+  .dark .btn-ghost:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+  }
+  .btn-ghost:active { transform: scale(0.98); }
+
+  /* Chip (LDSG Style) */
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
     padding: 0.25rem 0.75rem;
     border-radius: 9999px;
-    background: rgba(125,211,252,0.2);
-    color: #006591;
+    background: rgba(6, 199, 85, 0.1);
+    color: #06c755;
     font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    font-family: Inter, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    font-family: LineSeed, Pretendard, sans-serif;
   }
 
   /* Input */
   .input-arctic {
-    background: rgba(255,255,255,0.8);
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    font-family: Inter, sans-serif;
+    background: rgb(var(--surface-container));
+    border: 1px solid rgb(var(--outline));
+    border-radius: 8px;
+    font-family: LineSeed, Pretendard, sans-serif;
     font-size: 14px;
     padding: 0.625rem 1rem;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
-    color: #0f172a;
+    color: rgb(var(--on-surface));
   }
   .input-arctic:focus {
-    border-color: #0ea5e9;
-    box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
+    border-color: #06c755;
+    box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.15);
   }
 
   /* dark mode glass overrides */
@@ -324,69 +353,91 @@
     background: rgba(0,0,0,0.4);
     border: 1px solid rgba(255,255,255,0.05);
   }
+
+  /* 💡 [ONRIVI-DS-SYSTEM-002 v5.0 LDSG] 모든 왼쪽 사이드바 공통 럭셔리 그라데이션 */
+  .bg-sidebar-luxury {
+    background: linear-gradient(180deg, #F6F8FA 0%, #F0F4F8 50%, #E8EDF3 100%);
+  }
+  .dark .bg-sidebar-luxury {
+    background: linear-gradient(180deg, #17191E 0%, #131519 50%, #0F1114 100%);
+  }
 }
 
 
+/* 💡 [ONRIVI-DS-SYSTEM-002 v5.0 LDSG] LINE Design System Color Tokens */
 :root {
-  --foreground-rgb: 27, 27, 36;
-  --background-start-rgb: 250, 249, 245;
-  --background-end-rgb: 250, 249, 245;
-  --primary: 15 0 109;
-  --on-primary: 255 255 255;
-  --primary-container: 79 70 229;
-  --on-primary-container: 144 141 255;
-  --surface: 250 249 245;
-  --surface-dim: 236 234 228;
-  --surface-bright: 250 249 245;
+  --foreground-rgb: 31, 31, 31;
+  --background-start-rgb: 247, 248, 249;
+  --background-end-rgb: 247, 248, 249;
+  --surface: 247 248 249;
+  --surface-container: 255 255 255;
   --surface-container-lowest: 255 255 255;
-  --surface-container-low: 244 242 238;
-  --surface-container: 238 236 230;
-  --surface-container-high: 232 230 224;
-  --surface-container-highest: 226 224 218;
-  --on-surface: 27 27 36;
-  --on-surface-variant: 70 69 84;
-  --outline: 119 117 134;
-  --outline-variant: 199 196 216;
-  --error: 186 26 26;
+  --surface-container-low: 245 246 248;
+  --surface-container-high: 239 240 242;
+  --surface-container-highest: 230 232 235;
+  --surface-dim: 220 222 225;
+  --surface-bright: 255 255 255;
+  --primary: 6 199 85;
+  --on-primary: 255 255 255;
+  --primary-container: 215 248 228;
+  --on-primary-container: 3 115 48;
+  --on-surface: 31 31 31;
+  --on-surface-variant: 97 97 97;
+  --outline: 239 239 239;
+  --outline-variant: 220 220 220;
+  --error: 224 32 0;
   --on-error: 255 255 255;
-  --secondary: 75 65 225;
+  --secondary: 77 115 255;
   --on-secondary: 255 255 255;
-  --secondary-container: 101 93 251;
-  --on-secondary-container: 255 251 255;
+  --secondary-container: 225 233 255;
+  --on-secondary-container: 20 45 160;
 }
 
 [class~="dark"] {
   color-scheme: dark;
-  --foreground-rgb: 229, 225, 235;
-  --background-start-rgb: 19, 18, 26;
-  --background-end-rgb: 19, 18, 26;
-  --primary: 195 192 255;
-  --on-primary: 31 0 96;
-  --primary-container: 55 44 188;
-  --on-primary-container: 226 223 255;
-  --surface: 19 18 26;
-  --surface-dim: 19 18 26;
-  --surface-bright: 56 55 63;
-  --surface-container-lowest: 14 13 18;
-  --surface-container-low: 27 26 35;
-  --surface-container: 32 31 40;
-  --surface-container-high: 43 41 51;
-  --surface-container-highest: 54 52 62;
-  --on-surface: 229 225 235;
-  --on-surface-variant: 199 196 216;
-  --outline: 145 143 159;
-  --outline-variant: 71 69 84;
-  --error: 255 180 171;
-  --on-error: 105 0 5;
-  --secondary: 195 192 255;
-  --on-secondary: 24 0 98;
-  --secondary-container: 51 34 204;
-  --on-secondary-container: 226 223 255;
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 18, 18, 18;
+  --background-end-rgb: 18, 18, 18;
+  --surface: 18 18 18;
+  --surface-container: 30 30 30;
+  --surface-container-lowest: 12 12 12;
+  --surface-container-low: 24 24 24;
+  --surface-container-high: 38 38 38;
+  --surface-container-highest: 48 48 48;
+  --surface-dim: 18 18 18;
+  --surface-bright: 60 60 60;
+  --primary: 6 199 85;
+  --on-primary: 0 0 0;
+  --primary-container: 3 90 38;
+  --on-primary-container: 215 248 228;
+  --on-surface: 255 255 255;
+  --on-surface-variant: 160 160 160;
+  --outline: 45 45 45;
+  --outline-variant: 70 70 70;
+  --error: 255 90 80;
+  --on-error: 0 0 0;
+  --secondary: 100 135 255;
+  --on-secondary: 0 0 0;
+  --secondary-container: 20 45 160;
+  --on-secondary-container: 225 233 255;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));
+}
+
+/* 💡 [ONRIVI-DS-SYSTEM-002 v4.1] Preview Container Scroll Stabilization */
+.custom-preview-container,
+.onrivi-preview-container {
+  overflow-anchor: auto !important;
+  scroll-behavior: auto !important;
+  padding-bottom: 80px !important;
+}
+
+.custom-preview-container *,
+.onrivi-preview-container * {
+  overflow-anchor: none;
 }
 
 /* select 드롭다운 다크모드 강제 — option 팝업 레이어가 흰색으로 튀지 않도록 */
@@ -1436,29 +1487,30 @@ input::-ms-clear {
 }
 
 /* ============================================================
-   Ethereal Executive Design System (Admin Theme Scope)
+   LINE Design System (LDSG v5.0) Admin Scope (Light Mode)
    ============================================================ */
 .admin-theme {
-  --admin-bg: #101415;
-  --admin-surface-bright: #363a3b;
-  --admin-surface-low: #191c1e;
-  --admin-surface: #1d2022;
-  --admin-surface-high: #272a2c;
-  --admin-text: #e0e3e5;
-  --admin-text-muted: #d0c5af;
-  --admin-primary: #f2ca50;
-  --admin-primary-dim: #e9c349;
-  --admin-on-primary: #3c2f00;
-  --admin-secondary: #95d3ba;
-  --admin-on-secondary: #003829;
-  --admin-border: #334155;
-  --admin-border-light: #4d4635;
-  --admin-error: #ffb4ab;
-  --admin-on-error: #690005;
+  --admin-bg: #F8F9FA;
+  --admin-surface-bright: #F1F5F9;
+  --admin-surface-low: #FFFFFF;
+  --admin-surface: #FFFFFF;
+  --admin-surface-high: #E2E8F0;
+  --admin-text: #0F172A;
+  --admin-text-muted: #475569;
+  --admin-primary: #06C755;
+  --admin-primary-dim: #05B34C;
+  --admin-on-primary: #FFFFFF;
+  --admin-secondary: #4D73FF;
+  --admin-on-secondary: #FFFFFF;
+  --admin-border: #E2E8F0;
+  --admin-border-light: #CBD5E1;
+  --admin-error: #EF4444;
+  --admin-on-error: #FFFFFF;
 
   background-color: var(--admin-bg);
   color: var(--admin-text);
-  color-scheme: dark;
+  color-scheme: light;
+  font-weight: 500;
 }
 
 .admin-theme select option {
@@ -1466,50 +1518,48 @@ input::-ms-clear {
   color: var(--admin-text);
 }
 
-
 @layer components {
   /* Cards & Containers */
   .admin-glass-panel {
-    background: rgba(30, 41, 59, 0.8); /* Semi-transparent navy/charcoal for sidebar */
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-right: 0.5px solid var(--admin-border);
+    background: #FFFFFF;
+    border-right: 1px solid var(--admin-border);
   }
   
   .admin-glass-card {
-    background: rgba(30, 41, 59, 0.6);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 0.5px solid var(--admin-border);
+    background: #FFFFFF;
+    border: 1px solid var(--admin-border);
     border-radius: 16px; /* rounded-2xl */
-    box-shadow: none; /* No drop shadows on static cards */
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
   }
 
   /* Ghost Inputs */
   .admin-ghost-input {
-    background: transparent;
-    border: 1px solid var(--admin-border);
+    background: #FFFFFF;
+    border: 1.5px solid #CBD5E1;
     border-radius: 12px;
     color: var(--admin-text);
+    font-weight: 500;
     transition: all 0.2s;
   }
   .admin-ghost-input:focus {
     outline: none;
     border-color: var(--admin-primary);
-    box-shadow: 0 0 0 1px var(--admin-primary);
+    box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.15);
   }
 
-  /* Primary Button */
+  /* Primary Button (LDSG Green) */
   .admin-btn-primary {
-    background: linear-gradient(180deg, var(--admin-primary) 0%, #d4af37 100%);
-    color: var(--admin-on-primary);
-    border: 1px inset rgba(255, 255, 255, 0.2);
-    border-radius: 12px; /* rounded-lg */
-    font-weight: 600;
-    transition: transform 0.1s, opacity 0.2s;
+    background: #06C755;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 12px;
+    font-weight: 700;
+    transition: all 0.15s ease-in-out;
   }
   .admin-btn-primary:hover {
-    opacity: 0.9;
+    background: #05B34C;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(6, 199, 85, 0.25);
   }
   .admin-btn-primary:active {
     transform: scale(0.98);
@@ -1517,20 +1567,71 @@ input::-ms-clear {
 
   /* Status Chips */
   .admin-chip-emerald {
-    background: rgba(11, 81, 61, 0.2);
-    color: var(--admin-secondary);
-    border: 1px solid rgba(11, 81, 61, 0.5);
+    background: rgba(6, 199, 85, 0.12);
+    color: #048C3B;
+    border: 1px solid rgba(6, 199, 85, 0.3);
+    font-weight: 600;
   }
   .admin-chip-gold {
-    background: rgba(87, 69, 0, 0.2);
-    color: var(--admin-primary);
-    border: 1px solid rgba(87, 69, 0, 0.5);
+    background: rgba(77, 115, 255, 0.12);
+    color: #3B5FE8;
+    border: 1px solid rgba(77, 115, 255, 0.3);
+    font-weight: 600;
   }
   .admin-chip-error {
-    background: rgba(105, 0, 5, 0.2);
-    color: var(--admin-error);
-    border: 1px solid rgba(105, 0, 5, 0.5);
+    background: rgba(239, 68, 68, 0.12);
+    color: #DC2626;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    font-weight: 600;
   }
+}
+
+/* 🌟 선명하고 정갈한 폼 컨트롤 (Input, Select, Textarea) 글로벌 규칙 */
+.admin-theme input:not([type="checkbox"]):not([type="radio"]),
+.admin-theme select,
+.admin-theme textarea {
+  background-color: #FFFFFF !important;
+  border: 1.5px solid #CBD5E1 !important;
+  color: #0F172A !important;
+  font-weight: 500 !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+}
+
+.admin-theme input:not([type="checkbox"]):not([type="radio"]):focus,
+.admin-theme select:focus,
+.admin-theme textarea:focus {
+  border-color: #06C755 !important;
+  box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.18), 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  outline: none !important;
+}
+
+.admin-theme input::placeholder,
+.admin-theme textarea::placeholder {
+  color: #94A3B8 !important;
+  font-weight: 400 !important;
+}
+
+.admin-theme label {
+  color: #1E293B !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+}
+
+/* 🌟 선명한 테이블 (Table) 경계 및 헤더 */
+.admin-theme table th,
+.admin-theme table thead th {
+  background-color: #F8FAFC !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+  border-bottom: 1.5px solid #E2E8F0 !important;
+}
+.admin-theme table td {
+  border-bottom: 1px solid #F1F5F9 !important;
+  color: #0F172A !important;
+}
+.admin-theme table tbody tr:hover {
+  background-color: #F8FAFC !important;
 }
 
 /* --- Unconditional Inherit Text Color for Code Blocks --- */
@@ -1541,23 +1642,4 @@ input::-ms-clear {
 .dark .codeblock-area code,
 .dark .codeblock-area code * {
   color: #ffffff !important;
-}
-
-/* 📌 모든 모달 백드롭 딤(Dim) 및 블러(Blur) 오버레이 일괄 제거 */
-.fixed[class*="z-"][class*="bg-black"],
-.fixed[class*="z-"][class*="backdrop-blur"],
-.fixed[class*="z-"] .absolute.inset-0[class*="bg-black"],
-.fixed[class*="z-"] .absolute.inset-0[class*="backdrop-blur"],
-.fixed.z-50[class*="bg-black"],
-.fixed.z-50 .absolute.inset-0[class*="bg-black"],
-.fixed[class*="z-"] div[className*="bg-black"],
-.fixed[class*="z-"] div[class*="bg-black"],
-.fixed[class*="z-"] .absolute.inset-0[class*="bg-background"],
-div[class*="z-[99999]"] .absolute.inset-0,
-div[class*="z-[9999]"] .absolute.inset-0,
-div[class*="z-[100]"] .absolute.inset-0 {
-  background-color: transparent !important;
-  background: transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
 }

@@ -160,17 +160,20 @@ export default function SettingsModal({
         </button>
 
         {/* Sidebar */}
-        <aside className={`w-full md:w-[240px] shrink-0 border-r ${isDarkMode ? 'border-white/10' : 'border-outline-variant/15'} p-8 flex flex-col relative z-10`}>
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="font-serif text-[28px] text-on-surface font-bold tracking-tight">설정</h2>
+        <aside className={`w-full md:w-[260px] shrink-0 border-r ${isDarkMode ? 'border-white/10' : 'border-outline-variant/15'} p-6 flex flex-col relative z-10`}>
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+              <Settings size={18} />
+            </div>
+            <h2 className="text-lg font-bold text-[#06C755] tracking-tight">환경 설정</h2>
           </div>
           
           <nav className="flex flex-col gap-2">
             <button 
               onClick={() => setActiveTab('general')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-[14px] transition-all ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[14px] transition-all ${
                 activeTab === 'general' 
-                  ? 'bg-primary-container/10 text-primary-container dark:text-primary-fixed-dim' 
+                  ? 'bg-[#06C755]/10 text-[#06C755]' 
                   : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
@@ -179,9 +182,9 @@ export default function SettingsModal({
             </button>
             <button 
               onClick={() => setActiveTab('hotkeys')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-[14px] transition-all ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[14px] transition-all ${
                 activeTab === 'hotkeys' 
-                  ? 'bg-primary-container/10 text-primary-container dark:text-primary-fixed-dim' 
+                  ? 'bg-[#06C755]/10 text-[#06C755]' 
                   : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
@@ -199,7 +202,7 @@ export default function SettingsModal({
                    🔒 미리보기 전용
                  </span>
                ) : isActivated ? (
-                 <span className="text-[12px] text-emerald-600 dark:text-emerald-400 font-extrabold px-3 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 w-full">
+                 <span className="text-[12px] text-[#06C755] font-extrabold px-3 py-1.5 rounded-md bg-[#06C755]/10 border border-[#06C755]/20 w-full">
                    ✅ 정품 인증됨
                  </span>
                ) : (
@@ -211,7 +214,7 @@ export default function SettingsModal({
 
              <button
               onClick={() => showToast('설정이 성공적으로 저장되었습니다.', 'success')}
-              className="w-full py-3 bg-on-surface text-white dark:bg-white dark:text-black rounded-xl font-bold text-sm shadow-md hover:opacity-90 transition-opacity flex justify-center items-center gap-2"
+              className="w-full py-3 bg-[#06C755] hover:bg-[#05B04B] text-white rounded-xl font-bold text-sm shadow-md shadow-[#06C755]/20 transition-all flex justify-center items-center gap-2"
              >
                저장
              </button>

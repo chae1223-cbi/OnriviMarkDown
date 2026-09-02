@@ -4,7 +4,9 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
-// 🚨 @PATCH : 2026-09-02 - 방향키(↑, ↓) 위아래 줄 이동 시 미리보기 Safe Zone 추종 연동(isTyping 가드로 타이핑/백스페이스 중 스크롤 0% 고정 유지), 에디터 스크롤 1:1 완벽 밀착
+// 🚨 @PATCH : 2026-09-02 - 탭 전환 직후 마우스 클릭(e.reason===3) 및 커서 이동 시 Safe Zone 위치 즉시 추종 보장
+//             2026-09-02 - 에디터 마지막 행에서 입력 시 미리보기 즉시 바닥(최하단) 추종 동기화 반영 및 useDeferredValue 기반 무깜빡임 실시간 렌더링 연동
+//             2026-09-02 - 방향키(↑, ↓) 위아래 줄 이동 시 미리보기 Safe Zone 추종 연동(isTyping 가드로 타이핑/백스페이스 중 스크롤 0% 고정 유지), 에디터 스크롤 1:1 완벽 밀착
 //             2026-08-31 - 4대 요건(실시간 싱크 일치, 타이핑/엔터 안정성, 휠/방향키 1:1 연동, 대형 미디어 높이 보정) 전면 개편
 // 🔗 @CALLS : model.getLineContent, editor.executeEdits, syncPreviewFromEditorScroll, syncPreviewToTargetLine
 // ====================================================================
@@ -436,12 +438,12 @@ export function useMonacoSetup(deps: any) {
 
                   const syncPreviewFromCursor = (lineNumber: number) => {
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
-                    if (isScrollingRef.current === 'preview' || isTyping) return;
+                    if (isScrollingRef.current === 'preview') return;
 
                     if (rafCursorSyncId) cancelAnimationFrame(rafCursorSyncId);
                     rafCursorSyncId = requestAnimationFrame(() => {
                       rafCursorSyncId = null;
-                      if (!isTyping && previewRef.current) {
+                      if (previewRef.current) {
                         const content = editor.getValue();
                         syncPreviewToTargetLine(previewRef.current, lineNumber, content);
                       }
@@ -454,6 +456,17 @@ export function useMonacoSetup(deps: any) {
                     typingTimeout = setTimeout(() => {
                       isTyping = false;
                     }, 150);
+
+                    // 💡 [타이핑 시 현재 입력 라인이 미리보기 Safe Zone 밖으로 가려져 있으면 즉시 추종]
+                    const pos = editor.getPosition();
+                    if (pos && previewRef.current && previewModeRef.current === 'both' && isScrollingRef.current !== 'preview') {
+                      requestAnimationFrame(() => {
+                        if (previewRef.current) {
+                          const content = editor.getValue();
+                          syncPreviewToTargetLine(previewRef.current, pos.lineNumber, content);
+                        }
+                      });
+                    }
 
                     requestAnimationFrame(() => {
                       const hadTextFocus = editor.hasTextFocus?.();
@@ -1222,7 +1235,10 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                       if (!targetPosition) return prev;
                       const visiblePos = editor.getScrolledVisiblePosition(targetPosition);
                       if (!visiblePos) return prev;
-                      return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
+                      const layout = editor.getLayoutInfo?.();
+                      const editorWidth = layout ? layout.width : 1000;
+                      const safeLeft = Math.max(10, Math.min(visiblePos.left, editorWidth - 880));
+                      return { visible: true, top: Math.max(0, visiblePos.top - 10), left: safeLeft };
                     });
                   });
 
@@ -1320,18 +1336,19 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                     const hasLineChanged = prevCursorLineRef.current !== currentLine;
                     prevCursorLineRef.current = currentLine;
 
-                    // 💡 [React 렌더링 폭탄 방어] 프레임 단위 단일 큐로 상태 업데이트 병합
+                    // 💡 [React 렌더링 폭탄 방어] 프레임 단위 단일 큐로 상태 업데이트 병합 (라인 변경 시에만 상위 상태 갱신)
                     if (rafCursorStateId) cancelAnimationFrame(rafCursorStateId);
                     rafCursorStateId = requestAnimationFrame(() => {
                       rafCursorStateId = null;
                       updatePersistentCaret();
-                      setActiveLine(currentLine);
-                      setCursorLine(currentLine);
-                      setCursorColumn(currentCol);
+                      if (hasLineChanged) {
+                        setActiveLine(currentLine);
+                        setCursorLine(currentLine);
+                      }
                     });
 
-                    // 💡 [방향키(↑, ↓) / 마우스 클릭으로 라인 변경 시 미리보기 Safe Zone 추종]
-                    if (!isTyping && hasLineChanged) {
+                    // 💡 [방향키(↑, ↓) / 마우스 클릭 / 커서 이동 시 미리보기 Safe Zone 추종]
+                    if (hasLineChanged || e.reason === 3 || e.reason === 0) {
                       syncPreviewFromCursor(currentLine);
                     }
 

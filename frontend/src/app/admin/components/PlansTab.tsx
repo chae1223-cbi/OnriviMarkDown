@@ -291,16 +291,16 @@ export default function PlansTab() {
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-[var(--admin-surface)] text-[var(--admin-text)] rounded-2xl p-6 w-full max-w-3xl shadow-2xl border border-[var(--admin-border)] my-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-[var(--admin-surface)] text-[var(--admin-text)] rounded-2xl p-6 w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl border border-[var(--admin-border)] my-auto overflow-hidden">
+            <div className="flex justify-between items-center mb-6 shrink-0">
+              <h3 className="text-xl font-bold font-montserrat">
                 {editingPlan ? (isAdminSuper ? '요금제 수정' : '요금제 조회') : '새 요금제 생성'}
               </h3>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><X size={20} /></button>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1.5 rounded-lg hover:bg-black/5"><X size={20} /></button>
             </div>
             
-            <fieldset disabled={!isAdminSuper} className="grid grid-cols-1 md:grid-cols-2 gap-6 min-w-0 border-none p-0 m-0">
+            <fieldset disabled={!isAdminSuper} className="grid grid-cols-1 md:grid-cols-2 gap-6 min-w-0 border-none p-0 m-0 overflow-y-auto custom-scrollbar flex-1 pr-1">
               {/* Left Column: Basic Info & Prices */}
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -471,12 +471,12 @@ export default function PlansTab() {
               </div>
             </fieldset>
 
-            <div className="mt-8 pt-6 border-t border-[var(--admin-border)] flex justify-end gap-3">
+            <div className="mt-6 pt-4 border-t border-[var(--admin-border)] flex justify-end gap-3 shrink-0">
               <button onClick={() => setModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]">
                 {isAdminSuper ? '취소' : '닫기'}
               </button>
               {isAdminSuper && (
-                <button onClick={handleSave} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors">
+                <button onClick={handleSave} className="px-5 py-2.5 admin-btn-primary text-white text-sm font-medium rounded-xl transition-colors">
                   {editingPlan ? '변경사항 저장' : '새 요금제 생성'}
                 </button>
               )}

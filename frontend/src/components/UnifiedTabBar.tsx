@@ -7,7 +7,8 @@ import { useEditorContext } from '@/context/EditorContext';
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
 // 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : **2026-08-27** — 에디터 개별 문서 탭을 마우스 드래그 앤 드롭(HTML5 Drag & Drop)으로 원하는 순서대로 자유롭게 이동시킬 수 있도록 UI 지원하고, 변경된 탭 순서를 localStorage(onrivi_tabs_order)에 저장 및 다음 접속/새로고침 시 해당 순서로 자동 복원 및 정렬 동기화 구현; **2026-07-04** — 저장이 필요한 경우에만 탭명 옆에 황금색 도트(#FFD700)를 노출하고, 닫기 버튼은 저장 여부와 상관없이 항시 우측에 배치하여 언제든지 탭을 닫을 수 있도록 UI 편의성 보정 패치
+// 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] 좌측 사이드바 탭과 100% 동일한 폰트(LineSeed/D2Coding/Pretendard 12px bold), 캡슐형 형태(rounded-md), LDSG 그린 그라데이션(bg-gradient-to-r from-[#06C755] to-[#05B04B])으로 상단 탭 스타일 통일
+//             **2026-08-27** — 에디터 개별 문서 탭을 마우스 드래그 앤 드롭(HTML5 Drag & Drop)으로 원하는 순서대로 자유롭게 이동시킬 수 있도록 UI 지원하고, 변경된 탭 순서를 localStorage(onrivi_tabs_order)에 저장 및 다음 접속/새로고침 시 해당 순서로 자동 복원 및 정렬 동기화 구현; **2026-07-04** — 저장이 필요한 경우에만 탭명 옆에 황금색 도트(#FFD700)를 노출하고, 닫기 버튼은 저장 여부와 상관없이 항시 우측에 배치하여 언제든지 탭을 닫을 수 있도록 UI 편의성 보정 패치
 // 🔗 @CALLS : 없음
 // ====================================================================
 export interface EditorTab {
@@ -111,12 +112,15 @@ export default function UnifiedTabBar() {
     setContextMenu(null);
   };
 
-  /* [ONR-UI-004] 통합 탭바 제어 연동: 개별 문서 탭 간 전환 및 마우스 클릭 이벤트 바인딩 로직입니다. */
+  /* [ONR-UI-004] 통합 탭바 제어 연동: 왼쪽 사이드바 탭과 동일한 폰트, 형태, LDSG 그린 그라데이션 적용 */
   return (
     <>
-      <div className={`flex items-center w-full border-b border-black/5 dark:border-white/10 px-4 py-1.5 gap-1.5 overflow-x-auto select-none no-scrollbar h-[44px] ${
-        isDarkMode ? 'bg-zinc-900 text-zinc-100' : 'bg-slate-50 text-slate-800'
-      }`}>
+      <div 
+        style={{
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+        }}
+        className="flex items-center w-full border-b border-[#E2E8F0] dark:border-white/[0.08] px-2 gap-1.5 overflow-x-auto select-none no-scrollbar h-10 bg-white/75 dark:bg-black/30 backdrop-blur-md text-on-surface"
+      >
         <div className="flex items-center gap-1.5 flex-1 overflow-x-auto no-scrollbar relative">
           {tabs.map((tab: EditorTab) => {
             const isActive = activeTabId === tab.id;
@@ -129,22 +133,16 @@ export default function UnifiedTabBar() {
                 onDrop={(e) => handleDrop(e, tab.id)}
                 onClick={() => { if (!isActive) onSwitchTab(tab.id); }}
                 onContextMenu={(e) => handleContextMenu(e, tab.id)}
-                className={`group relative flex items-center gap-2 px-3.5 py-1.5 rounded-t-md text-sm cursor-pointer transition-all duration-200 border-t border-x font-semibold ${
+                className={`group relative flex items-center gap-2 px-3 py-1 rounded-md text-[12px] font-bold cursor-pointer transition-all duration-150 ${
                   isActive
-                    ? isDarkMode
-                      ? 'text-white border-indigo-700 border-b-zinc-950'
-                      : 'text-white border-indigo-500 border-b-white shadow-[0_-2px_4px_rgba(0,0,0,0.02)]'
-                    : isDarkMode
-                      ? 'bg-zinc-900/50 text-zinc-400 border-transparent hover:bg-zinc-800/30 hover:text-zinc-200'
-                      : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100/70 hover:text-slate-700'
-                } ${draggedTabId === tab.id ? 'opacity-40 scale-[0.98] border-dashed border-indigo-500/50' : ''}`}
+                    ? 'bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white shadow-sm shadow-[#06C755]/30'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+                } ${draggedTabId === tab.id ? 'opacity-40 scale-[0.98] border-dashed border-[#06C755]' : ''}`}
                 style={{
-                  marginBottom: '-1.5px',
                   zIndex: isActive ? 2 : 1,
-                  backgroundColor: isActive ? '#282E82' : undefined
                 }}
               >
-                <span className="truncate max-w-[150px]">{tab.name}</span>
+                <span className="truncate max-w-[160px]">{tab.name}</span>
                 
                 {/* 💡 1. 저장 필요 상태(isModified)인 경우 황금색 도트 표시 */}
                 {tab.isModified && (
@@ -157,12 +155,10 @@ export default function UnifiedTabBar() {
                 {/* 💡 2. 닫기 단추: 저장 여부와 관계없이 항상 언제나 노출 */}
                 <button
                   onClick={(e) => onCloseTab(tab.id, e)}
-                  className={`w-4.5 h-4.5 flex items-center justify-center rounded-full transition-all duration-150 p-0.5 ${
+                  className={`w-4 h-4 flex items-center justify-center rounded-full transition-all duration-150 p-0.5 ${
                     isActive
-                      ? isDarkMode
-                        ? 'hover:bg-white/20 text-zinc-300 hover:text-white'
-                        : 'hover:bg-white/30 text-zinc-200 hover:text-white'
-                      : 'opacity-65 group-hover:opacity-100 hover:bg-slate-200/50 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
+                      ? 'hover:bg-black/20 text-white/90 hover:text-white'
+                      : 'opacity-65 group-hover:opacity-100 hover:bg-slate-200/60 dark:hover:bg-zinc-800 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
                   }`}
                   title="탭 닫기"
                 >
@@ -188,14 +184,14 @@ export default function UnifiedTabBar() {
           <div className="py-1 flex flex-col">
             <button
               onClick={handleCloseOtherTabs}
-              className={`flex items-center gap-2 px-4 py-2 text-sm text-left w-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm text-left w-full hover:bg-[#06C755]/10 hover:text-[#06C755] transition-colors`}
             >
               <ArrowLeftRight className="w-4 h-4 text-zinc-400" />
               다른 탭 닫기
             </button>
             <button
               onClick={handleCloseTabsToRight}
-              className={`flex items-center gap-2 px-4 py-2 text-sm text-left w-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm text-left w-full hover:bg-[#06C755]/10 hover:text-[#06C755] transition-colors`}
             >
               <ArrowRightToLine className="w-4 h-4 text-zinc-400" />
               오른쪽 탭 닫기

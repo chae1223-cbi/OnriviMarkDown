@@ -117,18 +117,18 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
         }`}
       >
         {/* Top App Bar (Header) */}
-        <header className={`flex justify-between items-center h-16 px-8 w-full border-b shrink-0 ${
-          isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-slate-150 bg-slate-50/50'
+        <header className={`flex justify-between items-center h-16 px-6 w-full border-b shrink-0 ${
+          isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-[#EFEFEF] bg-slate-50/50'
         }`}>
-          <div className="flex items-center space-x-3">
-            <span className="text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-              <Map size={20} />
-            </span>
-            <h1 className="text-base font-black tracking-tight text-indigo-600 dark:text-indigo-400">지도 삽입</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+              <Map size={18} />
+            </div>
+            <h1 className="text-base font-bold tracking-tight text-[#06C755]">지도 삽입</h1>
           </div>
           <button 
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-2 transition-colors rounded-full active:scale-95"
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1.5 transition-colors rounded-md active:scale-95"
           >
             <X size={18} />
           </button>

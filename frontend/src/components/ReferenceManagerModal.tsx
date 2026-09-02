@@ -28,7 +28,8 @@ interface BibFile {
 // 📊 [OMD-EDIT-ReferenceManagerModal-0001] ReferenceManagerModal
 // 🎯 @KICK  : 외부 참조 파일(BibTeX, CSL-JSON 등) 추가 및 리소스 폴더 저장 모달 (CRUD 지원)
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환, resourceFolder 부재 시 가드
-// 🚨 @PATCH : **2026-08-05** — 2-Pane 레이아웃 개편: 기존 리소스 폴더 내 .bib 파일 목록 조회, 수정, 삭제 기능 추가
+// 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (bg-sidebar-luxury 사이드바 및 LINE Green #06C755 액션 버튼)
+//             **2026-08-05** — 2-Pane 레이아웃 개편: 기존 리소스 폴더 내 .bib 파일 목록 조회, 수정, 삭제 기능 추가
 // 🔗 @CALLS : showToast, saveFile, window.dispatchEvent, electronAPI.deleteFile
 // ====================================================================
 export default function ReferenceManagerModal({
@@ -317,47 +318,48 @@ export default function ReferenceManagerModal({
       />
       
       <div 
-        className="relative flex w-[90%] max-w-5xl h-[80vh] bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
+        className="relative flex w-[90%] max-w-5xl h-[80vh] bg-white dark:bg-[#1E1E1E] rounded-2xl shadow-2xl overflow-hidden border border-[#EFEFEF] dark:border-white/10"
+        style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
         onClick={e => e.stopPropagation()}
         onKeyDown={e => e.stopPropagation()}
       >
-        {/* Left Pane (File List) */}
-        <div className="w-1/3 border-r border-zinc-200 dark:border-zinc-800 flex flex-col bg-zinc-50 dark:bg-[#1a1a1a]">
-          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
-              <Database className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold">참조 파일 관리</h2>
+        {/* Left Pane (File List - bg-sidebar-luxury) */}
+        <div className="w-1/3 border-r border-[#EFEFEF] dark:border-white/10 flex flex-col bg-sidebar-luxury text-on-surface">
+          <div className="p-4 border-b border-[#EFEFEF] dark:border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-on-surface">
+              <Database className="w-5 h-5 text-[#06C755]" />
+              <h2 className="text-base font-bold">참조 파일 관리</h2>
             </div>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
             <button
               onClick={handleCreateNew}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors w-full text-left ${
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all w-full text-left text-sm font-bold ${
                 isCreatingNew 
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-300 dark:border-blue-700' 
-                : 'bg-white dark:bg-[#252525] text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                ? 'bg-[#06C755]/15 text-[#06C755] border border-[#06C755] shadow-xs' 
+                : 'bg-white/80 dark:bg-[#252525] text-[#616161] dark:text-[#A0A0A0] border border-[#EFEFEF] dark:border-zinc-700 hover:border-[#06C755] hover:text-[#06C755]'
               }`}
             >
               <Plus className="w-4 h-4" />
-              <span className="font-medium">새 파일 만들기</span>
+              <span>새 파일 만들기</span>
             </button>
 
-            <div className="my-2 border-t border-zinc-200 dark:border-zinc-800" />
+            <div className="my-2 border-t border-[#EFEFEF] dark:border-white/10" />
             
             {bibFiles.map((file, idx) => (
               <div
                 key={idx}
                 onClick={() => handleSelectFile(file)}
-                className={`group flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer border ${
+                className={`group flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all cursor-pointer border text-sm ${
                   selectedFile?.name === file.name && !isCreatingNew
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-300 dark:border-blue-700' 
-                  : 'bg-white dark:bg-[#252525] text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  ? 'bg-[#06C755]/15 text-[#06C755] border-[#06C755] font-bold shadow-xs' 
+                  : 'bg-white/80 dark:bg-[#252525] text-slate-700 dark:text-zinc-300 border-[#EFEFEF] dark:border-zinc-700 hover:border-[#06C755] hover:text-[#06C755]'
                 }`}
               >
                 <div className="flex items-center gap-2 truncate">
                   <FileText className="w-4 h-4 opacity-70 flex-shrink-0" />
-                  <span className="truncate text-sm">{file.name}</span>
+                  <span className="truncate">{file.name}</span>
                 </div>
                 <button
                   onClick={(e) => {
@@ -374,7 +376,7 @@ export default function ReferenceManagerModal({
             ))}
             
             {bibFiles.length === 0 && (
-              <p className="text-sm text-center text-zinc-500 dark:text-zinc-400 mt-4">
+              <p className="text-xs text-center text-[#949494] mt-4">
                 저장된 참조 파일이 없습니다.
               </p>
             )}
@@ -382,11 +384,11 @@ export default function ReferenceManagerModal({
         </div>
 
         {/* Right Pane (Editor) */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-[#1e1e1e]">
-          <div className="flex items-center justify-end px-4 py-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex-1 flex flex-col bg-white dark:bg-[#1E1E1E]">
+          <div className="flex items-center justify-end px-4 py-4 border-b border-[#EFEFEF] dark:border-white/10">
             <button 
               onClick={onClose}
-              className="p-1 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+              className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors"
             >
               <X size={20} />
             </button>
@@ -395,8 +397,8 @@ export default function ReferenceManagerModal({
           <div className="flex flex-col flex-1 p-6 gap-6 overflow-y-auto">
             {/* Filename Input */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
-                <FileText className="w-4 h-4" />
+              <label className="text-sm font-bold text-[#1F1F1F] dark:text-zinc-200 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#06C755]" />
                 파일명 지정
               </label>
               <input
@@ -405,14 +407,14 @@ export default function ReferenceManagerModal({
                 onChange={(e) => setFileName(e.target.value)}
                 placeholder="예: references.bib"
                 disabled={!isCreatingNew}
-                className={`w-full px-3 py-2 border rounded-md text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500/50 ${
+                className={`w-full px-3.5 py-2.5 border rounded-xl text-sm transition-all text-[#1F1F1F] dark:text-zinc-100 focus:outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20 ${
                   !isCreatingNew 
-                  ? 'bg-zinc-100 dark:bg-[#151515] border-zinc-200 dark:border-zinc-800 text-zinc-500 cursor-not-allowed' 
-                  : 'bg-white dark:bg-[#252525] border-zinc-300 dark:border-zinc-700 placeholder:text-zinc-400 dark:placeholder:text-zinc-600'
+                  ? 'bg-zinc-100 dark:bg-[#151515] border-[#EFEFEF] dark:border-zinc-800 text-zinc-500 cursor-not-allowed' 
+                  : 'bg-white dark:bg-[#252525] border-[#EFEFEF] dark:border-zinc-700 placeholder:text-zinc-400'
                 }`}
               />
               {isCreatingNew && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                <p className="text-xs text-[#949494] mt-1">
                   확장자를 생략하면 자동으로 <code>.bib</code>가 붙습니다.
                 </p>
               )}
@@ -421,15 +423,15 @@ export default function ReferenceManagerModal({
             {/* Reference Data Input */}
             <div className="flex flex-col gap-2 flex-1 min-h-[250px]">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                <label className="text-sm font-bold text-[#1F1F1F] dark:text-zinc-200">
                   참조 데이터 내용 (BibTeX)
                 </label>
                 <button
                   onClick={handleInsertSample}
-                  className="text-xs px-2 py-1 bg-zinc-100 dark:bg-[#2a2a2a] hover:bg-zinc-200 dark:hover:bg-[#333] text-zinc-600 dark:text-zinc-300 rounded transition-colors flex items-center gap-1 border border-zinc-200 dark:border-zinc-700"
+                  className="text-xs px-2.5 py-1.5 bg-[#F7F8F9] dark:bg-[#2A2A2A] hover:bg-[#E8F9EE] hover:text-[#06C755] hover:border-[#06C755] text-[#616161] dark:text-zinc-300 rounded-lg transition-colors flex items-center gap-1.5 border border-[#EFEFEF] dark:border-zinc-700 font-medium"
                   title="자주 쓰이는 논문/단행본/웹사이트 양식을 삽입합니다"
                 >
-                  <FileText className="w-3 h-3" />
+                  <FileText className="w-3.5 h-3.5" />
                   기본 샘플 삽입
                 </button>
               </div>
@@ -437,28 +439,28 @@ export default function ReferenceManagerModal({
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="@article{key,\n  title={Example Title},\n  author={Doe, John},\n  year={2026}\n}"
-                className="w-full flex-1 px-3 py-2 bg-zinc-50 dark:bg-[#1a1a1a] border border-zinc-300 dark:border-zinc-700 rounded-md text-sm font-mono text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500/50 resize-none"
+                className="w-full flex-1 px-4 py-3 bg-[#F7F8F9] dark:bg-[#161616] border border-[#EFEFEF] dark:border-zinc-700 rounded-xl text-sm font-mono text-[#1F1F1F] dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20 resize-none"
               />
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#1a1a1a] gap-2">
+          <div className="flex items-center justify-end px-6 py-4 border-t border-[#EFEFEF] dark:border-white/10 bg-[#F7F8F9] dark:bg-[#161616] gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded transition-colors"
+              className="px-4 py-2 text-xs font-bold text-[#616161] hover:text-[#1F1F1F] dark:text-[#A0A0A0] dark:hover:text-white rounded-xl transition-colors"
             >
               닫기
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#06C755] hover:bg-[#05B04B] active:scale-95 text-white text-xs font-bold rounded-xl shadow-md shadow-[#06C755]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? (
                 <span className="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full" />
               ) : (
-                <Save size={16} />
+                <Save size={15} />
               )}
               {isCreatingNew ? '리소스 폴더에 저장' : '수정 사항 저장'}
             </button>

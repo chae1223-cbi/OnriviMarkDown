@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { X, Edit3 } from 'lucide-react';
 
 interface PromptModalProps {
   isOpen: boolean;
@@ -86,7 +86,7 @@ export default function PromptModal({
     const parts = t.split(/(\[.*?\]|'.*?')/g);
     return parts.map((part, i) =>
       (part.startsWith('[') && part.endsWith(']')) || (part.startsWith("'") && part.endsWith("'")) ? (
-        <span key={i} className="font-bold text-blue-600 dark:text-blue-400">{part}</span>
+        <span key={i} className="font-bold text-[#06C755]">{part}</span>
       ) : part
     );
   };
@@ -94,22 +94,26 @@ export default function PromptModal({
   return createPortal(
     <div
       className="fixed inset-0 z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200"
-      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.35)" }}
+      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.45)", fontFamily: "LineSeed, Pretendard, sans-serif" }}
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-xl border border-black/8 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col"
+        className="w-full max-w-md bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EFEFEF] dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col shadow-2xl"
         style={{
           maxHeight: "90dvh",
-          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.07), 0 10px 24px -4px rgba(0,0,0,0.14), 0 32px 64px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)"
         }}
         onKeyDown={handleKeyDown}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 rounded-t-xl shrink-0">
-          <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{renderTitle(title)}</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-white/10 rounded-t-2xl shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+              <Edit3 size={18} />
+            </div>
+            <h3 className="text-base font-bold tracking-tight text-[#1F1F1F] dark:text-white">{renderTitle(title)}</h3>
+          </div>
           <button 
             onClick={onCancel}
-            className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
           >
             <X size={18} />
           </button>
@@ -123,8 +127,8 @@ export default function PromptModal({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}
-            className={`w-full px-4 py-2.5 bg-gray-100 dark:bg-white/5 border rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all ${
-              error ? 'border-red-500 ring-1 ring-red-500/50' : 'border-black/5 dark:border-white/10'
+            className={`w-full px-4 py-2.5 bg-[#F7F8F9] dark:bg-white/5 border rounded-lg text-sm text-[#1F1F1F] dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 transition-all ${
+              error ? 'border-red-500 ring-1 ring-red-500/50' : 'border-[#EFEFEF] dark:border-white/10'
             }`}
             autoComplete="off"
           />
@@ -139,13 +143,13 @@ export default function PromptModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+              className="px-4 py-2 text-xs font-bold text-[#616161] hover:text-[#1F1F1F] dark:text-[#A0A0A0] dark:hover:text-white transition-colors"
             >
               취소
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/25 transition-all active:scale-95"
+              className="px-5 py-2.5 bg-[#06C755] hover:bg-[#05B04B] text-white text-xs font-bold rounded-xl shadow-lg shadow-[#06C755]/25 transition-all active:scale-95"
             >
               확인
             </button>

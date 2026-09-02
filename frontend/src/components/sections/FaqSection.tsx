@@ -50,18 +50,19 @@ export function FaqSection() {
   return (
     <section
       id="faq"
-      style={{ padding: "96px 0", background: "rgba(255,255,255,0.7)", fontFamily: "Inter, sans-serif" }}
+      className="py-24 bg-surface text-on-surface"
+      style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
     >
       <div className="max-w-[760px] mx-auto px-6 lg:px-12">
         <div className="text-center mb-14">
-          <span style={{ display: "inline-block", marginBottom: 16, padding: "4px 16px", borderRadius: 9999, background: "rgba(125,211,252,0.2)", color: "#006591", fontSize: 12, fontWeight: 600, letterSpacing: "0.05em" }}>
+          <span className="chip mb-4">
             FAQ
           </span>
-          <h2 style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 600, letterSpacing: "-0.01em", color: "#0f172a", marginBottom: 12 }}>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-on-surface mb-3">
             자주 묻는 질문
           </h2>
-          <p style={{ fontSize: 18, color: "#3e4850", lineHeight: "28px" }}>
-            결제 전 가장 망설이는 질문들을 선제적으로 해결해 드립니다.
+          <p className="text-base text-text-secondary leading-relaxed">
+            궁금한 점이 있으신가요? 가장 자주 묻는 질문들을 모았습니다.
           </p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

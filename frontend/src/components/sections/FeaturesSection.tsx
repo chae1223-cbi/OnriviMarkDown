@@ -19,38 +19,18 @@ export function FeaturesSection() { // FeaturesSection : 제품의 6대 핵심 �
   return ( // return : 값을 반환
     <section // section : HTML 문서의 주요 콘텐츠를 정의하는 요소
       id="features"
-      style={{ padding: "96px 0", background: "rgba(255,255,255,0.7)", fontFamily: "Inter, sans-serif" }}
+      className="py-24 bg-surface text-on-surface"
+      style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <div className="text-center mb-16">
-          <span
-            style={{
-              display: "inline-block",
-              marginBottom: 16,
-              padding: "4px 16px",
-              borderRadius: 9999,
-              background: "rgba(125,211,252,0.2)",
-              color: "#006591",
-              fontSize: 12,
-              fontWeight: 600,
-              letterSpacing: "0.05em",
-            }}
-          >
+          <span className="chip mb-4">
             FEATURES
           </span>
-          <h2
-            style={{
-              fontSize: "clamp(24px, 3vw, 32px)",
-              fontWeight: 600,
-              lineHeight: "40px",
-              letterSpacing: "-0.01em",
-              color: "#0f172a",
-              marginBottom: 12,
-            }}
-          >
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-on-surface mb-3">
             Onrivi Author가 당신의 문서를 프로의 문정으로
           </h2>
-          <p style={{ fontSize: 18, color: "#3e4850", lineHeight: "28px" }}>
+          <p className="text-base sm:text-lg text-text-secondary leading-relaxed">
             단 <strong>1픽셀</strong>의 오차도 용납하지 않는 <strong>6가지</strong> 핵심 역량.
           </p>
         </div>

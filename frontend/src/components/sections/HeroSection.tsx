@@ -15,16 +15,16 @@ import Link from "next/link";
 export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 섹션을 위한 컴포넌트  
   return (
     <section
-      className="pt-32 pb-24 sm:pt-44 sm:pb-32 overflow-hidden relative"
-      style={{ fontFamily: "Inter, sans-serif", background: "#f7f9fb" }}
+      className="pt-32 pb-24 sm:pt-44 sm:pb-32 overflow-hidden relative bg-surface text-on-surface"
+      style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
     >
-      {/* Decorative background orbs */}
+      {/* Decorative background orbs (LDSG Green/Blue) */}
       <div
         aria-hidden
         style={{
           position: "absolute", top: "-10%", left: "60%",
           width: 480, height: 480,
-          background: "radial-gradient(circle, rgba(14,165,233,0.12) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(6,199,85,0.09) 0%, transparent 70%)",
           borderRadius: "50%", pointerEvents: "none", zIndex: 0,
         }}
       />
@@ -33,7 +33,7 @@ export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 �
         style={{
           position: "absolute", bottom: "5%", left: "-5%",
           width: 320, height: 320,
-          background: "radial-gradient(circle, rgba(75,165,204,0.10) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(77,115,255,0.08) 0%, transparent 70%)",
           borderRadius: "50%", pointerEvents: "none", zIndex: 0,
         }}
       />
@@ -46,7 +46,7 @@ export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 �
           transition={{ duration: 0.4 }}
           className="flex justify-center mb-8"
         >
-          <span className="chip">✦ 프리미엄 마크다운 에디터</span>
+          <span className="chip">✦ Onrivi Author — LINE Design System (LDSG)</span>
         </motion.div>
 
         {/* Headline */}
@@ -54,20 +54,19 @@ export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 �
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.05 }}
-          className="text-center mb-6"
+          className="text-center mb-6 text-on-surface"
           style={{
-            fontFamily: "Inter, sans-serif",
+            fontFamily: "LineSeed, Pretendard, sans-serif",
             fontSize: "clamp(36px, 5vw, 56px)",
-            fontWeight: 700,
+            fontWeight: 800,
             lineHeight: 1.15,
             letterSpacing: "-0.02em",
-            color: "#0f172a",
           }}
         >
           AI는 마크다운으로,{" "}
           <span
             style={{
-              background: "linear-gradient(135deg, #006591 0%, #0ea5e9 60%, #4ba5cc 100%)",
+              background: "linear-gradient(135deg, #06c755 0%, #05b04b 50%, #4d73ff 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
@@ -82,8 +81,8 @@ export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 �
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.12 }}
-          className="text-center mx-auto mb-16 max-w-2xl"
-          style={{ fontSize: 18, fontWeight: 400, lineHeight: "28px", color: "#3e4850" }}
+          className="text-center mx-auto mb-16 max-w-2xl text-on-surface-variant"
+          style={{ fontSize: 18, fontWeight: 400, lineHeight: "28px" }}
         >
           AI가 쏟아내는 기호와 코드가 섞인 복잡한 언어를 인간의 시각에 가장 최적화된 서식으로 재조판하여, 이 세상 모든 이들의 일상과 삶 속에서 온기가 흐르는 따뜻한 기록과 이야기로 피어나게 만듭니다.
         </motion.p>
@@ -93,52 +92,30 @@ export function HeroSection() { // HeroSection : 랜딩페이지의 히어로 �
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.35 }}
+          className="bg-surface-container/80 border border-outline/10 rounded-2xl shadow-xl p-1.5 overflow-hidden"
           style={{
             maxWidth: 900,
             margin: "0 auto",
-            background: "rgba(255,255,255,0.6)",
             backdropFilter: "blur(20px)",
             WebkitBackdropFilter: "blur(20px)",
-            border: "1px solid rgba(255,255,255,0.5)",
-            borderRadius: "1.5rem",
-            boxShadow: "0 24px 48px rgba(14,165,233,0.10), 0 2px 8px rgba(0,0,0,0.04)",
-            padding: 6,
-            overflow: "hidden",
           }}
         >
           {/* Window chrome */}
-          <div
-            style={{
-              background: "rgba(247,249,251,0.95)",
-              borderBottom: "1px solid rgba(14,165,233,0.10)",
-              padding: "10px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              borderRadius: "calc(1.5rem - 6px) calc(1.5rem - 6px) 0 0",
-            }}
-          >
+          <div className="bg-surface-high border-b border-outline/10 px-4 py-2.5 flex items-center gap-2 rounded-t-xl text-on-surface-variant">
             <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#fca5a5", display: "inline-block" }} />
             <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#fcd34d", display: "inline-block" }} />
             <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#86efac", display: "inline-block" }} />
-            <span style={{ marginLeft: 12, fontSize: 12, color: "#6e7881", fontFamily: "monospace" }}>onrivi-author_preview.md</span>
+            <span className="ml-3 text-xs font-mono text-text-secondary">onrivi-author_preview.md</span>
           </div>
 
           {/* Scrollable content — 원본 복원 */}
-          <div
-            style={{
-              maxHeight: 560,
-              overflowY: "auto",
-              background: "rgba(255,255,255,0.9)",
-              borderRadius: "0 0 calc(1.5rem - 6px) calc(1.5rem - 6px)",
-            }}
-          >
-            <div style={{ padding: "24px 32px", textAlign: "left", fontSize: 14, lineHeight: "24px", color: "#1e293b", fontFamily: "Inter, sans-serif" }}>
-              <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0f172a", marginBottom: 12 }}>
+          <div className="max-h-[560px] overflow-y-auto bg-surface-container rounded-b-xl">
+            <div className="p-6 md:p-8 text-left text-sm leading-relaxed text-on-surface font-sans">
+              <h1 className="text-xl font-bold text-on-surface mb-3">
                 ✨ 글쓰기가 10배가 되는 순간, Onrivi Author에 오신 것을 환영합니다! ✨
               </h1>
-              <p style={{ marginBottom: 10, color: "#475569" }}>안녕하세요! Onrivi Author와 함께 창작의 기분 좋은 첫걸음을 내딛게 된 사용자 여러분을 진심으로 환영합니다! 🥰</p>
-              <p style={{ marginBottom: 10, color: "#475569" }}>
+              <p className="mb-2.5 text-text-secondary">안녕하세요! Onrivi Author와 함께 창작의 기분 좋은 첫걸음을 내딛게 된 사용자 여러분을 진심으로 환영합니다! 🥰</p>
+              <p className="mb-2.5 text-text-secondary">
                 Onrivi Author는 글의 본질을 사랑하는 작가님, 매일 문서의 뼈대를 짓는 디자이너님, 그리고 나만의 지식을 성공적으로 자산화하고 싶은 개발자님을 위해 태어난{" "}
                 <strong style={{ color: "#0f172a" }}>하이브리드 마크다운 지식 저작 시스템</strong>입니다. 그동안 메모장이나 일반 편집기를 쓰며 느끼셨던 소소한 렌더링 스트레스를 완벽히 해소해 드리고, 오직 글쓰기에만 몰입할 수 있는 명품 필기 환경을 선사합니다.
               </p>

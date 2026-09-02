@@ -26,4 +26,12 @@
 - **전용 디렉토리 표준화**: 모든 일회성 패치 및 임시 검증 스크립트는 반드시 별도의 격리된 전용 디렉토리(`scripts/patches/` 또는 `scratch/`) 하위에서만 작성 및 실행해야 합니다.
 - **루트 청결 유지 원칙**: 프로젝트 루트 디렉토리는 항상 빌드/배포 및 프로젝트 구동에 필수적인 핵심 설정 파일과 문서(`package.json`, `main.js`, `OMD_QUICK_TABLE.md` 등)로만 슬림하고 깨끗하게 유지되어야 합니다.
 
+## 6. 통합 디자인 시스템 및 3대 책임 영역 격리 규칙 (LINE Design System LDSG v5.0 / DESIGN.md)
+본 프로젝트는 앱 UI, 마크다운 콘텐츠 서식, 위치 동기화 엔진 간의 책임 경계를 엄격히 격리하여 개발해야 합니다. 상세 명세는 루트의 `DESIGN.md`를 표준 기준으로 따릅니다.
+- **Application UI Scope (앱 인터페이스)**: 랜딩 페이지, 에디터 프레임, 사이드바, 툴바, 모달, 버튼, 입력창 등 애플리케이션의 모든 UI는 LINE Design System for Global Family Service (LDSG) 기반 디자인 토큰(LINE Green `#06C755`, LDSG Blue `#4D73FF`, Surface, Border `#EFEFEF` 등)과 공통 컴포넌트 규칙을 적용합니다.
+- **LNB 사이드바 바탕색 표준**: 모든 좌측 사이드바는 공통 럭셔리 그라데이션(`.bg-sidebar-luxury` — Light: `linear-gradient(#F6F8FA, #F0F4F8, #E8EDF3)`, Dark: `linear-gradient(#17191E, #131519, #0F1114)`)을 표준으로 고정 적용합니다.
+- **Content Document Scope (미리보기 서식 격리)**: 미리보기 내부의 마크다운 콘텐츠(`h1~h6`, `p`, `ul`, `ol`, `table`, `img`, `blockquote`, `pre`, `code` 등)는 오직 CSS Profile 및 User Custom CSS(`.onrivi-content-root` 하위)에 의해서만 결정됩니다. `globals.css` 등 전역 스타일에서 마크다운 태그를 직접 스타일링하여 콘텐츠를 오염시키는 행위를 절대 금지합니다.
+- **Sync Engine의 Geometry 기반 독립성**: Sync Engine(`syncEngine.ts`)은 콘텐츠의 구체적인 CSS 스타일(font-size, margin 등)을 참조하거나 변경하지 않고, 최종 렌더링된 실제 DOM Geometry와 Safe Zone(상단 40px, 하단 60px), Minimal Delta, Scroll Clamp만을 기반으로 위치를 동기화합니다.
+- **Sync 단일 진입점 원칙**: 에디터 ↔ 미리보기 간의 모든 위치 동기화 스크롤은 `syncPreviewInterpolated()` 단일 진입점을 통해서만 실행합니다.
+
 

@@ -18,19 +18,19 @@ export default function UserDetailModal({ user, onClose, onKillSession, onKillSi
   if (!user) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
-      <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-[var(--admin-border)] flex justify-between items-center bg-[var(--admin-background)]">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 z-50 animate-in fade-in overflow-y-auto">
+      <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl my-auto">
+        <div className="px-6 py-4 border-b border-[var(--admin-border)] flex justify-between items-center bg-[var(--admin-surface)] shrink-0">
           <h2 className="text-lg font-semibold text-[var(--admin-text)] font-montserrat flex items-center gap-2">
             <User size={20} className="text-[var(--admin-primary)]" />
             사용자 상세 정보
           </h2>
-          <button onClick={onClose} className="text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] transition-colors p-1 rounded-md hover:bg-[var(--admin-border)]">
+          <button onClick={onClose} className="text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] transition-colors p-1.5 rounded-lg hover:bg-black/5">
             <X size={20} />
           </button>
         </div>
 
-        <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar space-y-6">
+        <div className="p-6 overflow-y-auto custom-scrollbar space-y-6 flex-1">
           {/* Profile Section */}
           <div className="bg-[rgba(0,0,0,0.2)] rounded-lg p-5 border border-[var(--admin-border)]">
             <h3 className="text-[var(--admin-text)] font-semibold mb-4 text-sm uppercase tracking-wider flex items-center gap-2">

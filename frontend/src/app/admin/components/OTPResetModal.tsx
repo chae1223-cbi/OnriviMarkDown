@@ -19,11 +19,11 @@ export default function OTPResetModal({ email, onClose, onConfirm }: OTPResetMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[var(--admin-surface)] rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-[var(--admin-border)] animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-[var(--admin-surface)] rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden border border-[var(--admin-border)] my-auto animate-in zoom-in-95 duration-200">
         
         {/* Header with Icon */}
-        <div className="p-6 pb-0 flex flex-col items-center text-center">
+        <div className="p-6 pb-0 flex flex-col items-center text-center shrink-0">
           <div className="w-16 h-16 bg-[rgba(231,76,60,0.1)] rounded-full flex items-center justify-center mb-4 relative">
             <KeyRound className="text-[var(--admin-error)]" size={32} />
             <div className="absolute -bottom-1 -right-1 bg-[var(--admin-surface)] rounded-full p-1 border border-[var(--admin-border)]">
@@ -37,22 +37,22 @@ export default function OTPResetModal({ email, onClose, onConfirm }: OTPResetMod
         </div>
         
         {/* User Info & Warning */}
-        <div className="p-6">
-          <div className="bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-lg p-4 mb-4">
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+          <div className="bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-xl p-4 mb-4">
             <div className="text-xs text-[var(--admin-text-muted)] font-medium mb-1 uppercase tracking-wider">대상 계정</div>
             <div className="text-base font-semibold text-[var(--admin-text)]">{email}</div>
           </div>
           
-          <div className="flex items-start gap-3 p-3 bg-[rgba(241,196,15,0.1)] border-l-4 border-yellow-500 rounded-r-md">
-            <ShieldAlert className="text-yellow-600 shrink-0 mt-0.5" size={18} />
-            <div className="text-xs text-yellow-800 dark:text-yellow-200 leading-relaxed">
+          <div className="flex items-start gap-3 p-3 bg-amber-500/10 border-l-4 border-amber-500 rounded-r-xl">
+            <ShieldAlert className="text-amber-500 shrink-0 mt-0.5" size={18} />
+            <div className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
               <strong>주의사항:</strong> 초기화 시 기존 OTP 앱(Google Authenticator 등)의 연결 코드는 더 이상 사용할 수 없습니다. 사용자는 다음 로그인 시 <strong>새로운 QR 코드를 스캔</strong>하여 기기를 다시 등록해야 합니다.
             </div>
           </div>
         </div>
         
         {/* Actions */}
-        <div className="p-4 bg-[var(--admin-background)] flex justify-end gap-3 border-t border-[var(--admin-border)]">
+        <div className="p-4 bg-[var(--admin-background)] flex justify-end gap-3 border-t border-[var(--admin-border)] shrink-0">
           <button 
             onClick={onClose}
             disabled={isResetting}

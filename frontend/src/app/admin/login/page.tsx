@@ -215,77 +215,75 @@ export default function AdminLogin() {
 
   if (step === 'LOADING') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1a237e]">
-        <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FA]">
+        <div className="w-10 h-10 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
     <div 
-      className="relative min-h-screen w-full overflow-hidden flex items-center justify-center p-6" 
+      className="relative min-h-screen w-full overflow-hidden flex items-center justify-center p-6 bg-[#F8F9FA]" 
       style={{
-        backgroundColor: '#1a237e',
-        background: `radial-gradient(circle at 20% 30%, #3949ab 0%, transparent 40%),
-                     radial-gradient(circle at 80% 20%, #1e88e5 0%, transparent 40%),
-                     radial-gradient(circle at 50% 80%, #512da8 0%, transparent 50%),
-                     linear-gradient(135deg, #0d1117 0%, #1a237e 100%)`,
+        background: `radial-gradient(circle at 20% 30%, rgba(6, 199, 85, 0.08) 0%, transparent 40%),
+                     radial-gradient(circle at 80% 20%, rgba(77, 115, 255, 0.08) 0%, transparent 40%),
+                     radial-gradient(circle at 50% 80%, rgba(6, 199, 85, 0.05) 0%, transparent 50%),
+                     linear-gradient(135deg, #F8F9FA 0%, #EFF2F5 100%)`,
         fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif"
       }}
     >
       <style dangerouslySetInnerHTML={{__html: `
         .admin-glass-card {
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(25px);
-          -webkit-backdrop-filter: blur(25px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-          border-radius: 40px;
+          background: #FFFFFF;
+          border: 1px solid #EFEFEF;
+          box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+          border-radius: 32px;
         }
         .google-btn {
-          background: linear-gradient(90deg, #6085e6 0%, #7a98eb 100%);
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          background: #06C755;
+          color: #FFFFFF;
+          transition: all 0.2s ease;
         }
         .google-btn:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 15px rgba(96, 133, 230, 0.4);
+          background: #05B34C;
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(6, 199, 85, 0.3);
         }
         .google-btn:disabled {
-          opacity: 0.7;
+          opacity: 0.5;
           cursor: not-allowed;
         }
         .otp-input {
-          background: rgba(255, 255, 255, 0.15);
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          color: white;
+          background: #F8F9FA;
+          border: 1px solid #E5E7EB;
+          color: #111827;
         }
         .otp-input:focus {
-          background: rgba(255, 255, 255, 0.25);
-          border-color: rgba(255, 255, 255, 0.8);
+          background: #FFFFFF;
+          border-color: #06C755;
+          box-shadow: 0 0 0 1px #06C755;
           outline: none;
         }
       `}} />
 
       <main className="w-full max-w-[1336px] h-full flex items-center justify-center p-6 relative z-10">
-        <section className="admin-glass-card w-full max-w-[650px] aspect-[1.1] flex flex-col items-center justify-center p-12 text-white animate-in zoom-in-95 duration-700">
+        <section className="admin-glass-card w-full max-w-[620px] flex flex-col items-center justify-center p-12 text-zinc-900 animate-in zoom-in-95 duration-500">
           
-          <div className="mb-8">
-            <svg className="drop-shadow-lg opacity-90" fill="none" height="110" viewBox="0 0 100 110" width="100" xmlns="http://www.w3.org/2000/svg">
-              <path d="M50 0L10 15V45C10 70.8 27.1 94.8 50 110C72.9 94.8 90 70.8 90 45V15L50 0Z" fill="#1e293b"></path>
-              <path d="M50 25C40.6 25 33 32.6 33 42C33 51.4 40.6 59 50 59C59.4 59 67 51.4 67 42C67 32.6 59.4 25 50 25ZM50 51C45 51 41 47 41 42C41 37 45 33 50 33C55 33 59 37 59 42C59 47 55 51 50 51Z" fill="white" fillOpacity="0.9"></path>
-              <path d="M68 65L50 55L32 65V80L50 90L68 80V65Z" fill="white" fillOpacity="0.9"></path>
+          <div className="mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-[#06C755]/15 text-[#06C755]">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
           
-          <div className="text-center mb-12">
-            <h1 className="text-6xl font-bold mb-4 tracking-tight">
+          <div className="text-center mb-10">
+            <h1 className="text-4xl font-bold mb-3 tracking-tight text-zinc-900">
               {step === 'GOOGLE_OAUTH' ? '온리비 어드민' : '2단계 인증'}
             </h1>
-            <p className="text-xl text-white/80 font-light">
+            <p className="text-base text-zinc-500 font-normal">
               {step === 'GOOGLE_OAUTH' ? '관리자 전용 대시보드에 접속하세요' : '스마트폰 OTP 앱의 6자리 코드를 입력하세요'}
             </p>
             {step !== 'GOOGLE_OAUTH' && (
-              <p className="mt-3 text-lg font-medium text-red-300 animate-pulse">
+              <p className="mt-3 text-sm font-semibold text-red-600 animate-pulse">
                 남은 시간: {formatTime(timeLeft)}
               </p>
             )}

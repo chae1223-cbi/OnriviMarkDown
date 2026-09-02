@@ -15,55 +15,50 @@ import Link from "next/link";
 export function CtaSection() { // CtaSection : 사용자 가입 전환(CTA)을 강력하게 소구하고 회원가입 경로로 리다이렉트하는 랜딩페이지 마지막 전환 유도 영역 
   return (
     <section
+      className="py-24 sm:py-32 px-6 relative overflow-hidden bg-gradient-to-b from-[#F2FBF5] to-[#E5F7EC] dark:from-[#111A14] dark:to-[#0D140F] text-on-surface"
       style={{
-        padding: "96px 24px",
-        background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f7f9fb 100%)",
-        position: "relative",
-        overflow: "hidden",
-        fontFamily: "Inter, sans-serif",
+        fontFamily: "LineSeed, Pretendard, sans-serif",
       }}
     >
-      {/* Decorative orbs */}
-      <div aria-hidden style={{ position: "absolute", top: "10%", right: "5%", width: 400, height: 400, background: "radial-gradient(circle, rgba(14,165,233,0.12) 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
-      <div aria-hidden style={{ position: "absolute", bottom: "5%", left: "5%", width: 280, height: 280, background: "radial-gradient(circle, rgba(75,165,204,0.10) 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
+      {/* Decorative orbs (LDSG Green/Blue) */}
+      <div aria-hidden style={{ position: "absolute", top: "10%", right: "8%", width: 450, height: 450, background: "radial-gradient(circle, rgba(6,199,85,0.12) 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", bottom: "5%", left: "5%", width: 350, height: 350, background: "radial-gradient(circle, rgba(77,115,255,0.08) 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
 
-      <div className="max-w-[800px] mx-auto text-center" style={{ position: "relative", zIndex: 1 }}>
+      <div className="max-w-[820px] mx-auto text-center relative z-10">
         {/* Glass card */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          style={{
-            background: "rgba(255,255,255,0.65)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            border: "1px solid rgba(255,255,255,0.5)",
-            borderRadius: "1.5rem",
-            padding: "56px 48px",
-            boxShadow: "0 20px 48px rgba(14,165,233,0.10), 0 2px 8px rgba(0,0,0,0.04)",
-          }}
+          className="bg-white/95 dark:bg-[#1A221E]/90 border border-white/80 dark:border-white/10 rounded-[2.5rem] px-8 py-14 sm:px-16 sm:py-16 shadow-[0_24px_60px_-15px_rgba(6,199,85,0.12)] dark:shadow-[0_24px_60px_-15px_rgba(0,0,0,0.5)] backdrop-blur-xl"
         >
-          <span style={{ display: "inline-block", marginBottom: 20, padding: "4px 16px", borderRadius: 9999, background: "rgba(125,211,252,0.2)", color: "#006591", fontSize: 12, fontWeight: 600, letterSpacing: "0.05em" }}>
-            지금 시작하세요
-          </span>
-          <h2
-            style={{ fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a", marginBottom: 16, lineHeight: 1.2 }}
-          >
+          {/* Badge */}
+          <div className="flex justify-center mb-6">
+            <span className="inline-block px-4 py-1.5 rounded-full bg-[#E8F9EE] dark:bg-emerald-950/60 text-[#06C755] text-[12px] font-bold tracking-wide">
+              지금 시작하세요
+            </span>
+          </div>
+
+          {/* Main Title */}
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1F1F1F] dark:text-white tracking-tight mb-4 leading-tight">
             글쓰기를 혁신할 준비가 되셨나요?
           </h2>
-          <p style={{ fontSize: 16, fontWeight: 600, color: "#0ea5e9", marginBottom: 12 }}>
+
+          {/* Subtitle */}
+          <p className="text-base font-bold text-[#06C755] mb-4">
             오직 지금만, Onrivi Author의 첫 번째 주인공이 되어보세요.
           </p>
-          <p style={{ fontSize: 15, color: "#475569", lineHeight: "24px", marginBottom: 36, maxWidth: 520, margin: "0 auto 36px" }}>
+
+          {/* Description */}
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-lg mx-auto mb-10">
             복잡한 설정 없이 텍스트 본연에만 집중하는 정밀 에디터. 정식 출시 전 Onrivi의 무결점 생산성을 먼저 경험해 보세요.
           </p>
 
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-            <p style={{ fontSize: 13, color: "#6e7881", display: "flex", alignItems: "center", gap: 6 }}>
-              <CheckCircle2 size={14} style={{ color: "#4ade80" }} />
-              정적 마크다운 원고 작성 및 실시간 인쇄 서식 보정 완벽 지원
-            </p>
+          {/* Bottom Checkpoint */}
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+            <CheckCircle2 size={15} className="text-[#06C755] shrink-0" />
+            <span>정적 마크다운 원고 작성 및 실시간 인쇄 서식 보정 완벽 지원</span>
           </div>
         </motion.div>
       </div>

@@ -1,3 +1,12 @@
+/**
+ * 프로그램명 : OnriviAuthor
+ * 파일명 : app/admin/page.tsx
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: .admin-theme, 대시보드 통계 카드 및 관리자 탭 LDSG Green(#06C755)/Blue(#4D73FF) 토큰 통일
+ * -----------------------------------------------------------------------
+ */
 'use client';
 
 import React, { Suspense, useState, useEffect } from 'react';
@@ -47,32 +56,32 @@ export default function AdminPage() {
 
 function DashboardTab() {
   const stats = [
-    { title: '총 가입자', value: '1,248', change: '+12%', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
-    { title: '활성 구독(MRR)', value: '₩4,250,000', change: '+8.2%', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
-    { title: '오늘의 신규 결제', value: '24건', change: '+4건', icon: CreditCard, color: 'text-violet-600', bg: 'bg-violet-100 dark:bg-violet-900/30' },
-    { title: '동시 접속 세션', value: '342', change: '안정적', icon: Activity, color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+    { title: '총 가입자', value: '1,248', change: '+12%', icon: Users, color: 'text-[#4D73FF]', bg: 'bg-[#4D73FF]/15' },
+    { title: '활성 구독(MRR)', value: '₩4,250,000', change: '+8.2%', icon: TrendingUp, color: 'text-[#06C755]', bg: 'bg-[#06C755]/15' },
+    { title: '오늘의 신규 결제', value: '24건', change: '+4건', icon: CreditCard, color: 'text-[#06C755]', bg: 'bg-[#06C755]/15' },
+    { title: '동시 접속 세션', value: '342', change: '안정적', icon: Activity, color: 'text-[#4D73FF]', bg: 'bg-[#4D73FF]/15' },
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-[32px] font-semibold text-[var(--admin-text)] tracking-tight font-montserrat">대시보드</h1>
-        <p className="text-[var(--admin-text-muted)] mt-1">Onrivi 서비스의 전반적인 현황을 확인합니다.</p>
+        <h1 className="text-[28px] font-bold text-zinc-900 tracking-tight font-montserrat">대시보드</h1>
+        <p className="text-zinc-500 mt-1 text-sm">Onrivi 서비스의 전반적인 현황을 확인합니다.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
-          <div key={i} className="admin-glass-card p-6 hover:shadow-md transition-shadow group">
+          <div key={i} className="admin-glass-card p-6 hover:border-[#06C755]/40 transition-all group">
             <div className="flex items-center justify-between mb-4">
               <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} transition-transform group-hover:scale-110`}>
-                <stat.icon className="w-6 h-6" />
+                <stat.icon className="w-5 h-5" />
               </div>
-              <span className="text-sm font-medium admin-chip-emerald px-2.5 py-1 rounded-full">
+              <span className="text-xs font-bold admin-chip-emerald px-2.5 py-0.5 rounded-full">
                 {stat.change}
               </span>
             </div>
-            <h3 className="text-[var(--admin-text-muted)] font-medium text-sm">{stat.title}</h3>
-            <p className="text-[32px] font-bold font-montserrat text-[var(--admin-text)] mt-1">{stat.value}</p>
+            <h3 className="text-zinc-500 font-semibold text-xs tracking-wider uppercase">{stat.title}</h3>
+            <p className="text-[28px] font-bold font-montserrat text-zinc-900 mt-1">{stat.value}</p>
           </div>
         ))}
       </div>
@@ -558,31 +567,33 @@ function UsersTab() {
 
       {/* Suspend Confirmation Modal */}
       {suspendTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="admin-glass-card p-8 max-w-md w-full mx-4 border-[var(--admin-border)]">
-            <h2 className="text-xl font-bold text-[var(--admin-text)] mb-4">정말 계정을 정지하시겠습니까?</h2>
-            <p className="text-[var(--admin-text-muted)] text-sm mb-4">
-              <strong className="text-[var(--admin-primary)]">{suspendTarget.email}</strong> 계정의 모든 이용이 즉각 중단됩니다.
-            </p>
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-[var(--admin-text)] mb-2">정지 사유 (필수)</label>
-              <textarea 
-                value={suspendReason}
-                onChange={(e) => setSuspendReason(e.target.value)}
-                className="w-full h-24 p-3 admin-ghost-input resize-none"
-                placeholder="어뷰징, 요금 미납 등 사유를 상세히 적어주세요."
-              ></textarea>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+          <div className="admin-glass-card p-6 sm:p-8 max-w-md w-full max-h-[90vh] flex flex-col my-auto overflow-hidden border-[var(--admin-border)]">
+            <h2 className="text-xl font-bold text-[var(--admin-text)] mb-4 shrink-0 font-montserrat">정말 계정을 정지하시겠습니까?</h2>
+            <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 space-y-4">
+              <p className="text-[var(--admin-text-muted)] text-sm">
+                <strong className="text-[var(--admin-primary)]">{suspendTarget.email}</strong> 계정의 모든 이용이 즉각 중단됩니다.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-[var(--admin-text)] mb-2">정지 사유 (필수)</label>
+                <textarea 
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  className="w-full h-24 p-3 admin-ghost-input resize-none"
+                  placeholder="어뷰징, 요금 미납 등 사유를 상세히 적어주세요."
+                ></textarea>
+              </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 mt-6 pt-4 border-t border-[var(--admin-border)] shrink-0">
               <button 
                 onClick={() => { setSuspendTarget(null); setSuspendReason(''); }}
-                className="flex-1 py-3 px-4 rounded-xl font-semibold text-[var(--admin-text-muted)] bg-[var(--admin-surface)] hover:bg-[var(--admin-surface-bright)] transition-colors"
+                className="flex-1 py-2.5 px-4 rounded-xl font-semibold text-[var(--admin-text-muted)] bg-[var(--admin-surface)] hover:bg-black/5 transition-colors text-sm"
               >
                 취소
               </button>
               <button 
                 onClick={submitSuspend}
-                className="flex-1 py-3 px-4 rounded-xl font-semibold bg-[var(--admin-error)] text-white hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20"
+                className="flex-1 py-2.5 px-4 rounded-xl font-semibold bg-[var(--admin-error)] text-white hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20 text-sm"
               >
                 정지 확정
               </button>
@@ -606,19 +617,19 @@ function UsersTab() {
       />
       {/* Payment History Modal */}
       {paymentHistoryTarget && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="admin-glass-card max-w-2xl w-full mx-4 border-[var(--admin-border)]">
-            <div className="p-6 border-b border-[var(--admin-border)] flex justify-between items-center">
-              <h3 className="text-lg font-bold text-[var(--admin-text)]">결제 내역 조회</h3>
-              <button onClick={() => setPaymentHistoryTarget(null)} className="text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+          <div className="admin-glass-card max-w-2xl w-full max-h-[90vh] flex flex-col my-auto overflow-hidden border-[var(--admin-border)]">
+            <div className="p-6 border-b border-[var(--admin-border)] flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-bold text-[var(--admin-text)] font-montserrat">결제 내역 조회</h3>
+              <button onClick={() => setPaymentHistoryTarget(null)} className="text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] p-1.5 rounded-lg hover:bg-black/5">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6">
-              <p className="text-sm text-[var(--admin-text-muted)] mb-4">
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+              <p className="text-sm text-[var(--admin-text-muted)]">
                 <strong className="text-[var(--admin-primary)]">{paymentHistoryTarget.email}</strong> 님의 결제 내역입니다. (추후 PG사 연동 시 내역이 표시됩니다)
               </p>
-              <div className="border border-[var(--admin-border)] rounded-lg overflow-hidden bg-[var(--admin-surface)]">
+              <div className="border border-[var(--admin-border)] rounded-xl overflow-hidden bg-[var(--admin-surface)]">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-[var(--admin-surface-bright)] border-b border-[var(--admin-border)] text-[var(--admin-text-muted)]">
                     <tr>
@@ -636,8 +647,8 @@ function UsersTab() {
                 </table>
               </div>
             </div>
-            <div className="p-4 border-t border-[var(--admin-border)] bg-[var(--admin-surface-bright)] flex justify-end">
-              <button onClick={() => setPaymentHistoryTarget(null)} className="px-4 py-2 text-sm font-medium border border-[var(--admin-border)] rounded-xl text-[var(--admin-text)] bg-[var(--admin-surface)] hover:bg-[var(--admin-surface-bright)] transition-colors">
+            <div className="p-4 border-t border-[var(--admin-border)] bg-[var(--admin-surface)] flex justify-end shrink-0">
+              <button onClick={() => setPaymentHistoryTarget(null)} className="px-5 py-2 text-sm font-medium border border-[var(--admin-border)] rounded-xl text-[var(--admin-text)] bg-[var(--admin-surface)] hover:bg-black/5 transition-colors">
                 닫기
               </button>
             </div>
@@ -647,21 +658,21 @@ function UsersTab() {
 
       {/* Custom Confirm Modal */}
       {confirmConfig?.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
-          <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-xl w-full max-w-sm overflow-hidden shadow-2xl p-6">
-            <h3 className="text-lg font-semibold text-[var(--admin-text)] mb-4 text-center">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 z-50 animate-in fade-in overflow-y-auto">
+          <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl w-full max-w-sm max-h-[90vh] flex flex-col my-auto overflow-hidden shadow-2xl p-6">
+            <h3 className="text-lg font-bold text-[var(--admin-text)] mb-4 text-center font-montserrat">
               {confirmConfig.title}
             </h3>
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end gap-3 mt-6 pt-3 border-t border-[var(--admin-border)] shrink-0">
               <button
                 onClick={() => setConfirmConfig(null)}
-                className="px-4 py-2 bg-transparent border border-[var(--admin-border)] text-[var(--admin-text)] hover:bg-[var(--admin-border)] rounded-md transition-colors"
+                className="flex-1 px-4 py-2 bg-transparent border border-[var(--admin-border)] text-[var(--admin-text)] hover:bg-black/5 rounded-xl transition-colors text-sm font-medium"
               >
                 취소
               </button>
               <button
                 onClick={confirmConfig.onConfirm}
-                className="px-4 py-2 bg-[var(--admin-primary)] text-white hover:brightness-110 rounded-md transition-colors font-medium shadow-lg"
+                className="flex-1 px-4 py-2 admin-btn-primary text-white rounded-xl transition-colors font-semibold text-sm shadow-md"
               >
                 확인
               </button>
@@ -672,18 +683,18 @@ function UsersTab() {
 
       {/* Audit Log Modal */}
       {auditTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
-          <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-[var(--admin-border)] flex justify-between items-center bg-[var(--admin-background)]">
-              <h2 className="text-lg font-semibold text-[var(--admin-text)] font-montserrat">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 z-50 animate-in fade-in overflow-y-auto">
+          <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden shadow-2xl">
+            <div className="px-6 py-4 border-b border-[var(--admin-border)] flex justify-between items-center bg-[var(--admin-surface)] shrink-0">
+              <h2 className="text-lg font-bold text-[var(--admin-text)] font-montserrat">
                 {auditTarget.email} 계정 탈퇴/정지 정보
               </h2>
-              <button onClick={() => setAuditTarget(null)} className="text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]">
+              <button onClick={() => setAuditTarget(null)} className="text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] p-1.5 rounded-lg hover:bg-black/5">
                 <X size={20} />
               </button>
             </div>
             
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
               {loadingAudit ? (
                 <div className="text-center py-8 text-[var(--admin-text-muted)]">불러오는 중...</div>
               ) : auditLogs.length === 0 ? (

@@ -37,7 +37,7 @@ export default function HomePage() {
           })
         }}
       />
-      <div style={{ minHeight: "100vh", background: "#f7f9fb", fontFamily: "Inter, sans-serif" }}>
+      <div className="min-h-screen bg-surface text-on-surface font-sans">
         <Navbar />
         <HeroSection />
         <FeaturesSection />

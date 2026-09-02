@@ -136,18 +136,13 @@ export function Navbar({ content }: { content?: NavbarContent }) {
 
   return (
     <nav
-      className="fixed w-full z-50 transition-all duration-300"
+      className={`fixed w-full z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-surface/90 backdrop-blur-md border-b border-outline/10 shadow-xs"
+          : "bg-surface/60 backdrop-blur-md border-b border-transparent"
+      }`}
       style={{
-        fontFamily: "Inter, sans-serif",
-        background: scrolled
-          ? "rgba(255,255,255,0.85)"
-          : "rgba(255,255,255,0.6)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderBottom: scrolled
-          ? "1px solid rgba(14,165,233,0.12)"
-          : "1px solid rgba(255,255,255,0.4)",
-        boxShadow: scrolled ? "0 4px 24px rgba(14,165,233,0.06)" : "none",
+        fontFamily: "LineSeed, Pretendard, sans-serif",
       }}
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
@@ -155,7 +150,7 @@ export function Navbar({ content }: { content?: NavbarContent }) {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
             <img src="/icon.png" alt={SITE_NAME} className="h-8 w-8 rounded-lg" />
-            <span style={{ fontWeight: 700, fontSize: 18, color: "#0f172a", letterSpacing: "-0.01em" }}>
+            <span className="font-bold text-lg text-on-surface tracking-tight">
               {SITE_NAME}
             </span>
           </Link>
@@ -166,16 +161,7 @@ export function Navbar({ content }: { content?: NavbarContent }) {
               <a
                 key={link.href}
                 href={link.href}
-                style={{
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: "#475569",
-                  textDecoration: "none",
-                  transition: "color 0.15s",
-                  letterSpacing: "0.01em",
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = "#0ea5e9")}
-                onMouseLeave={e => (e.currentTarget.style.color = "#475569")}
+                className="text-sm font-medium text-text-secondary hover:text-primary transition-colors tracking-wide"
               >
                 {link.label}
               </a>

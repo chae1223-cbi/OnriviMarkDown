@@ -268,14 +268,14 @@ export default function AdminsTab() {
 
       {/* Invite Modal */}
       {inviteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[var(--admin-surface)] rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-[var(--admin-border)] animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-[var(--admin-border)]">
-              <h3 className="text-xl font-bold text-[var(--admin-text)]">신규 관리자 초대</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-[var(--admin-surface)] rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden border border-[var(--admin-border)] my-auto animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-[var(--admin-border)] shrink-0">
+              <h3 className="text-xl font-bold text-[var(--admin-text)] font-montserrat">신규 관리자 초대</h3>
               <p className="text-sm text-[var(--admin-text-muted)] mt-1">해당 이메일로 관리자 권한을 부여합니다.</p>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
               <div>
                 <label className="block text-sm font-medium text-[var(--admin-text)] mb-1">이메일 주소</label>
                 <input 
@@ -283,7 +283,7 @@ export default function AdminsTab() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="admin@example.com"
-                  className="w-full bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-md px-3 py-2 text-[var(--admin-text)] focus:outline-none focus:ring-2 focus:ring-[var(--admin-primary)]/50"
+                  className="w-full bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-[var(--admin-text)] focus:outline-none focus:border-[#06C755]"
                 />
               </div>
               <div>
@@ -291,7 +291,7 @@ export default function AdminsTab() {
                 <select 
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-md px-3 py-2 text-[var(--admin-text)] focus:outline-none focus:ring-2 focus:ring-[var(--admin-primary)]/50"
+                  className="w-full bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-[var(--admin-text)] focus:outline-none focus:border-[#06C755]"
                 >
                   <option value="SUPPORT">지원 관리자 (SUPPORT) - 일반 조회 및 지원</option>
                   <option value="SUPER">슈퍼 관리자 (SUPER) - 모든 권한 허용</option>
@@ -299,16 +299,16 @@ export default function AdminsTab() {
               </div>
             </div>
             
-            <div className="p-6 bg-[var(--admin-background)] flex justify-end gap-3 border-t border-[var(--admin-border)]">
+            <div className="p-4 bg-[var(--admin-background)] flex justify-end gap-3 border-t border-[var(--admin-border)] shrink-0">
               <button 
                 onClick={() => { setInviteModalOpen(false); setInviteEmail(''); }}
-                className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[var(--admin-surface)] rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-black/5 rounded-xl transition-colors"
               >
                 취소
               </button>
               <button 
                 onClick={handleInvite}
-                className="px-4 py-2 text-sm font-medium text-white bg-[var(--admin-primary)] hover:bg-blue-600 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white admin-btn-primary rounded-xl transition-colors"
               >
                 초대 및 권한 부여
               </button>
@@ -319,9 +319,9 @@ export default function AdminsTab() {
 
       {/* Confirm Modal */}
       {confirmConfig?.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[var(--admin-surface)] rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-[var(--admin-border)] animate-in zoom-in-95 duration-200">
-            <div className="p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-[var(--admin-surface)] rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] flex flex-col overflow-hidden border border-[var(--admin-border)] my-auto animate-in zoom-in-95 duration-200">
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
               <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4 mx-auto bg-[var(--admin-background)]">
                 {confirmConfig.isDanger ? (
                   <ShieldAlert className="text-[var(--admin-error)]" size={24} />
@@ -329,25 +329,25 @@ export default function AdminsTab() {
                   <ShieldCheck className="text-[var(--admin-primary)]" size={24} />
                 )}
               </div>
-              <h3 className="text-lg font-bold text-center text-[var(--admin-text)] mb-2">권한 관리</h3>
+              <h3 className="text-lg font-bold text-center text-[var(--admin-text)] mb-2 font-montserrat">권한 관리</h3>
               <p className="text-center text-sm text-[var(--admin-text-muted)] leading-relaxed">
                 {confirmConfig.title}
               </p>
             </div>
             
-            <div className="p-4 bg-[var(--admin-background)] flex justify-end gap-3 border-t border-[var(--admin-border)]">
+            <div className="p-4 bg-[var(--admin-background)] flex justify-end gap-3 border-t border-[var(--admin-border)] shrink-0">
               <button 
                 onClick={() => setConfirmConfig(null)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-[var(--admin-text)] bg-[var(--admin-surface)] hover:bg-[var(--admin-border)] border border-[var(--admin-border)] rounded-md transition-colors"
+                className="flex-1 px-4 py-2 text-sm font-medium text-[var(--admin-text)] bg-[var(--admin-surface)] hover:bg-black/5 border border-[var(--admin-border)] rounded-xl transition-colors"
               >
                 취소
               </button>
               <button 
                 onClick={confirmConfig.onConfirm}
-                className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
+                className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors ${
                   confirmConfig.isDanger 
                     ? 'bg-[var(--admin-error)] hover:bg-red-600' 
-                    : 'bg-[var(--admin-primary)] hover:bg-blue-600'
+                    : 'admin-btn-primary'
                 }`}
               >
                 확인

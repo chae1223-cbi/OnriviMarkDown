@@ -126,17 +126,21 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-          <h2 className="text-xl font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
-            <BookOpen size={22} className="text-blue-500" />
-            {title}
-          </h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-zinc-800 bg-[#F7F8F9] dark:bg-zinc-900/50 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+              <BookOpen size={18} />
+            </div>
+            <h2 className="text-base font-bold text-[#06C755] tracking-tight">
+              {title}
+            </h2>
+          </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition-colors"
+            className="p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition-colors"
             title="닫기 (ESC)"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 

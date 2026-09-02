@@ -73,7 +73,7 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
     const parts = msg.split(/('.*?')/g);
     return parts.map((part, i) =>
       part.startsWith("'") && part.endsWith("'") ? (
-        <span key={i} className={`font-bold ${isDanger ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>
+        <span key={i} className={`font-bold ${isDanger ? 'text-red-600 dark:text-red-400' : 'text-[#06C755]'}`}>
           {part}
         </span>
       ) : part
@@ -83,24 +83,29 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
   return createPortal(
     <div
       className="fixed inset-0 z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200"
-      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.35)" }}
+      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.45)", fontFamily: "LineSeed, Pretendard, sans-serif" }}
     >
       <div
-        className="w-full max-w-sm bg-white dark:bg-[#1e1e1e] rounded-2xl border border-black/8 dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col"
+        className="w-full max-w-sm bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EFEFEF] dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col shadow-2xl"
         style={{
           maxHeight: "90dvh",
-          boxShadow: "0 4px 6px -1px rgba(0,0,0,0.07), 0 10px 24px -4px rgba(0,0,0,0.14), 0 32px 64px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)"
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 dark:border-white/5 rounded-t-2xl shrink-0">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={18} className={isDanger ? "text-red-500" : "text-blue-500"} />
-            <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{title}</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-white/10 rounded-t-2xl shrink-0">
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              isDanger ? 'bg-red-500/15 text-red-500' : 'bg-[#06C755]/15 text-[#06C755]'
+            }`}>
+              <AlertCircle size={18} />
+            </div>
+            <h3 className={`text-base font-bold tracking-tight ${
+              isDanger ? 'text-red-500' : 'text-[#06C755]'
+            }`}>{title}</h3>
           </div>
           <button
             onClick={onCancel}
-            className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
           >
             <X size={18} />
           </button>
@@ -108,7 +113,7 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5">
-          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+          <p className="text-sm text-[#616161] dark:text-[#A0A0A0] leading-relaxed whitespace-pre-wrap">
             {renderMessage(message)}
           </p>
         </div>
@@ -117,7 +122,7 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
         <div className="flex items-center justify-end gap-3 px-6 pb-6 shrink-0">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+            className="px-4 py-2 text-xs font-bold text-[#616161] hover:text-[#1F1F1F] dark:text-[#A0A0A0] dark:hover:text-white transition-colors"
           >
             {cancelText}
           </button>
@@ -125,7 +130,7 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
             onClick={onConfirm}
             className={`px-5 py-2.5 ${isDanger
               ? 'bg-red-600 hover:bg-red-500 shadow-red-500/25'
-              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/25'
+              : 'bg-[#06C755] hover:bg-[#05B04B] shadow-[#06C755]/25'
               } text-white text-xs font-bold rounded-xl shadow-lg transition-all active:scale-95`}
           >
             {confirmText}

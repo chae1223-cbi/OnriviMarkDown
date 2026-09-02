@@ -65,20 +65,22 @@ export default function ExportModal({
         } animate-in zoom-in-95 duration-200`}
         style={{ maxHeight: "90dvh", overflow: "hidden" }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 shrink-0">
-          <div className="flex items-center gap-2 font-bold">
-            <span className="text-lg leading-none">📦</span>
-            <span>내보내기</span>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-white/10 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+              <Download size={18} />
+            </div>
+            <h2 className="text-base font-bold tracking-tight text-[#06C755]">내보내기</h2>
           </div>
           <button 
             onClick={onClose}
-            className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"
+            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
           >
-            <X size={18} className="opacity-50" />
+            <X size={18} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-2" style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}>
           <p className="text-[13px] opacity-60 px-1 mb-3">저장할 파일 형식을 선택해주세요.</p>
           
           <div className="grid grid-cols-1 gap-2">
@@ -88,7 +90,7 @@ export default function ExportModal({
                 onClick={() => setSelectedFormat(format.id as any)}
                 className={`flex items-start gap-3 p-3 rounded-xl border transition-all text-left ${
                   selectedFormat === format.id 
-                    ? (isDarkMode ? 'bg-emerald-500/20 border-emerald-500/50' : 'bg-emerald-50 border-emerald-500/50')
+                    ? (isDarkMode ? 'bg-[#06C755]/20 border-[#06C755]/60' : 'bg-[#06C755]/10 border-[#06C755]')
                     : (isDarkMode ? 'bg-black/20 border-white/5 hover:border-white/20' : 'bg-black/5 border-black/5 hover:border-black/20')
                 }`}
               >
@@ -98,7 +100,7 @@ export default function ExportModal({
                 <div className="flex-1">
                   <div className="font-semibold text-sm flex items-center justify-between">
                     {format.label}
-                    {selectedFormat === format.id && <Check size={16} className="text-emerald-500" />}
+                    {selectedFormat === format.id && <Check size={16} className="text-[#06C755]" />}
                   </div>
                   <div className="text-[11px] opacity-60 mt-0.5">{format.desc}</div>
                 </div>
@@ -112,7 +114,7 @@ export default function ExportModal({
         <div className={`flex items-center justify-end gap-2 px-5 py-4 border-t shrink-0 ${isDarkMode ? 'border-white/5 bg-black/20' : 'border-black/5 bg-black/5'}`}>
           <button 
             onClick={onClose}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
               isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'
             }`}
           >
@@ -120,7 +122,7 @@ export default function ExportModal({
           </button>
           <button 
             onClick={() => onExport(selectedFormat as any)}
-            className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-colors flex items-center gap-2"
+            className="px-5 py-2.5 rounded-xl bg-[#06C755] hover:bg-[#05B04B] text-white text-sm font-bold shadow-md shadow-[#06C755]/20 transition-all flex items-center gap-2"
           >
             {selectedFormat === 'print' ? <Printer size={16} /> : <Download size={16} />}
             {selectedFormat === 'print' ? '인쇄 / PDF 저장' : '파일 생성 및 저장'}

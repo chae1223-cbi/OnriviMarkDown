@@ -36,8 +36,8 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
 
   if (loading) {
     return (
-      <section id="pricing" style={{ padding: "96px 0", background: "#f7f9fb", fontFamily: "Inter, sans-serif" }}>
-        <div className="text-center">요금제를 불러오는 중입니다...</div>
+      <section id="pricing" className="py-24 bg-surface text-on-surface" style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}>
+        <div className="text-center text-text-secondary">요금제를 불러오는 중입니다...</div>
       </section>
     );
   }
@@ -45,24 +45,25 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
   return (
     <section
       id="pricing"
-      style={{ padding: "96px 0", background: "#f7f9fb", fontFamily: "Inter, sans-serif" }}
+      className="py-24 bg-surface text-on-surface"
+      style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         {/* Header */}
         <div className="text-center mb-14">
-          <span style={{ display: "inline-block", marginBottom: 16, padding: "4px 16px", borderRadius: 9999, background: "rgba(125,211,252,0.2)", color: "#006591", fontSize: 12, fontWeight: 600, letterSpacing: "0.05em" }}>
+          <span className="chip mb-4">
             MEMBERSHIP
           </span>
-          <h2 style={{ fontSize: "clamp(24px, 3vw, 32px)", fontWeight: 600, letterSpacing: "-0.01em", color: "#0f172a", marginBottom: 12 }}>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-on-surface mb-3">
             🎮 Onrivi Author 서비스 멤버십 가격표
           </h2>
-          <p style={{ fontSize: 18, color: "#3e4850", lineHeight: "28px" }}>
+          <p className="text-base sm:text-lg text-text-secondary leading-relaxed">
             당신의 창작 여정에 맞는 멤버십을 선택하세요.
           </p>
         </div>
 
         {/* Plan List */}
-        <div className="max-w-3xl mx-auto" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="max-w-3xl mx-auto flex flex-col gap-4">
           {dbPlans.map((plan, i) => {
             const isHighlighted = plan.is_highlighted;
             const isFree = plan.is_free;
@@ -92,48 +93,38 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.06 }}
-                style={{
-                  padding: "24px 28px",
-                  borderRadius: "1rem",
-                  ...(isHighlighted
-                    ? {
-                      background: "linear-gradient(135deg, #006591 0%, #0ea5e9 100%)",
-                      border: "none",
-                      boxShadow: "0 8px 24px rgba(14,165,233,0.25)",
-                    }
-                    : {
-                      background: "rgba(255,255,255,0.6)",
-                      backdropFilter: "blur(20px)",
-                      WebkitBackdropFilter: "blur(20px)",
-                      border: "1px solid rgba(255,255,255,0.5)",
-                      boxShadow: "0 2px 12px rgba(14,165,233,0.06)",
-                    }),
-                }}
+                className={`p-6 md:p-7 rounded-2xl transition-all duration-300 ${
+                  isHighlighted
+                    ? "bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white shadow-lg shadow-[#06C755]/25 border-none"
+                    : "bg-surface-container border border-outline/10 text-on-surface shadow-xs hover:border-[#06C755]/40"
+                }`}
               >
                 {/* Header: Tier emoji + Name + Environment + Price */}
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 28 }}>{plan.tier_emoji}</span>
+                <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">{plan.tier_emoji}</span>
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: isHighlighted ? "#fff" : "#0f172a" }}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-base font-bold ${isHighlighted ? "text-white" : "text-on-surface"}`}>
                           [{i + 1 === 1 ? "계급 1" : i + 1 === 2 ? "계급 2" : i + 1 === 3 ? "계급 3" : "계급 4"}] {plan.name}
                         </span>
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 9999, background: isHighlighted ? "rgba(255,255,255,0.2)" : "rgba(14,165,233,0.1)", color: isHighlighted ? "#e0f2fe" : "#006591" }}>
+                        <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                          isHighlighted ? "bg-white/20 text-white" : "bg-[#06C755]/10 text-[#06C755]"
+                        }`}>
                           {envLabel}
                         </span>
                       </div>
-                      <p style={{ fontSize: 12, color: isHighlighted ? "rgba(255,255,255,0.75)" : "#6e7881", marginTop: 2 }}>
+                      <p className={`text-xs mt-0.5 ${isHighlighted ? "text-white/80" : "text-text-secondary"}`}>
                         {plan.tagline}
                       </p>
                     </div>
                   </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <span style={{ fontSize: 22, fontWeight: 700, color: isHighlighted ? "#fff" : "#0f172a" }}>
+                  <div className="text-right shrink-0">
+                    <span className={`text-xl font-bold ${isHighlighted ? "text-white" : "text-on-surface"}`}>
                       {priceDisplay}
                     </span>
                     {usdDisplay && (
-                      <span style={{ fontSize: 12, marginLeft: 6, color: isHighlighted ? "rgba(255,255,255,0.65)" : "#6e7881" }}>
+                      <span className={`text-xs ml-1.5 ${isHighlighted ? "text-white/70" : "text-text-secondary"}`}>
                         {usdDisplay}
                       </span>
                     )}
@@ -141,10 +132,10 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 </div>
 
                 {/* Features */}
-                <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                <ul className="m-0 p-0 list-none space-y-1">
                   {(plan.features || []).map((f: string, fi: number) => (
-                    <li key={fi} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "3px 0", fontSize: 13, lineHeight: "20px", color: isHighlighted ? "rgba(255,255,255,0.85)" : "#475569" }}>
-                      <span style={{ color: isHighlighted ? "#bae6fd" : "#0ea5e9", fontWeight: 700, flexShrink: 0 }}>✓</span>
+                    <li key={fi} className={`flex items-start gap-2 text-xs leading-relaxed ${isHighlighted ? "text-white/90" : "text-text-secondary"}`}>
+                      <span className={`font-bold shrink-0 ${isHighlighted ? "text-emerald-100" : "text-[#06C755]"}`}>✓</span>
                       <span>{f}</span>
                     </li>
                   ))}

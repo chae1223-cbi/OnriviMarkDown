@@ -14,7 +14,8 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
 // 🎯 @KICK  : 워크스페이스 폴더 연결, 파일 트리 스캔, 파일 열기/저장 I/O 전담
 // 🛡️ @GUARD : 각 환경별 API 실패 시 예외 처리 및 fallback
-// 🚨 @PATCH : **2026-08-27** — 비로그인 즉시 체험 모드로 진입 시, 가상 파일 스토리지(getVfsFiles)가 비어 있는 경우 사용자의 쾌적한 에디터 테스트를 유도하는 샘플 원고(온리비_어서_체험판.md)를 자동으로 로드하여 화면에 출력하도록 초기화 연동; **2026-08-19** — 새로운 작업장 폴더 연결 시 기존에 열려 있던 모든 탭과 문서를 초기화(닫기)하도록 기능 추가
+// 🚨 @PATCH : **2026-09-02** — 워크스페이스 변경 시 404 에러를 유발하던 불필요한 레거시 api/set-root fetch 호출 완전 제거
+//             **2026-08-27** — 비로그인 즉시 체험 모드로 진입 시, 가상 파일 스토리지(getVfsFiles)가 비어 있는 경우 사용자의 쾌적한 에디터 테스트를 유도하는 샘플 원고(온리비_어서_체험판.md)를 자동으로 로드하여 화면에 출력하도록 초기화 연동; **2026-08-19** — 새로운 작업장 폴더 연결 시 기존에 열려 있던 모든 탭과 문서를 초기화(닫기)하도록 기능 추가
 //             **2026-08-19** — 파일 저장 시 대상 경로와 탭 경로 비교 정규화 버그로 인해 자동저장 황금 도트 미해제 결함 픽스 (대소문자/슬래시 무시 매칭 적용)
 //             **2026-08-12** — 에디터를 열 때 제한사용자(만료, 동시접속 제한, 미인증 등) 권한 가드가 풀리는 현상 해결을 위해 isRestrictedUser 검사 기준으로 모드 전환 로직 단일화 및 보완 적용
 //             **2026-07-04** — 탭 전환/닫기 시 제한(만료) 사용자의 경우 항상 미리보기('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 설정된 에디터 뷰잉 모드를 그대로 보존 및 상속하도록 UI 모드 자동 보정 연동 패치
@@ -163,13 +164,6 @@ export const useFileExplorer = ({
           const result = await (window as any).electronAPI.selectFolder(targetPath);
           if (result.status === 'success') {
             const finalRoot = result.path;
-            try {
-              await fetch(getApiUrl('/api/set-root'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newRoot: finalRoot })
-              });
-            } catch (_) { }
             setRootFolder({ name: finalRoot });
             setWorkspaceType('local');
             localStorage.setItem('rootFolder', JSON.stringify({ name: finalRoot }));
@@ -192,15 +186,6 @@ export const useFileExplorer = ({
           const folder = { name: handle.name, handle };
           await idb.set('rootFolderHandle', handle);
           
-          // 💡 [Web SaaS] 브라우저 상에서 폴더 선택 완료 시 백엔드에도 해당 폴더명 전달하여 동기화
-          try {
-            await fetch(getApiUrl('/api/set-root'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ newRoot: handle.name })
-            });
-          } catch (_) {}
-
           setRootFolder(folder);
           setWorkspaceType('browser');
           localStorage.setItem('rootFolder', JSON.stringify({ name: handle.name }));

@@ -20,35 +20,22 @@ interface FaqItemProps {
 export function FaqItem({ faq, isOpen, onToggle }: FaqItemProps) {
   return (
     <div
-      style={{
-        border: "1.5px solid rgba(14,165,233,0.25)",
-        borderRadius: "1rem",
-        overflow: "hidden",
-        background: "#ffffff",
-        boxShadow: "0 4px 16px rgba(14,165,233,0.08), 0 1px 4px rgba(0,0,0,0.04)",
-      }}
+      className="border border-outline/10 rounded-2xl overflow-hidden bg-surface-container shadow-xs text-on-surface"
     >
       <button
         onClick={onToggle}
-        className="w-full px-6 py-5 flex items-center justify-between transition-colors text-left"
-        style={{
-          background: "transparent",
-        }}
+        className="w-full px-6 py-5 flex items-center justify-between transition-colors text-left bg-transparent"
       >
         <span
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 700,
-            fontSize: 15,
-            color: "#0f172a",
-          }}
+          className="font-bold text-sm sm:text-base text-on-surface"
+          style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
         >
           {faq.question}
         </span>
         {isOpen ? (
-          <Minus className="w-5 h-5 text-sky-500 flex-shrink-0" />
+          <Minus className="w-5 h-5 text-[#06C755] shrink-0" />
         ) : (
-          <Plus className="w-5 h-5 text-gray-400 flex-shrink-0" />
+          <Plus className="w-5 h-5 text-text-secondary shrink-0" />
         )}
       </button>
       <AnimatePresence>
@@ -60,14 +47,9 @@ export function FaqItem({ faq, isOpen, onToggle }: FaqItemProps) {
             transition={{ duration: 0.25, ease: "easeInOut" }}
           >
             <div
-              className="px-6 pb-5 pt-0"
+              className="px-6 pb-5 pt-3 text-sm text-text-secondary leading-relaxed border-t border-outline/10"
               style={{
-                fontFamily: "Inter, sans-serif",
-                fontSize: 14,
-                color: "#3e4850",
-                lineHeight: "22px",
-                borderTop: "1px solid rgba(14,165,233,0.08)",
-                paddingTop: 16,
+                fontFamily: "LineSeed, Pretendard, sans-serif",
               }}
             >
               {faq.answer}

@@ -525,18 +525,18 @@ export default function AIDraftModal({
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#8b5cf6] flex items-center justify-center shadow-sm">
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-[#06C755]/15 text-[#06C755] flex items-center justify-center">
+              <Sparkles className="w-4 h-4" />
             </div>
             <div className="flex flex-col">
-              <h2 className="text-[16px] font-bold text-[#8b5cf6]">
+              <h2 className="text-base font-bold text-[#06C755] tracking-tight">
                 AI 에디토리얼 어시스턴트
               </h2>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                <span className="text-[12px] font-medium text-zinc-400">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#06C755]"></div>
+                <span className="text-[11px] font-medium text-zinc-400">
                   {isGenerating ? "AI가 작업을 수행하고 있습니다..." : "협업 준비 완료"}
                 </span>
               </div>
@@ -728,12 +728,12 @@ export default function AIDraftModal({
                   </label>
                   
                   {attachedFileName ? (
-                    <div className="flex items-center justify-between bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 px-3 py-2.5 rounded-xl">
+                    <div className="flex items-center justify-between bg-[#06C755]/10 border border-[#06C755]/30 px-3 py-2.5 rounded-xl">
                       <div className="flex items-center gap-2 overflow-hidden">
-                        <Paperclip className="w-4 h-4 text-[#8b5cf6] shrink-0" />
-                        <span className="text-[12px] font-bold text-[#8b5cf6] truncate">{attachedFileName}</span>
+                        <Paperclip className="w-4 h-4 text-[#06C755] shrink-0" />
+                        <span className="text-[12px] font-bold text-[#06C755] truncate">{attachedFileName}</span>
                       </div>
-                      <button onClick={handleRemoveAttachment} className="p-1 hover:bg-[#8b5cf6]/20 rounded-md text-[#8b5cf6] transition-colors shrink-0">
+                      <button onClick={handleRemoveAttachment} className="p-1 hover:bg-[#06C755]/20 rounded-md text-[#06C755] transition-colors shrink-0">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
@@ -741,7 +741,7 @@ export default function AIDraftModal({
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isGenerating}
-                      className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-zinc-200 dark:border-zinc-700/80 hover:border-[#8b5cf6]/50 hover:bg-[#8b5cf6]/5 rounded-xl py-3 text-[12px] font-bold text-zinc-500 dark:text-zinc-400 transition-colors disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-zinc-200 dark:border-zinc-700/80 hover:border-[#06C755]/50 hover:bg-[#06C755]/5 rounded-xl py-3 text-[12px] font-bold text-zinc-500 dark:text-zinc-400 transition-colors disabled:opacity-50"
                     >
                       <Paperclip className="w-4 h-4" />
                       참조할 텍스트 문서(.md, .txt) 첨부하기
@@ -765,7 +765,7 @@ export default function AIDraftModal({
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating}
-                className="w-full py-3.5 text-[14px] font-bold text-white bg-[#c4b5fd] hover:bg-[#a855f7] disabled:bg-[#ddd6fe] dark:disabled:bg-zinc-700 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+                className="w-full py-3.5 text-[14px] font-bold text-white bg-[#06C755] hover:bg-[#05B04B] disabled:bg-[#06C755]/40 dark:disabled:bg-zinc-700 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm shadow-[#06C755]/20"
               >
                 {isGenerating ? (
                   <>

@@ -48,25 +48,26 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
       
       {/* MainModalContainer */}
       <div 
-        className={`relative w-full max-w-[360px] shadow-2xl rounded-[4px] border flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden ${
+        className={`relative w-full max-w-[360px] shadow-2xl rounded-2xl border flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden ${
           isDarkMode 
             ? 'bg-zinc-950 border-zinc-800 text-zinc-100' 
-            : 'bg-white border-slate-200 text-slate-800'
+            : 'bg-white border-[#EFEFEF] text-slate-800'
         }`} 
-        style={{ maxHeight: "90dvh" }}
+        style={{ maxHeight: "90dvh", fontFamily: "LineSeed, Pretendard, sans-serif" }}
       >
         {/* ModalHeader */}
         <header className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
-          isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-slate-100 bg-slate-50/40'
+          isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-[#EFEFEF] bg-slate-50/40'
         }`}>
-          <div className="flex items-center gap-2.5">
-            {/* SVG Icon for Table */}
-            <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"></path>
-            </svg>
-            <h1 className="text-base font-bold tracking-tight">표 삽입</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round"></path>
+              </svg>
+            </div>
+            <h1 className="text-base font-bold tracking-tight text-[#06C755]">표 삽입</h1>
           </div>
-          <span className="text-indigo-600 dark:text-indigo-400 font-extrabold text-base tracking-wide">
+          <span className="text-[#06C755] font-extrabold text-base tracking-wide">
             {selectedPos.c} × {selectedPos.r}
           </span>
         </header>
@@ -100,9 +101,9 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                     }}
                     className={`w-6 h-6 rounded-[2px] transition-all cursor-pointer ${
                       isHover 
-                        ? 'bg-indigo-600 dark:bg-indigo-500 scale-105 shadow-sm z-10' 
+                        ? 'bg-[#06C755] scale-105 shadow-sm z-10' 
                         : isSelected 
-                          ? 'bg-indigo-600/60 dark:bg-indigo-500/50' 
+                          ? 'bg-[#06C755]/60' 
                           : isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-slate-100 hover:bg-slate-200'
                     }`}
                   />
@@ -117,10 +118,10 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
           </p>
 
           {/* TipBox */}
-          <section className={`w-full border rounded-[4px] p-4 ${
+          <section className={`w-full border rounded-xl p-4 ${
             isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50/50 border-slate-200/60'
           }`} data-purpose="usage-tips">
-            <h2 className="text-indigo-600 dark:text-indigo-400 text-xs font-black text-center mb-3 flex items-center justify-center gap-1">
+            <h2 className="text-[#06C755] text-xs font-black text-center mb-3 flex items-center justify-center gap-1">
               <span>💡</span> 표 병합 TIP
             </h2>
             <ul className="text-[11px] text-slate-600 dark:text-zinc-400 space-y-2.5 font-medium leading-normal">
@@ -128,7 +129,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                 <span className="w-1 h-1 bg-slate-400 dark:bg-zinc-600 rounded-full shrink-0"></span>
                 <span>
                   가로 병합: 병합 시작 셀에 
-                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-indigo-600 dark:text-indigo-400">{">"}</span> 
+                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-[#06C755]">{">"}</span> 
                   입력
                 </span>
               </li>
@@ -136,7 +137,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                 <span className="w-1 h-1 bg-slate-400 dark:bg-zinc-600 rounded-full shrink-0"></span>
                 <span>
                   세로 병합: 병합될 대상 셀에 
-                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-indigo-600 dark:text-indigo-400">^</span> 
+                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-[#06C755]">^</span> 
                   입력
                 </span>
               </li>
@@ -150,7 +151,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
         }`}>
           <button 
             onClick={handleInsert}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-[4px] shadow-md transition-colors flex items-center justify-center gap-2 text-xs active:scale-[0.98]"
+            className="w-full bg-[#06C755] hover:bg-[#05B04B] text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-[#06C755]/20 transition-all flex items-center justify-center gap-2 text-xs active:scale-[0.98]"
             data-purpose="submit-button"
           >
             <Plus size={15} />

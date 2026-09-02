@@ -21,7 +21,9 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-08-12** — 개요(TOC) 클릭 시 preview/both(분할) 모드에 맞춰 스크롤 동작을 이원화하고 하위 수준 존재 여부와 무관하게 정상 스크롤되도록 보완; H3 이하의 뎁스 목차가 기본적으로 접힌 채 렌더링에서 누락되던 조건 버그(undefined!==false)를 ===true 접힘으로 전면 교정하여 전체 펼침 구현; **2026-08-12** — 미리보기 스크롤 시 좌측 개요(TOC) 탭 목록도 활성 헤딩 위치를 자동으로 추적하여 뷰포트 내로 자동 스크롤(Auto-scroll Follow)되는 지능형 연동 기능 구현; **2026-08-12** — 개요(TOC) 클릭 시 에디터-미리보기 간의 양방향 스크롤 동기화 간섭을 일시 차단하는 락킹(isScrollingRef) 루틴을 적용하고 미리보기 컨테이너(previewRef) 내에서 부드러운 스크롤(scrollTo)이 동작하도록 개선; **2026-08-12** — 사이드바 배경을 라이트모드에 최적화된 고급스러운 아이스 블루 및 실버 톤 그라데이션(linear-gradient)으로 교체하고 탭 헤더 및 워크스페이스 바를 반투명 처리하는 프리미엄 디자인 리뉴얼 패치 적용; **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
+// 🚨 @PATCH : **2026-09-02** — 좌측 사이드바 워크스페이스 실폴더 라벨 및 파일 트리/목차 폰트를 font-bold 및 고대비 색상으로 굵기/선명도 강화
+//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) LNB 표준 디자인 적용 (Clean White Surface, LINE Green #06C755 탭 배지, LineSeed 폰트)
+//             **2026-08-12** — 개요(TOC) 클릭 시 preview/both(분할) 모드에 맞춰 스크롤 동작을 이원화하고 하위 수준 존재 여부와 무관하게 정상 스크롤되도록 보완; H3 이하의 뎁스 목차가 기본적으로 접힌 채 렌더링에서 누락되던 조건 버그(undefined!==false)를 ===true 접힘으로 전면 교정하여 전체 펼침 구현; **2026-08-12** — 미리보기 스크롤 시 좌측 개요(TOC) 탭 목록도 활성 헤딩 위치를 자동으로 추적하여 뷰포트 내로 자동 스크롤(Auto-scroll Follow)되는 지능형 연동 기능 구현; **2026-08-12** — 개요(TOC) 클릭 시 에디터-미리보기 간의 양방향 스크롤 동기화 간섭을 일시 차단하는 락킹(isScrollingRef) 루틴을 적용하고 미리보기 컨테이너(previewRef) 내에서 부드러운 스크롤(scrollTo)이 동작하도록 개선; **2026-08-12** — 사이드바 배경을 라이트모드에 최적화된 고급스러운 아이스 블루 및 실버 톤 그라데이션(linear-gradient)으로 교체하고 탭 헤더 및 워크스페이스 바를 반투명 처리하는 프리미엄 디자인 리뉴얼 패치 적용; **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
 export default function LeftSidebar() {
@@ -742,13 +744,12 @@ export default function LeftSidebar() {
       <aside 
         style={{ 
           width: sidebarWidth,
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
-          background: "linear-gradient(180deg, #f3f6fa 0%, #e7ecf5 100%)" // 💡 프리미엄 라이트모드 전용 아이스 블루 & 실버 그라데이션
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
         }} 
-        className="flex flex-col border-r border-outline-variant/10 select-none relative z-10"
+        className="flex flex-col border-r border-[#E2E8F0] dark:border-white/[0.08] select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-xs"
       >
         {/* 탭 헤더 */}
-        <div className="h-10 border-b border-outline-variant/10 flex items-center px-2 bg-black/[0.03] justify-between">
+        <div className="h-10 border-b border-[#E2E8F0] dark:border-white/[0.08] flex items-center px-2 bg-white/75 dark:bg-black/30 backdrop-blur-md justify-between">
           <div className="flex gap-1.5 w-full">
             <button
               onClick={() => {
@@ -757,8 +758,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'explorer' 
-                  ? 'bg-white/90 text-primary font-bold shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white font-bold shadow-sm shadow-[#06C755]/30' 
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               📂 탐색기
@@ -770,8 +771,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'toc' 
-                  ? 'bg-white/90 text-primary font-bold shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white font-bold shadow-sm shadow-[#06C755]/30' 
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               📝 개요
@@ -783,8 +784,8 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'search' 
-                  ? 'bg-white/90 text-primary font-bold shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white font-bold shadow-sm shadow-[#06C755]/30' 
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
               🔍 검색
@@ -792,24 +793,24 @@ export default function LeftSidebar() {
           </div>
         </div>
       
-      {/* 항상 표시되는 워크스페이스 선택 바 */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-outline-variant/10 bg-black/[0.05]">
-        <span className="text-[12px] font-bold text-on-surface-variant/60 uppercase tracking-wide shrink-0">작업장 실폴더</span>
-        <button
-          onClick={onSelectRootFolder}
-          className="flex-1 min-w-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-left text-[12px] font-bold transition-colors
-            bg-surface hover:bg-surface-container-high/30
-            border border-outline-variant/30 hover:border-primary-container
-            text-on-surface-variant hover:text-primary
-            truncate"
-          title={rootFolder?.name ? `워크스페이스 변경 (현재: ${rootFolder.name})` : '워크스페이스 폴더 선택'}
-        >
-          <span className="shrink-0">{rootFolder?.name ? '📁' : '📂'}</span>
-          <span className="truncate">
-            {rootFolder?.name ? rootFolder.name : '폴더를 선택하세요'}
-          </span>
-        </button>
-      </div>
+        {/* 항상 표시되는 워크스페이스 선택 바 */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-[#E2E8F0] dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.02] backdrop-blur-xs">
+          <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-400 uppercase tracking-wide shrink-0">작업장 실폴더</span>
+          <button
+            onClick={onSelectRootFolder}
+            className="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-[12px] font-bold transition-all
+              bg-white/95 dark:bg-[#202328] hover:bg-white dark:hover:bg-[#282C33]
+              border border-slate-300 dark:border-zinc-700 hover:border-[#06C755] dark:hover:border-[#06C755]
+              text-slate-800 dark:text-zinc-100 hover:text-[#06C755] dark:hover:text-[#06C755]
+              shadow-2xs truncate"
+            title={rootFolder?.name ? `워크스페이스 변경 (현재: ${rootFolder.name})` : '워크스페이스 폴더 선택'}
+          >
+            <span className="shrink-0">{rootFolder?.name ? '📁' : '📂'}</span>
+            <span className="truncate font-bold">
+              {rootFolder?.name ? rootFolder.name : '폴더를 선택하세요'}
+            </span>
+          </button>
+        </div>
 
       {/* 탭 바디 — 항상 마운트, hidden으로 표시/숨김 제어 */}
       <div className="flex-1 min-h-0 relative flex flex-col">

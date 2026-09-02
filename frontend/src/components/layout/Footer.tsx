@@ -28,23 +28,20 @@ const footerLinks = {
 export function Footer() {
   return (
     <footer
+      className="bg-surface-container border-t border-outline/10 pt-14 pb-8 text-on-surface"
       style={{
-        background: "rgba(247,249,251,0.95)",
-        borderTop: "1px solid rgba(14,165,233,0.10)",
-        paddingTop: 56,
-        paddingBottom: 32,
-        fontFamily: "Inter, sans-serif",
+        fontFamily: "LineSeed, Pretendard, sans-serif",
       }}
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <img src="/icon.png" alt="Onrivi" style={{ width: 32, height: 32, borderRadius: 8 }} />
-              <span style={{ fontWeight: 700, fontSize: 17, color: "#0f172a" }}>Onrivi</span>
+            <div className="flex items-center gap-2.5 mb-4">
+              <img src="/icon.png" alt="Onrivi" className="w-8 h-8 rounded-lg" />
+              <span className="font-bold text-base text-on-surface">Onrivi</span>
             </div>
-            <p style={{ fontSize: 13, color: "#6e7881", lineHeight: "20px", marginBottom: "16px" }}>{SITE_TAGLINE}</p>
+            <p className="text-xs text-text-secondary leading-relaxed mb-4">{SITE_TAGLINE}</p>
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               <a
                 href="https://www.youtube.com/@Onrivi-d4p"

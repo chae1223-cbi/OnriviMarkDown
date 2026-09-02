@@ -180,17 +180,19 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
       }`} style={{ maxHeight: "90dvh", overflow: "hidden" }}>
         {/* Header */}
         <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
-          isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#c1c6d7] bg-[#f7f9ff]'
+          isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#EFEFEF] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold leading-none text-blue-500">Σ</span>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+              <Sigma size={18} />
+            </div>
             <div>
-              <h2 className={`text-base font-bold ${isDarkMode ? 'text-[#eef1f6]' : 'text-[#181c20]'}`}>수식 에디터</h2>
+              <h2 className="text-base font-bold text-[#06C755] tracking-tight">수식 에디터</h2>
               <p className="text-[10px] opacity-50">LaTeX 문법을 사용하여 수식을 작성하세요</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors text-gray-400">
+            <X size={18} />
           </button>
         </div>
 

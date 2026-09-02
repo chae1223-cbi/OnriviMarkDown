@@ -384,10 +384,10 @@ export default function CodesTab() {
 
       {/* Group Modal */}
       {groupModalOpen && isAdminSuper && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[var(--admin-surface)] text-[var(--admin-text)] rounded-2xl p-6 w-full max-w-md shadow-2xl border border-[var(--admin-border)]">
-            <h3 className="text-xl font-bold mb-4">{editingGroup ? '그룹 수정' : '새 그룹 생성'}</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-[var(--admin-surface)] text-[var(--admin-text)] rounded-2xl p-6 w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl border border-[var(--admin-border)] my-auto overflow-hidden">
+            <h3 className="text-xl font-bold mb-4 shrink-0 font-montserrat">{editingGroup ? '그룹 수정' : '새 그룹 생성'}</h3>
+            <div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 pr-1">
               <div>
                 <label className="block text-sm font-medium mb-1">그룹 코드 (대문자 영문)</label>
                 <input 
@@ -395,7 +395,7 @@ export default function CodesTab() {
                   value={groupForm.group_code} 
                   onChange={e => setGroupForm({...groupForm, group_code: e.target.value.toUpperCase()})}
                   disabled={!!editingGroup}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
                   placeholder="예: PLAN_TYPE"
                 />
               </div>
@@ -405,7 +405,7 @@ export default function CodesTab() {
                   type="text" 
                   value={groupForm.group_name} 
                   onChange={e => setGroupForm({...groupForm, group_name: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
                   placeholder="예: 결제 요금제 종류"
                 />
               </div>
@@ -415,7 +415,7 @@ export default function CodesTab() {
                   type="text" 
                   value={groupForm.description} 
                   onChange={e => setGroupForm({...groupForm, description: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
                 />
               </div>
               <div className="flex items-center gap-4">
@@ -425,7 +425,7 @@ export default function CodesTab() {
                     type="number" 
                     value={groupForm.sort_order} 
                     onChange={e => setGroupForm({...groupForm, sort_order: parseInt(e.target.value) || 0})}
-                    className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
                   />
                 </div>
                 <div className="flex flex-col items-center justify-end h-full mt-5">
@@ -434,16 +434,16 @@ export default function CodesTab() {
                       type="checkbox" 
                       checked={groupForm.is_use} 
                       onChange={e => setGroupForm({...groupForm, is_use: e.target.checked})}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                      className="w-4 h-4 rounded text-[#06C755] focus:ring-[#06C755]"
                     />
                     <span className="text-sm font-medium">사용 여부</span>
                   </label>
                 </div>
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setGroupModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[var(--admin-surface-bright)] rounded-xl">취소</button>
-              <button onClick={handleSaveGroup} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700">저장</button>
+            <div className="mt-6 pt-3 border-t border-[var(--admin-border)] flex justify-end gap-2 shrink-0">
+              <button onClick={() => setGroupModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-black/5 rounded-xl">취소</button>
+              <button onClick={handleSaveGroup} className="px-4 py-2 admin-btn-primary text-white text-sm font-medium rounded-xl">저장</button>
             </div>
           </div>
         </div>
@@ -451,10 +451,10 @@ export default function CodesTab() {
 
       {/* Code Modal */}
       {codeModalOpen && isAdminSuper && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[var(--admin-surface)] text-[var(--admin-text)] rounded-2xl p-6 w-full max-w-md shadow-2xl border border-[var(--admin-border)]">
-            <h3 className="text-xl font-bold mb-4">{editingCode ? '상세 코드 수정' : '새 코드 생성'}</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-[var(--admin-surface)] text-[var(--admin-text)] rounded-2xl p-6 w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl border border-[var(--admin-border)] my-auto overflow-hidden">
+            <h3 className="text-xl font-bold mb-4 shrink-0 font-montserrat">{editingCode ? '상세 코드 수정' : '새 코드 생성'}</h3>
+            <div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 pr-1">
               <div>
                 <label className="block text-sm font-medium mb-1">코드 값 (대문자 영문)</label>
                 <input 
@@ -462,7 +462,7 @@ export default function CodesTab() {
                   value={codeForm.code_value} 
                   onChange={e => setCodeForm({...codeForm, code_value: e.target.value.toUpperCase().replace(/\s+/g, '')})}
                   disabled={!!editingCode}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
                   placeholder="예: FREE"
                 />
               </div>
@@ -472,7 +472,7 @@ export default function CodesTab() {
                   type="text" 
                   value={codeForm.code_name} 
                   onChange={e => setCodeForm({...codeForm, code_name: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
                   placeholder="예: 무료 플랜"
                 />
               </div>
@@ -482,7 +482,7 @@ export default function CodesTab() {
                   type="text" 
                   value={codeForm.description} 
                   onChange={e => setCodeForm({...codeForm, description: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
                 />
               </div>
               <div className="flex items-center gap-4">
@@ -492,7 +492,7 @@ export default function CodesTab() {
                     type="number" 
                     value={codeForm.sort_order} 
                     onChange={e => setCodeForm({...codeForm, sort_order: parseInt(e.target.value) || 0})}
-                    className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
                   />
                 </div>
                 <div className="flex flex-col items-center justify-end h-full mt-5">
@@ -501,16 +501,16 @@ export default function CodesTab() {
                       type="checkbox" 
                       checked={codeForm.is_use} 
                       onChange={e => setCodeForm({...codeForm, is_use: e.target.checked})}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                      className="w-4 h-4 rounded text-[#06C755] focus:ring-[#06C755]"
                     />
                     <span className="text-sm font-medium">사용 여부</span>
                   </label>
                 </div>
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setCodeModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[var(--admin-surface-bright)] rounded-xl">취소</button>
-              <button onClick={handleSaveCode} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700">저장</button>
+            <div className="mt-6 pt-3 border-t border-[var(--admin-border)] flex justify-end gap-2 shrink-0">
+              <button onClick={() => setCodeModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-black/5 rounded-xl">취소</button>
+              <button onClick={handleSaveCode} className="px-4 py-2 admin-btn-primary text-white text-sm font-medium rounded-xl">저장</button>
             </div>
           </div>
         </div>

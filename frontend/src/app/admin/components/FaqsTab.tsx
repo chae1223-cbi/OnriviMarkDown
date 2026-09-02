@@ -250,13 +250,13 @@ export default function FaqsTab() {
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="admin-glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl">
-            <h2 className="text-xl font-bold text-[var(--admin-text)] mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="admin-glass-card w-full max-w-2xl max-h-[90vh] flex flex-col p-6 rounded-2xl my-auto overflow-hidden">
+            <h2 className="text-xl font-bold text-[var(--admin-text)] mb-6 shrink-0 font-montserrat">
               {editingFaq ? 'FAQ 수정' : '새 FAQ 추가'}
             </h2>
 
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 pr-1">
               <div>
                 <label className="block text-sm font-medium text-[var(--admin-text-muted)] mb-1">질문 (Question)</label>
                 <input
@@ -303,7 +303,7 @@ export default function FaqsTab() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-[var(--admin-border)]">
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--admin-border)] shrink-0">
               <button
                 onClick={() => setModalOpen(false)}
                 className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface)] rounded-lg transition-colors"
@@ -312,7 +312,7 @@ export default function FaqsTab() {
               </button>
               <button
                 onClick={handleSave}
-                className="px-6 py-2 bg-[var(--admin-primary)] text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
+                className="px-6 py-2 admin-btn-primary text-white text-sm font-medium rounded-lg transition-colors"
               >
                 저장하기
               </button>

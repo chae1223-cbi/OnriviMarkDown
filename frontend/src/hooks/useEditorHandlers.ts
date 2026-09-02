@@ -1169,7 +1169,7 @@ export const useEditorHandlers = ({
     // 📊 [OMD-EDIT-USEEDITORHANDLERS-0002] useEditorHandlers.ts ➔ toggleFloatingToolbar
     // 🎯 @KICK  : 플로팅 툴바의 표시/숨김을 토글하고 커서 위치에 배치
     // 🛡️ @GUARD : editorRef, position, visiblePos 존재 여부 확인
-    // 🚨 @PATCH : 없음
+    // 🚨 @PATCH : 2026-09-02 - 커서가 에디터 우측 끝에 있을 때 플로팅 툴바가 화면 밖으로 짤리지 않도록 safeLeft 화면 이탈 방지 클램핑 적용
     // 🔗 @CALLS : 없음
     // ====================================================================
     toggleFloatingToolbar: () => {
@@ -1183,7 +1183,10 @@ export const useEditorHandlers = ({
           if (position) {
             const visiblePos = editor.getScrolledVisiblePosition(position);
             if (visiblePos) {
-              return { visible: true, top: Math.max(0, visiblePos.top - 10), left: visiblePos.left };
+              const layout = editor.getLayoutInfo?.();
+              const editorWidth = layout ? layout.width : 1000;
+              const safeLeft = Math.max(10, Math.min(visiblePos.left, editorWidth - 880));
+              return { visible: true, top: Math.max(0, visiblePos.top - 10), left: safeLeft };
             }
           }
         }

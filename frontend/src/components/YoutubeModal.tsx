@@ -286,24 +286,22 @@ export default function YoutubeModal({
       >
         {/* Header */}
         <div className={`flex justify-between items-center px-6 py-4 border-b shrink-0 ${
-          isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-white'
+          isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-[#EFEFEF] bg-white'
         }`}>
           <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded flex items-center justify-center ${
-              isDarkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-600/10 text-indigo-600'
-            }`}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="m22 8-6 4 6 4V8Z" />
                 <rect height="12" rx="2" width="14" x="2" y="6" />
               </svg>
             </div>
-            <h2 className="text-sm font-bold tracking-tight text-indigo-600 dark:text-indigo-400">동영상 링크 삽입</h2>
+            <h2 className="text-base font-bold tracking-tight text-[#06C755]">동영상 링크 삽입</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1.5 transition-colors rounded-full active:scale-95"
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1.5 transition-colors rounded-md active:scale-95"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
@@ -505,7 +503,7 @@ export default function YoutubeModal({
                 }`}>
                   <span className="font-black uppercase text-[9px] tracking-widest text-slate-400 dark:text-zinc-500">삽입 코드 미리보기</span>
                   <div className={`mt-1.5 font-mono text-[10px] truncate ${
-                    isDarkMode ? 'text-indigo-400' : 'text-indigo-600'
+                    isDarkMode ? 'text-[#06C755]' : 'text-[#06C755]'
                   }`}>
                     [{customDisplayName.trim() || displayName}]({isYoutube ? `https://www.youtube.com/watch?v=${detectedVideoId}` : (appliedPath || cleanPath)})
                   </div>
@@ -517,12 +515,12 @@ export default function YoutubeModal({
 
         {/* Footer */}
         <div className={`px-6 py-4 border-t flex items-center justify-between gap-3 shrink-0 ${
-          isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-slate-50'
+          isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-[#EFEFEF] bg-slate-50'
         }`}>
           {/* 브랜드 인디케이터 */}
           <div className="flex items-center gap-3 font-mono text-[9px] text-slate-400 dark:text-zinc-600 uppercase tracking-widest font-bold">
             <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#06C755] shrink-0" />
               ONRIVI AUTHOR
             </div>
             <span>ENGINE: LOCAL_FIRST_V3</span>
@@ -530,16 +528,16 @@ export default function YoutubeModal({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="font-bold text-xs text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-2 px-3"
+              className="font-bold text-xs text-slate-400 hover:text-[#06C755] dark:hover:text-[#06C755] transition-colors py-2 px-3"
             >
               취소
             </button>
             <button
               onClick={handleInsert}
               disabled={!hasContent}
-              className={`px-6 py-2.5 rounded font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
+              className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
                 hasContent
-                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                  ? 'bg-[#06C755] hover:bg-[#05B04B] text-white shadow-md shadow-[#06C755]/25'
                   : 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
               }`}
             >

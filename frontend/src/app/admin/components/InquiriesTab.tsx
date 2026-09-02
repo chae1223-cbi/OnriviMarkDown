@@ -335,17 +335,17 @@ export default function InquiriesTab() {
       </div>
 
       {modalOpen && selectedInquiry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-[var(--admin-surface)] text-[var(--admin-text)] rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-[var(--admin-border)] my-8">
-            <div className="flex justify-between items-center mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-[var(--admin-surface)] text-[var(--admin-text)] rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl border border-[var(--admin-border)] my-auto overflow-hidden">
+            <div className="flex justify-between items-center mb-6 shrink-0">
               <h3 className="text-xl font-bold flex items-center gap-2">
                 문의 상세 및 답변
                 {getStatusBadge(selectedInquiry.status, selectedInquiry.status_name)}
               </h3>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><X size={20} /></button>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1.5 rounded-lg hover:bg-black/5"><X size={20} /></button>
             </div>
             
-            <div className="space-y-6">
+            <div className="space-y-6 overflow-y-auto custom-scrollbar flex-1 pr-1">
               {/* 사용자 문의 내용 (Read-only) */}
               <div className="bg-[var(--admin-background)] p-4 rounded-xl border border-[var(--admin-border)] space-y-4">
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-2 border-b border-[var(--admin-border)] pb-4">
@@ -518,7 +518,7 @@ export default function InquiriesTab() {
               </fieldset>
             </div>
 
-            <div className="mt-8 pt-6 border-t border-[var(--admin-border)] flex justify-end gap-3">
+            <div className="mt-6 pt-4 border-t border-[var(--admin-border)] flex justify-end gap-3 shrink-0">
               <button onClick={() => setModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]">
                 취소
               </button>
@@ -526,7 +526,7 @@ export default function InquiriesTab() {
                 <button 
                   onClick={handleSaveReply} 
                   disabled={saving || uploading}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-5 py-2.5 admin-btn-primary text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {(saving || uploading) ? '업로드 및 저장 중...' : <><CheckCircle2 size={16}/> 답변 저장</>}
                 </button>

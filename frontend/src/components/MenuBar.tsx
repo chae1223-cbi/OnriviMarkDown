@@ -93,7 +93,8 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-MenuBar-0004] MenuBar ➔ MenuBar
 // 🎯 @KICK  : 상단 메뉴바 렌더링 - 파일/편집/도구/도움말 드롭다운 메뉴 제공
 // 🛡️ @GUARD : previewMode가 'preview'일 때 편집 메뉴 숨김
-// 🚨 @PATCH : **2026-07-23** — 파일 메뉴 용어 변경: '불러오기'→'파일 열기', '폴더 열기'→'작업장 폴더 열기' (ko/en 모두 적용); **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 리팩토링; PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
+// 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #06C755 호버 및 Surface High 드롭다운)
+//             **2026-07-23** — 파일 메뉴 용어 변경: '불러오기'→'파일 열기', '폴더 열기'→'작업장 폴더 열기' (ko/en 모두 적용); **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 리팩토링; PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
 // 🔗 @CALLS : MenuDropdown, dispatch, setIsSidebarOpen, setIsToolbarOpen, setPreviewMode
 // ====================================================================
 export default function MenuBar() {
@@ -192,7 +193,7 @@ export default function MenuBar() {
 
   /* [ONR-UI-003] 상단 메뉴바 이벤트 연동: 테마 스위칭, 내보내기 대화상자 등 전역 레이아웃 제어를 메뉴 트리거와 연결합니다. */
   return (
-    <nav ref={menuRef} className="h-[36px] bg-zinc-100 dark:bg-zinc-900 border-b border-black/5 dark:border-white/10 flex items-center px-1 text-sm font-medium relative z-[100] text-zinc-700 dark:text-zinc-300 whitespace-nowrap select-none shrink-0">
+    <nav ref={menuRef} className="h-[36px] bg-surface-container border-b border-outline/10 flex items-center px-1 text-sm font-medium relative z-[100] text-on-surface whitespace-nowrap select-none shrink-0">
       <MenuDropdown 
         label={t('file')} 
         isOpen={activeMenu === 'file'} 
@@ -291,23 +292,20 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
     <div className="relative h-full">
       <button 
         onClick={onClick}
-        className={`h-full px-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${isOpen ? 'bg-black/5 dark:bg-white/5 text-[#0058bc] dark:text-[#adc6ff]' : ''}`}
+        className={`h-full px-3 hover:bg-surface-high/60 transition-colors ${isOpen ? 'bg-primary-container/20 text-primary font-semibold' : ''}`}
       >
         {label}
       </button>
       {isOpen && (
         <div 
-          className="absolute top-full left-0 w-56 border rounded-b-md py-1 animate-in fade-in slide-in-from-top-1 duration-150 text-zinc-800 dark:text-zinc-200"
+          className="absolute top-full left-0 w-56 border border-outline/10 rounded-md py-1 animate-in fade-in slide-in-from-top-1 duration-150 text-on-surface bg-surface-high shadow-xl"
           style={{ 
-            backgroundColor: isDarkMode ? 'rgba(9, 9, 11, 1)' : 'rgba(255, 255, 255, 1)',
-            borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
             zIndex: 9999
           }}
         >
           {items.map((item, i) => (
             item.divider ? (
-              <div key={i} className="my-1 border-t border-black/5 dark:border-white/5" />
+              <div key={i} className="my-1 border-t border-outline/10" />
             ) : (
               <div key={i} className="relative group">
                 <button 
@@ -322,7 +320,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                   className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm ${
                     item.disabled 
                       ? 'opacity-40 cursor-not-allowed text-zinc-400 dark:text-zinc-500' 
-                      : 'hover:bg-blue-600 hover:text-white transition-colors'
+                      : 'hover:bg-[#06c755] hover:text-white transition-colors'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -335,11 +333,8 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                 {/* Submenu — CSS group-hover로 제어 (mouse leave 문제 해결) */}
                 {item.subItems && (
                   <div 
-                    className="absolute top-0 left-full w-48 border rounded-md py-1 invisible group-hover:visible ml-px text-zinc-800 dark:text-zinc-200"
+                    className="absolute top-0 left-full w-48 border border-outline/10 rounded-md py-1 invisible group-hover:visible ml-px text-on-surface bg-surface-high shadow-xl"
                     style={{ 
-                      backgroundColor: isDarkMode ? 'rgba(9, 9, 11, 1)' : 'rgba(255, 255, 255, 1)',
-                      borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
                       zIndex: 10000
                     }}
                   >

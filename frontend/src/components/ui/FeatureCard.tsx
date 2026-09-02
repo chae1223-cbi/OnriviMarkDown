@@ -22,30 +22,18 @@ export function FeatureCard({ feature, index }: FeatureCardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="p-8 rounded-2xl glass-card transition-all duration-300 hover:-translate-y-1"
-      style={{
-        border: "1px solid rgba(14,165,233,0.12)",
-      }}
+      className="p-8 rounded-2xl bg-surface-container border border-outline/10 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-primary/30 text-on-surface"
     >
       <h3
-        style={{
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 700,
-          fontSize: 18,
-          color: "#006591",
-          marginBottom: 12,
-        }}
+        className="font-bold text-lg text-[#06c755] mb-3 tracking-tight"
+        style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
       >
         {feature.title}
       </h3>
       <p
-        style={{
-          fontFamily: "Inter, sans-serif",
-          fontSize: 14,
-          color: "#3e4850",
-          lineHeight: "22px",
-        }}
-        dangerouslySetInnerHTML={{ __html: feature.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
+        className="text-sm text-text-secondary leading-relaxed"
+        style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
+        dangerouslySetInnerHTML={{ __html: feature.description.replace(/\*\*(.*?)\*\*/g, '<strong class="text-on-surface font-bold">$1</strong>') }}
       />
     </motion.div>
   );

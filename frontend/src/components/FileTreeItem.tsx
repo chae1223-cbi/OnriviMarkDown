@@ -36,7 +36,8 @@ interface FileTreeItemProps {
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
 // 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
-// 🚨 @PATCH : **2026-08-27** — 탐색기 새로고침/폴더 생성 시 전체 트리가 다시 패치되어 모든 노드가 강제 닫힘(Collapse) 상태로 초기화되어 파일/폴더 위치를 매번 다시 찾아야 하는 불편을 해결하기 위해, localStorage(onrivi_expanded_paths) 기반의 폴더 펼침(isOpen) 상태 영구 보존 및 동기화 구현하고 마운트 시 열린 폴더의 자식 노드 목록을 자동 비동기 지연 로딩(onLazyLoad) 복원하도록 이펙트 보완 및 부모 리팩토링 시 빈 자식 props 주입에 의해 기존 지연 로딩 데이터가 깡통(length=0)으로 덮어써져 사라지는 리셋 버그 차단 가드 적용; 파일/폴더 삭제 시 확인 모달 타이틀("폴더 삭제"/"파일 삭제") 및 메시지 본문("폴더를 정말 삭제하시겠습니까?"/"파일을 정말 삭제하시겠습니까?")을 노드 종류에 맞춰 분기하여 정확하게 표시하도록 갱신; 이름 변경(Rename) 시 팝업 프롬프트 제목 및 실패 토스트 피드백 문구에서 폴더와 파일을 명확히 분리("폴더의 새 이름을 입력하세요"/"파일의 새 이름을 입력하세요")하여 노출하도록 리펙토링; **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
+// 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #06C755 활성 노드 하이라이트 및 LineSeed 폰트)
+//             **2026-08-27** — 탐색기 새로고침/폴더 생성 시 전체 트리가 다시 패치되어 모든 노드가 강제 닫힘(Collapse) 상태로 초기화되어 파일/폴더 위치를 매번 다시 찾아야 하는 불편을 해결하기 위해, localStorage(onrivi_expanded_paths) 기반의 폴더 펼침(isOpen) 상태 영구 보존 및 동기화 구현하고 마운트 시 열린 폴더의 자식 노드 목록을 자동 비동기 지연 로딩(onLazyLoad) 복원하도록 이펙트 보완 및 부모 리팩토링 시 빈 자식 props 주입에 의해 기존 지연 로딩 데이터가 깡통(length=0)으로 덮어써져 사라지는 리셋 버그 차단 가드 적용; 파일/폴더 삭제 시 확인 모달 타이틀("폴더 삭제"/"파일 삭제") 및 메시지 본문("폴더를 정말 삭제하시겠습니까?"/"파일을 정말 삭제하시겠습니까?")을 노드 종류에 맞춰 분기하여 정확하게 표시하도록 갱신; 이름 변경(Rename) 시 팝업 프롬프트 제목 및 실패 토스트 피드백 문구에서 폴더와 파일을 명확히 분리("폴더의 새 이름을 입력하세요"/"파일의 새 이름을 입력하세요")하여 노출하도록 리펙토링; **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
 // 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
 // ====================================================================
 const FileTreeItem = ({ 
@@ -821,16 +822,16 @@ const FileTreeItem = ({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`group relative flex items-center w-full py-0.5 pr-2 transition-all cursor-pointer border-l-2 ${
+        className={`group relative flex items-center w-full py-1 pr-2 my-0.5 rounded-md transition-all cursor-pointer border-l-2 ${
           isSelected 
-            ? 'bg-blue-500/10 border-blue-500 text-blue-600 dark:text-blue-400 font-bold' 
+            ? 'bg-[#06C755]/10 border-[#06C755] text-[#06C755] font-bold shadow-2xs' 
             : isDragOver
-              ? 'bg-blue-500/20 border-blue-500 scale-[1.02]'
-              : 'border-transparent text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'
+              ? 'bg-[#06C755]/20 border-[#06C755] scale-[1.01]'
+              : 'border-transparent text-[#1F1F1F] dark:text-[#D4D4D4] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[#06C755] dark:hover:text-[#06C755]'
         }`}
         style={{ 
           paddingLeft: `${(level * 12) + 8}px`,
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
         }}
         onClick={handleClick}
         onContextMenu={(e) => {

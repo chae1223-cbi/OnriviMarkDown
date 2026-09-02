@@ -13,6 +13,7 @@
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  *
  * 🚨 @PATCH
+ *   2026-09-02 — LINE Design System (LDSG v5.0) 표준 적용: 테마 드롭다운 및 갤러리 팝오버 LDSG Green(#06C755) 악센트 및 LDSG 경계선 규격 통일
  *   2026-08-15 — 상단 헤더 간소화: 7개 이모지 버튼 제거, [테마 선택 드롭다운] + [서식 관리 ⚙] 버튼 2개로 교체
  *               onOpenStyleManager prop 추가 → StyleManagerModal 연동
  *   2026-07-15 — AI 서식 생성 기능 추가: GoogleGenerativeAI 직접 호출로 processTextWithAI 대체
@@ -895,15 +896,15 @@ ${guideContent}
   };
 
   return (
-    <div className="w-full h-full bg-zinc-50 dark:bg-zinc-900 flex flex-col select-none text-sm animate-fadeIn relative">
+    <div className="w-full h-full bg-transparent flex flex-col select-none text-sm animate-fadeIn relative">
 
-      {/* 1단계: 최상단 헤더 (간결) */}
-      <div className="px-4 py-3 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 shrink-0 z-20 flex flex-col gap-2">
+      {/* 1단계: 최상단 헤더 (LDSG 규격) */}
+      <div className="px-4 py-3 bg-white/70 dark:bg-[#17191E]/70 backdrop-blur-sm border-b border-[#EFEFEF] dark:border-[#22242A] shrink-0 z-20 flex flex-col gap-2">
         {/* 우측 상단 버튼 영역 */}
         <div className="flex items-center justify-end gap-2 -mt-1 mb-1">
           <button
             onClick={downloadGuideSpec}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#06C755] dark:text-zinc-400 dark:hover:text-[#06C755] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-sm"
             title="CSS 프로필 설정 가이드 다운로드"
           >
             📖 서식 설정 가이드
@@ -911,7 +912,7 @@ ${guideContent}
           {onOpenStyleManager && (
             <button
               onClick={onOpenStyleManager}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#06C755] dark:text-zinc-400 dark:hover:text-[#06C755] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-sm"
               title="서식 관리 (추가/삭제/가져오기/AI생성)"
             >
               ⚙ 서식 관리
@@ -931,12 +932,12 @@ ${guideContent}
               if (e.key === 'Escape') setIsEditingName(false);
             }}
             autoFocus
-            className="w-full p-2.5 border-2 border-blue-400 rounded-lg outline-none text-base font-extrabold bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+            className="w-full p-2.5 border-2 border-[#06C755] rounded-xl outline-none text-base font-extrabold bg-white dark:bg-[#131519] text-zinc-900 dark:text-zinc-100 shadow-sm"
           />
         ) : (
           <button
             onClick={() => setShowAllProfiles(!isGalleryOpen)}
-            className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800/50 hover:shadow-md transition-all group"
+            className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-emerald-50/70 to-blue-50/70 dark:from-[#06C755]/10 dark:to-[#4D73FF]/10 rounded-xl border border-[#06C755]/30 dark:border-[#06C755]/20 hover:border-[#06C755] dark:hover:border-[#06C755] hover:shadow-md transition-all group"
           >
             <div className="flex items-center gap-2">
               <span className="text-xl">{isSystemProfile ? '🏛️' : '🫆'}</span>
@@ -945,7 +946,7 @@ ${guideContent}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`text-zinc-400 group-hover:text-blue-500 transition-transform duration-200 ${isGalleryOpen ? 'rotate-180' : ''}`}>
+              <span className={`text-zinc-400 group-hover:text-[#06C755] transition-transform duration-200 ${isGalleryOpen ? 'rotate-180' : ''}`}>
                 ▼
               </span>
             </div>
@@ -955,7 +956,7 @@ ${guideContent}
 
       {/* 팝오버 메가 메뉴 갤러리 (z-index 40) */}
       {isGalleryOpen && (
-        <div className="absolute top-[104px] left-0 right-0 max-h-[400px] overflow-y-auto z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 shadow-2xl p-4 custom-scrollbar animate-in slide-in-from-top-2">
+        <div className="absolute top-[104px] left-0 right-0 max-h-[400px] overflow-y-auto z-40 bg-white/95 dark:bg-[#17191E]/95 backdrop-blur-md border-b border-[#EFEFEF] dark:border-[#22242A] shadow-2xl p-4 custom-scrollbar animate-in slide-in-from-top-2">
           <div className="text-xs font-bold text-zinc-500 mb-3">테마 선택 ({profiles.length}개)</div>
           <div className="grid grid-cols-3 gap-2.5">
             {profiles.map(p => {
@@ -967,10 +968,10 @@ ${guideContent}
                     onSelectProfile(p.id);
                     setShowAllProfiles(false); // 선택 후 자동 닫힘
                   }}
-                  className={`w-full h-[70px] rounded-xl border-2 flex flex-col items-center justify-center p-2 transition-all ${isActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm' : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 hover:border-blue-300 dark:hover:border-zinc-600'}`}
+                  className={`w-full h-[70px] rounded-xl border-2 flex flex-col items-center justify-center p-2 transition-all ${isActive ? 'border-[#06C755] bg-[#06C755]/10 shadow-sm' : 'border-[#EFEFEF] dark:border-[#22242A] bg-white dark:bg-[#131519] hover:border-[#06C755]/50'}`}
                 >
                   <span className="text-[18px] mb-1">{isSystemProfileId(p.id) ? '🏛️' : '🫆'}</span>
-                  <span className={`text-[11px] font-bold truncate w-full text-center ${isActive ? 'text-blue-700 dark:text-blue-300' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                  <span className={`text-[11px] font-bold truncate w-full text-center ${isActive ? 'text-[#06C755] dark:text-[#06C755]' : 'text-zinc-600 dark:text-zinc-400'}`}>
                     {p.name}
                   </span>
                 </button>

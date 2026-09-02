@@ -529,21 +529,19 @@ export default function ImageModal({
       >
         {/* Header */}
         <div className={`flex justify-between items-center px-6 py-4 border-b shrink-0 ${
-          isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-slate-200 bg-white'
+          isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-[#EFEFEF] bg-white'
         }`}>
           <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded flex items-center justify-center ${
-              isDarkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-600/10 text-indigo-600'
-            }`}>
-              <ImageIcon size={16} />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+              <ImageIcon size={18} />
             </div>
-            <h2 className="text-sm font-bold tracking-tight text-indigo-600 dark:text-indigo-400">이미지 삽입</h2>
+            <h2 className="text-base font-bold tracking-tight text-[#06C755]">이미지 삽입</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1.5 transition-colors rounded-full active:scale-95"
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1.5 transition-colors rounded-md active:scale-95"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
@@ -659,8 +657,8 @@ export default function ImageModal({
                       placeholder="600px 또는 100%"
                       className={`w-full font-mono text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
                         isDarkMode
-                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-indigo-500 focus:ring-indigo-500/30'
-                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:ring-indigo-500/20'
+                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-[#06C755] focus:ring-[#06C755]/30'
+                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#06C755] focus:ring-[#06C755]/20'
                       }`}
                     />
                   </div>
@@ -673,8 +671,8 @@ export default function ImageModal({
                       placeholder="auto 또는 400px"
                       className={`w-full font-mono text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
                         isDarkMode
-                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-indigo-500 focus:ring-indigo-500/30'
-                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:ring-indigo-500/20'
+                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-[#06C755] focus:ring-[#06C755]/30'
+                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#06C755] focus:ring-[#06C755]/20'
                       }`}
                     />
                   </div>
@@ -696,7 +694,7 @@ export default function ImageModal({
                     onClick={() => setImageAlign(align)}
                     className={`flex-1 py-2.5 rounded text-xs font-bold transition-all border ${
                       imageAlign === align
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        ? 'bg-[#06C755] text-white border-[#06C755] shadow-sm'
                         : isDarkMode
                           ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
                           : 'border-slate-300 bg-slate-50 text-slate-500 hover:text-slate-700 hover:border-slate-400'
@@ -826,16 +824,16 @@ export default function ImageModal({
         }`}>
           <button
             onClick={onClose}
-            className="font-bold text-xs text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-2 px-3"
+            className="font-bold text-xs text-slate-400 hover:text-[#06C755] dark:hover:text-[#06C755] transition-colors py-2 px-3"
           >
             취소
           </button>
           <button
             onClick={handleInsert}
             disabled={!cleanImagePath}
-            className={`px-6 py-2.5 rounded font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
+            className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
               cleanImagePath
-                ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                ? 'bg-[#06C755] hover:bg-[#05B04B] text-white shadow-md shadow-[#06C755]/25'
                 : 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
             }`}
           >

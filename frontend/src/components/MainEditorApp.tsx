@@ -7,8 +7,13 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-09-02** — 타이핑 시 180ms 지연 깜빡임을 완전히 제거하기 위해 React 18 useDeferredValue 기반 동시성 실시간 렌더링 적용 및 에디터 마지막 행 입력 시 미리보기가 가려지지 않고 실시간 바닥(최하단)을 즉시 추종하도록 동기화 개선
+ *   * 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 전면 마이그레이션 (LINE Green #06C755, LDSG Blue #4D73FF, LDSG Grayscale 및 LineSeed 폰트 토큰 적용)
+ *   * 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v4.1] Onrivi 통합 디자인 시스템 토큰 적용 및 미리보기 스크롤 컨테이너에 onrivi-preview-container 표준 클래스 적용
  *   * 🚨 @PATCH : **2026-09-02** — 에디터 스크롤 전담 1:1 동기화 및 바닥 밀착 개편: 미리보기 onWheel preventDefault 제거, scrollBeyondLastLine 활성화 및 하단 160px 패딩 적용으로 마지막 줄 엔터 시 시야 자동 확보, 타이핑/방향키/백스페이스 시 스크롤 간섭 0회 분리
  *   * 🚨 @PATCH : **2026-08-27** — 비로그인 즉시 체험 모드(onrivi_guest_mode) 가동 시, 최초 라이선스/세션 검증(loadAndVerifyLicense)을 스킵하고 가상의 프리미엄 등급 라이선스 상태로 즉시 활성화 셋업하여 에디터 편집 잠금을 원천 패스하도록 가드 적용; 게스트 무단 점유/재접속 방지를 위해 10분 타이머(countdown) 및 로컬스토리지 만료 낙인(onrivi_guest_expired) 차단막 시스템을 구축하여 시간 만료 시 에디터 강제 읽기 전용 전환 및 닫기 없는 풀스크린 가입 권유 모달 팝업 바인딩
+ *   * 🚨 @PATCH : **2026-09-02** — 여러 탭 전환 시 에디터 스크롤/커서 위치를 기준으로 미리보기를 1:1 완벽 동기화하고 직전 커서 라인 캐시를 리셋하여 마우스 클릭 및 방향키 이동 시 해당 위치 즉시 추종 보장
+ *   * 🚨 @PATCH : **2026-09-02** — 커서가 에디터 우측 끝에 있을 때 플로팅 툴바가 화면 밖으로 짤려 버튼 선택이 불가능하던 현상을 해결하기 위해 에디터 컨테이너 및 윈도우 뷰포트 우측/상단 경계 이탈 방지 클램핑(Boundary Clamp) 적용
  *   * 🚨 @PATCH : **2026-08-26** — 분할모드에서 마우스 휠 동작에 의해 우측 실시간 미리보기 스크롤이 단독으로 움직이는 것을 차단하고(onWheel preventDefault) 에디터 스크롤 동기화에 의해서만 구동되도록 제어 및 런타임 contentText ReferenceError 보정 수정
  *   * 🚨 @PATCH : **2026-08-13** — 스크롤 요동 및 튕김 현상의 근본적 해결을 위해 MainEditorApp 내의 모든 이중/중복 스크롤 보정 훅(postContentScrollCorrection) 및 휠/터치 강제 차단 훅을 완전히 삭제하고, Monaco Setup의 단일 스크롤 리스너로 동기화 구조를 전량 이관 및 정밀 간소화함
  *   * 🚨 @PATCH : **2026-08-12** — 에디터를 열거나 탭을 닫고 전환할 때 제한사용자(만료, 동시접속 제한, 미인증 등)의 권한 가드가 누락되어 편집 가능해지던 버그 해결을 위해 isRestrictedUser 검사 통합 적용 및 Monaco readOnly/domReadOnly 옵션 동기화 보완; 최초 검증 시 동시접속 실패 시 이중 검증 복구 우회로를 차단하고 isRestricted 필드를 로컬 보안 캐시와 setLicenseStatus에 밀봉 연동하여 캐시 뚫림 현상 원천 해결
@@ -38,7 +43,7 @@
  * =========================================================================
 */
 
-import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
+import React, { useState, useRef, useMemo, useEffect, useCallback, useDeferredValue } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
 const _monacoVsPath = typeof window !== 'undefined' && !!(window as any).electronAPI
   ? './monaco-editor/min/vs'
@@ -79,6 +84,7 @@ import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandle
 import { configureMonacoEnvironment } from '@/lib/monacoEnv'; // Monaco 환경 설정
 import { idb, FileNode, scanDirectory, getFileIcon } from '@/lib/indexedDbHelper'; // indexedDB 헬퍼
 import { preprocessMarkdownForPreview, stripFrontmatter } from "@/lib/editorUtils"; // 마크다운 프리뷰
+import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from "@/lib/syncEngine"; // 동기화 엔진
 import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig"; // 툴바 설정
 import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes"; // 에디터 테마
 import { CssProfile } from "@/types/cssProfile"; // css 프로필 타입
@@ -432,8 +438,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   } = useUIStore();
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
   const [content, setContent] = useState('');   // @content : content state 
-  // 입력 모델은 즉시 유지하고, 무거운 Markdown 미리보기만 잠깐 입력이 멈춘 뒤 갱신합니다.
-  const [previewContent, setPreviewContent] = useState('');
+  // 💡 [React 18 동시성 렌더링] 180ms 지연 타이머 깜빡임을 제거하고 useDeferredValue로 부드러운 무깜빡임 실시간 렌더링
+  const previewContent = useDeferredValue(content);
 
   const contentRef = useRef(content);
   // ====================================================================
@@ -445,11 +451,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     contentRef.current = content;
-  }, [content]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setPreviewContent(content), 180);
-    return () => window.clearTimeout(timer);
   }, [content]);
 
   const [previewMode, setPreviewModeRaw] = useState<'edit' | 'both' | 'preview' | 'css-style'>(() => {
@@ -639,7 +640,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isGuestMode, isGuestExpired]);
+  }, [isGuestMode, isGuestExpired, setLicenseStatus]);
 
   // 💾 [탭 순서 영구 보존 이펙트] localStorage에 기록된 순서가 있다면 tabs 배열의 순서를 복원
   useEffect(() => {
@@ -3466,6 +3467,38 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       ));
     }
   }, [content, currentFileNode, activeTabId]);
+
+  // 💡 [탭 전환 시 에디터 기준 미리보기 1:1 완벽 동기화 보장]
+  useEffect(() => {
+    if (!activeTabId || previewMode !== 'both' || !previewRef.current || !editorRef.current) return;
+
+    // 탭 전환 시 직전 커서 라인 캐시 리셋 (마우스/방향키 이동 즉시 반응 보장)
+    prevCursorLineRef.current = null;
+
+    const performSync = () => {
+      const editor = editorRef.current;
+      const preview = previewRef.current;
+      if (!editor || !preview) return;
+
+      const currentContent = editor.getValue?.() || content;
+      syncPreviewFromEditorScroll(preview, editor, currentContent);
+
+      const pos = editor.getPosition?.();
+      if (pos && pos.lineNumber) {
+        syncPreviewToTargetLine(preview, pos.lineNumber, currentContent);
+      }
+    };
+
+    // DOM 렌더링 완료 타이밍에 맞춰 3단계 보장 실행
+    requestAnimationFrame(performSync);
+    const t1 = setTimeout(performSync, 60);
+    const t2 = setTimeout(performSync, 180);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [activeTabId, previewMode, content]);
   // ====================================================================
   // 📊 [OMD-FILE-MainEditorApp-0047] MainEditorApp.tsx ➔ autoSave
   // 🎯 @KICK  : 콘텐츠 변경 및 autoSave 활성화 시 5초 디바운스 후 파일 자동 저장
@@ -5802,7 +5835,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           </div>
         )}
 
-        <div className={`flex h-screen overflow-hidden flex-col text-on-surface transition-colors duration-300 ${mounted && isDarkMode ? 'dark bg-zinc-950 text-zinc-100' : 'bg-surface'}`}>
+        <div className={`flex h-screen overflow-hidden flex-col text-on-surface transition-colors duration-300 ${mounted && isDarkMode ? 'dark' : ''} bg-surface`}>
 
           <MenuBar />
 
@@ -6069,6 +6102,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           const rect = editorDom.getBoundingClientRect();
                           fixedTop += rect.top;
                           fixedLeft += rect.left;
+
+                          // 💡 [플로팅 툴바 우측/상단 화면 이탈 방지 클램핑]
+                          const TOOLBAR_ESTIMATED_WIDTH = 880;
+                          const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+                          const maxRight = Math.min(winWidth - 16, rect.right - 16);
+                          if (fixedLeft + TOOLBAR_ESTIMATED_WIDTH > maxRight) {
+                            fixedLeft = Math.max(rect.left + 16, maxRight - TOOLBAR_ESTIMATED_WIDTH);
+                          }
+                          fixedLeft = Math.max(16, fixedLeft);
+                          fixedTop = Math.max(65, fixedTop);
                         }
                         const handleDragStart = (dragEvent: React.MouseEvent) => {
                           const target = dragEvent.target as HTMLElement;
@@ -6354,7 +6397,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
                       <div
                         ref={previewRef}
-                        className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container text-on-surface ${
+                        className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container onrivi-preview-container text-on-surface ${
                           previewMode === 'preview'
                             ? 'bg-surface-container-high p-4 pb-8 overflow-y-auto'
                             : 'bg-surface-container-low px-0 pt-0 pb-8 overflow-y-auto'

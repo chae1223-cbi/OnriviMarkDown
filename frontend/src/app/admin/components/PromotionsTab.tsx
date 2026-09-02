@@ -427,13 +427,13 @@ export default function PromotionsTab() {
 
       {/* 생성/수정 모달 */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="admin-glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 rounded-2xl">
-            <h2 className="text-xl font-bold text-[var(--admin-text)] mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="admin-glass-card w-full max-w-lg max-h-[90vh] flex flex-col p-6 rounded-2xl my-auto overflow-hidden">
+            <h2 className="text-xl font-bold text-[var(--admin-text)] mb-6 shrink-0 font-montserrat">
               {editingPromo ? '프로모션 수정' : '새 프로모션 만들기'}
             </h2>
 
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 pr-1">
               <div>
                 <label className="block text-sm font-medium text-[var(--admin-text-muted)] mb-1">
                   프로모션 코드 <span className="text-red-500">*</span>
@@ -496,7 +496,7 @@ export default function PromotionsTab() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 bg-[var(--admin-surface)] rounded-lg">
+              <div className="flex items-center gap-3 p-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-lg">
                 <span className="text-sm font-medium text-[var(--admin-text)]">랜딩페이지 노출 (is_active)</span>
                 <button
                   onClick={() => setForm({ ...form, is_active: !form.is_active })}
@@ -507,7 +507,7 @@ export default function PromotionsTab() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-[var(--admin-border)]">
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--admin-border)] shrink-0">
               <button
                 onClick={() => setModalOpen(false)}
                 className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface)] rounded-lg transition-colors"
@@ -517,7 +517,7 @@ export default function PromotionsTab() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-6 py-2 bg-[var(--admin-primary)] text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-60"
+                className="px-6 py-2 admin-btn-primary text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-60"
               >
                 {saving ? '저장 중...' : '저장하기'}
               </button>
