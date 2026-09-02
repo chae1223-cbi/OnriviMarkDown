@@ -946,108 +946,14 @@ export const useEditorHandlers = ({
         return;
       }
 
-      // 커서가 표 안에 있는지 확인
+      // 🛡️ 커서가 이미 표 안에 있는 경우 사용자가 만든 표가 망가지지 않도록 조기 종료(No-op)
       const lineText = model.getLineContent(pos.lineNumber).trim();
-      if (!lineText.startsWith('|') && !lineText.endsWith('|') && !lineText.includes('|')) {
-        setIsTableModalOpen(true);
+      if (lineText.startsWith('|') || (lineText.match(/\|/g) || []).length >= 2) {
         return;
       }
 
-      // 표 시작과 끝 줄 찾기
-      let startLine = pos.lineNumber;
-      while (startLine > 1) {
-        const text = model.getLineContent(startLine - 1).trim();
-        if (!text.includes('|')) break;
-        startLine--;
-      }
-      let endLine = pos.lineNumber;
-      const lineCount = model.getLineCount();
-      while (endLine < lineCount) {
-        const text = model.getLineContent(endLine + 1).trim();
-        if (!text.includes('|')) break;
-        endLine++;
-      }
-
-      // 한글/CJK 더블 너비 계산기
-      const getDisplayWidth = (str: string) => {
-        let width = 0;
-        for (let i = 0; i < str.length; i++) {
-          const code = str.charCodeAt(i);
-          if (code >= 0x1100 && (code <= 0x115f || code === 0x2329 || code === 0x232a ||
-             (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f) ||
-             (code >= 0xac00 && code <= 0xd7a3) || (code >= 0xf900 && code <= 0xfaff) ||
-             (code >= 0xfe10 && code <= 0xfe19) || (code >= 0xfe30 && code <= 0xfe6f) ||
-             (code >= 0xff00 && code <= 0xff60) || (code >= 0xffe0 && code <= 0xffe6))) {
-            width += 2;
-          } else {
-            width += 1;
-          }
-        }
-        return width;
-      };
-
-      const padString = (str: string, width: number, align: 'left'|'center'|'right') => {
-        const w = getDisplayWidth(str);
-        const pad = Math.max(0, width - w);
-        if (align === 'right') return ' '.repeat(pad) + str;
-        if (align === 'center') return ' '.repeat(Math.floor(pad/2)) + str + ' '.repeat(pad - Math.floor(pad/2));
-        return str + ' '.repeat(pad);
-      };
-
-      const tableLines: string[] = [];
-      for (let i = startLine; i <= endLine; i++) {
-        tableLines.push(model.getLineContent(i).trim());
-      }
-      if (tableLines.length < 2) {
-        setIsTableModalOpen(true);
-        return;
-      }
-
-      const rows = tableLines.map(l => l.replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
-      const colCount = Math.max(...rows.map(r => r.length));
-      const aligns: ('left'|'center'|'right')[] = [];
-      const sepCols = rows[1];
-      for (let c = 0; c < colCount; c++) {
-        const cell = (sepCols[c] || '').trim();
-        if (cell.startsWith(':') && cell.endsWith(':')) aligns.push('center');
-        else if (cell.endsWith(':')) aligns.push('right');
-        else aligns.push('left');
-      }
-
-      const colWidths = new Array(colCount).fill(3);
-      for (let r = 0; r < rows.length; r++) {
-        if (r === 1) continue;
-        for (let c = 0; c < colCount; c++) {
-          const cell = rows[r][c] || '';
-          colWidths[c] = Math.max(colWidths[c], getDisplayWidth(cell));
-        }
-      }
-
-      let newTable = '';
-      for (let r = 0; r < rows.length; r++) {
-        let newRow = '|';
-        for (let c = 0; c < colCount; c++) {
-          const cell = rows[r][c] || '';
-          if (r === 1) {
-            const dashes = '-'.repeat(colWidths[c]);
-            if (aligns[c] === 'left') newRow += ` :${dashes} |`;
-            else if (aligns[c] === 'right') newRow += ` ${dashes}: |`;
-            else if (aligns[c] === 'center') newRow += ` :${dashes.substring(1)}: |`;
-            else newRow += ` -${dashes}- |`;
-          } else {
-            newRow += ` ${padString(cell, colWidths[c], aligns[c] === 'center' ? 'center' : (aligns[c] === 'right' ? 'right' : 'left'))} |`;
-          }
-        }
-        newTable += newRow + '\n';
-      }
-
-      editor.pushUndoStop();
-      editor.executeEdits('format-table', [{
-        range: new (window as any).monaco.Range(startLine, 1, endLine, model.getLineMaxColumn(endLine)),
-        text: newTable.trim()
-      }]);
-      editor.pushUndoStop();
-      showToast('표 서식이 예쁘게 정렬되었습니다!', 'success');
+      // 표 밖일 때만 신규 표 생성 모달 열기
+      setIsTableModalOpen(true);
     },
     quickTable: () => insertAtCursor('| 구분 | 데이터 1 | 데이터 2 |\n| --- | --- | --- |\n| 항목A | 100 | 200 |\n| 항목B | 300 | 400 |\n'),
     // ====================================================================

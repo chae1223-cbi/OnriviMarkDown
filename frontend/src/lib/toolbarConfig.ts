@@ -171,8 +171,8 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       // 레이블: 이모지 아이콘 + 명령어 + 한국어 이름
       const iconStr = item.icon && item.icon.length <= 4 ? `${item.icon} ` : '';
       const label = `${iconStr}/${cmdStr}   ${item.name}`;
-      // filterText: 영어 커맨드 + 한국어 이름 조합 → 어느 쪽으로 타이핑해도 검색됨
-      const filterText = `/${cmdStr} ${item.name} ${item.group}`;
+      // filterText: 슬래시(/) 뒤 영문 및 한글 명령어 모두 완벽 지원 (/표, /제목, /인용구 등)
+      const filterText = `/${cmdStr} /${item.name} ${item.name} ${cmdStr} ${item.group}`;
 
       return {
         id: item.id,

@@ -21,7 +21,8 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-02** — 루트 상단 액션버튼 제거 및 신규 붙여넣기 아이콘(/icons/icon-paste.png) 컨텍스트 메뉴 동기화
+// 🚨 @PATCH : **2026-09-02** — 우클릭 팝업 메뉴(Context Menu) 마우스 벗어남(Mouse Leave) 시 자동 닫기 처리
+//             **2026-09-02** — 루트 상단 액션버튼 제거 및 신규 붙여넣기 아이콘(/icons/icon-paste.png) 컨텍스트 메뉴 동기화
 //             **2026-09-02** — 파일 및 폴더 복사/붙여넣기(Copy & Paste) 엔진 탑재
 //             **2026-09-02** — 좌측 사이드바 워크스페이스 실폴더 라벨 및 파일 트리/목차 폰트를 font-bold 및 고대비 색상으로 굵기/선명도 강화
 //             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) LNB 표준 디자인 적용 (Clean White Surface, LINE Green #06C755 탭 배지, LineSeed 폰트)
@@ -73,6 +74,29 @@ export default function LeftSidebar() {
 
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const contextCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMenuMouseEnter = () => {
+    if (contextCloseTimerRef.current) {
+      clearTimeout(contextCloseTimerRef.current);
+      contextCloseTimerRef.current = null;
+    }
+  };
+
+  const handleMenuMouseLeave = () => {
+    if (contextMenu) {
+      if (contextCloseTimerRef.current) clearTimeout(contextCloseTimerRef.current);
+      contextCloseTimerRef.current = setTimeout(() => {
+        setContextMenu(null);
+      }, 100);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (contextCloseTimerRef.current) clearTimeout(contextCloseTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const handleClose = () => setContextMenu(null);
@@ -827,10 +851,10 @@ export default function LeftSidebar() {
           width: sidebarWidth,
           fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
         }} 
-        className="flex flex-col border-r border-[#E2E8F0] dark:border-white/[0.08] select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-xs"
+        className="flex flex-col border-r border-slate-300 dark:border-zinc-700 select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-sm"
       >
         {/* 탭 헤더 */}
-        <div className="h-10 border-b border-[#E2E8F0] dark:border-white/[0.08] flex items-center px-2 bg-white/75 dark:bg-black/30 backdrop-blur-md justify-between">
+        <div className="h-10 border-b border-slate-300 dark:border-zinc-700 flex items-center px-2 bg-white/75 dark:bg-black/30 backdrop-blur-md justify-between">
           <div className="flex gap-1.5 w-full">
             <button
               onClick={() => {
@@ -944,6 +968,8 @@ export default function LeftSidebar() {
                     }}
                     onClick={(e) => e.stopPropagation()}
                     onContextMenu={(e) => e.preventDefault()}
+                    onMouseEnter={handleMenuMouseEnter}
+                    onMouseLeave={handleMenuMouseLeave}
                   >
                     <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium">
                       {!isRestrictedUser && (

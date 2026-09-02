@@ -15,12 +15,14 @@ interface TableModalProps {
 // 📊 [OMD-EDIT-TableModal-0003] TableModal ➔ TableModal
 // 🎯 @KICK  : 표 삽입 모달 - 10x10 그리드 UI로 마우스 표 크기 선택 후 마크다운 코드 생성
 // 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
-// 🚨 @PATCH : 2026-07-15 - 마우스 드래그 그리드 10x10 디자인 전면 개편 및 안개 블러 제거, 라운드 4px 규격 장착
+// 🚨 @PATCH : 2026-09-02 - 열(컬럼) 기본 정렬 프리셋 4종(기본 좌측, 전체 중앙, 회계형, 요약형) 선택 UI 및 마크다운 자동 생성 지원
+//             2026-07-15 - 마우스 드래그 그리드 10x10 디자인 전면 개편 및 안개 블러 제거, 라운드 4px 규격 장착
 // 🔗 @CALLS : handleInsert, createPortal
 // ====================================================================
 export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: TableModalProps) {
   const [hoverPos, setHoverPos] = useState({ r: 3, c: 2 });
   const [selectedPos, setSelectedPos] = useState({ r: 3, c: 2 });
+  const [alignPreset, setAlignPreset] = useState<'default' | 'center' | 'numeric' | 'summary'>('default');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -33,7 +35,20 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
   const handleInsert = () => {
     const { r, c } = selectedPos;
     let header = "| " + Array(c).fill("제목").join(" | ") + " |\n";
-    let divider = "| " + Array(c).fill("---").join(" | ") + " |\n";
+    
+    let dividerCols: string[] = [];
+    for (let i = 0; i < c; i++) {
+      if (alignPreset === 'center') {
+        dividerCols.push(':---:');
+      } else if (alignPreset === 'numeric') {
+        dividerCols.push(i === 0 ? ':---' : '---:');
+      } else if (alignPreset === 'summary') {
+        dividerCols.push(i === 0 || i === c - 1 ? ':---:' : ':---');
+      } else {
+        dividerCols.push(':---');
+      }
+    }
+    let divider = "| " + dividerCols.join(" | ") + " |\n";
     let row = "| " + Array(c).fill("내용").join(" | ") + " |\n";
     let body = Array(r).fill(row).join("");
     
@@ -113,9 +128,74 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
           </div>
 
           {/* Guide Text */}
-          <p className="text-slate-400 dark:text-zinc-500 italic text-xs mb-6 text-center font-medium">
+          <p className="text-slate-400 dark:text-zinc-500 italic text-xs mb-4 text-center font-medium">
             그리드를 클릭하여 크기를 지정하세요
           </p>
+
+          {/* Column Alignment Presets */}
+          <div className="w-full mb-4">
+            <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 mb-2 block text-center">
+              열(컬럼) 기본 정렬 프리셋
+            </label>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAlignPreset('default')}
+                className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
+                  alignPreset === 'default'
+                    ? 'bg-[#06C755]/15 border-[#06C755] text-[#06C755] font-bold'
+                    : isDarkMode
+                      ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span>⬅️</span>
+                <span>기본 (왼쪽)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlignPreset('center')}
+                className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
+                  alignPreset === 'center'
+                    ? 'bg-[#06C755]/15 border-[#06C755] text-[#06C755] font-bold'
+                    : isDarkMode
+                      ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span>↔️</span>
+                <span>전체 중앙</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlignPreset('numeric')}
+                className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
+                  alignPreset === 'numeric'
+                    ? 'bg-[#06C755]/15 border-[#06C755] text-[#06C755] font-bold'
+                    : isDarkMode
+                      ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span>📊</span>
+                <span>회계형 (좌+우)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlignPreset('summary')}
+                className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
+                  alignPreset === 'summary'
+                    ? 'bg-[#06C755]/15 border-[#06C755] text-[#06C755] font-bold'
+                    : isDarkMode
+                      ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span>📑</span>
+                <span>요약/통계형</span>
+              </button>
+            </div>
+          </div>
 
           {/* TipBox */}
           <section className={`w-full border rounded-xl p-4 ${

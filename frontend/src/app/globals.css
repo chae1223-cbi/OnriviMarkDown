@@ -519,22 +519,20 @@ option {
   pointer-events: auto !important;
 }
 
-/* 프리뷰 라인 클릭/동기화 하이라이트 효과 — 좌측 네온 마커 + 소프트 블루 배경 */
+/* 프리뷰 라인 클릭/동기화 하이라이트 효과 — 은은한 배경 하이라이트 (세로 바 제거) */
 .preview-highlight-line {
-  background-color: rgba(255, 152, 0, 0.06) !important;
-  /* border는 본문 너비를 줄여 줄바꿈과 높이 재계산을 유발하므로,
-     동일한 시각 효과를 레이아웃에 영향을 주지 않는 inset shadow로 구현합니다. */
+  background-color: rgba(255, 152, 0, 0.07) !important;
   border-left: 0 !important;
-  box-shadow: inset 3px 0 0 rgba(255, 152, 0, 0.45), inset 0 0 12px rgba(255, 152, 0, 0.05) !important;
-  transition: none;
+  box-shadow: none !important;
+  transition: background-color 0.15s ease;
   border-radius: 4px;
 }
 
 /* 다크모드 프리뷰 하이라이트 대응 */
 .dark .preview-highlight-line {
-  background-color: rgba(255, 152, 0, 0.10) !important;
+  background-color: rgba(255, 152, 0, 0.12) !important;
   border-left: 0 !important;
-  box-shadow: inset 3px 0 0 rgba(255, 152, 0, 0.50), inset 0 0 12px rgba(255, 152, 0, 0.08) !important;
+  box-shadow: none !important;
 }
 
 /* 🎯 Monaco 에디터 커서(Caret) 항시 가시성 100% 보장 */
@@ -1131,31 +1129,24 @@ div.onrivi-list-spacer {
    라인 넘버 영역(회색 배경)을 콤팩트하게 줄이고, 경계선과 본문 사이의 가로 여백을 확실히 늘려 
    에디터 라인 넘버와 본문이 명확하게 영역별로 인지 및 차별화되도록 개선합니다. */
 .monaco-editor .margin {
-  background-color: transparent !important;
-  border-right: none !important;
+  background-color: #ffffff !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 .monaco-editor .margin::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 40px; /* 💡 회색 라인 넘버 영역의 폭을 40px로 늘려 가독성 확보 */
-  background-color: #f7f9fc !important;
-  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
-  z-index: 1;
+  display: none !important;
 }
 .monaco-editor .margin-view-overlays {
   z-index: 2 !important;
 }
 .monaco-editor .line-numbers {
+  text-align: center !important;
   color: #8b949e !important;
   z-index: 3 !important;
 }
 
 /* 다크모드 전용 라인 넘버 마진 스타일 */
-.dark .monaco-editor .margin::before {
-  background-color: #151719 !important;
+.dark .monaco-editor .margin {
+  background-color: #1e1e1e !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 .dark .monaco-editor .line-numbers {

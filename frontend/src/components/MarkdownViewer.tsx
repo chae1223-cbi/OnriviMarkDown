@@ -1,4 +1,9 @@
-// 🚨 @PATCH : **2026-09-02** — break-spaces 환경에서 br 태그와의 이중 줄바꿈 충돌(들여쓰기 시 빈 행 추가 현상)을 해결하기 위해 .onrivi-content-root br { display: none !important; } 적용 및 p 렌더러 정밀화
+// 🚨 @PATCH : **2026-09-02** — 본문 바로 아랫줄에 - 단독 입력 시 Setext H2 헤딩으로 오인되어 윗줄이 제목으로 변하던 마크다운 파서 결함을 방지하기 위해 Setext 오작동 방어 필터 적용
+//             **2026-09-02** — br display none을 제거하여 이미지 아래 및 일반 문단의 줄바꿈을 정상화하고, 행 시작 들여쓰기 및 연속 스페이스를 1:1 보존하도록 cleanContent 전처리 고도화
+//             **2026-09-02** — cleanContent에서 2칸 이상의 인라인 연속 스페이스를 1:1 보존 처리하고, 리스트 종료 후 빈 행 문단 분리를 위해 ul+p, ol+p에 1.5em 마진 적용
+//             **2026-09-02** — 리스트(ul/ol) 및 리스트 아이템(li, li > p)에 white-space: normal 및 margin: 0을 명시하여 리스트 항목 끝 \n에 의한 빈 줄 생성 현상 완벽 해결
+//             **2026-09-02** — 리스트(ul/ol), 번호목록, 체크박스 내부에 p 태그가 생성될 때 발생하는 Loose List 행간 벌어짐(빈 행 현상)을 해결하기 위해 li > p 마진 제거 및 display: inline 적용
+//             **2026-09-02** — break-spaces 환경에서 br 태그와의 이중 줄바꿈 충돌(들여쓰기 시 빈 행 추가 현상)을 해결하기 위해 .onrivi-content-root br { display: none !important; } 적용 및 p 렌더러 정밀화
 //             **2026-09-02** — 에디터 연속 스페이스/탭(Tab) 및 행 시작 들여쓰기 공백이 미리보기에 1:1로 정확하게 유지되도록 white-space: break-spaces, tab-size: 4 연동 적용
 //             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v4.1] Content Document Scope 격리를 위해 최상위 루트에 .onrivi-content-root 표준 클래스 적용 및 서식 스코프 완전 격리
 //             **2026-08-31** — 미리보기가 위로 과도하게 치솟아 하얀 빈 화면이 노출되던 결함 해결을 위해 50vh 하단 스페이서 제거; 스크롤 싱크 엔진과 1:1 보간 일원화.
@@ -1325,7 +1330,11 @@ function MarkdownViewer({
     // 🛡️ [목록 번호 변환 방어]
     // 1) 웹 모드 처럼 숫자에 괄호 닫기 패턴(예: 1) )을 라인 시작 지점에 작성했을 때,
     // 마크다운 파서가 이를 ordered list <ol> 목록으로 오해하여 1. 등으로 변환 렌더링하는 것을 방지하기 위해 괄호 앞에 백슬래시 이스케이프(\))를 자동 적용합니다.
-    processed = processed.replace(/(^\s*\d+)\)(?=\s)/gm, '$1\\)');
+    // 🛡️ [Setext 헤딩 오작동 방어]
+    // 본문 문장 바로 아랫줄에 - 기호만 단독으로 입력했을 때(리스트 작성 타이핑 중),
+    // 마크다운 파서가 윗줄 문장을 H2 Setext 제목으로 오인하여 볼드로 바꾸는 현상을 방지하기 위해 이스케이프(\-) 처리
+    processed = processed.replace(/(^[ \t]*)-([ \t]*)$/gm, '$1\\-$2');
+    processed = processed.replace(/(^[ \t]*)=+([ \t]*)$/gm, '$1\\=$2');
 
     // 💡 [옵시디언 위키링크 변환 필터]
     // [[../relative/path.md#heading]] -> [path.md#heading](<../relative/path.md#heading>)
@@ -1338,12 +1347,46 @@ function MarkdownViewer({
     });
 
     const mdLinkRegex = /\[([^\]]+)\]\(((?:[^()]|\([^()]*\))+)\)/g;
-    return processed.replace(mdLinkRegex, (match, text, url) => {
+    processed = processed.replace(mdLinkRegex, (match, text, url) => {
       if (url.startsWith('<') && url.endsWith('>')) {
         return match;
       }
       return `[${text}](<${url}>)`;
     });
+
+    // 💡 [연속 엔터 빈 줄 완벽 보존] 엔터 2회 이상의 다중 빈 행이 있을 때 빈 문단(&nbsp;)으로 보존
+    processed = processed.replace(/\n{3,}/g, (match) => '\n\n' + '&nbsp;\n\n'.repeat(match.length - 2));
+
+    // 💡 [인라인 연속 스페이스 및 탭 1:1 보존]
+    // 코드블록(```) 영역을 제외하고 문장/리스트 중간의 2칸 이상 연속 공백을 &nbsp;로 변환하여 1:1 유지
+    const codeBlockSplits = processed.split(/(```[\s\S]*?```)/g);
+    processed = codeBlockSplits.map((block, idx) => {
+      if (idx % 2 === 1) return block; // 코드블록 내부는 원본 유지
+      return block.split('\n').map(line => {
+        const isListItem = /^[ \t]*([*+-]|\d+\.)\s+/.test(line);
+        if (isListItem) {
+          // 리스트 항목: 마크다운 리스트 인덴트 문법 보존 + 내용 내 2칸 이상 공백 보존
+          const listMatch = line.match(/^([ \t]*[*+-]|[ \t]*\d+\.)\s+(.*)$/);
+          if (listMatch) {
+            const prefix = listMatch[1];
+            let body = listMatch[2];
+            body = body.replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
+            return `${prefix} ${body}`;
+          }
+          return line;
+        }
+        // 일반 문장: 행 시작 공백/탭 및 문장 내 2칸 이상 공백 모두 1:1 보존
+        const leadMatch = line.match(/^([ \t]*)(.*)$/);
+        if (!leadMatch) return line;
+        let lead = leadMatch[1];
+        let rest = leadMatch[2];
+        lead = lead.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ /g, '&nbsp;');
+        rest = rest.replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
+        return lead + rest;
+      }).join('\n');
+    }).join('');
+
+    return processed;
   }, [content]);
 
   // 🛡️ [들여쓰기 및 인덴트 가드] 에디터 원본 텍스트의 해당 줄에 있는 탭과 공백을 계산하여 스타일(marginLeft)을 리턴하는 헬퍼 함수
@@ -1613,12 +1656,10 @@ function MarkdownViewer({
         .markdown-viewer-root,
         .onrivi-content-root {
           counter-reset: onrivi-figure;
-          white-space: break-spaces !important;
           tab-size: 4 !important;
           -moz-tab-size: 4 !important;
         }
         .onrivi-content-root p,
-        .onrivi-content-root li,
         .onrivi-content-root blockquote,
         .onrivi-content-root h1,
         .onrivi-content-root h2,
@@ -1626,12 +1667,41 @@ function MarkdownViewer({
         .onrivi-content-root h4,
         .onrivi-content-root h5,
         .onrivi-content-root h6 {
-          white-space: break-spaces !important;
           tab-size: 4 !important;
           -moz-tab-size: 4 !important;
         }
-        .onrivi-content-root br {
-          display: none !important;
+        .onrivi-content-root .onrivi-sentence-br {
+          display: block !important;
+          height: 0px !important;
+        }
+        .onrivi-content-root ul,
+        .onrivi-content-root ol {
+          white-space: normal !important;
+          margin-top: 0.5em !important;
+          margin-bottom: 0.5em !important;
+          padding-left: 1.5em !important;
+        }
+        .onrivi-content-root ul + p,
+        .onrivi-content-root ol + p {
+          margin-top: 1.5em !important;
+        }
+        .onrivi-content-root p + ul,
+        .onrivi-content-root p + ol {
+          margin-top: 1.2em !important;
+        }
+        .onrivi-content-root li {
+          white-space: normal !important;
+          margin: 0 !important;
+          padding: 1px 0 !important;
+          line-height: 1.6 !important;
+        }
+        .onrivi-content-root li > p,
+        .onrivi-content-root li > div,
+        .onrivi-content-root li p {
+          margin: 0 !important;
+          padding: 0 !important;
+          display: inline !important;
+          white-space: normal !important;
         }
         .onrivi-content-root pre,
         .onrivi-content-root pre code,
@@ -2284,6 +2354,7 @@ function MarkdownViewer({
             div: ({ node, className, children, ...props }: any) => {
               return <div className={className} {...props}>{children}</div>;
             },
+            br: ({ node, ...props }: any) => <span className="onrivi-sentence-br" {...props} />,
             pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,
             code: ({ node, inline, className, children, ...props }: any) => {
               const match = /language-(\S+)/.exec(className || '');

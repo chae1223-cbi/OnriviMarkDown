@@ -279,7 +279,7 @@ export default function CssStyleForm({
   profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, onOpenStyleManager, isDarkMode, geminiApiKey, aiModelName
 }: CssStyleFormProps) {
   const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE; // 현재 프로파일 
-  const isSystemProfile = isSystemProfileId(currentProfile.id);
+  const isSystemProfile = false;
 
   /* ─── 아코디언 상태 관리 ─── */
   const [openAccordion, setOpenAccordion] = useState<string | null>('typography');
@@ -1250,6 +1250,17 @@ ${guideContent}
                   unit="px"
                   disabled={isSystemProfile}
                   onChange={(v) => updateCssRule('p', 'margin-bottom', v + 'px')}
+                />
+
+                {/* 3-1. 문장 사이 간격 */}
+                <SliderWidget
+                  label="문장 사이 간격 (문단 내 줄바꿈 간격)"
+                  min={0}
+                  max={32}
+                  value={parseInt((currentProfile.rules.p || {})['sentence-gap'] || '0') || 0}
+                  unit="px"
+                  disabled={isSystemProfile}
+                  onChange={(v) => updateCssRule('p', 'sentence-gap', v + 'px')}
                 />
 
                 {/* 4. 들여쓰기 */}

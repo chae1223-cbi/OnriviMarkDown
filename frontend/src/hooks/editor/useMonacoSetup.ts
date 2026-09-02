@@ -4,7 +4,12 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
-// 🚨 @PATCH : 2026-09-02 - 탭 전환 직후 마우스 클릭(e.reason===3) 및 커서 이동 시 Safe Zone 위치 즉시 추종 보장
+// 🚨 @PATCH : 2026-09-02 - 에디터 왼쪽 줄번호/여백(Gutter) 영역에 차별화된 배경색(editorGutter.background) 및 선명한 줄번호 색상 적용
+//             2026-09-02 - 표(Table) 현재 열(Column) 정렬 퀵 변환 엔진(setTableColumnAlign) 및 단축키(Alt+Shift+L/C/R) 연동
+//             2026-09-02 - 한글 IME 슬래시 타이핑 시 onKeyUp 실시간 triggerSuggest 연동 및 sortText 최우선 1순위 자동 포커스 적용
+//             2026-09-02 - 한글 슬래시 명령어(/한글명령어: /표, /제목, /인용구 등) 입력 시 해당 명령어로 자동 포커스 및 이동 지원
+//             2026-09-02 - verticalScrollToElement 미정의 ReferenceError 결함을 표준 targetElement.scrollIntoView로 안전하게 교체
+//             2026-09-02 - 탭 전환 직후 마우스 클릭(e.reason===3) 및 커서 이동 시 Safe Zone 위치 즉시 추종 보장
 //             2026-09-02 - 에디터 마지막 행에서 입력 시 미리보기 즉시 바닥(최하단) 추종 동기화 반영 및 useDeferredValue 기반 무깜빡임 실시간 렌더링 연동
 //             2026-09-02 - 방향키(↑, ↓) 위아래 줄 이동 시 미리보기 Safe Zone 추종 연동(isTyping 가드로 타이핑/백스페이스 중 스크롤 0% 고정 유지), 에디터 스크롤 1:1 완벽 밀착
 //             2026-08-31 - 4대 요건(실시간 싱크 일치, 타이핑/엔터 안정성, 휠/방향키 1:1 연동, 대형 미디어 높이 보정) 전면 개편
@@ -243,7 +248,7 @@ export function useMonacoSetup(deps: any) {
                                   if (previewRef.current) {
                                     const targetElement = previewRef.current.querySelector(`[data-line="${newRowNumber}"]`) as HTMLElement;
                                     if (targetElement) {
-                                      verticalScrollToElement(previewRef.current, targetElement, 'center', 'auto');
+                                      targetElement.scrollIntoView({ block: 'center', behavior: 'auto' });
                                     }
                                   }
                                 }, 80);
@@ -525,8 +530,14 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
 
 
                   editor.onKeyUp((e) => {
-                    if (e.browserEvent.key === '/') {
-                      editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+                    const position = editor.getPosition();
+                    const model = editor.getModel();
+                    if (position && model) {
+                      const lineContent = model.getLineContent(position.lineNumber);
+                      const beforeCursor = lineContent.substring(0, position.column - 1);
+                      if (/(^|\s)\/\S*$/.test(beforeCursor)) {
+                        editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+                      }
                     }
                   });
 
@@ -759,6 +770,104 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
 
 
 
+                  // 🎯 표(Table) 현재 열(Column) 정렬 퀵 변경 함수
+                  const setTableColumnAlign = (align: 'left' | 'center' | 'right') => {
+                    const position = editor.getPosition();
+                    const model = editor.getModel();
+                    if (!position || !model) return;
+
+                    const curLineNum = position.lineNumber;
+                    const curLineContent = model.getLineContent(curLineNum);
+                    if (!isTableLine(curLineContent)) return;
+
+                    // 표의 시작 줄과 끝 줄 탐색
+                    const lineCount = model.getLineCount();
+                    let startLine = curLineNum;
+                    while (startLine > 1 && isTableLine(model.getLineContent(startLine - 1))) {
+                      startLine--;
+                    }
+                    let endLine = curLineNum;
+                    while (endLine < lineCount && isTableLine(model.getLineContent(endLine + 1))) {
+                      endLine++;
+                    }
+
+                    // 구분선 줄(divider line) 찾기
+                    let dividerLineNum = -1;
+                    for (let l = startLine; l <= endLine; l++) {
+                      if (isTableDividerLine(model.getLineContent(l))) {
+                        dividerLineNum = l;
+                        break;
+                      }
+                    }
+                    if (dividerLineNum === -1) return;
+
+                    // 현재 커서가 몇 번째 열인지 계산 (0-indexed)
+                    const { pipeIndices } = getCellRanges(curLineContent, curLineNum);
+                    if (pipeIndices.length < 2) return;
+
+                    let colIndex = 0;
+                    for (let i = 0; i < pipeIndices.length - 1; i++) {
+                      if (position.column >= pipeIndices[i] + 1 && position.column <= pipeIndices[i + 1] + 1) {
+                        colIndex = i;
+                        break;
+                      }
+                    }
+
+                    // 구분선 줄 파싱 및 해당 열 정렬 수정
+                    const dividerContent = model.getLineContent(dividerLineNum);
+                    const rawPipes: number[] = [];
+                    for (let i = 0; i < dividerContent.length; i++) {
+                      if (dividerContent[i] === '|') {
+                        if (i > 0 && dividerContent[i - 1] === '\\') continue;
+                        rawPipes.push(i);
+                      }
+                    }
+                    if (rawPipes.length < 2) return;
+
+                    const parts: string[] = [];
+                    for (let i = 0; i < rawPipes.length - 1; i++) {
+                      parts.push(dividerContent.substring(rawPipes[i] + 1, rawPipes[i + 1]));
+                    }
+
+                    if (colIndex >= parts.length) return;
+
+                    // 정렬 패턴 생성 (:---, :---:, ---:)
+                    let newAlignStr = ' :--- ';
+                    if (align === 'center') newAlignStr = ' :---: ';
+                    else if (align === 'right') newAlignStr = ' ---: ';
+                    else newAlignStr = ' :--- ';
+
+                    parts[colIndex] = newAlignStr;
+                    const newDividerLine = '|' + parts.join('|') + '|';
+
+                    editor.pushUndoStop();
+                    editor.executeEdits('setTableColumnAlign', [{
+                      range: new monaco.Range(dividerLineNum, 1, dividerLineNum, dividerContent.length + 1),
+                      text: newDividerLine,
+                      forceMoveMarkers: true
+                    }]);
+                    editor.pushUndoStop();
+                  };
+
+                  (editor as any).setTableColumnAlign = setTableColumnAlign;
+                  if (typeof window !== 'undefined') {
+                    (window as any).setTableColumnAlign = setTableColumnAlign;
+                  }
+
+                  // 🎯 표 열(Column) 정렬 퀵 단축키 등록
+                  // Alt + Shift + L: 현재 열 왼쪽 정렬
+                  editor.addCommand(monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyL, () => {
+                    setTableColumnAlign('left');
+                  });
+                  // Alt + Shift + C: 현재 열 중앙 정렬
+                  editor.addCommand(monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyC, () => {
+                    setTableColumnAlign('center');
+                  });
+                  // Alt + Shift + R: 현재 열 오른쪽 정렬
+                  editor.addCommand(monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyR, () => {
+                    setTableColumnAlign('right');
+                  });
+
                   // 🛡️ [한글 주석 탑재] Shift + Tab 키 입력 시 마크다운 표 역방향 셀 이동 및 목록 내어쓰기(Outdent) 통합 처리
                   // 현재 커서가 표 내부이면 이전 셀로 커서를 이동하고,
                   // 목록 계층에 있으면 맨 앞에 존재하는 2칸 공백 또는 1칸 탭 문자를 소거하여 아웃덴트 정렬합니다.
@@ -824,7 +933,7 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                                       if (previewRef.current) {
                                         const targetElement = previewRef.current.querySelector(`[data-line="${targetLine}"]`) as HTMLElement;
                                         if (targetElement) {
-                                          verticalScrollToElement(previewRef.current, targetElement, 'nearest', 'auto');
+                                          targetElement.scrollIntoView({ block: 'nearest', behavior: 'auto' });
                                         }
                                       }
                                     }, 50);
@@ -1244,11 +1353,22 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
 
                   // 💡 [테마 적용 안전장치] 마운트 시점에 수동으로 모든 테마를 다시 정의하고 강제 적용
                   EDITOR_THEMES.forEach(t => {
+                    const isDark = t.base === 'vs-dark';
                     monaco.editor.defineTheme(t.id, {
                       base: t.base,
                       inherit: true,
                       rules: t.rules,
-                      colors: t.colors
+                      colors: {
+                        ...t.colors,
+                        'editor.background': isDark ? '#1e1e1e' : '#ffffff',
+                        'editorGutter.background': isDark ? '#1e1e1e' : '#ffffff',
+                        'editorLineNumber.foreground': isDark ? '#52525B' : '#94A3B8',
+                        'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB',
+                        'editorCursor.foreground': isDark ? '#60a5fa' : '#2563eb',
+                        'editor.lineHighlightBackground': '#88888810',
+                        'editorIndentGuide.background': '#88888815',
+                        'editorIndentGuide.activeBackground': '#88888830',
+                      }
                     });
                   });
                   monaco.editor.setTheme(themePalette);
@@ -1379,9 +1499,15 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                   // 💡 [커서/타이핑/백스페이스 시 스크롤 간섭 0회 보장]
                   // 스크롤 동기화는 오직 사용자의 에디터 휠 및 스크롤바 조작(onDidScrollChange)에서만 구동됩니다.
 
-                  // 💡 [Enter 즉시 자동 저장 트리거]
+                  // 💡 [Enter 즉시 새 행 가시성 확보 및 자동 저장 트리거]
                   editor.onKeyDown((e) => {
                     if (e.keyCode === monaco.KeyCode.Enter && !isComposingRef.current) {
+                      setTimeout(() => {
+                        const pos = editor.getPosition();
+                        if (pos) {
+                          editor.revealPositionInCenterIfOutsideViewport(pos);
+                        }
+                      }, 10);
                       if (autoSaveRef.current && currentFileNodeRef.current) {
                         const val = editor.getValue();
                         if (val && val !== lastSavedContentRef.current) {
@@ -1462,31 +1588,39 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
 
                       const suggestions = getSlashCommands(monaco, customSlashCommandsRef.current);
 
-                      // 입력한 단어로 필터링 (/ 이후 글자 기준)
-                      const filterWord = slashWord.slice(1).toLowerCase(); // 'bold', 'im' 등
+                      // 입력한 단어로 필터링 (/ 이후 글자 기준, 영문 및 한글 모두 지원)
+                      const filterWord = slashWord.slice(1).toLowerCase().trim(); // 'bold', '표', '제목' 등
 
                       const filtered = filterWord.length === 0
                         ? suggestions  // '/' 만 입력 → 전체 표시
                         : suggestions.filter(s => {
                           const labelStr = typeof s.label === 'string' ? s.label : '';
                           const filterStr = typeof s.filterText === 'string' ? s.filterText : '';
+                          const detailStr = typeof s.detail === 'string' ? s.detail : '';
                           return (
                             labelStr.toLowerCase().includes(filterWord) ||
-                            filterStr.toLowerCase().includes(filterWord)
+                            filterStr.toLowerCase().includes(filterWord) ||
+                            detailStr.toLowerCase().includes(filterWord)
                           );
                         });
 
                       return {
-                        suggestions: filtered.map(s => ({
-                          ...s,
-                          // '/bold' 전체를 교체하여 '/bold' → '**텍스트**' 로 올바르게 변환
-                          range: {
-                            startLineNumber: position.lineNumber,
-                            endLineNumber: position.lineNumber,
-                            startColumn: startColumn,
-                            endColumn: position.column
-                          }
-                        }))
+                        suggestions: filtered.map((s, idx) => {
+                          const labelStr = typeof s.label === 'string' ? s.label : '';
+                          const filterStr = typeof s.filterText === 'string' ? s.filterText : '';
+                          const isDirectMatch = labelStr.toLowerCase().includes(filterWord) || filterStr.toLowerCase().includes('/' + filterWord);
+                          return {
+                            ...s,
+                            sortText: isDirectMatch ? String(idx).padStart(4, '0') : 'z_' + String(idx).padStart(4, '0'),
+                            // '/bold' 전체를 교체하여 '/bold' → '**텍스트**' 로 올바르게 변환
+                            range: {
+                              startLineNumber: position.lineNumber,
+                              endLineNumber: position.lineNumber,
+                              startColumn: startColumn,
+                              endColumn: position.column
+                            }
+                          };
+                        })
                       };
                     }
                   });

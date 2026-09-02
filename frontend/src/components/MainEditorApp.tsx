@@ -7,6 +7,12 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-09-02** — 에디터 상단 경로 표시줄을 투박한 역슬래시 텍스트에서 폴더/파일 SVG 아이콘 및 치브론 구분자 기반 모던 브레드크럼(Breadcrumb) UI로 전면 리뉴얼
+ *   * 🚨 @PATCH : **2026-09-02** — 사이드바 및 분할 모드(Split View) 에디터-미리보기 사이 분할선을 border-slate-300 dark:border-zinc-700으로 선명하게 강화
+ *   * 🚨 @PATCH : **2026-09-02** — 플로팅 툴바에 표 현재 열 정렬(좌/중/우) 퀵 버튼 3종 추가 연동
+ *   * 🚨 @PATCH : **2026-09-02** — 서식 설정에 문단 내 문장 사이 간격(sentence-gap / 줄바꿈 간격, 기본값 0px) 슬라이더 컨트롤 추가 및 동적 CSS br 마진 주입 연동
+ *   * 🚨 @PATCH : **2026-09-02** — 서식 설정(CSS 프로필)의 P 태그 줄간격(line-height), 여백, 들여쓰기 변경이 실시간으로 반영되도록 line-height inherit 충돌을 해소하고 선택자에 onrivi-content-root 확장
+ *   * 🚨 @PATCH : **2026-09-02** — CSS 프로필(서식) 적용 시 p 태그 마진이 리스트 내부로 흘러들어가 행간이 벌어지던 현상을 막기 위해 generatePreviewCss에 li, li p 제로 마진 압착 규칙 주입
  *   * 🚨 @PATCH : **2026-09-02** — 에디터 마지막 행 아래의 과도한 스크롤 빈 공간을 없애기 위해 scrollBeyondLastLine: false 및 padding.bottom: 24로 최적화
  *   * 🚨 @PATCH : **2026-09-02** — 에디터 Monaco 패딩(top: 16, bottom: 24, right: 16) 및 미리보기 페이지 시트 상하 여백(my-3~4, pb-12)을 슬림하게 축소 조정하여 쾌적한 작업 공간 확보
  *   * 🚨 @PATCH : **2026-09-02** — 타이핑 시 180ms 지연 깜빡임을 완전히 제거하기 위해 React 18 useDeferredValue 기반 동시성 실시간 렌더링 적용 및 에디터 마지막 행 입력 시 미리보기가 가려지지 않고 실시간 바닥(최하단)을 즉시 추종하도록 동기화 개선
@@ -4424,7 +4430,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .custom-preview-container li,
 .custom-preview-container blockquote {
   font-size: inherit !important;
-  line-height: inherit !important;
 }
 /* 탭 간격 (Tab Size) — pre/code에서 탭 문자가 표시될 폭 */
 .custom-preview-container pre,
@@ -4451,8 +4456,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }).filter(([prop, v]) => {
         if (v === '') return false;
         if (skipFontSize && prop === 'font-size') return false;
+        if (prop === 'sentence-gap') return false;
         return true;
       }).sort((a, b) => a[0].localeCompare(b[0]));
+
+      if (tag === 'p' && ruleObj['sentence-gap']) {
+        const sGap = ruleObj['sentence-gap'];
+        const sGapNum = parseInt(sGap, 10) || 0;
+        if (sGapNum > 0) {
+          css += `.custom-preview-container .onrivi-sentence-br, .onrivi-content-root .onrivi-sentence-br, .custom-preview-container p br, .onrivi-content-root p br {\n  display: block !important;\n  height: ${sGap} !important;\n}\n`;
+        }
+      }
+
       if (entries.length === 0) return;
 
       if (tag === 'codeBlockTitle') {
@@ -4583,7 +4598,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             
       const isMediaTag = tag === 'img' || tag === 'video' || tag === 'map';
       const sizeProps = ['width', 'height', 'max-width', 'max-height'];
-      css += `.custom-preview-container ${selector} {\n`;
+      css += `.custom-preview-container ${selector}, .onrivi-content-root ${selector} {\n`;
       entries.forEach(([prop, val]) => {
         const skipImportant = isMediaTag && sizeProps.includes(prop);
         css += `  ${prop}: ${val}${skipImportant ? '' : ' !important'};\n`;
@@ -4691,6 +4706,34 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .custom-preview-container ul li::marker,
 .custom-preview-container ol li::marker {
   color: inherit !important;
+}
+.custom-preview-container li,
+.custom-preview-container li > p,
+.custom-preview-container li p {
+  margin-top: 0 !important;
+  margin-bottom: 2px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.custom-preview-container ul,
+.custom-preview-container ol {
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.custom-preview-container ul + p,
+.custom-preview-container ol + p {
+  margin-top: 1.5em !important;
+}
+.custom-preview-container p + ul,
+.custom-preview-container p + ol {
+  margin-top: 1.2em !important;
+}
+.custom-preview-container li > ul,
+.custom-preview-container li > ol {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 `;
 
@@ -5974,13 +6017,58 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               {!showEmbeddedWelcome && (
                 <div className="no-print flex flex-col w-full">
                   <UnifiedTabBar />
-                  {activeTab && (
-                    <div className="flex items-center justify-between px-4 py-1 border-b border-black/5 dark:border-white/5 bg-zinc-100 dark:bg-zinc-900/80 text-[10px] text-zinc-500 font-semibold shadow-inner z-10">
-                      <span className="truncate max-w-full opacity-70 hover:opacity-100 transition-opacity cursor-default">
-                        📁 {workspaceType === 'browser' ? (rootFolder?.name ? `${rootFolder.name} \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}` : `🌐 Browser Storage \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}`) : (workspaceType === 'cloud' ? `[${cloudProvider || 'Cloud'}] \\ ${rootFolder?.name || 'Sync'} \\ ${(currentFileNode?.path || currentFileName).replace(/[\\/]/g, ' \\ ')}` : (currentFileNode?.path?.includes(':') ? currentFileNode.path : `${driveLetter}\\새 문서\\${currentFileName}`))}
-                      </span>
-                    </div>
-                  )}
+                  {activeTab && (() => {
+                    let rootName = '';
+                    let subPath = currentFileNode?.path || currentFileName || '';
+
+                    if (workspaceType === 'browser') {
+                      rootName = rootFolder?.name || 'Browser Storage';
+                    } else if (workspaceType === 'cloud') {
+                      rootName = `[${cloudProvider || 'Cloud'}] ${rootFolder?.name || 'Sync'}`;
+                    } else {
+                      if (currentFileNode?.path?.includes(':')) {
+                        const parts = currentFileNode.path.split(/[\\/]/);
+                        rootName = parts[0] || (driveLetter || 'C:');
+                        subPath = parts.slice(1).join('/');
+                      } else {
+                        rootName = driveLetter || 'C:';
+                        subPath = `새 문서/${currentFileName}`;
+                      }
+                    }
+
+                    // subPath에서 파일명 및 상위 폴더들 분리
+                    const segments = subPath.replace(/\\/g, '/').split('/').filter(Boolean);
+                    const fileName = segments.length > 0 ? segments[segments.length - 1] : currentFileName;
+                    const folders = segments.length > 1 ? segments.slice(0, segments.length - 1) : [];
+
+                    return (
+                      <div className="flex items-center px-3.5 py-1.5 border-b border-slate-200 dark:border-zinc-800 bg-slate-100/90 dark:bg-zinc-900 text-[11px] font-bold text-slate-900 dark:text-zinc-100 overflow-x-auto no-scrollbar gap-2 select-none shadow-2xs z-10">
+                        {/* 루트 워크스페이스 */}
+                        <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
+                          <Folder size={14} className="text-amber-500 shrink-0 fill-amber-400" />
+                          <span>{rootName}</span>
+                        </span>
+
+                        {/* 중간 폴더들 */}
+                        {folders.map((folder, idx) => (
+                          <React.Fragment key={idx}>
+                            <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                            <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
+                              <Folder size={13} className="text-amber-500 shrink-0 fill-amber-400" />
+                              <span>{folder}</span>
+                            </span>
+                          </React.Fragment>
+                        ))}
+
+                        {/* 현재 파일명 */}
+                        <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                        <span className="flex items-center gap-1.5 shrink-0 font-bold text-slate-950 dark:text-white bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 px-2 py-0.5 rounded-md shadow-xs">
+                          <FileText size={13} className="text-[#06C755] shrink-0 stroke-[2.5]" />
+                          <span className="truncate max-w-[350px]">{fileName}</span>
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {showEmbeddedWelcome ? (
@@ -6024,7 +6112,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
 
                     <div
-                      className="flex-1 min-w-0 relative border-r border-zinc-200 dark:border-zinc-800 transition-colors duration-300 no-print bg-surface-container-low dark:bg-zinc-950"
+                      className={`flex-1 min-w-0 relative transition-colors duration-300 no-print bg-white dark:bg-[#1e1e1e] ${
+                        previewMode === 'both' ? 'border-r border-slate-300 dark:border-zinc-700 shadow-xs' : ''
+                      }`}
                       style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
                     >
                       <Editor
@@ -6039,16 +6129,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         // 즉시 갱신과 100ms 지연 갱신이 모두 발생해 미리보기가 두 번 리렌더링됩니다.
                         beforeMount={(monaco) => {
                           EDITOR_THEMES.forEach(t => {
+                            const isDark = t.base === 'vs-dark';
                             monaco.editor.defineTheme(t.id, {
                               base: t.base,
                               inherit: true,
                               rules: t.rules,
                               colors: {
                                 ...t.colors,
-                                'editor.background': '#00000000', // 프리미엄 룩을 위한 완전 투명 배경 (부모 UI와 일체화)
-                                'editorCursor.foreground': t.base === 'vs-dark' ? '#60a5fa' : '#2563eb', // 🎯 뚜렷한 파란색 커서 보장
+                                'editor.background': isDark ? '#1e1e1e' : '#ffffff', // 🎯 순수 화이트 배경
+                                'editorGutter.background': isDark ? '#1e1e1e' : '#ffffff', // 🎯 순수 화이트 일체화
+                                'editorLineNumber.foreground': isDark ? '#52525B' : '#94A3B8', // 선명한 줄번호
+                                'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB', // 활성 행 줄번호 강조
+                                'editorCursor.foreground': isDark ? '#60a5fa' : '#2563eb', // 🎯 뚜렷한 파란색 커서 보장
                                 'editor.lineHighlightBackground': '#88888810', // 연한 하이라이트
-                                'editorLineNumber.foreground': '#88888850', // 튀지 않는 줄번호
                                 'editorIndentGuide.background': '#88888815', // 은은한 들여쓰기 가이드
                                 'editorIndentGuide.activeBackground': '#88888830',
                               }
@@ -6059,8 +6152,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         options={{
                           readOnly: tabs.length === 0 || isRestrictedUser,
                           domReadOnly: tabs.length === 0 || isRestrictedUser,
-                          padding: { top: 16, bottom: 24, right: 16 }, // 쾌적하고 슬림한 상하/우측 여백
+                          padding: { top: 16, bottom: 24, left: 0, right: 16 }, // 상하/우측 슬림 여백
                           scrollBeyondLastLine: false, // 마지막 줄 아래 과도한 여백 제거
+                          glyphMargin: false, // 글리프 좌측 여백 제거
+                          folding: false, // 폴딩 화살표 여백 제거
+                          lineNumbersMinChars: 4, // 💡 줄 번호 영역 폭을 4자릿수로 넓혀 여유 공간 확보
+                          lineDecorationsWidth: 10, // 💡 줄 번호와 본문 사이 여유 간격 확보
                           automaticLayout: true,
                           fontSize,
                           lineHeight: 1.7, // 시원한 줄간격 유지 (세련됨)
@@ -6174,6 +6271,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                             onMouseDown={handleDragStart}
                           >
                             {(() => {
+                              const model = editorRef.current?.getModel();
+                              const pos = editorRef.current?.getPosition();
+                              const curLine = (model && pos) ? model.getLineContent(pos.lineNumber) : '';
+                              const isInTable = curLine.trim().startsWith('|') && (curLine.match(/\|/g) || []).length >= 2;
+
                               return (
                                 <div className="flex flex-row items-center gap-3 min-w-max">
                                   {/* AI 단독 아이콘 */}
@@ -6237,10 +6339,53 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('NOW'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="현재 날짜/시간">📅</button>
                                   </div>
                                   <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
-                                  {/* 고급 */}
+                                  {/* 고급 및 표 열 정렬 */}
                                   <div className="flex flex-row items-center gap-0.5">
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('MAP'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="지도 삽입">🌏</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('TABLE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="표 생성">📶</button>
+                                    {isInTable && (
+                                      <>
+                                        <button
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                              (window as any).setTableColumnAlign('left');
+                                            }
+                                            setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                          }}
+                                          className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[12px] font-bold text-blue-600 dark:text-blue-400"
+                                          title="현재 열 왼쪽 정렬 (Alt+Shift+L)"
+                                        >
+                                          ⇤
+                                        </button>
+                                        <button
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                              (window as any).setTableColumnAlign('center');
+                                            }
+                                            setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                          }}
+                                          className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[12px] font-bold text-blue-600 dark:text-blue-400"
+                                          title="현재 열 가운데 정렬 (Alt+Shift+C)"
+                                        >
+                                          ↔
+                                        </button>
+                                        <button
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            if (typeof window !== 'undefined' && (window as any).setTableColumnAlign) {
+                                              (window as any).setTableColumnAlign('right');
+                                            }
+                                            setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                          }}
+                                          className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[12px] font-bold text-blue-600 dark:text-blue-400"
+                                          title="현재 열 오른쪽 정렬 (Alt+Shift+R)"
+                                        >
+                                          ⇥
+                                        </button>
+                                      </>
+                                    )}
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="코드 블록">⌨️</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LATEX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="수식(LaTeX)">🧮</button>
                                   </div>
