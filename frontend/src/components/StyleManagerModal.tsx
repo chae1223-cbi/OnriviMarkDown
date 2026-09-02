@@ -5,7 +5,8 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026-08-15> 최초작성
- * 🚨 @PATCH : **2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 좌측 서식 목록 사이드바 .bg-sidebar-luxury 럭셔리 그라데이션 적용 및 LDSG Green(#06C755)/Blue(#4D73FF) 컬러 시스템 100% 통일
+ * 🚨 @PATCH : **2026-09-02** — 서식 데이터 관리 파일 내보내기 아이콘을 공식 아이콘(/icons/icon-export.png)으로 교체 및 통일
+ *             **2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 좌측 서식 목록 사이드바 .bg-sidebar-luxury 럭셔리 그라데이션 적용 및 LDSG Green(#06C755)/Blue(#4D73FF) 컬러 시스템 100% 통일
  *             **2026-08-15** — 서식 테마 관리(추가/삭제/이름변경/가져오기/내보내기/AI생성)를
  *             CssStyleForm 인라인 UI에서 분리하여 전용 풀스크린 모달로 독립
  *             z-index를 z-[210]으로 상향 (CssStyleModal z-[200] 위) /
@@ -436,8 +437,8 @@ ${guideContent}
 
                   {/* 내보내기 */}
                   <div className={`p-4 rounded-xl border ${border} ${dk ? 'bg-zinc-900/30 hover:bg-zinc-900/50' : 'bg-slate-50 hover:bg-slate-100/70'} transition-colors group cursor-pointer flex items-center gap-3`} onClick={handleExport}>
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${dk ? 'bg-zinc-800 text-zinc-300' : 'bg-white shadow-sm text-slate-600 border border-slate-200'} shrink-0`}>
-                      <Download className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-transparent shrink-0">
+                      <img src="/icons/icon-export.png" width={24} height={24} alt="내보내기" className="opacity-90" />
                     </div>
                     <div>
                       <h4 className={`text-[13px] font-bold ${textMain}`}>파일 내보내기</h4>

@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import GlobalSearch from './GlobalSearch';
 import FileTreeItem from './FileTreeItem';
 import { FileNode } from '@/lib/indexedDbHelper';
-import { vfsRename } from '@/lib/virtualFileSystem';
+import { vfsRename, vfsCopyItem } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
 import { Plus } from 'lucide-react';
@@ -21,7 +21,9 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-02** — 좌측 사이드바 워크스페이스 실폴더 라벨 및 파일 트리/목차 폰트를 font-bold 및 고대비 색상으로 굵기/선명도 강화
+// 🚨 @PATCH : **2026-09-02** — 루트 상단 액션버튼 제거 및 신규 붙여넣기 아이콘(/icons/icon-paste.png) 컨텍스트 메뉴 동기화
+//             **2026-09-02** — 파일 및 폴더 복사/붙여넣기(Copy & Paste) 엔진 탑재
+//             **2026-09-02** — 좌측 사이드바 워크스페이스 실폴더 라벨 및 파일 트리/목차 폰트를 font-bold 및 고대비 색상으로 굵기/선명도 강화
 //             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) LNB 표준 디자인 적용 (Clean White Surface, LINE Green #06C755 탭 배지, LineSeed 폰트)
 //             **2026-08-12** — 개요(TOC) 클릭 시 preview/both(분할) 모드에 맞춰 스크롤 동작을 이원화하고 하위 수준 존재 여부와 무관하게 정상 스크롤되도록 보완; H3 이하의 뎁스 목차가 기본적으로 접힌 채 렌더링에서 누락되던 조건 버그(undefined!==false)를 ===true 접힘으로 전면 교정하여 전체 펼침 구현; **2026-08-12** — 미리보기 스크롤 시 좌측 개요(TOC) 탭 목록도 활성 헤딩 위치를 자동으로 추적하여 뷰포트 내로 자동 스크롤(Auto-scroll Follow)되는 지능형 연동 기능 구현; **2026-08-12** — 개요(TOC) 클릭 시 에디터-미리보기 간의 양방향 스크롤 동기화 간섭을 일시 차단하는 락킹(isScrollingRef) 루틴을 적용하고 미리보기 컨테이너(previewRef) 내에서 부드러운 스크롤(scrollTo)이 동작하도록 개선; **2026-08-12** — 사이드바 배경을 라이트모드에 최적화된 고급스러운 아이스 블루 및 실버 톤 그라데이션(linear-gradient)으로 교체하고 탭 헤더 및 워크스페이스 바를 반투명 처리하는 프리미엄 디자인 리뉴얼 패치 적용; **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
@@ -83,6 +85,85 @@ export default function LeftSidebar() {
       };
     }
   }, [contextMenu]);
+
+  // 📋 파일/폴더 복사 및 붙여넣기 클립보드 상태
+  const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any } | null>(null);
+
+  const handleCopyNode = (targetNode?: FileNode, parentHandle?: any) => {
+    const nodeToCopy = targetNode || currentFileNode;
+    if (!nodeToCopy) {
+      showToast('복사할 파일 또는 폴더를 선택하세요.', 'warning');
+      return;
+    }
+    setClipboardNode({ node: nodeToCopy, parentHandle });
+    if (typeof window !== 'undefined') {
+      (window as any)._omdClipboardNode = { node: nodeToCopy, parentHandle };
+    }
+    showToast(`'${nodeToCopy.name}'이(가) 클립보드에 복사되었습니다.`, 'success');
+  };
+
+  const handlePasteNode = async (targetDirNode?: FileNode, targetHandle?: any) => {
+    const clip = clipboardNode || (typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null);
+    if (!clip || !clip.node) {
+      showToast('클립보드에 복사된 파일 또는 폴더가 없습니다.', 'warning');
+      return;
+    }
+
+    const srcNode = clip.node;
+    const destDirPath = targetDirNode ? (targetDirNode.path || '') : (rootFolder?.path || '');
+
+    try {
+      if (workspaceType === 'local') {
+        const api = (window as any).electronAPI;
+        if (api?.copyFile && srcNode.path) {
+          const newPath = destDirPath ? `${destDirPath}\\${srcNode.name}` : srcNode.name;
+          await api.copyFile(srcNode.path, newPath);
+          showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+          await refreshFileList();
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          return;
+        }
+      }
+
+      // VFS (Web LocalStorage)
+      if (srcNode.path) {
+        vfsCopyItem(srcNode.path, destDirPath);
+        showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+        await refreshFileList();
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+      }
+    } catch (e: any) {
+      showToast('붙여넣기 실패: ' + (e.message || e), 'error');
+    }
+  };
+
+  const handleRenameActive = () => {
+    if (!currentFileName && !currentFileNode) {
+      showToast('이름을 변경할 활성 파일을 선택하세요.', 'warning');
+      return;
+    }
+    const targetName = currentFileNode?.name || currentFileName;
+    setPromptConfig({
+      isOpen: true,
+      title: `이름 변경:`,
+      defaultValue: targetName,
+      type: 'rename',
+      node: currentFileNode,
+      parentHandle: null
+    });
+  };
+
+  useEffect(() => {
+    const onCopyEvent = (e: any) => handleCopyNode(e.detail?.node, e.detail?.parentHandle);
+    const onPasteEvent = (e: any) => handlePasteNode(e.detail?.targetDirNode, e.detail?.targetHandle);
+    window.addEventListener('file:copy-node', onCopyEvent);
+    window.addEventListener('file:paste-node', onPasteEvent);
+    return () => {
+      window.removeEventListener('file:copy-node', onCopyEvent);
+      window.removeEventListener('file:paste-node', onPasteEvent);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipboardNode, currentFileNode, rootFolder, workspaceType]);
 
   const handleDragOverRoot = (e: React.DragEvent) => {
     e.preventDefault();
@@ -843,7 +924,7 @@ export default function LeftSidebar() {
               onDrop={handleDropRoot}
             >
               <div 
-                className="group relative flex items-center justify-between px-1 py-1 text-[12px] font-bold text-on-surface border-b border-outline-variant/20 mb-1 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer rounded-t transition-colors"
+                className="group relative flex items-center justify-between px-1.5 py-1 text-[12px] font-bold text-on-surface border-b border-outline-variant/20 mb-1 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer rounded-t transition-colors"
                 onContextMenu={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -851,7 +932,8 @@ export default function LeftSidebar() {
                   setContextMenu({ x: e.clientX, y: e.clientY });
                 }}
               >
-                <span className="truncate">📁 {rootFolder.name}</span>
+                <span className="truncate flex-1 font-bold">📁 {rootFolder.name}</span>
+
                 {/* Context Menu Portal */}
                 {contextMenu && createPortal(
                   <div
@@ -897,6 +979,28 @@ export default function LeftSidebar() {
                           >
                             <img src="/icons/icon-folder-plus.png" width={16} height={16} alt="새 폴더" className="opacity-90" />
                             <span>새 폴더</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContextMenu(null);
+                              handleCopyNode();
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                          >
+                            <img src="/icons/icon-copy.png" width={16} height={16} alt="복사하기" className="opacity-90" />
+                            <span>복사하기</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContextMenu(null);
+                              handlePasteNode();
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                          >
+                            <img src="/icons/icon-paste.png" width={16} height={16} alt="붙여넣기" className="opacity-90" />
+                            <span>붙여넣기</span>
                           </button>
                         </>
                       )}

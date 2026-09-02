@@ -864,7 +864,6 @@ const FileTreeItem = ({
         
         <span className="ml-1.5 truncate text-[12px] font-bold text-left flex-1">{node.name}</span>
 
-        {/* Context Menu Portal */}
         {contextMenu && !isMergeMode && !isRestrictedUser && createPortal(
           <div
             className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
@@ -915,6 +914,34 @@ const FileTreeItem = ({
                     <img src="/icons/icon-rename.png" width={16} height={16} alt="이름 변경" className="opacity-90" />
                     <span>이름 변경</span>
                   </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setContextMenu(null);
+                      window.dispatchEvent(new CustomEvent('file:copy-node', {
+                        detail: { node, parentHandle }
+                      }));
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                  >
+                    <img src="/icons/icon-copy.png" width={16} height={16} alt="복사하기" className="opacity-90" />
+                    <span>복사하기</span>
+                  </button>
+                  {node.kind === 'directory' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setContextMenu(null);
+                        window.dispatchEvent(new CustomEvent('file:paste-node', {
+                          detail: { targetDirNode: node, targetHandle: node.handle }
+                        }));
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                    >
+                      <img src="/icons/icon-paste.png" width={16} height={16} alt="붙여넣기" className="opacity-90" />
+                      <span>붙여넣기</span>
+                    </button>
+                  )}
                   <button
                     onClick={(e) => { 
                       e.stopPropagation(); 

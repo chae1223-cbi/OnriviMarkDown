@@ -322,3 +322,118 @@ export function vfsDelete(path: string): void {
   removeNode(files);
   saveVfsFiles(files);
 }
+
+/**
+ * 가상 파일/폴더를 복사하여 대상 폴더에 붙여넣습니다. (재귀적 복사 지원)
+ */
+export function vfsCopyItem(sourcePath: string, destDirPath: string = ''): string {
+  const files = getVfsFiles();
+
+  // 1. 소스 노드 찾기
+  let sourceNode: FileNode | null = null;
+  const findNode = (nodes: FileNode[]): boolean => {
+    for (const node of nodes) {
+      if (node.path === sourcePath) {
+        sourceNode = JSON.parse(JSON.stringify(node));
+        return true;
+      }
+      if (node.kind === 'directory' && node.children) {
+        if (findNode(node.children)) return true;
+      }
+    }
+    return false;
+  };
+  findNode(files);
+
+  if (!sourceNode) {
+    throw new Error('복사할 원본 파일/폴더를 찾을 수 없습니다.');
+  }
+
+  // 2. 새 이름 결정 (중복 방지)
+  const destDirNorm = destDirPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const getExistingNames = (nodes: FileNode[], targetDir: string): string[] => {
+    if (!targetDir) return nodes.map(n => n.name);
+    for (const node of nodes) {
+      if (node.path === targetDir && node.kind === 'directory') {
+        return (node.children || []).map(n => n.name);
+      }
+      if (node.kind === 'directory' && node.children) {
+        const res = getExistingNames(node.children, targetDir);
+        if (res.length > 0) return res;
+      }
+    }
+    return [];
+  };
+
+  const existingNames = getExistingNames(files, destDirNorm);
+  const srcName = (sourceNode as FileNode).name;
+  let newName = srcName;
+
+  if (existingNames.includes(newName)) {
+    if ((sourceNode as FileNode).kind === 'file') {
+      const extMatch = srcName.match(/\.[^.]+$/);
+      const ext = extMatch ? extMatch[0] : '';
+      const baseName = ext ? srcName.slice(0, -ext.length) : srcName;
+      let counter = 1;
+      while (existingNames.includes(`${baseName}_copy${counter > 1 ? counter : ''}${ext}`)) {
+        counter++;
+      }
+      newName = `${baseName}_copy${counter > 1 ? counter : ''}${ext}`;
+    } else {
+      let counter = 1;
+      while (existingNames.includes(`${srcName}_copy${counter > 1 ? counter : ''}`)) {
+        counter++;
+      }
+      newName = `${srcName}_copy${counter > 1 ? counter : ''}`;
+    }
+  }
+
+  const newPath = destDirNorm ? `${destDirNorm}/${newName}` : newName;
+
+  // 3. 재귀 복제 및 컨텐츠 복사
+  const cloneAndSaveContents = (node: FileNode, targetPath: string, targetName: string): FileNode => {
+    const clonedNode: FileNode = {
+      name: targetName,
+      kind: node.kind,
+      path: targetPath,
+      children: node.kind === 'directory' ? [] : undefined
+    };
+
+    if (node.kind === 'file' && node.path) {
+      const content = vfsReadFile(node.path);
+      vfsWriteFile(targetPath, content);
+    } else if (node.kind === 'directory' && node.children) {
+      clonedNode.children = node.children.map(child => {
+        const childNewPath = `${targetPath}/${child.name}`;
+        return cloneAndSaveContents(child, childNewPath, child.name);
+      });
+    }
+
+    return clonedNode;
+  };
+
+  const newNode = cloneAndSaveContents(sourceNode, newPath, newName);
+
+  // 4. 새 노드를 대상 디렉토리에 삽입
+  const insertNode = (nodes: FileNode[], targetDir: string): boolean => {
+    if (!targetDir) {
+      nodes.push(newNode);
+      return true;
+    }
+    for (const node of nodes) {
+      if (node.path === targetDir && node.kind === 'directory') {
+        if (!node.children) node.children = [];
+        node.children.push(newNode);
+        return true;
+      }
+      if (node.kind === 'directory' && node.children) {
+        if (insertNode(node.children, targetDir)) return true;
+      }
+    }
+    return false;
+  };
+
+  insertNode(files, destDirNorm);
+  saveVfsFiles(files);
+  return newPath;
+}
