@@ -50,7 +50,9 @@ export const insertAtCursor = (editorRef: any, lastSelectionRef: any, text: stri
         selection.endLineNumber,
         selection.endColumn
       );
+      editor.pushUndoStop();
       editor.executeEdits("insert", [{ range, text, forceMoveMarkers: true }]);
+      editor.pushUndoStop();
       
       try {
         const model = editor.getModel();
@@ -128,11 +130,13 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
 
   if (text) {
     const newText = `${startTag}\n${text}\n${endTag}`;
+    editor.pushUndoStop();
     editor.executeEdits("insertBlockTag", [{
       range: selection,
       text: newText,
       forceMoveMarkers: true
     }]);
+    editor.pushUndoStop();
     const linesAdded = startTag.split('\n').length;
     editor.setSelection(new (window as any).monaco.Selection(
       selection.startLineNumber + linesAdded,
@@ -143,11 +147,13 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
   } else {
     const textToWrap = defaultText;
     const newText = textToWrap ? `${startTag}\n${textToWrap}\n${endTag}` : `${startTag}\n\n${endTag}`;
+    editor.pushUndoStop();
     editor.executeEdits("insertBlockTag", [{
       range: selection,
       text: newText,
       forceMoveMarkers: true
     }]);
+    editor.pushUndoStop();
 
     const linesAdded = startTag.split('\n').length;
     if (textToWrap) {
@@ -184,7 +190,7 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
 // 📊 [OMD-EDIT-editorActions-0001] editorActions ➔ wrapSelection
 // 🎯 @KICK  : 선택된 텍스트를 지정된 문자열로 감싸거나 토글 방식으로 제거한다
 // 🛡️ @GUARD : 이전 선택 영역이 없거나 비어 있으면 early return
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-03** — 선택된 텍스트에 서식(Bold/Italic 등) 적용 시 텍스트 앞뒤 태그만 분리 주입하고 pushUndoStop을 적용하여, Ctrl+Z 실행취소 시 텍스트는 보존되고 태그만 단독 취소되도록 개선
 // 🔗 @CALLS : 없음
 // ====================================================================
 /**
@@ -247,7 +253,6 @@ export const wrapSelection = (editorRef: any, lastSelectionRef: any, before: str
     }
 
     const isEmpty = !text || text.length === 0;
-    const textToWrap = (isEmpty && defaultText) ? defaultText : text;
 
     if (before && after && text.startsWith(before) && text.endsWith(after) && text.length >= (before.length + after.length)) {
       const stripped = text.slice(before.length, text.length - after.length);
@@ -258,7 +263,9 @@ export const wrapSelection = (editorRef: any, lastSelectionRef: any, before: str
         selection.endLineNumber,
         selection.endColumn
       );
+      editor.pushUndoStop();
       editor.executeEdits("toggle-off-inside", [{ range, text: stripped, forceMoveMarkers: true }]);
+      editor.pushUndoStop();
 
       setTimeout(() => {
         if (!selection) return;
@@ -291,7 +298,9 @@ export const wrapSelection = (editorRef: any, lastSelectionRef: any, before: str
 
         if (textBefore === before && textAfter === after) {
           const fullRange = new (window as any).monaco.Range(startLine, startCol - before.length, endLine, endCol + after.length);
+          editor.pushUndoStop();
           editor.executeEdits("toggle-off-outside", [{ range: fullRange, text: text, forceMoveMarkers: true }]);
+          editor.pushUndoStop();
 
           setTimeout(() => {
             if (!selection) return;
@@ -309,13 +318,59 @@ export const wrapSelection = (editorRef: any, lastSelectionRef: any, before: str
       }
     }
 
+    if (!isEmpty) {
+      // 💡 [태그 분리 삽입 스마트 엔진]
+      // 텍스트가 선택된 상태에서 서식 적용 시, 텍스트 자체를 치환하지 않고
+      // 텍스트 앞(start)과 뒤(end)에 태그만 독립 주입합니다.
+      // 이렇게 하면 Ctrl+Z(실행취소) 시 원본 텍스트는 100% 안전하게 보존되고 오직 '태그'만 취소되어
+      // 사용자가 방금 입력한 문자가 통째로 날아가는 현상을 완벽하게 방지합니다!
+      const edits = [];
+      if (before) {
+        edits.push({
+          range: new (window as any).monaco.Range(startLine, startCol, startLine, startCol),
+          text: before,
+          forceMoveMarkers: true
+        });
+      }
+      if (after) {
+        edits.push({
+          range: new (window as any).monaco.Range(endLine, endCol, endLine, endCol),
+          text: after,
+          forceMoveMarkers: true
+        });
+      }
+
+      editor.pushUndoStop();
+      editor.executeEdits("wrap-tag", edits);
+      editor.pushUndoStop();
+
+      setTimeout(() => {
+        if (!selection) return;
+        const selectStart = startCol + (before ? before.length : 0);
+        const selectEnd = (startLine === endLine) ? (endCol + (before ? before.length : 0)) : endCol;
+        editor.setSelection(new (window as any).monaco.Selection(
+          startLine,
+          selectStart,
+          endLine,
+          selectEnd
+        ));
+        refreshTokens(startLine, endLine);
+      }, 10);
+      editor.focus();
+      return;
+    }
+
+    // 선택 영역이 비어 있는 경우: defaultText를 포함하여 통째로 삽입
+    const textToWrap = defaultText || "";
     const range = new (window as any).monaco.Range(
       selection.startLineNumber,
       selection.startColumn,
       selection.endLineNumber,
       selection.endColumn
     );
-    editor.executeEdits("toggle-on", [{ range, text: `${before}${textToWrap}${after}`, forceMoveMarkers: true }]);
+    editor.pushUndoStop();
+    editor.executeEdits("wrap-empty", [{ range, text: `${before}${textToWrap}${after}`, forceMoveMarkers: true }]);
+    editor.pushUndoStop();
 
     setTimeout(() => {
       if (!selection) return;
@@ -326,7 +381,7 @@ export const wrapSelection = (editorRef: any, lastSelectionRef: any, before: str
 
       if (startLine === endLine) {
         const selectStart = startCol + before.length;
-        const selectEnd = isEmpty && defaultText ? selectStart + defaultText.length : endCol + before.length;
+        const selectEnd = defaultText ? selectStart + defaultText.length : endCol + before.length;
         editor.setSelection(new (window as any).monaco.Selection(
           startLine,
           selectStart,

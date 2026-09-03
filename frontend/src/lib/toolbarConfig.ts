@@ -22,16 +22,16 @@ export const TOOLBAR_ITEMS = [
   { id: 'checklist', icon: '☑️', name: '체크리스트', group: '목록', tagFormat: '- [ ] ', defaultHotkey: 'Ctrl+Shift+C', defaultCommand: 'check', insertText: '- [ ] ', kind: 17 },
   
   // 4. 미디어 (Media)
-  { id: 'link', icon: '🔗', name: '링크', group: '미디어', tagFormat: '[텍스트](URL)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[텍스트](URL)', kind: 15 },
-  { id: 'taglink', icon: '🔖', name: '문서 연결', group: '미디어', tagFormat: '[[상대경로/파일명]]', defaultHotkey: '', defaultCommand: 'doclink', insertText: '', kind: 15 },
+  { id: 'link', icon: '🔗', name: '링크', group: '미디어', tagFormat: '[홈페이지명](https://)', defaultHotkey: 'Ctrl+K', defaultCommand: 'link', insertText: '[홈페이지명](https://)', kind: 15 },
+  { id: 'taglink', icon: '🔖', name: '문서 연결', group: '미디어', tagFormat: '[문서명](<상대경로>)', defaultHotkey: '', defaultCommand: 'doclink', insertText: '', kind: 15 },
   { id: 'image', icon: '🖼️', name: '이미지', group: '미디어', tagFormat: '![대체 텍스트](URL)', defaultHotkey: '', defaultCommand: 'image', insertText: '![대체 텍스트](이미지_URL)', kind: 15 },
-  { id: 'youtube', icon: '🎥', name: '동영상삽입', group: '미디어', tagFormat: '동영상삽입', defaultHotkey: '', defaultCommand: 'vidio', insertText: '동영상삽입', kind: 15 },
-  { id: 'map', icon: '🗺️', name: '지도', group: '미디어', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
+  { id: 'youtube', icon: '🎞️', name: '동영상삽입', group: '미디어', tagFormat: '동영상 삽입', defaultHotkey: '', defaultCommand: 'video', insertText: '동영상 삽입', kind: 15 },
+  { id: 'map', icon: '🌏', name: '지도', group: '미디어', tagFormat: '지도 삽입', defaultHotkey: '', defaultCommand: 'map', insertText: '지도 삽입', kind: 15 },
   { id: 'add_reference', icon: '📚', name: '바이브(참조관리)', group: '미디어', tagFormat: '바이브', defaultHotkey: 'Ctrl+Shift+V', defaultCommand: 'vibe', insertText: '', kind: 17 },
   
   // 5. 코드 (Code)
-  { id: 'codeblock', icon: '💻', name: '코드 블록', group: '코드', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\n\n```', kind: 15 },
-  { id: 'table', icon: '📊', name: '표', group: '코드', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
+  { id: 'codeblock', icon: '⌨️', name: '코드 블록', group: '코드', tagFormat: '```코드```', defaultHotkey: 'Ctrl+Shift+E', defaultCommand: 'code', insertText: '```javascript\n\n```', kind: 15 },
+  { id: 'table', icon: '📶', name: '표', group: '코드', tagFormat: '| 표 |', defaultHotkey: 'Ctrl+T', defaultCommand: 'table', insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', kind: 15 },
   { id: 'math', icon: '🧮', name: '수식', group: '코드', tagFormat: '$$수식$$', defaultHotkey: 'Ctrl+M', defaultCommand: 'math', insertText: '$$수식$$', kind: 15 },
   
   // 6. 문서 (Document)
@@ -47,7 +47,7 @@ export const TOOLBAR_ITEMS = [
   { id: 'find', icon: '🔍', name: '찾기', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+F', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'replace', icon: '🔄', name: '바꾸기', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+H', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'globalSearch', icon: '🔎', name: '전체 검색', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+F', defaultCommand: '', insertText: '', kind: 17 },
-  { id: 'toggleToolbar', icon: '♻️', name: '툴바 토글', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+L', defaultCommand: '', insertText: '', kind: 17 },
+  { id: 'toggleToolbar', icon: '♻️', name: '툴바 토글', group: '부가기능', tagFormat: '', defaultHotkey: '', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'toggleSidebar', icon: '🗃️', name: '사이드바 토글', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+B', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'toggleMode', icon: '📜', name: '모드 전환', group: '부가기능', tagFormat: '', defaultHotkey: 'Ctrl+Shift+M', defaultCommand: '', insertText: '', kind: 17 },
   { id: 'underline', icon: 'U', name: '밑줄', group: '서식', tagFormat: '<u>텍스트</u>', defaultHotkey: 'Ctrl+U', defaultCommand: 'underline', insertText: '<u>텍스트</u>', kind: 15 },
@@ -89,7 +89,8 @@ export const getDefaultCommands = () => {
 // 📊 [OMD-EDIT-toolbarConfig-0003] toolbarConfig.ts ➔ getSlashCommands
 // 🎯 @KICK  : TOOLBAR_ITEMS를 Monaco 슬래시 자동완성 항목으로 변환 (모달/액션/플레이스홀더 처리)
 // 🛡️ @GUARD : EXCLUDED_FROM_SLASH 필터, modalKeys/actionOnlyKeys 분기, 플레이스홀더 우선순위 매칭
-// 🚨 @PATCH : InsertAsSnippet 하이라이트 방지, filterText 한글/영문 검색 지원
+// 🚨 @PATCH : **2026-09-03** — 링크 삽입 서식을 플로팅 툴바 및 단축키와 동일하게 [홈페이지명](https://)으로 통일하고 플레이스홀더 후보에 홈페이지명을 추가하여 슬래시 명령어 입력 시 자동 선택 연동
+//             InsertAsSnippet 하이라이트 방지, filterText 한글/영문 검색 지원
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const getSlashCommands = (monaco: any, customCommands: Record<string, string> = {}) => {
@@ -142,7 +143,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       //    actionOnlyKeys는 이미 trigger-custom-action이 설정되므로 제외합니다.
       if (!command && insertText) {
         // 플레이스홀더 후보 목록: 순서대로 검색 (우선순위 적용)
-        const PLACEHOLDER_CANDIDATES = ['이미지_URL', '텍스트', 'URL', '제목', '코드', '내용', '수식'];
+        const PLACEHOLDER_CANDIDATES = ['홈페이지명', '이미지_URL', '텍스트', 'URL', '제목', '코드', '내용', '수식'];
         let placeholder: string | null = null;
         let placeholderOffset = 0;
 

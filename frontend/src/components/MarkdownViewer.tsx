@@ -1,4 +1,8 @@
-// 🚨 @PATCH : **2026-09-03** — 리소스 폴더 미지정 상태에서 rootFolderPath 및 currentFilePath로 임의 폴백되어 이미지가 렌더링되던 취약점 원천 제거; 리소스 폴더 미지정 시 이미지 로드를 차단하고 경고 플레이스홀더를 렌더링하도록 표준화
+// 🚨 @PATCH : **2026-09-03** — 표와 상단 문구 간의 과도한 여백 및 시각적 단절감을 해결하기 위해 TableWrapper의 외곽 테두리 카드 박스를 전면 제거하고 상단 여백을 mt-[2.5px]로 정밀 축소 정돈
+//             **2026-09-03** — 모니터 해상도 및 분할 모드에서 우측 화면 및 표가 잘리던 결함을 해결하기 위해 최상위 루트 컨테이너에 boxSizing: border-box 및 maxWidth: 100%를 명속 부여하고 TableWrapper/table에 w-full max-w-full 가로 스크롤 가드 적용
+//             **2026-09-03** — 문단 및 리스트 내부의 탭(\t) 및 스페이스 공백이 축약되거나 무시되지 않고 4칸 단위(&nbsp;)로 1:1 시각적 보존되도록 cleanContent 강화
+//             **2026-09-03** — 문서링크(위키링크) 변환 시 전체 파일 경로가 노출되던 결함을 해결하여 일반 링크처럼 헤딩(#) 제목 또는 순수 문서명(확장자 제거) 및 별칭(|)만 링크 텍스트로 깔끔하게 노출되도록 개선
+//             **2026-09-03** — 리소스 폴더 미지정 상태에서 rootFolderPath 및 currentFilePath로 임의 폴백되어 이미지가 렌더링되던 취약점 원천 제거; 리소스 폴더 미지정 시 이미지 로드를 차단하고 경고 플레이스홀더를 렌더링하도록 표준화
 //             **2026-09-02** — 본문 바로 아랫줄에 - 단독 입력 시 Setext H2 헤딩으로 오인되어 윗줄이 제목으로 변하던 마크다운 파서 결함을 방지하기 위해 Setext 오작동 방어 필터 적용
 //             **2026-09-02** — br display none을 제거하여 이미지 아래 및 일반 문단의 줄바꿈을 정상화하고, 행 시작 들여쓰기 및 연속 스페이스를 1:1 보존하도록 cleanContent 전처리 고도화
 //             **2026-09-02** — cleanContent에서 2칸 이상의 인라인 연속 스페이스를 1:1 보존 처리하고, 리스트 종료 후 빈 행 문단 분리를 위해 ul+p, ol+p에 1.5em 마진 적용
@@ -609,7 +613,7 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
 // 📊 [OMD-CORE-MarkdownViewer-0007] MarkdownViewer ➔ TableWrapper
 // 🎯 @KICK  : 마크다운 표를 HTML + TSV 형식으로 클립보드에 복사하는 래퍼 컴포넌트
 // 🛡️ @GUARD : tableRef/tableEl 존재 여부 확인
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-03** — 표 주변의 외곽 테두리 카드 박스(border/shadow/rounded/bg-white/p-4)를 전면 제거하고 상단 마진을 mt-[2.5px]로 정밀 축소하여 상단 문구와의 밀착도 및 문서 자연스러움 극대화
 // 🔗 @CALLS : handleCopy, ClipboardItem, navigator.clipboard.write
 // ====================================================================
 // 🛡️ [한글 주석 완벽 탑재] TableWrapper는 렌더링된 표 위에 마우스 오버 시 '시트/표형식 복사' 버튼을 표시하고, 
@@ -660,29 +664,27 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
 
   // [ONR-MD-004] 표 데이터 래퍼 컴포넌트: 마크다운 렌더링 내의 표(table) 태그를 수신하여 가로 스크롤 레이아웃으로 감싸고, 마우스 오버 시 스프레드시트 호환 규격 복사 버튼을 제공하는 고기능 래퍼입니다.
   return (
-    <div ref={tableRef} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-x-auto shadow-sm bg-white  select-text">
+    <div ref={tableRef} className="relative group mt-[2.5px] mb-2.5 overflow-x-auto select-text w-full max-w-full">
       {/* 마우스 호버 시 우측 상단에 노출되는 미려한 시트/표형식 복사 단추 */}
       <button
             onClick={handleCopy}
-            className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
+            className="copy-button-hook absolute top-1 right-1 px-2 py-1 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-[11px] flex items-center gap-1 z-10 hover:bg-black/80 font-medium no-print"
             title="복사"
             style={{ userSelect: 'none' }}
           >
             {copied ? (
               <>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 <span style={{ color: '#4ade80' }}>복사 완료</span>
               </>
             ) : (
               <>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                 <span>복사</span>
               </>
             )}
           </button>
-      <div className="p-4">
-        {children}
-      </div>
+      {children}
     </div>
   );
 }
@@ -1338,13 +1340,28 @@ function MarkdownViewer({
     processed = processed.replace(/(^[ \t]*)-([ \t]*)$/gm, '$1\\-$2');
     processed = processed.replace(/(^[ \t]*)=+([ \t]*)$/gm, '$1\\=$2');
 
-    // 💡 [옵시디언 위키링크 변환 필터]
-    // [[../relative/path.md#heading]] -> [path.md#heading](<../relative/path.md#heading>)
-    // [[../relative/path.md]] -> [path.md](<../relative/path.md>)
+    // 💡 [옵시디언 위키링크 변환 필터 개선]
+    // 1) 헤딩 링크: [[../path.md#1. 제목]] -> [1. 제목](<../path.md#1. 제목>)
+    // 2) 별칭 링크: [[../path.md#1. 제목|요약]] -> [요약](<../path.md#1. 제목>)
+    // 3) 문서 링크: [[../path.md]] -> [path](<../path.md>) (확장자 .md 및 상대경로 제거)
     const wikiLinkRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
     processed = processed.replace(wikiLinkRegex, (match, linkTarget, customText) => {
       const trimmedTarget = linkTarget.trim();
-      const text = customText ? customText.trim() : trimmedTarget.split('/').pop() || trimmedTarget;
+      let text = '';
+      if (customText && customText.trim()) {
+        text = customText.trim();
+      } else {
+        const hashIdx = trimmedTarget.indexOf('#');
+        if (hashIdx !== -1) {
+          // # 뒤의 헤딩 제목만 깔끔하게 링크명으로 표시
+          const headingPart = trimmedTarget.slice(hashIdx + 1).trim();
+          text = headingPart || trimmedTarget;
+        } else {
+          // 파일명에서 디렉토리 경로 및 .md/.markdown 확장자를 제거하여 깔끔한 문서명으로 표시
+          const rawFileName = trimmedTarget.split(/[/\\]/).pop() || trimmedTarget;
+          text = rawFileName.replace(/\.(md|markdown)$/i, '');
+        }
+      }
       return `[${text}](<${trimmedTarget}>)`;
     });
 
@@ -1372,7 +1389,7 @@ function MarkdownViewer({
           if (listMatch) {
             const prefix = listMatch[1];
             let body = listMatch[2];
-            body = body.replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
+            body = body.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
             return `${prefix} ${body}`;
           }
           return line;
@@ -1383,7 +1400,7 @@ function MarkdownViewer({
         let lead = leadMatch[1];
         let rest = leadMatch[2];
         lead = lead.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ /g, '&nbsp;');
-        rest = rest.replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
+        rest = rest.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
         return lead + rest;
       }).join('\n');
     }).join('');
@@ -1644,7 +1661,9 @@ function MarkdownViewer({
       ref={containerRef}
       className="markdown-viewer-root onrivi-content-root bg-transparent mx-auto relative"
       style={{
+        boxSizing: 'border-box',
         width: '100%',
+        maxWidth: '100%',
         minHeight: '100%',
         boxShadow: 'none',
         borderRadius: '0px',
@@ -2312,10 +2331,10 @@ function MarkdownViewer({
               }
               return <a href={apiHref} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
             },
-            table: ({ node, children, ...props }: any) => {
+            table: ({ node, children, className, ...props }: any) => {
                return (
                  <TableWrapper data-line={extractDataLine(props, node)}>
-                   <table {...props}>
+                   <table className={`w-full table-auto ${className || ''}`} {...props}>
                      {children}
                    </table>
                  </TableWrapper>

@@ -7,6 +7,13 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-09-03** — 마지막 행 또는 문서 하단에서 타이핑할 때 미리보기가 입력 중인 행을 보여주지 않고 상단에 멈춰있던 결함을 해결하기 위해, processedContent 갱신 시 에디터 현재 커서 위치로 syncPreviewToTargetLine을 실시간 추종하는 useEffect 및 2단계 타이머 구축
+ *   * 🚨 @PATCH : **2026-09-03** — 모니터 해상도 및 화면 배율에 따라 분할 모드에서 미리보기 우측 화면 및 표가 잘리던 현상을 해결하기 위해 custom-preview-container에 px-2 sm:px-4 안전 여백을 부여하고 preview-page-sheet에 maxWidth: 100% 및 max-w-full 반응형 가드 적용
+ *   * 🚨 @PATCH : **2026-09-03** — 단축키/툴바/슬래시를 통한 서식 및 마크다운 태그 적용 시 직전 타이핑과의 실행취소(Undo) 단계를 명확히 분리하기 위해 pushUndoStop 격리 장벽을 구축하여, Ctrl+Z 실행취소 시 텍스트는 보존되고 최근 적용된 태그만 단독 취소되도록 전면 개선
+ *   * 🚨 @PATCH : **2026-09-03** — 문서링크 픽커(DocLinkPicker) 팝업창 너비를 280px에서 420px로 50% 대폭 확장하고, truncate를 제거하여 긴 파일명 및 헤딩 제목이 잘리지 않도록 개선
+ *   * 🚨 @PATCH : **2026-09-03** — 웹 브라우저 및 모든 플랫폼에서 문서 링크가 일반 링크처럼 [개요명/문서명](<./상대경로.md#헤딩>) 형식의 표준 마크다운 상대경로로 삽입되도록 handleDocLinkSelect 개편
+ *   * 🚨 @PATCH : **2026-09-03** — 에디터 및 미리보기 본문 텍스트 간섭을 0%로 완벽 격리하기 위해 본문 영역 플로팅 AI 버튼을 전면 제거하고 상단 메뉴바(MenuBar) 우측 고정 캡슐 아이템으로 이전 탑재
+ *   * 🚨 @PATCH : **2026-09-03** — 마지막 행 엔터 후 빈 행 바로 위에서 긴 텍스트 입력 시 Word Wrap(자동 줄바꿈) 발생할 때마다 미리보기 스크롤이 바닥으로 곤두박질치던 버그 해결(규칙 6을 위반하여 타이핑 시 강제 하단 스크롤을 유발하던 ResizeObserver 제거 및 syncEngine Safe Zone 정렬 일원화)
  *   * 🚨 @PATCH : **2026-09-03** — 전체사용자 대상 공통 리소스 폴더 미지정 시 초기 진입 가이드 모달(ResourceFolderGuideModal) 자동 연동 및 SELECT_RESOURCE_FOLDER 퀵 커맨드 신설; 플로팅 AI 버튼 라벨을 사용자 별명 기반({별명} AI, 예: '탕수육 AI')으로 동적 변경 연동; 플로팅 챗봇에서 최종 선택한 모델의 onrivi_settings/localStorage 완벽 영구 동기화(재접속 시 최종 모델로 자동 시작); 에디터 초기 로드 시 미연결 챗봇 완전 숨김 가드 강화; 버튼 아이콘을 온리비 로고(/icon.png)로 변경하고 특별한 AI 오로라 바이올렛 그라데이션 컬러 적용; 웹 브레드크럼 실제 절대경로 상위 기준경로 설정 및 플로팅 AI 챗봇 분할 캡슐 버튼 구현
  *   * 🚨 @PATCH : **2026-09-02** — 에디터 상단 경로 표시줄을 투박한 역슬래시 텍스트에서 폴더/파일 SVG 아이콘 및 치브론 구분자 기반 모던 브레드크럼(Breadcrumb) UI로 전면 리뉴얼
  *   * 🚨 @PATCH : **2026-09-02** — 사이드바 및 분할 모드(Split View) 에디터-미리보기 사이 분할선을 border-slate-300 dark:border-zinc-700으로 선명하게 강화
@@ -914,20 +921,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return '';
   });
 
-  const [isAiModelDropdownOpen, setIsAiModelDropdownOpen] = useState(false);
-  const aiModelDropdownRef = useRef<HTMLDivElement | null>(null);
-
-  // 외부 클릭 시 AI 모델 드롭다운 닫기
-  useEffect(() => {
-    if (!isAiModelDropdownOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (aiModelDropdownRef.current && !aiModelDropdownRef.current.contains(e.target as Node)) {
-        setIsAiModelDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isAiModelDropdownOpen]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0012] MainEditorApp.tsx ➔ tabMetadata_sync
@@ -2094,35 +2087,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const licenseStatusRef = useRef(licenseStatus);
   const tabSizeRef = useRef(4);
   // 🚨 @PATCH : A4 조판 가드 스케일링 로직
-  // 💡 [Desktop 이미지 비동기 로딩 대응] 미리보기 내용 높이 변경 감지 및 자동 하단 스크롤
-  useEffect(() => {
-    const container = previewRef.current;
-    if (!container) return;
-    const contentWrapper = container.firstElementChild as HTMLElement;
-    if (!contentWrapper) return;
-
-    const resizeObserver = new ResizeObserver(() => {
-      const editor = editorRef.current;
-      if (editor) {
-        const scrollTop = editor.getScrollTop();
-        const layoutInfo = editor.getLayoutInfo();
-        const viewportHeight = layoutInfo.height || 800;
-        const scrollHeight = editor.getScrollHeight();
-        const editorMaxScroll = scrollHeight - viewportHeight;
-        
-        // 에디터가 맨 아래에 위치해 있다면, 미리보기 높이가 늘어나도(이미지 로딩 완료 등) 강제로 맨 아래로 유지
-        if (editorMaxScroll > 0 && scrollTop >= editorMaxScroll - 5) {
-          const previewMaxScroll = container.scrollHeight - container.clientHeight;
-          if (previewMaxScroll > 0) {
-            container.scrollTop = previewMaxScroll;
-          }
-        }
-      }
-    });
-    
-    resizeObserver.observe(contentWrapper);
-    return () => resizeObserver.disconnect();
-  }, [previewRef, content]);
 
   useEffect(() => {
     if (!isA4GuardEnabled) {
@@ -3787,7 +3751,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         endLineNumber: selection.endLineNumber,
         endColumn: selection.endColumn
       };
+      editor.pushUndoStop();
       editor.executeEdits("insertLink", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+      editor.pushUndoStop();
 
       const cursorColumn = selection.startColumn + 1 + selectedText.length + 2 + 8;
 
@@ -3805,7 +3771,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         endLineNumber: selection.endLineNumber,
         endColumn: selection.endColumn
       };
+      editor.pushUndoStop();
       editor.executeEdits("insertLink", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+      editor.pushUndoStop();
 
       const startColumn = selection.startColumn + 1;
       const endColumn = startColumn + 5;
@@ -3948,8 +3916,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const currentPath = currentFileNode?.path;
     const relativePath = getRelativePath(currentPath, targetPath);
 
-    const headingText = heading ? `#${heading}` : '';
-    const textToInsert = `[[${relativePath}${headingText}]]`;
+    // 💡 [웹/데스크톱 공통 표준 상대경로 링크 생성]
+    // 표시 이름: 선택된 텍스트 > 헤딩 제목 > 순수 문서명(확장자 제거)
+    let displayTitle = '';
+    if (selectedText && selectedText.trim()) {
+      displayTitle = selectedText.trim();
+    } else if (heading && heading.trim()) {
+      displayTitle = heading.trim();
+    } else {
+      const rawName = targetNode.name || targetNode.path.split(/[/\\]/).pop() || '문서';
+      displayTitle = rawName.replace(/\.(md|markdown)$/i, '');
+    }
+
+    const headingSuffix = heading ? `#${heading.trim()}` : '';
+    const targetUrl = `${relativePath}${headingSuffix}`;
+    // 일반 링크 [네이버](url) 처럼 [개요명](<./상대경로.md#헤딩>) 형식으로 안전하게 삽입
+    const textToInsert = `[${displayTitle}](<${targetUrl}>)`;
 
     const range = {
       startLineNumber: selection.startLineNumber,
@@ -3957,7 +3939,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       endLineNumber: selection.endLineNumber,
       endColumn: selection.endColumn
     };
+    editor.pushUndoStop();
     editor.executeEdits("insertDocLink", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+    editor.pushUndoStop();
     editor.focus();
   };
 
@@ -4393,8 +4377,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
+    editor.pushUndoStop();
     editor.executeEdits("applyPrefix", edits);
-      setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+    editor.pushUndoStop();
+    setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
 
     // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
     try {
@@ -4460,13 +4446,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     cleanedText = processedLines.join('\n');
 
     setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
-      editor.executeEdits("removeMarkdownTags", [
+    editor.pushUndoStop();
+    editor.executeEdits("removeMarkdownTags", [
       {
         range: rangeToProcess,
         text: cleanedText,
         forceMoveMarkers: true
       }
     ]);
+    editor.pushUndoStop();
 
     // [WBS SYNC-02] 주입 직후 구문 강조와 배경 스타일이 즉시 화면에 렌더링되도록 Monaco 모델의 강제 토큰화 수동 격발
     try {
@@ -4506,6 +4494,33 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     frontmatterLinesRef.current = frontmatterLines;
   }, [frontmatterLines]);
+
+  // 💡 [실시간 타이핑 및 콘텐츠 갱신 시 미리보기 스크롤 추종 보장]
+  // 사용자가 에디터 하단이나 마지막 행에서 타이핑할 때, 새 행이 DOM에 렌더링된 직후
+  // 현재 커서 위치(pos.lineNumber)가 미리보기 Safe Zone 안에 안정적으로 보이도록 동기화합니다.
+  useEffect(() => {
+    if (previewMode !== 'both' || !previewRef.current || !editorRef.current) return;
+    if (isScrollingRef.current === 'preview') return;
+
+    const syncCurrent = () => {
+      if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
+        const currentPos = editorRef.current.getPosition?.();
+        if (currentPos && currentPos.lineNumber) {
+          const currentContent = editorRef.current.getValue?.() || contentRef.current;
+          syncPreviewToTargetLine(previewRef.current, currentPos.lineNumber, currentContent);
+        }
+      }
+    };
+
+    const rafId = requestAnimationFrame(syncCurrent);
+    const timer = setTimeout(syncCurrent, 60);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processedContent, previewMode]);
 
   const handlePreviewImageLoaded = useCallback(() => {
     // 💡 타이핑 시 미리보기 치솟음 방지를 위해 이미지 로드 시 자동 스크롤 동기화를 차단합니다.
@@ -5176,6 +5191,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const model = editor.getModel();
     if (!model || !selection) return;
 
+    // 💡 [실행취소 단위 격리] 서식 적용 전 직전 타이핑과의 실행취소(Undo) 단계를 명확히 분리하여,
+    //    Ctrl+Z 시 타이핑했던 글자까지 지워지지 않고 서식 태그만 깔끔하게 취소되도록 경계 설정
+    editor.pushUndoStop();
+
     switch (type) {
       // 서식 관련
       case 'BOLD': handlers.bold(); break;
@@ -5742,7 +5761,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     isHelpModalOpen, setIsHelpModalOpen, helpTitle, setHelpTitle, helpContent, setHelpContent,
     tabs,
     geminiApiKey,
-    aiModelName
+    aiModelName,
+    setAiModelName,
+    setIsAIDraftModalOpen,
+    isRestrictedUser
   };
 
   const { handleMount } = useMonacoSetup({
@@ -5771,15 +5793,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const rect = editorDom.getBoundingClientRect();
           let top = visiblePos.top + rect.top + 22;
           let left = visiblePos.left + rect.left;
+          const pickerWidth = 420;
+          const pickerHeight = 420;
           if (typeof window !== 'undefined') {
-            if (left + 280 > window.innerWidth) {
-              left = Math.max(16, window.innerWidth - 296);
+            if (left + pickerWidth > window.innerWidth) {
+              left = Math.max(16, window.innerWidth - pickerWidth - 16);
             }
             if (left < 16) {
               left = 16;
             }
-            if (top + 350 > window.innerHeight) {
-              top = Math.max(16, visiblePos.top + rect.top - 356);
+            if (top + pickerHeight > window.innerHeight) {
+              top = Math.max(16, visiblePos.top + rect.top - pickerHeight - 6);
             }
           }
           docLinkPickerStyle = { top, left };
@@ -6639,7 +6663,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           }}
                         />
                         <div
-                          className="fixed z-[9999] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-600 rounded-lg shadow-xl p-2 w-[280px] max-h-[350px] flex flex-col"
+                          className="fixed z-[9999] bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-600 rounded-xl shadow-2xl p-2.5 w-[420px] max-w-[95vw] max-h-[420px] flex flex-col"
                           style={docLinkPickerStyle}
                         >
                           {!selectedDocNode ? (
@@ -6653,11 +6677,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   placeholder="파일 검색..."
                                   value={docLinkSearchText}
                                   onChange={(e) => setDocLinkSearchText(e.target.value)}
-                                  className="w-full px-2 py-1 text-[12px] border border-slate-200 dark:border-zinc-700 rounded bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
+                                  className="w-full px-2.5 py-1.5 text-[12.5px] border border-slate-200 dark:border-zinc-700 rounded-lg bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
                                   autoFocus
                                 />
                               </div>
-                              <div className="flex-1 overflow-y-auto min-h-0">
+                              <div className="flex-1 overflow-y-auto min-h-0 pr-1">
                                 {isDocLinkLoading ? (
                                   <div className="px-2 py-3 text-center text-[12px] text-slate-400 dark:text-zinc-500">
                                     문서 목록 로딩 중...
@@ -6681,10 +6705,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                         e.preventDefault();
                                         handleDocFileClick(node);
                                       }}
-                                      className="w-full text-left px-2 py-1.5 text-[12px] hover:bg-slate-100 dark:hover:bg-zinc-700 rounded flex flex-col transition-colors mb-0.5"
+                                      title={node.path || node.name}
+                                      className="w-full text-left px-2.5 py-2 text-[12.5px] hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-lg flex flex-col transition-colors mb-1 cursor-pointer"
                                     >
-                                      <span className="font-semibold truncate text-slate-800 dark:text-zinc-200">{node.name}</span>
-                                      <span className="text-[10px] text-slate-400 dark:text-zinc-500 truncate">{node.path}</span>
+                                      <span className="font-semibold text-slate-800 dark:text-zinc-100 break-all whitespace-normal leading-snug">{node.name}</span>
+                                      <span className="text-[10.5px] text-slate-400 dark:text-zinc-400 break-all whitespace-normal leading-tight mt-0.5">{node.path}</span>
                                     </button>
                                   ));
                                 })()}
@@ -6701,9 +6726,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     setDocHeadings([]);
                                     setDocHeadingSearchText('');
                                   }}
-                                  className="text-xs text-blue-500 hover:text-blue-600 font-normal"
+                                  className="text-xs text-blue-500 hover:text-blue-600 font-semibold cursor-pointer"
                                 >
-                                  이전
+                                  ← 이전으로
                                 </button>
                               </div>
                               <div className="px-2 mb-2">
@@ -6712,11 +6737,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   placeholder="헤딩 검색..."
                                   value={docHeadingSearchText}
                                   onChange={(e) => setDocHeadingSearchText(e.target.value)}
-                                  className="w-full px-2 py-1 text-[12px] border border-slate-200 dark:border-zinc-700 rounded bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
+                                  className="w-full px-2.5 py-1.5 text-[12.5px] border border-slate-200 dark:border-zinc-700 rounded-lg bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
                                   autoFocus
                                 />
                               </div>
-                              <div className="flex-1 overflow-y-auto min-h-0">
+                              <div className="flex-1 overflow-y-auto min-h-0 pr-1">
                                 {isHeadingLoading ? (
                                   <div className="px-2 py-3 text-center text-[12px] text-slate-400 dark:text-zinc-500">
                                     헤딩 분석 중...
@@ -6728,7 +6753,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                         e.preventDefault();
                                         handleDocLinkSelect(selectedDocNode);
                                       }}
-                                      className="w-full text-left px-2 py-1.5 text-[12px] text-blue-600 dark:text-blue-400 hover:bg-slate-100 dark:hover:bg-zinc-700 rounded transition-colors mb-1 font-semibold"
+                                      className="w-full text-left px-2.5 py-2 text-[12.5px] text-blue-600 dark:text-blue-400 hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-lg transition-colors mb-1 font-semibold cursor-pointer"
                                     >
                                       📂 [문서 자체를 바로 연결]
                                     </button>
@@ -6750,9 +6775,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                             e.preventDefault();
                                             handleDocLinkSelect(selectedDocNode, h);
                                           }}
-                                          className="w-full text-left px-2 py-1.5 text-[12px] hover:bg-slate-100 dark:hover:bg-zinc-700 rounded transition-colors truncate text-slate-700 dark:text-zinc-300"
+                                          title={h}
+                                          className="w-full text-left px-2.5 py-2 text-[12.5px] hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-lg transition-colors text-slate-700 dark:text-zinc-200 flex items-start gap-1.5 cursor-pointer"
                                         >
-                                          #{h}
+                                          <span className="text-blue-500 font-bold shrink-0">#</span>
+                                          <span className="break-all whitespace-normal leading-snug">{h}</span>
                                         </button>
                                       ));
                                     })()}
@@ -6779,8 +6806,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         ref={previewRef}
                         className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container onrivi-preview-container text-on-surface ${
                           previewMode === 'preview'
-                            ? 'bg-surface-container-high p-4 pb-8 overflow-y-auto'
-                            : 'bg-surface-container-low px-0 pt-0 pb-8 overflow-y-auto'
+                            ? 'bg-surface-container-high p-4 pb-28 overflow-y-auto'
+                            : 'bg-surface-container-low px-2 sm:px-4 pt-1 pb-28 overflow-y-auto overflow-x-hidden'
                         } ${previewMode === 'both' ? 'no-scrollbar' : ''}`}
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
@@ -6893,6 +6920,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                           const pageStyle: React.CSSProperties = {
                             boxSizing: 'border-box' as const,
+                            maxWidth: '100%',
                             ...(isPreviewOnly ? {
                               width: paperWidth,
                               minHeight: minHeight,
@@ -6903,8 +6931,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           return (
                             <div
                               className={isPreviewOnly
-                                ? "preview-page-sheet group relative mx-auto my-4 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-12"
-                                : `preview-page-sheet group relative mx-auto my-3 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-12`
+                                ? "preview-page-sheet group relative mx-auto my-4 border border-purple-500/5 shadow-[0_16px_48px_rgba(15,0,109,0.04)] bg-white dark:bg-zinc-900 rounded-2xl transition-all duration-300 transform-gpu origin-top overflow-hidden pb-12 max-w-full"
+                                : `preview-page-sheet group relative mx-auto my-3 ${isLandscape ? 'max-w-6xl' : 'max-w-3xl'} w-full max-w-full bg-white dark:bg-zinc-900 border border-purple-500/5 shadow-[0_12px_42px_rgba(15,0,109,0.03)] rounded-2xl transition-all duration-300 origin-top overflow-hidden pb-12`
                               }
                               style={pageStyle}
                             >
@@ -7057,138 +7085,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
           <StatusBar />
 
-          {/* 🌟 [별도 플로팅 AI 챗봇 및 모델 퀵 셀렉터 버튼] 
-              보안/권한 가드: 제한사용자가 아니며(isRestrictedUser === false), 
-              AI 설정(geminiApiKey)이 완료된 정상 사용자에게만 노출 */}
-          {!isRestrictedUser && !!geminiApiKey && !!geminiApiKey.trim() && (
-            <div ref={aiModelDropdownRef} className="no-print fixed bottom-10 right-6 z-40 flex items-center">
-              {/* AI 모델 퀵 셀렉터 팝오버 드롭다운 */}
-              {isAiModelDropdownOpen && (
-                <div className="absolute bottom-full mb-2 right-0 w-64 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800/80 mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
-                      <span className="text-[11px] font-extrabold text-slate-800 dark:text-zinc-200">
-                        {userNickname ? `${userNickname} AI (Gemini)` : 'Google Gemini 연결됨'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAiModelDropdownOpen(false);
-                        setIsSettingsModalOpen(true);
-                        setSettingsModalInitialTab('ai');
-                      }}
-                      className="text-[10px] text-slate-500 hover:text-[#8B5CF6] dark:text-zinc-400 font-medium cursor-pointer hover:underline"
-                    >
-                      설정 관리
-                    </button>
-                  </div>
-
-                  <div className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 mb-1 px-1">
-                    AI 모델 선택 (원클릭 전환)
-                  </div>
-
-                  <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
-                    {[
-                      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', desc: '최신 최고 버전 / 초고속 플래그십', badge: '최신' },
-                      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', desc: '차세대 고성능 모델', badge: '추천' },
-                      { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: '고성능 안정화 모델' },
-                      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', desc: '지능형 균형 모델' },
-                      { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', desc: '초경량 초고속 응답' },
-                      { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT', desc: '확장 오픈 모델' },
-                      { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B', desc: '경량 오픈 모델' }
-                    ].map((m) => {
-                      const isSelected = (aiModelName || 'gemini-3.8-flash') === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => {
-                            setAiModelName(m.id);
-                            try {
-                              localStorage.setItem('onrivi_ai_model_name', m.id);
-                              const raw = localStorage.getItem('onrivi_settings');
-                              if (raw) {
-                                const parsed = JSON.parse(raw);
-                                parsed.aiModelName = m.id;
-                                localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
-                              }
-                            } catch {}
-                            setIsAiModelDropdownOpen(false);
-                            showToast(`AI 모델이 ${m.name}(으)로 전환되었습니다.`, 'success');
-                          }}
-                          className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-all flex items-center justify-between cursor-pointer ${
-                            isSelected
-                              ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
-                              : 'hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300'
-                          }`}
-                        >
-                          <div className="truncate">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold">{m.name}</span>
-                              {m.badge && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-violet-500/20 text-violet-600 dark:text-violet-300 font-bold">
-                                  {m.badge}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-normal">{m.desc}</div>
-                          </div>
-                          {isSelected && <Check size={14} className="text-violet-600 dark:text-violet-400 shrink-0 stroke-[2.5]" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* 메인 플로팅 캡슐 버튼 (특별한 AI 바이올렛/오로라 그라데이션 & 온리비 로고) */}
-              <div className="flex items-center rounded-full bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#A855F7] hover:from-[#4F46E5] hover:via-[#7C3AED] hover:to-[#9333EA] text-white shadow-[0_8px_25px_rgba(139,92,246,0.4)] hover:shadow-[0_12px_32px_rgba(139,92,246,0.55)] border border-white/20 transition-all duration-300 select-none">
-                {/* 좌측: AI 챗봇 모달 오픈 */}
-                <button
-                  type="button"
-                  onClick={() => setIsAIDraftModalOpen(true)}
-                  className="flex items-center gap-2 pl-3.5 pr-2 py-2.5 hover:opacity-95 active:scale-95 transition-all cursor-pointer"
-                  title={userNickname ? `${userNickname} AI 어시스턴트 열기` : '온리비 AI 어시스턴트 열기'}
-                >
-                  {/* 실시간 핑 인디케이터 점 */}
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
-                  </span>
-
-                  {/* 온리비 공식 로고 아이콘 */}
-                  <img 
-                    src="/icon.png" 
-                    alt="Onrivi" 
-                    className="w-[18px] h-[18px] object-contain rounded-xs drop-shadow-sm select-none shrink-0" 
-                  />
-                  <span className="text-xs font-extrabold tracking-tight">
-                    {userNickname ? `${userNickname} AI` : '온리비 AI'}
-                  </span>
-                </button>
-
-                {/* 모델명 표기 및 모델 퀵 선택 드롭다운 토글 */}
-                <div className="h-4 w-px bg-white/25" />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsAiModelDropdownOpen(!isAiModelDropdownOpen);
-                  }}
-                  className="flex items-center gap-1.5 pl-2 pr-3.5 py-2.5 hover:bg-black/10 active:scale-95 rounded-r-full transition-all cursor-pointer text-[11px] font-bold"
-                  title="클릭하여 AI 모델 변경"
-                >
-                  <span className="max-w-[120px] truncate text-violet-100">
-                    {aiModelName ? aiModelName.replace('gemini-', '').replace('gemma-', 'gemma ') : '3.8-flash'}
-                  </span>
-                  <ChevronDown size={13} className={`text-violet-200 transition-transform duration-200 ${isAiModelDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-            </div>
-          )}
-
           {isAIDraftModalOpen && (
             <AIDraftModal 
               onClose={() => setIsAIDraftModalOpen(false)} 
@@ -7238,7 +7134,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               isActivated, autoClosingBrackets, setAutoClosingBrackets, geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
               isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
               setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
-              showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
+              showToast, editorRef, insertAtCursor, lastSelectionRef, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
               handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId: handleProfileChange, setProfiles,
               isSystemProfileId,
               getApiUrl,

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronRight, FolderSync } from 'lucide-react';
+import { ChevronRight, FolderSync, ChevronDown, Check } from 'lucide-react';
 import { EDITOR_THEMES } from '@/lib/editorThemes';
 import { useRouter } from 'next/navigation';
 import { useEditorContext } from '@/context/EditorContext';
@@ -93,7 +93,8 @@ const localTranslations: Record<string, Record<string, string>> = {
 // 📊 [OMD-EDIT-MenuBar-0004] MenuBar ➔ MenuBar
 // 🎯 @KICK  : 상단 메뉴바 렌더링 - 파일/편집/도구/도움말 드롭다운 메뉴 제공
 // 🛡️ @GUARD : previewMode가 'preview'일 때 편집 메뉴 숨김
-// 🚨 @PATCH : **2026-09-03** — 상단 우측 사용자 정보 표시줄을 이메일 대신 별명(userNickname)으로 우선 표기 및 클릭 시 환경설정 '계정 관리' 탭(SETTINGS_ACCOUNT)으로 즉각 이동 연동; 환경설정에서 별명 변경 시 실시간 동기화 리스너 탑재
+// 🚨 @PATCH : **2026-09-03** — 에디터 및 미리보기 본문 가림 결함을 원천 차단하기 위해 상단 메뉴바 우측 끝에 고정형 AI 버튼 및 모델 선택 드롭다운 캡슐 장착 연동
+//             **2026-09-03** — 상단 우측 사용자 정보 표시줄을 이메일 대신 별명(userNickname)으로 우선 표기 및 클릭 시 환경설정 '계정 관리' 탭(SETTINGS_ACCOUNT)으로 즉각 이동 연동; 환경설정에서 별명 변경 시 실시간 동기화 리스너 탑재
 //             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #06C755 호버 및 Surface High 드롭다운)
 //             **2026-07-23** — 파일 메뉴 용어 변경: '불러오기'→'파일 열기', '폴더 열기'→'작업장 폴더 열기' (ko/en 모두 적용); **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 리팩토링; PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
 // 🔗 @CALLS : MenuDropdown, dispatch, setIsSidebarOpen, setIsToolbarOpen, setPreviewMode
@@ -110,7 +111,12 @@ export default function MenuBar() {
     isToolbarOpen, setIsToolbarOpen, 
     themePalette,
     licenseStatus, isActivated,
-    resourceFolder, resourceFolderHandle
+    resourceFolder, resourceFolderHandle,
+    geminiApiKey,
+    aiModelName, setAiModelName,
+    setIsAIDraftModalOpen,
+    isRestrictedUser,
+    showToast
   } = useEditorContext();
   
   const router = useRouter();
@@ -127,6 +133,24 @@ export default function MenuBar() {
     return '';
   });
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // 🌟 [상단 고정형 AI 모델 선택 드롭다운 상태 관리]
+  const [isAiModelDropdownOpen, setIsAiModelDropdownOpen] = useState(false);
+  const aiModelDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (aiModelDropdownRef.current && !aiModelDropdownRef.current.contains(e.target as Node)) {
+        setIsAiModelDropdownOpen(false);
+      }
+    };
+    if (isAiModelDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isAiModelDropdownOpen]);
 
   // 🌟 [리소스 폴더 미지정 및 전체사용자 여부 실시간 계산]
   const isResourceFolderMissing = !resourceFolder && !resourceFolderHandle;
@@ -322,6 +346,135 @@ export default function MenuBar() {
              <span>리소스 폴더 미설정</span>
            </button>
         )}
+        {/* 🌟 [상단 메뉴바 고정형 AI 챗봇 및 모델 퀵 셀렉터 캡슐] 
+            보안/권한 가드: 제한사용자가 아니며, AI 설정(geminiApiKey)이 완료된 정상 사용자에게만 노출 */}
+        {!isRestrictedUser && !!geminiApiKey && !!geminiApiKey.trim() && (
+          <div ref={aiModelDropdownRef} className="relative flex items-center">
+            {/* AI 모델 퀵 셀렉터 팝오버 드롭다운 */}
+            {isAiModelDropdownOpen && (
+              <div className="absolute top-full mt-2 right-0 w-64 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800/80 mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
+                    <span className="text-[11px] font-extrabold text-slate-800 dark:text-zinc-200">
+                      {userNickname ? `${userNickname} AI (Gemini)` : 'Google Gemini 연결됨'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAiModelDropdownOpen(false);
+                      dispatch('SETTINGS');
+                    }}
+                    className="text-[10px] text-slate-500 hover:text-[#8B5CF6] dark:text-zinc-400 font-medium cursor-pointer hover:underline"
+                  >
+                    설정 관리
+                  </button>
+                </div>
+
+                <div className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 mb-1 px-1">
+                  AI 모델 선택 (원클릭 전환)
+                </div>
+
+                <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+                  {[
+                    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', desc: '최신 최고 버전 / 초고속 플래그십', badge: '최신' },
+                    { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', desc: '차세대 고성능 모델', badge: '추천' },
+                    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: '고성능 안정화 모델' },
+                    { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', desc: '지능형 균형 모델' },
+                    { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', desc: '초경량 초고속 응답' },
+                    { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT', desc: '확장 오픈 모델' },
+                    { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B', desc: '경량 오픈 모델' }
+                  ].map((m) => {
+                    const isSelected = (aiModelName || 'gemini-3.8-flash') === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          setAiModelName?.(m.id);
+                          try {
+                            localStorage.setItem('onrivi_ai_model_name', m.id);
+                            const raw = localStorage.getItem('onrivi_settings');
+                            if (raw) {
+                              const parsed = JSON.parse(raw);
+                              parsed.aiModelName = m.id;
+                              localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
+                            }
+                          } catch {}
+                          setIsAiModelDropdownOpen(false);
+                          showToast?.(`AI 모델이 ${m.name}(으)로 전환되었습니다.`, 'success');
+                        }}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-all flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
+                            : 'hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <div className="truncate">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold">{m.name}</span>
+                            {m.badge && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-violet-500/20 text-violet-600 dark:text-violet-300 font-bold">
+                                {m.badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-normal">{m.desc}</div>
+                        </div>
+                        {isSelected && <Check size={14} className="text-violet-600 dark:text-violet-400 shrink-0 stroke-[2.5]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 고정 캡슐 버튼 (상단 메뉴바 헤더에 맞춘 슬림 26px 캡슐) */}
+            <div className="flex items-center rounded-lg bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#A855F7] hover:from-[#4F46E5] hover:via-[#7C3AED] hover:to-[#9333EA] text-white shadow-xs border border-white/20 transition-all duration-200 select-none h-[26px]">
+              {/* 좌측: AI 챗봇 모달 오픈 */}
+              <button
+                type="button"
+                onClick={() => setIsAIDraftModalOpen?.(true)}
+                className="flex items-center gap-1.5 pl-2.5 pr-1.5 hover:opacity-95 active:scale-98 transition-all cursor-pointer h-full"
+                title={userNickname ? `${userNickname} AI 어시스턴트 열기` : '온리비 AI 어시스턴트 열기'}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                </span>
+                <img 
+                  src="/icon.png" 
+                  alt="Onrivi" 
+                  className="w-3.5 h-3.5 object-contain rounded-xs drop-shadow-xs select-none shrink-0" 
+                />
+                <span className="text-[11px] font-extrabold tracking-tight whitespace-nowrap">
+                  {userNickname ? `${userNickname} AI` : '온리비 AI'}
+                </span>
+              </button>
+
+              {/* 구분선 */}
+              <div className="h-3 w-px bg-white/25" />
+
+              {/* 모델 선택 드롭다운 토글 */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsAiModelDropdownOpen(!isAiModelDropdownOpen);
+                }}
+                className="flex items-center gap-1 pl-1.5 pr-2 hover:bg-black/10 active:scale-98 rounded-r-lg transition-all cursor-pointer text-[10px] font-bold h-full"
+                title="클릭하여 AI 모델 변경"
+              >
+                <span className="max-w-[70px] truncate text-violet-100">
+                  {aiModelName ? aiModelName.replace('gemini-', '').replace('gemma-', 'gemma ') : '3.8-flash'}
+                </span>
+                <ChevronDown size={11} className={`text-violet-200 transition-transform duration-200 ${isAiModelDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {(userNickname || userEmail || licenseStatus?.userId) && (
           <button
             type="button"

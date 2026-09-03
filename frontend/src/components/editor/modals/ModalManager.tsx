@@ -5,6 +5,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.07.05> 최초작성
+ * 🚨 @PATCH : **2026-09-03** — 표 모달(TableModal)에서 표 생성 시 에디터 첫 번째 칼럼('제목')으로 커서 및 선택 영역을 자동 안착시켜 즉시 타이핑할 수 있도록 개선
  * 🚨 @PATCH : **2026-07-06** — [시큐어코딩] 파일 및 폴더 생성 시 경로 탐색(Path Traversal) 공격 방지를 위해 생성명에서 슬래시(/) 및 백슬래시(\) 문자를 제거하는 정규식 필터 적용
  * -----------------------------------------------------------------------
  */
@@ -75,7 +76,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,                                       // geminiAPI키, geminiAPI키설정, ai모델이름, ai모델이름설정
     isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,  // 활성화여부, 라이선스상태, 디바이스ID, 성공적인활성화처리, 핸들러, 콘텐츠, 현재파일노드참조
     setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,       // 현재파일이름설정, 현재파일노드설정, 마지막저장콘텐츠참조, 저장상태설정, 파일목록갱신
-    showToast, editorRef, insertAtCursor, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,   // 토스트보이기, 에디터참조, 커서에삽입, 병합모드설정, 선택된병합노드, 선택된병합노드설정
+    showToast, editorRef, insertAtCursor, lastSelectionRef, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,   // 토스트보이기, 에디터참조, 커서에삽입, 마지막선택참조, 병합모드설정, 선택된병합노드, 선택된병합노드설정
     handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId, setProfiles,   // 파일클릭핸들러, 프로필, 활성프로필ID, 동적CSS문자열, 활성프로필ID설정, 프로필설정
     isSystemProfileId, getApiUrl, DEFAULT_PROFILE, SYSTEM_PROFILES, vfsCreateFile, vfsWriteFile, vfsCreateFolder,   // 시스템프로파일ID, API URL 얻기, 기본프로파일, 시스템프로파일, 가상파일시스템생성파일, 가상파일시스템쓰기파일, 가상파일시스템생성폴더
     helpTitle, helpContent, setHelpContent,                                                                  // 도움말제목, 도움말콘텐츠, 도움말콘텐츠설정
@@ -387,7 +388,51 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       <TableModal
         isOpen={isTableModalOpen}
         onClose={() => setIsTableModalOpen(false)}
-        onInsert={(code: string) => insertAtCursor(code)}
+        onInsert={(code: string) => {
+          if (editorRef?.current) {
+            const editor = editorRef.current;
+            let selection = editor.getSelection();
+            if (!selection || (selection.isEmpty() && lastSelectionRef?.current)) {
+              selection = lastSelectionRef.current;
+            }
+            if (selection) {
+              const range = new (window as any).monaco.Range(
+                selection.startLineNumber,
+                selection.startColumn,
+                selection.endLineNumber,
+                selection.endColumn
+              );
+              editor.pushUndoStop();
+              editor.executeEdits("insertTable", [{ range, text: code, forceMoveMarkers: true }]);
+              editor.pushUndoStop();
+
+              const headerLine = selection.startLineNumber + 1;
+              setTimeout(() => {
+                editor.focus();
+                // 💡 [사용자 요청] 표 생성 후 첫 번째 칼럼("제목")을 자동 선택하여 즉시 편집 가능하도록 커서/포커스 안착
+                editor.setSelection(new (window as any).monaco.Selection(
+                  headerLine,
+                  3,
+                  headerLine,
+                  5
+                ));
+                editor.revealLineInCenterIfOutsideViewport(headerLine);
+                try {
+                  const model = editor.getModel();
+                  if (model && typeof model.forceTokenization === 'function') {
+                    const lineCount = code.split('\n').length;
+                    for (let i = selection.startLineNumber; i <= headerLine + lineCount; i++) {
+                      model.forceTokenization(i);
+                    }
+                  }
+                  editor.layout();
+                } catch (_) {}
+              }, 40);
+              return;
+            }
+          }
+          insertAtCursor(code);
+        }}
         isDarkMode={isDarkMode}
       />
       <CssStyleModal

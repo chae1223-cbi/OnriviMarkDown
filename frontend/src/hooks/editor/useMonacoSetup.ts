@@ -4,7 +4,11 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
-// 🚨 @PATCH : 2026-09-02 - 에디터 왼쪽 줄번호/여백(Gutter) 영역에 차별화된 배경색(editorGutter.background) 및 선명한 줄번호 색상 적용
+// 🚨 @PATCH : 2026-09-03 - 마지막 행 또는 일반 문장에서 엔터 시 반응 지연(새 행 생성 늦음) 현상을 해결하기 위해 custom-enter-list-auto 일반 개행 분기에 editor.setPosition 즉시 이동을 부여하고, onKeyDown 엔터 시 불필요하게 파일 I/O 및 React 렌더링을 유발하던 동기 saveFile을 제거하여 0초 즉각 개행 보장
+//             2026-09-03 - 타이핑 시 React 렌더링 지연(useDeferredValue)으로 인해 마지막 행 또는 문서 하단 입력 시 미리보기가 가려지던 결함을 해결하기 위해 onDidChangeModelContent에 70ms 후속 스크롤 추종 타이머 보강
+//             2026-09-03 - [[ 자동완성 선택 시 일반 링크와 동일한 [개요명/문서명](<상대경로>) 표준 마크다운 상대경로로 자동 삽입되도록 개편
+//             2026-09-03 - 슬래시(/) 명령어 추천 리스트 출력 중 ESC 키 입력 시 팝업 즉시 강제 종료(closeSuggestWidget) 및 onKeyUp 재오픈 방지(isSuggestSuppressed) 가드 적용
+//             2026-09-02 - 에디터 왼쪽 줄번호/여백(Gutter) 영역에 차별화된 배경색(editorGutter.background) 및 선명한 줄번호 색상 적용
 //             2026-09-02 - 표(Table) 현재 열(Column) 정렬 퀵 변환 엔진(setTableColumnAlign) 및 단축키(Alt+Shift+L/C/R) 연동
 //             2026-09-02 - 한글 IME 슬래시 타이핑 시 onKeyUp 실시간 triggerSuggest 연동 및 sortText 최우선 1순위 자동 포커스 적용
 //             2026-09-02 - 한글 슬래시 명령어(/한글명령어: /표, /제목, /인용구 등) 입력 시 해당 명령어로 자동 포커스 및 이동 지원
@@ -471,6 +475,15 @@ export function useMonacoSetup(deps: any) {
                           syncPreviewToTargetLine(previewRef.current, pos.lineNumber, content);
                         }
                       });
+                      setTimeout(() => {
+                        if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
+                          const p = editorRef.current.getPosition();
+                          if (p) {
+                            const c = editorRef.current.getValue();
+                            syncPreviewToTargetLine(previewRef.current, p.lineNumber, c);
+                          }
+                        }
+                      }, 70);
                     }
 
                     requestAnimationFrame(() => {
@@ -529,7 +542,34 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                   // 대용량 문서 엔터 키 입력 시 자동 스크롤 패치 (CORE-01)
 
 
+                  // 💡 [슬래시 명령어 제안 팝업 ESC 닫기 및 재발동 억제 관리]
+                  let isSuggestSuppressed = false;
+
+                  const closeSuggestWidget = () => {
+                    isSuggestSuppressed = true;
+                    try {
+                      editor.trigger('keyboard', 'hideSuggestWidget', {});
+                      const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
+                      if (suggestCtrl && suggestCtrl.widget && suggestCtrl.widget.value) {
+                        suggestCtrl.widget.value.hide();
+                      }
+                    } catch (_) {}
+                  };
+
+                  // ESC 키 입력 시 슬래시 제안 목록 즉시 강제 종료 커맨드 등록
+                  editor.addCommand(monaco.KeyCode.Escape, closeSuggestWidget);
+
                   editor.onKeyUp((e) => {
+                    if (e.keyCode === monaco.KeyCode.Escape || e.browserEvent?.key === 'Escape') {
+                      closeSuggestWidget();
+                      return;
+                    }
+
+                    // 제안 팝업이 ESC로 닫힌 상태이면 추가 타이핑이나 조작 전까지 자동 재오픈 억제
+                    if (isSuggestSuppressed) {
+                      return;
+                    }
+
                     const position = editor.getPosition();
                     const model = editor.getModel();
                     if (position && model) {
@@ -1245,7 +1285,7 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                         return;
                       }
 
-                      // 5. 일반 문장 개행 처리 (기본 들여쓰기 탭 깊이 자동 보존 개행)
+                      // 5. 일반 문장 개행 처리 (기본 들여쓰기 탭 깊이 자동 보존 개행 및 즉각적 커서 안착)
                       const indentMatch = beforeCursor.match(/^([ \t]*)/);
                       const indent = indentMatch ? indentMatch[1] : '';
                       editor.executeEdits("insertNewline", [{
@@ -1253,6 +1293,9 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                         text: `\n${indent}`,
                         forceMoveMarkers: true
                       }]);
+                      const nextLine = lineNumber + 1;
+                      const nextColumn = indent.length + 1;
+                      editor.setPosition({ lineNumber: nextLine, column: nextColumn });
 
                     }
                   });
@@ -1501,6 +1544,16 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
 
                   // 💡 [Enter 즉시 새 행 가시성 확보 및 자동 저장 트리거]
                   editor.onKeyDown((e) => {
+                    if (e.keyCode === monaco.KeyCode.Escape || e.browserEvent?.key === 'Escape') {
+                      closeSuggestWidget();
+                    } else if (
+                      e.keyCode !== monaco.KeyCode.Shift && 
+                      e.keyCode !== monaco.KeyCode.Ctrl && 
+                      e.keyCode !== monaco.KeyCode.Alt
+                    ) {
+                      isSuggestSuppressed = false;
+                    }
+
                     if (e.keyCode === monaco.KeyCode.Enter && !isComposingRef.current) {
                       setTimeout(() => {
                         const pos = editor.getPosition();
@@ -1508,16 +1561,6 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                           editor.revealPositionInCenterIfOutsideViewport(pos);
                         }
                       }, 10);
-                      if (autoSaveRef.current && currentFileNodeRef.current) {
-                        const val = editor.getValue();
-                        if (val && val !== lastSavedContentRef.current) {
-                          setSaveStatus('saving');
-                          saveFile(val, currentFileNodeRef.current).then(success => {
-                            if (success) lastSavedContentRef.current = val;
-                            setSaveStatus(success ? 'saved' : 'unsaved');
-                          });
-                        }
-                      }
                     }
                   });
 
@@ -1665,7 +1708,7 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                         return {
                           suggestions: filtered.map(h => ({
                             label: h, kind: monaco.languages.CompletionItemKind.Reference,
-                            insertText: `[[${relPath}#${h}]]`,
+                            insertText: `[${h}](<${relPath}#${h}>)`,
                             range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
                           }))
                         };
@@ -1679,9 +1722,10 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                       return {
                         suggestions: filteredFiles.map(f => {
                           const relPath = getRelativePath(curPath, f.path || '');
+                          const cleanName = (f.name || f.path || '').replace(/\.(md|markdown)$/i, '');
                           return {
                             label: f.name || f.path || '', kind: monaco.languages.CompletionItemKind.File,
-                            insertText: `[[${relPath}]]`,
+                            insertText: `[${cleanName}](<${relPath}>)`,
                             range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
                           };
                         })

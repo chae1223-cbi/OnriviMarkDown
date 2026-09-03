@@ -1,3 +1,10 @@
+// ====================================================================
+// 📊 [OMD-EDIT-StatusBar-0003] StatusBar.tsx ➔ StatusBar
+// 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드 및 행/열 정보 표시
+// 🛡️ @GUARD : 반응형 너비 가드(xl 브레이크포인트, truncate)를 통해 좁은 해상도 오버랩 방지
+// 🚨 @PATCH : **2026-09-03** — 모니터 해상도 축소 시 프로그레스바와 서식 이름이 겹치는 현상을 해결하기 위해 프로그레스바를 xl 브레이크포인트로 최적화하고 서식 이름에 max-w 및 truncate 적용
+// 🔗 @CALLS : useEditorContext, EDITOR_THEMES
+// ====================================================================
 "use client";
 
 import React, { useState } from 'react';
@@ -214,8 +221,8 @@ function StatusBar() {
         <span className="shrink-0 tabular-nums">{t('charCount')}: {charCount.toLocaleString()} (공백제외 {charCountNoSpace.toLocaleString()})</span>
         <span className="shrink-0">|</span>
         <span className="shrink-0 tabular-nums">{t('wordCount')}: {wordCount.toLocaleString()}</span>
-        <span className="hidden lg:inline shrink-0">|</span>
-        <div className="hidden lg:flex items-center gap-1.5 shrink-0">
+        <span className="hidden xl:inline shrink-0">|</span>
+        <div className="hidden xl:flex items-center gap-1.5 shrink-0">
           <div className="w-16 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-300"
@@ -234,7 +241,7 @@ function StatusBar() {
       <div className="flex items-center gap-2 shrink-0 ml-2">
         {displayProfileName && (
           <>
-            <span className="hidden md:inline text-blue-600 dark:text-blue-400 font-semibold" title={`현재 서식: ${displayProfileName}`}>
+            <span className="hidden md:inline-block max-w-[140px] xl:max-w-[240px] truncate text-blue-600 dark:text-blue-400 font-semibold align-middle" title={`현재 서식: ${displayProfileName}`}>
               서식: {displayProfileName}
             </span>
             <span className="hidden md:inline shrink-0 text-black/20 dark:text-white/20">|</span>
