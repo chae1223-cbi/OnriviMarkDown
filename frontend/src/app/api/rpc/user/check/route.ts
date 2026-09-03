@@ -13,27 +13,38 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { p_email } = body;
+    const { p_email, p_id } = body;
 
-    if (!p_email) {
+    if (!p_email && !p_id) {
       return NextResponse.json({ exists: false, is_deleted: false }, { status: 400 });
     }
 
-    const cleanEmail = p_email.trim().toLowerCase();
+    const cleanEmail = p_email ? p_email.trim().toLowerCase() : null;
 
-    // Primary: Supabase Client users 전용 조회
+    // Primary: Supabase Client users 전용 조회 (service_role로 RLS 우회 조회)
     try {
-      const { data, error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('users')
-        .select('id, is_deleted')
-        .ilike('email', cleanEmail)
-        .maybeSingle();
+        .select('id, email, nick_name, provider, created_at, updated_at, is_deleted');
+
+      if (p_id) {
+        query = query.eq('id', p_id);
+      } else if (cleanEmail) {
+        query = query.ilike('email', cleanEmail);
+      }
+
+      const { data, error } = await query.maybeSingle();
 
       if (!error) {
         if (data) {
           return NextResponse.json({
             exists: true,
             id: data.id,
+            email: data.email,
+            nick_name: data.nick_name,
+            provider: data.provider,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
             is_deleted: data.is_deleted
           });
         } else {

@@ -14,7 +14,7 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
 // 🛡️ @GUARD : 각 스토리지 로드 실패 시 기본값 fallback
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-03** — 환경설정에서 API 키 삭제 시 로컬스토리지 복구 단계에서 빈 문자열('')을 유효 상태로 인식하여 즉시 삭제 반영되도록 보완
 // 🔗 @CALLS : getDefaultHotkeys, getDefaultCommands, idb.get, api.loadSettings, api.saveSettings
 // ====================================================================
 // 🚨 @PATCH : **2026-06-20** — 다크모드 전면 비활성화 패치: isDarkMode 상태를 항상 false로 고정하고 HTML documentElement의 dark 클래스 조작을 비활성화하여 에디터 및 렌더러가 항상 라이트 모드로 동작하도록 강제
@@ -38,8 +38,18 @@ export const useEditorSettings = (
   const [quoteStyle, setQuoteStyle] = useState<'modern' | 'clean' | 'none'>('modern');
   const [themePalette, setThemePalette] = useState<string>('onrivi-light');
   const [licenseKey, setLicenseKey] = useState<string>('');
-  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
-  const [aiModelName, setAiModelName] = useState<string>('gemma-4-26b-a4b-it');
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('onrivi_gemini_api_key') || '').trim();
+    }
+    return '';
+  });
+  const [aiModelName, setAiModelName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('onrivi_ai_model_name') || 'gemini-3.8-flash';
+    }
+    return 'gemini-3.8-flash';
+  });
 
   const [customHotkeys, setCustomHotkeys] = useState<Record<string, string>>(() => getDefaultHotkeys());
   const [customSlashCommands, setCustomSlashCommands] = useState<Record<string, string>>(() => getDefaultCommands());
@@ -90,7 +100,7 @@ export const useEditorSettings = (
         themePalette: 'onrivi-light',
         licenseKey: 'chae6^jung1!jang3#&',
         geminiApiKey: '',
-        aiModelName: 'gemma-4-26b-a4b-it',
+        aiModelName: 'gemini-3.8-flash',
         autoClosingBrackets: true,
       };
 
@@ -140,9 +150,9 @@ export const useEditorSettings = (
           Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
         }
         
-        // 2차 백업 키에서 API 키와 모델명 개별 복구
+        // 2차 백업 키에서 API 키와 모델명 개별 복구 (빈 문자열도 삭제된 유효 상태로 인식)
         const backupApiKey = localStorage.getItem('onrivi_gemini_api_key');
-        if (backupApiKey) {
+        if (backupApiKey !== null) {
           baseSettings.geminiApiKey = backupApiKey;
         }
         const backupModelName = localStorage.getItem('onrivi_ai_model_name');
@@ -218,7 +228,7 @@ export const useEditorSettings = (
       setThemePalette(baseSettings.themePalette);
       setLicenseKey(baseSettings.licenseKey);
       setGeminiApiKey((baseSettings.geminiApiKey || '').trim());
-      setAiModelName(baseSettings.aiModelName || 'gemma-4-26b-a4b-it');
+      setAiModelName(baseSettings.aiModelName || 'gemini-3.8-flash');
       setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
 
       document.documentElement.classList.remove('dark');

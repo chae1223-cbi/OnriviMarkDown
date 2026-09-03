@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-09-02** — 본문 바로 아랫줄에 - 단독 입력 시 Setext H2 헤딩으로 오인되어 윗줄이 제목으로 변하던 마크다운 파서 결함을 방지하기 위해 Setext 오작동 방어 필터 적용
+// 🚨 @PATCH : **2026-09-03** — 리소스 폴더 미지정 상태에서 rootFolderPath 및 currentFilePath로 임의 폴백되어 이미지가 렌더링되던 취약점 원천 제거; 리소스 폴더 미지정 시 이미지 로드를 차단하고 경고 플레이스홀더를 렌더링하도록 표준화
+//             **2026-09-02** — 본문 바로 아랫줄에 - 단독 입력 시 Setext H2 헤딩으로 오인되어 윗줄이 제목으로 변하던 마크다운 파서 결함을 방지하기 위해 Setext 오작동 방어 필터 적용
 //             **2026-09-02** — br display none을 제거하여 이미지 아래 및 일반 문단의 줄바꿈을 정상화하고, 행 시작 들여쓰기 및 연속 스페이스를 1:1 보존하도록 cleanContent 전처리 고도화
 //             **2026-09-02** — cleanContent에서 2칸 이상의 인라인 연속 스페이스를 1:1 보존 처리하고, 리스트 종료 후 빈 행 문단 분리를 위해 ul+p, ol+p에 1.5em 마진 적용
 //             **2026-09-02** — 리스트(ul/ol) 및 리스트 아이템(li, li > p)에 white-space: normal 및 margin: 0을 명시하여 리스트 항목 끝 \n에 의한 빈 줄 생성 현상 완벽 해결
@@ -148,20 +149,28 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
             return;
           }
 
-          // 리소스 폴더 지정 안 됨 경고
-          if (!resourceFolderHandle && !rootFolder?.handle && (pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || pureSrc.startsWith('/media/') || pureSrc.includes('media/'))) {
-             setErrorMsg(`로컬 미디어를 보려면 좌측 하단의 '리소스 폴더 지정' 버튼을 클릭해 폴더를 연동해주세요.`);
-             return;
-          }
+          const isMediaSrc = pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || pureSrc.startsWith('/media/') || pureSrc.includes('media/');
 
-          if ((pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/') || pureSrc.startsWith('media/') || pureSrc.includes('media/')) && resourceFolderHandle) {
-             const fileName = pureSrc.replace(/^\.?\/media\//, '').replace(/^media\//, '');
-             const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
-             const fileHandle = await mediaDir.getFileHandle(fileName);
-             const file = await fileHandle.getFile();
-             objectUrl = URL.createObjectURL(file);
-             setImgSrc(objectUrl);
-             return;
+          // 🚨 [필수 규격] media 파일은 무조건 공통 리소스 폴더(resourceFolderHandle)에서만 읽어야 함!
+          // rootFolder(작업장 폴더)나 다른 곳으로의 임의 풀백을 원천 금지합니다.
+          if (isMediaSrc) {
+            if (!resourceFolderHandle) {
+              setErrorMsg(`[리소스 폴더 미지정] 환경설정에서 공통 자원 폴더를 지정해야 이미지가 표시됩니다.`);
+              return;
+            }
+
+            try {
+              const fileName = pureSrc.replace(/^\.?\/media\//, '').replace(/^media\//, '');
+              const mediaDir = await resourceFolderHandle.getDirectoryHandle('media');
+              const fileHandle = await mediaDir.getFileHandle(fileName);
+              const file = await fileHandle.getFile();
+              objectUrl = URL.createObjectURL(file);
+              setImgSrc(objectUrl);
+              return;
+            } catch (err: any) {
+              setErrorMsg(`리소스 폴더의 media/${pureSrc.replace(/^\.?\/media\//, '')} 파일을 찾을 수 없습니다.`);
+              return;
+            }
           }
 
           if (rootFolder?.handle) {
@@ -218,11 +227,10 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
 
   if (errorMsg) {
     return (
-      <div className="border border-red-500 bg-red-100 dark:bg-red-900/20 p-2 rounded text-xs text-red-600 dark:text-red-400 break-all my-2">
-        <strong>이미지 렌더링 에러:</strong><br/>
-        경로: {absolutePath}<br/>
-        에러: {errorMsg}
-      </div>
+      <span className="inline-flex items-center gap-2 px-3.5 py-2 my-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-bold shadow-xs select-none">
+        <span className="text-sm">⚠️</span>
+        <span>{errorMsg}</span>
+      </span>
     );
   }
 
@@ -234,12 +242,6 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     img.dataset.fallbackAttempted = 'true';
     if (api && absolutePath) {
       img.src = `media://local/serve?url=${encodeURIComponent(absolutePath)}`;
-    } else if (!api && absolutePath && !src.startsWith('/api/image/') && !src.startsWith('http')) {
-      const isDevServer = typeof window !== 'undefined' && (window.location.port === '3000' || window.location.port === '3100');
-      if (isDevServer) {
-        const fallbackSrc = `/api/view?filePath=${encodeURIComponent(absolutePath)}`;
-        img.src = queryString ? (fallbackSrc.includes('?') ? fallbackSrc + '&' + queryString.substring(1) : fallbackSrc + queryString) : fallbackSrc;
-      }
     }
   };
 
@@ -1768,26 +1770,16 @@ function MarkdownViewer({
               const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
               if (actualSrc && (actualSrc.startsWith('/media/') || actualSrc.startsWith('./media/'))) {
-                const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
+                const rawSecure = loadSecureData<string>('resourceFolder');
+                const freshRF = (rawSecure && rawSecure.trim() !== '') ? rawSecure : (dynamicPropsRef.current.resourceFolder || null);
                 if (freshRF) {
                   const sep = freshRF.includes('\\') ? '\\' : '/';
                   const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
                   const strippedSrc = actualSrc.startsWith('./') ? actualSrc.substring(1) : actualSrc;
-                    const normalizedSrc = sep === '\\' ? strippedSrc.replace(/\//g, '\\') : strippedSrc;
+                  const normalizedSrc = sep === '\\' ? strippedSrc.replace(/\//g, '\\') : strippedSrc;
                   absolutePath = cleanRoot + normalizedSrc;
                 } else {
-                   let baseDir = '';
-                   if (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
-                     baseDir = dynamicPropsRef.current.rootFolderPath;
-                     const sep = baseDir.includes('\\') ? '\\' : '/';
-                     if (baseDir.endsWith(sep)) baseDir = baseDir.slice(0, -1);
-                   } else if (dynamicPropsRef.current.currentFilePath) {
-                     baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
-                   }
-                   if (baseDir) {
-                     const fileName = actualSrc.replace(/^\.?\/media\//, '');
-                     absolutePath = baseDir + '\\media\\' + fileName;
-                   }
+                  absolutePath = '';
                 }
               }
               
@@ -1824,25 +1816,15 @@ function MarkdownViewer({
               const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
               if (actualSrc && (actualSrc.startsWith('/media/') || actualSrc.startsWith('./media/'))) {
-                const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
+                const rawSecure = loadSecureData<string>('resourceFolder');
+                const freshRF = (rawSecure && rawSecure.trim() !== '') ? rawSecure : (dynamicPropsRef.current.resourceFolder || null);
                 if (freshRF) {
                   const sep = freshRF.includes('\\') ? '\\' : '/';
                   const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
                   const normalizedSrc = sep === '\\' ? actualSrc.replace(/\//g, '\\') : actualSrc;
                   absolutePath = cleanRoot + normalizedSrc;
                 } else {
-                   let baseDir = '';
-                   if (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
-                     baseDir = dynamicPropsRef.current.rootFolderPath;
-                     const sep = baseDir.includes('\\') ? '\\' : '/';
-                     if (baseDir.endsWith(sep)) baseDir = baseDir.slice(0, -1);
-                   } else if (dynamicPropsRef.current.currentFilePath) {
-                     baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
-                   }
-                   if (baseDir) {
-                     const fileName = actualSrc.replace(/^\.?\/media\//, '');
-                     absolutePath = baseDir + '\\media\\' + fileName;
-                   }
+                  absolutePath = '';
                 }
               }
               
@@ -1950,8 +1932,21 @@ function MarkdownViewer({
                 );
 
                 if (isLocalMedia && (api || (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME))) {
-                  // 💡 [핵심] 데스크탑 및 웹 로컬 연동: secureStorage 또는 rootFolderPath에서 항상 최신 폴더 경로를 읽어 절대 경로 조합
-                  const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder || dynamicPropsRef.current.rootFolderPath;
+                  // 💡 [핵심] 리소스 폴더에서만 절대 경로 조합 (rootFolderPath 임의 폴백 원천 차단)
+                  const rawSecure = loadSecureData<string>('resourceFolder');
+                  const freshRF = (rawSecure && rawSecure.trim() !== '') ? rawSecure : (dynamicPropsRef.current.resourceFolder || null);
+                  const hasRFHandle = !!dynamicPropsRef.current.resourceFolderHandle;
+
+                  // 🚨 [필수 규격] 리소스 폴더가 지정되지 않은 경우: 다른 폴더로 폴백하지 않고 미지정 경고 플레이스홀더를 렌더링
+                  if (!freshRF && !hasRFHandle) {
+                    return (
+                      <span className="inline-flex items-center gap-2 px-3.5 py-2 my-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-bold shadow-xs select-none">
+                        <span className="text-sm">⚠️</span>
+                        <span>[리소스 폴더 미지정] 환경설정에서 공통 자원 폴더를 지정해야 이미지가 표시됩니다.</span>
+                      </span>
+                    );
+                  }
+
                   if (freshRF && freshRF !== BROWSER_STORAGE_NAME) {
                     const sep = freshRF.includes('\\') ? '\\' : '/';
                     const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
@@ -1967,21 +1962,6 @@ function MarkdownViewer({
                     
                     const normalizedSrc = sep === '\\' ? cleanSrc.replace(/\//g, '\\') : cleanSrc.replace(/\\/g, '/');
                     absolutePath = cleanRoot + sep + normalizedSrc;
-                  } else {
-                    // resourceFolder 없음: 워크스페이스 루트를 최우선으로 하고, 없으면 현재 파일 경로 기준
-                    let baseDir = '';
-                    if (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
-                      baseDir = dynamicPropsRef.current.rootFolderPath;
-                      const sep = baseDir.includes('\\') ? '\\' : '/';
-                      if (baseDir.endsWith(sep)) baseDir = baseDir.slice(0, -1);
-                    } else if (dynamicPropsRef.current.currentFilePath) {
-                      baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
-                    }
-
-                    if (baseDir) {
-                      let cleanSrc = pureSrc.replace(/^\.?\/media\//, '').replace(/^media\//, '');
-                      absolutePath = baseDir + '\\media\\' + cleanSrc;
-                    }
                   }
                 } else if (isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME && !isWelcomeAsset) {
                   // 워크스페이스 루트 상대 경로 처리 (예: /assets/img.png -> 워크스페이스경로/assets/img.png)
@@ -2269,25 +2249,15 @@ function MarkdownViewer({
                   absolutePath = mediaFilePath;
                   pureSrc = `media://local/serve?url=${encodeURIComponent(mediaFilePath)}`;
                 } else if ((pureSrc.startsWith('/media/') || pureSrc.startsWith('./media/')) && api) {
-                  const freshRF = loadSecureData<string>('resourceFolder') || dynamicPropsRef.current.resourceFolder;
+                  const rawSecure = loadSecureData<string>('resourceFolder');
+                  const freshRF = (rawSecure && rawSecure.trim() !== '') ? rawSecure : (dynamicPropsRef.current.resourceFolder || null);
                   if (freshRF) {
                     const sep = freshRF.includes('\\') ? '\\' : '/';
                     const cleanRoot = freshRF.endsWith(sep) ? freshRF.slice(0, -1) : freshRF;
                     const normalizedSrc = sep === '\\' ? pureSrc.replace(/\//g, '\\') : pureSrc;
                     absolutePath = cleanRoot + normalizedSrc;
                   } else {
-                    let baseDir = '';
-                    if (dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
-                      baseDir = dynamicPropsRef.current.rootFolderPath;
-                      const sep = baseDir.includes('\\') ? '\\' : '/';
-                      if (baseDir.endsWith(sep)) baseDir = baseDir.slice(0, -1);
-                    } else if (dynamicPropsRef.current.currentFilePath) {
-                      baseDir = dynamicPropsRef.current.currentFilePath.replace(/[/\\][^/\\]+$/, '');
-                    }
-                    if (baseDir) {
-                      const fileName = pureSrc.replace(/^\.?\/media\//, '');
-                      absolutePath = baseDir + '\\media\\' + fileName;
-                    }
+                    absolutePath = '';
                   }
                 } else if (isRootRelative && dynamicPropsRef.current.rootFolderPath && dynamicPropsRef.current.rootFolderPath !== BROWSER_STORAGE_NAME) {
                   const sep = dynamicPropsRef.current.rootFolderPath.includes('\\') ? '\\' : '/';

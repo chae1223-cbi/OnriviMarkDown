@@ -7,6 +7,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.29> 최초작성
  * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-09-03** — 전체사용자 대상 공통 리소스 폴더 미지정 시 초기 진입 가이드 모달(ResourceFolderGuideModal) 자동 연동 및 SELECT_RESOURCE_FOLDER 퀵 커맨드 신설; 플로팅 AI 버튼 라벨을 사용자 별명 기반({별명} AI, 예: '탕수육 AI')으로 동적 변경 연동; 플로팅 챗봇에서 최종 선택한 모델의 onrivi_settings/localStorage 완벽 영구 동기화(재접속 시 최종 모델로 자동 시작); 에디터 초기 로드 시 미연결 챗봇 완전 숨김 가드 강화; 버튼 아이콘을 온리비 로고(/icon.png)로 변경하고 특별한 AI 오로라 바이올렛 그라데이션 컬러 적용; 웹 브레드크럼 실제 절대경로 상위 기준경로 설정 및 플로팅 AI 챗봇 분할 캡슐 버튼 구현
  *   * 🚨 @PATCH : **2026-09-02** — 에디터 상단 경로 표시줄을 투박한 역슬래시 텍스트에서 폴더/파일 SVG 아이콘 및 치브론 구분자 기반 모던 브레드크럼(Breadcrumb) UI로 전면 리뉴얼
  *   * 🚨 @PATCH : **2026-09-02** — 사이드바 및 분할 모드(Split View) 에디터-미리보기 사이 분할선을 border-slate-300 dark:border-zinc-700으로 선명하게 강화
  *   * 🚨 @PATCH : **2026-09-02** — 플로팅 툴바에 표 현재 열 정렬(좌/중/우) 퀵 버튼 3종 추가 연동
@@ -74,7 +75,7 @@ import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더
 import {
   PanelLeft as SidebarIcon, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2,
   ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2,
-  Layers, X, Eraser, Sparkles, Loader2, Lock
+  Layers, X, Eraser, Sparkles, Loader2, Lock, HardDrive, Bot, Settings
 } from 'lucide-react';
 
 /**
@@ -173,7 +174,7 @@ export type EditorCommandType =
   | 'ABOUT' | 'LICENSE' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'  //⑨ 스타일 적용
   | 'TOGGLE_TOOLBAR' | 'TOGGLE_SIDEBAR' | 'TOGGLE_MODE' | 'TOGGLE_THEME'                  //⑩ 스타일 적용 
   | 'WRAP_H1' | 'WRAP_H2' | 'WRAP_H3' | 'WRAP_QUOTE' | 'WRAP_CODE'                       // ⑪ 스타일 적용 
-  | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS'                                                                // ⑫ 스타일 적용 
+  | 'TOGGLE_CSS_STYLE' | 'SETTINGS_SHORTCUTS' | 'SETTINGS_ACCOUNT' | 'SELECT_RESOURCE_FOLDER'                                                                // ⑫ 스타일 적용 
   | 'FOOTNOTE' | 'ORGANIZE_FOOTNOTES'                                                                         // ⑬ 각주 삽입 
   | 'INSERT_TABLE_ROW' | 'DELETE_TABLE_ROW'                                               // ⑭ 표 행 편집 명령
   | 'DOCLINK'                                                                          // ⑮ 문서링크
@@ -519,6 +520,81 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       licenseStatus.planName?.includes('제한사용자');
   }, [licenseStatus.isExpired, licenseStatus.isRestricted, licenseStatus.planName]);
 
+  // 💡 [사용자 별명(활동명) 상태] AI 버튼 표기용 ({별명} AI, 예: '탕수육 AI')
+  const [userNickname, setUserNickname] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        localStorage.getItem('onrivi_user_nickname') ||
+        localStorage.getItem('onrivi_nick_name') ||
+        localStorage.getItem('onrivi_signup_nick_name') ||
+        localStorage.getItem('onrivi_user_name') ||
+        ''
+      ).trim();
+    }
+    return '';
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUserNickname = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          // 1차: session user_metadata에서 별명/활동명 추출
+          const metaNick = (
+            session.user.user_metadata?.nick_name ||
+            session.user.user_metadata?.nickname ||
+            session.user.user_metadata?.name ||
+            session.user.user_metadata?.full_name ||
+            ''
+          ).trim();
+
+          if (metaNick && isMounted) {
+            setUserNickname(metaNick);
+            localStorage.setItem('onrivi_user_nickname', metaNick);
+          }
+
+          // 2차: Supabase DB users 테이블의 nick_name 칼럼 조회
+          if (session.user.id) {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('nick_name')
+              .eq('id', session.user.id)
+              .maybeSingle();
+
+            if (userData?.nick_name && isMounted) {
+              const cleanNick = userData.nick_name.trim();
+              if (cleanNick) {
+                setUserNickname(cleanNick);
+                localStorage.setItem('onrivi_user_nickname', cleanNick);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('사용자 별명 조회 중 경미한 예외:', err);
+      }
+    };
+
+    fetchUserNickname();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 🌟 [별명 실시간 동기화 리스너] 환경설정 모달 등에서 별명이 변경되었을 때 즉시 에디터 리렌더링
+  useEffect(() => {
+    const handleNickChange = (e: any) => {
+      if (typeof e.detail === 'string') {
+        setUserNickname(e.detail);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('onrivi:nickname_changed', handleNickChange);
+      return () => window.removeEventListener('onrivi:nickname_changed', handleNickChange);
+    }
+  }, []);
+
   // 💡 [Step 2 리팩토링 완료] 수십 개에 달하던 모달/팝업 상태를 단 하나의 Hook으로 완전히 분리!
   const {
     isSettingsModalOpen, setIsSettingsModalOpen,
@@ -540,6 +616,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     promptConfig, setPromptConfig,
     confirmConfig, setConfirmConfig
   } = useEditorModals();
+
+  // 🌟 [전체사용자 공통 리소스 폴더 필수 안내 모달 상태]
+  const [isResourceGuideModalOpen, setIsResourceGuideModalOpen] = useState(false);
+  const [isDismissedGuide, setIsDismissedGuide] = useState(false);
 
   // ====================================================================
   // 📊 [OMD-EDIT-0004 TDZ-GUARD] MainEditorApp.tsx ➔ tabs/activeTabId 선행 선언
@@ -724,6 +804,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const handle = await idb.get('resourceFolderHandle');
           if (handle) {
             setResourceFolderHandle(handle);
+            setResourceFolder(handle.name);
             try {
               // 권한 확인 없이 읽기 시도 (크롬은 세션 내에서는 허용될 수 있음)
               const profilesDir = await handle.getDirectoryHandle('profiles', { create: false });
@@ -809,7 +890,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
 
   const [rootFolder, setRootFolder] = useState<{ name: string, handle?: any } | null>(null);
-  const [resourceFolder, setResourceFolder] = useState<string | null>(() => loadSecureData('resourceFolder') || null);
+  const [resourceFolder, setResourceFolder] = useState<string | null>(() => {
+    const saved = loadSecureData<string>('resourceFolder');
+    return (saved && typeof saved === 'string' && saved.trim() !== '') ? saved.trim() : null;
+  });
   const [resourceFolderHandle, setResourceFolderHandle] = useState<any>(null);
   const [fileList, setFileList] = useState<FileNode[]>([]);
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>('local');
@@ -823,6 +907,27 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const sessionRestoredRef = useRef<boolean>(false); // 세션 복원 최초 1회 실행 가드
   const sessionRestoringRef = useRef<boolean>(false); // 세션 복원 진행 중 스킵 락
   const [driveLetter, setDriveLetter] = useState('D:');
+  const [webBasePath, setWebBasePath] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('onrivi_web_base_path') || '';
+    }
+    return '';
+  });
+
+  const [isAiModelDropdownOpen, setIsAiModelDropdownOpen] = useState(false);
+  const aiModelDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // 외부 클릭 시 AI 모델 드롭다운 닫기
+  useEffect(() => {
+    if (!isAiModelDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (aiModelDropdownRef.current && !aiModelDropdownRef.current.contains(e.target as Node)) {
+        setIsAiModelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isAiModelDropdownOpen]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0012] MainEditorApp.tsx ➔ tabMetadata_sync
@@ -831,22 +936,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : 2026-08-05 — 앱 시작 시 리소스 폴더 미지정 안내 메시지 표시 로직 추가 (hasShownResourceWarningRef)
   // 🔗 @CALLS : setTabs
   // ====================================================================
-  const hasShownResourceWarningRef = useRef(false);
-
+  // 🌟 [전체사용자 공통 리소스 폴더 미설정 시 초기 안내 모달 트리거]
   useEffect(() => {
-    if (hasShownResourceWarningRef.current) return;
-    const timer = setTimeout(() => {
-      hasShownResourceWarningRef.current = true;
-      const api = (window as any).electronAPI;
-      const savedFolder = loadSecureData('resourceFolder');
-      // 데스크탑은 문자열 경로 유무로, 웹은 핸들 유무로 판단
-      const isMissing = api ? !savedFolder : !resourceFolderHandle;
-      if (isMissing) {
-        showToast('환경설정에 리소스폴드가 미지정되어 서식과 멀티미디어를 사용할 수 없습니다.', 'warning');
-      }
-    }, 1500); // 초기 로딩 후 1.5초 뒤 확인
-    return () => clearTimeout(timer);
-  }, [resourceFolderHandle, showToast]);
+    if (!mounted) return;
+    const isMissing = !resourceFolder && !resourceFolderHandle;
+    const isFullUser = licenseStatus.isActivated && !licenseStatus?.isExpired;
+
+    if (isMissing && isFullUser && !isDismissedGuide) {
+      const timer = setTimeout(() => {
+        setIsResourceGuideModalOpen(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [mounted, resourceFolder, resourceFolderHandle, licenseStatus.isActivated, licenseStatus?.isExpired, isDismissedGuide]);
 
   // ====================================================================
   useEffect(() => {
@@ -2239,6 +2341,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     } else {
       showToast('이 브라우저에서는 폴더 선택 기능을 지원하지 않습니다.', 'warning');
     }
+  };
+
+  const clearResourceFolder = async () => {
+    setResourceFolder(null);
+    setResourceFolderHandle(null);
+    setIsDismissedGuide(false);
+    try { saveSecureData('resourceFolder', ''); } catch {}
+    try { localStorage.removeItem('resourceFolder'); } catch {}
+    try { await idb.del('resourceFolderHandle'); } catch {}
+    (window as any)._resourceFolderSynced = false;
+    showToast('공통 리소스 폴더 설정이 해제되었습니다.', 'info');
+    setIsResourceGuideModalOpen(true);
   };
 
   // ====================================================================
@@ -4930,6 +5044,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setSettingsModalInitialTab('shortcuts');
         setIsSettingsModalOpen(true);
         return;
+      case 'SETTINGS_ACCOUNT':
+        setSettingsModalInitialTab('account');
+        setIsSettingsModalOpen(true);
+        return;
+      case 'SELECT_RESOURCE_FOLDER':
+        selectResourceFolder();
+        return;
       case 'TOGGLE_CSS_STYLE':
         setIsStyleModalOpen(true);
         return;
@@ -6018,54 +6139,165 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 <div className="no-print flex flex-col w-full">
                   <UnifiedTabBar />
                   {activeTab && (() => {
+                    let rootDrive = '';
+                    let baseFolders: string[] = [];
                     let rootName = '';
-                    let subPath = currentFileNode?.path || currentFileName || '';
+                    let folders: string[] = [];
+                    let fileName = currentFileName || '';
 
-                    if (workspaceType === 'browser') {
-                      rootName = rootFolder?.name || 'Browser Storage';
-                    } else if (workspaceType === 'cloud') {
-                      rootName = `[${cloudProvider || 'Cloud'}] ${rootFolder?.name || 'Sync'}`;
-                    } else {
-                      if (currentFileNode?.path?.includes(':')) {
-                        const parts = currentFileNode.path.split(/[\\/]/);
-                        rootName = parts[0] || (driveLetter || 'C:');
-                        subPath = parts.slice(1).join('/');
+                    // 1. 데스크톱 / 로컬 파일 시스템 (currentFileNode.path에 OS 실제 절대경로가 있는 경우)
+                    if (currentFileNode?.path && (currentFileNode.path.includes(':') || currentFileNode.path.startsWith('/'))) {
+                      const cleanPath = currentFileNode.path.replace(/\\/g, '/');
+                      const parts = cleanPath.split('/').filter(Boolean);
+                      if (cleanPath.includes(':')) {
+                        rootDrive = parts[0]; // 예: "E:"
+                        folders = parts.slice(1, parts.length - 1); // ["ZZ 개인자료", "블로그", "사업구상", "홈페이지 외주제작"]
+                        fileName = parts[parts.length - 1] || currentFileName;
                       } else {
-                        rootName = driveLetter || 'C:';
-                        subPath = `새 문서/${currentFileName}`;
+                        rootDrive = '/';
+                        folders = parts.slice(0, parts.length - 1);
+                        fileName = parts[parts.length - 1] || currentFileName;
                       }
+                    } else if (workspaceType === 'browser') {
+                      // 2. 웹 브라우저 환경 (W3C File System Access API: 보안상 상위 디렉터리 은닉)
+                      // 사용자가 설정한 실제 상위 경로(예: "E:\ZZ 개인자료")가 있다면 프리픽스로 연결
+                      if (webBasePath) {
+                        const cleanBase = webBasePath.replace(/\\/g, '/');
+                        const baseParts = cleanBase.split('/').filter(Boolean);
+                        if (cleanBase.includes(':')) {
+                          rootDrive = baseParts[0];
+                          baseFolders = baseParts.slice(1);
+                        } else {
+                          baseFolders = baseParts;
+                        }
+                      }
+
+                      rootName = rootFolder?.name || '블로그';
+                      const subPath = currentFileNode?.path || '';
+                      const subSegments = subPath.replace(/\\/g, '/').split('/').filter(Boolean);
+                      if (subSegments.length > 0) {
+                        fileName = subSegments[subSegments.length - 1];
+                        folders = subSegments.slice(0, subSegments.length - 1);
+                      }
+                    } else if (workspaceType === 'cloud') {
+                      rootDrive = 'Cloud:';
+                      rootName = `[${cloudProvider || 'Cloud'}] ${rootFolder?.name || 'Sync'}`;
+                      const subPath = currentFileNode?.path || '';
+                      const subSegments = subPath.replace(/\\/g, '/').split('/').filter(Boolean);
+                      if (subSegments.length > 0) {
+                        fileName = subSegments[subSegments.length - 1];
+                        folders = subSegments.slice(0, subSegments.length - 1);
+                      }
+                    } else {
+                      rootDrive = driveLetter || 'C:';
+                      rootName = rootFolder?.name || 'Workspace';
+                      fileName = currentFileName || '새 문서.md';
                     }
 
-                    // subPath에서 파일명 및 상위 폴더들 분리
-                    const segments = subPath.replace(/\\/g, '/').split('/').filter(Boolean);
-                    const fileName = segments.length > 0 ? segments[segments.length - 1] : currentFileName;
-                    const folders = segments.length > 1 ? segments.slice(0, segments.length - 1) : [];
+                    // 전체 절대경로 문자열 생성
+                    const allParts = [rootDrive, ...baseFolders, rootName, ...folders, fileName].filter(Boolean);
+                    const fullAbsolutePath = allParts.join('\\').replace(/\\\\+/g, '\\');
 
                     return (
-                      <div className="flex items-center px-3.5 py-1.5 border-b border-slate-200 dark:border-zinc-800 bg-slate-100/90 dark:bg-zinc-900 text-[11px] font-bold text-slate-900 dark:text-zinc-100 overflow-x-auto no-scrollbar gap-2 select-none shadow-2xs z-10">
-                        {/* 루트 워크스페이스 */}
-                        <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
-                          <Folder size={14} className="text-amber-500 shrink-0 fill-amber-400" />
-                          <span>{rootName}</span>
-                        </span>
+                      <div
+                        className="flex items-center justify-between px-3.5 py-1.5 border-b border-slate-200 dark:border-zinc-800 bg-slate-100/90 dark:bg-zinc-900 text-[11px] font-bold text-slate-900 dark:text-zinc-100 overflow-x-auto no-scrollbar gap-2 select-none shadow-2xs z-10"
+                        title={`절대경로: ${fullAbsolutePath}`}
+                      >
+                        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                          {/* 드라이브 루트 (존재할 경우) */}
+                          {rootDrive && (
+                            <>
+                              <span className="flex items-center gap-1 shrink-0 text-slate-800 dark:text-zinc-300 font-bold bg-slate-200/80 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[10px] font-mono border border-slate-300/60 dark:border-zinc-700">
+                                <HardDrive size={12} className="text-slate-600 dark:text-zinc-400 shrink-0" />
+                                <span>{rootDrive}</span>
+                              </span>
+                              <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                            </>
+                          )}
 
-                        {/* 중간 폴더들 */}
-                        {folders.map((folder, idx) => (
-                          <React.Fragment key={idx}>
-                            <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
-                            <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
-                              <Folder size={13} className="text-amber-500 shrink-0 fill-amber-400" />
-                              <span>{folder}</span>
-                            </span>
-                          </React.Fragment>
-                        ))}
+                          {/* 상위 기본 폴더들 (웹 베이스 경로 등) */}
+                          {baseFolders.map((bFolder, idx) => (
+                            <React.Fragment key={`base-${idx}`}>
+                              <span className="flex items-center gap-1.5 shrink-0 text-slate-800 dark:text-zinc-200 font-bold">
+                                <Folder size={13} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <span>{bFolder}</span>
+                              </span>
+                              <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                            </React.Fragment>
+                          ))}
 
-                        {/* 현재 파일명 */}
-                        <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
-                        <span className="flex items-center gap-1.5 shrink-0 font-bold text-slate-950 dark:text-white bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 px-2 py-0.5 rounded-md shadow-xs">
-                          <FileText size={13} className="text-[#06C755] shrink-0 stroke-[2.5]" />
-                          <span className="truncate max-w-[350px]">{fileName}</span>
-                        </span>
+                          {/* 워크스페이스 루트 폴더 */}
+                          {rootName && (
+                            <>
+                              <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
+                                <Folder size={14} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <span>{rootName}</span>
+                              </span>
+                              <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                            </>
+                          )}
+
+                          {/* 하위 폴더들 */}
+                          {folders.map((folder, idx) => (
+                            <React.Fragment key={`folder-${idx}`}>
+                              <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
+                                <Folder size={13} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <span>{folder}</span>
+                              </span>
+                              <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                            </React.Fragment>
+                          ))}
+
+                          {/* 현재 활성 파일명 */}
+                          <span className="flex items-center gap-1.5 shrink-0 font-bold text-slate-950 dark:text-white bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 px-2 py-0.5 rounded-md shadow-xs">
+                            <FileText size={13} className="text-[#06C755] shrink-0 stroke-[2.5]" />
+                            <span className="truncate max-w-[350px]">{fileName}</span>
+                          </span>
+                        </div>
+
+                        {/* 우측 퀵 액션 버튼들 */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* 웹 브라우저 전용: 실제 상위 절대경로 설정 버튼 */}
+                          {workspaceType === 'browser' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = localStorage.getItem('onrivi_web_base_path') || '';
+                                const input = window.prompt(
+                                  "웹 브라우저는 보안상 상위 폴더 경로(드라이브 명 등)를 노출하지 않습니다.\n실제 로컬 컴퓨터 상위 절대경로를 입력하시면 정확히 일치되어 표시됩니다:\n(예: E:\\ZZ 개인자료)",
+                                  current || (rootDrive && baseFolders.length ? `${rootDrive}\\${baseFolders.join('\\')}` : "E:\\ZZ 개인자료")
+                                );
+                                if (input !== null) {
+                                  const trimmed = input.trim();
+                                  localStorage.setItem('onrivi_web_base_path', trimmed);
+                                  setWebBasePath(trimmed);
+                                  showToast(trimmed ? `기준 절대경로가 설정되었습니다:\n${trimmed}` : "기준 절대경로가 초기화되었습니다.", "success");
+                                }
+                              }}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors font-normal border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 cursor-pointer"
+                              title="웹 환경 상위 절대경로(드라이브/폴더) 설정"
+                            >
+                              <Settings size={11} />
+                              <span className="hidden md:inline">상위경로 설정</span>
+                            </button>
+                          )}
+
+                          {/* 절대경로 클립보드 복사 버튼 */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                navigator.clipboard.writeText(fullAbsolutePath);
+                                showToast(`절대경로가 복사되었습니다:\n${fullAbsolutePath}`, 'success');
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors font-normal border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 cursor-pointer"
+                            title="절대경로 복사"
+                          >
+                            <Copy size={11} />
+                            <span className="hidden sm:inline">경로 복사</span>
+                          </button>
+                        </div>
                       </div>
                     );
                   })()}
@@ -6825,12 +7057,144 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
           <StatusBar />
 
+          {/* 🌟 [별도 플로팅 AI 챗봇 및 모델 퀵 셀렉터 버튼] 
+              보안/권한 가드: 제한사용자가 아니며(isRestrictedUser === false), 
+              AI 설정(geminiApiKey)이 완료된 정상 사용자에게만 노출 */}
+          {!isRestrictedUser && !!geminiApiKey && !!geminiApiKey.trim() && (
+            <div ref={aiModelDropdownRef} className="no-print fixed bottom-10 right-6 z-40 flex items-center">
+              {/* AI 모델 퀵 셀렉터 팝오버 드롭다운 */}
+              {isAiModelDropdownOpen && (
+                <div className="absolute bottom-full mb-2 right-0 w-64 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800/80 mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
+                      <span className="text-[11px] font-extrabold text-slate-800 dark:text-zinc-200">
+                        {userNickname ? `${userNickname} AI (Gemini)` : 'Google Gemini 연결됨'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAiModelDropdownOpen(false);
+                        setIsSettingsModalOpen(true);
+                        setSettingsModalInitialTab('ai');
+                      }}
+                      className="text-[10px] text-slate-500 hover:text-[#8B5CF6] dark:text-zinc-400 font-medium cursor-pointer hover:underline"
+                    >
+                      설정 관리
+                    </button>
+                  </div>
+
+                  <div className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 mb-1 px-1">
+                    AI 모델 선택 (원클릭 전환)
+                  </div>
+
+                  <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+                    {[
+                      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', desc: '최신 최고 버전 / 초고속 플래그십', badge: '최신' },
+                      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', desc: '차세대 고성능 모델', badge: '추천' },
+                      { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: '고성능 안정화 모델' },
+                      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', desc: '지능형 균형 모델' },
+                      { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', desc: '초경량 초고속 응답' },
+                      { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT', desc: '확장 오픈 모델' },
+                      { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B', desc: '경량 오픈 모델' }
+                    ].map((m) => {
+                      const isSelected = (aiModelName || 'gemini-3.8-flash') === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setAiModelName(m.id);
+                            try {
+                              localStorage.setItem('onrivi_ai_model_name', m.id);
+                              const raw = localStorage.getItem('onrivi_settings');
+                              if (raw) {
+                                const parsed = JSON.parse(raw);
+                                parsed.aiModelName = m.id;
+                                localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
+                              }
+                            } catch {}
+                            setIsAiModelDropdownOpen(false);
+                            showToast(`AI 모델이 ${m.name}(으)로 전환되었습니다.`, 'success');
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-all flex items-center justify-between cursor-pointer ${
+                            isSelected
+                              ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
+                              : 'hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300'
+                          }`}
+                        >
+                          <div className="truncate">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold">{m.name}</span>
+                              {m.badge && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-violet-500/20 text-violet-600 dark:text-violet-300 font-bold">
+                                  {m.badge}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-normal">{m.desc}</div>
+                          </div>
+                          {isSelected && <Check size={14} className="text-violet-600 dark:text-violet-400 shrink-0 stroke-[2.5]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 메인 플로팅 캡슐 버튼 (특별한 AI 바이올렛/오로라 그라데이션 & 온리비 로고) */}
+              <div className="flex items-center rounded-full bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#A855F7] hover:from-[#4F46E5] hover:via-[#7C3AED] hover:to-[#9333EA] text-white shadow-[0_8px_25px_rgba(139,92,246,0.4)] hover:shadow-[0_12px_32px_rgba(139,92,246,0.55)] border border-white/20 transition-all duration-300 select-none">
+                {/* 좌측: AI 챗봇 모달 오픈 */}
+                <button
+                  type="button"
+                  onClick={() => setIsAIDraftModalOpen(true)}
+                  className="flex items-center gap-2 pl-3.5 pr-2 py-2.5 hover:opacity-95 active:scale-95 transition-all cursor-pointer"
+                  title={userNickname ? `${userNickname} AI 어시스턴트 열기` : '온리비 AI 어시스턴트 열기'}
+                >
+                  {/* 실시간 핑 인디케이터 점 */}
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
+                  </span>
+
+                  {/* 온리비 공식 로고 아이콘 */}
+                  <img 
+                    src="/icon.png" 
+                    alt="Onrivi" 
+                    className="w-[18px] h-[18px] object-contain rounded-xs drop-shadow-sm select-none shrink-0" 
+                  />
+                  <span className="text-xs font-extrabold tracking-tight">
+                    {userNickname ? `${userNickname} AI` : '온리비 AI'}
+                  </span>
+                </button>
+
+                {/* 모델명 표기 및 모델 퀵 선택 드롭다운 토글 */}
+                <div className="h-4 w-px bg-white/25" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsAiModelDropdownOpen(!isAiModelDropdownOpen);
+                  }}
+                  className="flex items-center gap-1.5 pl-2 pr-3.5 py-2.5 hover:bg-black/10 active:scale-95 rounded-r-full transition-all cursor-pointer text-[11px] font-bold"
+                  title="클릭하여 AI 모델 변경"
+                >
+                  <span className="max-w-[120px] truncate text-violet-100">
+                    {aiModelName ? aiModelName.replace('gemini-', '').replace('gemma-', 'gemma ') : '3.8-flash'}
+                  </span>
+                  <ChevronDown size={13} className={`text-violet-200 transition-transform duration-200 ${isAiModelDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            </div>
+          )}
+
           {isAIDraftModalOpen && (
             <AIDraftModal 
               onClose={() => setIsAIDraftModalOpen(false)} 
               onApply={handleAIDraftApply} 
               geminiApiKey={geminiApiKey || ''}
-              aiModelName={aiModelName || 'gemini-1.5-flash'}
+              aiModelName={aiModelName || 'gemini-3.8-flash'}
               initialMode={aiDraftInitialMode}
               editorContext={aiEditorContext}
               resourceFolder={resourceFolder}
@@ -6857,8 +7221,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               confirmConfig, setConfirmConfig,
               isMapModalOpen, setIsMapModalOpen,
               isTableModalOpen, setIsTableModalOpen,
-              isReferenceModalOpen, setIsReferenceModalOpen,
-              isCitationModalOpen, setIsCitationModalOpen
+              isCitationModalOpen, setIsCitationModalOpen,
+              isResourceGuideModalOpen,
+              setIsResourceGuideModalOpen: (open: boolean) => {
+                setIsResourceGuideModalOpen(open);
+                if (!open) {
+                  setIsDismissedGuide(true);
+                }
+              }
             }}
             deps={{
               isDarkMode, setIsDarkMode, fontSize, setFontSize, wordWrap, setWordWrap,
@@ -6878,7 +7248,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               vfsWriteFile,
               vfsCreateFolder,
               helpTitle, helpContent, setHelpContent,
-              resourceFolder, resourceFolderRef, resourceFolderHandle, selectResourceFolder
+              resourceFolder, resourceFolderRef, resourceFolderHandle, selectResourceFolder, clearResourceFolder,
+              userNickname, setUserNickname
             }}
           />
 

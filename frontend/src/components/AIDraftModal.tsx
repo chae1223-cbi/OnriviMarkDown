@@ -6,7 +6,8 @@
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
  * 작성자 : 채병익
- * 🚨 @PATCH : **2026-08-16** — useEffect 의존성 배열 누락 경고 해결: getPromptTemplates와 loadPresets useEffect에 resourceFolder, resourceFolderHandle 추가
+ * 🚨 @PATCH : **2026-09-03** — 기본 AI 모델을 최신 플래그십 최고 버전인 Gemini 3.8 Flash(gemini-3.8-flash)로 전면 갱신
+ *              **2026-08-16** — useEffect 의존성 배열 누락 경고 해결: getPromptTemplates와 loadPresets useEffect에 resourceFolder, resourceFolderHandle 추가
  *              **2026-07-20** — AI 모달창의 '프리셋 불러오기' 및 '현재 설정 저장' 팝업 드롭다운이 외부 영역(outside) 클릭 시 자동으로 닫히도록 `useRef` 및 이벤트 리스너(handleClickOutside) 로직 추가 적용
  * -----------------------------------------------------------------------
  */
@@ -454,7 +455,7 @@ export default function AIDraftModal({
     try {
       await generateDraftWithAIStream(
         geminiApiKey,
-        aiModelName || 'gemini-1.5-flash',
+        aiModelName || 'gemini-3.8-flash',
         finalSystemPrompt,
         finalUserPrompt,
         (chunkText) => {

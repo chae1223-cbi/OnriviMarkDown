@@ -23,15 +23,20 @@ export async function POST(request: Request) {
     const upperProvider = (p_provider || 'EMAIL').toUpperCase();
     const nickName = p_nick_name ? p_nick_name.trim() : null;
 
-    // 1. 비밀번호가 전달된 경우 Supabase Auth(auth.users) 회원 비밀번호 및 user_metadata 업데이트
-    if (p_password) {
-      const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(p_id, {
-        password: p_password,
-        user_metadata: { name: nickName }
-      });
-      if (authErr) {
-        console.warn('[/api/rpc/user/upsert] Supabase auth admin password update error:', authErr);
+    // 1. Supabase Auth(auth.users) 회원 user_metadata 및 비밀번호 동기화
+    try {
+      const updateData: any = {
+        user_metadata: { nick_name: nickName, name: nickName }
+      };
+      if (p_password) {
+        updateData.password = p_password;
       }
+      const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(p_id, updateData);
+      if (authErr) {
+        console.warn('[/api/rpc/user/upsert] Supabase auth admin update error:', authErr);
+      }
+    } catch (authEx) {
+      console.warn('[/api/rpc/user/upsert] Supabase auth update exception:', authEx);
     }
 
     // 2. Primary: Supabase Admin Client -> users 복구 및 정보 전면 업데이트

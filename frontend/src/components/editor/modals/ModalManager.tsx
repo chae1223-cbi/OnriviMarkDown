@@ -26,6 +26,7 @@ import FormulaModal from '@/components/FormulaModal';        // 수식 모달 �
 import CssStyleModal from '@/components/CssStyleModal';        // 서식 모달 컴포넌트
 import ReferenceManagerModal from '@/components/ReferenceManagerModal'; // 참조 관리 모달 컴포넌트
 import CitationSelectionModal from '@/components/CitationSelectionModal'; // 참조자 선택 모달 컴포넌트
+import ResourceFolderGuideModal from '@/components/editor/modals/ResourceFolderGuideModal'; // 리소스 폴더 안내 모달
 
 import { useEditorModals } from '@/hooks/editor/useEditorModals';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage'; // 모달 관련 상태와 함수들을 hook으로 관리하는 hooks
@@ -87,6 +88,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
+        initialTab={settingsModalInitialTab}
         isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
         fontSize={fontSize} setFontSize={setFontSize}
         wordWrap={wordWrap} setWordWrap={setWordWrap}
@@ -109,7 +111,24 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         setGeminiApiKey={setGeminiApiKey}
         aiModelName={aiModelName}
         setAiModelName={setAiModelName}
-        resourceFolder={resourceFolder} onSelectResourceFolder={selectResourceFolder}
+        resourceFolder={resourceFolder || (deps.resourceFolderHandle ? deps.resourceFolderHandle.name : null)} 
+        onSelectResourceFolder={selectResourceFolder}
+        onClearResourceFolder={deps.clearResourceFolder}
+        userNickname={deps.userNickname}
+        setUserNickname={deps.setUserNickname}
+        userId={licenseStatus?.userId}
+      />
+
+      {/* 🌟 전체사용자 공통 리소스 폴더 미지정 시 초기 설정 안내 모달 */}
+      <ResourceFolderGuideModal
+        isOpen={(modals as any).isResourceGuideModalOpen || false}
+        onClose={() => (modals as any).setIsResourceGuideModalOpen?.(false)}
+        onSelectFolder={selectResourceFolder}
+        onOpenSettings={() => {
+          setSettingsModalInitialTab?.('editor');
+          setIsSettingsModalOpen(true);
+        }}
+        isDarkMode={isDarkMode}
       />
 
       <ExportModal
