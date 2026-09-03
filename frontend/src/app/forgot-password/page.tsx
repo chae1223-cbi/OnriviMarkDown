@@ -1,43 +1,26 @@
-// ====================================================================
+﻿// ====================================================================
 // 📊 [OMD-AUTH-forgot-password-0001] page ➔ ForgotPasswordPage
 // 🎯 @KICK  : Supabase Auth 기반 비밀번호 재설정 보안 링크 메일 발송 기능 제공 비밀번호 찾기 화면
 // 🛡️ @GUARD : 이메일 빈 값 및 오작동 가드, redirectUrl 분기 처리
-// 🚨 @PATCH : **2026-07-22** — /api/rpc/password/request 원트랜잭션 API 연동: users 존재확인 + password_resets INSERT + Supabase 메일발송을 단일 흐름으로 처리
-//             **2026-06-27** — Supabase Auth resetPasswordForEmail 직접 호출로 복원 (static export에선 API route 불가)
-//             **2026-06-23** — 화면 내 고정식 {errorMessage} 경고 및 success 안내 문구를 제거하고 성공/실패 알림을 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치;
-//             **2026-06-22** — Luminous Arctic 디자인 적용 (Neomorphic 그림자 shadow-2xl 및 버튼 배경색 #6366f1 일원화) 패치
-// 🔗 @CALLS : /api/rpc/password/request, Navbar, Footer, Link, useToast
+// 🚨 @PATCH : **2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#06C755) 버튼 및 Lucide React 아이콘 교체
+//             **2026-07-22** — /api/rpc/password/request 원트랜잭션 API 연동: users 존재확인 + password_resets INSERT + Supabase 메일발송을 단일 흐름으로 처리
+//             **2026-06-23** — 공통 토스트 알람(showToast) 일괄 연동 개편 패치
+// 🔗 @CALLS : /api/rpc/password/request, Navbar, Footer, Link, useToast, Lucide Icons
 // ====================================================================
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import Link from "next/link";
 import { useToast } from "@/components/ToastProvider";
+import { Mail, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-
-  // 배경 블롭 마우스 무브 효과 (패럴랙스)
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const x = e.clientX / window.innerWidth;
-      const y = e.clientY / window.innerHeight;
-      
-      const blob1 = document.getElementById("blob-1");
-      const blob2 = document.getElementById("blob-2");
-      
-      if (blob1) blob1.style.transform = `translate(${x * 50}px, ${y * 50}px)`;
-      if (blob2) blob2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;
-    };
-    
-    document.addEventListener("mousemove", handleMouseMove);
-    return () => document.removeEventListener("mousemove", handleMouseMove);
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,17 +37,13 @@ export default function ForgotPasswordPage() {
         ? `${window.location.origin}/reset-password`
         : "http://localhost:3100/reset-password";
 
-      // ================================================================
-      // 원트랜잭션 API 호출:
-      // users 존재확인 → password_resets INSERT → Supabase 메일발송
-      // ================================================================
-      const res = await fetch('/api/rpc/password/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/rpc/password/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           p_email: email.trim(),
-          p_redirect_url: redirectUrl
-        })
+          p_redirect_url: redirectUrl,
+        }),
       });
 
       const result = await res.json();
@@ -85,100 +64,102 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface dark:bg-gray-950 text-on-surface dark:text-gray-100 font-sans transition-colors duration-200">
-      {/* 구글 폰트 및 Material Symbols 로드 */}
-      <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet" />
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <div
+      className="flex flex-col min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#06C755]/20 selection:text-[#06C755] relative overflow-hidden"
+      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+    >
+      {/* Subtle Ambient Background Glow */}
+      <div
+        aria-hidden
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-[radial-gradient(ellipse_at_top,rgba(6,199,85,0.08)_0%,transparent_70%)] pointer-events-none z-0"
+      />
 
       <Navbar />
 
-      {/* 본문 영역 */}
+      {/* Main Container */}
       <main className="flex-grow flex items-center justify-center px-4 pt-32 pb-24 relative z-10">
-        <div 
-          className="max-w-md w-full bg-white/70 dark:bg-gray-900/60 border border-white/40 rounded-3xl p-8 backdrop-blur-md"
-          style={{
-            boxShadow: "8px 8px 24px rgba(0, 0, 0, 0.04), -8px -8px 24px rgba(255, 255, 255, 0.9)"
-          }}
-        >
+        <div className="max-w-[440px] w-full bg-white dark:bg-[#181A1D] border border-[#E0DED7] dark:border-white/10 rounded-3xl p-7 sm:p-9 shadow-[0_24px_70px_-15px_rgba(40,35,25,0.08)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)]">
           <section className="space-y-6">
-            <div className="text-center mb-4">
-              <h1 className="font-display-sm text-display-sm text-on-surface dark:text-gray-100 leading-tight font-bold">비밀번호 찾기</h1>
-              <p className="mt-2 text-sm text-on-surface-variant dark:text-gray-400">
-                가입하신 이메일 주소를 입력하시면<br/>비밀번호 재설정 링크를 발송해 드립니다.
+            {/* Header */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F0EFEA] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#06C755]" />
+                SECURITY RECOVERY
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#111413] dark:text-white tracking-tight">
+                비밀번호 찾기
+              </h1>
+              <p className="text-xs sm:text-sm text-[#68716D] dark:text-zinc-400 leading-relaxed">
+                가입하신 이메일 주소를 입력하시면<br />비밀번호 재설정 보안 링크를 발송해 드립니다.
               </p>
             </div>
 
-            <form className="space-y-6" id="forgot-password-form" onSubmit={handleSubmit} method="POST">
-              {/* Email Input */}
-              <div className="group space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant dark:text-gray-400 block ml-1 uppercase tracking-wider font-semibold" htmlFor="email">이메일 주소</label>
+            {/* Form */}
+            <form className="space-y-4" onSubmit={handleSubmit} method="POST">
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-bold text-[#111413] dark:text-zinc-200 block" htmlFor="email">
+                  가입 이메일 주소
+                </label>
                 <div className="relative">
                   <input
-                    className="w-full bg-blue-50/50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4 font-sans text-on-surface dark:text-gray-100 placeholder:text-outline-variant dark:placeholder:text-gray-500 focus:ring-1 focus:ring-[#6366f1]/20 dark:focus:ring-indigo-500/30 focus:bg-white dark:focus:bg-gray-850 transition-all duration-300 outline-none"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="name@domain.tech"
+                    placeholder="editor@onrivi.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
-                  <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
-                    <span className="material-symbols-outlined text-[#6366f1]">alternate_email</span>
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-400">
+                    <Mail size={16} />
                   </div>
                 </div>
               </div>
 
-              {/* Primary Action */}
+              {/* Submit Button */}
               <div className="pt-2">
                 <button
-                  className={`w-full font-label-md text-label-md py-4 rounded-xl flex items-center justify-center space-x-3 transition-all duration-200 cursor-pointer disabled:opacity-75 ${
-                    success ? "bg-emerald-600 text-white" : "bg-[#6366f1] text-white hover:scale-[1.02] active:scale-95"
-                  }`}
-                  style={{
-                    boxShadow: success ? "none" : "4px 4px 12px rgba(99, 102, 241, 0.3), -4px -4px 12px rgba(255, 255, 255, 0.8)"
-                  }}
-                  id="submit-btn"
                   type="submit"
                   disabled={loading}
+                  className={`w-full font-bold text-[15px] py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer disabled:opacity-50 ${
+                    success
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-[#06C755] hover:bg-[#05B04B] text-white shadow-[0_4px_20px_rgba(6,199,85,0.25)] hover:shadow-[0_6px_24px_rgba(6,199,85,0.35)] active:scale-[0.99]"
+                  }`}
                 >
                   {loading ? (
-                    <>
-                      <span className="uppercase tracking-widest font-bold">요청 처리 중...</span>
-                      <span className="material-symbols-outlined animate-spin">progress_activity</span>
-                    </>
+                    <span>요청 처리 중...</span>
                   ) : success ? (
                     <>
-                      <span className="uppercase tracking-widest font-bold">링크 발송 완료</span>
-                      <span className="material-symbols-outlined">check_circle</span>
+                      <CheckCircle2 size={18} />
+                      <span>재설정 링크 발송 완료</span>
                     </>
                   ) : (
                     <>
-                      <span className="uppercase tracking-widest font-bold">액세스 링크 발송</span>
-                      <span className="material-symbols-outlined">arrow_forward</span>
+                      <span>재설정 링크 발송</span>
+                      <ArrowRight size={16} />
                     </>
                   )}
                 </button>
               </div>
             </form>
 
-            <nav className="flex justify-center pt-4 border-t border-gray-100 dark:border-gray-800">
-              <Link className="font-label-sm text-label-sm text-on-surface-variant dark:text-gray-400 hover:text-[#6366f1] transition-colors flex items-center space-x-2 group cursor-pointer" href="/login">
-                <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform">keyboard_backspace</span>
-                <span className="uppercase tracking-tighter font-semibold">로그인 화면으로 돌아가기</span>
+            {/* Back to Login Link */}
+            <div className="pt-3 border-t border-[#E8E6E1] dark:border-white/10 text-center">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 text-xs text-[#68716D] dark:text-zinc-400 hover:text-[#06C755] transition-colors font-medium"
+              >
+                <ArrowLeft size={14} />
+                <span>로그인 화면으로 돌아가기</span>
               </Link>
-            </nav>
+            </div>
           </section>
         </div>
       </main>
 
       <Footer />
-
-      {/* Background Atmospheric Elements */}
-      <div className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none overflow-hidden">
-        <div id="blob-1" className="absolute top-[10%] left-[5%] w-[40rem] h-[40rem] bg-indigo-500/5 rounded-full blur-[120px] transition-transform duration-300"></div>
-        <div id="blob-2" className="absolute bottom-[10%] right-[5%] w-[30rem] h-[30rem] bg-indigo-600/5 rounded-full blur-[100px] transition-transform duration-300"></div>
-      </div>
     </div>
   );
 }

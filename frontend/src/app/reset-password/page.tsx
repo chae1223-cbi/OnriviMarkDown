@@ -1,13 +1,12 @@
-// ====================================================================
+﻿// ====================================================================
 // 📊 [OMD-AUTH-reset-password-0001] page ➔ ResetPasswordPage
 // 🎯 @KICK  : Supabase Auth 기반 새로운 비밀번호 변경 입력창 및 패스워드 재설정 화면
 // 🛡️ @GUARD : 비밀번호 영문소문자/숫자/특수문자 조합 8~20자 유효성, 비밀번호 확인 일치성 검증 가드
-// 🚨 @PATCH : **2026-07-22** — /api/rpc/password/confirm 원트랜잭션 API 연동: password_resets 토큰검증 + used=true 선소비 + Supabase 비밀번호변경을 단일 흐름으로 처리; 사용자 세션 토큰(access_token)을 서버에 전달하여 비밀번호 변경 수행
-//             **2026-06-28** — 비밀번호 변경 성공 시 즉시 signOut()을 호출하여 메일 복구 링크(토큰 세션)를 일회성으로 즉각 영구 파괴하도록 보안 강화 패치
-//             **2026-06-27** — Supabase Auth 대신 Next.js API Route Handler(/api/auth/reset-password-confirm)에 이메일 인증 토큰을 대조해 비밀번호를 변경하도록 개편 패치
-//             **2026-06-23** — 화면 내 고정식 {errorMessage}/{successMessage} 경고 및 안내 문구를 제거하고 성공/실패 알림을 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치;
-//             **2026-06-22** — Luminous Arctic 디자인 적용 (Neomorphic 그림자 shadow-2xl 및 버튼 배경색 #6366f1 일원화) 패치
-// 🔗 @CALLS : /api/rpc/password/confirm, supabase.auth, Navbar, Footer, useRouter, useToast
+// 🚨 @PATCH : **2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#06C755) 버튼, 실시간 유효성 체크 뱃지 및 Lucide React 아이콘 교체
+//             **2026-07-22** — /api/rpc/password/confirm 원트랜잭션 API 연동: password_resets 토큰검증 + used=true 선소비 + Supabase 비밀번호변경 단일 흐름 처리
+//             **2026-06-28** — 비밀번호 변경 성공 시 즉시 signOut() 호출하여 메일 복구 링크 일회성 파괴
+//             **2026-06-23** — 공통 토스트 알람(showToast) 일괄 연동 개편 패치
+// 🔗 @CALLS : /api/rpc/password/confirm, supabase.auth, Navbar, Footer, useRouter, useToast, Lucide Icons
 // ====================================================================
 "use client";
 
@@ -18,6 +17,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/components/ToastProvider";
+import { Lock, Eye, EyeOff, Check, ArrowRight, ArrowLeft } from "lucide-react";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -43,7 +43,7 @@ export default function ResetPasswordPage() {
     setHasMinLength(password.length >= 8 && password.length <= 20);
     setHasLowercase(/[a-z]/.test(password));
     setHasNumber(/\d/.test(password));
-    setHasSpecialChar(/[!@#$%^&*()_+={}[\]|\\:;"'<>,.?/-]/.test(password));
+    setHasSpecialChar(/[!@#$%^&*()_+={}\[\]|\\:;"'<>,.?/-]/.test(password));
   }, [password]);
 
   useEffect(() => {
@@ -52,84 +52,73 @@ export default function ResetPasswordPage() {
 
   const isFormValid = hasMinLength && hasLowercase && hasNumber && hasSpecialChar && isPasswordMatched;
 
-  // 배경 블롭 마우스 무브 효과 (패럴랙스)
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const x = e.clientX / window.innerWidth;
-      const y = e.clientY / window.innerHeight;
-      const blob1 = document.getElementById("blob-1");
-      const blob2 = document.getElementById("blob-2");
-      if (blob1) blob1.style.transform = `translate(${x * 50}px, ${y * 50}px)`;
-      if (blob2) blob2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;
-    };
-    document.addEventListener("mousemove", handleMouseMove);
-    return () => document.removeEventListener("mousemove", handleMouseMove);
-  }, []);
-
   // URL hash에서 Supabase Auth 세션 복원 및 access_token 추출
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const hash = window.location.hash;
     if (hash) {
-      const params = new URLSearchParams(hash.replace('#', '?'));
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
 
-      if (accessToken) {
-        setSessionAccessToken(accessToken);
-        // 세션 설정 후 이메일 추출
+      if (accessToken && refreshToken) {
         supabase.auth.setSession({
           access_token: accessToken,
-          refresh_token: refreshToken || '',
-        }).then(({ data }) => {
-          if (data?.user?.email) {
-            setSessionEmail(data.user.email);
-          }
-        }).catch(() => {});
-      } else {
-        // hash가 없으면 기존 세션에서 추출
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (session) {
-            setSessionAccessToken(session.access_token);
-            setSessionEmail(session.user?.email || null);
+          refresh_token: refreshToken,
+        }).then(({ data, error }) => {
+          if (error) {
+            console.error("[RESET-PW] 세션 복원 실패:", error.message);
+          } else if (data?.session) {
+            setSessionAccessToken(data.session.access_token);
+            setSessionEmail(data.session.user?.email || null);
           }
         });
+        return;
       }
-    } else {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          setSessionAccessToken(session.access_token);
-          setSessionEmail(session.user?.email || null);
-        }
-      });
     }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSessionAccessToken(session.access_token);
+        setSessionEmail(session.user?.email || null);
+      }
+    });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!isFormValid) {
-      showToast("비밀번호 유효성 조건과 비밀번호 확인 일치 여부를 점검해 주세요.", "warning");
-      return;
-    }
-    if (!sessionAccessToken) {
-      showToast("세션이 만료되었습니다. 비밀번호 찾기를 다시 진행해 주세요.", "error");
+      showToast("비밀번호 요건을 모두 충족하고 일치해야 합니다.", "warning");
       return;
     }
 
     setLoading(true);
 
     try {
-      // ================================================================
-      // 원트랜잭션 API 호출:
-      // password_resets 유효 요청 확인 → used=true 선소비 → Supabase 비밀번호 변경
-      // ================================================================
-      const res = await fetch('/api/rpc/password/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      let accessToken = sessionAccessToken;
+      let email = sessionEmail;
+
+      if (!accessToken) {
+        const { data: { session } } = await supabase.auth.getSession();
+        accessToken = session?.access_token || null;
+        email = session?.user?.email || email;
+      }
+
+      if (!email) {
+        const { data: { user } } = await supabase.auth.getUser();
+        email = user?.email || null;
+      }
+
+      const res = await fetch("/api/rpc/password/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          p_email: sessionEmail,
+          p_email: email,
           p_new_password: password,
-          p_user_access_token: sessionAccessToken
-        })
+          p_access_token: accessToken,
+        }),
       });
 
       const result = await res.json();
@@ -138,166 +127,167 @@ export default function ResetPasswordPage() {
         throw new Error(result.message || "비밀번호 변경에 실패했습니다.");
       }
 
-      // 비밀번호 변경 성공 후 세션 즉시 파괴 (일회성 복구 링크 영구 무력화)
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
 
-      showToast("비밀번호가 성공적으로 변경되었습니다! 로그인 페이지로 이동합니다.", "success");
-      setPassword("");
-      setConfirmPassword("");
-
-      if (typeof window !== 'undefined') {
-        const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-      }
+      showToast("비밀번호가 성공적으로 변경되었습니다! 새 비밀번호로 로그인해 주세요.", "success");
 
       setTimeout(() => {
-        router.replace("/login");
-      }, 2500);
+        router.push("/login");
+      }, 2000);
     } catch (err: any) {
-      console.error("비밀번호 업데이트 실패:", err);
-      showToast(err.message || "비밀번호 업데이트에 실패했습니다. 다시 시도해 주세요.", "error");
+      console.error("비밀번호 재설정 실패:", err);
+      showToast(err.message || "비밀번호 재설정 중 오류가 발생했습니다.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface dark:bg-gray-950 text-on-surface dark:text-gray-100 font-sans transition-colors duration-200">
-      {/* 구글 폰트 및 Material Symbols 로드 */}
-      <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet" />
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <div
+      className="flex flex-col min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#06C755]/20 selection:text-[#06C755] relative overflow-hidden"
+      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+    >
+      {/* Subtle Ambient Background Glow */}
+      <div
+        aria-hidden
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-[radial-gradient(ellipse_at_top,rgba(6,199,85,0.08)_0%,transparent_70%)] pointer-events-none z-0"
+      />
 
       <Navbar />
 
-      {/* 본문 영역 */}
+      {/* Main Container */}
       <main className="flex-grow flex items-center justify-center px-4 pt-32 pb-24 relative z-10">
-        <div 
-          className="max-w-md w-full bg-white/70 dark:bg-gray-900/60 border border-white/40 rounded-3xl p-8 backdrop-blur-md"
-          style={{
-            boxShadow: "8px 8px 24px rgba(0, 0, 0, 0.04), -8px -8px 24px rgba(255, 255, 255, 0.9)"
-          }}
-        >
-          
+        <div className="max-w-[440px] w-full bg-white dark:bg-[#181A1D] border border-[#E0DED7] dark:border-white/10 rounded-3xl p-7 sm:p-9 shadow-[0_24px_70px_-15px_rgba(40,35,25,0.08)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)]">
           <section className="space-y-6">
-            <div className="space-y-2">
-              <h1 className="font-display-sm text-display-sm text-on-surface dark:text-gray-100 leading-tight font-bold">비밀번호 재설정</h1>
-              <p className="font-body-lg text-body-lg text-on-surface-variant dark:text-gray-400 max-w-sm">
-                보안 규칙에 부합하는 새로운 비밀번호를 입력하여 복구 절차를 완료해 주세요.
+            {/* Header */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F0EFEA] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#06C755]" />
+                NEW CREDENTIALS
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#111413] dark:text-white tracking-tight">
+                새 비밀번호 설정
+              </h1>
+              <p className="text-xs sm:text-sm text-[#68716D] dark:text-zinc-400">
+                새로 사용할 안전한 비밀번호를 입력해 주세요.
               </p>
             </div>
 
-            <form className="space-y-6" id="reset-password-form" onSubmit={handleSubmit} method="POST">
-              {/* Password Input */}
-              <div className="group space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant dark:text-gray-400 block ml-1 uppercase tracking-wider font-semibold" htmlFor="password">새 비밀번호</label>
+            {/* Form */}
+            <form className="space-y-4" onSubmit={handleSubmit} method="POST">
+              {/* New Password Input */}
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-bold text-[#111413] dark:text-zinc-200 block" htmlFor="password">
+                  새 비밀번호
+                </label>
                 <div className="relative">
                   <input
-                    className="w-full bg-blue-50/50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4 font-sans text-on-surface dark:text-gray-100 placeholder:text-outline-variant dark:placeholder:text-gray-500 focus:ring-1 focus:ring-[#6366f1]/20 dark:focus:ring-indigo-500/30 focus:bg-white dark:focus:bg-gray-850 transition-all duration-300 outline-none"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder="8~20자 영문소문자, 숫자, 특수문자 조합"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-400">
+                    <Lock size={16} />
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-4 flex items-center opacity-20 hover:opacity-80 group-focus-within:opacity-100 transition-opacity focus:outline-none"
+                    className="absolute inset-y-0 right-3 flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
                   >
-                    {showPassword ? (
-                      <span className="material-symbols-outlined text-[#6366f1]">visibility_off</span>
-                    ) : (
-                      <span className="material-symbols-outlined text-[#6366f1]">lock</span>
-                    )}
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
 
-                {/* 실시간 유효성 체크 목록 */}
-                <div className="mt-1.5 grid grid-cols-2 gap-1.5 p-3 bg-blue-50/50 dark:bg-gray-850/50 rounded-lg text-[10px] leading-relaxed">
-                  <span className={`flex items-center gap-1 ${hasMinLength ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-gray-450 dark:text-gray-500"}`}>
-                    {hasMinLength ? "✓" : "✗"} 8자 이상 20자 이하
-                  </span>
-                  <span className={`flex items-center gap-1 ${hasLowercase ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-gray-450 dark:text-gray-500"}`}>
-                    {hasLowercase ? "✓" : "✗"} 영문 소문자 포함
-                  </span>
-                  <span className={`flex items-center gap-1 ${hasNumber ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-gray-450 dark:text-gray-500"}`}>
-                    {hasNumber ? "✓" : "✗"} 숫자 포함
-                  </span>
-                  <span className={`flex items-center gap-1 ${hasSpecialChar ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-gray-450 dark:text-gray-500"}`}>
-                    {hasSpecialChar ? "✓" : "✗"} 특수 문자 포함
-                  </span>
-                </div>
+                {/* Requirements Checklist */}
+                {password.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-2 text-[11px]">
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasMinLength ? "bg-[#06C755]/10 text-[#06C755] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
+                      <Check size={12} strokeWidth={hasMinLength ? 3 : 2} />
+                      <span>8~20자 길이</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasLowercase ? "bg-[#06C755]/10 text-[#06C755] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
+                      <Check size={12} strokeWidth={hasLowercase ? 3 : 2} />
+                      <span>영문 소문자</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasNumber ? "bg-[#06C755]/10 text-[#06C755] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
+                      <Check size={12} strokeWidth={hasNumber ? 3 : 2} />
+                      <span>숫자 포함</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasSpecialChar ? "bg-[#06C755]/10 text-[#06C755] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
+                      <Check size={12} strokeWidth={hasSpecialChar ? 3 : 2} />
+                      <span>특수문자 포함</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Confirm Password Input */}
-              <div className="group space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant dark:text-gray-400 block ml-1 uppercase tracking-wider font-semibold" htmlFor="confirmPassword">새 비밀번호 확인</label>
+              {/* Confirm New Password Input */}
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-bold text-[#111413] dark:text-zinc-200 block" htmlFor="confirm-password">
+                  새 비밀번호 확인
+                </label>
                 <div className="relative">
                   <input
-                    className="w-full bg-blue-50/50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4 font-sans text-on-surface dark:text-gray-100 placeholder:text-outline-variant dark:placeholder:text-gray-500 focus:ring-1 focus:ring-[#6366f1]/20 dark:focus:ring-indigo-500/30 focus:bg-white dark:focus:bg-gray-850 transition-all duration-300 outline-none"
-                    id="confirmPassword"
-                    name="confirmPassword"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
+                    id="confirm-password"
+                    name="confirm-password"
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder="새 비밀번호 다시 입력"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                   />
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-400">
+                    <Lock size={16} />
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-4 flex items-center opacity-20 hover:opacity-80 group-focus-within:opacity-100 transition-opacity focus:outline-none"
+                    className="absolute inset-y-0 right-3 flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
                   >
-                    {showConfirmPassword ? (
-                      <span className="material-symbols-outlined text-[#6366f1]">visibility_off</span>
-                    ) : (
-                      <span className="material-symbols-outlined text-[#6366f1]">lock</span>
-                    )}
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                {confirmPassword && (
-                  <p className={`text-[10px] font-bold mt-0.5 ml-1 ${isPasswordMatched ? "text-emerald-500" : "text-rose-500"}`}>
-                    {isPasswordMatched ? "✓ 비밀번호가 서로 일치합니다." : "✗ 비밀번호가 서로 일치하지 않습니다."}
+                {confirmPassword.length > 0 && (
+                  <p className={`text-[11px] font-semibold pt-1 ${isPasswordMatched ? "text-[#06C755]" : "text-red-500"}`}>
+                    {isPasswordMatched ? "✓ 비밀번호가 일치합니다." : "✕ 비밀번호가 일치하지 않습니다."}
                   </p>
                 )}
               </div>
 
-              {/* Primary Action */}
-              <div className="pt-4">
+              {/* Submit Button */}
+              <div className="pt-2">
                 <button
-                  className="w-full bg-[#6366f1] text-white font-label-md text-label-md py-4 rounded-xl flex items-center justify-center space-x-3 active:scale-95 hover:scale-[1.02] transition-all duration-200 cursor-pointer disabled:opacity-50 font-bold"
-                  style={{
-                    boxShadow: "4px 4px 12px rgba(99, 102, 241, 0.3), -4px -4px 12px rgba(255, 255, 255, 0.8)"
-                  }}
-                  id="submit-btn"
                   type="submit"
-                  disabled={!isFormValid || loading}
+                  disabled={loading || !isFormValid}
+                  className="w-full bg-[#06C755] hover:bg-[#05B04B] text-white font-bold text-[15px] py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(6,199,85,0.25)] hover:shadow-[0_6px_24px_rgba(6,199,85,0.35)] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  <span className="uppercase tracking-widest">{loading ? "비밀번호 변경 중..." : "비밀번호 재설정 완료"}</span>
-                  <span className="material-symbols-outlined">arrow_forward</span>
+                  <span>{loading ? "변경 처리 중..." : "비밀번호 변경 완료"}</span>
+                  <ArrowRight size={16} />
                 </button>
               </div>
             </form>
 
-            <nav className="flex justify-center pt-4 border-t border-gray-100 dark:border-gray-800">
-              <Link className="font-label-sm text-label-sm text-on-surface-variant dark:text-gray-400 hover:text-[#6366f1] transition-colors flex items-center space-x-2 group cursor-pointer" href="/login">
-                <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform">keyboard_backspace</span>
-                <span className="uppercase tracking-tighter font-semibold">로그인 화면으로 이동</span>
+            {/* Back to Login Link */}
+            <div className="pt-3 border-t border-[#E8E6E1] dark:border-white/10 text-center">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 text-xs text-[#68716D] dark:text-zinc-400 hover:text-[#06C755] transition-colors font-medium"
+              >
+                <ArrowLeft size={14} />
+                <span>로그인 화면으로 이동</span>
               </Link>
-            </nav>
+            </div>
           </section>
         </div>
       </main>
 
       <Footer />
-
-      {/* Background Atmospheric Elements */}
-      <div className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none overflow-hidden">
-        <div id="blob-1" className="absolute top-[10%] left-[5%] w-[40rem] h-[40rem] bg-indigo-500/5 rounded-full blur-[120px] transition-transform duration-300"></div>
-        <div id="blob-2" className="absolute bottom-[10%] right-[5%] w-[30rem] h-[30rem] bg-indigo-600/5 rounded-full blur-[100px] transition-transform duration-300"></div>
-      </div>
     </div>
   );
 }

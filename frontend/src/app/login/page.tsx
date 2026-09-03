@@ -1,167 +1,135 @@
 // ====================================================================
 // 📊 [OMD-AUTH-login-page-0001] page ➔ LoginPage
 // 🎯 @KICK  : Supabase Auth 기반 이메일/구글 소셜 로그인 및 마스킹 해제 기능 지원 로그인 화면
-// 🛡️ @GUARD : 이메일/비밀번호 빈 값 방지, Supabase 연동 검증 및 마우스 패럴랙스 예외 방어
-// 🚨 @PATCH : **2026-07-22** — 로그인 시 users 존재 확인 API(/api/rpc/user/check) 1차 연동 및 subscriptions / subscriptions 이중 유효성 검증 폴백 구조 적용 패치
-//             **2026-06-23** — 화면 내 고정식 {errorMessage} 경고 영역을 제거하고 모든 로그인 단계의 오류 알림 메시지를 공통 토스트 알람(showToast)으로 일괄 연동 개편 패치;
-//             **2026-06-21** — OMDLanding 로그인 폼 디자인 이식 및 Supabase 구글 소셜 로그인 연동 패치; 깨진 logo 이미지 아이콘을 /icon.png로 변경
-//             **2026-06-21** — 로그인 성공 후 리다이렉션 경로를 /dashboard에서 /editor(실제 편집화면)로 변경 패치
-//             **2026-06-22** — Luminous Arctic 디자인 적용 (Neomorphic 그림자 shadow-2xl 및 버튼 배경색 #6366f1 일원화) 패치; 이메일 로그인 성공 시 세션 UUID/라이선스 정보를 localStorage에 기록하고 license_activations 세션을 삽입하여 에디터 진입 후 로그인 강제 튕김 현상 수정 패치
-// 🔗 @CALLS : supabase.auth, Navbar, Footer, useRouter, useToast
+// 🛡️ @GUARD : 이메일/비밀번호 빈 값 방지, Supabase 연동 검증 및 상용 계정 사전 검증
+// 🚨 @PATCH : **2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#06C755) 버튼 및 Lucide React 아이콘 교체
+//             **2026-07-22** — 로그인 시 users 존재 확인 API(/api/rpc/user/check) 1차 연동 및 subscriptions 이중 유효성 검증 폴백 구조 적용 패치
+//             **2026-06-23** — 공통 토스트 알람(showToast) 일괄 연동 개편 패치
+// 🔗 @CALLS : supabase.auth, Navbar, Footer, useRouter, useToast, Lucide Icons
 // ====================================================================
 "use client";
 
-import React, { useState, useEffect } from "react";     // 🔗 @HOOKS : useState, useEffect 
-import { Navbar } from "@/components/layout/Navbar";     // 🔗 @COMPONENTS : Navbar
-import { Footer } from "@/components/layout/Footer";     // 🔗 @COMPONENTS : Footer
-import Link from "next/link";                               // 🔗 @COMPONENTS : Link
-import { useRouter } from "next/navigation";               // 🔗 @COMPONENTS : useRouter
-import { supabase } from "@/lib/supabaseClient";       // 🔗 @SUPABASE : supabaseClient
-import { useToast } from "@/components/ToastProvider";   // 🔗 @COMPONENTS : useToast
+import React, { useState, useEffect } from "react";
+import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import { useToast } from "@/components/ToastProvider";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, UserPlus, HelpCircle } from "lucide-react";
 
-
-// ====================================================================
-// LoginPage 컴포넌트
-// ====================================================================
 export default function LoginPage() {
-  const router = useRouter();                              // 🎯 Next.js 라우터
-  const { showToast } = useToast();                          // 🎯 토스트 알림
-  const [email, setEmail] = useState("");                    // 🎯 이메일 상태
-  const [password, setPassword] = useState("");              // 🎯 비밀번호 상태
-  const [showPassword, setShowPassword] = useState(false);     // 🎯 비밀번호 표시 상태
-  const [loading, setLoading] = useState(false);             // 🎯 로딩 상태
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      const emailParam = params.get('email');
+      const emailParam = params.get("email");
       if (emailParam) setEmail(emailParam);
     }
   }, []);
 
-  // 배경 블롭 마우스 무브 효과 (패럴랙스)
-  useEffect(() => {  // 🎯 useEffect 훅 
-    // 🎯 마우스 무브 이벤트 리스너
-    const handleMouseMove = (e: MouseEvent) => {  // 🎯 이벤트 핸들러
-      const x = e.clientX / window.innerWidth;  // 🎯 X 좌표
-      const y = e.clientY / window.innerHeight;  // 🎯 Y 좌표
-
-      const blob1 = document.getElementById("blob-1");  // 🎯 블롭 1
-      const blob2 = document.getElementById("blob-2");  // 🎯 블롭 2
-
-      if (blob1) {  // 🎯 블롭 1 존재 여부 확인
-        blob1.style.transform = `translate(${x * 50}px, ${y * 50}px)`;  // 🎯 블롭 1 이동
-      }
-      if (blob2) {  // 🎯 블롭 2 존재 여부 확인
-        blob2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;  // 🎯 블롭 2 이동
-      }
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);  // 🎯 이벤트 리스너 등록
-    return () => {  // 🎯 반환 함수
-      document.removeEventListener("mousemove", handleMouseMove);  // 🎯 이벤트 리스너 해제
-    };
-  }, []);  // 🎯 빈 배열: 컴포넌트 마운트 시 한 번만 실행
-
   // 로그인 폼 제출 처리
-  const handleLoginSubmit = async (e: React.FormEvent) => {  // 🎯 이벤트 핸들러
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {  // 🎯 빈 값 방지
+    if (!email.trim() || !password.trim()) {
       showToast("이메일과 비밀번호를 모두 입력해 주세요.", "warning");
       return;
     }
 
-    setLoading(true);  // 🎯 로딩 시작
+    setLoading(true);
 
     try {
-      // 0. users / users 상용 계정 사전 차단 검증
-      const preUserRes = await fetch('/api/rpc/user/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ p_email: email.trim() })
+      // 0. users 상용 계정 사전 차단 검증
+      const preUserRes = await fetch("/api/rpc/user/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ p_email: email.trim() }),
       });
       const preUser = preUserRes.ok ? await preUserRes.json() : null;
 
       if (!preUser?.exists || preUser.is_deleted) {
-        showToast('회원가입 후 로그인하십시오.', 'warning');
+        showToast("회원가입 후 로그인하십시오.", "warning");
         setLoading(false);
         return;
       }
 
-      const { error } = await supabase.auth.signInWithPassword({  // 🎯 Supabase 로그인
-        email: email.trim(),  // 🎯 이메일
-        password: password,  // 🎯 비밀번호
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
       });
 
-      if (error) {  // 🎯 오류 처리
-        throw new Error(error.message);  // 🎯 오류 throw
+      if (error) {
+        throw new Error(error.message);
       }
 
       // ==================================================================
       // 로그인 성공 시 라이선스 상태 확인 후 분기 및 로컬 스토리지/세션 동기화
       // ==================================================================
-      const { data: { user: loggedInUser } } = await supabase.auth.getUser();  // 🎯 Supabase 사용자 정보
-      if (loggedInUser) {  // 🎯 사용자 정보 확인
-        // 0. users 존재 확인
-        const userCheckRes = await fetch('/api/rpc/user/check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ p_email: loggedInUser.email })
+      const { data: { user: loggedInUser } } = await supabase.auth.getUser();
+      if (loggedInUser) {
+        const userCheckRes = await fetch("/api/rpc/user/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ p_email: loggedInUser.email }),
         });
         const userCheck = userCheckRes.ok ? await userCheckRes.json() : null;
 
         if (!userCheck?.exists) {
-          showToast('회원가입이 필요한 계정입니다. 먼저 회원가입을 진행해주세요.', 'warning');
-          await supabase.auth.signOut({ scope: 'local' });
+          showToast("회원가입이 필요한 계정입니다. 먼저 회원가입을 진행해주세요.", "warning");
+          await supabase.auth.signOut({ scope: "local" });
           setLoading(false);
           return;
         }
 
-        // 1. 활성 구독 및 라이선스 정보 조회 (subscriptions 단일 조회)
+        // 1. 활성 구독 및 라이선스 정보 조회
         const { data: subData } = await supabase
-          .from('subscriptions')
-          .select('id, plan_name, plan_status, current_period_end, payment_no, license_key')
-          .eq('user_id', loggedInUser.id)
-          .eq('is_active', true)
-          .in('plan_status', ['ACTIVE', 'FREE'])
-          .order('created_at', { ascending: false })
+          .from("subscriptions")
+          .select("id, plan_name, plan_status, current_period_end, payment_no, license_key")
+          .eq("user_id", loggedInUser.id)
+          .eq("is_active", true)
+          .in("plan_status", ["ACTIVE", "FREE"])
+          .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
 
-        const targetDate = subData?.current_period_end;  // 🎯 구독 만료일
-        const isValid = targetDate ? Date.now() < new Date(targetDate).getTime() : false;  // 🎯 구독 유효성 확인
+        const targetDate = subData?.current_period_end;
+        const isValid = targetDate ? Date.now() < new Date(targetDate).getTime() : false;
 
-        if (isValid && subData) {  // 🎯 구독 유효성 및 구독 정보 확인
-          let sessionId = localStorage.getItem('onrivi_session_id');
+        if (isValid && subData) {
+          let sessionId = localStorage.getItem("onrivi_session_id");
           if (!sessionId) {
-            sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') 
-              ? crypto.randomUUID() 
-              : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
+            sessionId = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+              ? crypto.randomUUID()
+              : "session-" + Date.now() + "-" + Math.random().toString(36).substring(2, 15);
           }
-          localStorage.setItem('onrivi_session_id', sessionId);  // 🎯 세션 ID 저장
-          localStorage.setItem('onrivi_user_id', loggedInUser.email || loggedInUser.id);  // 🎯 사용자 ID 저장
-          localStorage.setItem('onrivi_payment_no', subData.payment_no || '');  // 🎯 결제 번호 저장
-          localStorage.setItem('onrivi_license_key', subData.license_key || '');  // 🎯 라이선스 키 저장
+          localStorage.setItem("onrivi_session_id", sessionId);
+          localStorage.setItem("onrivi_user_id", loggedInUser.email || loggedInUser.id);
+          localStorage.setItem("onrivi_payment_no", subData.payment_no || "");
+          localStorage.setItem("onrivi_license_key", subData.license_key || "");
 
           try {
-            const actRes = await fetch('/api/rpc/license/insert', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ p_license_id: subData.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: loggedInUser.id })
+            const actRes = await fetch("/api/rpc/license/insert", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ p_license_id: subData.id, p_device_uuid: sessionId, p_device_name: "Web SaaS", p_user_id: loggedInUser.id }),
             });
             const actResult = await actRes.json();
-            if (!actResult.success) console.error('[ACTIVATION] API error:', actResult.message);
-            else console.log('[ACTIVATION]', actResult);
+            if (!actResult.success) console.error("[ACTIVATION] API error:", actResult.message);
           } catch (actError) {
-            console.error('[ACTIVATION] Fetch error:', actError);
+            console.error("[ACTIVATION] Fetch error:", actError);
           }
-          router.push(`/editor${window.location.search}`);  // 🎯 에디터로 리다이렉션
-
-        } else {  // 🎯 구독 만료 또는 구독 없음
-          router.push(`/dashboard${window.location.search}`);  // 🎯 대시보드로 리다이렉션
+          router.push(`/editor${window.location.search}`);
+        } else {
+          router.push(`/dashboard${window.location.search}`);
         }
-      } else {  // 🎯 사용자 정보 없음
-        router.push(`/dashboard${window.location.search}`);  // 🎯 대시보드로 리다이렉션
+      } else {
+        router.push(`/dashboard${window.location.search}`);
       }
     } catch (err: any) {
       console.error("로그인 에러:", err);
@@ -171,51 +139,58 @@ export default function LoginPage() {
     }
   };
 
-  // ====================================================================
-  // 🎯 구글 로그인 처리
-  // ====================================================================
-  const handleGoogleLogin = async () => {  // 🎯 이벤트 핸들러
-    try {  // 🎯 try-catch 블록
-      const { error } = await supabase.auth.signInWithOAuth({  // 🎯 Supabase 구글 로그인
-        provider: "google",  // 🎯 구글 로그인
-        options: {  // 🎯 옵션
+  // 구글 로그인 처리
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
           redirectTo: typeof window !== "undefined"
             ? `${window.location.origin}/auth/callback?mode=login`
-            : "http://localhost:3100/auth/callback?mode=login",  // 🎯 리다이렉트 URI
-          queryParams: {  // 🎯 쿼리 파라미터
-            prompt: 'select_account',  // 🎯 계정 선택 팝업
+            : "http://localhost:3100/auth/callback?mode=login",
+          queryParams: {
+            prompt: "select_account",
           },
-        }
+        },
       });
-      if (error) {  // 🎯 오류 처리
-        throw new Error(error.message);  // 🎯 오류 throw
+      if (error) {
+        throw new Error(error.message);
       }
     } catch (err: any) {
-      console.error("구글 로그인 에러:", err);  // 🎯 오류 처리
+      console.error("구글 로그인 에러:", err);
       showToast(err.message || "구글 로그인 요청 중 오류가 발생했습니다.", "error");
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-surface dark:bg-gray-950 text-on-surface dark:text-gray-100 font-sans transition-colors duration-200">
-      {/* 구글 폰트 및 Material Symbols 로드 */}
-      <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet" />
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <div
+      className="flex flex-col min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#06C755]/20 selection:text-[#06C755] relative overflow-hidden"
+      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+    >
+      {/* Subtle Ambient Background Glow (LINE Green) */}
+      <div
+        aria-hidden
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-[radial-gradient(ellipse_at_top,rgba(6,199,85,0.08)_0%,transparent_70%)] pointer-events-none z-0"
+      />
 
       <Navbar />
 
-      {/* 본문 영역 */}
+      {/* Main Login Frame */}
       <main className="flex-grow flex items-center justify-center px-4 pt-32 pb-24 relative z-10">
-        <div
-          className="max-w-md w-full bg-white/70 dark:bg-gray-900/60 border border-white/40 rounded-3xl p-8 backdrop-blur-md"
-          style={{
-            boxShadow: "8px 8px 24px rgba(0, 0, 0, 0.04), -8px -8px 24px rgba(255, 255, 255, 0.9)"
-          }}
-        >
-
+        <div className="max-w-[440px] w-full bg-white dark:bg-[#181A1D] border border-[#E0DED7] dark:border-white/10 rounded-3xl p-7 sm:p-9 shadow-[0_24px_70px_-15px_rgba(40,35,25,0.08)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)]">
           <section className="space-y-6">
-            <div className="text-center mb-4">
-              <h1 className="font-display-sm text-display-sm text-on-surface dark:text-gray-100 leading-tight font-bold">로그인</h1>
+            {/* Header */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F0EFEA] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#06C755]" />
+                ONRIVI AUTHOR
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#111413] dark:text-white tracking-tight">
+                로그인
+              </h1>
+              <p className="text-xs sm:text-sm text-[#68716D] dark:text-zinc-400">
+                생각을 문서로 완성하는 지능형 저작 환경으로 연결합니다.
+              </p>
             </div>
 
             {/* Google Login Button */}
@@ -223,12 +198,16 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-750 dark:text-gray-300 font-label-md text-label-md py-4 rounded-xl flex items-center justify-center space-x-3 active:scale-95 hover:bg-gray-50 dark:hover:bg-gray-850 transition-all duration-200 cursor-pointer shadow-sm font-semibold"
-                style={{
-                  boxShadow: "2px 2px 6px rgba(0, 0, 0, 0.02), -2px -2px 6px rgba(255, 255, 255, 0.5)"
-                }}
+                className="w-full bg-white dark:bg-zinc-800/80 border border-[#E0DED7] dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 text-[#111413] dark:text-zinc-100 text-sm font-semibold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.99]"
               >
-                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg
+                  width={18}
+                  height={18}
+                  className="w-[18px] h-[18px] shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
                   <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
@@ -238,23 +217,28 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* 구분선 */}
+            {/* Divider */}
             <div className="relative my-4">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-150 dark:border-gray-800"></div>
+                <div className="w-full border-t border-[#E8E6E1] dark:border-white/10" />
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white dark:bg-gray-900 px-4 text-gray-500 dark:text-gray-400 font-label-md">또는 이메일로 로그인</span>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white dark:bg-[#181A1D] px-3 text-[#68716D] dark:text-zinc-400 font-medium">
+                  또는 이메일로 로그인
+                </span>
               </div>
             </div>
 
-            <form className="space-y-6" id="login-form" onSubmit={handleLoginSubmit} method="POST">
+            {/* Email / Password Form */}
+            <form className="space-y-4" onSubmit={handleLoginSubmit} method="POST">
               {/* Email Input */}
-              <div className="group space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant dark:text-gray-400 block ml-1 uppercase tracking-wider font-semibold" htmlFor="email">이메일 주소</label>
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-bold text-[#111413] dark:text-zinc-200 block" htmlFor="email">
+                  이메일 주소
+                </label>
                 <div className="relative">
                   <input
-                    className="w-full bg-blue-50/50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4 font-sans text-on-surface dark:text-gray-100 placeholder:text-outline-variant dark:placeholder:text-gray-500 focus:ring-1 focus:ring-[#6366f1]/20 dark:focus:ring-indigo-500/30 focus:bg-white dark:focus:bg-gray-850 transition-all duration-300 outline-none"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
                     id="email"
                     name="email"
                     type="email"
@@ -263,18 +247,25 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
-                  <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
-                    <span className="material-symbols-outlined text-[#6366f1]">alternate_email</span>
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-400">
+                    <Mail size={16} />
                   </div>
                 </div>
               </div>
 
               {/* Password Input */}
-              <div className="group space-y-2">
-                <label className="font-label-md text-label-md text-on-surface-variant dark:text-gray-400 block ml-1 uppercase tracking-wider font-semibold" htmlFor="password">비밀번호</label>
+              <div className="space-y-1.5 text-left">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-[#111413] dark:text-zinc-200" htmlFor="password">
+                    비밀번호
+                  </label>
+                  <Link href="/forgot-password" className="text-xs font-semibold text-[#06C755] hover:underline">
+                    비밀번호 찾기
+                  </Link>
+                </div>
                 <div className="relative">
                   <input
-                    className="w-full bg-blue-50/50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-6 py-4 font-sans text-on-surface dark:text-gray-100 placeholder:text-outline-variant dark:placeholder:text-gray-500 focus:ring-1 focus:ring-[#6366f1]/20 dark:focus:ring-indigo-500/30 focus:bg-white dark:focus:bg-gray-850 transition-all duration-300 outline-none"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
@@ -283,66 +274,47 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-zinc-400">
+                    <Lock size={16} />
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-4 flex items-center opacity-20 hover:opacity-80 group-focus-within:opacity-100 transition-opacity focus:outline-none"
+                    className="absolute inset-y-0 right-3 flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
                   >
-                    {showPassword ? (
-                      <span className="material-symbols-outlined text-[#6366f1]">
-                        visibility_off
-                      </span>
-                    ) : (
-                      <span className="material-symbols-outlined text-[#6366f1]">
-                        lock
-                      </span>
-                    )}
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
 
-              {/* Primary Action */}
+              {/* Primary Submit Button */}
               <div className="pt-2">
                 <button
-                  className="w-full bg-[#6366f1] text-white font-label-md text-label-md py-4 rounded-xl flex items-center justify-center space-x-3 active:scale-95 hover:scale-[1.02] transition-all duration-200 cursor-pointer disabled:opacity-50 font-bold"
-                  style={{
-                    boxShadow: "4px 4px 12px rgba(99, 102, 241, 0.3), -4px -4px 12px rgba(255, 255, 255, 0.8)"
-                  }}
-                  id="submit-btn"
                   type="submit"
                   disabled={loading}
+                  className="w-full bg-[#06C755] hover:bg-[#05B04B] text-white font-bold text-[15px] py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(6,199,85,0.25)] hover:shadow-[0_6px_24px_rgba(6,199,85,0.35)] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  <span className="uppercase tracking-widest">{loading ? "로그인 중..." : "로그인"}</span>
-                  <span className="material-symbols-outlined">arrow_forward</span>
+                  <span>{loading ? "로그인 중..." : "로그인"}</span>
+                  <ArrowRight size={16} />
                 </button>
               </div>
             </form>
 
-            {/* Secondary Links */}
-            <nav className="flex flex-col items-center space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+            {/* Secondary Link to Signup */}
+            <div className="pt-3 border-t border-[#E8E6E1] dark:border-white/10 text-center">
               <Link
-                className="font-label-sm text-label-sm text-on-surface-variant dark:text-gray-400 hover:text-[#6366f1] transition-colors flex items-center space-x-2 group cursor-pointer"
                 href={`/signup${typeof window !== "undefined" && new URLSearchParams(window.location.search).get("ticket") ? `?ticket=${new URLSearchParams(window.location.search).get("ticket")}` : ""}`}
+                className="inline-flex items-center gap-1.5 text-xs text-[#68716D] dark:text-zinc-400 hover:text-[#06C755] transition-colors font-medium"
               >
-                <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform">person_add</span>
-                <span className="uppercase tracking-tighter font-semibold">처음이신가요? 회원가입</span>
+                <UserPlus size={14} />
+                <span>계정이 없으신가요? <strong>무료 회원가입</strong></span>
               </Link>
-              <Link className="font-label-sm text-label-sm text-on-surface-variant dark:text-gray-400 hover:text-[#6366f1] transition-colors flex items-center space-x-2 group cursor-pointer" href="/forgot-password">
-                <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform">help_outline</span>
-                <span className="uppercase tracking-tighter font-semibold">비밀번호를 잊으셨나요?</span>
-              </Link>
-            </nav>
+            </div>
           </section>
         </div>
       </main>
 
       <Footer />
-
-      {/* Background Atmospheric Elements */}
-      <div className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none overflow-hidden">
-        <div id="blob-1" className="absolute top-[10%] left-[5%] w-[40rem] h-[40rem] bg-indigo-500/5 rounded-full blur-[120px] transition-transform duration-300"></div>
-        <div id="blob-2" className="absolute bottom-[10%] right-[5%] w-[30rem] h-[30rem] bg-indigo-600/5 rounded-full blur-[100px] transition-transform duration-300"></div>
-      </div>
     </div>
   );
 }
