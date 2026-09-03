@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-UI-PricingSection-0023 ✅ FIXED] PricingSection ➔ PricingSection
 // 🎯 @KICK  : Onrivi Author 서비스 멤버십 가격표 출력
-// 🚨 @PATCH : **2026-08-07** — DB `pricing_plans` 테이블을 기반으로 멤버십 데이터를 동적 조회(fetch)하여 렌더링하도록 마이그레이션 패치; **2026-07-09** — 4계급 멤버십 구조 (Reader/Apprentice/Regular/Elite Pro) 전면 개편
+// 🚨 @PATCH : **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 초록색 풀 채움 카드 제거, White/Surface 베이스에 Regular 플랜 얇은 Green 테두리 및 MOST POPULAR 뱃지/elevation 고급화 적용
+//             **2026-08-07** — DB pricing_plans 테이블을 기반으로 멤버십 데이터를 동적 조회(fetch)하여 렌더링하도록 마이그레이션 패치; **2026-07-09** — 4계급 멤버십 구조 (Reader/Apprentice/Regular/Elite Pro) 전면 개편
 // 🔗 @CALLS : plans constants
 // ====================================================================
 "use client"; // "use client" : 클라이언트 사이드 렌더링을 위한 지시어 
@@ -45,27 +46,27 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
   return (
     <section
       id="pricing"
-      className="py-24 bg-surface text-on-surface"
-      style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
+      className="py-24 sm:py-32 bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
+      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
     >
-      <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
+      <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
-        <div className="text-center mb-14">
-          <span className="chip mb-4">
+        <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAE8E1] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4">
             MEMBERSHIP
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-on-surface mb-3">
-            🎮 Onrivi Author 서비스 멤버십 가격표
+          </div>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">
+            간단하고 투명한 요금제
           </h2>
-          <p className="text-base sm:text-lg text-text-secondary leading-relaxed">
-            당신의 창작 여정에 맞는 멤버십을 선택하세요.
+          <p className="text-[#68716D] dark:text-zinc-400 text-base sm:text-lg">
+            문서 읽기부터 전문가 수준의 전 기능 출판까지, 필요한 만큼 시작하세요.
           </p>
         </div>
 
         {/* Plan List */}
         <div className="max-w-3xl mx-auto flex flex-col gap-4">
           {dbPlans.map((plan, i) => {
-            const isHighlighted = plan.is_highlighted;
+            const isRegular = plan.plan_code === "REGULAR" || plan.is_highlighted;
             const isFree = plan.is_free;
 
             const priceDisplay = isFree
@@ -79,10 +80,10 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
             const usdDisplay = isFree
               ? ""
               : plan.plan_code === "REGULAR" && plan.price_monthly_usd
-                ? `($${plan.price_monthly_usd} / 월)`
+                ? `($${plan.price_monthly_usd} / mo)`
                 : plan.plan_code === "ELITEPRO" && plan.price_yearly_usd
-                  ? `($${plan.price_yearly_usd} / 년)`
-                  : plan.price_monthly_usd ? `($${plan.price_monthly_usd} / 월)` : plan.price_yearly_usd ? `($${plan.price_yearly_usd} / 년)` : "";
+                  ? `($${plan.price_yearly_usd} / yr)`
+                  : plan.price_monthly_usd ? `($${plan.price_monthly_usd} / mo)` : plan.price_yearly_usd ? `($${plan.price_yearly_usd} / yr)` : "";
 
             const envLabel = plan.environment_name || plan.sys_type;
 
@@ -93,38 +94,47 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.06 }}
-                className={`p-6 md:p-7 rounded-2xl transition-all duration-300 ${
-                  isHighlighted
-                    ? "bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white shadow-lg shadow-[#06C755]/25 border-none"
-                    : "bg-surface-container border border-outline/10 text-on-surface shadow-xs hover:border-[#06C755]/40"
+                className={`relative p-6 sm:p-7 rounded-2xl transition-all duration-300 ${
+                  isRegular
+                    ? "bg-white dark:bg-[#1A1D22] border-2 border-[#06C755] shadow-[0_16px_40px_-10px_rgba(6,199,85,0.16)]"
+                    : "bg-[#F2F0EB] dark:bg-[#17191E] border border-[#E0DED7] dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20 shadow-2xs"
                 }`}
               >
+                {/* Most Popular Badge */}
+                {isRegular && (
+                  <div className="absolute -top-3 right-6 bg-[#06C755] text-white text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-xs tracking-wider">
+                    MOST POPULAR
+                  </div>
+                )}
+
                 {/* Header: Tier emoji + Name + Environment + Price */}
-                <div className="flex items-start justify-between flex-wrap gap-3 mb-3">
-                  <div className="flex items-center gap-2.5">
+                <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+                  <div className="flex items-center gap-3">
                     <span className="text-2xl">{plan.tier_emoji}</span>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-base font-bold ${isHighlighted ? "text-white" : "text-on-surface"}`}>
-                          [{i + 1 === 1 ? "계급 1" : i + 1 === 2 ? "계급 2" : i + 1 === 3 ? "계급 3" : "계급 4"}] {plan.name}
+                        <span className="text-base font-extrabold text-[#111413] dark:text-white">
+                          {plan.name}
                         </span>
-                        <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                          isHighlighted ? "bg-white/20 text-white" : "bg-[#06C755]/10 text-[#06C755]"
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                          isRegular
+                            ? "bg-[#06C755]/15 text-[#06C755]"
+                            : "bg-zinc-200/80 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                         }`}>
                           {envLabel}
                         </span>
                       </div>
-                      <p className={`text-xs mt-0.5 ${isHighlighted ? "text-white/80" : "text-text-secondary"}`}>
+                      <p className="text-xs text-[#68716D] dark:text-zinc-400 mt-1">
                         {plan.tagline}
                       </p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className={`text-xl font-bold ${isHighlighted ? "text-white" : "text-on-surface"}`}>
+                    <div className="text-xl sm:text-2xl font-extrabold text-[#111413] dark:text-white">
                       {priceDisplay}
-                    </span>
+                    </div>
                     {usdDisplay && (
-                      <span className={`text-xs ml-1.5 ${isHighlighted ? "text-white/70" : "text-text-secondary"}`}>
+                      <span className="text-xs text-[#68716D] dark:text-zinc-400 font-medium">
                         {usdDisplay}
                       </span>
                     )}
@@ -132,10 +142,10 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 </div>
 
                 {/* Features */}
-                <ul className="m-0 p-0 list-none space-y-1">
+                <ul className="m-0 p-0 list-none space-y-1.5 pt-2 border-t border-zinc-200/60 dark:border-white/5">
                   {(plan.features || []).map((f: string, fi: number) => (
-                    <li key={fi} className={`flex items-start gap-2 text-xs leading-relaxed ${isHighlighted ? "text-white/90" : "text-text-secondary"}`}>
-                      <span className={`font-bold shrink-0 ${isHighlighted ? "text-emerald-100" : "text-[#06C755]"}`}>✓</span>
+                    <li key={fi} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300 font-medium leading-relaxed">
+                      <span className="text-[#06C755] font-extrabold text-sm">✓</span>
                       <span>{f}</span>
                     </li>
                   ))}

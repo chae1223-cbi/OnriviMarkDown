@@ -1,16 +1,13 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { HeroSection } from "@/components/sections/HeroSection";
-import { FeaturesSection } from "@/components/sections/FeaturesSection";
+import { PhilosophySection } from "@/components/sections/PhilosophySection";
+import { ExperienceSection } from "@/components/sections/ExperienceSection";
+import { DocumentGallerySection } from "@/components/sections/DocumentGallerySection";
 import { PricingSection } from "@/components/sections/PricingSection";
 import { FaqSection } from "@/components/sections/FaqSection";
 import { CtaSection } from "@/components/sections/CtaSection";
 import { BetaModal } from "@/components/ui/BetaModal";
-import {
-  features,
-  faqs,
-  NAV_LINKS,
-} from "@/lib/constants";
 
 export default function HomePage() {
   return (
@@ -24,7 +21,7 @@ export default function HomePage() {
             "name": "Onrivi Author",
             "operatingSystem": "Windows, macOS",
             "applicationCategory": "BusinessApplication",
-            "description": "AI 시대의 무결점 지식 자산화 인프라. 마크다운의 생산성과 전문가 수준의 출판 품질을 결합한 로컬 우선 저작 플랫폼.",
+            "description": "AI 시대의 무결점 지식 자산화 인프라. 생각은 Markdown으로 빠르게, 결과물은 사람이 읽는 아름다운 문서처럼.",
             "offers": {
               "@type": "Offer",
               "price": "구독형",
@@ -37,10 +34,12 @@ export default function HomePage() {
           })
         }}
       />
-      <div className="min-h-screen bg-surface text-on-surface font-sans">
+      <div className="min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#06C755]/20 selection:text-[#06C755]">
         <Navbar />
         <HeroSection />
-        <FeaturesSection />
+        <PhilosophySection />
+        <ExperienceSection />
+        <DocumentGallerySection />
         <PricingSection />
         <FaqSection />
         <CtaSection />

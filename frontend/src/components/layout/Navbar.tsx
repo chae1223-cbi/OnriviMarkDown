@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
-// 🚨 @PATCH : **2026-08-27** — 비로그인 상태 헤더 우측 영역에 '즉시 체험하기' 버튼을 추가하고, 클릭 시 로컬 스토리지 게스트 플래그(onrivi_guest_mode)를 셋업하여 복잡한 로그인/가입 없이 브라우저 가상 스페이스 에디터로 즉시 진입하도록 액션 탑재; **2026-06-28** — 데스크톱 앱(Electron) 환경 진입 시 웹 상단 헤더가 레이아웃을 해쳐 에디터 집중을 방해하지 않도록 렌더링 무조건 스킵(return null) 가드 패치; 비밀번호 재설정(/reset-password) 화면 진입 시 임시 토큰으로 로그인 상태의 헤더 UI가 노출되지 않도록 강제 필터링 우회 패치
+// 🚨 @PATCH : **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 헤더 높이(76px) 및 최대폭(1240px) 최적화, 단일 Primary CTA 중심 정돈 및 LDSG v5.0 글래스모피즘 표준 적용
+//             **2026-08-27** — 비로그인 상태 헤더 우측 영역에 '즉시 체험하기' 버튼을 추가하고, 클릭 시 로컬 스토리지 게스트 플래그(onrivi_guest_mode)를 셋업하여 복잡한 로그인/가입 없이 브라우저 가상 스페이스 에디터로 즉시 진입하도록 액션 탑재; **2026-06-28** — 데스크톱 앱(Electron) 환경 진입 시 웹 상단 헤더가 레이아웃을 해쳐 에디터 집중을 방해하지 않도록 렌더링 무조건 스킵(return null) 가드 패치; 비밀번호 재설정(/reset-password) 화면 진입 시 임시 토큰으로 로그인 상태의 헤더 UI가 노출되지 않도록 강제 필터링 우회 패치
 //             **2026-06-23** — 로그아웃 시 license_activations 직접 delete DML을 Supabase Stored Procedure (deactivate_session_on_logout RPC) 호출 방식으로 위임 개편 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스모피즘 Navbar, Inter 폰트, Ice Blue 액센트); 비로그인 상태 진입 경로 제거(로그인/시작하기 버튼 숨김) 패치; 헤더에 비로그인용 '시작하기' 버튼 복원 패치
 //             **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 및 Supabase Auth 연동 패치; 깨진 logo 이미지 아이콘을 /icon.png로 변경; 다운로드 네비게이션 링크 제거 대응 패치
@@ -138,66 +139,63 @@ export function Navbar({ content }: { content?: NavbarContent }) {
     <nav
       className={`fixed w-full z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-surface/90 backdrop-blur-md border-b border-outline/10 shadow-xs"
-          : "bg-surface/60 backdrop-blur-md border-b border-transparent"
+          ? "bg-[#F9F8F6]/90 dark:bg-[#121314]/90 backdrop-blur-md border-b border-[#E8E6E1] dark:border-white/10 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)]"
+          : "bg-[#F9F8F6]/60 dark:bg-[#121314]/60 backdrop-blur-sm border-b border-transparent"
       }`}
       style={{
-        fontFamily: "LineSeed, Pretendard, sans-serif",
+        fontFamily: "Pretendard, LineSeed, sans-serif",
       }}
     >
-      <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
-        <div className="flex justify-between items-center h-16">
+      <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
+        <div className="flex justify-between items-center h-[76px]">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
-            <img src="/icon.png" alt={SITE_NAME} className="h-8 w-8 rounded-lg" />
-            <span className="font-bold text-lg text-on-surface tracking-tight">
+          <Link href="/" className="flex items-center gap-2.5 flex-shrink-0 group">
+            <img src="/icon.png" alt={SITE_NAME} className="h-8 w-8 rounded-lg shadow-xs group-hover:scale-105 transition-transform" />
+            <span className="font-extrabold text-[19px] text-[#111413] dark:text-white tracking-tight">
               {SITE_NAME}
             </span>
           </Link>
 
           {/* Nav Links */}
-          <div className="hidden md:flex items-center gap-8">
-            {(content?.navLinks ?? NAV_LINKS).map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="text-sm font-medium text-text-secondary hover:text-primary transition-colors tracking-wide"
-              >
-                {link.label}
-              </a>
-            ))}
+          <div className="hidden md:flex items-center gap-9">
+            <a
+              href="#philosophy"
+              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+            >
+              철학
+            </a>
+            <a
+              href="#experience"
+              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+            >
+              기능
+            </a>
+            <a
+              href="#documents"
+              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+            >
+              문서
+            </a>
+            <a
+              href="#pricing"
+              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+            >
+              요금제
+            </a>
+            <a
+              href="#faq"
+              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+            >
+              FAQ
+            </a>
 
             {/* 진행 중인 이벤트 — 활성 프로모션 있을 때만 노출 */}
             {hasActivePromo && (
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent("openBetaModal"))}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#0ea5e9",
-                  background: "rgba(14,165,233,0.08)",
-                  border: "1.5px solid rgba(14,165,233,0.25)",
-                  borderRadius: 9999,
-                  padding: "4px 12px",
-                  cursor: "pointer",
-                  letterSpacing: "0.01em",
-                  transition: "all 0.15s",
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(14,165,233,0.15)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(14,165,233,0.5)";
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(14,165,233,0.08)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(14,165,233,0.25)";
-                }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#06C755] bg-[#06C755]/10 border border-[#06C755]/20 rounded-full px-3 py-1 hover:bg-[#06C755]/15 transition-all"
               >
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0ea5e9", display: "inline-block", animation: "pulse 1.5s infinite" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#06C755] animate-pulse" />
                 진행 중인 이벤트
               </button>
             )}
@@ -208,35 +206,44 @@ export function Navbar({ content }: { content?: NavbarContent }) {
             {mounted && (
               isLoggedIn && userEmail ? (
                 <>
-                  <span style={{ fontSize: 13, color: "#475569", fontWeight: 500 }} className="hidden md:block max-w-[140px] truncate">
+                  <span className="hidden lg:block text-xs font-medium text-[#68716D] dark:text-zinc-400 max-w-[140px] truncate">
                     {userEmail}
                   </span>
                   <Link href="/dashboard">
-                    <button className="btn-secondary" style={{ fontSize: 13, padding: "6px 16px" }}>{content?.dashboardLabel ?? "대시보드"}</button>
+                    <button className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-[#E5E9E7] dark:border-white/10 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[#111413] dark:text-white transition-all">
+                      {content?.dashboardLabel ?? "대시보드"}
+                    </button>
                   </Link>
                   <Link href="/editor">
-                    <button className="btn-primary" style={{ fontSize: 13, padding: "6px 16px" }}>{content?.editorLabel ?? "에디터"}</button>
+                    <button className="px-4 py-2 text-xs font-bold rounded-lg bg-[#06C755] hover:bg-[#05B04B] text-white shadow-sm transition-all">
+                      {content?.editorLabel ?? "에디터"}
+                    </button>
                   </Link>
                   <button
                     onClick={handleLogout}
-                    style={{ fontSize: 13, color: "#64748b", fontWeight: 600, background: "none", border: "none", cursor: "pointer", transition: "color 0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.color = "#475569")}
-                    onMouseLeave={e => (e.currentTarget.style.color = "#64748b")}
+                    className="text-xs font-medium text-[#68716D] hover:text-[#111413] dark:text-zinc-400 dark:hover:text-white transition-colors px-1"
                   >
                     {content?.logoutLabel ?? "로그아웃"}
                   </button>
                 </>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
+                  <Link
+                    href="/login"
+                    className="text-[13px] font-semibold text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors px-2 py-1.5"
+                  >
+                    로그인
+                  </Link>
                   <button 
                     onClick={handleInstantTry} 
-                    className="btn-secondary" 
-                    style={{ fontSize: 13, padding: "6px 16px" }}
+                    className="hidden sm:inline-flex items-center justify-center px-3.5 py-2 text-[13px] font-semibold rounded-xl text-[#111413] dark:text-zinc-200 border border-[#E5E9E7] dark:border-white/15 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all"
                   >
                     즉시 체험하기
                   </button>
-                  <Link href="/login">
-                    <button className="btn-primary" style={{ fontSize: 13, padding: "6px 16px" }}>{content?.startLabel ?? "시작하기"}</button>
+                  <Link href="/signup">
+                    <button className="inline-flex items-center justify-center px-4 py-2 text-[13px] font-bold rounded-xl bg-[#06C755] hover:bg-[#05B04B] text-white shadow-sm shadow-[#06C755]/20 hover:shadow-md hover:shadow-[#06C755]/30 transition-all">
+                      {content?.startLabel ?? "무료로 시작하기"}
+                    </button>
                   </Link>
                 </div>
               )
