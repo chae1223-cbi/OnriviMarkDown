@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+ *   * 🚨 @PATCH : **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 리소스 폴더 지정 시 /api/knowledge/init 불필요 호출을 차단하고 데스크톱 환경에서만 실행하도록 가드 보강
  *   * 🚨 @PATCH : **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트] previewHighlightLine에서 .onrivi-line 최우선 선택 가드를 적용하여 다중 행 문단에서 전체 p 태그가 덮어씌워지던 문제를 차단하고 커서가 놓인 해당 행만 정확하게 단독 하이라이트되도록 수정
  *   * 🚨 @PATCH : **2026-09-06** — [에디터-미리보기 하이라이트 위치 불일치 완전 해결 및 미디어 삽입 커서 3단계 고정]
  *     1) previewHighlightLine에서 processedContent 의존성 추가 및 exact match(line === activeLine) 최우선 선택, 블록 컨테이너 승격으로 이미지/미디어 행에서 이전 문단으로 하이라이트가 밀리던 결함 완전 해결
@@ -2612,15 +2613,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           console.warn('[Browser ResourceFolder Dir Creation Error]:', dirErr);
         }
 
-        // 🚀 서버 측 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 트리거 (기존 DB는 안전 보존)
-        try {
-          await fetch('/api/knowledge/init', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ resourceFolder: handle.name })
-          });
-        } catch (initErr) {
-          console.warn('[Server Knowledge Init Error]:', initErr);
+        // 🚀 데스크톱(Electron) 환경일 때만 서버 측 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 트리거 (기존 DB는 안전 보존)
+        if (typeof window !== 'undefined' && !!(window as any).electronAPI) {
+          try {
+            await fetch('/api/knowledge/init', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ resourceFolder: handle.name })
+            });
+          } catch (initErr) {
+            console.warn('[Server Knowledge Init Error]:', initErr);
+          }
         }
 
         // 💡 새 폴더 연동 시 폴더 내 기존 서식(profiles)이 있다면 로드하여 덮어쓰기 방지

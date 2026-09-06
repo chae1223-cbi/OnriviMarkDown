@@ -36,7 +36,8 @@ interface FileTreeItemProps {
 
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
-// 🚨 @PATCH : **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
+// 🚨 @PATCH : **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
+//             **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
 //             **2026-09-05** — AI 미연결 시 우클릭 컨텍스트 메뉴의 '지식 베이스에 등록' 버튼을 비활성화(disabled, 흐린 흑백 스타일, 연동 필요 안내 툴팁) 처리
 //             **2026-09-04** — 파일 탐색기 우클릭 컨텍스트 메뉴에서 '지식 허브 열기' 버튼 제거하여 메뉴 간소화
 //             **2026-09-04** — 지식문서 등록 뱃지 및 우클릭 컨텍스트 메뉴의 지식문서 아이콘을 초록색 책(📗)으로 전면 교체
@@ -1138,6 +1139,11 @@ const FileTreeItem = ({
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 setContextMenu(null);
+                                const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+                                if (!isDesktop) {
+                                  showToast('로컬 지식 베이스는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+                                  return;
+                                }
                                 const myPath = node.path || node.name;
                                 try {
                                   showToast(`[${node.name}] 지식 상세 분석을 불러오는 중...`, 'info');
@@ -1165,6 +1171,11 @@ const FileTreeItem = ({
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 setContextMenu(null);
+                                const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+                                if (!isDesktop) {
+                                  showToast('로컬 지식 베이스는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+                                  return;
+                                }
                                 const myPath = node.path || node.name;
                                 if (!confirm(`'${node.name}' 문서를 지식 베이스에서 해제하시겠습니까?`)) return;
 
@@ -1213,6 +1224,11 @@ const FileTreeItem = ({
                             onClick={async (e) => {
                               e.stopPropagation();
                               setContextMenu(null);
+                              const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+                              if (!isDesktop) {
+                                showToast('로컬 지식 베이스는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+                                return;
+                              }
                               if (!guard.canUseKnowledge) {
                                 showToast(guard.blockMessage || '지식 엔진을 사용할 수 없습니다.', 'warning');
                                 window.dispatchEvent(new CustomEvent('app:dispatch-command', { detail: 'SETTINGS' }));
