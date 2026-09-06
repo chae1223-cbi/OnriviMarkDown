@@ -4,6 +4,8 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+ *   * 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 베이스 연동] KnowledgeHubView에 resourceFolderHandle을 전달하고 (window as any).__resourceFolderHandle 글로벌 캐시를 동기화하여 웹 프로드 환경에서도 내 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 실시간 조회/등록/검색 가능하도록 연동
+ *   * 🚨 @PATCH : **2026-09-06** — [localhost 지식 엔진 초기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 리소스 폴더 지정 시 /api/knowledge/init 자동 초기화를 활성화하고, prod 웹 환경에서만 안전하게 스킵 처리
  *   * 🚨 @PATCH : **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 리소스 폴더 지정 시 /api/knowledge/init 불필요 호출을 차단하고 데스크톱 환경에서만 실행하도록 가드 보강
  *   * 🚨 @PATCH : **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트] previewHighlightLine에서 .onrivi-line 최우선 선택 가드를 적용하여 다중 행 문단에서 전체 p 태그가 덮어씌워지던 문제를 차단하고 커서가 놓인 해당 행만 정확하게 단독 하이라이트되도록 수정
  *   * 🚨 @PATCH : **2026-09-06** — [에디터-미리보기 하이라이트 위치 불일치 완전 해결 및 미디어 삽입 커서 3단계 고정]
@@ -947,6 +949,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const handle = await idb.get('resourceFolderHandle');
           if (handle) {
             setResourceFolderHandle(handle);
+            (window as any).__resourceFolderHandle = handle;
             setResourceFolder(handle.name);
             try {
               // 권한 확인 없이 읽기 시도 (크롬은 세션 내에서는 허용될 수 있음)
@@ -2598,6 +2601,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       try {
         const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
         setResourceFolderHandle(handle);
+        (window as any).__resourceFolderHandle = handle;
         setResourceFolder(handle.name);
         await idb.set('resourceFolderHandle', handle);
         try { saveSecureData('resourceFolder', handle.name); } catch { }
@@ -2613,8 +2617,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           console.warn('[Browser ResourceFolder Dir Creation Error]:', dirErr);
         }
 
-        // 🚀 데스크톱(Electron) 환경일 때만 서버 측 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 트리거 (기존 DB는 안전 보존)
-        if (typeof window !== 'undefined' && !!(window as any).electronAPI) {
+        // 🚀 데스크톱(Electron) 또는 로컬 개발(localhost) 환경일 때 서버 측 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 트리거 (기존 DB는 안전 보존)
+        const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
+        const isLocalhost = typeof window !== 'undefined' && (
+          window.location.hostname === 'localhost' || 
+          window.location.hostname === '127.0.0.1' || 
+          window.location.hostname.startsWith('192.168.') || 
+          window.location.hostname.endsWith('.local')
+        );
+        if (isDesktopEnv || isLocalhost) {
           try {
             await fetch('/api/knowledge/init', {
               method: 'POST',
@@ -6422,6 +6433,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               <KnowledgeHubView 
                 initialTab="dashboard"
                 resourceFolder={resourceFolder}
+                resourceFolderHandle={resourceFolderHandle}
                 geminiApiKey={geminiApiKey}
                 onSaveApiKey={setGeminiApiKey}
                 planCode="ELITEPRO"

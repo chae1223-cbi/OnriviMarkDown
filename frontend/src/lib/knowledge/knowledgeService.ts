@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeService-0001] knowledgeService.ts ➔ Knowledge Service Facade
 // 🎯 @KICK  : 지식 엔진의 청킹, DB 인프라, LLM 분석, 하이브리드 검색, 출처 생성을 통합 제공하는 서비스 파사드
 // 🛡️ @GUARD : 3대 가드(리소스 폴더/AI 연결/플랜) 검증, SHA-256 파일 해시 무결성, 단일 트랜잭션(All-or-Nothing) 완전 롤백
-// 🚨 @PATCH : **2026-09-05** — [지식 문서 해제 시 작업 큐 원자적 연계 청소] deleteDocument 및 deleteErrorDocuments 수행 시 knowledge_jobs의 대기/실행 작업도 단일 트랜잭션에서 함께 원자적 삭제하도록 무결성 강화
+// 🚨 @PATCH : **2026-09-06** — [빈 문서 예외 방어 및 조회/삭제 시 AI 키 가드 유연화] 파일 내용이 비어있거나 읽기 실패 시 safeContent 기본 구조화 폴백을 적용하여 DB 등록 에러 원천 차단, listDocuments/deleteDocument 등 DB 순수 조회/삭제 시 AI API 키 미설정 상태에서도 정상 작동하도록 DUMMY_KEY 폴백 적용
+//             **2026-09-05** — [지식 문서 해제 시 작업 큐 원자적 연계 청소] deleteDocument 및 deleteErrorDocuments 수행 시 knowledge_jobs의 대기/실행 작업도 단일 트랜잭션에서 함께 원자적 삭제하도록 무결성 강화
 //             **2026-09-04** — [지식 문서 등록 상세 내역 및 getDocumentDetail 구현] indexDocument 반환값에 청크/태그/검색어 상세내역(detail) 포함 및 getDocumentDetail 서비스 메소드 구현
 //             **2026-09-04** — [SQLite 원트랜잭션(All-or-Nothing) 무결성 적용] 선행 AI 분석 성공 시에만 단일 트랜잭션으로 DB 일괄 적재(saveCompleteKnowledgeDocumentAtomic)하여 중간 실패 시 ERROR 데이터 적재 원천 차단
 //             **2026-09-04** — [오류 문서 일괄 삭제 지원] deleteErrorDocuments 메소드 추가로 ERROR 상태 문서 원자적 일괄 청소 제공
@@ -140,7 +141,7 @@ export class KnowledgeService {
    */
   static getDocumentDetail(params: { documentId?: string; filePath?: string; resourceFolder?: string | null; geminiApiKey?: string | null; planCode?: string | null }): KnowledgeDocumentDetail | null {
     const { documentId, filePath, resourceFolder, geminiApiKey, planCode } = params;
-    assertKnowledgeAccess({ resourceFolder, geminiApiKey, planCode });
+    assertKnowledgeAccess({ resourceFolder, geminiApiKey: geminiApiKey || 'DUMMY_KEY_FOR_READ', planCode });
 
     if (!hasKnowledgeDatabase(resourceFolder)) return null;
 
@@ -236,7 +237,7 @@ export class KnowledgeService {
    */
   static listDocuments(params: { resourceFolder?: string | null; geminiApiKey?: string | null; planCode?: string | null }): any[] {
     const { resourceFolder, geminiApiKey, planCode } = params;
-    assertKnowledgeAccess({ resourceFolder, geminiApiKey, planCode });
+    assertKnowledgeAccess({ resourceFolder, geminiApiKey: geminiApiKey || 'DUMMY_KEY_FOR_READ', planCode });
 
     // DB 파일이 아직 존재하지 않는 경우 새로 만들지 않고 빈 목록 반환
     if (!hasKnowledgeDatabase(resourceFolder)) {
@@ -288,7 +289,7 @@ export class KnowledgeService {
    */
   static deleteDocument(params: { documentId?: string; filePath?: string; resourceFolder?: string | null; geminiApiKey?: string | null; planCode?: string | null }): boolean {
     const { documentId, filePath, resourceFolder, geminiApiKey, planCode } = params;
-    assertKnowledgeAccess({ resourceFolder, geminiApiKey, planCode });
+    assertKnowledgeAccess({ resourceFolder, geminiApiKey: geminiApiKey || 'DUMMY_KEY_FOR_DELETE', planCode });
 
     if (!hasKnowledgeDatabase(resourceFolder)) return true;
 
@@ -327,7 +328,7 @@ export class KnowledgeService {
    */
   static deleteErrorDocuments(params: { resourceFolder?: string | null; geminiApiKey?: string | null; planCode?: string | null }): number {
     const { resourceFolder, geminiApiKey, planCode } = params;
-    assertKnowledgeAccess({ resourceFolder, geminiApiKey, planCode });
+    assertKnowledgeAccess({ resourceFolder, geminiApiKey: geminiApiKey || 'DUMMY_KEY_FOR_DELETE', planCode });
 
     if (!hasKnowledgeDatabase(resourceFolder)) return 0;
 

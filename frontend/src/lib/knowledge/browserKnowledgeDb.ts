@@ -1,0 +1,895 @@
+// ====================================================================
+// 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
+// 🎯 @KICK  : 웹 브라우저(Cloudflare Pages / onrivi.com) 환경에서 사용자 로컬 PC의 {resourceFolder}/db/onrivi_knowledge.db를 직접 읽고 쓰는 WASM SQLite 엔진
+// 🛡️ @GUARD : Rule 7(선행 검증 후 원트랜잭션 쓰기), Rule 2(코드값 대문자 통일: READY, REGISTERED, INDEXING, ERROR), 디스크 바이너리 원자적 플러시
+// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 DB 완전 일치화 최초 구현] sql.js WASM 엔진과 File System Access API(resourceFolderHandle)를 연동하여 웹 환경에서도 중앙 서버 부하 0%로 사용자 PC의 onrivi_knowledge.db를 데스크톱과 100% 동일하게 읽고 쓰도록 구축
+// 🔗 @CALLS : sql.js, ./markdownChunker, ./llmProvider, ./contextBuilder, ../indexedDbHelper
+// ====================================================================
+
+import CryptoJS from 'crypto-js';
+import type { 
+  DocumentChunk, 
+  KnowledgeDocument, 
+  KnowledgeAnalysisResult, 
+  KnowledgeDocumentDetail,
+  KnowledgeCollection,
+  RetrievalCandidate,
+  KnowledgeJob
+} from '../../types/knowledge';
+import { chunkMarkdownByHeadings } from './markdownChunker';
+import { createKnowledgeLLMProvider } from './llmProvider';
+import { idb } from '../indexedDbHelper';
+
+let sqlModulePromise: Promise<any> | null = null;
+let cachedDbInstance: any = null;
+let cachedDbFolderHandle: any = null;
+
+/**
+ * sql.js WASM 모듈을 지연 초기화(Lazy Singleton)합니다.
+ */
+export async function getSqlModule(): Promise<any> {
+  if (!sqlModulePromise) {
+    sqlModulePromise = (async () => {
+      const initSqlJs = (await import('sql.js')).default;
+      return await initSqlJs({
+        locateFile: (file: string) => `/${file}`, // public/sql-wasm.wasm
+      });
+    })();
+  }
+  return sqlModulePromise;
+}
+
+/**
+ * SHA-256 해시를 계산합니다.
+ */
+function computeSha256(content: string): string {
+  return CryptoJS.SHA256(content).toString(CryptoJS.enc.Hex);
+}
+
+/**
+ * 리소스 폴더 핸들을 가져옵니다 (인자 > 메모리 캐시 > IndexedDB 순)
+ */
+export async function resolveResourceFolderHandle(explicitHandle?: any): Promise<any> {
+  if (explicitHandle) {
+    cachedDbFolderHandle = explicitHandle;
+    return explicitHandle;
+  }
+  if (cachedDbFolderHandle) return cachedDbFolderHandle;
+  if (typeof window !== 'undefined' && (window as any).__resourceFolderHandle) {
+    cachedDbFolderHandle = (window as any).__resourceFolderHandle;
+    return cachedDbFolderHandle;
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const savedHandle = await idb.get('resourceFolderHandle');
+      if (savedHandle) {
+        cachedDbFolderHandle = savedHandle;
+        return savedHandle;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+/**
+ * 브라우저 WASM 지식 데이터베이스 인스턴스를 로드합니다.
+ * 사용자 PC의 Onrivi_Asset/db/onrivi_knowledge.db 바이너리를 읽어 메모리에 마운트합니다.
+ */
+export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db: any; folderHandle: any }> {
+  const folderHandle = await resolveResourceFolderHandle(explicitHandle);
+  if (!folderHandle) {
+    throw new Error('RESOURCE_FOLDER_NOT_SET: 공통 자원(리소스) 폴더가 설정되지 않았습니다. 환경설정에서 리소스 폴더를 먼저 지정해 주세요.');
+  }
+
+  // 폴더 권한 확인 및 요청 (사용자 제스처 컨텍스트 지원)
+  if (typeof folderHandle.queryPermission === 'function') {
+    let perm = await folderHandle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted' && typeof folderHandle.requestPermission === 'function') {
+      perm = await folderHandle.requestPermission({ mode: 'readwrite' });
+    }
+    if (perm !== 'granted') {
+      throw new Error('PERMISSION_DENIED: 리소스 폴더의 읽기/쓰기 권한이 허용되지 않았습니다.');
+    }
+  }
+
+  if (cachedDbInstance) {
+    return { db: cachedDbInstance, folderHandle };
+  }
+
+  const SQL = await getSqlModule();
+  const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+  const fileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
+  const file = await fileHandle.getFile();
+  const buf = await file.arrayBuffer();
+
+  let db: any;
+  if (buf.byteLength > 0) {
+    db = new SQL.Database(new Uint8Array(buf));
+  } else {
+    db = new SQL.Database();
+    initBrowserKnowledgeSchema(db);
+    // 초기 스키마 생성 후 파일에 즉시 저장
+    await saveBrowserKnowledgeDb(folderHandle, db);
+  }
+
+  cachedDbInstance = db;
+  return { db, folderHandle };
+}
+
+/**
+ * WASM SQLite 메모리 상태를 사용자 PC의 onrivi_knowledge.db 파일에 원자적으로 저장합니다.
+ */
+export async function saveBrowserKnowledgeDb(folderHandle: any, db: any): Promise<void> {
+  const data = db.export();
+  const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+  const fileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(data);
+  await writable.close();
+}
+
+/**
+ * 브라우저 WASM DB 캐시를 강제 무효화합니다 (원복, 초기화 시 사용)
+ */
+export function invalidateBrowserDbCache(): void {
+  if (cachedDbInstance) {
+    try { cachedDbInstance.close(); } catch {}
+    cachedDbInstance = null;
+  }
+}
+
+/**
+ * 브라우저 환경 6대 핵심 테이블 스키마를 초기화합니다.
+ */
+export function initBrowserKnowledgeSchema(db: any): void {
+  // 1. 컬렉션
+  db.run(`
+    CREATE TABLE IF NOT EXISTS knowledge_collections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      color TEXT DEFAULT '#06C755',
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  // 2. 문서 마스터
+  db.run(`
+    CREATE TABLE IF NOT EXISTS knowledge_documents (
+      id TEXT PRIMARY KEY,
+      collection_id TEXT,
+      file_path TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      file_hash TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      modified_at TEXT NOT NULL,
+      summary TEXT,
+      key_points TEXT,
+      document_type TEXT DEFAULT 'other',
+      priority INTEGER NOT NULL DEFAULT 3,
+      status TEXT NOT NULL CHECK(status IN ('REGISTERED', 'INDEXING', 'READY', 'OUTDATED', 'DISABLED', 'ERROR')),
+      error_message TEXT,
+      analysis_version INTEGER NOT NULL DEFAULT 1,
+      analyzer_model TEXT,
+      analyzed_at TEXT,
+      indexed_at TEXT,
+      FOREIGN KEY(collection_id) REFERENCES knowledge_collections(id) ON DELETE SET NULL
+    );
+  `);
+
+  // 3. 지식 태그
+  db.run(`
+    CREATE TABLE IF NOT EXISTS document_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id TEXT NOT NULL,
+      tag_name TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      source TEXT DEFAULT 'AI',
+      FOREIGN KEY(document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_tags_doc ON document_tags(document_id);
+    CREATE INDEX IF NOT EXISTS idx_tags_name_score ON document_tags(tag_name, score DESC);
+  `);
+
+  // 4. 마크다운 청크
+  db.run(`
+    CREATE TABLE IF NOT EXISTS document_chunks (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      heading_title TEXT,
+      heading_level INTEGER,
+      heading_path TEXT,
+      start_line INTEGER NOT NULL,
+      end_line INTEGER NOT NULL,
+      chunk_summary TEXT,
+      keywords TEXT,
+      chunk_text TEXT,
+      FOREIGN KEY(document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id);
+  `);
+
+  // 5. 작업 큐
+  db.run(`
+    CREATE TABLE IF NOT EXISTS knowledge_jobs (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      title TEXT,
+      job_type TEXT NOT NULL CHECK(job_type IN ('INDEX', 'REINDEX', 'DELETE')),
+      target_hash TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 3,
+      status TEXT NOT NULL CHECK(status IN ('QUEUED', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED')),
+      current_step TEXT DEFAULT 'QUEUED',
+      retry_count INTEGER DEFAULT 0,
+      max_retries INTEGER DEFAULT 3,
+      retry_after TEXT,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      error_log TEXT
+    );
+  `);
+
+  try {
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_jobs_prio ON knowledge_jobs(status, priority DESC, created_at ASC);
+      CREATE INDEX IF NOT EXISTS idx_jobs_file_hash ON knowledge_jobs(file_path, target_hash);
+    `);
+  } catch {}
+}
+
+/**
+ * 1. 문서 목록 조회 (브라우저 WASM)
+ */
+export async function listBrowserDocuments(folderHandle?: any): Promise<KnowledgeDocument[]> {
+  const { db } = await getBrowserKnowledgeDb(folderHandle);
+  const sql = `
+    SELECT 
+      d.id, d.collection_id, d.file_path, d.title, d.file_hash, d.file_size,
+      d.modified_at, d.summary, d.key_points, d.document_type, d.priority,
+      d.status, d.error_message, d.analysis_version, d.analyzer_model,
+      d.analyzed_at, d.indexed_at,
+      (SELECT COUNT(*) FROM document_chunks c WHERE c.document_id = d.id) AS chunks_count
+    FROM knowledge_documents d
+    ORDER BY d.modified_at DESC;
+  `;
+  
+  const stmt = db.prepare(sql);
+  const docs: KnowledgeDocument[] = [];
+
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    let keyPoints: string[] = [];
+    try {
+      if (typeof row.key_points === 'string') keyPoints = JSON.parse(row.key_points);
+      else if (Array.isArray(row.key_points)) keyPoints = row.key_points;
+    } catch {}
+
+    docs.push({
+      id: String(row.id || ''),
+      collectionId: row.collection_id ? String(row.collection_id) : null,
+      filePath: String(row.file_path || ''),
+      title: String(row.title || ''),
+      fileHash: String(row.file_hash || ''),
+      fileSize: Number(row.file_size || 0),
+      modifiedAt: String(row.modified_at || ''),
+      summary: String(row.summary || ''),
+      keyPoints,
+      documentType: (String(row.document_type || 'other') as any),
+      priority: Number(row.priority || 3),
+      status: (row.status as any) || 'READY',
+      errorMessage: row.error_message ? String(row.error_message) : undefined,
+      analysisVersion: Number(row.analysis_version || 1),
+      analyzerModel: String(row.analyzer_model || ''),
+      analyzedAt: row.analyzed_at ? String(row.analyzed_at) : undefined,
+      indexedAt: row.indexed_at ? String(row.indexed_at) : undefined,
+      chunksCount: Number(row.chunks_count || 0),
+    });
+  }
+  stmt.free();
+  return docs;
+}
+
+/**
+ * 2. 문서 상세 조회 (브라우저 WASM)
+ */
+export async function getBrowserDocumentDetail(
+  params: { documentId?: string; filePath?: string },
+  folderHandle?: any
+): Promise<KnowledgeDocumentDetail | null> {
+  const { db } = await getBrowserKnowledgeDb(folderHandle);
+  const { documentId, filePath } = params;
+
+  let docStmt = db.prepare('SELECT * FROM knowledge_documents WHERE id = :id OR file_path = :path LIMIT 1');
+  docStmt.bind({ ':id': documentId || '', ':path': filePath || '' });
+  
+  if (!docStmt.step()) {
+    docStmt.free();
+    return null;
+  }
+  const d = docStmt.getAsObject();
+  docStmt.free();
+
+  const realDocId = String(d.id);
+
+  // 태그 조회
+  const tagStmt = db.prepare('SELECT tag_name, score FROM document_tags WHERE document_id = :id ORDER BY score DESC');
+  tagStmt.bind({ ':id': realDocId });
+  const tags: Array<{ name: string; score: number }> = [];
+  while (tagStmt.step()) {
+    const t = tagStmt.getAsObject();
+    tags.push({ name: String(t.tag_name), score: Number(t.score) });
+  }
+  tagStmt.free();
+
+  // 청크 조회
+  const chunkStmt = db.prepare('SELECT * FROM document_chunks WHERE document_id = :id ORDER BY chunk_index ASC');
+  chunkStmt.bind({ ':id': realDocId });
+  const chunks: any[] = [];
+  while (chunkStmt.step()) {
+    const c = chunkStmt.getAsObject();
+    chunks.push({
+      id: String(c.id),
+      chunkIndex: Number(c.chunk_index),
+      headingTitle: String(c.heading_title || ''),
+      headingLevel: Number(c.heading_level || 0),
+      headingPath: String(c.heading_path || ''),
+      startLine: Number(c.start_line || 1),
+      endLine: Number(c.end_line || 1),
+      chunkSummary: String(c.chunk_summary || ''),
+      keywords: String(c.keywords || ''),
+      chunkText: String(c.chunk_text || ''),
+    });
+  }
+  chunkStmt.free();
+
+  let keyPoints: string[] = [];
+  try {
+    if (typeof d.key_points === 'string') keyPoints = JSON.parse(d.key_points);
+    else if (Array.isArray(d.key_points)) keyPoints = d.key_points;
+  } catch {}
+
+  return {
+    documentId: realDocId,
+    filePath: String(d.file_path),
+    title: String(d.title),
+    fileSize: Number(d.file_size || 0),
+    modifiedAt: String(d.modified_at || ''),
+    status: (d.status as any) || 'READY',
+    summary: String(d.summary || ''),
+    keyPoints,
+    documentType: String(d.document_type || 'other'),
+    tags,
+    searchTerms: tags.map(t => t.name),
+    analyzerModel: String(d.analyzer_model || ''),
+    chunksCount: chunks.length,
+    chunks,
+  };
+}
+
+/**
+ * 3. 마크다운 문서 지식 베이스 등록 및 AI 분석 (브라우저 WASM)
+ * [Rule 7 준수]: 선행 청킹 및 Gemini AI 분석 100% 성공 후 원트랜잭션으로 DB 적재 및 로컬 파일 동기화
+ */
+export async function indexBrowserDocument(
+  params: {
+    filePath: string;
+    fileContent: string;
+    title?: string;
+    geminiApiKey?: string | null;
+    planCode?: string | null;
+    aiModelName?: string | null;
+  },
+  folderHandle?: any
+): Promise<{ documentId: string; chunksCount: number; detail: KnowledgeDocumentDetail }> {
+  const { filePath, fileContent, title, geminiApiKey, aiModelName } = params;
+
+  if (!fileContent || !fileContent.trim()) {
+    throw new Error('EMPTY_CONTENT: 파일 내용이 비어 있어 등록할 수 없습니다.');
+  }
+
+  const { db, folderHandle: activeFolder } = await getBrowserKnowledgeDb(folderHandle);
+
+  const docId = `doc_${computeSha256(filePath).slice(0, 16)}`;
+  const fileHash = computeSha256(fileContent);
+  const fileSize = new Blob([fileContent]).size;
+  const docTitle = title || filePath.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
+
+  // 1. 마크다운 청킹 (선행 수행)
+  const chunks = chunkMarkdownByHeadings(docId, fileContent);
+
+  // 2. Gemini AI 정형 분석 (선행 수행)
+  const modelToUse = (aiModelName || 'gemini-3.8-flash').trim();
+  let analysis: KnowledgeAnalysisResult;
+  
+  if (geminiApiKey && geminiApiKey.trim() && geminiApiKey !== 'DUMMY_KEY') {
+    const provider = createKnowledgeLLMProvider('gemini', geminiApiKey, modelToUse);
+    analysis = await provider.analyzeDocument(fileContent);
+  } else {
+    // API 키 미설정 시 기본 구조 분석 폴백
+    analysis = {
+      summary: `${docTitle} 마크다운 문서입니다. (${chunks.length}개 청크 추출됨)`,
+      keyPoints: chunks.slice(0, 3).map(c => c.headingTitle || `섹션 ${c.chunkIndex + 1}`),
+      documentType: 'note',
+      tags: [{ name: '로컬문서', score: 80 }],
+      searchTerms: [docTitle],
+    };
+  }
+
+  // 3. 단일 원트랜잭션(All-or-Nothing) 쓰기
+  const now = new Date().toISOString();
+  db.run('BEGIN TRANSACTION;');
+  try {
+    // 마스터 문서 저장
+    db.run(`
+      INSERT INTO knowledge_documents (
+        id, collection_id, file_path, title, file_hash, file_size, modified_at,
+        summary, key_points, document_type, priority, status, analysis_version,
+        analyzer_model, analyzed_at, indexed_at
+      ) VALUES (
+        :id, NULL, :path, :title, :hash, :size, :mod,
+        :summary, :kp, :docType, 3, 'READY', 1,
+        :model, :now, :now
+      ) ON CONFLICT(file_path) DO UPDATE SET
+        title = excluded.title,
+        file_hash = excluded.file_hash,
+        file_size = excluded.file_size,
+        modified_at = excluded.modified_at,
+        summary = excluded.summary,
+        key_points = excluded.key_points,
+        document_type = excluded.document_type,
+        status = 'READY',
+        error_message = NULL,
+        analyzer_model = excluded.analyzer_model,
+        analyzed_at = excluded.analyzed_at,
+        indexed_at = excluded.indexed_at;
+    `, {
+      ':id': docId,
+      ':path': filePath,
+      ':title': docTitle,
+      ':hash': fileHash,
+      ':size': fileSize,
+      ':mod': now,
+      ':summary': analysis.summary,
+      ':kp': JSON.stringify(analysis.keyPoints),
+      ':docType': analysis.documentType,
+      ':model': modelToUse,
+      ':now': now,
+    });
+
+    // 태그 저장
+    db.run('DELETE FROM document_tags WHERE document_id = :id;', { ':id': docId });
+    for (const t of analysis.tags) {
+      db.run(`
+        INSERT INTO document_tags (document_id, tag_name, score, source)
+        VALUES (:id, :name, :score, 'AI');
+      `, { ':id': docId, ':name': t.name, ':score': t.score });
+    }
+
+    // 청크 저장
+    db.run('DELETE FROM document_chunks WHERE document_id = :id;', { ':id': docId });
+    for (const c of chunks) {
+      db.run(`
+        INSERT INTO document_chunks (
+          id, document_id, chunk_index, heading_title, heading_level,
+          heading_path, start_line, end_line, chunk_summary, keywords, chunk_text
+        ) VALUES (
+          :id, :docId, :idx, :heading, :level,
+          :path, :start, :end, :summary, :kw, :text
+        );
+      `, {
+        ':id': c.id,
+        ':docId': docId,
+        ':idx': c.chunkIndex,
+        ':heading': c.headingTitle,
+        ':level': c.headingLevel,
+        ':path': c.headingPath,
+        ':start': c.startLine,
+        ':end': c.endLine,
+        ':summary': c.chunkSummary || '',
+        ':kw': c.keywords || '',
+        ':text': c.chunkText || '',
+      });
+    }
+
+    db.run('COMMIT;');
+  } catch (err) {
+    db.run('ROLLBACK;');
+    throw err;
+  }
+
+  // 4. 변경된 DB를 사용자 PC의 onrivi_knowledge.db 파일에 즉시 영구 저장
+  await saveBrowserKnowledgeDb(activeFolder, db);
+
+  const detail: KnowledgeDocumentDetail = {
+    documentId: docId,
+    filePath,
+    title: docTitle,
+    fileSize,
+    modifiedAt: now,
+    status: 'READY',
+    summary: analysis.summary,
+    keyPoints: analysis.keyPoints,
+    documentType: analysis.documentType,
+    tags: analysis.tags,
+    searchTerms: analysis.searchTerms,
+    analyzerModel: modelToUse,
+    chunksCount: chunks.length,
+    chunks: chunks.map(c => ({
+      id: c.id,
+      chunkIndex: c.chunkIndex,
+      headingTitle: c.headingTitle,
+      headingLevel: c.headingLevel,
+      headingPath: c.headingPath,
+      startLine: c.startLine,
+      endLine: c.endLine,
+      chunkSummary: c.chunkSummary,
+      keywords: c.keywords,
+      chunkText: c.chunkText,
+    })),
+  };
+
+  return { documentId: docId, chunksCount: chunks.length, detail };
+}
+
+/**
+ * 4. 문서 삭제 (브라우저 WASM)
+ */
+export async function deleteBrowserDocument(
+  params: { documentId?: string; filePath?: string },
+  folderHandle?: any
+): Promise<boolean> {
+  const { db, folderHandle: activeFolder } = await getBrowserKnowledgeDb(folderHandle);
+  const { documentId, filePath } = params;
+
+  let targetId = documentId;
+  if (!targetId && filePath) {
+    const s = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = :p LIMIT 1');
+    s.bind({ ':p': filePath });
+    if (s.step()) targetId = String(s.getAsObject().id);
+    s.free();
+  }
+
+  if (!targetId) return false;
+
+  db.run('BEGIN TRANSACTION;');
+  try {
+    db.run('DELETE FROM document_chunks WHERE document_id = :id;', { ':id': targetId });
+    db.run('DELETE FROM document_tags WHERE document_id = :id;', { ':id': targetId });
+    db.run('DELETE FROM knowledge_jobs WHERE document_id = :id;', { ':id': targetId });
+    db.run('DELETE FROM knowledge_documents WHERE id = :id;', { ':id': targetId });
+    db.run('COMMIT;');
+  } catch (err) {
+    db.run('ROLLBACK;');
+    throw err;
+  }
+
+  await saveBrowserKnowledgeDb(activeFolder, db);
+  return true;
+}
+
+/**
+ * 5. 오류 문서 일괄 삭제 (브라우저 WASM)
+ */
+export async function deleteBrowserErrorDocuments(folderHandle?: any): Promise<number> {
+  const { db, folderHandle: activeFolder } = await getBrowserKnowledgeDb(folderHandle);
+  
+  db.run('BEGIN TRANSACTION;');
+  let deletedCount = 0;
+  try {
+    const stmt = db.prepare("SELECT id FROM knowledge_documents WHERE status = 'ERROR'");
+    const errorIds: string[] = [];
+    while (stmt.step()) {
+      errorIds.push(String(stmt.getAsObject().id));
+    }
+    stmt.free();
+
+    for (const id of errorIds) {
+      db.run('DELETE FROM document_chunks WHERE document_id = :id;', { ':id': id });
+      db.run('DELETE FROM document_tags WHERE document_id = :id;', { ':id': id });
+      db.run('DELETE FROM knowledge_jobs WHERE document_id = :id;', { ':id': id });
+      db.run('DELETE FROM knowledge_documents WHERE id = :id;', { ':id': id });
+    }
+    db.run('COMMIT;');
+    deletedCount = errorIds.length;
+  } catch (err) {
+    db.run('ROLLBACK;');
+    throw err;
+  }
+
+  if (deletedCount > 0) {
+    await saveBrowserKnowledgeDb(activeFolder, db);
+  }
+  return deletedCount;
+}
+
+/**
+ * 6. 하이브리드 지식 검색 (브라우저 WASM)
+ */
+export async function searchBrowserKnowledge(
+  params: {
+    query: string;
+    limit?: number;
+    collectionId?: string;
+    geminiApiKey?: string | null;
+    aiModelName?: string | null;
+  },
+  folderHandle?: any
+): Promise<{ candidates: RetrievalCandidate[]; answer?: string }> {
+  const { query, limit = 10, geminiApiKey, aiModelName } = params;
+  if (!query || !query.trim()) {
+    return { candidates: [] };
+  }
+
+  const { db } = await getBrowserKnowledgeDb(folderHandle);
+  const terms = query.replace(/[^\w\s가-힣]/g, ' ').trim().split(/\s+/).filter(t => t.length > 0);
+
+  // 모든 READY 문서의 청크와 태그를 매칭
+  const sql = `
+    SELECT 
+      c.id AS chunk_id, c.document_id, c.chunk_index, c.heading_title,
+      c.heading_level, c.heading_path, c.start_line, c.end_line,
+      c.chunk_summary, c.keywords, c.chunk_text,
+      d.file_path, d.title AS doc_title, d.priority AS doc_priority
+    FROM document_chunks c
+    JOIN knowledge_documents d ON c.document_id = d.id
+    WHERE d.status = 'READY'
+    ORDER BY d.modified_at DESC;
+  `;
+
+  const stmt = db.prepare(sql);
+  const scoredList: Array<{ cand: RetrievalCandidate; score: number }> = [];
+
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    const heading = String(row.heading_title || '');
+    const keywords = String(row.keywords || '');
+    const summary = String(row.chunk_summary || '');
+    const text = String(row.chunk_text || '');
+    const docTitle = String(row.doc_title || '');
+
+    let matchScore = 0;
+    for (const term of terms) {
+      const lowerTerm = term.toLowerCase();
+      if (docTitle.toLowerCase().includes(lowerTerm)) matchScore += 35;
+      if (heading.toLowerCase().includes(lowerTerm)) matchScore += 30;
+      if (keywords.toLowerCase().includes(lowerTerm)) matchScore += 25;
+      if (summary.toLowerCase().includes(lowerTerm)) matchScore += 15;
+      if (text.toLowerCase().includes(lowerTerm)) matchScore += 10;
+    }
+
+    if (matchScore > 0) {
+      const cand: RetrievalCandidate = {
+        chunkId: String(row.chunk_id),
+        documentId: String(row.document_id),
+        filePath: String(row.file_path),
+        documentTitle: docTitle,
+        headingTitle: heading,
+        headingPath: String(row.heading_path || ''),
+        startLine: Number(row.start_line),
+        endLine: Number(row.end_line),
+        fileHash: '',
+        rawBm25: matchScore,
+        normalizedFtsScore: Math.min(100, matchScore),
+        tagScore: 0,
+        headingScore: 0,
+        priorityScore: Number(row.doc_priority || 3) * 5,
+        finalScore: Math.min(100, matchScore),
+        score: Math.min(100, matchScore),
+        snippet: summary || text.slice(0, 160),
+      };
+      scoredList.push({ cand, score: matchScore });
+    }
+  }
+  stmt.free();
+
+  scoredList.sort((a, b) => b.score - a.score);
+  const topCandidates = scoredList.slice(0, limit).map(item => item.cand);
+
+  let answer: string | undefined = undefined;
+  if (geminiApiKey && geminiApiKey.trim() && geminiApiKey !== 'DUMMY_KEY' && topCandidates.length > 0) {
+    try {
+      const provider = createKnowledgeLLMProvider('gemini', geminiApiKey, aiModelName || 'gemini-3.8-flash');
+      const contextText = topCandidates.map(c => `[출처: ${c.documentTitle} (${c.headingTitle})]\n${c.snippet}`).join('\n\n');
+      const answerPrompt = `사용자 질문: "${query}"\n\n아래 지식 베이스 문맥을 바탕으로 명확하게 답변해 주세요:\n\n${contextText}`;
+      const res = await (provider as any).genAI
+        .getGenerativeModel({ model: aiModelName || 'gemini-3.8-flash' })
+        .generateContent(answerPrompt);
+      answer = res.response.text();
+    } catch (e) {
+      console.warn('[searchBrowserKnowledge] LLM 답변 생성 실패:', e);
+    }
+  }
+
+  return { candidates: topCandidates, answer };
+}
+
+/**
+ * 7. 컬렉션 관리 (브라우저 WASM)
+ */
+export async function listBrowserCollections(folderHandle?: any): Promise<KnowledgeCollection[]> {
+  const { db } = await getBrowserKnowledgeDb(folderHandle);
+  const stmt = db.prepare('SELECT * FROM knowledge_collections ORDER BY name ASC');
+  const cols: KnowledgeCollection[] = [];
+  while (stmt.step()) {
+    const r = stmt.getAsObject();
+    cols.push({
+      id: String(r.id),
+      name: String(r.name),
+      description: r.description ? String(r.description) : undefined,
+      color: String(r.color || '#06C755'),
+      createdAt: String(r.created_at),
+    });
+  }
+  stmt.free();
+  return cols;
+}
+
+export async function upsertBrowserCollection(
+  col: { id?: string; name: string; description?: string; color?: string },
+  folderHandle?: any
+): Promise<KnowledgeCollection> {
+  const { db, folderHandle: activeFolder } = await getBrowserKnowledgeDb(folderHandle);
+  const id = col.id || `col_${Date.now()}`;
+  const now = new Date().toISOString();
+  
+  db.run(`
+    INSERT INTO knowledge_collections (id, name, description, color, created_at)
+    VALUES (:id, :name, :desc, :color, :now)
+    ON CONFLICT(name) DO UPDATE SET
+      description = excluded.description,
+      color = excluded.color;
+  `, {
+    ':id': id,
+    ':name': col.name.trim(),
+    ':desc': col.description || '',
+    ':color': col.color || '#06C755',
+    ':now': now,
+  });
+
+  await saveBrowserKnowledgeDb(activeFolder, db);
+  return { id, name: col.name.trim(), description: col.description, color: col.color || '#06C755', createdAt: now };
+}
+
+export async function deleteBrowserCollection(collectionId: string, folderHandle?: any): Promise<void> {
+  const { db, folderHandle: activeFolder } = await getBrowserKnowledgeDb(folderHandle);
+  db.run('DELETE FROM knowledge_collections WHERE id = :id;', { ':id': collectionId });
+  await saveBrowserKnowledgeDb(activeFolder, db);
+}
+
+/**
+ * 8. 작업 큐 상태 (브라우저 WASM)
+ */
+export async function getBrowserQueueStats(folderHandle?: any): Promise<any> {
+  try {
+    const { db } = await getBrowserKnowledgeDb(folderHandle);
+    const stmt = db.prepare(`
+      SELECT 
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'QUEUED' THEN 1 ELSE 0 END) AS queued,
+        SUM(CASE WHEN status = 'RUNNING' THEN 1 ELSE 0 END) AS running,
+        SUM(CASE WHEN status = 'SUCCESS' THEN 1 ELSE 0 END) AS completed,
+        SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) AS failed
+      FROM knowledge_jobs;
+    `);
+    if (stmt.step()) {
+      const r = stmt.getAsObject();
+      stmt.free();
+      return {
+        total: Number(r.total || 0),
+        queued: Number(r.queued || 0),
+        running: Number(r.running || 0),
+        completed: Number(r.completed || 0),
+        failed: Number(r.failed || 0),
+        activeWorkers: 0,
+        maxWorkers: 2,
+        percent: Number(r.total) > 0 ? Math.round((Number(r.completed) / Number(r.total)) * 100) : 0,
+        isPaused: false,
+        rateLimitStatus: 'NORMAL',
+        rateLimitCooldownSec: 0,
+      };
+    }
+    stmt.free();
+  } catch {}
+  return { total: 0, queued: 0, running: 0, completed: 0, failed: 0, activeWorkers: 0, maxWorkers: 2, percent: 0, isPaused: false, rateLimitStatus: 'NORMAL', rateLimitCooldownSec: 0 };
+}
+
+/**
+ * 9. 백업 및 원복 관리 (브라우저 WASM)
+ */
+export async function backupBrowserKnowledgeDb(folderHandle: any, reason: string = '수동 백업'): Promise<{ fileName: string; size: number }> {
+  const { db } = await getBrowserKnowledgeDb(folderHandle);
+  const binary = db.export();
+
+  const backupsDir = await folderHandle.getDirectoryHandle('backups', { create: true });
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const fileName = `onrivi_knowledge_${dateStr}.db`;
+
+  const backupFileHandle = await backupsDir.getFileHandle(fileName, { create: true });
+  const writable = await backupFileHandle.createWritable();
+  await writable.write(binary);
+  await writable.close();
+
+  // 매니페스트 업데이트
+  try {
+    let manifest: any[] = [];
+    try {
+      const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: false });
+      const mFile = await mHandle.getFile();
+      const mText = await mFile.text();
+      manifest = JSON.parse(mText);
+    } catch {}
+
+    const docCountStmt = db.prepare('SELECT COUNT(*) AS count FROM knowledge_documents');
+    const docCount = docCountStmt.step() ? Number(docCountStmt.getAsObject().count) : 0;
+    docCountStmt.free();
+
+    manifest.unshift({
+      fileName,
+      createdAt: d.toISOString(),
+      reason,
+      docCount,
+      sampleTitle: '',
+      size: binary.byteLength,
+    });
+
+    const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: true });
+    const mWritable = await mHandle.createWritable();
+    await mWritable.write(JSON.stringify(manifest.slice(0, 50), null, 2));
+    await mWritable.close();
+  } catch (mErr) {
+    console.warn('[backupBrowserKnowledgeDb] 매니페스트 저장 에러:', mErr);
+  }
+
+  return { fileName, size: binary.byteLength };
+}
+
+export async function listBrowserBackups(folderHandle: any): Promise<any[]> {
+  try {
+    const backupsDir = await folderHandle.getDirectoryHandle('backups', { create: false });
+    try {
+      const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: false });
+      const mFile = await mHandle.getFile();
+      const mText = await mFile.text();
+      return JSON.parse(mText);
+    } catch {}
+  } catch {}
+  return [];
+}
+
+export async function restoreBrowserBackup(folderHandle: any, fileName: string): Promise<boolean> {
+  // 사전 안전 자동 백업 (Rule 7)
+  try { await backupBrowserKnowledgeDb(folderHandle, `원복 전 자동 안전 백업 (${fileName})`); } catch {}
+
+  const backupsDir = await folderHandle.getDirectoryHandle('backups', { create: false });
+  const backupFileHandle = await backupsDir.getFileHandle(fileName, { create: false });
+  const file = await backupFileHandle.getFile();
+  const binary = await file.arrayBuffer();
+
+  const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+  const targetHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
+  const writable = await targetHandle.createWritable();
+  await writable.write(binary);
+  await writable.close();
+
+  // 캐시 무효화
+  invalidateBrowserDbCache();
+  return true;
+}
+
+export async function resetBrowserKnowledgeDb(folderHandle: any, reason: string = 'DB 완전 초기화'): Promise<boolean> {
+  // 사전 안전 자동 백업 (Rule 7)
+  try { await backupBrowserKnowledgeDb(folderHandle, `초기화 전 자동 안전 백업 (${reason})`); } catch {}
+
+  const SQL = await getSqlModule();
+  const newDb = new SQL.Database();
+  initBrowserKnowledgeSchema(newDb);
+
+  await saveBrowserKnowledgeDb(folderHandle, newDb);
+  invalidateBrowserDbCache();
+  return true;
+}

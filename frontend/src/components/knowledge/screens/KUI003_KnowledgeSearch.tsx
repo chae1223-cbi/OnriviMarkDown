@@ -2,9 +2,10 @@
 // 📊 [OMD-KUI-003] KUI003_KnowledgeSearch.tsx ➔ 하이브리드 검색 및 AI 지식 Q&A
 // 🎯 @KICK  : FTS5 + 태그 하이브리드 청크 검색, Gemini 질의응답(RAG), 근거 뷰어 연동 및 원문 에디터 점프
 // 🛡️ @GUARD : LDSG v5.0 (#06C755), 검색 모드/AI 질의 모드 탭 분리, 로컬 우선 처리
-// 🚨 @PATCH : **2026-09-04** — [Rule 8 고대비 시인성] 검색 결과 헤딩 경로 및 근거 텍스트를 고대비 볼드 text-zinc-700 dark:text-zinc-300으로 보강하여 가독성 강화
+// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 검색 및 질의 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db에 직접 하이브리드 검색 및 AI 질의응답을 수행하도록 연동
+//             **2026-09-04** — [Rule 8 고대비 시인성] 검색 결과 헤딩 경로 및 근거 텍스트를 고대비 볼드 text-zinc-700 dark:text-zinc-300으로 보강하여 가독성 강화
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-003 하이브리드 지식 검색 및 AI Q&A 통합 화면 신규 구현
-// 🔗 @CALLS : /api/knowledge/search, /api/knowledge/query, KUI012_EvidenceViewer
+// 🔗 @CALLS : knowledgeClient, /api/knowledge/search, /api/knowledge/query, KUI012_EvidenceViewer
 // ====================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -13,6 +14,7 @@ import {
   Hash, Tag, Eye, ChevronRight, AlertCircle, RefreshCw, Send
 } from 'lucide-react';
 import type { RetrievalCandidate, KnowledgeCollection } from '@/types/knowledge';
+import { knowledgeClient } from '@/lib/knowledge/knowledgeClient';
 import { KUI012_EvidenceViewer } from './KUI012_EvidenceViewer';
 
 interface KUI003KnowledgeSearchProps {
@@ -58,26 +60,18 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
 
     if (searchMode === 'search') {
       try {
-        const res = await fetch('/api/knowledge/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: query.trim(),
-            resourceFolder,
-            geminiApiKey,
-            planCode,
-            collectionId: selectedCollectionId === 'ALL' ? undefined : selectedCollectionId,
-            limit: 30,
-          }),
+        const data = await knowledgeClient.searchKnowledge({
+          query: query.trim(),
+          resourceFolder,
+          geminiApiKey,
+          planCode,
+          collectionId: selectedCollectionId === 'ALL' ? undefined : selectedCollectionId,
+          limit: 30,
+          aiModelName,
         });
-        const data = await res.json();
-        if (data.ok) {
-          setCandidates(data.candidates || []);
-          if ((data.candidates || []).length === 0) {
-            showToast('일치하는 지식 청크가 없습니다.', 'info');
-          }
-        } else {
-          showToast(data.message || '검색 실패', 'error');
+        setCandidates(data.candidates || []);
+        if ((data.candidates || []).length === 0) {
+          showToast('일치하는 지식 청크가 없습니다.', 'info');
         }
       } catch {
         showToast('검색 중 오류가 발생했습니다.', 'error');
@@ -87,24 +81,46 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
     } else {
       // AI Q&A 질의 모드
       try {
-        const res = await fetch('/api/knowledge/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: query.trim(),
-            resourceFolder,
-            geminiApiKey,
-            planCode,
-            aiModelName,
-            collectionId: selectedCollectionId === 'ALL' ? undefined : selectedCollectionId,
-          }),
+        const isServer = typeof window !== 'undefined' && (
+          Boolean((window as any).electronAPI) ||
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1'
+        );
+        if (isServer) {
+          const res = await fetch('/api/knowledge/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: query.trim(),
+              resourceFolder,
+              geminiApiKey,
+              planCode,
+              aiModelName,
+              collectionId: selectedCollectionId === 'ALL' ? undefined : selectedCollectionId,
+            }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            setAiAnswer(data.answer);
+            setEvidenceList(data.evidenceList || []);
+            return;
+          }
+        }
+        // 웹 브라우저 WASM Q&A
+        const wasmData = await knowledgeClient.searchKnowledge({
+          query: query.trim(),
+          resourceFolder,
+          geminiApiKey,
+          planCode,
+          aiModelName,
+          collectionId: selectedCollectionId === 'ALL' ? undefined : selectedCollectionId,
+          limit: 10,
         });
-        const data = await res.json();
-        if (data.ok) {
-          setAiAnswer(data.answer);
-          setEvidenceList(data.evidenceList || []);
+        if (wasmData.answer) {
+          setAiAnswer(wasmData.answer);
+          setEvidenceList(wasmData.candidates || []);
         } else {
-          showToast(data.message || 'AI 질의 생성 실패', 'error');
+          showToast('AI 답변을 생성하지 못했습니다.', 'warning');
         }
       } catch {
         showToast('AI 응답 생성 중 오류가 발생했습니다.', 'error');

@@ -16,12 +16,15 @@ import { useUIStore } from '@/store/useUIStore';
 
 import { useEditorContext } from '@/context/EditorContext';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
+import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-06** — [웹 환경 로컬 지식 API 호출 가드] 로컬 SQLite 지식 베이스는 데스크톱 전용 기능이므로 웹 브라우저 환경(!isDesktop)에서는 /api/knowledge/list 호출을 안전하게 스킵하여 콘솔 405/404 에러 원천 방어
+// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 문서 뱃지 실시간 동기화 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db로부터 등록 문서 목록을 읽어와 탐색기 📗 뱃지를 실시간으로 완벽 동기화
+//             **2026-09-06** — [localhost 지식 베이스 동기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 /api/knowledge/list를 통한 지식 문서 및 📗 뱃지 동기화를 활성화하고, 실서버 prod 웹에서만 안전하게 스킵 처리
+//             **2026-09-06** — [웹 환경 로컬 지식 API 호출 가드] 로컬 SQLite 지식 베이스는 데스크톱 전용 기능이므로 웹 브라우저 환경(!isDesktop)에서는 /api/knowledge/list 호출을 안전하게 스킵하여 콘솔 405/404 에러 원천 방어
 //             **2026-09-05** — [ONRIVI-KNOWLEDGE-REFRESH-SYNC] 파일 탐색기 새로고침(file:refresh-all-directories) 및 컨텍스트 메뉴 새로고침 시 지식 등록 문서 목록(/api/knowledge/list) 자동 재호출 및 등록 뱃지(📗) 실시간 재동기화 연동
 //             **2026-09-04** — [ONRIVI-CONTEXTMENU-CLAMP] 화면 하단 근처에서 우클릭 시 컨텍스트 메뉴가 하단 작업표시줄 밖으로 잘리지 않도록 뷰포트 바운더리 동적 클램핑(BoundingRect) 및 스크롤 가드 적용
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 지식 보관함 등록 문서 목록(onrivi_registered_knowledge_docs) 자동 백그라운드 동기화 및 탐색기 뱃지 실시간 연동 탑재
@@ -145,21 +148,19 @@ export default function LeftSidebar() {
         'DUMMY_KEY_FOR_LIST'
       );
 
-      // 🛡️ 로컬 지식 베이스(SQLite)는 데스크톱(Electron) 전용 기능이므로 웹 환경에서는 서버 호출 스킵
-      const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-      if (!isDesktopEnv) {
+      const canUseDb = await canAccessKnowledgeDb();
+      if (!canUseDb) {
         return;
       }
 
       try {
-        const res = await fetch('/api/knowledge/list', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resourceFolder: effectiveResourceFolder, geminiApiKey: effectiveApiKey, planCode: 'ELITEPRO' }),
+        const docs = await knowledgeClient.listDocuments({
+          resourceFolder: effectiveResourceFolder,
+          geminiApiKey: effectiveApiKey,
+          planCode: 'ELITEPRO',
         });
-        const data = await res.json();
-        if (data.ok && Array.isArray(data.documents)) {
-          const paths = data.documents.map((d: any) => d.file_path || d.filePath).filter(Boolean);
+        if (Array.isArray(docs)) {
+          const paths = docs.map((d: any) => d.filePath || d.file_path).filter(Boolean);
           localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(paths));
           window.dispatchEvent(new CustomEvent('knowledge:updated'));
         }

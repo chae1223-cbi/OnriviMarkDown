@@ -1,5 +1,16 @@
 "use client";
 
+// ====================================================================
+// 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
+// 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
+// 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#06C755), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 문서 등록/해제/상세조회 일치화] 데스크톱뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient 및 canAccessKnowledgeDb를 통해 사용자 로컬 PC의 onrivi_knowledge.db에 직접 지식문서 등록/해제/상세분석 조회 수행 가능하도록 전면 연동
+//             **2026-09-06** — [데스크톱 파일 읽기 결함 및 localhost 지식 연동 해결] 데스크톱 환경에서 electronAPI.readFromPath content 객체 추출 및 fallback readFile 구현으로 파일 내용 빈값 판정 버그 해결, localhost 환경 지식 엔진 API 접근 허용 및 resourceFolder 키 정규화
+//             **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
+//             **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
+// 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/lib/knowledge/knowledgeGuard, @/components/ToastProvider
+// ====================================================================
+
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2 } from 'lucide-react';
@@ -11,6 +22,7 @@ import { msg } from '@/lib/systemMessages';
 import { useToast } from '@/components/ToastProvider';
 import { checkKnowledgeGuard } from '@/lib/knowledge/knowledgeGuard';
 import { loadSecureData } from '@/lib/secureStorage';
+import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 
 interface FileTreeItemProps {
   node: FileNode;
@@ -34,9 +46,10 @@ interface FileTreeItemProps {
   isRestrictedUser?: boolean;
 }
 
-// ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
-// 🚨 @PATCH : **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
+// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식문서 등록/해제/상세 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db에 직접 문서를 등록하고 상세 분석을 열람할 수 있도록 전면 지원
+//             **2026-09-06** — [데스크톱 파일 읽기 결함 및 localhost 지식 연동 해결] 데스크톱 환경에서 electronAPI.readFromPath content 객체 추출 및 fallback readFile 구현으로 파일 내용 빈값 판정 버그 해결, localhost 환경 지식 엔진 API 접근 허용 및 resourceFolder 키 정규화
+//             **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
 //             **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
 //             **2026-09-05** — AI 미연결 시 우클릭 컨텍스트 메뉴의 '지식 베이스에 등록' 버튼을 비활성화(disabled, 흐린 흑백 스타일, 연동 필요 안내 툴팁) 처리
 //             **2026-09-04** — 파일 탐색기 우클릭 컨텍스트 메뉴에서 '지식 허브 열기' 버튼 제거하여 메뉴 간소화
@@ -1085,13 +1098,15 @@ const FileTreeItem = ({
                     const resourceFolder = (
                       loadSecureData<string>('resourceFolder') ||
                       (typeof window !== 'undefined' ? localStorage.getItem('resourceFolder') : '') ||
+                      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
+                      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
                       (() => {
                         try {
                           const raw = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
                           return raw ? JSON.parse(raw).resourceFolder || '' : '';
                         } catch { return ''; }
                       })() ||
-                      ''
+                      'Onrivi_Asset'
                     ).trim();
 
                     const geminiApiKey = (
@@ -1139,18 +1154,22 @@ const FileTreeItem = ({
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 setContextMenu(null);
-                                const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
-                                if (!isDesktop) {
-                                  showToast('로컬 지식 베이스는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+                                const canUseLocalDb = await canAccessKnowledgeDb();
+                                if (!canUseLocalDb) {
+                                  showToast('로컬 지식 베이스를 사용하려면 먼저 공통 리소스 폴더(Onrivi_Asset)를 지정해 주세요.', 'info');
                                   return;
                                 }
                                 const myPath = node.path || node.name;
                                 try {
                                   showToast(`[${node.name}] 지식 상세 분석을 불러오는 중...`, 'info');
-                                  const res = await fetch(`/api/knowledge/detail?filePath=${encodeURIComponent(myPath)}&resourceFolder=${encodeURIComponent(resourceFolder)}`);
-                                  const data = await res.json();
-                                  if (data.ok && data.detail) {
-                                    window.dispatchEvent(new CustomEvent('knowledge:show-detail', { detail: data.detail }));
+                                  const detail = await knowledgeClient.getDocumentDetail({
+                                    filePath: myPath,
+                                    resourceFolder,
+                                    geminiApiKey,
+                                    planCode,
+                                  });
+                                  if (detail) {
+                                    window.dispatchEvent(new CustomEvent('knowledge:show-detail', { detail }));
                                   } else {
                                     showToast('지식 상세 정보를 찾을 수 없습니다.', 'warning');
                                   }
@@ -1171,9 +1190,9 @@ const FileTreeItem = ({
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 setContextMenu(null);
-                                const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
-                                if (!isDesktop) {
-                                  showToast('로컬 지식 베이스는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+                                const canUseLocalDb = await canAccessKnowledgeDb();
+                                if (!canUseLocalDb) {
+                                  showToast('로컬 지식 베이스를 사용하려면 먼저 공통 리소스 폴더(Onrivi_Asset)를 지정해 주세요.', 'info');
                                   return;
                                 }
                                 const myPath = node.path || node.name;
@@ -1181,19 +1200,14 @@ const FileTreeItem = ({
 
                                 try {
                                   showToast(`[${node.name}] 지식 문서 해제를 진행합니다...`, 'info');
-                                  const res = await fetch('/api/knowledge/delete', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      filePath: myPath,
-                                      resourceFolder,
-                                      geminiApiKey,
-                                      planCode,
-                                    }),
+                                  const ok = await knowledgeClient.deleteDocument({
+                                    filePath: myPath,
+                                    resourceFolder,
+                                    geminiApiKey,
+                                    planCode,
                                   });
-                                  const data = await res.json();
-                                  if (!res.ok || !data.ok) {
-                                    throw new Error(data.message || '지식 문서 해제에 실패했습니다.');
+                                  if (!ok) {
+                                    throw new Error('지식 문서 해제에 실패했습니다.');
                                   }
 
                                   // 로컬 캐시에서 제거
@@ -1224,9 +1238,9 @@ const FileTreeItem = ({
                             onClick={async (e) => {
                               e.stopPropagation();
                               setContextMenu(null);
-                              const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
-                              if (!isDesktop) {
-                                showToast('로컬 지식 베이스는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+                              const canUseLocalDb = await canAccessKnowledgeDb();
+                              if (!canUseLocalDb) {
+                                showToast('로컬 지식 베이스를 사용하려면 먼저 공통 리소스 폴더(Onrivi_Asset)를 지정해 주세요.', 'info');
                                 return;
                               }
                               if (!guard.canUseKnowledge) {
@@ -1238,51 +1252,52 @@ const FileTreeItem = ({
                               try {
                                 showToast(`[${node.name}] 지식 베이스 등록을 시작합니다...`, 'info');
                                 let content = '';
+                                // 1) Web File System Access API
                                 if (node.handle?.getFile) {
-                                  const file = await node.handle.getFile();
-                                  content = await file.text();
-                                } else if ((window as any).electronAPI?.readFile && node.path) {
-                                  content = await (window as any).electronAPI.readFile(node.path);
+                                  try {
+                                    const file = await node.handle.getFile();
+                                    content = await file.text();
+                                  } catch (e) {
+                                    console.warn('[지식 등록] handle.getFile() 실패:', e);
+                                  }
+                                }
+                                // 2) 데스크톱 electronAPI.readFromPath (반환: { name, path, content } 또는 string)
+                                if (!content && (window as any).electronAPI?.readFromPath && node.path) {
+                                  try {
+                                    const res = await (window as any).electronAPI.readFromPath(node.path);
+                                    content = typeof res === 'string' ? res : (res?.content || '');
+                                  } catch (e) {
+                                    console.warn('[지식 등록] electronAPI.readFromPath() 실패:', e);
+                                  }
+                                }
+                                // 3) 데스크톱 electronAPI.readFile 폴백
+                                if (!content && (window as any).electronAPI?.readFile && node.path) {
+                                  try {
+                                    const res = await (window as any).electronAPI.readFile(node.path);
+                                    content = typeof res === 'string' ? res : (res?.content || '');
+                                  } catch (e) {
+                                    console.warn('[지식 등록] electronAPI.readFile() 실패:', e);
+                                  }
                                 }
 
-                                if (!content.trim()) {
+                                // 🛡️ 로컬 데스크톱 또는 Node 서버 환경에서는 백엔드에서 node.path로 fs.readFileSync 자동 폴백을 수행할 수 있음
+                                const hasValidDiskPath = Boolean(node.path && canUseLocalDb);
+                                if (!content.trim() && !hasValidDiskPath) {
                                   showToast('파일 내용이 비어있어 등록할 수 없습니다.', 'warning');
                                   return;
                                 }
 
-                                // Electron 또는 웹 지식 서비스 호출
-                                let registeredDetail: any = null;
-                                if ((window as any).electronAPI?.indexKnowledgeDocument) {
-                                  const deskRes = await (window as any).electronAPI.indexKnowledgeDocument({
-                                    filePath: node.path || node.name,
-                                    fileContent: content,
-                                    title: node.name.replace(/\.md$/i, ''),
-                                    resourceFolder,
-                                    geminiApiKey,
-                                    planCode,
-                                  });
-                                  if (deskRes?.detail) registeredDetail = deskRes.detail;
-                                } else {
-                                  const res = await fetch('/api/knowledge/index', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      filePath: node.path || node.name,
-                                      fileContent: content,
-                                      title: node.name.replace(/\.md$/i, ''),
-                                      resourceFolder,
-                                      geminiApiKey,
-                                      planCode,
-                                      aiModelName,
-                                    }),
-                                  });
-                                  const data = await res.json();
-                                  if (!res.ok || !data.ok) {
-                                    console.error('[지식 등록 서버 에러 응답]:', data);
-                                    throw new Error(data.message || '서버 지식 등록에 실패했습니다.');
-                                  }
-                                  if (data.detail) registeredDetail = data.detail;
-                                }
+                                // 통합 지식 서비스(Electron / Local / Web WASM) 호출
+                                const regRes = await knowledgeClient.indexDocument({
+                                  filePath: node.path || node.name,
+                                  fileContent: content,
+                                  title: node.name.replace(/\.md$/i, ''),
+                                  resourceFolder,
+                                  geminiApiKey,
+                                  planCode,
+                                  aiModelName,
+                                });
+                                const registeredDetail = regRes?.detail;
 
                                 // 🧠 클라이언트 로컬 스토리지에 등록 상태 보존
                                 try {

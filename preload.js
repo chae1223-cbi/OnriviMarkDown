@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 4. 경로를 지정하여 직접 파일 읽기 (검색 결과 파일 로드용)
   readFromPath: (filePath) => ipcRenderer.invoke('file:readFromPath', filePath),
+  readFile: async (filePath) => {
+    const res = await ipcRenderer.invoke('file:readFromPath', filePath);
+    return typeof res === 'object' && res !== null ? (res.content ?? '') : (res ?? '');
+  },
 
   // 5. 폴더 선택 대화상자 띄우기 (전체 검색 범위 선택용)
   selectFolder: (defaultPath) => ipcRenderer.invoke('dialog:selectFolder', defaultPath),

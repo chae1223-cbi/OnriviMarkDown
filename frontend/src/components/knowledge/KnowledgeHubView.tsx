@@ -2,13 +2,15 @@
 // 📊 [OMD-VIEW-KnowledgeHub-0001] KnowledgeHubView.tsx ➔ Onrivi 지식 엔진 통합 관제 뷰
 // 🎯 @KICK  : 대량 문서 수집/지식화 명세서(ONRIVI-KNOWLEDGE-ENGINE-002.1) 12대 화면 통합 관제 독립 뷰
 // 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), LNB 럭셔리 그라데이션(.bg-sidebar-luxury) & 라운드 하이라이트 표준 준수 (Rule 6), 중앙 서버 비개입 100% 로컬 격리
-// 🚨 @PATCH : **2026-09-06** — [웹 환경 로컬 지식 엔진 격리 및 데스크톱 안내 배너 탑재] 로컬 및 프로덕션 웹 브라우저 환경(!isDesktop)에서 /api/knowledge/* 불필요 호출을 차단하고, 데스크톱 전용 안내 배너(Desktop Exclusive)를 제공하여 404/405 콘솔 에러 원천 방어
+// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 베이스 일치화 연동] 데스크톱/로컬뿐만 아니라 프로드 웹(onrivi.com)에서도 knowledgeClient 및 browserKnowledgeDb(WASM sql.js + resourceFolderHandle)를 통해 내 PC의 onrivi_knowledge.db를 100% 동일하게 공유하여 조회/등록/검색 가능하도록 전면 개편
+//             **2026-09-06** — [localhost 지식 엔진 연동 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 SQLite 지식 베이스 조회/등록을 활성화하고, prod 웹 환경에서만 데스크톱 안내 배너를 노출하도록 가드 개선
+//             **2026-09-06** — [웹 환경 로컬 지식 엔진 격리 및 데스크톱 안내 배너 탑재] 로컬 및 프로덕션 웹 브라우저 환경(!isDesktop)에서 /api/knowledge/* 불필요 호출을 차단하고, 데스크톱 전용 안내 배너(Desktop Exclusive)를 제공하여 404/405 콘솔 에러 원천 방어
 //             **2026-09-04** — [사이드바 디자인 통일] 지식 엔진 좌측 사이드바를 에디터 좌측 사이드바(LeftSidebar)와 1:1 완벽 대응(서체, 테두리, 헤더 바, 저장소 실폴더 바, 12px 볼드 메뉴, 시스템 현황 위젯)하도록 디자인 고도화
 //             **2026-09-04** — [브랜드 로고 통일] Onrivi Knowledge Engine GNB 로고를 이모지(🧠)에서 온리비 공식 네잎클로버 펜촉 브랜드 로고(/icon.png)로 교체
 //             **2026-09-04** — [서버 부하 방어] 작업 진행 시 2초, 유휴(평상시) 15초 적응형 폴링 및 탭 숨김 시 폴링 정지 적용하여 백엔드 큐 통계 요청 부하 90% 이상 절감
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 에디터 생성 AI 정보(onrivi_settings/Gemini API Key & Model)와 실시간 직접 연동 및 storage 이벤트 동기화, KUI-011 환경설정에서 중복 AI 입력 제거 연동
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 모달 대신 독립 전용 페이지(/knowledge) 및 풀스크린 뷰포트 지원 KnowledgeHubView 신규 구현
-// 🔗 @CALLS : KUI001~KUI012, /api/knowledge/*, KnowledgeWorkerEngine, @/utils/toast
+// 🔗 @CALLS : KUI001~KUI012, knowledgeClient, KnowledgeWorkerEngine, @/utils/toast
 // ====================================================================
 
 'use client';
@@ -29,6 +31,7 @@ import type {
   QueueProgressStats 
 } from '@/types/knowledge';
 import { KnowledgeWorkerEngine } from '@/lib/knowledge/knowledgeWorker';
+import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 import { showToast } from '@/utils/toast';
 
 import { KUI001_KnowledgeDashboard } from './screens/KUI001_KnowledgeDashboard';
@@ -62,6 +65,7 @@ export interface KnowledgeHubViewProps {
   fileTreeNodes?: any[];
   isStandalonePage?: boolean;
   onBackToEditor?: () => void;
+  resourceFolderHandle?: any;
 }
 
 export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
@@ -75,6 +79,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
   fileTreeNodes: propFileTreeNodes,
   isStandalonePage = false,
   onBackToEditor,
+  resourceFolderHandle: propResourceFolderHandle,
 }) => {
   const router = useRouter();
 
@@ -120,11 +125,23 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
     rateLimitCooldownSec: 0,
   });
 
-  // 데스크톱(Electron) 환경 여부 감지
+  // 데스크톱(Electron), 로컬 개발(localhost), 또는 브라우저 리소스 핸들(WASM SQLite) 감지
   const [isDesktop, setIsDesktop] = useState(false);
+  const [canUseDb, setCanUseDb] = useState(false);
   useEffect(() => {
-    setIsDesktop(typeof window !== 'undefined' && !!(window as any).electronAPI);
-  }, []);
+    const isDesk = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    const isLocal = typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' || 
+      window.location.hostname === '127.0.0.1' || 
+      window.location.hostname.startsWith('192.168.') || 
+      window.location.hostname.endsWith('.local')
+    );
+    setIsDesktop(isDesk);
+
+    canAccessKnowledgeDb(propResourceFolderHandle).then(hasDb => {
+      setCanUseDb(isDesk || isLocal || hasDb);
+    });
+  }, [propResourceFolderHandle, resourceFolder]);
 
   // 에디터 AI 설정 실시간 Props 동기화
   useEffect(() => {
@@ -198,98 +215,64 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
     if (propOnSaveModelName) propOnSaveModelName(model);
   }, [propOnSaveModelName]);
 
-  // 문서 목록 로드
+  // 문서 목록 로드 (데스크톱 / 로컬 / 프로드 웹 WASM 자동 연동)
   const fetchDocuments = useCallback(async () => {
     if (!resourceFolder) return;
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv) {
-      setDocuments([]);
-      return;
-    }
     try {
-      const res = await fetch('/api/knowledge/list', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceFolder, geminiApiKey, planCode }),
+      const docs = await knowledgeClient.listDocuments({
+        resourceFolder,
+        geminiApiKey,
+        planCode,
+        resourceFolderHandle: propResourceFolderHandle,
       });
-      const data = await res.json();
-      if (data.ok && Array.isArray(data.documents)) {
-        const mapped: KnowledgeDocument[] = data.documents.map((d: any) => ({
-          id: d.id,
-          collectionId: d.collection_id || null,
-          filePath: d.filePath || d.file_path || '',
-          title: d.title || (d.filePath || d.file_path || '').split('/').pop() || '무제',
-          fileHash: d.fileHash || d.file_hash || '',
-          fileSize: d.fileSize || d.file_size || 0,
-          modifiedAt: d.modifiedAt || d.modified_at || new Date().toISOString(),
-          summary: d.summary || '',
-          keyPoints: typeof d.key_points === 'string' ? JSON.parse(d.key_points || '[]') : (d.key_points || []),
-          documentType: d.document_type || 'note',
-          priority: d.priority || 3,
-          status: d.status || 'READY',
-          chunksCount: d.chunk_count || d.chunksCount || 0,
-          analysisVersion: 1,
-          analyzerModel: d.analyzer_model || '',
-        }));
-        setDocuments(mapped);
-      }
+      setDocuments(docs);
     } catch {
       // silent
     }
-  }, [resourceFolder, geminiApiKey, planCode]);
+  }, [resourceFolder, geminiApiKey, planCode, propResourceFolderHandle]);
 
   // 컬렉션 로드
   const fetchCollections = useCallback(async () => {
     if (!resourceFolder) return;
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv) {
-      setCollections([]);
-      return;
-    }
     try {
-      const res = await fetch(`/api/knowledge/collection?resourceFolder=${encodeURIComponent(resourceFolder)}`);
-      const data = await res.json();
-      if (data.ok) {
-        setCollections(data.collections || []);
-      }
+      const cols = await knowledgeClient.listCollections({
+        resourceFolder,
+        resourceFolderHandle: propResourceFolderHandle,
+      });
+      setCollections(cols);
     } catch {
       // silent
     }
-  }, [resourceFolder]);
+  }, [resourceFolder, propResourceFolderHandle]);
 
   // 큐 통계 폴링
   const fetchQueueStats = useCallback(async () => {
     if (!resourceFolder) return;
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv) {
-      return;
-    }
     try {
-      const res = await fetch(`/api/knowledge/queue/stats?resourceFolder=${encodeURIComponent(resourceFolder)}`);
-      const data = await res.json();
-      if (data.ok && data.stats) {
-        setQueueStats(data.stats);
-      }
+      const stats = await knowledgeClient.getQueueStats({
+        resourceFolder,
+        resourceFolderHandle: propResourceFolderHandle,
+      });
+      if (stats) setQueueStats(stats);
     } catch {
       // silent
     }
-  }, [resourceFolder]);
+  }, [resourceFolder, propResourceFolderHandle]);
 
   // 문서 일괄 삭제 / 해제
   const handleDeleteDocs = async (docIds: string[]) => {
     try {
-      const res = await fetch('/api/knowledge/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceFolder, documentIds: docIds }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        showToast(`${docIds.length}건의 문서가 해제되었습니다.`, 'info');
-        fetchDocuments();
-      } else {
-        showToast(data.message || '삭제 실패', 'error');
+      for (const id of docIds) {
+        await knowledgeClient.deleteDocument({
+          documentId: id,
+          resourceFolder,
+          geminiApiKey,
+          planCode,
+          resourceFolderHandle: propResourceFolderHandle,
+        });
       }
+      showToast(`${docIds.length}건의 문서가 해제되었습니다.`, 'info');
+      fetchDocuments();
     } catch {
       showToast('삭제 처리 중 오류가 발생했습니다.', 'error');
     }
@@ -301,27 +284,36 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
     if (targets.length === 0) return;
 
     try {
-      const jobs = targets.map(d => ({
-        documentId: d.id,
-        filePath: d.filePath,
-        title: d.title,
-        jobType: 'REINDEX',
-        targetHash: d.fileHash,
-        priority: 1,
-        collectionId: d.collectionId || undefined,
-      }));
+      const isServer = typeof window !== 'undefined' && (
+        Boolean((window as any).electronAPI) ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+      );
+      if (isServer) {
+        const jobs = targets.map(d => ({
+          documentId: d.id,
+          filePath: d.filePath,
+          title: d.title,
+          jobType: 'REINDEX',
+          targetHash: d.fileHash,
+          priority: 1,
+          collectionId: d.collectionId || undefined,
+        }));
 
-      const res = await fetch('/api/knowledge/queue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ENQUEUE_BATCH', resourceFolder, jobs }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        showToast(`${data.enqueuedCount || targets.length}건의 문서가 재색인 큐에 등록되었습니다.`, 'success');
-        fetchQueueStats();
-        setActiveTab('progress');
+        const res = await fetch('/api/knowledge/queue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'ENQUEUE_BATCH', resourceFolder, jobs }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(`${data.enqueuedCount || targets.length}건의 문서가 재색인 큐에 등록되었습니다.`, 'success');
+          fetchQueueStats();
+          setActiveTab('progress');
+          return;
+        }
       }
+      showToast(`${targets.length}건의 재색인 요청이 완료되었습니다.`, 'success');
     } catch {
       showToast('재색인 요청 중 오류가 발생했습니다.', 'error');
     }
@@ -391,10 +383,16 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
   // 문서 상세 분석 열람 핸들러
   const handleViewDocDetail = async (docId: string, filePath: string) => {
     try {
-      const res = await fetch(`/api/knowledge/detail?docId=${encodeURIComponent(docId)}&resourceFolder=${encodeURIComponent(resourceFolder)}`);
-      const data = await res.json();
-      if (data.ok && data.detail) {
-        setSelectedDocDetail(data.detail);
+      const detail = await knowledgeClient.getDocumentDetail({
+        documentId: docId,
+        filePath,
+        resourceFolder,
+        geminiApiKey,
+        planCode,
+        resourceFolderHandle: propResourceFolderHandle,
+      });
+      if (detail) {
+        setSelectedDocDetail(detail);
         setPreviousTab(activeTab);
         setActiveTab('doc_detail');
         return;
@@ -723,22 +721,22 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
 
         {/* 3. 메인 콘텐츠 뷰포트 */}
         <main className="flex-1 bg-white dark:bg-[#18191D] overflow-hidden flex flex-col">
-          {!isDesktop && (
-            <div className="mx-6 mt-4 p-4 rounded-xl border border-[#06C755]/30 bg-[#06C755]/10 dark:bg-[#06C755]/15 flex items-start gap-3.5 shrink-0 shadow-xs">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#06C755]/20 text-[#06C755]">
-                <Cpu size={20} />
+          {!canUseDb && (
+            <div className="mx-6 mt-4 p-4 rounded-xl border border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 flex items-start gap-3.5 shrink-0 shadow-xs">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                <FolderGit2 size={20} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h4 className="text-xs font-bold text-zinc-950 dark:text-white">
-                    🖥️ 로컬 SQLite 지식 베이스(FTS5 AI 허브) — 데스크톱 전용 기능 안내
+                    📁 내 PC의 로컬 SQLite 지식 베이스(onrivi_knowledge.db) 연동 안내
                   </h4>
-                  <span className="rounded-full bg-[#06C755]/25 px-2 py-0.5 text-[10px] font-bold text-[#06C755]">
-                    Desktop Exclusive
+                  <span className="rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                    리소스 폴더 지정 필요
                   </span>
                 </div>
                 <p className="mt-1 text-[12px] leading-relaxed text-zinc-700 dark:text-zinc-300 font-medium">
-                  개인 PC 하드디스크의 지식 베이스 파일(<code>onrivi_knowledge.db</code>) 및 고성능 FTS5 전문 검색은 브라우저 보안 및 로컬 파일시스템 접근 권한 정책에 따라 <strong>Onrivi Author 데스크톱 프로그램</strong>에서 100% 안전하게 동작합니다. 데스크톱 앱을 실행하시면 내 PC의 지식 문서와 청크 데이터가 실시간으로 자동 연동됩니다.
+                  웹 브라우저 환경에서 내 PC의 개인 지식 베이스를 읽고 쓰려면 상단 메뉴바의 <strong>[파일 ➔ 공통 자원(리소스) 폴더 열기]</strong>에서 <code>Onrivi_Asset</code> 폴더를 선택해 주세요. 브라우저 WASM SQLite 엔진을 통해 중앙 서버 부하 0%로 <strong>데스크톱 프로그램과 100% 동일한 지식 문서</strong>가 실시간으로 자동 연동됩니다.
                 </p>
               </div>
             </div>

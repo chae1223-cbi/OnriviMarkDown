@@ -2,7 +2,8 @@
 // 📊 [OMD-MODAL-KnowledgeHub-0001] KnowledgeHubModal.tsx ➔ Onrivi 지식 엔진 통합 관리 센터 (KUI-001 ~ KUI-012)
 // 🎯 @KICK  : 대량 문서 수집/지식화 명세서(ONRIVI-KNOWLEDGE-ENGINE-002.1) 12대 화면 통합 관제 허브 모달
 // 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), LNB 럭셔리 그라데이션(.bg-sidebar-luxury) & 라운드 하이라이트 표준 준수 (Rule 6), 중앙 서버 비개입 100% 로컬 격리
-// 🚨 @PATCH : **2026-09-06** — [웹/데스크톱 로컬 SQLite 격리] 웹 브라우저 환경에서 로컬 SQLite API 불필요 호출 차단 및 상단 LDSG v5.0 데스크톱 전용 안내 배너 표시
+// 🚨 @PATCH : **2026-09-06** — [localhost 지식 엔진 연동 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 SQLite 지식 베이스 조회/등록을 활성화하고, prod 웹 환경에서만 데스크톱 안내 배너를 노출하도록 가드 개선
+//             **2026-09-06** — [웹/데스크톱 로컬 SQLite 격리] 웹 브라우저 환경에서 로컬 SQLite API 불필요 호출 차단 및 상단 LDSG v5.0 데스크톱 전용 안내 배너 표시
 //             **2026-09-04** — [사이드바 디자인 통일] 지식 허브 모달 좌측 사이드바를 에디터 좌측 사이드바(LeftSidebar)와 1:1 완벽 대응(서체, 테두리, 헤더 바, 저장소 실폴더 바, 12px 볼드 메뉴, 시스템 현황 위젯)하도록 디자인 고도화
 //             **2026-09-04** — [브랜드 로고 통일] Onrivi Knowledge Hub 모달 헤더 로고를 이모지(🧠)에서 온리비 공식 네잎클로버 펜촉 브랜드 로고(/icon.png)로 교체
 //             **2026-09-04** — [서버 부하 방어] 작업 진행 시 2초, 유휴(평상시) 15초 적응형 폴링 및 탭 숨김 시 폴링 정지 적용하여 백엔드 큐 통계 요청 부하 절감
@@ -101,10 +102,30 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
     rateLimitCooldownSec: 0,
   });
 
-  // 데스크톱(Electron) 환경 여부 감지
+  // 데스크톱(Electron) 또는 로컬 개발(localhost) 환경 여부 감지
   const [isDesktop, setIsDesktop] = useState(false);
+  const [canUseDb, setCanUseDb] = useState(false);
   useEffect(() => {
-    setIsDesktop(typeof window !== 'undefined' && !!(window as any).electronAPI);
+    const isDesk = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    const isLocal = typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' || 
+      window.location.hostname === '127.0.0.1' || 
+      window.location.hostname.startsWith('192.168.') || 
+      window.location.hostname.endsWith('.local')
+    );
+    setIsDesktop(isDesk);
+    setCanUseDb(isDesk || isLocal);
+  }, []);
+
+  const checkCanUseDb = useCallback(() => {
+    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    const isLocalhost = typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' || 
+      window.location.hostname === '127.0.0.1' || 
+      window.location.hostname.startsWith('192.168.') || 
+      window.location.hostname.endsWith('.local')
+    );
+    return isDesktopEnv || isLocalhost;
   }, []);
 
   // 초기 탭 동기화
@@ -116,8 +137,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
 
   // 문서 목록 로드
   const fetchDocuments = useCallback(async () => {
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv || !resourceFolder) return;
+    if (!checkCanUseDb() || !resourceFolder) return;
     try {
       const res = await fetch('/api/knowledge/list', {
         method: 'POST',
@@ -148,12 +168,11 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
     } catch {
       // silent
     }
-  }, [resourceFolder, geminiApiKey, planCode]);
+  }, [resourceFolder, geminiApiKey, planCode, checkCanUseDb]);
 
   // 컬렉션 로드
   const fetchCollections = useCallback(async () => {
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv || !resourceFolder) return;
+    if (!checkCanUseDb() || !resourceFolder) return;
     try {
       const res = await fetch(`/api/knowledge/collection?resourceFolder=${encodeURIComponent(resourceFolder)}`);
       const data = await res.json();
@@ -163,12 +182,11 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
     } catch {
       // silent
     }
-  }, [resourceFolder]);
+  }, [resourceFolder, checkCanUseDb]);
 
   // 큐 통계 폴링 (뱃지 표시용)
   const fetchQueueStats = useCallback(async () => {
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv || !resourceFolder) return;
+    if (!checkCanUseDb() || !resourceFolder) return;
     try {
       const res = await fetch(`/api/knowledge/queue/stats?resourceFolder=${encodeURIComponent(resourceFolder)}`);
       const data = await res.json();
@@ -178,13 +196,12 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
     } catch {
       // silent
     }
-  }, [resourceFolder]);
+  }, [resourceFolder, checkCanUseDb]);
 
   // 문서 일괄 삭제 / 해제
   const handleDeleteDocs = async (docIds: string[]) => {
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv) {
-      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+    if (!checkCanUseDb()) {
+      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱 및 로컬 개발 환경에서 지원됩니다.', 'info');
       return;
     }
     try {
@@ -207,9 +224,8 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
 
   // 문서 일괄 재색인 (Queue에 P1으로 등록)
   const handleReindexDocs = async (docIds: string[]) => {
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv) {
-      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+    if (!checkCanUseDb()) {
+      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱 및 로컬 개발 환경에서 지원됩니다.', 'info');
       return;
     }
     const targets = documents.filter(d => docIds.includes(d.id));
@@ -291,9 +307,8 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
 
   // 문서 상세 분석 열람 핸들러
   const handleViewDocDetail = async (docId: string, filePath: string) => {
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv) {
-      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+    if (!checkCanUseDb()) {
+      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱 및 로컬 개발 환경에서 지원됩니다.', 'info');
       return;
     }
     try {
@@ -313,9 +328,8 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
 
   // 단일 작업 재시도
   const handleRetryJob = async (jobId: string) => {
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv) {
-      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+    if (!checkCanUseDb()) {
+      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱 및 로컬 개발 환경에서 지원됩니다.', 'info');
       return;
     }
     const res = await fetch('/api/knowledge/queue', {
@@ -339,9 +353,8 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
 
   // 단일 작업 취소
   const handleCancelJob = async (jobId: string) => {
-    const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-    if (!isDesktopEnv) {
-      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱에서 지원됩니다.', 'info');
+    if (!checkCanUseDb()) {
+      showToast('로컬 지식 베이스 관리는 데스크톱 전용 앱 및 로컬 개발 환경에서 지원됩니다.', 'info');
       return;
     }
     const res = await fetch('/api/knowledge/queue', {
@@ -602,7 +615,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
 
           {/* 우측 메인 콘텐츠 뷰 */}
           <main className="flex-1 bg-white dark:bg-[#18191D] overflow-hidden flex flex-col">
-            {!isDesktop && (
+            {!canUseDb && (
               <div className="mx-6 mt-4 p-4 rounded-xl border border-[#06C755]/30 bg-[#06C755]/10 dark:bg-[#06C755]/15 flex items-start gap-3.5 shrink-0 shadow-xs">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#06C755]/20 text-[#06C755]">
                   <Cpu size={20} />
