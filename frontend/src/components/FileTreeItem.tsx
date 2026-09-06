@@ -4,7 +4,8 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#06C755), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 문서 등록/해제/상세조회 일치화] 데스크톱뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient 및 canAccessKnowledgeDb를 통해 사용자 로컬 PC의 onrivi_knowledge.db에 직접 지식문서 등록/해제/상세분석 조회 수행 가능하도록 전면 연동
+// 🚨 @PATCH : **2026-09-06** — [지식 문서 해제 캐시 정규화 및 다중 이벤트 브로드캐스트] 지식문서 해제 시 로컬 캐시(onrivi_registered_knowledge_docs)에서 경로 구분자 및 파일명 불일치로 해제 후에도 아이콘이 남던 현상을 정규화 비교로 해결하고, 즉각적인 UI 반영을 위해 knowledge:updated, knowledge:refresh, file:refresh-all-directories 3중 동기화 발행
+//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 문서 등록/해제/상세조회 일치화] 데스크톱뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient 및 canAccessKnowledgeDb를 통해 사용자 로컬 PC의 onrivi_knowledge.db에 직접 지식문서 등록/해제/상세분석 조회 수행 가능하도록 전면 연동
 //             **2026-09-06** — [데스크톱 파일 읽기 결함 및 localhost 지식 연동 해결] 데스크톱 환경에서 electronAPI.readFromPath content 객체 추출 및 fallback readFile 구현으로 파일 내용 빈값 판정 버그 해결, localhost 환경 지식 엔진 API 접근 허용 및 resourceFolder 키 정규화
 //             **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
 //             **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
@@ -47,7 +48,8 @@ interface FileTreeItemProps {
 }
 
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
-// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식문서 등록/해제/상세 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db에 직접 문서를 등록하고 상세 분석을 열람할 수 있도록 전면 지원
+// 🚨 @PATCH : **2026-09-06** — [지식 문서 해제 캐시 정규화 및 다중 이벤트 브로드캐스트] 지식문서 해제 시 로컬 캐시(onrivi_registered_knowledge_docs)에서 경로 구분자 및 파일명 불일치로 해제 후에도 아이콘이 남던 현상을 정규화 비교로 해결하고, 즉각적인 UI 반영을 위해 knowledge:updated, knowledge:refresh, file:refresh-all-directories 3중 동기화 발행
+//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식문서 등록/해제/상세 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db에 직접 문서를 등록하고 상세 분석을 열람할 수 있도록 전면 지원
 //             **2026-09-06** — [데스크톱 파일 읽기 결함 및 localhost 지식 연동 해결] 데스크톱 환경에서 electronAPI.readFromPath content 객체 추출 및 fallback readFile 구현으로 파일 내용 빈값 판정 버그 해결, localhost 환경 지식 엔진 API 접근 허용 및 resourceFolder 키 정규화
 //             **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
 //             **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
@@ -1198,7 +1200,7 @@ const FileTreeItem = ({
                                 const myPath = node.path || node.name;
                                 if (!confirm(`'${node.name}' 문서를 지식 베이스에서 해제하시겠습니까?`)) return;
 
-                                try {
+                                 try {
                                   showToast(`[${node.name}] 지식 문서 해제를 진행합니다...`, 'info');
                                   const ok = await knowledgeClient.deleteDocument({
                                     filePath: myPath,
@@ -1210,15 +1212,32 @@ const FileTreeItem = ({
                                     throw new Error('지식 문서 해제에 실패했습니다.');
                                   }
 
-                                  // 로컬 캐시에서 제거
+                                  // 로컬 캐시에서 제거 (슬래시/역슬래시 및 파일명 접미사 정규화 비교로 완벽 제거)
                                   try {
                                     const list = JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
-                                    const updated = list.filter((p: string) => p !== myPath && p !== node.name);
+                                    const norm = (s: string) => (s || '').replace(/\\/g, '/').toLowerCase().trim();
+                                    const targetP = norm(myPath);
+                                    const targetN = norm(node.name);
+
+                                    const updated = (Array.isArray(list) ? list : []).filter((rawP: string) => {
+                                      const p = norm(rawP);
+                                      const isTarget =
+                                        p === targetP ||
+                                        p === targetN ||
+                                        p.endsWith('/' + targetN) ||
+                                        targetP.endsWith('/' + p) ||
+                                        p.endsWith(targetP) ||
+                                        targetP.endsWith(p);
+                                      return !isTarget;
+                                    });
                                     localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(updated));
                                   } catch {}
 
                                   showToast(`[${node.name}] 지식 문서 등록이 성공적으로 해제되었습니다.`, 'info');
+                                  setIsKnowledgeRegistered(false);
                                   window.dispatchEvent(new CustomEvent('knowledge:updated'));
+                                  window.dispatchEvent(new CustomEvent('knowledge:refresh'));
+                                  window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                                 } catch (err: any) {
                                   showToast(`지식 해제 실패: ${err?.message || '알 수 없는 오류'}`, 'error');
                                 }

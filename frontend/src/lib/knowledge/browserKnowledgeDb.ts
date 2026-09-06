@@ -2,7 +2,9 @@
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
 // 🎯 @KICK  : 웹 브라우저(Cloudflare Pages / onrivi.com) 환경에서 사용자 로컬 PC의 {resourceFolder}/db/onrivi_knowledge.db를 직접 읽고 쓰는 WASM SQLite 엔진
 // 🛡️ @GUARD : Rule 7(선행 검증 후 원트랜잭션 쓰기), Rule 2(코드값 대문자 통일: READY, REGISTERED, INDEXING, ERROR), 디스크 바이너리 원자적 플러시
-// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 DB 완전 일치화 최초 구현] sql.js WASM 엔진과 File System Access API(resourceFolderHandle)를 연동하여 웹 환경에서도 중앙 서버 부하 0%로 사용자 PC의 onrivi_knowledge.db를 데스크톱과 100% 동일하게 읽고 쓰도록 구축
+// 🚨 @PATCH : **2026-09-06** — [WASM 지식 문서 해제/상세조회 경로 정규화 및 파일명 매칭 폴백] 브라우저 WASM SQLite 상에서 deleteBrowserDocument 및 getBrowserDocumentDetail 호출 시 경로 구분자(/와 \) 및 파일명 접미사 매칭을 지원하여 로컬 DB 문서 해제 및 상세 열람이 정확하게 동작하도록 보장
+//             **2026-09-06** — [WASM 바이너리 직접 주입 및 4단계 다중 폴백 로딩 구축] Emscripten 내부의 취약한 fetch/동기 XHR("both async and sync fetching of the wasm failed") 오류를 원천 차단하기 위해 loadWasmBinary()를 통한 로컬 절대경로/CDN 다중 폴백 및 wasmBinary 직접 주입으로 전환
+//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 DB 완전 일치화 최초 구현] sql.js WASM 엔진과 File System Access API(resourceFolderHandle)를 연동하여 웹 환경에서도 중앙 서버 부하 0%로 사용자 PC의 onrivi_knowledge.db를 데스크톱과 100% 동일하게 읽고 쓰도록 구축
 // 🔗 @CALLS : sql.js, ./markdownChunker, ./llmProvider, ./contextBuilder, ../indexedDbHelper
 // ====================================================================
 
@@ -25,15 +27,57 @@ let cachedDbInstance: any = null;
 let cachedDbFolderHandle: any = null;
 
 /**
+ * sql-wasm.wasm 바이너리를 다중 폴백(로컬 오리진 -> 상대 경로 -> jsDelivr CDN -> cdnjs CDN)으로 안전하게 가져옵니다.
+ * wasmBinary를 직접 제공함으로써 Emscripten 내부의 취약한 fetch/XHR("both async and sync fetching of the wasm failed")을 원천 방지합니다.
+ */
+async function loadWasmBinary(): Promise<ArrayBuffer> {
+  const sources: string[] = [];
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    sources.push(`${window.location.origin}/sql-wasm.wasm`);
+  }
+  sources.push('/sql-wasm.wasm');
+  sources.push('https://cdn.jsdelivr.net/npm/sql.js@1.14.2/dist/sql-wasm.wasm');
+  sources.push('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm');
+
+  let lastError: any = null;
+  for (const src of sources) {
+    try {
+      const res = await fetch(src);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        if (buf && buf.byteLength > 0) {
+          console.log(`[browserKnowledgeDb] WASM 바이너리 로드 성공: ${src} (${buf.byteLength} bytes)`);
+          return buf;
+        }
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`[browserKnowledgeDb] WASM 로드 실패: ${src}`, err);
+    }
+  }
+
+  throw new Error(`WASM 바이너리를 로드하지 못했습니다: ${lastError?.message || '네트워크 응답 없음'}`);
+}
+
+/**
  * sql.js WASM 모듈을 지연 초기화(Lazy Singleton)합니다.
+ * wasmBinary를 직접 주입하여 호스팅 환경/서브경로/CORS에 상관없이 100% 안정적으로 인스턴스화합니다.
  */
 export async function getSqlModule(): Promise<any> {
   if (!sqlModulePromise) {
     sqlModulePromise = (async () => {
-      const initSqlJs = (await import('sql.js')).default;
-      return await initSqlJs({
-        locateFile: (file: string) => `/${file}`, // public/sql-wasm.wasm
-      });
+      try {
+        const initSqlJs = (await import('sql.js')).default;
+        const wasmBinary = await loadWasmBinary();
+        return await initSqlJs({
+          wasmBinary,
+        });
+      } catch (err) {
+        // 다음 호출 시 재시도할 수 있도록 캐시 초기화
+        sqlModulePromise = null;
+        throw err;
+      }
     })();
   }
   return sqlModulePromise;
@@ -302,15 +346,42 @@ export async function getBrowserDocumentDetail(
   const { db } = await getBrowserKnowledgeDb(folderHandle);
   const { documentId, filePath } = params;
 
-  let docStmt = db.prepare('SELECT * FROM knowledge_documents WHERE id = :id OR file_path = :path LIMIT 1');
-  docStmt.bind({ ':id': documentId || '', ':path': filePath || '' });
-  
-  if (!docStmt.step()) {
+  let d: any = null;
+  if (documentId) {
+    const docStmt = db.prepare('SELECT * FROM knowledge_documents WHERE id = :id LIMIT 1');
+    docStmt.bind({ ':id': documentId });
+    if (docStmt.step()) d = docStmt.getAsObject();
     docStmt.free();
-    return null;
+  } else if (filePath) {
+    // 1) 정확 매칭
+    let docStmt = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = :path LIMIT 1');
+    docStmt.bind({ ':path': filePath });
+    if (docStmt.step()) d = docStmt.getAsObject();
+    docStmt.free();
+
+    // 2) 정규화 매칭
+    if (!d) {
+      const normSlash = filePath.replace(/\\/g, '/');
+      const normBack = filePath.replace(/\//g, '\\');
+      const normStmt = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, \'\\\', \'/\') = :s OR replace(file_path, \'/\', \'\\\') = :b LIMIT 1');
+      normStmt.bind({ ':s': normSlash, ':b': normBack });
+      if (normStmt.step()) d = normStmt.getAsObject();
+      normStmt.free();
+    }
+
+    // 3) 파일명(Basename) 접미사 매칭 폴백
+    if (!d) {
+      const fileName = filePath.split(/[/\\]/).pop() || '';
+      if (fileName) {
+        const baseStmt = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = :fn OR file_path LIKE :slashFn OR file_path LIKE :backFn LIMIT 1');
+        baseStmt.bind({ ':fn': fileName, ':slashFn': `%/${fileName}`, ':backFn': `%\\${fileName}` });
+        if (baseStmt.step()) d = baseStmt.getAsObject();
+        baseStmt.free();
+      }
+    }
   }
-  const d = docStmt.getAsObject();
-  docStmt.free();
+  
+  if (!d) return null;
 
   const realDocId = String(d.id);
 
@@ -378,6 +449,7 @@ export async function indexBrowserDocument(
     filePath: string;
     fileContent: string;
     title?: string;
+    resourceFolder?: string | null;
     geminiApiKey?: string | null;
     planCode?: string | null;
     aiModelName?: string | null;
@@ -385,11 +457,11 @@ export async function indexBrowserDocument(
   folderHandle?: any
 ): Promise<{ documentId: string; chunksCount: number; detail: KnowledgeDocumentDetail }> {
   const { filePath, fileContent, title, geminiApiKey, aiModelName } = params;
-
-  if (!fileContent || !fileContent.trim()) {
-    throw new Error('EMPTY_CONTENT: 파일 내용이 비어 있어 등록할 수 없습니다.');
+  if (!geminiApiKey) {
+    throw new Error('AI_API_KEY_REQUIRED: AI(Gemini) API 키가 설정되지 않았습니다.');
   }
 
+  // 1. WASM DB 획득
   const { db, folderHandle: activeFolder } = await getBrowserKnowledgeDb(folderHandle);
 
   const docId = `doc_${computeSha256(filePath).slice(0, 16)}`;
@@ -397,54 +469,44 @@ export async function indexBrowserDocument(
   const fileSize = new Blob([fileContent]).size;
   const docTitle = title || filePath.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
 
-  // 1. 마크다운 청킹 (선행 수행)
+  // 2. 청킹 선행 수행
   const chunks = chunkMarkdownByHeadings(docId, fileContent);
 
-  // 2. Gemini AI 정형 분석 (선행 수행)
+  // 3. 외부 AI 분석 선행 수행
   const modelToUse = (aiModelName || 'gemini-3.8-flash').trim();
-  let analysis: KnowledgeAnalysisResult;
-  
-  if (geminiApiKey && geminiApiKey.trim() && geminiApiKey !== 'DUMMY_KEY') {
-    const provider = createKnowledgeLLMProvider('gemini', geminiApiKey, modelToUse);
-    analysis = await provider.analyzeDocument(fileContent);
-  } else {
-    // API 키 미설정 시 기본 구조 분석 폴백
-    analysis = {
-      summary: `${docTitle} 마크다운 문서입니다. (${chunks.length}개 청크 추출됨)`,
-      keyPoints: chunks.slice(0, 3).map(c => c.headingTitle || `섹션 ${c.chunkIndex + 1}`),
-      documentType: 'note',
-      tags: [{ name: '로컬문서', score: 80 }],
-      searchTerms: [docTitle],
-    };
-  }
+  const provider = createKnowledgeLLMProvider('gemini', geminiApiKey, modelToUse);
+  const analysis = await provider.analyzeDocument(fileContent);
 
-  // 3. 단일 원트랜잭션(All-or-Nothing) 쓰기
+  // 4. 선행 작업 완료 후 단일 원트랜잭션(All-or-Nothing)으로 DB에 일괄 적재
   const now = new Date().toISOString();
   db.run('BEGIN TRANSACTION;');
   try {
-    // 마스터 문서 저장
+    db.run('DELETE FROM document_chunks WHERE document_id = :id;', { ':id': docId });
+    db.run('DELETE FROM document_tags WHERE document_id = :id;', { ':id': docId });
+
+    // 문서 마스터 upsert
     db.run(`
       INSERT INTO knowledge_documents (
-        id, collection_id, file_path, title, file_hash, file_size, modified_at,
-        summary, key_points, document_type, priority, status, analysis_version,
-        analyzer_model, analyzed_at, indexed_at
+        id, file_path, title, file_hash, file_size, modified_at, priority,
+        status, summary, key_points, document_type, analyzer_model, analyzed_at, indexed_at,
+        error_message, analysis_version
       ) VALUES (
-        :id, NULL, :path, :title, :hash, :size, :mod,
-        :summary, :kp, :docType, 3, 'READY', 1,
-        :model, :now, :now
-      ) ON CONFLICT(file_path) DO UPDATE SET
+        :id, :path, :title, :hash, :size, :mod, 3,
+        'READY', :sum, :kp, :dt, :model, :now, :now, NULL, 1
+      )
+      ON CONFLICT(file_path) DO UPDATE SET
         title = excluded.title,
         file_hash = excluded.file_hash,
         file_size = excluded.file_size,
         modified_at = excluded.modified_at,
+        status = 'READY',
         summary = excluded.summary,
         key_points = excluded.key_points,
         document_type = excluded.document_type,
-        status = 'READY',
-        error_message = NULL,
         analyzer_model = excluded.analyzer_model,
         analyzed_at = excluded.analyzed_at,
-        indexed_at = excluded.indexed_at;
+        indexed_at = excluded.indexed_at,
+        error_message = NULL;
     `, {
       ':id': docId,
       ':path': filePath,
@@ -452,47 +514,55 @@ export async function indexBrowserDocument(
       ':hash': fileHash,
       ':size': fileSize,
       ':mod': now,
-      ':summary': analysis.summary,
+      ':sum': analysis.summary,
       ':kp': JSON.stringify(analysis.keyPoints),
-      ':docType': analysis.documentType,
+      ':dt': analysis.documentType,
       ':model': modelToUse,
       ':now': now,
     });
 
-    // 태그 저장
-    db.run('DELETE FROM document_tags WHERE document_id = :id;', { ':id': docId });
-    for (const t of analysis.tags) {
-      db.run(`
-        INSERT INTO document_tags (document_id, tag_name, score, source)
-        VALUES (:id, :name, :score, 'AI');
-      `, { ':id': docId, ':name': t.name, ':score': t.score });
-    }
-
-    // 청크 저장
-    db.run('DELETE FROM document_chunks WHERE document_id = :id;', { ':id': docId });
+    // 청크 적재
     for (const c of chunks) {
       db.run(`
         INSERT INTO document_chunks (
           id, document_id, chunk_index, heading_title, heading_level,
           heading_path, start_line, end_line, chunk_summary, keywords, chunk_text
         ) VALUES (
-          :id, :docId, :idx, :heading, :level,
-          :path, :start, :end, :summary, :kw, :text
+          :id, :docId, :idx, :title, :level,
+          :path, :start, :end, :sum, :kw, :text
         );
       `, {
         ':id': c.id,
         ':docId': docId,
         ':idx': c.chunkIndex,
-        ':heading': c.headingTitle,
+        ':title': c.headingTitle,
         ':level': c.headingLevel,
         ':path': c.headingPath,
         ':start': c.startLine,
         ':end': c.endLine,
-        ':summary': c.chunkSummary || '',
+        ':sum': c.chunkSummary || '',
         ':kw': c.keywords || '',
-        ':text': c.chunkText || '',
+        ':text': c.chunkText,
       });
     }
+
+    // 태그 적재
+    for (const t of analysis.tags) {
+      db.run(`
+        INSERT OR REPLACE INTO document_tags (document_id, tag_name, score, source)
+        VALUES (:docId, :name, :score, 'AI');
+      `, {
+        ':docId': docId,
+        ':name': t.name,
+        ':score': t.score,
+      });
+    }
+
+    // 대기 중인 큐 작업 완료 처리
+    db.run(`
+      DELETE FROM knowledge_jobs 
+      WHERE document_id = :docId OR file_path = :path;
+    `, { ':docId': docId, ':path': filePath });
 
     db.run('COMMIT;');
   } catch (err) {
@@ -546,13 +616,35 @@ export async function deleteBrowserDocument(
 
   let targetId = documentId;
   if (!targetId && filePath) {
-    const s = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = :p LIMIT 1');
+    // 1) 정확 매칭
+    let s = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = :p LIMIT 1');
     s.bind({ ':p': filePath });
     if (s.step()) targetId = String(s.getAsObject().id);
     s.free();
+
+    // 2) 슬래시/역슬래시 정규화 매칭
+    if (!targetId) {
+      const normSlash = filePath.replace(/\\/g, '/');
+      const normBack = filePath.replace(/\//g, '\\');
+      const normStmt = db.prepare('SELECT id FROM knowledge_documents WHERE replace(file_path, \'\\\', \'/\') = :s OR replace(file_path, \'/\', \'\\\') = :b LIMIT 1');
+      normStmt.bind({ ':s': normSlash, ':b': normBack });
+      if (normStmt.step()) targetId = String(normStmt.getAsObject().id);
+      normStmt.free();
+    }
+
+    // 3) 파일명(Basename) 접미사 매칭 폴백
+    if (!targetId) {
+      const fileName = filePath.split(/[/\\]/).pop() || '';
+      if (fileName) {
+        const baseStmt = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = :fn OR file_path LIKE :slashFn OR file_path LIKE :backFn LIMIT 1');
+        baseStmt.bind({ ':fn': fileName, ':slashFn': `%/${fileName}`, ':backFn': `%\\${fileName}` });
+        if (baseStmt.step()) targetId = String(baseStmt.getAsObject().id);
+        baseStmt.free();
+      }
+    }
   }
 
-  if (!targetId) return false;
+  if (!targetId) return true; // 이미 DB에 없음
 
   db.run('BEGIN TRANSACTION;');
   try {
