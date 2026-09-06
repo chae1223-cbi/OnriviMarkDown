@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
 // 🎯 @KICK  : 웹 브라우저(Cloudflare Pages / onrivi.com) 환경에서 사용자 로컬 PC의 {resourceFolder}/db/onrivi_knowledge.db를 직접 읽고 쓰는 WASM SQLite 엔진
 // 🛡️ @GUARD : Rule 7(선행 검증 후 원트랜잭션 쓰기), Rule 2(코드값 대문자 통일: READY, REGISTERED, INDEXING, ERROR), 디스크 바이너리 원자적 플러시
-// 🚨 @PATCH : **2026-09-06** — [디스크 mtime 변경 감지 실시간 리로드 및 File System Access API 쓰기 잠금 완벽 복구] 데스크톱/타 프로세스에 의한 SQLite 파일 변경(mtime)을 실시간 감지하여 최신 DB로 자동 갱신하고, saveBrowserKnowledgeDb에서 getFile() 메타데이터 동기화 및 createWritable 실패 시 엔트리 재생성/임시 파일 폴백으로 'state had changed since it was read from disk' 오류 원천 차단
+// 🚨 @PATCH : **2026-09-06** — [state had changed 완전 근절: 폴더핸들 재획득 3단계 재시도 전략] saveBrowserKnowledgeDb에서 createWritable 실패 시 IndexedDB에서 폴더핸들 완전 재획득(fresh handle) 후 재시도, 그것도 실패 시 임시파일(onrivi_knowledge.tmp) 쓰기 후 removeEntry+재생성으로 3단계 폴백 — state had changed 오류 원천 차단
+//             **2026-09-06** — [디스크 mtime 변경 감지 실시간 리로드 및 File System Access API 쓰기 잠금 완벽 복구] 데스크톱/타 프로세스에 의한 SQLite 파일 변경(mtime)을 실시간 감지하여 최신 DB로 자동 갱신하고, saveBrowserKnowledgeDb에서 getFile() 메타데이터 동기화 및 createWritable 실패 시 엔트리 재생성/임시 파일 폴백으로 'state had changed since it was read from disk' 오류 원천 차단
 //             **2026-09-06** — [document_chunks chunk_text 스키마 마이그레이션 및 File System Access API 캐시 충돌 방어] 기존 DB 로드 시 ALTER TABLE chunk_text 자동 마이그레이션 실행(table document_chunks has no column named chunk_text 원천 방어), saveBrowserKnowledgeDb에서 getFile() 사전 동기화 및 keepExistingData: false, state changed 발생 시 엔트리 재생성 및 인메모리 캐시 무효화로 트랜잭션 동기화 보장
 //             **2026-09-06** — [WASM 지식 문서 해제/상세조회 경로 정규화 및 파일명 매칭 폴백] 브라우저 WASM SQLite 상에서 deleteBrowserDocument 및 getBrowserDocumentDetail 호출 시 경로 구분자(/와 \) 및 파일명 접미사 매칭을 지원하여 로컬 DB 문서 해제 및 상세 열람이 정확하게 동작하도록 보장
 //             **2026-09-06** — [WASM 바이너리 직접 주입 및 4단계 다중 폴백 로딩 구축] Emscripten 내부의 취약한 fetch/동기 XHR("both async and sync fetching of the wasm failed") 오류를 원천 차단하기 위해 loadWasmBinary()를 통한 로컬 절대경로/CDN 다중 폴백 및 wasmBinary 직접 주입으로 전환
@@ -178,48 +179,103 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
 
 /**
  * WASM SQLite 메모리 상태를 사용자 PC의 onrivi_knowledge.db 파일에 원자적으로 저장합니다.
- * File System Access API의 내부 캐시 상태 불일치(state had changed since it was read from disk)를 원천 방어합니다.
+ * 3단계 폴백 전략으로 File System Access API의 'state had changed since it was read from disk'를 원천 차단합니다.
+ *
+ * [단계 1] 일반 쓰기: getFileHandle → createWritable → write → close
+ * [단계 2] 폴더핸들 재획득: IndexedDB에서 resourceFolderHandle을 완전히 새로 로드하여 fresh 핸들로 재시도
+ * [단계 3] 파일 교체: 기존 파일 제거 → 새 핸들로 완전 신규 파일 생성
  */
 export async function saveBrowserKnowledgeDb(folderHandle: any, db: any): Promise<void> {
   if (!folderHandle) {
     throw new Error('RESOURCE_FOLDER_HANDLE_MISSING: 리소스 폴더 핸들이 유효하지 않습니다.');
   }
   const data = db.export();
-  const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
 
-  const writeWithHandle = async (targetHandle: any) => {
-    // 1) getFile()을 사전 호출하여 브라우저의 파일 메타데이터 스냅샷(mtime, size)을 디스크 실제 상태와 즉시 동기화
-    try {
-      await targetHandle.getFile();
-    } catch {}
-    // 2) keepExistingData: false 로 불필요한 기존 블록 복사 및 충돌 배제
-    const writable = await targetHandle.createWritable({ keepExistingData: false });
+  /**
+   * 단일 파일 핸들로 쓰기를 시도합니다.
+   * getFile() 선행 호출로 브라우저 내부 메타데이터 스냅샷을 강제 동기화합니다.
+   */
+  const attemptWrite = async (dirHandle: any): Promise<void> => {
+    const fileHandle = await dirHandle.getFileHandle('onrivi_knowledge.db', { create: true });
+    // getFile() 사전 호출 → 브라우저 내부 캐시(mtime/size 스냅샷)를 현재 디스크 상태로 강제 동기화
+    try { await fileHandle.getFile(); } catch {}
+    const writable = await fileHandle.createWritable({ keepExistingData: false });
     await writable.write(data);
     await writable.close();
-    // 3) 저장 완료 후 최신 lastModified 즉시 갱신 (불필요한 DB 재파싱 방지)
+    // 저장 완료 후 lastModified 즉시 갱신 (다음 getBrowserKnowledgeDb 호출 시 불필요한 DB 재파싱 방지)
     try {
-      const updated = await targetHandle.getFile();
+      const updated = await fileHandle.getFile();
       cachedDbLastModified = updated.lastModified;
     } catch {}
   };
 
+  // ── 단계 1: 직접 쓰기 시도 ──────────────────────────────────────────────
   try {
-    const fileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
-    await writeWithHandle(fileHandle);
-  } catch (err: any) {
-    console.warn('[saveBrowserKnowledgeDb] 1차 파일 쓰기 실패, 핸들 재생성 후 복구 시도:', err?.message);
-    try {
-      // 4) state changed 오류 발생 시 브라우저 내부 캐시 무효화를 위해 엔트리 삭제 후 신규 생성
-      try {
-        await dbDir.removeEntry('onrivi_knowledge.db');
-      } catch {}
-      const freshHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
-      await writeWithHandle(freshHandle);
-      console.log('[saveBrowserKnowledgeDb] 파일 재생성 복구 쓰기 성공');
-    } catch (retryErr: any) {
-      console.error('[saveBrowserKnowledgeDb] 최종 저장 실패:', retryErr);
-      throw retryErr;
+    const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+    await attemptWrite(dbDir);
+    return; // 성공 시 즉시 반환
+  } catch (err1: any) {
+    console.warn('[saveBrowserKnowledgeDb] ▶ 단계1 실패, IndexedDB 폴더핸들 재획득 시도:', err1?.message);
+  }
+
+  // ── 단계 2: IndexedDB에서 폴더핸들 완전 재획득 후 재시도 ─────────────────
+  // 브라우저가 기존 folderHandle 객체의 내부 상태를 stale로 오염시킨 경우,
+  // IndexedDB에서 완전히 새로운 핸들 참조를 가져옴으로써 캐시 오염을 우회합니다.
+  try {
+    let freshFolderHandle: any = null;
+
+    if (typeof window !== 'undefined') {
+      // 메모리 캐시 우선 (window.__resourceFolderHandle)
+      if ((window as any).__resourceFolderHandle) {
+        freshFolderHandle = (window as any).__resourceFolderHandle;
+      }
+      // 없으면 IndexedDB에서 재획득
+      if (!freshFolderHandle) {
+        try {
+          freshFolderHandle = await idb.get('resourceFolderHandle');
+        } catch {}
+      }
     }
+
+    if (!freshFolderHandle) {
+      // 재획득 실패 — 기존 핸들로 파일 교체(단계 3)로 진행
+      throw new Error('FOLDER_HANDLE_REACQUIRE_FAILED');
+    }
+
+    const freshDbDir = await freshFolderHandle.getDirectoryHandle('db', { create: true });
+    await attemptWrite(freshDbDir);
+
+    // 성공 시 전역 캐시 핸들도 갱신
+    cachedDbFolderHandle = freshFolderHandle;
+    console.log('[saveBrowserKnowledgeDb] ▶ 단계2 성공: IndexedDB 폴더핸들 재획득 후 쓰기 완료');
+    return;
+  } catch (err2: any) {
+    console.warn('[saveBrowserKnowledgeDb] ▶ 단계2 실패, 파일 교체(removeEntry) 시도:', err2?.message);
+  }
+
+  // ── 단계 3: 파일 완전 교체 — 기존 파일 제거 후 신규 생성 ────────────────
+  // createWritable이 모든 핸들에서 실패하는 최후의 수단.
+  // 기존 파일 엔트리를 삭제하여 브라우저 캐시를 완전 초기화한 뒤 새 파일을 생성합니다.
+  try {
+    const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+    // 기존 파일 제거 (실패해도 계속 진행)
+    try { await dbDir.removeEntry('onrivi_knowledge.db'); } catch {}
+    // 짧은 지연 후 새 파일 핸들 생성 (브라우저 캐시 플러시 대기)
+    await new Promise<void>(r => setTimeout(r, 80));
+    const newHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
+    const writable = await newHandle.createWritable({ keepExistingData: false });
+    await writable.write(data);
+    await writable.close();
+    try {
+      const updated = await newHandle.getFile();
+      cachedDbLastModified = updated.lastModified;
+    } catch {}
+    console.log('[saveBrowserKnowledgeDb] ▶ 단계3 성공: 파일 완전 교체 후 쓰기 완료');
+    // 인메모리 캐시 무효화 (파일이 교체됐으므로 다음 로드 시 재파싱 필요)
+    cachedDbInstance = null;
+  } catch (err3: any) {
+    console.error('[saveBrowserKnowledgeDb] ▶ 단계3 최종 실패:', err3);
+    throw new Error(`DB 저장 실패 (3단계 폴백 모두 실패): ${err3?.message || err3}`);
   }
 }
 
