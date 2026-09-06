@@ -1418,41 +1418,87 @@ ${fileContent.slice(0, 15000)}`;
     }
 
     if (subPath === 'restore') {
-      const { backupFileName, fileName, reason } = body;
-      const targetFileName = backupFileName || fileName;
+      const { backupFileName, fileName, reason, uploadedFileBase64, uploadedFileName } = body;
       const safeFolder = resolveSafeResourceFolder(resourceFolder);
-      if (!safeFolder || !targetFileName) return Response.json({ ok: false, message: '필수 인자가 누락되었습니다.' }, { status: 400 });
+      if (!safeFolder) return Response.json({ ok: false, message: '리소스 폴더가 없습니다.' }, { status: 400 });
       const backupsDir = path.join(safeFolder, 'db', 'backups');
-      const srcBackup = path.join(backupsDir, targetFileName);
+      if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
       const dbPath = path.join(safeFolder, 'db', 'onrivi_knowledge.db');
-      if (!fs.existsSync(srcBackup)) return Response.json({ ok: false, message: '백업 파일을 찾을 수 없습니다.' }, { status: 404 });
 
-      // 사전 안전 스냅샷 백업
+      // 사전 안전 스냅샷 백업 (공통)
       const now = new Date();
       const pad = n => String(n).padStart(2, '0');
       const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
       const preRestoreName = `knowledge_backup_before_restore_${ts}.db`;
+      const manifestPath = path.join(backupsDir, 'backups_manifest.json');
+      let manifest = {};
+      try { if (fs.existsSync(manifestPath)) manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')); } catch {}
+
       if (fs.existsSync(dbPath)) {
         try {
           fs.copyFileSync(dbPath, path.join(backupsDir, preRestoreName));
+          manifest[preRestoreName] = {
+            reason: reason || '원복 직전 자동 스냅샷',
+            docCount: 0,
+            docTitles: [],
+            createdAt: new Date().toISOString()
+          };
+          // 스냅샷 백업의 문서 수 집계 시도
+          try {
+            const snapDb = getDesktopKnowledgeDb(resourceFolder, false);
+            if (snapDb) {
+              const cnt = snapDb.prepare('SELECT COUNT(*) as c FROM knowledge_documents').get();
+              const titles = snapDb.prepare('SELECT title FROM knowledge_documents LIMIT 5').all().map(r => r.title);
+              manifest[preRestoreName].docCount = cnt?.c || 0;
+              manifest[preRestoreName].docTitles = titles;
+            }
+          } catch {}
         } catch {}
       }
 
+      // DB 캐시 비우기 + WAL/SHM 제거
       if (desktopDbCache.has(dbPath)) {
         try { desktopDbCache.get(dbPath).close(); } catch {}
         desktopDbCache.delete(dbPath);
       }
-      // 잔여 WAL / SHM 제거
       try { fs.unlinkSync(`${dbPath}-wal`); } catch {}
       try { fs.unlinkSync(`${dbPath}-shm`); } catch {}
 
+      // ── 분기 A: 외부 파일 base64 업로드 원복 ──
+      if (uploadedFileBase64 && uploadedFileName) {
+        try {
+          const buf = Buffer.from(uploadedFileBase64, 'base64');
+          fs.writeFileSync(dbPath, buf);
+        } catch (err) {
+          return Response.json({ ok: false, message: `업로드 파일 쓰기 실패: ${err.message}` }, { status: 500 });
+        }
+        try { fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8'); } catch {}
+        const restoredDb2 = getDesktopKnowledgeDb(resourceFolder, false);
+        let documents2 = [];
+        if (restoredDb2) {
+          try { documents2 = restoredDb2.prepare('SELECT id, file_path, title FROM knowledge_documents').all(); } catch {}
+        }
+        return Response.json({
+          ok: true,
+          message: `업로드된 파일(${uploadedFileName})로 지식 데이터베이스가 성공적으로 원복되었습니다.`,
+          documents: documents2
+        });
+      }
+
+      // ── 분기 B: 기존 백업 파일에서 원복 ──
+      const targetFileName = backupFileName || fileName;
+      if (!targetFileName) return Response.json({ ok: false, message: '필수 인자가 누락되었습니다.' }, { status: 400 });
+      const srcBackup = path.join(backupsDir, targetFileName);
+      if (!fs.existsSync(srcBackup)) return Response.json({ ok: false, message: '백업 파일을 찾을 수 없습니다.' }, { status: 404 });
+
       fs.copyFileSync(srcBackup, dbPath);
+      try { fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8'); } catch {}
 
       // 복원 후 문서 목록 조회
       const restoredDb = getDesktopKnowledgeDb(resourceFolder, false);
       let documents = [];
       if (restoredDb) {
-        documents = restoredDb.prepare('SELECT id, file_path, title FROM knowledge_documents').all();
+        try { documents = restoredDb.prepare('SELECT id, file_path, title FROM knowledge_documents').all(); } catch {}
       }
 
       return Response.json({ 

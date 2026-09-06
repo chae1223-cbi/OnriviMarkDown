@@ -2,7 +2,7 @@
 // 📊 [OMD-KUI-011] KUI011_KnowledgeSettings.tsx ➔ 지식 엔진 환경설정 및 리소스 제어
 // 🎯 @KICK  : 에디터 활성 AI(Gemini API 키 및 모델) 실시간 연동 확인/테스트, Worker 동시성, 지식 DB 백업/원복/초기화
 // 🛡️ @GUARD : LDSG v5.0 (#06C755), 로컬 클라이언트 안전 보관 원칙(중앙 서버 전송 불가, API 키 화면 유출 차단), 고대비 시인성 보장(Rule 8), 에디터 전역 AI 단일 진입점 준수
-// 🚨 @PATCH : **2026-09-06** — [handleResetKnowledgeDb window.prompt 완전 교체 완료] handleResetKnowledgeDb의 나머지 prompt()/window.prompt() 2건을 showPromptDialog 비동기 PromptModal로 교체하고, JSX return 끝에 <PromptModal> 렌더 구문을 추가하여 Electron window.prompt 미지원 결함을 완전 해소
+// 🚨 @PATCH : **2026-09-06** — [Electron 외부 DB 업로드 원복 수정] handleUploadBackup에서 Electron 미지원 FormData 전송을 ArrayBuffer→base64 JSON 방식으로 교체, main.js restore 핸들러에서 uploadedFileBase64 분기 처리 추가 및 pre-restore 스냅샷 manifest 자동 기록 완비
 //             **2026-09-05** — [백업 사유(Reason) 및 문서 요약 입력/열람 UI 탑재] 백업 생성, 초기화, 원복 시 백업 사유를 입력받아 기록하고, 백업 목록에서 사유/문서수/대표문서명을 직관적으로 확인하여 원하는 백업을 선택 원복할 수 있도록 개편
 //             **2026-09-05** — [초기화/원복 사전 자동 백업 UI 연동] DB 초기화 및 외부/선택 원복 시 현재 DB의 자동 스냅샷 백업 생성 안내 및 백업 목록 실시간 즉시 갱신 연동
 //             **2026-09-05** — [지식 DB 백업 원복 실시간 동기화] 기존 백업 및 외부 DB 업로드 원복 성공 시 knowledge:updated-from-hub, knowledge:refresh 전역 이벤트를 브로드캐스트하여 탐색기 뱃지 및 지식 보관함 목록이 즉각 동기화되도록 개선
@@ -379,15 +379,40 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
     setRestoringFileName('__upload__');
     try {
-      const formData = new FormData();
-      formData.append('resourceFolder', resourceFolder);
-      formData.append('backupFile', file);
-      formData.append('reason', snapshotReason.trim() || `외부 백업(${file.name}) 업로드 원복 직전 백업`);
+      let res: Response;
+      const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
-      const res = await fetch('/api/knowledge/restore', {
-        method: 'POST',
-        body: formData,
-      });
+      if (isDesktop) {
+        // Electron: FormData 불가 → ArrayBuffer → base64 JSON 전송 (청크 방식으로 스택 안전)
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8 = new Uint8Array(arrayBuffer);
+        let binary = '';
+        const CHUNK = 8192;
+        for (let i = 0; i < uint8.length; i += CHUNK) {
+          binary += String.fromCharCode(...Array.from(uint8.subarray(i, i + CHUNK)));
+        }
+        const base64 = btoa(binary);
+        res = await fetch('/api/knowledge/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resourceFolder,
+            uploadedFileBase64: base64,
+            uploadedFileName: file.name,
+            reason: snapshotReason.trim() || `외부 백업(${file.name}) 업로드 원복 직전 백업`,
+          }),
+        });
+      } else {
+        // 웹/localhost: 기존 FormData 방식
+        const formData = new FormData();
+        formData.append('resourceFolder', resourceFolder);
+        formData.append('backupFile', file);
+        formData.append('reason', snapshotReason.trim() || `외부 백업(${file.name}) 업로드 원복 직전 백업`);
+        res = await fetch('/api/knowledge/restore', {
+          method: 'POST',
+          body: formData,
+        });
+      }
       const data = await res.json();
       if (data.ok) {
         // 🧠 원복된 DB의 실제 등록 문서 목록으로 클라이언트 캐시 즉시 동기화
