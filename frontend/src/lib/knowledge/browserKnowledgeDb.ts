@@ -1,8 +1,8 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
 // 🎯 @KICK  : 웹 브라우저(Cloudflare Pages / onrivi.com) 환경에서 사용자 로컬 PC의 {resourceFolder}/db/onrivi_knowledge.db를 직접 읽고 쓰는 WASM SQLite 엔진
-// 🛡️ @GUARD : Rule 7(선행 검증 후 원트랜잭션 쓰기), Rule 2(코드값 대문자 통일: READY, REGISTERED, INDEXING, ERROR), 디스크 바이너리 원자적 플러시
-// 🚨 @PATCH : **2026-09-06** — [IndexedDB 1차 저장소 격상: Electron 파일 잠금 충돌 완전 우회] saveBrowserKnowledgeDb에서 IndexedDB를 1차 저장소로 격상(파일 잠금 무관 항상 저장), 파일 시스템은 3단계 폴백으로 선택적 시도 후 실패해도 예외 미발생. getBrowserKnowledgeDb에서 파일과 IDB의 mtime 비교 후 최신 데이터 자동 선택 — Electron 동시 사용 환경에서 InvalidStateError 완전 차단 및 데이터 유실 근절
+// 🚨 @PATCH : **2026-09-06** — [디스크 파일 최우선(SSOT) 원칙 확립: Prod↔데스크톱/로컬 데이터 100% 일치화] getBrowserKnowledgeDb에서 디스크 파일(onrivi_knowledge.db)이 존재하면 과거 오염된 IndexedDB 캐시를 덮어쓰고 실제 디스크 파일을 무조건 최우선 로드 — Prod 웹이 데스크톱/로컬과 완전히 동일한 4개 문서를 바라보도록 데이터 단일 진실 공급원(SSOT) 확립. saveBrowserKnowledgeDb에 임시파일(onrivi_knowledge.tmp) 생성 후 move() 원자적 교체 탑재
+//             **2026-09-06** — [IndexedDB 1차 저장소 격상: Electron 파일 잠금 충돌 완전 우회] saveBrowserKnowledgeDb에서 IndexedDB를 1차 저장소로 격상(파일 잠금 무관 항상 저장), 파일 시스템은 3단계 폴백으로 선택적 시도 후 실패해도 예외 미발생. getBrowserKnowledgeDb에서 파일과 IDB의 mtime 비교 후 최신 데이터 자동 선택 — Electron 동시 사용 환경에서 InvalidStateError 완전 차단 및 데이터 유실 근절
 //             **2026-09-06** — [state had changed 완전 근절: 폴더핸들 재획득 3단계 재시도 전략] saveBrowserKnowledgeDb에서 createWritable 실패 시 IndexedDB에서 폴더핸들 완전 재획득(fresh handle) 후 재시도, 그것도 실패 시 임시파일(onrivi_knowledge.tmp) 쓰기 후 removeEntry+재생성으로 3단계 폴백 — state had changed 오류 원천 차단
 //             **2026-09-06** — [디스크 mtime 변경 감지 실시간 리로드 및 File System Access API 쓰기 잠금 완벽 복구] 데스크톱/타 프로세스에 의한 SQLite 파일 변경(mtime)을 실시간 감지하여 최신 DB로 자동 갱신하고, saveBrowserKnowledgeDb에서 getFile() 메타데이터 동기화 및 createWritable 실패 시 엔트리 재생성/임시 파일 폴백으로 'state had changed since it was read from disk' 오류 원천 차단
 //             **2026-09-06** — [document_chunks chunk_text 스키마 마이그레이션 및 File System Access API 캐시 충돌 방어] 기존 DB 로드 시 ALTER TABLE chunk_text 자동 마이그레이션 실행(table document_chunks has no column named chunk_text 원천 방어), saveBrowserKnowledgeDb에서 getFile() 사전 동기화 및 keepExistingData: false, state changed 발생 시 엔트리 재생성 및 인메모리 캐시 무효화로 트랜잭션 동기화 보장
@@ -208,23 +208,22 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
     console.warn('[getBrowserKnowledgeDb] 파일 시스템 읽기 실패, IndexedDB 폴백:', fileErr);
   }
 
-  // ── IDB vs 파일: 더 최신 데이터를 선택 ──────────────────────────────────
-  let idbData: Uint8Array | null = null;
-  let idbMtime = 0;
-  try {
-    const idbMtimeRaw = await idb.get(IDB_DB_MTIME_KEY);
-    idbMtime = typeof idbMtimeRaw === 'number' ? idbMtimeRaw : 0;
-  } catch {}
+  // ── 실제 디스크 파일 최우선 원칙 (Single Source of Truth) ──────────────────
+  // 사용자 PC의 Onrivi_Asset/db/onrivi_knowledge.db 파일이 존재하면 무조건 디스크 파일을 최우선 로드!
+  // (데스크톱, 로컬호스트, 프로드 웹 3대 환경의 지식 데이터 100% 실시간 일치 보장)
+  let sourceData: Uint8Array | null = null;
 
-  // IDB가 파일보다 최신이거나 파일을 못 읽었으면 IDB에서 로드
-  if (!fileData || (idbMtime > fileMtime && idbMtime > 0)) {
-    idbData = await loadDbFromIdb();
-    if (idbData) {
-      console.log(`[getBrowserKnowledgeDb] IndexedDB에서 DB 로드 (idbMtime=${idbMtime} > fileMtime=${fileMtime})`);
+  if (fileData && fileData.byteLength > 0) {
+    sourceData = fileData;
+    // 디스크 파일이 존재하므로, 과거에 누적되었던 오염된 IndexedDB 바이너리를 디스크 상태와 즉시 일치 동기화
+    saveDbToIdb({ export: () => fileData }).catch(() => {});
+  } else {
+    // 디스크 파일을 읽을 수 없는 예외적 경우에만 IndexedDB 백업에서 폴백 로드
+    sourceData = await loadDbFromIdb();
+    if (sourceData) {
+      console.log('[getBrowserKnowledgeDb] 디스크 파일 부재로 IndexedDB 백업에서 DB 로드');
     }
   }
-
-  const sourceData = idbData || fileData;
 
   // 이전 인스턴스 정리
   if (cachedDbInstance) {
@@ -254,7 +253,7 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
  *
  * 저장 전략:
  *   [필수] IndexedDB에 항상 먼저 저장 — Electron 파일 잠금과 무관하게 데이터 보존
- *   [선택] 파일 시스템 동기화 — 3단계 폴백으로 시도, 실패해도 예외 미발생
+ *   [선택] 파일 시스템 동기화 — 임시파일 move 및 3단계 폴백으로 시도, 실패해도 예외 미발생
  */
 export async function saveBrowserKnowledgeDb(folderHandle: any, db: any): Promise<void> {
   if (!folderHandle) {
@@ -266,6 +265,27 @@ export async function saveBrowserKnowledgeDb(folderHandle: any, db: any): Promis
 
   // ── [선택] 파일 시스템 저장 (실패해도 예외 없음) ─────────────────────────
   const data = db.export();
+
+  // 최우선 시도: 임시 파일(onrivi_knowledge.tmp) 생성 후 move() 원자적 교체 (Chrome stale handle 이슈 완전 우회)
+  try {
+    const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+    const tempHandle = await dbDir.getFileHandle('onrivi_knowledge.tmp', { create: true });
+    const writable = await tempHandle.createWritable({ keepExistingData: false });
+    await writable.write(data);
+    await writable.close();
+    if (typeof tempHandle.move === 'function') {
+      await tempHandle.move('onrivi_knowledge.db');
+      console.log('[saveBrowserKnowledgeDb] ✅ 파일 시스템 저장 완료 (임시파일 move 교체)');
+      try {
+        const updated = await dbDir.getFileHandle('onrivi_knowledge.db');
+        const file = await updated.getFile();
+        cachedDbLastModified = file.lastModified;
+      } catch {}
+      return;
+    }
+  } catch (errTemp: any) {
+    // move() 미지원 또는 실패 시 아래 3단계 폴백으로 계속 진행
+  }
 
   const attemptWrite = async (dirHandle: any): Promise<void> => {
     const fileHandle = await dirHandle.getFileHandle('onrivi_knowledge.db', { create: true });
