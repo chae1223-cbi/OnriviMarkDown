@@ -9,7 +9,9 @@ if (!connectionString) {
 }
 
 // Connection options for connecting to Supabase via Postgres directly
+// 💡 Supabase Transaction Pooler(PgBouncer:6543) 환경에서 prepared statement not exist(26000) 방어를 위해 prepare: false 필수
 export const sql = postgres(connectionString, {
+  prepare: false,
   max: 10, // Max number of connections
   idle_timeout: 20, // Max idle time in seconds
   connect_timeout: 10,

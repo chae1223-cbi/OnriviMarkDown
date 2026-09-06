@@ -1,4 +1,11 @@
-// 🚨 @PATCH : **2026-09-03** — 표와 상단 문구 간의 과도한 여백 및 시각적 단절감을 해결하기 위해 TableWrapper의 외곽 테두리 카드 박스를 전면 제거하고 상단 여백을 mt-[2.5px]로 정밀 축소 정돈
+// 🚨 @PATCH : **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트 및 .onrivi-line 정밀 분할] rehypeSourceLinesPlugin에서 문단(p) 내부를 줄바꿈(br) 단위로 <span class="onrivi-line" data-line="...">로 분할 래핑하여 여러 줄로 구성된 문단에서도 커서가 위치한 특정 행 하나만 정확하게 독립 하이라이트되도록 전면 개선
+//             **2026-09-06** — [에디터-미리보기 하이라이트 일원화 및 잔상/중복 테두리 제거] 인라인 activeLine dashed 아웃라인 스타일 태그를 제거하고 단일 preview-highlight-line 클래스로 통일하여 표(tr) 및 일반 요소 하이라이트 시인성 일원화
+//             **2026-09-05** — [표 전체 래퍼 중복 앵커 제거 및 행(tr) 단위 초정밀 싱크 보장] TableWrapper에서 테이블 전체를 묶는 중복 data-line 속성을 제거하여 자식 tr 개별 행들이 독립적인 40px 단위 앵커로 정확히 인식되도록 개선; iframe 지도 래퍼(map-embed-wrapper) 단일 앵커 일원화
+//             **2026-09-05** — [문단 내 연속 줄바꿈(br) 줄 번호 추적 및 표 직전 제목 일체화] rehypeSourceLinesPlugin에서 p 태그 자식 br 마다 물리 줄 번호를 1:1로 증분 부여하여 연속된 인라인 텍스트 행 타이핑 시에도 앵커가 정확히 잡히도록 개선, 표 직전 헤딩(:is(p,h1~h6,strong):has(+ .table-wrapper-area)) 하단 마진 6px 통일 및 dynamicPropsRef 동기 주입으로 실시간 lineMap 반영 보장
+//             **2026-09-05** — [미디어(이미지/동영상/지도/머메이드) 1:1 싱크 및 여백 완벽 최적화] 지도(iframe) 전용 반응형 렌더러 신설, 이미지(alt 누락 포함)/동영상카드(VideoCard, SocialVideoCard, AsyncVideo)/머메이드(MermaidBlock) 전체에 data-line 속성 1:1 완벽 바인딩, 문단 내 미디어 블록 래퍼 규격화 및 이중 마진(40px->12px) 정돈
+//             **2026-09-05** — [표 내부 타이핑 싱크 결함 해결] 모든 표 행(tr)에 원본 줄 번호(data-line)를 1:1로 부여하는 전용 tr 컴포넌트 렌더러를 탑재하고 rehypeSourceLinesPlugin에서 tr 자식(td/th)의 줄 번호 상속을 보장하여 표 내부 어느 행에서 타이핑하더라도 정확한 DOM 앵커 추종 및 Safe Zone 노출 보장
+//             **2026-09-05** — [표 상단 여백 및 직전 제목 문구 밀착 최적화] Tailwind prose table 기본 마진(!m-0 !mt-0)을 원천 소거하고 TableWrapper를 .table-wrapper-area 표준 규격화하여, 표 바로 위 문구(p:has(+ .table-wrapper-area))와의 하단 여백을 6px로 슬림하게 밀착시켜 제목-표 간의 시각적 일체감 완성
+//             **2026-09-03** — 표와 상단 문구 간의 과도한 여백 및 시각적 단절감을 해결하기 위해 TableWrapper의 외곽 테두리 카드 박스를 전면 제거하고 상단 여백을 mt-[2.5px]로 정밀 축소 정돈
 //             **2026-09-03** — 모니터 해상도 및 분할 모드에서 우측 화면 및 표가 잘리던 결함을 해결하기 위해 최상위 루트 컨테이너에 boxSizing: border-box 및 maxWidth: 100%를 명속 부여하고 TableWrapper/table에 w-full max-w-full 가로 스크롤 가드 적용
 //             **2026-09-03** — 문단 및 리스트 내부의 탭(\t) 및 스페이스 공백이 축약되거나 무시되지 않고 4칸 단위(&nbsp;)로 1:1 시각적 보존되도록 cleanContent 강화
 //             **2026-09-03** — 문서링크(위키링크) 변환 시 전체 파일 경로가 노출되던 결함을 해결하여 일반 링크처럼 헤딩(#) 제목 또는 순수 문서명(확장자 제거) 및 별칭(|)만 링크 텍스트로 깔끔하게 노출되도록 개선
@@ -618,7 +625,7 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
 // ====================================================================
 // 🛡️ [한글 주석 완벽 탑재] TableWrapper는 렌더링된 표 위에 마우스 오버 시 '시트/표형식 복사' 버튼을 표시하고, 
 // 클릭하면 MS 오피스(워드, 엑셀) 및 한글 프로그램 등에 표 형태로 바로 붙여넣어지도록 HTML과 탭 구분 텍스트(TSV)로 클립보드에 적재해 주는 컴포넌트입니다.
-function TableWrapper({ children }: { children: React.ReactElement }) {
+function TableWrapper({ children, ...restProps }: { children: React.ReactElement; [key: string]: any }) {
   const [copied, setCopied] = useState(false);
   const tableRef = React.useRef<HTMLDivElement>(null);
 
@@ -664,7 +671,7 @@ function TableWrapper({ children }: { children: React.ReactElement }) {
 
   // [ONR-MD-004] 표 데이터 래퍼 컴포넌트: 마크다운 렌더링 내의 표(table) 태그를 수신하여 가로 스크롤 레이아웃으로 감싸고, 마우스 오버 시 스프레드시트 호환 규격 복사 버튼을 제공하는 고기능 래퍼입니다.
   return (
-    <div ref={tableRef} className="relative group mt-[2.5px] mb-2.5 overflow-x-auto select-text w-full max-w-full">
+    <div ref={tableRef} className="table-wrapper-area relative group overflow-x-auto select-text w-full max-w-full" {...restProps}>
       {/* 마우스 호버 시 우측 상단에 노출되는 미려한 시트/표형식 복사 단추 */}
       <button
             onClick={handleCopy}
@@ -792,7 +799,7 @@ const loadMermaidScript = (): Promise<any> => {
 // 🚨 @PATCH : 대괄호/소괄호 전각 문자 변환으로 파싱 에러 방지; 렌더링 ID 충돌 방지용 타임스탬프; <br> → \n 전역 변환 (HTML 태그 파싱 충돌 방지); NBSP(\u00a0) → 공백 치환 + class 세미콜론(;) 제거 (외부 복사 노이즈 내성 강화) | 2026-06-18; **2026-06-20** — 다이어그램 이미지 저장(handleSaveImage) API 호출 버그 수정(saveFileAs) 및 웹 다운로드 폴백 적용
 // 🔗 @CALLS : loadMermaidScript, handleCopyImage, handleSaveImage, handleCopyCode
 // ====================================================================
-const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }) {
+const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code: string; dataLine?: number | string }) {
   const { showToast } = useToast();
   const [svgHtml, setSvgHtml] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -1215,7 +1222,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code }: { code: string }
   };
 
   return (
-    <div ref={containerRef} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-hidden shadow-sm bg-white  select-text">
+    <div ref={containerRef} data-line={dataLine} className="relative group my-6 border border-zinc-200/60  rounded-lg overflow-hidden shadow-sm bg-white  select-text">
 
       <div className="flex items-center justify-between px-4 py-2 bg-zinc-50  border-b border-zinc-200/60 ">
         <span className="text-xs font-semibold text-zinc-500  uppercase tracking-wider flex items-center gap-1.5">
@@ -1308,12 +1315,12 @@ function MarkdownViewer({
   const contentRef = useRef(content);
   const originalContentRef = useRef(originalContent);
   const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType });
+  dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType };
 
   useEffect(() => {
     contentRef.current = content;
     originalContentRef.current = originalContent;
-    dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType };
-  }, [content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType]);
+  }, [content, originalContent]);
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0003] MarkdownViewer ➔ cleanContent
@@ -1455,33 +1462,100 @@ function MarkdownViewer({
 // 🚨 @PATCH : 없음
 // 🔗 @CALLS : 없음
 // ====================================================================
-  // 🛡️ [마크다운 물리 줄번호 매핑 플러그인 — 줄단위 1:1 초정밀 매핑]
-  // 블록 요소뿐만 아니라 단락(p) 내부의 줄바꿈(br), 인라인 강조 등 모든 가시 요소에
-  // 원본 에디터 줄 번호(data-line)를 촘촘하게 부여하여, 연속된 줄 입력 시에도 모든 줄이 독립 앵커로 잡히도록 합니다.
+  // 🛡️ [마크다운 물리 줄번호 매핑 플러그인 — 문단 내 개별 행(.onrivi-line) 1:1 초정밀 분할 매핑]
+  // 블록 요소뿐만 아니라 문단(p) 내부의 각 텍스트 행을 줄바꿈(br) 단위로 <span class="onrivi-line" data-line="...">로
+  // 정밀 분할 래핑하여, 에디터 커서가 위치한 특정 행(줄) 하나만 정확하게 독립 하이라이트되도록 보장합니다.
   const rehypeSourceLinesPlugin = useMemo(() => {
     return () => (tree: any) => {
-      let currentInheritedLine = 1;
+      const currentLineMap = dynamicPropsRef.current.lineMap || [];
+      const mapLine = (l?: number): number | undefined => {
+        if (!l) return undefined;
+        return currentLineMap[l - 1] || l;
+      };
+
+      const isMediaParagraph = (node: any) => {
+        if (!node.children || node.children.length === 0) return false;
+        const nonWs = node.children.filter((c: any) => !(c.type === 'text' && c.value.trim() === ''));
+        if (nonWs.length === 1) {
+          const onlyChild = nonWs[0];
+          if (onlyChild.type === 'element' && ['img', 'video', 'iframe', 'source'].includes(onlyChild.tagName)) {
+            return true;
+          }
+        }
+        return false;
+      };
+
       const visit = (node: any, parentLine?: number) => {
         if (node.type === 'element') {
           if (!node.properties) node.properties = {};
-          
-          let line = node.position?.start?.line;
-          if (line) {
-            currentInheritedLine = line;
-          } else if (parentLine) {
-            line = parentLine;
+
+          if (node.tagName === 'p') {
+            if (isMediaParagraph(node)) {
+              let line = node.position?.start?.line || parentLine;
+              if (line) {
+                node.properties['data-line'] = mapLine(line);
+              }
+              if (node.children) {
+                node.children.forEach((child: any) => visit(child, line));
+              }
+              return;
+            }
+
+            const newChildren: any[] = [];
+            let currentLineChildren: any[] = [];
+            let pLine = node.position?.start?.line || parentLine || 1;
+
+            const pushLine = (lineNum: number) => {
+              if (currentLineChildren.length === 0) {
+                currentLineChildren.push({ type: 'text', value: '\u200B' });
+              }
+              newChildren.push({
+                type: 'element',
+                tagName: 'span',
+                properties: {
+                  className: ['onrivi-line'],
+                  'data-line': mapLine(lineNum)
+                },
+                children: currentLineChildren
+              });
+              currentLineChildren = [];
+            };
+
+            for (const child of node.children) {
+              if (child.type === 'element' && child.tagName === 'br') {
+                pushLine(pLine);
+                pLine++;
+              } else if (child.type === 'text' && child.value === '\n') {
+                // br 직후의 개행 텍스트 무시
+              } else {
+                if (child.type === 'element') {
+                  if (child.position?.start?.line) {
+                    pLine = child.position.start.line;
+                  }
+                  visit(child, pLine);
+                }
+                currentLineChildren.push(child);
+              }
+            }
+            pushLine(pLine);
+            node.children = newChildren;
+            delete node.properties['data-line'];
+            return;
           }
 
+          let line = node.position?.start?.line || parentLine;
           if (line) {
-            const currentLineMap = dynamicPropsRef.current.lineMap || [];
-            const originalLine = currentLineMap[line - 1] || line;
-            node.properties['data-line'] = originalLine;
+            node.properties['data-line'] = mapLine(line);
           }
         }
+
         if (node.children) {
-          node.children.forEach((child: any) => visit(child, node.type === 'element' && node.tagName === 'p' ? node.position?.start?.line : undefined));
+          node.children.forEach((child: any) =>
+            visit(child, node.type === 'element' && node.tagName === 'tr' ? node.position?.start?.line : undefined)
+          );
         }
       };
+
       visit(tree);
     };
   }, []);
@@ -1748,19 +1822,22 @@ function MarkdownViewer({
         .markdown-viewer-root th {
           text-align: center !important;
         }
+        .markdown-viewer-root .table-wrapper-area,
+        .onrivi-content-root .table-wrapper-area {
+          margin-top: 4px !important;
+          margin-bottom: 16px !important;
+        }
+        .markdown-viewer-root table,
+        .onrivi-content-root table {
+          margin-top: 0 !important;
+          margin-bottom: 0 !important;
+        }
+        .markdown-viewer-root :is(p, h1, h2, h3, h4, h5, h6, strong):has(+ .table-wrapper-area),
+        .onrivi-content-root :is(p, h1, h2, h3, h4, h5, h6, strong):has(+ .table-wrapper-area) {
+          margin-bottom: 6px !important;
+        }
       `}</style>
       <div className="print:!block">
-        {activeLine !== undefined && (
-          <style>{`
-            [data-line="${activeLine}"] {
-              outline: 2px dashed rgba(59, 130, 246, 0.4) !important;
-              outline-offset: 3px !important;
-              border-radius: 4px !important;
-              background-color: rgba(59, 130, 246, 0.04) !important;
-              transition: outline 0.15s ease, background-color 0.15s ease !important;
-            }
-          `}</style>
-        )}
         <ReactMarkdown
           urlTransform={(uri) => {
             // 🛡️ [보안 필터 강화] XSS 공격 방어 (javascript: 차단, blob: 등 허용)
@@ -2082,8 +2159,8 @@ function MarkdownViewer({
                 display: 'flex',
                 flexDirection: 'column',
                 width: '100%',
-                marginTop: '1.5rem',
-                marginBottom: '1.5rem',
+                marginTop: '0.75rem',
+                marginBottom: '1.25rem',
                 clear: 'both',
               };
 
@@ -2118,9 +2195,10 @@ function MarkdownViewer({
                 />
               );
               
+              const line = extractDataLine(props, node);
               if (alt && alt.trim() !== '') {
                 return (
-                  <figure data-line={extractDataLine(props, node)} style={figureStyle}>
+                  <figure data-line={line} style={figureStyle}>
                     {imgElement}
                     <figcaption className="text-[0.9em] text-zinc-500 mt-1 font-medium">
                       {alt}
@@ -2129,7 +2207,7 @@ function MarkdownViewer({
                 );
               }
               return (
-                <div style={figureStyle}>
+                <div data-line={line} style={figureStyle}>
                   {imgElement}
                 </div>
               );
@@ -2220,6 +2298,7 @@ function MarkdownViewer({
 
               const displayName = getTextFromChildren(children);
 
+              const videoDataLine = extractDataLine(props, node);
               const youtubeMatch = href && href.match(/^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/);
               if (youtubeMatch && youtubeMatch[2] && youtubeMatch[2].length === 11) {
                 return (
@@ -2229,13 +2308,15 @@ function MarkdownViewer({
                     displayName={displayName || 'YouTube 동영상'}
                     isYoutube
                     youtubeId={youtubeMatch[2]}
+                    dataLine={videoDataLine}
+                    data-line={videoDataLine}
                   />
                 );
               }
 
               const isSocialVideo = href && !youtubeMatch && /(tiktok\.com|instagram\.com\/(p|reel|tv)\/|vimeo\.com|twitch\.tv|dailymotion\.com)/i.test(href);
               if (isSocialVideo) {
-                return <SocialVideoCard url={href} displayName={displayName || '동영상'} />;
+                return <SocialVideoCard url={href} displayName={displayName || '동영상'} dataLine={videoDataLine} data-line={videoDataLine} />;
               }
 
               const isVideo = apiHref && /\.(mp4|webm|ogg|mov|avi|mkv)(\?|#|$)/i.test(apiHref);
@@ -2313,7 +2394,7 @@ function MarkdownViewer({
                 }
 
                 return (
-                  <figure style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '1.5rem', marginBottom: '1.5rem', clear: 'both', alignItems: 'center' }}>
+                  <figure data-line={videoDataLine} style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '0.75rem', marginBottom: '1.25rem', clear: 'both', alignItems: 'center' }}>
                     <AsyncVideo
                       src={finalSrc}
                       absolutePath={absolutePath}
@@ -2333,13 +2414,21 @@ function MarkdownViewer({
             },
             table: ({ node, children, className, ...props }: any) => {
                return (
-                 <TableWrapper data-line={extractDataLine(props, node)}>
-                   <table className={`w-full table-auto ${className || ''}`} {...props}>
+                 <TableWrapper>
+                   <table className={`w-full table-auto !m-0 !mt-0 !mb-0 ${className || ''}`} {...props}>
                      {children}
                    </table>
                  </TableWrapper>
                );
              },
+            tr: ({ node, children, className, ...props }: any) => {
+              const line = extractDataLine(props, node);
+              return (
+                <tr data-line={line} className={className} {...props}>
+                  {children}
+                </tr>
+              );
+            },
             div: ({ node, className, children, ...props }: any) => {
               return <div className={className} {...props}>{children}</div>;
             },
@@ -2354,7 +2443,7 @@ function MarkdownViewer({
                 return <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-[0.9em] bg-zinc-200/80 dark:bg-zinc-700/90 text-zinc-900 dark:text-zinc-100" {...props}>{children}</code>;
               }
               if (lang === 'mermaid') {
-                return <MermaidBlock code={codeContent} />;
+                return <MermaidBlock code={codeContent} dataLine={extractDataLine(props, node)} />;
               }
               return <CodeBlock lang={lang} code={codeContent} className={className} {...props}>{children}</CodeBlock>;
             },
@@ -2394,20 +2483,59 @@ function MarkdownViewer({
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               return <h6 id={origLine ? `toc-line-${origLine}` : undefined} style={{ ...style, ...getIndentStyle(node) }} {...props}>{children}</h6>;
             },
+            iframe: ({ node, style, className, ...props }: any) => {
+              const line = extractDataLine(props, node);
+              const align = props['data-align'] || (node?.properties && (node.properties['data-align'] || node.properties['dataAlign'])) || 'center';
+              let alignStyle: React.CSSProperties = {
+                display: 'flex',
+                flexDirection: 'column',
+                width: '100%',
+                marginTop: '0.75rem',
+                marginBottom: '1.25rem',
+                clear: 'both',
+              };
+              if (align === 'left') {
+                alignStyle.alignItems = 'flex-start';
+              } else if (align === 'right') {
+                alignStyle.alignItems = 'flex-end';
+              } else {
+                alignStyle.alignItems = 'center';
+              }
+
+              return (
+                <div data-line={line} style={alignStyle} className="map-embed-wrapper my-2">
+                  <iframe
+                    {...props}
+                    className={`rounded-xl shadow-md border border-zinc-200 dark:border-zinc-800 max-w-full ${className || ''}`}
+                    style={{ ...style, maxWidth: '100%' }}
+                  />
+                </div>
+              );
+            },
             input: ({ node, ...props }: any) => <input {...props} />,
             p: ({ node, children, style, ...props }) => {
               if (!children) return <p />;
-              // react-markdown은 마크다운 문단의 자식으로 img가 오면 p 태그로 감쌉니다.
-              // AST(hast) node의 children을 재귀적으로 검사하여 'img' 태그가 있는지 확인합니다. (링크 등 중첩 고려)
-              const hasImage = (function check(n: any): boolean {
+              // react-markdown은 마크다운 문단의 자식으로 img/video/iframe/미디어 링크가 오면 p 태그로 감쌉니다.
+              // 블록 미디어 요소가 p 태그 내부에 중첩되어 생기는 규격 위반 및 DOM 분리를 방지합니다.
+              const hasBlockMedia = (function check(n: any): boolean {
                 if (!n) return false;
                 if (n.tagName === 'img' || n.tagName === 'video' || n.tagName === 'iframe') return true;
+                if (n.tagName === 'a') {
+                  const href = n.properties?.href;
+                  if (typeof href === 'string' && (
+                    href.match(/^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/) ||
+                    /(tiktok\.com|instagram\.com\/(p|reel|tv)\/|vimeo\.com|twitch\.tv|dailymotion\.com)/i.test(href) ||
+                    /\.(mp4|webm|ogg|mov|avi|mkv)(\?|#|$)/i.test(href)
+                  )) {
+                    return true;
+                  }
+                }
                 if (!n.children) return false;
                 return n.children.some(check);
               })(node);
               
-              if (hasImage) {
-                return <div style={style} {...props} className="my-4">{children}</div>;
+              if (hasBlockMedia) {
+                return <div style={style} {...props} className="my-2">{children}</div>;
               }
               return <p style={style} {...props}>{children}</p>;
             },

@@ -4,9 +4,26 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
- * -----------------------------------------------------------------------
- * <2026.05.29> 최초작성
- * 작성자 : 채병익
+ *   * 🚨 @PATCH : **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트] previewHighlightLine에서 .onrivi-line 최우선 선택 가드를 적용하여 다중 행 문단에서 전체 p 태그가 덮어씌워지던 문제를 차단하고 커서가 놓인 해당 행만 정확하게 단독 하이라이트되도록 수정
+ *   * 🚨 @PATCH : **2026-09-06** — [에디터-미리보기 하이라이트 위치 불일치 완전 해결 및 미디어 삽입 커서 3단계 고정]
+ *     1) previewHighlightLine에서 processedContent 의존성 추가 및 exact match(line === activeLine) 최우선 선택, 블록 컨테이너 승격으로 이미지/미디어 행에서 이전 문단으로 하이라이트가 밀리던 결함 완전 해결
+ *     2) globals.css에 미디어(figure, img, video, iframe) 요소 전용 오렌지 아웃라인 링(.preview-highlight-line) 스타일 신설로 이미지 하이라이트 시인성 100% 확보
+ *     3) insertMediaAtCursor에서 모달 언마운트 후 포커스 복원 시 이전 행으로 커서가 튀는 버그를 방어하기 위해 3단계(0ms, 50ms, 150ms) 커서·선택영역 강제 고정 및 updateContent 즉각 동기화 적용
+ *     4) useLayoutEffect 120ms 후속 타이머 및 handlePreviewImageLoaded 연동으로 비동기 미디어 크기 결정 후 미리보기 스크롤 완벽 재조정
+ *   * 🚨 @PATCH : **2026-09-06** — [미디어 삽입 후 2행 자동 추가 및 커서 이동] insertImageMarkdown을 insertMediaAtCursor 유틸 기반으로 교체: 이미지·동영상·지도 삽입 후 빈 줄 2행 자동 추가 및 커서 마지막 빈 행 이동 구현
+ *   * 🚨 @PATCH : **2026-09-05** — [문서 하단/마지막 문단 타이핑 시 미리보기 즉시 상향 추종] processedContent 갱신 시 100ms 디바운스 타이머를 제거하고 useLayoutEffect로 전환하여 브라우저 페인트 직전 최신 DOM 높이(elementBottom)를 읽어와 Safe Zone(하단 140px)으로 0초 즉각 동기화하도록 전면 개선
+ *   * 🚨 @PATCH : **2026-09-05** — 미리보기 컨테이너 하단 패딩을 pb-28(112px)에서 pb-48(192px)로 확장하여 Safe Zone(하단 140px, 2~3줄 여유) 스크롤 시 마지막 줄("결국" 등)이 윈도우 하단에 가려지지 않고 충분한 스크롤 한계 여백을 갖도록 보장
+ *   * 🚨 @PATCH : **2026-09-05** — 표 상단 여백 및 제목 문구 간격 조정 지원: Tailwind prose의 과도한 표 상단 여백(2em)을 제거하고, 서식 설정(CSS 프로필)의 table.margin-top/margin-bottom을 .table-wrapper-area에 동적 주입하며, 표 직전 캡션 문구(p:has(+ .table-wrapper-area)) 하단 마진을 6px로 긴밀하게 압착 밀착 연동
+ *   * 🚨 @PATCH : **2026-09-05** — 제한사용자/읽기 전용 모드(isRestrictedUser) 시 편집보기 및 분할모드를 비활성화하고 미리보기 모드로 즉각 자동 전환하며, 제어권 획득(Takeover) 시 직전 뷰 모드로 안전하게 복원하도록 처리
+ *   * 🚨 @PATCH : **2026-09-05** — 동일 아이디 타 브라우저/기기 동시 접속 초과 시 상단에 친근한 안내 배너 및 '이 화면에서 편집 시작하기' 버튼을 노출하고, 클릭 시 forceTakeover API를 통해 세션 제어권을 안전하게 즉시 가져오도록 지원
+ *   * 🚨 @PATCH : **2026-09-05** — 문서 마지막 줄 입력 및 빈 줄 생성 시 processedContent 갱신 시점과 React 마크다운 DOM 렌더링 지연 간의 타이밍 간극을 완벽 흡수하기 위해 150ms 3차 스크롤 추종 안전 타이머 보강
+ *   * 🚨 @PATCH : **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 에디터 하단 2줄 플로팅 AI 버튼을 흐릿하게 남기지 않고 전면 숨김 처리하여 본문 시인성 보장; 선택 텍스트 5대 AI 가공(다듬기/요약/확장/번역/마크다운변환) 레거시 제거 및 AI_MODAL을 AIDraftModal로 일원화
+ *   * 🚨 @PATCH : **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 에디터 하단 2줄 플로팅 AI 버튼 비활성화(정적 그레이스케일, ping 비활성화, 클릭 차단 및 안내) 및 모델 선택 차단 적용
+ *   * 🚨 @PATCH : **2026-09-05** — 환경설정에서 공통 리소스 폴더 설정 해제 시 IndexedDB의 resourceFolderHandle이 삭제되지 않아 브라우저 새로고침(F5) 시 이전 폴더로 재연결되던 결함 해결 (idb.del/clear 구현 및 clearResourceFolder 시 IndexedDB/로컬스토리지 완전 소거)
+ *   * 🚨 @PATCH : **2026-09-05** — 데스크톱 앱 내비게이션 결함 방어: 기기 세션 해제(DELETE) 및 인증 만료 처리 시 Electron 데스크톱 환경에서는 /login 리다이렉트를 차단하고 에디터 내 만료 상태 유지하도록 가드 보강
+ *   * 🚨 @PATCH : **2026-09-04** — 에디터 영역 하단 2줄 AI 버튼의 2행 모델 선택 라벨을 축약형(3.5-flash)에서 정식 전체 모델명(Gemini 3.5 Flash 등)으로 온전하게 표시하고 truncate 제거 및 상하 패딩(py-1.5)을 균형 있게 보강하여 텍스트 및 라운드 모서리 잘림 결함 해결
+ *   * 🚨 @PATCH : **2026-09-04** — 에디터 영역 하단 우측 스크롤 좌측에 2줄 형태의 플로팅 AI 버튼({userNickname || '익명'} AI / 모델 선택 상향 팝오버)을 배치하고, 상태바 연동 보이기/숨기기(isAiButtonVisible) 지원 및 플로팅 툴바의 AI 단독 버튼을 제거하여 서식 전용으로 가볍게 최적화
+ *   * 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 새 탭 생성 방지 및 에디터 ↔ 지식문서 화면(KnowledgeHubView) 단일 탭 인라인 전환 지원, Monaco 에디터 언마운트 없이 z-[150] 풀스크린 오버레이 뷰로 전환하고 MenuBar 중복 노출을 차단하여 모델 폐기(Model is disposed!) 및 메뉴바 침범 결함 원천 해결, BroadcastChannel 기반 동일 브라우저 내 다중 에디터 중복 실행 방어 락(singleTabGuard) 구축
  *   * 🚨 @PATCH : **2026-09-03** — 마지막 행 또는 문서 하단에서 타이핑할 때 미리보기가 입력 중인 행을 보여주지 않고 상단에 멈춰있던 결함을 해결하기 위해, processedContent 갱신 시 에디터 현재 커서 위치로 syncPreviewToTargetLine을 실시간 추종하는 useEffect 및 2단계 타이머 구축
  *   * 🚨 @PATCH : **2026-09-03** — 모니터 해상도 및 화면 배율에 따라 분할 모드에서 미리보기 우측 화면 및 표가 잘리던 현상을 해결하기 위해 custom-preview-container에 px-2 sm:px-4 안전 여백을 부여하고 preview-page-sheet에 maxWidth: 100% 및 max-w-full 반응형 가드 적용
  *   * 🚨 @PATCH : **2026-09-03** — 단축키/툴바/슬래시를 통한 서식 및 마크다운 태그 적용 시 직전 타이핑과의 실행취소(Undo) 단계를 명확히 분리하기 위해 pushUndoStop 격리 장벽을 구축하여, Ctrl+Z 실행취소 시 텍스트는 보존되고 최근 적용된 태그만 단독 취소되도록 전면 개선
@@ -26,6 +43,9 @@
  *   * 🚨 @PATCH : **2026-09-02** — 타이핑 시 180ms 지연 깜빡임을 완전히 제거하기 위해 React 18 useDeferredValue 기반 동시성 실시간 렌더링 적용 및 에디터 마지막 행 입력 시 미리보기가 가려지지 않고 실시간 바닥(최하단)을 즉시 추종하도록 동기화 개선
  *   * 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 전면 마이그레이션 (LINE Green #06C755, LDSG Blue #4D73FF, LDSG Grayscale 및 LineSeed 폰트 토큰 적용)
  *   * 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v4.1] Onrivi 통합 디자인 시스템 토큰 적용 및 미리보기 스크롤 컨테이너에 onrivi-preview-container 표준 클래스 적용
+ *   * 🚨 @PATCH : **2026-09-05** — 현재 플랜이 에디터 편집 지원 플랜(isEditorPlan)인 경우에만 다중 탭 중복 방어 락 및 '편집 제어권 가져오기'를 가동하고, 에디터 미지원 플랜(READER, 만료, 제한사용자 등)은 '제어권 가져오기' 없이 어디서나 제한사용자로 자연스럽게 무차단 열람 접근하도록 개선
+ *   * 🚨 @PATCH : **2026-09-05** — 동일 브라우저 다중 탭 실행 시 전면 차단 모달을 제거하고 비활성 탭을 '제한사용자(읽기 전용)' 모드로 자연스럽게 접근 허용하도록 개편, 상단 제어권 인수(Take Over) 배너 연동 및 실시간 권한(effectiveLicenseStatus/isRestrictedUser) 격리 보완
+ *   * 🚨 @PATCH : **2026-09-05** — Realtime DELETE 이벤트 시 타인의 기기 해제에 의한 전역 강제 로그아웃 방어(본인 activation_id 및 device_uuid 검증 가드) 적용 및 로컬 캐시 payment_no와 현재 로그인 유저 불일치 시 자동 캐시 파기 및 본인 구독 재조회 적용
  *   * 🚨 @PATCH : **2026-09-02** — 에디터 스크롤 전담 1:1 동기화 및 바닥 밀착 개편: 미리보기 onWheel preventDefault 제거, scrollBeyondLastLine 활성화 및 하단 160px 패딩 적용으로 마지막 줄 엔터 시 시야 자동 확보, 타이핑/방향키/백스페이스 시 스크롤 간섭 0회 분리
  *   * 🚨 @PATCH : **2026-08-27** — 비로그인 즉시 체험 모드(onrivi_guest_mode) 가동 시, 최초 라이선스/세션 검증(loadAndVerifyLicense)을 스킵하고 가상의 프리미엄 등급 라이선스 상태로 즉시 활성화 셋업하여 에디터 편집 잠금을 원천 패스하도록 가드 적용; 게스트 무단 점유/재접속 방지를 위해 10분 타이머(countdown) 및 로컬스토리지 만료 낙인(onrivi_guest_expired) 차단막 시스템을 구축하여 시간 만료 시 에디터 강제 읽기 전용 전환 및 닫기 없는 풀스크린 가입 권유 모달 팝업 바인딩
  *   * 🚨 @PATCH : **2026-09-02** — 여러 탭 전환 시 에디터 스크롤/커서 위치를 기준으로 미리보기를 1:1 완벽 동기화하고 직전 커서 라인 캐시를 리셋하여 마우스 클릭 및 방향키 이동 시 해당 위치 즉시 추종 보장
@@ -59,7 +79,7 @@
  * =========================================================================
 */
 
-import React, { useState, useRef, useMemo, useEffect, useCallback, useDeferredValue } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
+import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, useDeferredValue } from 'react';   // 리액트 훅 - 상태관리, 렌더링 제어 등
 import Editor, { loader } from '@monaco-editor/react'; // 모나코 에디터 - 코드 편집기
 const _monacoVsPath = typeof window !== 'undefined' && !!(window as any).electronAPI
   ? './monaco-editor/min/vs'
@@ -109,7 +129,7 @@ import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐�
 import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/virtualFileSystem'; // 가상 파일 시스템 헬퍼
-import { processTextWithAI, processTextWithAIStream, generateDraftWithAIStream, AI_ACTIONS, AiActionType } from '@/lib/gemini'; // Gemini AI 모듈
+
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import ExportModal from '@/components/ExportModal'; // 모달
 import OAIcon from './icon_onriveauther.png'; // 아이콘 
@@ -151,6 +171,8 @@ import { useEditorModals } from '@/hooks/editor/useEditorModals';
 // import EditorCore from '@/components/editor/core/EditorCore';
 import ModalManager from '@/components/editor/modals/ModalManager';
 import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontmatter';
+import { KnowledgeHubView } from '@/components/knowledge/KnowledgeHubView';
+import { useSingleTabGuard } from '@/lib/singleTabGuard';
 
 
 /**
@@ -488,6 +510,66 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const lastGeneralPreviewModeRef = useRef<'edit' | 'both' | 'preview'>('both');
   const isEditorMountedRef = useRef(false);
 
+  // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-002.1] 에디터 ↔ 지식 허브 인라인 뷰 전환 상태
+  const [activeMainView, setActiveMainView] = useState<'editor' | 'knowledge'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'knowledge') return 'knowledge';
+    }
+    return 'editor';
+  });
+
+
+  useEffect(() => {
+    const handleOpenKnowledge = () => {
+      let key = '';
+      try {
+        const raw = localStorage.getItem('onrivi_settings');
+        if (raw) key = JSON.parse(raw).geminiApiKey || '';
+      } catch {}
+      if (!key) {
+        showToast("지식 엔진을 사용하려면 환경설정에서 Gemini API Key를 먼저 등록해 주세요.", "warning");
+        window.dispatchEvent(new CustomEvent('app:dispatch-command', { detail: 'SETTINGS' }));
+        return;
+      }
+      setActiveMainView('knowledge');
+    };
+    const handleBackToEditor = () => {
+      setActiveMainView('editor');
+    };
+
+    window.addEventListener('app:open-knowledge-manager', handleOpenKnowledge);
+    window.addEventListener('app:back-to-editor', handleBackToEditor);
+
+    const handleGlobalKnowledgeKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveMainView(prev => {
+          if (prev === 'knowledge') return 'editor';
+          let key = '';
+          try {
+            const raw = localStorage.getItem('onrivi_settings');
+            if (raw) key = JSON.parse(raw).geminiApiKey || '';
+          } catch {}
+          if (!key) {
+            showToast("지식 엔진을 사용하려면 환경설정에서 Gemini API Key를 먼저 등록해 주세요.", "warning");
+            window.dispatchEvent(new CustomEvent('app:dispatch-command', { detail: 'SETTINGS' }));
+            return 'editor';
+          }
+          return 'knowledge';
+        });
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKnowledgeKeyDown, true);
+
+    return () => {
+      window.removeEventListener('app:open-knowledge-manager', handleOpenKnowledge);
+      window.removeEventListener('app:back-to-editor', handleBackToEditor);
+      window.removeEventListener('keydown', handleGlobalKnowledgeKeyDown, true);
+    };
+  }, [showToast]);
+
   // ====================================================================
   // 📊 [OMD-CORE-0003 TDZ-GUARD] MainEditorApp.tsx ➔ 훅 호출 전 선행 상태 선언 블록
   // 🎯 @KICK  : useEditorSettings/useEditorTabs 훅 호출 이전에 반환값을 참조하는
@@ -519,13 +601,43 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     isLicenseChecking, setIsLicenseChecking
   } = useEditorAuth();
 
-  // 💡 [권한 기반 제한사용자 판별 플래그] 사용 기간 만료 또는 동시 접속 초과, 혹은 미인증/제한 플랜 사용 여부를 판별
+  // 💡 [에디터 지원 유효 요금제 판별] 에디터 편집 권한이 존재하는 정품/체험 요금제인지 판별 (만료, READER, 미인증, 제한사용자 제외)
+  const isEditorPlan = useMemo(() => {
+    if (isLicenseChecking) return false;
+    if (licenseStatus.isExpired) return false;
+    const plan = (licenseStatus.planName || '').toUpperCase();
+    if (plan.includes('READER') || plan.includes('제한사용자') || plan.includes('미인증') || plan.includes('만료') || plan === 'READER') {
+      return false;
+    }
+    return licenseStatus.isActivated;
+  }, [isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName, licenseStatus.isActivated]);
+
+  // 🛡️ 동일 브라우저 내 에디터 다중 인스턴스/탭 중복 실행 감지 및 방어 락 (에디터 편집 지원 요금제일 때만 락 가동)
+  const { isDuplicateInstance, takeOverControl } = useSingleTabGuard(isEditorPlan);
+
+  // 🛡️ 동일 브라우저 다중 탭 실행 시 비활성 탭의 권한을 '제한사용자(읽기 전용)'로 안전하게 격리 투영
+  const effectiveLicenseStatus = useMemo(() => {
+    if (isDuplicateInstance && isEditorPlan) {
+      return {
+        ...licenseStatus,
+        isRestricted: true,
+        isActivated: false,
+        planName: licenseStatus.planName ? `${licenseStatus.planName} (제한사용자)` : '제한사용자',
+      };
+    }
+    return licenseStatus;
+  }, [isDuplicateInstance, isEditorPlan, licenseStatus]);
+
+  // 💡 [권한 기반 제한사용자 판별 플래그] 다중 탭 중복 실행, 기간 만료, 동시 접속 초과, 혹은 미인증/제한 플랜 사용 여부를 판별
   const isRestrictedUser = useMemo(() => {
-    return licenseStatus.isExpired ||
-      licenseStatus.isRestricted ||
-      licenseStatus.planName?.includes('미인증') ||
-      licenseStatus.planName?.includes('제한사용자');
-  }, [licenseStatus.isExpired, licenseStatus.isRestricted, licenseStatus.planName]);
+    return (isDuplicateInstance && isEditorPlan) ||
+      effectiveLicenseStatus.isConcurrentLimited ||
+      effectiveLicenseStatus.isExpired ||
+      effectiveLicenseStatus.isRestricted ||
+      effectiveLicenseStatus.planName?.includes('미인증') ||
+      effectiveLicenseStatus.planName?.includes('제한사용자') ||
+      effectiveLicenseStatus.planName?.includes('동시 접속 초과');
+  }, [isDuplicateInstance, isEditorPlan, effectiveLicenseStatus.isConcurrentLimited, effectiveLicenseStatus.isExpired, effectiveLicenseStatus.isRestricted, effectiveLicenseStatus.planName]);
 
   // 💡 [사용자 별명(활동명) 상태] AI 버튼 표기용 ({별명} AI, 예: '탕수육 AI')
   const [userNickname, setUserNickname] = useState<string>(() => {
@@ -601,6 +713,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       return () => window.removeEventListener('onrivi:nickname_changed', handleNickChange);
     }
   }, []);
+
+  // 💡 [에디터 하단 AI 버튼 가시성 상태] 상태바 및 로컬스토리지 연동
+  const [isAiButtonVisible, setIsAiButtonVisible] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('onrivi_show_editor_ai_btn') !== 'false';
+    }
+    return true;
+  });
+
+  // 💡 [에디터 하단 AI 모델 드롭다운 상태 및 외부 클릭 감지]
+  const [isBottomAiDropdownOpen, setIsBottomAiDropdownOpen] = useState<boolean>(false);
+  const bottomAiDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isBottomAiDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bottomAiDropdownRef.current && !bottomAiDropdownRef.current.contains(e.target as Node)) {
+        setIsBottomAiDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isBottomAiDropdownOpen]);
 
   // 💡 [Step 2 리팩토링 완료] 수십 개에 달하던 모달/팝업 상태를 단 하나의 Hook으로 완전히 분리!
   const {
@@ -933,7 +1068,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (!mounted) return;
     const isMissing = !resourceFolder && !resourceFolderHandle;
-    const isFullUser = licenseStatus.isActivated && !licenseStatus?.isExpired;
+    const isFullUser = !isDuplicateInstance && !isRestrictedUser && licenseStatus.isActivated && !licenseStatus?.isExpired;
 
     if (isMissing && isFullUser && !isDismissedGuide) {
       const timer = setTimeout(() => {
@@ -941,7 +1076,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [mounted, resourceFolder, resourceFolderHandle, licenseStatus.isActivated, licenseStatus?.isExpired, isDismissedGuide]);
+  }, [mounted, resourceFolder, resourceFolderHandle, licenseStatus.isActivated, licenseStatus?.isExpired, isDuplicateInstance, isRestrictedUser, isDismissedGuide]);
 
   // ====================================================================
   useEffect(() => {
@@ -1014,7 +1149,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAIDraftModalOpen, setIsAIDraftModalOpen] = useState(false);
-  const [aiDraftInitialMode, setAiDraftInitialMode] = useState<'draft' | 'editorial'>('draft');
+  const [aiDraftInitialMode, setAiDraftInitialMode] = useState<'draft' | 'editorial' | 'knowledge'>('draft');
   const [aiEditorContext, setAiEditorContext] = useState<{ selectedText: string; fullText: string }>({ selectedText: '', fullText: '' });
 
   // ====================================================================
@@ -1299,8 +1434,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           if (data.code === 'ERR_MAX_DEVICES_EXCEEDED') {
             setLicenseStatus({
               isActivated: false, isExpired: true, remainingDays: 0,
-              userId: savedUserId, licenseKey: '', paymentNo: '',
-              planName: data.message, nextPaymentDate: ''
+              userId: savedUserId, licenseKey: '', paymentNo: data.payment_no || '',
+              isRestricted: true,
+              isConcurrentLimited: true,
+              hasEditorSubscription: true,
+              planName: data.message, nextPaymentDate: data.next_payment_date || ''
             });
           } else {
             // NO_PLAN, NOT_FOUND 등 구독 자체가 없는 경우 로컬 라이선스 완전 초기화
@@ -1425,8 +1563,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             .select('id, plan_name, plan_status, current_period_end, max_devices, license_key, payment_no')
             .eq('user_id', session.user.id)
             .eq('plan_status', 'ACTIVE')
-            .neq('plan_name', 'ELITEPRO')
-            .not('plan_name', 'ilike', '%DESKTOP%')
+            .not('plan_name', 'ilike', '%DESKTOP_ONLY%')
             .order('current_period_end', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -1452,7 +1589,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     if (savedPaymentNo) {
       // 🛡️ 웹 전용: savedPaymentNo가 localStorage에 남아있어도 Supabase 세션이 유효한지 다시 확인 (데스크탑은 라이선스 기반, Supabase 불필요)
-      const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+      const isDesktop = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
+      let currentAuthUser: any = null;
       if (!isDesktop) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -1461,6 +1599,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             window.location.href = '/login';
             return;
           }
+          currentAuthUser = session.user;
         } catch (_) {
           Object.keys(localStorage).filter(k => k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
           window.location.href = '/login';
@@ -1476,11 +1615,34 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           localStorage.setItem('onrivi_session_id', sessionId);
         }
 
-        const { data: license } = await supabase
+        let { data: license } = await supabase
           .from('subscriptions')
-          .select('id, is_active, license_key, payment_no, plan_name, plan_status, current_period_end, created_at, max_devices')
+          .select('id, is_active, license_key, payment_no, plan_name, plan_status, current_period_end, created_at, max_devices, user_id')
           .eq('payment_no', savedPaymentNo)
           .maybeSingle();
+
+        // 🚨 @PATCH : 2026-09-05 웹 SaaS에서 로컬 캐시된 payment_no의 소유자(user_id)가 현재 로그인 유저와 불일치할 경우 즉시 캐시 무효화 및 본인 구독 재조회
+        if (!isDesktop && currentAuthUser && license && license.user_id && license.user_id !== currentAuthUser.id) {
+          console.warn('[loadAndVerifyLicense] payment_no user mismatch! Clearing stale cache & re-fetching user subscription...');
+          localStorage.removeItem('onrivi_payment_no');
+          localStorage.removeItem('onrivi_license_key');
+          const { data: userSub } = await supabase
+            .from('subscriptions')
+            .select('id, is_active, license_key, payment_no, plan_name, plan_status, current_period_end, created_at, max_devices, user_id')
+            .eq('user_id', currentAuthUser.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          license = userSub;
+          if (userSub?.payment_no) {
+            savedPaymentNo = userSub.payment_no;
+            localStorage.setItem('onrivi_payment_no', savedPaymentNo);
+            if (userSub.license_key) {
+              savedKey = userSub.license_key;
+              localStorage.setItem('onrivi_license_key', savedKey);
+            }
+          }
+        }
 
           if (!license) {
             console.warn('[loadAndVerifyLicense] web: license not found for payment_no. Auto-clearing cache...');
@@ -1549,18 +1711,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             let activationFailed = false;
             let activationError = '';
 
-            console.log('[loadAndVerifyLicense] insert: user=', savedUserId, 'session=', sessionId, 'licenseId=', currentLicenseId, 'isREADER=', sub?.plan_name === 'READER');
+            const currentDeviceName = isDesktop ? 'Desktop App' : 'Web SaaS';
+            console.log('[loadAndVerifyLicense] insert: user=', savedUserId, 'session=', sessionId, 'device=', currentDeviceName, 'licenseId=', currentLicenseId, 'isREADER=', sub?.plan_name === 'READER');
             const actRes = await fetch(getApiUrl('/api/rpc/license/insert'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ p_license_id: currentLicenseId, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: savedUserId, p_is_expired: sub?.plan_name === 'READER' })
+              body: JSON.stringify({ p_license_id: currentLicenseId, p_device_uuid: sessionId, p_device_name: currentDeviceName, p_user_id: savedUserId, p_is_expired: sub?.plan_name === 'READER' })
             });
             const actResult = actRes.ok ? await actRes.json() : null;
             const actErr = !actRes.ok ? new Error('서버 오류') : null;
+
+            if (actResult && actResult.activation_id) {
+              localStorage.setItem('onrivi_activation_id', actResult.activation_id);
+            }
             
+            const isDeviceLimitHit = actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' || actResult?.code === 'EXCEED_MAX_DEVICES';
             if (actErr || (actResult && !actResult.success)) {
               activationFailed = true;
-              activationError = (actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' || actResult?.code === 'EXCEED_MAX_DEVICES')
+              activationError = isDeviceLimitHit
                 ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자` 
                 : `라이선스 오류: ${actResult?.message || actErr?.message || '알 수 없는 오류'}`;
             }
@@ -1574,10 +1742,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             const isActivated = !isExpired && !isRestricted;
 
-            console.log('[LICENSE] VERIFIED setLicenseStatus isActivated=%o isExpired=%o isRestricted=%o planName=%o', isActivated, isExpired, isRestricted, planName);
+            if (currentLicenseId) {
+              localStorage.setItem('onrivi_license_id', currentLicenseId);
+            }
+
+            const hasEditorSub = sub?.plan_name !== 'READER' && sub?.plan_name !== 'FREE_TRIAL_EXPIRED';
+
+            console.log('[LICENSE] VERIFIED setLicenseStatus isActivated=%o isExpired=%o isRestricted=%o isConcurrentLimited=%o planName=%o', isActivated, isExpired, isRestricted, isDeviceLimitHit, planName);
             setLicenseStatus({
               isActivated, isExpired, remainingDays, userId: savedUserId,
               isRestricted, // 💡 제한 상태 명시적 반영
+              isConcurrentLimited: isDeviceLimitHit,
+              hasEditorSubscription: hasEditorSub,
               licenseKey: isActivated ? savedKey : '', paymentNo: currentPaymentNo || '',
               planName, nextPaymentDate: sub?.current_period_end || sub?.trial_end_at || (expiryMs > 0 ? new Date(expiryMs).toISOString() : '')
             });
@@ -1609,6 +1785,98 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId]);
+
+  // ⚡ 다른 브라우저/기기 동시 접속 초과 시 현재 화면으로 편집 권한 인수 처리
+  const [isTakingOver, setIsTakingOver] = useState(false);
+
+  const handleCrossDeviceTakeover = useCallback(async () => {
+    if (isTakingOver) return;
+    setIsTakingOver(true);
+    try {
+      const isDesktopEnv = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
+      const savedUserId = localStorage.getItem('onrivi_user_id') || localStorage.getItem('onrivi_auth_user_id') || licenseStatus.userId || '';
+      const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id') || deviceId;
+
+      if (isDesktopEnv) {
+        // 데스크탑 환경 제어권 인수
+        const res = await fetch(getApiUrl('/api/license/verify-desktop'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            p_email: savedUserId,
+            p_device_uuid: deviceId,
+            p_force_takeover: true
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("🎉 현재 화면으로 편집 권한을 성공적으로 가져왔습니다!", "success");
+          await loadAndVerifyLicense();
+        } else {
+          showToast(`편집 권한 가져오기 실패: ${data.message || '알 수 없는 오류'}`, "error");
+        }
+      } else {
+        // 웹 SaaS 환경 제어권 인수
+        let licenseId = localStorage.getItem('onrivi_license_id') || '';
+        if (!licenseId) {
+          const { data: userSub } = await supabase
+            .from('subscriptions')
+            .select('id')
+            .eq('user_id', savedUserId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (userSub?.id) {
+            licenseId = userSub.id;
+            localStorage.setItem('onrivi_license_id', licenseId);
+          }
+        }
+
+        if (!licenseId) {
+          showToast("라이선스 정보를 찾을 수 없어 편집 권한을 전환할 수 없습니다.", "error");
+          setIsTakingOver(false);
+          return;
+        }
+
+        const res = await fetch(getApiUrl('/api/rpc/license/insert'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            p_license_id: licenseId,
+            p_device_uuid: sessionId,
+            p_device_name: 'Web SaaS',
+            p_user_id: savedUserId,
+            p_is_expired: false,
+            p_force_takeover: true
+          })
+        });
+        const data = await res.json();
+        if (data && data.success) {
+          showToast("🎉 현재 화면으로 편집 권한을 성공적으로 가져왔습니다!", "success");
+          await loadAndVerifyLicense();
+        } else {
+          showToast(`편집 권한 가져오기 실패: ${data?.message || '알 수 없는 오류'}`, "error");
+        }
+      }
+    } catch (err: any) {
+      console.error('[handleCrossDeviceTakeover] Error:', err);
+      showToast("편집 권한 전환 중 오류가 발생했습니다.", "error");
+    } finally {
+      setIsTakingOver(false);
+    }
+  }, [deviceId, isTakingOver, licenseStatus.userId, loadAndVerifyLicense, showToast]);
+
+  const handleTakeover = useCallback(async () => {
+    if (isDuplicateInstance) {
+      takeOverControl();
+    } else if (licenseStatus.isConcurrentLimited) {
+      await handleCrossDeviceTakeover();
+    }
+    // 💡 제어권 획득 시 직전 뷰 모드(기본 'both')로 화면 즉시 복원
+    const restoredMode = lastGeneralPreviewModeRef.current || 'both';
+    setPreviewModeRaw(restoredMode);
+    previewModeRef.current = restoredMode;
+  }, [isDuplicateInstance, licenseStatus.isConcurrentLimited, takeOverControl, handleCrossDeviceTakeover]);
 
   const formatTime = (seconds: number) => {
     const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
@@ -1660,7 +1928,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 localStorage.removeItem('onrivi_session_id');
                 Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
                 await supabase.auth.signOut({ scope: 'local' });
-                window.location.href = '/login';
+                const isDesktop = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
+                if (!isDesktop) {
+                  window.location.href = '/login';
+                }
               }, 3000);
               return { ...prev, isActivated: false, isExpired: true, planName: '세션 해제 (로그아웃 중...)' };
             });
@@ -1674,7 +1945,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 ...prev,
                 isActivated: false,
                 isExpired: true,
-                isRestricted: true
+                isRestricted: true,
+                isConcurrentLimited: true,
+                hasEditorSubscription: prev.hasEditorSubscription ?? true,
+                planName: prev.planName?.includes('동시 접속 초과') ? prev.planName : `동시 접속 초과 (${chk.max_devices || 1}대) - 제한 사용자`
               };
             });
           } else {
@@ -1698,6 +1972,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   ...prev,
                   isActivated: true,
                   isExpired: false,
+                  isRestricted: false,
+                  isConcurrentLimited: false,
                   planName: chk.plan_name || prev.planName || '프리미엄 요금제'
                 };
               }
@@ -1914,36 +2190,73 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           filter: `device_uuid=eq.${deviceId}`
         },
         async (payload: any) => {
-          // 🚨 @PATCH : 대시보드(기기 관리)에서 세션을 강제 해제(DELETE)할 경우, 하트비트를 기다리지 않고 즉시 강제 로그아웃
+          // 🚨 @PATCH : 2026-09-05 대시보드(기기 관리)에서 세션을 강제 해제(DELETE)할 경우,
+          // 오직 현재 브라우저의 세션(activation_id 또는 sessionId/deviceId)이 삭제되었을 때만 강제 로그아웃
           if (payload.eventType === 'DELETE') {
+            const currentActId = localStorage.getItem('onrivi_activation_id');
+            const currentSessionId = localStorage.getItem('onrivi_session_id') || deviceId;
+            const deletedId = payload.old?.id;
+            const deletedUuid = payload.old?.device_uuid;
+
+            // 만약 삭제된 레코드가 현재 내 세션의 것이 아니라면 무시!
+            const isMySessionDeleted = (currentActId && deletedId && currentActId === deletedId) ||
+                                       (deletedUuid && (deletedUuid === currentSessionId || deletedUuid === deviceId));
+
+            if (!isMySessionDeleted) {
+              console.log('[Realtime] Ignored DELETE event for another device/user session:', payload.old);
+              return;
+            }
+
             showToast("🛑 동시접속 관리에 의해 현재 기기의 세션이 강제 해제되었습니다. 보호를 위해 로그아웃됩니다.", "error");
             setTimeout(async () => {
-              localStorage.removeItem('onrivi_session_id');
-              Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+              Object.keys(localStorage).filter(k => k.startsWith('onrivi_') || k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
               await supabase.auth.signOut({ scope: 'local' });
-              window.location.href = '/login';
+              const isDesktop = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
+              if (!isDesktop) {
+                window.location.href = '/login';
+              }
             }, 3000);
             return;
           }
 
           const newRecord = payload.new;
-          if (newRecord && newRecord.subscription_id) {
-            const { data, error } = await supabase
-              .from('subscriptions')
-              .select(`
-                verify_key,
-                license_key,
-                user_id
-              `)
-              .eq('id', newRecord.subscription_id)
-              .single();
-
-            if (!error && data && data.verify_key) {
-              const userEmail = licenseStatus.userId || 'user@onrivi.com';
-              handleSuccessActivation(data.verify_key, userEmail, data.id || '', data.license_key || '');
-              showToast("🎉 정품 라이선스가 결제 즉시 안전하게 승인되었습니다!", "success");
+          if (newRecord) {
+            if (newRecord.is_active === false) {
+              // 💡 다른 브라우저나 기기에서 편집 제어권을 가져간 경우
+              showToast("다른 브라우저나 기기에서 편집을 시작하여 현재 화면은 읽기 전용(제한사용자) 모드로 전환되었습니다.", "info");
+              setLicenseStatus(prev => ({
+                ...prev,
+                isActivated: false,
+                isExpired: true,
+                isRestricted: true,
+                isConcurrentLimited: true,
+                hasEditorSubscription: true,
+                planName: '동시 접속 초과 - 제한 사용자'
+              }));
+              return;
             }
 
+            if (newRecord.subscription_id && newRecord.is_active === true) {
+              const { data, error } = await supabase
+                .from('subscriptions')
+                .select(`
+                  verify_key,
+                  license_key,
+                  user_id
+                `)
+                .eq('id', newRecord.subscription_id)
+                .single();
+
+              if (!error && data && data.verify_key) {
+                const userEmail = licenseStatus.userId || 'user@onrivi.com';
+                handleSuccessActivation(data.verify_key, userEmail, data.id || '', data.license_key || '');
+                setLicenseStatus(prev => ({
+                  ...prev,
+                  isConcurrentLimited: false,
+                }));
+                showToast("🎉 정품 라이선스가 결제 즉시 안전하게 승인되었습니다!", "success");
+              }
+            }
           }
         }
       )
@@ -2036,6 +2349,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const previewRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
+
+  // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003] 지식 베이스 출처 점프 리스너: 에디터 특정 라인으로 스크롤 이동
+  useEffect(() => {
+    const handleJump = (e: CustomEvent) => {
+      const { filePath, startLine } = e.detail || {};
+      if (editorRef.current && startLine) {
+        editorRef.current.revealPositionInCenter({ lineNumber: startLine, column: 1 }, 1);
+        editorRef.current.setPosition({ lineNumber: startLine, column: 1 });
+        editorRef.current.focus();
+      }
+    };
+    window.addEventListener('app:open-file-at-line', handleJump as any);
+    return () => window.removeEventListener('app:open-file-at-line', handleJump as any);
+  }, []);
   // 💡 다중 탭 관련 상태 선언 및 백업 레퍼런스
   const useEditorTabsResult = useEditorTabs(
     editorRef,
@@ -2084,7 +2411,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const currentFileNameRef = useRef(currentFileName);
   const workspaceTypeRef = useRef(workspaceType);
   const rootFolderRef = useRef(rootFolder);
-  const licenseStatusRef = useRef(licenseStatus);
+  const licenseStatusRef = useRef(effectiveLicenseStatus);
   const tabSizeRef = useRef(4);
   // 🚨 @PATCH : A4 조판 가드 스케일링 로직
 
@@ -2166,7 +2493,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : **2026-06-21** — 신규: 만료 시 Ctrl+S/내보내기 차단을 위한 ref 추가
   // 🔗 @CALLS : None
   // ====================================================================
-  useEffect(() => { licenseStatusRef.current = licenseStatus; }, [licenseStatus]);
+  useEffect(() => { licenseStatusRef.current = effectiveLicenseStatus; }, [effectiveLicenseStatus]);
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0025] MainEditorApp.tsx ➔ tabSizeRef_sync
   // 🎯 @KICK  : 활성 CSS 프로필 tabSize 설정에서 tabSizeRef 업데이트
@@ -2233,6 +2560,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setResourceFolder(result.path);
         try { saveSecureData('resourceFolder', result.path); } catch { }
         
+        // 🚀 [사용자 지시 완벽 반영] 5대 디렉토리(profiles, prompt, bible, media, db) 및 onrivi_knowledge.db 일괄 생성
+        try {
+          if (api.initResourceFolder) {
+            await api.initResourceFolder(result.path);
+          }
+        } catch (initErr) {
+          console.warn('[ResourceFolder Init Error]:', initErr);
+        }
+
         // 💡 새 폴더 연동 시 폴더 내 기존 서식이 있다면 로드
         try {
           const loadedProfiles = await api.readProfiles(result.path);
@@ -2241,9 +2577,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               const systemPart = prev.filter(p => isSystemProfileId(p.id));
               return [...systemPart, ...loadedProfiles];
             });
-            showToast('공통 폴더에서 기존 서식을 불러왔습니다.', 'success');
+            showToast('공통 폴더가 설정되고 5대 디렉토리 및 DB가 초기화되었습니다.', 'success');
           } else {
-             showToast('자원 관리 폴더가 설정되었습니다.', 'success');
+             showToast('자원 관리 폴더가 설정되고 5대 디렉토리 및 DB가 초기화되었습니다.', 'success');
              // 빈 폴더라면 현재 로컬 서식을 저장 유도
              setProfiles(prev => {
                if (prev.length > SYSTEM_PROFILES.length) {
@@ -2254,7 +2590,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
              });
           }
         } catch (e) {
-          showToast('자원 관리 폴더가 설정되었습니다.', 'success');
+          showToast('자원 관리 폴더가 설정되고 5대 디렉토리 및 DB가 초기화되었습니다.', 'success');
         }
       }
     } else if (typeof (window as any).showDirectoryPicker === 'function') {
@@ -2265,6 +2601,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         await idb.set('resourceFolderHandle', handle);
         try { saveSecureData('resourceFolder', handle.name); } catch { }
         
+        // 🚀 [사용자 지시 완벽 반영] 웹 브라우저 환경 5대 디렉토리 일괄 생성
+        try {
+          await handle.getDirectoryHandle('profiles', { create: true });
+          await handle.getDirectoryHandle('prompt', { create: true });
+          await handle.getDirectoryHandle('bible', { create: true });
+          await handle.getDirectoryHandle('media', { create: true });
+          await handle.getDirectoryHandle('db', { create: true });
+        } catch (dirErr) {
+          console.warn('[Browser ResourceFolder Dir Creation Error]:', dirErr);
+        }
+
+        // 🚀 서버 측 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 트리거 (기존 DB는 안전 보존)
+        try {
+          await fetch('/api/knowledge/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resourceFolder: handle.name })
+          });
+        } catch (initErr) {
+          console.warn('[Server Knowledge Init Error]:', initErr);
+        }
+
         // 💡 새 폴더 연동 시 폴더 내 기존 서식(profiles)이 있다면 로드하여 덮어쓰기 방지
         try {
           const profilesDir = await handle.getDirectoryHandle('profiles', { create: false });
@@ -2307,16 +2665,38 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   };
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0025b ✅ FIXED] MainEditorApp.tsx ➔ clearResourceFolder
+  // 🎯 @KICK  : 공통 자원 관리 폴더 연결 해제 및 로컬/IndexedDB 영구 스토리지 데이터 완전 소거
+  // 🛡️ @GUARD : idb.del 및 idb.set(null) 이중 방어, localStorage/sessionStorage 클린업
+  // 🚨 @PATCH : **2026-09-05** — 공통 리소스 폴더 연결 해제 시 IndexedDB 및 로컬/세션스토리지 완전 소거, 모달 중첩 방어 및 안내 문구 순화('폴더 해제')
+  // 🔗 @CALLS : saveSecureData, localStorage.removeItem, idb.del, idb.set, showToast
+  // ====================================================================
   const clearResourceFolder = async () => {
     setResourceFolder(null);
     setResourceFolderHandle(null);
     setIsDismissedGuide(false);
     try { saveSecureData('resourceFolder', ''); } catch {}
     try { localStorage.removeItem('resourceFolder'); } catch {}
+    try { localStorage.removeItem('onrivi_resource_folder'); } catch {}
+    try { sessionStorage.removeItem('resourceFolder'); } catch {}
+    try {
+      const rawSettings = localStorage.getItem('onrivi_settings');
+      if (rawSettings) {
+        const parsed = JSON.parse(rawSettings);
+        if (parsed.resourceFolder) {
+          delete parsed.resourceFolder;
+          localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
+        }
+      }
+    } catch {}
     try { await idb.del('resourceFolderHandle'); } catch {}
+    try { await idb.set('resourceFolderHandle', null); } catch {}
     (window as any)._resourceFolderSynced = false;
-    showToast('공통 리소스 폴더 설정이 해제되었습니다.', 'info');
-    setIsResourceGuideModalOpen(true);
+    showToast('공통 리소스 폴더 연결이 해제되었습니다.', 'info');
+    if (!isSettingsModalOpen) {
+      setIsResourceGuideModalOpen(true);
+    }
   };
 
   // ====================================================================
@@ -2343,7 +2723,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       if (isRestrictedUser) {
         if (next !== 'preview') {
-          showToast("🔒 라이선스가 만료되었거나 정품 인증되지 않았습니다. 미리보기 전용 모드로 제한됩니다.", "warning");
+          if (isDuplicateInstance) {
+            showToast("다른 탭에서 이미 편집 중입니다. 상단 '이 화면에서 편집 시작하기'를 눌러 편집 제어권을 가져올 수 있습니다.", "warning");
+          } else if (licenseStatus.isConcurrentLimited) {
+            showToast("다른 기기 또는 브라우저에서 사용 중입니다. 상단 '이 화면에서 편집 시작하기'를 눌러 편집 제어권을 가져올 수 있습니다.", "warning");
+          } else {
+            showToast("🔒 읽기 전용(제한사용자) 모드에서는 미리보기 화면만 제공됩니다.", "warning");
+          }
         }
         return 'preview';
       }
@@ -2491,65 +2877,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  const handleAiAction = async (action: AiActionType) => {
-    if (!geminiApiKey) {
-      showToast("환경설정(애플리케이션)에서 Google Gemini API Key를 먼저 입력해주세요.", 'error');
-      return;
-    }
-    const editor = editorRef.current;
-    if (!editor) return;
-    const model = editor.getModel();
-    const selection = editor.getSelection();
-    if (!model || !selection || selection.isEmpty()) {
-      showToast("가공할 텍스트를 먼저 드래그(선택) 해주세요.", 'warning');
-      return;
-    }
-    const selectedText = model.getValueInRange(selection);
 
-    const currentGenId = ++generationIdRef.current;
-
-    // 프리뷰 카드 열고 상태 초기화
-    setAiPreviewState({
-      isOpen: true,
-      originalRange: selection,
-      streamingText: '',
-      action,
-      originalText: selectedText,
-      isFinished: false
-    });
-    setFloatingToolbar(prev => ({ ...prev, visible: false }));
-
-    try {
-      await processTextWithAIStream(
-        geminiApiKey,
-        aiModelName,
-        selectedText,
-        action,
-        (chunkText) => {
-          if (currentGenId !== generationIdRef.current) return;
-          if (chunkText === '') {
-            return;
-          }
-          setAiPreviewState(prev => ({
-            ...prev,
-            streamingText: chunkText
-          }));
-        }
-      );
-
-      if (currentGenId !== generationIdRef.current) return;
-
-      setAiPreviewState(prev => ({
-        ...prev,
-        isFinished: true
-      }));
-      showToast("AI 가공이 완료되었습니다. 결과물을 검토해 주세요.", 'success');
-    } catch (err: any) {
-      if (currentGenId !== generationIdRef.current) return;
-      showToast(err.message || "AI 요청 실패", 'error');
-      setAiPreviewState(prev => ({ ...prev, isOpen: false }));
-    }
-  };
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0028] MainEditorApp.tsx ➔ autoSaveRef_sync
@@ -2561,7 +2889,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const autoSaveRef = useRef(autoSave);
   useEffect(() => { autoSaveRef.current = autoSave; }, [autoSave]);
 
-  const isActivated = licenseStatus.isActivated;
+  const isActivated = !isDuplicateInstance && licenseStatus.isActivated;
 
 
 
@@ -2765,31 +3093,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const aiDecorationsRef = useRef<string[]>([]);
   const generationIdRef = useRef<number>(0);
   const readFileTextRef = useRef<(node: FileNode) => Promise<string>>(null!);
-  const [aiPreviewState, setAiPreviewState] = useState<{
-    isOpen: boolean;
-    isModalOpen: boolean;
-    promptInput: string;
-    originalRange: any;
-    streamingText: string;
-    action: string;
-    originalText: string;
-    isFinished: boolean;
-    isStarted: boolean;
-    targetScope: 'selection' | 'document' | 'none';
-  }>({
-    isOpen: false,
-    isModalOpen: false,
-    promptInput: '',
-    originalRange: null,
-    streamingText: '',
-    action: '',
-    originalText: '',
-    isFinished: false,
-    isStarted: false,
-    targetScope: 'none'
-  });
 
-  const [aiCopied, setAiCopied] = useState(false);
 
   // 📱 모바일 상태 관리를 Rules of Hooks에 따라 최상위(Top-level)로 상향 조정
   const [isMobile, setIsMobile] = useState(false);
@@ -3187,11 +3491,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (!mounted || isLicenseChecking) return;
 
-    // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우
-    const isRestrictedUser = licenseStatus.isExpired ||
-      licenseStatus.isRestricted ||
-      licenseStatus.planName?.includes('미인증') ||
-      licenseStatus.planName?.includes('제한사용자');
+    // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우, 또는 다중 탭 실행 시
+    const isRestrictedUser = isDuplicateInstance ||
+      effectiveLicenseStatus.isExpired ||
+      effectiveLicenseStatus.isRestricted ||
+      effectiveLicenseStatus.planName?.includes('미인증') ||
+      effectiveLicenseStatus.planName?.includes('제한사용자');
 
     if (prevRestrictedRef.current === isRestrictedUser) return;
     prevRestrictedRef.current = isRestrictedUser;
@@ -3210,7 +3515,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return cleaned;
       });
     
-  }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName, licenseStatus.isRestricted]);
+  }, [mounted, isLicenseChecking, isDuplicateInstance, effectiveLicenseStatus]);
 
   // ====================================================================
   // 📊 [OMD-FILE-MainEditorApp-0043] MainEditorApp.tsx ➔ restoreSessionTabs
@@ -3383,41 +3688,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     }
   }, []);
 
-  // ====================================================================
-  // 📊 [OMD-CORE-MainEditorApp-0041] MainEditorApp.tsx ➔ previewHighlightLine
-  // 🎯 @KICK  : 분할 모드에서 에디터의 activeLine과 일치하는 미리보기 줄 강조
-  // 🛡️ @GUARD : 중복 방지를 위해 모든 강조 먼저 제거, 불일치 위치에 대해 가장 가까운 하위 data-line 찾기
-  // 🚨 @PATCH : None
-  // 🔗 @CALLS : element.classList.add/remove
-  // ====================================================================
-  useEffect(() => {
-    if (!previewRef.current) return;
-
-    const elements = Array.from(previewRef.current.querySelectorAll('[data-line]')) as HTMLElement[];
-    elements.forEach(element => element.classList.remove('preview-highlight-line'));
-
-    if (previewMode !== 'both' || !activeLine) return;
-
-    // activeLine 이하이면서 가장 가까운(최대값) data-line을 가진 요소를 찾음
-    let targetEl: HTMLElement | null = null;
-    let maxLine = -1;
-
-    elements.forEach(element => {
-      const lineStr = element.getAttribute('data-line');
-      if (lineStr) {
-        const line = parseInt(lineStr, 10);
-        if (line <= activeLine && line > maxLine) {
-          maxLine = line;
-          targetEl = element;
-        }
-      }
-    });
-
-    if (targetEl) {
-      (targetEl as HTMLElement).classList.add('preview-highlight-line'); // 💡 사장님 지시: 마우스 클릭/타이핑 시 미리보기 행 마킹 하이라이트색 복구
-    }
-  }, [activeLine, previewMode]);
-
+  // 💡 [OMD-CORE-MainEditorApp-0041] previewHighlightLine 훅은 processedContent 선언 이후(Line 4870)로 이동되었습니다 (TDZ 방어).
   // 💡 [OMD-SYNC-DEPRECATED] 스크롤 동기화 및 휠 차단 로직은 Monaco Setup 내부 단일 리스너(onDidScrollChange)로 완전히 마이그레이션되어 이곳의 중복 훅은 삭제되었습니다.
 
   // ====================================================================
@@ -3512,11 +3783,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 이펙트를 단 한 번만 실행하여 다른 컴포넌트나 훅이 웰컴탭을 덮어쓰거나 무한루프 도는 것을 원천 방지
     hasHandledWelcomeRef.current = true;
 
-    // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우 (undefined 방어를 위해 Optional Chaining 추가)
-    const isRestrictedUser = licenseStatus.isExpired ||
-      licenseStatus.isRestricted ||
-      licenseStatus.planName?.includes('미인증') ||
-      licenseStatus.planName?.includes('제한사용자');
+    // 제한 사용자 조건: 사용 기간 만료 혹은 웹에서 동시 접속을 초과하여 인증을 상실한 경우 (undefined 방어를 위해 Optional Chaining 추가), 또는 다중 탭 중복 실행 시
+    const isRestrictedUser = isDuplicateInstance ||
+      effectiveLicenseStatus.isExpired ||
+      effectiveLicenseStatus.isRestricted ||
+      effectiveLicenseStatus.planName?.includes('미인증') ||
+      effectiveLicenseStatus.planName?.includes('제한사용자');
 
     // tabs 상태값 대신 refs로 현재 상황을 안전하게 스냅샷
     const hasWelcome = tabsRef.current.some(t => t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab);
@@ -3534,7 +3806,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           setCurrentFileNode(null);
         }
     }
-  }, [mounted, isLicenseChecking, licenseStatus.isExpired, licenseStatus.planName, licenseStatus.isRestricted]);
+  }, [mounted, isLicenseChecking, isDuplicateInstance, effectiveLicenseStatus]);
   useEffect(() => {
     if (currentFileNode && activeTabId) {
       if (prevActiveTabRef.current !== activeTabId) {
@@ -3653,6 +3925,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const insertAtCursor = (text: string) => {
     utilsEditorActions.insertAtCursor(editorRef, lastSelectionRef, text);
   };
+
+  // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003.2] 지식 베이스 질의응답 답변 에디터 커서 삽입 리스너
+  useEffect(() => {
+    const handleInsert = (e: CustomEvent) => {
+      const text = e.detail;
+      if (text && typeof text === 'string') {
+        insertAtCursor(text);
+      }
+    };
+    window.addEventListener('app:insert-at-cursor', handleInsert as any);
+    return () => window.removeEventListener('app:insert-at-cursor', handleInsert as any);
+  }, []);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0049] MainEditorApp.tsx ➔ findLineNumberByHeading
@@ -4249,28 +4533,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0068] MainEditorApp.tsx ➔ insertImageMarkdown
-  // 🎯 @KICK  : 에디터 커서 위치에 마크다운 이미지 문법 삽입
+  // 🎯 @KICK  : 에디터 커서 위치에 마크다운 이미지 문법 삽입 후 빈 줄 2행 추가 및 커서 이동
   // 🛡️ @GUARD : editorRef.current null 체크, readOnly 우회
-  // 🔗 @CALLS : editor.executeEdits, updateContent
+  // 🚨 @PATCH : 2026-09-06 - insertMediaAtCursor 유틸 사용으로 교체: 삽입 후 빈 줄 2행 자동 추가 및 커서 마지막 빈 행 이동
+  // 🔗 @CALLS : insertMediaAtCursor(editorActions), updateContent
   // ====================================================================
   const insertImageMarkdown = (path: string) => {
     if (!editorRef.current) {
       showToast('에디터를 찾을 수 없어 이미지를 삽입할 수 없습니다.', 'error');
       return;
     }
-    const editor = editorRef.current;
-    const selection = editor.getSelection();
-    const range = {
-      startLineNumber: selection.startLineNumber,
-      startColumn: selection.startColumn,
-      endLineNumber: selection.endLineNumber,
-      endColumn: selection.endColumn
-    };
     const textToInsert = `![이미지](${path})`;
-    editor.executeEdits("pasteImage", [{ range, text: textToInsert, forceMoveMarkers: true }]);
+    utilsEditorActions.insertMediaAtCursor(editorRef, lastSelectionRef, textToInsert);
     try {
-      const newValue = editor.getValue();
-      updateContent(newValue, true);
+      setTimeout(() => {
+        const newValue = editorRef.current?.getValue();
+        if (newValue !== undefined) updateContent(newValue, true);
+      }, 50);
     } catch { }
   };
 
@@ -4495,36 +4774,106 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     frontmatterLinesRef.current = frontmatterLines;
   }, [frontmatterLines]);
 
-  // 💡 [실시간 타이핑 및 콘텐츠 갱신 시 미리보기 스크롤 추종 보장]
-  // 사용자가 에디터 하단이나 마지막 행에서 타이핑할 때, 새 행이 DOM에 렌더링된 직후
-  // 현재 커서 위치(pos.lineNumber)가 미리보기 Safe Zone 안에 안정적으로 보이도록 동기화합니다.
-  useEffect(() => {
+  // 💡 [실시간 타이핑 및 콘텐츠 갱신 시 미리보기 스크롤 즉시 추종 보장]
+  // 사용자가 에디터 하단이나 마지막 행에서 타이핑할 때, 새 행/문단이 DOM에 렌더링된 직후
+  // 현재 커서 위치의 문단 끝(elementBottom)이 미리보기 Safe Zone(BOTTOM_SAFE) 안에 안정적으로 보이도록 동기화합니다.
+  useLayoutEffect(() => {
     if (previewMode !== 'both' || !previewRef.current || !editorRef.current) return;
     if (isScrollingRef.current === 'preview') return;
 
-    const syncCurrent = () => {
-      if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
-        const currentPos = editorRef.current.getPosition?.();
-        if (currentPos && currentPos.lineNumber) {
-          const currentContent = editorRef.current.getValue?.() || contentRef.current;
-          syncPreviewToTargetLine(previewRef.current, currentPos.lineNumber, currentContent);
+    const currentPos = editorRef.current.getPosition?.();
+    if (currentPos && currentPos.lineNumber) {
+      const currentContent = editorRef.current.getValue?.() || contentRef.current;
+      syncPreviewToTargetLine(previewRef.current, currentPos.lineNumber, currentContent, { column: currentPos.column });
+
+      // 💡 [새 미디어/이미지 렌더링 레이아웃 보정] DOM 삽입 직후 이미지 크기 결정 후 2차 안전 동기화
+      const timer = setTimeout(() => {
+        if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
+          const p = editorRef.current.getPosition?.();
+          if (p && p.lineNumber) {
+            const c = editorRef.current.getValue?.() || contentRef.current;
+            syncPreviewToTargetLine(previewRef.current, p.lineNumber, c, { column: p.column });
+          }
         }
-      }
-    };
-
-    const rafId = requestAnimationFrame(syncCurrent);
-    const timer = setTimeout(syncCurrent, 60);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      clearTimeout(timer);
-    };
+      }, 120);
+      return () => clearTimeout(timer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [processedContent, previewMode]);
 
   const handlePreviewImageLoaded = useCallback(() => {
-    // 💡 타이핑 시 미리보기 치솟음 방지를 위해 이미지 로드 시 자동 스크롤 동기화를 차단합니다.
+    // 💡 이미지 비동기 로딩 완료 시 최신 높이에 맞춰 위치 1회 미세 보정
+    if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
+      const p = editorRef.current.getPosition?.();
+      if (p && p.lineNumber) {
+        const c = editorRef.current.getValue?.() || contentRef.current;
+        syncPreviewToTargetLine(previewRef.current, p.lineNumber, c, { column: p.column });
+      }
+    }
   }, []);
+
+  // ====================================================================
+  // 📊 [OMD-CORE-MainEditorApp-0041] MainEditorApp.tsx ➔ previewHighlightLine
+  // 🎯 @KICK  : 분할 모드에서 에디터의 activeLine과 일치하는 미리보기 줄 강조
+  // 🛡️ @GUARD : 중복 방지를 위해 모든 강조 먼저 제거, .onrivi-line 최우선 매칭으로 문단 내 개별 행 단독 하이라이트
+  // 🚨 @PATCH : 2026-09-06 - [문단 내 커서 위치 행 단독 하이라이트]
+  //             1) .onrivi-line 클래스 요소를 최우선 타깃으로 선택하여 상위 p 태그 승격 차단
+  //             2) exact match 및 closestCandidate에서 문단 내 특정 행 1:1 하이라이트 보장
+  //             3) processedContent 의존성 추가로 새 이미지/미디어/문단 삽입 렌더링 즉시 하이라이트 재동기화
+  // 🔗 @CALLS : element.classList.add/remove
+  // ====================================================================
+  useEffect(() => {
+    if (!previewRef.current) return;
+
+    const previewContainer = previewRef.current;
+    const elements = Array.from(previewContainer.querySelectorAll('[data-line]')) as HTMLElement[];
+    elements.forEach(element => element.classList.remove('preview-highlight-line'));
+
+    if (previewMode !== 'both' || !activeLine) return;
+
+    const blockSelectors = '.onrivi-line, figure, p, li, blockquote, tr, h1, h2, h3, h4, h5, h6, pre, iframe, video, .table-wrapper-area, .codeblock-area, .map-embed-wrapper';
+
+    // 1. exact match (activeLine과 정확히 일치하는 요소) 최우선 탐색
+    const exactMatches = elements.filter(el => {
+      const l = parseInt(el.getAttribute('data-line') || '-1', 10);
+      return l === activeLine;
+    });
+
+    let targetEl: HTMLElement | null = null;
+
+    if (exactMatches.length > 0) {
+      // 💡 .onrivi-line이 존재할 경우 문단 전체(p)로 승격하지 않고 커서가 위치한 개별 행을 최우선 타깃으로 선택
+      const lineMatch = exactMatches.find(el => el.classList.contains('onrivi-line'));
+      if (lineMatch) {
+        targetEl = lineMatch;
+      } else {
+        const candidate = exactMatches.find(el => el.matches(blockSelectors)) || exactMatches[0];
+        targetEl = (candidate.closest(blockSelectors) as HTMLElement) || candidate;
+      }
+    } else {
+      // 2. exact match가 없으면 activeLine 이하 중 가장 가까운(최대값) 요소를 탐색
+      let maxLine = -1;
+      let closestCandidate: HTMLElement | null = null;
+      elements.forEach(element => {
+        const lineStr = element.getAttribute('data-line');
+        if (lineStr) {
+          const line = parseInt(lineStr, 10);
+          if (line <= activeLine && line > maxLine) {
+            maxLine = line;
+            closestCandidate = element;
+          }
+        }
+      });
+      if (closestCandidate) {
+        const lineMatch = (closestCandidate as HTMLElement).closest('.onrivi-line') as HTMLElement;
+        targetEl = lineMatch || ((closestCandidate as HTMLElement).closest(blockSelectors) as HTMLElement) || closestCandidate;
+      }
+    }
+
+    if (targetEl) {
+      targetEl.classList.add('preview-highlight-line');
+    }
+  }, [activeLine, previewMode, processedContent]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0068] MainEditorApp.tsx ➔ dynamicCssString
@@ -4752,6 +5101,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .custom-preview-container td {
   vertical-align: middle !important;
   word-break: keep-all !important;
+}
+`;
+
+    // 📊 표 여백 및 래퍼 정교화: 표 자체는 0마진으로 밀착하고, 래퍼(.table-wrapper-area)에 상하 여백 적용 및 직전 캡션 문구(p) 밀착
+    const tableMarginTop = prof.rules.table?.['margin-top'] || '4px';
+    const tableMarginBottom = prof.rules.table?.['margin-bottom'] || '16px';
+    css += `
+.custom-preview-container .table-wrapper-area,
+.onrivi-content-root .table-wrapper-area {
+  margin-top: ${tableMarginTop} !important;
+  margin-bottom: ${tableMarginBottom} !important;
+}
+.custom-preview-container table,
+.onrivi-content-root table {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.custom-preview-container p:has(+ .table-wrapper-area),
+.onrivi-content-root p:has(+ .table-wrapper-area) {
+  margin-bottom: 6px !important;
 }
 `;
 
@@ -5369,6 +5738,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 글로벌 trigger-custom-action 명령어를 위한 최신 디스패처 갱신
     if (typeof window !== 'undefined') {
       (window as any).dispatchEditorCommand = (id: string) => {
+        if (id === 'custom-action-knowledge-manager' || id === 'knowledge') {
+          window.dispatchEvent(new CustomEvent('app:open-knowledge-manager'));
+          return;
+        }
+
         if (id === 'AI_MODAL') {
           // 💡 [AI API 가드] API Key가 설정되어 있지 않으면 작동하지 않고 경고 후 설정창을 켭니다.
           if (!geminiApiKey) {
@@ -5376,28 +5750,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             dispatchCommand('SETTINGS');
             return;
           }
-
-          const editor = editorRef.current;
-          const selection = editor ? editor.getSelection() : null;
-          const model = editor ? editor.getModel() : null;
-          let selectedText = '';
-          if (editor && model && selection && !selection.isEmpty()) {
-            selectedText = model.getValueInRange(selection);
+          if (!activeTabId || previewMode === 'preview') {
+            showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
+            return;
           }
-
-          generationIdRef.current++;
-          setAiPreviewState(prev => ({
-            ...prev,
-            isOpen: true,
-            promptInput: '',
-            streamingText: '',
-            isFinished: false,
-            isStarted: false,
-            action: 'expand',
-            originalRange: selection,
-            originalText: selectedText,
-            targetScope: selectedText ? 'selection' : 'none'
-          }));
+          setAiDraftInitialMode('draft');
+          setIsAIDraftModalOpen(true);
           return;
         }
         const cmdType = mapIdToCommandType(id);
@@ -5744,10 +6102,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     dispatchCommand,
     isDarkMode, setIsDarkMode,
     themePalette, handleThemeChange,
-    licenseStatus, isExpired: licenseStatus.isExpired,
+    licenseStatus: effectiveLicenseStatus, isExpired: effectiveLicenseStatus.isExpired,
     isAddonEnv, editorRef, previewRef, showToast, openTabPaths, refreshFileList,
     driveLetter, profiles, activeProfileId, DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
-    saveStatus, isToolbarOpen, setIsToolbarOpen, isSidebarOpen, setIsSidebarOpen, isActivated, THEME_MAP,
+    saveStatus, isToolbarOpen, setIsToolbarOpen, isSidebarOpen, setIsSidebarOpen, isActivated: (!isDuplicateInstance && effectiveLicenseStatus.isActivated), THEME_MAP,
+    isDuplicateInstance, takeOverControl, isEditorPlan,
     cursorLine,
     cursorColumn,
     switchTab, closeTab, createNewTab,
@@ -5764,6 +6123,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     aiModelName,
     setAiModelName,
     setIsAIDraftModalOpen,
+    isAiButtonVisible,
+    setIsAiButtonVisible,
     isRestrictedUser
   };
 
@@ -6026,9 +6387,53 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           </div>
         )}
 
-        <div className={`flex h-screen overflow-hidden flex-col text-on-surface transition-colors duration-300 ${mounted && isDarkMode ? 'dark' : ''} bg-surface`}>
+        <div className={`flex h-screen overflow-hidden flex-col text-on-surface transition-colors duration-300 ${mounted && isDarkMode ? 'dark' : ''} bg-surface relative`}>
 
-          <MenuBar />
+          {/* 🛡️ 동일 브라우저 다중 탭 또는 다른 브라우저/기기 동시 접속 시 - 비차단형 제한사용자 안내 배너 */}
+          {((isDuplicateInstance && isEditorPlan) || (licenseStatus.isConcurrentLimited && (licenseStatus.hasEditorSubscription || isEditorPlan))) && activeMainView !== 'knowledge' && (
+            <aside aria-label="동시 접속 제한 모드 안내" className="w-full bg-amber-500/10 dark:bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 z-50 shrink-0 select-none animate-in fade-in duration-150">
+              <div className="flex items-center gap-2 font-medium">
+                <span className="text-base leading-none">⚠️</span>
+                <span>
+                  {isDuplicateInstance ? (
+                    <>다른 탭에서 Onrivi 에디터가 이미 실행 중이므로 현재 화면은 <strong>읽기 전용(제한사용자)</strong> 모드로 동작합니다.</>
+                  ) : (
+                    <>다른 브라우저나 기기에서 Onrivi 에디터가 이미 사용 중이어서 현재 화면은 <strong>읽기 전용(제한사용자)</strong> 모드로 열렸습니다.</>
+                  )}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={isTakingOver}
+                onClick={handleTakeover}
+                className="px-3 py-1 bg-[#06C755] hover:bg-[#05b34c] active:scale-95 text-white font-extrabold rounded-lg shadow-xs transition-all cursor-pointer border-none shrink-0 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isTakingOver ? '편집 권한 전환 중...' : '이 화면에서 편집 시작하기'}
+              </button>
+            </aside>
+          )}
+
+          {/* 🧠 지식 베이스(KnowledgeHubView) 인라인 오버레이 (에디터 DOM 언마운트 없이 영구 보존, z-[150]으로 에디터 UI 완벽 격리) */}
+          {activeMainView === 'knowledge' && (
+            <div className="absolute inset-0 z-[150] flex flex-col bg-[#FAFBFC] dark:bg-[#121316]">
+              <KnowledgeHubView 
+                initialTab="dashboard"
+                resourceFolder={resourceFolder}
+                geminiApiKey={geminiApiKey}
+                onSaveApiKey={setGeminiApiKey}
+                planCode="ELITEPRO"
+                aiModelName={aiModelName}
+                onSaveModelName={setAiModelName}
+                fileTreeNodes={fileList}
+                isStandalonePage={false}
+                onBackToEditor={() => setActiveMainView('editor')}
+              />
+            </div>
+          )}
+
+          <div className={activeMainView === 'knowledge' ? 'hidden' : 'contents'}>
+            <MenuBar />
+          </div>
 
 
 
@@ -6450,6 +6855,193 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           links: false
                         }}
                       />
+
+                      {/* 🤖 에디터 하단 스크롤 좌측 2줄 AI 버튼 (익명/별명 AI & 모델 선택 - AI 연동 시에만 노출) */}
+                      {isAiButtonVisible && Boolean(geminiApiKey) && (
+                        <div 
+                          ref={bottomAiDropdownRef}
+                          className="absolute bottom-3 right-6 z-20 flex flex-col items-end select-none pointer-events-auto"
+                        >
+                          {/* 상향 팝오버 드롭다운: AI 모델 선택 목록 (AI 연동 시에만 활성화) */}
+                          {isBottomAiDropdownOpen && geminiApiKey && (
+                            <div className="mb-2 w-60 bg-white dark:bg-zinc-900 border border-black/10 dark:border-white/10 rounded-xl shadow-2xl p-1.5 z-30 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-md">
+                              <div className="px-2 py-1 text-[11px] font-bold text-zinc-500 dark:text-zinc-400 border-b border-black/5 dark:border-white/5 mb-1 flex items-center justify-between">
+                                <span>AI 모델 선택</span>
+                                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">Gemini / Gemma</span>
+                              </div>
+                              <div className="max-h-56 overflow-y-auto space-y-0.5">
+                                {[
+                                  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', desc: '최신 플래그십 / 초고속', badge: '최신' },
+                                  { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', desc: '차세대 고성능 모델', badge: '추천' },
+                                  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: '고성능 안정화 모델' },
+                                  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', desc: '지능형 균형 모델' },
+                                  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', desc: '초경량 초고속 응답' },
+                                  { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT', desc: '확장 오픈 모델' },
+                                  { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B', desc: '경량 오픈 모델' }
+                                ].map((m) => {
+                                  const isSelected = (aiModelName || 'gemini-3.8-flash') === m.id;
+                                  return (
+                                    <button
+                                      key={m.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setAiModelName?.(m.id);
+                                        try {
+                                          localStorage.setItem('onrivi_ai_model_name', m.id);
+                                          const raw = localStorage.getItem('onrivi_settings');
+                                          if (raw) {
+                                            const parsed = JSON.parse(raw);
+                                            parsed.aiModelName = m.id;
+                                            localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
+                                          }
+                                        } catch {}
+                                        setIsBottomAiDropdownOpen(false);
+                                        showToast?.(`AI 모델이 ${m.name}(으)로 전환되었습니다.`, 'success');
+                                      }}
+                                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-bold'
+                                          : 'hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300'
+                                      }`}
+                                    >
+                                      <div className="truncate">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-semibold">{m.name}</span>
+                                          {m.badge && (
+                                            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-300 font-bold">
+                                              {m.badge}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-normal">{m.desc}</div>
+                                      </div>
+                                      {isSelected && <Check size={14} className="text-purple-600 dark:text-purple-400 shrink-0 stroke-[2.5]" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 2줄 AI 플로팅 버튼 캡슐 */}
+                          <div className={`flex flex-col items-stretch rounded-xl border p-0.5 transition-all duration-200 ${
+                            geminiApiKey
+                              ? 'bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#A855F7] hover:from-[#4F46E5] hover:via-[#7C3AED] hover:to-[#9333EA] text-white shadow-lg shadow-purple-500/25 border-white/25'
+                              : 'bg-slate-200/90 dark:bg-zinc-800/90 text-slate-500 dark:text-zinc-400 border-slate-300/80 dark:border-zinc-700 shadow-none opacity-60'
+                          }`}>
+                            {/* 1행: 익명 AI 또는 {userNickname} AI */}
+                            <button
+                              type="button"
+                              disabled={!geminiApiKey}
+                              onClick={() => {
+                                if (!geminiApiKey) {
+                                  showToast("AI 연동이 해제된 상태입니다. 환경설정에서 Gemini API Key를 등록해주세요.", "warning");
+                                  setSettingsModalInitialTab?.('general');
+                                  setIsSettingsModalOpen(true);
+                                  return;
+                                }
+                                const editor = editorRef.current;
+                                const selection = editor ? editor.getSelection() : null;
+                                const model = editor ? editor.getModel() : null;
+                                let selectedText = '';
+                                let fullText = '';
+                                if (editor && model) {
+                                  fullText = model.getValue();
+                                  if (selection && !selection.isEmpty()) {
+                                    selectedText = model.getValueInRange(selection);
+                                  }
+                                }
+                                setAiEditorContext({ selectedText, fullText });
+                                setAiDraftInitialMode(selectedText ? 'editorial' : 'draft');
+                                setIsAIDraftModalOpen(true);
+                              }}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-[10px] transition-all ${
+                                geminiApiKey
+                                  ? 'hover:bg-white/10 active:scale-98 cursor-pointer'
+                                  : 'cursor-not-allowed opacity-75'
+                              }`}
+                              title={
+                                geminiApiKey
+                                  ? `${userNickname || '익명'} AI 어시스턴트 열기`
+                                  : 'AI 연동 해제됨 (환경설정에서 API 키 등록 필요)'
+                              }
+                            >
+                              <span className="relative flex h-2 w-2 shrink-0">
+                                {geminiApiKey ? (
+                                  <>
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                                  </>
+                                ) : (
+                                  <span className="inline-flex rounded-full h-2 w-2 bg-slate-400 dark:bg-zinc-500" />
+                                )}
+                              </span>
+                              <img 
+                                src="/icon.png" 
+                                alt="Onrivi" 
+                                className={`w-3.5 h-3.5 object-contain rounded-xs drop-shadow-xs select-none shrink-0 ${
+                                  geminiApiKey ? '' : 'grayscale opacity-50'
+                                }`} 
+                              />
+                              <span className="text-[11px] font-extrabold tracking-tight whitespace-nowrap">
+                                {geminiApiKey
+                                  ? (userNickname ? `${userNickname} AI` : '익명 AI')
+                                  : (userNickname ? `${userNickname} AI (해제됨)` : 'AI 연동 해제됨')
+                                }
+                              </span>
+                            </button>
+
+                            {/* 가로 구분선 */}
+                            <div className={`h-px w-full ${geminiApiKey ? 'bg-white/20' : 'bg-slate-300 dark:bg-zinc-700'}`} />
+
+                            {/* 2행: 모델 선택 */}
+                            {(() => {
+                              const AI_AVAILABLE_MODELS = [
+                                { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
+                                { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
+                                { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash' },
+                                { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash' },
+                                { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
+                                { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT' },
+                                { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B' }
+                              ];
+                              const currentModelObj = AI_AVAILABLE_MODELS.find(m => m.id === aiModelName);
+                              const displayModelFullName = currentModelObj ? currentModelObj.name : (aiModelName || 'Gemini 3.8 Flash');
+
+                              return (
+                                <button
+                                  type="button"
+                                  disabled={!geminiApiKey}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!geminiApiKey) {
+                                      showToast("AI 연동이 해제된 상태입니다. 환경설정에서 Gemini API Key를 등록해주세요.", "warning");
+                                      return;
+                                    }
+                                    setIsBottomAiDropdownOpen(!isBottomAiDropdownOpen);
+                                  }}
+                                  className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-b-[10px] transition-all text-[11px] font-semibold ${
+                                    geminiApiKey
+                                      ? 'hover:bg-white/10 active:scale-98 cursor-pointer'
+                                      : 'cursor-not-allowed opacity-60'
+                                  }`}
+                                  title={
+                                    geminiApiKey
+                                      ? "클릭하여 AI 모델 변경"
+                                      : "AI 연동 해제 상태 (모델 선택 불가)"
+                                  }
+                                >
+                                  <span className={`whitespace-nowrap tracking-tight ${geminiApiKey ? 'text-violet-100' : 'text-slate-400 dark:text-zinc-500'}`}>
+                                    {geminiApiKey ? displayModelFullName : '연동 해제됨'}
+                                  </span>
+                                  <ChevronDown size={12} className={`shrink-0 ${geminiApiKey ? 'text-violet-200' : 'text-slate-400 dark:text-zinc-600'} transition-transform duration-200 ${isBottomAiDropdownOpen ? 'rotate-180' : ''}`} />
+                                </button>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
                       {floatingToolbar.visible && (() => {
                         const editorDom = editorRef.current?.getContainerDomNode();
                         let fixedTop = floatingToolbar.top;
@@ -6534,26 +7126,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                               return (
                                 <div className="flex flex-row items-center gap-3 min-w-max">
-                                  {/* AI 단독 아이콘 */}
-                                  <div className="flex items-center">
-                                    <button
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        dispatchCommand('OPEN_AI_WRITER' as any);
-                                        setFloatingToolbar(prev => ({ ...prev, visible: false }));
-                                      }}
-                                      className={`w-7 h-7 rounded-lg transition-all flex items-center justify-center shrink-0 ${geminiApiKey
-                                        ? 'hover:bg-purple-500/10 text-purple-600 dark:text-purple-400'
-                                        : 'hover:bg-black/5 dark:hover:bg-white/5 text-slate-400 dark:text-zinc-500'
-                                        }`}
-                                      title={geminiApiKey ? "AI 글쓰기 어시스턴트" : "AI 글쓰기 (설정에서 API 키를 등록해 주세요)"}
-                                    >
-                                      <Sparkles size={14} className={geminiApiKey ? "animate-pulse" : ""} />
-                                    </button>
-
-                                  </div>
-                                  <div className="w-px h-5 bg-black/10 dark:bg-white/10 shrink-0" />
-
                                   {/* 서식 */}
                                   <div className="flex flex-row items-center gap-0.5">
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('BOLD'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-black" title="굵게">B</button>
@@ -6687,10 +7259,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     문서 목록 로딩 중...
                                   </div>
                                 ) : (() => {
+                                  const registeredDocs = (() => {
+                                    try {
+                                      return JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
+                                    } catch { return []; }
+                                  })();
+
                                   const filtered = allMdFiles.filter(f =>
                                     f.name.toLowerCase().includes(docLinkSearchText.toLowerCase()) ||
                                     (f.path && f.path.toLowerCase().includes(docLinkSearchText.toLowerCase()))
-                                  );
+                                  ).sort((a, b) => {
+                                    const aKnow = registeredDocs.includes(a.path) || registeredDocs.includes(a.name);
+                                    const bKnow = registeredDocs.includes(b.path) || registeredDocs.includes(b.name);
+                                    if (aKnow && !bKnow) return -1;
+                                    if (!aKnow && bKnow) return 1;
+                                    return a.name.localeCompare(b.name);
+                                  });
+
                                   if (filtered.length === 0) {
                                     return (
                                       <div className="px-2 py-3 text-center text-[12px] text-slate-400 dark:text-zinc-500">
@@ -6698,20 +7283,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       </div>
                                     );
                                   }
-                                  return filtered.map((node) => (
-                                    <button
-                                      key={node.path}
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        handleDocFileClick(node);
-                                      }}
-                                      title={node.path || node.name}
-                                      className="w-full text-left px-2.5 py-2 text-[12.5px] hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-lg flex flex-col transition-colors mb-1 cursor-pointer"
-                                    >
-                                      <span className="font-semibold text-slate-800 dark:text-zinc-100 break-all whitespace-normal leading-snug">{node.name}</span>
-                                      <span className="text-[10.5px] text-slate-400 dark:text-zinc-400 break-all whitespace-normal leading-tight mt-0.5">{node.path}</span>
-                                    </button>
-                                  ));
+                                  return filtered.map((node) => {
+                                    const isKnowledge = registeredDocs.includes(node.path) || registeredDocs.includes(node.name);
+                                    return (
+                                      <button
+                                        key={node.path}
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          handleDocFileClick(node);
+                                        }}
+                                        title={node.path || node.name}
+                                        className={`w-full text-left px-2.5 py-2 text-[12.5px] rounded-lg flex flex-col transition-colors mb-1 cursor-pointer ${
+                                          isKnowledge
+                                            ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 dark:border-emerald-500/30'
+                                            : 'hover:bg-slate-100 dark:hover:bg-zinc-700'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between gap-1.5">
+                                          <span className="font-semibold text-slate-800 dark:text-zinc-100 break-all whitespace-normal leading-snug">
+                                            {node.name}
+                                          </span>
+                                          {isKnowledge && (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-[#06C755] text-white font-bold shrink-0">
+                                              📗 지식 문서
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span className="text-[10.5px] text-slate-400 dark:text-zinc-400 break-all whitespace-normal leading-tight mt-0.5">{node.path}</span>
+                                      </button>
+                                    );
+                                  });
                                 })()}
                               </div>
                             </>
@@ -6806,8 +7407,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         ref={previewRef}
                         className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container onrivi-preview-container text-on-surface ${
                           previewMode === 'preview'
-                            ? 'bg-surface-container-high p-4 pb-28 overflow-y-auto'
-                            : 'bg-surface-container-low px-2 sm:px-4 pt-1 pb-28 overflow-y-auto overflow-x-hidden'
+                            ? 'bg-surface-container-high p-4 pb-48 overflow-y-auto'
+                            : 'bg-surface-container-low px-2 sm:px-4 pt-1 pb-48 overflow-y-auto overflow-x-hidden'
                         } ${previewMode === 'both' ? 'no-scrollbar' : ''}`}
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
@@ -7145,158 +7746,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               vfsCreateFolder,
               helpTitle, helpContent, setHelpContent,
               resourceFolder, resourceFolderRef, resourceFolderHandle, selectResourceFolder, clearResourceFolder,
-              userNickname, setUserNickname
+              userNickname, setUserNickname,
+              updateContent
             }}
           />
 
 
 
-          {/* 🔮 AI 인라인 프리뷰 카드 (수락/취소 안전장치) */}
-          {aiPreviewState.isOpen && (() => {
-            const handleApplyInsert = () => {
-              const editor = editorRef.current;
-              if (!editor || !aiPreviewState.originalRange) return;
-              const monaco = (window as any).monaco;
 
-              editor.executeEdits("AI_INSERT", [{
-                range: aiPreviewState.originalRange,
-                text: aiPreviewState.streamingText,
-                forceMoveMarkers: true
-              }]);
-
-              // 바뀐 곳으로 스크롤 고정 및 하이라이트
-              const lines = aiPreviewState.streamingText.split('\n');
-              const startLine = aiPreviewState.originalRange.startLineNumber;
-              const startCol = aiPreviewState.originalRange.startColumn;
-              const endLine = startLine + lines.length - 1;
-              const endCol = lines.length === 1 ? startCol + aiPreviewState.streamingText.length : lines[lines.length - 1].length + 1;
-              const newRange = new monaco.Range(startLine, startCol, endLine, endCol);
-
-              editor.setSelection(newRange);
-              editor.revealRangeInCenter(newRange, 1);
-
-              const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
-              aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
-              setTimeout(() => {
-                if (editorRef.current) aiDecorationsRef.current = editorRef.current.deltaDecorations(aiDecorationsRef.current, []);
-              }, 1500);
-
-              setAiPreviewState(prev => ({ ...prev, isOpen: false }));
-              showToast("문장이 본문에 성공적으로 적용되었습니다. (Ctrl+Z 실행취소 가능)", 'success');
-            };
-
-            const handleApplyAppend = () => {
-              const editor = editorRef.current;
-              const model = editor?.getModel();
-              if (!editor || !model || !aiPreviewState.originalRange) return;
-              const monaco = (window as any).monaco;
-
-              const endLine = aiPreviewState.originalRange.endLineNumber;
-              const endCol = model.getLineMaxColumn(endLine);
-              const insertRange = new monaco.Range(endLine, endCol, endLine, endCol);
-
-              let formattedText = '';
-              if (aiPreviewState.action === 'summarize') {
-                formattedText = `\n\n> 📝 **AI 요약**:\n> ` + aiPreviewState.streamingText.replace(/\r?\n/g, '\n> ') + `\n`;
-              } else {
-                formattedText = `\n\n> ✨ **AI 가공 결과**:\n> ` + aiPreviewState.streamingText.replace(/\r?\n/g, '\n> ') + `\n`;
-              }
-
-              editor.executeEdits("AI_APPEND", [{
-                range: insertRange,
-                text: formattedText,
-                forceMoveMarkers: true
-              }]);
-
-              // 새로 추가된 위치 계산 및 포커싱/하이라이트
-              const lines = formattedText.split('\n');
-              const startLine = endLine;
-              const startCol = endCol;
-              const endLineNum = startLine + lines.length - 1;
-              const endColNum = lines.length === 1 ? startCol + formattedText.length : lines[lines.length - 1].length + 1;
-              const newRange = new monaco.Range(startLine, startCol, endLineNum, endColNum);
-
-              editor.setSelection(newRange);
-              editor.revealRangeInCenter(newRange, 1);
-
-              const newDeco = [{ range: newRange, options: { className: 'ai-changed-highlight', isWholeLine: false } }];
-              aiDecorationsRef.current = editor.deltaDecorations(aiDecorationsRef.current, newDeco);
-              setTimeout(() => {
-                if (editorRef.current) aiDecorationsRef.current = editorRef.current.deltaDecorations(aiDecorationsRef.current, []);
-              }, 1500);
-
-              setAiPreviewState(prev => ({ ...prev, isOpen: false }));
-              showToast("결과물이 아랫줄에 덧붙여졌습니다. (Ctrl+Z 실행취소 가능)", 'success');
-            };
-
-            const handleCancel = () => {
-              generationIdRef.current++;
-              setAiPreviewState(prev => ({ ...prev, isOpen: false }));
-              showToast("AI 결과가 취소되었습니다.", 'info');
-            };
-
-            return (
-              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] w-[90%] max-w-xl bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl border border-purple-500/20 p-4 flex flex-col gap-3 animate-in slide-in-from-bottom-5 duration-300">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-purple-500 animate-pulse" />
-                    <span className="text-sm font-extrabold text-purple-600 dark:text-purple-400">
-                      AI 가공 결과 프리뷰 ({aiPreviewState.action.toUpperCase()})
-                    </span>
-                  </div>
-                  {!aiPreviewState.isFinished && (
-                    <span className="text-[11px] font-bold text-purple-500/80 animate-pulse bg-purple-500/10 px-2 py-0.5 rounded-full">
-                      글자 생성 중...
-                    </span>
-                  )}
-                </div>
-
-                <div
-                  className="text-xs font-mono p-3 rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950/80 text-slate-800 dark:text-zinc-200 overflow-y-auto whitespace-pre-wrap select-text cursor-text min-h-[80px]"
-                  style={{ maxHeight: '180px' }}
-                >
-                  {aiPreviewState.streamingText ? (
-                    <span className="w-full text-left">{aiPreviewState.streamingText}</span>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 py-4 select-none">
-                      <Loader2 className="animate-spin text-purple-500" size={20} />
-                      <span className="text-slate-500 dark:text-zinc-400 italic text-[11px] font-bold animate-pulse">
-                        AI가 최적의 문장 구조를 가공하는 중입니다...
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-medium">
-                    Ctrl+Z로 본문 치환 후 즉시 원복할 수 있습니다.
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={handleCancel}
-                      className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 transition-colors"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={handleApplyAppend}
-                      disabled={!aiPreviewState.streamingText}
-                      className="px-3 py-1.5 text-xs font-bold rounded-lg border border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/15 text-purple-600 dark:text-purple-400 disabled:opacity-40 transition-colors"
-                    >
-                      아래에 추가
-                    </button>
-                    <button
-                      onClick={handleApplyInsert}
-                      disabled={!aiPreviewState.streamingText}
-                      className="px-4 py-1.5 text-xs font-bold rounded-lg text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-40 transition-opacity"
-                    >
-                      본문에 적용
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
 
           {/* 🎙️ 모바일 플로팅 음성 비서 (STT) */}
           {mounted && isMobile && (() => {
@@ -7339,51 +7796,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                 showToast(`음성 감지: "${transcript}"`, 'success');
 
-                // 음성을 AI 다듬기(POLISH)로 가공하여 에디터에 주입
-                if (!geminiApiKey) {
-                  // API Key가 없으면 원본 음성 텍스트라도 본문에 직접 삽입
-                  insertAtCursor(transcript);
-                  showToast("API 키가 설정되어 있지 않아 원본 음성을 그대로 입력했습니다.", 'info');
-                  return;
-                }
-
-                // 가짜 렌더링 범위 생성 후 AI 스트리밍 구동
-                const editor = editorRef.current;
-                if (!editor) return;
-                const model = editor.getModel();
-                if (!model) return;
-                const pos = editor.getPosition() || { lineNumber: 1, column: 1 };
-                const dummyRange = new ((window as any).monaco).Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
-
-                const currentGenId = ++generationIdRef.current;
-
-                setAiPreviewState({
-                  isOpen: true,
-                  originalRange: dummyRange,
-                  streamingText: '',
-                  action: 'polish',
-                  originalText: transcript,
-                  isFinished: false
-                });
-
-                try {
-                  await processTextWithAIStream(
-                    geminiApiKey,
-                    aiModelName,
-                    `이 구어체 음성을 깔끔하고 정갈한 공지글 또는 설명글 템플릿으로 가공해줘: "${transcript}"`,
-                    'polish',
-                    (chunkText) => {
-                      if (currentGenId !== generationIdRef.current) return;
-                      setAiPreviewState(prev => ({ ...prev, streamingText: chunkText }));
-                    }
-                  );
-                  if (currentGenId !== generationIdRef.current) return;
-                  setAiPreviewState(prev => ({ ...prev, isFinished: true }));
-                } catch (err: any) {
-                  if (currentGenId !== generationIdRef.current) return;
-                  showToast("음성 가공 요청 실패", 'error');
-                  setAiPreviewState(prev => ({ ...prev, isOpen: false }));
-                }
+                // 음성 인식 텍스트를 에디터 커서 위치에 바로 삽입
+                insertAtCursor(transcript);
+                showToast("음성 텍스트가 본문에 입력되었습니다.", 'info');
               };
 
               recognition.start();

@@ -2,7 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
-// 🚨 @PATCH : **2026-08-26** — 소스맵(.js.map) 등 없는 정적 자산 파일 요청 시 ENOENT 콘솔 트레이스 에러 노이즈를 방지하기 위해, app 프로토콜 핸들러 내에 fs.existsSync 예외 가드 추가 및 404 리턴 처리 | **2026-06-28** — 데스크톱 앱 내에서 에디터 외 일반 웹 경로(대시보드, 랜딩 등) 클릭 시 기존 에디터 화면을 덮어쓰지 않고 기본 웹 브라우저 새창으로 띄워 안전하게 분리하도록 내비게이션 라우팅 제어 패치; 데스크톱 패키징/실행 시 실서버 대신 100% 로컬 독립 서빙을 실현하기 위해 `file://` 프로토콜 기반의 빌드 아웃풋 파일(`frontend/out/editor.html`)을 불러오도록 로드 방식을 변경하는 패치; Monaco Editor 로더 CDN CSP 차단 문제 해결; Next.js 정적 빌드 시 `public/` 폴더 내용이 `out/` 폴더로 자동 복사되는 구조를 반영하여 `file:readFromPath` 핸들러 탐색 경로에 `frontend/out`을 최우선으로 추가 — 이로써 설치판에서 도움말(`help/00_시작하기.md`) 파일을 정상적으로 읽어오지 못하던 버그 수정
+// 🚨 @PATCH : **2026-09-05** — 데스크톱 앱 내비게이션/새창 분기 가드 보강: SaaS 웹 전용 경로(/login, /dashboard, /signup, /pricing 등) 진입 시 Electron 윈도우 내부 로드 차단 및 외부 기본 브라우저 강제 오픈 처리, app:// 커스텀 프로토콜 핸들러 내 /login 및 /dashboard 방어 라우트 추가로 404 에러 원천 차단 | **2026-08-26** — 소스맵(.js.map) 등 없는 정적 자산 파일 요청 시 ENOENT 콘솔 트레이스 에러 노이즈를 방지하기 위해, app 프로토콜 핸들러 내에 fs.existsSync 예외 가드 추가 및 404 리턴 처리 | **2026-06-28** — 데스크톱 앱 내에서 에디터 외 일반 웹 경로(대시보드, 랜딩 등) 클릭 시 기존 에디터 화면을 덮어쓰지 않고 기본 웹 브라우저 새창으로 띄워 안전하게 분리하도록 내비게이션 라우팅 제어 패치; 데스크톱 패키징/실행 시 실서버 대신 100% 로컬 독립 서빙을 실현하기 위해 `file://` 프로토콜 기반의 빌드 아웃풋 파일(`frontend/out/editor.html`)을 불러오도록 로드 방식을 변경하는 패치; Monaco Editor 로더 CDN CSP 차단 문제 해결; Next.js 정적 빌드 시 `public/` 폴더 내용이 `out/` 폴더로 자동 복사되는 구조를 반영하여 `file:readFromPath` 핸들러 탐색 경로에 `frontend/out`을 최우선으로 추가 — 이로써 설치판에서 도움말(`help/00_시작하기.md`) 파일을 정상적으로 읽어오지 못하던 버그 수정
 //             **2026-06-19** — PNG 및 EPUB 내보내기 시 외부 이미지/웹폰트 fetch CSP 차단 버그를 해결하기 위해 connect-src에 http: https: 추가 허용; Node.js net 모듈과 Electron net 모듈 충돌로 인한 net.fetch TypeError 해결 | **2026-06-20** — 딥링크(onriviauthor://activate) 파라미터 파싱 로직 보완하여 licenseKey와 paymentNo를 함께 추출 및 license.json 저장
 // 🔗 @CALLS : loadURL, onrivi.com
 // ====================================================================
@@ -217,9 +217,24 @@ function createWindow(port) {
 
   // 🌐 [ 외부 링크 및 일반 웹 페이지 클릭 시 기본 웹 브라우저 새창으로 오픈하는 설정 ]
   // 1) target="_blank" 등으로 새 창을 띄우려는 시도를 가로채 시스템 브라우저/플레이어로 실행
+  const isInternalUrl = (urlStr) => {
+    try {
+      const parsed = new URL(urlStr);
+      const pathname = parsed.pathname.toLowerCase();
+      // login, dashboard, signup, pricing, forgot-password 등 SaaS 웹 전용 경로는 일렉트론 내부 서빙 대상이 아님
+      if (pathname.includes('/login') || pathname.includes('/dashboard') || pathname.includes('/signup') || pathname.includes('/pricing') || pathname.includes('/forgot-password') || pathname.includes('/reset-password')) {
+        return false;
+      }
+      return urlStr.startsWith('file://') || 
+             urlStr.startsWith('app://') || 
+             pathname.includes('/editor') || 
+             pathname.includes('/auth/callback');
+    } catch {
+      return false;
+    }
+  };
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // 로컬 환경(file:// 또는 app://) 혹은 에디터 단독 화면(/editor) 및 OAuth 콜백(/auth/callback)만 일렉트론 내부 서빙을 허용합니다.
-    const isInternalRoute = url.startsWith('file://') || url.startsWith('app://') || url.includes('/editor') || url.includes('/auth/callback');
     const { shell } = require('electron');
 
     if (url.startsWith('media://local/serve')) {
@@ -231,24 +246,33 @@ function createWindow(port) {
       return { action: 'deny' };
     }
 
-    if (!isInternalRoute && (url.startsWith('http:') || url.startsWith('https:'))) {
-      shell.openExternal(url);
+    const isInternal = isInternalUrl(url);
+    if (!isInternal) {
+      if (url.startsWith('app://')) {
+        const parsed = new URL(url);
+        shell.openExternal(`https://onrivi.com${parsed.pathname}${parsed.search}`);
+      } else if (url.startsWith('http:') || url.startsWith('https:')) {
+        shell.openExternal(url);
+      }
     }
     return { action: 'deny' }; // 일렉트론 내부에서 새 창이 뜨는 것은 원천 차단
   });
 
-  // 2) 내비게이션 인터셉터: 대시보드, 랜딩 등 에디터 외 경로 클릭 시 외부 웹 브라우저 새창으로 강제 튕김 우회
+  // 2) 내비게이션 인터셉터: 대시보드, 랜딩, 로그인 등 에디터 외 경로 클릭 시 외부 웹 브라우저 새창으로 강제 튕김 우회
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const isInternalRoute = url.startsWith('file://') || url.startsWith('app://') || url.includes('/editor') || url.includes('/auth/callback');
+    const isInternal = isInternalUrl(url);
 
-    if (isInternalRoute) {
+    if (isInternal) {
       return; // 내부 서빙 허용
     }
     
-    // 에디터 화면 외(대시보드, 랜딩, 요금제 등)의 웹 주소로의 창 이동은 가로채 시스템 기본 브라우저로 띄웁니다.
+    // 에디터 화면 외(로그인, 대시보드, 랜딩, 요금제 등)의 웹 주소로의 창 이동은 가로채 시스템 기본 브라우저로 띄웁니다.
     event.preventDefault();
-    if (url.startsWith('http:') || url.startsWith('https:')) {
-      const { shell } = require('electron');
+    const { shell } = require('electron');
+    if (url.startsWith('app://')) {
+      const parsed = new URL(url);
+      shell.openExternal(`https://onrivi.com${parsed.pathname}${parsed.search}`);
+    } else if (url.startsWith('http:') || url.startsWith('https:')) {
       shell.openExternal(url);
     }
   });
@@ -299,7 +323,22 @@ app.on('ready', async () => {
       let pathname = decodeURIComponent(url.pathname);
       if (pathname === '/' || pathname === '') pathname = '/editor.html';
       else if (pathname === '/editor') pathname = '/editor.html';
-      else if (pathname === '/dashboard') pathname = '/dashboard.html';
+      
+      // 🚨 @PATCH : 데스크톱 앱 내에서 /login 또는 /dashboard 등 SaaS 웹 경로로 직접 접근 시 404 방지 및 외부 브라우저 오픈
+      if (pathname === '/login' || pathname === 'login') {
+        const { shell } = require('electron');
+        shell.openExternal(`https://onrivi.com/login${url.search}`);
+        return new Response('<script>location.href="app://-/editor.html?env=desktop";</script>', {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        });
+      }
+      if (pathname === '/dashboard' || pathname === 'dashboard') {
+        const { shell } = require('electron');
+        shell.openExternal(`https://onrivi.com/dashboard${url.search}`);
+        return new Response('<script>location.href="app://-/editor.html?env=desktop";</script>', {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        });
+      }
       
       pathname = pathname.replace(/^\//, '');  // path.join이 앞 경로를 먹는 버그 방지
       
@@ -1510,6 +1549,164 @@ ipcMain.handle('file:saveProfiles', async (event, profiles, resourceFolder) => {
   } catch (error) {
     console.error('Failed to save profiles:', error);
     return { success: false, error: error.message };
+  }
+});
+
+// ──────────────────────────────────────────────
+// 리소스 폴더 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 핸들러
+// ──────────────────────────────────────────────
+ipcMain.handle('resourceFolder:initStructure', async (event, resourceFolder) => {
+  try {
+    if (!resourceFolder || !fs.existsSync(resourceFolder)) {
+      return { success: false, error: 'FOLDER_NOT_FOUND' };
+    }
+
+    // 1. 5대 하위 디렉토리 생성
+    const subDirs = ['profiles', 'prompt', 'bible', 'media', 'db'];
+    for (const dir of subDirs) {
+      const dirPath = path.join(resourceFolder, dir);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+    }
+
+    // 2. 기본 파일 생성 (기존 파일 보존)
+    const profilesFile = path.join(resourceFolder, 'profiles', 'userCssProfiles.json');
+    if (!fs.existsSync(profilesFile)) {
+      fs.writeFileSync(profilesFile, '[]', 'utf-8');
+    }
+
+    const promptDir = path.join(resourceFolder, 'prompt');
+    const aiPromptsFile = path.join(promptDir, 'ai_prompts.json');
+    if (!fs.existsSync(aiPromptsFile)) {
+      fs.writeFileSync(aiPromptsFile, '{}', 'utf-8');
+    }
+    const aiPresetsFile = path.join(promptDir, 'ai_presets.json');
+    if (!fs.existsSync(aiPresetsFile)) {
+      fs.writeFileSync(aiPresetsFile, '[]', 'utf-8');
+    }
+    const templatesFile = path.join(promptDir, 'promptTemplates.json');
+    if (!fs.existsSync(templatesFile)) {
+      fs.writeFileSync(templatesFile, '[]', 'utf-8');
+    }
+
+    const bibFile = path.join(resourceFolder, 'bible', 'references.bib');
+    if (!fs.existsSync(bibFile)) {
+      fs.writeFileSync(bibFile, '', 'utf-8');
+    }
+
+    // 3. db/onrivi_knowledge.db 생성 (★ 이미 존재하면 일체 손대지 않고 기존 데이터 100% 보존!)
+    const dbPath = path.join(resourceFolder, 'db', 'onrivi_knowledge.db');
+    if (!fs.existsSync(dbPath)) {
+      try {
+        let sqlite = null;
+        try {
+          const proc = globalThis.process;
+          if (proc && typeof proc.getBuiltinModule === 'function') {
+            sqlite = proc.getBuiltinModule('node:sqlite');
+          }
+        } catch (e) {}
+
+        if (sqlite && sqlite.DatabaseSync) {
+          const db = new sqlite.DatabaseSync(dbPath);
+          db.exec('PRAGMA journal_mode = WAL;');
+          db.exec('PRAGMA foreign_keys = ON;');
+          db.exec(`
+            CREATE TABLE IF NOT EXISTS knowledge_collections (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              description TEXT,
+              color TEXT DEFAULT '#06C755',
+              icon TEXT DEFAULT 'folder',
+              created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+            );
+
+            CREATE TABLE IF NOT EXISTS knowledge_documents (
+              id TEXT PRIMARY KEY,
+              collection_id TEXT,
+              file_path TEXT NOT NULL UNIQUE,
+              title TEXT NOT NULL,
+              file_hash TEXT NOT NULL,
+              file_size INTEGER NOT NULL DEFAULT 0,
+              modified_at TEXT NOT NULL,
+              summary TEXT,
+              key_points TEXT,
+              document_type TEXT DEFAULT 'other',
+              priority INTEGER DEFAULT 3,
+              status TEXT NOT NULL DEFAULT 'READY',
+              error_message TEXT,
+              analysis_version INTEGER DEFAULT 1,
+              analyzer_model TEXT,
+              analyzed_at TEXT,
+              indexed_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+              FOREIGN KEY (collection_id) REFERENCES knowledge_collections(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS document_chunks (
+              id TEXT PRIMARY KEY,
+              document_id TEXT NOT NULL,
+              heading_title TEXT NOT NULL,
+              heading_path TEXT NOT NULL,
+              heading_level INTEGER NOT NULL,
+              chunk_index INTEGER NOT NULL,
+              content TEXT NOT NULL,
+              token_count INTEGER NOT NULL DEFAULT 0,
+              char_count INTEGER NOT NULL DEFAULT 0,
+              start_line INTEGER NOT NULL DEFAULT 1,
+              end_line INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+              FOREIGN KEY (document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+            );
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts USING fts5(
+              chunk_id UNINDEXED,
+              document_id UNINDEXED,
+              heading_path,
+              content,
+              tokenize = 'unicode61'
+            );
+
+            CREATE TABLE IF NOT EXISTS document_tags (
+              id TEXT PRIMARY KEY,
+              document_id TEXT NOT NULL,
+              tag_name TEXT NOT NULL,
+              score REAL DEFAULT 1.0,
+              source TEXT DEFAULT 'auto',
+              created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+              FOREIGN KEY (document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS knowledge_jobs (
+              id TEXT PRIMARY KEY,
+              job_type TEXT NOT NULL,
+              file_path TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'PENDING',
+              error_message TEXT,
+              retry_count INTEGER DEFAULT 0,
+              created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+              finished_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_docs_hash ON knowledge_documents(file_hash);
+            CREATE INDEX IF NOT EXISTS idx_docs_status ON knowledge_documents(status);
+            CREATE INDEX IF NOT EXISTS idx_chunks_doc_id ON document_chunks(document_id);
+            CREATE INDEX IF NOT EXISTS idx_tags_doc_id ON document_tags(document_id);
+            CREATE INDEX IF NOT EXISTS idx_tags_name ON document_tags(tag_name);
+          `);
+          db.close();
+        } else {
+          fs.writeFileSync(dbPath, '', 'utf-8');
+        }
+      } catch (dbErr) {
+        console.error('[resourceFolder:initStructure DB Init Error]:', dbErr);
+      }
+    }
+
+    return { success: true, path: resourceFolder };
+  } catch (err) {
+    console.error('[resourceFolder:initStructure Error]:', err);
+    return { success: false, error: err.message };
   }
 });
 

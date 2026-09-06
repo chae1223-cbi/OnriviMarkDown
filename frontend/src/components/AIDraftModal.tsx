@@ -6,7 +6,8 @@
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
  * 작성자 : 채병익
- * 🚨 @PATCH : **2026-09-03** — 기본 AI 모델을 최신 플래그십 최고 버전인 Gemini 3.8 Flash(gemini-3.8-flash)로 전면 갱신
+ * 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-EDITOR-001] 로컬 지식 보관함 검색 & 청크 첨부(KnowledgeAttachmentPalette) 연동, Auto-RAG 자동 참조 모드, 출처 각주(Citations) 자동 생성 및 LDSG v5.0 그린(#06C755) 디자인 토큰 일원화
+ *              **2026-09-03** — 기본 AI 모델을 최신 플래그십 최고 버전인 Gemini 3.8 Flash(gemini-3.8-flash)로 전면 갱신
  *              **2026-08-16** — useEffect 의존성 배열 누락 경고 해결: getPromptTemplates와 loadPresets useEffect에 resourceFolder, resourceFolderHandle 추가
  *              **2026-07-20** — AI 모달창의 '프리셋 불러오기' 및 '현재 설정 저장' 팝업 드롭다운이 외부 영역(outside) 클릭 시 자동으로 닫히도록 `useRef` 및 이벤트 리스너(handleClickOutside) 로직 추가 적용
  * -----------------------------------------------------------------------
@@ -14,11 +15,13 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Wand2, Loader2, Check, Save, FolderOpen, Trash2, Copy, Paperclip, Edit2, BookOpen, RotateCcw } from 'lucide-react';
+import { X, Sparkles, Wand2, Loader2, Check, Save, FolderOpen, Trash2, Copy, Paperclip, Edit2, BookOpen, RotateCcw, Database, ExternalLink } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 import { getPromptTemplates, savePromptTemplates, getPromptTemplate, PromptTemplate } from '@/lib/promptTemplates';
 import { generateDraftWithAIStream } from '@/lib/gemini';
 import AIPromptLibrary from './AIPromptLibrary';
+import { KnowledgeAttachmentPalette } from './knowledge/KnowledgeAttachmentPalette';
+import type { RetrievalCandidate } from '@/types/knowledge';
 
 interface AIDraftModalProps {
   onClose: () => void;
@@ -83,7 +86,6 @@ export default function AIDraftModal({
   // Editorial Command State
   const [editorialCommand, setEditorialCommand] = useState('');
   const [targetScope, setTargetScope] = useState<'selection' | 'document' | 'none'>('selection');
-  const [ignoreContext, setIgnoreContext] = useState(true);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -91,6 +93,12 @@ export default function AIDraftModal({
   const [generationComplete, setGenerationComplete] = useState(false);
   const [aiCopied, setAiCopied] = useState(false);
   
+  // 🧠 [ONRIVI-KNOWLEDGE-INTEGRATION] 로컬 지식 보관함 RAG 연동 상태
+  const [attachedKnowledgeChunks, setAttachedKnowledgeChunks] = useState<RetrievalCandidate[]>([]);
+  const [isAutoRagEnabled, setIsAutoRagEnabled] = useState(true);
+  const [includeCitations, setIncludeCitations] = useState(true);
+  const [citedSources, setCitedSources] = useState<RetrievalCandidate[]>([]);
+
   // File Attachment State
   const [attachedFileName, setAttachedFileName] = useState('');
   const [attachedFileContent, setAttachedFileContent] = useState('');
@@ -208,7 +216,7 @@ export default function AIDraftModal({
       const updatedPreset: AIPreset = {
         ...presets[existingIndex],
         editorialCommand,
-        targetScope: ignoreContext ? 'none' : targetScope,
+        targetScope,
         name: trimmedName,
         folder: trimmedFolder || undefined
       };
@@ -219,7 +227,7 @@ export default function AIDraftModal({
         id: Date.now().toString(),
         name: trimmedName,
         editorialCommand,
-        targetScope: ignoreContext ? 'none' : targetScope,
+        targetScope,
         folder: trimmedFolder || undefined
       };
       updated = [...presets, newPreset];
@@ -288,13 +296,7 @@ export default function AIDraftModal({
       setTargetScope('document');
     } else {
       setEditorialCommand(preset.editorialCommand || '');
-      if (preset.targetScope === 'none') {
-        setIgnoreContext(true);
-        setTargetScope('document');
-      } else {
-        setIgnoreContext(false);
-        setTargetScope(preset.targetScope || 'selection');
-      }
+      setTargetScope(preset.targetScope || 'selection');
     }
     setShowPresetDropdown(false);
     setShowLibrary(false);
@@ -432,12 +434,40 @@ export default function AIDraftModal({
       return;
     }
 
+    setIsGenerating(true);
+    setGenerationComplete(false);
+    setDraftResult('');
+
+    // 🧠 [ONRIVI-KNOWLEDGE-INTEGRATION] 지식 보관함 연동 및 Auto-RAG 처리
+    let activeKnowledge: RetrievalCandidate[] = [...attachedKnowledgeChunks];
+
+    // 수동 첨부 청크가 없는데 Auto-RAG가 켜져 있는 경우, 프롬프트 기반으로 지식 자동 검색 수행
+    if (activeKnowledge.length === 0 && isAutoRagEnabled && resourceFolder) {
+      try {
+        const searchRes = await fetch('/api/knowledge/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: editorialCommand.trim(),
+            resourceFolder,
+            limit: 6,
+          }),
+        });
+        const data = await searchRes.json();
+        if (data.ok && Array.isArray(data.candidates) && data.candidates.length > 0) {
+          activeKnowledge = data.candidates.slice(0, 4);
+        }
+      } catch (err) {
+        console.warn('[AIDraftModal] Auto-RAG 검색 폴백 실패:', err);
+      }
+    }
+
+    setCitedSources(activeKnowledge);
+
     let finalSystemPrompt = "You are a professional editorial assistant. Help the user edit or create document text based on their instructions. Return only the finalized text without markdown code blocks unless requested.";
     let finalUserPrompt = editorialCommand;
     
-    if (ignoreContext) {
-      // Do nothing, just pass the editorialCommand as the prompt
-    } else if (targetScope === 'selection' && editorContext?.selectedText) {
+    if (targetScope === 'selection' && editorContext?.selectedText) {
       finalUserPrompt = `${editorialCommand}\n\n[대상 영역 텍스트]\n${editorContext.selectedText}`;
     } else if (targetScope === 'document' && editorContext?.fullText) {
       finalSystemPrompt = "You are a professional editorial assistant. Your task is to write a COMPLETELY NEW document based on the user's command. The provided existing document is ONLY a reference for output formatting (layout, lists, tables), style, tone, and structural format (like heading levels). Do NOT summarize or edit the existing document. Create brand new content that matches the user's command, but strictly mimics the output format, layout, form, and feeling of the reference document. Return only the finalized text without markdown code blocks unless requested.";
@@ -448,9 +478,19 @@ export default function AIDraftModal({
       finalUserPrompt += `\n\n[첨부 문서 내용: ${attachedFileName}]\n${attachedFileContent}`;
     }
 
-    setIsGenerating(true);
-    setGenerationComplete(false);
-    setDraftResult('');
+    // 🧠 지식 청크 컨텍스트 주입
+    if (activeKnowledge.length > 0) {
+      const knowledgeContextBlocks = activeKnowledge.map((c, idx) => {
+        const title = c.documentTitle || c.headingTitle;
+        const path = c.headingPath || c.headingTitle;
+        const lineInfo = `L${c.startLine}~L${c.endLine}`;
+        const snippet = c.snippet || '';
+        return `[참고 지식 ${idx + 1}: ${title} (${c.filePath} ${lineInfo}) - ${path}]\n${snippet}`;
+      }).join('\n\n---\n\n');
+
+      finalUserPrompt += `\n\n[참고 지식 문서 컨텍스트 (Knowledge Base Evidence)]\n${knowledgeContextBlocks}`;
+      finalSystemPrompt += `\n\n당신에게 [참고 지식 문서 컨텍스트]가 제공된 경우, 해당 지식의 사실, 정책, 기술 규격 및 상세 정보를 신뢰할 수 있는 단일 진실 공급원(Single Source of Truth)으로 삼아 우선적으로 반영하여 작성하십시오. 지식에 부합하는 정확한 내용을 작성하되 불필요한 날조나 왜곡(Hallucination)을 피하십시오.`;
+    }
 
     try {
       await generateDraftWithAIStream(
@@ -463,7 +503,11 @@ export default function AIDraftModal({
         }
       );
       setGenerationComplete(true);
-      showToast('AI 글 생성이 완료되었습니다. 결과를 확인해주세요.', 'success');
+      if (activeKnowledge.length > 0) {
+        showToast(`AI 생성이 완료되었습니다. (지식 ${activeKnowledge.length}건 참조됨)`, 'success');
+      } else {
+        showToast('AI 글 생성이 완료되었습니다. 결과를 확인해주세요.', 'success');
+      }
     } catch (e: any) {
       showToast(`AI 생성 실패: ${e.message}`, 'error');
     } finally {
@@ -476,9 +520,10 @@ export default function AIDraftModal({
     setLoadedPresetName('');
     setLoadedPresetFolder('');
     setTargetScope('selection');
-    setIgnoreContext(true);
     setAttachedFileName('');
     setAttachedFileContent('');
+    setAttachedKnowledgeChunks([]);
+    setCitedSources([]);
     setDraftResult('');
     setGenerationComplete(false);
     setIsGenerating(false);
@@ -490,7 +535,20 @@ export default function AIDraftModal({
       showToast("생성된 결과가 없습니다.", "warning");
       return;
     }
-    onApply(draftResult, action, targetScope);
+
+    let finalOutput = draftResult;
+    if (includeCitations && citedSources.length > 0) {
+      const footnotes = citedSources.map((c) => {
+        const title = c.documentTitle || c.headingTitle;
+        const path = c.headingPath || c.headingTitle;
+        const fileUri = c.filePath.replace(/\\/g, '/');
+        const lineAnchor = `#L${c.startLine}-L${c.endLine}`;
+        return `> - [${title}](file:///${fileUri}${lineAnchor}) : \`${path}\``;
+      }).join('\n');
+      finalOutput += `\n\n---\n> 📚 **지식 보관함 참고 출처**:\n${footnotes}\n`;
+    }
+
+    onApply(finalOutput, action, targetScope);
   };
 
 
@@ -658,78 +716,67 @@ export default function AIDraftModal({
                   </div>
                 )}
 
-                {/* Editorial Mode Context Scope */}
+                {/* Editorial Prompt Input Area */}
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
-                      컨텍스트 범위 <span className="text-zinc-400 font-medium">(CONTEXT SCOPE)</span>
+                  <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shadow-2xs">
+                    <label className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#06C755]" />
+                      <span>어시스턴트에게 지시할 내용 (프롬프트)</span>
                     </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer group">
-                      <div className="relative flex items-center justify-center">
-                        <input 
-                          type="checkbox" 
-                          checked={ignoreContext}
-                          onChange={(e) => setIgnoreContext(e.target.checked)}
-                          className="peer sr-only" 
-                        />
-                        <div className="w-3.5 h-3.5 border-2 border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 peer-checked:bg-[#8b5cf6] peer-checked:border-[#8b5cf6] transition-colors flex items-center justify-center">
-                          <svg className="w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors">문서 적용 안함 (일반 질문)</span>
-                    </label>
+                    <span className="text-[10px] font-medium text-zinc-400">Ctrl + Enter 로 즉시 실행</span>
                   </div>
-                  <div className={`flex bg-white dark:bg-zinc-900 p-1.5 rounded-xl border-2 border-transparent shadow-sm gap-1 transition-opacity ${ignoreContext ? 'opacity-40 pointer-events-none' : ''}`}>
-                    <button
-                      onClick={() => setTargetScope('selection')}
-                      disabled={!editorContext?.selectedText}
-                      className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${
-                        targetScope === 'selection'
-                          ? 'bg-purple-100 dark:bg-purple-900/30 text-[#8b5cf6]'
-                          : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                      } disabled:opacity-40 disabled:cursor-not-allowed`}
-                      title={editorContext?.selectedText ? `선택된 본문 사용` : '에디터에서 텍스트를 드래그한 후 사용 가능'}
-                    >
-                      선택 영역
-                    </button>
-                    <button
-                      onClick={() => setTargetScope('document')}
-                      className={`flex-1 py-2 text-[12px] font-bold rounded-lg transition-all ${
-                        targetScope === 'document'
-                          ? 'bg-purple-100 dark:bg-purple-900/30 text-[#8b5cf6]'
-                          : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                      }`}
-                    >
-                      문서 전체
-                    </button>
-                  </div>
-                </div>
-
-                {/* Editorial Command */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
-                    에디토리얼 명령 <span className="text-zinc-400 font-medium">(EDITORIAL COMMAND)</span>
-                  </label>
                   <textarea
                     value={editorialCommand}
-                    onChange={(e) => setEditorialCommand(e.target.value)}
-                    disabled={isGenerating}
-                    placeholder="AI에게 요청할 지시문이나 작성할 내용을 자유롭게 입력하세요..."
-                    className="w-full bg-white dark:bg-zinc-900 border-2 border-[#e9d5ff] dark:border-[#8b5cf6]/30 focus:border-[#a855f7] rounded-2xl p-4 text-[13px] text-zinc-800 dark:text-zinc-100 focus:outline-none transition-colors shadow-sm resize-none min-h-[450px] disabled:opacity-50 custom-scrollbar leading-relaxed"
+                    onChange={e => setEditorialCommand(e.target.value)}
+                    placeholder="예: 위 글의 문체와 레이아웃을 그대로 유지하면서, 최신 클라우드 기술 트렌드를 소개하는 새로운 글을 작성해줘."
+                    className="flex-1 min-h-[160px] p-3.5 text-[13px] border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 outline-none focus:border-[#06C755] resize-none leading-relaxed transition-all shadow-2xs font-sans"
                   />
                 </div>
 
-                
-                {/* File Attachment UI (Shared between modes) */}
-                <div className="flex flex-col gap-2 mt-2">
-                  <label className="text-[11px] font-extrabold text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 tracking-wider">
-                    문서 첨부 <span className="text-zinc-400 font-medium">(ATTACHMENT)</span>
-                  </label>
-                  
+                {/* Scope & Context Options */}
+                <div className="p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 bg-white dark:bg-zinc-900/60 flex flex-col gap-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-zinc-700 dark:text-zinc-300">작업 대상 범위</span>
+                    <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setTargetScope('selection')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                          targetScope === 'selection'
+                            ? 'bg-white dark:bg-zinc-700 text-[#06C755] shadow-xs'
+                            : 'text-zinc-500'
+                        }`}
+                      >
+                        선택 영역만
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTargetScope('document')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                          targetScope === 'document'
+                            ? 'bg-white dark:bg-zinc-700 text-[#06C755] shadow-xs'
+                            : 'text-zinc-500'
+                        }`}
+                      >
+                        문서 전체 (양식 참조)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTargetScope('none')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                          targetScope === 'none'
+                            ? 'bg-white dark:bg-zinc-700 text-[#06C755] shadow-xs'
+                            : 'text-zinc-500'
+                        }`}
+                      >
+                        본문 무시 (신규)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Attachment Bar */}
                   {attachedFileName ? (
-                    <div className="flex items-center justify-between bg-[#06C755]/10 border border-[#06C755]/30 px-3 py-2.5 rounded-xl">
+                    <div className="flex items-center justify-between bg-[#06C755]/10 border border-[#06C755]/30 px-3 py-2 rounded-xl">
                       <div className="flex items-center gap-2 overflow-hidden">
                         <Paperclip className="w-4 h-4 text-[#06C755] shrink-0" />
                         <span className="text-[12px] font-bold text-[#06C755] truncate">{attachedFileName}</span>
@@ -742,7 +789,7 @@ export default function AIDraftModal({
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isGenerating}
-                      className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-zinc-200 dark:border-zinc-700/80 hover:border-[#06C755]/50 hover:bg-[#06C755]/5 rounded-xl py-3 text-[12px] font-bold text-zinc-500 dark:text-zinc-400 transition-colors disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-zinc-200 dark:border-zinc-700/80 hover:border-[#06C755]/50 hover:bg-[#06C755]/5 rounded-xl py-2.5 text-[12px] font-bold text-zinc-500 dark:text-zinc-400 transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       <Paperclip className="w-4 h-4" />
                       참조할 텍스트 문서(.md, .txt) 첨부하기
@@ -756,6 +803,31 @@ export default function AIDraftModal({
                     className="hidden"
                   />
                 </div>
+
+                {/* 🧠 [ONRIVI-KNOWLEDGE-PALETTE] 지식 보관함 검색 & 첨부 팔레트 */}
+                {resourceFolder && (
+                  <KnowledgeAttachmentPalette
+                    resourceFolder={resourceFolder}
+                    attachedChunks={attachedKnowledgeChunks}
+                    onAttachChunk={(chunk) => {
+                      if (!attachedKnowledgeChunks.some(c => c.chunkId === chunk.chunkId)) {
+                        setAttachedKnowledgeChunks(prev => [...prev, chunk]);
+                        showToast(`'${chunk.headingPath || chunk.headingTitle}' 청크가 첨부되었습니다.`, 'success');
+                      }
+                    }}
+                    onDetachChunk={(chunkId) => {
+                      setAttachedKnowledgeChunks(prev => prev.filter(c => c.chunkId !== chunkId));
+                    }}
+                    onClearAllChunks={() => setAttachedKnowledgeChunks([])}
+                    isAutoRagEnabled={isAutoRagEnabled}
+                    onToggleAutoRag={setIsAutoRagEnabled}
+                    currentCharsUsed={
+                      attachedKnowledgeChunks.reduce((acc, c) => acc + (c.snippet?.length || 0), 0) +
+                      (attachedFileContent?.length || 0)
+                    }
+                    showToast={showToast}
+                  />
+                )}
 
               </div>
 
@@ -799,10 +871,23 @@ export default function AIDraftModal({
               
               {/* Apply Buttons (Only visible when generated) */}
               {generationComplete && !isGenerating && draftResult.trim() && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
+                  {/* 출처 각주 포함 체크박스 */}
+                  {citedSources.length > 0 && (
+                    <label className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded-md cursor-pointer select-none border border-zinc-200 dark:border-zinc-700">
+                      <input
+                        type="checkbox"
+                        checked={includeCitations}
+                        onChange={(e) => setIncludeCitations(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-[#06C755] rounded"
+                      />
+                      <span>출처 각주 포함</span>
+                    </label>
+                  )}
+
                   <button
                     onClick={handleCopyResult}
-                    className="px-2.5 py-1.5 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5 mr-1"
+                    className="px-2.5 py-1.5 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5"
                     title="클립보드에 복사"
                   >
                     {aiCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -813,14 +898,14 @@ export default function AIDraftModal({
                     <>
                       <button
                         onClick={() => handleApply('replace')}
-                        className="px-3 py-1.5 text-[11px] font-bold text-[#8b5cf6] border border-[#8b5cf6]/30 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-md transition-colors"
+                        className="px-3 py-1.5 text-[11px] font-bold text-[#06C755] border border-[#06C755]/30 hover:bg-[#06C755]/10 rounded-md transition-colors"
                         title="기존 내용을 지우고 이 결과로 덮어씁니다."
                       >
                         덮어쓰기
                       </button>
                       <button
                         onClick={() => handleApply('append')}
-                        className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-md transition-colors flex items-center gap-1"
+                        className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#06C755] hover:bg-[#05B04B] rounded-md transition-colors flex items-center gap-1"
                         title="기존 내용은 유지하고 그 아래에 결과를 이어서 붙입니다."
                       >
                         <Check className="w-3 h-3" />
@@ -828,19 +913,46 @@ export default function AIDraftModal({
                       </button>
                     </>
                   )}
-                  {true && (
-                    <button
-                      onClick={() => handleApply('insert')}
-                      className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#8b5cf6] hover:bg-[#7c3aed] rounded-md transition-colors flex items-center gap-1"
-                      title="에디터에서 현재 깜빡이고 있는 커서 위치에 결과를 삽입합니다."
-                    >
-                      <Check className="w-3 h-3" />
-                      커서 위치에 삽입
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleApply('insert')}
+                    className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#06C755] hover:bg-[#05B04B] rounded-md transition-colors flex items-center gap-1 shadow-2xs"
+                    title="에디터에서 현재 깜빡이고 있는 커서 위치에 결과를 삽입합니다."
+                  >
+                    <Check className="w-3 h-3" />
+                    커서 위치에 삽입
+                  </button>
                 </div>
               )}
             </div>
+
+            {/* 참조된 지식 출처 요약 배너 */}
+            {citedSources.length > 0 && (
+              <div className="mx-8 mb-3 p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-[#06C755]/30 flex flex-col gap-1.5 shrink-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-[#06C755] flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    참조된 지식 문서 ({citedSources.length}건)
+                  </span>
+                  <span className="text-[10px] font-medium text-zinc-400">
+                    단일 진실 공급원(SSOT) 기반 생성
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto custom-scrollbar">
+                  {citedSources.map((c) => (
+                    <span
+                      key={c.chunkId}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-white dark:bg-zinc-800 border border-[#06C755]/20 text-zinc-800 dark:text-zinc-200 shadow-2xs"
+                      title={`${c.filePath} (L${c.startLine}~L${c.endLine})`}
+                    >
+                      <span className="font-bold text-[#06C755]">{c.documentTitle}</span>
+                      <span className="text-zinc-400">›</span>
+                      <span className="truncate max-w-[130px]">{c.headingPath || c.headingTitle}</span>
+                      <span className="font-mono text-zinc-400">L{c.startLine}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Right Pane Content */}
             <div className="flex-1 overflow-hidden relative">

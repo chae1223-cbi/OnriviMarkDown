@@ -1,8 +1,11 @@
 // ====================================================================
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar.tsx ➔ StatusBar
 // 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드 및 행/열 정보 표시
-// 🛡️ @GUARD : 반응형 너비 가드(xl 브레이크포인트, truncate)를 통해 좁은 해상도 오버랩 방지
-// 🚨 @PATCH : **2026-09-03** — 모니터 해상도 축소 시 프로그레스바와 서식 이름이 겹치는 현상을 해결하기 위해 프로그레스바를 xl 브레이크포인트로 최적화하고 서식 이름에 max-w 및 truncate 적용
+// 🚨 @PATCH : **2026-09-05** — 제한사용자/읽기 전용 모드(isRestrictedUser) 시 하단 상태바의 편집보기 및 분할모드 버튼을 비활성화(disabled, opacity-40, 안내 툴팁) 처리하고 미리보기 버튼만 상시 활성화 유지
+//             **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 흐릿하게 노출되던 상태바 AI 버튼(✨)을 완전히 숨김 처리하여 깔끔한 UI 유지
+//             **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 상태바 하단 AI 버튼(✨) 비활성화(disabled, opacity-30, grayscale) 및 안내 툴팁/토스트 적용
+//             **2026-09-04** — 툴바 숨기기/보이기 옆에 에디터 하단 2줄 AI 버튼 숨기기/보이기 토글 버튼(✨) 및 다국어 툴팁(aiButtonHide/aiButtonShow) 추가 연동
+//             **2026-09-03** — 모니터 해상도 축소 시 프로그레스바와 서식 이름이 겹치는 현상을 해결하기 위해 프로그레스바를 xl 브레이크포인트로 최적화하고 서식 이름에 max-w 및 truncate 적용
 // 🔗 @CALLS : useEditorContext, EDITOR_THEMES
 // ====================================================================
 "use client";
@@ -25,6 +28,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     unsaved: "저장되지 않음",
     toolbarHide: "툴바 숨기기",
     toolbarShow: "툴바 보이기",
+    aiButtonHide: "AI 버튼 숨기기",
+    aiButtonShow: "AI 버튼 보이기",
     sidebarHide: "사이드바 숨기기",
     sidebarShow: "사이드바 보이기",
     toSplitMode: "분할 화면 모드로 전환",
@@ -44,6 +49,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     unsaved: "Unsaved",
     toolbarHide: "Hide Toolbar",
     toolbarShow: "Show Toolbar",
+    aiButtonHide: "Hide AI Button",
+    aiButtonShow: "Show AI Button",
     sidebarHide: "Hide Sidebar",
     sidebarShow: "Show Sidebar",
     toSplitMode: "Switch to Split View",
@@ -63,6 +70,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     unsaved: "未保存",
     toolbarHide: "ツールバーを隠す",
     toolbarShow: "ツールバーを表示",
+    aiButtonHide: "AIボタンを隠す",
+    aiButtonShow: "AIボタンを表示",
     sidebarHide: "サイドバーを隠す",
     sidebarShow: "サイドバーを表示",
     toSplitMode: "分割表示モードに切り替え",
@@ -82,6 +91,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     unsaved: "未保存",
     toolbarHide: "隐藏工具栏",
     toolbarShow: "显示工具栏",
+    aiButtonHide: "隐藏AI按钮",
+    aiButtonShow: "显示AI按钮",
     sidebarHide: "隐藏侧边栏",
     sidebarShow: "显示侧边栏",
     toSplitMode: "切换到双栏视图模式",
@@ -104,6 +115,7 @@ function StatusBar() {
     content, rootFolder, currentFileName: fileName, driveLetter, 
     workspaceType, cloudProvider, currentFileNode, cursorLine, cursorColumn, saveStatus,
     isToolbarOpen, setIsToolbarOpen,
+    isAiButtonVisible, setIsAiButtonVisible,
     isSidebarOpen, setIsSidebarOpen,
     previewMode, setPreviewMode,
     isA4GuardEnabled, setIsA4GuardEnabled,
@@ -112,7 +124,10 @@ function StatusBar() {
     isActivated,
     isExpired,
     activeProfileId, profiles, DEFAULT_PROFILE,
-    editorRef
+    editorRef,
+    geminiApiKey,
+    showToast,
+    isRestrictedUser
   } = useEditorContext();
 
   const folderName = rootFolder?.name;
@@ -265,6 +280,37 @@ function StatusBar() {
             <span className="leading-none">♻️</span>
           </button>
         )}
+        {/* AI 버튼 숨기기/보이기 (AI 연동 시에만 노출) */}
+        {setIsAiButtonVisible && Boolean(geminiApiKey) && (
+          <button
+            onClick={() => {
+              if (!geminiApiKey) {
+                showToast?.("AI 연동이 해제된 상태입니다. 환경설정에서 Gemini API Key를 등록해주세요.", "warning");
+                return;
+              }
+              const next = !isAiButtonVisible;
+              setIsAiButtonVisible(next);
+              try {
+                localStorage.setItem('onrivi_show_editor_ai_btn', String(next));
+              } catch {}
+            }}
+            disabled={!geminiApiKey}
+            className={`px-2 py-1 rounded-md text-[12px] font-semibold transition-all ${
+              !geminiApiKey
+                ? 'opacity-30 cursor-not-allowed grayscale text-gray-400 dark:text-zinc-600'
+                : isAiButtonVisible 
+                  ? 'text-purple-600 dark:text-purple-400 font-bold hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer' 
+                  : 'text-gray-400 dark:text-zinc-500 hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer'
+            }`}
+            title={
+              !geminiApiKey 
+                ? "AI 연동 해제됨 (환경설정에서 API 키 등록 필요)" 
+                : isAiButtonVisible ? t('aiButtonHide') : t('aiButtonShow')
+            }
+          >
+            <span className="leading-none">✨</span>
+          </button>
+        )}
         {/* 사이드바 숨기기/보이기 */}
         {setIsSidebarOpen && (
           <button
@@ -294,39 +340,52 @@ function StatusBar() {
                 Layout Guard {isA4GuardEnabled ? 'ON' : 'OFF'}
               </button>
             )}
-            <button
-              onClick={() => !isExpired && setPreviewMode('edit')}
-              title={isExpired ? "🔒 라이선스 만료로 편집 모드가 잠겨 있습니다." : "편집보기 - 에디터만 표시"}
-              className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
-                isExpired ? 'opacity-40 cursor-not-allowed' : ''
-              } ${
-                previewMode === 'edit'
-                  ? 'bg-emerald-500 text-white'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
-              }`}
-            >{isExpired ? '🔒' : ''}편집보기</button>
-            <div className="w-px h-4 bg-black/10 dark:bg-white/10" />
-            <button
-              onClick={() => !isExpired && setPreviewMode('both')}
-              title={isExpired ? "🔒 라이선스 만료로 분할 모드가 잠겨 있습니다." : "분할모드 - 에디터와 미리보기 함께 표시"}
-              className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
-                isExpired ? 'opacity-40 cursor-not-allowed' : ''
-              } ${
-                previewMode === 'both' || previewMode === 'css-style'
-                  ? 'bg-emerald-500 text-white'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
-              }`}
-            >{isExpired ? '🔒' : ''}분할모드</button>
-            <div className="w-px h-4 bg-black/10 dark:bg-white/10" />
-            <button
-              onClick={() => setPreviewMode('preview')}
-              title={isExpired ? "미리보기 전용 모드 (라이선스 만료)" : "미리보기 - 렌더링된 문서만 표시"}
-              className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
-                previewMode === 'preview'
-                  ? 'bg-emerald-500 text-white'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
-              }`}
-            >{isExpired ? '🔒 ' : ''}미리보기</button>
+            {(() => {
+              const isEditDisabled = Boolean(isExpired || isRestrictedUser);
+              const disabledTitle = isRestrictedUser
+                ? "🔒 읽기 전용(제한사용자) 모드에서는 미리보기만 가능합니다. 상단 '이 화면에서 편집 시작하기'를 눌러주세요."
+                : (isExpired ? "🔒 라이선스 만료로 편집 모드가 잠겨 있습니다." : "");
+
+              return (
+                <>
+                  <button
+                    disabled={isEditDisabled}
+                    onClick={() => !isEditDisabled && setPreviewMode('edit')}
+                    title={disabledTitle || "편집보기 - 에디터만 표시"}
+                    className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
+                      isEditDisabled ? 'opacity-40 cursor-not-allowed' : ''
+                    } ${
+                      previewMode === 'edit'
+                        ? 'bg-emerald-500 text-white'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
+                    }`}
+                  >{isEditDisabled ? '🔒' : ''}편집보기</button>
+                  <div className="w-px h-4 bg-black/10 dark:bg-white/10" />
+                  <button
+                    disabled={isEditDisabled}
+                    onClick={() => !isEditDisabled && setPreviewMode('both')}
+                    title={disabledTitle || "분할모드 - 에디터와 미리보기 함께 표시"}
+                    className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
+                      isEditDisabled ? 'opacity-40 cursor-not-allowed' : ''
+                    } ${
+                      previewMode === 'both' || previewMode === 'css-style'
+                        ? 'bg-emerald-500 text-white'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
+                    }`}
+                  >{isEditDisabled ? '🔒' : ''}분할모드</button>
+                  <div className="w-px h-4 bg-black/10 dark:bg-white/10" />
+                  <button
+                    onClick={() => setPreviewMode('preview')}
+                    title={isEditDisabled ? "미리보기 전용 모드 (읽기 전용/제한 상태)" : "미리보기 - 렌더링된 문서만 표시"}
+                    className={`px-3 py-1.5 text-[12px] font-bold transition-all duration-150 select-none ${
+                      previewMode === 'preview'
+                        ? 'bg-emerald-500 text-white'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-black/8 dark:hover:bg-white/8'
+                    }`}
+                  >미리보기</button>
+                </>
+              );
+            })()}
           </div>
         )}
 

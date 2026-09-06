@@ -6,10 +6,10 @@ import { msg } from './systemMessages';
 
 // IndexedDB 헬퍼 (핸들 저장을 위해 필요)
 // ====================================================================
-// 📊 [OMD-CORE-indexedDbHelper-0001] indexedDbHelper.tsx ➔ idb
-// 🎯 @KICK  : IndexedDB 기반 key-value 저장 헬퍼 (get/set)
+// 📊 [OMD-CORE-indexedDbHelper-0001 ✅ FIXED] indexedDbHelper.tsx ➔ idb
+// 🎯 @KICK  : IndexedDB 기반 key-value 저장 헬퍼 (get/set/del/clear)
 // 🛡️ @GUARD : onupgradeneeded 스토어 생성, objectStoreNames 존재 여부 체크
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-05** — idb.del 및 idb.clear 메서드 구현 추가 (리소스 폴더 해제 시 IndexedDB의 resourceFolderHandle이 삭제되지 않아 브라우저 새로고침(F5) 시 이전 폴더로 재연결되던 결함 완벽 해결)
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const idb = {
@@ -35,6 +35,32 @@ export const idb = {
       const putReq = tx.objectStore('store').put(val, key);
       putReq.onsuccess = () => resolve();
       putReq.onerror = () => reject(putReq.error);
+    };
+    req.onerror = () => reject(req.error);
+  }),
+  del: (key: string) => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('onrivi-author-db', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('store');
+    req.onsuccess = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('store')) return resolve();
+      const tx = db.transaction('store', 'readwrite');
+      const delReq = tx.objectStore('store').delete(key);
+      delReq.onsuccess = () => resolve();
+      delReq.onerror = () => reject(delReq.error);
+    };
+    req.onerror = () => reject(req.error);
+  }),
+  clear: () => new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('onrivi-author-db', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('store');
+    req.onsuccess = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('store')) return resolve();
+      const tx = db.transaction('store', 'readwrite');
+      const clearReq = tx.objectStore('store').clear();
+      clearReq.onsuccess = () => resolve();
+      clearReq.onerror = () => reject(clearReq.error);
     };
     req.onerror = () => reject(req.error);
   })

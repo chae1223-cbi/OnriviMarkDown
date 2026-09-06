@@ -48,7 +48,9 @@ const DEV_ONLY_ROUTES = [
   { parent: API_DIR, route: 'admin' },
   { parent: API_DIR, route: 'cron' },
   { parent: API_DIR, route: 'faqs' },
-  { parent: API_DIR, route: 'plans' }
+  { parent: API_DIR, route: 'plans' },
+  { parent: API_DIR, route: 'license' },
+  { parent: API_DIR, route: 'knowledge' }
 ];
 
 if (!fs.existsSync(BACKUP_DIR)) {

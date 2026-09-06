@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
-// 🚨 @PATCH : **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 헤더 높이(76px) 및 최대폭(1240px) 최적화, 단일 Primary CTA 중심 정돈 및 LDSG v5.0 글래스모피즘 표준 적용
+// 🚨 @PATCH : **2026-09-05** — 로그아웃(handleLogout) 시 onrivi_* 및 sb-* 로컬스토리지 전량 파기로 계정 간 세션 오염 원천 차단 및 p_user_id 전달 연동
+//             **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 헤더 높이(76px) 및 최대폭(1240px) 최적화, 단일 Primary CTA 중심 정돈 및 LDSG v5.0 글래스모피즘 표준 적용
 //             **2026-08-27** — 비로그인 상태 헤더 우측 영역에 '즉시 체험하기' 버튼을 추가하고, 클릭 시 로컬 스토리지 게스트 플래그(onrivi_guest_mode)를 셋업하여 복잡한 로그인/가입 없이 브라우저 가상 스페이스 에디터로 즉시 진입하도록 액션 탑재; **2026-06-28** — 데스크톱 앱(Electron) 환경 진입 시 웹 상단 헤더가 레이아웃을 해쳐 에디터 집중을 방해하지 않도록 렌더링 무조건 스킵(return null) 가드 패치; 비밀번호 재설정(/reset-password) 화면 진입 시 임시 토큰으로 로그인 상태의 헤더 UI가 노출되지 않도록 강제 필터링 우회 패치
 //             **2026-06-23** — 로그아웃 시 license_activations 직접 delete DML을 Supabase Stored Procedure (deactivate_session_on_logout RPC) 호출 방식으로 위임 개편 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스모피즘 Navbar, Inter 폰트, Ice Blue 액센트); 비로그인 상태 진입 경로 제거(로그인/시작하기 버튼 숨김) 패치; 헤더에 비로그인용 '시작하기' 버튼 복원 패치
@@ -114,10 +115,18 @@ export function Navbar({ content }: { content?: NavbarContent }) {
     try { // try : 예외 처리를 위한 블록 
       const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'); // sessionId : 세션 ID
       const paymentNo = localStorage.getItem('onrivi_payment_no'); // paymentNo : 결제 번호 
+      const { data: { session } } = await supabase.auth.getSession();
       if (sessionId && paymentNo) { // 세션 ID와 결제 번호가 모두 있는 경우
-        await fetch('/api/device/deactivate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId }) }); // API 호출로 세션 비활성화 
+        await fetch('/api/device/deactivate', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId, p_user_id: session?.user?.id }) 
+        }); // API 호출로 세션 비활성화 
       }
-      ['onrivi_session_id', 'onrivi_payment_no', 'onrivi_user_id', 'onrivi_license_key'].forEach(k => localStorage.removeItem(k)); // 로컬 스토리지에서 세션 ID, 결제 번호, 사용자 ID, 라이선스 키를 삭제 
+      // 🚨 계정 간 세션/결제번호/기기식별자 오염 방지를 위해 모든 onrivi_* 및 Supabase 캐시 전량 삭제
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('onrivi_') || k.startsWith('sb-'))
+        .forEach(k => localStorage.removeItem(k));
       await supabase.auth.signOut(); // 로그아웃 
       setUserEmail(null); // 사용자 이메일을 null로 설정 
       setIsLoggedIn(false); // 로그인 상태를 false로 설정 

@@ -4,7 +4,15 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
-// 🚨 @PATCH : 2026-09-03 - 마지막 행 또는 일반 문장에서 엔터 시 반응 지연(새 행 생성 늦음) 현상을 해결하기 위해 custom-enter-list-auto 일반 개행 분기에 editor.setPosition 즉시 이동을 부여하고, onKeyDown 엔터 시 불필요하게 파일 I/O 및 React 렌더링을 유발하던 동기 saveFile을 제거하여 0초 즉각 개행 보장
+// 🚨 @PATCH : 2026-09-06 - [에디터-미리보기 하이라이트 동기화 완결] onMouseDown 시 클릭된 행 번호로 즉시 setActiveLine/setCursorLine을 동기화하고, onDidChangeCursorPosition에서 hasLineChanged 가드로 인해 RAF 이벤트 병합 시 activeLine 갱신이 누락되던 버그를 제거하여 마우스 클릭/방향키/타이핑 시 에디터와 미리보기 하이라이트 위치가 항상 100% 동일하게 일치하도록 보장
+//             2026-09-05 - [커서 이동 시 Race Condition 완전 차단] cursorSyncLock(150ms) 도입: syncPreviewFromCursor 실행 직후 Monaco 자동 스크롤로 발화되는 onDidScrollChange → syncPreviewFromEditorScroll이 syncPreviewToTargetLine 결과를 덮어쓰던 Race Condition을 이벤트 핸들러 레벨에서 원천 봉쇄; onDidChangeCursorPosition에서 isNearEnd(마지막 줄 부근) 감지 시 항상 syncPreviewFromCursor 강제 실행
+//             2026-09-05 - [마지막 행 및 긴 문단 가로 줄바꿈 타이핑 시 실시간 상향 추종] onDidChangeModelContent에서 타이머 캔슬링으로 인한 타이핑 중 스크롤 멈춤 결함을 단일 RAF 스케줄링 및 컬럼 파라미터 전달로 전면 개선; 동일 행 내 장문 문단 타이핑(hasWrappedRowChanged, 컬럼 이동) 시에도 syncPreviewFromCursor가 가로 줄바꿈을 감지하여 엔터 2회 없이 즉각 미리보기 하단이 밀려 올라가도록 완전 해결
+//             2026-09-05 - [타이핑 시 미리보기 흔들림 및 덜컹거림 원천 차단] 타이핑 중 onDidScrollChange의 syncPreviewFromEditor 바닥 밀착 간섭을 완전 차단하여 syncPreviewToTargetLine과의 충돌 진동 제거; 동일 행 타이핑(e.reason 0/1) 시 커서 변경 이벤트의 불필요한 중복 동기화 차단; onDidChangeModelContent 타이머를 단일 RAF 및 100ms 디바운스로 통폐합하여 무진동 안정적 타이핑 보장
+//             2026-09-05 - [마지막 줄 입력 및 최하단 스크롤 추종 강화] 타이핑 중(isTyping 락)이라도 에디터 스크롤이 최하단(바닥)에 도달했을 경우 syncPreviewFromEditor 바닥 밀착을 허용하여 에디터 자동 스크롤 시 미리보기가 멈추는 결함 방어
+//             2026-09-05 - [표 내부 타이핑 싱크 및 커서 Safe Zone 추종 강화] 타이핑 중단 감지 타이머(300ms) 및 4단계 렌더링 추종 보강, 커서 이동 시 실시간 Safe Zone 추종 연동으로 표 하단 행 타이핑 시 미리보기 하단 가려짐 원천 방어
+//             2026-09-05 - [타이핑 시 미리보기 하단 가려짐 방어] 한글 IME 조합 완료 및 React 마크다운 DOM 리플로우 완료 시점(160ms)에 맞춘 3단계 후속 위치 추종 타이머 보강
+//             2026-09-04 - 에디터 마운트 시 폐기된 모나코 모델(Model is disposed!) 접근 방어 및 isDisposed() 검증 후 모델 안전 재생성 가드 적용
+//             2026-09-03 - 마지막 행 또는 일반 문장에서 엔터 시 반응 지연(새 행 생성 늦음) 현상을 해결하기 위해 custom-enter-list-auto 일반 개행 분기에 editor.setPosition 즉시 이동을 부여하고, onKeyDown 엔터 시 불필요하게 파일 I/O 및 React 렌더링을 유발하던 동기 saveFile을 제거하여 0초 즉각 개행 보장
 //             2026-09-03 - 타이핑 시 React 렌더링 지연(useDeferredValue)으로 인해 마지막 행 또는 문서 하단 입력 시 미리보기가 가려지던 결함을 해결하기 위해 onDidChangeModelContent에 70ms 후속 스크롤 추종 타이머 보강
 //             2026-09-03 - [[ 자동완성 선택 시 일반 링크와 동일한 [개요명/문서명](<상대경로>) 표준 마크다운 상대경로로 자동 삽입되도록 개편
 //             2026-09-03 - 슬래시(/) 명령어 추천 리스트 출력 중 ESC 키 입력 시 팝업 즉시 강제 종료(closeSuggestWidget) 및 onKeyUp 재오픈 방지(isSuggestSuppressed) 가드 적용
@@ -84,7 +92,8 @@ export function useMonacoSetup(deps: any) {
                   editor.onDidLayoutChange(() => requestAnimationFrame(updatePersistentCaret));
 
                   const updatedTabs = tabsRef.current.map((tab: any) => {
-                    if (!tab.model) {
+                    const isDisposed = tab.model && typeof tab.model.isDisposed === 'function' && tab.model.isDisposed();
+                    if (!tab.model || isDisposed) {
                       const model = monaco.editor.createModel(tab.content, 'markdown');
                       model.onDidChangeContent((e) => {
                           if (e && e.changes && e.changes.some(c => c.text === '1. ' || c.text === '1.')) {
@@ -101,8 +110,13 @@ export function useMonacoSetup(deps: any) {
                   setTabs(updatedTabs);
 
                   const activeTab = updatedTabs.find(t => t.id === activeTabIdRef.current);
-                  if (activeTab && activeTab.model) {
-                    editor.setModel(activeTab.model);
+                  if (activeTab && activeTab.model && !(typeof activeTab.model.isDisposed === 'function' && activeTab.model.isDisposed())) {
+                    try {
+                      editor.setModel(activeTab.model);
+                    } catch (err) {
+                      console.warn('[useMonacoSetup] setModel failed, fallback to setValue:', err);
+                      editor.setValue(contentRef.current);
+                    }
                   } else {
                     editor.setValue(contentRef.current);
                   }
@@ -415,6 +429,10 @@ export function useMonacoSetup(deps: any) {
 
                   let isTypingScrollLock = false;
                   let typingLockTimeout: any = null;
+                  // 💡 [Race Condition 차단] syncPreviewFromCursor 실행 후 짧은 시간 동안
+                  // onDidScrollChange → syncPreviewFromEditorScroll이 덮어쓰는 것을 방지
+                  let cursorSyncLock = false;
+                  let cursorSyncLockTimeout: any = null;
 
                   // 💡 에디터 내용이 바뀔 때마다(타이핑 및 setValue 포함) 다음 렌더링 프레임에서 데코레이션 즉시 업데이트
                   // 모나코 에디터의 자체 뷰 렌더러가 화면을 새로 그린 직후에 데코레이션을 덮어씌워 파란색 뒤집힘 버그 방지
@@ -428,8 +446,11 @@ export function useMonacoSetup(deps: any) {
                   // 💡 [SPEC-SYNC-001 v3.0] 에디터 ➔ 미리보기 단일 동기화 함수
                   let isTyping = false;
                   let typingTimeout: any = null;
+                  let typingSyncRaf: number | null = null;
+                  let typingSyncTimer: any = null;
                   let rafSyncId: number | null = null;
                   let rafCursorSyncId: number | null = null;
+                  let prevCursorCol = 1;
 
                   const syncPreviewFromEditor = () => {
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
@@ -445,16 +466,25 @@ export function useMonacoSetup(deps: any) {
 
                   let rafCursorStateId: number | null = null;
 
-                  const syncPreviewFromCursor = (lineNumber: number) => {
+                  const syncPreviewFromCursor = (lineNumber: number, column?: number) => {
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
                     if (isScrollingRef.current === 'preview') return;
+
+                    // 💡 [Race Condition 차단] 커서 동기화 직후 150ms 동안 syncPreviewFromEditorScroll 억제
+                    // Monaco가 커서 이동 후 자동으로 에디터를 스크롤하면 onDidScrollChange가 발화되어
+                    // syncPreviewFromEditorScroll이 syncPreviewToTargetLine 결과를 덮어쓰는 문제 완전 차단
+                    cursorSyncLock = true;
+                    if (cursorSyncLockTimeout) clearTimeout(cursorSyncLockTimeout);
+                    cursorSyncLockTimeout = setTimeout(() => {
+                      cursorSyncLock = false;
+                    }, 150);
 
                     if (rafCursorSyncId) cancelAnimationFrame(rafCursorSyncId);
                     rafCursorSyncId = requestAnimationFrame(() => {
                       rafCursorSyncId = null;
                       if (previewRef.current) {
                         const content = editor.getValue();
-                        syncPreviewToTargetLine(previewRef.current, lineNumber, content);
+                        syncPreviewToTargetLine(previewRef.current, lineNumber, content, { column });
                       }
                     });
                   };
@@ -464,26 +494,35 @@ export function useMonacoSetup(deps: any) {
                     if (typingTimeout) clearTimeout(typingTimeout);
                     typingTimeout = setTimeout(() => {
                       isTyping = false;
-                    }, 150);
+                    }, 300);
 
-                    // 💡 [타이핑 시 현재 입력 라인이 미리보기 Safe Zone 밖으로 가려져 있으면 즉시 추종]
+                    // 💡 [타이핑 시 Safe Zone 실시간 추종: RAF 스케줄링으로 타이핑 중단 없이 즉시 하단 노출]
                     const pos = editor.getPosition();
                     if (pos && previewRef.current && previewModeRef.current === 'both' && isScrollingRef.current !== 'preview') {
-                      requestAnimationFrame(() => {
-                        if (previewRef.current) {
-                          const content = editor.getValue();
-                          syncPreviewToTargetLine(previewRef.current, pos.lineNumber, content);
-                        }
-                      });
-                      setTimeout(() => {
+                      if (!typingSyncRaf) {
+                        typingSyncRaf = requestAnimationFrame(() => {
+                          typingSyncRaf = null;
+                          if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
+                            const p = editorRef.current.getPosition();
+                            if (p) {
+                              const content = editorRef.current.getValue();
+                              syncPreviewToTargetLine(previewRef.current, p.lineNumber, content, { column: p.column, isTyping: true });
+                            }
+                          }
+                        });
+                      }
+
+                      if (typingSyncTimer) clearTimeout(typingSyncTimer);
+                      typingSyncTimer = setTimeout(() => {
+                        typingSyncTimer = null;
                         if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
                           const p = editorRef.current.getPosition();
                           if (p) {
                             const c = editorRef.current.getValue();
-                            syncPreviewToTargetLine(previewRef.current, p.lineNumber, c);
+                            syncPreviewToTargetLine(previewRef.current, p.lineNumber, c, { column: p.column, isTyping: true });
                           }
                         }
-                      }, 70);
+                      }, 80);
                     }
 
                     requestAnimationFrame(() => {
@@ -1474,10 +1513,14 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                   editor.onMouseDown((e: any) => {
                     editorMouseDown = true;
                     if (e.target?.position) {
+                      const clickedLine = e.target.position.lineNumber;
                       editorMouseAnchor = {
-                        lineNumber: e.target.position.lineNumber,
+                        lineNumber: clickedLine,
                         column: e.target.position.column
                       };
+                      // 💡 [마우스 클릭 시 즉시 activeLine 동기화]
+                      setActiveLine(clickedLine);
+                      setCursorLine(clickedLine);
                     }
                   });
 
@@ -1497,22 +1540,26 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                     const currentLine = e.position.lineNumber;
                     const currentCol = e.position.column;
                     const hasLineChanged = prevCursorLineRef.current !== currentLine;
+                    const colDiff = Math.abs(currentCol - prevCursorCol);
+                    const hasWrappedRowChanged = colDiff >= 20; // 긴 문단 내 가로 줄바꿈 컬럼 이동 감지
+                    const lineCount = editor.getModel()?.getLineCount() ?? 0;
+                    const isNearEnd = lineCount > 0 && currentLine >= lineCount - 1;
                     prevCursorLineRef.current = currentLine;
+                    prevCursorCol = currentCol;
 
-                    // 💡 [React 렌더링 폭탄 방어] 프레임 단위 단일 큐로 상태 업데이트 병합 (라인 변경 시에만 상위 상태 갱신)
+                    // 💡 [커서 활성 행 즉각 동기화] 마우스 클릭, 방향키, 타이핑 등 모든 커서 이동 시
+                    // activeLine을 항상 최신 currentLine으로 즉각 반영 (React setState는 동일 값이면 리렌더링 생략하므로 무부하 안전)
                     if (rafCursorStateId) cancelAnimationFrame(rafCursorStateId);
                     rafCursorStateId = requestAnimationFrame(() => {
                       rafCursorStateId = null;
                       updatePersistentCaret();
-                      if (hasLineChanged) {
-                        setActiveLine(currentLine);
-                        setCursorLine(currentLine);
-                      }
+                      setActiveLine(currentLine);
+                      setCursorLine(currentLine);
                     });
 
-                    // 💡 [방향키(↑, ↓) / 마우스 클릭 / 커서 이동 시 미리보기 Safe Zone 추종]
-                    if (hasLineChanged || e.reason === 3 || e.reason === 0) {
-                      syncPreviewFromCursor(currentLine);
+                    // 💡 [방향키(↑, ↓) / 마우스 클릭 / 커서 행 / 가로 줄바꿈 컬럼 / 마지막 줄 부근 감지 시 Safe Zone 추종]
+                    if (hasLineChanged || e.reason === 3 || hasWrappedRowChanged || isNearEnd) {
+                      syncPreviewFromCursor(currentLine, currentCol);
                     }
 
                     // [WBS CORE-03] 마우스 클릭 등으로 명시적인 커서 행 강제 이동 감지 시 자동완성 팝업 강제 파괴
@@ -1533,7 +1580,16 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                     updatePersistentCaret();
                     if (isScrollingRef.current === 'preview') return;
                     if (previewModeRef.current !== 'both' || !previewRef.current) return;
-                    if (isTyping) return; // 💡 타이핑/엔터 도중 불필요한 스크롤 재계산 간섭 방지
+                    if (isTyping) {
+                      // 💡 [흔들림 원천 차단] 타이핑 중에는 오직 syncPreviewToTargetLine만 Safe Zone 가시성을 전담 관리
+                      // 에디터 자동 스크롤의 syncPreviewFromEditor 바닥 밀착과의 충돌 간섭을 차단하여 덜컹거림 방지
+                      return;
+                    }
+                    if (cursorSyncLock) {
+                      // 💡 [Race Condition 완전 차단] 커서 이동 후 150ms 내 Monaco 자동 스크롤 간섭 봉쇄
+                      // syncPreviewFromCursor 결과가 syncPreviewFromEditorScroll에 의해 덮어쓰이는 현상 방지
+                      return;
+                    }
 
                     // 💡 [에디터 스크롤 이벤트 전담 1:1 실시간 미리보기 동기화]
                     syncPreviewFromEditor();

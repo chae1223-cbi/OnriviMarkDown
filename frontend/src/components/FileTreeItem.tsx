@@ -9,6 +9,8 @@ import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/virt
 import PromptModal from '@/components/PromptModal';
 import { msg } from '@/lib/systemMessages';
 import { useToast } from '@/components/ToastProvider';
+import { checkKnowledgeGuard } from '@/lib/knowledge/knowledgeGuard';
+import { loadSecureData } from '@/lib/secureStorage';
 
 interface FileTreeItemProps {
   node: FileNode;
@@ -34,9 +36,16 @@ interface FileTreeItemProps {
 
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
-// 🎯 @KICK  : 좌측 파일 탐색기 트리의 단일 노드로, 폴더 열기/파일 열기/드래그 이동/CRUD 지원
-// 🛡️ @GUARD : 백엔드/VFS 노드 kind 자동 호환 변환, isMergeMode 시 선택 모드 전환
-// 🚨 @PATCH : **2026-09-02** — 파일 노드 우클릭 시에도 부모 폴더를 대상으로 붙여넣기(Paste)를 직접 수행할 수 있도록 컨텍스트 메뉴 바인딩 개선
+// 🚨 @PATCH : **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
+//             **2026-09-05** — AI 미연결 시 우클릭 컨텍스트 메뉴의 '지식 베이스에 등록' 버튼을 비활성화(disabled, 흐린 흑백 스타일, 연동 필요 안내 툴팁) 처리
+//             **2026-09-04** — 파일 탐색기 우클릭 컨텍스트 메뉴에서 '지식 허브 열기' 버튼 제거하여 메뉴 간소화
+//             **2026-09-04** — 지식문서 등록 뱃지 및 우클릭 컨텍스트 메뉴의 지식문서 아이콘을 초록색 책(📗)으로 전면 교체
+//             **2026-09-04** — [ONRIVI-CONTEXTMENU-CLAMP] 화면 하단(작업표시줄 인근)에서 우클릭 시 메뉴 하단이 잘리던 결함 해결 (BoundingRect 기반 동적 상향 클램핑 및 뷰포트 오버플로 방어 적용)
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-UI-FIX] 파일 탐색기 우클릭 컨텍스트 메뉴 내 '지식문서 등록(⭐)' 텍스트 라벨 누락 결함 복원 (별 아이콘만 노출되던 현상 해결)
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 탐색기 우클릭 컨텍스트 메뉴에 '지식 분석 상세 (KUI-010)' 및 '지식 허브 열기' 원터치 진입점 연동
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-DETAIL-001] 지식 베이스 등록 완료 시 단순 토스트 대신 상세 분석 결과(분할 청크, 행 범위, 키워드, 지식 태그, 검색어) 모달(knowledge:show-detail) 자동 팝업 연동
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 파일 탐색기 우클릭 컨텍스트 메뉴에 지식 베이스 등록(⭐) 및 등록 완료(🧠) 뱃지 연동
+//             **2026-09-02** — 파일 노드 우클릭 시에도 부모 폴더를 대상으로 붙여넣기(Paste)를 직접 수행할 수 있도록 컨텍스트 메뉴 바인딩 개선
 //             **2026-09-02** — 탐색기 선택 하이라이트 왼쪽 세로선(border-l) 제거, 선택 노드 폰트 색상을 고대비 선명한 검정/흰색(text-zinc-950 dark:text-white font-extrabold)으로 강화 및 폴더/파일 경로 정규화 기반 정확한 단독 선택 동기화
 //             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #06C755 활성 노드 하이라이트 및 LineSeed 폰트)
 //             **2026-08-27** — 탐색기 새로고침/폴더 생성 시 전체 트리가 다시 패치되어 모든 노드가 강제 닫힘(Collapse) 상태로 초기화되어 파일/폴더 위치를 매번 다시 찾아야 하는 불편을 해결하기 위해, localStorage(onrivi_expanded_paths) 기반의 폴더 펼침(isOpen) 상태 영구 보존 및 동기화 구현하고 마운트 시 열린 폴더의 자식 노드 목록을 자동 비동기 지연 로딩(onLazyLoad) 복원하도록 이펙트 보완 및 부모 리팩토링 시 빈 자식 props 주입에 의해 기존 지연 로딩 데이터가 깡통(length=0)으로 덮어써져 사라지는 리셋 버그 차단 가드 적용; 파일/폴더 삭제 시 확인 모달 타이틀("폴더 삭제"/"파일 삭제") 및 메시지 본문("폴더를 정말 삭제하시겠습니까?"/"파일을 정말 삭제하시겠습니까?")을 노드 종류에 맞춰 분기하여 정확하게 표시하도록 갱신; 이름 변경(Rename) 시 팝업 프롬프트 제목 및 실패 토스트 피드백 문구에서 폴더와 파일을 명확히 분리("폴더의 새 이름을 입력하세요"/"파일의 새 이름을 입력하세요")하여 노출하도록 리펙토링; **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
@@ -848,6 +857,49 @@ const FileTreeItem = ({
   const isMergeSelected = node.kind === 'file' && selectedMergeNodes.some(n => n.path ? n.path === node.path : n.name === node.name);
   const isMarkdown = node.kind === 'file' && node.name.toLowerCase().endsWith('.md');
 
+  // 🧠 지식 베이스 등록 여부 추적 (경로 정규화 및 실시간 동기화)
+  const [isKnowledgeRegistered, setIsKnowledgeRegistered] = useState(false);
+  useEffect(() => {
+    if (!isMarkdown) return;
+    const checkRegistered = () => {
+      try {
+        const registeredList = JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
+        if (!Array.isArray(registeredList) || registeredList.length === 0) {
+          setIsKnowledgeRegistered(false);
+          return;
+        }
+
+        const norm = (s: string) => (s || '').replace(/\\/g, '/').toLowerCase().trim();
+        const myPath = norm(node.path || node.name);
+        const myName = norm(node.name);
+
+        const matched = registeredList.some((rawP: string) => {
+          const p = norm(rawP);
+          return (
+            p === myPath ||
+            p === myName ||
+            p.endsWith('/' + myName) ||
+            myPath.endsWith('/' + p) ||
+            p.endsWith(myPath) ||
+            myPath.endsWith(p)
+          );
+        });
+
+        setIsKnowledgeRegistered(matched);
+      } catch {
+        setIsKnowledgeRegistered(false);
+      }
+    };
+
+    checkRegistered();
+    window.addEventListener('knowledge:updated', checkRegistered);
+    window.addEventListener('file:refresh-all-directories', checkRegistered);
+    return () => {
+      window.removeEventListener('knowledge:updated', checkRegistered);
+      window.removeEventListener('file:refresh-all-directories', checkRegistered);
+    };
+  }, [node.path, node.name, isMarkdown]);
+
   return (
     <div className="select-none">
       <PromptModal 
@@ -906,14 +958,32 @@ const FileTreeItem = ({
           {getFileIcon(node, isSelected)}
         </span>
         
-        <span className="ml-1.5 truncate text-[12px] font-bold text-left flex-1">{node.name}</span>
+        <span className="ml-1.5 truncate text-[12px] font-bold text-left flex-1 flex items-center gap-1">
+          <span className="truncate">{node.name}</span>
+          {isKnowledgeRegistered && (
+            <span className="text-[11px] shrink-0 select-none animate-in fade-in zoom-in-75 duration-200" title="지식 베이스에 등록된 문서입니다">📗</span>
+          )}
+        </span>
 
         {contextMenu && !isMergeMode && !isRestrictedUser && createPortal(
           <div
-            className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+            ref={(el) => {
+              if (el && typeof window !== 'undefined') {
+                const rect = el.getBoundingClientRect();
+                if (rect.bottom > window.innerHeight - 10) {
+                  const newTop = Math.max(10, window.innerHeight - rect.height - 12);
+                  el.style.top = `${newTop}px`;
+                }
+                if (rect.right > window.innerWidth - 10) {
+                  const newLeft = Math.max(10, window.innerWidth - rect.width - 12);
+                  el.style.left = `${newLeft}px`;
+                }
+              }
+            }}
+            className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[160px] max-h-[calc(100vh-24px)] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100"
             style={{ 
-              top: Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 150 : contextMenu.y), 
-              left: Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 180 : contextMenu.x) 
+              top: Math.max(10, Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 340 : contextMenu.y)), 
+              left: Math.max(10, Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 220 : contextMenu.x)) 
             }}
             onClick={(e) => e.stopPropagation()}
             onContextMenu={(e) => e.preventDefault()}
@@ -1008,6 +1078,232 @@ const FileTreeItem = ({
                     <img src="/icons/icon-delete.png" width={16} height={16} alt="삭제" className={`opacity-90 ${isOpenInTab ? 'grayscale' : ''}`} />
                     <span>삭제</span>
                   </button>
+
+                  {/* 🧠 지식 베이스 등록 버튼 (마크다운 전용) */}
+                  {node.kind === 'file' && isMarkdown && (() => {
+                    const resourceFolder = (
+                      loadSecureData<string>('resourceFolder') ||
+                      (typeof window !== 'undefined' ? localStorage.getItem('resourceFolder') : '') ||
+                      (() => {
+                        try {
+                          const raw = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
+                          return raw ? JSON.parse(raw).resourceFolder || '' : '';
+                        } catch { return ''; }
+                      })() ||
+                      ''
+                    ).trim();
+
+                    const geminiApiKey = (
+                      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_gemini_api_key') : '') ||
+                      loadSecureData<string>('geminiApiKey') ||
+                      loadSecureData<string>('onrivi_gemini_api_key') ||
+                      (() => {
+                        try {
+                          const raw = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
+                          return raw ? JSON.parse(raw).geminiApiKey || '' : '';
+                        } catch { return ''; }
+                      })() ||
+                      ''
+                    ).trim();
+
+                    const planCode = (() => {
+                      try {
+                        const status = loadSecureData<any>('onrivi_license_status');
+                        if (status?.planName) return String(status.planName);
+                      } catch {}
+                      return loadSecureData<string>('planCode') || 'ELITEPRO';
+                    })();
+
+                    const aiModelName = (
+                      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_ai_model_name') : '') ||
+                      (() => {
+                        try {
+                          const raw = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
+                          return raw ? JSON.parse(raw).aiModelName || '' : '';
+                        } catch { return ''; }
+                      })() ||
+                      'gemini-3.8-flash'
+                    ).trim();
+
+                    const guard = checkKnowledgeGuard({ resourceFolder, geminiApiKey, planCode });
+
+                    return (
+                      <>
+                        <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
+                        {isKnowledgeRegistered ? (
+                          <>
+                            {/* 📑 지식 문서 상세 분석 (KUI-010) */}
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setContextMenu(null);
+                                const myPath = node.path || node.name;
+                                try {
+                                  showToast(`[${node.name}] 지식 상세 분석을 불러오는 중...`, 'info');
+                                  const res = await fetch(`/api/knowledge/detail?filePath=${encodeURIComponent(myPath)}&resourceFolder=${encodeURIComponent(resourceFolder)}`);
+                                  const data = await res.json();
+                                  if (data.ok && data.detail) {
+                                    window.dispatchEvent(new CustomEvent('knowledge:show-detail', { detail: data.detail }));
+                                  } else {
+                                    showToast('지식 상세 정보를 찾을 수 없습니다.', 'warning');
+                                  }
+                                } catch {
+                                  showToast('지식 상세 정보 로드 실패', 'error');
+                                }
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold"
+                              title="이 문서의 AI 요약, 핵심 요점, 청크 구조 및 태그를 상세 열람합니다"
+                            >
+                              <span className="text-[14px]">📑</span>
+                              <span>지식 분석 상세 (KUI-010)</span>
+                            </button>
+
+                            {/* 🧠 지식문서 해제 버튼 */}
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setContextMenu(null);
+                                const myPath = node.path || node.name;
+                                if (!confirm(`'${node.name}' 문서를 지식 베이스에서 해제하시겠습니까?`)) return;
+
+                                try {
+                                  showToast(`[${node.name}] 지식 문서 해제를 진행합니다...`, 'info');
+                                  const res = await fetch('/api/knowledge/delete', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      filePath: myPath,
+                                      resourceFolder,
+                                      geminiApiKey,
+                                      planCode,
+                                    }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok || !data.ok) {
+                                    throw new Error(data.message || '지식 문서 해제에 실패했습니다.');
+                                  }
+
+                                  // 로컬 캐시에서 제거
+                                  try {
+                                    const list = JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
+                                    const updated = list.filter((p: string) => p !== myPath && p !== node.name);
+                                    localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(updated));
+                                  } catch {}
+
+                                  showToast(`[${node.name}] 지식 문서 등록이 성공적으로 해제되었습니다.`, 'info');
+                                  window.dispatchEvent(new CustomEvent('knowledge:updated'));
+                                } catch (err: any) {
+                                  showToast(`지식 해제 실패: ${err?.message || '알 수 없는 오류'}`, 'error');
+                                }
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold"
+                              title="이 마크다운 문서를 지식 베이스에서 해제합니다"
+                            >
+                              <span className="text-[14px]">📗</span>
+                              <span>지식문서 해제</span>
+                            </button>
+                          </>
+                        ) : (
+                          /* ⭐ 지식 베이스에 등록 버튼 */
+                          <button
+                            type="button"
+                            disabled={!guard.canUseKnowledge}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setContextMenu(null);
+                              if (!guard.canUseKnowledge) {
+                                showToast(guard.blockMessage || '지식 엔진을 사용할 수 없습니다.', 'warning');
+                                window.dispatchEvent(new CustomEvent('app:dispatch-command', { detail: 'SETTINGS' }));
+                                return;
+                              }
+
+                              try {
+                                showToast(`[${node.name}] 지식 베이스 등록을 시작합니다...`, 'info');
+                                let content = '';
+                                if (node.handle?.getFile) {
+                                  const file = await node.handle.getFile();
+                                  content = await file.text();
+                                } else if ((window as any).electronAPI?.readFile && node.path) {
+                                  content = await (window as any).electronAPI.readFile(node.path);
+                                }
+
+                                if (!content.trim()) {
+                                  showToast('파일 내용이 비어있어 등록할 수 없습니다.', 'warning');
+                                  return;
+                                }
+
+                                // Electron 또는 웹 지식 서비스 호출
+                                let registeredDetail: any = null;
+                                if ((window as any).electronAPI?.indexKnowledgeDocument) {
+                                  const deskRes = await (window as any).electronAPI.indexKnowledgeDocument({
+                                    filePath: node.path || node.name,
+                                    fileContent: content,
+                                    title: node.name.replace(/\.md$/i, ''),
+                                    resourceFolder,
+                                    geminiApiKey,
+                                    planCode,
+                                  });
+                                  if (deskRes?.detail) registeredDetail = deskRes.detail;
+                                } else {
+                                  const res = await fetch('/api/knowledge/index', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      filePath: node.path || node.name,
+                                      fileContent: content,
+                                      title: node.name.replace(/\.md$/i, ''),
+                                      resourceFolder,
+                                      geminiApiKey,
+                                      planCode,
+                                      aiModelName,
+                                    }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok || !data.ok) {
+                                    console.error('[지식 등록 서버 에러 응답]:', data);
+                                    throw new Error(data.message || '서버 지식 등록에 실패했습니다.');
+                                  }
+                                  if (data.detail) registeredDetail = data.detail;
+                                }
+
+                                // 🧠 클라이언트 로컬 스토리지에 등록 상태 보존
+                                try {
+                                  const myPath = node.path || node.name;
+                                  const list = JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
+                                  if (!list.includes(myPath)) {
+                                    list.push(myPath);
+                                    localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(list));
+                                  }
+                                } catch {}
+
+                                window.dispatchEvent(new CustomEvent('knowledge:updated'));
+
+                                // 🧠 상세 분석 결과 모달 팝업 또는 토스트 피드백
+                                if (registeredDetail) {
+                                  window.dispatchEvent(new CustomEvent('knowledge:show-detail', { detail: registeredDetail }));
+                                } else {
+                                  showToast(`[${node.name}] 지식 베이스에 성공적으로 등록되었습니다! 📗`, 'success');
+                                }
+                              } catch (err: any) {
+                                showToast(`지식 등록 실패: ${err?.message || '알 수 없는 오류'}`, 'error');
+                              }
+                            }}
+                            className={`flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors font-bold ${
+                              !guard.canUseKnowledge
+                                ? 'opacity-40 cursor-not-allowed grayscale text-zinc-400 dark:text-zinc-500'
+                                : 'hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            }`}
+                            title={guard.canUseKnowledge ? "이 마크다운 문서를 개인 지식 베이스에 등록합니다" : (guard.blockMessage || "지식 베이스에 등록하려면 AI 연동 설정이 필요합니다")}
+                          >
+                            <span className="text-[14px]">⭐</span>
+                            <span>지식문서 등록{!guard.canUseKnowledge ? ' (연동 필요)' : ''}</span>
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               );
             })()}

@@ -1,8 +1,9 @@
 // ====================================================================
-// 📊 [OMD-EDIT-SettingsModal-0006] SettingsModal.tsx ➔ SettingsModal
+// 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
 // 🎯 @KICK  : 에디터 환경 설정 모달 - 일반 설정, 단축키, 테마, AI 설정(Google Gemini) 제공
-// 🛡️ @GUARD : isOpen/mounted 가드, 모델 식별자 저장 가드
-// 🚨 @PATCH : **2026-09-03** — 단축키/명령어 매핑 테이블의 아이콘, 명령어, 단축키 충돌을 플로팅 툴바 및 마크다운 표준과 100% 일치 동기화
+// 🚨 @PATCH : **2026-09-05** — AI 설정(Gemini API 키) 즉시 영구 삭제 및 연동 해제 기능(handleDeleteAiSettings) 구현, 공통 리소스 폴더 연결 해제(onClearResourceFolder) 실시간 UI 및 스토리지 동기화 반영, 버튼 라벨 직관적 순화('연동 해제', '폴더 해제')
+//             **2026-09-05** — 데스크톱 앱 내비게이션 결함 방어: 로그인 페이지 및 대시보드 이동 링크 클릭 시 Electron 환경(window.electronAPI.openExternal) 지원 및 target="_blank" 적용으로 Electron 창 내부 404 및 흰 화면 결함 해결
+//             **2026-09-03** — 단축키/명령어 매핑 테이블의 아이콘, 명령어, 단축키 충돌을 플로팅 툴바 및 마크다운 표준과 100% 일치 동기화
 //             **2026-09-03** — fetchAccountData를 useCallback으로 격리하고 useEffect 의존성 배열에 추가하여 ESLint react-hooks/exhaustive-deps 경고 완벽 해소
 //             **2026-09-03** — 자원 관리(공통 자원 폴더)에 '전체사용자 필수 항목' 배지 및 미지정 시 강조 UI 적용; initialTab prop 지원을 통해 계정 관리 탭 다이렉트 전환 지원; 환경설정 모달 '계정 관리' 탭의 별명(활동명) 수정 시 [별명 저장] 및 좌측 하단 통합 [저장] 클릭 즉시 에디터 우측 하단 AI 챗봇 버튼명 및 DB users 테이블에 100% 실시간 영구 반영되도록 prop/이벤트/비동기 핸들러 전면 고도화; DB users 개인정보 실시간 조회 및 최신 Gemini 3.8 Flash 연동
 //             **2026-07-16** — 단축키 설정 인풋 keydown 버블링 차단 및 PDF/인쇄 설정 모달 인터페이스 추가
@@ -254,6 +255,34 @@ export default function SettingsModal({
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null);
 
+  // 🤖 [AI 설정 삭제 핸들러] Gemini API 키 및 AI 연동 상태를 스토리지에서 즉시 완전 삭제
+  const handleDeleteAiSettings = useCallback(() => {
+    setGeminiApiKey('');
+    setTestResult(null);
+    try {
+      localStorage.removeItem('onrivi_gemini_api_key');
+      localStorage.setItem('onrivi_gemini_api_key', '');
+      const raw = localStorage.getItem('onrivi_settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        parsed.geminiApiKey = '';
+        localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
+      }
+      const chromeStorage = (window as any).chrome?.storage?.local;
+      if (chromeStorage) {
+        chromeStorage.set({ onrivi_gemini_api_key: '' });
+      }
+      const api = (window as any).electronAPI;
+      if (api && typeof api.saveSettings === 'function') {
+        const currentRaw = localStorage.getItem('onrivi_settings');
+        if (currentRaw) api.saveSettings(JSON.parse(currentRaw));
+      }
+    } catch (err) {
+      console.error('AI 연동 해제 중 오류:', err);
+    }
+    showToast('Gemini API 키가 제거되고 AI 연동이 해제되었습니다.', 'info');
+  }, [setGeminiApiKey, showToast]);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -414,23 +443,32 @@ export default function SettingsModal({
                   const modelToSave = aiModelName || 'gemini-3.8-flash';
                   setAiModelName(modelToSave);
 
-                  try {
-                    if (trimmedKey) {
-                      localStorage.setItem('onrivi_gemini_api_key', trimmedKey);
-                    } else {
-                      localStorage.removeItem('onrivi_gemini_api_key');
-                      localStorage.setItem('onrivi_gemini_api_key', '');
-                    }
-                    localStorage.setItem('onrivi_ai_model_name', modelToSave);
+                    try {
+                      if (trimmedKey) {
+                        localStorage.setItem('onrivi_gemini_api_key', trimmedKey);
+                      } else {
+                        localStorage.removeItem('onrivi_gemini_api_key');
+                        localStorage.setItem('onrivi_gemini_api_key', '');
+                      }
+                      localStorage.setItem('onrivi_ai_model_name', modelToSave);
 
-                    const raw = localStorage.getItem('onrivi_settings');
-                    if (raw) {
-                      const parsed = JSON.parse(raw);
-                      parsed.geminiApiKey = trimmedKey;
-                      parsed.aiModelName = modelToSave;
-                      localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
-                    }
-                  } catch {}
+                      const raw = localStorage.getItem('onrivi_settings');
+                      if (raw) {
+                        const parsed = JSON.parse(raw);
+                        parsed.geminiApiKey = trimmedKey;
+                        parsed.aiModelName = modelToSave;
+                        localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
+                      }
+                      const chromeStorage = (window as any).chrome?.storage?.local;
+                      if (chromeStorage) {
+                        chromeStorage.set({ onrivi_gemini_api_key: trimmedKey });
+                      }
+                      const api = (window as any).electronAPI;
+                      if (api && typeof api.saveSettings === 'function') {
+                        const currentRaw = localStorage.getItem('onrivi_settings');
+                        if (currentRaw) api.saveSettings(JSON.parse(currentRaw));
+                      }
+                    } catch {}
 
                   // 🌟 [별명 저장 연동] 사용자가 계정 관리에서 입력/수정한 별명을 100% 즉시 반영 및 저장!
                   const cleanNick = editNickName.trim();
@@ -546,10 +584,10 @@ export default function SettingsModal({
                         <button
                           type="button"
                           onClick={onClearResourceFolder}
-                          className="px-2.5 py-1.5 rounded-lg text-[12px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all whitespace-nowrap cursor-pointer"
-                          title="리소스 폴더 설정을 초기화합니다"
+                          className="px-3 py-1.5 rounded-lg text-[12px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-200 dark:border-rose-900/50 transition-all whitespace-nowrap cursor-pointer active:scale-98 shadow-xs"
+                          title="공통 리소스 폴더 연결을 해제합니다"
                         >
-                          설정 해제
+                          폴더 해제
                         </button>
                       )}
                     </div>
@@ -592,17 +630,13 @@ export default function SettingsModal({
                           {isTestingKey ? <Loader2 size={16} className="animate-spin text-white" /> : '연동 테스트'}
                         </button>
 
-                        {/* 연동 해제 버튼 (API 키가 입력/연결되어 있을 때 즉시 지우기) */}
+                        {/* AI 연동 해제 버튼 (API 키를 제거하고 연동 해제) */}
                         {geminiApiKey && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setGeminiApiKey('');
-                              setTestResult(null);
-                              showToast('API 키가 지워졌습니다. 하단 [저장]을 클릭하면 에디터 챗봇이 비활성화됩니다.', 'info');
-                            }}
-                            className="px-3.5 py-2.5 rounded-xl text-[13px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-200 dark:border-rose-900/50 transition-all flex items-center justify-center cursor-pointer active:scale-98 shrink-0"
-                            title="API 키를 지우고 연동 해제 상태로 전환합니다"
+                            onClick={handleDeleteAiSettings}
+                            className="px-3.5 py-2.5 rounded-xl text-[13px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-200 dark:border-rose-900/50 transition-all flex items-center justify-center cursor-pointer active:scale-98 shrink-0 shadow-xs"
+                            title="Gemini API 키를 삭제하고 AI 연동을 해제합니다"
                           >
                             연동 해제
                           </button>
@@ -864,7 +898,16 @@ export default function SettingsModal({
                   </div>
                   <div className="pt-2">
                     <a
-                      href="/login"
+                      href="https://onrivi.com/login"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        const api = (window as any).electronAPI;
+                        if (api?.openExternal) {
+                          e.preventDefault();
+                          api.openExternal('https://onrivi.com/login');
+                        }
+                      }}
                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#06C755] hover:bg-[#05B04B] text-white transition-all shadow-xs cursor-pointer"
                     >
                       <span>로그인 페이지로 이동</span>
@@ -986,9 +1029,16 @@ export default function SettingsModal({
                       </div>
                     </div>
                     <a
-                      href="/dashboard"
+                      href="https://onrivi.com/dashboard"
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => {
+                        const api = (window as any).electronAPI;
+                        if (api?.openExternal) {
+                          e.preventDefault();
+                          api.openExternal('https://onrivi.com/dashboard');
+                        }
+                      }}
                       className="px-4 py-2 rounded-xl text-[12px] font-bold bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 transition-all flex items-center gap-1.5 shrink-0"
                     >
                       <span>대시보드 이동</span>

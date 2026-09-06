@@ -108,3 +108,8 @@
 - **마우스 호버(Hover) 상태**:
   - `Text`: 선명한 볼드 텍스트 (`hover:text-black dark:hover:text-white font-bold`)
   - `Background`: 부드러운 그레이 음영 (`hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 rounded-lg`)
+
+### 3.6 조회 결과 데이터 및 파일 경로 고대비(High-Contrast) 시인성 표준
+- **조회 결과 데이터 선명도 보장**: 대시보드, 문서 목록, 검색 결과, 상세 뷰어 등 시스템에서 조회된 모든 결과 데이터(파일 경로, 파일명, 요약문, 태그, 메트릭 텍스트 등)는 흐릿한 저대비 색상(`text-zinc-400`, `text-slate-400`, `opacity-50` 이하)을 일체 사용하지 않고, 고대비 및 가독성이 확보된 색상(Light: `text-zinc-700` 이상 / Dark: `text-zinc-300` 이상, `font-medium` 또는 `font-bold`)으로 진하고 선명하게 렌더링합니다.
+- **파일 경로(Path) 시인성 강화**: 파일 경로(`doc.filePath` 등)는 `text-zinc-700 dark:text-zinc-300 font-bold font-mono` 등 뚜렷한 명도 대비를 주어 가독성을 확보합니다.
+

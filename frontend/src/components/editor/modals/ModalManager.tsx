@@ -4,7 +4,10 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
- * <2026.07.05> 최초작성
+ * 🚨 @PATCH : **2026-09-06** — [미디어 삽입 후 2행 자동 추가 및 커서 이동] YoutubeModal·MapModal·ImageModal 삽입 시 insertMediaAtCursor 사용으로 교체: 삽입 후 빈 줄 2행 자동 추가 및 커서 마지막 빈 행 이동
+ * 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 지식 허브를 모달 대신 독립 전용 페이지(/knowledge)로 분리하여 에디터 모달 난립 해소 및 Ctrl+Shift+K 단독 페이지 라우팅 적용
+ * 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 12대 화면 통합 관리 센터 KnowledgeHubModal 연동 및 API Key / 모델명 양방향 동기화
+ * 🚨 @PATCH : **2026-09-04** — [지식 문서 설정 상세 분석 모달 연동] KnowledgeDetailModal 임포트 및 knowledge:show-detail 글로벌 이벤트 리스너 통합
  * 🚨 @PATCH : **2026-09-03** — 표 모달(TableModal)에서 표 생성 시 에디터 첫 번째 칼럼('제목')으로 커서 및 선택 영역을 자동 안착시켜 즉시 타이핑할 수 있도록 개선
  * 🚨 @PATCH : **2026-07-06** — [시큐어코딩] 파일 및 폴더 생성 시 경로 탐색(Path Traversal) 공격 방지를 위해 생성명에서 슬래시(/) 및 백슬래시(\) 문자를 제거하는 정규식 필터 적용
  * -----------------------------------------------------------------------
@@ -28,9 +31,11 @@ import CssStyleModal from '@/components/CssStyleModal';        // 서식 모달 
 import ReferenceManagerModal from '@/components/ReferenceManagerModal'; // 참조 관리 모달 컴포넌트
 import CitationSelectionModal from '@/components/CitationSelectionModal'; // 참조자 선택 모달 컴포넌트
 import ResourceFolderGuideModal from '@/components/editor/modals/ResourceFolderGuideModal'; // 리소스 폴더 안내 모달
+import { KnowledgeDetailModal } from '@/components/KnowledgeDetailModal';
 
 import { useEditorModals } from '@/hooks/editor/useEditorModals';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage'; // 모달 관련 상태와 함수들을 hook으로 관리하는 hooks
+import { insertMediaAtCursor } from '@/utils/editorActions'; // 미디어 삽입 후 2행 추가 및 커서 이동 유틸
 
 /**
  * props들의 타입을 선언
@@ -80,8 +85,25 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
     handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId, setProfiles,   // 파일클릭핸들러, 프로필, 활성프로필ID, 동적CSS문자열, 활성프로필ID설정, 프로필설정
     isSystemProfileId, getApiUrl, DEFAULT_PROFILE, SYSTEM_PROFILES, vfsCreateFile, vfsWriteFile, vfsCreateFolder,   // 시스템프로파일ID, API URL 얻기, 기본프로파일, 시스템프로파일, 가상파일시스템생성파일, 가상파일시스템쓰기파일, 가상파일시스템생성폴더
     helpTitle, helpContent, setHelpContent,                                                                  // 도움말제목, 도움말콘텐츠, 도움말콘텐츠설정
-    resourceFolder, resourceFolderRef, selectResourceFolder
+    resourceFolder, resourceFolderRef, selectResourceFolder,
+    updateContent
   } = deps;
+
+  const [knowledgeDetailData, setKnowledgeDetailData] = React.useState<any | null>(null);
+
+  React.useEffect(() => {
+    const handleShowDetail = (e: any) => {
+      if (e.detail) {
+        setKnowledgeDetailData(e.detail);
+      }
+    };
+
+    window.addEventListener('knowledge:show-detail', handleShowDetail);
+
+    return () => {
+      window.removeEventListener('knowledge:show-detail', handleShowDetail);
+    };
+  }, []);
 
   return (
     <>
@@ -349,6 +371,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       showToast={showToast}
       onInsert={(path: string, alt: string, range: any) => {
         if (range) {
+          // 기존 이미지 편집: range 위치의 텍스트만 교체 (빈 줄 추가 없음)
           const editor = editorRef.current;
           if (editor) {
             editor.executeEdits("edit-image", [{
@@ -359,7 +382,8 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
             editor.focus();
           }
         } else {
-          insertAtCursor(`![${alt}](${path})`);
+          // 새 이미지 삽입: 빈 줄 2행 추가 및 커서 이동
+          insertMediaAtCursor(editorRef, lastSelectionRef, `![${alt}](${path})`, updateContent);
         }
         setEditingImageInfo(null);
       }}
@@ -369,7 +393,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       isOpen={isYoutubeModalOpen}
       onClose={() => { setIsYoutubeModalOpen(false); setYoutubeInitialUrl(null); }}
       onInsert={(code: string) => {
-        insertAtCursor(code);
+        insertMediaAtCursor(editorRef, lastSelectionRef, code, updateContent);
       }}
       isDarkMode={isDarkMode}
       initialUrl={youtubeInitialUrl || undefined}
@@ -382,7 +406,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       <MapModal
         isOpen={isMapModalOpen}
         onClose={() => setIsMapModalOpen(false)}
-        onInsert={(code: string) => insertAtCursor(code)}
+        onInsert={(code: string) => insertMediaAtCursor(editorRef, lastSelectionRef, code, updateContent)}
         isDarkMode={isDarkMode}
       />
       <TableModal
@@ -576,6 +600,18 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
             }
           }
         }}
+      />
+
+      {/* 🧠 지식 문서 설정 상세 분석 모달 */}
+      <KnowledgeDetailModal
+        isOpen={Boolean(knowledgeDetailData)}
+        onClose={() => setKnowledgeDetailData(null)}
+        detail={knowledgeDetailData}
+        onOpenKnowledgeManager={() => {
+          setKnowledgeDetailData(null);
+          window.dispatchEvent(new CustomEvent('app:open-knowledge-manager'));
+        }}
+        showToast={deps.showToast}
       />
     </>
   );

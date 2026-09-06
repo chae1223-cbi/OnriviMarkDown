@@ -13,6 +13,7 @@
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  *
  * 🚨 @PATCH
+ *   2026-09-05 — 표 상단 여백 (제목 문구와의 간격, margin-top) 및 하단 여백(margin-bottom) 정밀 조절 슬라이더 위젯 추가
  *   2026-09-02 — LINE Design System (LDSG v5.0) 표준 적용: 테마 드롭다운 및 갤러리 팝오버 LDSG Green(#06C755) 악센트 및 LDSG 경계선 규격 통일
  *   2026-08-15 — 상단 헤더 간소화: 7개 이모지 버튼 제거, [테마 선택 드롭다운] + [서식 관리 ⚙] 버튼 2개로 교체
  *               onOpenStyleManager prop 추가 → StyleManagerModal 연동
@@ -2254,6 +2255,28 @@ ${guideContent}
                   updateTableFontSize(v + 'px');
                 }
               }}
+            />
+
+            {/* 표 상단 여백 (제목 문구와의 간격) */}
+            <SliderWidget
+              label="표 상단 여백 (제목 문구와의 간격)"
+              min={0}
+              max={48}
+              value={isNaN(parseInt(getTagRules('table')['margin-top'])) ? 4 : parseInt(getTagRules('table')['margin-top'])}
+              unit="px"
+              disabled={isSystemProfile}
+              onChange={(v) => updateCssRule('table', 'margin-top', v + 'px')}
+            />
+
+            {/* 표 하단 여백 */}
+            <SliderWidget
+              label="표 하단 여백"
+              min={0}
+              max={48}
+              value={isNaN(parseInt(getTagRules('table')['margin-bottom'])) ? 16 : parseInt(getTagRules('table')['margin-bottom'])}
+              unit="px"
+              disabled={isSystemProfile}
+              onChange={(v) => updateCssRule('table', 'margin-bottom', v + 'px')}
             />
           </div>
 

@@ -142,6 +142,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   encryptData: (plainText) => ipcRenderer.invoke('security:encrypt', plainText),
   decryptData: (cipherTextHex) => ipcRenderer.invoke('security:decrypt', cipherTextHex),
 
+  // 27. 리소스 폴더 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 API
+  initResourceFolder: (resourceFolder) => ipcRenderer.invoke('resourceFolder:initStructure', resourceFolder),
+
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
     ipcRenderer.removeAllListeners('menu:new-file');

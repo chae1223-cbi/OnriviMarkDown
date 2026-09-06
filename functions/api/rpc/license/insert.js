@@ -19,7 +19,7 @@ export async function onRequestPost(context) {
 
   try {
     const body = await request.json();
-    const { p_license_id, p_device_uuid, p_device_name, p_user_id } = body;
+    const { p_license_id, p_device_uuid, p_device_name, p_user_id, p_force_takeover } = body;
 
     if (!p_license_id || !p_device_uuid || !p_device_name) {
       return new Response(JSON.stringify({ success: false, code: 'INVALID_PARAMS', message: '필수 인자가 누락되었습니다.' }), { status: 400, headers: corsHeaders });
@@ -35,6 +35,17 @@ export async function onRequestPost(context) {
       'Accept': 'application/json',
       'Prefer': 'return=representation'
     };
+
+    const now = new Date().toISOString();
+
+    // ⚡ 제어권 인수 요청 시 타 활성 세션 비활성화
+    if (p_force_takeover) {
+      await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&device_uuid=neq.${p_device_uuid}&is_active=eq.true`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ is_active: false, updated_at: now })
+      });
+    }
 
     // 1. Fetch max_devices and user_id
     const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${p_license_id}&select=max_devices,user_id&limit=1`, { headers });
@@ -52,7 +63,6 @@ export async function onRequestPost(context) {
 
     let isCurrentlyActive = false;
     let newIsActive = true;
-    const now = new Date().toISOString();
 
     if (actRows && actRows.length > 0) {
       isCurrentlyActive = actRows[0].is_active;

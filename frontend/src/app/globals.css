@@ -494,7 +494,8 @@ option {
   .markdown-viewer-root img,
   .markdown-viewer-root video,
   .markdown-viewer-root iframe,
-  .markdown-viewer-root .table-wrapper {
+  .markdown-viewer-root .table-wrapper,
+  .markdown-viewer-root .table-wrapper-area {
     max-width: 100% !important;
   }
 }
@@ -524,8 +525,39 @@ option {
   background-color: rgba(255, 152, 0, 0.07) !important;
   border-left: 0 !important;
   box-shadow: none !important;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, outline 0.15s ease;
   border-radius: 4px;
+}
+
+/* 📝 문단 내 개별 텍스트 행 분리 래퍼 및 단독 하이라이트 */
+.onrivi-line {
+  display: block;
+  width: 100%;
+  min-height: 1.5em;
+  box-sizing: border-box;
+}
+.onrivi-line.preview-highlight-line {
+  background-color: rgba(255, 152, 0, 0.12) !important;
+  border-radius: 4px;
+}
+
+/* 🖼️ 미디어(이미지/지도/동영상/피규어) 블록 프리뷰 하이라이트 시 선명한 오렌지 아웃라인 링 지원 */
+figure.preview-highlight-line,
+div.preview-highlight-line:has(img, iframe, video),
+.map-embed-wrapper.preview-highlight-line {
+  outline: 2px solid rgba(245, 158, 11, 0.7) !important;
+  outline-offset: 3px;
+  background-color: rgba(245, 158, 11, 0.08) !important;
+}
+
+/* 📊 표(Table) 행 하이라이트 시 전체 셀 배경 강조 및 테두리 보정 */
+tr.preview-highlight-line {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  outline: 2px solid rgba(245, 158, 11, 0.5) !important;
+}
+tr.preview-highlight-line td,
+tr.preview-highlight-line th {
+  background-color: rgba(245, 158, 11, 0.08) !important;
 }
 
 /* 다크모드 프리뷰 하이라이트 대응 */
@@ -533,6 +565,27 @@ option {
   background-color: rgba(255, 152, 0, 0.12) !important;
   border-left: 0 !important;
   box-shadow: none !important;
+}
+.dark .onrivi-line.preview-highlight-line {
+  background-color: rgba(255, 152, 0, 0.18) !important;
+  border-radius: 4px;
+}
+
+.dark figure.preview-highlight-line,
+.dark div.preview-highlight-line:has(img, iframe, video),
+.dark .map-embed-wrapper.preview-highlight-line {
+  outline: 2px solid rgba(251, 191, 36, 0.8) !important;
+  outline-offset: 3px;
+  background-color: rgba(251, 191, 36, 0.12) !important;
+}
+
+.dark tr.preview-highlight-line {
+  background-color: rgba(251, 191, 36, 0.18) !important;
+  outline: 2px solid rgba(251, 191, 36, 0.6) !important;
+}
+.dark tr.preview-highlight-line td,
+.dark tr.preview-highlight-line th {
+  background-color: rgba(251, 191, 36, 0.12) !important;
 }
 
 /* 🎯 Monaco 에디터 커서(Caret) 항시 가시성 100% 보장 */
@@ -888,11 +941,17 @@ div.monaco-table-line {
   width: 100% !important;
   border-collapse: separate !important; /* 둥근 모서리 적용을 위해 collapse 분리 */
   border-spacing: 0 !important;
-  margin: 1.5rem 0 !important;
   border: 1px solid rgba(0, 0, 0, 0.15) !important;
   border-radius: 8px !important;
   overflow: hidden !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02) !important;
+}
+/* 래퍼 없는 단독 table인 경우에만 1.5rem 마진 적용, table-wrapper-area 내부에서는 래퍼가 마진을 전담 */
+.prose:not(:has(.table-wrapper-area)) table {
+  margin: 1.5rem 0 !important;
+}
+.table-wrapper-area > table {
+  margin: 0 !important;
 }
 .dark .prose table {
   border: 1px solid rgba(255, 255, 255, 0.18) !important;

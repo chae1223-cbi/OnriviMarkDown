@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
  * 작성자 : 채병익
+ * 🚨 @PATCH : **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 서식 툴바의 AI 글쓰기 어시스턴트 버튼(Sparkles) 비활성화(disabled, opacity-30, grayscale) 적용
  * 🚨 @PATCH : **2026-07-20** — 툴바의 '문서 서식 일괄 정리' 버튼 아이콘을 플로팅 툴바 및 환경설정과 동일하게 `🧹`로 변경하여, AI 글쓰기 어시스턴트 아이콘(`✨`)과의 시각적 중복 및 혼선 방지 패치
  * -----------------------------------------------------------------------
  */
@@ -59,8 +60,9 @@ export default function FormattingToolbar() {
     <div className="h-10 flex items-center px-2 gap-1 bg-white/85 dark:bg-zinc-900/85 backdrop-blur-xl border-b border-black/5 dark:border-white/5 shrink-0 overflow-x-auto z-10 transition-colors duration-300">
       {/* AI 글쓰기 단독 버튼 */}
       <FormatBtn
+        disabled={!geminiApiKey}
         label={<Sparkles size={15} className={geminiApiKey ? "text-purple-500 animate-pulse" : "text-slate-400 dark:text-zinc-500"} />}
-        title={geminiApiKey ? "AI 글쓰기 팝업 어시스턴트" : "AI 글쓰기 (설정에서 API 키를 등록해 주세요)"}
+        title={geminiApiKey ? "AI 글쓰기 팝업 어시스턴트" : "AI 연동 해제됨 (설정에서 API 키를 등록해 주세요)"}
         onAction={() => {
           if (!geminiApiKey) {
             showToast("AI 기능을 사용하려면 설정에서 Gemini API Key를 등록해 주세요.", "warning");
@@ -125,18 +127,24 @@ export default function FormattingToolbar() {
   );
 }
 
-function FormatBtn({ label, title, onAction, bold, italic, underline }: {
+function FormatBtn({ label, title, onAction, bold, italic, underline, disabled }: {
   label: string | React.ReactNode;
   title: string;
   onAction?: (e: any) => void;
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
-      onMouseDown={(e) => { e.preventDefault(); onAction?.(e); }}
-      className={`w-8 h-8 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[16px] shrink-0 ${bold ? 'font-black' : ''} ${italic ? 'italic font-serif' : ''} ${underline ? 'underline' : ''}`}
+      disabled={disabled}
+      onMouseDown={(e) => { e.preventDefault(); if (!disabled) onAction?.(e); }}
+      className={`w-8 h-8 rounded-lg transition-all flex items-center justify-center text-[16px] shrink-0 ${
+        disabled 
+          ? 'opacity-30 cursor-not-allowed grayscale' 
+          : 'hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer'
+      } ${bold ? 'font-black' : ''} ${italic ? 'italic font-serif' : ''} ${underline ? 'underline' : ''}`}
       title={title}
     >
       {label}

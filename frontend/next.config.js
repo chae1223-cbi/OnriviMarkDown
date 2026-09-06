@@ -29,7 +29,14 @@ const nextConfig = {
         fs: false,
         path: false,
         crypto: false,
+        module: false,
+        'node:module': false,
+        'node:sqlite': false,
+        'node:fs': false,
+        'node:path': false,
+        'node:crypto': false,
       };
+      config.externals = [...(config.externals || []), 'node:sqlite', 'node:module'];
     }
 
     // ?�적 ?�보?�기�??�해 추출??CSS ?�의 ?��? ?�트 URL ?�정

@@ -1,3 +1,12 @@
+// ====================================================================
+// 📊 [OMD-EDIT-Toolbar-0003] Toolbar.tsx ➔ Toolbar
+// 🎯 @KICK  : 에디터 우측 사이드바 툴바 - 홈, 대시보드, 지식베이스, 서식, 참조, 환경설정 퀵 액션 제공
+// 🛡️ @GUARD : 라이선스 및 뷰포트 상태에 따른 프로덕티비티 도구 조건부 노출
+// 🚨 @PATCH : **2026-09-05** — 제한모드(isRestrictedUser) 시 우측 툴바의 지식 베이스 전환 버튼(🏛️) 비활성화(disabled, opacity-30, grayscale, 안내 툴팁 및 토스트) 적용
+//             **2026-09-05** — AI 미연결(!geminiApiKey) 시 우측 툴바의 지식 베이스 전환 버튼(🏛️) 비활성화(disabled, 흐린 흑백 스타일, 연동 안내 툴팁/토스트) 적용
+//             **2026-09-04** — 우측 툴바의 지식 베이스 아이콘을 🏛️로 변경 연동 (클릭 시 app:open-knowledge-manager 이벤트 디스패치)
+// 🔗 @CALLS : useEditorContext, useRouter
+// ====================================================================
 "use client";
 
 import React from 'react';
@@ -14,7 +23,7 @@ function openExternal(url: string) {
 }
 
 export default function Toolbar() {
-  const { dispatchCommand: dispatch, previewMode, isExpired, activeTabId, geminiApiKey, showToast } = useEditorContext();
+  const { dispatchCommand: dispatch, previewMode, isExpired, activeTabId, geminiApiKey, showToast, isRestrictedUser } = useEditorContext();
   const router = useRouter();
   const showProductivity = previewMode !== 'preview' && !isExpired && activeTabId;
 
@@ -83,6 +92,40 @@ export default function Toolbar() {
       >
         <span className="text-zinc-500 dark:text-zinc-400 text-sm">🔠</span>
       </button>
+
+      {/* 🏛️ 지식 베이스 화면 전환 (제한 모드 또는 AI 미연결 시 비활성화) */}
+      {(() => {
+        const isKnowledgeDisabled = Boolean(isRestrictedUser || !geminiApiKey);
+        const disabledReasonTitle = isRestrictedUser
+          ? "🔒 읽기 전용(제한사용자) 모드에서는 지식 베이스 화면으로 이동할 수 없습니다."
+          : (!geminiApiKey ? "지식 베이스 화면 전환 (AI 연동 필요)" : "지식 베이스 화면으로 전환 (Ctrl+Shift+K)");
+
+        return (
+          <button
+            disabled={isKnowledgeDisabled}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (isRestrictedUser) {
+                showToast?.("🔒 읽기 전용(제한사용자) 모드에서는 지식 베이스 화면으로 이동할 수 없습니다. 상단 '이 화면에서 편집 시작하기'를 눌러주세요.", "warning");
+                return;
+              }
+              if (!geminiApiKey) {
+                showToast?.('지식 엔진을 사용하려면 환경설정에서 Gemini API Key를 먼저 등록해 주세요.', 'warning');
+                return;
+              }
+              window.dispatchEvent(new CustomEvent('app:open-knowledge-manager'));
+            }}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all text-base ${
+              isKnowledgeDisabled
+                ? 'opacity-30 cursor-not-allowed grayscale text-zinc-400 dark:text-zinc-600'
+                : 'hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer'
+            }`}
+            title={disabledReasonTitle}
+          >
+            <span className="text-zinc-500 dark:text-zinc-400 text-base">🏛️</span>
+          </button>
+        );
+      })()}
 
       <button
         onMouseDown={(e) => { e.preventDefault(); dispatch('TOGGLE_CSS_STYLE'); }}

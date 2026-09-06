@@ -1,3 +1,10 @@
+// ====================================================================
+// 📊 [OMD-EDIT-VideoCard-0001] VideoCard ➔ VideoCard
+// 🎯 @KICK  : YouTube 및 로컬 비디오 썸네일 카드 렌더링 및 에디터-미리보기 1:1 동기화(data-line) 지원
+// 🛡️ @GUARD : 로컬 웹 환경 CORS 방어, 데스크탑 전용 썸네일 추출, 1초 시점 프레임 추출
+// 🚨 @PATCH : 2026-09-05 - [미디어 스크롤 싱크 및 data-line 보완] outer <a> 태그에 data-line 속성 바인딩을 지원하여 동영상 줄 타이핑 및 커서 이동 시 위치 추종 지원
+// 🔗 @CALLS : thumbnailCache, canvas.toDataURL
+// ====================================================================
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -10,9 +17,12 @@ interface VideoCardProps {
   displayName: string;
   isYoutube?: boolean;
   youtubeId?: string;
+  'data-line'?: number | string;
+  dataLine?: number | string;
+  [key: string]: any;
 }
 
-export default function VideoCard({ src, href, displayName, isYoutube, youtubeId }: VideoCardProps) {
+export default function VideoCard({ src, href, displayName, isYoutube, youtubeId, dataLine, 'data-line': dataLineProp, ...props }: VideoCardProps) {
   const cachedKey = isYoutube ? `yt:${youtubeId}` : src;
   const [thumbnail, setThumbnail] = useState<string | null>(() => thumbnailCache.get(cachedKey) || null);
   const [loading, setLoading] = useState(!thumbnailCache.has(cachedKey));
@@ -80,7 +90,14 @@ export default function VideoCard({ src, href, displayName, isYoutube, youtubeId
   }, [src, isYoutube, youtubeId, cachedKey]);
 
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="block no-underline my-2 group" style={{ display: 'block', textDecoration: 'none' }}>
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-line={dataLine || dataLineProp || (props as any)['data-line']}
+      className="block no-underline my-2 group"
+      style={{ display: 'block', textDecoration: 'none' }}
+    >
       <span className={`block relative rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 transition-colors ${
         isYoutube ? 'bg-zinc-950 hover:border-red-400 dark:hover:border-red-500' : 'bg-zinc-100 dark:bg-zinc-900 hover:border-blue-400 dark:hover:border-blue-500'
       }`}>

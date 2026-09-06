@@ -21,7 +21,10 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-02** — File System Access API(브라우저 실폴더), Electron IPC(file:copy), VFS 3대 환경 전체에서 파일/폴더 복사 및 붙여넣기(Copy & Paste) 엔진 전면 고도화 및 중복 이름 충돌 방지 구현
+// 🚨 @PATCH : **2026-09-05** — [ONRIVI-KNOWLEDGE-REFRESH-SYNC] 파일 탐색기 새로고침(file:refresh-all-directories) 및 컨텍스트 메뉴 새로고침 시 지식 등록 문서 목록(/api/knowledge/list) 자동 재호출 및 등록 뱃지(📗) 실시간 재동기화 연동
+//             **2026-09-04** — [ONRIVI-CONTEXTMENU-CLAMP] 화면 하단 근처에서 우클릭 시 컨텍스트 메뉴가 하단 작업표시줄 밖으로 잘리지 않도록 뷰포트 바운더리 동적 클램핑(BoundingRect) 및 스크롤 가드 적용
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 지식 보관함 등록 문서 목록(onrivi_registered_knowledge_docs) 자동 백그라운드 동기화 및 탐색기 뱃지 실시간 연동 탑재
+//             **2026-09-02** — File System Access API(브라우저 실폴더), Electron IPC(file:copy), VFS 3대 환경 전체에서 파일/폴더 복사 및 붙여넣기(Copy & Paste) 엔진 전면 고도화 및 중복 이름 충돌 방지 구현
 //             **2026-09-02** — 우클릭 팝업 메뉴(Context Menu) 마우스 벗어남(Mouse Leave) 시 자동 닫기 처리
 //             **2026-09-02** — 루트 상단 액션버튼 제거 및 신규 붙여넣기 아이콘(/icons/icon-paste.png) 컨텍스트 메뉴 동기화
 //             **2026-09-02** — 파일 및 폴더 복사/붙여넣기(Copy & Paste) 엔진 탑재
@@ -110,6 +113,63 @@ export default function LeftSidebar() {
       };
     }
   }, [contextMenu]);
+
+  // 🧠 등록된 지식 문서 경로 목록 동기화 (탐색기 뱃지 표시용)
+  useEffect(() => {
+    const syncKnowledgeDocs = async () => {
+      const effectiveResourceFolder = (
+        resourceFolder ||
+        (typeof window !== 'undefined' ? localStorage.getItem('resourceFolder') : '') ||
+        (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
+        (() => {
+          try {
+            const raw = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
+            return raw ? JSON.parse(raw).resourceFolder || '' : '';
+          } catch { return ''; }
+        })() ||
+        ''
+      ).trim();
+
+      if (!effectiveResourceFolder) return;
+
+      const effectiveApiKey = (
+        geminiApiKey ||
+        (typeof window !== 'undefined' ? localStorage.getItem('onrivi_gemini_api_key') : '') ||
+        (() => {
+          try {
+            const raw = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
+            return raw ? JSON.parse(raw).geminiApiKey || '' : '';
+          } catch { return ''; }
+        })() ||
+        'DUMMY_KEY_FOR_LIST'
+      );
+
+      try {
+        const res = await fetch('/api/knowledge/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resourceFolder: effectiveResourceFolder, geminiApiKey: effectiveApiKey, planCode: 'ELITEPRO' }),
+        });
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.documents)) {
+          const paths = data.documents.map((d: any) => d.file_path || d.filePath).filter(Boolean);
+          localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(paths));
+          window.dispatchEvent(new CustomEvent('knowledge:updated'));
+        }
+      } catch {}
+    };
+
+    syncKnowledgeDocs();
+
+    window.addEventListener('knowledge:updated-from-hub', syncKnowledgeDocs);
+    window.addEventListener('knowledge:refresh', syncKnowledgeDocs);
+    window.addEventListener('file:refresh-all-directories', syncKnowledgeDocs);
+    return () => {
+      window.removeEventListener('knowledge:updated-from-hub', syncKnowledgeDocs);
+      window.removeEventListener('knowledge:refresh', syncKnowledgeDocs);
+      window.removeEventListener('file:refresh-all-directories', syncKnowledgeDocs);
+    };
+  }, [resourceFolder, geminiApiKey]);
 
   // 📋 파일/폴더 복사 및 붙여넣기 클립보드 상태
   const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any } | null>(null);
@@ -1049,10 +1109,23 @@ export default function LeftSidebar() {
                 {/* Context Menu Portal */}
                 {contextMenu && createPortal(
                   <div
-                    className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+                    ref={(el) => {
+                      if (el && typeof window !== 'undefined') {
+                        const rect = el.getBoundingClientRect();
+                        if (rect.bottom > window.innerHeight - 10) {
+                          const newTop = Math.max(10, window.innerHeight - rect.height - 12);
+                          el.style.top = `${newTop}px`;
+                        }
+                        if (rect.right > window.innerWidth - 10) {
+                          const newLeft = Math.max(10, window.innerWidth - rect.width - 12);
+                          el.style.left = `${newLeft}px`;
+                        }
+                      }
+                    }}
+                    className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[160px] max-h-[calc(100vh-24px)] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100"
                     style={{ 
-                      top: Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 150 : contextMenu.y), 
-                      left: Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 180 : contextMenu.x) 
+                      top: Math.max(10, Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 250 : contextMenu.y)), 
+                      left: Math.max(10, Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 200 : contextMenu.x)) 
                     }}
                     onClick={(e) => e.stopPropagation()}
                     onContextMenu={(e) => e.preventDefault()}

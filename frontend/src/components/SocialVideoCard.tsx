@@ -1,3 +1,10 @@
+// ====================================================================
+// 📊 [OMD-EDIT-SocialVideoCard-0001] SocialVideoCard ➔ SocialVideoCard
+// 🎯 @KICK  : SNS 동영상(TikTok, Instagram, Vimeo 등) 임베드 카드 렌더링 및 에디터-미리보기 1:1 동기화(data-line) 지원
+// 🛡️ @GUARD : oEmbed 비동기 호출 및 취소 플래그 가드, 플랫폼별 브랜드 컬러 격리
+// 🚨 @PATCH : 2026-09-05 - [미디어 스크롤 싱크 및 data-line 보완] outer <a> 태그에 data-line 속성 바인딩을 지원하여 SNS 동영상 링크 줄 타이핑 및 커서 이동 시 위치 추종 지원
+// 🔗 @CALLS : fetch, oembedUrl
+// ====================================================================
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -5,6 +12,9 @@ import React, { useState, useEffect } from 'react';
 interface SocialVideoCardProps {
   url: string;
   displayName: string;
+  'data-line'?: number | string;
+  dataLine?: number | string;
+  [key: string]: any;
 }
 
 function detectPlatform(url: string): string | null {
@@ -24,7 +34,7 @@ const platformColors: Record<string, string> = {
   Dailymotion: 'hover:border-blue-400 dark:hover:border-blue-500',
 };
 
-export default function SocialVideoCard({ url, displayName }: SocialVideoCardProps) {
+export default function SocialVideoCard({ url, displayName, dataLine, 'data-line': dataLineProp, ...props }: SocialVideoCardProps) {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const platform = detectPlatform(url);
@@ -47,7 +57,14 @@ export default function SocialVideoCard({ url, displayName }: SocialVideoCardPro
   }, [url]);
 
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="block no-underline my-2 group" style={{ display: 'block', textDecoration: 'none' }}>
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-line={dataLine || dataLineProp || (props as any)['data-line']}
+      className="block no-underline my-2 group"
+      style={{ display: 'block', textDecoration: 'none' }}
+    >
       <div className={`relative rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 transition-colors ${platformColors[platform || ''] || 'hover:border-blue-400 dark:hover:border-blue-500'}`}>
         <div className="aspect-video relative flex items-center justify-center bg-black/10 dark:bg-black/30 overflow-hidden">
           {loading ? (

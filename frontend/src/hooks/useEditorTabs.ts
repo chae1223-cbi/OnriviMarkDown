@@ -54,7 +54,7 @@ export const useEditorTabs = (
   // 📊 [OMD-FILE-USEEDITORTABS-0003] useEditorTabs.ts ➔ updateContent
   // 🎯 @KICK  : 에디터/외부에서 콘텐츠 변경 시 탭 상태와 Monaco 모델을 디바운스하여 동기화
   // 🛡️ @GUARD : isEditorMounted, previewMode, isComposing 상태에 따른 early return
-  // 🚨 @PATCH : 없음
+  // 🚨 @PATCH : 2026-09-05 - [한글 IME 조합 중 preview DOM 정지 결함 해결] isComposingRef.current 가드 제거하여 한글 타이핑 중에도 100ms 디바운스 후 setContent 및 preview DOM 갱신이 즉시 실행되도록 수정; 이전에는 한글 조합 중 preview가 완전히 멈추던 결함 완전 해결
   // 🔗 @CALLS : setContent, setTabs
   // ====================================================================
   const updateContent = useCallback((newValue: string, fromEditor: boolean = false) => {
@@ -63,7 +63,6 @@ export const useEditorTabs = (
 
     if (fromEditor) {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
-      if (isComposingRef.current) return;
 
       previewDebounceRef.current = setTimeout(() => {
         if (!isEditorMountedRef.current) return;

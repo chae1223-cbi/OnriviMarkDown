@@ -8,6 +8,7 @@ import { stripFrontmatter } from "@/lib/editorUtils";
 import { updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { supabase } from '@/lib/supabaseClient';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
+import { triggerKnowledgeAutoSyncOnSave } from '@/lib/knowledge/knowledgeAutoSync';
 
 /**
  * [ONR-16-004] useEditorHandlers 커스텀 훅
@@ -17,12 +18,13 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
 // 🛡️ @GUARD : 각 핸들러별 editorRef/selection/model 방어 로직; previewRef 누락 시 export early return
-// 🚨 @PATCH : **2026-08-12** — 저장(save) 시 단순 만료 외에 동시접속 제한 및 제한 사용자 플랜 여부(isRestrictedUser)를 검사하여 문서를 저장하지 못하도록 권한 가드 보완 적용
+// 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 수동 저장(save) 시 지식 보관함 등록 문서 로컬 비동기 자동 재색인(triggerKnowledgeAutoSyncOnSave) 일원화 연동
+//             **2026-08-12** — 저장(save) 시 단순 만료 외에 동시접속 제한 및 제한 사용자 플랜 여부(isRestrictedUser)를 검사하여 문서를 저장하지 못하도록 권한 가드 보완 적용
 //             **2026-07-16** — PDF 내보내기 시 머리글/바닥글 및 표지 페이지 제외 옵션을 exportPDF 파라미터 구조체에 매핑하여 전달하도록 패치.
 //             **2026-06-19** — 인쇄/PDF 기능 통합 처리: print 핸들러 실행 시 window.print() 인쇄 팝업 대신 직접 PDF 파일 저장 기능(exportPDF)을 다이렉트로 수행하도록 패치; exportPDF 호출 시 누락되었던 dynamicCssString(활성 CSS 프로필) 매개변수를 추가 전달하도록 패치; previewRef/setIsSettingsModalOpen 누락 복원 등
 //             **2026-06-20** — 내보내기(PDF/HTML/PNG/EPUB) 서식 및 배경색 완벽 동기화를 위해 activeProfile 서식 프로필 매개변수를 추가로 전달하도록 패치
 //             **2026-08-05** — 저장(save, saveAs) 시 현재 적용 중인 서식을 Frontmatter(css_profile)에 자동 주입 및 에디터 동기화 처리 패치
-// 🔗 @CALLS : exportPDF, exportHTML, exportEPUB, exportPNG, vfsWriteFile, stripFrontmatter, sanitizePastedText, previewRef, setIsSettingsModalOpen, updateCssProfileInFrontmatter
+// 🔗 @CALLS : exportPDF, exportHTML, exportEPUB, exportPNG, vfsWriteFile, stripFrontmatter, sanitizePastedText, previewRef, setIsSettingsModalOpen, updateCssProfileInFrontmatter, triggerKnowledgeAutoSyncOnSave
 // ====================================================================
 export const useEditorHandlers = ({
   editorRef,
@@ -81,6 +83,12 @@ export const useEditorHandlers = ({
     activeTabIdRef,
     licenseStatusRef
 }: any) => {
+
+  // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003] 등록된 문서 저장 시 지식 베이스 로컬 비동기 자동 재색인 트리거
+  const triggerKnowledgeAutoSync = (filePath: string, fileContent: string) => {
+    if (typeof window === 'undefined' || !filePath || !fileContent) return;
+    triggerKnowledgeAutoSyncOnSave({ filePath, fileContent }).catch(() => {});
+  };
 
   const handlers = {
     // ====================================================================
@@ -445,6 +453,7 @@ export const useEditorHandlers = ({
                 setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              triggerKnowledgeAutoSync(fileNode.path, currentVal);
               return;
             }
           } catch (e) {
@@ -466,6 +475,7 @@ export const useEditorHandlers = ({
                 setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              triggerKnowledgeAutoSync(fileNode.path, currentVal);
               return;
             }
           } catch (e: any) {
@@ -485,6 +495,7 @@ export const useEditorHandlers = ({
                 setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
               }, 150);
               showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+              triggerKnowledgeAutoSync(fileNode.path || fileName, currentVal);
               return;
             } catch (e: any) {
               setSaveStatus('unsaved');
@@ -497,6 +508,7 @@ export const useEditorHandlers = ({
             setSaveStatus('saved');
             setTabs(prev => prev.map(t => t.id === activeTabIdRef.current ? { ...t, isModified: false } : t));
             showToast("현재 파일에 안전하게 저장되었습니다.", "success");
+            triggerKnowledgeAutoSync(fileNode.path, currentVal);
             return;
           }
         }

@@ -5,7 +5,8 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026-08-15> 최초작성
- * 🚨 @PATCH : **2026-09-02** — 서식 데이터 관리 파일 내보내기 아이콘을 공식 아이콘(/icons/icon-export.png)으로 교체 및 통일
+ * 🚨 @PATCH : **2026-09-05** — AI 미연결 시 서식 관리 모달의 AI 서식 생성 입력창, 추천 칩 및 버튼을 비활성화(disabled) 및 연동 안내 플레이스홀더 적용
+ *             **2026-09-02** — 서식 데이터 관리 파일 내보내기 아이콘을 공식 아이콘(/icons/icon-export.png)으로 교체 및 통일
  *             **2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 좌측 서식 목록 사이드바 .bg-sidebar-luxury 럭셔리 그라데이션 적용 및 LDSG Green(#06C755)/Blue(#4D73FF) 컬러 시스템 100% 통일
  *             **2026-08-15** — 서식 테마 관리(추가/삭제/이름변경/가져오기/내보내기/AI생성)를
  *             CssStyleForm 인라인 UI에서 분리하여 전용 풀스크린 모달로 독립
@@ -500,8 +501,12 @@ ${guideContent}
                       <button
                         key={idx}
                         onClick={() => setAiPromptInput(chip.text)}
-                        disabled={isAiGenerating}
-                        className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors ${dk ? 'bg-zinc-800 hover:bg-[#06C755]/20 text-zinc-300 hover:text-[#06C755] border border-zinc-700' : 'bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-[#06C755] border border-slate-200'}`}
+                        disabled={isAiGenerating || !geminiApiKey}
+                        className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors ${
+                          !geminiApiKey 
+                            ? 'opacity-40 cursor-not-allowed bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border border-zinc-200 dark:border-zinc-700'
+                            : dk ? 'bg-zinc-800 hover:bg-[#06C755]/20 text-zinc-300 hover:text-[#06C755] border border-zinc-700' : 'bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-[#06C755] border border-slate-200'
+                        }`}
                       >
                         {chip.label}
                       </button>
@@ -509,11 +514,11 @@ ${guideContent}
                   </div>
 
                   <textarea
-                    placeholder="원하는 서식 스타일을 자유롭게 묘사해 보세요."
+                    placeholder={!geminiApiKey ? "AI 연동이 필요합니다 (환경설정에서 Gemini API Key를 먼저 등록해 주세요)." : "원하는 서식 스타일을 자유롭게 묘사해 보세요."}
                     value={aiPromptInput}
                     onChange={e => setAiPromptInput(e.target.value)}
-                    disabled={isAiGenerating}
-                    className={`${inputCls} h-24 resize-none mb-3`}
+                    disabled={isAiGenerating || !geminiApiKey}
+                    className={`${inputCls} h-24 resize-none mb-3 ${!geminiApiKey ? 'opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-800/40' : ''}`}
                   />
                   
                   <div className="flex items-center justify-between">

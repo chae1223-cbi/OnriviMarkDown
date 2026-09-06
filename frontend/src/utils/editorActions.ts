@@ -1,4 +1,5 @@
 // @ts-nocheck
+// 🚨 @PATCH : 2026-09-06 - [미디어 삽입 후 2행 자동 추가 및 커서 이동] insertMediaAtCursor 함수 신규 추가: 이미지·동영상·지도 마크다운 삽입 후 자동으로 빈 줄 2행을 추가하고 커서를 마지막 빈 행 끝에 위치시켜 즉시 이어 입력 가능하도록 구현
 
 // ====================================================================
 // 📊 [OMD-EDIT-editorActions-0005] editorActions ➔ scrollToLine
@@ -70,6 +71,105 @@ export const insertAtCursor = (editorRef: any, lastSelectionRef: any, text: stri
     }
   }
 };
+
+// ====================================================================
+// 📊 [OMD-EDIT-editorActions-0004b] editorActions ➔ insertMediaAtCursor
+// 🎯 @KICK  : 이미지·동영상·지도 마크다운을 현재 커서 행의 다음 행에 삽입하고
+//             자동으로 빈 줄 2행을 추가한 뒤 커서를 마지막 빈 행 1열에 위치시킨다
+// 🛡️ @GUARD : editorRef.current 없으면 early return
+// ====================================================================
+// 📊 [OMD-EDIT-editorActions-0004b] editorActions ➔ insertMediaAtCursor
+// 🎯 @KICK  : 이미지·동영상·지도 마크다운을 커서 위치에 삽입하고,
+//             자동으로 2개 빈 행(\n\n)을 추가한 뒤 커서를 마지막 빈 행 1열에 완벽 안착시킨다
+// 🛡️ @GUARD : editorRef.current 없으면 early return
+// 🚨 @PATCH : 2026-09-06 v3 - 모달 닫힘 후 포커스 복원 시 이전 행(이미지 행)으로 커서가 튀는 버그 원천 차단:
+//             모달 언마운트 타이밍(0ms, 50ms, 150ms) 3단계 커서/선택영역/스크롤 강제 고정, updateContent 즉각 동기화 지원
+// 🔗 @CALLS : editor.executeEdits, editor.setPosition, editor.setSelection, editor.revealLineInCenter, updateContent
+// ====================================================================
+/**
+ * [OMD-EDIT-editorActions-0004b] insertMediaAtCursor
+ * @description 이미지·동영상·지도 마크다운을 현재 커서 행 끝에 삽입하고,
+ *              빈 줄 2행(\n\n)을 자동 추가한 뒤 커서를 2번째 빈 행 첫 열에 위치시킨다.
+ */
+export const insertMediaAtCursor = (
+  editorRef: any,
+  lastSelectionRef: any,
+  text: string,
+  updateContent?: (val: string, force?: boolean) => void
+) => {
+  if (!editorRef.current) return;
+  const editor = editorRef.current;
+  const model = editor.getModel();
+  if (!model) return;
+
+  // ─── 1. 삽입 기준 행 결정 ─────────────────────────────────────────
+  const pos = editor.getPosition();
+  const baseLine =
+    pos?.lineNumber ??
+    lastSelectionRef?.current?.startLineNumber ??
+    1;
+
+  // ─── 2. 삽입 텍스트 구성 ─────────────────────────────────────────
+  // 미디어 마크다운 앞뒤 공백 및 개행 정리
+  const cleanText = text.replace(/^\n+/, '').replace(/\n+$/, '');
+  const currentContent = model.getLineContent(baseLine).trim();
+  const prefix = currentContent.length > 0 ? '\n' : '';
+  // prefix + 미디어 한 줄 + 엔터 2회(\n\n)
+  const fullText = `${prefix}${cleanText}\n\n`;
+
+  // ─── 3. Collapsed range (현재 행 끝) 에 삽입 ─────────────────────
+  const endCol = model.getLineLength(baseLine) + 1;
+  const RangeClass = (window as any).monaco?.Range || class {
+    constructor(public startLineNumber: number, public startColumn: number, public endLineNumber: number, public endColumn: number) {}
+  };
+  const insertRange = new RangeClass(baseLine, endCol, baseLine, endCol);
+
+  editor.pushUndoStop();
+  editor.executeEdits('insertMedia', [{ range: insertRange, text: fullText, forceMoveMarkers: true }]);
+  editor.pushUndoStop();
+
+  // ─── 4. 타깃 라인 계산 (삽입된 전체 줄 수의 마지막 빈 행) ─────────
+  const addedNewlines = (fullText.match(/\n/g) || []).length;
+  const targetLine = Math.min(baseLine + addedNewlines, model.getLineCount());
+
+  try {
+    if (typeof model.forceTokenization === 'function') {
+      for (let i = baseLine; i <= targetLine + 1; i++) {
+        model.forceTokenization(i);
+      }
+    }
+    editor.layout();
+  } catch (_) {}
+
+  // ─── 5. 커서 및 선택영역을 마지막 빈 행으로 이동시키는 단일 헬퍼 ─────
+  const applyTargetCursor = () => {
+    if (!editorRef.current) return;
+    const ed = editorRef.current;
+    const m = ed.getModel();
+    if (!m) return;
+    const maxLines = m.getLineCount();
+    const finalLine = Math.min(targetLine, maxLines);
+
+    ed.setPosition({ lineNumber: finalLine, column: 1 });
+    if ((window as any).monaco) {
+      ed.setSelection(new (window as any).monaco.Range(finalLine, 1, finalLine, 1));
+    }
+    ed.revealLineInCenter(finalLine);
+    ed.focus();
+  };
+
+  // 모달 언마운트 및 브라우저 포커스 복원 이벤트에 덮어써지지 않도록 3단계로 강제 안착
+  applyTargetCursor();
+  setTimeout(applyTargetCursor, 50);
+  setTimeout(applyTargetCursor, 150);
+
+  // ─── 6. React 상태 및 미리보기 lineMap 즉각 동기화 ─────────────────
+  if (typeof updateContent === 'function') {
+    updateContent(model.getValue(), true);
+  }
+};
+
+
 
 // ====================================================================
 // 📊 [OMD-EDIT-editorActions-0003] editorActions ➔ findLineNumberByHeading

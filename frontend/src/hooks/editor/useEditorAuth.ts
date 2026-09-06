@@ -5,6 +5,8 @@ export interface LicenseStatus {
   isActivated: boolean;
   isExpired: boolean;
   isRestricted?: boolean; // 추가: 동시접속 초과 등으로 인한 읽기 전용 제한 모드 여부
+  isConcurrentLimited?: boolean; // 💡 다른 기기/브라우저 동시 접속으로 인한 세션 제한 여부
+  hasEditorSubscription?: boolean; // 💡 정품/체험판 등 에디터 편집 지원 구독 보유 여부
   remainingDays: number;
   userId: string;
   licenseKey: string;

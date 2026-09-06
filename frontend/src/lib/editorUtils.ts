@@ -21,6 +21,24 @@ function isAnyListLine(line: string): boolean {
 }
 
 /**
+ * 🛡️ 해당 라인이 마크다운 표(Table) 행(헤더, 구분선, 본문 행)에 해당하는지 판별합니다.
+ * 선행/후행 파이프(|)가 생략된 GFM 표 문법도 포괄합니다.
+ */
+function isTableLine(line: string): boolean {
+  if (!line) return false;
+  const trimmed = line.trim();
+  if (trimmed.startsWith('|')) return true;
+  // 파이프가 포함되어 있고 구분선(---|---)이거나 셀 분할 패턴인 경우
+  if (trimmed.includes('|')) {
+    // 구분선 패턴: :?---+:? \| :?---+:?
+    if (/^:?-+:?\s*\|/.test(trimmed) || /\|\s*:?-+:?/.test(trimmed)) return true;
+    // 일반 셀 분할 패턴 (2개 이상의 셀)
+    return true;
+  }
+  return false;
+}
+
+/**
  * 마크다운 텍스트에서 YAML frontmatter(---로 둘러싸인 블록)를 제거합니다.
  */
 // ====================================================================
@@ -80,7 +98,9 @@ export interface ProcessedMarkdown {
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
 // 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, ordered/unordered list indent
-// 🚨 @PATCH : **2026-09-03** — 일반 문단 행 시작의 탭/스페이스 들여쓰기를 &nbsp;로 변환하여 1:1 보존함으로써 마크다운 파서의 코드블록 오탐을 막고 에디터와 미리보기의 공백/탭 위치가 일치하도록 개선
+// 🚨 @PATCH : **2026-09-06** — [표(Table) 파이프 생략 문법 지원 및 표 내부 빈 줄 주입 차단] isTableLine 헬퍼를 신설하여 선행/후행 파이프가 생략된 GFM 표 문법에서도 표 행 사이에 완충 개행이 주입되어 lineMap 및 뒤따르는 본문 줄 번호가 밀리는 현상을 원천 방지
+//             **2026-09-05** — [미디어(이미지/동영상/지도)와 인접 문단 개행 분리] 이미지(![), 동영상/지도(iframe, video) 블록 직후 연속 텍스트가 올 때 하나의 문단으로 뭉쳐 줄 번호(data-line)가 실종되던 결함을 해결하기 위해 Step 3 완충 개행 분기 정규식에 미디어 패턴을 편입하여 독립 문단 및 고유 줄 번호 매핑 보장
+//             **2026-09-03** — 일반 문단 행 시작의 탭/스페이스 들여쓰기를 &nbsp;로 변환하여 1:1 보존함으로써 마크다운 파서의 코드블록 오탐을 막고 에디터와 미리보기의 공백/탭 위치가 일치하도록 개선
 //             **2026-08-14** — 빈 리스트 항목(글씨 입력 전 공백만 있는 상태)에서 trim()으로 인해 탭 간격 정규식이 깨져 리스트 인덴트 래핑 로직이 무시되던 현상을 해결하기 위해 trim()을 제거하여 첫 탭부터 즉각 미리보기에 반영되도록 수정 | **2026-08-13** — 첫 번째 리스트가 들여쓰기(탭)로 시작할 때 마크다운 파서가 코드 블록으로 오인해 리스트 구조가 파괴되던 현상을 방지하기 위해, 기저 들여쓰기(listBlockBaseIndent)에 맞춰 리스트 블록 전체를 padding-left div 돔으로 감싸고 리스트 시작 위치를 복원하는 지능형 인덴트 래퍼 이식 | **2026-08-12** — 리스트 최상단 들여쓰기를 기준선(listBlockBaseIndent)으로 삼아 하위 계층을 상대적 깊이(4칸 단위)로 보정해 렌더링하는 상대적 리스트 정규화 알고리즘 도입; YAML Frontmatter 제거 시 발생하는 라인 유실 오차를 계산하여 lineMap 에 오프셋(frontmatterOffset)을 주입 보정함으로써 미리보기 돔 ID 매칭 오류 및 스크롤 동기화 실패 버그 완벽 패치; 한글 붙여쓰기 강조 깨짐 방지(\u200B), html2canvas ::before/counter() 미지원 보정; page-break 기능 제거됨 (추후 재설계) | 2026-06-19
 // 🔗 @CALLS : stripFrontmatter, isAnyListLine, getIndentLevel
 // ====================================================================
@@ -338,8 +358,8 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     if (i < correctedLines.length - 1) {
       const next = correctedLines[i + 1];
       
-      const isCurrSpecial = /^(?:\s*[-*+]\s|\s*\d+[\.\)]\s|\s*#+\s|---|\s*\||\s*\$\$|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767])/.test(curr.trim());
-      const isNextSpecial = /^(?:\s*[-*+]\s|\s*\d+[\.\)]\s|\s*#+\s|---|\s*\||\s*\$\$|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767])/.test(next.trim());
+      const isCurrSpecial = /^(?:\s*[-*+]\s|\s*\d+[\.\)]\s|\s*#+\s|---|\s*\||\s*\$\$|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767]|!\[|<(?:iframe|video)|\[(?:iframe|video|map):)/.test(curr.trim());
+      const isNextSpecial = /^(?:\s*[-*+]\s|\s*\d+[\.\)]\s|\s*#+\s|---|\s*\||\s*\$\$|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767]|!\[|<(?:iframe|video)|\[(?:iframe|video|map):)/.test(next.trim());
       
       const getLineIndent = (line: string): string => {
         const processed = line.replace(/\t/g, "  ");
@@ -361,7 +381,7 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       const isNextSpacer = next === "\u00A0" || next.includes("onrivi-list-spacer");
       
       const isNextNewIndent = nextIndent !== "" && currIndent !== nextIndent;
-      const isTableToTable = curr.trim().startsWith("|") && next.trim().startsWith("|");
+      const isTableToTable = isTableLine(curr) && isTableLine(next);
       const isQuoteToQuote = curr.trim().startsWith(">") && next.trim().startsWith(">");
       const isListToList = isListLine(curr) && isListLine(next);
       
