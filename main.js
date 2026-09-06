@@ -633,11 +633,31 @@ async function handleDesktopKnowledgeApi(request, pathname, url) {
         });
       }
 
-      const rows = db.prepare(`
-        SELECT status, COUNT(*) as count
-        FROM knowledge_jobs
-        GROUP BY status
-      `).all();
+      let rows = [];
+      try {
+        rows = db.prepare(`
+          SELECT status, COUNT(*) as count
+          FROM knowledge_jobs
+          GROUP BY status
+        `).all();
+      } catch (tableErr) {
+        console.warn('[DesktopKnowledgeApi] knowledge_jobs table query failed, returning zero stats:', tableErr?.message);
+        return Response.json({
+          ok: true,
+          stats: {
+            total: 0,
+            completed: 0,
+            running: 0,
+            queued: 0,
+            failed: 0,
+            percent: 0,
+            activeWorkers: 0,
+            maxWorkers: 2,
+            isPaused: false,
+            rateLimitStatus: 'NORMAL'
+          }
+        });
+      }
 
       let total = 0, queued = 0, running = 0, success = 0, failed = 0;
       for (const r of rows) {
@@ -1478,10 +1498,29 @@ ${fileContent.slice(0, 15000)}`;
         if (restoredDb2) {
           try { documents2 = restoredDb2.prepare('SELECT id, file_path, title FROM knowledge_documents').all(); } catch {}
         }
+        let backups2 = [];
+        try {
+          const files2 = fs.readdirSync(backupsDir).filter(f => f.endsWith('.db') && !f.startsWith('.'));
+          backups2 = files2.map(f => {
+            const stat = fs.statSync(path.join(backupsDir, f));
+            const m = manifest[f] || {};
+            return {
+              fileName: f,
+              filePath: path.join(backupsDir, f),
+              size: stat.size,
+              createdAt: m.createdAt || stat.birthtime.toISOString(),
+              reason: m.reason || '지식 데이터베이스 백업',
+              docCount: typeof m.docCount === 'number' ? m.docCount : 0,
+              docTitles: Array.isArray(m.docTitles) ? m.docTitles : []
+            };
+          }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        } catch {}
+
         return Response.json({
           ok: true,
           message: `업로드된 파일(${uploadedFileName})로 지식 데이터베이스가 성공적으로 원복되었습니다.`,
-          documents: documents2
+          documents: documents2,
+          backups: backups2
         });
       }
 
@@ -1494,17 +1533,36 @@ ${fileContent.slice(0, 15000)}`;
       fs.copyFileSync(srcBackup, dbPath);
       try { fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8'); } catch {}
 
-      // 복원 후 문서 목록 조회
+      // 복원 후 문서 목록 및 최신 백업 목록 조회
       const restoredDb = getDesktopKnowledgeDb(resourceFolder, false);
       let documents = [];
       if (restoredDb) {
         try { documents = restoredDb.prepare('SELECT id, file_path, title FROM knowledge_documents').all(); } catch {}
       }
 
+      let backups = [];
+      try {
+        const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.db') && !f.startsWith('.'));
+        backups = files.map(f => {
+          const stat = fs.statSync(path.join(backupsDir, f));
+          const m = manifest[f] || {};
+          return {
+            fileName: f,
+            filePath: path.join(backupsDir, f),
+            size: stat.size,
+            createdAt: m.createdAt || stat.birthtime.toISOString(),
+            reason: m.reason || '지식 데이터베이스 백업',
+            docCount: typeof m.docCount === 'number' ? m.docCount : 0,
+            docTitles: Array.isArray(m.docTitles) ? m.docTitles : []
+          };
+        }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      } catch {}
+
       return Response.json({ 
         ok: true, 
         message: `지식 데이터베이스가 성공적으로 원복되었습니다. (${targetFileName})`,
-        documents
+        documents,
+        backups
       });
     }
 
