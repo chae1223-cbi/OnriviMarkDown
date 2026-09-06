@@ -2,7 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
-// 🚨 @PATCH : **2026-09-05** — 데스크톱 앱 내비게이션/새창 분기 가드 보강: SaaS 웹 전용 경로(/login, /dashboard, /signup, /pricing 등) 진입 시 Electron 윈도우 내부 로드 차단 및 외부 기본 브라우저 강제 오픈 처리, app:// 커스텀 프로토콜 핸들러 내 /login 및 /dashboard 방어 라우트 추가로 404 에러 원천 차단 | **2026-08-26** — 소스맵(.js.map) 등 없는 정적 자산 파일 요청 시 ENOENT 콘솔 트레이스 에러 노이즈를 방지하기 위해, app 프로토콜 핸들러 내에 fs.existsSync 예외 가드 추가 및 404 리턴 처리 | **2026-06-28** — 데스크톱 앱 내에서 에디터 외 일반 웹 경로(대시보드, 랜딩 등) 클릭 시 기존 에디터 화면을 덮어쓰지 않고 기본 웹 브라우저 새창으로 띄워 안전하게 분리하도록 내비게이션 라우팅 제어 패치; 데스크톱 패키징/실행 시 실서버 대신 100% 로컬 독립 서빙을 실현하기 위해 `file://` 프로토콜 기반의 빌드 아웃풋 파일(`frontend/out/editor.html`)을 불러오도록 로드 방식을 변경하는 패치; Monaco Editor 로더 CDN CSP 차단 문제 해결; Next.js 정적 빌드 시 `public/` 폴더 내용이 `out/` 폴더로 자동 복사되는 구조를 반영하여 `file:readFromPath` 핸들러 탐색 경로에 `frontend/out`을 최우선으로 추가 — 이로써 설치판에서 도움말(`help/00_시작하기.md`) 파일을 정상적으로 읽어오지 못하던 버그 수정
+// 🚨 @PATCH : **2026-09-06** — [데스크톱 지식 베이스 SQLite 로컬 라우팅 탑재] 데스크톱 앱 내 /api/knowledge/* 요청이 외부 실서버(onrivi.com)로 프록시되어 405/404 발생 및 데이터가 누락되던 문제를 해결하기 위해, Electron 메인 프로세스에서 app:// 프로토콜 핸들러 내에 로컬 SQLite DB({resourceFolder}/db/onrivi_knowledge.db) 직접 라우팅 엔진(handleDesktopKnowledgeApi)을 구현하여 탐색기 📗 뱃지, 지식 허브 대시보드(KUI-001), 큐/컬렉션 통계 및 상세 조회가 100% 로컬 독립 동작하도록 개편 | **2026-09-05** — 데스크톱 앱 내비게이션/새창 분기 가드 보강: SaaS 웹 전용 경로(/login, /dashboard, /signup, /pricing 등) 진입 시 Electron 윈도우 내부 로드 차단 및 외부 기본 브라우저 강제 오픈 처리, app:// 커스텀 프로토콜 핸들러 내 /login 및 /dashboard 방어 라우트 추가로 404 에러 원천 차단 | **2026-08-26** — 소스맵(.js.map) 등 없는 정적 자산 파일 요청 시 ENOENT 콘솔 트레이스 에러 노이즈를 방지하기 위해, app 프로토콜 핸들러 내에 fs.existsSync 예외 가드 추가 및 404 리턴 처리 | **2026-06-28** — 데스크톱 앱 내에서 에디터 외 일반 웹 경로(대시보드, 랜딩 등) 클릭 시 기존 에디터 화면을 덮어쓰지 않고 기본 웹 브라우저 새창으로 띄워 안전하게 분리하도록 내비게이션 라우팅 제어 패치; 데스크톱 패키징/실행 시 실서버 대신 100% 로컬 독립 서빙을 실현하기 위해 `file://` 프로토콜 기반의 빌드 아웃풋 파일(`frontend/out/editor.html`)을 불러오도록 로드 방식을 변경하는 패치; Monaco Editor 로더 CDN CSP 차단 문제 해결; Next.js 정적 빌드 시 `public/` 폴더 내용이 `out/` 폴더로 자동 복사되는 구조를 반영하여 `file:readFromPath` 핸들러 탐색 경로에 `frontend/out`을 최우선으로 추가 — 이로써 설치판에서 도움말(`help/00_시작하기.md`) 파일을 정상적으로 읽어오지 못하던 버그 수정
 //             **2026-06-19** — PNG 및 EPUB 내보내기 시 외부 이미지/웹폰트 fetch CSP 차단 버그를 해결하기 위해 connect-src에 http: https: 추가 허용; Node.js net 모듈과 Electron net 모듈 충돌로 인한 net.fetch TypeError 해결 | **2026-06-20** — 딥링크(onriviauthor://activate) 파라미터 파싱 로직 보완하여 licenseKey와 paymentNo를 함께 추출 및 license.json 저장
 // 🔗 @CALLS : loadURL, onrivi.com
 // ====================================================================
@@ -314,10 +314,944 @@ function createWindow(port) {
   });
 }
 
+// ====================================================================
+// 🧠 [OMD-MAIN-knowledge-0001] 데스크톱 전용 지식 베이스 SQLite 엔진 및 로컬 API 핸들러
+// 🎯 @KICK  : 데스크톱 환경에서 /api/knowledge/* 호출 시 외부 실서버 대신 로컬 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db)를 직접 조회/갱신
+// 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(코드값 대문자 통일), Rule 7(SQLite 트랜잭션 무결성), 동적 리소스 폴더(하드코딩 금지)
+// ====================================================================
+
+function resolveSafeResourceFolder(folder) {
+  if (!folder || !folder.trim()) return null;
+  const clean = folder.trim();
+  if (path.isAbsolute(clean)) return clean;
+  const cwd = process.cwd();
+  const rootDrive = (cwd && path.parse(cwd).root) || 'C:\\';
+  return path.join(rootDrive, clean);
+}
+
+function getKnowledgeDbPath(resourceFolder) {
+  const safe = resolveSafeResourceFolder(resourceFolder);
+  if (!safe) return null;
+  return path.join(safe, 'db', 'onrivi_knowledge.db');
+}
+
+function applyDesktopKnowledgeSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_collections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      color TEXT DEFAULT '#06C755',
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS knowledge_documents (
+      id TEXT PRIMARY KEY,
+      collection_id TEXT,
+      file_path TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      file_hash TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      modified_at TEXT NOT NULL,
+      summary TEXT,
+      key_points TEXT,
+      document_type TEXT DEFAULT 'other',
+      priority INTEGER NOT NULL DEFAULT 3 CHECK(priority BETWEEN 1 AND 5),
+      status TEXT NOT NULL CHECK(status IN ('REGISTERED', 'INDEXING', 'READY', 'OUTDATED', 'DISABLED', 'ERROR')),
+      error_message TEXT,
+      analysis_version INTEGER NOT NULL DEFAULT 1,
+      analyzer_model TEXT,
+      analyzed_at TEXT,
+      indexed_at TEXT,
+      FOREIGN KEY(collection_id) REFERENCES knowledge_collections(id) ON DELETE SET NULL
+    );
+    CREATE TABLE IF NOT EXISTS document_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id TEXT NOT NULL,
+      tag_name TEXT NOT NULL,
+      score INTEGER NOT NULL CHECK(score BETWEEN 0 AND 100),
+      source TEXT DEFAULT 'AI',
+      FOREIGN KEY(document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_tags_doc ON document_tags(document_id);
+    CREATE INDEX IF NOT EXISTS idx_tags_name_score ON document_tags(tag_name, score DESC);
+    CREATE TABLE IF NOT EXISTS document_chunks (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      heading_title TEXT,
+      heading_level INTEGER,
+      heading_path TEXT,
+      start_line INTEGER NOT NULL,
+      end_line INTEGER NOT NULL,
+      chunk_summary TEXT,
+      keywords TEXT,
+      FOREIGN KEY(document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id);
+    CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts USING fts5(
+      chunk_id UNINDEXED,
+      document_id UNINDEXED,
+      heading_title,
+      keywords,
+      chunk_text
+    );
+    CREATE TABLE IF NOT EXISTS knowledge_jobs (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      title TEXT,
+      job_type TEXT NOT NULL CHECK(job_type IN ('INDEX', 'REINDEX', 'DELETE')),
+      target_hash TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 3 CHECK(priority BETWEEN 1 AND 5),
+      status TEXT NOT NULL CHECK(status IN ('QUEUED', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED')),
+      current_step TEXT DEFAULT 'QUEUED',
+      retry_count INTEGER DEFAULT 0,
+      max_retries INTEGER DEFAULT 3,
+      retry_after TEXT,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      error_log TEXT
+    );
+  `);
+}
+
+const desktopDbCache = new Map();
+
+function getDesktopKnowledgeDb(resourceFolder, autoCreate = false) {
+  const dbPath = getKnowledgeDbPath(resourceFolder);
+  if (!dbPath) return null;
+  if (!autoCreate && !fs.existsSync(dbPath)) return null;
+
+  if (desktopDbCache.has(dbPath)) {
+    const cached = desktopDbCache.get(dbPath);
+    try {
+      cached.prepare('SELECT 1').get();
+      return cached;
+    } catch {
+      try { cached.close(); } catch {}
+      desktopDbCache.delete(dbPath);
+    }
+  }
+
+  const dbDir = path.dirname(dbPath);
+  if (autoCreate && !fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(dbPath);
+  db.exec('PRAGMA busy_timeout = 10000;');
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA synchronous = NORMAL;');
+  db.exec('PRAGMA foreign_keys = ON;');
+  applyDesktopKnowledgeSchema(db);
+
+  desktopDbCache.set(dbPath, db);
+  return db;
+}
+
+function chunkMarkdownByHeadingsHelper(docId, markdownText) {
+  if (!markdownText || !markdownText.trim()) return [];
+  const lines = markdownText.split('\n');
+  const totalLines = lines.length;
+  const boundaries = [];
+  const headingStack = [];
+  let currentSection = {
+    headingTitle: '개요 (서론)',
+    headingLevel: 0,
+    headingPath: '개요',
+    startLine: 1,
+  };
+  const headingRegex = /^(#{1,6})\s+(.+)$/;
+  for (let i = 0; i < totalLines; i++) {
+    const line = lines[i];
+    const match = line.match(headingRegex);
+    if (match) {
+      const level = match[1].length;
+      const title = match[2].trim();
+      if (i > 0 && i >= currentSection.startLine) {
+        boundaries.push({ ...currentSection, endLine: i });
+      }
+      while (headingStack.length > 0 && headingStack[headingStack.length - 1].level >= level) {
+        headingStack.pop();
+      }
+      headingStack.push({ level, title });
+      currentSection = {
+        headingTitle: title,
+        headingLevel: level,
+        headingPath: headingStack.map(h => h.title).join(' > '),
+        startLine: i + 1,
+      };
+    }
+  }
+  boundaries.push({ ...currentSection, endLine: totalLines });
+
+  return boundaries.map((b, idx) => {
+    const chunkLines = lines.slice(b.startLine - 1, b.endLine);
+    const chunkText = chunkLines.join('\n');
+    const summary = chunkLines.slice(0, 3).join(' ').slice(0, 200).trim();
+    return {
+      id: `${docId}_chunk_${idx}`,
+      documentId: docId,
+      chunkIndex: idx,
+      headingTitle: b.headingTitle,
+      headingLevel: b.headingLevel,
+      headingPath: b.headingPath,
+      startLine: b.startLine,
+      endLine: b.endLine,
+      chunkSummary: summary,
+      keywords: [b.headingTitle],
+      chunkText,
+    };
+  });
+}
+
+async function handleDesktopKnowledgeApi(request, pathname, url) {
+  try {
+    let body = {};
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      try {
+        const text = await request.text();
+        if (text) body = JSON.parse(text);
+      } catch (err) {
+        console.warn('[DesktopKnowledgeApi] Body parse warning:', err.message);
+      }
+    }
+
+    const subPath = pathname.replace(/^api\/knowledge\/?/, '').split('?')[0].replace(/\/$/, '');
+    const resourceFolder = body.resourceFolder || url.searchParams.get('resourceFolder');
+
+    // 1. 등록 지식 문서 목록 조회 (list)
+    if (subPath === 'list') {
+      if (!resourceFolder || !resourceFolder.trim()) {
+        return Response.json(
+          { ok: false, code: 'NO_RESOURCE_FOLDER', message: '공통 자원(리소스) 폴더가 설정되지 않았습니다.', documents: [] },
+          { status: 400 }
+        );
+      }
+      const db = getDesktopKnowledgeDb(resourceFolder, false);
+      if (!db) {
+        return Response.json({ ok: true, documents: [] });
+      }
+
+      const docs = db.prepare(`
+        SELECT 
+          d.id,
+          d.file_path,
+          d.title,
+          d.file_hash,
+          d.file_size,
+          d.modified_at,
+          d.summary,
+          d.key_points,
+          d.document_type,
+          d.priority,
+          d.status,
+          d.error_message,
+          d.analyzer_model,
+          d.analyzed_at,
+          d.indexed_at,
+          (SELECT COUNT(*) FROM document_chunks c WHERE c.document_id = d.id) as chunk_count
+        FROM knowledge_documents d
+        ORDER BY d.indexed_at DESC
+      `).all();
+
+      const getTagsStmt = db.prepare('SELECT tag_name, score FROM document_tags WHERE document_id = ? ORDER BY score DESC');
+      const documents = docs.map(doc => {
+        let tags = [];
+        try { tags = getTagsStmt.all(doc.id); } catch {}
+        let keyPoints = [];
+        if (typeof doc.key_points === 'string') {
+          try { keyPoints = JSON.parse(doc.key_points); } catch {}
+        } else if (Array.isArray(doc.key_points)) {
+          keyPoints = doc.key_points;
+        }
+        return {
+          ...doc,
+          key_points: keyPoints,
+          tags
+        };
+      });
+
+      return Response.json({ ok: true, documents });
+    }
+
+    // 2. 큐 작업 현황 통계 (queue/stats)
+    if (subPath === 'queue/stats') {
+      const db = getDesktopKnowledgeDb(resourceFolder, false);
+      if (!db) {
+        return Response.json({
+          ok: true,
+          stats: {
+            total: 0,
+            completed: 0,
+            running: 0,
+            queued: 0,
+            failed: 0,
+            percent: 0,
+            activeWorkers: 0,
+            maxWorkers: 2,
+            isPaused: false,
+            rateLimitStatus: 'NORMAL'
+          }
+        });
+      }
+
+      const rows = db.prepare(`
+        SELECT status, COUNT(*) as count
+        FROM knowledge_jobs
+        GROUP BY status
+      `).all();
+
+      let total = 0, queued = 0, running = 0, success = 0, failed = 0;
+      for (const r of rows) {
+        const count = Number(r.count || 0);
+        total += count;
+        if (r.status === 'QUEUED') queued = count;
+        else if (r.status === 'RUNNING') running = count;
+        else if (r.status === 'SUCCESS') success = count;
+        else if (r.status === 'FAILED') failed = count;
+      }
+      const percent = total > 0 ? Math.round((success / total) * 100) : 0;
+
+      return Response.json({
+        ok: true,
+        stats: {
+          total,
+          completed: success,
+          running,
+          queued,
+          failed,
+          percent,
+          activeWorkers: Math.min(running, 2),
+          maxWorkers: 2,
+          isPaused: false,
+          rateLimitStatus: 'NORMAL'
+        }
+      });
+    }
+
+    // 3. 지식 컬렉션 CRUD (collection)
+    if (subPath === 'collection') {
+      if (request.method === 'GET') {
+        const db = getDesktopKnowledgeDb(resourceFolder, false);
+        if (!db) return Response.json({ ok: true, collections: [] });
+
+        const rows = db.prepare(`
+          SELECT c.id, c.name, c.description, COALESCE(c.color, '#06C755') as color, c.created_at,
+                 COUNT(d.id) as documentCount
+          FROM knowledge_collections c
+          LEFT JOIN knowledge_documents d ON d.collection_id = c.id
+          GROUP BY c.id
+          ORDER BY c.name ASC
+        `).all();
+
+        const collections = rows.map(r => ({
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          color: r.color,
+          createdAt: r.created_at,
+          documentCount: Number(r.documentCount || 0)
+        }));
+        return Response.json({ ok: true, collections });
+      }
+
+      if (request.method === 'POST') {
+        const { name, description, color } = body;
+        if (!name || !name.trim()) {
+          return Response.json({ ok: false, message: '컬렉션 이름이 필요합니다.' }, { status: 400 });
+        }
+        const db = getDesktopKnowledgeDb(resourceFolder, true);
+        const id = body.id || `col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const now = new Date().toISOString();
+        const safeColor = color || '#06C755';
+        db.prepare(`
+          INSERT INTO knowledge_collections (id, name, description, color, created_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(name) DO UPDATE SET
+            description = excluded.description,
+            color = excluded.color
+        `).run(id, name.trim(), description?.trim() || null, safeColor, now);
+        const saved = db.prepare('SELECT * FROM knowledge_collections WHERE name = ?').get(name.trim());
+        return Response.json({
+          ok: true,
+          collection: {
+            id: saved.id,
+            name: saved.name,
+            description: saved.description,
+            color: saved.color,
+            createdAt: saved.created_at
+          }
+        });
+      }
+
+      if (request.method === 'DELETE') {
+        const colId = url.searchParams.get('id') || body.id;
+        if (!colId) return Response.json({ ok: false, message: '컬렉션 ID가 필요합니다.' }, { status: 400 });
+        const db = getDesktopKnowledgeDb(resourceFolder, false);
+        if (db) {
+          db.exec('BEGIN TRANSACTION;');
+          try {
+            db.prepare('UPDATE knowledge_documents SET collection_id = NULL WHERE collection_id = ?').run(colId);
+            db.prepare('DELETE FROM knowledge_collections WHERE id = ?').run(colId);
+            db.exec('COMMIT;');
+          } catch (e) {
+            db.exec('ROLLBACK;');
+            throw e;
+          }
+        }
+        return Response.json({ ok: true });
+      }
+    }
+
+    // 4. 지식 문서 상세 정보 (detail)
+    if (subPath === 'detail') {
+      const docId = url.searchParams.get('docId') || url.searchParams.get('documentId') || body.documentId || body.docId;
+      const filePath = url.searchParams.get('filePath') || body.filePath;
+      if (!docId && !filePath) {
+        return Response.json({ ok: false, message: 'documentId 또는 filePath가 필요합니다.' }, { status: 400 });
+      }
+      const db = getDesktopKnowledgeDb(resourceFolder, false);
+      if (!db) return Response.json({ ok: false, message: '문서를 찾을 수 없습니다.' }, { status: 404 });
+
+      let doc = null;
+      if (docId) {
+        doc = db.prepare('SELECT * FROM knowledge_documents WHERE id = ?').get(docId);
+      } else if (filePath) {
+        doc = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = ?').get(filePath);
+      }
+      if (!doc) {
+        return Response.json({ ok: false, message: '문서를 찾을 수 없습니다.' }, { status: 404 });
+      }
+
+      const tags = db.prepare('SELECT tag_name, score FROM document_tags WHERE document_id = ? ORDER BY score DESC').all(doc.id);
+      const chunks = db.prepare(`
+        SELECT c.id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path,
+               c.start_line, c.end_line, c.chunk_summary, c.keywords,
+               f.chunk_text
+        FROM document_chunks c
+        LEFT JOIN document_chunks_fts f ON f.chunk_id = c.id
+        WHERE c.document_id = ?
+        ORDER BY c.chunk_index ASC
+      `).all(doc.id);
+
+      let keyPoints = [];
+      try { keyPoints = typeof doc.key_points === 'string' ? JSON.parse(doc.key_points) : (doc.key_points || []); } catch {}
+
+      const detail = {
+        documentId: doc.id,
+        filePath: doc.file_path,
+        title: doc.title,
+        fileSize: doc.file_size,
+        modifiedAt: doc.modified_at,
+        status: doc.status,
+        summary: doc.summary || '',
+        keyPoints,
+        documentType: doc.document_type || 'other',
+        tags: tags.map(t => ({ name: t.tag_name, score: t.score })),
+        searchTerms: [],
+        analyzerModel: doc.analyzer_model || 'gemini-3.8-flash',
+        chunksCount: chunks.length,
+        chunks: chunks.map(c => ({
+          id: c.id,
+          chunkIndex: c.chunk_index,
+          headingTitle: c.heading_title || '',
+          headingLevel: c.heading_level || 0,
+          headingPath: c.heading_path || '',
+          startLine: c.start_line,
+          endLine: c.end_line,
+          chunkSummary: c.chunk_summary || '',
+          keywords: c.keywords ? (typeof c.keywords === 'string' ? c.keywords.split(',').map(s => s.trim()) : c.keywords) : [],
+          chunkText: c.chunk_text || ''
+        }))
+      };
+
+      return Response.json({ ok: true, detail });
+    }
+
+    // 5. 지식 문서 삭제 (delete)
+    if (subPath === 'delete') {
+      const { documentId, filePath, deleteAllErrors } = body;
+      const db = getDesktopKnowledgeDb(resourceFolder, false);
+      if (!db) return Response.json({ ok: true, success: true, deletedCount: 0 });
+
+      if (deleteAllErrors) {
+        const errorDocs = db.prepare("SELECT id FROM knowledge_documents WHERE status = 'ERROR'").all();
+        if (errorDocs.length > 0) {
+          db.exec('BEGIN TRANSACTION;');
+          try {
+            for (const row of errorDocs) {
+              db.prepare('DELETE FROM document_chunks_fts WHERE document_id = ?').run(row.id);
+              db.prepare('DELETE FROM document_chunks WHERE document_id = ?').run(row.id);
+              db.prepare('DELETE FROM document_tags WHERE document_id = ?').run(row.id);
+              db.prepare('DELETE FROM knowledge_jobs WHERE document_id = ?').run(row.id);
+              db.prepare('DELETE FROM knowledge_documents WHERE id = ?').run(row.id);
+            }
+            db.exec('COMMIT;');
+          } catch (e) {
+            db.exec('ROLLBACK;');
+            throw e;
+          }
+        }
+        return Response.json({ ok: true, success: true, deletedCount: errorDocs.length });
+      }
+
+      let targetId = documentId;
+      if (!targetId && filePath) {
+        const row = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = ?').get(filePath);
+        if (row) targetId = row.id;
+      }
+      if (targetId) {
+        db.exec('BEGIN TRANSACTION;');
+        try {
+          db.prepare('DELETE FROM document_chunks_fts WHERE document_id = ?').run(targetId);
+          db.prepare('DELETE FROM document_chunks WHERE document_id = ?').run(targetId);
+          db.prepare('DELETE FROM document_tags WHERE document_id = ?').run(targetId);
+          db.prepare('DELETE FROM knowledge_jobs WHERE document_id = ?').run(targetId);
+          db.prepare('DELETE FROM knowledge_documents WHERE id = ?').run(targetId);
+          db.exec('COMMIT;');
+        } catch (e) {
+          db.exec('ROLLBACK;');
+          throw e;
+        }
+      }
+      return Response.json({ ok: true, success: true });
+    }
+
+    // 6. 리소스 폴더 및 DB 초기화 (init)
+    if (subPath === 'init') {
+      const { forceReset } = body;
+      const safeFolder = resolveSafeResourceFolder(resourceFolder);
+      if (!safeFolder) return Response.json({ ok: false, message: '리소스 폴더가 설정되지 않았습니다.' }, { status: 400 });
+
+      for (const dir of ['profiles', 'prompt', 'bible', 'media', 'db']) {
+        const p = path.join(safeFolder, dir);
+        if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+      }
+
+      const db = getDesktopKnowledgeDb(resourceFolder, true);
+      if (forceReset && db) {
+        db.exec('BEGIN TRANSACTION;');
+        try {
+          db.prepare('DELETE FROM document_chunks_fts;').run();
+          db.prepare('DELETE FROM document_tags;').run();
+          db.prepare('DELETE FROM document_chunks;').run();
+          db.prepare('DELETE FROM knowledge_documents;').run();
+          db.prepare('DELETE FROM knowledge_jobs;').run();
+          db.prepare('DELETE FROM knowledge_collections;').run();
+          db.exec('COMMIT;');
+          try { db.exec('VACUUM;'); } catch {}
+        } catch (e) {
+          db.exec('ROLLBACK;');
+        }
+      }
+      return Response.json({ ok: true, message: '지식 데이터베이스가 성공적으로 초기화되었습니다.', path: safeFolder });
+    }
+
+    // 7. 작업 큐 관리 (queue)
+    if (subPath === 'queue') {
+      if (request.method === 'GET') {
+        const status = url.searchParams.get('status');
+        const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+        const db = getDesktopKnowledgeDb(resourceFolder, false);
+        if (!db) return Response.json({ ok: true, jobs: [], total: 0 });
+
+        let query = 'SELECT * FROM knowledge_jobs';
+        const params = [];
+        if (status && status !== 'ALL') {
+          query += ' WHERE status = ?';
+          params.push(status);
+        }
+        query += ' ORDER BY created_at DESC LIMIT ?';
+        params.push(limit);
+        const jobs = db.prepare(query).all(...params);
+        return Response.json({ ok: true, jobs, total: jobs.length });
+      }
+
+      if (request.method === 'POST') {
+        const { action } = body;
+        const db = getDesktopKnowledgeDb(resourceFolder, true);
+
+        if (action === 'ENQUEUE_BATCH') {
+          const items = body.items || body.jobs || [];
+          let enqueued = 0, suppressed = 0;
+          for (const it of items) {
+            const targetHash = it.targetHash || '';
+            const existing = db.prepare(`
+              SELECT id FROM knowledge_jobs
+              WHERE file_path = ? AND target_hash = ? AND status IN ('QUEUED', 'RUNNING')
+            `).get(it.filePath, targetHash);
+            if (existing) {
+              suppressed++;
+              continue;
+            }
+            const docId = it.documentId || `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            const now = new Date().toISOString();
+            db.prepare(`
+              INSERT INTO knowledge_jobs (id, document_id, file_path, title, job_type, target_hash, priority, status, current_step, retry_count, max_retries, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'QUEUED', 'QUEUED', 0, 3, ?)
+            `).run(jobId, docId, it.filePath, it.title || null, it.jobType || 'INDEX', targetHash, it.priority || 3, now);
+            enqueued++;
+          }
+          return Response.json({ ok: true, enqueued, enqueuedCount: enqueued, suppressed });
+        }
+
+        if (action === 'CANCEL') {
+          db.prepare("UPDATE knowledge_jobs SET status = 'CANCELLED' WHERE id = ? AND status IN ('QUEUED', 'RUNNING')").run(body.jobId);
+          return Response.json({ ok: true });
+        }
+
+        if (action === 'RETRY') {
+          db.prepare("UPDATE knowledge_jobs SET status = 'QUEUED', retry_after = NULL, error_log = NULL WHERE status = 'FAILED'").run();
+          return Response.json({ ok: true });
+        }
+
+        if (action === 'CLEAR_COMPLETED') {
+          db.prepare("DELETE FROM knowledge_jobs WHERE status = 'SUCCESS'").run();
+          return Response.json({ ok: true });
+        }
+
+        if (action === 'CLEAR_FAILED') {
+          db.prepare("DELETE FROM knowledge_jobs WHERE status = 'FAILED'").run();
+          return Response.json({ ok: true });
+        }
+
+        // 단일 작업 등록
+        const { documentId, filePath, title, targetHash, priority, jobType } = body;
+        if (!filePath) return Response.json({ ok: false, message: 'filePath가 필요합니다.' }, { status: 400 });
+        const docId = documentId || `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const now = new Date().toISOString();
+        db.prepare(`
+          INSERT INTO knowledge_jobs (id, document_id, file_path, title, job_type, target_hash, priority, status, current_step, retry_count, max_retries, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'QUEUED', 'QUEUED', 0, 3, ?)
+        `).run(jobId, docId, filePath, title || null, jobType || 'INDEX', targetHash || '', priority || 3, now);
+        const job = db.prepare('SELECT * FROM knowledge_jobs WHERE id = ?').get(jobId);
+        return Response.json({ ok: true, job });
+      }
+    }
+
+    // 8. 큐 다음 작업 선점 (queue/pop)
+    if (subPath === 'queue/pop') {
+      const db = getDesktopKnowledgeDb(resourceFolder, false);
+      if (!db) return Response.json({ ok: true, job: null });
+      const nowIso = new Date().toISOString();
+      const candidate = db.prepare(`
+        SELECT * FROM knowledge_jobs
+        WHERE status = 'QUEUED'
+          AND (retry_after IS NULL OR retry_after <= ?)
+        ORDER BY priority DESC, created_at ASC
+        LIMIT 1
+      `).get(nowIso);
+      if (!candidate) {
+        return Response.json({ ok: true, job: null });
+      }
+      db.prepare("UPDATE knowledge_jobs SET status = 'RUNNING', started_at = ? WHERE id = ?").run(nowIso, candidate.id);
+      const popped = db.prepare('SELECT * FROM knowledge_jobs WHERE id = ?').get(candidate.id);
+      return Response.json({ ok: true, job: popped });
+    }
+
+    // 9. 큐 작업 파이프라인 단계 갱신 (queue/step)
+    if (subPath === 'queue/step') {
+      const { jobId, step, errorLog } = body;
+      if (!jobId || !step) return Response.json({ ok: false, message: 'jobId와 step이 필요합니다.' }, { status: 400 });
+      const db = getDesktopKnowledgeDb(resourceFolder, false);
+      if (db) {
+        db.prepare("UPDATE knowledge_jobs SET current_step = ?, error_log = COALESCE(?, error_log) WHERE id = ?").run(step, errorLog || null, jobId);
+      }
+      return Response.json({ ok: true });
+    }
+
+    // 10. 큐 작업 완료/실패 처리 (queue/complete)
+    if (subPath === 'queue/complete') {
+      const { jobId, success, errorLog, backoffSeconds } = body;
+      if (!jobId) return Response.json({ ok: false, message: 'jobId가 필요합니다.' }, { status: 400 });
+      const db = getDesktopKnowledgeDb(resourceFolder, false);
+      if (db) {
+        const nowIso = new Date().toISOString();
+        if (success) {
+          db.prepare("UPDATE knowledge_jobs SET status = 'SUCCESS', completed_at = ?, error_log = NULL WHERE id = ?").run(nowIso, jobId);
+        } else {
+          const job = db.prepare('SELECT retry_count, max_retries FROM knowledge_jobs WHERE id = ?').get(jobId);
+          const retryCount = (job?.retry_count || 0) + 1;
+          const maxRetries = job?.max_retries || 3;
+          if (retryCount >= maxRetries) {
+            db.prepare("UPDATE knowledge_jobs SET status = 'FAILED', retry_count = ?, completed_at = ?, error_log = ? WHERE id = ?").run(retryCount, nowIso, errorLog || null, jobId);
+          } else {
+            const delaySec = backoffSeconds || Math.pow(2, retryCount) * 2;
+            const retryAfter = new Date(Date.now() + delaySec * 1000).toISOString();
+            db.prepare("UPDATE knowledge_jobs SET status = 'QUEUED', retry_count = ?, retry_after = ?, error_log = ? WHERE id = ?").run(retryCount, retryAfter, errorLog || null, jobId);
+          }
+        }
+      }
+      return Response.json({ ok: true });
+    }
+
+    // 11. 마크다운 문서 색인 및 AI 분석 (index)
+    if (subPath === 'index') {
+      let { filePath, fileContent, title, geminiApiKey, aiModelName } = body;
+      if (!fileContent && filePath && fs.existsSync(filePath)) {
+        try { fileContent = fs.readFileSync(filePath, 'utf-8'); } catch {}
+      }
+      if (!filePath || !fileContent) {
+        return Response.json({ ok: false, message: 'filePath와 fileContent는 필수 항목입니다.' }, { status: 400 });
+      }
+
+      const db = getDesktopKnowledgeDb(resourceFolder, true);
+      const crypto = require('crypto');
+      const docId = `doc_${crypto.createHash('sha256').update(filePath).digest('hex').slice(0, 16)}`;
+      const fileHash = crypto.createHash('sha256').update(fileContent).digest('hex');
+      const fileSize = Buffer.byteLength(fileContent, 'utf-8');
+      const docTitle = title || path.basename(filePath).replace(/\.md$/i, '') || '문서';
+      const nowIso = new Date().toISOString();
+
+      // 청킹
+      const chunks = chunkMarkdownByHeadingsHelper(docId, fileContent);
+
+      // Gemini AI 분석 (키가 있는 경우 호출, 실패 또는 미제공 시 기본 요약 폴백)
+      let analysis = {
+        summary: `${docTitle} 마크다운 문서입니다.`,
+        key_points: chunks.slice(0, 5).map(c => c.headingTitle).filter(Boolean),
+        document_type: 'guide',
+        tags: [{ name: '마크다운', score: 90 }, { name: '지식문서', score: 85 }],
+        search_terms: [docTitle]
+      };
+
+      if (geminiApiKey && geminiApiKey.trim()) {
+        try {
+          const modelToUse = (aiModelName || 'gemini-3.8-flash').trim();
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiApiKey.trim()}`;
+          const prompt = `당신은 개인 지식 베이스를 구축하는 전문 마크다운 분석 AI입니다.
+주어진 마크다운 문서를 읽고, 반드시 유효한 단 하나의 JSON 객체 { ... } 로만 응답해야 합니다.
+[응답 JSON 포맷]:
+{
+  "summary": "문서 요약문",
+  "key_points": ["핵심 요점 1", "핵심 요점 2"],
+  "document_type": "guide",
+  "tags": [{ "name": "태그명", "score": 90 }],
+  "search_terms": ["검색어1", "검색어2"]
+}
+
+[분석할 마크다운 원문]:
+${fileContent.slice(0, 15000)}`;
+
+          const aiRes = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+            })
+          });
+
+          if (aiRes.ok) {
+            const aiData = await aiRes.json();
+            const textOut = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textOut) {
+              const parsed = JSON.parse(textOut);
+              if (parsed.summary) analysis.summary = parsed.summary;
+              if (Array.isArray(parsed.key_points)) analysis.key_points = parsed.key_points;
+              if (parsed.document_type) analysis.document_type = parsed.document_type;
+              if (Array.isArray(parsed.tags)) analysis.tags = parsed.tags;
+              if (Array.isArray(parsed.search_terms)) analysis.search_terms = parsed.search_terms;
+            }
+          }
+        } catch (aiErr) {
+          console.warn('[DesktopKnowledgeApi] AI analysis fallback used:', aiErr.message);
+        }
+      }
+
+      // Rule 7 준수: 단일 트랜잭션으로 원자적 쓰기 (All-or-Nothing)
+      db.exec('BEGIN TRANSACTION;');
+      try {
+        db.prepare('DELETE FROM document_chunks_fts WHERE document_id = ?').run(docId);
+        db.prepare('DELETE FROM document_chunks WHERE document_id = ?').run(docId);
+        db.prepare('DELETE FROM document_tags WHERE document_id = ?').run(docId);
+
+        db.prepare(`
+          INSERT INTO knowledge_documents (
+            id, file_path, title, file_hash, file_size, modified_at,
+            summary, key_points, document_type, priority, status,
+            analyzer_model, analyzed_at, indexed_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'READY', ?, ?, ?)
+          ON CONFLICT(file_path) DO UPDATE SET
+            title = excluded.title,
+            file_hash = excluded.file_hash,
+            file_size = excluded.file_size,
+            modified_at = excluded.modified_at,
+            summary = excluded.summary,
+            key_points = excluded.key_points,
+            document_type = excluded.document_type,
+            priority = excluded.priority,
+            status = 'READY',
+            error_message = NULL,
+            analyzer_model = excluded.analyzer_model,
+            analyzed_at = excluded.analyzed_at,
+            indexed_at = excluded.indexed_at
+        `).run(
+          docId, filePath, docTitle, fileHash, fileSize, nowIso,
+          analysis.summary, JSON.stringify(analysis.key_points), analysis.document_type, 3,
+          aiModelName || 'gemini-3.8-flash', nowIso, nowIso
+        );
+
+        const insertChunkStmt = db.prepare(`
+          INSERT INTO document_chunks (
+            id, document_id, chunk_index, heading_title, heading_level,
+            heading_path, start_line, end_line, chunk_summary, keywords
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        const insertFtsStmt = db.prepare(`
+          INSERT INTO document_chunks_fts (
+            chunk_id, document_id, heading_title, keywords, chunk_text
+          ) VALUES (?, ?, ?, ?, ?)
+        `);
+
+        for (const c of chunks) {
+          const kwStr = Array.isArray(c.keywords) ? c.keywords.join(', ') : (c.keywords || '');
+          insertChunkStmt.run(
+            c.id, docId, c.chunkIndex, c.headingTitle || null, c.headingLevel || 0,
+            c.headingPath || null, c.startLine, c.endLine, c.chunkSummary || null, kwStr
+          );
+          insertFtsStmt.run(
+            c.id, docId, c.headingTitle || '', kwStr, c.chunkText || ''
+          );
+        }
+
+        if (Array.isArray(analysis.tags)) {
+          const insertTagStmt = db.prepare(`
+            INSERT INTO document_tags (document_id, tag_name, score, source)
+            VALUES (?, ?, ?, 'AI')
+          `);
+          for (const t of analysis.tags) {
+            if (t && t.name) {
+              insertTagStmt.run(docId, String(t.name).trim(), Math.min(100, Math.max(0, Number(t.score || 80))));
+            }
+          }
+        }
+
+        db.exec('COMMIT;');
+      } catch (err) {
+        db.exec('ROLLBACK;');
+        throw err;
+      }
+
+      const detail = {
+        documentId: docId,
+        filePath,
+        title: docTitle,
+        fileSize,
+        modifiedAt: nowIso,
+        status: 'READY',
+        summary: analysis.summary,
+        keyPoints: analysis.key_points,
+        documentType: analysis.document_type,
+        tags: analysis.tags,
+        searchTerms: analysis.search_terms,
+        analyzerModel: aiModelName || 'gemini-3.8-flash',
+        chunksCount: chunks.length,
+        chunks
+      };
+
+      return Response.json({ ok: true, documentId: docId, chunksCount: chunks.length, detail });
+    }
+
+    // 12. 하이브리드/FTS 검색 (search)
+    if (subPath === 'search') {
+      const { query, limit = 20 } = body;
+      const db = getDesktopKnowledgeDb(resourceFolder, false);
+      if (!db || !query || !query.trim()) return Response.json({ ok: true, candidates: [] });
+
+      let candidates = [];
+      try {
+        const cleanQ = query.trim().replace(/['"]/g, ' ');
+        candidates = db.prepare(`
+          SELECT c.id, c.document_id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path,
+                 c.start_line, c.end_line, c.chunk_summary, c.keywords,
+                 d.title as doc_title, d.file_path, d.priority,
+                 snippet(document_chunks_fts, 2, '<b>', '</b>', '...', 32) as match_snippet,
+                 bm25(document_chunks_fts) as rank
+          FROM document_chunks_fts f
+          JOIN document_chunks c ON c.id = f.chunk_id
+          JOIN knowledge_documents d ON d.id = c.document_id
+          WHERE document_chunks_fts MATCH ?
+          ORDER BY rank ASC
+          LIMIT ?
+        `).all(cleanQ, limit);
+      } catch {
+        candidates = db.prepare(`
+          SELECT c.id, c.document_id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path,
+                 c.start_line, c.end_line, c.chunk_summary, c.keywords,
+                 d.title as doc_title, d.file_path, d.priority,
+                 c.chunk_summary as match_snippet,
+                 0 as rank
+          FROM document_chunks c
+          JOIN knowledge_documents d ON d.id = c.document_id
+          WHERE c.heading_title LIKE ? OR c.chunk_summary LIKE ? OR c.keywords LIKE ?
+          LIMIT ?
+        `).all(`%${query}%`, `%${query}%`, `%${query}%`, limit);
+      }
+      return Response.json({ ok: true, candidates });
+    }
+
+    // 13. 백업 및 복원 (backup, restore)
+    if (subPath === 'backup') {
+      const safeFolder = resolveSafeResourceFolder(resourceFolder);
+      if (!safeFolder) return Response.json({ ok: false, message: '리소스 폴더가 없습니다.' }, { status: 400 });
+      const backupsDir = path.join(safeFolder, 'backups');
+      if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+
+      if (request.method === 'GET') {
+        const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.db'));
+        const backups = files.map(f => {
+          const stat = fs.statSync(path.join(backupsDir, f));
+          return { fileName: f, size: stat.size, createdAt: stat.birthtime.toISOString() };
+        });
+        return Response.json({ ok: true, backups });
+      }
+
+      if (request.method === 'POST') {
+        const dbPath = path.join(safeFolder, 'db', 'onrivi_knowledge.db');
+        if (!fs.existsSync(dbPath)) return Response.json({ ok: false, message: '백업할 DB 파일이 없습니다.' }, { status: 404 });
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const backupFileName = `backup_${ts}.db`;
+        const destPath = path.join(backupsDir, backupFileName);
+        fs.copyFileSync(dbPath, destPath);
+        return Response.json({ ok: true, backup: { fileName: backupFileName, path: destPath } });
+      }
+    }
+
+    if (subPath === 'restore') {
+      const { backupFileName } = body;
+      const safeFolder = resolveSafeResourceFolder(resourceFolder);
+      if (!safeFolder || !backupFileName) return Response.json({ ok: false, message: '필수 인자가 누락되었습니다.' }, { status: 400 });
+      const srcBackup = path.join(safeFolder, 'backups', backupFileName);
+      const dbPath = path.join(safeFolder, 'db', 'onrivi_knowledge.db');
+      if (!fs.existsSync(srcBackup)) return Response.json({ ok: false, message: '백업 파일을 찾을 수 없습니다.' }, { status: 404 });
+
+      if (desktopDbCache.has(dbPath)) {
+        try { desktopDbCache.get(dbPath).close(); } catch {}
+        desktopDbCache.delete(dbPath);
+      }
+      fs.copyFileSync(srcBackup, dbPath);
+      return Response.json({ ok: true, message: '복원이 완료되었습니다.' });
+    }
+
+    return Response.json({ ok: false, message: `지원되지 않는 로컬 지식 엔드포인트: ${subPath}` }, { status: 404 });
+  } catch (err) {
+    console.error('[DesktopKnowledgeApi Error]:', err);
+    return Response.json({ ok: false, message: err?.message || '지식 API 처리 중 내부 오류 발생' }, { status: 500 });
+  }
+}
+
 // 앱 구동 생명주기 시작
 app.on('ready', async () => {
   // 🌐 [ Next.js App Router 정적 파일 서빙을 위한 app:// 프로토콜 핸들러 등록 ]
-  protocol.handle('app', (request) => {
+  protocol.handle('app', async (request) => {
     try {
       const url = new URL(request.url);
       let pathname = decodeURIComponent(url.pathname);
@@ -342,6 +1276,12 @@ app.on('ready', async () => {
       
       pathname = pathname.replace(/^\//, '');  // path.join이 앞 경로를 먹는 버그 방지
       
+      // 🧠 [데스크톱 지식 베이스 SQLite 로컬 라우팅]
+      // /api/knowledge/* 요청은 외부 실서버로 프록시하지 않고 사용자 지정 로컬 리소스 폴더의 SQLite DB를 직접 쿼리하여 응답
+      if (pathname.startsWith('api/knowledge/')) {
+        return await handleDesktopKnowledgeApi(request, pathname, url);
+      }
+
       // 데스크탑에서 프론트엔드가 실수로 /api/... 로컬 경로로 fetch 할 경우 실서버로 프록시
       if (pathname.startsWith('api/')) {
         const fetchUrl = `https://onrivi.com/${pathname}`;
