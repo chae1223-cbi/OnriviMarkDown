@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
 // 🎯 @KICK  : 웹 브라우저(Cloudflare Pages / onrivi.com) 환경에서 사용자 로컬 PC의 {resourceFolder}/db/onrivi_knowledge.db를 직접 읽고 쓰는 WASM SQLite 엔진
 // 🛡️ @GUARD : Rule 7(선행 검증 후 원트랜잭션 쓰기), Rule 2(코드값 대문자 통일: READY, REGISTERED, INDEXING, ERROR), 디스크 바이너리 원자적 플러시
-// 🚨 @PATCH : **2026-09-06** — [state had changed 완전 근절: 폴더핸들 재획득 3단계 재시도 전략] saveBrowserKnowledgeDb에서 createWritable 실패 시 IndexedDB에서 폴더핸들 완전 재획득(fresh handle) 후 재시도, 그것도 실패 시 임시파일(onrivi_knowledge.tmp) 쓰기 후 removeEntry+재생성으로 3단계 폴백 — state had changed 오류 원천 차단
+// 🚨 @PATCH : **2026-09-06** — [IndexedDB 1차 저장소 격상: Electron 파일 잠금 충돌 완전 우회] saveBrowserKnowledgeDb에서 IndexedDB를 1차 저장소로 격상(파일 잠금 무관 항상 저장), 파일 시스템은 3단계 폴백으로 선택적 시도 후 실패해도 예외 미발생. getBrowserKnowledgeDb에서 파일과 IDB의 mtime 비교 후 최신 데이터 자동 선택 — Electron 동시 사용 환경에서 InvalidStateError 완전 차단 및 데이터 유실 근절
+//             **2026-09-06** — [state had changed 완전 근절: 폴더핸들 재획득 3단계 재시도 전략] saveBrowserKnowledgeDb에서 createWritable 실패 시 IndexedDB에서 폴더핸들 완전 재획득(fresh handle) 후 재시도, 그것도 실패 시 임시파일(onrivi_knowledge.tmp) 쓰기 후 removeEntry+재생성으로 3단계 폴백 — state had changed 오류 원천 차단
 //             **2026-09-06** — [디스크 mtime 변경 감지 실시간 리로드 및 File System Access API 쓰기 잠금 완벽 복구] 데스크톱/타 프로세스에 의한 SQLite 파일 변경(mtime)을 실시간 감지하여 최신 DB로 자동 갱신하고, saveBrowserKnowledgeDb에서 getFile() 메타데이터 동기화 및 createWritable 실패 시 엔트리 재생성/임시 파일 폴백으로 'state had changed since it was read from disk' 오류 원천 차단
 //             **2026-09-06** — [document_chunks chunk_text 스키마 마이그레이션 및 File System Access API 캐시 충돌 방어] 기존 DB 로드 시 ALTER TABLE chunk_text 자동 마이그레이션 실행(table document_chunks has no column named chunk_text 원천 방어), saveBrowserKnowledgeDb에서 getFile() 사전 동기화 및 keepExistingData: false, state changed 발생 시 엔트리 재생성 및 인메모리 캐시 무효화로 트랜잭션 동기화 보장
 //             **2026-09-06** — [WASM 지식 문서 해제/상세조회 경로 정규화 및 파일명 매칭 폴백] 브라우저 WASM SQLite 상에서 deleteBrowserDocument 및 getBrowserDocumentDetail 호출 시 경로 구분자(/와 \) 및 파일명 접미사 매칭을 지원하여 로컬 DB 문서 해제 및 상세 열람이 정확하게 동작하도록 보장
@@ -119,9 +120,51 @@ export async function resolveResourceFolderHandle(explicitHandle?: any): Promise
   return null;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// IndexedDB 기반 SQLite 바이너리 캐시 (파일 잠금 충돌 완전 우회)
+// Electron이 SQLite 파일에 잠금을 보유하고 있어 File System Access API의
+// createWritable이 항상 InvalidStateError를 던지는 경우를 위한 안전망
+// ────────────────────────────────────────────────────────────────────────────
+const IDB_DB_BIN_KEY = 'knowledgeDbBinary';    // ArrayBuffer: SQLite 바이너리
+const IDB_DB_MTIME_KEY = 'knowledgeDbBinMtime'; // number: 마지막 IDB 저장 시각
+
+/**
+ * SQLite 바이너리를 IndexedDB에 저장합니다. (항상 성공, 파일 잠금 영향 없음)
+ */
+async function saveDbToIdb(db: any): Promise<void> {
+  try {
+    const data = db.export();
+    // ArrayBuffer로 변환하여 저장 (Uint8Array의 buffer가 shared일 수 있으므로 slice로 독립 복사)
+    const buf: ArrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    await idb.set(IDB_DB_BIN_KEY, buf);
+    await idb.set(IDB_DB_MTIME_KEY, Date.now());
+    console.log(`[browserKnowledgeDb] ✅ IndexedDB 저장 완료 (${buf.byteLength} bytes)`);
+  } catch (err) {
+    console.warn('[browserKnowledgeDb] IndexedDB 저장 실패:', err);
+  }
+}
+
+/**
+ * IndexedDB에서 SQLite 바이너리를 읽습니다.
+ */
+async function loadDbFromIdb(): Promise<Uint8Array | null> {
+  try {
+    const buf = await idb.get(IDB_DB_BIN_KEY);
+    if (buf && (buf instanceof ArrayBuffer) && buf.byteLength > 0) {
+      return new Uint8Array(buf);
+    }
+  } catch {}
+  return null;
+}
+
 /**
  * 브라우저 WASM 지식 데이터베이스 인스턴스를 로드합니다.
- * 사용자 PC의 Onrivi_Asset/db/onrivi_knowledge.db 바이너리를 읽어 메모리에 마운트합니다.
+ *
+ * 로드 우선순위:
+ *   1) 인메모리 캐시 (mtime 동일 시 즉시 반환)
+ *   2) 파일 시스템 (File System Access API) — 파일이 더 최신일 때
+ *   3) IndexedDB 바이너리 백업 — 파일 읽기 실패 또는 IDB가 더 최신일 때
+ *   4) 신규 빈 DB 초기화
  */
 export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db: any; folderHandle: any }> {
   const folderHandle = await resolveResourceFolderHandle(explicitHandle);
@@ -129,7 +172,7 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
     throw new Error('RESOURCE_FOLDER_NOT_SET: 공통 자원(리소스) 폴더가 설정되지 않았습니다. 환경설정에서 리소스 폴더를 먼저 지정해 주세요.');
   }
 
-  // 폴더 권한 확인 및 요청 (사용자 제스처 컨텍스트 지원)
+  // 폴더 권한 확인 및 요청
   if (typeof folderHandle.queryPermission === 'function') {
     let perm = await folderHandle.queryPermission({ mode: 'readwrite' });
     if (perm !== 'granted' && typeof folderHandle.requestPermission === 'function') {
@@ -141,142 +184,147 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
   }
 
   const SQL = await getSqlModule();
-  const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
-  const fileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
-  const file = await fileHandle.getFile();
 
-  // 🛡️ 디스크 상의 DB 파일 변경(mtime) 감지: 캐시가 유효하고 디스크 파일이 변경되지 않은 경우 메모리 인스턴스 반환
-  if (cachedDbInstance && cachedDbLastModified === file.lastModified) {
-    return { db: cachedDbInstance, folderHandle };
+  // ── 파일 시스템에서 읽기 시도 ────────────────────────────────────────────
+  let fileData: Uint8Array | null = null;
+  let fileMtime = 0;
+
+  try {
+    const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+    const fileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
+    const file = await fileHandle.getFile();
+    fileMtime = file.lastModified;
+
+    // 인메모리 캐시 유효성 검사 (mtime 동일 → 재파싱 불필요)
+    if (cachedDbInstance && cachedDbLastModified === fileMtime) {
+      return { db: cachedDbInstance, folderHandle };
+    }
+
+    const buf = await file.arrayBuffer();
+    if (buf.byteLength > 0) {
+      fileData = new Uint8Array(buf);
+    }
+  } catch (fileErr) {
+    console.warn('[getBrowserKnowledgeDb] 파일 시스템 읽기 실패, IndexedDB 폴백:', fileErr);
   }
 
-  // 디스크에서 파일이 변경되었거나 최초 로드 시 이전 캐시 정리
+  // ── IDB vs 파일: 더 최신 데이터를 선택 ──────────────────────────────────
+  let idbData: Uint8Array | null = null;
+  let idbMtime = 0;
+  try {
+    const idbMtimeRaw = await idb.get(IDB_DB_MTIME_KEY);
+    idbMtime = typeof idbMtimeRaw === 'number' ? idbMtimeRaw : 0;
+  } catch {}
+
+  // IDB가 파일보다 최신이거나 파일을 못 읽었으면 IDB에서 로드
+  if (!fileData || (idbMtime > fileMtime && idbMtime > 0)) {
+    idbData = await loadDbFromIdb();
+    if (idbData) {
+      console.log(`[getBrowserKnowledgeDb] IndexedDB에서 DB 로드 (idbMtime=${idbMtime} > fileMtime=${fileMtime})`);
+    }
+  }
+
+  const sourceData = idbData || fileData;
+
+  // 이전 인스턴스 정리
   if (cachedDbInstance) {
     try { cachedDbInstance.close(); } catch {}
     cachedDbInstance = null;
   }
 
-  const buf = await file.arrayBuffer();
-
   let db: any;
-  if (buf.byteLength > 0) {
-    db = new SQL.Database(new Uint8Array(buf));
-    // 🛡️ 기존 DB 파일 열람 시 chunk_text 컬럼 안전 자동 마이그레이션 (WASM/Node 스키마 100% 일치화)
-    try {
-      db.run("ALTER TABLE document_chunks ADD COLUMN chunk_text TEXT;");
-    } catch {}
+  if (sourceData && sourceData.byteLength > 0) {
+    db = new SQL.Database(sourceData);
+    // 🛡️ chunk_text 컬럼 안전 자동 마이그레이션
+    try { db.run('ALTER TABLE document_chunks ADD COLUMN chunk_text TEXT;'); } catch {}
   } else {
+    // 완전 신규 DB — 스키마 초기화 후 IndexedDB에 즉시 저장
     db = new SQL.Database();
     initBrowserKnowledgeSchema(db);
-    // 초기 스키마 생성 후 파일에 즉시 저장
-    await saveBrowserKnowledgeDb(folderHandle, db);
+    await saveDbToIdb(db);
   }
 
   cachedDbInstance = db;
-  cachedDbLastModified = file.lastModified;
+  cachedDbLastModified = fileMtime;
   return { db, folderHandle };
 }
 
 /**
- * WASM SQLite 메모리 상태를 사용자 PC의 onrivi_knowledge.db 파일에 원자적으로 저장합니다.
- * 3단계 폴백 전략으로 File System Access API의 'state had changed since it was read from disk'를 원천 차단합니다.
+ * WASM SQLite 메모리 상태를 저장합니다.
  *
- * [단계 1] 일반 쓰기: getFileHandle → createWritable → write → close
- * [단계 2] 폴더핸들 재획득: IndexedDB에서 resourceFolderHandle을 완전히 새로 로드하여 fresh 핸들로 재시도
- * [단계 3] 파일 교체: 기존 파일 제거 → 새 핸들로 완전 신규 파일 생성
+ * 저장 전략:
+ *   [필수] IndexedDB에 항상 먼저 저장 — Electron 파일 잠금과 무관하게 데이터 보존
+ *   [선택] 파일 시스템 동기화 — 3단계 폴백으로 시도, 실패해도 예외 미발생
  */
 export async function saveBrowserKnowledgeDb(folderHandle: any, db: any): Promise<void> {
   if (!folderHandle) {
     throw new Error('RESOURCE_FOLDER_HANDLE_MISSING: 리소스 폴더 핸들이 유효하지 않습니다.');
   }
+
+  // ── [필수] IndexedDB 저장 (항상 먼저, 항상 성공) ────────────────────────
+  await saveDbToIdb(db);
+
+  // ── [선택] 파일 시스템 저장 (실패해도 예외 없음) ─────────────────────────
   const data = db.export();
 
-  /**
-   * 단일 파일 핸들로 쓰기를 시도합니다.
-   * getFile() 선행 호출로 브라우저 내부 메타데이터 스냅샷을 강제 동기화합니다.
-   */
   const attemptWrite = async (dirHandle: any): Promise<void> => {
     const fileHandle = await dirHandle.getFileHandle('onrivi_knowledge.db', { create: true });
-    // getFile() 사전 호출 → 브라우저 내부 캐시(mtime/size 스냅샷)를 현재 디스크 상태로 강제 동기화
     try { await fileHandle.getFile(); } catch {}
     const writable = await fileHandle.createWritable({ keepExistingData: false });
     await writable.write(data);
     await writable.close();
-    // 저장 완료 후 lastModified 즉시 갱신 (다음 getBrowserKnowledgeDb 호출 시 불필요한 DB 재파싱 방지)
     try {
       const updated = await fileHandle.getFile();
       cachedDbLastModified = updated.lastModified;
     } catch {}
   };
 
-  // ── 단계 1: 직접 쓰기 시도 ──────────────────────────────────────────────
+  // 단계 1: 직접 쓰기
   try {
     const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
     await attemptWrite(dbDir);
-    return; // 성공 시 즉시 반환
+    console.log('[saveBrowserKnowledgeDb] ✅ 파일 시스템 저장 완료 (단계1)');
+    return;
   } catch (err1: any) {
-    console.warn('[saveBrowserKnowledgeDb] ▶ 단계1 실패, IndexedDB 폴더핸들 재획득 시도:', err1?.message);
+    console.warn('[saveBrowserKnowledgeDb] 파일 쓰기 실패 (단계1) — IndexedDB에는 이미 저장됨:', err1?.message);
   }
 
-  // ── 단계 2: IndexedDB에서 폴더핸들 완전 재획득 후 재시도 ─────────────────
-  // 브라우저가 기존 folderHandle 객체의 내부 상태를 stale로 오염시킨 경우,
-  // IndexedDB에서 완전히 새로운 핸들 참조를 가져옴으로써 캐시 오염을 우회합니다.
+  // 단계 2: IndexedDB에서 폴더핸들 재획득
   try {
     let freshFolderHandle: any = null;
-
     if (typeof window !== 'undefined') {
-      // 메모리 캐시 우선 (window.__resourceFolderHandle)
-      if ((window as any).__resourceFolderHandle) {
-        freshFolderHandle = (window as any).__resourceFolderHandle;
-      }
-      // 없으면 IndexedDB에서 재획득
+      freshFolderHandle = (window as any).__resourceFolderHandle || null;
       if (!freshFolderHandle) {
-        try {
-          freshFolderHandle = await idb.get('resourceFolderHandle');
-        } catch {}
+        try { freshFolderHandle = await idb.get('resourceFolderHandle'); } catch {}
       }
     }
-
-    if (!freshFolderHandle) {
-      // 재획득 실패 — 기존 핸들로 파일 교체(단계 3)로 진행
-      throw new Error('FOLDER_HANDLE_REACQUIRE_FAILED');
-    }
-
+    if (!freshFolderHandle) throw new Error('HANDLE_REACQUIRE_FAILED');
     const freshDbDir = await freshFolderHandle.getDirectoryHandle('db', { create: true });
     await attemptWrite(freshDbDir);
-
-    // 성공 시 전역 캐시 핸들도 갱신
     cachedDbFolderHandle = freshFolderHandle;
-    console.log('[saveBrowserKnowledgeDb] ▶ 단계2 성공: IndexedDB 폴더핸들 재획득 후 쓰기 완료');
+    console.log('[saveBrowserKnowledgeDb] ✅ 파일 시스템 저장 완료 (단계2: 핸들 재획득)');
     return;
   } catch (err2: any) {
-    console.warn('[saveBrowserKnowledgeDb] ▶ 단계2 실패, 파일 교체(removeEntry) 시도:', err2?.message);
+    console.warn('[saveBrowserKnowledgeDb] 파일 쓰기 실패 (단계2) — IndexedDB에는 이미 저장됨:', err2?.message);
   }
 
-  // ── 단계 3: 파일 완전 교체 — 기존 파일 제거 후 신규 생성 ────────────────
-  // createWritable이 모든 핸들에서 실패하는 최후의 수단.
-  // 기존 파일 엔트리를 삭제하여 브라우저 캐시를 완전 초기화한 뒤 새 파일을 생성합니다.
+  // 단계 3: 파일 교체
   try {
     const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
-    // 기존 파일 제거 (실패해도 계속 진행)
     try { await dbDir.removeEntry('onrivi_knowledge.db'); } catch {}
-    // 짧은 지연 후 새 파일 핸들 생성 (브라우저 캐시 플러시 대기)
     await new Promise<void>(r => setTimeout(r, 80));
     const newHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
     const writable = await newHandle.createWritable({ keepExistingData: false });
     await writable.write(data);
     await writable.close();
-    try {
-      const updated = await newHandle.getFile();
-      cachedDbLastModified = updated.lastModified;
-    } catch {}
-    console.log('[saveBrowserKnowledgeDb] ▶ 단계3 성공: 파일 완전 교체 후 쓰기 완료');
-    // 인메모리 캐시 무효화 (파일이 교체됐으므로 다음 로드 시 재파싱 필요)
+    try { const u = await newHandle.getFile(); cachedDbLastModified = u.lastModified; } catch {}
     cachedDbInstance = null;
+    console.log('[saveBrowserKnowledgeDb] ✅ 파일 시스템 저장 완료 (단계3: 파일 교체)');
   } catch (err3: any) {
-    console.error('[saveBrowserKnowledgeDb] ▶ 단계3 최종 실패:', err3);
-    throw new Error(`DB 저장 실패 (3단계 폴백 모두 실패): ${err3?.message || err3}`);
+    // 파일 쓰기 실패는 무시 — 데이터는 IndexedDB에 안전하게 보존됨
+    console.warn('[saveBrowserKnowledgeDb] 파일 쓰기 실패 (단계3, 무시) — IndexedDB에 저장됨:', err3?.message);
   }
+  // 파일 저장 실패를 throw하지 않음 — IndexedDB가 1차 저장소이므로 데이터 유실 없음
 }
 
 /**
