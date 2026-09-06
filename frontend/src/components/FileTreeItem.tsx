@@ -4,7 +4,8 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#06C755), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-06** — [지식 문서 해제 캐시 정규화 및 다중 이벤트 브로드캐스트] 지식문서 해제 시 로컬 캐시(onrivi_registered_knowledge_docs)에서 경로 구분자 및 파일명 불일치로 해제 후에도 아이콘이 남던 현상을 정규화 비교로 해결하고, 즉각적인 UI 반영을 위해 knowledge:updated, knowledge:refresh, file:refresh-all-directories 3중 동기화 발행
+// 🚨 @PATCH : **2026-09-06** — [지식 문서 등록/해제/상세조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 getDocumentDetail, deleteDocument, indexDocument에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 사용자 로컬 리소스 폴더와 100% 동일하게 동기화 보장
+//             **2026-09-06** — [지식 문서 해제 캐시 정규화 및 다중 이벤트 브로드캐스트] 지식문서 해제 시 로컬 캐시(onrivi_registered_knowledge_docs)에서 경로 구분자 및 파일명 불일치로 해제 후에도 아이콘이 남던 현상을 정규화 비교로 해결하고, 즉각적인 UI 반영을 위해 knowledge:updated, knowledge:refresh, file:refresh-all-directories 3중 동기화 발행
 //             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 문서 등록/해제/상세조회 일치화] 데스크톱뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient 및 canAccessKnowledgeDb를 통해 사용자 로컬 PC의 onrivi_knowledge.db에 직접 지식문서 등록/해제/상세분석 조회 수행 가능하도록 전면 연동
 //             **2026-09-06** — [데스크톱 파일 읽기 결함 및 localhost 지식 연동 해결] 데스크톱 환경에서 electronAPI.readFromPath content 객체 추출 및 fallback readFile 구현으로 파일 내용 빈값 판정 버그 해결, localhost 환경 지식 엔진 API 접근 허용 및 resourceFolder 키 정규화
 //             **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
@@ -1169,6 +1170,7 @@ const FileTreeItem = ({
                                     resourceFolder,
                                     geminiApiKey,
                                     planCode,
+                                    resourceFolderHandle: typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : undefined,
                                   });
                                   if (detail) {
                                     window.dispatchEvent(new CustomEvent('knowledge:show-detail', { detail }));
@@ -1207,6 +1209,7 @@ const FileTreeItem = ({
                                     resourceFolder,
                                     geminiApiKey,
                                     planCode,
+                                    resourceFolderHandle: typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : undefined,
                                   });
                                   if (!ok) {
                                     throw new Error('지식 문서 해제에 실패했습니다.');
@@ -1315,6 +1318,7 @@ const FileTreeItem = ({
                                   geminiApiKey,
                                   planCode,
                                   aiModelName,
+                                  resourceFolderHandle: typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : undefined,
                                 });
                                 const registeredDetail = regRes?.detail;
 

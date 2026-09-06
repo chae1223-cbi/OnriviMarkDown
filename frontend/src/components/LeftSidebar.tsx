@@ -22,7 +22,8 @@ import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledge
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 문서 뱃지 실시간 동기화 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db로부터 등록 문서 목록을 읽어와 탐색기 📗 뱃지를 실시간으로 완벽 동기화
+// 🚨 @PATCH : **2026-09-06** — [지식 문서 목록 조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 listDocuments에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 탐색기 📗 뱃지가 로컬 DB와 100% 동일하게 동기화되도록 보장
+//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 문서 뱃지 실시간 동기화 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db로부터 등록 문서 목록을 읽어와 탐색기 📗 뱃지를 실시간으로 완벽 동기화
 //             **2026-09-06** — [localhost 지식 베이스 동기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 /api/knowledge/list를 통한 지식 문서 및 📗 뱃지 동기화를 활성화하고, 실서버 prod 웹에서만 안전하게 스킵 처리
 //             **2026-09-06** — [웹 환경 로컬 지식 API 호출 가드] 로컬 SQLite 지식 베이스는 데스크톱 전용 기능이므로 웹 브라우저 환경(!isDesktop)에서는 /api/knowledge/list 호출을 안전하게 스킵하여 콘솔 405/404 에러 원천 방어
 //             **2026-09-05** — [ONRIVI-KNOWLEDGE-REFRESH-SYNC] 파일 탐색기 새로고침(file:refresh-all-directories) 및 컨텍스트 메뉴 새로고침 시 지식 등록 문서 목록(/api/knowledge/list) 자동 재호출 및 등록 뱃지(📗) 실시간 재동기화 연동
@@ -158,6 +159,7 @@ export default function LeftSidebar() {
           resourceFolder: effectiveResourceFolder,
           geminiApiKey: effectiveApiKey,
           planCode: 'ELITEPRO',
+          resourceFolderHandle: typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : undefined,
         });
         if (Array.isArray(docs)) {
           const paths = docs.map((d: any) => d.filePath || d.file_path).filter(Boolean);

@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-CORE-knowledgeDb-0001] knowledgeDb.ts ➔ Knowledge SQLite Engine
 // 🎯 @KICK  : 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db) SQLite FTS5 데이터베이스 인프라 및 원자적 트랜잭션 관리
-// 🚨 @PATCH : **2026-09-06** — [경로 정규화 및 파일명 매칭 폴백 강화] getDocumentDetailFromDb에서 OS/브라우저별 슬래시/역슬래시 차이 및 상대/절대경로 불일치 시에도 파일명 및 정규화 경로로 문서를 유연하게 식별하도록 검색 쿼리 고도화
+// 🚨 @PATCH : **2026-09-06** — [document_chunks chunk_text 스키마 통일 및 자동 마이그레이션] Web WASM SQLite와의 스키마 불일치(table document_chunks has no column named chunk_text)를 해결하기 위해 DDL에 chunk_text TEXT를 추가하고 기존 DB 로드 시 ALTER TABLE 및 FTS5 동기화 자동 마이그레이션 탑재
+//             **2026-09-06** — [경로 정규화 및 파일명 매칭 폴백 강화] getDocumentDetailFromDb에서 OS/브라우저별 슬래시/역슬래시 차이 및 상대/절대경로 불일치 시에도 파일명 및 정규화 경로로 문서를 유연하게 식별하도록 검색 쿼리 고도화
 //             **2026-09-05** — [백업 사유(Reason) 및 문서 수/대표제목 메타데이터 시스템 탑재] 백업 생성, DB 초기화, 원복 시 백업 사유(reason)와 등록 문서 건수/대표 제목을 backups_manifest.json에 실시간 기록/관리하고 백업 목록에 투명하게 노출 지원
 //             **2026-09-05** — [SQLite 동시성 잠금(busy_timeout) 및 파일 디스크립터 누수 방어] PRAGMA busy_timeout = 10000 적용으로 동시 요청 시 database is locked 원천 방지, tryOpenAndInit 실패 시 인스턴스 즉시 close 및 Windows EBUSY 방어용 빈 DB 복사 폴백 구축, 캐시 헬스체크를 SELECT 1로 경량화
 //             **2026-09-05** — [SQLite 손상 및 WAL 불일치 자동 복구(Auto-Repair) 탑재] database disk image is malformed 발생 시 캐시 무효화 및 잔여 -wal/-shm 자동 정리/재연결 자가 치유 로직 구축, closeKnowledgeDatabase 시 journal_mode=DELETE 전환으로 WAL 잔류 0% 보장
@@ -288,6 +289,7 @@ function applyKnowledgeSchema(db: any): void {
       end_line INTEGER NOT NULL,
       chunk_summary TEXT,
       keywords TEXT,
+      chunk_text TEXT,
       FOREIGN KEY(document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id);
@@ -327,6 +329,8 @@ function applyKnowledgeSchema(db: any): void {
   `);
 
   // 🛡️ 안전한 스키마 마이그레이션 (기존 DB 호환성 보장 - 인덱스 생성 전 선행 컬럼 추가)
+  try { db.exec("ALTER TABLE document_chunks ADD COLUMN chunk_text TEXT;"); } catch {}
+  try { db.exec("UPDATE document_chunks SET chunk_text = (SELECT f.chunk_text FROM document_chunks_fts f WHERE f.chunk_id = document_chunks.id) WHERE chunk_text IS NULL OR chunk_text = '';"); } catch {}
   try { db.exec("ALTER TABLE knowledge_jobs ADD COLUMN file_path TEXT;"); } catch {}
   try { db.exec("ALTER TABLE knowledge_jobs ADD COLUMN title TEXT;"); } catch {}
   try { db.exec("ALTER TABLE knowledge_jobs ADD COLUMN current_step TEXT DEFAULT 'QUEUED';"); } catch {}
@@ -403,8 +407,8 @@ export function syncDocumentChunksAtomic(
     const insertChunk = db.prepare(`
       INSERT INTO document_chunks (
         id, document_id, chunk_index, heading_title, heading_level,
-        heading_path, start_line, end_line, chunk_summary, keywords
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        heading_path, start_line, end_line, chunk_summary, keywords, chunk_text
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertFts = db.prepare(`
@@ -424,7 +428,8 @@ export function syncDocumentChunksAtomic(
         c.startLine,
         c.endLine,
         c.chunkSummary || '',
-        c.keywords || ''
+        c.keywords || '',
+        c.chunkText || ''
       );
 
       insertFts.run(
@@ -612,8 +617,8 @@ export function saveCompleteKnowledgeDocumentAtomic(
     const insertChunk = db.prepare(`
       INSERT INTO document_chunks (
         id, document_id, chunk_index, heading_title, heading_level,
-        heading_path, start_line, end_line, chunk_summary, keywords
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        heading_path, start_line, end_line, chunk_summary, keywords, chunk_text
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertFts = db.prepare(`
@@ -633,7 +638,8 @@ export function saveCompleteKnowledgeDocumentAtomic(
         c.startLine,
         c.endLine,
         c.chunkSummary || '',
-        c.keywords || ''
+        Array.isArray(c.keywords) ? c.keywords.join(', ') : (c.keywords || ''),
+        c.chunkText || ''
       );
 
       insertFts.run(
@@ -704,7 +710,7 @@ export function getDocumentDetailFromDb(
   const chunks = db.prepare(`
     SELECT c.id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path, 
            c.start_line, c.end_line, c.chunk_summary, c.keywords,
-           COALESCE(f.chunk_text, '') as chunk_text
+           COALESCE(c.chunk_text, f.chunk_text, '') as chunk_text
     FROM document_chunks c
     LEFT JOIN document_chunks_fts f ON f.chunk_id = c.id
     WHERE c.document_id = ?
