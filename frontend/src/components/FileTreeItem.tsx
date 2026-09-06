@@ -4,7 +4,8 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#06C755), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-06** — [AES 암호문 리소스 폴더 방어] 암호문(U2FsdGVkX1...)이 resourceFolder로 전달되어 가짜 디렉토리가 생성되는 현상을 방어하기 위해 Onrivi_Asset 표준 폴더로 강제 정규화
+// 🚨 @PATCH : **2026-09-06** — [데스크톱 탐색기 지식 문서 연동 안정화] resourceFolder 취득 시 loadSecureData 복호화 및 Onrivi_Asset 폴백을 적용하여 데스크톱 환경에서 지식 베이스 등록/해제/상세조회 시 올바른 드라이브 DB와 연동 보장
+//             **2026-09-06** — [AES 암호문 리소스 폴더 방어] 암호문(U2FsdGVkX1...)이 resourceFolder로 전달되어 가짜 디렉토리가 생성되는 현상을 방어하기 위해 Onrivi_Asset 표준 폴더로 강제 정규화
 //             **2026-09-06** — [지식 문서 등록/해제/상세조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 getDocumentDetail, deleteDocument, indexDocument에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 사용자 로컬 리소스 폴더와 100% 동일하게 동기화 보장
 //             **2026-09-06** — [지식 문서 해제 캐시 정규화 및 다중 이벤트 브로드캐스트] 지식문서 해제 시 로컬 캐시(onrivi_registered_knowledge_docs)에서 경로 구분자 및 파일명 불일치로 해제 후에도 아이콘이 남던 현상을 정규화 비교로 해결하고, 즉각적인 UI 반영을 위해 knowledge:updated, knowledge:refresh, file:refresh-all-directories 3중 동기화 발행
 //             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 문서 등록/해제/상세조회 일치화] 데스크톱뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient 및 canAccessKnowledgeDb를 통해 사용자 로컬 PC의 onrivi_knowledge.db에 직접 지식문서 등록/해제/상세분석 조회 수행 가능하도록 전면 연동
@@ -1099,10 +1100,10 @@ const FileTreeItem = ({
 
                   {/* 🧠 지식 베이스 등록 버튼 (마크다운 전용) */}
                   {node.kind === 'file' && isMarkdown && (() => {
-                    const rawFolder = (
+                    let rawFolder = (
                       loadSecureData<string>('resourceFolder') ||
-                      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
                       (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
+                      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
                       (() => {
                         try {
                           const raw = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
@@ -1111,7 +1112,12 @@ const FileTreeItem = ({
                       })() ||
                       'Onrivi_Asset'
                     ).trim();
-                    const resourceFolder = rawFolder.startsWith('U2FsdGVkX1') ? 'Onrivi_Asset' : rawFolder;
+
+                    if (rawFolder.startsWith('U2FsdGVkX1')) {
+                      const decrypted = loadSecureData<string>('resourceFolder');
+                      rawFolder = (decrypted && !decrypted.startsWith('U2FsdGVkX1')) ? decrypted : 'Onrivi_Asset';
+                    }
+                    const resourceFolder = rawFolder || 'Onrivi_Asset';
 
                     const geminiApiKey = (
                       (typeof window !== 'undefined' ? localStorage.getItem('onrivi_gemini_api_key') : '') ||

@@ -23,7 +23,8 @@ import { loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-06** — [AES 암호문 리소스 폴더 방어 및 지식 문서 동기화 안전 정규화] localStorage.getItem 직접 호출로 암호문(U2FsdGVkX1...)이 전달되어 가짜 DB가 생성되던 결함을 차단하고 loadSecureData 복호화 및 Onrivi_Asset 안전 폴더 정규화 적용
+// 🚨 @PATCH : **2026-09-06** — [데스크톱 탐색기 📗 지식 문서 뱃지 복원] effectiveResourceFolder 결정 시 loadSecureData 복호화 및 Onrivi_Asset 기본값 폴백을 완비하여 데스크톱 환경에서 등록된 지식 문서 4건이 탐색기에 즉시 📗 뱃지로 노출되도록 보장
+//             **2026-09-06** — [AES 암호문 리소스 폴더 방어 및 지식 문서 동기화 안전 정규화] localStorage.getItem 직접 호출로 암호문(U2FsdGVkX1...)이 전달되어 가짜 DB가 생성되던 결함을 차단하고 loadSecureData 복호화 및 Onrivi_Asset 안전 폴더 정규화 적용
 //             **2026-09-06** — [지식 문서 목록 조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 listDocuments에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 탐색기 📗 뱃지가 로컬 DB와 100% 동일하게 동기화되도록 보장
 //             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 문서 뱃지 실시간 동기화 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db로부터 등록 문서 목록을 읽어와 탐색기 📗 뱃지를 실시간으로 완벽 동기화
 //             **2026-09-06** — [localhost 지식 베이스 동기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 /api/knowledge/list를 통한 지식 문서 및 📗 뱃지 동기화를 활성화하고, 실서버 prod 웹에서만 안전하게 스킵 처리
@@ -124,9 +125,10 @@ export default function LeftSidebar() {
   // 🧠 등록된 지식 문서 경로 목록 동기화 (탐색기 뱃지 표시용)
   useEffect(() => {
     const syncKnowledgeDocs = async () => {
-      const rawFolder = (
+      let rawFolder = (
         resourceFolder ||
         loadSecureData<string>('resourceFolder') ||
+        (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
         (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
         (() => {
           try {
@@ -134,12 +136,15 @@ export default function LeftSidebar() {
             return raw ? JSON.parse(raw).resourceFolder || '' : '';
           } catch { return ''; }
         })() ||
-        ''
+        'Onrivi_Asset'
       ).trim();
 
-      const effectiveResourceFolder = rawFolder.startsWith('U2FsdGVkX1') ? 'Onrivi_Asset' : rawFolder;
+      if (rawFolder.startsWith('U2FsdGVkX1')) {
+        const decrypted = loadSecureData<string>('resourceFolder');
+        rawFolder = (decrypted && !decrypted.startsWith('U2FsdGVkX1')) ? decrypted : 'Onrivi_Asset';
+      }
 
-      if (!effectiveResourceFolder) return;
+      const effectiveResourceFolder = rawFolder || 'Onrivi_Asset';
 
       const effectiveApiKey = (
         geminiApiKey ||

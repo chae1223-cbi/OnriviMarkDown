@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-CORE-knowledgeDb-0001] knowledgeDb.ts ➔ Knowledge SQLite Engine
 // 🎯 @KICK  : 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db) SQLite FTS5 데이터베이스 인프라 및 원자적 트랜잭션 관리
-// 🚨 @PATCH : **2026-09-06** — [AES 암호화 문자열 원천 방어 및 리소스 폴더 정규화] resolveSafeResourceFolder에서 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 폴더명으로 유입 시 D:\U2FsdGVkX1... 등 엉뚱한 폴더와 가짜 DB 생성을 원천 방어하도록 복호화 및 Onrivi_Asset 표준 폴더로 강제 정규화
+// 🚨 @PATCH : **2026-09-06** — [실제 리소스 폴더 드라이브 자동 순회 탐색] resolveSafeResourceFolder에서 'Onrivi_Asset' 또는 'C:\Onrivi_Asset' 유입 시 실제 D:\, C:\, E:\ 드라이브를 순회하여 onrivi_knowledge.db가 존재하는 실제 드라이브를 찾아 연결 — 데스크톱/로컬 환경 탐색기 📗 지식문서 표시 정상화
+//             **2026-09-06** — [AES 암호화 문자열 원천 방어 및 리소스 폴더 정규화] resolveSafeResourceFolder에서 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 폴더명으로 유입 시 D:\U2FsdGVkX1... 등 엉뚱한 폴더와 가짜 DB 생성을 원천 방어하도록 복호화 및 Onrivi_Asset 표준 폴더로 강제 정규화
 //             **2026-09-06** — [document_chunks chunk_text 스키마 통일 및 자동 마이그레이션] Web WASM SQLite와의 스키마 불일치(table document_chunks has no column named chunk_text)를 해결하기 위해 DDL에 chunk_text TEXT를 추가하고 기존 DB 로드 시 ALTER TABLE 및 FTS5 동기화 자동 마이그레이션 탑재
 //             **2026-09-06** — [경로 정규화 및 파일명 매칭 폴백 강화] getDocumentDetailFromDb에서 OS/브라우저별 슬래시/역슬래시 차이 및 상대/절대경로 불일치 시에도 파일명 및 정규화 경로로 문서를 유연하게 식별하도록 검색 쿼리 고도화
 //             **2026-09-05** — [백업 사유(Reason) 및 문서 수/대표제목 메타데이터 시스템 탑재] 백업 생성, DB 초기화, 원복 시 백업 사유(reason)와 등록 문서 건수/대표 제목을 backups_manifest.json에 실시간 기록/관리하고 백업 목록에 투명하게 노출 지원
@@ -91,15 +92,37 @@ export function resolveSafeResourceFolder(resourceFolder: string | null | undefi
     }
   }
 
-  const { path } = getNodeModules();
+  const { path, fs } = getNodeModules();
   if (!path) return cleanFolder;
 
-  // 이미 절대 경로(예: D:\Onrivi_Asset 또는 /var/...)인 경우 그대로 사용
+  // 1) 이미 절대 경로인 경우 실제 존재하는지 확인 후, 없다면 다른 드라이브 확인
   if (path.isAbsolute(cleanFolder)) {
+    if (fs && fs.existsSync && fs.existsSync(cleanFolder)) return cleanFolder;
+    const baseName = path.basename(cleanFolder);
+    const candidateDrives = ['D:\\', 'C:\\', 'E:\\', 'F:\\'];
+    if (fs && fs.existsSync) {
+      for (const drive of candidateDrives) {
+        const candidate = path.join(drive, baseName);
+        if (fs.existsSync(path.join(candidate, 'db', 'onrivi_knowledge.db')) || fs.existsSync(candidate)) {
+          return candidate;
+        }
+      }
+    }
     return cleanFolder;
   }
 
-  // 상대 경로인 경우(브라우저 showDirectoryPicker 폴더명 'Onrivi_Asset' 등)
+  // 2) 상대 경로인 경우(브라우저 showDirectoryPicker 폴더명 'Onrivi_Asset' 등)
+  // 실제 onrivi_knowledge.db 또는 폴더가 존재하는 드라이브 우선 탐색
+  if (fs && fs.existsSync) {
+    const candidateDrives = ['D:\\', 'C:\\', 'E:\\', 'F:\\'];
+    for (const drive of candidateDrives) {
+      const candidate = path.join(drive, cleanFolder);
+      if (fs.existsSync(path.join(candidate, 'db', 'onrivi_knowledge.db')) || fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
   // 프로젝트 하위(process.cwd())에 생성되지 않도록 현재 작업 드라이브의 최상위 루트(예: D:\)로 안전하게 격리 승격
   const cwd = typeof process !== 'undefined' && process.cwd ? process.cwd() : '';
   const rootDrive = cwd && path.parse ? path.parse(cwd).root : 'C:\\';

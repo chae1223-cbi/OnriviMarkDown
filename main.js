@@ -319,7 +319,8 @@ function createWindow(port) {
 // 🧠 [OMD-MAIN-knowledge-0001] 데스크톱 전용 지식 베이스 SQLite 엔진 및 로컬 API 핸들러
 // 🎯 @KICK  : 데스크톱 환경에서 /api/knowledge/* 호출 시 외부 실서버 대신 로컬 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db)를 직접 조회/갱신
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(코드값 대문자 통일), Rule 7(SQLite 트랜잭션 무결성), 동적 리소스 폴더(하드코딩 금지)
-// 🚨 @PATCH : **2026-09-06** — [AES 암호화 문자열 원천 방어] resolveSafeResourceFolder에서 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 폴더명으로 유입 시 D:\U2FsdGVkX1... 등 엉뚱한 폴더와 가짜 DB 생성을 원천 방어하도록 Onrivi_Asset 표준 폴더로 강제 정규화
+// 🚨 @PATCH : **2026-09-06** — [실제 리소스 폴더 드라이브 자동 순회 탐색] resolveSafeResourceFolder에서 'Onrivi_Asset' 또는 'C:\Onrivi_Asset' 유입 시 실제 D:\, C:\, E:\ 드라이브를 순회하여 onrivi_knowledge.db가 존재하는 실제 드라이브를 찾아 연결 — 데스크톱 탐색기 📗 지식문서 표시 정상화
+//             **2026-09-06** — [AES 암호화 문자열 원천 방어] resolveSafeResourceFolder에서 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 폴더명으로 유입 시 D:\U2FsdGVkX1... 등 엉뚱한 폴더와 가짜 DB 생성을 원천 방어하도록 Onrivi_Asset 표준 폴더로 강제 정규화
 // ====================================================================
 
 function resolveSafeResourceFolder(folder) {
@@ -331,7 +332,29 @@ function resolveSafeResourceFolder(folder) {
     clean = 'Onrivi_Asset';
   }
 
-  if (path.isAbsolute(clean)) return clean;
+  // 1) 이미 절대 경로인 경우: 실제 존재하는지 확인 후, 만약 없다면 다른 드라이브 확인
+  if (path.isAbsolute(clean)) {
+    if (fs.existsSync(clean)) return clean;
+    const baseName = path.basename(clean);
+    const candidateDrives = ['D:\\', 'C:\\', 'E:\\', 'F:\\'];
+    for (const drive of candidateDrives) {
+      const candidate = path.join(drive, baseName);
+      if (fs.existsSync(path.join(candidate, 'db', 'onrivi_knowledge.db')) || fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return clean;
+  }
+
+  // 2) 상대 경로(예: 'Onrivi_Asset')인 경우: 실제 onrivi_knowledge.db 또는 폴더가 존재하는 드라이브 우선 탐색
+  const candidateDrives = ['D:\\', 'C:\\', 'E:\\', 'F:\\'];
+  for (const drive of candidateDrives) {
+    const candidate = path.join(drive, clean);
+    if (fs.existsSync(path.join(candidate, 'db', 'onrivi_knowledge.db')) || fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
   const cwd = process.cwd();
   const rootDrive = (cwd && path.parse(cwd).root) || 'C:\\';
   return path.join(rootDrive, clean);
