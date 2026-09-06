@@ -2,7 +2,8 @@
 // 📊 [OMD-KUI-011] KUI011_KnowledgeSettings.tsx ➔ 지식 엔진 환경설정 및 리소스 제어
 // 🎯 @KICK  : 에디터 활성 AI(Gemini API 키 및 모델) 실시간 연동 확인/테스트, Worker 동시성, 지식 DB 백업/원복/초기화
 // 🛡️ @GUARD : LDSG v5.0 (#06C755), 로컬 클라이언트 안전 보관 원칙(중앙 서버 전송 불가, API 키 화면 유출 차단), 고대비 시인성 보장(Rule 8), 에디터 전역 AI 단일 진입점 준수
-// 🚨 @PATCH : **2026-09-05** — [백업 사유(Reason) 및 문서 요약 입력/열람 UI 탑재] 백업 생성, 초기화, 원복 시 백업 사유를 입력받아 기록하고, 백업 목록에서 사유/문서수/대표문서명을 직관적으로 확인하여 원하는 백업을 선택 원복할 수 있도록 개편
+// 🚨 @PATCH : **2026-09-06** — [handleResetKnowledgeDb window.prompt 완전 교체 완료] handleResetKnowledgeDb의 나머지 prompt()/window.prompt() 2건을 showPromptDialog 비동기 PromptModal로 교체하고, JSX return 끝에 <PromptModal> 렌더 구문을 추가하여 Electron window.prompt 미지원 결함을 완전 해소
+//             **2026-09-05** — [백업 사유(Reason) 및 문서 요약 입력/열람 UI 탑재] 백업 생성, 초기화, 원복 시 백업 사유를 입력받아 기록하고, 백업 목록에서 사유/문서수/대표문서명을 직관적으로 확인하여 원하는 백업을 선택 원복할 수 있도록 개편
 //             **2026-09-05** — [초기화/원복 사전 자동 백업 UI 연동] DB 초기화 및 외부/선택 원복 시 현재 DB의 자동 스냅샷 백업 생성 안내 및 백업 목록 실시간 즉시 갱신 연동
 //             **2026-09-05** — [지식 DB 백업 원복 실시간 동기화] 기존 백업 및 외부 DB 업로드 원복 성공 시 knowledge:updated-from-hub, knowledge:refresh 전역 이벤트를 브로드캐스트하여 탐색기 뱃지 및 지식 보관함 목록이 즉각 동기화되도록 개선
 //             **2026-09-05** — [지식 DB 완전 초기화 클라이언트 연동 강화] 초기화 시 로컬 스토리지 등록 문서(onrivi_registered_knowledge_docs) 즉각 정리 및 knowledge:updated, knowledge:updated-from-hub 전역 이벤트 브로드캐스트로 에디터/탐색기/허브 실시간 동기화
@@ -20,6 +21,7 @@ import {
   HardDrive, Archive
 } from 'lucide-react';
 import { ResourceController } from '@/lib/knowledge/knowledgeWorker';
+import PromptModal from '@/components/PromptModal';
 
 interface KnowledgeBackupItem {
   fileName: string;
@@ -191,12 +193,48 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
     showToast('지식 엔진 리소스 설정이 안전하게 저장되었습니다.', 'success');
   };
 
+  // --- 커스텀 PromptModal 상태 (Electron window.prompt 미지원 완벽 해결) ---
+  const [promptState, setPromptState] = useState<{
+    isOpen: boolean;
+    title: string;
+    defaultValue?: string;
+    placeholder?: string;
+    onConfirm: (val: string) => void;
+    onCancel: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    defaultValue: '',
+    onConfirm: () => {},
+    onCancel: () => {}
+  });
+
+  const showPromptDialog = useCallback((title: string, defaultValue = '', placeholder = ''): Promise<string | null> => {
+    return new Promise((resolve) => {
+      setPromptState({
+        isOpen: true,
+        title,
+        defaultValue,
+        placeholder,
+        onConfirm: (val: string) => {
+          setPromptState(prev => ({ ...prev, isOpen: false }));
+          resolve(val);
+        },
+        onCancel: () => {
+          setPromptState(prev => ({ ...prev, isOpen: false }));
+          resolve(null);
+        }
+      });
+    });
+  }, []);
+
   // --- 데이터베이스 백업 생성 ---
   const handleCreateBackup = async () => {
     if (!resourceFolder) return;
-    const reason = window.prompt(
-      '백업 사유나 메모를 입력해 주세요 (선택 사항):\n예: 문서 일괄 등록 전 백업, 특정 프로젝트 완료 후 등',
-      '수동 정기 백업'
+    const reason = await showPromptDialog(
+      '백업 사유나 메모를 입력해 주세요 (선택 사항):',
+      '수동 정기 백업',
+      '예: 문서 일괄 등록 전 백업, 특정 프로젝트 완료 후 등'
     );
     if (reason === null) return; // 취소 시 중단
 
@@ -261,7 +299,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
     );
     if (!confirmed) return;
 
-    const snapshotReason = window.prompt(
+    const snapshotReason = await showPromptDialog(
       '원복 전 현재 운영 DB를 스냅샷 백업합니다.\n현재 DB의 백업 사유를 입력해 주세요:',
       `원복 직전 자동 백업 (${fileName} 복원 전)`
     );
@@ -330,7 +368,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
       return;
     }
 
-    const snapshotReason = window.prompt(
+    const snapshotReason = await showPromptDialog(
       '외부 DB 원복 전 현재 운영 DB를 스냅샷 백업합니다.\n현재 DB의 백업 사유를 입력해 주세요:',
       `외부 백업(${file.name}) 업로드 원복 직전 백업`
     );
@@ -419,19 +457,20 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
       showToast('리소스 폴더가 설정되지 않았습니다.', 'warning');
       return;
     }
-    const confirmText = prompt(
-      '경고: 지식 보관함의 모든 색인 데이터, 청크, 대기열이 완전히 초기화됩니다.\n\n' +
-      '※ 안전을 위해 현재 데이터베이스는 backups 폴더에 자동으로 스냅샷 백업된 후 초기화가 진행됩니다.\n' +
-      '진행하시려면 "초기화"를 직접 입력해 주세요:'
+    const confirmText = await showPromptDialog(
+      '⚠️ 지식 데이터베이스 완전 초기화 — 진행하시려면 "초기화"를 입력해 주세요',
+      '',
+      '초기화'
     );
     if (confirmText !== '초기화') {
       if (confirmText !== null) showToast('초기화가 취소되었습니다.', 'info');
       return;
     }
 
-    const backupReason = window.prompt(
-      '초기화 전 현재 운영 DB를 스냅샷 백업합니다.\n현재 DB의 백업 사유나 메모를 입력해 주세요:',
-      '초기화 직전 안전 자동 백업'
+    const backupReason = await showPromptDialog(
+      '초기화 전 스냅샷 백업 사유 입력 (선택 사항):',
+      '초기화 직전 안전 자동 백업',
+      '예: 초기화 직전 안전 자동 백업'
     );
     if (backupReason === null) {
       showToast('초기화가 취소되었습니다.', 'info');
@@ -951,6 +990,15 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
           지식 데이터베이스 완전 초기화
         </button>
       </div>
+      {/* PromptModal: showPromptDialog helper가 제어하는 비동기 입력 다이얼로그 */}
+      <PromptModal
+        isOpen={promptState.isOpen}
+        title={promptState.title}
+        defaultValue={promptState.defaultValue}
+        placeholder={promptState.placeholder}
+        onConfirm={promptState.onConfirm}
+        onCancel={promptState.onCancel}
+      />
     </div>
   );
 };

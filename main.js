@@ -1266,45 +1266,200 @@ ${fileContent.slice(0, 15000)}`;
     if (subPath === 'backup') {
       const safeFolder = resolveSafeResourceFolder(resourceFolder);
       if (!safeFolder) return Response.json({ ok: false, message: '리소스 폴더가 없습니다.' }, { status: 400 });
-      const backupsDir = path.join(safeFolder, 'backups');
+      const backupsDir = path.join(safeFolder, 'db', 'backups');
       if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
 
       if (request.method === 'GET') {
-        const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.db'));
+        const manifestPath = path.join(backupsDir, 'backups_manifest.json');
+        let manifest = {};
+        try {
+          if (fs.existsSync(manifestPath)) {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+          }
+        } catch {}
+
+        const download = url.searchParams.get('download');
+        const fileName = url.searchParams.get('fileName');
+
+        if (download === 'current') {
+          const dbPath = path.join(safeFolder, 'db', 'onrivi_knowledge.db');
+          if (!fs.existsSync(dbPath)) return Response.json({ ok: false, message: 'DB 파일이 없습니다.' }, { status: 404 });
+          const fileBuffer = fs.readFileSync(dbPath);
+          const now = new Date();
+          const pad = n => String(n).padStart(2, '0');
+          const dlName = `onrivi_knowledge_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}.db`;
+          return new Response(fileBuffer, {
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Content-Disposition': `attachment; filename="${dlName}"`,
+            }
+          });
+        }
+
+        if (download === 'true' && fileName) {
+          const cleanName = path.basename(fileName);
+          const backupPath = path.join(backupsDir, cleanName);
+          if (!fs.existsSync(backupPath)) return Response.json({ ok: false, message: '백업 파일을 찾을 수 없습니다.' }, { status: 404 });
+          const fileBuffer = fs.readFileSync(backupPath);
+          return new Response(fileBuffer, {
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Content-Disposition': `attachment; filename="${cleanName}"`,
+            }
+          });
+        }
+
+        const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.db') && !f.startsWith('.'));
         const backups = files.map(f => {
           const stat = fs.statSync(path.join(backupsDir, f));
-          return { fileName: f, size: stat.size, createdAt: stat.birthtime.toISOString() };
-        });
+          const m = manifest[f] || {};
+          return {
+            fileName: f,
+            filePath: path.join(backupsDir, f),
+            size: stat.size,
+            createdAt: m.createdAt || stat.birthtime.toISOString(),
+            reason: m.reason || '수동 백업',
+            docCount: typeof m.docCount === 'number' ? m.docCount : 0,
+            docTitles: Array.isArray(m.docTitles) ? m.docTitles : []
+          };
+        }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
         return Response.json({ ok: true, backups });
       }
 
       if (request.method === 'POST') {
+        const { reason } = body;
         const dbPath = path.join(safeFolder, 'db', 'onrivi_knowledge.db');
         if (!fs.existsSync(dbPath)) return Response.json({ ok: false, message: '백업할 DB 파일이 없습니다.' }, { status: 404 });
+
+        // WAL 체크포인트 수행하여 최신 데이터가 .db 파일에 물리적으로 쓰여지도록 보장
+        const db = getDesktopKnowledgeDb(resourceFolder, false);
+        let docCount = 0;
+        let docTitles = [];
+        if (db) {
+          try {
+            db.exec('PRAGMA wal_checkpoint(PASSIVE);');
+            const docs = db.prepare('SELECT title FROM knowledge_documents LIMIT 5').all();
+            docCount = Number(db.prepare('SELECT COUNT(*) as c FROM knowledge_documents').get()?.c || 0);
+            docTitles = docs.map(d => d.title);
+          } catch {}
+        }
+
         const now = new Date();
         const pad = n => String(n).padStart(2, '0');
         const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-        const backupFileName = `backup_${ts}.db`;
+        const backupFileName = `knowledge_backup_${ts}.db`;
         const destPath = path.join(backupsDir, backupFileName);
         fs.copyFileSync(dbPath, destPath);
-        return Response.json({ ok: true, backup: { fileName: backupFileName, path: destPath } });
+
+        const effectiveReason = reason && reason.trim() ? reason.trim() : (docCount > 0 ? `등록 문서 ${docCount}건 보존 백업` : '수동 백업');
+
+        // backups_manifest.json 갱신
+        const manifestPath = path.join(backupsDir, 'backups_manifest.json');
+        let manifest = {};
+        try {
+          if (fs.existsSync(manifestPath)) {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+          }
+        } catch {}
+        manifest[backupFileName] = {
+          reason: effectiveReason,
+          docCount,
+          docTitles,
+          createdAt: now.toISOString()
+        };
+        try {
+          fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+        } catch {}
+
+        const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.db') && !f.startsWith('.'));
+        const backups = files.map(f => {
+          const stat = fs.statSync(path.join(backupsDir, f));
+          const m = manifest[f] || {};
+          return {
+            fileName: f,
+            filePath: path.join(backupsDir, f),
+            size: stat.size,
+            createdAt: m.createdAt || stat.birthtime.toISOString(),
+            reason: m.reason || '수동 백업',
+            docCount: typeof m.docCount === 'number' ? m.docCount : 0,
+            docTitles: Array.isArray(m.docTitles) ? m.docTitles : []
+          };
+        }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        return Response.json({
+          ok: true,
+          backup: { fileName: backupFileName, path: destPath, reason: effectiveReason },
+          backups,
+          message: `지식 데이터베이스 백업(${backupFileName})이 성공적으로 생성되었습니다.`
+        });
+      }
+
+      if (request.method === 'DELETE') {
+        const fileName = url.searchParams.get('fileName') || body.fileName;
+        if (!fileName) return Response.json({ ok: false, message: '파일명이 필요합니다.' }, { status: 400 });
+        const cleanName = path.basename(fileName);
+        const target = path.join(backupsDir, cleanName);
+        if (fs.existsSync(target)) fs.unlinkSync(target);
+
+        const manifestPath = path.join(backupsDir, 'backups_manifest.json');
+        try {
+          if (fs.existsSync(manifestPath)) {
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+            if (manifest[cleanName]) {
+              delete manifest[cleanName];
+              fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+            }
+          }
+        } catch {}
+
+        return Response.json({ ok: true, message: '백업 파일이 삭제되었습니다.' });
       }
     }
 
     if (subPath === 'restore') {
-      const { backupFileName } = body;
+      const { backupFileName, fileName, reason } = body;
+      const targetFileName = backupFileName || fileName;
       const safeFolder = resolveSafeResourceFolder(resourceFolder);
-      if (!safeFolder || !backupFileName) return Response.json({ ok: false, message: '필수 인자가 누락되었습니다.' }, { status: 400 });
-      const srcBackup = path.join(safeFolder, 'backups', backupFileName);
+      if (!safeFolder || !targetFileName) return Response.json({ ok: false, message: '필수 인자가 누락되었습니다.' }, { status: 400 });
+      const backupsDir = path.join(safeFolder, 'db', 'backups');
+      const srcBackup = path.join(backupsDir, targetFileName);
       const dbPath = path.join(safeFolder, 'db', 'onrivi_knowledge.db');
       if (!fs.existsSync(srcBackup)) return Response.json({ ok: false, message: '백업 파일을 찾을 수 없습니다.' }, { status: 404 });
+
+      // 사전 안전 스냅샷 백업
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+      const preRestoreName = `knowledge_backup_before_restore_${ts}.db`;
+      if (fs.existsSync(dbPath)) {
+        try {
+          fs.copyFileSync(dbPath, path.join(backupsDir, preRestoreName));
+        } catch {}
+      }
 
       if (desktopDbCache.has(dbPath)) {
         try { desktopDbCache.get(dbPath).close(); } catch {}
         desktopDbCache.delete(dbPath);
       }
+      // 잔여 WAL / SHM 제거
+      try { fs.unlinkSync(`${dbPath}-wal`); } catch {}
+      try { fs.unlinkSync(`${dbPath}-shm`); } catch {}
+
       fs.copyFileSync(srcBackup, dbPath);
-      return Response.json({ ok: true, message: '복원이 완료되었습니다.' });
+
+      // 복원 후 문서 목록 조회
+      const restoredDb = getDesktopKnowledgeDb(resourceFolder, false);
+      let documents = [];
+      if (restoredDb) {
+        documents = restoredDb.prepare('SELECT id, file_path, title FROM knowledge_documents').all();
+      }
+
+      return Response.json({ 
+        ok: true, 
+        message: `지식 데이터베이스가 성공적으로 원복되었습니다. (${targetFileName})`,
+        documents
+      });
     }
 
     return Response.json({ ok: false, message: `지원되지 않는 로컬 지식 엔드포인트: ${subPath}` }, { status: 404 });
