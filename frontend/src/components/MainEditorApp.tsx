@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+ *   * 🚨 @PATCH : **2026-09-06** — [ESLint react-hooks/exhaustive-deps 경고 해결] 웰컴 제어 useEffect 내 로그를 effectiveLicenseStatus 참조로 일원화하고, 단축키 액션 등록 useEffect 내 AI_MODAL 가드를 activeTabIdRef.current 및 previewModeRef.current 참조로 전환하여 불필요한 단축키 재등록 방어 및 빌드 경고 100% 해소
  *   * 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 베이스 연동] KnowledgeHubView에 resourceFolderHandle을 전달하고 (window as any).__resourceFolderHandle 글로벌 캐시를 동기화하여 웹 프로드 환경에서도 내 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 실시간 조회/등록/검색 가능하도록 연동
  *   * 🚨 @PATCH : **2026-09-06** — [localhost 지식 엔진 초기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 리소스 폴더 지정 시 /api/knowledge/init 자동 초기화를 활성화하고, prod 웹 환경에서만 안전하게 스킵 처리
  *   * 🚨 @PATCH : **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 리소스 폴더 지정 시 /api/knowledge/init 불필요 호출을 차단하고 데스크톱 환경에서만 실행하도록 가드 보강
@@ -3792,7 +3793,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   useEffect(() => {
     if (!mounted || isLicenseChecking || hasHandledWelcomeRef.current) return;
 
-    console.log('[WELCOME#2] FIRED! isExpired=%o planName=%o tabsRef=%o', licenseStatus.isExpired, licenseStatus.planName, tabsRef.current.map((t: any) => t.name));
+    console.log('[WELCOME#2] FIRED! isExpired=%o planName=%o tabsRef=%o', effectiveLicenseStatus.isExpired, effectiveLicenseStatus.planName, tabsRef.current.map((t: any) => t.name));
 
     // 이펙트를 단 한 번만 실행하여 다른 컴포넌트나 훅이 웰컴탭을 덮어쓰거나 무한루프 도는 것을 원천 방지
     hasHandledWelcomeRef.current = true;
@@ -5764,7 +5765,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             dispatchCommand('SETTINGS');
             return;
           }
-          if (!activeTabId || previewMode === 'preview') {
+          if (!activeTabIdRef.current || previewModeRef.current === 'preview') {
             showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
             return;
           }
