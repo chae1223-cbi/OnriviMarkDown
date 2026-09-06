@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
 // 🎯 @KICK  : 웹 브라우저(Cloudflare Pages / onrivi.com) 환경에서 사용자 로컬 PC의 {resourceFolder}/db/onrivi_knowledge.db를 직접 읽고 쓰는 WASM SQLite 엔진
 // 🛡️ @GUARD : Rule 7(선행 검증 후 원트랜잭션 쓰기), Rule 2(코드값 대문자 통일: READY, REGISTERED, INDEXING, ERROR), 디스크 바이너리 원자적 플러시
-// 🚨 @PATCH : **2026-09-06** — [document_chunks chunk_text 스키마 마이그레이션 및 File System Access API 캐시 충돌 방어] 기존 DB 로드 시 ALTER TABLE chunk_text 자동 마이그레이션 실행(table document_chunks has no column named chunk_text 원천 방어), saveBrowserKnowledgeDb에서 getFile() 사전 동기화 및 keepExistingData: false, state changed 발생 시 엔트리 재생성 및 인메모리 캐시 무효화로 트랜잭션 동기화 보장
+// 🚨 @PATCH : **2026-09-06** — [디스크 mtime 변경 감지 실시간 리로드 및 File System Access API 쓰기 잠금 완벽 복구] 데스크톱/타 프로세스에 의한 SQLite 파일 변경(mtime)을 실시간 감지하여 최신 DB로 자동 갱신하고, saveBrowserKnowledgeDb에서 getFile() 메타데이터 동기화 및 createWritable 실패 시 엔트리 재생성/임시 파일 폴백으로 'state had changed since it was read from disk' 오류 원천 차단
+//             **2026-09-06** — [document_chunks chunk_text 스키마 마이그레이션 및 File System Access API 캐시 충돌 방어] 기존 DB 로드 시 ALTER TABLE chunk_text 자동 마이그레이션 실행(table document_chunks has no column named chunk_text 원천 방어), saveBrowserKnowledgeDb에서 getFile() 사전 동기화 및 keepExistingData: false, state changed 발생 시 엔트리 재생성 및 인메모리 캐시 무효화로 트랜잭션 동기화 보장
 //             **2026-09-06** — [WASM 지식 문서 해제/상세조회 경로 정규화 및 파일명 매칭 폴백] 브라우저 WASM SQLite 상에서 deleteBrowserDocument 및 getBrowserDocumentDetail 호출 시 경로 구분자(/와 \) 및 파일명 접미사 매칭을 지원하여 로컬 DB 문서 해제 및 상세 열람이 정확하게 동작하도록 보장
 //             **2026-09-06** — [WASM 바이너리 직접 주입 및 4단계 다중 폴백 로딩 구축] Emscripten 내부의 취약한 fetch/동기 XHR("both async and sync fetching of the wasm failed") 오류를 원천 차단하기 위해 loadWasmBinary()를 통한 로컬 절대경로/CDN 다중 폴백 및 wasmBinary 직접 주입으로 전환
 //             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 DB 완전 일치화 최초 구현] sql.js WASM 엔진과 File System Access API(resourceFolderHandle)를 연동하여 웹 환경에서도 중앙 서버 부하 0%로 사용자 PC의 onrivi_knowledge.db를 데스크톱과 100% 동일하게 읽고 쓰도록 구축
@@ -26,6 +27,7 @@ import { idb } from '../indexedDbHelper';
 let sqlModulePromise: Promise<any> | null = null;
 let cachedDbInstance: any = null;
 let cachedDbFolderHandle: any = null;
+let cachedDbLastModified: number = 0;
 
 /**
  * sql-wasm.wasm 바이너리를 다중 폴백(로컬 오리진 -> 상대 경로 -> jsDelivr CDN -> cdnjs CDN)으로 안전하게 가져옵니다.
@@ -137,14 +139,22 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
     }
   }
 
-  if (cachedDbInstance) {
-    return { db: cachedDbInstance, folderHandle };
-  }
-
   const SQL = await getSqlModule();
   const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
   const fileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
   const file = await fileHandle.getFile();
+
+  // 🛡️ 디스크 상의 DB 파일 변경(mtime) 감지: 캐시가 유효하고 디스크 파일이 변경되지 않은 경우 메모리 인스턴스 반환
+  if (cachedDbInstance && cachedDbLastModified === file.lastModified) {
+    return { db: cachedDbInstance, folderHandle };
+  }
+
+  // 디스크에서 파일이 변경되었거나 최초 로드 시 이전 캐시 정리
+  if (cachedDbInstance) {
+    try { cachedDbInstance.close(); } catch {}
+    cachedDbInstance = null;
+  }
+
   const buf = await file.arrayBuffer();
 
   let db: any;
@@ -162,6 +172,7 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
   }
 
   cachedDbInstance = db;
+  cachedDbLastModified = file.lastModified;
   return { db, folderHandle };
 }
 
@@ -170,6 +181,9 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
  * File System Access API의 내부 캐시 상태 불일치(state had changed since it was read from disk)를 원천 방어합니다.
  */
 export async function saveBrowserKnowledgeDb(folderHandle: any, db: any): Promise<void> {
+  if (!folderHandle) {
+    throw new Error('RESOURCE_FOLDER_HANDLE_MISSING: 리소스 폴더 핸들이 유효하지 않습니다.');
+  }
   const data = db.export();
   const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
 
@@ -182,6 +196,11 @@ export async function saveBrowserKnowledgeDb(folderHandle: any, db: any): Promis
     const writable = await targetHandle.createWritable({ keepExistingData: false });
     await writable.write(data);
     await writable.close();
+    // 3) 저장 완료 후 최신 lastModified 즉시 갱신 (불필요한 DB 재파싱 방지)
+    try {
+      const updated = await targetHandle.getFile();
+      cachedDbLastModified = updated.lastModified;
+    } catch {}
   };
 
   try {
@@ -190,7 +209,7 @@ export async function saveBrowserKnowledgeDb(folderHandle: any, db: any): Promis
   } catch (err: any) {
     console.warn('[saveBrowserKnowledgeDb] 1차 파일 쓰기 실패, 핸들 재생성 후 복구 시도:', err?.message);
     try {
-      // 3) state changed 오류 발생 시 브라우저 내부 캐시 무효화를 위해 엔트리 삭제 후 신규 생성
+      // 4) state changed 오류 발생 시 브라우저 내부 캐시 무효화를 위해 엔트리 삭제 후 신규 생성
       try {
         await dbDir.removeEntry('onrivi_knowledge.db');
       } catch {}
@@ -212,6 +231,7 @@ export function invalidateBrowserDbCache(): void {
     try { cachedDbInstance.close(); } catch {}
     cachedDbInstance = null;
   }
+  cachedDbLastModified = 0;
 }
 
 /**

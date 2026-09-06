@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeAutoSync-0001] knowledgeAutoSync.ts ➔ Knowledge Auto-Sync on Save
 // 🎯 @KICK  : 에디터 문서 저장(Ctrl+S/autoSave) 시 등록된 지식 문서의 변경을 감지하여 로컬 큐에 비동기 재색인(REINDEX, Priority 1) 자동 등록
 // 🛡️ @GUARD : 비활성화 옵션 가드, 미등록 문서 O(1) 패스, 세션 해시 캐시 기반 중복 억제, 에디터 타이핑 논블로킹, 5초 토스트 디바운스
-// 🚨 @PATCH : **2026-09-04** — 자동 재색인 토스트 알림 아이콘을 남성 학사(📗)로 교체
+// 🚨 @PATCH : **2026-09-06** — [AES 암호문 리소스 폴더 방어] localStorage.getItem 직접 참조 시 암호문(U2FsdGVkX1...)이 유입되어 잘못된 SQLite 경로를 타던 현상을 loadSecureData 및 Onrivi_Asset 정규화로 방어
+//             **2026-09-04** — 자동 재색인 토스트 알림 아이콘을 남성 학사(📗)로 교체
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 실시간 저장 시 100% 로컬 비동기 자동 재색인 엔진 최초 구현
 // 🔗 @CALLS : crypto-js, ./knowledgeWorker, @/utils/toast
 // ====================================================================
@@ -10,6 +11,7 @@
 import CryptoJS from 'crypto-js';
 import { KnowledgeWorkerEngine } from './knowledgeWorker';
 import { showToast } from '@/utils/toast';
+import { loadSecureData } from '../secureStorage';
 
 export interface AutoSyncParams {
   filePath: string;
@@ -113,7 +115,8 @@ export async function triggerKnowledgeAutoSyncOnSave(params: AutoSyncParams): Pr
   }
 
   // 5. 환경설정 값 로드
-  const resourceFolder = params.resourceFolder || localStorage.getItem('resourceFolder') || 'Onrivi_Asset';
+  const rawFolder = params.resourceFolder || loadSecureData<string>('resourceFolder') || localStorage.getItem('onrivi_resource_folder') || 'Onrivi_Asset';
+  const resourceFolder = rawFolder.startsWith('U2FsdGVkX1') ? 'Onrivi_Asset' : rawFolder;
   const geminiApiKey = params.geminiApiKey || localStorage.getItem('onrivi_gemini_api_key') || '';
   const aiModelName = params.aiModelName || localStorage.getItem('onrivi_ai_model_name') || 'gemini-3.8-flash';
   const planCode = params.planCode || 'ELITEPRO';

@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-CORE-knowledgeDb-0001] knowledgeDb.ts ➔ Knowledge SQLite Engine
 // 🎯 @KICK  : 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db) SQLite FTS5 데이터베이스 인프라 및 원자적 트랜잭션 관리
-// 🚨 @PATCH : **2026-09-06** — [document_chunks chunk_text 스키마 통일 및 자동 마이그레이션] Web WASM SQLite와의 스키마 불일치(table document_chunks has no column named chunk_text)를 해결하기 위해 DDL에 chunk_text TEXT를 추가하고 기존 DB 로드 시 ALTER TABLE 및 FTS5 동기화 자동 마이그레이션 탑재
+// 🚨 @PATCH : **2026-09-06** — [AES 암호화 문자열 원천 방어 및 리소스 폴더 정규화] resolveSafeResourceFolder에서 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 폴더명으로 유입 시 D:\U2FsdGVkX1... 등 엉뚱한 폴더와 가짜 DB 생성을 원천 방어하도록 복호화 및 Onrivi_Asset 표준 폴더로 강제 정규화
+//             **2026-09-06** — [document_chunks chunk_text 스키마 통일 및 자동 마이그레이션] Web WASM SQLite와의 스키마 불일치(table document_chunks has no column named chunk_text)를 해결하기 위해 DDL에 chunk_text TEXT를 추가하고 기존 DB 로드 시 ALTER TABLE 및 FTS5 동기화 자동 마이그레이션 탑재
 //             **2026-09-06** — [경로 정규화 및 파일명 매칭 폴백 강화] getDocumentDetailFromDb에서 OS/브라우저별 슬래시/역슬래시 차이 및 상대/절대경로 불일치 시에도 파일명 및 정규화 경로로 문서를 유연하게 식별하도록 검색 쿼리 고도화
 //             **2026-09-05** — [백업 사유(Reason) 및 문서 수/대표제목 메타데이터 시스템 탑재] 백업 생성, DB 초기화, 원복 시 백업 사유(reason)와 등록 문서 건수/대표 제목을 backups_manifest.json에 실시간 기록/관리하고 백업 목록에 투명하게 노출 지원
 //             **2026-09-05** — [SQLite 동시성 잠금(busy_timeout) 및 파일 디스크립터 누수 방어] PRAGMA busy_timeout = 10000 적용으로 동시 요청 시 database is locked 원천 방지, tryOpenAndInit 실패 시 인스턴스 즉시 close 및 Windows EBUSY 방어용 빈 DB 복사 폴백 구축, 캐시 헬스체크를 SELECT 1로 경량화
@@ -66,8 +67,29 @@ export function resolveSafeResourceFolder(resourceFolder: string | null | undefi
     throw new Error('RESOURCE_FOLDER_NOT_SET: 공통 자원(리소스) 폴더가 설정되지 않았습니다. 환경설정에서 리소스 폴더를 먼저 지정해 주세요.');
   }
 
-  const cleanFolder = resourceFolder.trim();
+  let cleanFolder = resourceFolder.trim();
   if (cleanFolder === ':memory:') return cleanFolder;
+
+  // 🛡️ [AES 암호화 문자열 원천 방어] 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 유입된 경우 복호화 또는 안전 폴더명으로 정규화
+  if (cleanFolder.startsWith('U2FsdGVkX1')) {
+    try {
+      const cryptoJs = require('crypto-js');
+      const bytes = cryptoJs.AES.decrypt(cleanFolder, 'ONRIVI-AUTHOR-SECURE-KEY-SPEC-SALT');
+      const decrypted = bytes.toString(cryptoJs.enc.Utf8);
+      if (decrypted) {
+        const parsed = JSON.parse(decrypted);
+        if (typeof parsed === 'string' && parsed.trim() && !parsed.startsWith('U2FsdGVkX1')) {
+          cleanFolder = parsed.trim();
+        } else {
+          cleanFolder = 'Onrivi_Asset';
+        }
+      } else {
+        cleanFolder = 'Onrivi_Asset';
+      }
+    } catch {
+      cleanFolder = 'Onrivi_Asset';
+    }
+  }
 
   const { path } = getNodeModules();
   if (!path) return cleanFolder;

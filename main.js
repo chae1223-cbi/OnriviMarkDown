@@ -319,11 +319,18 @@ function createWindow(port) {
 // 🧠 [OMD-MAIN-knowledge-0001] 데스크톱 전용 지식 베이스 SQLite 엔진 및 로컬 API 핸들러
 // 🎯 @KICK  : 데스크톱 환경에서 /api/knowledge/* 호출 시 외부 실서버 대신 로컬 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db)를 직접 조회/갱신
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(코드값 대문자 통일), Rule 7(SQLite 트랜잭션 무결성), 동적 리소스 폴더(하드코딩 금지)
+// 🚨 @PATCH : **2026-09-06** — [AES 암호화 문자열 원천 방어] resolveSafeResourceFolder에서 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 폴더명으로 유입 시 D:\U2FsdGVkX1... 등 엉뚱한 폴더와 가짜 DB 생성을 원천 방어하도록 Onrivi_Asset 표준 폴더로 강제 정규화
 // ====================================================================
 
 function resolveSafeResourceFolder(folder) {
   if (!folder || !folder.trim()) return null;
-  const clean = folder.trim();
+  let clean = folder.trim();
+
+  // 🛡️ [AES 암호화 문자열 원천 방어] 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 유입된 경우 기본값 치환
+  if (clean.startsWith('U2FsdGVkX1')) {
+    clean = 'Onrivi_Asset';
+  }
+
   if (path.isAbsolute(clean)) return clean;
   const cwd = process.cwd();
   const rootDrive = (cwd && path.parse(cwd).root) || 'C:\\';
