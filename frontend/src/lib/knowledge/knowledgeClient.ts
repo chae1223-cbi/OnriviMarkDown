@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeClient-0001] knowledgeClient.ts ➔ Unified Knowledge Client Facade
 // 🎯 @KICK  : 데스크톱/로컬(Node SQLite)과 프로드 웹(WASM SQLite)을 자동 감지하여 동일한 지식 인터페이스를 제공하는 통합 클라이언트 파사드
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), Rule 7(선행 검증 후 원자적 트랜잭션 무결성), 404/405 자동 WASM 폴백
-// 🚨 @PATCH : **2026-09-06** — [데스크톱 ↔ 프로드 웹 로컬 DB 일치화 파사드 구축] 데스크톱/로컬에서는 /api/knowledge/* 및 electronAPI를 사용하고, 프로드 웹(onrivi.com)에서는 browserKnowledgeDb(WASM sql.js + resourceFolderHandle)를 호출하여 사용자 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 100% 동일하게 공유하도록 단일 진입점 구현
+// 🚨 @PATCH : **2026-09-06** — [localhost↔prod WASM 코드경로 통일: isServerApiAvailable에서 localhost 조건 제거] 로컬 개발(localhost)도 prod(onrivi.com)와 동일하게 browserKnowledgeDb(WASM sql.js + IndexedDB) 경로를 타도록 변경 — 로컬에서 테스트한 코드가 prod에 동일하게 반영되는 신뢰성 있는 개발/배포 파이프라인 확보. Electron 데스크탑(electronAPI 보유)만 /api/knowledge/* API 라우트 사용
+//             **2026-09-06** — [데스크톱 ↔ 프로드 웹 로컬 DB 일치화 파사드 구축] 데스크톱/로컬에서는 /api/knowledge/* 및 electronAPI를 사용하고, 프로드 웹(onrivi.com)에서는 browserKnowledgeDb(WASM sql.js + resourceFolderHandle)를 호출하여 사용자 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 100% 동일하게 공유하도록 단일 진입점 구현
 // 🔗 @CALLS : ./browserKnowledgeDb, ../indexedDbHelper
 // ====================================================================
 
@@ -33,17 +34,15 @@ import { idb } from '../indexedDbHelper';
 
 /**
  * Node.js 기반 백엔드 API 라우트(/api/knowledge/*)를 사용할 수 있는 환경인지 판별합니다.
- * (Electron 데스크톱 앱 및 로컬 개발 localhost/127.0.0.1 환경)
+ * Electron 데스크톱 앱만 해당 — localhost(로컬 개발)와 prod 웹은 동일하게 WASM browserKnowledgeDb 경로 사용
+ *
+ * ⚠️ localhost를 여기서 제외한 이유:
+ *   로컬 개발(localhost)도 prod(onrivi.com)와 동일한 WASM/IndexedDB 코드 경로를 타야
+ *   로컬에서 테스트한 결과가 prod에 그대로 반영되는 신뢰성 있는 파이프라인이 됩니다.
  */
 export function isServerApiAvailable(): boolean {
-  if (typeof window === 'undefined') return true;
-  const isDesktop = !!(window as any).electronAPI;
-  const isLocalhost = 
-    window.location.hostname === 'localhost' || 
-    window.location.hostname === '127.0.0.1' || 
-    window.location.hostname.startsWith('192.168.') || 
-    window.location.hostname.endsWith('.local');
-  return isDesktop || isLocalhost;
+  if (typeof window === 'undefined') return true; // SSR 환경
+  return !!(window as any).electronAPI;           // Electron 데스크탑만 true
 }
 
 /**
