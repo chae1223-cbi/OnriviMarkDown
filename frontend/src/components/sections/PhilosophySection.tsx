@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-PhilosophySection-0026] PhilosophySection ➔ PhilosophySection
 // 🎯 @KICK  : Onrivi Author의 핵심 설계 철학인 '생각은 Markdown으로, 사람은 문서로'를 시각화하고 개념도를 전달하는 섹션
 // 🛡️ @GUARD : 반응형 플로우 단계 렌더링 및 모바일 가독성 가드
-// 🚨 @PATCH : **2026-09-11** — STEP 01(자유로운 기록) 카드를 사용자 지정 고화질 그래픽 이미지(/steps/step-1.jpg)로 교체 반영
+// 🚨 @PATCH : **2026-09-11** — 간편한 4단계 작성 카드 4종 전체를 사용자 지정 고화질 실사형 그래픽 이미지(/steps/step-1~4.jpg)로 전면 교체 반영
+//             **2026-09-11** — STEP 01(자유로운 기록) 카드를 사용자 지정 고화질 그래픽 이미지(/steps/step-1.jpg)로 교체 반영
 //             **2026-09-11** — 간편한 4단계 작성 카드를 사용자 지정 그래픽 이미지 카드(/steps/step-1~4.png)로 교체 탑재
 //             **2026-09-11** — PhilosophySection 문구를 실생활 친화적이고 직관적인 일상 언어(자유로운 기록, AI 문장 다듬기 등)로 전면 개편
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
@@ -33,19 +34,19 @@ const STEP_CARDS: StepCard[] = [
     step: "02",
     title: "AI 문장 다듬기",
     subtitle: "어색한 표현 바로잡기",
-    image: "/steps/step-2.png",
+    image: "/steps/step-2.jpg",
   },
   {
     step: "03",
     title: "깔끔한 자동 정돈",
     subtitle: "한눈에 쏙 들어오는 구조",
-    image: "/steps/step-3.png",
+    image: "/steps/step-3.jpg",
   },
   {
     step: "04",
     title: "완성된 예쁜 문서",
-    subtitle: "PDF · 웹으로 바로 공유",
-    image: "/steps/step-4.png",
+    subtitle: "다양한 문서 내보내기",
+    image: "/steps/step-4.jpg",
   },
 ];
 
