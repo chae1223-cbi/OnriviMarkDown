@@ -1,17 +1,20 @@
 // ====================================================================
 // 📊 [OMD-UI-PricingSection-0023 ✅ FIXED] PricingSection ➔ PricingSection
 // 🎯 @KICK  : Onrivi Author 서비스 멤버십 가격표 출력
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
+// 🚨 @PATCH : **2026-09-11** — 요금제 카드 목록에서 Reader(제한사용자) 제거 및 하단에 '회원가입 후 무료 사용 가능' 별도 안내 박스 연동
+//             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 초록색 풀 채움 카드 제거, White/Surface 베이스에 Regular 플랜 얇은 Green 테두리 및 MOST POPULAR 뱃지/elevation 고급화 적용
 //             **2026-08-07** — DB pricing_plans 테이블을 기반으로 멤버십 데이터를 동적 조회(fetch)하여 렌더링하도록 마이그레이션 패치; **2026-07-09** — 4계급 멤버십 구조 (Reader/Apprentice/Regular/Elite Pro) 전면 개편
-// 🔗 @CALLS : plans constants
+// 🔗 @CALLS : plans constants, BookOpen, Link
 // ====================================================================
 "use client"; // "use client" : 클라이언트 사이드 렌더링을 위한 지시어 
 
 import { useState, useEffect } from "react"; // useState, useEffect : 상태 관리 및 데이터 패치를 위해 임포트 
 import { motion } from "framer-motion"; // framer-motion : 애니메이션을 위한 라이브러리 
+import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal"; // ConfirmModal : 확인 모달 컴포넌트 
 
 // ====================================================================
@@ -46,6 +49,13 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
     );
   }
 
+  // 💡 요금제 카드 목록에서는 Reader(제한사용자) 플랜을 제외하고 아래 별도 안내 박스로 표기
+  const visiblePlans = dbPlans.filter((plan) => {
+    const code = (plan.plan_code || "").toUpperCase();
+    const name = (plan.name || "").toLowerCase();
+    return code !== "READER" && !name.includes("reader") && !name.includes("제한");
+  });
+
   return (
     <section
       id="pricing"
@@ -68,7 +78,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
 
         {/* Plan List */}
         <div className="max-w-3xl mx-auto flex flex-col gap-4">
-          {dbPlans.map((plan, i) => {
+          {visiblePlans.map((plan, i) => {
             const isRegular = plan.plan_code === "REGULAR" || plan.is_highlighted;
             const isFree = plan.is_free;
 
@@ -157,6 +167,38 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
             );
           })}
         </div>
+
+        {/* Reader 플랜 별도 안내 박스 */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="max-w-3xl mx-auto mt-6 p-5 sm:p-6 rounded-2xl bg-[#EFEFFF]/70 dark:bg-[#16181D] border border-[#E2E4F6] dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-left shadow-2xs"
+        >
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-[#1d4ed8]/10 text-[#1d4ed8] flex items-center justify-center shrink-0">
+              <BookOpen size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-sm font-bold text-[#111413] dark:text-white">
+                  Reader (읽기 전용) 플랜
+                </span>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  FREE
+                </span>
+              </div>
+              <p className="text-xs text-[#68716D] dark:text-zinc-400 leading-relaxed">
+                Reader 플랜은 별도 결제 없이 <strong className="text-[#111413] dark:text-zinc-200">회원가입 후 즉시 사용 가능</strong>합니다.
+              </p>
+            </div>
+          </div>
+          <Link href="/signup" className="shrink-0 w-full sm:w-auto">
+            <button className="w-full sm:w-auto px-4 py-2 text-xs font-bold rounded-xl bg-white dark:bg-zinc-800 text-[#1d4ed8] dark:text-blue-400 border border-[#E2E4F6] dark:border-white/10 hover:bg-[#1d4ed8] hover:text-white transition-all shadow-2xs">
+              회원가입하고 무료로 읽기 →
+            </button>
+          </Link>
+        </motion.div>
       </div>
 
       <ConfirmModal
