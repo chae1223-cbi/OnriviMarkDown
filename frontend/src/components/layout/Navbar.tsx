@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
+// 🚨 @PATCH : **2026-09-11** — 헤더(Navbar) 딥 네이비(#0B0F19) 진한 색상 및 고대비 화이트/코발트 UI 적용
+//             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-05** — 로그아웃(handleLogout) 시 onrivi_* 및 sb-* 로컬스토리지 전량 파기로 계정 간 세션 오염 원천 차단 및 p_user_id 전달 연동
 //             **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 헤더 높이(76px) 및 최대폭(1240px) 최적화, 단일 Primary CTA 중심 정돈 및 LDSG v5.0 글래스모피즘 표준 적용
 //             **2026-08-27** — 비로그인 상태 헤더 우측 영역에 '즉시 체험하기' 버튼을 추가하고, 클릭 시 로컬 스토리지 게스트 플래그(onrivi_guest_mode)를 셋업하여 복잡한 로그인/가입 없이 브라우저 가상 스페이스 에디터로 즉시 진입하도록 액션 탑재; **2026-06-28** — 데스크톱 앱(Electron) 환경 진입 시 웹 상단 헤더가 레이아웃을 해쳐 에디터 집중을 방해하지 않도록 렌더링 무조건 스킵(return null) 가드 패치; 비밀번호 재설정(/reset-password) 화면 진입 시 임시 토큰으로 로그인 상태의 헤더 UI가 노출되지 않도록 강제 필터링 우회 패치
@@ -149,8 +150,8 @@ export function Navbar({ content }: { content?: NavbarContent }) {
     <nav
       className={`fixed w-full z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-white/90 dark:bg-[#121314]/90 backdrop-blur-md border-b border-[#E2E4F6] dark:border-white/10 shadow-[0_4px_20px_-4px_rgba(29,78,216,0.04)]"
-          : "bg-white/60 dark:bg-[#121314]/60 backdrop-blur-sm border-b border-transparent"
+          ? "bg-[#0B0F19]/95 backdrop-blur-md border-b border-white/10 shadow-[0_4px_24px_rgba(0,0,0,0.3)]"
+          : "bg-[#0B0F19] border-b border-white/10 shadow-[0_2px_12px_rgba(0,0,0,0.2)]"
       }`}
       style={{
         fontFamily: "Pretendard, LineSeed, sans-serif",
@@ -161,7 +162,7 @@ export function Navbar({ content }: { content?: NavbarContent }) {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 flex-shrink-0 group">
             <img src="/icon.png" alt={SITE_NAME} className="h-8 w-8 rounded-lg shadow-xs group-hover:scale-105 transition-transform" />
-            <span className="font-extrabold text-[19px] text-[#111413] dark:text-white tracking-tight">
+            <span className="font-extrabold text-[19px] text-white tracking-tight">
               {SITE_NAME}
             </span>
           </Link>
@@ -170,31 +171,31 @@ export function Navbar({ content }: { content?: NavbarContent }) {
           <div className="hidden md:flex items-center gap-9">
             <a
               href="#philosophy"
-              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
             >
               철학
             </a>
             <a
               href="#experience"
-              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
             >
               기능
             </a>
             <a
               href="#documents"
-              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
             >
               문서
             </a>
             <a
               href="#pricing"
-              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
             >
               요금제
             </a>
             <a
               href="#faq"
-              className="text-[14px] font-medium text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors tracking-tight"
+              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
             >
               FAQ
             </a>
@@ -203,9 +204,9 @@ export function Navbar({ content }: { content?: NavbarContent }) {
             {hasActivePromo && (
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent("openBetaModal"))}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#06C755] bg-[#06C755]/10 border border-[#06C755]/20 rounded-full px-3 py-1 hover:bg-[#06C755]/15 transition-all"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#60a5fa] bg-[#1d4ed8]/20 border border-[#1d4ed8]/40 rounded-full px-3 py-1 hover:bg-[#1d4ed8]/30 transition-all"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#06C755] animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#3b82f6] animate-pulse" />
                 진행 중인 이벤트
               </button>
             )}
@@ -216,22 +217,22 @@ export function Navbar({ content }: { content?: NavbarContent }) {
             {mounted && (
               isLoggedIn && userEmail ? (
                 <>
-                  <span className="hidden lg:block text-xs font-medium text-[#68716D] dark:text-zinc-400 max-w-[140px] truncate">
+                  <span className="hidden lg:block text-xs font-medium text-zinc-400 max-w-[140px] truncate">
                     {userEmail}
                   </span>
                   <Link href="/dashboard">
-                    <button className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-[#E5E9E7] dark:border-white/10 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[#111413] dark:text-white transition-all">
+                    <button className="px-3.5 py-1.5 text-xs font-semibold rounded-lg border border-white/20 hover:bg-white/10 text-white transition-all">
                       {content?.dashboardLabel ?? "대시보드"}
                     </button>
                   </Link>
                   <Link href="/editor">
-                    <button className="px-4 py-2 text-xs font-bold rounded-lg bg-[#06C755] hover:bg-[#05B04B] text-white shadow-sm transition-all">
+                    <button className="px-4 py-2 text-xs font-bold rounded-lg bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-sm transition-all">
                       {content?.editorLabel ?? "에디터"}
                     </button>
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="text-xs font-medium text-[#68716D] hover:text-[#111413] dark:text-zinc-400 dark:hover:text-white transition-colors px-1"
+                    className="text-xs font-medium text-zinc-400 hover:text-white transition-colors px-1"
                   >
                     {content?.logoutLabel ?? "로그아웃"}
                   </button>
@@ -240,18 +241,18 @@ export function Navbar({ content }: { content?: NavbarContent }) {
                 <div className="flex items-center gap-2.5">
                   <Link
                     href="/login"
-                    className="text-[13px] font-semibold text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white transition-colors px-2 py-1.5"
+                    className="text-[13px] font-semibold text-zinc-300 hover:text-white transition-colors px-2 py-1.5"
                   >
                     로그인
                   </Link>
                   <button 
                     onClick={handleInstantTry} 
-                    className="hidden sm:inline-flex items-center justify-center px-3.5 py-2 text-[13px] font-semibold rounded-xl text-[#111413] dark:text-zinc-200 border border-[#E5E9E7] dark:border-white/15 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all"
+                    className="hidden sm:inline-flex items-center justify-center px-3.5 py-2 text-[13px] font-semibold rounded-xl text-zinc-200 border border-white/20 hover:bg-white/10 transition-all"
                   >
                     즉시 체험하기
                   </button>
                   <Link href="/signup">
-                    <button className="inline-flex items-center justify-center px-4 py-2 text-[13px] font-bold rounded-xl bg-[#06C755] hover:bg-[#05B04B] text-white shadow-sm shadow-[#06C755]/20 hover:shadow-md hover:shadow-[#06C755]/30 transition-all">
+                    <button className="inline-flex items-center justify-center px-4 py-2 text-[13px] font-bold rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-sm shadow-[#1d4ed8]/30 hover:shadow-md hover:shadow-[#1d4ed8]/50 transition-all">
                       {content?.startLabel ?? "무료로 시작하기"}
                     </button>
                   </Link>
