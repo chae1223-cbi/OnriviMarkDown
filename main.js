@@ -2,7 +2,8 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
-// 🚨 @PATCH : **2026-09-06** — [document_chunks chunk_text 스키마 마이그레이션 및 delete/detail 경로 정규화] document_chunks 테이블에 chunk_text TEXT 컬럼 및 ALTER TABLE 자동 마이그레이션 추가, delete/detail API에서 슬래시/역슬래시 및 파일명 접미사 매칭 폴백을 추가하여 데스크톱 지식 문서 해제 및 상세 열람 정합성 보장
+// 🚨 @PATCH : **2026-09-11** — [지식 베이스 복원 시 안전 스냅샷 WAL 체크포인트 및 캐시 해제 순서 정상화] restore 핸들러에서 스냅샷 생성 전 기존 활성 DB의 wal_checkpoint(TRUNCATE) 및 DB close를 선행하여 WAL 누락 및 파일 잠금(database is locked) 충돌 방어
+//             **2026-09-06** — [document_chunks chunk_text 스키마 마이그레이션 및 delete/detail 경로 정규화] document_chunks 테이블에 chunk_text TEXT 컬럼 및 ALTER TABLE 자동 마이그레이션 추가, delete/detail API에서 슬래시/역슬래시 및 파일명 접미사 매칭 폴백을 추가하여 데스크톱 지식 문서 해제 및 상세 열람 정합성 보장
 //             **2026-09-06** — [데스크톱 지식 베이스 SQLite 로컬 라우팅 탑재] 데스크톱 앱 내 /api/knowledge/* 요청이 외부 실서버(onrivi.com)로 프록시되어 405/404 발생 및 데이터가 누락되던 문제를 해결하기 위해, Electron 메인 프로세스에서 app:// 프로토콜 핸들러 내에 로컬 SQLite DB({resourceFolder}/db/onrivi_knowledge.db) 직접 라우팅 엔진(handleDesktopKnowledgeApi)을 구현하여 탐색기 📗 뱃지, 지식 허브 대시보드(KUI-001), 큐/컬렉션 통계 및 상세 조회가 100% 로컬 독립 동작하도록 개편 | **2026-09-05** — 데스크톱 앱 내비게이션/새창 분기 가드 보강: SaaS 웹 전용 경로(/login, /dashboard, /signup, /pricing 등) 진입 시 Electron 윈도우 내부 로드 차단 및 외부 기본 브라우저 강제 오픈 처리, app:// 커스텀 프로토콜 핸들러 내 /login 및 /dashboard 방어 라우트 추가로 404 에러 원천 차단 | **2026-08-26** — 소스맵(.js.map) 등 없는 정적 자산 파일 요청 시 ENOENT 콘솔 트레이스 에러 노이즈를 방지하기 위해, app 프로토콜 핸들러 내에 fs.existsSync 예외 가드 추가 및 404 리턴 처리 | **2026-06-28** — 데스크톱 앱 내에서 에디터 외 일반 웹 경로(대시보드, 랜딩 등) 클릭 시 기존 에디터 화면을 덮어쓰지 않고 기본 웹 브라우저 새창으로 띄워 안전하게 분리하도록 내비게이션 라우팅 제어 패치; 데스크톱 패키징/실행 시 실서버 대신 100% 로컬 독립 서빙을 실현하기 위해 `file://` 프로토콜 기반의 빌드 아웃풋 파일(`frontend/out/editor.html`)을 불러오도록 로드 방식을 변경하는 패치; Monaco Editor 로더 CDN CSP 차단 문제 해결; Next.js 정적 빌드 시 `public/` 폴더 내용이 `out/` 폴더로 자동 복사되는 구조를 반영하여 `file:readFromPath` 핸들러 탐색 경로에 `frontend/out`을 최우선으로 추가 — 이로써 설치판에서 도움말(`help/00_시작하기.md`) 파일을 정상적으로 읽어오지 못하던 버그 수정
 //             **2026-06-19** — PNG 및 EPUB 내보내기 시 외부 이미지/웹폰트 fetch CSP 차단 버그를 해결하기 위해 connect-src에 http: https: 추가 허용; Node.js net 모듈과 Electron net 모듈 충돌로 인한 net.fetch TypeError 해결 | **2026-06-20** — 딥링크(onriviauthor://activate) 파라미터 파싱 로직 보완하여 licenseKey와 paymentNo를 함께 추출 및 license.json 저장
 // 🔗 @CALLS : loadURL, onrivi.com
@@ -1456,27 +1457,34 @@ ${fileContent.slice(0, 15000)}`;
 
       if (fs.existsSync(dbPath)) {
         try {
+          // DB 스냅샷 생성 전 문서 수 및 대표 제목 안전 조회
+          let snapDocCount = 0;
+          let snapDocTitles = [];
+          if (desktopDbCache.has(dbPath)) {
+            try {
+              const curDb = desktopDbCache.get(dbPath);
+              const cnt = curDb.prepare('SELECT COUNT(*) as c FROM knowledge_documents').get();
+              snapDocCount = cnt?.c || 0;
+              snapDocTitles = curDb.prepare('SELECT title FROM knowledge_documents LIMIT 5').all().map(r => r.title);
+              curDb.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+              curDb.close();
+            } catch {}
+            desktopDbCache.delete(dbPath);
+          }
+
           fs.copyFileSync(dbPath, path.join(backupsDir, preRestoreName));
           manifest[preRestoreName] = {
             reason: reason || '원복 직전 자동 스냅샷',
-            docCount: 0,
-            docTitles: [],
+            docCount: snapDocCount,
+            docTitles: snapDocTitles,
             createdAt: new Date().toISOString()
           };
-          // 스냅샷 백업의 문서 수 집계 시도
-          try {
-            const snapDb = getDesktopKnowledgeDb(resourceFolder, false);
-            if (snapDb) {
-              const cnt = snapDb.prepare('SELECT COUNT(*) as c FROM knowledge_documents').get();
-              const titles = snapDb.prepare('SELECT title FROM knowledge_documents LIMIT 5').all().map(r => r.title);
-              manifest[preRestoreName].docCount = cnt?.c || 0;
-              manifest[preRestoreName].docTitles = titles;
-            }
-          } catch {}
-        } catch {}
+        } catch (snapErr) {
+          console.warn('[handleDesktopKnowledgeApi] Pre-restore snapshot failed:', snapErr);
+        }
       }
 
-      // DB 캐시 비우기 + WAL/SHM 제거
+      // DB 캐시 비우기 + 잔여 WAL/SHM 제거
       if (desktopDbCache.has(dbPath)) {
         try { desktopDbCache.get(dbPath).close(); } catch {}
         desktopDbCache.delete(dbPath);

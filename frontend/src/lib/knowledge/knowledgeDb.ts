@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-CORE-knowledgeDb-0001] knowledgeDb.ts ➔ Knowledge SQLite Engine
 // 🎯 @KICK  : 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db) SQLite FTS5 데이터베이스 인프라 및 원자적 트랜잭션 관리
-// 🚨 @PATCH : **2026-09-06** — [실제 리소스 폴더 드라이브 자동 순회 탐색] resolveSafeResourceFolder에서 'Onrivi_Asset' 또는 'C:\Onrivi_Asset' 유입 시 실제 D:\, C:\, E:\ 드라이브를 순회하여 onrivi_knowledge.db가 존재하는 실제 드라이브를 찾아 연결 — 데스크톱/로컬 환경 탐색기 📗 지식문서 표시 정상화
+// 🚨 @PATCH : **2026-09-11** — [SQLite database is locked 치명적 자동 복구 파괴 방어 및 백업 파일 복사 폴백] initKnowledgeDatabase에서 database is locked / busy 경합 발생 시 auto-recovery(DB 삭제 및 빈 DB 덮어쓰기)로 진입하지 않고 즉시 예외를 발생시키도록 보호하고, backupKnowledgeDatabase에서 잠금 경합 시 직접 파일 복사 폴백을 지원하여 DB 파괴를 원천 방어
+//             **2026-09-06** — [실제 리소스 폴더 드라이브 자동 순회 탐색] resolveSafeResourceFolder에서 'Onrivi_Asset' 또는 'C:\Onrivi_Asset' 유입 시 실제 D:\, C:\, E:\ 드라이브를 순회하여 onrivi_knowledge.db가 존재하는 실제 드라이브를 찾아 연결 — 데스크톱/로컬 환경 탐색기 📗 지식문서 표시 정상화
 //             **2026-09-06** — [AES 암호화 문자열 원천 방어 및 리소스 폴더 정규화] resolveSafeResourceFolder에서 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 폴더명으로 유입 시 D:\U2FsdGVkX1... 등 엉뚱한 폴더와 가짜 DB 생성을 원천 방어하도록 복호화 및 Onrivi_Asset 표준 폴더로 강제 정규화
 //             **2026-09-06** — [document_chunks chunk_text 스키마 통일 및 자동 마이그레이션] Web WASM SQLite와의 스키마 불일치(table document_chunks has no column named chunk_text)를 해결하기 위해 DDL에 chunk_text TEXT를 추가하고 기존 DB 로드 시 ALTER TABLE 및 FTS5 동기화 자동 마이그레이션 탑재
 //             **2026-09-06** — [경로 정규화 및 파일명 매칭 폴백 강화] getDocumentDetailFromDb에서 OS/브라우저별 슬래시/역슬래시 차이 및 상대/절대경로 불일치 시에도 파일명 및 정규화 경로로 문서를 유연하게 식별하도록 검색 쿼리 고도화
@@ -222,7 +223,24 @@ export function initKnowledgeDatabase(dbPath: string): any {
   try {
     db = tryOpenAndInit();
   } catch (err: any) {
-    console.warn('[initKnowledgeDatabase] DB open or schema init failed, initiating auto-recovery:', err?.message);
+    const errMsg = (err?.message || '').toLowerCase();
+    const errCode = (err?.code || '').toLowerCase();
+    const isLocked = err?.errcode === 5 ||
+      err?.errcode === 6 ||
+      errMsg.includes('database is locked') ||
+      errMsg.includes('busy') ||
+      errMsg.includes('ebusy') ||
+      errCode.includes('busy') ||
+      errCode.includes('locked');
+
+    // 🚨 database is locked 경합 시 DB 파일 삭제/초기화(Auto-recovery)를 절대 시도하지 않고 즉시 throw
+    if (isLocked) {
+      console.warn('[initKnowledgeDatabase] Database is locked by another process, aborting init without file removal:', err?.message);
+      try { if (db) db.close(); } catch {}
+      throw new Error(`DATABASE_LOCKED: 데이터베이스가 다른 프로세스(Electron 또는 외부 프로그램)에 의해 잠겨 있습니다 (${err?.message}). 잠시 후 다시 시도해 주세요.`);
+    }
+
+    console.warn('[initKnowledgeDatabase] DB open or schema init failed (corrupted/malformed), initiating auto-recovery:', err?.message);
     try { if (db) db.close(); } catch {}
     db = null;
 
@@ -235,6 +253,10 @@ export function initKnowledgeDatabase(dbPath: string): any {
       try {
         db = tryOpenAndInit();
       } catch (retryErr: any) {
+        const retryErrMsg = (retryErr?.message || '').toLowerCase();
+        if (retryErrMsg.includes('database is locked') || retryErrMsg.includes('busy')) {
+          throw new Error(`DATABASE_LOCKED: 데이터베이스가 잠겨 있어 복구할 수 없습니다 (${retryErr?.message}).`);
+        }
         console.error('[initKnowledgeDatabase] File still malformed, rebuilding clean database:', retryErr?.message);
         try { if (db) db.close(); } catch {}
         try { fs.unlinkSync(dbPath); } catch {}
@@ -1306,25 +1328,6 @@ function saveBackupsManifest(safeFolder: string, manifest: Record<string, any>):
  * 사용자가 입력한 백업 사유(reason)와 당시 등록된 문서 건수 및 대표 제목을 함께 기록합니다.
  */
 export function backupKnowledgeDatabase(resourceFolder: string, reason?: string): KnowledgeBackupInfo {
-  const dbPath = getResourceKnowledgeDbPath(resourceFolder, true);
-  const db = initKnowledgeDatabase(dbPath);
-
-  // 1. 현재 DB의 등록 문서 통계 및 대표 제목 조회
-  let docCount = 0;
-  let docTitles: string[] = [];
-  try {
-    const countRow = db.prepare('SELECT count(*) as c FROM knowledge_documents').get();
-    docCount = Number(countRow?.c || 0);
-    const titleRows = db.prepare('SELECT title FROM knowledge_documents ORDER BY modified_at DESC LIMIT 3').all() as any[];
-    docTitles = titleRows.map((r: any) => r.title).filter(Boolean);
-  } catch {}
-
-  try {
-    db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
-  } catch (e) {
-    console.warn('[backupKnowledgeDatabase] wal_checkpoint warning:', e);
-  }
-
   const { fs, path } = getNodeModules();
   if (!fs || !path) {
     throw new Error('FILESYSTEM_NOT_AVAILABLE: 파일 시스템 모듈을 사용할 수 없습니다.');
@@ -1336,6 +1339,11 @@ export function backupKnowledgeDatabase(resourceFolder: string, reason?: string)
     fs.mkdirSync(backupDir, { recursive: true });
   }
 
+  const dbPath = getResourceKnowledgeDbPath(resourceFolder, true);
+  let docCount = 0;
+  let docTitles: string[] = [];
+  let backupDone = false;
+
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
@@ -1346,19 +1354,41 @@ export function backupKnowledgeDatabase(resourceFolder: string, reason?: string)
     backupPath = path.join(backupDir, fileName);
   }
 
-  let backupDone = false;
   try {
-    const cleanBackupPath = backupPath.replace(/\\/g, '/');
-    db.exec(`VACUUM INTO '${cleanBackupPath}';`);
-    backupDone = true;
-  } catch (vacErr) {
-    console.warn('[backupKnowledgeDatabase] VACUUM INTO warning, fallback to checkpoint copy:', vacErr);
+    const db = initKnowledgeDatabase(dbPath);
+
+    // 1. 현재 DB의 등록 문서 통계 및 대표 제목 조회
+    try {
+      const countRow = db.prepare('SELECT count(*) as c FROM knowledge_documents').get();
+      docCount = Number(countRow?.c || 0);
+      const titleRows = db.prepare('SELECT title FROM knowledge_documents ORDER BY modified_at DESC LIMIT 3').all() as any[];
+      docTitles = titleRows.map((r: any) => r.title).filter(Boolean);
+    } catch {}
+
+    try {
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+    } catch (e) {
+      console.warn('[backupKnowledgeDatabase] wal_checkpoint warning:', e);
+    }
+
+    try {
+      const cleanBackupPath = backupPath.replace(/\\/g, '/');
+      db.exec(`VACUUM INTO '${cleanBackupPath}';`);
+      backupDone = true;
+    } catch (vacErr) {
+      console.warn('[backupKnowledgeDatabase] VACUUM INTO warning, fallback to checkpoint copy:', vacErr);
+    }
+  } catch (dbErr: any) {
+    console.warn('[backupKnowledgeDatabase] DB open failed during backup, fallback to direct file copy:', dbErr?.message);
+    if (!fs.existsSync(dbPath)) {
+      throw dbErr;
+    }
   }
 
   if (!backupDone) {
-    try {
-      db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
-    } catch {}
+    if (!fs.existsSync(dbPath)) {
+      throw new Error(`DB_NOT_FOUND: 백업 대상 원본 DB 파일이 존재하지 않습니다: ${dbPath}`);
+    }
     fs.copyFileSync(dbPath, backupPath);
   }
   const stats = fs.statSync(backupPath);
