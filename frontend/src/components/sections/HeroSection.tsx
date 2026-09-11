@@ -1,264 +1,290 @@
 // ====================================================================
 // 📊 [OMD-UI-HeroSection-0022] HeroSection ➔ HeroSection
-// 🎯 @KICK  : Onrivi Author Premium V2의 압도적 타이포그래피 가치 제안 및 제품 실제 UI(에디터 타건 + AI 어시스트 + 출판급 문서 뷰)를 전면에 선보이는 핵심 히어로 영역
-// 🛡️ @GUARD : Framer Motion 모션 버벅임 억제 및 반응형 뷰포트 레이아웃 가드
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
-//             2026-09-03** — Onrivi Author Premium V2 개편: 웜 페이퍼 크림(#F9F8F6) 베이스 및 멀티미디어 비주얼 쇼케이스(Mermaid 파이프라인 그래프 + KaTeX 정밀 수식 렌더링 + 컬러풀 LDSG 성능 표) 탑재, 대형 타이포그래피(font-size clamp 44~76px) 및 LINE Green(#1d4ed8) 단일 악센트 적용
-//             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (프리즘 배경, 글래스 프리뷰 카드, Ice Blue 그래디언트)
+// 🎯 @KICK  : Onrivi Author Premium V2의 타이포그래피 가치 제안 및 실제 라이프스타일/업무 씬(데스크톱, 태블릿, 모바일, 협업)을 2열 레이아웃과 3초 자동 롤링 이미지 슬라이더로 전달하는 히어로 영역
+// 🛡️ @GUARD : 슬라이더 타이머 메모리 릭 방지(clearInterval) 및 Framer Motion 부드러운 전환 가드
+// 🚨 @PATCH : **2026-09-11** — 히어로 섹션 2열(좌측 카피/CTA + 우측 3초 자동 롤링 이미지 슬라이더 5종) 전면 개편 및 기존 목업 제거
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — Onrivi Author Premium V2 개편: 웜 페이퍼 크림(#F9F8F6) 베이스 및 멀티미디어 비주얼 쇼케이스 탑재
+//             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치
 //             **2026-06-21** — OMDLanding UI 디자인 이식 및 /login 리다이렉트 변경 패치
-// 🔗 @CALLS : motion.div, Link
+// 🔗 @CALLS : motion.div, AnimatePresence, Link, ChevronLeft, ChevronRight
 // ====================================================================
 "use client";
 
-import { motion } from "framer-motion";
+import React, { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, ShieldCheck, Zap, Sparkles } from "lucide-react";
+
+interface HeroSlide {
+  id: number;
+  src: string;
+  tag: string;
+  title: string;
+  subtitle: string;
+}
+
+const HERO_SLIDES: HeroSlide[] = [
+  {
+    id: 1,
+    src: "/hero-slides/hero-slide-1.jpg",
+    tag: "DESKTOP DUAL CANVAS",
+    title: "대화면 모니터와 듀얼 캔버스",
+    subtitle: "원시 마크다운 소스와 출판 규격의 조판 문서를 실시간 1ms 동기화",
+  },
+  {
+    id: 2,
+    src: "/hero-slides/hero-slide-2.jpg",
+    tag: "EXECUTIVE STRATEGY",
+    title: "비즈니스 기획 및 보고서 집필",
+    subtitle: "표, 수식, 다이어그램을 갖춘 완성도 높은 문서를 즉시 PDF/HTML로 사출",
+  },
+  {
+    id: 3,
+    src: "/hero-slides/hero-slide-3.jpg",
+    tag: "TEAM COLLABORATION",
+    title: "팀 협업과 엔지니어링 지식 공유",
+    subtitle: "개발자, 기획자, 리더가 함께 신뢰하는 단 하나의 마크다운 에디터",
+  },
+  {
+    id: 4,
+    src: "/hero-slides/hero-slide-4.jpg",
+    tag: "FOCUSED MOBILITY",
+    title: "어디서나 이어지는 깊은 사유",
+    subtitle: "카페, 회의실, 이동 중에도 태블릿과 함께하는 고요한 집필 경험",
+  },
+  {
+    id: 5,
+    src: "/hero-slides/hero-slide-5.jpg",
+    tag: "INTUITIVE CAPTURE",
+    title: "생각의 흐름을 놓치지 않는 기록",
+    subtitle: "복잡한 서식 도구 대신 순수한 텍스트 타이핑으로 문서의 뼈대 완성",
+  },
+];
 
 export function HeroSection() {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const nextSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+  }, []);
+
+  const prevSlide = useCallback(() => {
+    setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+  }, []);
+
+  // 3초 자동 슬라이더 타이머 (hover 시 일시정지)
+  useEffect(() => {
+    if (isPaused) return;
+    const timer = setInterval(() => {
+      nextSlide();
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [isPaused, nextSlide]);
+
+  const slide = HERO_SLIDES[currentSlide];
+
   return (
     <section
-      className="pt-32 pb-20 sm:pt-40 sm:pb-28 overflow-hidden relative bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="pt-28 pb-16 sm:pt-36 sm:pb-24 overflow-hidden relative bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
-      {/* Subtle Top Ambient Glow (LINE Green on Warm Base) */}
+      {/* Subtle Top Ambient Glow (Cobalt Authority on Warm Base) */}
       <div
         aria-hidden
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[380px] bg-[radial-gradient(ellipse_at_top,rgba(29, 78, 216,0.09)_0%,transparent_70%)] pointer-events-none z-0"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[860px] h-[420px] bg-[radial-gradient(ellipse_at_top,rgba(29,78,216,0.08)_0%,transparent_70%)] pointer-events-none z-0"
       />
 
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10 relative z-10">
-        {/* Top Tag */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex justify-center mb-6"
-        >
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F0EFEA] dark:bg-zinc-800/80 border border-[#E3E1DB] dark:border-white/10 text-xs font-semibold text-[#1A1A18] dark:text-zinc-200 tracking-tight shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-[#1d4ed8]" />
-            AI-NATIVE DOCUMENT PLATFORM
-          </div>
-        </motion.div>
-
-        {/* Headline */}
-        <motion.h1
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.08 }}
-          className="text-center tracking-tight font-extrabold text-[#111413] dark:text-white mb-6"
-          style={{
-            fontSize: "clamp(44px, 5.8vw, 76px)",
-            lineHeight: 1.08,
-            letterSpacing: "-0.045em",
-          }}
-        >
-          AI는 마크다운으로,<br />
-          <span className="text-[#1d4ed8]">사람은 문서로.</span>
-        </motion.h1>
-
-        {/* Sub-headline */}
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.16 }}
-          className="text-center mx-auto mb-10 max-w-2xl text-[#68716D] dark:text-zinc-400 font-normal leading-relaxed text-[17px] sm:text-[19px] tracking-tight"
-        >
-          생각은 Markdown으로 빠르게. 결과물은 사람이 읽는 아름다운 문서처럼.<br className="hidden sm:inline" />
-          타이핑의 즉시성과 출판 규격의 조판 품질을 하나의 화면에서 완성합니다.
-        </motion.p>
-
-        {/* CTA Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.22 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-16 sm:mb-20"
-        >
-          <Link href="/signup" className="w-full sm:w-auto">
-            <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[15px] shadow-[0_4px_24px_rgba(29, 78, 216,0.28)] hover:shadow-[0_6px_28px_rgba(29, 78, 216,0.4)] transition-all transform hover:-translate-y-0.5">
-              무료로 시작하기
-              <ArrowRight size={16} />
-            </button>
-          </Link>
-          <a href="#philosophy" className="w-full sm:w-auto">
-            <button className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 rounded-xl border border-[#E0DED7] dark:border-white/15 bg-white dark:bg-zinc-900/50 hover:bg-[#F2F0EB] dark:hover:bg-zinc-800 text-[#1A1A18] dark:text-zinc-200 font-semibold text-[15px] transition-all shadow-2xs">
-              제품 살펴보기
-            </button>
-          </a>
-        </motion.div>
-
-        {/* Real Product UI Mockup (Hero Highlight) */}
-        <motion.div
-          initial={{ opacity: 0, y: 36 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-          className="relative max-w-[1100px] mx-auto rounded-2xl border border-[#E0DED7] dark:border-white/10 bg-white dark:bg-[#17191E] shadow-[0_24px_70px_-15px_rgba(40,35,25,0.08)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] overflow-hidden"
-        >
-          {/* Window Chrome */}
-          <div className="bg-[#F4F2EC] dark:bg-[#131519] border-b border-[#E0DED7] dark:border-white/10 px-4 py-3 flex items-center justify-between select-none">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-[#FF5F56] inline-block border" />
-              <span className="w-3 h-3 rounded-full bg-[#FFBD2E] inline-block border" />
-              <span className="w-3 h-3 rounded-full bg-[#27C93F] inline-block border" />
-              <span className="ml-3 text-xs font-medium text-[#68716D] dark:text-zinc-400 font-mono flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-xs bg-[#1d4ed8] inline-block shadow-[0_0_8px_rgba(29, 78, 216,0.6)]" />
-                knowledge-engine-spec.md
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-[#68716D] dark:text-zinc-400">
-              <span className="hidden sm:inline-flex items-center gap-1.5 bg-[#1d4ed8]/10 text-[#1d4ed8] font-bold px-2.5 py-1 rounded-md border border-[#1d4ed8]/25">
-                <Sparkles size={12} /> Mermaid + KaTeX Active
-              </span>
-              <span className="bg-zinc-200/80 dark:bg-zinc-800 text-[#1A1A18] dark:text-zinc-200 font-mono font-bold px-2 py-0.5 rounded text-[11px]">
-                LIVE SPLIT
-              </span>
-            </div>
-          </div>
-
-          {/* Dual Split Editor Body */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-[#E0DED7] dark:divide-white/10 text-left">
-            {/* Left: Raw Markdown Editor Pane */}
-            <div className="p-6 md:p-8 bg-[#FBF9F5] dark:bg-[#14161B] font-mono text-[12px] sm:text-[13px] leading-relaxed text-[#1A1A18] dark:text-zinc-200 overflow-x-auto">
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-zinc-200/80 dark:border-white/5 text-[11px] text-[#68716D] uppercase tracking-wider font-semibold">
-                <span>EDITOR · MARKDOWN SOURCE</span>
-                <span className="text-[#1d4ed8] font-bold">UTF-8</span>
+        {/* 2-Column Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center">
+          {/* ======================================================= */}
+          {/* Left Column: Headline, Copy, CTA & Badges */}
+          {/* ======================================================= */}
+          <div className="lg:col-span-6 text-left">
+            {/* Top Badge */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="inline-flex mb-5"
+            >
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F0EFEA] dark:bg-zinc-800/80 border border-[#E3E1DB] dark:border-white/10 text-xs font-semibold text-[#1A1A18] dark:text-zinc-200 tracking-tight shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-[#1d4ed8] animate-pulse" />
+                AI-NATIVE DOCUMENT PLATFORM
               </div>
+            </motion.div>
 
-              <div className="space-y-3 font-mono">
-                <p className="text-blue-600 dark:text-blue-400 font-bold"># 차세대 지식 엔진 아키텍처</p>
-                <p className="text-emerald-700 dark:text-emerald-400 font-semibold">## 1. 지식 사출 파이프라인 (Mermaid)</p>
-                
-                {/* Mermaid Code Snippet */}
-                <div className="p-3 rounded-lg bg-zinc-900 text-zinc-200 text-[11px] font-mono leading-tight space-y-1">
-                  <span className="text-zinc-500">```mermaid</span>
-                  <p className="text-[#1d4ed8]">graph LR</p>
-                  <p className="pl-3 text-zinc-300">A[원시 마크다운] --&gt; B(AST 파서)</p>
-                  <p className="pl-3 text-amber-300">B --&gt; C&#123;AI 첨삭 엔진&#125;</p>
-                  <p className="pl-3 text-[#1d4ed8]">C --&gt;|무결점 검증| D[LDSG 출판 조판]</p>
-                  <span className="text-zinc-500">```</span>
-                </div>
+            {/* Headline */}
+            <motion.h1
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.08 }}
+              className="tracking-tight font-extrabold text-[#111413] dark:text-white mb-6"
+              style={{
+                fontSize: "clamp(38px, 4.4vw, 58px)",
+                lineHeight: 1.12,
+                letterSpacing: "-0.04em",
+              }}
+            >
+              AI는 마크다운으로,<br />
+              <span className="text-[#1d4ed8]">사람은 문서로.</span>
+            </motion.h1>
 
-                <p className="text-emerald-700 dark:text-emerald-400 font-semibold pt-1">## 2. 조판 최적화 목적함수 (KaTeX)</p>
-                <p className="text-purple-600 dark:text-purple-400 bg-purple-500/10 p-2 rounded border border-purple-500/20 text-xs">
-                  {"$$ \\mathcal{L}_{\\text{total}} = \\alpha \\mathcal{L}_{\\text{doc}} + \\beta \\sum_{i=1}^{n} \\frac{\\exp(z_i)}{\\sum_j \\exp(z_j)} $$"}
-                </p>
+            {/* Sub-headline */}
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.16 }}
+              className="mb-8 max-w-xl text-[#58615D] dark:text-zinc-300 font-normal leading-relaxed text-[16px] sm:text-[18px] tracking-tight"
+            >
+              생각은 Markdown으로 빠르게. 결과물은 사람이 읽는 아름다운 문서처럼.<br className="hidden sm:inline" />
+              타이핑의 즉시성과 출판 규격의 조판 품질을 하나의 화면에서 완성합니다.
+            </motion.p>
 
-                <p className="text-emerald-700 dark:text-emerald-400 font-semibold pt-1">## 3. 렌더링 파이프라인 성능</p>
-                <p className="text-zinc-500 dark:text-zinc-400 text-[11px] leading-tight">
-                  | 파이프라인 | 렌더링 포맷 | 지연율 | 규격 |<br />
-                  |---|---|---|---|<br />
-                  | Mermaid Graph | Vector SVG | 0.04s | LDSG v5.0 |<br />
-                  | KaTeX Math | MathML HTML | 0.01s | LaTeX AMS |<br />
-                  | Print Styler | 출판용 인쇄본 | 0.08s | A4 Strict |
-                </p>
-              </div>
-            </div>
+            {/* CTA Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.22 }}
+              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 mb-10"
+            >
+              <Link href="/signup" className="w-full sm:w-auto">
+                <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[15px] shadow-[0_4px_24px_rgba(29,78,216,0.28)] hover:shadow-[0_6px_28px_rgba(29,78,216,0.4)] transition-all transform hover:-translate-y-0.5 active:translate-y-0">
+                  무료로 시작하기
+                  <ArrowRight size={16} />
+                </button>
+              </Link>
+              <a href="#philosophy" className="w-full sm:w-auto">
+                <button className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 rounded-xl border border-[#E0DED7] dark:border-white/15 bg-white dark:bg-zinc-900/50 hover:bg-[#F2F0EB] dark:hover:bg-zinc-800 text-[#1A1A18] dark:text-zinc-200 font-semibold text-[15px] transition-all shadow-2xs">
+                  제품 살펴보기
+                </button>
+              </a>
+            </motion.div>
 
-            {/* Right: Rendered Document View (Multimedia Showcase) */}
-            <div className="p-6 md:p-8 bg-white dark:bg-[#17191E] text-left space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-200/80 dark:border-white/5 text-[11px] text-[#68716D] uppercase tracking-wider font-semibold">
-                <span>PREVIEW · 출판급 멀티미디어 조판</span>
-                <span className="inline-flex items-center gap-1 text-[#1d4ed8] font-bold">
-                  <CheckCircle2 size={12} /> LDSG v5.0
+            {/* Trust Highlights */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.28 }}
+              className="grid grid-cols-3 gap-3 pt-6 border-t border-[#E8E6DF] dark:border-white/10"
+            >
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-[#1d4ed8] shrink-0" />
+                <span className="text-xs font-semibold text-[#444C48] dark:text-zinc-300 tracking-tight">
+                  100% 로컬 프라이버시
                 </span>
               </div>
+              <div className="flex items-center gap-2">
+                <Zap size={16} className="text-[#1d4ed8] shrink-0" />
+                <span className="text-xs font-semibold text-[#444C48] dark:text-zinc-300 tracking-tight">
+                  1ms 듀얼 싱크
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-[#1d4ed8] shrink-0" />
+                <span className="text-xs font-semibold text-[#444C48] dark:text-zinc-300 tracking-tight">
+                  출판급 조판 사출
+                </span>
+              </div>
+            </motion.div>
+          </div>
 
-              {/* Document Header */}
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-[#1d4ed8]/15 text-[#1d4ed8] uppercase tracking-wider">
-                    SPECIFICATION
-                  </span>
-                  <span className="text-xs text-[#68716D] dark:text-zinc-400">
-                    Onrivi Knowledge Engine v3.4
-                  </span>
+          {/* ======================================================= */}
+          {/* Right Column: 3-Second Auto-Rolling Image Slider */}
+          {/* ======================================================= */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="lg:col-span-6 relative"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+          >
+            {/* Slider Card Container */}
+            <div className="relative aspect-square w-full max-w-[540px] mx-auto rounded-2xl sm:rounded-3xl overflow-hidden border border-[#E0DED7] dark:border-white/10 bg-white dark:bg-zinc-900 shadow-[0_20px_60px_-15px_rgba(29,78,216,0.16)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] group">
+              {/* Image Transition Viewport */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={slide.id}
+                  initial={{ opacity: 0, scale: 1.03 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  className="absolute inset-0 w-full h-full"
+                >
+                  <img
+                    src={slide.src}
+                    alt={slide.title}
+                    className="w-full h-full object-cover select-none"
+                    loading="eager"
+                  />
+                  {/* Subtle Gradient Overlay for Text Readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent pointer-events-none" />
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Caption Overlay at Bottom */}
+              <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 text-left z-10 select-none">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md text-[10px] sm:text-[11px] font-extrabold text-[#1d4ed8] uppercase tracking-wider mb-2 shadow-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
+                  {slide.tag}
                 </div>
-                <h2 className="text-lg sm:text-xl font-extrabold text-[#111413] dark:text-white tracking-tight">
-                  차세대 지식 엔진 아키텍처
-                </h2>
+                <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight drop-shadow-sm mb-1">
+                  {slide.title}
+                </h3>
+                <p className="text-xs sm:text-sm text-zinc-200/90 font-normal leading-relaxed drop-shadow-xs line-clamp-2">
+                  {slide.subtitle}
+                </p>
               </div>
 
-              {/* 1. Visual Mermaid Flowchart Mockup */}
-              <div className="rounded-xl border border-[#E0DED7] dark:border-white/10 bg-[#FAF9F6] dark:bg-[#14161A] p-3.5 sm:p-4">
-                <div className="text-[10px] font-bold text-[#68716D] uppercase tracking-wider mb-2.5 flex items-center justify-between">
-                  <span>✦ MERMAID PIPELINE GRAPH</span>
-                  <span className="text-[#1d4ed8] font-mono">VECTOR SVG</span>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold">
-                  <div className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 shadow-2xs">
-                    📄 원시 마크다운
-                  </div>
-                  <span className="text-zinc-400 font-bold">→</span>
-                  <div className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 shadow-2xs">
-                    ⚡ AST 파서
-                  </div>
-                  <span className="text-zinc-400 font-bold">→</span>
-                  <div className="px-2.5 py-1.5 rounded-lg bg-[#1d4ed8]/15 text-[#1d4ed8] border border-[#1d4ed8]/40 font-bold shadow-xs flex items-center gap-1">
-                    <Sparkles size={11} /> AI 첨삭 엔진
-                  </div>
-                  <span className="text-zinc-400 font-bold">→</span>
-                  <div className="px-2.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 font-bold shadow-2xs">
-                    📚 출판본 사출
-                  </div>
-                </div>
-              </div>
+              {/* Navigation Arrows (Visible on Hover) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevSlide();
+                }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-20 cursor-pointer"
+                aria-label="이전 이미지"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextSlide();
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-20 cursor-pointer"
+                aria-label="다음 이미지"
+              >
+                <ChevronRight size={18} />
+              </button>
 
-              {/* 2. Visual KaTeX Math Formula Block */}
-              <div className="rounded-xl border border-purple-200/80 dark:border-purple-900/40 bg-purple-50/40 dark:bg-purple-950/20 p-3.5">
-                <div className="flex items-center justify-between text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider mb-1.5">
-                  <span>✦ KATEX MATH RENDERING</span>
-                  <span className="bg-purple-200/60 dark:bg-purple-900/60 px-2 py-0.5 rounded text-[10px]">O(N log N)</span>
-                </div>
-                <div className="font-serif text-center py-1 text-sm sm:text-base text-zinc-900 dark:text-zinc-100 font-medium tracking-wide">
-                  <i>L</i><sub>total</sub> = &alpha; <i>L</i><sub>doc</sub> + &beta; &sum;<sub>i=1</sub><sup>n</sup> &nbsp;<span className="inline-block text-center align-middle"><span className="border-b border-zinc-700 dark:border-zinc-300 block text-xs">exp(<i>z</i><sub>i</sub>)</span><span className="block text-xs">&sum;<sub>j</sub> exp(<i>z</i><sub>j</sub>)</span></span>
-                </div>
-              </div>
-
-              {/* 3. Visual Colorful LDSG Table */}
-              <div className="rounded-xl border border-[#E0DED7] dark:border-white/10 overflow-hidden text-xs">
-                <table className="w-full text-left">
-                  <thead className="bg-[#F4F2EC] dark:bg-zinc-800 text-[#111413] dark:text-zinc-200 font-bold text-[11px]">
-                    <tr>
-                      <th className="p-2.5 border-b border-[#E0DED7] dark:border-white/10">파이프라인</th>
-                      <th className="p-2.5 border-b border-[#E0DED7] dark:border-white/10">포맷</th>
-                      <th className="p-2.5 border-b border-[#E0DED7] dark:border-white/10">지연율</th>
-                      <th className="p-2.5 border-b border-[#E0DED7] dark:border-white/10">규격</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E0DED7] dark:divide-white/10 text-zinc-600 dark:text-zinc-300 text-[11px]">
-                    <tr>
-                      <td className="p-2.5 font-semibold text-[#111413] dark:text-white flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
-                        Mermaid Graph
-                      </td>
-                      <td className="p-2.5"><span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold text-[10px]">SVG</span></td>
-                      <td className="p-2.5 font-mono text-[#1d4ed8] font-bold">0.04s</td>
-                      <td className="p-2.5 font-medium">LDSG v5.0</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-semibold text-[#111413] dark:text-white flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                        KaTeX Math
-                      </td>
-                      <td className="p-2.5"><span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-bold text-[10px]">MathML</span></td>
-                      <td className="p-2.5 font-mono text-[#1d4ed8] font-bold">0.01s</td>
-                      <td className="p-2.5 font-medium">LaTeX AMS</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-semibold text-[#111413] dark:text-white flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                        Print Styler
-                      </td>
-                      <td className="p-2.5"><span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-bold text-[10px]">A4/PDF</span></td>
-                      <td className="p-2.5 font-mono text-[#1d4ed8] font-bold">0.08s</td>
-                      <td className="p-2.5 font-medium">A4 Strict</td>
-                    </tr>
-                  </tbody>
-                </table>
+              {/* Pagination Dots (Top Right Inside Container) */}
+              <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1.5 rounded-full">
+                {HERO_SLIDES.map((s, idx) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentSlide(idx);
+                    }}
+                    className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                      idx === currentSlide
+                        ? "w-5 bg-[#1d4ed8] shadow-[0_0_8px_rgba(29,78,216,0.8)]"
+                        : "w-1.5 bg-white/50 hover:bg-white/80"
+                    }`}
+                    aria-label={`슬라이드 ${idx + 1}`}
+                  />
+                ))}
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </section>
   );
