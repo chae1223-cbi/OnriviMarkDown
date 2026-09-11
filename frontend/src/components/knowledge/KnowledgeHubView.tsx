@@ -762,6 +762,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
               onOpenWizard={() => setIsWizardOpen(true)}
               onOpenSearch={() => setActiveTab('search')}
               onSelectDoc={(doc) => handleViewDocDetail(doc.id, doc.filePath)}
+              onNavigateToDocs={() => setActiveTab('docs')}
             />
           )}
 

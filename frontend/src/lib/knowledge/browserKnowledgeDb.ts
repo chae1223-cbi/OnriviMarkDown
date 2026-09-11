@@ -4,6 +4,7 @@
 //             1) getBackupsDirectoryHandle을 도입하여 데스크톱과 100% 동일한 Onrivi_Asset/db/backups 경로를 탐색하도록 일치화
 //             2) listBrowserBackups에서 backups_manifest.json 외에도 실제 *.db 백업 파일들을 entries() 순회하여 데스크톱에서 생성된 백업 파일이 웹 브라우저에서도 즉시 완벽하게 노출되도록 보강
 //             3) deleteBrowserBackup, getBrowserBackupBlob, restoreBrowserFromUploadedFile 신설로 웹 브라우저에서도 백업 생성/원복/다운로드/업로드원복/삭제 100% 동작 보장
+//             4) backups_manifest.json의 Desktop 규격 Dictionary(Object) 포맷 양방향 호환 및 메타데이터 누락 파일 대상 WASM SQLite 인스펙션 백필 탑재로 웹에서도 백업 파일 문서 건수(docCount) 및 사유 100% 정상 표기 완료
 //             **2026-09-06** — [디스크 파일 최우선(SSOT) 원칙 확립: Prod↔데스크톱/로컬 데이터 100% 일치화] getBrowserKnowledgeDb에서 디스크 파일(onrivi_knowledge.db)이 존재하면 과거 오염된 IndexedDB 캐시를 덮어쓰고 실제 디스크 파일을 무조건 최우선 로드 — Prod 웹이 데스크톱/로컬과 완전히 동일한 4개 문서를 바라보도록 데이터 단일 진실 공급원(SSOT) 확립. saveBrowserKnowledgeDb에 임시파일(onrivi_knowledge.tmp) 생성 후 move() 원자적 교체 탑재
 //             **2026-09-06** — [IndexedDB 1차 저장소 격상: Electron 파일 잠금 충돌 완전 우회] saveBrowserKnowledgeDb에서 IndexedDB를 1차 저장소로 격상(파일 잠금 무관 항상 저장), 파일 시스템은 3단계 폴백으로 선택적 시도 후 실패해도 예외 미발생. getBrowserKnowledgeDb에서 파일과 IDB의 mtime 비교 후 최신 데이터 자동 선택 — Electron 동시 사용 환경에서 InvalidStateError 완전 차단 및 데이터 유실 근절
 //             **2026-09-06** — [state had changed 완전 근절: 폴더핸들 재획득 3단계 재시도 전략] saveBrowserKnowledgeDb에서 createWritable 실패 시 IndexedDB에서 폴더핸들 완전 재획득(fresh handle) 후 재시도, 그것도 실패 시 임시파일(onrivi_knowledge.tmp) 쓰기 후 removeEntry+재생성으로 3단계 폴백 — state had changed 오류 원천 차단
@@ -1141,32 +1142,47 @@ export async function backupBrowserKnowledgeDb(folderHandle: any, reason: string
   await writable.write(binary);
   await writable.close();
 
-  // 매니페스트 업데이트
+  // 매니페스트 업데이트 (Desktop 규격 Object Dictionary 형식 완벽 호환)
   try {
-    let manifest: any[] = [];
+    let manifestMap: Record<string, any> = {};
     try {
       const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: false });
       const mFile = await mHandle.getFile();
       const mText = await mFile.text();
-      manifest = JSON.parse(mText);
+      const parsed = JSON.parse(mText);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item && item.fileName) manifestMap[item.fileName] = item;
+        }
+      } else if (parsed && typeof parsed === 'object') {
+        manifestMap = parsed;
+      }
     } catch {}
 
     const docCountStmt = db.prepare('SELECT COUNT(*) AS count FROM knowledge_documents');
     const docCount = docCountStmt.step() ? Number(docCountStmt.getAsObject().count) : 0;
     docCountStmt.free();
 
-    manifest.unshift({
-      fileName,
-      createdAt: d.toISOString(),
-      reason,
+    const docTitles: string[] = [];
+    try {
+      const titleStmt = db.prepare('SELECT title FROM knowledge_documents ORDER BY modified_at DESC LIMIT 5');
+      while (titleStmt.step()) {
+        const row = titleStmt.getAsObject();
+        if (row.title) docTitles.push(String(row.title));
+      }
+      titleStmt.free();
+    } catch {}
+
+    manifestMap[fileName] = {
+      reason: reason || '수동 백업',
       docCount,
-      sampleTitle: '',
-      size: binary.byteLength,
-    });
+      docTitles,
+      createdAt: d.toISOString(),
+    };
 
     const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: true });
     const mWritable = await mHandle.createWritable();
-    await mWritable.write(JSON.stringify(manifest.slice(0, 50), null, 2));
+    await mWritable.write(JSON.stringify(manifestMap, null, 2));
     await mWritable.close();
   } catch (mErr) {
     console.warn('[backupBrowserKnowledgeDb] 매니페스트 저장 에러:', mErr);
@@ -1183,43 +1199,81 @@ export async function listBrowserBackups(folderHandle: any): Promise<any[]> {
     const backupsDir = await getBackupsDirectoryHandle(root, false);
     if (!backupsDir) return [];
 
-    // 1) 매니페스트 파일 우선 파싱
-    let manifest: any[] = [];
+    // 1) 매니페스트 파일 파싱 (Desktop 규격 Object Dictionary 및 Array 양방향 완벽 호환)
+    const manifestMap: Record<string, any> = {};
     try {
       const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: false });
       const mFile = await mHandle.getFile();
       const mText = await mFile.text();
       const parsed = JSON.parse(mText);
-      if (Array.isArray(parsed)) manifest = parsed;
-    } catch {}
-
-    // 2) 디렉토리 내 실제 *.db 파일 엔트리 순회 (매니페스트 누락 대비 SSOT 무결성 보장)
-    const existingFileNames = new Set(manifest.map((m: any) => m.fileName));
-    const extraItems: any[] = [];
-
-    try {
-      if (typeof backupsDir.entries === 'function') {
-        for await (const [name, handle] of backupsDir.entries()) {
-          if (handle.kind === 'file' && name.endsWith('.db') && !existingFileNames.has(name)) {
-            try {
-              const file = await handle.getFile();
-              extraItems.push({
-                fileName: name,
-                createdAt: new Date(file.lastModified).toISOString(),
-                reason: '로컬 보관 백업',
-                docCount: 0,
-                sampleTitle: '',
-                size: file.size,
-              });
-            } catch {}
-          }
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item && item.fileName) manifestMap[item.fileName] = item;
         }
+      } else if (parsed && typeof parsed === 'object') {
+        Object.assign(manifestMap, parsed);
       }
     } catch {}
 
-    const combined = [...manifest, ...extraItems];
-    combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return combined;
+    // 2) 디렉토리 내 실제 *.db 파일 엔트리 순회 (Desktop과 100% 동일한 무결성 및 메타데이터 복원)
+    const items: any[] = [];
+    if (typeof backupsDir.entries === 'function') {
+      for await (const [name, handle] of backupsDir.entries()) {
+        if (handle.kind === 'file' && name.endsWith('.db') && !name.startsWith('.')) {
+          try {
+            const file = await handle.getFile();
+            const meta = manifestMap[name];
+
+            let reason = meta?.reason;
+            let docCount = typeof meta?.docCount === 'number' ? meta.docCount : undefined;
+            let docTitles = meta?.docTitles || (meta?.sampleTitle ? [meta.sampleTitle] : []);
+            const createdAt = meta?.createdAt || new Date(file.lastModified).toISOString();
+
+            // 매니페스트에 메타데이터(docCount)가 누락된 경우, WASM SQLite로 해당 .db 파일 1회 검사 (Desktop 백필과 동일)
+            if (typeof docCount !== 'number') {
+              try {
+                const SQL = await getSqlModule();
+                const arrayBuf = await file.arrayBuffer();
+                const inspectDb = new SQL.Database(new Uint8Array(arrayBuf));
+                const countStmt = inspectDb.prepare('SELECT COUNT(*) AS count FROM knowledge_documents');
+                if (countStmt.step()) {
+                  docCount = Number(countStmt.getAsObject().count || 0);
+                }
+                countStmt.free();
+
+                const titleStmt = inspectDb.prepare('SELECT title FROM knowledge_documents ORDER BY modified_at DESC LIMIT 5');
+                docTitles = [];
+                while (titleStmt.step()) {
+                  const row = titleStmt.getAsObject();
+                  if (row.title) docTitles.push(String(row.title));
+                }
+                titleStmt.free();
+                inspectDb.close();
+
+                if (!reason) {
+                  reason = docCount > 0 ? `등록 문서 ${docCount}건 보관 시점` : '수동 백업';
+                }
+              } catch {
+                docCount = 0;
+                if (!reason) reason = '수동 백업';
+              }
+            }
+
+            items.push({
+              fileName: name,
+              createdAt,
+              reason: reason || '수동 백업',
+              docCount: docCount ?? 0,
+              docTitles,
+              size: file.size,
+            });
+          } catch {}
+        }
+      }
+    }
+
+    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return items;
   } catch (err) {
     console.error('[listBrowserBackups Error]:', err);
     return [];
@@ -1262,16 +1316,23 @@ export async function deleteBrowserBackup(folderHandle: any, fileName: string): 
     await backupsDir.removeEntry(fileName);
   } catch {}
 
-  // 매니페스트 동기화
+  // 매니페스트 동기화 (Object Dictionary 및 Array 호환)
   try {
     const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: false });
     const mFile = await mHandle.getFile();
     const mText = await mFile.text();
-    let manifest: any[] = JSON.parse(mText);
-    manifest = manifest.filter((item: any) => item.fileName !== fileName);
-    const mWritable = await mHandle.createWritable();
-    await mWritable.write(JSON.stringify(manifest, null, 2));
-    await mWritable.close();
+    const manifest = JSON.parse(mText);
+    if (Array.isArray(manifest)) {
+      const filtered = manifest.filter((item: any) => item.fileName !== fileName);
+      const mWritable = await mHandle.createWritable();
+      await mWritable.write(JSON.stringify(filtered, null, 2));
+      await mWritable.close();
+    } else if (manifest && typeof manifest === 'object') {
+      delete manifest[fileName];
+      const mWritable = await mHandle.createWritable();
+      await mWritable.write(JSON.stringify(manifest, null, 2));
+      await mWritable.close();
+    }
   } catch {}
 
   return true;

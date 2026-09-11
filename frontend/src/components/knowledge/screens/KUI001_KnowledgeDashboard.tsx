@@ -2,7 +2,8 @@
 // 📊 [OMD-KUI-Dashboard-0001] KUI001_KnowledgeDashboard.tsx ➔ KUI-001 Knowledge Dashboard
 // 🎯 @KICK  : 지식 문서 총계, 청크 수, 분석 중/오류/Outdated 통계 카드 및 최근 등록/분석 내역과 퀵 액션 제공
 // 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), 실시간 메트릭 자동 갱신
-// 🚨 @PATCH : **2026-09-04** — [Rule 8 고대비 시인성] 최근 등록 문서 파일 경로(doc.filePath) 및 텍스트를 흐릿한 text-zinc-400에서 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 전면 보강하여 시인성 확보
+// 🚨 @PATCH : **2026-09-11** — [대시보드 최근 등록 문서 직관성 강화] 최근 등록 문서 노출 개수를 최대 10건으로 확대하고, 헤더에 (N건 / 전체 M건) 표기 및 [지식 보관함 전체보기 →] 바로가기 링크를 연동하여 대시보드 요약과 보관함 간 건수 혼선을 완벽 해소
+//             **2026-09-04** — [Rule 8 고대비 시인성] 최근 등록 문서 파일 경로(doc.filePath) 및 텍스트를 흐릿한 text-zinc-400에서 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 전면 보강하여 시인성 확보
 //             **2026-09-04** — 최근 등록 지식문서 항목 아이콘을 남성 학사(📗)로 교체
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-001 Knowledge Dashboard 화면 신규 구현
 // ====================================================================
@@ -24,6 +25,7 @@ interface KUI001KnowledgeDashboardProps {
   onOpenWizard: () => void;
   onOpenSearch: () => void;
   onSelectDoc: (doc: KnowledgeDocument) => void;
+  onNavigateToDocs?: () => void;
 }
 
 export const KUI001_KnowledgeDashboard: React.FC<KUI001KnowledgeDashboardProps> = ({
@@ -36,8 +38,10 @@ export const KUI001_KnowledgeDashboard: React.FC<KUI001KnowledgeDashboardProps> 
   onOpenWizard,
   onOpenSearch,
   onSelectDoc,
+  onNavigateToDocs,
 }) => {
-  const recentDocs = documents.slice(0, 5);
+  // 최근 등록 문서는 최대 10건까지 넉넉하게 노출하여 대시보드와 보관함 간 직관성 보장
+  const recentDocs = documents.slice(0, 10);
 
   return (
     <div className="space-y-6 text-xs">
@@ -147,10 +151,23 @@ export const KUI001_KnowledgeDashboard: React.FC<KUI001KnowledgeDashboardProps> 
       {/* 📋 3. 최근 등록 문서 목록 */}
       <div className="border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-white dark:bg-zinc-900/40">
         <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/60">
-          <span className="font-extrabold text-zinc-900 dark:text-zinc-100 text-xs">
-            최근 등록 문서 ({recentDocs.length}건)
-          </span>
-          <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400">클릭 시 상세 분석 정보를 확인합니다</span>
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-zinc-900 dark:text-zinc-100 text-xs">
+              최근 등록 문서 ({recentDocs.length}건{documents.length > recentDocs.length ? ` / 전체 ${documents.length}건` : ''})
+            </span>
+            <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 hidden sm:inline">
+              클릭 시 상세 분석 정보를 확인합니다
+            </span>
+          </div>
+          {onNavigateToDocs && documents.length > 0 && (
+            <button
+              type="button"
+              onClick={onNavigateToDocs}
+              className="text-[11px] font-bold text-[#06C755] hover:text-[#05b34c] hover:underline flex items-center gap-1 transition cursor-pointer"
+            >
+              지식 보관함 전체보기 ({documents.length}건) →
+            </button>
+          )}
         </div>
 
         <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
