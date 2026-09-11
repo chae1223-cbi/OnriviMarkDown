@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-PhilosophySection-0026] PhilosophySection ➔ PhilosophySection
 // 🎯 @KICK  : Onrivi Author의 핵심 설계 철학인 '생각은 Markdown으로, 사람은 문서로'를 시각화하고 개념도를 전달하는 섹션
 // 🛡️ @GUARD : 반응형 플로우 단계 렌더링 및 모바일 가독성 가드
-// 🚨 @PATCH : **2026-09-11** — 간편한 4단계 작성 카드를 사용자 지정 그래픽 이미지 카드(/steps/step-1~4.png)로 교체 탑재
+// 🚨 @PATCH : **2026-09-11** — STEP 01(자유로운 기록) 카드를 사용자 지정 고화질 그래픽 이미지(/steps/step-1.jpg)로 교체 반영
+//             **2026-09-11** — 간편한 4단계 작성 카드를 사용자 지정 그래픽 이미지 카드(/steps/step-1~4.png)로 교체 탑재
 //             **2026-09-11** — PhilosophySection 문구를 실생활 친화적이고 직관적인 일상 언어(자유로운 기록, AI 문장 다듬기 등)로 전면 개편
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
@@ -26,7 +27,7 @@ const STEP_CARDS: StepCard[] = [
     step: "01",
     title: "자유로운 기록",
     subtitle: "서식 걱정 없는 타이핑",
-    image: "/steps/step-1.png",
+    image: "/steps/step-1.jpg",
   },
   {
     step: "02",
