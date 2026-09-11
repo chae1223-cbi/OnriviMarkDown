@@ -198,7 +198,7 @@
 
 /* 💡 [ONRIVI-DS-SYSTEM-003 Modern Technical Editorial] 전역 텍스트 렌더링 & 가독성 엔진 최적화 */
 html, body {
-  font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -207,7 +207,7 @@ html, body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: "Plus Jakarta Sans", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-family: "Pretendard Variable", Pretendard, "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
 /* 강제 정렬 클래스 (사용자 서식 프로필의 !important 오버라이드용) */
@@ -267,7 +267,7 @@ h1, h2, h3, h4, h5, h6 {
     background: #1d4ed8;
     color: #ffffff;
     border-radius: 8px;
-    font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, Inter, -apple-system, sans-serif;
     font-weight: 600;
     font-size: 14px;
     line-height: 20px;
@@ -287,7 +287,7 @@ h1, h2, h3, h4, h5, h6 {
     color: #0f172a;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
-    font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, Inter, -apple-system, sans-serif;
     font-weight: 600;
     font-size: 14px;
     padding: 0.5rem 1.25rem;
@@ -310,7 +310,7 @@ h1, h2, h3, h4, h5, h6 {
     background: #f97316;
     color: #ffffff;
     border-radius: 8px;
-    font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, Inter, -apple-system, sans-serif;
     font-weight: 600;
     font-size: 14px;
     padding: 0.5rem 1.25rem;
@@ -328,7 +328,7 @@ h1, h2, h3, h4, h5, h6 {
     color: rgb(var(--on-surface));
     border: none;
     border-radius: 8px;
-    font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, Inter, -apple-system, sans-serif;
     font-weight: 600;
     font-size: 14px;
     padding: 0.5rem 1rem;
@@ -354,7 +354,7 @@ h1, h2, h3, h4, h5, h6 {
     color: #475569;
     font-size: 11px;
     font-weight: 600;
-    font-family: Inter, "Pretendard Variable", Pretendard, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, Inter, sans-serif;
   }
   .dark .chip {
     background: #1e293b;
@@ -390,7 +390,7 @@ h1, h2, h3, h4, h5, h6 {
     background: rgb(var(--surface-container));
     border: 1px solid rgb(var(--outline-variant));
     border-radius: 8px;
-    font-family: Inter, "Pretendard Variable", Pretendard, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, Inter, sans-serif;
     font-size: 14px;
     height: 40px;
     padding: 0.5rem 0.75rem;
@@ -862,7 +862,7 @@ tr.preview-highlight-line th {
 .monaco-editor textarea.inputarea {
   color: transparent !important;
   background: transparent !important;
-  font-family: 'Nanum Gothic Coding', 'NanumGothicCoding', 'D2Coding', Consolas, '굴림체', 'GulimChe', '돋움체', 'DotumChe', 'Courier New', Courier, monospace !important;
+  font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Nanum Gothic Coding', 'D2Coding', Consolas, 'Malgun Gothic', '맑은 고딕', sans-serif !important;
   /*
    * Monaco는 한글 IME 조합 중 자체 커서 레이어를 잠시 숨기고 inputarea의
    * 네이티브 커서를 사용합니다. 이를 투명하게 만들면 첫 글자 조합 뒤 커서가

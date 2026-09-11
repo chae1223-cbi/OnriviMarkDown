@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-11** — 단축키 및 슬래시 명령어 매핑 테이블에 플로팅 툴바와 일치하는 구분(그룹 배지) 열 추가 및 복사 텍스트 그룹 반영
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-11** — 단축키 설정 입력창에서 non-Mac 환경(Windows/Linux)의 Meta(Win) 키를 Ctrl로 오인하지 않도록 isMac 분기 적용
 //             **2026-09-05** — AI 설정(Gemini API 키) 즉시 영구 삭제 및 연동 해제 기능(handleDeleteAiSettings) 구현, 공통 리소스 폴더 연결 해제(onClearResourceFolder) 실시간 UI 및 스토리지 동기화 반영, 버튼 라벨 직관적 순화('연동 해제', '폴더 해제')
 //             **2026-09-05** — 데스크톱 앱 내비게이션 결함 방어: 로그인 페이지 및 대시보드 이동 링크 클릭 시 Electron 환경(window.electronAPI.openExternal) 지원 및 target="_blank" 적용으로 Electron 창 내부 404 및 흰 화면 결함 해결
@@ -738,7 +739,7 @@ export default function SettingsModal({
                       TOOLBAR_ITEMS.forEach(item => {
                         const hk = customHotkeys[item.id] || '없음';
                         const cmd = customSlashCommands[item.id] || '없음';
-                        textLines.push(`- ${item.name}: 단축키 [${hk}], 명령어 [/${cmd}]`);
+                        textLines.push(`- [${item.group}] ${item.name}: 단축키 [${hk}], 명령어 [/${cmd}]`);
                       });
                       navigator.clipboard.writeText(textLines.join('\n')).then(() => {
                         showToast('단축키 및 명령어가 복사되었습니다.', 'success');
@@ -773,17 +774,31 @@ export default function SettingsModal({
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className={`text-[12px] font-bold uppercase tracking-wider ${isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-surface-container-low text-on-surface-variant'}`}>
-                      <th className="px-5 py-4 w-12 text-center">아이콘</th>
-                      <th className="px-5 py-4 w-40">기능명</th>
-                      <th className="px-5 py-4 text-center">단축키 조합</th>
-                      <th className="px-5 py-4 text-center">명령어 (/)</th>
+                      <th className="px-4 py-3.5 w-24 text-center">구분</th>
+                      <th className="px-4 py-3.5 w-12 text-center">아이콘</th>
+                      <th className="px-4 py-3.5 w-48">기능명</th>
+                      <th className="px-4 py-3.5 text-center">단축키 조합</th>
+                      <th className="px-4 py-3.5 text-center">명령어 (/)</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y text-[14px] ${isDarkMode ? 'divide-white/5 text-zinc-200' : 'divide-outline-variant/10 text-on-surface'}`}>
                     {TOOLBAR_ITEMS.map((item) => (
                       <tr key={item.id} className={`transition-colors ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'}`}>
-                        <td className="px-5 py-3 text-center text-lg">{item.icon}</td>
-                        <td className="px-5 py-3 font-medium">{item.name}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold tracking-tight ${
+                            item.group === '서식' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20' :
+                            item.group === '제목' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
+                            item.group === '목록' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20' :
+                            item.group === '미디어' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
+                            item.group === '코드' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' :
+                            item.group === '문서' ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20' :
+                            'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20'
+                          }`}>
+                            {item.group}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg">{item.icon}</td>
+                        <td className="px-4 py-3 font-medium">{item.name}</td>
                         <td className="px-5 py-3 text-center">
                           <input
                             type="text"

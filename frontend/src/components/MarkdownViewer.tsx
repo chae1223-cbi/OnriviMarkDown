@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-09-11** — 단일 물결표(~, 기간·인사말 등) 취소선 오인식 방지: remark-gfm singleTilde: false 옵션 적용 (표준 2개 물결표 ~~취소선~~만 허용)
+// 🚨 @PATCH : **2026-09-11** — [인용문 Alert 태그 및 색상 유실 버그 완벽 수정] rehypeSourceLinesPlugin의 span.onrivi-line 래핑 환경에서도 첫 번째 텍스트 노드를 재귀적으로 추적(findFirstText/removeTag)하여 [!NOTE/TIP/IMPORTANT/WARNING/CAUTION] 태그와 고유 색상 및 아이콘이 풀리지 않도록 조치, cleanContent의 인용구(&nbsp;) 간섭 차단 및 다크모드 컬러 보정
+//             **2026-09-11** — 단일 물결표(~, 기간·인사말 등) 취소선 오인식 방지: remark-gfm singleTilde: false 옵션 적용 (표준 2개 물결표 ~~취소선~~만 허용)
 //             **2026-09-11** — 미리보기 영역 사용자 정의 CSS 전면 지원: customCss prop, 마크다운 Frontmatter custom_css/css 추출 주입, 마크다운 본문 내 인라인 <style> 태그 실시간 렌더링 지원
 //             **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트 및 .onrivi-line 정밀 분할] rehypeSourceLinesPlugin에서 문단(p) 내부를 줄바꿈(br) 단위로 <span class="onrivi-line" data-line="...">로 분할 래핑하여 여러 줄로 구성된 문단에서도 커서가 위치한 특정 행 하나만 정확하게 독립 하이라이트되도록 전면 개선
 //             **2026-09-06** — [에디터-미리보기 하이라이트 일원화 및 잔상/중복 테두리 제거] 인라인 activeLine dashed 아웃라인 스타일 태그를 제거하고 단일 preview-highlight-line 클래스로 통일하여 표(tr) 및 일반 요소 하이라이트 시인성 일원화
@@ -1415,6 +1416,25 @@ function MarkdownViewer({
           }
           return line;
         }
+        // 인용구: 마크다운 인용구 문법(> 기호 및 Alert 태그) 보존 + 본문 내 2칸 이상 공백 보존
+        const isQuote = /^[ \t]*>/.test(line);
+        if (isQuote) {
+          const quoteMatch = line.match(/^([ \t]*>+[ \t]*)(.*)$/);
+          if (quoteMatch) {
+            const prefix = quoteMatch[1];
+            let body = quoteMatch[2];
+            const alertTagMatch = body.match(/^(\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\])(.*)$/i);
+            if (alertTagMatch) {
+              const tag = alertTagMatch[1];
+              let tagBody = alertTagMatch[2];
+              tagBody = tagBody.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
+              return `${prefix}${tag}${tagBody}`;
+            }
+            body = body.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
+            return `${prefix}${body}`;
+          }
+          return line;
+        }
         // 일반 문장: 행 시작 공백/탭 및 문장 내 2칸 이상 공백 모두 1:1 보존
         const leadMatch = line.match(/^([ \t]*)(.*)$/);
         if (!leadMatch) return line;
@@ -2614,86 +2634,81 @@ function MarkdownViewer({
               let alertType: 'NOTE' | 'TIP' | 'IMPORTANT' | 'WARNING' | 'CAUTION' | null = null;
               let processedChildren = children;
 
-              const childrenArray = React.Children.toArray(children);
-              if (childrenArray.length > 0) {
-                let firstElementIndex = -1;
-                for (let i = 0; i < childrenArray.length; i++) {
-                  const child: any = childrenArray[i];
-                  if (child && child.props && child.props.children) {
-                    firstElementIndex = i;
-                    break;
-                  }
+              // 💡 [Alert 인용구 재귀 텍스트 탐색 및 태그 분리 엔진]
+              // children이 배열이든, React 엘리먼트이든, rehypeSourceLinesPlugin의 <span className="onrivi-line">이든
+              // 깊이와 구조에 무관하게 트리의 가장 첫 번째 의미 있는 텍스트 노드를 찾아 Alert 태그([!NOTE] 등)를 정확히 판별합니다.
+              const findFirstText = (n: any): string | null => {
+                if (!n) return null;
+                if (typeof n === 'string') {
+                  const cleaned = n.replace(/^[\s\u00a0\u200b]+|^(?:&nbsp;)+/g, '').trim();
+                  return cleaned.length > 0 ? cleaned : null;
                 }
-
-                if (firstElementIndex !== -1) {
-                  const firstChild: any = childrenArray[firstElementIndex];
-                  const pChildren = React.Children.toArray(firstChild.props.children);
-                  
-                  // 첫 번째 의미 있는 텍스트 노드 찾기 (빈 줄바꿈 문자열 등 무시)
-                  let firstTextIndex = -1;
-                  for (let i = 0; i < pChildren.length; i++) {
-                    if (typeof pChildren[i] === 'string' && (pChildren[i] as string).trim() !== '') {
-                      firstTextIndex = i;
-                      break;
-                    }
+                if (Array.isArray(n)) {
+                  for (const c of n) {
+                    const t = findFirstText(c);
+                    if (t) return t;
                   }
+                  return null;
+                }
+                if (React.isValidElement(n)) {
+                  return findFirstText((n.props as any)?.children);
+                }
+                return null;
+              };
 
-                  if (firstTextIndex !== -1) {
-                    const firstText = pChildren[firstTextIndex] as string;
-                    const match = firstText.trimStart().match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
-                    
-                    if (match) {
-                      alertType = match[1].toUpperCase() as any;
-                      
-                      // 텍스트에서 [!TYPE] 부분 제거
-                      const matchStr = match[0];
-                      // 원본 문자열에서 matchStr이 나타나는 첫 번째 인덱스를 찾아서 자름
-                      const typeIndex = firstText.indexOf(matchStr);
-                      const newFirstText = firstText.substring(0, typeIndex) + firstText.substring(typeIndex + matchStr.length).trimStart();
-                      
-                      let newPChildren = [...pChildren];
-                      
-                      if (newFirstText.trim() === '') {
-                        // 해당 텍스트 노드가 [!TYPE] 외에 남는게 없다면 빈 문자열로 만듬
-                        newPChildren[firstTextIndex] = '';
-                        // 바로 다음이 <br> 이면 그것도 제거
-                        if (firstTextIndex + 1 < newPChildren.length && React.isValidElement(newPChildren[firstTextIndex + 1])) {
-                          const nextChild: any = newPChildren[firstTextIndex + 1];
-                          if (nextChild.type === 'br' || nextChild.props?.node?.tagName === 'br') {
-                            newPChildren[firstTextIndex + 1] = '';
-                          }
-                        }
-                      } else {
-                        newPChildren[firstTextIndex] = newFirstText;
+              const firstText = findFirstText(children);
+              if (firstText) {
+                const match = firstText.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+                if (match) {
+                  alertType = match[1].toUpperCase() as any;
+
+                  // 매칭된 [!TYPE] 태그를 첫 번째 텍스트 노드에서 안전하게 소거
+                  let tagRemoved = false;
+                  const removeTag = (n: any): any => {
+                    if (tagRemoved || !n) return n;
+                    if (typeof n === 'string') {
+                      const tagMatch = n.match(/\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+                      if (tagMatch) {
+                        tagRemoved = true;
+                        const idx = n.indexOf(tagMatch[0]);
+                        const before = n.substring(0, idx);
+                        const after = n.substring(idx + tagMatch[0].length).replace(/^[\s\u00a0\u200b]+|^(?:&nbsp;)+/g, '').trimStart();
+                        return (before.trim() ? before : '') + after;
                       }
-
-                      const newFirstChild = React.cloneElement(firstChild, {}, ...newPChildren);
-                      processedChildren = [
-                        ...childrenArray.slice(0, firstElementIndex),
-                        newFirstChild,
-                        ...childrenArray.slice(firstElementIndex + 1)
-                      ];
+                      return n;
                     }
-                  }
+                    if (Array.isArray(n)) {
+                      return n.map(c => removeTag(c));
+                    }
+                    if (React.isValidElement(n)) {
+                      const ch: any = (n.props as any)?.children;
+                      if (ch === undefined || ch === null) return n;
+                      const newChild = removeTag(ch);
+                      return React.cloneElement(n, {}, ...(Array.isArray(newChild) ? newChild : [newChild]));
+                    }
+                    return n;
+                  };
+
+                  processedChildren = removeTag(children);
                 }
               }
 
               if (alertType) {
                 const alertStyles = {
-                  NOTE: { border: 'border-[#0969da] [#2f81f7]', bg: 'bg-blue-50/50 [#1f6feb]/10', text: 'text-[#0969da] [#2f81f7]', icon: 'ℹ️', title: 'Note' },
-                  TIP: { border: 'border-[#1a7f37] [#3fb950]', bg: 'bg-green-50/50 [#2ea043]/10', text: 'text-[#1a7f37] [#3fb950]', icon: '💡', title: 'Tip' },
-                  IMPORTANT: { border: 'border-[#8250df] [#a371f7]', bg: 'bg-purple-50/50 [#8957e5]/10', text: 'text-[#8250df] [#a371f7]', icon: '📢', title: 'Important' },
-                  WARNING: { border: 'border-[#9a6700] [#d29922]', bg: 'bg-yellow-50/50 [#d29922]/10', text: 'text-[#9a6700] [#d29922]', icon: '⚠️', title: 'Warning' },
-                  CAUTION: { border: 'border-[#d1242f] [#f85149]', bg: 'bg-red-50/50 [#f85149]/10', text: 'text-[#d1242f] [#f85149]', icon: '🚨', title: 'Caution' },
+                  NOTE: { border: 'border-blue-500 dark:border-blue-400', bg: 'bg-blue-50/90 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-300', icon: 'ℹ️', title: 'Note' },
+                  TIP: { border: 'border-emerald-500 dark:border-emerald-400', bg: 'bg-emerald-50/90 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', icon: '💡', title: 'Tip' },
+                  IMPORTANT: { border: 'border-purple-500 dark:border-purple-400', bg: 'bg-purple-50/90 dark:bg-purple-950/40', text: 'text-purple-700 dark:text-purple-300', icon: '📢', title: 'Important' },
+                  WARNING: { border: 'border-amber-500 dark:border-amber-400', bg: 'bg-amber-50/90 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', icon: '⚠️', title: 'Warning' },
+                  CAUTION: { border: 'border-rose-500 dark:border-rose-400', bg: 'bg-rose-50/90 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-300', icon: '🛑', title: 'Caution' },
                 }[alertType];
 
                 return (
-                  <div style={{ ...style, ...getIndentStyle(node) }} className={`my-4 border-l-[3px] rounded-r-lg ${alertStyles.border} ${alertStyles.bg} p-4`} {...(props as any)}>
-                    <div className={`flex items-center gap-2 font-semibold mb-2 ${alertStyles.text}`}>
-                      <span>{alertStyles.icon}</span>
+                  <div style={{ ...style, ...getIndentStyle(node) }} className={`my-4 border-l-4 rounded-r-lg ${alertStyles.border} ${alertStyles.bg} p-4 shadow-xs`} {...(props as any)}>
+                    <div className={`flex items-center gap-2 font-bold mb-2 text-sm tracking-wide uppercase ${alertStyles.text}`}>
+                      <span className="text-base">{alertStyles.icon}</span>
                       <span>{alertStyles.title}</span>
                     </div>
-                    <div className="text-zinc-700  prose-p:my-1 prose-p:last:mb-0 text-[0.95em]">
+                    <div className="text-zinc-800 dark:text-zinc-100 font-medium prose-p:my-1 prose-p:last:mb-0 text-[0.95em] leading-relaxed">
                       {processedChildren}
                     </div>
                   </div>

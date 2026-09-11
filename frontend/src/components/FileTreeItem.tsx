@@ -4,7 +4,8 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-11** — 탐색기 파일트리 아이템 폰트를 Pretendard 최우선으로 일원화 적용
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-06** — [데스크톱 탐색기 지식 문서 연동 안정화] resourceFolder 취득 시 loadSecureData 복호화 및 Onrivi_Asset 폴백을 적용하여 데스크톱 환경에서 지식 베이스 등록/해제/상세조회 시 올바른 드라이브 DB와 연동 보장
 //             **2026-09-06** — [AES 암호문 리소스 폴더 방어] 암호문(U2FsdGVkX1...)이 resourceFolder로 전달되어 가짜 디렉토리가 생성되는 현상을 방어하기 위해 Onrivi_Asset 표준 폴더로 강제 정규화
 //             **2026-09-06** — [지식 문서 등록/해제/상세조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 getDocumentDetail, deleteDocument, indexDocument에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 사용자 로컬 리소스 폴더와 100% 동일하게 동기화 보장
@@ -947,7 +948,7 @@ const FileTreeItem = ({
         }`}
         style={{ 
           paddingLeft: `${(level * 12) + 8}px`,
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
+          fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif"
         }}
         onClick={handleClick}
         onContextMenu={(e) => {

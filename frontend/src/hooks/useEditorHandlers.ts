@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { triggerKnowledgeAutoSyncOnSave } from '@/lib/knowledge/knowledgeAutoSync';
 import { cleanMarkdownDocument } from '@/utils/markdownCleaner';
+import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 
 /**
  * [ONR-16-004] useEditorHandlers 커스텀 훅
@@ -19,7 +20,9 @@ import { cleanMarkdownDocument } from '@/utils/markdownCleaner';
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
 // 🛡️ @GUARD : 각 핸들러별 editorRef/selection/model 방어 로직; previewRef 누락 시 export early return
-// 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 수동 저장(save) 시 지식 보관함 등록 문서 로컬 비동기 자동 재색인(triggerKnowledgeAutoSyncOnSave) 일원화 연동
+// 🚨 @PATCH : **2026-09-11** — 코드 블록(code) 삽입 시 기본 언어를 markdown(```markdown)으로 변경 연동
+//             **2026-09-11** — 찾기/바꾸기(find/replace) 실행 시 openAndFocusFindWidget 연동(다중 타이머 강제 포커스 및 Enter 키 다음 찾기 100% 보장), 인용구(quote) 핸들러에 alertType 매개변수 연동
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 수동 저장(save) 시 지식 보관함 등록 문서 로컬 비동기 자동 재색인(triggerKnowledgeAutoSyncOnSave) 일원화 연동
 //             **2026-08-12** — 저장(save) 시 단순 만료 외에 동시접속 제한 및 제한 사용자 플랜 여부(isRestrictedUser)를 검사하여 문서를 저장하지 못하도록 권한 가드 보완 적용
 //             **2026-07-16** — PDF 내보내기 시 머리글/바닥글 및 표지 페이지 제외 옵션을 exportPDF 파라미터 구조체에 매핑하여 전달하도록 패치.
 //             **2026-06-19** — 인쇄/PDF 기능 통합 처리: print 핸들러 실행 시 window.print() 인쇄 팝업 대신 직접 PDF 파일 저장 기능(exportPDF)을 다이렉트로 수행하도록 패치; exportPDF 호출 시 누락되었던 dynamicCssString(활성 CSS 프로필) 매개변수를 추가 전달하도록 패치; previewRef/setIsSettingsModalOpen 누락 복원 등
@@ -879,8 +882,12 @@ export const useEditorHandlers = ({
     },
     undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
     redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
-    find: () => editorRef.current?.trigger('keyboard', 'actions.find', null),
-    replace: () => editorRef.current?.trigger('keyboard', 'editor.action.startFindReplaceAction', null),
+    find: () => {
+      openAndFocusFindWidget(editorRef.current, false);
+    },
+    replace: () => {
+      openAndFocusFindWidget(editorRef.current, true);
+    },
     bold: () => wrapSelection('**', '**', '텍스트'),
     italic: () => wrapSelection('*', '*', '텍스트'),
     inlineCode: () => wrapSelection('`', '`', '코드'),
@@ -895,7 +902,7 @@ export const useEditorHandlers = ({
     hr: () => insertAtCursor('\n---\n'),
     orderedList: () => applyLinePrefix('orderedList'),
     list: () => applyLinePrefix('list'),
-    quote: () => applyLinePrefix('quote'),
+    quote: (alertType?: string) => applyLinePrefix('quote', alertType),
     check: () => applyLinePrefix('check'),
     removePrefix: () => removePrefix(),
     link: () => insertLink(),
@@ -1085,7 +1092,7 @@ export const useEditorHandlers = ({
       editor.focus();
       showToast("표 행이 삭제되었습니다.", "info");
     },
-    code: () => insertBlockTag('```javascript', '```', '코드'),
+    code: () => insertBlockTag('```markdown', '```', '코드'),
     chart: () => insertBlockTag('```mermaid', '```', '그래프'),
     math: () => setIsFormulaModalOpen(true),
     latex: () => setIsFormulaModalOpen(true),

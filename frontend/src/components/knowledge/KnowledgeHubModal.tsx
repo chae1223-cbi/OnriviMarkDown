@@ -436,7 +436,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
           {/* LNB 사이드바 (에디터 LeftSidebar 1:1 통일 디자인: LDSG v5.0, .bg-sidebar-luxury, 라운드 하이라이트, 워크스페이스 바) */}
           <aside 
             style={{ 
-              fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+              fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif",
             }}
             className="w-64 shrink-0 flex flex-col border-r border-slate-300 dark:border-zinc-700 select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-sm"
           >

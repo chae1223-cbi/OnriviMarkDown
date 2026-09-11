@@ -6,7 +6,14 @@ export const DEFAULT_HOTKEYS: Record<string, string> = {
   h2: 'Ctrl+2',
   h3: 'Ctrl+3',
   quote: 'Ctrl+Q',
-  inlineCode: 'Ctrl+E'
+  quoteNote: 'Ctrl+Shift+1',
+  quoteTip: 'Ctrl+Shift+2',
+  quoteImportant: 'Ctrl+Shift+3',
+  quoteWarning: 'Ctrl+Shift+4',
+  quoteCaution: 'Ctrl+Shift+5',
+  inlineCode: 'Ctrl+E',
+  codeblock: 'Ctrl+Shift+E',
+  clear: 'Ctrl+Shift+0'
 };
 
 export const DEFAULT_SLASH_COMMANDS = [
@@ -15,10 +22,16 @@ export const DEFAULT_SLASH_COMMANDS = [
   { id: 'h3', label: 'H3 (제목 3)', kind: 17, insertText: '### ', detail: '세 번째 제목' },
   { id: 'table', label: 'Table (표)', kind: 15, insertText: '| 열 1 | 열 2 |\n| --- | --- |\n| 내용 | 내용 |', detail: '기본 표 삽입' },
   { id: 'quote', label: 'Quote (인용구)', kind: 17, insertText: '> ', detail: '인용문 블록' },
-  { id: 'codeblock', label: 'Code Block (코드)', kind: 15, insertText: '```javascript\n\n```', detail: '코드 블록 삽입' },
+  { id: 'quoteNote', label: 'Note (인용구 참고)', kind: 17, insertText: '> [!NOTE]\n> ', detail: '참고(Note) 안내 상자' },
+  { id: 'quoteTip', label: 'Tip (인용구 팁)', kind: 17, insertText: '> [!TIP]\n> ', detail: '팁(Tip) 유용한 정보 상자' },
+  { id: 'quoteImportant', label: 'Important (인용구 중요)', kind: 17, insertText: '> [!IMPORTANT]\n> ', detail: '중요(Important) 공지 상자' },
+  { id: 'quoteWarning', label: 'Warning (인용구 주의)', kind: 17, insertText: '> [!WARNING]\n> ', detail: '주의(Warning) 안내 상자' },
+  { id: 'quoteCaution', label: 'Caution (인용구 경고)', kind: 17, insertText: '> [!CAUTION]\n> ', detail: '경고(Caution) 위험 알림 상자' },
+  { id: 'codeblock', label: 'Code Block (코드)', kind: 15, insertText: '', detail: '코드 블록 삽입 (언어 자동 선택)', actionId: 'codeblock' },
   { id: 'orderedlist', label: 'Ordered List (숫자 목록)', kind: 17, insertText: '1. ', detail: '숫자 목록', actionId: 'AUTO_RENUMBER' },
   { id: 'list', label: 'List (글머리 기호)', kind: 17, insertText: '- ', detail: '기호 목록' },
   { id: 'checklist', label: 'Checklist (체크리스트)', kind: 17, insertText: '- [ ] ', detail: '할 일 목록' },
+  { id: 'clear', label: 'Clear Tag (태그 취소)', kind: 17, insertText: '', detail: '서식 마크다운 태그 취소', actionId: 'clear' },
   { id: 'image', label: 'Image (이미지)', kind: 15, insertText: '![대체 텍스트](이미지_URL)', detail: '이미지 삽입' },
   { id: 'link', label: 'Link (링크)', kind: 15, insertText: '[링크 텍스트](URL)', detail: '링크 삽입' },
   { id: 'cite', label: 'Cite (참조문헌 인용)', kind: 15, insertText: '', detail: '참조문헌(bib) 선택 및 인용 삽입', actionId: 'custom-action-citation' },
@@ -30,7 +43,8 @@ export const DEFAULT_SLASH_COMMANDS = [
 // 📊 [OMD-EDIT-slashCommands-0001] slashCommands.ts ➔ getSlashCommands
 // 🎯 @KICK  : 기본 슬래시 명령어 배열을 Monaco CompletionItem 형식으로 변환
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-11** — 코드블록(codeblock) 언어 자동 선택 액션 연동 및 Alert 인용구 5종/태그 취소 단축키 동기화
+//             **2026-09-11** — Alert 인용구 5종(Note, Tip, Important, Warning, Caution) 슬래시 명령어 추가
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const getSlashCommands = (monaco: any, customCommands = DEFAULT_SLASH_COMMANDS) => {

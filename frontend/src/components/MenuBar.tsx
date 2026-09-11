@@ -2,7 +2,9 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-11** — 상단 메뉴바 폰트를 Pretendard 최우선으로 일원화 적용
+//             **2026-09-11** — 편집(Edit) 메뉴에 GitHub Alert 인용구 스타일 5종(Note, Tip, Important, Warning, Caution) 및 일반 인용구 선택 서브메뉴 신설
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-04** — 도구 메뉴의 '서식 정의 (갤러리)' 아이콘을 🎨로 변경하여 우측 툴바 서식관리와 시각적 일관성 확보
 //             **2026-09-04** — 상단 메뉴바의 AI 버튼 캡슐(에디터 하단으로 이전) 및 지식 베이스 버튼(우측 사이드바 툴바로 이전) 2종 제거하여 상단 메뉴바 간결화
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 새 탭 생성 제거 및 에디터 인라인 지식 화면 전환 이벤트(app:open-knowledge-manager) 연동
@@ -256,7 +258,11 @@ export default function MenuBar() {
 
   /* [ONR-UI-003] 상단 메뉴바 이벤트 연동: 테마 스위칭, 내보내기 대화상자 등 전역 레이아웃 제어를 메뉴 트리거와 연결합니다. */
   return (
-    <nav ref={menuRef} className="h-[36px] bg-surface-container border-b border-outline/10 flex items-center px-1 text-sm font-medium relative z-[100] text-on-surface whitespace-nowrap select-none shrink-0">
+    <nav 
+      ref={menuRef} 
+      style={{ fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif" }}
+      className="h-[36px] bg-surface-container border-b border-outline/10 flex items-center px-1 text-sm font-medium relative z-[100] text-on-surface whitespace-nowrap select-none shrink-0"
+    >
       <MenuDropdown 
         label={t('file')} 
         isOpen={activeMenu === 'file'} 
@@ -277,6 +283,21 @@ export default function MenuBar() {
           { divider: true },
           { label: t('find'), icon: <span>🔍</span>, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
           { label: t('replace'), icon: <span>🔄</span>, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE'), disabled: previewMode === 'preview' },
+          { divider: true },
+          { 
+            label: "인용구 스타일 (Alert)", 
+            icon: <span>❝</span>, 
+            disabled: previewMode === 'preview',
+            subItems: [
+              { label: "일반 인용구", icon: <span>❝</span>, shortcut: 'Ctrl+Q', onClick: () => dispatch('QUOTE') },
+              { divider: true },
+              { label: "참고 (Note)", icon: <span>ℹ️</span>, onClick: () => dispatch('QUOTE_NOTE') },
+              { label: "팁 (Tip)", icon: <span>💡</span>, onClick: () => dispatch('QUOTE_TIP') },
+              { label: "중요 (Important)", icon: <span>📢</span>, onClick: () => dispatch('QUOTE_IMPORTANT') },
+              { label: "주의 (Warning)", icon: <span>⚠️</span>, onClick: () => dispatch('QUOTE_WARNING') },
+              { label: "경고 (Caution)", icon: <span>🛑</span>, onClick: () => dispatch('QUOTE_CAUTION') },
+            ]
+          },
           { divider: true },
           { label: t('zoomIn'), icon: <span>🔎</span>, onClick: () => dispatch('ZOOM_IN') },
           { label: t('zoomOut'), icon: <span>🔍</span>, onClick: () => dispatch('ZOOM_OUT') },

@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
  * 작성자 : 채병익
+ * 🚨 @PATCH : **2026-09-11** — 인용구(❝) 버튼에 Alert 태그 선택 콤보 드롭다운(일반 인용구, Note, Tip, Important, Warning, Caution) 추가 탑재
  * 🚨 @PATCH : **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 서식 툴바의 AI 글쓰기 어시스턴트 버튼(Sparkles) 비활성화(disabled, opacity-30, grayscale) 적용
  * 🚨 @PATCH : **2026-07-20** — 툴바의 '문서 서식 일괄 정리' 버튼 아이콘을 플로팅 툴바 및 환경설정과 동일하게 `🧹`로 변경하여, AI 글쓰기 어시스턴트 아이콘(`✨`)과의 시각적 중복 및 혼선 방지 패치
  * -----------------------------------------------------------------------
@@ -99,7 +100,7 @@ export default function FormattingToolbar() {
       <FormatBtn label="—" title={tooltip('구분선', SHORTCUTS.hr)} onAction={() => dispatch('HR')} />
       <FormatBtn label="🔢" title={tooltip('숫자 목록', SHORTCUTS.orderedList)} onAction={() => dispatch('ORDERED_LIST')} />
       <FormatBtn label="☰" title={tooltip('글머리 기호', SHORTCUTS.list)} onAction={() => dispatch('LIST')} />
-      <FormatBtn label="❝" title={tooltip('인용구', SHORTCUTS.quote)} onAction={() => dispatch('QUOTE')} />
+      <QuoteDropdownBtn dispatch={dispatch} />
       <FormatBtn label="☑️" title={tooltip('체크리스트', SHORTCUTS.check)} onAction={() => dispatch('CHECK')} />
       <FormatBtn label={<Eraser size={15} className="text-red-500 opacity-80" />} title={tooltip('태그 취소', SHORTCUTS.eraser)} onAction={() => dispatch('REMOVE_PREFIX')} />
       <FormatBtn label="🧹" title={tooltip('문서 서식 일괄 정리', SHORTCUTS.cleanDoc)} onAction={() => dispatch('CLEAN_DOC')} />
@@ -155,3 +156,82 @@ function FormatBtn({ label, title, onAction, bold, italic, underline, disabled }
 function Divider() {
   return <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-600/60 mx-1 shrink-0" />;
 }
+
+const ALERT_OPTIONS = [
+  { id: 'QUOTE', label: '일반 인용구', icon: '❝', tag: '> ' },
+  { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️', tag: '[!NOTE]', color: 'text-[#0969da] dark:text-[#2f81f7]' },
+  { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡', tag: '[!TIP]', color: 'text-[#1a7f37] dark:text-[#3fb950]' },
+  { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢', tag: '[!IMPORTANT]', color: 'text-[#8250df] dark:text-[#a371f7]' },
+  { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️', tag: '[!WARNING]', color: 'text-[#9a6700] dark:text-[#d29922]' },
+  { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🚨', tag: '[!CAUTION]', color: 'text-[#d1242f] dark:text-[#f85149]' },
+];
+
+function QuoteDropdownBtn({ dispatch }: { dispatch: (cmd: any) => void }) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} className="relative inline-flex items-center">
+      <button
+        onMouseDown={(e) => {
+          e.preventDefault();
+          dispatch('QUOTE');
+        }}
+        className="h-8 px-1.5 rounded-l-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center justify-center text-[16px] cursor-pointer"
+        title="인용구 (Ctrl+Q)"
+      >
+        ❝
+      </button>
+
+      <button
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setIsOpen(prev => !prev);
+        }}
+        className="h-8 px-1 rounded-r-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center justify-center text-[9px] text-zinc-500 dark:text-zinc-400 cursor-pointer"
+        title="인용구 태그 선택 (Note, Tip, Important, Warning, Caution)"
+      >
+        ▼
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-3 py-1 text-[11px] font-bold text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 mb-1 select-none">
+            인용구 스타일 선택
+          </div>
+          {ALERT_OPTIONS.map(opt => (
+            <button
+              key={opt.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                dispatch(opt.id);
+                setIsOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-left transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-[14px]">{opt.icon}</span>
+                <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{opt.label}</span>
+              </div>
+              <span className={`text-[11px] font-mono font-bold ${opt.color || 'text-zinc-400'}`}>
+                {opt.tag}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

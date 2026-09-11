@@ -208,7 +208,7 @@ export const findLineNumberByHeading = (content: string, heading: string): numbe
 // 📊 [OMD-EDIT-editorActions-0002] editorActions ➔ insertBlockTag
 // 🎯 @KICK  : 선택 영역 또는 커서 위치를 블록 태그로 감싼다
 // 🛡️ @GUARD : editorRef.current가 없으면 early return, selection이 없으면 return
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : 2026-09-11 - [코드블록 기본 언어 markdown 설정 및 언어명 자동 선택 지원] startTag가 ```markdown 등으로 시작하는 코드블록 삽입 시, 본문 대신 첫 행의 언어 식별자(markdown)를 Monaco Selection으로 자동 선택하여 곧바로 언어 변경 타이핑이 가능하도록 개선
 // 🔗 @CALLS : 없음
 // ====================================================================
 /**
@@ -228,6 +228,9 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
   const model = editor.getModel();
   const text = model.getValueInRange(selection);
 
+  // 💡 코드 블록 언어명 감지 (예: ```markdown)
+  const langMatch = startTag.match(/^```([a-zA-Z0-9_-]+)/);
+
   if (text) {
     const newText = `${startTag}\n${text}\n${endTag}`;
     editor.pushUndoStop();
@@ -238,12 +241,23 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
     }]);
     editor.pushUndoStop();
     const linesAdded = startTag.split('\n').length;
-    editor.setSelection(new (window as any).monaco.Selection(
-      selection.startLineNumber + linesAdded,
-      selection.startColumn,
-      selection.endLineNumber + linesAdded,
-      selection.endColumn
-    ));
+    if (langMatch) {
+      const lang = langMatch[1];
+      const startCol = 4; // 1-based: 1 + 3(```)
+      editor.setSelection(new (window as any).monaco.Selection(
+        selection.startLineNumber,
+        startCol,
+        selection.startLineNumber,
+        startCol + lang.length
+      ));
+    } else {
+      editor.setSelection(new (window as any).monaco.Selection(
+        selection.startLineNumber + linesAdded,
+        selection.startColumn,
+        selection.endLineNumber + linesAdded,
+        selection.endColumn
+      ));
+    }
   } else {
     const textToWrap = defaultText;
     const newText = textToWrap ? `${startTag}\n${textToWrap}\n${endTag}` : `${startTag}\n\n${endTag}`;
@@ -256,7 +270,17 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
     editor.pushUndoStop();
 
     const linesAdded = startTag.split('\n').length;
-    if (textToWrap) {
+    if (langMatch) {
+      // 💡 [코드블록 언어 즉시 수정] markdown 등 언어 식별자 텍스트를 선택하여 곧바로 키보드 타이핑으로 언어 변경 가능
+      const lang = langMatch[1];
+      const startCol = 4; // 1-based: 1 + 3(```)
+      editor.setSelection(new (window as any).monaco.Selection(
+        selection.startLineNumber,
+        startCol,
+        selection.startLineNumber,
+        startCol + lang.length
+      ));
+    } else if (textToWrap) {
       editor.setSelection(new (window as any).monaco.Selection(
         selection.startLineNumber + linesAdded,
         1,
@@ -270,6 +294,7 @@ export const insertBlockTag = (editorRef: any, startTag: string, endTag: string,
       });
     }
   }
+  editor.focus();
   try {
     const model = editor.getModel();
     if (model && typeof model.forceTokenization === 'function') {

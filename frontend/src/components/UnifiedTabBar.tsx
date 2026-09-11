@@ -7,7 +7,8 @@ import { useEditorContext } from '@/context/EditorContext';
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
 // 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-11** — 에디터 문서 탭바 폰트를 Pretendard 최우선으로 일원화 적용
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] 좌측 사이드바 탭과 100% 동일한 폰트(LineSeed/D2Coding/Pretendard 12px bold), 캡슐형 형태(rounded-md), LDSG 그린 그라데이션(bg-gradient-to-r from-[#1d4ed8] to-[#1e40af])으로 상단 탭 스타일 통일
 //             **2026-08-27** — 에디터 개별 문서 탭을 마우스 드래그 앤 드롭(HTML5 Drag & Drop)으로 원하는 순서대로 자유롭게 이동시킬 수 있도록 UI 지원하고, 변경된 탭 순서를 localStorage(onrivi_tabs_order)에 저장 및 다음 접속/새로고침 시 해당 순서로 자동 복원 및 정렬 동기화 구현; **2026-07-04** — 저장이 필요한 경우에만 탭명 옆에 황금색 도트(#FFD700)를 노출하고, 닫기 버튼은 저장 여부와 상관없이 항시 우측에 배치하여 언제든지 탭을 닫을 수 있도록 UI 편의성 보정 패치
 // 🔗 @CALLS : 없음
@@ -118,7 +119,7 @@ export default function UnifiedTabBar() {
     <>
       <div 
         style={{
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+          fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif",
         }}
         className="flex items-center w-full border-b border-[#E2E8F0] dark:border-white/[0.08] px-2 gap-1.5 overflow-x-auto select-none no-scrollbar h-10 bg-white/75 dark:bg-black/30 backdrop-blur-md text-on-surface"
       >

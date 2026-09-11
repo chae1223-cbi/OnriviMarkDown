@@ -132,7 +132,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Sidebar for Desktop (.bg-sidebar-luxury 및 에디터 사이드바 기준 일치) */}
       <aside 
         style={{
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+          fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif",
         }}
         className="hidden w-[280px] bg-sidebar-luxury border-r border-slate-300 dark:border-zinc-700 select-none md:flex md:flex-col z-10 transition-all shadow-sm"
       >

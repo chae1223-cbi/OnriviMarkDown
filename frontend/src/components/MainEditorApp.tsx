@@ -4,6 +4,9 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+//             **2026-09-11** — [에디터 Pretendard 웹폰트 1순위 적용] 모나코 에디터 fontFamily를 Pretendard/Pretendard Variable 최우선으로 변경하여 원번호(①, ②, ③) 크기 불일치 해소 및 무설치 고품질 한글 렌더링 보장
+//             **2026-09-11** — [코드블록 퀵래핑 언어 지원] quickWrap('code') 실행 시 insertBlockTag('```markdown', '```', '코드')로 연동하여 기본 언어를 markdown으로 지정하고 언어 자동 선택 보장
+//             **2026-09-11** — [인용구 Alert 태그 선택 커맨드 및 핸들러 연동] applyLinePrefix에 alertType 지원 및 Alert 태그 치환 로직 추가, QUOTE_NOTE ~ QUOTE_CAUTION 5종 커맨드 디스패치 연동
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 전면 적용 및 dynamicCssString에 사용자 정의 CSS(prof.customCss) 실시간 주입 연동
 //             **2026-09-11** — [Windows 스크린샷 캡처(Win+Shift+S) 차단 버그 원천 해결 및 클립보드 이미지 처리 안정화]
  *     1) handleGlobalKeyDown에서 non-Mac 환경(Windows/Linux) 시 e.metaKey(Win키)가 포함된 단축키(Win+Shift+S 캡처 도구, Win+V 등)를 조기 반환(if (!isMac && e.metaKey) return;)하여 OS 캡처 도구가 '다른 이름으로 저장' 등으로 가로채지던 결함 원천 해결
@@ -47,6 +50,7 @@
 //             **2026-09-02** — 서식 설정에 문단 내 문장 사이 간격(sentence-gap / 줄바꿈 간격, 기본값 0px) 슬라이더 컨트롤 추가 및 동적 CSS br 마진 주입 연동
 //             **2026-09-02** — 서식 설정(CSS 프로필)의 P 태그 줄간격(line-height), 여백, 들여쓰기 변경이 실시간으로 반영되도록 line-height inherit 충돌을 해소하고 선택자에 onrivi-content-root 확장
 //             **2026-09-02** — CSS 프로필(서식) 적용 시 p 태그 마진이 리스트 내부로 흘러들어가 행간이 벌어지던 현상을 막기 위해 generatePreviewCss에 li, li p 제로 마진 압착 규칙 주입
+// 🚨 @PATCH : **2026-09-11** — Alert 인용구 5종(Note, Tip, Important, Warning, Caution) 접두사 삽입 및 태그 치환 엔진(applyLinePrefix alertType) 연동, QUOTE_* 커맨드 디스패치 등록
 //             **2026-09-02** — 에디터 마지막 행 아래의 과도한 스크롤 빈 공간을 없애기 위해 scrollBeyondLastLine: false 및 padding.bottom: 24로 최적화
 //             **2026-09-02** — 에디터 Monaco 패딩(top: 16, bottom: 24, right: 16) 및 미리보기 페이지 시트 상하 여백(my-3~4, pb-12)을 슬림하게 축소 조정하여 쾌적한 작업 공간 확보
 //             **2026-09-02** — 타이핑 시 180ms 지연 깜빡임을 완전히 제거하기 위해 React 18 useDeferredValue 기반 동시성 실시간 렌더링 적용 및 에디터 마지막 행 입력 시 미리보기가 가려지지 않고 실시간 바닥(최하단)을 즉시 추종하도록 동기화 개선
@@ -206,7 +210,7 @@ export type EditorCommandType =
   | 'UNDO' | 'REDO' | 'FIND' | 'REPLACE' | 'ZOOM_IN' | 'ZOOM_OUT'                      //③ 편집 및 보기 제어
   | 'GLOBAL_SEARCH' | 'TOGGLE_HELP' | 'ERASER' | 'BOLD' | 'ITALIC'                       //④ 스타일 적용
   | 'STRIKETHROUGH' | 'INLINE_CODE' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6'                 //⑤ 스타일 적용
-  | 'HR' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'QUOTE' | 'CHECKLIST'                   //⑥ 스타일 적용
+  | 'HR' | 'ORDERED_LIST' | 'UNORDERED_LIST' | 'QUOTE' | 'QUOTE_NOTE' | 'QUOTE_TIP' | 'QUOTE_IMPORTANT' | 'QUOTE_WARNING' | 'QUOTE_CAUTION' | 'CHECKLIST'                   //⑥ 스타일 적용
   | 'LINK' | 'IMAGE' | 'VIDEO' | 'MAP' | 'TABLE' | 'CODE' | 'LATEX' | 'CLEAN_DOC'       //⑦ 스타일 적용
   | 'YOUTUBE' | 'NOW' | 'CODE_BLOCK' | 'CHART' | 'MATH' | 'SETTINGS'                  //⑧ 스타일 적용
   | 'ABOUT' | 'LICENSE' | 'TOGGLE_FLOATING_TOOLBAR' | 'OPEN_EXPORT' | 'REMOVE_PREFIX' | 'LIST' | 'CHECK' | 'COPY_ALL'  //⑨ 스타일 적용
@@ -2319,6 +2323,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [cursorColumn, setCursorColumn] = useState(1);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | ''>('');
   const [floatingHeadingLevel, setFloatingHeadingLevel] = useState(3);
+  const [isFloatingQuoteDropdownOpen, setIsFloatingQuoteDropdownOpen] = useState(false);
 
   // ====================================================================
   // 📊 [OMD-FILE-MainEditorApp-0019] MainEditorApp.tsx ➔ toggleMergeNodeSelect
@@ -4594,7 +4599,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🚨 @PATCH : 구문 강조 새로고침을 위해 편집 후 forceTokenization
   // 🔗 @CALLS : editor.getSelection, editor.executeEdits, model.forceTokenization, editor.layout
   // ====================================================================
-  const applyLinePrefix = (prefixType: 'orderedList' | 'list' | 'quote' | 'check') => {
+  const applyLinePrefix = (prefixType: 'orderedList' | 'list' | 'quote' | 'check', alertType?: string) => {
     if (!editorRef.current) return;
     const editor = editorRef.current;
     let selection = editor.getSelection();
@@ -4606,6 +4611,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     const startLine = selection.startLineNumber;
     const endLine = selection.endLineNumber;
+
+    // 💡 [Alert 인용구 빈 줄 단독 커서 삽입]
+    if (prefixType === 'quote' && alertType && selection.isEmpty()) {
+      const lineContent = model.getLineContent(startLine);
+      if (lineContent.trim() === '') {
+        const insertText = `> [!${alertType}]\n> `;
+        editor.pushUndoStop();
+        editor.executeEdits("insertAlertQuote", [{
+          range: new (window as any).monaco.Range(startLine, 1, startLine, lineContent.length + 1),
+          text: insertText,
+          forceMoveMarkers: true
+        }]);
+        editor.setPosition({ lineNumber: startLine + 1, column: 3 });
+        editor.pushUndoStop();
+        editor.focus();
+        return;
+      }
+    }
 
     const edits = [];
     let counter = 1;
@@ -4624,69 +4647,123 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
-    for (let i = startLine; i <= endLine; i++) {
-      const lineContent = model.getLineContent(i);
-      const match = lineContent.match(/^(\s*)(>+\s*)?((?:- \[[ xX]\]|[-*+]|\d+\.)\s+)?(.*)/);
-
-      if (match) {
-        const indent = match[1] || '';
-        const quotes = match[2] || '';
-        const listSymbol = match[3] || '';
-        const text = match[4] || '';
-
-        let newQuotes = quotes;
-        let newListSymbol = listSymbol;
-
-        if (prefixType === 'quote') {
-          if (quotes) {
-            newQuotes = '>' + quotes;
+    // Alert 인용구 교체 또는 주입 처리
+    if (prefixType === 'quote' && alertType) {
+      for (let i = startLine; i <= endLine; i++) {
+        const lineContent = model.getLineContent(i);
+        // 기존 Alert 태그가 이미 있는 경우 태그 치환
+        const existingAlertMatch = lineContent.match(/^(\s*>+\s*)\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](.*)/i);
+        if (existingAlertMatch) {
+          const prefix = existingAlertMatch[1];
+          const rest = existingAlertMatch[2];
+          edits.push({
+            range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+            text: `${prefix}[!${alertType}]${rest}`,
+            forceMoveMarkers: true
+          });
+        } else if (i === startLine) {
+          // 첫 줄: 기존 인용구(> )가 있든 없든 상단에 > [!TYPE] 태그 배치
+          const quoteMatch = lineContent.match(/^(\s*)(>+\s*)(.*)/);
+          if (quoteMatch) {
+            const indent = quoteMatch[1] || '';
+            const quotes = quoteMatch[2] || '> ';
+            const text = quoteMatch[3] || '';
+            edits.push({
+              range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+              text: `${indent}> [!${alertType}]\n${indent}${quotes}${text}`,
+              forceMoveMarkers: true
+            });
           } else {
-            newQuotes = '> ';
+            const indentMatch = lineContent.match(/^(\s*)(.*)/);
+            const indent = indentMatch ? indentMatch[1] : '';
+            const text = indentMatch ? indentMatch[2] : lineContent;
+            edits.push({
+              range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+              text: `${indent}> [!${alertType}]\n${indent}> ${text}`,
+              forceMoveMarkers: true
+            });
           }
         } else {
-          let targetListSymbol = '';
+          // 둘째 줄 이후: 인용구(> ) 유지 또는 부여
+          const quoteMatch = lineContent.match(/^(\s*)(>+\s*)(.*)/);
+          if (!quoteMatch) {
+            const indentMatch = lineContent.match(/^(\s*)(.*)/);
+            const indent = indentMatch ? indentMatch[1] : '';
+            const text = indentMatch ? indentMatch[2] : lineContent;
+            edits.push({
+              range: new (window as any).monaco.Range(i, 1, i, lineContent.length + 1),
+              text: `${indent}> ${text}`,
+              forceMoveMarkers: true
+            });
+          }
+        }
+      }
+    } else {
+      // 기존 일반 prefix 처리 (orderedList, list, check, 일반 quote)
+      for (let i = startLine; i <= endLine; i++) {
+        const lineContent = model.getLineContent(i);
+        const match = lineContent.match(/^(\s*)(>+\s*)?((?:- \[[ xX]\]|[-*+]|\d+\.)\s+)?(.*)/);
+
+        if (match) {
+          const indent = match[1] || '';
+          const quotes = match[2] || '';
+          const listSymbol = match[3] || '';
+          const text = match[4] || '';
+
+          let newQuotes = quotes;
+          let newListSymbol = listSymbol;
+
+          if (prefixType === 'quote') {
+            if (quotes) {
+              newQuotes = '>' + quotes;
+            } else {
+              newQuotes = '> ';
+            }
+          } else {
+            let targetListSymbol = '';
+            if (prefixType === 'orderedList') {
+              targetListSymbol = `${counter}. `;
+              counter++;
+            } else if (prefixType === 'list') {
+              targetListSymbol = '- ';
+            } else if (prefixType === 'check') {
+              targetListSymbol = '- [ ] ';
+            }
+
+            if (listSymbol) {
+              newListSymbol = targetListSymbol;
+            } else {
+              newListSymbol = targetListSymbol;
+            }
+          }
+
+          const textStartIndex = lineContent.length - text.length;
+          const newPrefix = `${indent}${newQuotes}${newListSymbol}`;
+
+          edits.push({
+            range: new (window as any).monaco.Range(i, 1, i, textStartIndex + 1),
+            text: newPrefix,
+            forceMoveMarkers: true
+          });
+        } else {
+          let fallbackPrefix = '';
           if (prefixType === 'orderedList') {
-            targetListSymbol = `${counter}. `;
+            fallbackPrefix = `${counter}. `;
             counter++;
           } else if (prefixType === 'list') {
-            targetListSymbol = '- ';
+            fallbackPrefix = '- ';
+          } else if (prefixType === 'quote') {
+            fallbackPrefix = '> ';
           } else if (prefixType === 'check') {
-            targetListSymbol = '- [ ] ';
+            fallbackPrefix = '- [ ] ';
           }
 
-          if (listSymbol) {
-            newListSymbol = targetListSymbol;
-          } else {
-            newListSymbol = targetListSymbol;
-          }
+          edits.push({
+            range: new (window as any).monaco.Range(i, 1, i, 1),
+            text: fallbackPrefix,
+            forceMoveMarkers: true
+          });
         }
-
-        const textStartIndex = lineContent.length - text.length;
-        const newPrefix = `${indent}${newQuotes}${newListSymbol}`;
-
-        edits.push({
-          range: new (window as any).monaco.Range(i, 1, i, textStartIndex + 1),
-          text: newPrefix,
-          forceMoveMarkers: true
-        });
-      } else {
-        let fallbackPrefix = '';
-        if (prefixType === 'orderedList') {
-          fallbackPrefix = `${counter}. `;
-          counter++;
-        } else if (prefixType === 'list') {
-          fallbackPrefix = '- ';
-        } else if (prefixType === 'quote') {
-          fallbackPrefix = '> ';
-        } else if (prefixType === 'check') {
-          fallbackPrefix = '- [ ] ';
-        }
-
-        edits.push({
-          range: new (window as any).monaco.Range(i, 1, i, 1),
-          text: fallbackPrefix,
-          forceMoveMarkers: true
-        });
       }
     }
 
@@ -5316,7 +5393,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'h2': wrapSelection('## ', '', ''); break;
       case 'h3': wrapSelection('### ', '', ''); break;
       case 'quote': applyLinePrefix('quote'); break;
-      case 'code': insertBlockTag('```', '```', ''); break;
+      case 'code': insertBlockTag('```markdown', '```', '코드'); break;
     }
     editor.focus();
   };
@@ -5621,7 +5698,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'HR': handlers.hr(); break;
       case 'ORDERED_LIST': handlers.orderedList(); break;
       case 'LIST': handlers.list(); break;
-      case 'QUOTE': handlers.quote(); break;
+      case 'QUOTE': handlers.quote(payload); break;
+      case 'QUOTE_NOTE': handlers.quote('NOTE'); break;
+      case 'QUOTE_TIP': handlers.quote('TIP'); break;
+      case 'QUOTE_IMPORTANT': handlers.quote('IMPORTANT'); break;
+      case 'QUOTE_WARNING': handlers.quote('WARNING'); break;
+      case 'QUOTE_CAUTION': handlers.quote('CAUTION'); break;
       case 'CHECK':
       case 'CHECKLIST': handlers.check(); break;
       case 'ERASER':
@@ -5719,6 +5801,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       orderedList: 'ORDERED_LIST',
       list: 'LIST',
       quote: 'QUOTE',
+      quoteNote: 'QUOTE_NOTE',
+      quoteTip: 'QUOTE_TIP',
+      quoteImportant: 'QUOTE_IMPORTANT',
+      quoteWarning: 'QUOTE_WARNING',
+      quoteCaution: 'QUOTE_CAUTION',
       checklist: 'CHECKLIST',
       clear: 'REMOVE_PREFIX',  // id는 clear이지만 커맨드는 REMOVE_PREFIX
       cleanDoc: 'CLEAN_DOC',
@@ -6871,7 +6958,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           automaticLayout: true,
                           fontSize,
                           lineHeight: 1.7, // 시원한 줄간격 유지 (세련됨)
-                          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+                          fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif",
                           fontLigatures: false, // 글자 폭 계산 오차를 유발할 수 있는 합자(Ligature) 기능 해제
                           letterSpacing: 0,
                           // 🎯 커서 항상 가시성 보장 (단독/분할 모드 공통)
@@ -7198,7 +7285,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('HR'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="구분선">—</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ORDERED_LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="숫자 목록">🔢</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="글머리 기호">☰</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="인용구">❝</button>
+                                     <div className="relative inline-flex items-center rounded border border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-800/50">
+                                       <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setIsFloatingQuoteDropdownOpen(false); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-6 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded-l transition-all flex items-center justify-center text-[12px]" title="인용구 (기본)">❝</button>
+                                       <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setIsFloatingQuoteDropdownOpen(prev => !prev); }} className="w-3.5 h-7 hover:bg-black/10 dark:hover:bg-white/10 rounded-r transition-all flex items-center justify-center text-[7px] text-zinc-500 dark:text-zinc-400" title="인용구 스타일/Alert 태그 선택">▼</button>
+                                       {isFloatingQuoteDropdownOpen && (
+                                         <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full left-0 mt-1 w-44 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50 flex flex-col">
+                                           {[
+                                             { id: 'QUOTE', label: '일반 인용구', icon: '❝' },
+                                             { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️' },
+                                             { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡' },
+                                             { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢' },
+                                             { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️' },
+                                             { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🛑' },
+                                           ].map((opt) => (
+                                             <button
+                                               key={opt.id}
+                                               onMouseDown={(e) => {
+                                                 e.preventDefault();
+                                                 dispatchCommand(opt.id as any);
+                                                 setIsFloatingQuoteDropdownOpen(false);
+                                                 setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                               }}
+                                               className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
+                                             >
+                                               <span className="text-sm shrink-0">{opt.icon}</span>
+                                               <span className="font-semibold text-zinc-800 dark:text-zinc-200">{opt.label}</span>
+                                             </button>
+                                           ))}
+                                         </div>
+                                       )}
+                                     </div>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CHECK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="체크리스트">☑️</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="태그 취소"><Eraser size={14} className="text-red-500 opacity-80 hover:opacity-100" /></button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="문서 서식 일괄 정리">🧹</button>

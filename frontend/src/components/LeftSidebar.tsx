@@ -23,9 +23,11 @@ import { loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-11** — 좌측 사이드바 폰트를 Pretendard 최우선으로 일원화 적용
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-06** — [데스크톱 탐색기 📗 지식 문서 뱃지 복원] effectiveResourceFolder 결정 시 loadSecureData 복호화 및 Onrivi_Asset 기본값 폴백을 완비하여 데스크톱 환경에서 등록된 지식 문서 4건이 탐색기에 즉시 📗 뱃지로 노출되도록 보장
 //             **2026-09-06** — [AES 암호문 리소스 폴더 방어 및 지식 문서 동기화 안전 정규화] localStorage.getItem 직접 호출로 암호문(U2FsdGVkX1...)이 전달되어 가짜 DB가 생성되던 결함을 차단하고 loadSecureData 복호화 및 Onrivi_Asset 안전 폴더 정규화 적용
+//             **2026-09-12** — [Modern Technical Editorial LNB 탭 버튼 디자인 표준화] 상단 탭 버튼(탐색기/개요/검색)의 활성 상태 배경을 Cobalt Authority(#1d4ed8) 및 8px 라운드 뱃지로 정돈하고 Pretendard 글꼴 완벽 유지
 //             **2026-09-06** — [지식 문서 목록 조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 listDocuments에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 탐색기 📗 뱃지가 로컬 DB와 100% 동일하게 동기화되도록 보장
 //             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 문서 뱃지 실시간 동기화 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db로부터 등록 문서 목록을 읽어와 탐색기 📗 뱃지를 실시간으로 완벽 동기화
 //             **2026-09-06** — [localhost 지식 베이스 동기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 /api/knowledge/list를 통한 지식 문서 및 📗 뱃지 동기화를 활성화하고, 실서버 prod 웹에서만 안전하게 스킵 처리
@@ -1017,22 +1019,22 @@ export default function LeftSidebar() {
       <aside 
         style={{ 
           width: sidebarWidth,
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+          fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif",
         }} 
         className="flex flex-col border-r border-slate-300 dark:border-zinc-700 select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-sm"
       >
-        {/* 탭 헤더 */}
-        <div className="h-10 border-b border-slate-300 dark:border-zinc-700 flex items-center px-2 bg-white/75 dark:bg-black/30 backdrop-blur-md justify-between">
+        {/* 탭 헤더 (Modern Technical Editorial - Cobalt Authority & Hairline) */}
+        <div className="h-10 border-b border-[#E2E8F0] dark:border-slate-800 flex items-center px-2 bg-white/70 dark:bg-slate-900/50 backdrop-blur-md justify-between">
           <div className="flex gap-1.5 w-full">
             <button
               onClick={() => {
                 setSidebarTab('explorer');
                 setIsSearchOpen(false);
               }}
-              className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
+              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
                 sidebarTab === 'explorer' 
-                  ? 'bg-gradient-to-r from-[#1d4ed8] to-[#1e40af] text-white font-bold shadow-sm shadow-[#1d4ed8]/30' 
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+                  ? 'bg-[#1d4ed8] text-white shadow-xs font-black' 
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
               }`}
             >
               📂 탐색기
@@ -1042,10 +1044,10 @@ export default function LeftSidebar() {
                 setSidebarTab('toc');
                 setIsSearchOpen(false);
               }}
-              className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
+              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
                 sidebarTab === 'toc' 
-                  ? 'bg-gradient-to-r from-[#1d4ed8] to-[#1e40af] text-white font-bold shadow-sm shadow-[#1d4ed8]/30' 
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+                  ? 'bg-[#1d4ed8] text-white shadow-xs font-black' 
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
               }`}
             >
               📝 개요
@@ -1055,10 +1057,10 @@ export default function LeftSidebar() {
                 setSidebarTab('search');
                 setIsSearchOpen(true);
               }}
-              className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
+              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
                 sidebarTab === 'search' 
-                  ? 'bg-gradient-to-r from-[#1d4ed8] to-[#1e40af] text-white font-bold shadow-sm shadow-[#1d4ed8]/30' 
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
+                  ? 'bg-[#1d4ed8] text-white shadow-xs font-black' 
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
               }`}
             >
               🔍 검색

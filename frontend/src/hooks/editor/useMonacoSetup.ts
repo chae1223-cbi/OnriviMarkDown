@@ -4,7 +4,10 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
-// 🚨 @PATCH : 2026-09-11 - [리스트(숫자/글머리/체크/인용) 본문 중간 Tab/Shift+Tab 커서 위치 분기 정밀 보정] 리스트 항목 본문 텍스트 중간에서 Tab 입력 시 해당 행 전체가 들여쓰기되던 버그를 해결하여, 커서가 리스트 마커 접두사(prefix) 구간 내에 있을 때만 행 전체 들여쓰기/내어쓰기가 동작하고 본문 텍스트 중간에서는 들여쓰기가 아닌 일반 탭 공백(tabSize 스페이스)이 커서 위치에 자연스럽게 삽입되도록 개편
+// 🚨 @PATCH : 2026-09-11 - [코드블록 슬래시 커맨드/단축키 언어 자동 선택 연동] trigger-custom-action 비동기 타이밍 보정(10ms)으로 슬래시 커맨드(/code) 입력 후 코드블록 삽입 시 언어명(javascript) 자동 선택 정상 발화 보장
+//             2026-09-11 - [찾기/바꾸기(Ctrl+F, Ctrl+H) 활성 시 ESC 클릭으로 위젯 닫기 및 포커스 복원] findInput/replaceInput 및 에디터 키바인딩에서 ESC 입력 시 찾기/바꾸기 위젯을 즉시 닫고 에디터로 포커스 복귀 연동
+//             2026-09-11 - [찾기/바꾸기(Ctrl+F, Ctrl+H) 실행 시 즉시 위젯 입력창 포커스 및 엔터 다음 찾기 보장] custom-enter-list-auto precondition 격리 및 openAndFocusFindWidget 연동으로 검색어 입력 후 Enter 입력 시 즉시 '다음 찾기' 작동
+//             2026-09-11 - [리스트(숫자/글머리/체크/인용) 본문 중간 Tab/Shift+Tab 커서 위치 분기 정밀 보정] 리스트 항목 본문 텍스트 중간에서 Tab 입력 시 해당 행 전체가 들여쓰기되던 버그를 해결하여, 커서가 리스트 마커 접두사(prefix) 구간 내에 있을 때만 행 전체 들여쓰기/내어쓰기가 동작하고 본문 텍스트 중간에서는 들여쓰기가 아닌 일반 탭 공백(tabSize 스페이스)이 커서 위치에 자연스럽게 삽입되도록 개편
 //             2026-09-06 - [에디터-미리보기 하이라이트 동기화 완결] onMouseDown 시 클릭된 행 번호로 즉시 setActiveLine/setCursorLine을 동기화하고, onDidChangeCursorPosition에서 hasLineChanged 가드로 인해 RAF 이벤트 병합 시 activeLine 갱신이 누락되던 버그를 제거하여 마우스 클릭/방향키/타이핑 시 에디터와 미리보기 하이라이트 위치가 항상 100% 동일하게 일치하도록 보장
 //             2026-09-05 - [커서 이동 시 Race Condition 완전 차단] cursorSyncLock(150ms) 도입: syncPreviewFromCursor 실행 직후 Monaco 자동 스크롤로 발화되는 onDidScrollChange → syncPreviewFromEditorScroll이 syncPreviewToTargetLine 결과를 덮어쓰던 Race Condition을 이벤트 핸들러 레벨에서 원천 봉쇄; onDidChangeCursorPosition에서 isNearEnd(마지막 줄 부근) 감지 시 항상 syncPreviewFromCursor 강제 실행
 //             2026-09-05 - [마지막 행 및 긴 문단 가로 줄바꿈 타이핑 시 실시간 상향 추종] onDidChangeModelContent에서 타이머 캔슬링으로 인한 타이핑 중 스크롤 멈춤 결함을 단일 RAF 스케줄링 및 컬럼 파라미터 전달로 전면 개선; 동일 행 내 장문 문단 타이핑(hasWrappedRowChanged, 컬럼 이동) 시에도 syncPreviewFromCursor가 가로 줄바꿈을 감지하여 엔터 2회 없이 즉각 미리보기 하단이 밀려 올라가도록 완전 해결
@@ -30,6 +33,7 @@
 // ====================================================================
 import { useRef } from 'react';
 import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from '@/lib/syncEngine';
+import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 
 export function useMonacoSetup(deps: any) {
   const handleMount = (editor: any, monaco: any) => {
@@ -566,10 +570,11 @@ export function useMonacoSetup(deps: any) {
                   if (!(monaco.editor as any)._customActionCommandRegistered) {
                     (monaco.editor as any)._customActionCommandRegistered = true;
                     (monaco.editor as any).registerCommand('trigger-custom-action', (accessor: any, actionId: string) => {
-console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
-                      if (typeof window !== 'undefined' && (window as any).dispatchEditorCommand) {
-                        (window as any).dispatchEditorCommand(actionId);
-                      }
+                      setTimeout(() => {
+                        if (typeof window !== 'undefined' && (window as any).dispatchEditorCommand) {
+                          (window as any).dispatchEditorCommand(actionId);
+                        }
+                      }, 10);
                     });
                   }
 
@@ -625,12 +630,27 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                     } catch (_) {}
                   };
 
-                  // ESC 키 입력 시 슬래시 제안 목록 즉시 강제 종료 커맨드 등록
-                  editor.addCommand(monaco.KeyCode.Escape, closeSuggestWidget);
+                  const handleEscape = () => {
+                    // 1. 찾기/바꾸기 위젯이 열려 있으면 찾기 위젯 먼저 닫고 에디터 포커스
+                    try {
+                      const findCtrl = editor.getContribution('editor.contrib.findController') as any;
+                      if (findCtrl?.getState?.()?.isRevealed) {
+                        findCtrl.closeFindWidget();
+                        editor.focus();
+                        return;
+                      }
+                    } catch (_) {}
+
+                    // 2. 슬래시 자동완성 팝업 닫기
+                    closeSuggestWidget();
+                  };
+
+                  // ESC 키 입력 시 커맨드 등록
+                  editor.addCommand(monaco.KeyCode.Escape, handleEscape);
 
                   editor.onKeyUp((e) => {
                     if (e.keyCode === monaco.KeyCode.Escape || e.browserEvent?.key === 'Escape') {
-                      closeSuggestWidget();
+                      handleEscape();
                       return;
                     }
 
@@ -1221,8 +1241,17 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                     label: '리스트 자동완성 (Enter)',
                     keybindings: [monaco.KeyCode.Enter],
                     // suggestWidgetVisible = true 이면 이 액션 발동 안됨 → Monaco 기본 Enter(자동완성 수락)에 양보
-                    precondition: '!suggestWidgetVisible && !editorReadonly',
+                    // findWidgetVisible = true 이면 찾기 위젯의 '다음 찾기(Find Next)'에 양보
+                    precondition: 'editorTextFocus && !findWidgetVisible && !suggestWidgetVisible && !editorReadonly',
                     run: () => {
+                      // ⓪ 만약 찾기/바꾸기 위젯이 표시 중이면 리스트 개행을 실행하지 않고 종료
+                      try {
+                        const findCtrl = editor.getContribution('editor.contrib.findController') as any;
+                        if (findCtrl?.getState?.()?.isRevealed) {
+                          return;
+                        }
+                      } catch (_) {}
+
                       // ① 자동완성 위젯이 열려 있으면 Enter = 자동완성 항목 수락
                       try {
                         const suggestCtrl = editor.getContribution('editor.contrib.suggestController') as any;
@@ -1494,6 +1523,15 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                     });
                   });
 
+                  // 🔍 [찾기/바꾸기 즉시 포커스 및 엔터 탐색 가드]
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
+                    openAndFocusFindWidget(editor, false);
+                  });
+
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyH, () => {
+                    openAndFocusFindWidget(editor, true);
+                  });
+
                   // 💡 [테마 적용 안전장치] 마운트 시점에 수동으로 모든 테마를 다시 정의하고 강제 적용
                   EDITOR_THEMES.forEach(t => {
                     const isDark = t.base === 'vs-dark';
@@ -1662,7 +1700,7 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                   // 💡 [Enter 즉시 새 행 가시성 확보 및 자동 저장 트리거]
                   editor.onKeyDown((e) => {
                     if (e.keyCode === monaco.KeyCode.Escape || e.browserEvent?.key === 'Escape') {
-                      closeSuggestWidget();
+                      handleEscape();
                     } else if (
                       e.keyCode !== monaco.KeyCode.Shift && 
                       e.keyCode !== monaco.KeyCode.Ctrl && 
