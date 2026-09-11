@@ -2,7 +2,7 @@
 // 📊 [OMD-EDIT-markdownCleaner-0001 ✅ FIXED] markdownCleaner.ts ➔ cleanMarkdownDocument
 // 🎯 @KICK  : 마크다운 문서 내 서식 및 문법을 지능적으로 교정하고 표를 수직 정렬하는 뷰티파이어 엔진
 // 🛡️ @GUARD : 코드블록/수식/Frontmatter 마스킹 보호, 동아시아 문자 폭 계산, 실행 취소 안전성 보장
-// 🚨 @PATCH : **2026-09-11** — 코드/수식/프론트매터 마스킹, 표 수직 열맞춤(Pretty Table), 헤딩/인용구 공백 자동 교정, HTML 태그 마크다운 변환, 세부 통계 수집 기능 통합 신설
+// 🚨 @PATCH : **2026-09-11** — 에디터 줄바꿈(Word Wrap) 가독성을 위해 과대 하이픈 및 패딩 공백을 최소화하여 단정한 컴팩트 표(formatCompactMarkdownTable)로 축소 정돈; 코드/수식/프론트매터 마스킹, 헤딩/인용구 공백 자동 교정, HTML 태그 마크다운 변환, 세부 통계 수집 기능 통합 신설
 // 🔗 @CALLS : formatMarkdownTables
 // ====================================================================
 
@@ -80,9 +80,10 @@ export function padStringToDisplayWidth(
 }
 
 /**
- * 마크다운 표 텍스트 블록을 에디터에서 세로선(|)이 수직으로 딱 맞도록 정렬
+ * 마크다운 표 텍스트 블록을 에디터에서 줄바꿈(Word Wrap) 시 지저분하게 늘어나지 않도록
+ * 불필요하게 늘어난 하이픈(---)과 셀 여백을 최소화하여 단정하고 컴팩트하게 축소 정리
  */
-export function formatPrettyMarkdownTable(tableLines: string[]): { formatted: string; isModified: boolean } {
+export function formatCompactMarkdownTable(tableLines: string[]): { formatted: string; isModified: boolean } {
   if (tableLines.length < 2) {
     return { formatted: tableLines.join('\n'), isModified: false };
   }
@@ -111,70 +112,38 @@ export function formatPrettyMarkdownTable(tableLines: string[]): { formatted: st
     return { formatted: tableLines.join('\n'), isModified: false };
   }
 
-  // 열 개수 통일 (최대 열 수 기준)
-  let maxCols = 0;
-  for (const row of rowsCells) {
-    if (row.length > maxCols) maxCols = row.length;
-  }
-
-  for (const row of rowsCells) {
-    while (row.length < maxCols) {
-      row.push('');
-    }
-  }
-
-  // 2. 각 열의 정렬 방식 및 최대 디스플레이 너비 계산
-  const alignments: ('left' | 'right' | 'center')[] = [];
+  // 2. 구분선 행의 정렬 방식 추출 및 최대 열 수 계산
   const dividerRow = rowsCells[dividerIndex];
+  const maxCols = Math.max(...rowsCells.map(r => r.length));
 
-  for (let col = 0; col < maxCols; col++) {
-    const dCell = dividerRow[col] || '---';
-    const left = dCell.startsWith(':');
-    const right = dCell.endsWith(':');
-    if (left && right) {
-      alignments.push('center');
-    } else if (right) {
-      alignments.push('right');
-    } else {
-      alignments.push('left');
-    }
-  }
-
-  const colWidths: number[] = new Array(maxCols).fill(3); // 최소 3 (--- 기본)
-  for (let r = 0; r < rowsCells.length; r++) {
-    if (r === dividerIndex) continue;
-    for (let c = 0; c < maxCols; c++) {
-      const w = getStringDisplayWidth(rowsCells[r][c]);
-      if (w > colWidths[c]) {
-        colWidths[c] = w;
-      }
-    }
-  }
-
-  // 3. 예쁘게 패딩된 표 행 빌드
+  // 3. 컴팩트 슬림 표 빌드 (불필요한 과대 공백/하이픈 제거)
   const resultLines: string[] = [];
   for (let r = 0; r < rowsCells.length; r++) {
     if (r === dividerIndex) {
-      // 구분선 행 포맷팅
-      const divCells = colWidths.map((w, c) => {
-        const align = alignments[c];
-        if (align === 'center') {
-          return ':' + '-'.repeat(Math.max(1, w - 2)) + ':';
-        } else if (align === 'right') {
-          return '-'.repeat(Math.max(2, w - 1)) + ':';
-        } else if (dividerRow[c]?.startsWith(':')) {
-          return ':' + '-'.repeat(Math.max(2, w - 1));
+      const divCells: string[] = [];
+      for (let c = 0; c < maxCols; c++) {
+        const dCell = dividerRow[c] || '---';
+        const left = dCell.startsWith(':');
+        const right = dCell.endsWith(':');
+        if (left && right) {
+          divCells.push(':---:');
+        } else if (right) {
+          divCells.push('---:');
+        } else if (left) {
+          divCells.push(':---');
         } else {
-          return '-'.repeat(w);
+          divCells.push('---');
         }
-      });
+      }
       resultLines.push('| ' + divCells.join(' | ') + ' |');
     } else {
-      // 일반 데이터 행 포맷팅
-      const rowCells = rowsCells[r].map((cell, c) => {
-        return padStringToDisplayWidth(cell, colWidths[c], alignments[c]);
-      });
-      resultLines.push('| ' + rowCells.join(' | ') + ' |');
+      const row = rowsCells[r];
+      const cleanRow: string[] = [];
+      for (let c = 0; c < maxCols; c++) {
+        const cell = row[c] ? row[c].replace(/[ \t]+/g, ' ') : '';
+        cleanRow.push(cell);
+      }
+      resultLines.push('| ' + cleanRow.join(' | ') + ' |');
     }
   }
 
@@ -182,6 +151,9 @@ export function formatPrettyMarkdownTable(tableLines: string[]): { formatted: st
   const isModified = formatted !== tableLines.join('\n');
   return { formatted, isModified };
 }
+
+// 하위 호환성 유지용 별칭
+export const formatPrettyMarkdownTable = formatCompactMarkdownTable;
 
 /**
  * 텍스트 전체에서 마크다운 표 블록들을 찾아 예쁘게 수직 정렬 수행
@@ -196,7 +168,7 @@ export function formatAllMarkdownTablesInText(text: string): { result: string; c
 
   const flushTableBuffer = () => {
     if (tableBuffer.length === 0) return;
-    const { formatted, isModified } = formatPrettyMarkdownTable(tableBuffer);
+    const { formatted, isModified } = formatCompactMarkdownTable(tableBuffer);
     if (isModified) {
       formatCount++;
     }
@@ -411,7 +383,7 @@ export function cleanMarkdownDocument(
 
   // 요약 메시지 구성
   const summaryParts: string[] = [];
-  if (stats.tablesFormatted > 0) summaryParts.push(`표 ${stats.tablesFormatted}개 정렬`);
+  if (stats.tablesFormatted > 0) summaryParts.push(`표 ${stats.tablesFormatted}개 축소 정돈`);
   if (stats.headingsFixed > 0) summaryParts.push(`제목 ${stats.headingsFixed}곳 교정`);
   if (stats.quotesFixed > 0) summaryParts.push(`인용구 ${stats.quotesFixed}곳 교정`);
   if (stats.htmlConverted > 0) summaryParts.push(`HTML ${stats.htmlConverted}개 변환`);

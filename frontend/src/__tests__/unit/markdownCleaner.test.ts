@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   cleanMarkdownDocument,
+  formatCompactMarkdownTable,
   formatPrettyMarkdownTable,
   getStringDisplayWidth,
   padStringToDisplayWidth,
@@ -21,24 +22,21 @@ describe('markdownCleaner - Unit Tests', () => {
     });
   });
 
-  describe('Pretty Table Alignment', () => {
-    it('formats unaligned markdown table into vertically aligned columns', () => {
-      const unaligned = [
-        '| 이름 | 직업 | 비고 |',
-        '| :--- | :---: | ---: |',
-        '| 홍길동 | 의적 | 조선시대 |',
-        '| Lee | Developer | Fullstack |',
+  describe('Compact Table Formatting', () => {
+    it('formats unaligned or bloated markdown table into slim compact format without wrapping lines', () => {
+      const bloated = [
+        '| 구분 | 단원 | 내용 |',
+        '| ---------------------------------- | ----------------------------------- | ---------------------------------------------------- |',
+        '| 국세기본법 | 01. 총칙 | 긴 설명 내용입니다. |',
       ];
 
-      const { formatted, isModified } = formatPrettyMarkdownTable(unaligned);
+      const { formatted, isModified } = formatCompactMarkdownTable(bloated);
       expect(isModified).toBe(true);
 
       const lines = formatted.split('\n');
-      expect(lines.length).toBe(4);
-      // All lines should have consistent vertical pipes
-      expect(lines[0].startsWith('|')).toBe(true);
-      expect(lines[0].endsWith('|')).toBe(true);
-      expect(lines[1].includes(':---')).toBe(true);
+      expect(lines.length).toBe(3);
+      expect(lines[1]).toBe('| --- | --- | --- |');
+      expect(lines[2]).toBe('| 국세기본법 | 01. 총칙 | 긴 설명 내용입니다. |');
     });
   });
 
