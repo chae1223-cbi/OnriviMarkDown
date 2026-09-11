@@ -9,6 +9,7 @@ import { updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { supabase } from '@/lib/supabaseClient';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { triggerKnowledgeAutoSyncOnSave } from '@/lib/knowledge/knowledgeAutoSync';
+import { cleanMarkdownDocument } from '@/utils/markdownCleaner';
 
 /**
  * [ONR-16-004] useEditorHandlers 커스텀 훅
@@ -330,11 +331,11 @@ export const useEditorHandlers = ({
       editorRef.current.focus();
     },
     // ====================================================================
-    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0011] useEditorHandlers.ts ➔ cleanDoc
-    // 🎯 @KICK  : 문서 내 HTML 브레이크 태그 등을 일괄 정리하여 순수 마크다운 유지
-    // 🛡️ @GUARD : editorRef 존재 여부, 정리할 내용이 없으면 안내 메시지
-    // 🚨 @PATCH : 없음
-    // 🔗 @CALLS : sanitizePastedText, showToast
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0011 ✅ FIXED] useEditorHandlers.ts ➔ cleanDoc
+    // 🎯 @KICK  : 문서 내 마크다운 서식(코드/수식 마스킹, 표 정렬, 헤딩/인용구 공백, HTML 변환) 지능형 일괄 정리
+    // 🛡️ @GUARD : editorRef 존재 여부, 드래그 선택 영역(Selection) 부분 정리 분기, 정리할 내용이 없으면 안내
+    // 🚨 @PATCH : **2026-09-11** — cleanMarkdownDocument 전면 연동: 코드/수식/Frontmatter 마스킹 보호, 표 수직 줄맞춤(Pretty Table), 헤딩/인용구 공백 교정, HTML 마크다운 변환, 드래그 선택 영역 부분 정리 및 상세 통계 토스트 안내 탑재
+    // 🔗 @CALLS : cleanMarkdownDocument, showToast
     // ====================================================================
     cleanDoc: () => {
       if (!editorRef.current) return;
@@ -347,18 +348,42 @@ export const useEditorHandlers = ({
       }
       isComposingRef.current = false;
 
-      const text = editor.getValue();
-      const cleanedText = sanitizePastedText(text, true);
-      if (text !== cleanedText) {
-        editor.pushUndoStop();
-        editor.executeEdits("cleanDoc", [{
-          range: editor.getModel().getFullModelRange(),
-          text: cleanedText
-        }]);
-        editor.pushUndoStop();
-        showToast("문서 내 서식(<br> 태그 등)이 일괄 정리되었습니다.", "success");
+      const model = editor.getModel();
+      if (!model) return;
+
+      const selection = editor.getSelection();
+      const isRangeSelected = selection && !selection.isEmpty();
+
+      if (isRangeSelected) {
+        const text = model.getValueInRange(selection);
+        const result = cleanMarkdownDocument(text);
+
+        if (result.isModified) {
+          editor.pushUndoStop();
+          editor.executeEdits("cleanDoc", [{
+            range: selection,
+            text: result.cleanedText
+          }]);
+          editor.pushUndoStop();
+          showToast(`선택 영역 ${result.summaryMessage}`, "success");
+        } else {
+          showToast("선택 영역에 정리할 서식이 없습니다.", "info");
+        }
       } else {
-        showToast("정리할 서식이 없습니다.", "info");
+        const text = editor.getValue();
+        const result = cleanMarkdownDocument(text);
+
+        if (result.isModified) {
+          editor.pushUndoStop();
+          editor.executeEdits("cleanDoc", [{
+            range: model.getFullModelRange(),
+            text: result.cleanedText
+          }]);
+          editor.pushUndoStop();
+          showToast(result.summaryMessage, "success");
+        } else {
+          showToast("정리할 서식이 없습니다.", "info");
+        }
       }
     },
     // ====================================================================

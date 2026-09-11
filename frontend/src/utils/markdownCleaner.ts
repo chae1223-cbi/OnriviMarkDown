@@ -1,0 +1,434 @@
+// ====================================================================
+// 📊 [OMD-EDIT-markdownCleaner-0001 ✅ FIXED] markdownCleaner.ts ➔ cleanMarkdownDocument
+// 🎯 @KICK  : 마크다운 문서 내 서식 및 문법을 지능적으로 교정하고 표를 수직 정렬하는 뷰티파이어 엔진
+// 🛡️ @GUARD : 코드블록/수식/Frontmatter 마스킹 보호, 동아시아 문자 폭 계산, 실행 취소 안전성 보장
+// 🚨 @PATCH : **2026-09-11** — 코드/수식/프론트매터 마스킹, 표 수직 열맞춤(Pretty Table), 헤딩/인용구 공백 자동 교정, HTML 태그 마크다운 변환, 세부 통계 수집 기능 통합 신설
+// 🔗 @CALLS : formatMarkdownTables
+// ====================================================================
+
+export interface CleanStats {
+  tablesFormatted: number;
+  headingsFixed: number;
+  quotesFixed: number;
+  htmlConverted: number;
+  brCollapsed: number;
+  linesReduced: number;
+}
+
+export interface CleanResult {
+  cleanedText: string;
+  isModified: boolean;
+  stats: CleanStats;
+  summaryMessage: string;
+}
+
+export interface CleanOptions {
+  formatTables?: boolean;
+  fixHeadings?: boolean;
+  fixQuotes?: boolean;
+  convertHtmlTags?: boolean;
+  cleanExcessiveNewlines?: boolean;
+}
+
+/**
+ * 동아시아 문자(한글, 한자, 전각 기호 등)의 시각적 너비를 2, 일반 반각 문자를 1로 계산
+ */
+export function getStringDisplayWidth(str: string): number {
+  let width = 0;
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    // 한글 음절, 한글 자모, 한자, CJK 기호, 전각 기호 범위
+    if (
+      (code >= 0x1100 && code <= 0x115f) ||
+      (code >= 0x2e80 && code <= 0xa4cf) ||
+      (code >= 0xac00 && code <= 0xd7a3) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe10 && code <= 0xfe19) ||
+      (code >= 0xfe30 && code <= 0xfe6f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6)
+    ) {
+      width += 2;
+    } else {
+      width += 1;
+    }
+  }
+  return width;
+}
+
+/**
+ * 지정된 디스플레이 너비에 맞춰 텍스트 앞뒤에 공백을 채워 정렬
+ */
+export function padStringToDisplayWidth(
+  str: string,
+  targetWidth: number,
+  align: 'left' | 'right' | 'center' = 'left'
+): string {
+  const currentWidth = getStringDisplayWidth(str);
+  const diff = targetWidth - currentWidth;
+  if (diff <= 0) return str;
+
+  if (align === 'right') {
+    return ' '.repeat(diff) + str;
+  } else if (align === 'center') {
+    const leftPad = Math.floor(diff / 2);
+    const rightPad = diff - leftPad;
+    return ' '.repeat(leftPad) + str + ' '.repeat(rightPad);
+  } else {
+    return str + ' '.repeat(diff);
+  }
+}
+
+/**
+ * 마크다운 표 텍스트 블록을 에디터에서 세로선(|)이 수직으로 딱 맞도록 정렬
+ */
+export function formatPrettyMarkdownTable(tableLines: string[]): { formatted: string; isModified: boolean } {
+  if (tableLines.length < 2) {
+    return { formatted: tableLines.join('\n'), isModified: false };
+  }
+
+  // 1. 각 행 파싱
+  const rowsCells: string[][] = [];
+  let dividerIndex = -1;
+
+  for (let i = 0; i < tableLines.length; i++) {
+    const line = tableLines[i].trim();
+    if (!line.startsWith('|')) {
+      return { formatted: tableLines.join('\n'), isModified: false };
+    }
+    const inner = line.replace(/^\|/, '').replace(/\|$/, '');
+    const cells = inner.split('|').map(c => c.trim());
+    rowsCells.push(cells);
+
+    // 구분선 행 감지 (모든 셀이 --- 형태인지)
+    const isDivider = cells.length > 0 && cells.every(c => /^:?-+:?$/.test(c));
+    if (isDivider && dividerIndex === -1) {
+      dividerIndex = i;
+    }
+  }
+
+  if (dividerIndex === -1) {
+    return { formatted: tableLines.join('\n'), isModified: false };
+  }
+
+  // 열 개수 통일 (최대 열 수 기준)
+  let maxCols = 0;
+  for (const row of rowsCells) {
+    if (row.length > maxCols) maxCols = row.length;
+  }
+
+  for (const row of rowsCells) {
+    while (row.length < maxCols) {
+      row.push('');
+    }
+  }
+
+  // 2. 각 열의 정렬 방식 및 최대 디스플레이 너비 계산
+  const alignments: ('left' | 'right' | 'center')[] = [];
+  const dividerRow = rowsCells[dividerIndex];
+
+  for (let col = 0; col < maxCols; col++) {
+    const dCell = dividerRow[col] || '---';
+    const left = dCell.startsWith(':');
+    const right = dCell.endsWith(':');
+    if (left && right) {
+      alignments.push('center');
+    } else if (right) {
+      alignments.push('right');
+    } else {
+      alignments.push('left');
+    }
+  }
+
+  const colWidths: number[] = new Array(maxCols).fill(3); // 최소 3 (--- 기본)
+  for (let r = 0; r < rowsCells.length; r++) {
+    if (r === dividerIndex) continue;
+    for (let c = 0; c < maxCols; c++) {
+      const w = getStringDisplayWidth(rowsCells[r][c]);
+      if (w > colWidths[c]) {
+        colWidths[c] = w;
+      }
+    }
+  }
+
+  // 3. 예쁘게 패딩된 표 행 빌드
+  const resultLines: string[] = [];
+  for (let r = 0; r < rowsCells.length; r++) {
+    if (r === dividerIndex) {
+      // 구분선 행 포맷팅
+      const divCells = colWidths.map((w, c) => {
+        const align = alignments[c];
+        if (align === 'center') {
+          return ':' + '-'.repeat(Math.max(1, w - 2)) + ':';
+        } else if (align === 'right') {
+          return '-'.repeat(Math.max(2, w - 1)) + ':';
+        } else if (dividerRow[c]?.startsWith(':')) {
+          return ':' + '-'.repeat(Math.max(2, w - 1));
+        } else {
+          return '-'.repeat(w);
+        }
+      });
+      resultLines.push('| ' + divCells.join(' | ') + ' |');
+    } else {
+      // 일반 데이터 행 포맷팅
+      const rowCells = rowsCells[r].map((cell, c) => {
+        return padStringToDisplayWidth(cell, colWidths[c], alignments[c]);
+      });
+      resultLines.push('| ' + rowCells.join(' | ') + ' |');
+    }
+  }
+
+  const formatted = resultLines.join('\n');
+  const isModified = formatted !== tableLines.join('\n');
+  return { formatted, isModified };
+}
+
+/**
+ * 텍스트 전체에서 마크다운 표 블록들을 찾아 예쁘게 수직 정렬 수행
+ */
+export function formatAllMarkdownTablesInText(text: string): { result: string; count: number } {
+  if (!text.includes('|')) return { result: text, count: 0 };
+
+  const lines = text.split('\n');
+  const output: string[] = [];
+  let tableBuffer: string[] = [];
+  let formatCount = 0;
+
+  const flushTableBuffer = () => {
+    if (tableBuffer.length === 0) return;
+    const { formatted, isModified } = formatPrettyMarkdownTable(tableBuffer);
+    if (isModified) {
+      formatCount++;
+    }
+    output.push(formatted);
+    tableBuffer = [];
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // 표 행 판별: | 로 시작하고 | 가 최소 2개 이상 포함된 경우
+    const isTableLine = trimmed.startsWith('|') && (trimmed.match(/\|/g) || []).length >= 2;
+
+    if (isTableLine) {
+      tableBuffer.push(line);
+    } else {
+      flushTableBuffer();
+      output.push(line);
+    }
+  }
+
+  flushTableBuffer();
+  return { result: output.join('\n'), count: formatCount };
+}
+
+/**
+ * 마크다운 문서 서식 일괄 정리 메인 파이프라인
+ */
+export function cleanMarkdownDocument(
+  content: string,
+  options: CleanOptions = {}
+): CleanResult {
+  const {
+    formatTables = true,
+    fixHeadings = true,
+    fixQuotes = true,
+    convertHtmlTags = true,
+    cleanExcessiveNewlines = true,
+  } = options;
+
+  if (!content) {
+    return {
+      cleanedText: content,
+      isModified: false,
+      stats: {
+        tablesFormatted: 0,
+        headingsFixed: 0,
+        quotesFixed: 0,
+        htmlConverted: 0,
+        brCollapsed: 0,
+        linesReduced: 0,
+      },
+      summaryMessage: '정리할 서식이 없습니다.',
+    };
+  }
+
+  const stats: CleanStats = {
+    tablesFormatted: 0,
+    headingsFixed: 0,
+    quotesFixed: 0,
+    htmlConverted: 0,
+    brCollapsed: 0,
+    linesReduced: 0,
+  };
+
+  let working = content;
+
+  // -------------------------------------------------------------
+  // 1단계. 코드 블록, 수식 블록, YAML Frontmatter 마스킹 보호
+  // -------------------------------------------------------------
+  const masks: string[] = [];
+  const createMask = (raw: string): string => {
+    const token = `%%ONR_CLEAN_MASK_${masks.length}%%`;
+    masks.push(raw);
+    return token;
+  };
+
+  // 1-1. YAML Frontmatter 마스킹
+  working = working.replace(/^---[\s\S]*?---(?:\r?\n|$)/, match => createMask(match));
+
+  // 1-2. 펜스형 코드 블록 (``` 또는 ~~~) 마스킹
+  working = working.replace(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g, match => createMask(match));
+
+  // 1-3. 디스플레이 수식 블록 ($$ ... $$) 마스킹
+  working = working.replace(/\$\$[\s\S]*?\$\$/g, match => createMask(match));
+
+  // 1-4. 인라인 코드 (` ... `) 마스킹
+  working = working.replace(/`[^`\n]+`/g, match => createMask(match));
+
+  // 1-5. 인라인 수식 ($ ... $) 마스킹
+  working = working.replace(/\$[^$\n]+\$/g, match => createMask(match));
+
+  // -------------------------------------------------------------
+  // 2단계. 기초 공백 및 개행 정규화
+  // -------------------------------------------------------------
+  // 줄바꿈 통합 (\r\n -> \n)
+  working = working.replace(/\r\n/g, '\n');
+
+  // NBSP 및 유령 문자 정리
+  working = working.replace(/\u00a0/g, ' ');
+  working = working.replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+  // -------------------------------------------------------------
+  // 3단계. HTML 태그 마크다운 변환 및 불필요한 태그 정제
+  // -------------------------------------------------------------
+  if (convertHtmlTags) {
+    // <b>, <strong> -> **텍스트**
+    const strongRegex = /<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi;
+    let strongMatches = 0;
+    working = working.replace(strongRegex, (_, text) => {
+      strongMatches++;
+      return `**${text.trim()}**`;
+    });
+
+    // <i>, <em> -> *텍스트*
+    const emRegex = /<(?:em|i)\b[^>]*>([\s\S]*?)<\/(?:em|i)>/gi;
+    let emMatches = 0;
+    working = working.replace(emRegex, (_, text) => {
+      emMatches++;
+      return `*${text.trim()}*`;
+    });
+
+    // <s>, <strike>, <del> -> ~~텍스트~~
+    const delRegex = /<(?:s|strike|del)\b[^>]*>([\s\S]*?)<\/(?:s|strike|del)>/gi;
+    let delMatches = 0;
+    working = working.replace(delRegex, (_, text) => {
+      delMatches++;
+      return `~~${text.trim()}~~`;
+    });
+
+    // 불필요한 래퍼 태그 찌꺼기 제거 (span, font, div 등)
+    const spanRegex = /<\/?(span|font|meta|script|style)[^>]*>/gi;
+    working = working.replace(spanRegex, () => {
+      stats.htmlConverted++;
+      return '';
+    });
+
+    stats.htmlConverted += strongMatches + emMatches + delMatches;
+  }
+
+  // -------------------------------------------------------------
+  // 4단계. <br> 태그 및 빈행 정리 (표 무결성 보존)
+  // -------------------------------------------------------------
+  // <br> 빈행 <br> ➔ <br><br>
+  const brBlankBrRegex = /<br\s*\/?>[\s\t]*(?:\|[\s\t]*)?[\r\n]+(?:[\s\t]*\|?[\s\t]*[\r\n]+)*[\s\t]*(?:\|[\s\t]*)?<br\s*\/?>/gi;
+  while (brBlankBrRegex.test(working)) {
+    stats.brCollapsed++;
+    working = working.replace(brBlankBrRegex, '<br><br>');
+    brBlankBrRegex.lastIndex = 0;
+  }
+
+  // 일반 인접 <br> 개행 통합
+  working = working.replace(/<br\s*\/?>\s*[\r\n]+\s*<br\s*\/?>/gi, '<br><br>');
+  working = working.replace(/<br\s*\/?>[\s\t]*[\r\n]+(?!\s*(?:\||#|>|[-*+]\s|\d+\.\s|\n))/gi, '<br> ');
+  working = working.replace(/[\r\n]+\s*<br\s*\/?>/gi, '<br>');
+
+  // -------------------------------------------------------------
+  // 5단계. 헤딩(#) 및 인용구(>) 문법 공백 자동 교정
+  // -------------------------------------------------------------
+  if (fixHeadings) {
+    // 줄 시작의 #{1,6} 뒤에 공백이 없는 경우 (#제목 -> # 제목)
+    // 단, 색상 코드(#fff)나 앵커 태그 형태 등 오탐 방지
+    const headingRegex = /^(\s{0,3}#{1,6})([^#\s\r\n][^\r\n]*)$/gm;
+    working = working.replace(headingRegex, (_, hashes, rest) => {
+      stats.headingsFixed++;
+      return `${hashes} ${rest}`;
+    });
+  }
+
+  if (fixQuotes) {
+    // 줄 시작의 > 뒤에 공백이 없는 경우 (>인용 -> > 인용)
+    const quoteRegex = /^(\s{0,3}>+)([^>\s\r\n][^\r\n]*)$/gm;
+    working = working.replace(quoteRegex, (_, arrows, rest) => {
+      stats.quotesFixed++;
+      return `${arrows} ${rest}`;
+    });
+  }
+
+  // -------------------------------------------------------------
+  // 6단계. 과도한 빈 줄(3개 이상 -> 2개) 압축 및 꼬리 공백 정리
+  // -------------------------------------------------------------
+  if (cleanExcessiveNewlines) {
+    const prevLen = working.length;
+    working = working.replace(/\n{3,}/g, '\n\n');
+    if (working.length !== prevLen) {
+      stats.linesReduced++;
+    }
+  }
+
+  // 행 끝의 불필요한 공백 제거 (3개 이상의 trailing spaces 제거, 2개는 줄바꿈 의도일 수 있으므로 유지)
+  working = working.replace(/[ \t]{3,}$/gm, '');
+
+  // -------------------------------------------------------------
+  // 7단계. 표(Table) 수직 라인 줄맞춤 뷰티파이어 (Pretty Table)
+  // -------------------------------------------------------------
+  if (formatTables) {
+    const tableFormatRes = formatAllMarkdownTablesInText(working);
+    working = tableFormatRes.result;
+    stats.tablesFormatted = tableFormatRes.count;
+  }
+
+  // -------------------------------------------------------------
+  // 8단계. 마스킹 토큰 100% 원형 복원
+  // -------------------------------------------------------------
+  for (let i = 0; i < masks.length; i++) {
+    const token = `%%ONR_CLEAN_MASK_${i}%%`;
+    working = working.replace(token, () => masks[i]);
+  }
+
+  const isModified = working !== content;
+
+  // 요약 메시지 구성
+  const summaryParts: string[] = [];
+  if (stats.tablesFormatted > 0) summaryParts.push(`표 ${stats.tablesFormatted}개 정렬`);
+  if (stats.headingsFixed > 0) summaryParts.push(`제목 ${stats.headingsFixed}곳 교정`);
+  if (stats.quotesFixed > 0) summaryParts.push(`인용구 ${stats.quotesFixed}곳 교정`);
+  if (stats.htmlConverted > 0) summaryParts.push(`HTML ${stats.htmlConverted}개 변환`);
+  if (stats.brCollapsed > 0) summaryParts.push(`<br> ${stats.brCollapsed}곳 정돈`);
+  if (stats.linesReduced > 0) summaryParts.push(`빈 줄 압축`);
+
+  let summaryMessage = '정리할 서식이 없습니다.';
+  if (isModified) {
+    summaryMessage = summaryParts.length > 0
+      ? `문서 서식 정리 완료 (${summaryParts.join(', ')})`
+      : '문서 서식이 단정하게 정리되었습니다.';
+  }
+
+  return {
+    cleanedText: working,
+    isModified,
+    stats,
+    summaryMessage,
+  };
+}
