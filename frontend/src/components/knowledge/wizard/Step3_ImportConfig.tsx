@@ -2,7 +2,8 @@
 // 📊 [OMD-WIZARD-Step3-0001] Step3_ImportConfig.tsx ➔ KUI-006 지식 등록 옵션 설정
 // 🎯 @KICK  : 지식 문서 등록 마법사 3단계로 컬렉션 지정, 기본 우선순위(★1~5), AI 정형 분석 옵션 및 큐 실행 시점 제어
 // 🛡️ @GUARD : LDSG v5.0, 빈 컬렉션 안전 가드, 우선순위 1~5 제한
-// 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-006 등록 옵션 설정 화면 신규 구현
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-006 등록 옵션 설정 화면 신규 구현
 // ====================================================================
 
 import React, { useState } from 'react';
@@ -49,7 +50,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
           <select
             value={config.collectionId || ''}
             onChange={(e) => onChangeConfig({ ...config, collectionId: e.target.value || undefined })}
-            className="flex-1 py-1.5 px-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium focus:outline-hidden focus:border-[#06C755]"
+            className="flex-1 py-1.5 px-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium focus:outline-hidden focus:border-[#1d4ed8]"
           >
             <option value="">(컬렉션 미지정 - 기본 보관함)</option>
             {collections.map((c) => (
@@ -80,7 +81,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
             <button
               type="button"
               onClick={handleCreateCollection}
-              className="px-3 py-1 bg-[#06C755] text-white font-bold rounded-md text-xs hover:bg-[#05a847] transition"
+              className="px-3 py-1 bg-[#1d4ed8] text-white font-bold rounded-md text-xs hover:bg-[#05a847] transition"
             >
               생성
             </button>
@@ -122,7 +123,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
       {/* 🧠 3. AI 분석 옵션 */}
       <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 space-y-2.5">
         <label className="block font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-[#06C755]" />
+          <Sparkles className="w-4 h-4 text-[#1d4ed8]" />
           <span>AI 정형 분석 세부 옵션</span>
         </label>
         <div className="grid grid-cols-2 gap-2 pt-1">
@@ -134,7 +135,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
                 ...config,
                 options: { ...config.options, summary: e.target.checked }
               })}
-              className="w-3.5 h-3.5 rounded-sm text-[#06C755] focus:ring-[#06C755]"
+              className="w-3.5 h-3.5 rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
             />
             <span className="font-semibold text-zinc-800 dark:text-zinc-200">문서 요약 (Summary)</span>
           </label>
@@ -147,7 +148,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
                 ...config,
                 options: { ...config.options, keyPoints: e.target.checked }
               })}
-              className="w-3.5 h-3.5 rounded-sm text-[#06C755] focus:ring-[#06C755]"
+              className="w-3.5 h-3.5 rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
             />
             <span className="font-semibold text-zinc-800 dark:text-zinc-200">핵심 내용 (Key Points)</span>
           </label>
@@ -160,7 +161,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
                 ...config,
                 options: { ...config.options, searchTerms: e.target.checked }
               })}
-              className="w-3.5 h-3.5 rounded-sm text-[#06C755] focus:ring-[#06C755]"
+              className="w-3.5 h-3.5 rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
             />
             <span className="font-semibold text-zinc-800 dark:text-zinc-200">검색 키워드 생성</span>
           </label>
@@ -173,7 +174,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
                 ...config,
                 options: { ...config.options, documentType: e.target.checked }
               })}
-              className="w-3.5 h-3.5 rounded-sm text-[#06C755] focus:ring-[#06C755]"
+              className="w-3.5 h-3.5 rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
             />
             <span className="font-semibold text-zinc-800 dark:text-zinc-200">문서 유형 분류</span>
           </label>
@@ -192,7 +193,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
               name="startTiming"
               checked={config.startImmediately}
               onChange={() => onChangeConfig({ ...config, startImmediately: true })}
-              className="w-4 h-4 text-[#06C755] focus:ring-[#06C755]"
+              className="w-4 h-4 text-[#1d4ed8] focus:ring-[#1d4ed8]"
             />
             <div>
               <span className="font-bold text-zinc-800 dark:text-zinc-200">지금 바로 백그라운드 분석 시작 (권장)</span>
@@ -206,7 +207,7 @@ export const Step3_ImportConfig: React.FC<Step3ImportConfigProps> = ({
               name="startTiming"
               checked={!config.startImmediately}
               onChange={() => onChangeConfig({ ...config, startImmediately: false })}
-              className="w-4 h-4 text-[#06C755] focus:ring-[#06C755]"
+              className="w-4 h-4 text-[#1d4ed8] focus:ring-[#1d4ed8]"
             />
             <div>
               <span className="font-bold text-zinc-800 dark:text-zinc-200">대기열에만 등록하고 나중에 시작</span>

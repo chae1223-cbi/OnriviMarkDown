@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-012] KUI012_EvidenceViewer.tsx ➔ AI 답변 근거 뷰어 및 Stale Hash 감지
 // 🎯 @KICK  : AI 답변의 인용 근거 청크 원문, 헤딩 경로, 라인 범위(L1~L50) 열람, 에디터 라인 점프 및 Stale Hash(색인 후 변경) 실시간 감지
-// 🛡️ @GUARD : LDSG v5.0 (#06C755), 원본 해시 비교 가드, 원터치 재색인 연동
-// 🚨 @PATCH : **2026-09-04** — [Rule 8 고대비 시인성] 인용 근거 청크 파일 경로 및 라인 범위를 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하여 가독성 개선
+// 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 원본 해시 비교 가드, 원터치 재색인 연동
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — [Rule 8 고대비 시인성] 인용 근거 청크 파일 경로 및 라인 범위를 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하여 가독성 개선
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-012 AI 답변 출처 근거 뷰어 및 Stale Hash 감지 화면 구현
 // 🔗 @CALLS : app:open-file-at-line, /api/knowledge/queue
 // ====================================================================
@@ -75,7 +76,7 @@ export const KUI012_EvidenceViewer: React.FC<KUI012EvidenceViewerProps> = ({
         {/* 상단 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-[#06C755]/15 text-[#06C755] flex items-center justify-center font-bold text-lg shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center font-bold text-lg shrink-0">
               📑
             </div>
             <div className="min-w-0">
@@ -134,7 +135,7 @@ export const KUI012_EvidenceViewer: React.FC<KUI012EvidenceViewerProps> = ({
           <div className="flex flex-wrap items-center gap-2 text-xs">
             {evidence.headingPath && (
               <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium">
-                <Layers className="w-3.5 h-3.5 text-[#06C755]" />
+                <Layers className="w-3.5 h-3.5 text-[#1d4ed8]" />
                 {evidence.headingPath}
               </span>
             )}
@@ -172,7 +173,7 @@ export const KUI012_EvidenceViewer: React.FC<KUI012EvidenceViewerProps> = ({
           </button>
           <button
             onClick={handleOpenInEditor}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold rounded-lg bg-[#06C755] text-white hover:bg-[#05b34c] transition shadow-xs"
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold rounded-lg bg-[#1d4ed8] text-white hover:bg-[#05b34c] transition shadow-xs"
           >
             <ExternalLink className="w-4 h-4" />
             에디터에서 열기 ({evidence.startLine || 1}행)

@@ -34,7 +34,7 @@ export default function HomePage() {
           })
         }}
       />
-      <div className="min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#06C755]/20 selection:text-[#06C755]">
+      <div className="min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#1d4ed8]/20 selection:text-[#1d4ed8]">
         <Navbar />
         <HeroSection />
         <PhilosophySection />

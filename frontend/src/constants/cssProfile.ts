@@ -52,7 +52,6 @@ const EMPTY_RULES = {
  *   Tailwind Typography(prose)의 기본 스타일 위에 자연스럽게 얹어집니다.
  * - 사용자가 이 프로필을 선택하면 동적 CSS 주입이 중단되고(dynamicCssString === ''),
  *   MarkdownViewer가 순수 prose 스타일만 사용하게 됩니다.
- *
  * @remarks 사용자 정의 프로필을 생성할 때도 이 객체를 얕은 복사한 뒤
  * rules만 깊은 복사하여 사용합니다. (page.tsx onAddProfile 참고)
  */
@@ -687,7 +686,7 @@ export const DEFAULT_PROFILE: CssProfile = SYSTEM_PROFILES[0]; // system-gov
 // 📊 [OMD-CORE-cssProfile-0001] cssProfile ➔ createEmptyProfile
 // 🎯 @KICK  : 새로운 빈 CssProfile 객체를 생성하여 반환한다
 // 🛡️ @GUARD : EMPTY_RULES를 깊은 복사하여 여러 프로필이 동일 객체를 참조하지 않도록 방지한다
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-11** — CssProfile에 customCss 사용자 정의 CSS 속성 연동
 // 🔗 @CALLS : 없음
 // ====================================================================
 /**
@@ -700,6 +699,7 @@ export function createEmptyProfile(): CssProfile {
   return {
     id: '',
     name: '',
+    customCss: '',
     pageStyle: { fontFamily: '', fontSize: '', lineHeight: '', letterSpacing: '', backgroundColor: '#ffffff', paperSize: 'a4', marginTop: '', marginBottom: '', marginLeft: '', marginRight: '', orientation: 'portrait', headingSizeOffset: '', tabSize: '4' },
     rules: JSON.parse(JSON.stringify(EMPTY_RULES)),
     hrStructure: {

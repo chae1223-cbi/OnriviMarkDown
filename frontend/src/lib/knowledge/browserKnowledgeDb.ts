@@ -163,7 +163,6 @@ async function loadDbFromIdb(): Promise<Uint8Array | null> {
 
 /**
  * 브라우저 WASM 지식 데이터베이스 인스턴스를 로드합니다.
- *
  * 로드 우선순위:
  *   1) 인메모리 캐시 (mtime 동일 시 즉시 반환)
  *   2) 파일 시스템 (File System Access API) — 파일이 더 최신일 때
@@ -254,7 +253,6 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
 
 /**
  * WASM SQLite 메모리 상태를 저장합니다.
- *
  * 저장 전략:
  *   [필수] IndexedDB에 항상 먼저 저장 — Electron 파일 잠금과 무관하게 데이터 보존
  *   [선택] 파일 시스템 동기화 — 임시파일 move 및 3단계 폴백으로 시도, 실패해도 예외 미발생
@@ -372,7 +370,7 @@ export function initBrowserKnowledgeSchema(db: any): void {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       description TEXT,
-      color TEXT DEFAULT '#06C755',
+      color TEXT DEFAULT '#1d4ed8',
       created_at TEXT NOT NULL
     );
   `);
@@ -1006,7 +1004,7 @@ export async function listBrowserCollections(folderHandle?: any): Promise<Knowle
       id: String(r.id),
       name: String(r.name),
       description: r.description ? String(r.description) : undefined,
-      color: String(r.color || '#06C755'),
+      color: String(r.color || '#1d4ed8'),
       createdAt: String(r.created_at),
     });
   }
@@ -1032,12 +1030,12 @@ export async function upsertBrowserCollection(
     ':id': id,
     ':name': col.name.trim(),
     ':desc': col.description || '',
-    ':color': col.color || '#06C755',
+    ':color': col.color || '#1d4ed8',
     ':now': now,
   });
 
   await saveBrowserKnowledgeDb(activeFolder, db);
-  return { id, name: col.name.trim(), description: col.description, color: col.color || '#06C755', createdAt: now };
+  return { id, name: col.name.trim(), description: col.description, color: col.color || '#1d4ed8', createdAt: now };
 }
 
 export async function deleteBrowserCollection(collectionId: string, folderHandle?: any): Promise<void> {

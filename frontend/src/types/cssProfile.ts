@@ -11,6 +11,8 @@ export interface CssProfile {
   name: string;
   /** 프로필 설명 (옵션) */
   description?: string;
+  /** 사용자 정의 추가 CSS 코드 (옵션) */
+  customCss?: string;
   /** 선택 용지 전역 타이포그래피 및 페이지 설정 */
   pageStyle: {
     /** 인쇄 대표 서체 (예: "휴먼명조", serif) */

@@ -18,7 +18,8 @@ interface PromptModalProps {
 // 📊 [OMD-IO-PromptModal-0004] PromptModal ➔ PromptModal
 // 🎯 @KICK  : 사용자 입력을 받는 모달 다이얼로그 - 파일명/폴더명 입력 등
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환; Escape 키로 취소
-// 🚨 @PATCH : **2026-08-23** — ConfirmModal과 동일한 스타일로 통일: 상단 코너 회색 제거(rounded-t-xl), Dim 35% 완화, 다층 입체 그림자, 제목 내 파일명 따옴표 강조 표시
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-08-23** — ConfirmModal과 동일한 스타일로 통일: 상단 코너 회색 제거(rounded-t-xl), Dim 35% 완화, 다층 입체 그림자, 제목 내 파일명 따옴표 강조 표시
 // 🔗 @CALLS : handleSubmit, handleKeyDown, onConfirm, onCancel
 // ====================================================================
 export default function PromptModal({ 
@@ -86,7 +87,7 @@ export default function PromptModal({
     const parts = t.split(/(\[.*?\]|'.*?')/g);
     return parts.map((part, i) =>
       (part.startsWith('[') && part.endsWith(']')) || (part.startsWith("'") && part.endsWith("'")) ? (
-        <span key={i} className="font-bold text-[#06C755]">{part}</span>
+        <span key={i} className="font-bold text-[#1d4ed8]">{part}</span>
       ) : part
     );
   };
@@ -94,7 +95,7 @@ export default function PromptModal({
   return createPortal(
     <div
       className="fixed inset-0 z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200"
-      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.45)", fontFamily: "LineSeed, Pretendard, sans-serif" }}
+      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.45)", fontFamily: "Pretendard, sans-serif" }}
     >
       <div
         className="w-full max-w-md bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EFEFEF] dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col shadow-2xl"
@@ -106,7 +107,7 @@ export default function PromptModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-white/10 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <Edit3 size={18} />
             </div>
             <h3 className="text-base font-bold tracking-tight text-[#1F1F1F] dark:text-white">{renderTitle(title)}</h3>
@@ -127,7 +128,7 @@ export default function PromptModal({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}
-            className={`w-full px-4 py-2.5 bg-[#F7F8F9] dark:bg-white/5 border rounded-lg text-sm text-[#1F1F1F] dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 transition-all ${
+            className={`w-full px-4 py-2.5 bg-[#F7F8F9] dark:bg-white/5 border rounded-lg text-sm text-[#1F1F1F] dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/40 transition-all ${
               error ? 'border-red-500 ring-1 ring-red-500/50' : 'border-[#EFEFEF] dark:border-white/10'
             }`}
             autoComplete="off"
@@ -149,7 +150,7 @@ export default function PromptModal({
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-[#06C755] hover:bg-[#05B04B] text-white text-xs font-bold rounded-xl shadow-lg shadow-[#06C755]/25 transition-all active:scale-95"
+              className="px-5 py-2.5 bg-[#1d4ed8] hover:bg-[#1e40af] text-white text-xs font-bold rounded-xl shadow-lg shadow-[#1d4ed8]/25 transition-all active:scale-95"
             >
               확인
             </button>

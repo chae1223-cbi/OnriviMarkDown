@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-UI-PricingSection-0023 ✅ FIXED] PricingSection ➔ PricingSection
 // 🎯 @KICK  : Onrivi Author 서비스 멤버십 가격표 출력
-// 🚨 @PATCH : **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 초록색 풀 채움 카드 제거, White/Surface 베이스에 Regular 플랜 얇은 Green 테두리 및 MOST POPULAR 뱃지/elevation 고급화 적용
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 초록색 풀 채움 카드 제거, White/Surface 베이스에 Regular 플랜 얇은 Green 테두리 및 MOST POPULAR 뱃지/elevation 고급화 적용
 //             **2026-08-07** — DB pricing_plans 테이블을 기반으로 멤버십 데이터를 동적 조회(fetch)하여 렌더링하도록 마이그레이션 패치; **2026-07-09** — 4계급 멤버십 구조 (Reader/Apprentice/Regular/Elite Pro) 전면 개편
 // 🔗 @CALLS : plans constants
 // ====================================================================
@@ -37,7 +38,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
 
   if (loading) {
     return (
-      <section id="pricing" className="py-24 bg-surface text-on-surface" style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}>
+      <section id="pricing" className="py-24 bg-surface text-on-surface" style={{ fontFamily: "Pretendard, sans-serif" }}>
         <div className="text-center text-text-secondary">요금제를 불러오는 중입니다...</div>
       </section>
     );
@@ -47,7 +48,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
     <section
       id="pricing"
       className="py-24 sm:py-32 bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
-      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
@@ -96,13 +97,13 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 transition={{ delay: i * 0.06 }}
                 className={`relative p-6 sm:p-7 rounded-2xl transition-all duration-300 ${
                   isRegular
-                    ? "bg-white dark:bg-[#1A1D22] border-2 border-[#06C755] shadow-[0_16px_40px_-10px_rgba(6,199,85,0.16)]"
+                    ? "bg-white dark:bg-[#1A1D22] border-2 border-[#1d4ed8] shadow-[0_16px_40px_-10px_rgba(29, 78, 216,0.16)]"
                     : "bg-[#F2F0EB] dark:bg-[#17191E] border border-[#E0DED7] dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20 shadow-2xs"
                 }`}
               >
                 {/* Most Popular Badge */}
                 {isRegular && (
-                  <div className="absolute -top-3 right-6 bg-[#06C755] text-white text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-xs tracking-wider">
+                  <div className="absolute -top-3 right-6 bg-[#1d4ed8] text-white text-[10px] font-extrabold uppercase px-3 py-1 rounded-full shadow-xs tracking-wider">
                     MOST POPULAR
                   </div>
                 )}
@@ -118,7 +119,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                         </span>
                         <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                           isRegular
-                            ? "bg-[#06C755]/15 text-[#06C755]"
+                            ? "bg-[#1d4ed8]/15 text-[#1d4ed8]"
                             : "bg-zinc-200/80 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                         }`}>
                           {envLabel}
@@ -145,7 +146,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 <ul className="m-0 p-0 list-none space-y-1.5 pt-2 border-t border-zinc-200/60 dark:border-white/5">
                   {(plan.features || []).map((f: string, fi: number) => (
                     <li key={fi} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300 font-medium leading-relaxed">
-                      <span className="text-[#06C755] font-extrabold text-sm">✓</span>
+                      <span className="text-[#1d4ed8] font-extrabold text-sm">✓</span>
                       <span>{f}</span>
                     </li>
                   ))}

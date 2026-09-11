@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-011] KUI011_KnowledgeSettings.tsx ➔ 지식 엔진 환경설정 및 리소스 제어
 // 🎯 @KICK  : 에디터 활성 AI(Gemini API 키 및 모델) 실시간 연동 확인/테스트, Worker 동시성, 지식 DB 백업/원복/초기화
-// 🛡️ @GUARD : LDSG v5.0 (#06C755), 로컬 클라이언트 안전 보관 원칙(중앙 서버 전송 불가, API 키 화면 유출 차단), 고대비 시인성 보장(Rule 8), 에디터 전역 AI 단일 진입점 준수
-// 🚨 @PATCH : **2026-09-11** — [프로드 웹(onrivi.com) 지식 DB 백업 목록 미노출 버그 완벽 해결]
+// 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 로컬 클라이언트 안전 보관 원칙(중앙 서버 전송 불가, API 키 화면 유출 차단), 고대비 시인성 보장(Rule 8), 에디터 전역 AI 단일 진입점 준수
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-11** — [프로드 웹(onrivi.com) 지식 DB 백업 목록 미노출 버그 완벽 해결]
 //             1) KUI011 환경설정에서 직접 /api/knowledge/* fetch 하던 방식을 knowledgeClient 파사드(데스크톱 Node SQLite ↔ 웹 WASM SQLite 자동 분기)로 전면 마이그레이션
 //             2) resourceFolderHandle prop 연동 및 웹 환경에서 Onrivi_Asset/db/backups 실시간 탐색/다운로드/원복/생성 완벽 지원
 //             3) 웹 브라우저 환경에서 자원 관리 폴더(Onrivi_Asset) 미연결 시 원클릭 연결/권한 갱신 버튼(FolderOpen) 제공
@@ -599,7 +600,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
       <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
         <div>
           <h2 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-[#06C755]" />
+            <Sliders className="w-5 h-5 text-[#1d4ed8]" />
             지식 엔진 환경설정 및 데이터베이스 관리 (KUI-011)
           </h2>
           <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
@@ -609,7 +610,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
         <button
           onClick={handleSaveSettings}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-[#06C755] text-white hover:bg-[#05b34c] transition shadow-xs cursor-pointer"
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-[#1d4ed8] text-white hover:bg-[#05b34c] transition shadow-xs cursor-pointer"
         >
           <Save className="w-4 h-4" />
           설정 저장
@@ -618,7 +619,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
       {/* 중앙 서버 비개입 보안 알림 카드 */}
       <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-start gap-3">
-        <Shield className="w-5 h-5 text-[#06C755] shrink-0 mt-0.5" />
+        <Shield className="w-5 h-5 text-[#1d4ed8] shrink-0 mt-0.5" />
         <div className="text-xs">
           <h4 className="font-extrabold text-emerald-900 dark:text-emerald-200">
             중앙 서버 비개입 및 100% 로컬 프라이버시 보호
@@ -667,7 +668,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
               <div className="flex items-center gap-1.5 mt-1.5">
                 {effectiveApiKey ? (
                   <>
-                    <CheckCircle2 className="w-4 h-4 text-[#06C755] shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-[#1d4ed8] shrink-0" />
                     <span 
                       className="text-xs font-bold text-zinc-800 dark:text-zinc-200 font-mono tracking-widest select-none"
                       title="보안을 위해 모든 문자가 안전하게 전체 마스킹 처리되어 있습니다."
@@ -716,11 +717,11 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
             <div>
               <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-bold block">현재 활성화된 AI 모델</span>
               <div className="flex items-center gap-2 mt-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#06C755] animate-pulse"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#1d4ed8] animate-pulse"></span>
                 <span className="text-xs font-extrabold text-zinc-900 dark:text-zinc-100 font-mono">
                   {effectiveAiModelName}
                 </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#06C755]/15 text-[#06C755]">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1d4ed8]/15 text-[#1d4ed8]">
                   ACTIVE
                 </span>
               </div>
@@ -756,7 +757,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                동시 실행 백그라운드 Worker 수: <span className="text-[#06C755] font-extrabold">{workersCount}개</span>
+                동시 실행 백그라운드 Worker 수: <span className="text-[#1d4ed8] font-extrabold">{workersCount}개</span>
               </label>
               <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">권장: 2 ~ 3개 (API 분당 할당량 고려)</span>
             </div>
@@ -768,7 +769,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
                   onClick={() => setWorkersCount(num)}
                   className={`flex-1 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
                     workersCount === num
-                      ? 'border-[#06C755] bg-[#06C755] text-white shadow-xs'
+                      ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white shadow-xs'
                       : 'border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                   }`}
                 >
@@ -784,7 +785,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
                 type="checkbox"
                 checked={throttleOnTyping}
                 onChange={(e) => setThrottleOnTyping(e.target.checked)}
-                className="mt-0.5 rounded text-[#06C755] focus:ring-[#06C755]"
+                className="mt-0.5 rounded text-[#1d4ed8] focus:ring-[#1d4ed8]"
               />
               <div className="text-xs">
                 <span className="font-extrabold text-zinc-900 dark:text-zinc-100 block">
@@ -801,7 +802,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
                 type="checkbox"
                 checked={staleHashWarning}
                 onChange={(e) => setStaleHashWarning(e.target.checked)}
-                className="mt-0.5 rounded text-[#06C755] focus:ring-[#06C755]"
+                className="mt-0.5 rounded text-[#1d4ed8] focus:ring-[#1d4ed8]"
               />
               <div className="text-xs">
                 <span className="font-extrabold text-zinc-900 dark:text-zinc-100 block">
@@ -818,7 +819,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
                 type="checkbox"
                 checked={autoSyncOnSave}
                 onChange={(e) => setAutoSyncOnSave(e.target.checked)}
-                className="mt-0.5 rounded text-[#06C755] focus:ring-[#06C755]"
+                className="mt-0.5 rounded text-[#1d4ed8] focus:ring-[#1d4ed8]"
               />
               <div className="text-xs">
                 <span className="font-extrabold text-zinc-900 dark:text-zinc-100 block">
@@ -921,7 +922,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
               title="브라우저에 내 PC Onrivi_Asset 자원 폴더 연결/권한 갱신"
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition shadow-xs cursor-pointer ml-auto"
             >
-              <FolderOpen className="w-3.5 h-3.5 text-[#06C755]" />
+              <FolderOpen className="w-3.5 h-3.5 text-[#1d4ed8]" />
               내 PC 자원 폴더 연결
             </button>
           )}
@@ -952,7 +953,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
                 <button
                   type="button"
                   onClick={handleConnectResourceFolder}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white shadow-xs transition cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-[#1d4ed8] hover:bg-[#05b34c] text-white shadow-xs transition cursor-pointer"
                 >
                   <FolderOpen className="w-4 h-4" />
                   내 PC의 Onrivi_Asset 폴더 연결하기

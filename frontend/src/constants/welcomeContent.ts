@@ -112,17 +112,15 @@ function testOnrivi() {
 *수평선 기호(\`---\`)를 넣었을 때 화면 전체를 무식하게 찢지 않고, 정갈하게 가운데 정렬된 **40% 슬림 라인** 으로 나오는지 보세요! 아래 체크리스트를 마우스로 클릭하면 본문 글자에 취소선이 구동되면서 투명도가 50%로 부드럽게 감쇠한답니다.*
 
 ---
-**[체크리스트]**
+ * [체크리스트]**
 * [x] Onrivi Author 웰컴페이지 다정하게 현행화하기 완료!
 * [x] V2 서식 프로필 모든 태그(동영상/지도 포함) 테스트 구역 완벽 마감!
   * [ ] Onrivi Author와 함께 인생 최고의 명품 명작 집필 시작하기!
-
-**[리스트]**
+ * [리스트]**
 - Onrivi Author 웰컴페이지 다정하게 현행화하기 완료!
     - V2 서식 프로필 모든 태그(동영상/지도 포함) 테스트 구역 완벽 마감!
     - Onrivi Author와 함께 인생 최고의 명품 명작 집필 시작하기!
-
-**[숫자리스트]**
+ * [숫자리스트]**
 1. Onrivi Author 웰컴페이지 다정하게 현행화하기 완료!
     1. V2 서식 프로필 모든 태그(동영상/지도 포함) 테스트 구역 완벽 마감!
 2. Onrivi Author와 함께 인생 최고의 명품 명작 집필 시작하기!
@@ -229,12 +227,10 @@ export const WELCOME_STORAGE_KEY = 'onrivi_welcome_content';
 // ====================================================================
 /**
  * localStorage에서 웰컴 페이지 내용을 읽어옵니다.
- *
  * 동작 순서:
  * 1. localStorage('onrivi_welcome_content')에 저장된 값이 있으면 반환
  * 2. 없으면 DEFAULT_WELCOME_MD를 localStorage에 저장한 뒤 반환
  * 3. SSR(서버사이드 렌더링) 환경에서는 항상 DEFAULT_WELCOME_MD 반환
- *
  * @returns 웰컴 페이지 마크다운 문자열
  */
 export function getWelcomeContent(): string {

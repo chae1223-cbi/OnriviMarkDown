@@ -90,7 +90,6 @@ export interface ProcessedMarkdown {
  * 2. 탭 들여쓰기 보정 및 공백 정규화(correctMarkdownIndents)를 수행합니다.
  * 3. 마크다운의 문법적 구분을 위한 라인 브레이크 완충 개행(formatLineBreaksForPreview)을 주입합니다.
  * 이 모든 과정에서 결과물의 각 라인이 원본 에디터의 몇 번째 라인(1-based)에 해당하는지 매핑 정보(lineMap)를 함께 반환합니다.
- * 
  * @param content 원본 마크다운 텍스트
  * @returns 전처리된 텍스트 및 라인 매핑 배열
  */

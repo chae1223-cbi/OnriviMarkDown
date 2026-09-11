@@ -128,10 +128,10 @@ export default function HelpModal({ isOpen, onClose, title = "도움말 센터",
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-zinc-800 bg-[#F7F8F9] dark:bg-zinc-900/50 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <BookOpen size={18} />
             </div>
-            <h2 className="text-base font-bold text-[#06C755] tracking-tight">
+            <h2 className="text-base font-bold text-[#1d4ed8] tracking-tight">
               {title}
             </h2>
           </div>

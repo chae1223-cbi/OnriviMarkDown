@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-MODAL-KnowledgeHub-0001] KnowledgeHubModal.tsx ➔ Onrivi 지식 엔진 통합 관리 센터 (KUI-001 ~ KUI-012)
 // 🎯 @KICK  : 대량 문서 수집/지식화 명세서(ONRIVI-KNOWLEDGE-ENGINE-002.1) 12대 화면 통합 관제 허브 모달
-// 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), LNB 럭셔리 그라데이션(.bg-sidebar-luxury) & 라운드 하이라이트 표준 준수 (Rule 6), 중앙 서버 비개입 100% 로컬 격리
-// 🚨 @PATCH : **2026-09-11** — [KUI011 환경설정 resourceFolderHandle 연동] 웹 환경에서 백업/원복 조회를 위해 KUI011_KnowledgeSettings에 resourceFolderHandle 전달
+// 🛡️ @GUARD : LINE Design System LDSG v5.0 (#1d4ed8), LNB 럭셔리 그라데이션(.bg-sidebar-luxury) & 라운드 하이라이트 표준 준수 (Rule 6), 중앙 서버 비개입 100% 로컬 격리
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-11** — [KUI011 환경설정 resourceFolderHandle 연동] 웹 환경에서 백업/원복 조회를 위해 KUI011_KnowledgeSettings에 resourceFolderHandle 전달
 //             **2026-09-06** — [localhost 지식 엔진 연동 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 SQLite 지식 베이스 조회/등록을 활성화하고, prod 웹 환경에서만 데스크톱 안내 배너를 노출하도록 가드 개선
 //             **2026-09-06** — [웹/데스크톱 로컬 SQLite 격리] 웹 브라우저 환경에서 로컬 SQLite API 불필요 호출 차단 및 상단 LDSG v5.0 데스크톱 전용 안내 배너 표시
 //             **2026-09-04** — [사이드바 디자인 통일] 지식 허브 모달 좌측 사이드바를 에디터 좌측 사이드바(LeftSidebar)와 1:1 완벽 대응(서체, 테두리, 헤더 바, 저장소 실폴더 바, 12px 볼드 메뉴, 시스템 현황 위젯)하도록 디자인 고도화
@@ -401,7 +402,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
               <h1 className="text-sm sm:text-base font-extrabold text-zinc-900 dark:text-zinc-100 truncate">
                 Onrivi Knowledge Hub (지식 엔진 센터)
               </h1>
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#06C755]/15 text-[#06C755] border border-[#06C755]/30">
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#1d4ed8]/15 text-[#1d4ed8] border border-[#1d4ed8]/30">
                 LDSG v5.0
               </span>
               <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50">
@@ -414,7 +415,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
             {/* 대량 문서 가져오기 (마법사 KUI-004~006 트리거) */}
             <button
               onClick={() => setIsWizardOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-extrabold rounded-lg bg-[#06C755] text-white hover:bg-[#05b34c] transition shadow-xs"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-extrabold rounded-lg bg-[#1d4ed8] text-white hover:bg-[#05b34c] transition shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>대량 문서 수집 마법사</span>
@@ -435,7 +436,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
           {/* LNB 사이드바 (에디터 LeftSidebar 1:1 통일 디자인: LDSG v5.0, .bg-sidebar-luxury, 라운드 하이라이트, 워크스페이스 바) */}
           <aside 
             style={{ 
-              fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+              fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
             }}
             className="w-64 shrink-0 flex flex-col border-r border-slate-300 dark:border-zinc-700 select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-sm"
           >
@@ -447,7 +448,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                   지식 엔진 관제 허브
                 </span>
               </div>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#06C755]/15 text-[#06C755] border border-[#06C755]/30">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#1d4ed8]/15 text-[#1d4ed8] border border-[#1d4ed8]/30">
                 LDSG v5.0
               </span>
             </div>
@@ -477,15 +478,15 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                 onClick={() => setActiveTab('dashboard')}
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                   activeTab === 'dashboard'
-                    ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                    ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                     : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                  <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                   <span>대시보드</span>
                 </div>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'dashboard' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'dashboard' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                   KUI-001
                 </span>
               </button>
@@ -495,15 +496,15 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                 onClick={() => setActiveTab('docs')}
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                   activeTab === 'docs'
-                    ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                    ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                     : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <FileText className={`w-4 h-4 shrink-0 ${activeTab === 'docs' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                  <FileText className={`w-4 h-4 shrink-0 ${activeTab === 'docs' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                   <span>지식 보관함</span>
                 </div>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'docs' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'docs' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                   KUI-002
                 </span>
               </button>
@@ -513,15 +514,15 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                 onClick={() => setActiveTab('search')}
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                   activeTab === 'search'
-                    ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                    ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                     : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Search className={`w-4 h-4 shrink-0 ${activeTab === 'search' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                  <Search className={`w-4 h-4 shrink-0 ${activeTab === 'search' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                   <span>검색 & AI 질의</span>
                 </div>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'search' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'search' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                   KUI-003
                 </span>
               </button>
@@ -531,18 +532,18 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                 onClick={() => setActiveTab('progress')}
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                   activeTab === 'progress'
-                    ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                    ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                     : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Activity className={`w-4 h-4 shrink-0 ${activeTab === 'progress' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                  <Activity className={`w-4 h-4 shrink-0 ${activeTab === 'progress' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                   <span>수집 진행 현황</span>
                 </div>
                 {queueStats.running > 0 ? (
-                  <span className="w-2 h-2 rounded-full bg-[#06C755] animate-ping" />
+                  <span className="w-2 h-2 rounded-full bg-[#1d4ed8] animate-ping" />
                 ) : (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'progress' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'progress' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                     KUI-007
                   </span>
                 )}
@@ -553,7 +554,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                 onClick={() => setActiveTab('failed')}
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                   activeTab === 'failed'
-                    ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                    ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                     : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
                 }`}
               >
@@ -566,7 +567,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                     {queueStats.failed}
                   </span>
                 ) : (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'failed' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'failed' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                     KUI-009
                   </span>
                 )}
@@ -577,15 +578,15 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                 onClick={() => setActiveTab('settings')}
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                   activeTab === 'settings'
-                    ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                    ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                     : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Settings className={`w-4 h-4 shrink-0 ${activeTab === 'settings' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                  <Settings className={`w-4 h-4 shrink-0 ${activeTab === 'settings' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                   <span>지식 환경설정</span>
                 </div>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'settings' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'settings' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                   KUI-011
                 </span>
               </button>
@@ -596,7 +597,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
               <div className="p-2.5 rounded-lg bg-white/95 dark:bg-[#202328] border border-slate-300 dark:border-zinc-700 space-y-1.5 shadow-2xs">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-slate-600 dark:text-zinc-400 font-bold flex items-center gap-1.5">
-                    <Cpu className="w-3.5 h-3.5 text-[#06C755]" />
+                    <Cpu className="w-3.5 h-3.5 text-[#1d4ed8]" />
                     동시 Worker
                   </span>
                   <span className="font-bold text-slate-800 dark:text-zinc-200 font-mono">
@@ -608,7 +609,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                     <Layers className="w-3.5 h-3.5 text-[#4D73FF]" />
                     대기열 상태
                   </span>
-                  <span className={`font-bold ${queueStats.running > 0 ? 'text-[#06C755]' : 'text-slate-600 dark:text-zinc-400'}`}>
+                  <span className={`font-bold ${queueStats.running > 0 ? 'text-[#1d4ed8]' : 'text-slate-600 dark:text-zinc-400'}`}>
                     {queueStats.running > 0 ? '처리 가동 중' : '정상 대기'}
                   </span>
                 </div>
@@ -619,8 +620,8 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
           {/* 우측 메인 콘텐츠 뷰 */}
           <main className="flex-1 bg-white dark:bg-[#18191D] overflow-hidden flex flex-col">
             {!canUseDb && (
-              <div className="mx-6 mt-4 p-4 rounded-xl border border-[#06C755]/30 bg-[#06C755]/10 dark:bg-[#06C755]/15 flex items-start gap-3.5 shrink-0 shadow-xs">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#06C755]/20 text-[#06C755]">
+              <div className="mx-6 mt-4 p-4 rounded-xl border border-[#1d4ed8]/30 bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/15 flex items-start gap-3.5 shrink-0 shadow-xs">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1d4ed8]/20 text-[#1d4ed8]">
                   <Cpu size={20} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -628,7 +629,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                     <h4 className="text-xs font-bold text-zinc-950 dark:text-white">
                       🖥️ 로컬 SQLite 지식 베이스(FTS5 AI 허브) — 데스크톱 전용 기능 안내
                     </h4>
-                    <span className="rounded-full bg-[#06C755]/25 px-2 py-0.5 text-[10px] font-bold text-[#06C755]">
+                    <span className="rounded-full bg-[#1d4ed8]/25 px-2 py-0.5 text-[10px] font-bold text-[#1d4ed8]">
                       Desktop Exclusive
                     </span>
                   </div>

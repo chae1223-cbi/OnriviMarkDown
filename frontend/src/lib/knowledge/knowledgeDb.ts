@@ -300,7 +300,7 @@ function applyKnowledgeSchema(db: any): void {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       description TEXT,
-      color TEXT DEFAULT '#06C755',
+      color TEXT DEFAULT '#1d4ed8',
       created_at TEXT NOT NULL
     );
   `);
@@ -404,7 +404,7 @@ function applyKnowledgeSchema(db: any): void {
   try { db.exec("ALTER TABLE knowledge_jobs ADD COLUMN retry_count INTEGER DEFAULT 0;"); } catch {}
   try { db.exec("ALTER TABLE knowledge_jobs ADD COLUMN max_retries INTEGER DEFAULT 3;"); } catch {}
   try { db.exec("ALTER TABLE knowledge_jobs ADD COLUMN retry_after TEXT;"); } catch {}
-  try { db.exec("ALTER TABLE knowledge_collections ADD COLUMN color TEXT DEFAULT '#06C755';"); } catch {}
+  try { db.exec("ALTER TABLE knowledge_collections ADD COLUMN color TEXT DEFAULT '#1d4ed8';"); } catch {}
 
   // 🛡️ 기존 DB의 knowledge_jobs 테이블에 걸려있던 knowledge_documents 외래키 제약조건 제거 (Rule 7: 선행 검증 후 원자적 쓰기 준수)
   try {
@@ -848,7 +848,7 @@ export function getDocumentDetailFromDb(
 
 export function getKnowledgeCollections(db: any): KnowledgeCollection[] {
   const rows = db.prepare(`
-    SELECT c.id, c.name, c.description, COALESCE(c.color, '#06C755') as color, c.created_at,
+    SELECT c.id, c.name, c.description, COALESCE(c.color, '#1d4ed8') as color, c.created_at,
            COUNT(d.id) as documentCount
     FROM knowledge_collections c
     LEFT JOIN knowledge_documents d ON d.collection_id = c.id
@@ -872,7 +872,7 @@ export function upsertKnowledgeCollection(
 ): KnowledgeCollection {
   const id = collection.id || `col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const now = new Date().toISOString();
-  const color = collection.color || '#06C755';
+  const color = collection.color || '#1d4ed8';
 
   db.prepare(`
     INSERT INTO knowledge_collections (id, name, description, color, created_at)

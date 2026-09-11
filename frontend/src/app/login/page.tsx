@@ -2,7 +2,8 @@
 // 📊 [OMD-AUTH-login-page-0001] page ➔ LoginPage
 // 🎯 @KICK  : Supabase Auth 기반 이메일/구글 소셜 로그인 및 마스킹 해제 기능 지원 로그인 화면
 // 🛡️ @GUARD : 이메일/비밀번호 빈 값 방지, Supabase 연동 검증 및 상용 계정 사전 검증
-// 🚨 @PATCH : **2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#06C755) 버튼 및 Lucide React 아이콘 교체
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#1d4ed8) 버튼 및 Lucide React 아이콘 교체
 //             **2026-07-22** — 로그인 시 users 존재 확인 API(/api/rpc/user/check) 1차 연동 및 subscriptions 이중 유효성 검증 폴백 구조 적용 패치
 //             **2026-06-23** — 공통 토스트 알람(showToast) 일괄 연동 개편 패치
 // 🔗 @CALLS : supabase.auth, Navbar, Footer, useRouter, useToast, Lucide Icons
@@ -164,13 +165,13 @@ export default function LoginPage() {
 
   return (
     <div
-      className="flex flex-col min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#06C755]/20 selection:text-[#06C755] relative overflow-hidden"
-      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+      className="flex flex-col min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#1d4ed8]/20 selection:text-[#1d4ed8] relative overflow-hidden"
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       {/* Subtle Ambient Background Glow (LINE Green) */}
       <div
         aria-hidden
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-[radial-gradient(ellipse_at_top,rgba(6,199,85,0.08)_0%,transparent_70%)] pointer-events-none z-0"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-[radial-gradient(ellipse_at_top,rgba(29, 78, 216,0.08)_0%,transparent_70%)] pointer-events-none z-0"
       />
 
       <Navbar />
@@ -182,7 +183,7 @@ export default function LoginPage() {
             {/* Header */}
             <div className="text-center space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F0EFEA] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#06C755]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
                 ONRIVI AUTHOR
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-[#111413] dark:text-white tracking-tight">
@@ -238,7 +239,7 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <input
-                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15 transition-all outline-none"
                     id="email"
                     name="email"
                     type="email"
@@ -259,13 +260,13 @@ export default function LoginPage() {
                   <label className="text-xs font-bold text-[#111413] dark:text-zinc-200" htmlFor="password">
                     비밀번호
                   </label>
-                  <Link href="/forgot-password" className="text-xs font-semibold text-[#06C755] hover:underline">
+                  <Link href="/forgot-password" className="text-xs font-semibold text-[#1d4ed8] hover:underline">
                     비밀번호 찾기
                   </Link>
                 </div>
                 <div className="relative">
                   <input
-                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15 transition-all outline-none"
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
@@ -292,7 +293,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#06C755] hover:bg-[#05B04B] text-white font-bold text-[15px] py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(6,199,85,0.25)] hover:shadow-[0_6px_24px_rgba(6,199,85,0.35)] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
+                  className="w-full bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[15px] py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(29, 78, 216,0.25)] hover:shadow-[0_6px_24px_rgba(29, 78, 216,0.35)] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
                 >
                   <span>{loading ? "로그인 중..." : "로그인"}</span>
                   <ArrowRight size={16} />
@@ -304,7 +305,7 @@ export default function LoginPage() {
             <div className="pt-3 border-t border-[#E8E6E1] dark:border-white/10 text-center">
               <Link
                 href={`/signup${typeof window !== "undefined" && new URLSearchParams(window.location.search).get("ticket") ? `?ticket=${new URLSearchParams(window.location.search).get("ticket")}` : ""}`}
-                className="inline-flex items-center gap-1.5 text-xs text-[#68716D] dark:text-zinc-400 hover:text-[#06C755] transition-colors font-medium"
+                className="inline-flex items-center gap-1.5 text-xs text-[#68716D] dark:text-zinc-400 hover:text-[#1d4ed8] transition-colors font-medium"
               >
                 <UserPlus size={14} />
                 <span>계정이 없으신가요? <strong>무료 회원가입</strong></span>

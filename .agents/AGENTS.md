@@ -26,14 +26,14 @@
 - **전용 디렉토리 표준화**: 모든 일회성 패치 및 임시 검증 스크립트는 반드시 별도의 격리된 전용 디렉토리(`scripts/patches/` 또는 `scratch/`) 하위에서만 작성 및 실행해야 합니다.
 - **루트 청결 유지 원칙**: 프로젝트 루트 디렉토리는 항상 빌드/배포 및 프로젝트 구동에 필수적인 핵심 설정 파일과 문서(`package.json`, `main.js`, `OMD_QUICK_TABLE.md` 등)로만 슬림하고 깨끗하게 유지되어야 합니다.
 
-## 6. 통합 디자인 시스템 및 3대 책임 영역 격리 규칙 (LINE Design System LDSG v5.0 / DESIGN.md)
+## 6. 통합 디자인 시스템 및 3대 책임 영역 격리 규칙 (Modern Technical Editorial / DESIGN.md)
 본 프로젝트는 앱 UI, 마크다운 콘텐츠 서식, 위치 동기화 엔진 간의 책임 경계를 엄격히 격리하여 개발해야 합니다. 상세 명세는 루트의 `DESIGN.md`를 표준 기준으로 따릅니다.
-- **Application UI Scope (앱 인터페이스)**: 랜딩 페이지, 에디터 프레임, 사이드바, 툴바, 모달, 버튼, 입력창 등 애플리케이션의 모든 UI는 LINE Design System for Global Family Service (LDSG) 기반 디자인 토큰(LINE Green `#06C755`, LDSG Blue `#4D73FF`, Surface, Border `#EFEFEF` 등)과 공통 컴포넌트 규칙을 적용합니다.
-- **LNB 사이드바 바탕색 표준**: 모든 좌측 사이드바는 공통 럭셔리 그라데이션(`.bg-sidebar-luxury` — Light: `linear-gradient(#F6F8FA, #F0F4F8, #E8EDF3)`, Dark: `linear-gradient(#17191E, #131519, #0F1114)`)을 표준으로 고정 적용합니다.
-- **Content Document Scope (미리보기 서식 격리)**: 미리보기 내부의 마크다운 콘텐츠(`h1~h6`, `p`, `ul`, `ol`, `table`, `img`, `blockquote`, `pre`, `code` 등)는 오직 CSS Profile 및 User Custom CSS(`.onrivi-content-root` 하위)에 의해서만 결정됩니다. `globals.css` 등 전역 스타일에서 마크다운 태그를 직접 스타일링하여 콘텐츠를 오염시키는 행위를 절대 금지합니다.
+- **Application UI Scope (앱 인터페이스)**: 랜딩 페이지, 에디터 프레임, 사이드바, 툴바, 모달, 버튼, 입력창 등 애플리케이션의 모든 UI는 **Modern Technical Editorial** 디자인 시스템(Primary: Cobalt Authority `#1d4ed8`, Secondary: Intelligence Teal `#0d9488`, Tertiary: Kinetic Coral `#f97316`, Typography: `Plus Jakarta Sans` / `Inter` / `JetBrains Mono` / `Pretendard`)과 4단계 Elevation 및 치수 기하학(4px, 8px, 12-16px, 9999px) 토큰을 적용합니다.
+- **LNB 사이드바 바탕색 표준**: 모든 좌측 사이드바는 공통 서피스 베이스 그라데이션(`.bg-sidebar-luxury` — Light: `linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 50%, #E2E8F0 100%)`, Dark: `linear-gradient(180deg, #090D16 0%, #0F172A 50%, #1E293B 100%)`)과 헤어라인 보더(`border-[#e2e8f0]` / dark: `border-slate-800`)를 표준으로 고정 적용합니다.
+- **Content Document Scope (미리보기 서식 격리 및 사용자정의 CSS)**: 미리보기 내부의 마크다운 콘텐츠(`h1~h6`, `p`, `ul`, `ol`, `table`, `img`, `blockquote`, `pre`, `code` 등)는 오직 CSS Profile 및 User Custom CSS(`.onrivi-content-root`, `.custom-preview-container` 하위)에 의해서만 결정됩니다. `globals.css` 등 전역 스타일에서 마크다운 태그를 직접 스타일링하여 콘텐츠를 오염시키는 행위를 절대 금지합니다.
 - **Sync Engine의 Geometry 기반 독립성**: Sync Engine(`syncEngine.ts`)은 콘텐츠의 구체적인 CSS 스타일(font-size, margin 등)을 참조하거나 변경하지 않고, 최종 렌더링된 실제 DOM Geometry와 Safe Zone(상단 40px, 하단 140px: 커서 가림 방어 2~3줄 여유 확보), Minimal Delta, Scroll Clamp만을 기반으로 위치를 동기화합니다.
 - **Sync 단일 진입점 원칙**: 에디터 ↔ 미리보기 간의 모든 위치 동기화 스크롤은 `syncPreviewInterpolated()` 단일 진입점을 통해서만 실행합니다.
-- **LNB 사이드바 메뉴/아이템 하이라이트 표준**: 에디터 탐색기 및 어드민 메뉴 등 모든 좌측 사이드바의 선택/활성 상태 표시 시 좌측 세로선(인디케이터 바 / `border-l` / `span.absolute`)을 일체 사용하지 않고, 오직 고대비 텍스트(`text-zinc-950 dark:text-white font-extrabold`) 및 라인 그린 라운드 배경 음영(`bg-[#06C755]/15 dark:bg-[#06C755]/25 shadow-xs rounded-lg`)만으로 심플하고 세련되게 하이라이트 통일합니다.
+- **LNB 사이드바 메뉴/아이템 하이라이트 표준**: 에디터 탐색기 및 어드민 메뉴 등 모든 좌측 사이드바의 선택/활성 상태 표시 시 좌측 세로선(인디케이터 바 / `border-l` / `span.absolute`)을 일체 사용하지 않고, 오직 고대비 텍스트(`text-blue-700 dark:text-blue-400 font-extrabold`) 및 코발트 라운드 배경 음영(`bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 shadow-xs rounded-lg`)만으로 심플하고 세련되게 하이라이트 통일합니다.
 
 ## 7. SQLite 원트랜잭션(All-or-Nothing) 무결성 및 비정상 데이터 적재 방지 규칙
 - **선행 검증 후 원자적 쓰기 (Pre-validation Before Write)**: AI 지식 베이스 색인 등 외부 I/O(LLM 정형 분석, 네트워크 통신) 및 전처리(AST 청킹, 해시 생성)가 수반되는 작업은 반드시 모든 선행 처리가 100% 정상 완료된 이후에만 데이터베이스 쓰기를 시작해야 합니다. 중간 과정 중에 임시 `INDEXING`이나 불완전한 상태로 DB에 레코드를 먼저 삽입하지 않습니다.

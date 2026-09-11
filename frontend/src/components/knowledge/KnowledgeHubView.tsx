@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-VIEW-KnowledgeHub-0001] KnowledgeHubView.tsx ➔ Onrivi 지식 엔진 통합 관제 뷰
 // 🎯 @KICK  : 대량 문서 수집/지식화 명세서(ONRIVI-KNOWLEDGE-ENGINE-002.1) 12대 화면 통합 관제 독립 뷰
-// 🚨 @PATCH : **2026-09-11** — [KUI011 환경설정 resourceFolderHandle 전달 연동] 프로드 웹 환경에서 사용자 PC의 Onrivi_Asset/db/backups 디렉토리를 직접 열람/백업할 수 있도록 KUI011_KnowledgeSettings에 resourceFolderHandle 명시적 전달
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-11** — [KUI011 환경설정 resourceFolderHandle 전달 연동] 프로드 웹 환경에서 사용자 PC의 Onrivi_Asset/db/backups 디렉토리를 직접 열람/백업할 수 있도록 KUI011_KnowledgeSettings에 resourceFolderHandle 명시적 전달
 //             **2026-09-11** — [지식 베이스 리소스 폴더 복호화 및 Onrivi_Asset 기본값 폴백 강화] syncFromEditorSettings에서 loadSecureData 복호화 및 Onrivi_Asset 폴백을 적용하여 데스크톱 환경에서 리소스 폴더 미전달 시에도 하위 KUI011 환경설정 및 백업 목록이 완벽하게 동기화되도록 개선
 //             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 베이스 일치화 연동] 데스크톱/로컬뿐만 아니라 프로드 웹(onrivi.com)에서도 knowledgeClient 및 browserKnowledgeDb(WASM sql.js + resourceFolderHandle)를 통해 내 PC의 onrivi_knowledge.db를 100% 동일하게 공유하여 조회/등록/검색 가능하도록 전면 개편
 //             **2026-09-06** — [localhost 지식 엔진 연동 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 SQLite 지식 베이스 조회/등록을 활성화하고, prod 웹 환경에서만 데스크톱 안내 배너를 노출하도록 가드 개선
@@ -491,7 +492,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
             <h1 className="text-sm sm:text-base font-extrabold text-zinc-900 dark:text-zinc-100 truncate">
               Onrivi Knowledge Engine
             </h1>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#06C755]/15 text-[#06C755] border border-[#06C755]/30">
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-[#1d4ed8]/15 text-[#1d4ed8] border border-[#1d4ed8]/30">
               LDSG v5.0
             </span>
             <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50">
@@ -503,14 +504,14 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
         <div className="flex items-center gap-2.5 sm:gap-3">
           {/* 리소스 폴더 상태 뱃지 */}
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 border border-zinc-200/80 dark:border-zinc-700/60">
-            <FolderGit2 className="w-3.5 h-3.5 text-[#06C755]" />
+            <FolderGit2 className="w-3.5 h-3.5 text-[#1d4ed8]" />
             <span className="truncate max-w-[140px]">{resourceFolder || 'Onrivi_Asset'}</span>
           </div>
 
           {/* 대량 문서 가져오기 (마법사 KUI-004~006 트리거) */}
           <button
             onClick={() => setIsWizardOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-extrabold rounded-lg bg-[#06C755] text-white hover:bg-[#05b34c] transition shadow-xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-extrabold rounded-lg bg-[#1d4ed8] text-white hover:bg-[#05b34c] transition shadow-xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden xs:inline">새 문서 수집 마법사</span>
@@ -542,7 +543,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
         {/* LNB 사이드바 (에디터 LeftSidebar 1:1 통일 디자인: LDSG v5.0, .bg-sidebar-luxury, 라운드 하이라이트, 워크스페이스 바) */}
         <aside 
           style={{ 
-            fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+            fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
           }}
           className="w-64 shrink-0 flex flex-col border-r border-slate-300 dark:border-zinc-700 select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-sm"
         >
@@ -554,7 +555,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
                 지식 엔진 관제 허브
               </span>
             </div>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#06C755]/15 text-[#06C755] border border-[#06C755]/30">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#1d4ed8]/15 text-[#1d4ed8] border border-[#1d4ed8]/30">
               LDSG v5.0
             </span>
           </div>
@@ -584,15 +585,15 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
               onClick={() => setActiveTab('dashboard')}
               className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                 activeTab === 'dashboard'
-                  ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                  ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                   : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                 <span>대시보드</span>
               </div>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'dashboard' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'dashboard' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                 KUI-001
               </span>
             </button>
@@ -602,12 +603,12 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
               onClick={() => setActiveTab('docs')}
               className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                 activeTab === 'docs'
-                  ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                  ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                   : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <FileText className={`w-4 h-4 shrink-0 ${activeTab === 'docs' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                <FileText className={`w-4 h-4 shrink-0 ${activeTab === 'docs' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                 <span>지식 보관함</span>
               </div>
               {documents.length > 0 ? (
@@ -615,7 +616,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
                   {documents.length}
                 </span>
               ) : (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'docs' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'docs' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                   KUI-002
                 </span>
               )}
@@ -626,15 +627,15 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
               onClick={() => setActiveTab('search')}
               className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                 activeTab === 'search'
-                  ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                  ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                   : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Search className={`w-4 h-4 shrink-0 ${activeTab === 'search' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                <Search className={`w-4 h-4 shrink-0 ${activeTab === 'search' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                 <span>검색 & AI 질의</span>
               </div>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'search' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'search' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                 KUI-003
               </span>
             </button>
@@ -644,18 +645,18 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
               onClick={() => setActiveTab('progress')}
               className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                 activeTab === 'progress'
-                  ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                  ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                   : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Activity className={`w-4 h-4 shrink-0 ${activeTab === 'progress' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                <Activity className={`w-4 h-4 shrink-0 ${activeTab === 'progress' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                 <span>수집 진행 현황</span>
               </div>
               {queueStats.running > 0 ? (
-                <span className="w-2 h-2 rounded-full bg-[#06C755] animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-[#1d4ed8] animate-ping" />
               ) : (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'progress' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'progress' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                   KUI-007
                 </span>
               )}
@@ -666,7 +667,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
               onClick={() => setActiveTab('failed')}
               className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                 activeTab === 'failed'
-                  ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                  ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                   : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
               }`}
             >
@@ -679,7 +680,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
                   {queueStats.failed}
                 </span>
               ) : (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'failed' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'failed' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                   KUI-009
                 </span>
               )}
@@ -690,15 +691,15 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
               onClick={() => setActiveTab('settings')}
               className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[12px] transition-all cursor-pointer ${
                 activeTab === 'settings'
-                  ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
+                  ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-xs'
                   : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 font-bold'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Settings className={`w-4 h-4 shrink-0 ${activeTab === 'settings' ? 'text-[#06C755]' : 'text-slate-500 dark:text-zinc-400'}`} />
+                <Settings className={`w-4 h-4 shrink-0 ${activeTab === 'settings' ? 'text-[#1d4ed8]' : 'text-slate-500 dark:text-zinc-400'}`} />
                 <span>지식 환경설정</span>
               </div>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'settings' ? 'text-[#06C755] bg-[#06C755]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === 'settings' ? 'text-[#1d4ed8] bg-[#1d4ed8]/10' : 'text-slate-400 dark:text-zinc-500'}`}>
                 KUI-011
               </span>
             </button>
@@ -709,7 +710,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
             <div className="p-2.5 rounded-lg bg-white/95 dark:bg-[#202328] border border-slate-300 dark:border-zinc-700 space-y-1.5 shadow-2xs">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-slate-600 dark:text-zinc-400 font-bold flex items-center gap-1.5">
-                  <Cpu className="w-3.5 h-3.5 text-[#06C755]" />
+                  <Cpu className="w-3.5 h-3.5 text-[#1d4ed8]" />
                   동시 Worker
                 </span>
                 <span className="font-bold text-slate-800 dark:text-zinc-200 font-mono">
@@ -721,7 +722,7 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
                   <Layers className="w-3.5 h-3.5 text-[#4D73FF]" />
                   대기열 상태
                 </span>
-                <span className={`font-bold ${queueStats.running > 0 ? 'text-[#06C755]' : 'text-slate-600 dark:text-zinc-400'}`}>
+                <span className={`font-bold ${queueStats.running > 0 ? 'text-[#1d4ed8]' : 'text-slate-600 dark:text-zinc-400'}`}>
                   {queueStats.running > 0 ? '처리 가동 중' : '정상 대기'}
                 </span>
               </div>

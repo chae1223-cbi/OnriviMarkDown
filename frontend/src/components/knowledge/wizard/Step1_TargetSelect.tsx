@@ -2,7 +2,8 @@
 // 📊 [OMD-WIZARD-Step1-0001] Step1_TargetSelect.tsx ➔ KUI-004 대량 수집 대상 선택
 // 🎯 @KICK  : 지식 문서 등록 마법사 1단계로 현재 작업공간, 폴더 선택, 개별 파일 선택 모드 제공
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 적용, 선택 상태 유효성 보장
-// 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-004 지식 문서 등록 대상 선택 화면 신규 구현
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-004 지식 문서 등록 대상 선택 화면 신규 구현
 // ====================================================================
 
 import React from 'react';
@@ -69,7 +70,7 @@ export const Step1_TargetSelect: React.FC<Step1TargetSelectProps> = ({
               onClick={() => onSelectMode(opt.id)}
               className={`p-4 rounded-xl border transition-all cursor-pointer flex items-start justify-between ${
                 isSelected
-                  ? 'border-[#06C755] bg-[#06C755]/5 dark:bg-[#06C755]/10 shadow-xs'
+                  ? 'border-[#1d4ed8] bg-[#1d4ed8]/5 dark:bg-[#1d4ed8]/10 shadow-xs'
                   : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900/40'
               }`}
             >
@@ -77,7 +78,7 @@ export const Step1_TargetSelect: React.FC<Step1TargetSelectProps> = ({
                 <div
                   className={`p-2.5 rounded-lg ${
                     isSelected
-                      ? 'bg-[#06C755] text-white'
+                      ? 'bg-[#1d4ed8] text-white'
                       : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
                   }`}
                 >
@@ -104,7 +105,7 @@ export const Step1_TargetSelect: React.FC<Step1TargetSelectProps> = ({
                   name="targetMode"
                   checked={isSelected}
                   onChange={() => onSelectMode(opt.id)}
-                  className="w-4 h-4 text-[#06C755] focus:ring-[#06C755]"
+                  className="w-4 h-4 text-[#1d4ed8] focus:ring-[#1d4ed8]"
                 />
               </div>
             </div>

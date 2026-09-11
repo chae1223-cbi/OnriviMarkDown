@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-HeroSection-0022] HeroSection ➔ HeroSection
 // 🎯 @KICK  : Onrivi Author Premium V2의 압도적 타이포그래피 가치 제안 및 제품 실제 UI(에디터 타건 + AI 어시스트 + 출판급 문서 뷰)를 전면에 선보이는 핵심 히어로 영역
 // 🛡️ @GUARD : Framer Motion 모션 버벅임 억제 및 반응형 뷰포트 레이아웃 가드
-// 🚨 @PATCH : **2026-09-03** — Onrivi Author Premium V2 개편: 웜 페이퍼 크림(#F9F8F6) 베이스 및 멀티미디어 비주얼 쇼케이스(Mermaid 파이프라인 그래프 + KaTeX 정밀 수식 렌더링 + 컬러풀 LDSG 성능 표) 탑재, 대형 타이포그래피(font-size clamp 44~76px) 및 LINE Green(#06C755) 단일 악센트 적용
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — Onrivi Author Premium V2 개편: 웜 페이퍼 크림(#F9F8F6) 베이스 및 멀티미디어 비주얼 쇼케이스(Mermaid 파이프라인 그래프 + KaTeX 정밀 수식 렌더링 + 컬러풀 LDSG 성능 표) 탑재, 대형 타이포그래피(font-size clamp 44~76px) 및 LINE Green(#1d4ed8) 단일 악센트 적용
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (프리즘 배경, 글래스 프리뷰 카드, Ice Blue 그래디언트)
 //             **2026-06-21** — OMDLanding UI 디자인 이식 및 /login 리다이렉트 변경 패치
 // 🔗 @CALLS : motion.div, Link
@@ -17,12 +18,12 @@ export function HeroSection() {
   return (
     <section
       className="pt-32 pb-20 sm:pt-40 sm:pb-28 overflow-hidden relative bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
-      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       {/* Subtle Top Ambient Glow (LINE Green on Warm Base) */}
       <div
         aria-hidden
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[380px] bg-[radial-gradient(ellipse_at_top,rgba(6,199,85,0.09)_0%,transparent_70%)] pointer-events-none z-0"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[380px] bg-[radial-gradient(ellipse_at_top,rgba(29, 78, 216,0.09)_0%,transparent_70%)] pointer-events-none z-0"
       />
 
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10 relative z-10">
@@ -34,7 +35,7 @@ export function HeroSection() {
           className="flex justify-center mb-6"
         >
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F0EFEA] dark:bg-zinc-800/80 border border-[#E3E1DB] dark:border-white/10 text-xs font-semibold text-[#1A1A18] dark:text-zinc-200 tracking-tight shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-[#06C755]" />
+            <span className="w-2 h-2 rounded-full bg-[#1d4ed8]" />
             AI-NATIVE DOCUMENT PLATFORM
           </div>
         </motion.div>
@@ -52,7 +53,7 @@ export function HeroSection() {
           }}
         >
           AI는 마크다운으로,<br />
-          <span className="text-[#06C755]">사람은 문서로.</span>
+          <span className="text-[#1d4ed8]">사람은 문서로.</span>
         </motion.h1>
 
         {/* Sub-headline */}
@@ -74,7 +75,7 @@ export function HeroSection() {
           className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-16 sm:mb-20"
         >
           <Link href="/signup" className="w-full sm:w-auto">
-            <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-[#06C755] hover:bg-[#05B04B] text-white font-bold text-[15px] shadow-[0_4px_24px_rgba(6,199,85,0.28)] hover:shadow-[0_6px_28px_rgba(6,199,85,0.4)] transition-all transform hover:-translate-y-0.5">
+            <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[15px] shadow-[0_4px_24px_rgba(29, 78, 216,0.28)] hover:shadow-[0_6px_28px_rgba(29, 78, 216,0.4)] transition-all transform hover:-translate-y-0.5">
               무료로 시작하기
               <ArrowRight size={16} />
             </button>
@@ -100,12 +101,12 @@ export function HeroSection() {
               <span className="w-3 h-3 rounded-full bg-[#FFBD2E] inline-block border" />
               <span className="w-3 h-3 rounded-full bg-[#27C93F] inline-block border" />
               <span className="ml-3 text-xs font-medium text-[#68716D] dark:text-zinc-400 font-mono flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-xs bg-[#06C755] inline-block shadow-[0_0_8px_rgba(6,199,85,0.6)]" />
+                <span className="w-2 h-2 rounded-xs bg-[#1d4ed8] inline-block shadow-[0_0_8px_rgba(29, 78, 216,0.6)]" />
                 knowledge-engine-spec.md
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs text-[#68716D] dark:text-zinc-400">
-              <span className="hidden sm:inline-flex items-center gap-1.5 bg-[#06C755]/10 text-[#06C755] font-bold px-2.5 py-1 rounded-md border border-[#06C755]/25">
+              <span className="hidden sm:inline-flex items-center gap-1.5 bg-[#1d4ed8]/10 text-[#1d4ed8] font-bold px-2.5 py-1 rounded-md border border-[#1d4ed8]/25">
                 <Sparkles size={12} /> Mermaid + KaTeX Active
               </span>
               <span className="bg-zinc-200/80 dark:bg-zinc-800 text-[#1A1A18] dark:text-zinc-200 font-mono font-bold px-2 py-0.5 rounded text-[11px]">
@@ -120,7 +121,7 @@ export function HeroSection() {
             <div className="p-6 md:p-8 bg-[#FBF9F5] dark:bg-[#14161B] font-mono text-[12px] sm:text-[13px] leading-relaxed text-[#1A1A18] dark:text-zinc-200 overflow-x-auto">
               <div className="flex items-center justify-between pb-3 mb-4 border-b border-zinc-200/80 dark:border-white/5 text-[11px] text-[#68716D] uppercase tracking-wider font-semibold">
                 <span>EDITOR · MARKDOWN SOURCE</span>
-                <span className="text-[#06C755] font-bold">UTF-8</span>
+                <span className="text-[#1d4ed8] font-bold">UTF-8</span>
               </div>
 
               <div className="space-y-3 font-mono">
@@ -130,10 +131,10 @@ export function HeroSection() {
                 {/* Mermaid Code Snippet */}
                 <div className="p-3 rounded-lg bg-zinc-900 text-zinc-200 text-[11px] font-mono leading-tight space-y-1">
                   <span className="text-zinc-500">```mermaid</span>
-                  <p className="text-[#06C755]">graph LR</p>
+                  <p className="text-[#1d4ed8]">graph LR</p>
                   <p className="pl-3 text-zinc-300">A[원시 마크다운] --&gt; B(AST 파서)</p>
                   <p className="pl-3 text-amber-300">B --&gt; C&#123;AI 첨삭 엔진&#125;</p>
-                  <p className="pl-3 text-[#06C755]">C --&gt;|무결점 검증| D[LDSG 출판 조판]</p>
+                  <p className="pl-3 text-[#1d4ed8]">C --&gt;|무결점 검증| D[LDSG 출판 조판]</p>
                   <span className="text-zinc-500">```</span>
                 </div>
 
@@ -157,7 +158,7 @@ export function HeroSection() {
             <div className="p-6 md:p-8 bg-white dark:bg-[#17191E] text-left space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-zinc-200/80 dark:border-white/5 text-[11px] text-[#68716D] uppercase tracking-wider font-semibold">
                 <span>PREVIEW · 출판급 멀티미디어 조판</span>
-                <span className="inline-flex items-center gap-1 text-[#06C755] font-bold">
+                <span className="inline-flex items-center gap-1 text-[#1d4ed8] font-bold">
                   <CheckCircle2 size={12} /> LDSG v5.0
                 </span>
               </div>
@@ -165,7 +166,7 @@ export function HeroSection() {
               {/* Document Header */}
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-[#06C755]/15 text-[#06C755] uppercase tracking-wider">
+                  <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-[#1d4ed8]/15 text-[#1d4ed8] uppercase tracking-wider">
                     SPECIFICATION
                   </span>
                   <span className="text-xs text-[#68716D] dark:text-zinc-400">
@@ -181,7 +182,7 @@ export function HeroSection() {
               <div className="rounded-xl border border-[#E0DED7] dark:border-white/10 bg-[#FAF9F6] dark:bg-[#14161A] p-3.5 sm:p-4">
                 <div className="text-[10px] font-bold text-[#68716D] uppercase tracking-wider mb-2.5 flex items-center justify-between">
                   <span>✦ MERMAID PIPELINE GRAPH</span>
-                  <span className="text-[#06C755] font-mono">VECTOR SVG</span>
+                  <span className="text-[#1d4ed8] font-mono">VECTOR SVG</span>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold">
                   <div className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 shadow-2xs">
@@ -192,7 +193,7 @@ export function HeroSection() {
                     ⚡ AST 파서
                   </div>
                   <span className="text-zinc-400 font-bold">→</span>
-                  <div className="px-2.5 py-1.5 rounded-lg bg-[#06C755]/15 text-[#06C755] border border-[#06C755]/40 font-bold shadow-xs flex items-center gap-1">
+                  <div className="px-2.5 py-1.5 rounded-lg bg-[#1d4ed8]/15 text-[#1d4ed8] border border-[#1d4ed8]/40 font-bold shadow-xs flex items-center gap-1">
                     <Sparkles size={11} /> AI 첨삭 엔진
                   </div>
                   <span className="text-zinc-400 font-bold">→</span>
@@ -227,11 +228,11 @@ export function HeroSection() {
                   <tbody className="divide-y divide-[#E0DED7] dark:divide-white/10 text-zinc-600 dark:text-zinc-300 text-[11px]">
                     <tr>
                       <td className="p-2.5 font-semibold text-[#111413] dark:text-white flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#06C755]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
                         Mermaid Graph
                       </td>
                       <td className="p-2.5"><span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold text-[10px]">SVG</span></td>
-                      <td className="p-2.5 font-mono text-[#06C755] font-bold">0.04s</td>
+                      <td className="p-2.5 font-mono text-[#1d4ed8] font-bold">0.04s</td>
                       <td className="p-2.5 font-medium">LDSG v5.0</td>
                     </tr>
                     <tr>
@@ -240,7 +241,7 @@ export function HeroSection() {
                         KaTeX Math
                       </td>
                       <td className="p-2.5"><span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-bold text-[10px]">MathML</span></td>
-                      <td className="p-2.5 font-mono text-[#06C755] font-bold">0.01s</td>
+                      <td className="p-2.5 font-mono text-[#1d4ed8] font-bold">0.01s</td>
                       <td className="p-2.5 font-medium">LaTeX AMS</td>
                     </tr>
                     <tr>
@@ -249,7 +250,7 @@ export function HeroSection() {
                         Print Styler
                       </td>
                       <td className="p-2.5"><span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-bold text-[10px]">A4/PDF</span></td>
-                      <td className="p-2.5 font-mono text-[#06C755] font-bold">0.08s</td>
+                      <td className="p-2.5 font-mono text-[#1d4ed8] font-bold">0.08s</td>
                       <td className="p-2.5 font-medium">A4 Strict</td>
                     </tr>
                   </tbody>

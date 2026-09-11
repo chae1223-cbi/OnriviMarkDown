@@ -2,19 +2,16 @@
 
 /*
  * CssStyleForm.tsx — 사용자 친화적 서식 정의 제어판 (관보 서식 규격 지정)
- *
  * 좌측 영역을 차지하는 패널로, 사용자가 선택한 CssProfile의
  * 전역 타이포그래피와 각 HTML 태그별 CSS 룰셋(CssRuleSet)을 편집합니다.
- *
  * 편집 모드는 두 가지:
  *   1. 위젯 편집 모드 (기본) — 슬라이더와 컬러 피커를 통해 비개발자도 직관적으로 편집
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
- *
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
- *
  * 🚨 @PATCH
+ *   2026-09-11 — Modern Technical Editorial 표준 적용 및 미리보기 영역 사용자 정의 CSS (Custom CSS 직접 입력) 편집 아코디언 신설
  *   2026-09-05 — 표 상단 여백 (제목 문구와의 간격, margin-top) 및 하단 여백(margin-bottom) 정밀 조절 슬라이더 위젯 추가
- *   2026-09-02 — LINE Design System (LDSG v5.0) 표준 적용: 테마 드롭다운 및 갤러리 팝오버 LDSG Green(#06C755) 악센트 및 LDSG 경계선 규격 통일
+ *   2026-09-02 — LINE Design System (LDSG v5.0) 표준 적용: 테마 드롭다운 및 갤러리 팝오버 LDSG Green(#1d4ed8) 악센트 및 LDSG 경계선 규격 통일
  *   2026-08-15 — 상단 헤더 간소화: 7개 이모지 버튼 제거, [테마 선택 드롭다운] + [서식 관리 ⚙] 버튼 2개로 교체
  *               onOpenStyleManager prop 추가 → StyleManagerModal 연동
  *   2026-07-15 — AI 서식 생성 기능 추가: GoogleGenerativeAI 직접 호출로 processTextWithAI 대체
@@ -905,7 +902,7 @@ ${guideContent}
         <div className="flex items-center justify-end gap-2 -mt-1 mb-1">
           <button
             onClick={downloadGuideSpec}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#06C755] dark:text-zinc-400 dark:hover:text-[#06C755] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#1d4ed8] dark:text-zinc-400 dark:hover:text-[#1d4ed8] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-sm"
             title="CSS 프로필 설정 가이드 다운로드"
           >
             📖 서식 설정 가이드
@@ -913,7 +910,7 @@ ${guideContent}
           {onOpenStyleManager && (
             <button
               onClick={onOpenStyleManager}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#06C755] dark:text-zinc-400 dark:hover:text-[#06C755] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-[#1d4ed8] dark:text-zinc-400 dark:hover:text-[#1d4ed8] bg-white dark:bg-[#131519] hover:bg-slate-50 dark:hover:bg-[#22242A] rounded-lg border border-[#EFEFEF] dark:border-[#22242A] transition-colors shadow-sm"
               title="서식 관리 (추가/삭제/가져오기/AI생성)"
             >
               ⚙ 서식 관리
@@ -933,12 +930,12 @@ ${guideContent}
               if (e.key === 'Escape') setIsEditingName(false);
             }}
             autoFocus
-            className="w-full p-2.5 border-2 border-[#06C755] rounded-xl outline-none text-base font-extrabold bg-white dark:bg-[#131519] text-zinc-900 dark:text-zinc-100 shadow-sm"
+            className="w-full p-2.5 border-2 border-[#1d4ed8] rounded-xl outline-none text-base font-extrabold bg-white dark:bg-[#131519] text-zinc-900 dark:text-zinc-100 shadow-sm"
           />
         ) : (
           <button
             onClick={() => setShowAllProfiles(!isGalleryOpen)}
-            className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-emerald-50/70 to-blue-50/70 dark:from-[#06C755]/10 dark:to-[#4D73FF]/10 rounded-xl border border-[#06C755]/30 dark:border-[#06C755]/20 hover:border-[#06C755] dark:hover:border-[#06C755] hover:shadow-md transition-all group"
+            className="flex items-center justify-between w-full p-2.5 bg-gradient-to-r from-emerald-50/70 to-blue-50/70 dark:from-[#1d4ed8]/10 dark:to-[#4D73FF]/10 rounded-xl border border-[#1d4ed8]/30 dark:border-[#1d4ed8]/20 hover:border-[#1d4ed8] dark:hover:border-[#1d4ed8] hover:shadow-md transition-all group"
           >
             <div className="flex items-center gap-2">
               <span className="text-xl">{isSystemProfile ? '🏛️' : '🫆'}</span>
@@ -947,7 +944,7 @@ ${guideContent}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`text-zinc-400 group-hover:text-[#06C755] transition-transform duration-200 ${isGalleryOpen ? 'rotate-180' : ''}`}>
+              <span className={`text-zinc-400 group-hover:text-[#1d4ed8] transition-transform duration-200 ${isGalleryOpen ? 'rotate-180' : ''}`}>
                 ▼
               </span>
             </div>
@@ -969,10 +966,10 @@ ${guideContent}
                     onSelectProfile(p.id);
                     setShowAllProfiles(false); // 선택 후 자동 닫힘
                   }}
-                  className={`w-full h-[70px] rounded-xl border-2 flex flex-col items-center justify-center p-2 transition-all ${isActive ? 'border-[#06C755] bg-[#06C755]/10 shadow-sm' : 'border-[#EFEFEF] dark:border-[#22242A] bg-white dark:bg-[#131519] hover:border-[#06C755]/50'}`}
+                  className={`w-full h-[70px] rounded-xl border-2 flex flex-col items-center justify-center p-2 transition-all ${isActive ? 'border-[#1d4ed8] bg-[#1d4ed8]/10 shadow-sm' : 'border-[#EFEFEF] dark:border-[#22242A] bg-white dark:bg-[#131519] hover:border-[#1d4ed8]/50'}`}
                 >
                   <span className="text-[18px] mb-1">{isSystemProfileId(p.id) ? '🏛️' : '🫆'}</span>
-                  <span className={`text-[11px] font-bold truncate w-full text-center ${isActive ? 'text-[#06C755] dark:text-[#06C755]' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                  <span className={`text-[11px] font-bold truncate w-full text-center ${isActive ? 'text-[#1d4ed8] dark:text-[#1d4ed8]' : 'text-zinc-600 dark:text-zinc-400'}`}>
                     {p.name}
                   </span>
                 </button>
@@ -2902,6 +2899,40 @@ ${guideContent}
                 <option value="right">오른쪽 정렬</option>
               </select>
             </div>
+          </div>
+        </AccordionSection>
+
+        {/* 🎨 아코디언 [7]: 사용자 정의 CSS (Custom CSS 직접 입력) */}
+        <AccordionSection
+          id="customCss"
+          title="🎨 사용자 정의 CSS (Custom CSS 직접 입력)"
+          isOpen={openAccordion === 'customCss'}
+          onToggle={() => setOpenAccordion(openAccordion === 'customCss' ? null : 'customCss')}
+        >
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[13.5px] font-bold text-zinc-700 dark:text-zinc-300">
+                추가 CSS 코드 직접 작성
+              </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                실시간 반영
+              </span>
+            </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+              미리보기 영역에 적용할 사용자 정의 CSS 규칙을 직접 작성할 수 있습니다.
+              (예: <code className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">.custom-preview-container h1 &#123; letter-spacing: -0.02em; &#125;</code>)
+            </p>
+            <textarea
+              value={currentProfile.customCss || ''}
+              onChange={(e) => {
+                onUpdateProfile({ ...currentProfile, customCss: e.target.value });
+              }}
+              disabled={isSystemProfile}
+              placeholder={`/* 사용자 정의 CSS를 여기에 작성하세요 */\n.custom-preview-container {\n  /* 기본 미리보기 컨테이너 커스텀 스타일 */\n}\n\n.onrivi-content-root h1 {\n  /* 제목 서식 커스텀 */\n}`}
+              rows={8}
+              className={`w-full p-3 font-mono text-xs rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all resize-y ${isSystemProfile ? 'opacity-50 cursor-not-allowed' : ''}`}
+              spellCheck={false}
+            />
           </div>
         </AccordionSection>
 

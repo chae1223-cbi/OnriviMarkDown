@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-010] KUI010_KnowledgeDocDetail.tsx ➔ 지식 문서 상세 분석 뷰어
 // 🎯 @KICK  : 지식 문서의 AI 요약, 핵심 요점, 헤딩별 청크 분할 구조, 태그 및 라인 점프
-// 🛡️ @GUARD : LDSG v5.0 (#06C755), 청크 아코디언, 에디터 라인 점프 연동
-// 🚨 @PATCH : **2026-09-04** — [Rule 8 고대비 시인성] 문서 상세 헤더의 파일 경로를 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하여 가독성 개선
+// 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 청크 아코디언, 에디터 라인 점프 연동
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — [Rule 8 고대비 시인성] 문서 상세 헤더의 파일 경로를 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하여 가독성 개선
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-010 지식 문서 상세 내역 뷰어 화면 신규 구현
 // 🔗 @CALLS : app:open-file-at-line
 // ====================================================================
@@ -78,7 +79,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
 
         <button
           onClick={() => handleOpenInEditor(1)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold rounded-lg bg-[#06C755] text-white hover:bg-[#05b34c] transition shadow-xs"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-extrabold rounded-lg bg-[#1d4ed8] text-white hover:bg-[#05b34c] transition shadow-xs"
         >
           <ExternalLink className="w-3.5 h-3.5" />
           에디터에서 열기
@@ -89,7 +90,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
       <div className="grid grid-cols-4 gap-2.5 text-center">
         <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800">
           <span className="text-[10px] text-zinc-400 font-medium block">생성 청크</span>
-          <span className="text-sm font-extrabold text-[#06C755]">{detail.chunksCount}개</span>
+          <span className="text-sm font-extrabold text-[#1d4ed8]">{detail.chunksCount}개</span>
         </div>
         <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800">
           <span className="text-[10px] text-zinc-400 font-medium block">추출 태그</span>
@@ -113,7 +114,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
           onClick={() => setActiveTab('summary')}
           className={`py-2 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'summary'
-              ? 'border-[#06C755] text-[#06C755]'
+              ? 'border-[#1d4ed8] text-[#1d4ed8]'
               : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
         >
@@ -124,7 +125,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
           onClick={() => setActiveTab('chunks')}
           className={`py-2 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'chunks'
-              ? 'border-[#06C755] text-[#06C755]'
+              ? 'border-[#1d4ed8] text-[#1d4ed8]'
               : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
         >
@@ -135,7 +136,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
           onClick={() => setActiveTab('tags')}
           className={`py-2 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'tags'
-              ? 'border-[#06C755] text-[#06C755]'
+              ? 'border-[#1d4ed8] text-[#1d4ed8]'
               : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
         >
@@ -152,7 +153,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 text-xs">
-                  <span className="text-[#06C755]">💡</span> AI 핵심 요약
+                  <span className="text-[#1d4ed8]">💡</span> AI 핵심 요약
                 </span>
                 <button
                   onClick={handleCopySummary}
@@ -169,7 +170,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
 
             <div>
               <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 mb-2 text-xs">
-                <CheckCircle2 className="w-4 h-4 text-[#06C755]" /> 추출된 핵심 요점 (Key Points)
+                <CheckCircle2 className="w-4 h-4 text-[#1d4ed8]" /> 추출된 핵심 요점 (Key Points)
               </span>
               {detail.keyPoints && detail.keyPoints.length > 0 ? (
                 <div className="space-y-2">
@@ -178,7 +179,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
                       key={idx} 
                       className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 flex items-start gap-2.5"
                     >
-                      <span className="w-5 h-5 rounded-full bg-[#06C755]/15 text-[#06C755] flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">
+                      <span className="w-5 h-5 rounded-full bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">
                         {idx + 1}
                       </span>
                       <span className="text-zinc-700 dark:text-zinc-300 leading-relaxed">
@@ -235,7 +236,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
                           e.stopPropagation();
                           handleOpenInEditor(chunk.startLine);
                         }}
-                        className="p-1 rounded text-[#06C755] hover:bg-[#06C755]/10 transition"
+                        className="p-1 rounded text-[#1d4ed8] hover:bg-[#1d4ed8]/10 transition"
                         title="에디터 라인 이동"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -273,7 +274,7 @@ export const KUI010_KnowledgeDocDetail: React.FC<KUI010KnowledgeDocDetailProps> 
                     key={idx}
                     className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium"
                   >
-                    <Tag className="w-3 h-3 text-[#06C755]" />
+                    <Tag className="w-3 h-3 text-[#1d4ed8]" />
                     {t.name}
                     <span className="text-[10px] text-zinc-400 font-mono ml-0.5">({t.score})</span>
                   </span>

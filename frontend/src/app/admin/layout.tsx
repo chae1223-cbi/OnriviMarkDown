@@ -3,10 +3,10 @@
  * 파일명 : app/admin/layout.tsx
  * -----------------------------------------------------------------------
  * 변경내역
- * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-09-02** — 어드민 사이드바를 에디터 좌측 사이드바 디자인 시스템(경계선 border-slate-300, 폰트 패밀리, bg-sidebar-luxury, 선명한 하이라이트/호버)과 100% 일치화
- *             **2026-09-02** — 좌측 상단 헤더 로고(/icon.png) 및 'Onrivi Admin' 타이포그래피를 랜딩페이지 브랜드 디자인 시스템 규격과 100% 일치화
- *             **2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 사이드바 .bg-sidebar-luxury 럭셔리 그라데이션 적용 및 LDSG Green(#06C755)/Blue(#4D73FF) 컬러 시스템 통일
+ * ----------------------------------------------------------------------- * 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+ *             2026-09-02** — 어드민 사이드바를 에디터 좌측 사이드바 디자인 시스템(경계선 border-slate-300, 폰트 패밀리, bg-sidebar-luxury, 선명한 하이라이트/호버)과 100% 일치화
+ * *2026-09-02** — 좌측 상단 헤더 로고(/icon.png) 및 'Onrivi Admin' 타이포그래피를 랜딩페이지 브랜드 디자인 시스템 규격과 100% 일치화
+ * *2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 사이드바 .bg-sidebar-luxury 럭셔리 그라데이션 적용 및 LDSG Green(#1d4ed8)/Blue(#4D73FF) 컬러 시스템 통일
  * -----------------------------------------------------------------------
  */
 'use client';
@@ -132,7 +132,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Sidebar for Desktop (.bg-sidebar-luxury 및 에디터 사이드바 기준 일치) */}
       <aside 
         style={{
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
         }}
         className="hidden w-[280px] bg-sidebar-luxury border-r border-slate-300 dark:border-zinc-700 select-none md:flex md:flex-col z-10 transition-all shadow-sm"
       >
@@ -153,11 +153,11 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 relative group overflow-hidden ${
                   isActive
-                    ? 'text-zinc-950 dark:text-white font-extrabold bg-[#06C755]/15 dark:bg-[#06C755]/25 shadow-xs'
+                    ? 'text-zinc-950 dark:text-white font-extrabold bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 shadow-xs'
                     : 'text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 font-bold'
                 }`}
               >
-                <item.icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-[#06C755]' : 'text-zinc-600 dark:text-zinc-400'}`} />
+                <item.icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-[#1d4ed8]' : 'text-zinc-600 dark:text-zinc-400'}`} />
                 <span className="text-[13px] tracking-tight">{item.name}</span>
               </Link>
             );
@@ -167,7 +167,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           {/* Admin Info Card */}
           {adminEmail && (
             <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white dark:bg-zinc-800/90 border border-slate-300 dark:border-zinc-700 shadow-xs">
-              <div className="w-8 h-8 rounded-full bg-[#06C755] flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs">
+              <div className="w-8 h-8 rounded-full bg-[#1d4ed8] flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs">
                 {adminEmail.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
@@ -176,7 +176,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 </p>
                 <span className={`inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold tracking-wider ${
                   adminRole === 'SUPER'
-                    ? 'bg-[#06C755]/15 text-[#06C755]'
+                    ? 'bg-[#1d4ed8]/15 text-[#1d4ed8]'
                     : 'bg-[#4D73FF]/15 text-[#4D73FF]'
                 }`}>
                   {adminRole === 'SUPER' ? '⚡ SUPER' : '🛡 SUPPORT'}
@@ -261,14 +261,14 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 relative overflow-hidden ${
                       isActive
-                        ? 'text-[#06C755] font-bold bg-[#06C755]/10 shadow-sm'
+                        ? 'text-[#1d4ed8] font-bold bg-[#1d4ed8]/10 shadow-sm'
                         : 'text-zinc-700 hover:text-zinc-950 hover:bg-black/5 font-bold'
                     }`}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-[#06C755] rounded-r-full shadow-[0_0_8px_#06C755]" />
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-[#1d4ed8] rounded-r-full shadow-[0_0_8px_#1d4ed8]" />
                     )}
-                    <item.icon className={`w-4 h-4 ${isActive ? 'text-[#06C755]' : 'text-zinc-600'}`} />
+                    <item.icon className={`w-4 h-4 ${isActive ? 'text-[#1d4ed8]' : 'text-zinc-600'}`} />
                     <span className="text-[13.5px] tracking-tight">{item.name}</span>
                   </Link>
                 )})}

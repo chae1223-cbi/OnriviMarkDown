@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트 및 .onrivi-line 정밀 분할] rehypeSourceLinesPlugin에서 문단(p) 내부를 줄바꿈(br) 단위로 <span class="onrivi-line" data-line="...">로 분할 래핑하여 여러 줄로 구성된 문단에서도 커서가 위치한 특정 행 하나만 정확하게 독립 하이라이트되도록 전면 개선
+// 🚨 @PATCH : **2026-09-11** — 미리보기 영역 사용자 정의 CSS 전면 지원: customCss prop, 마크다운 Frontmatter custom_css/css 추출 주입, 마크다운 본문 내 인라인 <style> 태그 실시간 렌더링 지원
+//             **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트 및 .onrivi-line 정밀 분할] rehypeSourceLinesPlugin에서 문단(p) 내부를 줄바꿈(br) 단위로 <span class="onrivi-line" data-line="...">로 분할 래핑하여 여러 줄로 구성된 문단에서도 커서가 위치한 특정 행 하나만 정확하게 독립 하이라이트되도록 전면 개선
 //             **2026-09-06** — [에디터-미리보기 하이라이트 일원화 및 잔상/중복 테두리 제거] 인라인 activeLine dashed 아웃라인 스타일 태그를 제거하고 단일 preview-highlight-line 클래스로 통일하여 표(tr) 및 일반 요소 하이라이트 시인성 일원화
 //             **2026-09-05** — [표 전체 래퍼 중복 앵커 제거 및 행(tr) 단위 초정밀 싱크 보장] TableWrapper에서 테이블 전체를 묶는 중복 data-line 속성을 제거하여 자식 tr 개별 행들이 독립적인 40px 단위 앵커로 정확히 인식되도록 개선; iframe 지도 래퍼(map-embed-wrapper) 단일 앵커 일원화
 //             **2026-09-05** — [문단 내 연속 줄바꿈(br) 줄 번호 추적 및 표 직전 제목 일체화] rehypeSourceLinesPlugin에서 p 태그 자식 br 마다 물리 줄 번호를 1:1로 증분 부여하여 연속된 인라인 텍스트 행 타이핑 시에도 앵커가 정확히 잡히도록 개선, 표 직전 헤딩(:is(p,h1~h6,strong):has(+ .table-wrapper-area)) 하단 마진 6px 통일 및 dynamicPropsRef 동기 주입으로 실시간 lineMap 반영 보장
@@ -87,6 +88,8 @@ interface MarkdownViewerProps {
   onImageLoaded?: () => void;
   /** 💡 현재 에디터에서 포커스/커서가 위치한 활성 라인 번호 (미리보기 인디케이터용) */
   activeLine?: number;
+  /** 💡 사용자 정의 CSS 스타일 문자열 (미리보기 서식 격리 주입) */
+  customCss?: string;
 }
 
 // 💡 [하이브리드 data-line 추출 헬퍼] React 컴포넌트 Props 카멜 케이스 변환 및 AST Properties 누락 방지를 위한 통합 스캐너
@@ -1308,7 +1311,7 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
 function MarkdownViewer({
   content, originalContent, lineMap, onCheckboxToggle, currentFilePath, rootFolderPath,
   onFileOpen, listIndent, marginTop, marginBottom, marginLeft, marginRight, bibContent, rootFolder, resourceFolderHandle, resourceFolder, workspaceType,
-  onImageLoaded, activeLine
+  onImageLoaded, activeLine, customCss
 }: MarkdownViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1316,6 +1319,16 @@ function MarkdownViewer({
   const originalContentRef = useRef(originalContent);
   const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType });
   dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType };
+
+  const frontmatterCustomCss = useMemo(() => {
+    if (!content) return '';
+    try {
+      const { data } = extractFrontmatter(content);
+      return data.custom_css || data.customCss || data.css || '';
+    } catch {
+      return '';
+    }
+  }, [content]);
 
   useEffect(() => {
     contentRef.current = content;
@@ -1837,6 +1850,12 @@ function MarkdownViewer({
           margin-bottom: 6px !important;
         }
       `}</style>
+      {(customCss || frontmatterCustomCss) && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          ${customCss ? `/* === [User Custom CSS - Prop] === */\n${customCss}\n` : ''}
+          ${frontmatterCustomCss ? `/* === [Frontmatter Custom CSS] === */\n${frontmatterCustomCss}\n` : ''}
+        ` }} />
+      )}
       <div className="print:!block">
         <ReactMarkdown
           urlTransform={(uri) => {
@@ -2431,6 +2450,10 @@ function MarkdownViewer({
             },
             div: ({ node, className, children, ...props }: any) => {
               return <div className={className} {...props}>{children}</div>;
+            },
+            style: ({ node, children, ...props }: any) => {
+              const cssText = getTextFromChildren(children);
+              return <style dangerouslySetInnerHTML={{ __html: cssText }} {...props} />;
             },
             br: ({ node, ...props }: any) => <span className="onrivi-sentence-br" {...props} />,
             pre: ({ node, children, ...props }: any) => <div className="not-prose">{children}</div>,

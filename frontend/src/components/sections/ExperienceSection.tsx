@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-ExperienceSection-0027] ExperienceSection ➔ ExperienceSection
 // 🎯 @KICK  : Onrivi Author의 3대 핵심 경험(WRITE, REFINE, PUBLISH)을 실제 제품 UI 목업과 함께 단계별로 몰입감 있게 선보이는 피처 섹션
 // 🛡️ @GUARD : 탭 상태 스위칭 및 반응형 카드 UI 오버플로우 방지
-// 🚨 @PATCH : **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 기존 6개 분절 카드 제거 및 WRITE/REFINE/PUBLISH 3단계 제품 스토리텔링 뷰 신규 구축
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 기존 6개 분절 카드 제거 및 WRITE/REFINE/PUBLISH 3단계 제품 스토리텔링 뷰 신규 구축
 // 🔗 @CALLS : motion.div, useState, Check, Sparkles
 // ====================================================================
 "use client";
@@ -65,7 +66,7 @@ export function ExperienceSection() {
     <section
       id="experience"
       className="py-24 sm:py-32 bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] relative overflow-hidden"
-      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Section Header */}
@@ -97,7 +98,7 @@ export function ExperienceSection() {
                       : "text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white"
                   }`}
                 >
-                  <span className={`font-mono text-[11px] ${isActive ? "text-[#06C755]" : "opacity-60"}`}>
+                  <span className={`font-mono text-[11px] ${isActive ? "text-[#1d4ed8]" : "opacity-60"}`}>
                     {tab.tabNumber}
                   </span>
                   <span>{tab.tabTitle}</span>
@@ -119,8 +120,8 @@ export function ExperienceSection() {
           >
             {/* Left Description Column */}
             <div className="lg:col-span-5 space-y-6 text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#06C755]/10 text-[#06C755] text-xs font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#06C755]" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1d4ed8]/10 text-[#1d4ed8] text-xs font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
                 {currentExp.tag}
               </div>
 
@@ -139,7 +140,7 @@ export function ExperienceSection() {
               <div className="space-y-2.5 pt-2">
                 {currentExp.bullets.map((b, i) => (
                   <div key={i} className="flex items-center gap-2.5 text-xs sm:text-[13px] text-[#111413] dark:text-zinc-300 font-medium">
-                    <div className="w-4 h-4 rounded-full bg-[#06C755]/15 text-[#06C755] flex items-center justify-center shrink-0">
+                    <div className="w-4 h-4 rounded-full bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center shrink-0">
                       <Check size={11} strokeWidth={3} />
                     </div>
                     <span>{b}</span>
@@ -163,7 +164,7 @@ export function ExperienceSection() {
                       {activeTab === "publish" && "document-output.pdf — PUBLISH"}
                     </span>
                   </div>
-                  <span className="text-[11px] font-bold text-[#06C755]">
+                  <span className="text-[11px] font-bold text-[#1d4ed8]">
                     {activeTab.toUpperCase()} MODE
                   </span>
                 </div>
@@ -178,11 +179,11 @@ export function ExperienceSection() {
                     </p>
                     <p className="text-emerald-600 dark:text-emerald-400 font-semibold pt-1">## 해결 방법</p>
                     <ul className="space-y-1 text-zinc-600 dark:text-zinc-300 pl-4 border-l-2 border-zinc-200 dark:border-zinc-800">
-                      <li>- <strong className="text-[#06C755]">빠른 작성:</strong> 마크다운 키보드 네비게이션</li>
-                      <li>- <strong className="text-[#06C755]">명확한 구조:</strong> 헤딩 및 목록 실시간 정렬</li>
-                      <li>- <strong className="text-[#06C755]">쉬운 공유:</strong> 단일 신뢰 소스(SSoT) 출력</li>
+                      <li>- <strong className="text-[#1d4ed8]">빠른 작성:</strong> 마크다운 키보드 네비게이션</li>
+                      <li>- <strong className="text-[#1d4ed8]">명확한 구조:</strong> 헤딩 및 목록 실시간 정렬</li>
+                      <li>- <strong className="text-[#1d4ed8]">쉬운 공유:</strong> 단일 신뢰 소스(SSoT) 출력</li>
                     </ul>
-                    <div className="inline-block w-2 h-4 bg-[#06C755] animate-pulse align-middle ml-1" />
+                    <div className="inline-block w-2 h-4 bg-[#1d4ed8] animate-pulse align-middle ml-1" />
                   </div>
                 )}
 
@@ -194,12 +195,12 @@ export function ExperienceSection() {
                     </div>
 
                     {/* AI Suggestion Tooltip */}
-                    <div className="p-4 rounded-xl bg-[#06C755]/10 border border-[#06C755]/30 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-bold text-[#06C755]">
+                    <div className="p-4 rounded-xl bg-[#1d4ed8]/10 border border-[#1d4ed8]/30 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-[#1d4ed8]">
                         <span className="flex items-center gap-1.5">
                           <Sparkles size={14} /> ✦ 문장 간결화 & 전문 용어 정돈 제안
                         </span>
-                        <span className="text-[11px] bg-[#06C755] text-white px-2 py-0.5 rounded">적용 추천</span>
+                        <span className="text-[11px] bg-[#1d4ed8] text-white px-2 py-0.5 rounded">적용 추천</span>
                       </div>
                       <p className="text-xs text-[#111413] dark:text-zinc-100 font-medium leading-relaxed">
                         &quot;문서 작성 과정에서 사용자의 인지 부하를 최소화하기 위해, 필수 맥락 정보만을 신속하게 전달하는 직관적 인터페이스를 구축합니다.&quot;
@@ -210,7 +211,7 @@ export function ExperienceSection() {
                       <button className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-300">
                         원본 유지
                       </button>
-                      <button className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-[#06C755] text-white shadow-xs">
+                      <button className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-[#1d4ed8] text-white shadow-xs">
                         문장 반영하기
                       </button>
                     </div>
@@ -220,7 +221,7 @@ export function ExperienceSection() {
                 {activeTab === "publish" && (
                   <div className="p-6 sm:p-8 font-sans text-sm space-y-4 bg-[#FCFDFC] dark:bg-[#181B20]">
                     <div className="flex items-center justify-between pb-2 border-b border-zinc-200 dark:border-white/10 text-xs">
-                      <span className="font-bold text-[#06C755]">완성된 문서 · 출판본</span>
+                      <span className="font-bold text-[#1d4ed8]">완성된 문서 · 출판본</span>
                       <span className="text-zinc-400">규격: A4 / Web Standard</span>
                     </div>
 
@@ -239,7 +240,7 @@ export function ExperienceSection() {
                       본 규격서는 사내 표준 지식 자산으로 등록되었으며, 버전 4.2 기준의 완전한 인쇄 서식과 시각적 조판을 충족합니다.
                     </p>
 
-                    <div className="p-3 rounded-lg border-l-3 border-[#06C755] bg-zinc-100/60 dark:bg-zinc-800/40 text-xs text-zinc-600 dark:text-zinc-300 font-mono">
+                    <div className="p-3 rounded-lg border-l-3 border-[#1d4ed8] bg-zinc-100/60 dark:bg-zinc-800/40 text-xs text-zinc-600 dark:text-zinc-300 font-mono">
                       curl -X POST https://api.onrivi.io/v2/documents/export
                     </div>
                   </div>

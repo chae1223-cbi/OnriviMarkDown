@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-DocumentGallerySection-0028] DocumentGallerySection ➔ DocumentGallerySection
 // 🎯 @KICK  : 실무에서 작성되는 4대 핵심 문서(기획서, 기능명세서, 회의록, 기술문서)를 사진 대신 실제 조판된 문서 카드로 쇼케이스하는 갤러리 섹션
 // 🛡️ @GUARD : 문서 카드 그리드 반응형 가드 및 호버 인터랙션 보장
-// 🚨 @PATCH : **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: '문서가 곧 비주얼이 된다'는 기획 철학을 구현한 Documents Gallery 컴포넌트 신규 생성
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: '문서가 곧 비주얼이 된다'는 기획 철학을 구현한 Documents Gallery 컴포넌트 신규 생성
 // 🔗 @CALLS : motion.div, FileText, CheckSquare, Code2, Calendar
 // ====================================================================
 "use client";
@@ -86,7 +87,7 @@ export function DocumentGallerySection() {
     <section
       id="documents"
       className="py-24 sm:py-32 bg-[#F2F0EB] dark:bg-[#15171A] border-y border-[#E2DFD8] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
-      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
@@ -113,7 +114,7 @@ export function DocumentGallerySection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: idx * 0.08 }}
-                className="group rounded-2xl border border-[#E0DED7] dark:border-white/10 bg-white dark:bg-[#1A1D22] p-6 sm:p-8 hover:border-[#06C755]/60 transition-all duration-300 hover:shadow-[0_16px_40px_-10px_rgba(30,25,15,0.08)] flex flex-col justify-between text-left"
+                className="group rounded-2xl border border-[#E0DED7] dark:border-white/10 bg-white dark:bg-[#1A1D22] p-6 sm:p-8 hover:border-[#1d4ed8]/60 transition-all duration-300 hover:shadow-[0_16px_40px_-10px_rgba(30,25,15,0.08)] flex flex-col justify-between text-left"
               >
                 <div>
                   {/* Card Top Metadata */}
@@ -132,9 +133,9 @@ export function DocumentGallerySection() {
                   </div>
 
                   {/* Document Title */}
-                  <h3 className="text-lg sm:text-xl font-bold text-[#111413] dark:text-white tracking-tight mb-4 group-hover:text-[#06C755] transition-colors flex items-center justify-between">
+                  <h3 className="text-lg sm:text-xl font-bold text-[#111413] dark:text-white tracking-tight mb-4 group-hover:text-[#1d4ed8] transition-colors flex items-center justify-between">
                     <span>{doc.title}</span>
-                    <ArrowUpRight size={18} className="opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all text-[#06C755]" />
+                    <ArrowUpRight size={18} className="opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all text-[#1d4ed8]" />
                   </h3>
 
                   {/* Document Sheet Simulation */}
@@ -148,7 +149,7 @@ export function DocumentGallerySection() {
                     <div className="font-mono text-zinc-400 text-[11px] pt-1">
                       {doc.content.subHeading}
                     </div>
-                    <div className="space-y-1 pl-2 border-l-2 border-[#06C755]/40 text-zinc-600 dark:text-zinc-400">
+                    <div className="space-y-1 pl-2 border-l-2 border-[#1d4ed8]/40 text-zinc-600 dark:text-zinc-400">
                       {doc.content.items.map((item, i) => (
                         <div key={i}>{item}</div>
                       ))}

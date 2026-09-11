@@ -283,7 +283,7 @@ export default function AdminsTab() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="admin@example.com"
-                  className="w-full bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-[var(--admin-text)] focus:outline-none focus:border-[#06C755]"
+                  className="w-full bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-[var(--admin-text)] focus:outline-none focus:border-[#1d4ed8]"
                 />
               </div>
               <div>
@@ -291,7 +291,7 @@ export default function AdminsTab() {
                 <select 
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-[var(--admin-text)] focus:outline-none focus:border-[#06C755]"
+                  className="w-full bg-[var(--admin-background)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-[var(--admin-text)] focus:outline-none focus:border-[#1d4ed8]"
                 >
                   <option value="SUPPORT">지원 관리자 (SUPPORT) - 일반 조회 및 지원</option>
                   <option value="SUPER">슈퍼 관리자 (SUPER) - 모든 권한 허용</option>

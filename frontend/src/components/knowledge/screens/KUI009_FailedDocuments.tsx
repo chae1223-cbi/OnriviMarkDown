@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-009] KUI009_FailedDocuments.tsx ➔ 실패 문서 관리 및 원터치 선택 재시도
 // 🎯 @KICK  : 수집/인덱싱 실패 문서 목록, 실패 원인 진단(429, 파싱, JSON, DB락), 선택적 일괄 재시도 및 취소
-// 🛡️ @GUARD : LDSG v5.0 (#06C755), 전체 선택/개별 선택 체크박스, 안전 가드
-// 🚨 @PATCH : **2026-09-05** — ESLint react-hooks/exhaustive-deps 경고 해결: fetchFailedJobs를 useCallback으로 메모이제이션하고 useEffect 의존성 배열에 등록
+// 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 전체 선택/개별 선택 체크박스, 안전 가드
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-05** — ESLint react-hooks/exhaustive-deps 경고 해결: fetchFailedJobs를 useCallback으로 메모이제이션하고 useEffect 의존성 배열에 등록
 //             **2026-09-04** — [Rule 8 고대비 시인성] 실패 문서 목록 파일 경로를 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하여 식별력 개선
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-009 실패 문서 관리 및 복구 전용 화면 신규 구현
 // 🔗 @CALLS : /api/knowledge/queue
@@ -156,7 +157,7 @@ export const KUI009_FailedDocuments: React.FC<KUI009FailedDocumentsProps> = ({
           <button
             onClick={() => handleRetryJobs(selectedJobIds.size > 0 ? Array.from(selectedJobIds) : undefined)}
             disabled={actionLoading || failedJobs.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#06C755] text-white hover:bg-[#05b34c] transition shadow-xs disabled:opacity-40"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#1d4ed8] text-white hover:bg-[#05b34c] transition shadow-xs disabled:opacity-40"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
             {selectedJobIds.size > 0 ? `선택 항목 재시도 (${selectedJobIds.size})` : '실패 문서 전체 재시도'}
@@ -182,7 +183,7 @@ export const KUI009_FailedDocuments: React.FC<KUI009FailedDocumentsProps> = ({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="실패 파일 경로 또는 오류 내용 검색..."
-          className="w-full pl-9 pr-4 py-2 text-xs bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-[#06C755]"
+          className="w-full pl-9 pr-4 py-2 text-xs bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none focus:border-[#1d4ed8]"
         />
       </div>
 
@@ -190,12 +191,12 @@ export const KUI009_FailedDocuments: React.FC<KUI009FailedDocumentsProps> = ({
       <div className="flex-1 overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-[#18191D]">
         {loading ? (
           <div className="flex items-center justify-center h-48 text-xs text-zinc-500 gap-2">
-            <RotateCcw className="w-4 h-4 animate-spin text-[#06C755]" />
+            <RotateCcw className="w-4 h-4 animate-spin text-[#1d4ed8]" />
             실패 작업 목록 조회 중...
           </div>
         ) : filteredJobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-zinc-400 dark:text-zinc-500 space-y-2">
-            <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-[#06C755] flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-[#1d4ed8] flex items-center justify-center font-bold">
               ✓
             </div>
             <p className="text-xs font-medium">실패하거나 중단된 작업이 없습니다. 모든 문서가 정상 처리되었습니다!</p>
@@ -207,7 +208,7 @@ export const KUI009_FailedDocuments: React.FC<KUI009FailedDocumentsProps> = ({
                 <th className="p-3 w-10 text-center">
                   <button onClick={handleToggleSelectAll}>
                     {selectedJobIds.size === filteredJobs.length && filteredJobs.length > 0 ? (
-                      <CheckSquare className="w-4 h-4 text-[#06C755]" />
+                      <CheckSquare className="w-4 h-4 text-[#1d4ed8]" />
                     ) : (
                       <Square className="w-4 h-4 text-zinc-400" />
                     )}
@@ -229,14 +230,14 @@ export const KUI009_FailedDocuments: React.FC<KUI009FailedDocumentsProps> = ({
                   <React.Fragment key={job.id}>
                     <tr 
                       className={`hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition cursor-pointer ${
-                        isSelected ? 'bg-[#06C755]/5 dark:bg-[#06C755]/10' : ''
+                        isSelected ? 'bg-[#1d4ed8]/5 dark:bg-[#1d4ed8]/10' : ''
                       }`}
                       onClick={() => handleToggleSelect(job.id)}
                     >
                       <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => handleToggleSelect(job.id)}>
                           {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-[#06C755]" />
+                            <CheckSquare className="w-4 h-4 text-[#1d4ed8]" />
                           ) : (
                             <Square className="w-4 h-4 text-zinc-400" />
                           )}

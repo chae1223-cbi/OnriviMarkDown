@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-EditorPage-0001] editor/page.tsx ➔ Page
 // 🎯 @KICK  : MainEditorApp을 SSR 비활성화(Client-side only) 및 청크 로드 실패 시 자동 복구 가드를 통해 안전하게 마운트하는 최상위 에디터 진입 라우트
 // 🛡️ @GUARD : Next.js 빌드/HMR 청크 불일치로 인한 ChunkLoadError 방어 및 1회 자동 새로고침 복구 가드
-// 🚨 @PATCH : **2026-09-03** — ChunkLoadError 자동 복구 리트라이 가드 추가 및 LDSG v5.0 로딩 스피너 UI 통일
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — ChunkLoadError 자동 복구 리트라이 가드 추가 및 LDSG v5.0 로딩 스피너 UI 통일
 // 🔗 @CALLS : dynamic, MainEditorApp
 // ====================================================================
 "use client";
@@ -28,7 +29,7 @@ const MainEditorApp = dynamic(
       <div translate="no" className="flex items-center justify-center h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans select-none">
         <div className="flex flex-col items-center gap-6">
           <div className="relative flex items-center justify-center w-24 h-24">
-            <div className="absolute inset-0 m-auto w-20 h-20 border-[3px] border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin" />
+            <div className="absolute inset-0 m-auto w-20 h-20 border-[3px] border-[#1d4ed8]/20 border-t-[#1d4ed8] rounded-full animate-spin" />
             <img src="/icon.png" alt="Onrivi Logo" className="w-9 h-9 object-contain z-10" />
           </div>
           <div className="text-sm font-bold tracking-tight text-[#111413] dark:text-white">

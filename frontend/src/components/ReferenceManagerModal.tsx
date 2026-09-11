@@ -28,7 +28,8 @@ interface BibFile {
 // 📊 [OMD-EDIT-ReferenceManagerModal-0001] ReferenceManagerModal
 // 🎯 @KICK  : 외부 참조 파일(BibTeX, CSL-JSON 등) 추가 및 리소스 폴더 저장 모달 (CRUD 지원)
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환, resourceFolder 부재 시 가드
-// 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (bg-sidebar-luxury 사이드바 및 LINE Green #06C755 액션 버튼)
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (bg-sidebar-luxury 사이드바 및 LINE Green #1d4ed8 액션 버튼)
 //             **2026-08-05** — 2-Pane 레이아웃 개편: 기존 리소스 폴더 내 .bib 파일 목록 조회, 수정, 삭제 기능 추가
 // 🔗 @CALLS : showToast, saveFile, window.dispatchEvent, electronAPI.deleteFile
 // ====================================================================
@@ -319,7 +320,7 @@ export default function ReferenceManagerModal({
       
       <div 
         className="relative flex w-[90%] max-w-5xl h-[80vh] bg-white dark:bg-[#1E1E1E] rounded-2xl shadow-2xl overflow-hidden border border-[#EFEFEF] dark:border-white/10"
-        style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
+        style={{ fontFamily: "Pretendard, sans-serif" }}
         onClick={e => e.stopPropagation()}
         onKeyDown={e => e.stopPropagation()}
       >
@@ -327,7 +328,7 @@ export default function ReferenceManagerModal({
         <div className="w-1/3 border-r border-[#EFEFEF] dark:border-white/10 flex flex-col bg-sidebar-luxury text-on-surface">
           <div className="p-4 border-b border-[#EFEFEF] dark:border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2 text-on-surface">
-              <Database className="w-5 h-5 text-[#06C755]" />
+              <Database className="w-5 h-5 text-[#1d4ed8]" />
               <h2 className="text-base font-bold">참조 파일 관리</h2>
             </div>
           </div>
@@ -337,8 +338,8 @@ export default function ReferenceManagerModal({
               onClick={handleCreateNew}
               className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all w-full text-left text-sm font-bold ${
                 isCreatingNew 
-                ? 'bg-[#06C755]/15 text-[#06C755] border border-[#06C755] shadow-xs' 
-                : 'bg-white/80 dark:bg-[#252525] text-[#616161] dark:text-[#A0A0A0] border border-[#EFEFEF] dark:border-zinc-700 hover:border-[#06C755] hover:text-[#06C755]'
+                ? 'bg-[#1d4ed8]/15 text-[#1d4ed8] border border-[#1d4ed8] shadow-xs' 
+                : 'bg-white/80 dark:bg-[#252525] text-[#616161] dark:text-[#A0A0A0] border border-[#EFEFEF] dark:border-zinc-700 hover:border-[#1d4ed8] hover:text-[#1d4ed8]'
               }`}
             >
               <Plus className="w-4 h-4" />
@@ -353,8 +354,8 @@ export default function ReferenceManagerModal({
                 onClick={() => handleSelectFile(file)}
                 className={`group flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all cursor-pointer border text-sm ${
                   selectedFile?.name === file.name && !isCreatingNew
-                  ? 'bg-[#06C755]/15 text-[#06C755] border-[#06C755] font-bold shadow-xs' 
-                  : 'bg-white/80 dark:bg-[#252525] text-slate-700 dark:text-zinc-300 border-[#EFEFEF] dark:border-zinc-700 hover:border-[#06C755] hover:text-[#06C755]'
+                  ? 'bg-[#1d4ed8]/15 text-[#1d4ed8] border-[#1d4ed8] font-bold shadow-xs' 
+                  : 'bg-white/80 dark:bg-[#252525] text-slate-700 dark:text-zinc-300 border-[#EFEFEF] dark:border-zinc-700 hover:border-[#1d4ed8] hover:text-[#1d4ed8]'
                 }`}
               >
                 <div className="flex items-center gap-2 truncate">
@@ -398,7 +399,7 @@ export default function ReferenceManagerModal({
             {/* Filename Input */}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-bold text-[#1F1F1F] dark:text-zinc-200 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#06C755]" />
+                <FileText className="w-4 h-4 text-[#1d4ed8]" />
                 파일명 지정
               </label>
               <input
@@ -407,7 +408,7 @@ export default function ReferenceManagerModal({
                 onChange={(e) => setFileName(e.target.value)}
                 placeholder="예: references.bib"
                 disabled={!isCreatingNew}
-                className={`w-full px-3.5 py-2.5 border rounded-xl text-sm transition-all text-[#1F1F1F] dark:text-zinc-100 focus:outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20 ${
+                className={`w-full px-3.5 py-2.5 border rounded-xl text-sm transition-all text-[#1F1F1F] dark:text-zinc-100 focus:outline-none focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/20 ${
                   !isCreatingNew 
                   ? 'bg-zinc-100 dark:bg-[#151515] border-[#EFEFEF] dark:border-zinc-800 text-zinc-500 cursor-not-allowed' 
                   : 'bg-white dark:bg-[#252525] border-[#EFEFEF] dark:border-zinc-700 placeholder:text-zinc-400'
@@ -428,7 +429,7 @@ export default function ReferenceManagerModal({
                 </label>
                 <button
                   onClick={handleInsertSample}
-                  className="text-xs px-2.5 py-1.5 bg-[#F7F8F9] dark:bg-[#2A2A2A] hover:bg-[#E8F9EE] hover:text-[#06C755] hover:border-[#06C755] text-[#616161] dark:text-zinc-300 rounded-lg transition-colors flex items-center gap-1.5 border border-[#EFEFEF] dark:border-zinc-700 font-medium"
+                  className="text-xs px-2.5 py-1.5 bg-[#F7F8F9] dark:bg-[#2A2A2A] hover:bg-[#E8F9EE] hover:text-[#1d4ed8] hover:border-[#1d4ed8] text-[#616161] dark:text-zinc-300 rounded-lg transition-colors flex items-center gap-1.5 border border-[#EFEFEF] dark:border-zinc-700 font-medium"
                   title="자주 쓰이는 논문/단행본/웹사이트 양식을 삽입합니다"
                 >
                   <FileText className="w-3.5 h-3.5" />
@@ -439,7 +440,7 @@ export default function ReferenceManagerModal({
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="@article{key,\n  title={Example Title},\n  author={Doe, John},\n  year={2026}\n}"
-                className="w-full flex-1 px-4 py-3 bg-[#F7F8F9] dark:bg-[#161616] border border-[#EFEFEF] dark:border-zinc-700 rounded-xl text-sm font-mono text-[#1F1F1F] dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/20 resize-none"
+                className="w-full flex-1 px-4 py-3 bg-[#F7F8F9] dark:bg-[#161616] border border-[#EFEFEF] dark:border-zinc-700 rounded-xl text-sm font-mono text-[#1F1F1F] dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/20 resize-none"
               />
             </div>
           </div>
@@ -455,7 +456,7 @@ export default function ReferenceManagerModal({
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#06C755] hover:bg-[#05B04B] active:scale-95 text-white text-xs font-bold rounded-xl shadow-md shadow-[#06C755]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#1d4ed8] hover:bg-[#1e40af] active:scale-95 text-white text-xs font-bold rounded-xl shadow-md shadow-[#1d4ed8]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? (
                 <span className="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full" />

@@ -24,7 +24,8 @@ interface YoutubeModalProps {
 // 📊 [OMD-EDIT-YoutubeModal-0003] YoutubeModal ➔ YoutubeModal
 // 🎯 @KICK  : 동영상 링크 삽입 모달 - YouTube/동영상 URL 및 파일 업로드, 썸네일 미리보기, 고급 테마 마크업
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환
-// 🚨 @PATCH : 2026-07-15 — 이미지 삽입 모달과 동일한 2단 분할 레이아웃(좌측 입력/우측 미리보기)으로 UI 전면 교체
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-07-15 — 이미지 삽입 모달과 동일한 2단 분할 레이아웃(좌측 입력/우측 미리보기)으로 UI 전면 교체
 // 🔗 @CALLS : uploadVideo, handleFileSelect, handleApplyUrl, handleInsert, createPortal
 // ====================================================================
 export default function YoutubeModal({
@@ -289,13 +290,13 @@ export default function YoutubeModal({
           isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-[#EFEFEF] bg-white'
         }`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="m22 8-6 4 6 4V8Z" />
                 <rect height="12" rx="2" width="14" x="2" y="6" />
               </svg>
             </div>
-            <h2 className="text-base font-bold tracking-tight text-[#06C755]">동영상 링크 삽입</h2>
+            <h2 className="text-base font-bold tracking-tight text-[#1d4ed8]">동영상 링크 삽입</h2>
           </div>
           <button
             onClick={onClose}
@@ -503,7 +504,7 @@ export default function YoutubeModal({
                 }`}>
                   <span className="font-black uppercase text-[9px] tracking-widest text-slate-400 dark:text-zinc-500">삽입 코드 미리보기</span>
                   <div className={`mt-1.5 font-mono text-[10px] truncate ${
-                    isDarkMode ? 'text-[#06C755]' : 'text-[#06C755]'
+                    isDarkMode ? 'text-[#1d4ed8]' : 'text-[#1d4ed8]'
                   }`}>
                     [{customDisplayName.trim() || displayName}]({isYoutube ? `https://www.youtube.com/watch?v=${detectedVideoId}` : (appliedPath || cleanPath)})
                   </div>
@@ -520,7 +521,7 @@ export default function YoutubeModal({
           {/* 브랜드 인디케이터 */}
           <div className="flex items-center gap-3 font-mono text-[9px] text-slate-400 dark:text-zinc-600 uppercase tracking-widest font-bold">
             <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#06C755] shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8] shrink-0" />
               ONRIVI AUTHOR
             </div>
             <span>ENGINE: LOCAL_FIRST_V3</span>
@@ -528,7 +529,7 @@ export default function YoutubeModal({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="font-bold text-xs text-slate-400 hover:text-[#06C755] dark:hover:text-[#06C755] transition-colors py-2 px-3"
+              className="font-bold text-xs text-slate-400 hover:text-[#1d4ed8] dark:hover:text-[#1d4ed8] transition-colors py-2 px-3"
             >
               취소
             </button>
@@ -537,7 +538,7 @@ export default function YoutubeModal({
               disabled={!hasContent}
               className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
                 hasContent
-                  ? 'bg-[#06C755] hover:bg-[#05B04B] text-white shadow-md shadow-[#06C755]/25'
+                  ? 'bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-md shadow-[#1d4ed8]/25'
                   : 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
               }`}
             >

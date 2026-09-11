@@ -4,72 +4,73 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
- *   * 🚨 @PATCH : **2026-09-11** — [Windows 스크린샷 캡처(Win+Shift+S) 차단 버그 원천 해결 및 클립보드 이미지 처리 안정화]
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 전면 적용 및 dynamicCssString에 사용자 정의 CSS(prof.customCss) 실시간 주입 연동
+//             **2026-09-11** — [Windows 스크린샷 캡처(Win+Shift+S) 차단 버그 원천 해결 및 클립보드 이미지 처리 안정화]
  *     1) handleGlobalKeyDown에서 non-Mac 환경(Windows/Linux) 시 e.metaKey(Win키)가 포함된 단축키(Win+Shift+S 캡처 도구, Win+V 등)를 조기 반환(if (!isMac && e.metaKey) return;)하여 OS 캡처 도구가 '다른 이름으로 저장' 등으로 가로채지던 결함 원천 해결
  *     2) isCtrl을 isMac ? (e.metaKey || e.ctrlKey) : e.ctrlKey로 플랫폼별 정확히 분리하여 윈도우 키와 Ctrl 키 간의 충돌 원천 방어
  *     3) resolveClipboardImage에 dataUrlToBlob 순수 바이너리 변환 헬퍼를 적용하여 CSP connect-src 에러 없이 Electron 네이티브 클립보드 스크린샷 이미지를 즉시 추출 및 삽입하도록 보강
- *   * 🚨 @PATCH : **2026-09-06** — [ESLint react-hooks/exhaustive-deps 경고 해결] 웰컴 제어 useEffect 내 로그를 effectiveLicenseStatus 참조로 일원화하고, 단축키 액션 등록 useEffect 내 AI_MODAL 가드를 activeTabIdRef.current 및 previewModeRef.current 참조로 전환하여 불필요한 단축키 재등록 방어 및 빌드 경고 100% 해소
- *   * 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 베이스 연동] KnowledgeHubView에 resourceFolderHandle을 전달하고 (window as any).__resourceFolderHandle 글로벌 캐시를 동기화하여 웹 프로드 환경에서도 내 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 실시간 조회/등록/검색 가능하도록 연동
- *   * 🚨 @PATCH : **2026-09-06** — [localhost 지식 엔진 초기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 리소스 폴더 지정 시 /api/knowledge/init 자동 초기화를 활성화하고, prod 웹 환경에서만 안전하게 스킵 처리
- *   * 🚨 @PATCH : **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 리소스 폴더 지정 시 /api/knowledge/init 불필요 호출을 차단하고 데스크톱 환경에서만 실행하도록 가드 보강
- *   * 🚨 @PATCH : **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트] previewHighlightLine에서 .onrivi-line 최우선 선택 가드를 적용하여 다중 행 문단에서 전체 p 태그가 덮어씌워지던 문제를 차단하고 커서가 놓인 해당 행만 정확하게 단독 하이라이트되도록 수정
- *   * 🚨 @PATCH : **2026-09-06** — [에디터-미리보기 하이라이트 위치 불일치 완전 해결 및 미디어 삽입 커서 3단계 고정]
+//             **2026-09-06** — [ESLint react-hooks/exhaustive-deps 경고 해결] 웰컴 제어 useEffect 내 로그를 effectiveLicenseStatus 참조로 일원화하고, 단축키 액션 등록 useEffect 내 AI_MODAL 가드를 activeTabIdRef.current 및 previewModeRef.current 참조로 전환하여 불필요한 단축키 재등록 방어 및 빌드 경고 100% 해소
+//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 베이스 연동] KnowledgeHubView에 resourceFolderHandle을 전달하고 (window as any).__resourceFolderHandle 글로벌 캐시를 동기화하여 웹 프로드 환경에서도 내 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 실시간 조회/등록/검색 가능하도록 연동
+//             **2026-09-06** — [localhost 지식 엔진 초기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 리소스 폴더 지정 시 /api/knowledge/init 자동 초기화를 활성화하고, prod 웹 환경에서만 안전하게 스킵 처리
+//             **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 리소스 폴더 지정 시 /api/knowledge/init 불필요 호출을 차단하고 데스크톱 환경에서만 실행하도록 가드 보강
+//             **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트] previewHighlightLine에서 .onrivi-line 최우선 선택 가드를 적용하여 다중 행 문단에서 전체 p 태그가 덮어씌워지던 문제를 차단하고 커서가 놓인 해당 행만 정확하게 단독 하이라이트되도록 수정
+//             **2026-09-06** — [에디터-미리보기 하이라이트 위치 불일치 완전 해결 및 미디어 삽입 커서 3단계 고정]
  *     1) previewHighlightLine에서 processedContent 의존성 추가 및 exact match(line === activeLine) 최우선 선택, 블록 컨테이너 승격으로 이미지/미디어 행에서 이전 문단으로 하이라이트가 밀리던 결함 완전 해결
  *     2) globals.css에 미디어(figure, img, video, iframe) 요소 전용 오렌지 아웃라인 링(.preview-highlight-line) 스타일 신설로 이미지 하이라이트 시인성 100% 확보
  *     3) insertMediaAtCursor에서 모달 언마운트 후 포커스 복원 시 이전 행으로 커서가 튀는 버그를 방어하기 위해 3단계(0ms, 50ms, 150ms) 커서·선택영역 강제 고정 및 updateContent 즉각 동기화 적용
  *     4) useLayoutEffect 120ms 후속 타이머 및 handlePreviewImageLoaded 연동으로 비동기 미디어 크기 결정 후 미리보기 스크롤 완벽 재조정
- *   * 🚨 @PATCH : **2026-09-06** — [미디어 삽입 후 2행 자동 추가 및 커서 이동] insertImageMarkdown을 insertMediaAtCursor 유틸 기반으로 교체: 이미지·동영상·지도 삽입 후 빈 줄 2행 자동 추가 및 커서 마지막 빈 행 이동 구현
- *   * 🚨 @PATCH : **2026-09-05** — [문서 하단/마지막 문단 타이핑 시 미리보기 즉시 상향 추종] processedContent 갱신 시 100ms 디바운스 타이머를 제거하고 useLayoutEffect로 전환하여 브라우저 페인트 직전 최신 DOM 높이(elementBottom)를 읽어와 Safe Zone(하단 140px)으로 0초 즉각 동기화하도록 전면 개선
- *   * 🚨 @PATCH : **2026-09-05** — 미리보기 컨테이너 하단 패딩을 pb-28(112px)에서 pb-48(192px)로 확장하여 Safe Zone(하단 140px, 2~3줄 여유) 스크롤 시 마지막 줄("결국" 등)이 윈도우 하단에 가려지지 않고 충분한 스크롤 한계 여백을 갖도록 보장
- *   * 🚨 @PATCH : **2026-09-05** — 표 상단 여백 및 제목 문구 간격 조정 지원: Tailwind prose의 과도한 표 상단 여백(2em)을 제거하고, 서식 설정(CSS 프로필)의 table.margin-top/margin-bottom을 .table-wrapper-area에 동적 주입하며, 표 직전 캡션 문구(p:has(+ .table-wrapper-area)) 하단 마진을 6px로 긴밀하게 압착 밀착 연동
- *   * 🚨 @PATCH : **2026-09-05** — 제한사용자/읽기 전용 모드(isRestrictedUser) 시 편집보기 및 분할모드를 비활성화하고 미리보기 모드로 즉각 자동 전환하며, 제어권 획득(Takeover) 시 직전 뷰 모드로 안전하게 복원하도록 처리
- *   * 🚨 @PATCH : **2026-09-05** — 동일 아이디 타 브라우저/기기 동시 접속 초과 시 상단에 친근한 안내 배너 및 '이 화면에서 편집 시작하기' 버튼을 노출하고, 클릭 시 forceTakeover API를 통해 세션 제어권을 안전하게 즉시 가져오도록 지원
- *   * 🚨 @PATCH : **2026-09-05** — 문서 마지막 줄 입력 및 빈 줄 생성 시 processedContent 갱신 시점과 React 마크다운 DOM 렌더링 지연 간의 타이밍 간극을 완벽 흡수하기 위해 150ms 3차 스크롤 추종 안전 타이머 보강
- *   * 🚨 @PATCH : **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 에디터 하단 2줄 플로팅 AI 버튼을 흐릿하게 남기지 않고 전면 숨김 처리하여 본문 시인성 보장; 선택 텍스트 5대 AI 가공(다듬기/요약/확장/번역/마크다운변환) 레거시 제거 및 AI_MODAL을 AIDraftModal로 일원화
- *   * 🚨 @PATCH : **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 에디터 하단 2줄 플로팅 AI 버튼 비활성화(정적 그레이스케일, ping 비활성화, 클릭 차단 및 안내) 및 모델 선택 차단 적용
- *   * 🚨 @PATCH : **2026-09-05** — 환경설정에서 공통 리소스 폴더 설정 해제 시 IndexedDB의 resourceFolderHandle이 삭제되지 않아 브라우저 새로고침(F5) 시 이전 폴더로 재연결되던 결함 해결 (idb.del/clear 구현 및 clearResourceFolder 시 IndexedDB/로컬스토리지 완전 소거)
- *   * 🚨 @PATCH : **2026-09-05** — 데스크톱 앱 내비게이션 결함 방어: 기기 세션 해제(DELETE) 및 인증 만료 처리 시 Electron 데스크톱 환경에서는 /login 리다이렉트를 차단하고 에디터 내 만료 상태 유지하도록 가드 보강
- *   * 🚨 @PATCH : **2026-09-04** — 에디터 영역 하단 2줄 AI 버튼의 2행 모델 선택 라벨을 축약형(3.5-flash)에서 정식 전체 모델명(Gemini 3.5 Flash 등)으로 온전하게 표시하고 truncate 제거 및 상하 패딩(py-1.5)을 균형 있게 보강하여 텍스트 및 라운드 모서리 잘림 결함 해결
- *   * 🚨 @PATCH : **2026-09-04** — 에디터 영역 하단 우측 스크롤 좌측에 2줄 형태의 플로팅 AI 버튼({userNickname || '익명'} AI / 모델 선택 상향 팝오버)을 배치하고, 상태바 연동 보이기/숨기기(isAiButtonVisible) 지원 및 플로팅 툴바의 AI 단독 버튼을 제거하여 서식 전용으로 가볍게 최적화
- *   * 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 새 탭 생성 방지 및 에디터 ↔ 지식문서 화면(KnowledgeHubView) 단일 탭 인라인 전환 지원, Monaco 에디터 언마운트 없이 z-[150] 풀스크린 오버레이 뷰로 전환하고 MenuBar 중복 노출을 차단하여 모델 폐기(Model is disposed!) 및 메뉴바 침범 결함 원천 해결, BroadcastChannel 기반 동일 브라우저 내 다중 에디터 중복 실행 방어 락(singleTabGuard) 구축
- *   * 🚨 @PATCH : **2026-09-03** — 마지막 행 또는 문서 하단에서 타이핑할 때 미리보기가 입력 중인 행을 보여주지 않고 상단에 멈춰있던 결함을 해결하기 위해, processedContent 갱신 시 에디터 현재 커서 위치로 syncPreviewToTargetLine을 실시간 추종하는 useEffect 및 2단계 타이머 구축
- *   * 🚨 @PATCH : **2026-09-03** — 모니터 해상도 및 화면 배율에 따라 분할 모드에서 미리보기 우측 화면 및 표가 잘리던 현상을 해결하기 위해 custom-preview-container에 px-2 sm:px-4 안전 여백을 부여하고 preview-page-sheet에 maxWidth: 100% 및 max-w-full 반응형 가드 적용
- *   * 🚨 @PATCH : **2026-09-03** — 단축키/툴바/슬래시를 통한 서식 및 마크다운 태그 적용 시 직전 타이핑과의 실행취소(Undo) 단계를 명확히 분리하기 위해 pushUndoStop 격리 장벽을 구축하여, Ctrl+Z 실행취소 시 텍스트는 보존되고 최근 적용된 태그만 단독 취소되도록 전면 개선
- *   * 🚨 @PATCH : **2026-09-03** — 문서링크 픽커(DocLinkPicker) 팝업창 너비를 280px에서 420px로 50% 대폭 확장하고, truncate를 제거하여 긴 파일명 및 헤딩 제목이 잘리지 않도록 개선
- *   * 🚨 @PATCH : **2026-09-03** — 웹 브라우저 및 모든 플랫폼에서 문서 링크가 일반 링크처럼 [개요명/문서명](<./상대경로.md#헤딩>) 형식의 표준 마크다운 상대경로로 삽입되도록 handleDocLinkSelect 개편
- *   * 🚨 @PATCH : **2026-09-03** — 에디터 및 미리보기 본문 텍스트 간섭을 0%로 완벽 격리하기 위해 본문 영역 플로팅 AI 버튼을 전면 제거하고 상단 메뉴바(MenuBar) 우측 고정 캡슐 아이템으로 이전 탑재
- *   * 🚨 @PATCH : **2026-09-03** — 마지막 행 엔터 후 빈 행 바로 위에서 긴 텍스트 입력 시 Word Wrap(자동 줄바꿈) 발생할 때마다 미리보기 스크롤이 바닥으로 곤두박질치던 버그 해결(규칙 6을 위반하여 타이핑 시 강제 하단 스크롤을 유발하던 ResizeObserver 제거 및 syncEngine Safe Zone 정렬 일원화)
- *   * 🚨 @PATCH : **2026-09-03** — 전체사용자 대상 공통 리소스 폴더 미지정 시 초기 진입 가이드 모달(ResourceFolderGuideModal) 자동 연동 및 SELECT_RESOURCE_FOLDER 퀵 커맨드 신설; 플로팅 AI 버튼 라벨을 사용자 별명 기반({별명} AI, 예: '탕수육 AI')으로 동적 변경 연동; 플로팅 챗봇에서 최종 선택한 모델의 onrivi_settings/localStorage 완벽 영구 동기화(재접속 시 최종 모델로 자동 시작); 에디터 초기 로드 시 미연결 챗봇 완전 숨김 가드 강화; 버튼 아이콘을 온리비 로고(/icon.png)로 변경하고 특별한 AI 오로라 바이올렛 그라데이션 컬러 적용; 웹 브레드크럼 실제 절대경로 상위 기준경로 설정 및 플로팅 AI 챗봇 분할 캡슐 버튼 구현
- *   * 🚨 @PATCH : **2026-09-02** — 에디터 상단 경로 표시줄을 투박한 역슬래시 텍스트에서 폴더/파일 SVG 아이콘 및 치브론 구분자 기반 모던 브레드크럼(Breadcrumb) UI로 전면 리뉴얼
- *   * 🚨 @PATCH : **2026-09-02** — 사이드바 및 분할 모드(Split View) 에디터-미리보기 사이 분할선을 border-slate-300 dark:border-zinc-700으로 선명하게 강화
- *   * 🚨 @PATCH : **2026-09-02** — 플로팅 툴바에 표 현재 열 정렬(좌/중/우) 퀵 버튼 3종 추가 연동
- *   * 🚨 @PATCH : **2026-09-02** — 서식 설정에 문단 내 문장 사이 간격(sentence-gap / 줄바꿈 간격, 기본값 0px) 슬라이더 컨트롤 추가 및 동적 CSS br 마진 주입 연동
- *   * 🚨 @PATCH : **2026-09-02** — 서식 설정(CSS 프로필)의 P 태그 줄간격(line-height), 여백, 들여쓰기 변경이 실시간으로 반영되도록 line-height inherit 충돌을 해소하고 선택자에 onrivi-content-root 확장
- *   * 🚨 @PATCH : **2026-09-02** — CSS 프로필(서식) 적용 시 p 태그 마진이 리스트 내부로 흘러들어가 행간이 벌어지던 현상을 막기 위해 generatePreviewCss에 li, li p 제로 마진 압착 규칙 주입
- *   * 🚨 @PATCH : **2026-09-02** — 에디터 마지막 행 아래의 과도한 스크롤 빈 공간을 없애기 위해 scrollBeyondLastLine: false 및 padding.bottom: 24로 최적화
- *   * 🚨 @PATCH : **2026-09-02** — 에디터 Monaco 패딩(top: 16, bottom: 24, right: 16) 및 미리보기 페이지 시트 상하 여백(my-3~4, pb-12)을 슬림하게 축소 조정하여 쾌적한 작업 공간 확보
- *   * 🚨 @PATCH : **2026-09-02** — 타이핑 시 180ms 지연 깜빡임을 완전히 제거하기 위해 React 18 useDeferredValue 기반 동시성 실시간 렌더링 적용 및 에디터 마지막 행 입력 시 미리보기가 가려지지 않고 실시간 바닥(최하단)을 즉시 추종하도록 동기화 개선
- *   * 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 전면 마이그레이션 (LINE Green #06C755, LDSG Blue #4D73FF, LDSG Grayscale 및 LineSeed 폰트 토큰 적용)
- *   * 🚨 @PATCH : **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v4.1] Onrivi 통합 디자인 시스템 토큰 적용 및 미리보기 스크롤 컨테이너에 onrivi-preview-container 표준 클래스 적용
- *   * 🚨 @PATCH : **2026-09-05** — 현재 플랜이 에디터 편집 지원 플랜(isEditorPlan)인 경우에만 다중 탭 중복 방어 락 및 '편집 제어권 가져오기'를 가동하고, 에디터 미지원 플랜(READER, 만료, 제한사용자 등)은 '제어권 가져오기' 없이 어디서나 제한사용자로 자연스럽게 무차단 열람 접근하도록 개선
- *   * 🚨 @PATCH : **2026-09-05** — 동일 브라우저 다중 탭 실행 시 전면 차단 모달을 제거하고 비활성 탭을 '제한사용자(읽기 전용)' 모드로 자연스럽게 접근 허용하도록 개편, 상단 제어권 인수(Take Over) 배너 연동 및 실시간 권한(effectiveLicenseStatus/isRestrictedUser) 격리 보완
- *   * 🚨 @PATCH : **2026-09-05** — Realtime DELETE 이벤트 시 타인의 기기 해제에 의한 전역 강제 로그아웃 방어(본인 activation_id 및 device_uuid 검증 가드) 적용 및 로컬 캐시 payment_no와 현재 로그인 유저 불일치 시 자동 캐시 파기 및 본인 구독 재조회 적용
- *   * 🚨 @PATCH : **2026-09-02** — 에디터 스크롤 전담 1:1 동기화 및 바닥 밀착 개편: 미리보기 onWheel preventDefault 제거, scrollBeyondLastLine 활성화 및 하단 160px 패딩 적용으로 마지막 줄 엔터 시 시야 자동 확보, 타이핑/방향키/백스페이스 시 스크롤 간섭 0회 분리
- *   * 🚨 @PATCH : **2026-08-27** — 비로그인 즉시 체험 모드(onrivi_guest_mode) 가동 시, 최초 라이선스/세션 검증(loadAndVerifyLicense)을 스킵하고 가상의 프리미엄 등급 라이선스 상태로 즉시 활성화 셋업하여 에디터 편집 잠금을 원천 패스하도록 가드 적용; 게스트 무단 점유/재접속 방지를 위해 10분 타이머(countdown) 및 로컬스토리지 만료 낙인(onrivi_guest_expired) 차단막 시스템을 구축하여 시간 만료 시 에디터 강제 읽기 전용 전환 및 닫기 없는 풀스크린 가입 권유 모달 팝업 바인딩
- *   * 🚨 @PATCH : **2026-09-02** — 여러 탭 전환 시 에디터 스크롤/커서 위치를 기준으로 미리보기를 1:1 완벽 동기화하고 직전 커서 라인 캐시를 리셋하여 마우스 클릭 및 방향키 이동 시 해당 위치 즉시 추종 보장
- *   * 🚨 @PATCH : **2026-09-02** — 커서가 에디터 우측 끝에 있을 때 플로팅 툴바가 화면 밖으로 짤려 버튼 선택이 불가능하던 현상을 해결하기 위해 에디터 컨테이너 및 윈도우 뷰포트 우측/상단 경계 이탈 방지 클램핑(Boundary Clamp) 적용
- *   * 🚨 @PATCH : **2026-08-26** — 분할모드에서 마우스 휠 동작에 의해 우측 실시간 미리보기 스크롤이 단독으로 움직이는 것을 차단하고(onWheel preventDefault) 에디터 스크롤 동기화에 의해서만 구동되도록 제어 및 런타임 contentText ReferenceError 보정 수정
- *   * 🚨 @PATCH : **2026-08-13** — 스크롤 요동 및 튕김 현상의 근본적 해결을 위해 MainEditorApp 내의 모든 이중/중복 스크롤 보정 훅(postContentScrollCorrection) 및 휠/터치 강제 차단 훅을 완전히 삭제하고, Monaco Setup의 단일 스크롤 리스너로 동기화 구조를 전량 이관 및 정밀 간소화함
- *   * 🚨 @PATCH : **2026-08-12** — 에디터를 열거나 탭을 닫고 전환할 때 제한사용자(만료, 동시접속 제한, 미인증 등)의 권한 가드가 누락되어 편집 가능해지던 버그 해결을 위해 isRestrictedUser 검사 통합 적용 및 Monaco readOnly/domReadOnly 옵션 동기화 보완; 최초 검증 시 동시접속 실패 시 이중 검증 복구 우회로를 차단하고 isRestricted 필드를 로컬 보안 캐시와 setLicenseStatus에 밀봉 연동하여 캐시 뚫림 현상 원천 해결
- *   * 🚨 @PATCH : **2026-08-12** — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 postContentScrollCorrection 훅에 setTimeout(50ms) 기반 지연 최하단 밀착 스크롤 보강 적용
- *   * 🚨 @PATCH : **2026-07-22** — 클라이언트 직접 supabase.rpc() 호출 전량 서버단 API Route fetch()로 이전: insert_license_activation→/api/rpc/license/insert, check_license_session(×2)→/api/license/check-session, verify_desktop_license→/api/license/verify-desktop; Realtime 구독 테이블명 license_activations→license_activations 전환
- *   * 🚨 @PATCH : **2026-07-22** — subscriptions 단일 통합 테이블 개편에 맞춰 software_licenses 및 users 레거시 쿼리 참조를 subscriptions 단일 쿼리로 일괄 마이그레이션 적용
- *   * 🚨 @PATCH : **2026-07-20** — 플로팅 툴바의 단독 AI Sparkles(✨) 아이콘 클릭 시 기존의 미작동하던 인라인 미리보기(setAiPreviewState)를 제거하고, 정상적인 AI 에디토리얼 어시스턴트 모달(AiDraftModal)이 열리도록 OPEN_AI_WRITER 커맨드 디스패치로 수정. 또한 텍스트/마크다운 조작 그룹에 중복으로 존재하던 텍스트 이모지(✨) 버튼을 제거하여 툴바 장황성 개선 및 기능 단일화 패치 적용 | **2026-07-18** — 라이선스 만료 및 미승인 상태(isExpired)일 때 Monaco 에디터가 편집 불가(readOnly, domReadOnly) 상태로 전환되도록 강제화 보강, 웰컴페이지 유예 시간 빨간색 경고 메시지 배너 UI 제거
-   *             **2026-07-15** — ModalManager deps 객체에서 window.SYSTEM_PROFILES/DEFAULT_PROFILE/isSystemProfileId를 window 전역에서 읽던 잘못된 코드를 모듈 import 상수 직접 참조로 수정 (window에 주입되지 않아 항상 빈 배열/객체로 폴백 → 서식 삭제 시 SYSTEM_PROFILES[0] undefined TypeError 버그 수정) | AI 재생성 및 모달 닫기/취소 시 백그라운드 스트리밍을 무효화하는 generationIdRef 가드 추가(동일 모달 재진입 또는 재생성 시 이전 버퍼가 오버랩되는 현상 완벽 조치), 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
-   *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
- *             **2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
- *             **2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
- *             **2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
+//             **2026-09-06** — [미디어 삽입 후 2행 자동 추가 및 커서 이동] insertImageMarkdown을 insertMediaAtCursor 유틸 기반으로 교체: 이미지·동영상·지도 삽입 후 빈 줄 2행 자동 추가 및 커서 마지막 빈 행 이동 구현
+//             **2026-09-05** — [문서 하단/마지막 문단 타이핑 시 미리보기 즉시 상향 추종] processedContent 갱신 시 100ms 디바운스 타이머를 제거하고 useLayoutEffect로 전환하여 브라우저 페인트 직전 최신 DOM 높이(elementBottom)를 읽어와 Safe Zone(하단 140px)으로 0초 즉각 동기화하도록 전면 개선
+//             **2026-09-05** — 미리보기 컨테이너 하단 패딩을 pb-28(112px)에서 pb-48(192px)로 확장하여 Safe Zone(하단 140px, 2~3줄 여유) 스크롤 시 마지막 줄("결국" 등)이 윈도우 하단에 가려지지 않고 충분한 스크롤 한계 여백을 갖도록 보장
+//             **2026-09-05** — 표 상단 여백 및 제목 문구 간격 조정 지원: Tailwind prose의 과도한 표 상단 여백(2em)을 제거하고, 서식 설정(CSS 프로필)의 table.margin-top/margin-bottom을 .table-wrapper-area에 동적 주입하며, 표 직전 캡션 문구(p:has(+ .table-wrapper-area)) 하단 마진을 6px로 긴밀하게 압착 밀착 연동
+//             **2026-09-05** — 제한사용자/읽기 전용 모드(isRestrictedUser) 시 편집보기 및 분할모드를 비활성화하고 미리보기 모드로 즉각 자동 전환하며, 제어권 획득(Takeover) 시 직전 뷰 모드로 안전하게 복원하도록 처리
+//             **2026-09-05** — 동일 아이디 타 브라우저/기기 동시 접속 초과 시 상단에 친근한 안내 배너 및 '이 화면에서 편집 시작하기' 버튼을 노출하고, 클릭 시 forceTakeover API를 통해 세션 제어권을 안전하게 즉시 가져오도록 지원
+//             **2026-09-05** — 문서 마지막 줄 입력 및 빈 줄 생성 시 processedContent 갱신 시점과 React 마크다운 DOM 렌더링 지연 간의 타이밍 간극을 완벽 흡수하기 위해 150ms 3차 스크롤 추종 안전 타이머 보강
+//             **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 에디터 하단 2줄 플로팅 AI 버튼을 흐릿하게 남기지 않고 전면 숨김 처리하여 본문 시인성 보장; 선택 텍스트 5대 AI 가공(다듬기/요약/확장/번역/마크다운변환) 레거시 제거 및 AI_MODAL을 AIDraftModal로 일원화
+//             **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 에디터 하단 2줄 플로팅 AI 버튼 비활성화(정적 그레이스케일, ping 비활성화, 클릭 차단 및 안내) 및 모델 선택 차단 적용
+//             **2026-09-05** — 환경설정에서 공통 리소스 폴더 설정 해제 시 IndexedDB의 resourceFolderHandle이 삭제되지 않아 브라우저 새로고침(F5) 시 이전 폴더로 재연결되던 결함 해결 (idb.del/clear 구현 및 clearResourceFolder 시 IndexedDB/로컬스토리지 완전 소거)
+//             **2026-09-05** — 데스크톱 앱 내비게이션 결함 방어: 기기 세션 해제(DELETE) 및 인증 만료 처리 시 Electron 데스크톱 환경에서는 /login 리다이렉트를 차단하고 에디터 내 만료 상태 유지하도록 가드 보강
+//             **2026-09-04** — 에디터 영역 하단 2줄 AI 버튼의 2행 모델 선택 라벨을 축약형(3.5-flash)에서 정식 전체 모델명(Gemini 3.5 Flash 등)으로 온전하게 표시하고 truncate 제거 및 상하 패딩(py-1.5)을 균형 있게 보강하여 텍스트 및 라운드 모서리 잘림 결함 해결
+//             **2026-09-04** — 에디터 영역 하단 우측 스크롤 좌측에 2줄 형태의 플로팅 AI 버튼({userNickname || '익명'} AI / 모델 선택 상향 팝오버)을 배치하고, 상태바 연동 보이기/숨기기(isAiButtonVisible) 지원 및 플로팅 툴바의 AI 단독 버튼을 제거하여 서식 전용으로 가볍게 최적화
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 새 탭 생성 방지 및 에디터 ↔ 지식문서 화면(KnowledgeHubView) 단일 탭 인라인 전환 지원, Monaco 에디터 언마운트 없이 z-[150] 풀스크린 오버레이 뷰로 전환하고 MenuBar 중복 노출을 차단하여 모델 폐기(Model is disposed!) 및 메뉴바 침범 결함 원천 해결, BroadcastChannel 기반 동일 브라우저 내 다중 에디터 중복 실행 방어 락(singleTabGuard) 구축
+//             **2026-09-03** — 마지막 행 또는 문서 하단에서 타이핑할 때 미리보기가 입력 중인 행을 보여주지 않고 상단에 멈춰있던 결함을 해결하기 위해, processedContent 갱신 시 에디터 현재 커서 위치로 syncPreviewToTargetLine을 실시간 추종하는 useEffect 및 2단계 타이머 구축
+//             **2026-09-03** — 모니터 해상도 및 화면 배율에 따라 분할 모드에서 미리보기 우측 화면 및 표가 잘리던 현상을 해결하기 위해 custom-preview-container에 px-2 sm:px-4 안전 여백을 부여하고 preview-page-sheet에 maxWidth: 100% 및 max-w-full 반응형 가드 적용
+//             **2026-09-03** — 단축키/툴바/슬래시를 통한 서식 및 마크다운 태그 적용 시 직전 타이핑과의 실행취소(Undo) 단계를 명확히 분리하기 위해 pushUndoStop 격리 장벽을 구축하여, Ctrl+Z 실행취소 시 텍스트는 보존되고 최근 적용된 태그만 단독 취소되도록 전면 개선
+//             **2026-09-03** — 문서링크 픽커(DocLinkPicker) 팝업창 너비를 280px에서 420px로 50% 대폭 확장하고, truncate를 제거하여 긴 파일명 및 헤딩 제목이 잘리지 않도록 개선
+//             **2026-09-03** — 웹 브라우저 및 모든 플랫폼에서 문서 링크가 일반 링크처럼 [개요명/문서명](<./상대경로.md#헤딩>) 형식의 표준 마크다운 상대경로로 삽입되도록 handleDocLinkSelect 개편
+//             **2026-09-03** — 에디터 및 미리보기 본문 텍스트 간섭을 0%로 완벽 격리하기 위해 본문 영역 플로팅 AI 버튼을 전면 제거하고 상단 메뉴바(MenuBar) 우측 고정 캡슐 아이템으로 이전 탑재
+//             **2026-09-03** — 마지막 행 엔터 후 빈 행 바로 위에서 긴 텍스트 입력 시 Word Wrap(자동 줄바꿈) 발생할 때마다 미리보기 스크롤이 바닥으로 곤두박질치던 버그 해결(규칙 6을 위반하여 타이핑 시 강제 하단 스크롤을 유발하던 ResizeObserver 제거 및 syncEngine Safe Zone 정렬 일원화)
+//             **2026-09-03** — 전체사용자 대상 공통 리소스 폴더 미지정 시 초기 진입 가이드 모달(ResourceFolderGuideModal) 자동 연동 및 SELECT_RESOURCE_FOLDER 퀵 커맨드 신설; 플로팅 AI 버튼 라벨을 사용자 별명 기반({별명} AI, 예: '탕수육 AI')으로 동적 변경 연동; 플로팅 챗봇에서 최종 선택한 모델의 onrivi_settings/localStorage 완벽 영구 동기화(재접속 시 최종 모델로 자동 시작); 에디터 초기 로드 시 미연결 챗봇 완전 숨김 가드 강화; 버튼 아이콘을 온리비 로고(/icon.png)로 변경하고 특별한 AI 오로라 바이올렛 그라데이션 컬러 적용; 웹 브레드크럼 실제 절대경로 상위 기준경로 설정 및 플로팅 AI 챗봇 분할 캡슐 버튼 구현
+//             **2026-09-02** — 에디터 상단 경로 표시줄을 투박한 역슬래시 텍스트에서 폴더/파일 SVG 아이콘 및 치브론 구분자 기반 모던 브레드크럼(Breadcrumb) UI로 전면 리뉴얼
+//             **2026-09-02** — 사이드바 및 분할 모드(Split View) 에디터-미리보기 사이 분할선을 border-slate-300 dark:border-zinc-700으로 선명하게 강화
+//             **2026-09-02** — 플로팅 툴바에 표 현재 열 정렬(좌/중/우) 퀵 버튼 3종 추가 연동
+//             **2026-09-02** — 서식 설정에 문단 내 문장 사이 간격(sentence-gap / 줄바꿈 간격, 기본값 0px) 슬라이더 컨트롤 추가 및 동적 CSS br 마진 주입 연동
+//             **2026-09-02** — 서식 설정(CSS 프로필)의 P 태그 줄간격(line-height), 여백, 들여쓰기 변경이 실시간으로 반영되도록 line-height inherit 충돌을 해소하고 선택자에 onrivi-content-root 확장
+//             **2026-09-02** — CSS 프로필(서식) 적용 시 p 태그 마진이 리스트 내부로 흘러들어가 행간이 벌어지던 현상을 막기 위해 generatePreviewCss에 li, li p 제로 마진 압착 규칙 주입
+//             **2026-09-02** — 에디터 마지막 행 아래의 과도한 스크롤 빈 공간을 없애기 위해 scrollBeyondLastLine: false 및 padding.bottom: 24로 최적화
+//             **2026-09-02** — 에디터 Monaco 패딩(top: 16, bottom: 24, right: 16) 및 미리보기 페이지 시트 상하 여백(my-3~4, pb-12)을 슬림하게 축소 조정하여 쾌적한 작업 공간 확보
+//             **2026-09-02** — 타이핑 시 180ms 지연 깜빡임을 완전히 제거하기 위해 React 18 useDeferredValue 기반 동시성 실시간 렌더링 적용 및 에디터 마지막 행 입력 시 미리보기가 가려지지 않고 실시간 바닥(최하단)을 즉시 추종하도록 동기화 개선
+//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 전면 마이그레이션 (LINE Green #1d4ed8, LDSG Blue #4D73FF, LDSG Grayscale 및 LineSeed 폰트 토큰 적용)
+//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v4.1] Onrivi 통합 디자인 시스템 토큰 적용 및 미리보기 스크롤 컨테이너에 onrivi-preview-container 표준 클래스 적용
+//             **2026-09-05** — 현재 플랜이 에디터 편집 지원 플랜(isEditorPlan)인 경우에만 다중 탭 중복 방어 락 및 '편집 제어권 가져오기'를 가동하고, 에디터 미지원 플랜(READER, 만료, 제한사용자 등)은 '제어권 가져오기' 없이 어디서나 제한사용자로 자연스럽게 무차단 열람 접근하도록 개선
+//             **2026-09-05** — 동일 브라우저 다중 탭 실행 시 전면 차단 모달을 제거하고 비활성 탭을 '제한사용자(읽기 전용)' 모드로 자연스럽게 접근 허용하도록 개편, 상단 제어권 인수(Take Over) 배너 연동 및 실시간 권한(effectiveLicenseStatus/isRestrictedUser) 격리 보완
+//             **2026-09-05** — Realtime DELETE 이벤트 시 타인의 기기 해제에 의한 전역 강제 로그아웃 방어(본인 activation_id 및 device_uuid 검증 가드) 적용 및 로컬 캐시 payment_no와 현재 로그인 유저 불일치 시 자동 캐시 파기 및 본인 구독 재조회 적용
+//             **2026-09-02** — 에디터 스크롤 전담 1:1 동기화 및 바닥 밀착 개편: 미리보기 onWheel preventDefault 제거, scrollBeyondLastLine 활성화 및 하단 160px 패딩 적용으로 마지막 줄 엔터 시 시야 자동 확보, 타이핑/방향키/백스페이스 시 스크롤 간섭 0회 분리
+//             **2026-08-27** — 비로그인 즉시 체험 모드(onrivi_guest_mode) 가동 시, 최초 라이선스/세션 검증(loadAndVerifyLicense)을 스킵하고 가상의 프리미엄 등급 라이선스 상태로 즉시 활성화 셋업하여 에디터 편집 잠금을 원천 패스하도록 가드 적용; 게스트 무단 점유/재접속 방지를 위해 10분 타이머(countdown) 및 로컬스토리지 만료 낙인(onrivi_guest_expired) 차단막 시스템을 구축하여 시간 만료 시 에디터 강제 읽기 전용 전환 및 닫기 없는 풀스크린 가입 권유 모달 팝업 바인딩
+//             **2026-09-02** — 여러 탭 전환 시 에디터 스크롤/커서 위치를 기준으로 미리보기를 1:1 완벽 동기화하고 직전 커서 라인 캐시를 리셋하여 마우스 클릭 및 방향키 이동 시 해당 위치 즉시 추종 보장
+//             **2026-09-02** — 커서가 에디터 우측 끝에 있을 때 플로팅 툴바가 화면 밖으로 짤려 버튼 선택이 불가능하던 현상을 해결하기 위해 에디터 컨테이너 및 윈도우 뷰포트 우측/상단 경계 이탈 방지 클램핑(Boundary Clamp) 적용
+//             **2026-08-26** — 분할모드에서 마우스 휠 동작에 의해 우측 실시간 미리보기 스크롤이 단독으로 움직이는 것을 차단하고(onWheel preventDefault) 에디터 스크롤 동기화에 의해서만 구동되도록 제어 및 런타임 contentText ReferenceError 보정 수정
+//             **2026-08-13** — 스크롤 요동 및 튕김 현상의 근본적 해결을 위해 MainEditorApp 내의 모든 이중/중복 스크롤 보정 훅(postContentScrollCorrection) 및 휠/터치 강제 차단 훅을 완전히 삭제하고, Monaco Setup의 단일 스크롤 리스너로 동기화 구조를 전량 이관 및 정밀 간소화함
+//             **2026-08-12** — 에디터를 열거나 탭을 닫고 전환할 때 제한사용자(만료, 동시접속 제한, 미인증 등)의 권한 가드가 누락되어 편집 가능해지던 버그 해결을 위해 isRestrictedUser 검사 통합 적용 및 Monaco readOnly/domReadOnly 옵션 동기화 보완; 최초 검증 시 동시접속 실패 시 이중 검증 복구 우회로를 차단하고 isRestricted 필드를 로컬 보안 캐시와 setLicenseStatus에 밀봉 연동하여 캐시 뚫림 현상 원천 해결
+//             **2026-08-12** — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 postContentScrollCorrection 훅에 setTimeout(50ms) 기반 지연 최하단 밀착 스크롤 보강 적용
+//             **2026-07-22** — 클라이언트 직접 supabase.rpc() 호출 전량 서버단 API Route fetch()로 이전: insert_license_activation→/api/rpc/license/insert, check_license_session(×2)→/api/license/check-session, verify_desktop_license→/api/license/verify-desktop; Realtime 구독 테이블명 license_activations→license_activations 전환
+//             **2026-07-22** — subscriptions 단일 통합 테이블 개편에 맞춰 software_licenses 및 users 레거시 쿼리 참조를 subscriptions 단일 쿼리로 일괄 마이그레이션 적용
+//             **2026-07-20** — 플로팅 툴바의 단독 AI Sparkles(✨) 아이콘 클릭 시 기존의 미작동하던 인라인 미리보기(setAiPreviewState)를 제거하고, 정상적인 AI 에디토리얼 어시스턴트 모달(AiDraftModal)이 열리도록 OPEN_AI_WRITER 커맨드 디스패치로 수정. 또한 텍스트/마크다운 조작 그룹에 중복으로 존재하던 텍스트 이모지(✨) 버튼을 제거하여 툴바 장황성 개선 및 기능 단일화 패치 적용 | **2026-07-18** — 라이선스 만료 및 미승인 상태(isExpired)일 때 Monaco 에디터가 편집 불가(readOnly, domReadOnly) 상태로 전환되도록 강제화 보강, 웰컴페이지 유예 시간 빨간색 경고 메시지 배너 UI 제거
+ * *2026-07-15** — ModalManager deps 객체에서 window.SYSTEM_PROFILES/DEFAULT_PROFILE/isSystemProfileId를 window 전역에서 읽던 잘못된 코드를 모듈 import 상수 직접 참조로 수정 (window에 주입되지 않아 항상 빈 배열/객체로 폴백 → 서식 삭제 시 SYSTEM_PROFILES[0] undefined TypeError 버그 수정) | AI 재생성 및 모달 닫기/취소 시 백그라운드 스트리밍을 무효화하는 generationIdRef 가드 추가(동일 모달 재진입 또는 재생성 시 이전 버퍼가 오버랩되는 현상 완벽 조치), 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
+ * *2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
+ * *2026-06-23** — 동시접속 제한 초과 여부를 실시간 총 세션 수로 판별하도록 `fiveMinAgo` 필터 제거 / 동시접속자 요금제 한도 초과 시 강제 로그아웃/로그인 튕김 대신 에디터가 편집 불가 및 미리보기 전용 모드로 제한되도록 개선 / isExpired 상태 변화 시 Monaco Editor의 readOnly/domReadOnly 옵션을 실시간 강제 동기화하도록 보완 / 탭 추가(+) 버튼 기능 제거
+ * *2026-06-22** — 에디터 진입/새로고침 시 license_activations 테이블에 등록된 기존 활성 세션(existingAct)이 유실되었더라도, 유효 요금제 기기 허용 한도(max_devices) 미만인 경우 자동으로 세션 등록(Auto register)을 보장하여 강제 로그아웃/로그인 튕김 현상을 근본적으로 차단하는 접속 세션 자동 복구 복원 가드 패치
+ * *2026-06-19** — 에디터 미리보기(반반 모드/미리보기 전용)의 상하좌우 여백을 서식설정(CSS 프로필) 수치 그대로 동기화하도록 pageStyle 및 부모 컨테이너 패딩 레이아웃 개정 | **2026-06-20** — 데스크톱 라이선스 자동 DB 등록 및 로컬 발급 로직 전면 배제 (무조건 미인증 시 미리보기 전용 잠금), 로컬 시간 조작 방어 가드 구현, 만료일 자정 차단 백그라운드 스케줄러 및 10분 유예 카운트다운 타이머 연동, 만료 시 preview 모드 강제 제한 가드 적용
  * -----------------------------------------------------------------------
  */
 
@@ -4916,8 +4917,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : None
   // ====================================================================
   const dynamicCssString = useMemo(() => {
-    if (activeProfileId === 'default') return '';
     const prof = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+    if (activeProfileId === 'default') {
+      return (prof.customCss && prof.customCss.trim()) ? `\n/* === [User Custom CSS] === */\n${prof.customCss}\n` : '';
+    }
     const ps = prof.pageStyle;
 
     const profileBg = ps.backgroundColor || '#ffffff';
@@ -5268,6 +5271,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 }
 `;
 
+    if (prof.customCss && prof.customCss.trim()) {
+      css += `\n/* === [User Custom CSS] === */\n${prof.customCss}\n`;
+    }
+
     // Legacy CSS page-break logic removed in favor of injectPageBreakMarkers.
 
     return css;
@@ -5571,8 +5578,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         return;
       /*
        * TOGGLE_CSS_STYLE — CssStyleForm 패널 토글 (Ctrl+Shift+S)
-       *
-       * - css-style 모드: 좌측 50%가 CssStyleForm(서식 정의), 우측 50%가 미리보기
+ * - css-style 모드: 좌측 50%가 CssStyleForm(서식 정의), 우측 50%가 미리보기
        * - 다시 누르면 'both'(편집+미리보기 분할)로 복귀
        */
       // TOGGLE_CSS_STYLE is merged above with SETTINGS
@@ -6448,7 +6454,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 type="button"
                 disabled={isTakingOver}
                 onClick={handleTakeover}
-                className="px-3 py-1 bg-[#06C755] hover:bg-[#05b34c] active:scale-95 text-white font-extrabold rounded-lg shadow-xs transition-all cursor-pointer border-none shrink-0 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 bg-[#1d4ed8] hover:bg-[#05b34c] active:scale-95 text-white font-extrabold rounded-lg shadow-xs transition-all cursor-pointer border-none shrink-0 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isTakingOver ? '편집 권한 전환 중...' : '이 화면에서 편집 시작하기'}
               </button>
@@ -6722,7 +6728,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                           {/* 현재 활성 파일명 */}
                           <span className="flex items-center gap-1.5 shrink-0 font-bold text-slate-950 dark:text-white bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 px-2 py-0.5 rounded-md shadow-xs">
-                            <FileText size={13} className="text-[#06C755] shrink-0 stroke-[2.5]" />
+                            <FileText size={13} className="text-[#1d4ed8] shrink-0 stroke-[2.5]" />
                             <span className="truncate max-w-[350px]">{fileName}</span>
                           </span>
                         </div>
@@ -7347,7 +7353,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                             {node.name}
                                           </span>
                                           {isKnowledge && (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-[#06C755] text-white font-bold shrink-0">
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-[#1d4ed8] text-white font-bold shrink-0">
                                               📗 지식 문서
                                             </span>
                                           )}
@@ -7678,6 +7684,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                                 workspaceType={workspaceType}
                                 onImageLoaded={handlePreviewImageLoaded}
+                                customCss={dynamicCssString}
                               />
                             </div>
                           );

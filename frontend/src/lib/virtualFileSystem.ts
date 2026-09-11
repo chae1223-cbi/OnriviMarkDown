@@ -1,13 +1,10 @@
 /*
  * virtualFileSystem.ts — Virtual File System (가상 파일 시스템)
- *
  * 브라우저 localStorage를 기반으로 한 단순한 가상 파일 시스템입니다.
  * 실제 파일 I/O 없이도 .md 파일을 생성/수정/삭제/이름변경할 수 있습니다.
- *
  * 구조:
  * - 파일 목록: localStorage['onrivi_vfs_files'] (FileNode[] 직렬화)
  * - 파일 내용: localStorage['onrivi_vfs_content_<path>'] (원문 문자열)
- *
  * 초기화 시 Welcome.md 파일이 자동 생성되며, 내용은 constants/welcomeContent.ts의
  * DEFAULT_WELCOME_MD를 사용합니다.
  */

@@ -23,7 +23,8 @@ import { loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-06** — [데스크톱 탐색기 📗 지식 문서 뱃지 복원] effectiveResourceFolder 결정 시 loadSecureData 복호화 및 Onrivi_Asset 기본값 폴백을 완비하여 데스크톱 환경에서 등록된 지식 문서 4건이 탐색기에 즉시 📗 뱃지로 노출되도록 보장
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-06** — [데스크톱 탐색기 📗 지식 문서 뱃지 복원] effectiveResourceFolder 결정 시 loadSecureData 복호화 및 Onrivi_Asset 기본값 폴백을 완비하여 데스크톱 환경에서 등록된 지식 문서 4건이 탐색기에 즉시 📗 뱃지로 노출되도록 보장
 //             **2026-09-06** — [AES 암호문 리소스 폴더 방어 및 지식 문서 동기화 안전 정규화] localStorage.getItem 직접 호출로 암호문(U2FsdGVkX1...)이 전달되어 가짜 DB가 생성되던 결함을 차단하고 loadSecureData 복호화 및 Onrivi_Asset 안전 폴더 정규화 적용
 //             **2026-09-06** — [지식 문서 목록 조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 listDocuments에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 탐색기 📗 뱃지가 로컬 DB와 100% 동일하게 동기화되도록 보장
 //             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 문서 뱃지 실시간 동기화 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db로부터 등록 문서 목록을 읽어와 탐색기 📗 뱃지를 실시간으로 완벽 동기화
@@ -37,7 +38,7 @@ import { loadSecureData } from '@/lib/secureStorage';
 //             **2026-09-02** — 루트 상단 액션버튼 제거 및 신규 붙여넣기 아이콘(/icons/icon-paste.png) 컨텍스트 메뉴 동기화
 //             **2026-09-02** — 파일 및 폴더 복사/붙여넣기(Copy & Paste) 엔진 탑재
 //             **2026-09-02** — 좌측 사이드바 워크스페이스 실폴더 라벨 및 파일 트리/목차 폰트를 font-bold 및 고대비 색상으로 굵기/선명도 강화
-//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) LNB 표준 디자인 적용 (Clean White Surface, LINE Green #06C755 탭 배지, LineSeed 폰트)
+//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) LNB 표준 디자인 적용 (Clean White Surface, LINE Green #1d4ed8 탭 배지, LineSeed 폰트)
 //             **2026-08-12** — 개요(TOC) 클릭 시 preview/both(분할) 모드에 맞춰 스크롤 동작을 이원화하고 하위 수준 존재 여부와 무관하게 정상 스크롤되도록 보완; H3 이하의 뎁스 목차가 기본적으로 접힌 채 렌더링에서 누락되던 조건 버그(undefined!==false)를 ===true 접힘으로 전면 교정하여 전체 펼침 구현; **2026-08-12** — 미리보기 스크롤 시 좌측 개요(TOC) 탭 목록도 활성 헤딩 위치를 자동으로 추적하여 뷰포트 내로 자동 스크롤(Auto-scroll Follow)되는 지능형 연동 기능 구현; **2026-08-12** — 개요(TOC) 클릭 시 에디터-미리보기 간의 양방향 스크롤 동기화 간섭을 일시 차단하는 락킹(isScrollingRef) 루틴을 적용하고 미리보기 컨테이너(previewRef) 내에서 부드러운 스크롤(scrollTo)이 동작하도록 개선; **2026-08-12** — 사이드바 배경을 라이트모드에 최적화된 고급스러운 아이스 블루 및 실버 톤 그라데이션(linear-gradient)으로 교체하고 탭 헤더 및 워크스페이스 바를 반투명 처리하는 프리미엄 디자인 리뉴얼 패치 적용; **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
@@ -1016,7 +1017,7 @@ export default function LeftSidebar() {
       <aside 
         style={{ 
           width: sidebarWidth,
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace",
         }} 
         className="flex flex-col border-r border-slate-300 dark:border-zinc-700 select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-sm"
       >
@@ -1030,7 +1031,7 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'explorer' 
-                  ? 'bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white font-bold shadow-sm shadow-[#06C755]/30' 
+                  ? 'bg-gradient-to-r from-[#1d4ed8] to-[#1e40af] text-white font-bold shadow-sm shadow-[#1d4ed8]/30' 
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
@@ -1043,7 +1044,7 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'toc' 
-                  ? 'bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white font-bold shadow-sm shadow-[#06C755]/30' 
+                  ? 'bg-gradient-to-r from-[#1d4ed8] to-[#1e40af] text-white font-bold shadow-sm shadow-[#1d4ed8]/30' 
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
@@ -1056,7 +1057,7 @@ export default function LeftSidebar() {
               }}
               className={`flex-1 py-1 text-[12px] font-bold rounded-md transition-all text-center ${
                 sidebarTab === 'search' 
-                  ? 'bg-gradient-to-r from-[#06C755] to-[#05B04B] text-white font-bold shadow-sm shadow-[#06C755]/30' 
+                  ? 'bg-gradient-to-r from-[#1d4ed8] to-[#1e40af] text-white font-bold shadow-sm shadow-[#1d4ed8]/30' 
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
@@ -1072,8 +1073,8 @@ export default function LeftSidebar() {
             onClick={onSelectRootFolder}
             className="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-[12px] font-bold transition-all
               bg-white/95 dark:bg-[#202328] hover:bg-white dark:hover:bg-[#282C33]
-              border border-slate-300 dark:border-zinc-700 hover:border-[#06C755] dark:hover:border-[#06C755]
-              text-slate-800 dark:text-zinc-100 hover:text-[#06C755] dark:hover:text-[#06C755]
+              border border-slate-300 dark:border-zinc-700 hover:border-[#1d4ed8] dark:hover:border-[#1d4ed8]
+              text-slate-800 dark:text-zinc-100 hover:text-[#1d4ed8] dark:hover:text-[#1d4ed8]
               shadow-2xs truncate"
             title={rootFolder?.name ? `워크스페이스 변경 (현재: ${rootFolder.name})` : '워크스페이스 폴더 선택'}
           >

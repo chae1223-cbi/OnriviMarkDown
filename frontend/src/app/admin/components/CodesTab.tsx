@@ -395,7 +395,7 @@ export default function CodesTab() {
                   value={groupForm.group_code} 
                   onChange={e => setGroupForm({...groupForm, group_code: e.target.value.toUpperCase()})}
                   disabled={!!editingGroup}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#1d4ed8] outline-none"
                   placeholder="예: PLAN_TYPE"
                 />
               </div>
@@ -405,7 +405,7 @@ export default function CodesTab() {
                   type="text" 
                   value={groupForm.group_name} 
                   onChange={e => setGroupForm({...groupForm, group_name: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#1d4ed8] outline-none"
                   placeholder="예: 결제 요금제 종류"
                 />
               </div>
@@ -415,7 +415,7 @@ export default function CodesTab() {
                   type="text" 
                   value={groupForm.description} 
                   onChange={e => setGroupForm({...groupForm, description: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#1d4ed8] outline-none"
                 />
               </div>
               <div className="flex items-center gap-4">
@@ -425,7 +425,7 @@ export default function CodesTab() {
                     type="number" 
                     value={groupForm.sort_order} 
                     onChange={e => setGroupForm({...groupForm, sort_order: parseInt(e.target.value) || 0})}
-                    className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
+                    className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#1d4ed8] outline-none"
                   />
                 </div>
                 <div className="flex flex-col items-center justify-end h-full mt-5">
@@ -434,7 +434,7 @@ export default function CodesTab() {
                       type="checkbox" 
                       checked={groupForm.is_use} 
                       onChange={e => setGroupForm({...groupForm, is_use: e.target.checked})}
-                      className="w-4 h-4 rounded text-[#06C755] focus:ring-[#06C755]"
+                      className="w-4 h-4 rounded text-[#1d4ed8] focus:ring-[#1d4ed8]"
                     />
                     <span className="text-sm font-medium">사용 여부</span>
                   </label>
@@ -462,7 +462,7 @@ export default function CodesTab() {
                   value={codeForm.code_value} 
                   onChange={e => setCodeForm({...codeForm, code_value: e.target.value.toUpperCase().replace(/\s+/g, '')})}
                   disabled={!!editingCode}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#1d4ed8] outline-none"
                   placeholder="예: FREE"
                 />
               </div>
@@ -472,7 +472,7 @@ export default function CodesTab() {
                   type="text" 
                   value={codeForm.code_name} 
                   onChange={e => setCodeForm({...codeForm, code_name: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#1d4ed8] outline-none"
                   placeholder="예: 무료 플랜"
                 />
               </div>
@@ -482,7 +482,7 @@ export default function CodesTab() {
                   type="text" 
                   value={codeForm.description} 
                   onChange={e => setCodeForm({...codeForm, description: e.target.value})}
-                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
+                  className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#1d4ed8] outline-none"
                 />
               </div>
               <div className="flex items-center gap-4">
@@ -492,7 +492,7 @@ export default function CodesTab() {
                     type="number" 
                     value={codeForm.sort_order} 
                     onChange={e => setCodeForm({...codeForm, sort_order: parseInt(e.target.value) || 0})}
-                    className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#06C755] outline-none"
+                    className="w-full px-3 py-2 bg-[var(--admin-background)] text-[var(--admin-text)] rounded-xl border border-[var(--admin-border)] focus:border-[#1d4ed8] outline-none"
                   />
                 </div>
                 <div className="flex flex-col items-center justify-end h-full mt-5">
@@ -501,7 +501,7 @@ export default function CodesTab() {
                       type="checkbox" 
                       checked={codeForm.is_use} 
                       onChange={e => setCodeForm({...codeForm, is_use: e.target.checked})}
-                      className="w-4 h-4 rounded text-[#06C755] focus:ring-[#06C755]"
+                      className="w-4 h-4 rounded text-[#1d4ed8] focus:ring-[#1d4ed8]"
                     />
                     <span className="text-sm font-medium">사용 여부</span>
                   </label>

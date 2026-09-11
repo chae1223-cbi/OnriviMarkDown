@@ -2,7 +2,8 @@
 // 📊 [OMD-WIZARD-Step2-0001] Step2_ScanResult.tsx ➔ KUI-005 대량 문서 탐색 결과 확인
 // 🎯 @KICK  : 로컬 파일 스캔 결과를 신규/변경/기존/미지원으로 나누어 통계 및 세부 파일 선택 제어 제공
 // 🛡️ @GUARD : 대량 파일(10,000+)에서도 멈춤 없는 슬라이싱 뷰, 검색 필터, LDSG v5.0
-// 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-005 대량 문서 탐색 결과 화면 신규 구현
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-005 대량 문서 탐색 결과 화면 신규 구현
 // ====================================================================
 
 import React, { useState, useMemo } from 'react';
@@ -49,18 +50,18 @@ export const Step2_ScanResult: React.FC<Step2ScanResultProps> = ({
           onClick={() => setCategoryFilter('NEW')}
           className={`p-3 rounded-xl border transition cursor-pointer ${
             categoryFilter === 'NEW' 
-              ? 'border-[#06C755] bg-[#06C755]/10' 
+              ? 'border-[#1d4ed8] bg-[#1d4ed8]/10' 
               : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-zinc-500 font-medium">신규 문서</span>
-            <Sparkles className="w-3.5 h-3.5 text-[#06C755]" />
+            <Sparkles className="w-3.5 h-3.5 text-[#1d4ed8]" />
           </div>
           <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-1">
             {scanSummary.newCount.toLocaleString()}
           </div>
-          <span className="text-[10px] text-[#06C755] font-semibold">신규 지식 등록 가능</span>
+          <span className="text-[10px] text-[#1d4ed8] font-semibold">신규 지식 등록 가능</span>
         </div>
 
         <div 
@@ -119,7 +120,7 @@ export const Step2_ScanResult: React.FC<Step2ScanResultProps> = ({
               type="checkbox"
               checked={scanSummary.newCount > 0 && scanSummary.items.filter(i => i.category === 'NEW').every(i => i.selected)}
               onChange={(e) => onToggleCategory('NEW', e.target.checked)}
-              className="w-3.5 h-3.5 rounded-sm text-[#06C755] focus:ring-[#06C755]"
+              className="w-3.5 h-3.5 rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
             />
             <span>신규 문서</span>
           </label>
@@ -171,11 +172,11 @@ export const Step2_ScanResult: React.FC<Step2ScanResultProps> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="파일명 또는 경로 검색..."
-              className="w-full pl-8 pr-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:border-[#06C755]"
+              className="w-full pl-8 pr-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:border-[#1d4ed8]"
             />
           </div>
           <span className="text-[11px] text-zinc-500 font-semibold">
-            선택: <b className="text-[#06C755]">{selectedCount}</b> / {scanSummary.items.length}개
+            선택: <b className="text-[#1d4ed8]">{selectedCount}</b> / {scanSummary.items.length}개
           </span>
         </div>
 
@@ -196,7 +197,7 @@ export const Step2_ScanResult: React.FC<Step2ScanResultProps> = ({
                     isUnsupported 
                       ? 'opacity-40 cursor-not-allowed bg-zinc-50/20 dark:bg-zinc-900/10' 
                       : item.selected
-                      ? 'bg-[#06C755]/5 dark:bg-[#06C755]/10 hover:bg-[#06C755]/10'
+                      ? 'bg-[#1d4ed8]/5 dark:bg-[#1d4ed8]/10 hover:bg-[#1d4ed8]/10'
                       : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
                   }`}
                 >
@@ -206,7 +207,7 @@ export const Step2_ScanResult: React.FC<Step2ScanResultProps> = ({
                       checked={item.selected}
                       disabled={isUnsupported}
                       onChange={() => onToggleItem(item.path)}
-                      className="w-3.5 h-3.5 rounded-sm text-[#06C755] focus:ring-[#06C755]"
+                      className="w-3.5 h-3.5 rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
                     />
                     <FileText className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                     <span className="font-bold text-zinc-800 dark:text-zinc-200 truncate">

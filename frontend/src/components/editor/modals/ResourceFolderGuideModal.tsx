@@ -2,7 +2,8 @@
 // 📊 [OMD-EDIT-ResourceFolderGuideModal-0001] ResourceFolderGuideModal.tsx ➔ ResourceFolderGuideModal
 // 🎯 @KICK  : 전체사용자 대상 공통 리소스 폴더(서식/미디어/AI템플릿) 필수 설정 온보딩 모달
 // 🛡️ @GUARD : isOpen 가드 및 외부 클릭/ESC 제어
-// 🚨 @PATCH : **2026-09-03** — 최초 작성: 전체사용자 첫 진입 시 리소스 폴더 미지정 상태를 감지하여 원클릭 설정 유도
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — 최초 작성: 전체사용자 첫 진입 시 리소스 폴더 미지정 상태를 감지하여 원클릭 설정 유도
 // 🔗 @CALLS : onSelectFolder, onClose
 // ====================================================================
 "use client";
@@ -75,12 +76,12 @@ export default function ResourceFolderGuideModal({
 
         {/* 상단 헤더 아이콘 */}
         <div className="flex items-center gap-3.5 mb-5">
-          <div className="w-13 h-13 rounded-2xl flex items-center justify-center bg-gradient-to-tr from-[#06C755] to-[#4D73FF] text-white shadow-lg shadow-[#06C755]/25">
+          <div className="w-13 h-13 rounded-2xl flex items-center justify-center bg-gradient-to-tr from-[#1d4ed8] to-[#4D73FF] text-white shadow-lg shadow-[#1d4ed8]/25">
             <FolderKanban size={26} strokeWidth={2.2} />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-[#06C755]/15 text-[#06C755]">
+              <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-[#1d4ed8]/15 text-[#1d4ed8]">
                 전체사용자 필수 설정
               </span>
             </div>
@@ -92,7 +93,7 @@ export default function ResourceFolderGuideModal({
 
         {/* 안내 본문 */}
         <p className={`text-[13px] leading-relaxed mb-6 ${isDarkMode ? 'text-zinc-300' : 'text-slate-600'}`}>
-          온리비 어서는 사용자의 소중한 서식과 미디어 자산을 사용자 PC 내 전용 폴더에 안전하게 영구 보관합니다. 원활한 집필 환경을 위해 PC 내 작업용 폴더(예: <strong className="text-[#06C755]">Onrivi_Resource</strong>)를 1회 지정해 주세요.
+          온리비 어서는 사용자의 소중한 서식과 미디어 자산을 사용자 PC 내 전용 폴더에 안전하게 영구 보관합니다. 원활한 집필 환경을 위해 PC 내 작업용 폴더(예: <strong className="text-[#1d4ed8]">Onrivi_Resource</strong>)를 1회 지정해 주세요.
         </p>
 
         {/* 기능 혜택 리스트 카드 */}
@@ -135,7 +136,7 @@ export default function ResourceFolderGuideModal({
           <button
             type="button"
             onClick={handleSelect}
-            className="w-full py-3.5 px-4 rounded-2xl bg-[#06C755] hover:bg-[#05B04B] active:scale-98 text-white font-extrabold text-[14px] shadow-lg shadow-[#06C755]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 px-4 rounded-2xl bg-[#1d4ed8] hover:bg-[#1e40af] active:scale-98 text-white font-extrabold text-[14px] shadow-lg shadow-[#1d4ed8]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <FolderKanban size={18} />
             <span>지금 공통 리소스 폴더 선택하기</span>

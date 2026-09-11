@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-PALETTE-001] KnowledgeAttachmentPalette.tsx ➔ AI 모달 지식 검색 및 첨부 팔레트
 // 🎯 @KICK  : 에디터 AI 모달 내 로컬 지식 문서 검색, 청크 선택 첨부, Auto-RAG 토글 및 토큰 예산 관리
-// 🛡️ @GUARD : LDSG v5.0 (#06C755), 로컬 SQLite FTS5 검색, 예산 게이지 시각화, 비대화 방지 UI 분리
-// 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-EDITOR-001] 에디터 AI 어시스턴트 모달 전용 지식 검색 & RAG 첨부 팔레트 신규 구현
+// 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 로컬 SQLite FTS5 검색, 예산 게이지 시각화, 비대화 방지 UI 분리
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — [ONRIVI-KNOWLEDGE-EDITOR-001] 에디터 AI 어시스턴트 모달 전용 지식 검색 & RAG 첨부 팔레트 신규 구현
 // 🔗 @CALLS : /api/knowledge/search, /api/knowledge/collection, @/types/knowledge
 // ====================================================================
 
@@ -118,14 +119,14 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
       {/* 헤더 & 토글 바 */}
       <div className="p-3.5 flex items-center justify-between bg-zinc-50/70 dark:bg-zinc-800/40 border-b border-zinc-200/60 dark:border-zinc-800/60">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-[#06C755]/15 text-[#06C755] flex items-center justify-center">
+          <div className="w-6 h-6 rounded-md bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center">
             <Database className="w-3.5 h-3.5" />
           </div>
           <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">
             지식 보관함 연동 (Knowledge RAG)
           </span>
           {attachedChunks.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#06C755]/15 text-[#06C755]">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#1d4ed8]/15 text-[#1d4ed8]">
               {attachedChunks.length}건 첨부됨
             </span>
           )}
@@ -158,7 +159,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
         <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#06C755]" />
+              <Sparkles className="w-3.5 h-3.5 text-[#1d4ed8]" />
               <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">
                 지식 보관함 자동 참조 (Auto-RAG)
               </span>
@@ -177,7 +178,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
               onChange={(e) => onToggleAutoRag(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-9 h-5 bg-zinc-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#06C755]"></div>
+            <div className="w-9 h-5 bg-zinc-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1d4ed8]"></div>
           </label>
         </div>
 
@@ -186,7 +187,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
           <div className="flex flex-col gap-2 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-850 border border-zinc-200/60 dark:border-zinc-800">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-700 dark:text-zinc-300">
-                <FileText className="w-3.5 h-3.5 text-[#06C755]" />
+                <FileText className="w-3.5 h-3.5 text-[#1d4ed8]" />
                 <span>첨부된 지식 컨텍스트 ({attachedChunks.length})</span>
               </div>
               {onClearAllChunks && (
@@ -205,10 +206,10 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
               {attachedChunks.map((chunk) => (
                 <div
                   key={chunk.chunkId}
-                  className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-white dark:bg-zinc-800 border border-[#06C755]/30 text-[11px] text-zinc-800 dark:text-zinc-200 shadow-2xs"
+                  className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-white dark:bg-zinc-800 border border-[#1d4ed8]/30 text-[11px] text-zinc-800 dark:text-zinc-200 shadow-2xs"
                   title={`${chunk.documentTitle} > ${chunk.headingPath || chunk.headingTitle} (L${chunk.startLine}~L${chunk.endLine})`}
                 >
-                  <span className="font-bold text-[#06C755] truncate max-w-[120px]">
+                  <span className="font-bold text-[#1d4ed8] truncate max-w-[120px]">
                     {chunk.documentTitle}
                   </span>
                   <span className="text-zinc-400 dark:text-zinc-500 truncate max-w-[110px]">
@@ -244,7 +245,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
                       ? 'bg-rose-500'
                       : usagePercent > 70
                       ? 'bg-amber-500'
-                      : 'bg-[#06C755]'
+                      : 'bg-[#1d4ed8]'
                   }`}
                   style={{ width: `${usagePercent}%` }}
                 />
@@ -262,7 +263,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
                 <select
                   value={selectedCollectionId}
                   onChange={(e) => setSelectedCollectionId(e.target.value)}
-                  className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none focus:border-[#06C755] shrink-0"
+                  className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none focus:border-[#1d4ed8] shrink-0"
                 >
                   <option value="ALL">전체 컬렉션</option>
                   {collections.map((col) => (
@@ -279,7 +280,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="지식 문서 검색 키워드 입력 (예: REST API, 보안 정책)"
-                  className="w-full pl-8 pr-8 py-1.5 text-[12px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 outline-none focus:border-[#06C755]"
+                  className="w-full pl-8 pr-8 py-1.5 text-[12px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 outline-none focus:border-[#1d4ed8]"
                 />
                 <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 {searchQuery && (
@@ -296,7 +297,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
               <button
                 type="submit"
                 disabled={isSearching}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white bg-[#06C755] hover:bg-[#05B04B] disabled:opacity-50 rounded-lg transition-colors shrink-0 shadow-2xs"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] disabled:opacity-50 rounded-lg transition-colors shrink-0 shadow-2xs"
               >
                 {isSearching ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -322,7 +323,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
                       key={cand.chunkId}
                       className={`p-2.5 rounded-lg border text-[11px] transition-all duration-150 ${
                         attached
-                          ? 'bg-emerald-50/30 dark:bg-emerald-950/15 border-[#06C755]/40'
+                          ? 'bg-emerald-50/30 dark:bg-emerald-950/15 border-[#1d4ed8]/40'
                           : 'bg-white dark:bg-zinc-800/80 border-zinc-200/80 dark:border-zinc-700/80 hover:border-zinc-300 dark:hover:border-zinc-600'
                       }`}
                     >
@@ -343,7 +344,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
 
                           {/* 연관도 점수 배지 */}
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-bold text-[#06C755] bg-[#06C755]/10 px-1.5 py-0.2 rounded">
+                            <span className="text-[10px] font-bold text-[#1d4ed8] bg-[#1d4ed8]/10 px-1.5 py-0.2 rounded">
                               일치도 {Math.round(cand.finalScore || cand.score || 0)}%
                             </span>
                             {cand.snippet && (
@@ -371,12 +372,12 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
                           className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors shrink-0 shadow-2xs ${
                             attached
                               ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-red-100 hover:text-red-600'
-                              : 'bg-[#06C755] text-white hover:bg-[#05B04B]'
+                              : 'bg-[#1d4ed8] text-white hover:bg-[#1e40af]'
                           }`}
                         >
                           {attached ? (
                             <>
-                              <Check className="w-3 h-3 text-[#06C755]" />
+                              <Check className="w-3 h-3 text-[#1d4ed8]" />
                               <span>첨부됨</span>
                             </>
                           ) : (

@@ -15,7 +15,8 @@ interface TableModalProps {
 // 📊 [OMD-EDIT-TableModal-0003] TableModal ➔ TableModal
 // 🎯 @KICK  : 표 삽입 모달 - 10x10 그리드 UI로 마우스 표 크기 선택 후 마크다운 코드 생성
 // 🛡️ @GUARD : isOpen false 또는 mounted false 시 null 반환으로 조기 종료
-// 🚨 @PATCH : 2026-09-02 - 열(컬럼) 기본 정렬 프리셋 4종(기본 좌측, 전체 중앙, 회계형, 요약형) 선택 UI 및 마크다운 자동 생성 지원
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-02 - 열(컬럼) 기본 정렬 프리셋 4종(기본 좌측, 전체 중앙, 회계형, 요약형) 선택 UI 및 마크다운 자동 생성 지원
 //             2026-07-15 - 마우스 드래그 그리드 10x10 디자인 전면 개편 및 안개 블러 제거, 라운드 4px 규격 장착
 // 🔗 @CALLS : handleInsert, createPortal
 // ====================================================================
@@ -68,21 +69,21 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
             ? 'bg-zinc-950 border-zinc-800 text-zinc-100' 
             : 'bg-white border-[#EFEFEF] text-slate-800'
         }`} 
-        style={{ maxHeight: "90dvh", fontFamily: "LineSeed, Pretendard, sans-serif" }}
+        style={{ maxHeight: "90dvh", fontFamily: "Pretendard, sans-serif" }}
       >
         {/* ModalHeader */}
         <header className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
           isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-[#EFEFEF] bg-slate-50/40'
         }`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round"></path>
               </svg>
             </div>
-            <h1 className="text-base font-bold tracking-tight text-[#06C755]">표 삽입</h1>
+            <h1 className="text-base font-bold tracking-tight text-[#1d4ed8]">표 삽입</h1>
           </div>
-          <span className="text-[#06C755] font-extrabold text-base tracking-wide">
+          <span className="text-[#1d4ed8] font-extrabold text-base tracking-wide">
             {selectedPos.c} × {selectedPos.r}
           </span>
         </header>
@@ -116,9 +117,9 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                     }}
                     className={`w-6 h-6 rounded-[2px] transition-all cursor-pointer ${
                       isHover 
-                        ? 'bg-[#06C755] scale-105 shadow-sm z-10' 
+                        ? 'bg-[#1d4ed8] scale-105 shadow-sm z-10' 
                         : isSelected 
-                          ? 'bg-[#06C755]/60' 
+                          ? 'bg-[#1d4ed8]/60' 
                           : isDarkMode ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-slate-100 hover:bg-slate-200'
                     }`}
                   />
@@ -143,7 +144,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                 onClick={() => setAlignPreset('default')}
                 className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
                   alignPreset === 'default'
-                    ? 'bg-[#06C755]/15 border-[#06C755] text-[#06C755] font-bold'
+                    ? 'bg-[#1d4ed8]/15 border-[#1d4ed8] text-[#1d4ed8] font-bold'
                     : isDarkMode
                       ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -157,7 +158,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                 onClick={() => setAlignPreset('center')}
                 className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
                   alignPreset === 'center'
-                    ? 'bg-[#06C755]/15 border-[#06C755] text-[#06C755] font-bold'
+                    ? 'bg-[#1d4ed8]/15 border-[#1d4ed8] text-[#1d4ed8] font-bold'
                     : isDarkMode
                       ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -171,7 +172,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                 onClick={() => setAlignPreset('numeric')}
                 className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
                   alignPreset === 'numeric'
-                    ? 'bg-[#06C755]/15 border-[#06C755] text-[#06C755] font-bold'
+                    ? 'bg-[#1d4ed8]/15 border-[#1d4ed8] text-[#1d4ed8] font-bold'
                     : isDarkMode
                       ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -185,7 +186,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                 onClick={() => setAlignPreset('summary')}
                 className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
                   alignPreset === 'summary'
-                    ? 'bg-[#06C755]/15 border-[#06C755] text-[#06C755] font-bold'
+                    ? 'bg-[#1d4ed8]/15 border-[#1d4ed8] text-[#1d4ed8] font-bold'
                     : isDarkMode
                       ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -201,7 +202,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
           <section className={`w-full border rounded-xl p-4 ${
             isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50/50 border-slate-200/60'
           }`} data-purpose="usage-tips">
-            <h2 className="text-[#06C755] text-xs font-black text-center mb-3 flex items-center justify-center gap-1">
+            <h2 className="text-[#1d4ed8] text-xs font-black text-center mb-3 flex items-center justify-center gap-1">
               <span>💡</span> 표 병합 TIP
             </h2>
             <ul className="text-[11px] text-slate-600 dark:text-zinc-400 space-y-2.5 font-medium leading-normal">
@@ -209,7 +210,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                 <span className="w-1 h-1 bg-slate-400 dark:bg-zinc-600 rounded-full shrink-0"></span>
                 <span>
                   가로 병합: 병합 시작 셀에 
-                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-[#06C755]">{">"}</span> 
+                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-[#1d4ed8]">{">"}</span> 
                   입력
                 </span>
               </li>
@@ -217,7 +218,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
                 <span className="w-1 h-1 bg-slate-400 dark:bg-zinc-600 rounded-full shrink-0"></span>
                 <span>
                   세로 병합: 병합될 대상 셀에 
-                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-[#06C755]">^</span> 
+                  <span className="mx-1 px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded font-mono text-[9px] font-bold text-[#1d4ed8]">^</span> 
                   입력
                 </span>
               </li>
@@ -231,7 +232,7 @@ export default function TableModal({ isOpen, onClose, onInsert, isDarkMode }: Ta
         }`}>
           <button 
             onClick={handleInsert}
-            className="w-full bg-[#06C755] hover:bg-[#05B04B] text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-[#06C755]/20 transition-all flex items-center justify-center gap-2 text-xs active:scale-[0.98]"
+            className="w-full bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-[#1d4ed8]/20 transition-all flex items-center justify-center gap-2 text-xs active:scale-[0.98]"
             data-purpose="submit-button"
           >
             <Plus size={15} />

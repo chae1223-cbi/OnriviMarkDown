@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
-// 🚨 @PATCH : **2026-09-04** — 도구 메뉴의 '서식 정의 (갤러리)' 아이콘을 🎨로 변경하여 우측 툴바 서식관리와 시각적 일관성 확보
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — 도구 메뉴의 '서식 정의 (갤러리)' 아이콘을 🎨로 변경하여 우측 툴바 서식관리와 시각적 일관성 확보
 //             **2026-09-04** — 상단 메뉴바의 AI 버튼 캡슐(에디터 하단으로 이전) 및 지식 베이스 버튼(우측 사이드바 툴바로 이전) 2종 제거하여 상단 메뉴바 간결화
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 새 탭 생성 제거 및 에디터 인라인 지식 화면 전환 이벤트(app:open-knowledge-manager) 연동
 // 🔗 @CALLS : /knowledge
@@ -106,7 +107,7 @@ const localTranslations: Record<string, Record<string, string>> = {
 //             **2026-09-05** — 다중 탭 실행 및 비인증 제한 상태(isRestrictedUser) 상단 사용자 정보 및 전체사용자 판별에 완벽 연동
 //             **2026-09-03** — 에디터 및 미리보기 본문 가림 결함을 원천 차단하기 위해 상단 메뉴바 우측 끝에 고정형 AI 버튼 및 모델 선택 드롭다운 캡슐 장착 연동
 //             **2026-09-03** — 상단 우측 사용자 정보 표시줄을 이메일 대신 별명(userNickname)으로 우선 표기 및 클릭 시 환경설정 '계정 관리' 탭(SETTINGS_ACCOUNT)으로 즉각 이동 연동; 환경설정에서 별명 변경 시 실시간 동기화 리스너 탑재
-//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #06C755 호버 및 Surface High 드롭다운)
+//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #1d4ed8 호버 및 Surface High 드롭다운)
 //             **2026-07-23** — 파일 메뉴 용어 변경: '불러오기'→'파일 열기', '폴더 열기'→'작업장 폴더 열기' (ko/en 모두 적용); **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 리팩토링; PDF/HTML 내보내기 → PRINT(OS 인쇄)로 통합; 번역키 pdf/html 제거, print 추가
 // 🔗 @CALLS : MenuDropdown, dispatch, setIsSidebarOpen, setIsToolbarOpen, setPreviewMode
 // ====================================================================
@@ -424,7 +425,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                   className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm ${
                     item.disabled 
                       ? 'opacity-40 cursor-not-allowed text-zinc-400 dark:text-zinc-500' 
-                      : 'hover:bg-[#06c755] hover:text-white transition-colors'
+                      : 'hover:bg-[#1d4ed8] hover:text-white transition-colors'
                   }`}
                 >
                   <div className="flex items-center gap-2">

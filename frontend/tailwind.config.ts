@@ -2,7 +2,8 @@
 // 📊 [OMD-CONFIG-tailwind-0001] tailwind.config ➔ Config
 // 🎯 @KICK  : TailwindCSS 컴파일러 설정 및 컬러/폰트/스페이싱 변수 셋업
 // 🛡️ @GUARD : 기존 에디터 CSS 변수 기반 컬러 유지, OMDLanding 스타일 주입
-// 🚨 @PATCH : **2026-07-15** — 신규 퍼플/로즈 실버 테마 적용을 위해 하드코딩된 테마 컬러들을 CSS 변수 기반으로 동적 매핑화 패치 | **2026-06-21** — OMDLanding 이식에 필요한 세부 컬러, 폰트패밀리, 라운딩, 스페이싱 병합 패치
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 토큰 적용: Cobalt Authority (#1d4ed8 / #2563eb / #1e40af), Intelligence Teal (#0d9488), Kinetic Coral (#f97316), Plus Jakarta Sans 및 Inter / JetBrains Mono 폰트 스택 적용
+//           : **2026-07-15** — 신규 퍼플/로즈 실버 테마 적용을 위해 하드코딩된 테마 컬러들을 CSS 변수 기반으로 동적 매핑화 패치 | **2026-06-21** — OMDLanding 이식에 필요한 세부 컬러, 폰트패밀리, 라운딩, 스페이싱 병합 패치
 // 🔗 @CALLS : 없음
 // ====================================================================
 import type { Config } from "tailwindcss";
@@ -27,9 +28,32 @@ const config: Config = {
         outline: "rgb(var(--outline) / <alpha-value>)",
         "outline-variant": "rgb(var(--outline-variant) / <alpha-value>)",
 
-        // 💡 [ONRIVI-DS-SYSTEM-002 v5.0 LDSG] LINE Design System 토큰 매핑
-        "line-green": "#06c755",
-        "line-blue": "#4d73ff",
+        // 💡 [ONRIVI-DS-SYSTEM-003 Modern Technical Editorial] 핵심 브랜드 토큰
+        cobalt: {
+          DEFAULT: '#1d4ed8',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
+        },
+        teal: {
+          DEFAULT: '#0d9488',
+          50: '#f0fdfa',
+          100: '#ccfbf1',
+          200: '#99f6e4',
+          600: '#0d9488',
+          700: '#0f766e',
+        },
+        coral: {
+          DEFAULT: '#f97316',
+          50: '#fff7ed',
+          100: '#ffedd5',
+          600: '#f97316',
+          700: '#c2410c',
+        },
+        "line-green": "#1d4ed8",
+        "line-blue": "#2563eb",
         "surface-high": "rgb(var(--surface-container-high) / <alpha-value>)",
         "text-primary": "rgb(var(--on-surface) / <alpha-value>)",
         "text-secondary": "rgb(var(--on-surface-variant) / <alpha-value>)",
@@ -90,15 +114,18 @@ const config: Config = {
         "space-10": "3.5rem"
       },
       fontFamily: {
-        ui: ["LineSeed", "Pretendard", "Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
-        editor: ["D2Coding", "JetBrains Mono", "Fira Code", "monospace"],
-        "label-sm": ["LineSeed", "Pretendard", "sans-serif"],
-        "display-sm": ["LineSeed", "Pretendard", "sans-serif"],
-        "code-block": ["D2Coding", "JetBrains Mono", "monospace"],
-        "headline-sm": ["LineSeed", "Pretendard", "sans-serif"],
-        "body-lg": ["LineSeed", "Pretendard", "sans-serif"],
-        "label-md": ["LineSeed", "Pretendard", "sans-serif"],
-        "display-lg": ["LineSeed", "Pretendard", "sans-serif"]
+        display: ["Plus Jakarta Sans", "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
+        body: ["Inter", "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
+        ui: ["Inter", "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
+        editor: ["JetBrains Mono", "D2Coding", "Consolas", "monospace"],
+        mono: ["JetBrains Mono", "D2Coding", "Consolas", "monospace"],
+        "code-block": ["JetBrains Mono", "D2Coding", "Consolas", "monospace"],
+        "label-sm": ["Inter", "Pretendard Variable", "Pretendard", "sans-serif"],
+        "display-sm": ["Plus Jakarta Sans", "Pretendard Variable", "Pretendard", "sans-serif"],
+        "headline-sm": ["Plus Jakarta Sans", "Pretendard Variable", "Pretendard", "sans-serif"],
+        "body-lg": ["Inter", "Pretendard Variable", "Pretendard", "sans-serif"],
+        "label-md": ["Inter", "Pretendard Variable", "Pretendard", "sans-serif"],
+        "display-lg": ["Plus Jakarta Sans", "Pretendard Variable", "Pretendard", "sans-serif"]
       },
       fontSize: {
         "label-sm": ["12px", { "lineHeight": "1.4", "fontWeight": "500" }],

@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-DocList-0001] KUI002_KnowledgeDocList.tsx ➔ KUI-002 Knowledge Document List
 // 🎯 @KICK  : 등록된 지식 문서 관리 테이블 (체크박스 일괄 작업: 재분석, 지식해제, 컬렉션변경, 우선순위변경, 삭제, 파일열기)
-// 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), 페이지네이션, 고성능 가상 필터링
-// 🚨 @PATCH : **2026-09-04** — [Rule 8 고대비 시인성] 지식 문서 목록 파일 경로(doc.filePath)를 흐릿한 text-zinc-400에서 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 전면 보강하여 시인성 확보
+// 🛡️ @GUARD : LINE Design System LDSG v5.0 (#1d4ed8), 페이지네이션, 고성능 가상 필터링
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — [Rule 8 고대비 시인성] 지식 문서 목록 파일 경로(doc.filePath)를 흐릿한 text-zinc-400에서 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 전면 보강하여 시인성 확보
 //             **2026-09-04** — 지식문서 목록 항목 아이콘을 남성 학사(📗)로 교체
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-002 등록 지식 문서 일괄 작업 관리자 화면 신규 구현
 // ====================================================================
@@ -106,7 +107,7 @@ export const KUI002_KnowledgeDocList: React.FC<KUI002KnowledgeDocListProps> = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="지식 문서명, 경로, 내용 검색..."
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:border-[#06C755]"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:border-[#1d4ed8]"
           />
         </div>
 
@@ -147,7 +148,7 @@ export const KUI002_KnowledgeDocList: React.FC<KUI002KnowledgeDocListProps> = ({
 
           <button
             onClick={onOpenWizard}
-            className="px-3 py-1.5 text-xs font-bold text-white bg-[#06C755] hover:bg-[#05a847] rounded-lg shadow-xs transition"
+            className="px-3 py-1.5 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] rounded-lg shadow-xs transition"
           >
             + 지식 등록
           </button>
@@ -156,16 +157,16 @@ export const KUI002_KnowledgeDocList: React.FC<KUI002KnowledgeDocListProps> = ({
 
       {/* ⚡ 선택된 문서 대상 일괄 작업 툴바 */}
       {selectedIds.length > 0 && (
-        <div className="p-2.5 rounded-xl border border-[#06C755]/30 bg-[#06C755]/10 flex items-center justify-between flex-wrap gap-2 animate-in fade-in duration-150">
+        <div className="p-2.5 rounded-xl border border-[#1d4ed8]/30 bg-[#1d4ed8]/10 flex items-center justify-between flex-wrap gap-2 animate-in fade-in duration-150">
           <div className="flex items-center gap-2 font-bold text-zinc-900 dark:text-zinc-100">
-            <CheckSquare className="w-4 h-4 text-[#06C755]" />
+            <CheckSquare className="w-4 h-4 text-[#1d4ed8]" />
             <span>선택된 문서 {selectedIds.length}개</span>
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => onReindexDocs(selectedIds)}
-              className="px-2.5 py-1 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:text-[#06C755] transition flex items-center gap-1 font-semibold"
+              className="px-2.5 py-1 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:text-[#1d4ed8] transition flex items-center gap-1 font-semibold"
             >
               <RefreshCw className="w-3 h-3" />
               <span>재분석</span>
@@ -225,7 +226,7 @@ export const KUI002_KnowledgeDocList: React.FC<KUI002KnowledgeDocListProps> = ({
                     type="checkbox"
                     checked={isAllSelected}
                     onChange={toggleSelectAll}
-                    className="w-3.5 h-3.5 rounded-sm text-[#06C755] focus:ring-[#06C755]"
+                    className="w-3.5 h-3.5 rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
                   />
                 </th>
                 <th className="py-2 px-4">문서 제목 / 경로</th>
@@ -250,7 +251,7 @@ export const KUI002_KnowledgeDocList: React.FC<KUI002KnowledgeDocListProps> = ({
                     <tr 
                       key={doc.id}
                       className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition ${
-                        isChecked ? 'bg-[#06C755]/5 dark:bg-[#06C755]/10' : ''
+                        isChecked ? 'bg-[#1d4ed8]/5 dark:bg-[#1d4ed8]/10' : ''
                       }`}
                     >
                       <td className="py-2.5 px-3.5 text-center">
@@ -258,7 +259,7 @@ export const KUI002_KnowledgeDocList: React.FC<KUI002KnowledgeDocListProps> = ({
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleSelectOne(doc.id)}
-                          className="w-3.5 h-3.5 rounded-sm text-[#06C755] focus:ring-[#06C755]"
+                          className="w-3.5 h-3.5 rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
                         />
                       </td>
 
@@ -266,9 +267,9 @@ export const KUI002_KnowledgeDocList: React.FC<KUI002KnowledgeDocListProps> = ({
                         <div className="flex items-center gap-2 truncate max-w-sm">
                           <button
                             onClick={() => onSelectDocDetail(doc)}
-                            className="text-left hover:text-[#06C755] transition truncate flex items-center gap-1.5 cursor-pointer font-extrabold text-zinc-950 dark:text-white"
+                            className="text-left hover:text-[#1d4ed8] transition truncate flex items-center gap-1.5 cursor-pointer font-extrabold text-zinc-950 dark:text-white"
                           >
-                            <span className="text-[#06C755] shrink-0">📗</span>
+                            <span className="text-[#1d4ed8] shrink-0">📗</span>
                             <span className="truncate">{doc.title}</span>
                           </button>
                         </div>
@@ -319,7 +320,7 @@ export const KUI002_KnowledgeDocList: React.FC<KUI002KnowledgeDocListProps> = ({
 
                           <button
                             onClick={() => onOpenFileInEditor(doc.filePath)}
-                            className="p-1 text-zinc-400 hover:text-[#06C755] transition"
+                            className="p-1 text-zinc-400 hover:text-[#1d4ed8] transition"
                             title="에디터에서 열기"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />

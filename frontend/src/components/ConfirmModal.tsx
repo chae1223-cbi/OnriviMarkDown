@@ -27,7 +27,8 @@ interface ConfirmModalProps {
 // 📊 [OMD-CORE-ConfirmModal-0001] ConfirmModal ➔ ConfirmModal
 // 🎯 @KICK  : 확인/취소 선택과 위험 경고 아이콘을 표시하는 포털 기반 범용 컨펌 모달
 // 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 렌더링, isDanger에 따라 스타일 분기
-// 🚨 @PATCH : **2026-08-23** — 다이얼로그 UX 개선: 상단 코너 회색 제거(rounded-t-2xl 추가), Dim 반투명 완화(bg-black/30), 다층 그림자로 입체감 강화, 메시지 내 파일명 따옴표 강조 표시
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-08-23** — 다이얼로그 UX 개선: 상단 코너 회색 제거(rounded-t-2xl 추가), Dim 반투명 완화(bg-black/30), 다층 그림자로 입체감 강화, 메시지 내 파일명 따옴표 강조 표시
 // 🔗 @CALLS : 없음
 // ====================================================================
 export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과 위험 경고 아이콘을 표시하는 포털 기반 범용 컨펌 모달
@@ -73,7 +74,7 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
     const parts = msg.split(/('.*?')/g);
     return parts.map((part, i) =>
       part.startsWith("'") && part.endsWith("'") ? (
-        <span key={i} className={`font-bold ${isDanger ? 'text-red-600 dark:text-red-400' : 'text-[#06C755]'}`}>
+        <span key={i} className={`font-bold ${isDanger ? 'text-red-600 dark:text-red-400' : 'text-[#1d4ed8]'}`}>
           {part}
         </span>
       ) : part
@@ -83,7 +84,7 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
   return createPortal(
     <div
       className="fixed inset-0 z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200"
-      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.45)", fontFamily: "LineSeed, Pretendard, sans-serif" }}
+      style={{ overflowY: "auto", backgroundColor: "rgba(0,0,0,0.45)", fontFamily: "Pretendard, sans-serif" }}
     >
       <div
         className="w-full max-w-sm bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#EFEFEF] dark:border-white/10 animate-in zoom-in-95 duration-200 flex flex-col shadow-2xl"
@@ -95,12 +96,12 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-white/10 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-              isDanger ? 'bg-red-500/15 text-red-500' : 'bg-[#06C755]/15 text-[#06C755]'
+              isDanger ? 'bg-red-500/15 text-red-500' : 'bg-[#1d4ed8]/15 text-[#1d4ed8]'
             }`}>
               <AlertCircle size={18} />
             </div>
             <h3 className={`text-base font-bold tracking-tight ${
-              isDanger ? 'text-red-500' : 'text-[#06C755]'
+              isDanger ? 'text-red-500' : 'text-[#1d4ed8]'
             }`}>{title}</h3>
           </div>
           <button
@@ -130,7 +131,7 @@ export default function ConfirmModal({ // ConfirmModal : 확인/취소 선택과
             onClick={onConfirm}
             className={`px-5 py-2.5 ${isDanger
               ? 'bg-red-600 hover:bg-red-500 shadow-red-500/25'
-              : 'bg-[#06C755] hover:bg-[#05B04B] shadow-[#06C755]/25'
+              : 'bg-[#1d4ed8] hover:bg-[#1e40af] shadow-[#1d4ed8]/25'
               } text-white text-xs font-bold rounded-xl shadow-lg transition-all active:scale-95`}
           >
             {confirmText}

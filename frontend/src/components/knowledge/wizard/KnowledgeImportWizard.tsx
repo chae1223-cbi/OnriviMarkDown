@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-WIZARD-ImportWizard-0001] KnowledgeImportWizard.tsx ➔ KUI-004 ~ KUI-006 대량 지식 수집 위저드
 // 🎯 @KICK  : 3단계(대상 선택 -> 로컬 파일 탐색 및 해시 분류 -> 컬렉션/우선순위 설정) 대량 문서 수집 마법사
-// 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), AI 비개입 로컬 선행 검증, 대량 큐 일괄 적재
-// 🚨 @PATCH : **2026-09-05** — ESLint react-hooks/exhaustive-deps 경고 해결: fetchCollections를 useCallback으로 메모이제이션하고 useEffect 의존성 배열에 등록
+// 🛡️ @GUARD : LINE Design System LDSG v5.0 (#1d4ed8), AI 비개입 로컬 선행 검증, 대량 큐 일괄 적재
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-05** — ESLint react-hooks/exhaustive-deps 경고 해결: fetchCollections를 useCallback으로 메모이제이션하고 useEffect 의존성 배열에 등록
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-004~KUI-006 대량 문서 수집 마법사 통합 모달 구현
 // 🔗 @CALLS : ./Step1_TargetSelect, ./Step2_ScanResult, ./Step3_ImportConfig, /api/knowledge/queue, /api/knowledge/collection
 // ====================================================================
@@ -244,13 +245,13 @@ export const KnowledgeImportWizard: React.FC<KnowledgeImportWizardProps> = ({
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2.5">
-            <span className="text-[#06C755] text-lg">📚</span>
+            <span className="text-[#1d4ed8] text-lg">📚</span>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
                   지식 문서 대량 등록 마법사
                 </h2>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#06C755]/10 text-[#06C755]">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#1d4ed8]/10 text-[#1d4ed8]">
                   Step {step} / 3
                 </span>
               </div>
@@ -326,7 +327,7 @@ export const KnowledgeImportWizard: React.FC<KnowledgeImportWizardProps> = ({
               <button
                 onClick={handleProceedToStep2}
                 disabled={isScanning}
-                className="px-5 py-1.5 text-xs font-bold text-white bg-[#06C755] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
+                className="px-5 py-1.5 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
               >
                 {isScanning ? (
                   <>
@@ -346,7 +347,7 @@ export const KnowledgeImportWizard: React.FC<KnowledgeImportWizardProps> = ({
               <button
                 onClick={() => setStep(3)}
                 disabled={selectedCount === 0}
-                className="px-5 py-1.5 text-xs font-bold text-white bg-[#06C755] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
+                className="px-5 py-1.5 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
               >
                 <span>설정으로 이동 ({selectedCount}개 선택)</span>
                 <ChevronRight className="w-4 h-4" />
@@ -357,7 +358,7 @@ export const KnowledgeImportWizard: React.FC<KnowledgeImportWizardProps> = ({
               <button
                 onClick={handleFinalSubmit}
                 disabled={isSubmitting || selectedCount === 0}
-                className="px-5 py-1.5 text-xs font-bold text-white bg-[#06C755] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
+                className="px-5 py-1.5 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
               >
                 {isSubmitting ? (
                   <>

@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-MODAL-KnowledgeManager-0001] KnowledgeManagerModal.tsx ➔ 지식 보관함 관리자 모달
 // 🎯 @KICK  : 대량 문서 스케일에 최적화된 리스트/카드 뷰 토글, 페이지네이션, 정렬/필터 및 일괄 가져오기 제공
-// 🚨 @PATCH : **2026-09-05** — 외부 DB 원복(Restore) 및 완전 초기화 시 knowledge:updated-from-hub, knowledge:refresh 이벤트를 수신하여 보관함 문서 목록(docs)을 즉시 자동 재동기화하도록 개선
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-05** — 외부 DB 원복(Restore) 및 완전 초기화 시 knowledge:updated-from-hub, knowledge:refresh 이벤트를 수신하여 보관함 문서 목록(docs)을 즉시 자동 재동기화하도록 개선
 //             **2026-09-04** — 지식문서 항목 및 인스펙터 헤더 아이콘을 남성 학사(📗)로 전면 교체
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-DETAIL-001] 문서 클릭 또는 눈 아이콘(Eye) 클릭 시 전용 청크/태그 상세 분석 모달(knowledge:show-detail) 연동
 //             **2026-09-04** — [오류 항목 원터치 일괄 삭제 및 테이블 가로 스크롤/삭제 버튼 시인성 개선] errorCount 기반 '오류건 모두 삭제' 툴바 버튼 추가, 테이블 overflow-x-auto 및 상태 열 내 즉시 삭제 액션 탑재
@@ -285,13 +286,13 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#06C755]/10 dark:bg-[#06C755]/20 flex items-center justify-center text-[#06C755]">
+            <div className="w-10 h-10 rounded-xl bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 flex items-center justify-center text-[#1d4ed8]">
               <Database className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                 지식 베이스 보관함 관리자
-                <span className="text-xs px-2 py-0.5 rounded-full bg-[#06C755]/15 text-[#06C755] font-semibold">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[#1d4ed8]/15 text-[#1d4ed8] font-semibold">
                   총 {docs.length}개 보관 중
                 </span>
               </h2>
@@ -311,7 +312,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
         {/* 📊 4대 지식 메트릭 요약 바 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-6 py-3 bg-zinc-50/70 dark:bg-zinc-900/60 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
           <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/60 shadow-2xs flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-[#06C755] flex items-center justify-center font-bold">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-[#1d4ed8] flex items-center justify-center font-bold">
               <FileText className="w-4 h-4" />
             </div>
             <div>
@@ -364,7 +365,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
               onClick={() => setActiveTab('docs')}
               className={`py-2 px-3.5 text-xs font-bold rounded-lg transition flex items-center gap-2 ${
                 activeTab === 'docs'
-                  ? 'bg-[#06C755] text-white shadow-xs'
+                  ? 'bg-[#1d4ed8] text-white shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800'
               }`}
             >
@@ -375,7 +376,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
               onClick={() => setActiveTab('import')}
               className={`py-2 px-3.5 text-xs font-bold rounded-lg transition flex items-center gap-2 ${
                 activeTab === 'import'
-                  ? 'bg-[#06C755] text-white shadow-xs'
+                  ? 'bg-[#1d4ed8] text-white shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800'
               }`}
             >
@@ -430,7 +431,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   placeholder="제목, 요약, 태그, 경로 검색..."
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:ring-1 focus:ring-[#06C755] w-48"
+                  className="pl-8 pr-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:ring-1 focus:ring-[#1d4ed8] w-48"
                 />
               </div>
 
@@ -479,7 +480,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
             <div>
               {loading ? (
                 <div className="py-24 text-center text-zinc-400 text-sm flex flex-col items-center gap-3">
-                  <RefreshCw className="w-6 h-6 animate-spin text-[#06C755]" />
+                  <RefreshCw className="w-6 h-6 animate-spin text-[#1d4ed8]" />
                   <span>지식 보관함 문서를 불러오는 중입니다...</span>
                 </div>
               ) : filteredAndSortedDocs.length === 0 ? (
@@ -533,10 +534,10 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                           <td className="py-2.5 px-4 font-bold text-zinc-900 dark:text-zinc-100">
                             <button
                               onClick={() => handleShowDocDetail(d)}
-                              className="flex items-center gap-1.5 truncate text-left hover:text-[#06C755] transition cursor-pointer"
+                              className="flex items-center gap-1.5 truncate text-left hover:text-[#1d4ed8] transition cursor-pointer"
                               title={d.file_path}
                             >
-                              <span className="text-[#06C755] shrink-0">📗</span>
+                              <span className="text-[#1d4ed8] shrink-0">📗</span>
                               <span className="truncate">{d.title}</span>
                             </button>
                           </td>
@@ -596,15 +597,15 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   {paginatedDocs.map((d) => (
                     <div
                       key={d.id}
-                      className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-[#06C755]/50 transition flex flex-col justify-between"
+                      className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 hover:border-[#1d4ed8]/50 transition flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-start justify-between gap-2 mb-1.5">
                           <button
                             onClick={() => handleShowDocDetail(d)}
-                            className="font-bold text-sm text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1.5 hover:text-[#06C755] transition text-left cursor-pointer"
+                            className="font-bold text-sm text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1.5 hover:text-[#1d4ed8] transition text-left cursor-pointer"
                           >
-                            <span className="text-[#06C755]">📗</span>
+                            <span className="text-[#1d4ed8]">📗</span>
                             {d.title}
                           </button>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-semibold shrink-0 ${
@@ -671,8 +672,8 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
           {/* 대량 가져오기 탭 */}
           {activeTab === 'import' && (
             <div className="space-y-4">
-              <div className="bg-[#06C755]/10 border border-[#06C755]/20 rounded-xl p-4 text-xs text-zinc-700 dark:text-zinc-300">
-                <span className="font-bold text-[#06C755] block mb-1">💡 대량 일괄 등록 안내</span>
+              <div className="bg-[#1d4ed8]/10 border border-[#1d4ed8]/20 rounded-xl p-4 text-xs text-zinc-700 dark:text-zinc-300">
+                <span className="font-bold text-[#1d4ed8] block mb-1">💡 대량 일괄 등록 안내</span>
                 현재 작업 공간의 마크다운 파일들을 선택하여 한 번에 백그라운드 큐로 색인 등록합니다.
                 Gemini 3.8 Flash가 각 문서의 요약과 태그, 헤딩 청크를 자동으로 추출하여 완벽한 개인 지식 보관소를 구축합니다.
               </div>
@@ -681,11 +682,11 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                 <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
                   <div className="flex items-center justify-between text-xs font-semibold mb-2">
                     <span>진행 중: {progress.currentFile || '준비 중...'}</span>
-                    <span className="text-[#06C755]">{progress.percent}% ({progress.completed}/{progress.total})</span>
+                    <span className="text-[#1d4ed8]">{progress.percent}% ({progress.completed}/{progress.total})</span>
                   </div>
                   <div className="w-full h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-[#06C755] transition-all duration-300"
+                      className="h-full bg-[#1d4ed8] transition-all duration-300"
                       style={{ width: `${progress.percent}%` }}
                     />
                   </div>
@@ -699,7 +700,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                 <button
                   onClick={handleStartBatchImport}
                   disabled={isImporting || importFiles.filter(f => f.selected).length === 0}
-                  className="px-4 py-2 text-xs font-bold text-white bg-[#06C755] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
+                  className="px-4 py-2 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
                 >
                   <UploadCloud className="w-4 h-4" />
                   {isImporting ? '일괄 등록 진행 중...' : `선택한 ${importFiles.filter(f => f.selected).length}개 파일 등록 시작`}
@@ -721,7 +722,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                           updated[idx].selected = e.target.checked;
                           setImportFiles(updated);
                         }}
-                        className="rounded-sm text-[#06C755] focus:ring-[#06C755]"
+                        className="rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
                       />
                       <FileText className="w-4 h-4 text-zinc-400" />
                       <span className="text-zinc-800 dark:text-zinc-200 font-medium">{file.name}</span>
@@ -784,7 +785,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
               {/* 헤더 */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-2.5 truncate">
-                  <span className="text-[#06C755] text-lg">📗</span>
+                  <span className="text-[#1d4ed8] text-lg">📗</span>
                   <div>
                     <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate">
                       {selectedDocForDetail.title}
@@ -823,7 +824,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                 {/* AI 요약 */}
                 <div>
                   <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 mb-1.5 text-xs">
-                    <span className="text-[#06C755]">💡</span> AI 분석 핵심 요약
+                    <span className="text-[#1d4ed8]">💡</span> AI 분석 핵심 요약
                   </span>
                   <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">
                     {selectedDocForDetail.summary || '요약 내용이 없습니다.'}
@@ -876,7 +877,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                       handleOpenInEditor(selectedDocForDetail.file_path);
                       setSelectedDocForDetail(null);
                     }}
-                    className="px-4 py-1.5 text-xs font-bold text-white bg-[#06C755] hover:bg-[#05a847] rounded-lg transition flex items-center gap-1.5 shadow-xs"
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] rounded-lg transition flex items-center gap-1.5 shadow-xs"
                   >
                     <span>에디터에서 열기</span>
                     <ExternalLink className="w-3.5 h-3.5" />

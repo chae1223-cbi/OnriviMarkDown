@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 // 📊 [OMD-CORE-FontSelectorModal-0001] FontSelectorModal ➔ FontEntry
 // 🎯 @KICK  : 폰트 목록 항목 타입 — CSS 적용용(name=family)과 화면 표시용(label) 분리
 // 🛡️ @GUARD : CSS font-family는 반드시 font.family 사용 (postscriptName 사용 시 브라우저 미인식)
-// 🚨 @PATCH : **2026-08-01** — postscriptName → family 로 CSS 적용 기준 수정;
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-08-01** — postscriptName → family 로 CSS 적용 기준 수정;
 //             한글명 매핑 복원; 번들 임베드 폰트 추가;
 //             검색상자(input) 타이핑 시 keydown 이벤트가 document.body로 버블링되어
 //             Monaco getModifierState 런타임 크래시를 유발하는 현상 해결 —
@@ -234,13 +235,13 @@ export default function FontSelectorModal({
         {/* 헤더 */}
         <div className={`flex justify-between items-center px-6 py-4 border-b shrink-0 ${divider}`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 7V4h16v3M9 20h6M12 4v16" />
               </svg>
             </div>
             <div>
-              <h2 className="text-base font-bold text-[#06C755] tracking-tight">시스템 글꼴 선택</h2>
+              <h2 className="text-base font-bold text-[#1d4ed8] tracking-tight">시스템 글꼴 선택</h2>
               {!loading && (
                 <span className={`text-[11px] font-medium ${textSub}`}>
                   {filtered.length}개 표시 / 전체 {fonts.length}개

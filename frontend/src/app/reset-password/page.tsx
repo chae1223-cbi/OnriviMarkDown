@@ -2,7 +2,8 @@
 // 📊 [OMD-AUTH-reset-password-0001] page ➔ ResetPasswordPage
 // 🎯 @KICK  : Supabase Auth 기반 새로운 비밀번호 변경 입력창 및 패스워드 재설정 화면
 // 🛡️ @GUARD : 비밀번호 영문소문자/숫자/특수문자 조합 8~20자 유효성, 비밀번호 확인 일치성 검증 가드
-// 🚨 @PATCH : **2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#06C755) 버튼, 실시간 유효성 체크 뱃지 및 Lucide React 아이콘 교체
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#1d4ed8) 버튼, 실시간 유효성 체크 뱃지 및 Lucide React 아이콘 교체
 //             **2026-07-22** — /api/rpc/password/confirm 원트랜잭션 API 연동: password_resets 토큰검증 + used=true 선소비 + Supabase 비밀번호변경 단일 흐름 처리
 //             **2026-06-28** — 비밀번호 변경 성공 시 즉시 signOut() 호출하여 메일 복구 링크 일회성 파괴
 //             **2026-06-23** — 공통 토스트 알람(showToast) 일괄 연동 개편 패치
@@ -144,13 +145,13 @@ export default function ResetPasswordPage() {
 
   return (
     <div
-      className="flex flex-col min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#06C755]/20 selection:text-[#06C755] relative overflow-hidden"
-      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+      className="flex flex-col min-h-screen bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] font-sans selection:bg-[#1d4ed8]/20 selection:text-[#1d4ed8] relative overflow-hidden"
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       {/* Subtle Ambient Background Glow */}
       <div
         aria-hidden
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-[radial-gradient(ellipse_at_top,rgba(6,199,85,0.08)_0%,transparent_70%)] pointer-events-none z-0"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-[radial-gradient(ellipse_at_top,rgba(29, 78, 216,0.08)_0%,transparent_70%)] pointer-events-none z-0"
       />
 
       <Navbar />
@@ -162,7 +163,7 @@ export default function ResetPasswordPage() {
             {/* Header */}
             <div className="text-center space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F0EFEA] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#06C755]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
                 NEW CREDENTIALS
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-[#111413] dark:text-white tracking-tight">
@@ -182,7 +183,7 @@ export default function ResetPasswordPage() {
                 </label>
                 <div className="relative">
                   <input
-                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15 transition-all outline-none"
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
@@ -206,19 +207,19 @@ export default function ResetPasswordPage() {
                 {/* Requirements Checklist */}
                 {password.length > 0 && (
                   <div className="grid grid-cols-2 gap-1.5 pt-2 text-[11px]">
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasMinLength ? "bg-[#06C755]/10 text-[#06C755] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasMinLength ? "bg-[#1d4ed8]/10 text-[#1d4ed8] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
                       <Check size={12} strokeWidth={hasMinLength ? 3 : 2} />
                       <span>8~20자 길이</span>
                     </div>
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasLowercase ? "bg-[#06C755]/10 text-[#06C755] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasLowercase ? "bg-[#1d4ed8]/10 text-[#1d4ed8] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
                       <Check size={12} strokeWidth={hasLowercase ? 3 : 2} />
                       <span>영문 소문자</span>
                     </div>
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasNumber ? "bg-[#06C755]/10 text-[#06C755] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasNumber ? "bg-[#1d4ed8]/10 text-[#1d4ed8] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
                       <Check size={12} strokeWidth={hasNumber ? 3 : 2} />
                       <span>숫자 포함</span>
                     </div>
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasSpecialChar ? "bg-[#06C755]/10 text-[#06C755] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${hasSpecialChar ? "bg-[#1d4ed8]/10 text-[#1d4ed8] font-bold" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400"}`}>
                       <Check size={12} strokeWidth={hasSpecialChar ? 3 : 2} />
                       <span>특수문자 포함</span>
                     </div>
@@ -233,7 +234,7 @@ export default function ResetPasswordPage() {
                 </label>
                 <div className="relative">
                   <input
-                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 transition-all outline-none"
+                    className="w-full bg-[#FAF8F5] dark:bg-zinc-800/60 border border-[#E0DED7] dark:border-zinc-700 rounded-xl px-4 py-3 pl-10 pr-10 text-sm text-[#111413] dark:text-white placeholder:text-zinc-400 focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15 transition-all outline-none"
                     id="confirm-password"
                     name="confirm-password"
                     type={showConfirmPassword ? "text" : "password"}
@@ -254,7 +255,7 @@ export default function ResetPasswordPage() {
                   </button>
                 </div>
                 {confirmPassword.length > 0 && (
-                  <p className={`text-[11px] font-semibold pt-1 ${isPasswordMatched ? "text-[#06C755]" : "text-red-500"}`}>
+                  <p className={`text-[11px] font-semibold pt-1 ${isPasswordMatched ? "text-[#1d4ed8]" : "text-red-500"}`}>
                     {isPasswordMatched ? "✓ 비밀번호가 일치합니다." : "✕ 비밀번호가 일치하지 않습니다."}
                   </p>
                 )}
@@ -265,7 +266,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading || !isFormValid}
-                  className="w-full bg-[#06C755] hover:bg-[#05B04B] text-white font-bold text-[15px] py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(6,199,85,0.25)] hover:shadow-[0_6px_24px_rgba(6,199,85,0.35)] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
+                  className="w-full bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[15px] py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(29, 78, 216,0.25)] hover:shadow-[0_6px_24px_rgba(29, 78, 216,0.35)] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
                 >
                   <span>{loading ? "변경 처리 중..." : "비밀번호 변경 완료"}</span>
                   <ArrowRight size={16} />
@@ -277,7 +278,7 @@ export default function ResetPasswordPage() {
             <div className="pt-3 border-t border-[#E8E6E1] dark:border-white/10 text-center">
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1.5 text-xs text-[#68716D] dark:text-zinc-400 hover:text-[#06C755] transition-colors font-medium"
+                className="inline-flex items-center gap-1.5 text-xs text-[#68716D] dark:text-zinc-400 hover:text-[#1d4ed8] transition-colors font-medium"
               >
                 <ArrowLeft size={14} />
                 <span>로그인 화면으로 이동</span>

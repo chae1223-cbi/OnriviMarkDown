@@ -216,7 +216,7 @@ export default function AdminLogin() {
   if (step === 'LOADING') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8F9FA]">
-        <div className="w-10 h-10 border-4 border-[#06C755]/20 border-t-[#06C755] rounded-full animate-spin"></div>
+        <div className="w-10 h-10 border-4 border-[#1d4ed8]/20 border-t-[#1d4ed8] rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -225,9 +225,9 @@ export default function AdminLogin() {
     <div 
       className="relative min-h-screen w-full overflow-hidden flex items-center justify-center p-6 bg-[#F8F9FA]" 
       style={{
-        background: `radial-gradient(circle at 20% 30%, rgba(6, 199, 85, 0.08) 0%, transparent 40%),
+        background: `radial-gradient(circle at 20% 30%, rgba(29, 78, 216, 0.08) 0%, transparent 40%),
                      radial-gradient(circle at 80% 20%, rgba(77, 115, 255, 0.08) 0%, transparent 40%),
-                     radial-gradient(circle at 50% 80%, rgba(6, 199, 85, 0.05) 0%, transparent 50%),
+                     radial-gradient(circle at 50% 80%, rgba(29, 78, 216, 0.05) 0%, transparent 50%),
                      linear-gradient(135deg, #F8F9FA 0%, #EFF2F5 100%)`,
         fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif"
       }}
@@ -240,14 +240,14 @@ export default function AdminLogin() {
           border-radius: 32px;
         }
         .google-btn {
-          background: #06C755;
+          background: #1d4ed8;
           color: #FFFFFF;
           transition: all 0.2s ease;
         }
         .google-btn:hover:not(:disabled) {
           background: #05B34C;
           transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(6, 199, 85, 0.3);
+          box-shadow: 0 6px 20px rgba(29, 78, 216, 0.3);
         }
         .google-btn:disabled {
           opacity: 0.5;
@@ -260,8 +260,8 @@ export default function AdminLogin() {
         }
         .otp-input:focus {
           background: #FFFFFF;
-          border-color: #06C755;
-          box-shadow: 0 0 0 1px #06C755;
+          border-color: #1d4ed8;
+          box-shadow: 0 0 0 1px #1d4ed8;
           outline: none;
         }
       `}} />
@@ -269,7 +269,7 @@ export default function AdminLogin() {
       <main className="w-full max-w-[1336px] h-full flex items-center justify-center p-6 relative z-10">
         <section className="admin-glass-card w-full max-w-[620px] flex flex-col items-center justify-center p-12 text-zinc-900 animate-in zoom-in-95 duration-500">
           
-          <div className="mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-[#06C755]/15 text-[#06C755]">
+          <div className="mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-[#1d4ed8]/15 text-[#1d4ed8]">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>

@@ -16,7 +16,8 @@ interface MapModalProps {
 // 📊 [OMD-CORE-MapModal-0006] MapModal ➔ MapModal
 // 🎯 @KICK  : Google Maps iframe 기반 지도 삽입 모달 - 주소 검색, 줌 제어, 크기/정렬 설정 및 프리미엄 HSL 테마 이식
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환
-// 🚨 @PATCH : 2026-07-15 - 왼쪽 사이드바 제거 요청 반영 및 본문 영역 확장
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-07-15 - 왼쪽 사이드바 제거 요청 반영 및 본문 영역 확장
 // 🔗 @CALLS : handleSearch, handleInsert, setZoom, setMapAlign, showToast, createPortal
 // ====================================================================
 export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapModalProps) {
@@ -121,10 +122,10 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
           isDarkMode ? 'border-zinc-800 bg-zinc-900/50' : 'border-[#EFEFEF] bg-slate-50/50'
         }`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <Map size={18} />
             </div>
-            <h1 className="text-base font-bold tracking-tight text-[#06C755]">지도 삽입</h1>
+            <h1 className="text-base font-bold tracking-tight text-[#1d4ed8]">지도 삽입</h1>
           </div>
           <button 
             onClick={onClose}

@@ -196,14 +196,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 💡 [ONRIVI-DS-SYSTEM-002 v5.0] 전역 텍스트 렌더링 & 가독성 엔진 최적화 */
+/* 💡 [ONRIVI-DS-SYSTEM-003 Modern Technical Editorial] 전역 텍스트 렌더링 & 가독성 엔진 최적화 */
 html, body {
-  font-family: "Pretendard Variable", Pretendard, LineSeed, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   letter-spacing: -0.012em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Plus Jakarta Sans", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
 /* 강제 정렬 클래스 (사용자 서식 프로필의 !important 오버라이드용) */
@@ -257,43 +261,66 @@ html, body {
     background: rgba(255,255,255,0.9);
     box-shadow: 10px 10px 20px rgba(99, 102, 241, 0.12), -10px -10px 20px rgba(255, 255, 255, 0.9);
   }
-  /* 💡 [ONRIVI-DS-SYSTEM-002 v5.0 LDSG] 공통 UI 컴포넌트 */
-  /* Primary Button (LDSG Green) */
+  /* 💡 [ONRIVI-DS-SYSTEM-003 Modern Technical Editorial] 공통 UI 컴포넌트 */
+  /* Primary Button (Cobalt Authority #1d4ed8) */
   .btn-primary {
-    background: #06c755;
+    background: #1d4ed8;
     color: #ffffff;
     border-radius: 8px;
-    font-family: LineSeed, Pretendard, -apple-system, sans-serif;
-    font-weight: 700;
+    font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    font-weight: 600;
     font-size: 14px;
     line-height: 20px;
     padding: 0.5rem 1.25rem;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
     transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
   }
   .btn-primary:hover {
-    background-color: #05b04b;
-    box-shadow: 0 4px 12px rgba(6, 199, 85, 0.25);
+    background-color: #1e40af;
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
   }
   .btn-primary:active { transform: scale(0.98); }
 
-  /* Secondary Button (LDSG Blue / Outline) */
+  /* Secondary Button (Hairline Outline) */
   .btn-secondary {
     background: transparent;
-    color: #06c755;
-    border: 1px solid #06c755;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
-    font-family: LineSeed, Pretendard, -apple-system, sans-serif;
-    font-weight: 700;
+    font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    font-weight: 600;
     font-size: 14px;
     padding: 0.5rem 1.25rem;
     transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
   }
+  .dark .btn-secondary {
+    color: #f8fafc;
+    border-color: #334155;
+  }
   .btn-secondary:hover {
-    background-color: rgba(6, 199, 85, 0.08);
-    border-color: #05b04b;
+    background-color: #f1f5f9;
+  }
+  .dark .btn-secondary:hover {
+    background-color: #1e293b;
   }
   .btn-secondary:active { transform: scale(0.98); }
+
+  /* Kinetic Button (Coral Conversion CTA #f97316) */
+  .btn-kinetic {
+    background: #f97316;
+    color: #ffffff;
+    border-radius: 8px;
+    font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 0.5rem 1.25rem;
+    transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  }
+  .btn-kinetic:hover {
+    background-color: #ea580c;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.25);
+  }
+  .btn-kinetic:active { transform: scale(0.98); }
 
   /* Ghost Button */
   .btn-ghost {
@@ -301,125 +328,167 @@ html, body {
     color: rgb(var(--on-surface));
     border: none;
     border-radius: 8px;
-    font-family: LineSeed, Pretendard, -apple-system, sans-serif;
+    font-family: Inter, "Pretendard Variable", Pretendard, -apple-system, sans-serif;
     font-weight: 600;
     font-size: 14px;
     padding: 0.5rem 1rem;
     transition: background-color 0.15s, transform 0.1s;
   }
   .btn-ghost:hover {
-    background-color: rgba(0, 0, 0, 0.04);
+    background-color: rgba(15, 23, 42, 0.04);
   }
   .dark .btn-ghost:hover {
     background-color: rgba(255, 255, 255, 0.06);
   }
   .btn-ghost:active { transform: scale(0.98); }
 
-  /* Chip (LDSG Style) */
+  /* Badges & Category Chips (9999px Full Pill) */
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.25rem 0.75rem;
+    height: 22px;
+    padding: 0 0.5rem;
     border-radius: 9999px;
-    background: rgba(6, 199, 85, 0.1);
-    color: #06c755;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    font-family: LineSeed, Pretendard, sans-serif;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: Inter, "Pretendard Variable", Pretendard, sans-serif;
+  }
+  .dark .chip {
+    background: #1e293b;
+    color: #cbd5e1;
+  }
+  .chip-ai {
+    background: #ccfbf1;
+    color: #0f766e;
+  }
+  .dark .chip-ai {
+    background: rgba(13, 148, 136, 0.2);
+    color: #5eead4;
+  }
+  .chip-active {
+    background: #ffedd5;
+    color: #c2410c;
+  }
+  .dark .chip-active {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fdba74;
+  }
+  .chip-trust {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+  .dark .chip-trust {
+    background: rgba(29, 78, 216, 0.2);
+    color: #93c5fd;
   }
 
   /* Input */
   .input-arctic {
     background: rgb(var(--surface-container));
-    border: 1px solid rgb(var(--outline));
+    border: 1px solid rgb(var(--outline-variant));
     border-radius: 8px;
-    font-family: LineSeed, Pretendard, sans-serif;
+    font-family: Inter, "Pretendard Variable", Pretendard, sans-serif;
     font-size: 14px;
-    padding: 0.625rem 1rem;
+    height: 40px;
+    padding: 0.5rem 0.75rem;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
     color: rgb(var(--on-surface));
   }
   .input-arctic:focus {
-    border-color: #06c755;
-    box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.15);
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
   }
 
   /* dark mode glass overrides */
   .dark .glass,
   .dark .glass-card {
-    background: rgba(0,0,0,0.4);
-    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
-  /* 💡 [ONRIVI-DS-SYSTEM-002 v5.0 LDSG] 모든 왼쪽 사이드바 공통 럭셔리 그라데이션 */
+  /* 💡 [ONRIVI-DS-SYSTEM-003 Modern Technical Editorial] 모든 왼쪽 사이드바 공통 서피스 베이스 그라데이션 */
   .bg-sidebar-luxury {
-    background: linear-gradient(180deg, #F6F8FA 0%, #F0F4F8 50%, #E8EDF3 100%);
+    background: linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 50%, #E2E8F0 100%);
   }
   .dark .bg-sidebar-luxury {
-    background: linear-gradient(180deg, #17191E 0%, #131519 50%, #0F1114 100%);
+    background: linear-gradient(180deg, #090D16 0%, #0F172A 50%, #1E293B 100%);
+  }
+
+  .tabular-nums, .tnum {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
   }
 }
 
 
-/* 💡 [ONRIVI-DS-SYSTEM-002 v5.0 LDSG] LINE Design System Color Tokens */
+/* 💡 [ONRIVI-DS-SYSTEM-003 Modern Technical Editorial] Color Tokens */
 :root {
-  --foreground-rgb: 31, 31, 31;
-  --background-start-rgb: 247, 248, 249;
-  --background-end-rgb: 247, 248, 249;
-  --surface: 247 248 249;
+  --foreground-rgb: 15, 23, 42;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 248, 250, 252;
+  --surface: 248 250 252;
   --surface-container: 255 255 255;
   --surface-container-lowest: 255 255 255;
-  --surface-container-low: 245 246 248;
-  --surface-container-high: 239 240 242;
-  --surface-container-highest: 230 232 235;
-  --surface-dim: 220 222 225;
+  --surface-container-low: 248 250 252;
+  --surface-container-high: 241 245 249;
+  --surface-container-highest: 226 232 240;
+  --surface-dim: 226 232 240;
   --surface-bright: 255 255 255;
-  --primary: 6 199 85;
+  --primary: 29 78 216;
   --on-primary: 255 255 255;
-  --primary-container: 215 248 228;
-  --on-primary-container: 3 115 48;
-  --on-surface: 31 31 31;
-  --on-surface-variant: 97 97 97;
-  --outline: 239 239 239;
-  --outline-variant: 220 220 220;
-  --error: 224 32 0;
+  --primary-container: 219 234 254;
+  --on-primary-container: 30 64 175;
+  --on-surface: 15 23 42;
+  --on-surface-variant: 71 85 105;
+  --outline: 226 232 240;
+  --outline-variant: 203 213 225;
+  --error: 220 38 38;
   --on-error: 255 255 255;
-  --secondary: 77 115 255;
+  --secondary: 13 148 136;
   --on-secondary: 255 255 255;
-  --secondary-container: 225 233 255;
-  --on-secondary-container: 20 45 160;
+  --secondary-container: 204 251 241;
+  --on-secondary-container: 15 118 110;
+  --tertiary: 249 115 22;
+  --on-tertiary: 255 255 255;
+  --tertiary-container: 255 237 213;
+  --on-tertiary-container: 194 65 12;
 }
 
 [class~="dark"] {
   color-scheme: dark;
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 18, 18, 18;
-  --background-end-rgb: 18, 18, 18;
-  --surface: 18 18 18;
-  --surface-container: 30 30 30;
-  --surface-container-lowest: 12 12 12;
-  --surface-container-low: 24 24 24;
-  --surface-container-high: 38 38 38;
-  --surface-container-highest: 48 48 48;
-  --surface-dim: 18 18 18;
-  --surface-bright: 60 60 60;
-  --primary: 6 199 85;
-  --on-primary: 0 0 0;
-  --primary-container: 3 90 38;
-  --on-primary-container: 215 248 228;
-  --on-surface: 255 255 255;
-  --on-surface-variant: 160 160 160;
-  --outline: 45 45 45;
-  --outline-variant: 70 70 70;
-  --error: 255 90 80;
-  --on-error: 0 0 0;
-  --secondary: 100 135 255;
-  --on-secondary: 0 0 0;
-  --secondary-container: 20 45 160;
-  --on-secondary-container: 225 233 255;
+  --foreground-rgb: 248, 250, 252;
+  --background-start-rgb: 9, 13, 22;
+  --background-end-rgb: 9, 13, 22;
+  --surface: 9 13 22;
+  --surface-container: 15 23 42;
+  --surface-container-lowest: 2 6 12;
+  --surface-container-low: 11 17 32;
+  --surface-container-high: 30 41 59;
+  --surface-container-highest: 51 65 85;
+  --surface-dim: 9 13 22;
+  --surface-bright: 51 65 85;
+  --primary: 37 99 235;
+  --on-primary: 255 255 255;
+  --primary-container: 30 58 138;
+  --on-primary-container: 219 234 254;
+  --on-surface: 248 250 252;
+  --on-surface-variant: 148 163 184;
+  --outline: 51 65 85;
+  --outline-variant: 71 85 105;
+  --error: 239 68 68;
+  --on-error: 255 255 255;
+  --secondary: 20 184 166;
+  --on-secondary: 255 255 255;
+  --secondary-container: 19 78 74;
+  --on-secondary-container: 204 251 241;
+  --tertiary: 251 146 60;
+  --on-tertiary: 255 255 255;
+  --tertiary-container: 124 45 18;
+  --on-tertiary-container: 255 237 213;
 }
 
 body {
@@ -1537,20 +1606,20 @@ input::-ms-clear {
 }
 
 /* ============================================================
-   LINE Design System (LDSG v5.0) Admin Scope (Light Mode)
+   Modern Technical Editorial Admin Scope (Light Mode)
    ============================================================ */
 .admin-theme {
-  --admin-bg: #F8F9FA;
+  --admin-bg: #F8FAFC;
   --admin-surface-bright: #F1F5F9;
   --admin-surface-low: #FFFFFF;
   --admin-surface: #FFFFFF;
   --admin-surface-high: #E2E8F0;
   --admin-text: #0F172A;
   --admin-text-muted: #475569;
-  --admin-primary: #06C755;
-  --admin-primary-dim: #05B34C;
+  --admin-primary: #1d4ed8;
+  --admin-primary-dim: #1e40af;
   --admin-on-primary: #FFFFFF;
-  --admin-secondary: #4D73FF;
+  --admin-secondary: #0d9488;
   --admin-on-secondary: #FFFFFF;
   --admin-border: #E2E8F0;
   --admin-border-light: #CBD5E1;
@@ -1594,12 +1663,12 @@ input::-ms-clear {
   .admin-ghost-input:focus {
     outline: none;
     border-color: var(--admin-primary);
-    box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.15);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
   }
 
-  /* Primary Button (LDSG Green) */
+  /* Primary Button (Cobalt Authority) */
   .admin-btn-primary {
-    background: #06C755;
+    background: #1d4ed8;
     color: #FFFFFF;
     border: none;
     border-radius: 12px;
@@ -1607,9 +1676,9 @@ input::-ms-clear {
     transition: all 0.15s ease-in-out;
   }
   .admin-btn-primary:hover {
-    background: #05B34C;
+    background: #1e40af;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(6, 199, 85, 0.25);
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
   }
   .admin-btn-primary:active {
     transform: scale(0.98);
@@ -1617,15 +1686,15 @@ input::-ms-clear {
 
   /* Status Chips */
   .admin-chip-emerald {
-    background: rgba(6, 199, 85, 0.12);
-    color: #048C3B;
-    border: 1px solid rgba(6, 199, 85, 0.3);
+    background: rgba(29, 78, 216, 0.1);
+    color: #1d4ed8;
+    border: 1px solid rgba(29, 78, 216, 0.25);
     font-weight: 600;
   }
   .admin-chip-gold {
-    background: rgba(77, 115, 255, 0.12);
-    color: #3B5FE8;
-    border: 1px solid rgba(77, 115, 255, 0.3);
+    background: rgba(13, 148, 136, 0.12);
+    color: #0f766e;
+    border: 1px solid rgba(13, 148, 136, 0.3);
     font-weight: 600;
   }
   .admin-chip-error {
@@ -1651,8 +1720,8 @@ input::-ms-clear {
 .admin-theme input:not([type="checkbox"]):not([type="radio"]):focus,
 .admin-theme select:focus,
 .admin-theme textarea:focus {
-  border-color: #06C755 !important;
-  box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.18), 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18), 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
   outline: none !important;
 }
 

@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-003] KUI003_KnowledgeSearch.tsx ➔ 하이브리드 검색 및 AI 지식 Q&A
 // 🎯 @KICK  : FTS5 + 태그 하이브리드 청크 검색, Gemini 질의응답(RAG), 근거 뷰어 연동 및 원문 에디터 점프
-// 🛡️ @GUARD : LDSG v5.0 (#06C755), 검색 모드/AI 질의 모드 탭 분리, 로컬 우선 처리
-// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 검색 및 질의 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db에 직접 하이브리드 검색 및 AI 질의응답을 수행하도록 연동
+// 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 검색 모드/AI 질의 모드 탭 분리, 로컬 우선 처리
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 검색 및 질의 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db에 직접 하이브리드 검색 및 AI 질의응답을 수행하도록 연동
 //             **2026-09-04** — [Rule 8 고대비 시인성] 검색 결과 헤딩 경로 및 근거 텍스트를 고대비 볼드 text-zinc-700 dark:text-zinc-300으로 보강하여 가독성 강화
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-003 하이브리드 지식 검색 및 AI Q&A 통합 화면 신규 구현
 // 🔗 @CALLS : knowledgeClient, /api/knowledge/search, /api/knowledge/query, KUI012_EvidenceViewer
@@ -143,7 +144,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-zinc-200 dark:border-zinc-800">
         <div>
           <h2 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <Search className="w-5 h-5 text-[#06C755]" />
+            <Search className="w-5 h-5 text-[#1d4ed8]" />
             지식 하이브리드 검색 & AI 질의 (KUI-003)
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -157,7 +158,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
             onClick={() => setSearchMode('search')}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition ${
               searchMode === 'search'
-                ? 'bg-white dark:bg-[#1C1E22] text-[#06C755] shadow-xs'
+                ? 'bg-white dark:bg-[#1C1E22] text-[#1d4ed8] shadow-xs'
                 : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
@@ -168,7 +169,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
             onClick={() => setSearchMode('qa')}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition ${
               searchMode === 'qa'
-                ? 'bg-white dark:bg-[#1C1E22] text-[#06C755] shadow-xs'
+                ? 'bg-white dark:bg-[#1C1E22] text-[#1d4ed8] shadow-xs'
                 : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
@@ -185,7 +186,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
           <select
             value={selectedCollectionId}
             onChange={(e) => setSelectedCollectionId(e.target.value)}
-            className="px-3 py-2 text-xs font-medium rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-[#06C755]"
+            className="px-3 py-2 text-xs font-medium rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-[#1d4ed8]"
           >
             <option value="ALL">모든 컬렉션</option>
             {collections.map(c => (
@@ -206,14 +207,14 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
                 ? '검색할 키워드, 개념, 또는 파일 내용을 입력하세요...'
                 : '지식 보관함을 기반으로 AI에게 질문할 내용을 입력하세요 (예: 온리비 라이선스 발급 절차는?)...'
             }
-            className="w-full pl-9 pr-4 py-2.5 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#06C755]"
+            className="w-full pl-9 pr-4 py-2.5 text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#1d4ed8]"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-extrabold rounded-lg bg-[#06C755] text-white hover:bg-[#05b34c] transition shadow-xs disabled:opacity-50 shrink-0"
+          className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-extrabold rounded-lg bg-[#1d4ed8] text-white hover:bg-[#05b34c] transition shadow-xs disabled:opacity-50 shrink-0"
         >
           {loading ? (
             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -230,7 +231,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
       <div className="flex-1 overflow-y-auto space-y-4">
         {loading && (
           <div className="flex flex-col items-center justify-center h-52 text-xs text-zinc-400 gap-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-[#06C755]" />
+            <RefreshCw className="w-6 h-6 animate-spin text-[#1d4ed8]" />
             <span>{searchMode === 'search' ? '지식 인덱스를 정밀 검색하고 있습니다...' : '관련 근거를 취합하여 AI 답변을 생성 중입니다...'}</span>
           </div>
         )}
@@ -240,18 +241,18 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
           <>
             {candidates.length > 0 && (
               <div className="text-xs text-zinc-500 font-bold px-1">
-                검색된 청크: <span className="text-[#06C755]">{candidates.length}개</span>
+                검색된 청크: <span className="text-[#1d4ed8]">{candidates.length}개</span>
               </div>
             )}
             <div className="grid grid-cols-1 gap-3">
               {candidates.map((cand, idx) => (
                 <div
                   key={`${cand.chunkId}-${idx}`}
-                  className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#18191D] hover:border-[#06C755]/50 transition space-y-2.5"
+                  className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#18191D] hover:border-[#1d4ed8]/50 transition space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-5 h-5 rounded-full bg-[#06C755]/15 text-[#06C755] text-[10px] font-bold flex items-center justify-center shrink-0">
+                      <span className="w-5 h-5 rounded-full bg-[#1d4ed8]/15 text-[#1d4ed8] text-[10px] font-bold flex items-center justify-center shrink-0">
                         {idx + 1}
                       </span>
                       <span className="text-xs font-extrabold text-zinc-950 dark:text-white truncate">
@@ -277,7 +278,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
                       </button>
                       <button
                         onClick={() => handleOpenInEditor(cand.filePath, cand.startLine || 1)}
-                        className="p-1 rounded-lg text-[#06C755] hover:bg-[#06C755]/10 transition"
+                        className="p-1 rounded-lg text-[#1d4ed8] hover:bg-[#1d4ed8]/10 transition"
                         title="에디터에서 열기"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -301,7 +302,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
             {/* AI 응답 카드 */}
             <div className="p-5 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/30 dark:bg-emerald-950/10 space-y-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#06C755]" />
+                <Sparkles className="w-4 h-4 text-[#1d4ed8]" />
                 <h3 className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">
                   AI 지식 답변 ({aiModelName})
                 </h3>
@@ -315,7 +316,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
             {evidenceList.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-[#06C755]" />
+                  <Layers className="w-4 h-4 text-[#1d4ed8]" />
                   답변에 인용된 근거 문서 ({evidenceList.length}개)
                 </h4>
 
@@ -324,7 +325,7 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
                     <div
                       key={idx}
                       onClick={() => setSelectedEvidence(ev)}
-                      className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#18191D] hover:border-[#06C755] cursor-pointer transition space-y-1.5 shadow-2xs"
+                      className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#18191D] hover:border-[#1d4ed8] cursor-pointer transition space-y-1.5 shadow-2xs"
                     >
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-extrabold text-zinc-900 dark:text-zinc-100 truncate max-w-[180px]">

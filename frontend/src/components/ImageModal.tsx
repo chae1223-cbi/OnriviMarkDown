@@ -31,7 +31,8 @@ interface ImageModalProps {
 // ====================================================================
 // 📊 [OMD-EDIT-ImageModal-0007] ImageModal ➔ ImageModal
 // 🎯 @KICK  : 이미지 삽입 모달 - URL/파일/클립보드 이미지 경로 입력 및 크기/정렬 설정
-// 🚨 @PATCH : **2026-09-11** — 클립보드 스크린샷 캡처 이미지 붙여넣기 시 Electron api.readClipboardImage 네이티브 폴백 및 인라인 바이너리 변환 지원
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-11** — 클립보드 스크린샷 캡처 이미지 붙여넣기 시 Electron api.readClipboardImage 네이티브 폴백 및 인라인 바이너리 변환 지원
 //             2026-08-26 — 데스크탑 및 웹 환경에서 리소스 폴더 이미지를 찾아보기로 선택 시 미리보기가 노출되지 않는 버그 및 자동저장 시 상태가 blob으로 원복되는 문제를 해결하기 위해 useEffect의 의존성 배열에서 initialData를 제거하고, 데스크탑 환경은 readImageAsBase64 API를 활용해 웹 보안 샌드박스를 우회하도록 함; 미리보기 컨테이너 div에 onWheel preventDefault를 연동해 마우스 스크롤 전파를 차단함
 // 🚨 @PATCH : 2026-07-20 — 이미지 모달 내 클립보드 붙여넣기 영역(슬림 붙여넣기 바) 클릭 시 윈도우 파일 탐색기가 뜨던 불편함 해소 (onClick 팝업 제거 및 focus 적용으로 순수 붙여넣기 대기 상태 전환)
 // 🚨 @PATCH : 2026-07-15 — 2단 분할 레이아웃(좌:입력, 우:미리보기), 슬림 붙여넣기 바, 인코딩 정상화
@@ -551,10 +552,10 @@ export default function ImageModal({
           isDarkMode ? 'border-zinc-800 bg-zinc-900' : 'border-[#EFEFEF] bg-white'
         }`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <ImageIcon size={18} />
             </div>
-            <h2 className="text-base font-bold tracking-tight text-[#06C755]">이미지 삽입</h2>
+            <h2 className="text-base font-bold tracking-tight text-[#1d4ed8]">이미지 삽입</h2>
           </div>
           <button
             onClick={onClose}
@@ -676,8 +677,8 @@ export default function ImageModal({
                       placeholder="600px 또는 100%"
                       className={`w-full font-mono text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
                         isDarkMode
-                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-[#06C755] focus:ring-[#06C755]/30'
-                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#06C755] focus:ring-[#06C755]/20'
+                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/30'
+                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/20'
                       }`}
                     />
                   </div>
@@ -690,8 +691,8 @@ export default function ImageModal({
                       placeholder="auto 또는 400px"
                       className={`w-full font-mono text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
                         isDarkMode
-                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-[#06C755] focus:ring-[#06C755]/30'
-                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#06C755] focus:ring-[#06C755]/20'
+                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/30'
+                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/20'
                       }`}
                     />
                   </div>
@@ -713,7 +714,7 @@ export default function ImageModal({
                     onClick={() => setImageAlign(align)}
                     className={`flex-1 py-2.5 rounded text-xs font-bold transition-all border ${
                       imageAlign === align
-                        ? 'bg-[#06C755] text-white border-[#06C755] shadow-sm'
+                        ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] shadow-sm'
                         : isDarkMode
                           ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
                           : 'border-slate-300 bg-slate-50 text-slate-500 hover:text-slate-700 hover:border-slate-400'
@@ -843,7 +844,7 @@ export default function ImageModal({
         }`}>
           <button
             onClick={onClose}
-            className="font-bold text-xs text-slate-400 hover:text-[#06C755] dark:hover:text-[#06C755] transition-colors py-2 px-3"
+            className="font-bold text-xs text-slate-400 hover:text-[#1d4ed8] dark:hover:text-[#1d4ed8] transition-colors py-2 px-3"
           >
             취소
           </button>
@@ -852,7 +853,7 @@ export default function ImageModal({
             disabled={!cleanImagePath}
             className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all active:scale-[0.98] ${
               cleanImagePath
-                ? 'bg-[#06C755] hover:bg-[#05B04B] text-white shadow-md shadow-[#06C755]/25'
+                ? 'bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-md shadow-[#1d4ed8]/25'
                 : 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 cursor-not-allowed'
             }`}
           >

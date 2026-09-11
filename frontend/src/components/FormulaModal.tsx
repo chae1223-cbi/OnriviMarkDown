@@ -183,11 +183,11 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
           isDarkMode ? 'border-[#44474e] bg-[#181c20]' : 'border-[#EFEFEF] bg-[#f7f9ff]'
         }`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <Sigma size={18} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-[#06C755] tracking-tight">수식 에디터</h2>
+              <h2 className="text-base font-bold text-[#1d4ed8] tracking-tight">수식 에디터</h2>
               <p className="text-[10px] opacity-50">LaTeX 문법을 사용하여 수식을 작성하세요</p>
             </div>
           </div>

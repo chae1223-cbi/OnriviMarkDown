@@ -39,7 +39,6 @@ import { idb } from '../indexedDbHelper';
 /**
  * Node.js 기반 백엔드 API 라우트(/api/knowledge/*)를 사용할 수 있는 환경인지 판별합니다.
  * Electron 데스크톱 앱만 해당 — localhost(로컬 개발)와 prod 웹은 동일하게 WASM browserKnowledgeDb 경로 사용
- *
  * ⚠️ localhost를 여기서 제외한 이유:
  *   로컬 개발(localhost)도 prod(onrivi.com)와 동일한 WASM/IndexedDB 코드 경로를 타야
  *   로컬에서 테스트한 결과가 prod에 그대로 반영되는 신뢰성 있는 파이프라인이 됩니다.

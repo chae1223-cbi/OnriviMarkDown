@@ -1,17 +1,24 @@
 # [통합 디자인 시스템 및 아키텍처 명세서]
-## Onrivi Author — LINE Design System (LDSG) 에디션
+## Onrivi Author — Modern Technical Editorial Edition
 
-**문서 ID:** `ONRIVI-DS-SYSTEM-002`  
-**버전:** `v5.0 (LINE Design System LDSG Edition)`  
+**문서 ID:** `ONRIVI-DS-SYSTEM-003`  
+**버전:** `v6.0 (Modern Technical Editorial Edition)`  
 **상태:** Official Development Specification  
-**참조:** [LINE Design System for Global Family Service (LDSG)](https://designsystem.line.me/LDSG)  
-**적용 범위:** Landing Page, Application Shell, Editor Frame, Sidebar, Toolbar, Modal/Dialog, Component Scope, Markdown Content Isolation
+**적용 범위:** Public SaaS Surface (Landing, Auth, Marketing), Document Author Canvas (Editor, Toolbar, Live Preview), Knowledge Engine Hub (KUI-001 ~ KUI-012), Markdown Content Isolation
 
 ---
 
-# 1. 문서 목적 및 핵심 철학
+# 1. Brand & Style
 
-본 문서는 **LINE Design System for Global Family Service (LDSG)**의 원칙과 토큰 체계를 준용하여, Onrivi Author 서비스 전반의 UI/UX 일관성을 확립하고 마크다운 콘텐츠 서식 및 동기화 엔진 간의 책임 경계를 명확히 분리하기 위한 표준 개발 기준을 정의합니다.
+This design system synthesizes institutional trust, developer-first editorial clarity, and high-velocity SaaS execution into a unified product language. It powers three distinct surfaces under a single coherent identity:
+1. **Public SaaS Surface**: Conversion-oriented, authoritative, and welcoming.
+2. **Document Author Canvas**: Distraction-free, cognitively quiet, where chrome recedes and documents are hero objects.
+3. **Knowledge Engine Hub**: Data-dense, engineered precision with hairline dividers and tabular alignment.
+
+### Personality & Tone
+- **Authoritative yet Approachable**: The visual foundation projects the rock-solid reliability of an enterprise knowledge repository, tempered by human, tactile editorial touches.
+- **Cognitively Quiet**: The interface recedes to let authoring, reading, and structured thinking take center stage. Chrome is quiet; documents are hero objects.
+- **Engineered Precision**: Every hairline divider, tabular data point, and code segment communicates mathematical rigor and zero visual debt.
 
 ---
 
@@ -19,97 +26,136 @@
 
 ```
 +-------------------------------------------------------------------------+
-| 1. Application UI Scope (LDSG Standard)                                |
+| 1. Application UI Scope (Modern Technical Editorial Standard)            |
 |    - Landing Page, Editor Shell, Sidebar (LNB), MenuBar (GNB), Modals  |
-|    - LDSG Tokens: LINE Green (#06C755), Gray Scale, 4/8/12/16/24px Radii|
+|    - Tokens: Cobalt Authority (#1d4ed8), Teal (#0d9488), Coral (#f97316)|
+|    - 4/8/12/16/9999px Radii, 4-tier Elevation                          |
 +-------------------------------------------------------------------------+
-| 2. Content Document Scope (.onrivi-content-root)                        |
+| 2. Content Document Scope (.onrivi-content-root, .custom-preview-container)|
 |    - h1~h6, p, ul, ol, table, img, code, blockquote                     |
 |    - Pure CSS Profile & User Custom CSS Isolation                       |
 |    - Strict Prohibition: globals.css 직접 마크다운 스타일링 절대 금지   |
 +-------------------------------------------------------------------------+
 | 3. Editor <-> Preview Sync Engine (Geometry-based)                      |
 |    - Line Height & DOM Geometry Only                                    |
-|    - Safe Zone (Top 40px, Bottom 60px), Minimal Delta, Scroll Clamp      |
+|    - Safe Zone (Top 40px, Bottom 140px), Minimal Delta, Scroll Clamp   |
+|    - Single Entry Point: syncPreviewInterpolated()                      |
 +-------------------------------------------------------------------------+
 ```
 
 ---
 
-# 3. LDSG 토큰 체계 (Color, Typography, Elevation)
+# 3. Color Palette Architecture
 
-### 3.1 Color Palette (LDSG Foundation)
-- **Primary**: LINE Green `#06C755` (Hover: `#05B04B`, Alpha: `rgba(6, 199, 85, 0.1 ~ 0.8)`)
-- **Secondary**: LDSG Blue `#4D73FF` (Hover: `#3B5FE8`)
-- **Neutral (Light Mode)**:
-  - `Background`: `#F7F8F9` (Surface Base)
-  - `Container / Card`: `#FFFFFF`
-  - `Title / Heading`: `#1F1F1F`
-  - `Body / Paragraph`: `#616161`
-  - `Caption / Tertiary`: `#949494`
-  - `Border / Divider`: `#EFEFEF`
-- **Neutral (Dark Mode)**:
-  - `Background`: `#121212`
-  - `Container / Card`: `#1E1E1E`
-  - `Title / Heading`: `#FFFFFF`
-  - `Body / Paragraph`: `#A0A0A0`
-  - `Caption / Tertiary`: `#666666`
-  - `Border / Divider`: `rgba(255, 255, 255, 0.08)`
+| Role | Color Name | Hex Token | RGB Token | Semantic Usage |
+| :--- | :--- | :--- | :--- | :--- |
+| **Primary** | **Cobalt Authority** | `#1d4ed8` | `29 78 216` | Core navigation bars, primary interactive triggers, focused outlines, verified product claims. Hover: `#1e40af`, glow `0 4px 12px rgba(29,78,216,0.2)`. Active highlight in dense data: `#2563eb` (Cobalt 600). |
+| **Secondary** | **Intelligence Teal** | `#0d9488` | `13 148 136` | AI processing signals, autonomous summarization flags, vector search nodes, knowledge graph links. BG tint: `#f0fdfa`, border: `#99f6e4`, text: `#0f766e`, badge: `#ccfbf1`. |
+| **Tertiary** | **Kinetic Coral** | `#f97316` | `249 115 22` | Real-time collaborative cursors, primary conversion CTAs, break-glass alerts, version diff highlights. Badge: `#ffedd5` bg, `#c2410c` text. |
+| **Canvas Base** | Editorial Light / Dark | `#f8fafc` / `#f1f5f9` (Light)<br>`#090d16` / `#0f172a` (Dark) | Soft non-glare editorial base that eliminates eye strain during multi-hour writing/reading sessions. |
+| **Document Card** | Pure White / Deep Slate | `#ffffff` (Light)<br>`#0f172a` (Dark) | Crisp pure-white surfaces elevated slightly above the base canvas to establish primary cognitive focus. |
+| **Deep Stage** | Dark Containers | `#0f172a` / `#1e293b` | Code blocks, terminal outputs, persistent navigation shells, marketing footer. |
+| **Hairline Borders** | Sub-pixel dividers | `#e2e8f0` / `#cbd5e1` (Light)<br>`#334155` / `rgba(255,255,255,0.08)` (Dark) | Sub-pixel border clarity maintaining dense institutional legibility. |
+| **Functional States** | Success / Warn / Error | Success `#059669`<br>Warning `#d97706`<br>Error `#dc2626` | Stable/auto-saved, conflict/unindexed, syntax/network errors. |
 
-- **Sidebar / LNB Luxury Gradient (모든 좌측 사이드바 전용 바탕색 표준)**:
-  - `Light Mode`: `linear-gradient(180deg, #F6F8FA 0%, #F0F4F8 50%, #E8EDF3 100%)` (실크 실버-미스트 블루)
-  - `Dark Mode`: `linear-gradient(180deg, #17191E 0%, #131519 50%, #0F1114 100%)` (흑요석 티타늄 차콜)
-  - `Header / Workspace Sub-bar`: `backdrop-blur-md bg-white/75` (Dark: `bg-black/30`)
-  - `Border`: `#E2E8F0` (Light) / `rgba(255, 255, 255, 0.08)` (Dark)
+---
 
-### 3.2 Typography & Readability (고해상도 가독성 표준)
-- **Primary UI Font Family**: `"Pretendard Variable"`, `Pretendard`, `LineSeed`, `-apple-system`, `BlinkMacSystemFont`, `system-ui`, `Roboto`, `"Segoe UI"`, `"Apple SD Gothic Neo"`, `"Noto Sans KR"`, `"Malgun Gothic"`, `sans-serif`
-- **Monospace (Code / Editor)**: `'D2Coding'`, `'JetBrains Mono'`, `Consolas`, `monospace`
-- **Text Rendering Engine Settings**:
-  - `-webkit-font-smoothing: antialiased;`
-  - `-moz-osx-font-smoothing: grayscale;`
-  - `text-rendering: optimizeLegibility;`
-  - `font-feature-settings: "cv02", "cv03", "cv04", "cv11";`
-  - `letter-spacing: -0.012em;` (한글 자간 최적화)
-- **Color Contrast & Font Weight Standard**:
-  - **Main Title / Body Text**: `#0F172A` (Slate 900) 또는 `#111827`, 기본 `font-weight: 500 (Medium)` 권장
-  - **Sub / Label / Muted Text**: `#475569` (Slate 600, WCAG AA 4.5:1 이상 대비율 보장)
-  - **Table Header / Caption**: `font-weight: 600 (SemiBold)` 적용으로 또렷한 가독성 확보
+# 4. Typography Cascade & Fallback
 
-### 3.3 Object Styles & Radii
-- `xs (Chip / Tag)`: `4px`
-- `sm (Button / Input)`: `8px`
-- `md (Card / Modal)`: `12px`
-- `lg (Large Container / Banner)`: `16px ~ 24px`
-- `full (Badge / Pill)`: `9999px`
+The typographic hierarchy is engineered to excel across both Latin and Hangul (Korean) scripts. Plus Jakarta Sans handles expressive display headings and landing page narratives, lending warm geometric precision. Inter serves as the workhorse for dense document paragraphs, UI labels, and administrative tables.
 
-### 3.4 Form Controls & High-Contrast Visual Standards (선명한 폼 컨트롤 표준)
-- **Input / Select / Textarea**:
-  - `Background`: `#FFFFFF`
-  - `Border`: `1.5px solid #CBD5E1` (Slate 300)
-  - `Text`: `#0F172A` (Slate 900), `font-weight: 500`
-  - `Placeholder`: `#94A3B8` (Slate 400)
-  - `Focus State`: `border-color: #06C755`, `box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.18)`
-  - `Elevation`: `box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04)` (화이트 배경 위 선명한 입체 경계 보장)
-- **Labels & Headers**:
-  - `Form Label`: `#1E293B` (Slate 800), `font-weight: 600`
-  - `Table Header`: `background: #F8FAFC`, `border-bottom: 1.5px solid #E2E8F0`, `color: #334155`, `font-weight: 600`
-- **Cards & Modals Border**:
-  - `Card Border`: `1px solid #E2E8F0`, `box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05)`
-  - `Modal Overlay (Backdrop)`: `rgba(15, 23, 42, 0.45)` (Slate 900 45% 딤으로 모달 폼 전면 부각)
+### Unified Cascade Rule
+- **Headlines & Expressive Display**:
+  `"Plus Jakarta Sans", "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif`
+- **Body, UI Labels & Administrative Tables**:
+  `"Inter", "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif`
+- **Code & Monospace**:
+  `"JetBrains Mono", Consolas, monospace` at 13px/20px with subtle slate-900 background tint.
 
-### 3.5 LNB 사이드바 메뉴 및 트리 아이템 하이라이트 표준 규칙 (세로바 금지 통일)
-모든 좌측 사이드바(에디터 탐색기, 어드민 메뉴 등)의 선택(Active) 및 호버(Hover) 시각 피드백은 통일된 단일 규칙을 따릅니다:
-- **좌측 세로선(Vertical Indicator Bar / `border-l` / `span.absolute`) 일체 금지**:
-  - 시각적 잡음과 어색한 띠를 유발하는 좌측 세로선은 사용하지 않고, 깔끔한 라운드 박스 음영으로만 하이라이트합니다.
-- **선택(Active) 상태**:
-  - `Text`: 고대비 굵은 글씨 (`text-zinc-950 dark:text-white font-extrabold`)
-  - `Background`: 라인 그린 음영 칩 (`bg-[#06C755]/15 dark:bg-[#06C755]/25 shadow-xs rounded-lg`)
-- **마우스 호버(Hover) 상태**:
-  - `Text`: 선명한 볼드 텍스트 (`hover:text-black dark:hover:text-white font-bold`)
-  - `Background`: 부드러운 그레이 음영 (`hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 rounded-lg`)
+### Editorial Document Rhythms
+- **Paragraph Spacing**: Document body copy (body-lg) maintains a relaxed line-height of `26px` with a `16px` bottom margin to foster immersive, long-form reading.
+- **Tabular Figures**: Data tables, document metadata counters, word/character tallies, and timestamps enforce `font-feature-settings: "tnum" 1` for rigid vertical alignment.
+- **Code Blocks**: Monospace fragments use JetBrains Mono at 13px/20px with a subtle slate-900 background tint for zero syntax ambiguity.
 
-### 3.6 조회 결과 데이터 및 파일 경로 고대비(High-Contrast) 시인성 표준
-- **조회 결과 데이터 선명도 보장**: 대시보드, 문서 목록, 검색 결과, 상세 뷰어 등 시스템에서 조회된 모든 결과 데이터(파일 경로, 파일명, 요약문, 태그, 메트릭 텍스트 등)는 흐릿한 저대비 색상(`text-zinc-400`, `text-slate-400`, `opacity-50` 이하)을 일체 사용하지 않고, 고대비 및 가독성이 확보된 색상(Light: `text-zinc-700` 이상 / Dark: `text-zinc-300` 이상, `font-medium` 또는 `font-bold`)으로 진하고 선명하게 렌더링합니다.
+---
+
+# 5. Layout & Spacing (Dual-Canvas System)
+
+The layout model uses an adaptable dual-canvas system:
+- **Public & Dashboard Canvas**: Standard 12-column fluid grid. Max container boundary caps at `1280px` for high-density administrative monitors. Gutter sizes scale from `1rem` on mobile (<768px) to `1.5rem` on desktop (>=1024px).
+- **Document Reading Canvas (Onrivi Author)**: Bound strictly to a calibrated measure of `768px` (`48rem`) centered on screen. Preserves the 65–75 character-per-line typographic standard, eliminating visual drift across wide displays.
+- **Sidebar Stage**: Collapsible multi-tier navigation fixed at `260px` (primary library tree) and optional `320px` (contextual AI inspector / Table of Contents).
+
+### Breakpoint Strategy
+- **Mobile (< 768px)**: Single column. Margins compress to 1rem. Sidebars collapse into sliding off-canvas drawers. Action bars dock to the bottom viewport.
+- **Tablet (768px – 1023px)**: 8-column layout. Workspace sidebars default to icon-only rail modes (64px).
+- **Desktop (>= 1024px)**: Full 12-column grid. Split-pane Markdown editor supports side-by-side raw source and rendered live-preview without horizontal scrollbars.
+
+---
+
+# 6. Elevation & Depth (4-Tier Architectural Layering)
+
+- **Tier 0 (Backdrop Canvas)**: Base environment (`#f8fafc` in light mode, `#090d16` in dark mode). Non-elevated, absorbs secondary noise.
+- **Tier 1 (Surface Cards & Canvas)**: Pure white `#ffffff` with a crisp structural hairline (`border: 1px solid #e2e8f0`) and subtle ambient settling shadow: `0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02)`.
+- **Tier 2 (Floating Modals, Flyouts & Menus)**: Elevated popovers and markdown command palettes (Cmd+K) use high-diffusion ambient elevation: `0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04)` paired with an ultra-fine border (`#cbd5e1`).
+- **Tier 3 (AI Insight Sheets & Floating Toolbars)**: Micro-frosted glass backdrop blur (`backdrop-filter: blur(12px)`) at `rgba(255, 255, 255, 0.85)` with a delicate brand-tinted border (`rgba(37, 99, 235, 0.15)`), visually signaling ambient machine assistance hovering above the document layer.
+
+---
+
+# 7. Dimensional Geometry
+
+- **Micro & Dense Controls (4px - Sharp)**: Checkboxes, table cell status tags, inline code badges, and split-pane divider drag handles. Reflects mathematical rigor and operational efficiency.
+- **Standard UI Elements (8px - Rounded)**: Text inputs, select dropdowns, standard buttons, context menus, and list hover states.
+- **Containers & Surfaces (12px to 16px - Soft Structural)**: Document preview panels, knowledge graph cards, dashboard metric widgets, and modal dialogues.
+- **Status & Categorical Badges (9999px - Full Pill)**: Metadata tags, version status indicators, document stage badges ("Draft", "Published", "Archived"), and marketing promotional chips.
+
+---
+
+# 8. Component Specifications
+
+### 8.1 Buttons & Action Controls
+- **Primary Action**: Solid cobalt background (`#1d4ed8`), crisp white text, 8px radius, height 40px (desktop) / 44px (mobile). Hover state transitions to `#1e40af` with an ambient glow (`0 4px 12px rgba(29, 78, 216, 0.2)`).
+- **Secondary Action**: Transparent base, 1px hairline border (`#cbd5e1`), dark slate text (`#0f172a`). Hover shifts background to `#f1f5f9`.
+- **Kinetic Action (Conversion/Highlight)**: Solid coral accent (`#f97316`) for primary marketing triggers and real-time publish commands.
+- **AI Assist Action**: Soft teal tint background (`#f0fdfa`), border 1px solid `#99f6e4`, text `#0f766e`. Displays a subtle sparkle icon (16px) prefix.
+
+### 8.2 Markdown Authoring Canvas (Onrivi Author)
+- **Editor Chrome**: Stripped of unnecessary borders. Gutter displays muted line numbers (`#94a3b8`) with active line highlight (`#f8fafc`).
+- **Inline Floating Markdown Toolbar**: Appears on text selection. Features a frosted background (`rgba(15, 23, 42, 0.9)`), bright white icons, 8px border-radius, offering instant formatting: H1, H2, Bold, Italic, Code, AI Elaborate.
+- **Blockquote**: Left-hand 3px solid cobalt accent (`#2563eb`), background `#f8fafc`, padding 12px 16px, italicized gray typography.
+
+### 8.3 Input Fields & Search Bars
+- **Height & Padding**: Standard 40px height with 12px horizontal padding. Typography set to body-md (14px).
+- **States**: Default border `#cbd5e1`. Focus invokes a sharp 2px ring in primary cobalt (`rgba(37, 99, 235, 0.2)`) with border color `#2563eb`. Placeholder text locked at `#94a3b8`.
+- **Global Search (Cmd+K)**: Expands to an ambient elevated overlay with deep filter pills (All, Documents, Markdown Blocks, Authors, AI Summaries).
+
+### 8.4 Cards & Knowledge Grid Tiles
+- **Structure**: Solid white background (`#ffffff`), 12px radius, 1px border (`#e2e8f0`), padding space-lg (24px).
+- **Header Section**: Houses document title, last synced timestamp (tabular numerals), and a full-pill status badge.
+- **Hover Micro-interaction**: Subtle 2px upward visual float coupled with shadow elevation transition (`0 12px 24px -8px rgba(15, 23, 42, 0.06)`).
+
+### 8.5 Badges & Category Chips
+- **Geometry**: Height 22px, full pill radius (9999px), horizontal padding 8px, typography label-xs (11px, weight 600).
+- **Taxonomy Tints**:
+  - **AI Synthetic**: `#ccfbf1` background, `#0f766e` text.
+  - **Active/Live**: `#ffedd5` background, `#c2410c` text.
+  - **Institutional Trust**: `#dbeafe` background, `#1e40af` text.
+  - **Neutral Metadata**: `#f1f5f9` background, `#475569` text.
+
+### 8.6 Selection Controls (Checkbox & Radio)
+- **Checkbox**: 16px x 16px box, 4px radius. Unchecked has a 1.5px solid border (`#cbd5e1`). Checked fills with `#1d4ed8` and displays a centered sharp white checkmark.
+- **Radio**: 16px x 16px circle with concentric white ring and centered cobalt dot on selection. High keyboard focus visibility (`outline: 2px solid #2563eb; outline-offset: 2px`).
+
+### 8.7 LNB 사이드바 메뉴 및 트리 아이템 하이라이트 표준 규칙
+- **좌측 세로선 일체 금지**: 세로 인디케이터 바(`border-l`, `span.absolute`)는 사용하지 않습니다.
+- **선택(Active) 상태**: 고대비 굵은 글씨 (`text-[#1d4ed8] dark:text-blue-400 font-extrabold`), 코발트 음영 라운드 칩 (`bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 shadow-xs rounded-lg`).
+- **마우스 호버(Hover) 상태**: 볼드 텍스트 (`hover:text-black dark:hover:text-white font-bold`), 부드러운 그레이 음영 (`hover:bg-zinc-200/70 dark:hover:bg-zinc-800/60 rounded-lg`).
+
+### 8.8 조회 결과 데이터 및 파일 경로 고대비(High-Contrast) 시인성 표준
+- **조회 결과 데이터 선명도 보장**: 시스템에서 조회된 모든 결과 데이터는 흐릿한 저대비 색상(`text-zinc-400`, `opacity-50` 이하)을 일체 사용하지 않고, 고대비 및 가독성이 확보된 색상(Light: `text-zinc-700` 이상 / Dark: `text-zinc-300` 이상, `font-medium` 또는 `font-bold`)으로 진하고 선명하게 렌더링합니다.
 - **파일 경로(Path) 시인성 강화**: 파일 경로(`doc.filePath` 등)는 `text-zinc-700 dark:text-zinc-300 font-bold font-mono` 등 뚜렷한 명도 대비를 주어 가독성을 확보합니다.
+
+### 8.9 미리보기 영역 사용자 정의 CSS 지원 (Content Document Scope)
+- 마크다운 미리보기 영역(`.onrivi-content-root`, `.custom-preview-container`)은 CSS Profile 및 사용자가 직접 작성한 Custom CSS(서식 프로필의 `customCss`, 문서 Frontmatter의 `custom_css`, 마크다운 내부 `<style>`)가 실시간 격리 반영됩니다.
+
 

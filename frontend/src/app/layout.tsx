@@ -52,7 +52,8 @@ export const metadata: Metadata = {
 // 📊 [OMD-CORE-layout-0001] layout ➔ RootLayout
 // 🎯 @KICK  : Next.js 루트 레이아웃 - 전역 HTML 구조, CSP, 폰트, Mermaid 설정 및 ToastProvider 래핑
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : **2026-09-05** — 파비콘 경로를 상대경로(./)에서 절대경로(/icon_onriveauther.png?v=1)로 변경하여 /login 등 중첩 라우트 진입 시 404 리소스 로드 에러 방지 | CSP script-src 'self' 차단으로 mermaid.min.js <script defer> 복원 (2026-06-18); Next.js hydration이 <script>를 제거하여 dynamic load 방식으로 전환, plain script defer 제거 (2026-06-18) | **2026-06-20** — 백엔드 API(포트 5000) 연동을 위해 CSP connect-src에 http://localhost:5000 추가 허용
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용: Plus Jakarta Sans, Inter, JetBrains Mono 구글 웹폰트 사전 로드 및 연동
+//           : **2026-09-05** — 파비콘 경로를 상대경로(./)에서 절대경로(/icon_onriveauther.png?v=1)로 변경하여 /login 등 중첩 라우트 진입 시 404 리소스 로드 에러 방지 | CSP script-src 'self' 차단으로 mermaid.min.js <script defer> 복원 (2026-06-18); Next.js hydration이 <script>를 제거하여 dynamic load 방식으로 전환, plain script defer 제거 (2026-06-18) | **2026-06-20** — 백엔드 API(포트 5000) 연동을 위해 CSP connect-src에 http://localhost:5000 추가 허용
 //           : **2026-06-23** — Cloudflare Web Analytics 억까 차단 방지를 위해 script-src 목록에 https://static.cloudflareinsights.com 정밀 추가
 // 🔗 @CALLS : ToastProvider
 // ====================================================================
@@ -70,6 +71,9 @@ export default function RootLayout({
         />
         <meta name="color-scheme" content="light" />
         <link rel="icon" href="/icon_onriveauther.png?v=1" type="image/png" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

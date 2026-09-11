@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
-// 🚨 @PATCH : **2026-09-11** — 단축키 설정 입력창에서 non-Mac 환경(Windows/Linux)의 Meta(Win) 키를 Ctrl로 오인하지 않도록 isMac 분기 적용
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-11** — 단축키 설정 입력창에서 non-Mac 환경(Windows/Linux)의 Meta(Win) 키를 Ctrl로 오인하지 않도록 isMac 분기 적용
 //             **2026-09-05** — AI 설정(Gemini API 키) 즉시 영구 삭제 및 연동 해제 기능(handleDeleteAiSettings) 구현, 공통 리소스 폴더 연결 해제(onClearResourceFolder) 실시간 UI 및 스토리지 동기화 반영, 버튼 라벨 직관적 순화('연동 해제', '폴더 해제')
 //             **2026-09-05** — 데스크톱 앱 내비게이션 결함 방어: 로그인 페이지 및 대시보드 이동 링크 클릭 시 Electron 환경(window.electronAPI.openExternal) 지원 및 target="_blank" 적용으로 Electron 창 내부 404 및 흰 화면 결함 해결
 //             **2026-09-03** — 단축키/명령어 매핑 테이블의 아이콘, 명령어, 단축키 충돌을 플로팅 툴바 및 마크다운 표준과 100% 일치 동기화
@@ -374,10 +375,10 @@ export default function SettingsModal({
         {/* Sidebar */}
         <aside className={`w-full md:w-[260px] shrink-0 border-r ${isDarkMode ? 'border-white/10' : 'border-outline-variant/15'} p-6 flex flex-col relative z-10`}>
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#06C755]/15 text-[#06C755]">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <Settings size={18} />
             </div>
-            <h2 className="text-lg font-bold text-[#06C755] tracking-tight">환경 설정</h2>
+            <h2 className="text-lg font-bold text-[#1d4ed8] tracking-tight">환경 설정</h2>
           </div>
           
           <nav className="flex flex-col gap-2">
@@ -385,7 +386,7 @@ export default function SettingsModal({
               onClick={() => setActiveTab('general')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[14px] transition-all cursor-pointer ${
                 activeTab === 'general' 
-                  ? 'bg-[#06C755]/15 text-[#06C755] font-extrabold shadow-xs' 
+                  ? 'bg-[#1d4ed8]/15 text-[#1d4ed8] font-extrabold shadow-xs' 
                   : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
@@ -396,7 +397,7 @@ export default function SettingsModal({
               onClick={() => setActiveTab('hotkeys')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[14px] transition-all cursor-pointer ${
                 activeTab === 'hotkeys' 
-                  ? 'bg-[#06C755]/15 text-[#06C755] font-extrabold shadow-xs' 
+                  ? 'bg-[#1d4ed8]/15 text-[#1d4ed8] font-extrabold shadow-xs' 
                   : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
@@ -407,7 +408,7 @@ export default function SettingsModal({
               onClick={() => setActiveTab('account')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-[14px] transition-all cursor-pointer ${
                 activeTab === 'account' 
-                  ? 'bg-[#06C755]/15 text-[#06C755] font-extrabold shadow-xs' 
+                  ? 'bg-[#1d4ed8]/15 text-[#1d4ed8] font-extrabold shadow-xs' 
                   : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
@@ -425,7 +426,7 @@ export default function SettingsModal({
                    🔒 미리보기 전용
                  </span>
                ) : isActivated ? (
-                 <span className="text-[12px] text-[#06C755] font-extrabold px-3 py-1.5 rounded-md bg-[#06C755]/10 border border-[#06C755]/20 w-full">
+                 <span className="text-[12px] text-[#1d4ed8] font-extrabold px-3 py-1.5 rounded-md bg-[#1d4ed8]/10 border border-[#1d4ed8]/20 w-full">
                    ✅ 정품 인증됨
                  </span>
                ) : (
@@ -483,7 +484,7 @@ export default function SettingsModal({
                   }
                   onClose();
                 }}
-                className="w-full py-3 bg-[#06C755] hover:bg-[#05B04B] text-white rounded-xl font-bold text-sm shadow-md shadow-[#06C755]/20 transition-all flex justify-center items-center gap-2 cursor-pointer active:scale-98"
+                className="w-full py-3 bg-[#1d4ed8] hover:bg-[#1e40af] text-white rounded-xl font-bold text-sm shadow-md shadow-[#1d4ed8]/20 transition-all flex justify-center items-center gap-2 cursor-pointer active:scale-98"
               >
                 <Save size={16} />
                 <span>저장</span>
@@ -575,7 +576,7 @@ export default function SettingsModal({
                         className={`px-3.5 py-1.5 rounded-lg text-[13px] font-bold transition-all whitespace-nowrap cursor-pointer shadow-xs active:scale-98 ${
                           resourceFolder
                             ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50'
-                            : 'bg-[#06C755] hover:bg-[#05B04B] text-white shadow-[#06C755]/20'
+                            : 'bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-[#1d4ed8]/20'
                         }`}
                       >
                         {resourceFolder ? '폴더 변경' : '폴더 선택 (필수)'}
@@ -618,14 +619,14 @@ export default function SettingsModal({
                             if (testResult) setTestResult(null);
                           }}
                           className={`flex-1 px-4 py-2.5 rounded-xl text-[14px] font-mono outline-none border transition-all ${
-                            isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white focus:border-[#06C755]' : 'bg-white border-[#E0DED7] text-slate-900 focus:border-[#06C755]'
+                            isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white focus:border-[#1d4ed8]' : 'bg-white border-[#E0DED7] text-slate-900 focus:border-[#1d4ed8]'
                           }`}
                         />
                         <button
                           type="button"
                           onClick={handleTestGemini}
                           disabled={isTestingKey || !geminiApiKey}
-                          className="px-4 py-2.5 rounded-xl text-[13px] font-bold bg-[#06C755] hover:bg-[#05B04B] text-white shadow-xs hover:shadow-sm active:scale-98 disabled:opacity-40 transition-all flex items-center justify-center min-w-[90px] cursor-pointer shrink-0"
+                          className="px-4 py-2.5 rounded-xl text-[13px] font-bold bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-xs hover:shadow-sm active:scale-98 disabled:opacity-40 transition-all flex items-center justify-center min-w-[90px] cursor-pointer shrink-0"
                         >
                           {isTestingKey ? <Loader2 size={16} className="animate-spin text-white" /> : '연동 테스트'}
                         </button>
@@ -681,8 +682,8 @@ export default function SettingsModal({
                           }}
                           className={`w-full px-4 py-3 pr-10 rounded-xl text-[14px] font-semibold outline-none border transition-all appearance-none cursor-pointer ${
                             isDarkMode 
-                              ? 'bg-zinc-900 border-zinc-700 text-white focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15' 
-                              : 'bg-white border-[#E0DED7] text-slate-900 focus:border-[#06C755] focus:ring-2 focus:ring-[#06C755]/15 shadow-2xs'
+                              ? 'bg-zinc-900 border-zinc-700 text-white focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15' 
+                              : 'bg-white border-[#E0DED7] text-slate-900 focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15 shadow-2xs'
                           }`}
                         >
                           <option value="gemini-3.8-flash">👑 Gemini 3.8 Flash (최신 최고 버전 / 초고속 플래그십)</option>
@@ -711,8 +712,8 @@ export default function SettingsModal({
                           placeholder="예) gemini-3.8-flash"
                           className={`w-full px-4 py-2.5 rounded-xl text-[14px] font-mono outline-none border transition-all ${
                             isDarkMode 
-                              ? 'bg-zinc-900/80 border-zinc-700 text-white focus:border-[#06C755]' 
-                              : 'bg-slate-50 border-[#E0DED7] text-slate-900 focus:border-[#06C755]'
+                              ? 'bg-zinc-900/80 border-zinc-700 text-white focus:border-[#1d4ed8]' 
+                              : 'bg-slate-50 border-[#E0DED7] text-slate-900 focus:border-[#1d4ed8]'
                           }`}
                         />
                       </div>
@@ -863,7 +864,7 @@ export default function SettingsModal({
               <div className="border-b pb-4 border-outline-variant/20 dark:border-white/10 flex items-center justify-between">
                 <div>
                   <h3 className="font-serif text-[22px] font-semibold text-on-surface flex items-center gap-2.5">
-                    <User className="text-[#06C755]" size={24} />
+                    <User className="text-[#1d4ed8]" size={24} />
                     계정 관리 (개인정보)
                   </h3>
                   <p className="text-[13px] text-on-surface-variant mt-1">
@@ -884,7 +885,7 @@ export default function SettingsModal({
 
               {isLoadingUser ? (
                 <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400">
-                  <Loader2 className="w-8 h-8 animate-spin text-[#06C755]" />
+                  <Loader2 className="w-8 h-8 animate-spin text-[#1d4ed8]" />
                   <span className="text-[14px] font-medium">데이터베이스에서 회원 정보를 불러오는 중입니다...</span>
                 </div>
               ) : !sessionUser ? (
@@ -908,7 +909,7 @@ export default function SettingsModal({
                           api.openExternal('https://onrivi.com/login');
                         }
                       }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#06C755] hover:bg-[#05B04B] text-white transition-all shadow-xs cursor-pointer"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#1d4ed8] hover:bg-[#1e40af] text-white transition-all shadow-xs cursor-pointer"
                     >
                       <span>로그인 페이지로 이동</span>
                       <ExternalLink size={14} />
@@ -920,7 +921,7 @@ export default function SettingsModal({
                   {/* 1. 개인정보 기본 정보 카드 */}
                   <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-900/60 border-zinc-800' : 'bg-slate-50/80 border-slate-200/80'} shadow-xs space-y-5`}>
                     <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-zinc-100 border-b pb-3 border-slate-200/60 dark:border-zinc-800">
-                      <Shield className="text-[#06C755]" size={18} />
+                      <Shield className="text-[#1d4ed8]" size={18} />
                       <span>회원 기본 원장 (DB users)</span>
                     </div>
 
@@ -941,10 +942,10 @@ export default function SettingsModal({
                           <KeyRound size={12} /> 가입/로그인 제공자 (Provider)
                         </span>
                         <div className="font-semibold text-slate-800 dark:text-zinc-200 bg-white dark:bg-zinc-800/80 px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-zinc-700/60 flex items-center justify-between">
-                          <span className="uppercase font-bold text-[#06C755]">
+                          <span className="uppercase font-bold text-[#1d4ed8]">
                             {dbUser?.provider || sessionUser?.app_metadata?.provider || 'EMAIL'}
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#06C755]/10 text-[#06C755] font-bold">인증됨</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#1d4ed8]/10 text-[#1d4ed8] font-bold">인증됨</span>
                         </div>
                       </div>
 
@@ -961,7 +962,7 @@ export default function SettingsModal({
                               navigator.clipboard.writeText(dbUser?.id || sessionUser?.id || '');
                               showToast('UUID가 클립보드에 복사되었습니다.', 'success');
                             }}
-                            className="text-[#06C755] hover:underline text-[11px] font-bold shrink-0 cursor-pointer ml-2"
+                            className="text-[#1d4ed8] hover:underline text-[11px] font-bold shrink-0 cursor-pointer ml-2"
                           >
                             복사
                           </button>

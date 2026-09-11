@@ -3,8 +3,8 @@
  * 파일명 : app/admin/page.tsx
  * -----------------------------------------------------------------------
  * 변경내역
- * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: .admin-theme, 대시보드 통계 카드 및 관리자 탭 LDSG Green(#06C755)/Blue(#4D73FF) 토큰 통일
+ * ----------------------------------------------------------------------- * 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+ *             2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: .admin-theme, 대시보드 통계 카드 및 관리자 탭 LDSG Green(#1d4ed8)/Blue(#4D73FF) 토큰 통일
  * -----------------------------------------------------------------------
  */
 'use client';
@@ -57,8 +57,8 @@ export default function AdminPage() {
 function DashboardTab() {
   const stats = [
     { title: '총 가입자', value: '1,248', change: '+12%', icon: Users, color: 'text-[#4D73FF]', bg: 'bg-[#4D73FF]/15' },
-    { title: '활성 구독(MRR)', value: '₩4,250,000', change: '+8.2%', icon: TrendingUp, color: 'text-[#06C755]', bg: 'bg-[#06C755]/15' },
-    { title: '오늘의 신규 결제', value: '24건', change: '+4건', icon: CreditCard, color: 'text-[#06C755]', bg: 'bg-[#06C755]/15' },
+    { title: '활성 구독(MRR)', value: '₩4,250,000', change: '+8.2%', icon: TrendingUp, color: 'text-[#1d4ed8]', bg: 'bg-[#1d4ed8]/15' },
+    { title: '오늘의 신규 결제', value: '24건', change: '+4건', icon: CreditCard, color: 'text-[#1d4ed8]', bg: 'bg-[#1d4ed8]/15' },
     { title: '동시 접속 세션', value: '342', change: '안정적', icon: Activity, color: 'text-[#4D73FF]', bg: 'bg-[#4D73FF]/15' },
   ];
 
@@ -71,7 +71,7 @@ function DashboardTab() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
-          <div key={i} className="admin-glass-card p-6 hover:border-[#06C755]/40 transition-all group">
+          <div key={i} className="admin-glass-card p-6 hover:border-[#1d4ed8]/40 transition-all group">
             <div className="flex items-center justify-between mb-4">
               <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} transition-transform group-hover:scale-110`}>
                 <stat.icon className="w-5 h-5" />

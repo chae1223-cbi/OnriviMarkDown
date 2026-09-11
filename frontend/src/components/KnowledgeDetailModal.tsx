@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-MODAL-KnowledgeDetail-0001] KnowledgeDetailModal.tsx ➔ 지식 문서 설정 상세 분석 모달
 // 🎯 @KICK  : 지식 문서 등록/설정 시 생성된 AI 요약, 핵심 요점, 헤딩별 분할 청크(라인 범위, 키워드), 추출 태그(관련도 점수), 확장 검색어의 상세 분석 결과를 직관적으로 시각화
-// 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), 청크별 에디터 라인 점프 연동, 빈 데이터 안전 가드
-// 🚨 @PATCH : **2026-09-04** — 모달 상단 헤더 아이콘을 남성 학사(📗)로 교체
+// 🛡️ @GUARD : LINE Design System LDSG v5.0 (#1d4ed8), 청크별 에디터 라인 점프 연동, 빈 데이터 안전 가드
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — 모달 상단 헤더 아이콘을 남성 학사(📗)로 교체
 //             **2026-09-04** — [지식 문서 설정 상세내역 모달 신규 구현] 단순 알림 메시지 대신 청크 분할 구조, 태그, 요약 등을 완벽 시각화하여 사용자에게 즉시 안내
 // 🔗 @CALLS : /api/knowledge/detail, app:open-file-at-line, app:open-knowledge-manager
 // ====================================================================
@@ -62,7 +63,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
         {/* 상단 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#06C755]/15 text-[#06C755] flex items-center justify-center font-extrabold text-xl shrink-0 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center font-extrabold text-xl shrink-0 shadow-2xs">
               📗
             </div>
             <div className="min-w-0">
@@ -103,7 +104,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
         <div className="grid grid-cols-4 gap-2.5 px-6 py-3 bg-zinc-100/50 dark:bg-zinc-900/60 border-b border-zinc-200 dark:border-zinc-800 shrink-0 text-center">
           <div className="p-2 rounded-xl bg-white dark:bg-zinc-800/70 border border-zinc-200/70 dark:border-zinc-700/60">
             <span className="text-[10px] text-zinc-400 font-medium block">생성 청크</span>
-            <span className="text-sm font-extrabold text-[#06C755]">{detail.chunksCount}개</span>
+            <span className="text-sm font-extrabold text-[#1d4ed8]">{detail.chunksCount}개</span>
           </div>
           <div className="p-2 rounded-xl bg-white dark:bg-zinc-800/70 border border-zinc-200/70 dark:border-zinc-700/60">
             <span className="text-[10px] text-zinc-400 font-medium block">추출 태그</span>
@@ -127,7 +128,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
             onClick={() => setActiveTab('summary')}
             className={`py-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'summary'
-                ? 'border-[#06C755] text-[#06C755]'
+                ? 'border-[#1d4ed8] text-[#1d4ed8]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
@@ -139,7 +140,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
             onClick={() => setActiveTab('chunks')}
             className={`py-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'chunks'
-                ? 'border-[#06C755] text-[#06C755]'
+                ? 'border-[#1d4ed8] text-[#1d4ed8]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
@@ -151,7 +152,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
             onClick={() => setActiveTab('tags')}
             className={`py-3 text-xs font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'tags'
-                ? 'border-[#06C755] text-[#06C755]'
+                ? 'border-[#1d4ed8] text-[#1d4ed8]'
                 : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
@@ -168,7 +169,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               {/* 핵심 요약 카드 */}
               <div>
                 <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 mb-2 text-xs">
-                  <span className="text-[#06C755]">💡</span> AI 핵심 요약
+                  <span className="text-[#1d4ed8]">💡</span> AI 핵심 요약
                 </span>
                 <div className="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/50 text-zinc-800 dark:text-zinc-200 leading-relaxed text-sm">
                   {detail.summary || '문서 요약 정보가 없습니다.'}
@@ -178,7 +179,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               {/* 핵심 요점 리스트 */}
               <div>
                 <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 mb-2 text-xs">
-                  <CheckCircle2 className="w-4 h-4 text-[#06C755]" /> 추출된 핵심 요점 (Key Points)
+                  <CheckCircle2 className="w-4 h-4 text-[#1d4ed8]" /> 추출된 핵심 요점 (Key Points)
                 </span>
                 {detail.keyPoints && detail.keyPoints.length > 0 ? (
                   <div className="space-y-2">
@@ -187,7 +188,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                         key={idx} 
                         className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/70 dark:border-zinc-700/60 flex items-start gap-2.5"
                       >
-                        <span className="w-5 h-5 rounded-full bg-[#06C755]/15 text-[#06C755] flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">
+                        <span className="w-5 h-5 rounded-full bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">
                           {idx + 1}
                         </span>
                         <span className="text-zinc-700 dark:text-zinc-300 leading-relaxed">
@@ -218,12 +219,12 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                 return (
                   <div 
                     key={chunk.id || idx}
-                    className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800/50 overflow-hidden shadow-2xs hover:border-[#06C755]/40 transition"
+                    className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800/50 overflow-hidden shadow-2xs hover:border-[#1d4ed8]/40 transition"
                   >
                     {/* 청크 헤더 바 */}
                     <div className="p-3 flex items-center justify-between gap-3 bg-zinc-50/60 dark:bg-zinc-800/80">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="px-2 py-0.5 text-[10px] font-mono font-extrabold rounded-md bg-[#06C755]/15 text-[#06C755]">
+                        <span className="px-2 py-0.5 text-[10px] font-mono font-extrabold rounded-md bg-[#1d4ed8]/15 text-[#1d4ed8]">
                           #{chunk.chunkIndex + 1}
                         </span>
                         {chunk.headingLevel > 0 && (
@@ -242,7 +243,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                         </span>
                         <button
                           onClick={() => handleOpenInEditor(chunk.startLine)}
-                          className="px-2 py-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 hover:text-[#06C755] dark:hover:text-[#06C755] hover:bg-white dark:hover:bg-zinc-700 rounded-md transition flex items-center gap-1"
+                          className="px-2 py-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 hover:text-[#1d4ed8] dark:hover:text-[#1d4ed8] hover:bg-white dark:hover:bg-zinc-700 rounded-md transition flex items-center gap-1"
                           title="이 청크 위치의 에디터 라인으로 이동"
                         >
                           <ExternalLink className="w-3 h-3" />
@@ -374,14 +375,14 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleOpenInEditor(1)}
-              className="px-4 py-2 text-xs font-bold text-[#06C755] bg-[#06C755]/10 hover:bg-[#06C755]/20 border border-[#06C755]/30 rounded-xl transition flex items-center gap-1.5"
+              className="px-4 py-2 text-xs font-bold text-[#1d4ed8] bg-[#1d4ed8]/10 hover:bg-[#1d4ed8]/20 border border-[#1d4ed8]/30 rounded-xl transition flex items-center gap-1.5"
             >
               <span>에디터에서 열기</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onClose}
-              className="px-5 py-2 text-xs font-bold text-white bg-[#06C755] hover:bg-[#05a847] rounded-xl shadow-xs transition cursor-pointer"
+              className="px-5 py-2 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] rounded-xl shadow-xs transition cursor-pointer"
             >
               확인
             </button>

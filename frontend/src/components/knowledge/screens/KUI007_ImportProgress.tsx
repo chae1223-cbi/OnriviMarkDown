@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-007] KUI007_ImportProgress.tsx ➔ 실시간 수집 및 인덱싱 진행 현황 모니터
 // 🎯 @KICK  : 대량 문서 수집 진행률(%), 5대 메트릭(Total/Done/Run/Wait/Fail), Worker별 가동 상태 및 일시정지/재개
-// 🛡️ @GUARD : LDSG v5.0 (#06C755), 자동 1.5초 폴링, 실시간 통계 안전 가드
-// 🚨 @PATCH : **2026-09-05** — ESLint react-hooks/exhaustive-deps 경고 해결: fetchStats를 useCallback으로 메모이제이션하고 useEffect 의존성 배열에 등록
+// 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 자동 1.5초 폴링, 실시간 통계 안전 가드
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-05** — ESLint react-hooks/exhaustive-deps 경고 해결: fetchStats를 useCallback으로 메모이제이션하고 useEffect 의존성 배열에 등록
 //             **2026-09-04** — [Rule 8 고대비 시인성] Worker 실행 현황 및 처리 중 파일 경로를 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하여 시인성 확보
 //             **2026-09-04** — [서버 부하 방어] 수집 진행 중 1.5초, 유휴(완료) 10초 적응형 폴링 및 탭 숨김 시 폴링 정지 적용하여 백엔드 큐 통계 요청 부하 대폭 절감
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-007 실시간 큐 진행 및 Worker 모니터 화면 신규 구현
@@ -145,7 +146,7 @@ export const KUI007_ImportProgress: React.FC<KUI007ImportProgressProps> = ({
       <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
         <div>
           <h2 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-[#06C755]" />
+            <Activity className="w-5 h-5 text-[#1d4ed8]" />
             수집 및 지식화 진행 센터 (KUI-007)
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -160,7 +161,7 @@ export const KUI007_ImportProgress: React.FC<KUI007ImportProgressProps> = ({
             className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-extrabold rounded-lg transition shadow-xs ${
               isProcessing
                 ? 'bg-amber-500 text-white hover:bg-amber-600'
-                : 'bg-[#06C755] text-white hover:bg-[#05b34c]'
+                : 'bg-[#1d4ed8] text-white hover:bg-[#05b34c]'
             }`}
           >
             {isProcessing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -182,7 +183,7 @@ export const KUI007_ImportProgress: React.FC<KUI007ImportProgressProps> = ({
           </div>
           <div className="flex items-center gap-2">
             {stats.running > 0 && (
-              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-[#06C755]/15 text-[#06C755]">
+              <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full bg-[#1d4ed8]/15 text-[#1d4ed8]">
                 <Clock className="w-3 h-3 animate-spin" />
                 {stats.running}개 작업 처리 중
               </span>
@@ -198,7 +199,7 @@ export const KUI007_ImportProgress: React.FC<KUI007ImportProgressProps> = ({
         {/* Progress Track */}
         <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-3 overflow-hidden shadow-inner">
           <div
-            className="bg-[#06C755] h-3 rounded-full transition-all duration-500 shadow-sm"
+            className="bg-[#1d4ed8] h-3 rounded-full transition-all duration-500 shadow-sm"
             style={{ width: `${stats.percent}%` }}
           />
         </div>
@@ -250,7 +251,7 @@ export const KUI007_ImportProgress: React.FC<KUI007ImportProgressProps> = ({
       {/* Worker 상태 그리드 (가상 동시성 풀) */}
       <div className="space-y-3">
         <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-          <Cpu className="w-4 h-4 text-[#06C755]" />
+          <Cpu className="w-4 h-4 text-[#1d4ed8]" />
           백그라운드 Worker 상태 (Worker Pool: {stats.maxWorkers || 2}슬롯)
         </h3>
 
@@ -264,13 +265,13 @@ export const KUI007_ImportProgress: React.FC<KUI007ImportProgressProps> = ({
                 key={idx}
                 className={`p-4 rounded-xl border flex items-center justify-between transition ${
                   isBusy
-                    ? 'border-[#06C755]/50 dark:border-[#06C755]/40 bg-[#06C755]/5 dark:bg-[#06C755]/10 shadow-xs'
+                    ? 'border-[#1d4ed8]/50 dark:border-[#1d4ed8]/40 bg-[#1d4ed8]/5 dark:bg-[#1d4ed8]/10 shadow-xs'
                     : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 opacity-70'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                    isBusy ? 'bg-[#06C755] text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
+                    isBusy ? 'bg-[#1d4ed8] text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
                   }`}>
                     W{idx + 1}
                   </div>

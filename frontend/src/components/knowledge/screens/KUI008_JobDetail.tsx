@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-KUI-008] KUI008_JobDetail.tsx ➔ 단일 작업 상세 추적 및 6단계 파이프라인 시각화
 // 🎯 @KICK  : 개별 지식화 작업의 6단계 파이프라인 추적, 429 지수 백오프 카운트다운, 에러 로그 열람 및 원터치 재시도
-// 🛡️ @GUARD : LDSG v5.0 (#06C755), 단계별 상태 뱃지, 실시간 카운트다운 타이머
-// 🚨 @PATCH : **2026-09-04** — [Rule 8 고대비 시인성] 단일 작업 대상 파일 경로를 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하여 가독성 개선
+// 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 단계별 상태 뱃지, 실시간 카운트다운 타이머
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-04** — [Rule 8 고대비 시인성] 단일 작업 대상 파일 경로를 고대비 볼드 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하여 가독성 개선
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-008 단일 작업 상세 및 백오프 시각화 화면 구현
 // 🔗 @CALLS : /api/knowledge/queue
 // ====================================================================
@@ -117,7 +118,7 @@ export const KUI008_JobDetail: React.FC<KUI008JobDetailProps> = ({
             <button
               onClick={handleManualRetry}
               disabled={retrying}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#06C755] text-white hover:bg-[#05b34c] transition shadow-xs disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-[#1d4ed8] text-white hover:bg-[#05b34c] transition shadow-xs disabled:opacity-50"
             >
               <RotateCcw className={`w-3.5 h-3.5 ${retrying ? 'animate-spin' : ''}`} />
               즉시 재시도
@@ -169,7 +170,7 @@ export const KUI008_JobDetail: React.FC<KUI008JobDetailProps> = ({
       <div className="bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Activity className="w-4 h-4 text-[#06C755]" />
+            <Activity className="w-4 h-4 text-[#1d4ed8]" />
             6단계 처리 파이프라인 (Execution Pipeline)
           </h3>
           <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
@@ -193,7 +194,7 @@ export const KUI008_JobDetail: React.FC<KUI008JobDetailProps> = ({
                   isCompleted
                     ? 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20'
                     : isCurrent
-                    ? 'border-[#06C755] dark:border-[#06C755]/80 bg-[#06C755]/10 shadow-xs animate-pulse'
+                    ? 'border-[#1d4ed8] dark:border-[#1d4ed8]/80 bg-[#1d4ed8]/10 shadow-xs animate-pulse'
                     : isFailed
                     ? 'border-red-300 dark:border-red-800/60 bg-red-50/50 dark:bg-red-950/20'
                     : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#18191D] opacity-60'
@@ -202,7 +203,7 @@ export const KUI008_JobDetail: React.FC<KUI008JobDetailProps> = ({
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-base">{step.icon}</span>
                   {isCompleted && <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
-                  {isCurrent && <Clock className="w-4 h-4 text-[#06C755] animate-spin" />}
+                  {isCurrent && <Clock className="w-4 h-4 text-[#1d4ed8] animate-spin" />}
                   {isFailed && <XCircle className="w-4 h-4 text-red-500" />}
                   {isWaiting && <span className="text-[10px] font-bold text-zinc-400">대기</span>}
                 </div>

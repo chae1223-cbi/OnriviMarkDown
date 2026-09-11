@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-FeaturesSection-0023] FeaturesSection ➔ FeaturesSection
 // 🎯 @KICK  : 제품의 6대 핵심 편의 기능 명세를 그리드 형식으로 바인딩하여 렌더링하는 피처 소개 섹션
 // 🛡️ @GUARD : constants 에 정의된 features 리스트 구조 체크 및 FeatureCard index 바인딩
-// 🚨 @PATCH : **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 피처 카드, Inter 폰트)
 // 🔗 @CALLS : FeatureCard, constants
 // ====================================================================
@@ -20,7 +21,7 @@ export function FeaturesSection() { // FeaturesSection : 제품의 6대 핵심 �
     <section // section : HTML 문서의 주요 콘텐츠를 정의하는 요소
       id="features"
       className="py-24 bg-surface text-on-surface"
-      style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
         <div className="text-center mb-16">

@@ -3,8 +3,9 @@
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
-// 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#06C755), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-06** — [데스크톱 탐색기 지식 문서 연동 안정화] resourceFolder 취득 시 loadSecureData 복호화 및 Onrivi_Asset 폴백을 적용하여 데스크톱 환경에서 지식 베이스 등록/해제/상세조회 시 올바른 드라이브 DB와 연동 보장
+// 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-06** — [데스크톱 탐색기 지식 문서 연동 안정화] resourceFolder 취득 시 loadSecureData 복호화 및 Onrivi_Asset 폴백을 적용하여 데스크톱 환경에서 지식 베이스 등록/해제/상세조회 시 올바른 드라이브 DB와 연동 보장
 //             **2026-09-06** — [AES 암호문 리소스 폴더 방어] 암호문(U2FsdGVkX1...)이 resourceFolder로 전달되어 가짜 디렉토리가 생성되는 현상을 방어하기 위해 Onrivi_Asset 표준 폴더로 강제 정규화
 //             **2026-09-06** — [지식 문서 등록/해제/상세조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 getDocumentDetail, deleteDocument, indexDocument에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 사용자 로컬 리소스 폴더와 100% 동일하게 동기화 보장
 //             **2026-09-06** — [지식 문서 해제 캐시 정규화 및 다중 이벤트 브로드캐스트] 지식문서 해제 시 로컬 캐시(onrivi_registered_knowledge_docs)에서 경로 구분자 및 파일명 불일치로 해제 후에도 아이콘이 남던 현상을 정규화 비교로 해결하고, 즉각적인 UI 반영을 위해 knowledge:updated, knowledge:refresh, file:refresh-all-directories 3중 동기화 발행
@@ -66,7 +67,7 @@ interface FileTreeItemProps {
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 파일 탐색기 우클릭 컨텍스트 메뉴에 지식 베이스 등록(⭐) 및 등록 완료(🧠) 뱃지 연동
 //             **2026-09-02** — 파일 노드 우클릭 시에도 부모 폴더를 대상으로 붙여넣기(Paste)를 직접 수행할 수 있도록 컨텍스트 메뉴 바인딩 개선
 //             **2026-09-02** — 탐색기 선택 하이라이트 왼쪽 세로선(border-l) 제거, 선택 노드 폰트 색상을 고대비 선명한 검정/흰색(text-zinc-950 dark:text-white font-extrabold)으로 강화 및 폴더/파일 경로 정규화 기반 정확한 단독 선택 동기화
-//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #06C755 활성 노드 하이라이트 및 LineSeed 폰트)
+//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #1d4ed8 활성 노드 하이라이트 및 LineSeed 폰트)
 //             **2026-08-27** — 탐색기 새로고침/폴더 생성 시 전체 트리가 다시 패치되어 모든 노드가 강제 닫힘(Collapse) 상태로 초기화되어 파일/폴더 위치를 매번 다시 찾아야 하는 불편을 해결하기 위해, localStorage(onrivi_expanded_paths) 기반의 폴더 펼침(isOpen) 상태 영구 보존 및 동기화 구현하고 마운트 시 열린 폴더의 자식 노드 목록을 자동 비동기 지연 로딩(onLazyLoad) 복원하도록 이펙트 보완 및 부모 리팩토링 시 빈 자식 props 주입에 의해 기존 지연 로딩 데이터가 깡통(length=0)으로 덮어써져 사라지는 리셋 버그 차단 가드 적용; 파일/폴더 삭제 시 확인 모달 타이틀("폴더 삭제"/"파일 삭제") 및 메시지 본문("폴더를 정말 삭제하시겠습니까?"/"파일을 정말 삭제하시겠습니까?")을 노드 종류에 맞춰 분기하여 정확하게 표시하도록 갱신; 이름 변경(Rename) 시 팝업 프롬프트 제목 및 실패 토스트 피드백 문구에서 폴더와 파일을 명확히 분리("폴더의 새 이름을 입력하세요"/"파일의 새 이름을 입력하세요")하여 노출하도록 리펙토링; **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
 // 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
 // ====================================================================
@@ -939,14 +940,14 @@ const FileTreeItem = ({
         onMouseLeave={handleItemMouseLeave}
         className={`group relative flex items-center w-full py-1 pr-2 my-0.5 rounded-lg transition-all cursor-pointer ${
           isSelected 
-            ? 'bg-[#06C755]/15 dark:bg-[#06C755]/25 text-zinc-950 dark:text-white font-extrabold shadow-sm' 
+            ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-sm' 
             : isDragOver
-              ? 'bg-[#06C755]/20 scale-[1.01]'
+              ? 'bg-[#1d4ed8]/20 scale-[1.01]'
               : 'text-[#2A2A2A] dark:text-[#D4D4D4] hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 hover:text-black dark:hover:text-white hover:font-bold hover:shadow-2xs'
         }`}
         style={{ 
           paddingLeft: `${(level * 12) + 8}px`,
-          fontFamily: "'D2Coding', 'JetBrains Mono', 'LineSeed', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
+          fontFamily: "'D2Coding', 'JetBrains Mono', 'Pretendard', Consolas, 'Malgun Gothic', '맑은 고딕', monospace"
         }}
         onClick={handleClick}
         onContextMenu={(e) => {

@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-PhilosophySection-0026] PhilosophySection ➔ PhilosophySection
 // 🎯 @KICK  : Onrivi Author의 핵심 설계 철학인 '생각은 Markdown으로, 사람은 문서로'를 시각화하고 개념도를 전달하는 섹션
 // 🛡️ @GUARD : 반응형 플로우 단계 렌더링 및 모바일 가독성 가드
-// 🚨 @PATCH : **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: HOW IT WORKS 및 생각-AI-구조화-문서 파이프라인 시각화 신규 구현
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: HOW IT WORKS 및 생각-AI-구조화-문서 파이프라인 시각화 신규 구현
 // 🔗 @CALLS : motion.div, ArrowRight, Sparkles, FileText, Cpu, Layers, Users
 // ====================================================================
 "use client";
@@ -50,7 +51,7 @@ export function PhilosophySection() {
     <section
       id="philosophy"
       className="py-24 sm:py-32 bg-[#F2F0EB] dark:bg-[#15171A] border-y border-[#E2DFD8] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
-      style={{ fontFamily: "Pretendard, LineSeed, sans-serif" }}
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
@@ -60,7 +61,7 @@ export function PhilosophySection() {
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-5 text-[#111413] dark:text-white">
             생각은 Markdown으로.<br className="hidden sm:inline" />
-            <span className="text-[#06C755]">완성은 읽는 이의 언어로.</span>
+            <span className="text-[#1d4ed8]">완성은 읽는 이의 언어로.</span>
           </h2>
           <p className="text-[#68716D] dark:text-zinc-400 text-base sm:text-lg leading-relaxed font-normal">
             빠르게 쓰는 것과 잘 읽히는 문서는 하나일 수 있습니다.<br className="hidden sm:inline" />
@@ -81,16 +82,16 @@ export function PhilosophySection() {
                 transition={{ duration: 0.4, delay: idx * 0.1 }}
                 className={`relative p-6 sm:p-7 rounded-2xl border transition-all duration-300 bg-white dark:bg-[#1A1D22] ${
                   item.accent
-                    ? "border-[#06C755]/60 shadow-[0_8px_30px_rgba(6,199,85,0.09)]"
+                    ? "border-[#1d4ed8]/60 shadow-[0_8px_30px_rgba(29, 78, 216,0.09)]"
                     : "border-[#E0DED7] dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20 shadow-2xs"
                 }`}
               >
                 {/* Step Number */}
                 <div className="flex items-center justify-between mb-5">
-                  <span className={`text-xs font-mono font-extrabold tracking-wider ${item.accent ? "text-[#06C755]" : "text-[#68716D] dark:text-zinc-500"}`}>
+                  <span className={`text-xs font-mono font-extrabold tracking-wider ${item.accent ? "text-[#1d4ed8]" : "text-[#68716D] dark:text-zinc-500"}`}>
                     PHASE {item.step}
                   </span>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${item.accent ? "bg-[#06C755]/15 text-[#06C755]" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"}`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${item.accent ? "bg-[#1d4ed8]/15 text-[#1d4ed8]" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"}`}>
                     <Icon size={18} />
                   </div>
                 </div>
@@ -98,7 +99,7 @@ export function PhilosophySection() {
                 <h3 className="text-lg font-bold text-[#111413] dark:text-white mb-1 tracking-tight">
                   {item.title}
                 </h3>
-                <div className="text-xs font-semibold text-[#06C755] mb-2.5">
+                <div className="text-xs font-semibold text-[#1d4ed8] mb-2.5">
                   {item.subtitle}
                 </div>
                 <p className="text-xs sm:text-[13px] text-[#68716D] dark:text-zinc-400 leading-relaxed">

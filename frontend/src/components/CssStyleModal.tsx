@@ -4,9 +4,9 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
- * <2026-08-15> 최초작성
- * 🚨 @PATCH : **2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 헤더 Palette 아이콘 배지 및 LDSG Green 타이틀 적용, 좌측 패널 .bg-sidebar-luxury 럭셔리 그라데이션 적용
- *             **2026-08-15** — 모달 창을 풀스크린으로 전환 / 서식 관리 전용
+ * <2026-08-15> 최초작성 * 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+ *             2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 헤더 Palette 아이콘 배지 및 LDSG Green 타이틀 적용, 좌측 패널 .bg-sidebar-luxury 럭셔리 그라데이션 적용
+ * *2026-08-15** — 모달 창을 풀스크린으로 전환 / 서식 관리 전용
  *             StyleManagerModal 신규 연동 / 헤더에 [서식 관리] + [에디터로 가기] 버튼 추가
  *             z-index를 z-[200]으로 상향 (MenuBar z-[100] 완전 덮기) /
  *             좌측 CssStyleForm 패널 너비 480px로 확장 / CssStyleForm 내부 w-full로 변경
@@ -88,13 +88,13 @@ export default function CssStyleModal({
         {/* 상단 헤더 바 (LDSG 규격 통일) */}
         <div className={`flex items-center justify-between px-6 py-3.5 border-b shrink-0 ${isDarkMode ? 'border-[#22242A] bg-[#17191E]' : 'border-[#EFEFEF] bg-white'}`}>
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#06C755]/15 text-[#06C755]">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#1d4ed8]/15 text-[#1d4ed8]">
               <Palette className="w-4 h-4" />
             </div>
-            <h2 className="text-base font-bold tracking-tight text-[#06C755]">
+            <h2 className="text-base font-bold tracking-tight text-[#1d4ed8]">
               서식 테마 설정
             </h2>
-            <span className="text-[11px] px-2.5 py-0.5 rounded-full font-bold tracking-wide bg-[#06C755]/10 text-[#06C755]">
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full font-bold tracking-wide bg-[#1d4ed8]/10 text-[#1d4ed8]">
               실시간 미리보기
             </span>
           </div>

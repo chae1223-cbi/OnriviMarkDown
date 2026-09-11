@@ -175,13 +175,13 @@ export default function CitationSelectionModal({
     <div className={`fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm ${isDarkMode ? 'dark' : ''}`}>
       <div 
         className="bg-white dark:bg-[#1E1E1E] rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] border border-[#EFEFEF] dark:border-white/10 animate-in fade-in zoom-in duration-200"
-        style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
+        style={{ fontFamily: "Pretendard, sans-serif" }}
       >
         
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#EFEFEF] dark:border-white/10 bg-[#F7F8F9] dark:bg-[#161616]">
           <div className="flex items-center gap-2 text-on-surface font-bold">
-            <FileText size={18} className="text-[#06C755]" />
+            <FileText size={18} className="text-[#1d4ed8]" />
             참조자 선택 (Citation)
           </div>
           <button
@@ -201,7 +201,7 @@ export default function CitationSelectionModal({
               placeholder="참조문헌 검색 (키워드, 저자, 제목)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-[#F7F8F9] dark:bg-zinc-800/50 border border-[#EFEFEF] dark:border-zinc-700 rounded-xl text-sm text-[#1F1F1F] dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#06C755]/30 focus:border-[#06C755] transition-all"
+              className="w-full pl-10 pr-4 py-2.5 bg-[#F7F8F9] dark:bg-zinc-800/50 border border-[#EFEFEF] dark:border-zinc-700 rounded-xl text-sm text-[#1F1F1F] dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/30 focus:border-[#1d4ed8] transition-all"
               autoFocus
             />
           </div>
@@ -222,18 +222,18 @@ export default function CitationSelectionModal({
                     onSelect(entry.key);
                     onClose();
                   }}
-                  className="group flex flex-col p-3.5 rounded-xl border border-[#EFEFEF] dark:border-zinc-800 hover:border-[#06C755] hover:bg-[#E8F9EE]/50 dark:hover:bg-emerald-950/20 cursor-pointer transition-all shadow-2xs"
+                  className="group flex flex-col p-3.5 rounded-xl border border-[#EFEFEF] dark:border-zinc-800 hover:border-[#1d4ed8] hover:bg-[#E8F9EE]/50 dark:hover:bg-emerald-950/20 cursor-pointer transition-all shadow-2xs"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm text-on-surface truncate group-hover:text-[#06C755] transition-colors">
+                      <div className="font-bold text-sm text-on-surface truncate group-hover:text-[#1d4ed8] transition-colors">
                         {entry.title || '(제목 없음)'}
                       </div>
                       <div className="text-xs text-text-secondary mt-1 truncate">
                         {entry.author || '저자 미상'} {entry.year ? `(${entry.year})` : ''}
                       </div>
                     </div>
-                    <div className="shrink-0 text-xs font-mono px-2 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-md group-hover:bg-[#06C755]/15 group-hover:text-[#06C755] transition-colors">
+                    <div className="shrink-0 text-xs font-mono px-2 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-md group-hover:bg-[#1d4ed8]/15 group-hover:text-[#1d4ed8] transition-colors">
                       @{entry.key}
                     </div>
                   </div>

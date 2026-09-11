@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-FaqItem-0010] FaqItem ➔ FaqItem
 // 🎯 @KICK  : 클릭 시 질문의 아코디언 접기/열기 인터랙션을 구현하는 FAQ 개별 항목 컴포넌트
 // 🛡️ @GUARD : AnimatePresence 와 motion.div를 활용해 CSS 트랜지션 시 자연스러운 레이아웃 변화 보장
-// 🚨 @PATCH : **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치
+// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 패치
 // 🔗 @CALLS : framer-motion, lucide-react
 // ====================================================================
 "use client";
@@ -28,12 +29,12 @@ export function FaqItem({ faq, isOpen, onToggle }: FaqItemProps) {
       >
         <span
           className="font-bold text-sm sm:text-base text-on-surface"
-          style={{ fontFamily: "LineSeed, Pretendard, sans-serif" }}
+          style={{ fontFamily: "Pretendard, sans-serif" }}
         >
           {faq.question}
         </span>
         {isOpen ? (
-          <Minus className="w-5 h-5 text-[#06C755] shrink-0" />
+          <Minus className="w-5 h-5 text-[#1d4ed8] shrink-0" />
         ) : (
           <Plus className="w-5 h-5 text-text-secondary shrink-0" />
         )}
@@ -49,7 +50,7 @@ export function FaqItem({ faq, isOpen, onToggle }: FaqItemProps) {
             <div
               className="px-6 pb-5 pt-3 text-sm text-text-secondary leading-relaxed border-t border-outline/10"
               style={{
-                fontFamily: "LineSeed, Pretendard, sans-serif",
+                fontFamily: "Pretendard, sans-serif",
               }}
             >
               {faq.answer}
