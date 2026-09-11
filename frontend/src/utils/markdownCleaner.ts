@@ -2,7 +2,7 @@
 // 📊 [OMD-EDIT-markdownCleaner-0001 ✅ FIXED] markdownCleaner.ts ➔ cleanMarkdownDocument
 // 🎯 @KICK  : 마크다운 문서 내 서식 및 문법을 지능적으로 교정하고 표를 수직 정렬하는 뷰티파이어 엔진
 // 🛡️ @GUARD : 코드블록/수식/Frontmatter 마스킹 보호, 동아시아 문자 폭 계산, 실행 취소 안전성 보장
-// 🚨 @PATCH : **2026-09-11** — 볼드(**) 및 취소선(~~) 내부 선행/후행 공백(예: ** 상속세·증여세**, (** 단, 당해세는 예외** )) 및 닫힘 뒤 쉼표 앞 공백 자동 교정 탑재; 에디터 줄바꿈(Word Wrap) 가독성을 위해 과대 하이픈 및 패딩 공백을 최소화하여 단정한 컴팩트 표(formatCompactMarkdownTable)로 축소 정돈; 코드/수식/프론트매터 마스킹, 헤딩/인용구 공백 자동 교정, HTML 태그 마크다운 변환, 세부 통계 수집 기능 통합 신설
+// 🚨 @PATCH : **2026-09-11** — 표 셀 내부 리스트 불릿 일관성 정돈(normalizeTableBullets): 셀 내부 <br> 뒤의 하이픈/대시/별표 리스트 항목(`<br>- `, `<br> - ` 등)을 상위 불릿 기호(`• `)로 지능적 통일 변환 및 닫히지 않은 고아 백틱(`) 안전 정돈 연동; 볼드(**) 및 취소선(~~) 내부 선행/후행 공백(예: ** 상속세·증여세**, (** 단, 당해세는 예외** )) 및 닫힘 뒤 쉼표 앞 공백 자동 교정 탑재; 에디터 줄바꿈(Word Wrap) 가독성을 위해 과대 하이픈 및 패딩 공백을 최소화하여 단정한 컴팩트 표(formatCompactMarkdownTable)로 축소 정돈; 코드/수식/프론트매터 마스킹, 헤딩/인용구 공백 자동 교정, HTML 태그 마크다운 변환, 세부 통계 수집 기능 통합 신설
 // 🔗 @CALLS : formatCompactMarkdownTable
 // ====================================================================
 
@@ -14,6 +14,7 @@ export interface CleanStats {
   brCollapsed: number;
   linesReduced: number;
   boldFixed: number;
+  tableBulletsNormalized: number;
 }
 
 export interface CleanResult {
@@ -30,6 +31,7 @@ export interface CleanOptions {
   fixEmphasisSpacing?: boolean;
   convertHtmlTags?: boolean;
   cleanExcessiveNewlines?: boolean;
+  normalizeTableBullets?: boolean;
 }
 
 /**
@@ -211,6 +213,7 @@ export function cleanMarkdownDocument(
     fixEmphasisSpacing = true,
     convertHtmlTags = true,
     cleanExcessiveNewlines = true,
+    normalizeTableBullets = true,
   } = options;
 
   if (!content) {
@@ -225,6 +228,7 @@ export function cleanMarkdownDocument(
         brCollapsed: 0,
         linesReduced: 0,
         boldFixed: 0,
+        tableBulletsNormalized: 0,
       },
       summaryMessage: '정리할 서식이 없습니다.',
     };
@@ -238,6 +242,7 @@ export function cleanMarkdownDocument(
     brCollapsed: 0,
     linesReduced: 0,
     boldFixed: 0,
+    tableBulletsNormalized: 0,
   };
 
   let working = content;
@@ -362,6 +367,40 @@ export function cleanMarkdownDocument(
   working = working.replace(/[\r\n]+\s*<br\s*\/?>/gi, '<br>');
 
   // -------------------------------------------------------------
+  // 4-1단계. 표(Table) 셀 내부 리스트 불릿 일관성 정돈 (normalizeTableBullets)
+  // -------------------------------------------------------------
+  // 마크다운 표 셀 내부는 GFM 표준상 인라인 문맥이므로 블록 리스트(- 항목)가 렌더링되지 않습니다.
+  // 셀 내부 <br> 뒤의 하이픈/대시/별표 리스트 항목(`<br>- `, `<br> - ` 등)을 상단 불릿 기호(`• `)로 지능적 변환하고,
+  // 인라인 서식을 깨뜨리는 닫히지 않은 고아 백틱(`)을 정리합니다.
+  if (normalizeTableBullets) {
+    const tableLineRegex = /^\|.*\|$/gm;
+    working = working.replace(tableLineRegex, (tableLine) => {
+      let modifiedLine = tableLine;
+
+      // 1) <br> 뒤의 리스트 마커(-, *, +)를 • 기호로 통일 (예: <br>- **신고확정:** -> <br>  • **신고확정:**)
+      const cellListRegex = /(<br\s*\/?>\s*)[ \t]*[-*+][ \t]+(?!\s*\|)/gi;
+      if (cellListRegex.test(modifiedLine)) {
+        modifiedLine = modifiedLine.replace(cellListRegex, (match, brPrefix) => {
+          stats.tableBulletsNormalized++;
+          return `${brPrefix}  • `;
+        });
+      }
+
+      // 2) 표 셀 내부에서 닫히지 않은 고아 백틱(`) 정리 (단, 마스킹 토큰 제외)
+      // 예: **신고확정:** ` 납세자 -> **신고확정:** 납세자
+      const orphanBacktickRegex = /(:\*\*\s*)`\s*([가-힣a-zA-Z0-9])/g;
+      if (orphanBacktickRegex.test(modifiedLine)) {
+        modifiedLine = modifiedLine.replace(orphanBacktickRegex, (match, prefix, nextChar) => {
+          stats.tableBulletsNormalized++;
+          return `${prefix}${nextChar}`;
+        });
+      }
+
+      return modifiedLine;
+    });
+  }
+
+  // -------------------------------------------------------------
   // 5단계. 헤딩(#) 및 인용구(>) 문법 공백 자동 교정
   // -------------------------------------------------------------
   if (fixHeadings) {
@@ -424,6 +463,7 @@ export function cleanMarkdownDocument(
   if (stats.htmlConverted > 0) summaryParts.push(`HTML ${stats.htmlConverted}개 변환`);
   if (stats.brCollapsed > 0) summaryParts.push(`<br> ${stats.brCollapsed}곳 정돈`);
   if (stats.boldFixed > 0) summaryParts.push(`강조 기호 ${stats.boldFixed}곳 교정`);
+  if (stats.tableBulletsNormalized > 0) summaryParts.push(`표 불릿 ${stats.tableBulletsNormalized}곳 정돈`);
   if (stats.linesReduced > 0) summaryParts.push(`빈 줄 압축`);
 
   let summaryMessage = '정리할 서식이 없습니다.';

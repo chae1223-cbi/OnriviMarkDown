@@ -122,5 +122,12 @@ describe('markdownCleaner - Unit Tests', () => {
       expect(res.cleanedText).toBe('**상속세·증여세**, (**단, 당해세는 예외**) 및 ~~취소선~~ 테스트');
       expect(res.stats.boldFixed).toBe(3);
     });
+
+    it('normalizes markdown list dashes inside table cells after <br> into bullets (•)', () => {
+      const content = '| 구분 | 내용 |\n| --- | --- |\n| 02 | • **확정방식:** <br>- **신고확정:** ` 납세자 신고<br> - **부과확정:** 과세관청 결정 |';
+      const res = cleanMarkdownDocument(content);
+      expect(res.cleanedText).toContain('• **확정방식:** <br>  • **신고확정:** 납세자 신고<br>  • **부과확정:** 과세관청 결정');
+      expect(res.stats.tableBulletsNormalized).toBeGreaterThan(0);
+    });
   });
 });
