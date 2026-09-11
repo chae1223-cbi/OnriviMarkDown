@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-UI-PricingSection-0023 ✅ FIXED] PricingSection ➔ PricingSection
 // 🎯 @KICK  : Onrivi Author 서비스 멤버십 가격표 출력
-// 🚨 @PATCH : **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(Pricing: #EFEFFF)
+// 🚨 @PATCH : **2026-09-11** — 요금표 카드 배경색을 #B3FFF3(민트/아쿠아마린)으로 변경 및 고대비(Rule 8) 가독성 강화
+//             **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(Pricing: #EFEFFF)
 //             **2026-09-11** — 요금제 카드 목록에서 Reader(제한사용자) 제거 및 하단에 '회원가입 후 무료 사용 가능' 별도 안내 박스 연동
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
@@ -118,8 +119,8 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 transition={{ delay: i * 0.06 }}
                 className={`relative p-6 sm:p-7 rounded-2xl transition-all duration-300 ${
                   isRegular
-                    ? "bg-white dark:bg-[#1A1D22] border-2 border-[#1d4ed8] shadow-[0_16px_40px_-10px_rgba(29, 78, 216,0.18)]"
-                    : "bg-[#EFEFFF]/60 hover:bg-[#EFEFFF] dark:bg-[#17191E] border border-[#E2E4F6] dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20 shadow-xs"
+                    ? "bg-[#B3FFF3] dark:bg-[#0c3833] border-2 border-[#1d4ed8] shadow-[0_16px_40px_-10px_rgba(29,78,216,0.22)]"
+                    : "bg-[#B3FFF3] dark:bg-[#0f2e2a] border border-[#6ae4d3] dark:border-teal-800/50 hover:border-teal-500 dark:hover:border-teal-500 shadow-xs hover:shadow-md"
                 }`}
               >
                 {/* Most Popular Badge */}
@@ -140,13 +141,13 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                         </span>
                         <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                           isRegular
-                            ? "bg-[#1d4ed8]/15 text-[#1d4ed8]"
-                            : "bg-zinc-200/80 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                            ? "bg-[#1d4ed8] text-white"
+                            : "bg-white/90 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-teal-500/20"
                         }`}>
                           {envLabel}
                         </span>
                       </div>
-                      <p className="text-xs text-[#68716D] dark:text-zinc-400 mt-1">
+                      <p className="text-xs text-[#1e293b] dark:text-zinc-300 font-medium mt-1">
                         {plan.tagline}
                       </p>
                     </div>
@@ -156,7 +157,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                       {priceDisplay}
                     </div>
                     {usdDisplay && (
-                      <span className="text-xs text-[#68716D] dark:text-zinc-400 font-medium">
+                      <span className="text-xs text-[#334155] dark:text-zinc-300 font-semibold">
                         {usdDisplay}
                       </span>
                     )}
@@ -164,9 +165,9 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 </div>
 
                 {/* Features */}
-                <ul className="m-0 p-0 list-none space-y-1.5 pt-2 border-t border-zinc-200/60 dark:border-white/5">
+                <ul className="m-0 p-0 list-none space-y-1.5 pt-2 border-t border-teal-700/20 dark:border-white/10">
                   {(plan.features || []).map((f: string, fi: number) => (
-                    <li key={fi} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300 font-medium leading-relaxed">
+                    <li key={fi} className="flex items-center gap-2 text-xs text-zinc-800 dark:text-zinc-200 font-medium leading-relaxed">
                       <span className="text-[#1d4ed8] font-extrabold text-sm">✓</span>
                       <span>{f}</span>
                     </li>
@@ -182,10 +183,10 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="max-w-3xl mx-auto mt-6 p-5 sm:p-6 rounded-2xl bg-[#EFEFFF]/70 dark:bg-[#16181D] border border-[#E2E4F6] dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-left shadow-2xs"
+          className="max-w-3xl mx-auto mt-6 p-5 sm:p-6 rounded-2xl bg-[#B3FFF3]/80 hover:bg-[#B3FFF3] dark:bg-[#0f2e2a]/80 border border-[#6ae4d3] dark:border-teal-800/40 flex flex-col sm:flex-row items-center justify-between gap-4 text-left shadow-2xs transition-all duration-300"
         >
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-[#1d4ed8]/10 text-[#1d4ed8] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-white/90 dark:bg-zinc-800 text-[#1d4ed8] flex items-center justify-center shrink-0 border border-[#6ae4d3]/60 shadow-2xs">
               <BookOpen size={20} />
             </div>
             <div>
@@ -193,17 +194,17 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 <span className="text-sm font-bold text-[#111413] dark:text-white">
                   Reader (읽기 전용) 플랜
                 </span>
-                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-2xs">
                   FREE
                 </span>
               </div>
-              <p className="text-xs text-[#68716D] dark:text-zinc-400 leading-relaxed">
-                Reader 플랜은 별도 결제 없이 <strong className="text-[#111413] dark:text-zinc-200">회원가입 후 즉시 사용 가능</strong>합니다.
+              <p className="text-xs text-[#1e293b] dark:text-zinc-300 font-medium leading-relaxed">
+                Reader 플랜은 별도 결제 없이 <strong className="text-[#111413] dark:text-white font-extrabold">회원가입 후 즉시 사용 가능</strong>합니다.
               </p>
             </div>
           </div>
           <Link href="/signup" className="shrink-0 w-full sm:w-auto">
-            <button className="w-full sm:w-auto px-4 py-2 text-xs font-bold rounded-xl bg-white dark:bg-zinc-800 text-[#1d4ed8] dark:text-blue-400 border border-[#E2E4F6] dark:border-white/10 hover:bg-[#1d4ed8] hover:text-white transition-all shadow-2xs">
+            <button className="w-full sm:w-auto px-4 py-2 text-xs font-bold rounded-xl bg-white dark:bg-zinc-800 text-[#1d4ed8] dark:text-blue-400 border border-[#6ae4d3] dark:border-white/10 hover:bg-[#1d4ed8] hover:text-white transition-all shadow-2xs">
               회원가입하고 무료로 읽기 →
             </button>
           </Link>
