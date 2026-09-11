@@ -2,7 +2,8 @@
 // 📊 [OMD-VIEW-KnowledgeHub-0001] KnowledgeHubView.tsx ➔ Onrivi 지식 엔진 통합 관제 뷰
 // 🎯 @KICK  : 대량 문서 수집/지식화 명세서(ONRIVI-KNOWLEDGE-ENGINE-002.1) 12대 화면 통합 관제 독립 뷰
 // 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), LNB 럭셔리 그라데이션(.bg-sidebar-luxury) & 라운드 하이라이트 표준 준수 (Rule 6), 중앙 서버 비개입 100% 로컬 격리
-// 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 베이스 일치화 연동] 데스크톱/로컬뿐만 아니라 프로드 웹(onrivi.com)에서도 knowledgeClient 및 browserKnowledgeDb(WASM sql.js + resourceFolderHandle)를 통해 내 PC의 onrivi_knowledge.db를 100% 동일하게 공유하여 조회/등록/검색 가능하도록 전면 개편
+// 🚨 @PATCH : **2026-09-11** — [지식 베이스 리소스 폴더 복호화 및 Onrivi_Asset 기본값 폴백 강화] syncFromEditorSettings에서 loadSecureData 복호화 및 Onrivi_Asset 폴백을 적용하여 데스크톱 환경에서 리소스 폴더 미전달 시에도 하위 KUI011 환경설정 및 백업 목록이 완벽하게 동기화되도록 개선
+//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 베이스 일치화 연동] 데스크톱/로컬뿐만 아니라 프로드 웹(onrivi.com)에서도 knowledgeClient 및 browserKnowledgeDb(WASM sql.js + resourceFolderHandle)를 통해 내 PC의 onrivi_knowledge.db를 100% 동일하게 공유하여 조회/등록/검색 가능하도록 전면 개편
 //             **2026-09-06** — [localhost 지식 엔진 연동 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 SQLite 지식 베이스 조회/등록을 활성화하고, prod 웹 환경에서만 데스크톱 안내 배너를 노출하도록 가드 개선
 //             **2026-09-06** — [웹 환경 로컬 지식 엔진 격리 및 데스크톱 안내 배너 탑재] 로컬 및 프로덕션 웹 브라우저 환경(!isDesktop)에서 /api/knowledge/* 불필요 호출을 차단하고, 데스크톱 전용 안내 배너(Desktop Exclusive)를 제공하여 404/405 콘솔 에러 원천 방어
 //             **2026-09-04** — [사이드바 디자인 통일] 지식 엔진 좌측 사이드바를 에디터 좌측 사이드바(LeftSidebar)와 1:1 완벽 대응(서체, 테두리, 헤더 바, 저장소 실폴더 바, 12px 볼드 메뉴, 시스템 현황 위젯)하도록 디자인 고도화
@@ -33,6 +34,7 @@ import type {
 import { KnowledgeWorkerEngine } from '@/lib/knowledge/knowledgeWorker';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 import { showToast } from '@/utils/toast';
+import { loadSecureData } from '@/lib/secureStorage';
 
 import { KUI001_KnowledgeDashboard } from './screens/KUI001_KnowledgeDashboard';
 import { KUI002_KnowledgeDocList } from './screens/KUI002_KnowledgeDocList';
@@ -161,10 +163,18 @@ export const KnowledgeHubView: React.FC<KnowledgeHubViewProps> = ({
     const syncFromEditorSettings = () => {
       if (typeof window === 'undefined') return;
 
-      const savedFolder = localStorage.getItem('onrivi_resource_folder') || 
-                          localStorage.getItem('onrivi_resource_folder_path');
-      if (savedFolder && !propResourceFolder) {
+      let savedFolder = propResourceFolder ||
+                        loadSecureData<string>('resourceFolder') ||
+                        localStorage.getItem('onrivi_resource_folder_path') ||
+                        localStorage.getItem('onrivi_resource_folder');
+      if (savedFolder && savedFolder.startsWith('U2FsdGVkX1')) {
+        const dec = loadSecureData<string>('resourceFolder');
+        savedFolder = (dec && !dec.startsWith('U2FsdGVkX1')) ? dec : 'Onrivi_Asset';
+      }
+      if (savedFolder) {
         setResourceFolder(savedFolder);
+      } else {
+        setResourceFolder('Onrivi_Asset');
       }
 
       let editorSettings: any = null;

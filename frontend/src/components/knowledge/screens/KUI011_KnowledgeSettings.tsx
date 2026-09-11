@@ -2,7 +2,8 @@
 // 📊 [OMD-KUI-011] KUI011_KnowledgeSettings.tsx ➔ 지식 엔진 환경설정 및 리소스 제어
 // 🎯 @KICK  : 에디터 활성 AI(Gemini API 키 및 모델) 실시간 연동 확인/테스트, Worker 동시성, 지식 DB 백업/원복/초기화
 // 🛡️ @GUARD : LDSG v5.0 (#06C755), 로컬 클라이언트 안전 보관 원칙(중앙 서버 전송 불가, API 키 화면 유출 차단), 고대비 시인성 보장(Rule 8), 에디터 전역 AI 단일 진입점 준수
-// 🚨 @PATCH : **2026-09-06** — [Electron 외부 DB 업로드 원복 수정] handleUploadBackup에서 Electron 미지원 FormData 전송을 ArrayBuffer→base64 JSON 방식으로 교체, main.js restore 핸들러에서 uploadedFileBase64 분기 처리 추가 및 pre-restore 스냅샷 manifest 자동 기록 완비
+// 🚨 @PATCH : **2026-09-11** — [데스크톱 지식 DB 백업 목록 미노출 버그 완벽 해결] effectiveResourceFolder(loadSecureData + Onrivi_Asset 폴백) 도입으로 resourceFolder 미전달 시에도 /api/knowledge/backup 목록 조회 및 백업/원복/다운로드 기능이 100% 정상 작동하도록 전면 개편
+//             **2026-09-06** — [Electron 외부 DB 업로드 원복 수정] handleUploadBackup에서 Electron 미지원 FormData 전송을 ArrayBuffer→base64 JSON 방식으로 교체, main.js restore 핸들러에서 uploadedFileBase64 분기 처리 추가 및 pre-restore 스냅샷 manifest 자동 기록 완비
 //             **2026-09-05** — [백업 사유(Reason) 및 문서 요약 입력/열람 UI 탑재] 백업 생성, 초기화, 원복 시 백업 사유를 입력받아 기록하고, 백업 목록에서 사유/문서수/대표문서명을 직관적으로 확인하여 원하는 백업을 선택 원복할 수 있도록 개편
 //             **2026-09-05** — [초기화/원복 사전 자동 백업 UI 연동] DB 초기화 및 외부/선택 원복 시 현재 DB의 자동 스냅샷 백업 생성 안내 및 백업 목록 실시간 즉시 갱신 연동
 //             **2026-09-05** — [지식 DB 백업 원복 실시간 동기화] 기존 백업 및 외부 DB 업로드 원복 성공 시 knowledge:updated-from-hub, knowledge:refresh 전역 이벤트를 브로드캐스트하여 탐색기 뱃지 및 지식 보관함 목록이 즉각 동기화되도록 개선
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ResourceController } from '@/lib/knowledge/knowledgeWorker';
 import PromptModal from '@/components/PromptModal';
+import { loadSecureData } from '@/lib/secureStorage';
 
 interface KnowledgeBackupItem {
   fileName: string;
@@ -85,6 +87,30 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
     }
     return 'gemini-3.8-flash';
   }, [propAiModelName]);
+
+  // 실시간 유효 리소스 폴더 계산 (Props, loadSecureData, localStorage, Onrivi_Asset 안전 폴백)
+  const effectiveResourceFolder = useMemo(() => {
+    let raw = (
+      resourceFolder ||
+      loadSecureData<string>('resourceFolder') ||
+      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder_path') : '') ||
+      (typeof window !== 'undefined' ? localStorage.getItem('onrivi_resource_folder') : '') ||
+      (() => {
+        try {
+          const rawSetting = typeof window !== 'undefined' ? localStorage.getItem('onrivi_settings') : null;
+          return rawSetting ? JSON.parse(rawSetting).resourceFolder || '' : '';
+        } catch { return ''; }
+      })() ||
+      'Onrivi_Asset'
+    ).trim();
+
+    if (raw.startsWith('U2FsdGVkX1')) {
+      const decrypted = loadSecureData<string>('resourceFolder');
+      raw = (decrypted && !decrypted.startsWith('U2FsdGVkX1')) ? decrypted : 'Onrivi_Asset';
+    }
+
+    return raw || 'Onrivi_Asset';
+  }, [resourceFolder]);
 
   // 보안을 위한 100% 완전 마스킹: 어떠한 문자도 노출하지 않고 일괄 마스킹(•) 처리
   const formatMaskedKey = (key: string) => {
@@ -161,10 +187,11 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // 백업 목록 불러오기
   const fetchBackups = useCallback(async () => {
-    if (!resourceFolder) return;
+    const folderToUse = effectiveResourceFolder;
+    if (!folderToUse) return;
     setLoadingBackups(true);
     try {
-      const res = await fetch(`/api/knowledge/backup?resourceFolder=${encodeURIComponent(resourceFolder)}`);
+      const res = await fetch(`/api/knowledge/backup?resourceFolder=${encodeURIComponent(folderToUse)}`);
       const data = await res.json();
       if (data.ok && Array.isArray(data.backups)) {
         setBackups(data.backups);
@@ -174,7 +201,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
     } finally {
       setLoadingBackups(false);
     }
-  }, [resourceFolder]);
+  }, [effectiveResourceFolder]);
 
   useEffect(() => {
     fetchBackups();
@@ -230,7 +257,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // --- 데이터베이스 백업 생성 ---
   const handleCreateBackup = async () => {
-    if (!resourceFolder) return;
+    if (!effectiveResourceFolder) return;
     const reason = await showPromptDialog(
       '백업 사유나 메모를 입력해 주세요 (선택 사항):',
       '수동 정기 백업',
@@ -243,7 +270,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
       const res = await fetch('/api/knowledge/backup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceFolder, reason: reason.trim() || '수동 정기 백업' }),
+        body: JSON.stringify({ resourceFolder: effectiveResourceFolder, reason: reason.trim() || '수동 정기 백업' }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -265,8 +292,8 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // --- 현재 실시간 DB 파일 직접 다운로드 ---
   const handleDownloadCurrentDb = () => {
-    if (!resourceFolder) return;
-    const downloadUrl = `/api/knowledge/backup?resourceFolder=${encodeURIComponent(resourceFolder)}&download=current`;
+    if (!effectiveResourceFolder) return;
+    const downloadUrl = `/api/knowledge/backup?resourceFolder=${encodeURIComponent(effectiveResourceFolder)}&download=current`;
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.setAttribute('download', '');
@@ -278,8 +305,8 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // --- 특정 백업 파일 PC로 다운로드 ---
   const handleDownloadBackup = (fileName: string) => {
-    if (!resourceFolder || !fileName) return;
-    const downloadUrl = `/api/knowledge/backup?resourceFolder=${encodeURIComponent(resourceFolder)}&download=true&fileName=${encodeURIComponent(fileName)}`;
+    if (!effectiveResourceFolder || !fileName) return;
+    const downloadUrl = `/api/knowledge/backup?resourceFolder=${encodeURIComponent(effectiveResourceFolder)}&download=true&fileName=${encodeURIComponent(fileName)}`;
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.setAttribute('download', fileName);
@@ -291,7 +318,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // --- 기존 백업 시점으로 DB 원복 (Restore) ---
   const handleRestoreBackup = async (fileName: string, itemReason?: string) => {
-    if (!resourceFolder || !fileName) return;
+    if (!effectiveResourceFolder || !fileName) return;
     const confirmed = window.confirm(
       `선택하신 백업 시점(${fileName})으로 지식 데이터베이스를 원복하시겠습니까?\n` +
       (itemReason ? `[해당 백업 사유: ${itemReason}]\n\n` : '\n') +
@@ -311,7 +338,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          resourceFolder, 
+          resourceFolder: effectiveResourceFolder, 
           fileName,
           reason: snapshotReason.trim() || `원복 직전 자동 백업 (${fileName} 복원 전)`
         }),
@@ -350,7 +377,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
   // --- 외부 백업(.db) 파일 업로드 원복 ---
   const handleUploadBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !resourceFolder) return;
+    if (!file || !effectiveResourceFolder) return;
 
     if (!file.name.endsWith('.db')) {
       showToast('SQLite 데이터베이스(.db) 파일만 업로드할 수 있습니다.', 'warning');
@@ -396,7 +423,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            resourceFolder,
+            resourceFolder: effectiveResourceFolder,
             uploadedFileBase64: base64,
             uploadedFileName: file.name,
             reason: snapshotReason.trim() || `외부 백업(${file.name}) 업로드 원복 직전 백업`,
@@ -405,7 +432,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
       } else {
         // 웹/localhost: 기존 FormData 방식
         const formData = new FormData();
-        formData.append('resourceFolder', resourceFolder);
+        formData.append('resourceFolder', effectiveResourceFolder);
         formData.append('backupFile', file);
         formData.append('reason', snapshotReason.trim() || `외부 백업(${file.name}) 업로드 원복 직전 백업`);
         res = await fetch('/api/knowledge/restore', {
@@ -447,7 +474,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // --- 백업 파일 삭제 ---
   const handleDeleteBackup = async (fileName: string) => {
-    if (!resourceFolder || !fileName) return;
+    if (!effectiveResourceFolder || !fileName) return;
     const confirmed = window.confirm(`백업 파일 "${fileName}"을(를) 영구히 삭제하시겠습니까?`);
     if (!confirmed) return;
 
@@ -456,7 +483,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
       const res = await fetch('/api/knowledge/backup', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceFolder, fileName }),
+        body: JSON.stringify({ resourceFolder: effectiveResourceFolder, fileName }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -478,7 +505,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // --- 지식 DB 완전 초기화 (위험 작업) ---
   const handleResetKnowledgeDb = async () => {
-    if (!resourceFolder) {
+    if (!effectiveResourceFolder) {
       showToast('리소스 폴더가 설정되지 않았습니다.', 'warning');
       return;
     }
@@ -508,7 +535,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          resourceFolder, 
+          resourceFolder: effectiveResourceFolder, 
           forceReset: true,
           reason: backupReason.trim() || '초기화 직전 안전 자동 백업'
         }),
@@ -825,7 +852,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
           <button
             type="button"
             onClick={handleCreateBackup}
-            disabled={creatingBackup || !resourceFolder}
+            disabled={creatingBackup || !effectiveResourceFolder}
             className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {creatingBackup ? (
@@ -840,7 +867,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
           <button
             type="button"
             onClick={handleDownloadCurrentDb}
-            disabled={!resourceFolder}
+            disabled={!effectiveResourceFolder}
             className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition shadow-xs cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-blue-500" />
@@ -858,7 +885,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
           <button
             type="button"
             onClick={() => uploadFileInputRef.current?.click()}
-            disabled={restoringFileName !== null || !resourceFolder}
+            disabled={restoringFileName !== null || !effectiveResourceFolder}
             className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition shadow-xs cursor-pointer"
           >
             {restoringFileName === '__upload__' ? (
@@ -891,7 +918,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
               </span>
             </div>
             <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
-              저장위치: {resourceFolder ? `${resourceFolder}/db/backups/` : '로컬 리소스 폴더'}
+              저장위치: {effectiveResourceFolder ? `${effectiveResourceFolder}/db/backups/` : '로컬 리소스 폴더'}
             </span>
           </div>
 

@@ -326,11 +326,10 @@ function createWindow(port) {
 // ====================================================================
 
 function resolveSafeResourceFolder(folder) {
-  if (!folder || !folder.trim()) return null;
-  let clean = folder.trim();
+  let clean = (folder && typeof folder === 'string' ? folder.trim() : '') || 'Onrivi_Asset';
 
   // 🛡️ [AES 암호화 문자열 원천 방어] 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 유입된 경우 기본값 치환
-  if (clean.startsWith('U2FsdGVkX1')) {
+  if (clean.startsWith('U2FsdGVkX1') || clean === '') {
     clean = 'Onrivi_Asset';
   }
 
