@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-Footer-0021] Footer ➔ Footer
 // 🎯 @KICK  : 웹사이트 하단 푸터로 주요 서비스 바로가기 링크 및 사업자 고지 정보 노출
 // 🛡️ @GUARD : 정적 데이터 출력 위주이나 현재 연도를 new Date().getFullYear()로 안전하게 가져와 출력
-// 🚨 @PATCH : **2026-06-28** — 하단 제품 메뉴에 온라인 문의하기(/contact) 네비게이션 링크 추가 패치
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
+//             **2026-06-28** — 하단 제품 메뉴에 온라인 문의하기(/contact) 네비게이션 링크 추가 패치
 //             **2026-06-21** — OMDLanding UI 이식 패치; 로고 아이콘 /icon.png 변경 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 푸터, Ice Blue 링크 호버)
 // 🔗 @CALLS : Link
@@ -28,9 +29,9 @@ const footerLinks = {
 export function Footer() {
   return (
     <footer
-      className="bg-surface-container border-t border-outline/10 pt-14 pb-8 text-on-surface"
+      className="bg-[#DCE1FF] dark:bg-zinc-950 border-t border-[#C5CEF8] dark:border-white/10 pt-14 pb-8 text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{
-        fontFamily: "LineSeed, Pretendard, sans-serif",
+        fontFamily: "Pretendard, sans-serif",
       }}
     >
       <div className="max-w-[1200px] mx-auto px-6 lg:px-12">
@@ -86,18 +87,18 @@ export function Footer() {
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ fontSize: 13, color: "#6e7881", textDecoration: "none", transition: "color 0.15s" }}
-                        onMouseEnter={e => (e.currentTarget.style.color = "#0ea5e9")}
-                        onMouseLeave={e => (e.currentTarget.style.color = "#6e7881")}
+                        style={{ fontSize: 13, color: "#3B4357", textDecoration: "none", transition: "color 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget.style.color = "#1d4ed8")}
+                        onMouseLeave={e => (e.currentTarget.style.color = "#3B4357")}
                       >
                         {link.label}
                       </a>
                     ) : (
                       <Link
                         href={link.href}
-                        style={{ fontSize: 13, color: "#6e7881", textDecoration: "none", transition: "color 0.15s" }}
-                        onMouseEnter={e => (e.currentTarget.style.color = "#0ea5e9")}
-                        onMouseLeave={e => (e.currentTarget.style.color = "#6e7881")}
+                        style={{ fontSize: 13, color: "#3B4357", textDecoration: "none", transition: "color 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget.style.color = "#1d4ed8")}
+                        onMouseLeave={e => (e.currentTarget.style.color = "#3B4357")}
                       >
                         {link.label}
                       </Link>
@@ -113,10 +114,10 @@ export function Footer() {
             <h4 style={{ fontWeight: 600, fontSize: 13, color: "#0f172a", marginBottom: 14 }}>사업자 정보</h4>
             <div
               style={{
-                background: "rgba(255,255,255,0.6)",
+                background: "rgba(255,255,255,0.85)",
                 backdropFilter: "blur(20px)",
                 WebkitBackdropFilter: "blur(20px)",
-                border: "1px solid rgba(14,165,233,0.10)",
+                border: "1px solid #C5CEF8",
                 borderRadius: "0.75rem",
                 padding: "14px 16px",
               }}
@@ -124,8 +125,8 @@ export function Footer() {
               <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                 {COMPANY_INFO.map(([label, value]) => (
                   <div key={label} style={{ display: "flex", gap: 6, fontSize: 11, lineHeight: "18px" }}>
-                    <span style={{ color: "#6e7881", whiteSpace: "nowrap" }}>{label}:</span>
-                    <span style={{ color: "#3e4850", fontWeight: 500 }}>{value}</span>
+                    <span style={{ color: "#475569", whiteSpace: "nowrap" }}>{label}:</span>
+                    <span style={{ color: "#1e293b", fontWeight: 500 }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -133,8 +134,8 @@ export function Footer() {
           </div>
         </div>
 
-        <div style={{ borderTop: "1px solid rgba(14,165,233,0.08)", paddingTop: 24, display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <p style={{ fontSize: 12, color: "#6e7881" }}>
+        <div style={{ borderTop: "1px solid #C5CEF8", paddingTop: 24, display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <p style={{ fontSize: 12, color: "#475569" }}>
             &copy; {new Date().getFullYear()} {SITE_NAME}. All rights reserved.
           </p>
           <div style={{ display: "flex", gap: 8 }}>

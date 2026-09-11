@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-DocumentGallerySection-0028] DocumentGallerySection ➔ DocumentGallerySection
 // 🎯 @KICK  : 실무에서 작성되는 4대 핵심 문서(기획서, 기능명세서, 회의록, 기술문서)를 사진 대신 실제 조판된 문서 카드로 쇼케이스하는 갤러리 섹션
 // 🛡️ @GUARD : 문서 카드 그리드 반응형 가드 및 호버 인터랙션 보장
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: '문서가 곧 비주얼이 된다'는 기획 철학을 구현한 Documents Gallery 컴포넌트 신규 생성
 // 🔗 @CALLS : motion.div, FileText, CheckSquare, Code2, Calendar
 // ====================================================================
@@ -86,19 +87,19 @@ export function DocumentGallerySection() {
   return (
     <section
       id="documents"
-      className="py-24 sm:py-32 bg-[#F2F0EB] dark:bg-[#15171A] border-y border-[#E2DFD8] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="py-24 sm:py-32 bg-[#DCE1FF] dark:bg-[#15171A] border-y border-[#C5CEF8] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E6E3DB] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#C5CEF8] text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4 shadow-2xs">
             DOCUMENTS
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">
             무엇이든 문서가 됩니다.
           </h2>
-          <p className="text-[#68716D] dark:text-zinc-400 text-base sm:text-lg">
+          <p className="text-[#2D3748] dark:text-zinc-300 text-base sm:text-lg">
             스톡 사진 대신, 정교하게 조판된 실제 문서가 온리비 어서의 가장 강력한 비주얼입니다.
           </p>
         </div>
@@ -114,32 +115,35 @@ export function DocumentGallerySection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: idx * 0.08 }}
-                className="group rounded-2xl border border-[#E0DED7] dark:border-white/10 bg-white dark:bg-[#1A1D22] p-6 sm:p-8 hover:border-[#1d4ed8]/60 transition-all duration-300 hover:shadow-[0_16px_40px_-10px_rgba(30,25,15,0.08)] flex flex-col justify-between text-left"
+                className="group rounded-2xl border border-[#C5CEF8] dark:border-white/10 bg-white dark:bg-[#1A1D22] p-6 sm:p-8 hover:border-[#1d4ed8] transition-all duration-300 hover:shadow-[0_16px_40px_-10px_rgba(29,78,216,0.12)] flex flex-col justify-between text-left"
               >
                 <div>
                   {/* Card Top Metadata */}
-                  <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#ECEAE3] dark:border-white/10">
+                  <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#C5CEF8] dark:border-white/10">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#F2F0EB] dark:bg-zinc-800 text-[#1A1A18] dark:text-zinc-200">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#DCE1FF]/40 border border-[#C5CEF8] text-[#1d4ed8] dark:text-blue-300">
                         {doc.category}
                       </span>
-                      <span className="text-xs text-[#68716D] dark:text-zinc-400 font-mono">
+                      <span className="text-[11px] font-mono text-[#68716D] dark:text-zinc-400">
                         {doc.categoryEn}
                       </span>
                     </div>
-                    <span className="text-xs text-[#68716D] dark:text-zinc-400">
+                    <span className="text-xs font-mono text-[#68716D] dark:text-zinc-400 font-medium">
                       {doc.date}
                     </span>
                   </div>
 
-                  {/* Document Title */}
-                  <h3 className="text-lg sm:text-xl font-bold text-[#111413] dark:text-white tracking-tight mb-4 group-hover:text-[#1d4ed8] transition-colors flex items-center justify-between">
-                    <span>{doc.title}</span>
-                    <ArrowUpRight size={18} className="opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all text-[#1d4ed8]" />
-                  </h3>
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <h3 className="text-lg sm:text-xl font-bold tracking-tight text-[#111413] dark:text-white group-hover:text-[#1d4ed8] transition-colors">
+                      {doc.title}
+                    </h3>
+                    <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-300 shrink-0 group-hover:bg-[#1d4ed8]/10 group-hover:text-[#1d4ed8] transition-colors">
+                      <Icon size={16} />
+                    </div>
+                  </div>
 
                   {/* Document Sheet Simulation */}
-                  <div className="rounded-xl border border-[#E5E2D9] dark:border-white/5 bg-[#F8F6F1] dark:bg-[#14161A] p-4 sm:p-5 font-sans text-xs space-y-3">
+                  <div className="rounded-xl border border-[#C5CEF8]/60 dark:border-white/5 bg-[#DCE1FF]/15 dark:bg-[#14161A] p-4 sm:p-5 font-sans text-xs space-y-3">
                     <div className="font-mono text-zinc-400 text-[11px]">
                       {doc.content.h1}
                     </div>

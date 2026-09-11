@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-UI-PricingSection-0023 ✅ FIXED] PricingSection ➔ PricingSection
 // 🎯 @KICK  : Onrivi Author 서비스 멤버십 가격표 출력
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 초록색 풀 채움 카드 제거, White/Surface 베이스에 Regular 플랜 얇은 Green 테두리 및 MOST POPULAR 뱃지/elevation 고급화 적용
 //             **2026-08-07** — DB pricing_plans 테이블을 기반으로 멤버십 데이터를 동적 조회(fetch)하여 렌더링하도록 마이그레이션 패치; **2026-07-09** — 4계급 멤버십 구조 (Reader/Apprentice/Regular/Elite Pro) 전면 개편
 // 🔗 @CALLS : plans constants
@@ -47,19 +48,19 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
   return (
     <section
       id="pricing"
-      className="py-24 sm:py-32 bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="py-24 sm:py-32 bg-[#DCE1FF] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAE8E1] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#C5CEF8] text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4 shadow-2xs">
             MEMBERSHIP
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">
             간단하고 투명한 요금제
           </h2>
-          <p className="text-[#68716D] dark:text-zinc-400 text-base sm:text-lg">
+          <p className="text-[#2D3748] dark:text-zinc-300 text-base sm:text-lg">
             문서 읽기부터 전문가 수준의 전 기능 출판까지, 필요한 만큼 시작하세요.
           </p>
         </div>
@@ -97,8 +98,8 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
                 transition={{ delay: i * 0.06 }}
                 className={`relative p-6 sm:p-7 rounded-2xl transition-all duration-300 ${
                   isRegular
-                    ? "bg-white dark:bg-[#1A1D22] border-2 border-[#1d4ed8] shadow-[0_16px_40px_-10px_rgba(29, 78, 216,0.16)]"
-                    : "bg-[#F2F0EB] dark:bg-[#17191E] border border-[#E0DED7] dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20 shadow-2xs"
+                    ? "bg-white dark:bg-[#1A1D22] border-2 border-[#1d4ed8] shadow-[0_16px_40px_-10px_rgba(29, 78, 216,0.18)]"
+                    : "bg-white/90 hover:bg-white dark:bg-[#17191E] border border-[#C5CEF8] dark:border-white/10 hover:border-zinc-400 dark:hover:border-white/20 shadow-xs"
                 }`}
               >
                 {/* Most Popular Badge */}

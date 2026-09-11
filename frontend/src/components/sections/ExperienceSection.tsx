@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-ExperienceSection-0027] ExperienceSection ➔ ExperienceSection
 // 🎯 @KICK  : Onrivi Author의 3대 핵심 경험(WRITE, REFINE, PUBLISH)을 실제 제품 UI 목업과 함께 단계별로 몰입감 있게 선보이는 피처 섹션
 // 🛡️ @GUARD : 탭 상태 스위칭 및 반응형 카드 UI 오버플로우 방지
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 기존 6개 분절 카드 제거 및 WRITE/REFINE/PUBLISH 3단계 제품 스토리텔링 뷰 신규 구축
 // 🔗 @CALLS : motion.div, useState, Check, Sparkles
 // ====================================================================
@@ -65,27 +66,27 @@ export function ExperienceSection() {
   return (
     <section
       id="experience"
-      className="py-24 sm:py-32 bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] relative overflow-hidden"
+      className="py-24 sm:py-32 bg-[#DCE1FF] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9] relative overflow-hidden"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-14">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAE8E1] dark:bg-zinc-800 text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#C5CEF8] text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4 shadow-2xs">
             EXPERIENCE
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">
             하나의 Author,<br />
             모든 문서의 시작점.
           </h2>
-          <p className="text-[#68716D] dark:text-zinc-400 text-base sm:text-lg">
+          <p className="text-[#2D3748] dark:text-zinc-300 text-base sm:text-lg">
             작성(Write), 다듬기(Refine), 조판(Publish)의 전 과정을 끊김 없이 잇는 워크플로우.
           </p>
         </div>
 
         {/* Tab Selector Buttons */}
         <div className="flex justify-center mb-12 sm:mb-16">
-          <div className="inline-flex p-1.5 rounded-2xl bg-[#EAE8E1] dark:bg-[#1A1D22] border border-[#DDD9D0] dark:border-white/10 max-w-full overflow-x-auto shadow-2xs">
+          <div className="inline-flex p-1.5 rounded-2xl bg-white/60 dark:bg-[#1A1D22] border border-[#C5CEF8] dark:border-white/10 max-w-full overflow-x-auto shadow-2xs">
             {experiences.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -94,8 +95,8 @@ export function ExperienceSection() {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                     isActive
-                      ? "bg-white dark:bg-zinc-800 text-[#111413] dark:text-white shadow-xs border border-[#DDD9D0] dark:border-white/10"
-                      : "text-[#68716D] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white"
+                      ? "bg-white dark:bg-zinc-800 text-[#111413] dark:text-white shadow-xs border border-[#C5CEF8] dark:border-white/10"
+                      : "text-[#4A5568] dark:text-zinc-400 hover:text-[#111413] dark:hover:text-white"
                   }`}
                 >
                   <span className={`font-mono text-[11px] ${isActive ? "text-[#1d4ed8]" : "opacity-60"}`}>
@@ -116,7 +117,7 @@ export function ExperienceSection() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.35 }}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center rounded-3xl border border-[#DDD9D0] dark:border-white/10 bg-[#F2F0EB] dark:bg-[#16181D] p-6 sm:p-10 lg:p-12 shadow-xs"
+            className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center rounded-3xl border border-[#C5CEF8] dark:border-white/10 bg-white/90 dark:bg-[#16181D] p-6 sm:p-10 lg:p-12 shadow-sm"
           >
             {/* Left Description Column */}
             <div className="lg:col-span-5 space-y-6 text-left">
