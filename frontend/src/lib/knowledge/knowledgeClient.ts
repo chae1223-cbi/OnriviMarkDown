@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeClient-0001] knowledgeClient.ts ➔ Unified Knowledge Client Facade
 // 🎯 @KICK  : 데스크톱/로컬(Node SQLite)과 프로드 웹(WASM SQLite)을 자동 감지하여 동일한 지식 인터페이스를 제공하는 통합 클라이언트 파사드
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), Rule 7(선행 검증 후 원자적 트랜잭션 무결성), 404/405 자동 WASM 폴백
-// 🚨 @PATCH : **2026-09-06** — [localhost↔prod WASM 코드경로 통일: isServerApiAvailable에서 localhost 조건 제거] 로컬 개발(localhost)도 prod(onrivi.com)와 동일하게 browserKnowledgeDb(WASM sql.js + IndexedDB) 경로를 타도록 변경 — 로컬에서 테스트한 코드가 prod에 동일하게 반영되는 신뢰성 있는 개발/배포 파이프라인 확보. Electron 데스크탑(electronAPI 보유)만 /api/knowledge/* API 라우트 사용
+// 🚨 @PATCH : **2026-09-11** — [지식 DB 백업/원복/다운로드/삭제 웹 WASM 파사드 완성] deleteBackup, downloadBackup, restoreFromUploadedFile 파사드 메서드 추가 연동으로 프로드 웹(onrivi.com) 환경에서도 사용자 PC 로컬 Onrivi_Asset/db/backups 백업 목록 조회 및 백업 생성/원복/다운로드가 100% 동일하게 동작하도록 구현
+//             **2026-09-06** — [localhost↔prod WASM 코드경로 통일: isServerApiAvailable에서 localhost 조건 제거] 로컬 개발(localhost)도 prod(onrivi.com)와 동일하게 browserKnowledgeDb(WASM sql.js + IndexedDB) 경로를 타도록 변경 — 로컬에서 테스트한 코드가 prod에 동일하게 반영되는 신뢰성 있는 개발/배포 파이프라인 확보. Electron 데스크탑(electronAPI 보유)만 /api/knowledge/* API 라우트 사용
 //             **2026-09-06** — [데스크톱 ↔ 프로드 웹 로컬 DB 일치화 파사드 구축] 데스크톱/로컬에서는 /api/knowledge/* 및 electronAPI를 사용하고, 프로드 웹(onrivi.com)에서는 browserKnowledgeDb(WASM sql.js + resourceFolderHandle)를 호출하여 사용자 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 100% 동일하게 공유하도록 단일 진입점 구현
 // 🔗 @CALLS : ./browserKnowledgeDb, ../indexedDbHelper
 // ====================================================================
@@ -27,6 +28,9 @@ import {
   backupBrowserKnowledgeDb,
   listBrowserBackups,
   restoreBrowserBackup,
+  deleteBrowserBackup,
+  getBrowserBackupBlob,
+  restoreBrowserFromUploadedFile,
   resetBrowserKnowledgeDb,
   resolveResourceFolderHandle,
 } from './browserKnowledgeDb';
@@ -398,6 +402,42 @@ export const knowledgeClient = {
       } catch {}
     }
     return await restoreBrowserBackup(params.resourceFolderHandle, params.fileName);
+  },
+
+  async deleteBackup(params: { resourceFolder?: string | null; fileName: string; resourceFolderHandle?: any }): Promise<boolean> {
+    if (isServerApiAvailable()) {
+      try {
+        const res = await fetch('/api/knowledge/backup', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resourceFolder: params.resourceFolder, fileName: params.fileName }),
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) return true;
+      } catch {}
+    }
+    return await deleteBrowserBackup(params.resourceFolderHandle, params.fileName);
+  },
+
+  async downloadBackup(params: { resourceFolder?: string | null; fileName?: string; resourceFolderHandle?: any }): Promise<{ blob: Blob; downloadName: string } | null> {
+    return await getBrowserBackupBlob(params.resourceFolderHandle, params.fileName);
+  },
+
+  async restoreFromUploadedFile(params: { resourceFolder?: string | null; file: File; resourceFolderHandle?: any }): Promise<boolean> {
+    if (isServerApiAvailable()) {
+      try {
+        const formData = new FormData();
+        formData.append('file', params.file);
+        formData.append('resourceFolder', params.resourceFolder || '');
+        const res = await fetch('/api/knowledge/restore', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) return true;
+      } catch {}
+    }
+    return await restoreBrowserFromUploadedFile(params.resourceFolderHandle, params.file);
   },
 
   async resetDatabase(params: { resourceFolder?: string | null; reason?: string; resourceFolderHandle?: any }): Promise<boolean> {

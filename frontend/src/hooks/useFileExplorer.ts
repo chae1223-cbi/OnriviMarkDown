@@ -15,7 +15,8 @@ import { triggerKnowledgeAutoSyncOnSave } from '@/lib/knowledge/knowledgeAutoSyn
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
 // 🎯 @KICK  : 워크스페이스 폴더 연결, 파일 트리 스캔, 파일 열기/저장 I/O 전담
 // 🛡️ @GUARD : 각 환경별 API 실패 시 예외 처리 및 fallback
-// 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 문서 저장(saveFile) 성공 시 지식 보관함 등록 문서 로컬 비동기 자동 재색인(triggerKnowledgeAutoSyncOnSave) 연동
+// 🚨 @PATCH : **2026-09-11** — [브라우저 파일 열기 폴백 404 방어] docs/ 또는 welcome.md 등 내장 샘플 문서가 아닌 로컬 사용자 경로에 대한 무의미한 웹 서버 fetch 시도를 차단하여 404 콘솔 오류 원천 제거
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 문서 저장(saveFile) 성공 시 지식 보관함 등록 문서 로컬 비동기 자동 재색인(triggerKnowledgeAutoSyncOnSave) 연동
 //             **2026-09-02** — 워크스페이스 변경 시 404 에러를 유발하던 불필요한 레거시 api/set-root fetch 호출 완전 제거
 //             **2026-08-27** — 비로그인 즉시 체험 모드로 진입 시, 가상 파일 스토리지(getVfsFiles)가 비어 있는 경우 사용자의 쾌적한 에디터 테스트를 유도하는 샘플 원고(온리비_어서_체험판.md)를 자동으로 로드하여 화면에 출력하도록 초기화 연동; **2026-08-19** — 새로운 작업장 폴더 연결 시 기존에 열려 있던 모든 탭과 문서를 초기화(닫기)하도록 기능 추가
 //             **2026-08-19** — 파일 저장 시 대상 경로와 탭 경로 비교 정규화 버그로 인해 자동저장 황금 도트 미해제 결함 픽스 (대소문자/슬래시 무시 매칭 적용)
@@ -394,27 +395,26 @@ export const useFileExplorer = ({
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
     if (!isElectron) {
       try {
-        let fetchPath = resolvedPath;
-        const docsIndex = resolvedPath.replace(/\\/g, '/').indexOf('docs/');
-        if (docsIndex !== -1) {
-          fetchPath = './' + resolvedPath.replace(/\\/g, '/').substring(docsIndex);
-        } else if (resolvedPath.startsWith('docs/')) {
-          fetchPath = './' + resolvedPath;
-        }
+        const normalized = resolvedPath.replace(/\\/g, '/');
+        const docsIndex = normalized.indexOf('docs/');
+        const isDocSample = docsIndex !== -1 || normalized.startsWith('docs/') || normalized === 'welcome.md' || normalized.startsWith('./docs/');
         
-        const res = await fetch(fetchPath);
-        if (res.ok) {
-          const text = await res.text();
-          const filename = resolvedPath.split(/[/\\]/).pop() || '문서.md';
-          
-          const existingTab = tabsRef.current.find(t => t.name === filename || t.path === resolvedPath);
-          if (existingTab) {
-            switchTab(existingTab.id);
-          } else {
-            createNewTab(text, filename);
-            setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedPath } : t));
+        if (isDocSample) {
+          const fetchPath = './' + (docsIndex !== -1 ? normalized.substring(docsIndex) : normalized);
+          const res = await fetch(fetchPath);
+          if (res.ok) {
+            const text = await res.text();
+            const filename = resolvedPath.split(/[/\\]/).pop() || '문서.md';
+            
+            const existingTab = tabsRef.current.find(t => t.name === filename || t.path === resolvedPath);
+            if (existingTab) {
+              switchTab(existingTab.id);
+            } else {
+              createNewTab(text, filename);
+              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedPath } : t));
+            }
+            return;
           }
-          return;
         }
       } catch (err) {
         console.error('[Browser Open Path Fallback Error]', err);

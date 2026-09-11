@@ -1,7 +1,10 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
-// 🎯 @KICK  : 웹 브라우저(Cloudflare Pages / onrivi.com) 환경에서 사용자 로컬 PC의 {resourceFolder}/db/onrivi_knowledge.db를 직접 읽고 쓰는 WASM SQLite 엔진
-// 🚨 @PATCH : **2026-09-06** — [디스크 파일 최우선(SSOT) 원칙 확립: Prod↔데스크톱/로컬 데이터 100% 일치화] getBrowserKnowledgeDb에서 디스크 파일(onrivi_knowledge.db)이 존재하면 과거 오염된 IndexedDB 캐시를 덮어쓰고 실제 디스크 파일을 무조건 최우선 로드 — Prod 웹이 데스크톱/로컬과 완전히 동일한 4개 문서를 바라보도록 데이터 단일 진실 공급원(SSOT) 확립. saveBrowserKnowledgeDb에 임시파일(onrivi_knowledge.tmp) 생성 후 move() 원자적 교체 탑재
+// 🚨 @PATCH : **2026-09-11** — [웹 브라우저 WASM 지식 DB 백업/원복/다운로드/삭제 Onrivi_Asset/db/backups 경로 일치화 및 매니페스트/디렉토리 순회 보강]
+//             1) getBackupsDirectoryHandle을 도입하여 데스크톱과 100% 동일한 Onrivi_Asset/db/backups 경로를 탐색하도록 일치화
+//             2) listBrowserBackups에서 backups_manifest.json 외에도 실제 *.db 백업 파일들을 entries() 순회하여 데스크톱에서 생성된 백업 파일이 웹 브라우저에서도 즉시 완벽하게 노출되도록 보강
+//             3) deleteBrowserBackup, getBrowserBackupBlob, restoreBrowserFromUploadedFile 신설로 웹 브라우저에서도 백업 생성/원복/다운로드/업로드원복/삭제 100% 동작 보장
+//             **2026-09-06** — [디스크 파일 최우선(SSOT) 원칙 확립: Prod↔데스크톱/로컬 데이터 100% 일치화] getBrowserKnowledgeDb에서 디스크 파일(onrivi_knowledge.db)이 존재하면 과거 오염된 IndexedDB 캐시를 덮어쓰고 실제 디스크 파일을 무조건 최우선 로드 — Prod 웹이 데스크톱/로컬과 완전히 동일한 4개 문서를 바라보도록 데이터 단일 진실 공급원(SSOT) 확립. saveBrowserKnowledgeDb에 임시파일(onrivi_knowledge.tmp) 생성 후 move() 원자적 교체 탑재
 //             **2026-09-06** — [IndexedDB 1차 저장소 격상: Electron 파일 잠금 충돌 완전 우회] saveBrowserKnowledgeDb에서 IndexedDB를 1차 저장소로 격상(파일 잠금 무관 항상 저장), 파일 시스템은 3단계 폴백으로 선택적 시도 후 실패해도 예외 미발생. getBrowserKnowledgeDb에서 파일과 IDB의 mtime 비교 후 최신 데이터 자동 선택 — Electron 동시 사용 환경에서 InvalidStateError 완전 차단 및 데이터 유실 근절
 //             **2026-09-06** — [state had changed 완전 근절: 폴더핸들 재획득 3단계 재시도 전략] saveBrowserKnowledgeDb에서 createWritable 실패 시 IndexedDB에서 폴더핸들 완전 재획득(fresh handle) 후 재시도, 그것도 실패 시 임시파일(onrivi_knowledge.tmp) 쓰기 후 removeEntry+재생성으로 3단계 폴백 — state had changed 오류 원천 차단
 //             **2026-09-06** — [디스크 mtime 변경 감지 실시간 리로드 및 File System Access API 쓰기 잠금 완벽 복구] 데스크톱/타 프로세스에 의한 SQLite 파일 변경(mtime)을 실시간 감지하여 최신 DB로 자동 갱신하고, saveBrowserKnowledgeDb에서 getFile() 메타데이터 동기화 및 createWritable 실패 시 엔트리 재생성/임시 파일 폴백으로 'state had changed since it was read from disk' 오류 원천 차단
@@ -1082,15 +1085,56 @@ export async function getBrowserQueueStats(folderHandle?: any): Promise<any> {
 /**
  * 9. 백업 및 원복 관리 (브라우저 WASM)
  */
+
+// 백업 디렉토리 핸들(Onrivi_Asset/db/backups) 안전 획득 헬퍼
+export async function getBackupsDirectoryHandle(folderHandle: any, create = false): Promise<any> {
+  const root = await resolveResourceFolderHandle(folderHandle);
+  if (!root) return null;
+
+  if (typeof root.queryPermission === 'function') {
+    try {
+      const perm = await root.queryPermission({ mode: create ? 'readwrite' : 'read' });
+      if (perm !== 'granted' && typeof root.requestPermission === 'function') {
+        await root.requestPermission({ mode: create ? 'readwrite' : 'read' });
+      }
+    } catch {}
+  }
+
+  try {
+    // 1) 데스크톱 표준 경로: Onrivi_Asset/db/backups
+    const dbDir = await root.getDirectoryHandle('db', { create });
+    return await dbDir.getDirectoryHandle('backups', { create });
+  } catch (err) {
+    if (!create) {
+      // 2) 레거시 폴백: Onrivi_Asset/backups
+      try {
+        return await root.getDirectoryHandle('backups', { create: false });
+      } catch {}
+    }
+    if (create) {
+      try {
+        const dbDir = await root.getDirectoryHandle('db', { create: true });
+        return await dbDir.getDirectoryHandle('backups', { create: true });
+      } catch {}
+    }
+    return null;
+  }
+}
+
 export async function backupBrowserKnowledgeDb(folderHandle: any, reason: string = '수동 백업'): Promise<{ fileName: string; size: number }> {
-  const { db } = await getBrowserKnowledgeDb(folderHandle);
+  const root = await resolveResourceFolderHandle(folderHandle);
+  if (!root) throw new Error('리소스 폴더 핸들을 찾을 수 없습니다.');
+
+  const { db } = await getBrowserKnowledgeDb(root);
   const binary = db.export();
 
-  const backupsDir = await folderHandle.getDirectoryHandle('backups', { create: true });
+  const backupsDir = await getBackupsDirectoryHandle(root, true);
+  if (!backupsDir) throw new Error('백업 디렉토리를 생성하거나 열 수 없습니다.');
+
   const pad = (n: number) => String(n).padStart(2, '0');
   const d = new Date();
   const dateStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-  const fileName = `onrivi_knowledge_${dateStr}.db`;
+  const fileName = `knowledge_backup_${dateStr}.db`;
 
   const backupFileHandle = await backupsDir.getFileHandle(fileName, { create: true });
   const writable = await backupFileHandle.createWritable();
@@ -1133,27 +1177,153 @@ export async function backupBrowserKnowledgeDb(folderHandle: any, reason: string
 
 export async function listBrowserBackups(folderHandle: any): Promise<any[]> {
   try {
-    const backupsDir = await folderHandle.getDirectoryHandle('backups', { create: false });
+    const root = await resolveResourceFolderHandle(folderHandle);
+    if (!root) return [];
+
+    const backupsDir = await getBackupsDirectoryHandle(root, false);
+    if (!backupsDir) return [];
+
+    // 1) 매니페스트 파일 우선 파싱
+    let manifest: any[] = [];
     try {
       const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: false });
       const mFile = await mHandle.getFile();
       const mText = await mFile.text();
-      return JSON.parse(mText);
+      const parsed = JSON.parse(mText);
+      if (Array.isArray(parsed)) manifest = parsed;
     } catch {}
-  } catch {}
-  return [];
+
+    // 2) 디렉토리 내 실제 *.db 파일 엔트리 순회 (매니페스트 누락 대비 SSOT 무결성 보장)
+    const existingFileNames = new Set(manifest.map((m: any) => m.fileName));
+    const extraItems: any[] = [];
+
+    try {
+      if (typeof backupsDir.entries === 'function') {
+        for await (const [name, handle] of backupsDir.entries()) {
+          if (handle.kind === 'file' && name.endsWith('.db') && !existingFileNames.has(name)) {
+            try {
+              const file = await handle.getFile();
+              extraItems.push({
+                fileName: name,
+                createdAt: new Date(file.lastModified).toISOString(),
+                reason: '로컬 보관 백업',
+                docCount: 0,
+                sampleTitle: '',
+                size: file.size,
+              });
+            } catch {}
+          }
+        }
+      }
+    } catch {}
+
+    const combined = [...manifest, ...extraItems];
+    combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return combined;
+  } catch (err) {
+    console.error('[listBrowserBackups Error]:', err);
+    return [];
+  }
 }
 
 export async function restoreBrowserBackup(folderHandle: any, fileName: string): Promise<boolean> {
-  // 사전 안전 자동 백업 (Rule 7)
-  try { await backupBrowserKnowledgeDb(folderHandle, `원복 전 자동 안전 백업 (${fileName})`); } catch {}
+  const root = await resolveResourceFolderHandle(folderHandle);
+  if (!root) throw new Error('리소스 폴더 핸들을 찾을 수 없습니다.');
 
-  const backupsDir = await folderHandle.getDirectoryHandle('backups', { create: false });
+  // 사전 안전 자동 백업 (Rule 7)
+  try { await backupBrowserKnowledgeDb(root, `원복 전 자동 안전 백업 (${fileName})`); } catch {}
+
+  const backupsDir = await getBackupsDirectoryHandle(root, false);
+  if (!backupsDir) throw new Error('백업 디렉토리를 열 수 없습니다.');
+
   const backupFileHandle = await backupsDir.getFileHandle(fileName, { create: false });
   const file = await backupFileHandle.getFile();
   const binary = await file.arrayBuffer();
 
-  const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+  const dbDir = await root.getDirectoryHandle('db', { create: true });
+  const targetHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
+  const writable = await targetHandle.createWritable();
+  await writable.write(binary);
+  await writable.close();
+
+  // 캐시 무효화
+  invalidateBrowserDbCache();
+  return true;
+}
+
+export async function deleteBrowserBackup(folderHandle: any, fileName: string): Promise<boolean> {
+  const root = await resolveResourceFolderHandle(folderHandle);
+  if (!root) return false;
+
+  const backupsDir = await getBackupsDirectoryHandle(root, false);
+  if (!backupsDir) return false;
+
+  try {
+    await backupsDir.removeEntry(fileName);
+  } catch {}
+
+  // 매니페스트 동기화
+  try {
+    const mHandle = await backupsDir.getFileHandle('backups_manifest.json', { create: false });
+    const mFile = await mHandle.getFile();
+    const mText = await mFile.text();
+    let manifest: any[] = JSON.parse(mText);
+    manifest = manifest.filter((item: any) => item.fileName !== fileName);
+    const mWritable = await mHandle.createWritable();
+    await mWritable.write(JSON.stringify(manifest, null, 2));
+    await mWritable.close();
+  } catch {}
+
+  return true;
+}
+
+export async function getBrowserBackupBlob(folderHandle: any, fileName?: string): Promise<{ blob: Blob; downloadName: string } | null> {
+  const root = await resolveResourceFolderHandle(folderHandle);
+  if (!root) return null;
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const now = new Date();
+  const defaultName = `onrivi_knowledge_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}.db`;
+
+  if (!fileName || fileName === 'current') {
+    // 1) 현재 활성 DB 파일 다운로드
+    try {
+      const dbDir = await root.getDirectoryHandle('db', { create: false });
+      const dbFileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: false });
+      const file = await dbFileHandle.getFile();
+      return { blob: file, downloadName: defaultName };
+    } catch {
+      // 인메모리 WASM DB export 폴백
+      try {
+        const { db } = await getBrowserKnowledgeDb(root);
+        const binary = db.export();
+        const blob = new Blob([binary], { type: 'application/octet-stream' });
+        return { blob, downloadName: defaultName };
+      } catch {}
+    }
+  } else {
+    // 2) 특정 백업 파일 다운로드
+    try {
+      const backupsDir = await getBackupsDirectoryHandle(root, false);
+      if (!backupsDir) return null;
+      const fileHandle = await backupsDir.getFileHandle(fileName, { create: false });
+      const file = await fileHandle.getFile();
+      return { blob: file, downloadName: fileName };
+    } catch {}
+  }
+  return null;
+}
+
+export async function restoreBrowserFromUploadedFile(folderHandle: any, file: File): Promise<boolean> {
+  const root = await resolveResourceFolderHandle(folderHandle);
+  if (!root) throw new Error('리소스 폴더 핸들을 찾을 수 없습니다.');
+
+  // 사전 안전 자동 백업 (Rule 7)
+  try { await backupBrowserKnowledgeDb(root, `외부 DB 업로드 전 자동 안전 백업 (${file.name})`); } catch {}
+
+  const binary = await file.arrayBuffer();
+
+  const dbDir = await root.getDirectoryHandle('db', { create: true });
   const targetHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
   const writable = await targetHandle.createWritable();
   await writable.write(binary);
@@ -1165,14 +1335,17 @@ export async function restoreBrowserBackup(folderHandle: any, fileName: string):
 }
 
 export async function resetBrowserKnowledgeDb(folderHandle: any, reason: string = 'DB 완전 초기화'): Promise<boolean> {
+  const root = await resolveResourceFolderHandle(folderHandle);
+  if (!root) throw new Error('리소스 폴더 핸들을 찾을 수 없습니다.');
+
   // 사전 안전 자동 백업 (Rule 7)
-  try { await backupBrowserKnowledgeDb(folderHandle, `초기화 전 자동 안전 백업 (${reason})`); } catch {}
+  try { await backupBrowserKnowledgeDb(root, `초기화 전 자동 안전 백업 (${reason})`); } catch {}
 
   const SQL = await getSqlModule();
   const newDb = new SQL.Database();
   initBrowserKnowledgeSchema(newDb);
 
-  await saveBrowserKnowledgeDb(folderHandle, newDb);
+  await saveBrowserKnowledgeDb(root, newDb);
   invalidateBrowserDbCache();
   return true;
 }

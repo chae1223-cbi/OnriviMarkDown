@@ -4,6 +4,10 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+ *   * 🚨 @PATCH : **2026-09-11** — [Windows 스크린샷 캡처(Win+Shift+S) 차단 버그 원천 해결 및 클립보드 이미지 처리 안정화]
+ *     1) handleGlobalKeyDown에서 non-Mac 환경(Windows/Linux) 시 e.metaKey(Win키)가 포함된 단축키(Win+Shift+S 캡처 도구, Win+V 등)를 조기 반환(if (!isMac && e.metaKey) return;)하여 OS 캡처 도구가 '다른 이름으로 저장' 등으로 가로채지던 결함 원천 해결
+ *     2) isCtrl을 isMac ? (e.metaKey || e.ctrlKey) : e.ctrlKey로 플랫폼별 정확히 분리하여 윈도우 키와 Ctrl 키 간의 충돌 원천 방어
+ *     3) resolveClipboardImage에 dataUrlToBlob 순수 바이너리 변환 헬퍼를 적용하여 CSP connect-src 에러 없이 Electron 네이티브 클립보드 스크린샷 이미지를 즉시 추출 및 삽입하도록 보강
  *   * 🚨 @PATCH : **2026-09-06** — [ESLint react-hooks/exhaustive-deps 경고 해결] 웰컴 제어 useEffect 내 로그를 effectiveLicenseStatus 참조로 일원화하고, 단축키 액션 등록 useEffect 내 AI_MODAL 가드를 activeTabIdRef.current 및 previewModeRef.current 참조로 전환하여 불필요한 단축키 재등록 방어 및 빌드 경고 100% 해소
  *   * 🚨 @PATCH : **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식 베이스 연동] KnowledgeHubView에 resourceFolderHandle을 전달하고 (window as any).__resourceFolderHandle 글로벌 캐시를 동기화하여 웹 프로드 환경에서도 내 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 실시간 조회/등록/검색 가능하도록 연동
  *   * 🚨 @PATCH : **2026-09-06** — [localhost 지식 엔진 초기화 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 리소스 폴더 지정 시 /api/knowledge/init 자동 초기화를 활성화하고, prod 웹 환경에서만 안전하게 스킵 처리
@@ -4279,10 +4283,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0064] MainEditorApp.tsx ➔ resolveClipboardImage
-  // 🎯 @KICK  : 클립보드에서 이미지 Blob/File 추출 (items → files → navigator.clipboard 순)
-  // 🛡️ @GUARD : 모든 경로 실패 시 null 반환, 성공 시 Blob 반환
+  // 🎯 @KICK  : 클립보드에서 이미지 Blob/File 추출 (items → files → native read → navigator.clipboard 순)
+  // 🛡️ @GUARD : 모든 경로 실패 시 null 반환, 성공 시 Blob 반환; dataUrlToBlob 인라인 변환으로 CSP connect-src 차단 방어
+  // 🚨 @PATCH : **2026-09-11** — dataUrlToBlob 순수 JS 바이너리 변환 헬퍼 적용 (CSP fetch 거부 방어 및 스크린샷 캡처 즉각 복원)
   // 🔗 @CALLS : 없음
   // ====================================================================
+  const dataUrlToBlob = (dataUrl: string): Blob => {
+    const parts = dataUrl.split(',');
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
+
   const resolveClipboardImage = async (e: any, imageItem: any): Promise<Blob | null> => {
       // 비동기(await) 호출 이전에 동기적으로 브라우저 DataTransferItem 객체에서 File을 즉시 추출해야 합니다.
       // 크롬 등에서는 await 이후에 getAsFile()을 호출하면 보안상 null을 반환합니다.
@@ -4300,14 +4318,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (syncFile && syncFile.size > 0) return syncFile;
       if (syncFiles && syncFiles.length > 0 && syncFiles[0].type.startsWith('image/') && syncFiles[0].size > 0) return syncFiles[0];
 
-      // 0) [Electron] 네이티브 클립보드 이미지 읽기 우선 시도 (프로미스 버그 시 0바이트 우회)
+      // 0) [Electron] 네이티브 클립보드 이미지 읽기 우선 시도 (윈도우 스크린샷 등 클립보드 이미지 직접 복원)
       try {
         const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
         if (api && api.readClipboardImage) {
           const dataUrl = await api.readClipboardImage();
           if (dataUrl) {
-            const res = await fetch(dataUrl);
-            return await res.blob();
+            return dataUrlToBlob(dataUrl);
           }
         }
       } catch (err) {
@@ -4381,6 +4398,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 1. 이미지 처리
     const resolvedBlob = await resolveClipboardImage(e, imageItem);
     if (resolvedBlob) {
+      if (e.cancelable && !e.defaultPrevented) e.preventDefault();
       handlePasteImageFile(resolvedBlob);
       return;
     }
@@ -5878,8 +5896,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   // 📊 [OMD-EDIT-0037] MainEditorApp.tsx ➔ globalKeydownHandler
   // 🎯 @KICK  : 전역 키보드 단축키 처리기: S/O의 브라우저 기본 동작 차단, Escape로 플로팅 툴바/태그 선택기 처리, 사용자 정의 단축키 라우팅
-  // 🛡️ @GUARD : capture 단계 리스너; Monaco 외부 폼 요소 이벤트 무시; IME 229 keyCode 복구; 에디터 포커스 체크 전 글로벌 전용 단축키 감지; Shift+방향키 조기 반환(Monaco 선택 보호)
-  // 🚨 @PATCH : Ctrl+S/O 브라우저 기본 저장/열기 다이얼로그 preventDefault 처리; 한글 입력을 위한 keyCode 229 IME 조합 복구
+  // 🛡️ @GUARD : capture 단계 리스너; Monaco 외부 폼 요소 이벤트 무시; IME 229 keyCode 복구; 에디터 포커스 체크 전 글로벌 전용 단축키 감지; Shift+방향키 조기 반환(Monaco 선택 보호); Windows Meta(Win) 키 가드 (Win+Shift+S 스크린샷 캡처 보호)
+  // 🚨 @PATCH : **2026-09-11** — Windows/Linux 환경에서 Meta(Win) 키 단축키(Win+Shift+S 등) 조기 반환 가드 추가 및 isCtrl 플랫폼 분리 (윈도우 스크린샷 캡처 차단 결함 해결)
+  //           | Ctrl+S/O 브라우저 기본 저장/열기 다이얼로그 preventDefault 처리; 한글 입력을 위한 keyCode 229 IME 조합 복구
   //           | Shift+방향키를 capture 단계에서 가로채지 않도록 early return 추가 | 2026-06-15 | IME+방향키 충돌로 Monaco 텍스트 선택 버그 해결
   // 🔗 @CALLS : dispatchCommand, mapIdToCommandType, setFloatingToolbar
   // ====================================================================
@@ -5894,6 +5913,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // Monaco 에디터의 cursorLeftSelect/cursorRightSelect 등 기본 텍스트 선택 동작 보호
       // 특히 IME(한글) 상태에서 keyCode 229 복구 로직과 충돌하여 선택이 끊기는 버그 방지
       if (e.shiftKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        return;
+      }
+
+      // 💡 [Windows OS 전용 단축키 가드] Windows/Linux 환경에서 Meta(Win) 키가 포함된 조합은 절대 가로채지 않음
+      // Win+Shift+S (윈도우 캡처 도구/스크린샷), Win+V (클립보드 히스토리), Win+. (이모지), Win+PrtScn 등
+      // Windows 키 조합이 Ctrl+S(저장) 또는 다른 커맨드로 오인되어 OS 스크린샷 캡처가 차단되는 결함 원천 방어
+      const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/i.test(navigator.userAgent || navigator.platform);
+      if (!isMac && e.metaKey) {
         return;
       }
 
@@ -5918,7 +5945,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
 
-      const isCtrl = e.ctrlKey || e.metaKey;
+      const isCtrl = isMac ? (e.metaKey || e.ctrlKey) : e.ctrlKey;
       const isShift = e.shiftKey;
       const isAlt = e.altKey;
 

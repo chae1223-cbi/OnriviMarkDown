@@ -2,7 +2,11 @@
 // 📊 [OMD-KUI-011] KUI011_KnowledgeSettings.tsx ➔ 지식 엔진 환경설정 및 리소스 제어
 // 🎯 @KICK  : 에디터 활성 AI(Gemini API 키 및 모델) 실시간 연동 확인/테스트, Worker 동시성, 지식 DB 백업/원복/초기화
 // 🛡️ @GUARD : LDSG v5.0 (#06C755), 로컬 클라이언트 안전 보관 원칙(중앙 서버 전송 불가, API 키 화면 유출 차단), 고대비 시인성 보장(Rule 8), 에디터 전역 AI 단일 진입점 준수
-// 🚨 @PATCH : **2026-09-11** — [데스크톱 지식 DB 백업 목록 미노출 버그 완벽 해결] effectiveResourceFolder(loadSecureData + Onrivi_Asset 폴백) 도입으로 resourceFolder 미전달 시에도 /api/knowledge/backup 목록 조회 및 백업/원복/다운로드 기능이 100% 정상 작동하도록 전면 개편
+// 🚨 @PATCH : **2026-09-11** — [프로드 웹(onrivi.com) 지식 DB 백업 목록 미노출 버그 완벽 해결]
+//             1) KUI011 환경설정에서 직접 /api/knowledge/* fetch 하던 방식을 knowledgeClient 파사드(데스크톱 Node SQLite ↔ 웹 WASM SQLite 자동 분기)로 전면 마이그레이션
+//             2) resourceFolderHandle prop 연동 및 웹 환경에서 Onrivi_Asset/db/backups 실시간 탐색/다운로드/원복/생성 완벽 지원
+//             3) 웹 브라우저 환경에서 자원 관리 폴더(Onrivi_Asset) 미연결 시 원클릭 연결/권한 갱신 버튼(FolderOpen) 제공
+//             **2026-09-11** — [데스크톱 지식 DB 백업 목록 미노출 버그 완벽 해결] effectiveResourceFolder(loadSecureData + Onrivi_Asset 폴백) 도입으로 resourceFolder 미전달 시에도 /api/knowledge/backup 목록 조회 및 백업/원복/다운로드 기능이 100% 정상 작동하도록 전면 개편
 //             **2026-09-06** — [Electron 외부 DB 업로드 원복 수정] handleUploadBackup에서 Electron 미지원 FormData 전송을 ArrayBuffer→base64 JSON 방식으로 교체, main.js restore 핸들러에서 uploadedFileBase64 분기 처리 추가 및 pre-restore 스냅샷 manifest 자동 기록 완비
 //             **2026-09-05** — [백업 사유(Reason) 및 문서 요약 입력/열람 UI 탑재] 백업 생성, 초기화, 원복 시 백업 사유를 입력받아 기록하고, 백업 목록에서 사유/문서수/대표문서명을 직관적으로 확인하여 원하는 백업을 선택 원복할 수 있도록 개편
 //             **2026-09-05** — [초기화/원복 사전 자동 백업 UI 연동] DB 초기화 및 외부/선택 원복 시 현재 DB의 자동 스냅샷 백업 생성 안내 및 백업 목록 실시간 즉시 갱신 연동
@@ -11,7 +15,7 @@
 //             **2026-09-05** — [OMD-KUI-011] 보안 강화: API 키 유출 원천 방지를 위해 키 복사/보기 기능을 전면 제거하고 화면 노출 시 100% 완전 마스킹(••••)으로 보호; 연결 테스트 및 지식 DB 백업/원복/다운로드/초기화 기능 통합 유지
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 저장 시 자동 백그라운드 재색인(autoSyncOnSave) 설정 토글 옵션 탑재
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 지식 환경설정 내 중복 AI 설정창을 전면 제거하고 에디터 생성 AI 정보(Gemini API Key & Model)와 실시간 직접 연동 및 상태 카드 표시로 개편
-// 🔗 @CALLS : localStorage, /api/knowledge/init, /api/knowledge/backup, /api/knowledge/restore
+// 🔗 @CALLS : localStorage, knowledgeClient, /api/knowledge/init, /api/knowledge/backup, /api/knowledge/restore
 // ====================================================================
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -19,11 +23,13 @@ import {
   Shield, Cpu, Sliders, Database, 
   AlertTriangle, RefreshCw, Sparkles, CheckCircle2, Save,
   Download, Upload, RotateCcw, Trash2,
-  HardDrive, Archive
+  HardDrive, Archive, FolderOpen
 } from 'lucide-react';
 import { ResourceController } from '@/lib/knowledge/knowledgeWorker';
 import PromptModal from '@/components/PromptModal';
 import { loadSecureData } from '@/lib/secureStorage';
+import { idb } from '@/lib/indexedDbHelper';
+import { knowledgeClient, isServerApiAvailable } from '@/lib/knowledge/knowledgeClient';
 
 interface KnowledgeBackupItem {
   fileName: string;
@@ -42,6 +48,7 @@ interface KUI011KnowledgeSettingsProps {
   showToast: (msg: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
   onSaveApiKey?: (key: string) => void;
   onSaveModelName?: (model: string) => void;
+  resourceFolderHandle?: any;
 }
 
 export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = ({
@@ -49,6 +56,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
   geminiApiKey: propGeminiApiKey,
   aiModelName: propAiModelName,
   showToast,
+  resourceFolderHandle: propResourceFolderHandle,
 }) => {
   // --- AI 키/모델 실시간 상태 및 테스트 (보안상 마스킹 유지, 외부 복사/표시 차단) ---
   const [testingKey, setTestingKey] = useState(false);
@@ -111,6 +119,15 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
     return raw || 'Onrivi_Asset';
   }, [resourceFolder]);
+
+  // 실시간 File System Access API 폴더 핸들 동기화 (Props 또는 window 글로벌 캐시)
+  const effectiveHandle = useMemo(() => {
+    if (propResourceFolderHandle) return propResourceFolderHandle;
+    if (typeof window !== 'undefined' && (window as any).__resourceFolderHandle) {
+      return (window as any).__resourceFolderHandle;
+    }
+    return undefined;
+  }, [propResourceFolderHandle]);
 
   // 보안을 위한 100% 완전 마스킹: 어떠한 문자도 노출하지 않고 일괄 마스킹(•) 처리
   const formatMaskedKey = (key: string) => {
@@ -185,23 +202,23 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
   const [dbResetting, setDbResetting] = useState(false);
   const uploadFileInputRef = useRef<HTMLInputElement>(null);
 
-  // 백업 목록 불러오기
+  // 백업 목록 불러오기 (데스크톱 Node SQLite ↔ 웹 WASM SQLite 통합 연동)
   const fetchBackups = useCallback(async () => {
-    const folderToUse = effectiveResourceFolder;
-    if (!folderToUse) return;
     setLoadingBackups(true);
     try {
-      const res = await fetch(`/api/knowledge/backup?resourceFolder=${encodeURIComponent(folderToUse)}`);
-      const data = await res.json();
-      if (data.ok && Array.isArray(data.backups)) {
-        setBackups(data.backups);
+      const list = await knowledgeClient.listBackups({
+        resourceFolder: effectiveResourceFolder,
+        resourceFolderHandle: effectiveHandle,
+      });
+      if (Array.isArray(list)) {
+        setBackups(list);
       }
     } catch (err) {
       console.error('[KUI011] Failed to fetch backups:', err);
     } finally {
       setLoadingBackups(false);
     }
-  }, [effectiveResourceFolder]);
+  }, [effectiveResourceFolder, effectiveHandle]);
 
   useEffect(() => {
     fetchBackups();
@@ -257,7 +274,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // --- 데이터베이스 백업 생성 ---
   const handleCreateBackup = async () => {
-    if (!effectiveResourceFolder) return;
+    if (!effectiveResourceFolder && !effectiveHandle) return;
     const reason = await showPromptDialog(
       '백업 사유나 메모를 입력해 주세요 (선택 사항):',
       '수동 정기 백업',
@@ -267,58 +284,104 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
     setCreatingBackup(true);
     try {
-      const res = await fetch('/api/knowledge/backup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceFolder: effectiveResourceFolder, reason: reason.trim() || '수동 정기 백업' }),
+      const data = await knowledgeClient.createBackup({
+        resourceFolder: effectiveResourceFolder,
+        reason: reason.trim() || '수동 정기 백업',
+        resourceFolderHandle: effectiveHandle,
       });
-      const data = await res.json();
-      if (data.ok) {
+      if (data && data.ok !== false) {
         showToast(data.message || '지식 DB 백업이 성공적으로 생성되었습니다.', 'success');
-        if (Array.isArray(data.backups)) {
-          setBackups(data.backups);
-        } else {
-          fetchBackups();
-        }
+        fetchBackups();
       } else {
-        showToast(data.message || '백업 생성에 실패했습니다.', 'error');
+        showToast(data?.message || '백업 생성에 실패했습니다.', 'error');
       }
-    } catch {
-      showToast('백업 생성 요청 중 오류가 발생했습니다.', 'error');
+    } catch (err: any) {
+      showToast(err?.message || '백업 생성 요청 중 오류가 발생했습니다.', 'error');
     } finally {
       setCreatingBackup(false);
     }
   };
 
   // --- 현재 실시간 DB 파일 직접 다운로드 ---
-  const handleDownloadCurrentDb = () => {
-    if (!effectiveResourceFolder) return;
-    const downloadUrl = `/api/knowledge/backup?resourceFolder=${encodeURIComponent(effectiveResourceFolder)}&download=current`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.setAttribute('download', '');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('실시간 지식 데이터베이스(.db) 다운로드가 시작되었습니다.', 'info');
+  const handleDownloadCurrentDb = async () => {
+    if (isServerApiAvailable()) {
+      if (!effectiveResourceFolder) return;
+      const downloadUrl = `/api/knowledge/backup?resourceFolder=${encodeURIComponent(effectiveResourceFolder)}&download=current`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', '');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('실시간 지식 데이터베이스(.db) 다운로드가 시작되었습니다.', 'info');
+    } else {
+      try {
+        const res = await knowledgeClient.downloadBackup({
+          resourceFolder: effectiveResourceFolder,
+          fileName: 'current',
+          resourceFolderHandle: effectiveHandle,
+        });
+        if (res && res.blob) {
+          const url = URL.createObjectURL(res.blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', res.downloadName);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          showToast('실시간 지식 데이터베이스(.db) 다운로드가 완료되었습니다.', 'success');
+        } else {
+          showToast('다운로드할 데이터베이스 파일을 찾을 수 없습니다.', 'error');
+        }
+      } catch (err: any) {
+        showToast(err?.message || '데이터베이스 다운로드 실패', 'error');
+      }
+    }
   };
 
   // --- 특정 백업 파일 PC로 다운로드 ---
-  const handleDownloadBackup = (fileName: string) => {
-    if (!effectiveResourceFolder || !fileName) return;
-    const downloadUrl = `/api/knowledge/backup?resourceFolder=${encodeURIComponent(effectiveResourceFolder)}&download=true&fileName=${encodeURIComponent(fileName)}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast(`백업 파일(${fileName}) 다운로드가 시작되었습니다.`, 'info');
+  const handleDownloadBackup = async (fileName: string) => {
+    if (!fileName) return;
+    if (isServerApiAvailable()) {
+      if (!effectiveResourceFolder) return;
+      const downloadUrl = `/api/knowledge/backup?resourceFolder=${encodeURIComponent(effectiveResourceFolder)}&download=true&fileName=${encodeURIComponent(fileName)}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`백업 파일(${fileName}) 다운로드가 시작되었습니다.`, 'info');
+    } else {
+      try {
+        const res = await knowledgeClient.downloadBackup({
+          resourceFolder: effectiveResourceFolder,
+          fileName,
+          resourceFolderHandle: effectiveHandle,
+        });
+        if (res && res.blob) {
+          const url = URL.createObjectURL(res.blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', res.downloadName);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          showToast(`백업 파일(${fileName}) 다운로드가 완료되었습니다.`, 'success');
+        } else {
+          showToast('다운로드할 백업 파일을 찾을 수 없습니다.', 'error');
+        }
+      } catch (err: any) {
+        showToast(err?.message || '백업 파일 다운로드 실패', 'error');
+      }
+    }
   };
 
   // --- 기존 백업 시점으로 DB 원복 (Restore) ---
   const handleRestoreBackup = async (fileName: string, itemReason?: string) => {
-    if (!effectiveResourceFolder || !fileName) return;
+    if (!fileName) return;
     const confirmed = window.confirm(
       `선택하신 백업 시점(${fileName})으로 지식 데이터베이스를 원복하시겠습니까?\n` +
       (itemReason ? `[해당 백업 사유: ${itemReason}]\n\n` : '\n') +
@@ -334,23 +397,12 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
     setRestoringFileName(fileName);
     try {
-      const res = await fetch('/api/knowledge/restore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          resourceFolder: effectiveResourceFolder, 
-          fileName,
-          reason: snapshotReason.trim() || `원복 직전 자동 백업 (${fileName} 복원 전)`
-        }),
+      const ok = await knowledgeClient.restoreBackup({
+        resourceFolder: effectiveResourceFolder,
+        fileName,
+        resourceFolderHandle: effectiveHandle,
       });
-      const data = await res.json();
-      if (data.ok) {
-        // 🧠 원복된 DB의 실제 등록 문서 목록으로 클라이언트 캐시 즉시 동기화
-        if (Array.isArray(data.documents)) {
-          const pathList = data.documents.map((d: any) => d.file_path || d.filePath).filter(Boolean);
-          localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(pathList));
-        }
-
+      if (ok) {
         // 🧠 원복 후 탐색기 및 지식 관리자 화면 실시간 재동기화 브로드캐스트
         window.dispatchEvent(new CustomEvent('knowledge:updated-from-hub'));
         window.dispatchEvent(new CustomEvent('knowledge:refresh'));
@@ -358,17 +410,13 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
         window.dispatchEvent(new CustomEvent('app:knowledge-refresh'));
 
-        showToast(data.message || '지식 데이터베이스가 성공적으로 원복되었습니다.', 'success');
-        if (data.backups && Array.isArray(data.backups)) {
-          setBackups(data.backups);
-        } else {
-          fetchBackups();
-        }
+        showToast(`지식 데이터베이스(${fileName})가 성공적으로 원복되었습니다.`, 'success');
+        fetchBackups();
       } else {
-        showToast(data.message || '원복 작업에 실패했습니다.', 'error');
+        showToast('원복 작업에 실패했습니다.', 'error');
       }
-    } catch {
-      showToast('원복 처리 중 오류가 발생했습니다.', 'error');
+    } catch (err: any) {
+      showToast(err?.message || '원복 처리 중 오류가 발생했습니다.', 'error');
     } finally {
       setRestoringFileName(null);
     }
@@ -377,7 +425,7 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
   // --- 외부 백업(.db) 파일 업로드 원복 ---
   const handleUploadBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !effectiveResourceFolder) return;
+    if (!file) return;
 
     if (!file.name.endsWith('.db')) {
       showToast('SQLite 데이터베이스(.db) 파일만 업로드할 수 있습니다.', 'warning');
@@ -395,59 +443,14 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
       return;
     }
 
-    const snapshotReason = await showPromptDialog(
-      '외부 DB 원복 전 현재 운영 DB를 스냅샷 백업합니다.\n현재 DB의 백업 사유를 입력해 주세요:',
-      `외부 백업(${file.name}) 업로드 원복 직전 백업`
-    );
-    if (snapshotReason === null) {
-      e.target.value = '';
-      return;
-    }
-
     setRestoringFileName('__upload__');
     try {
-      let res: Response;
-      const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
-
-      if (isDesktop) {
-        // Electron: FormData 불가 → ArrayBuffer → base64 JSON 전송 (청크 방식으로 스택 안전)
-        const arrayBuffer = await file.arrayBuffer();
-        const uint8 = new Uint8Array(arrayBuffer);
-        let binary = '';
-        const CHUNK = 8192;
-        for (let i = 0; i < uint8.length; i += CHUNK) {
-          binary += String.fromCharCode(...Array.from(uint8.subarray(i, i + CHUNK)));
-        }
-        const base64 = btoa(binary);
-        res = await fetch('/api/knowledge/restore', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            resourceFolder: effectiveResourceFolder,
-            uploadedFileBase64: base64,
-            uploadedFileName: file.name,
-            reason: snapshotReason.trim() || `외부 백업(${file.name}) 업로드 원복 직전 백업`,
-          }),
-        });
-      } else {
-        // 웹/localhost: 기존 FormData 방식
-        const formData = new FormData();
-        formData.append('resourceFolder', effectiveResourceFolder);
-        formData.append('backupFile', file);
-        formData.append('reason', snapshotReason.trim() || `외부 백업(${file.name}) 업로드 원복 직전 백업`);
-        res = await fetch('/api/knowledge/restore', {
-          method: 'POST',
-          body: formData,
-        });
-      }
-      const data = await res.json();
-      if (data.ok) {
-        // 🧠 원복된 DB의 실제 등록 문서 목록으로 클라이언트 캐시 즉시 동기화
-        if (Array.isArray(data.documents)) {
-          const pathList = data.documents.map((d: any) => d.file_path || d.filePath).filter(Boolean);
-          localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(pathList));
-        }
-
+      const ok = await knowledgeClient.restoreFromUploadedFile({
+        resourceFolder: effectiveResourceFolder,
+        file,
+        resourceFolderHandle: effectiveHandle,
+      });
+      if (ok) {
         // 🧠 업로드 원복 후 탐색기 및 지식 관리자 화면 실시간 재동기화 브로드캐스트
         window.dispatchEvent(new CustomEvent('knowledge:updated-from-hub'));
         window.dispatchEvent(new CustomEvent('knowledge:refresh'));
@@ -455,17 +458,13 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
         window.dispatchEvent(new CustomEvent('app:knowledge-refresh'));
 
-        showToast(data.message || '업로드된 파일로 지식 DB가 안전하게 원복되었습니다.', 'success');
-        if (data.backups && Array.isArray(data.backups)) {
-          setBackups(data.backups);
-        } else {
-          fetchBackups();
-        }
+        showToast('업로드된 파일로 지식 DB가 안전하게 원복되었습니다.', 'success');
+        fetchBackups();
       } else {
-        showToast(data.message || '업로드 파일 원복 실패', 'error');
+        showToast('업로드 파일 원복 실패', 'error');
       }
-    } catch {
-      showToast('파일 업로드 및 원복 중 오류가 발생했습니다.', 'error');
+    } catch (err: any) {
+      showToast(err?.message || '파일 업로드 및 원복 중 오류가 발생했습니다.', 'error');
     } finally {
       setRestoringFileName(null);
       e.target.value = '';
@@ -474,38 +473,54 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
   // --- 백업 파일 삭제 ---
   const handleDeleteBackup = async (fileName: string) => {
-    if (!effectiveResourceFolder || !fileName) return;
+    if (!fileName) return;
     const confirmed = window.confirm(`백업 파일 "${fileName}"을(를) 영구히 삭제하시겠습니까?`);
     if (!confirmed) return;
 
     setDeletingFileName(fileName);
     try {
-      const res = await fetch('/api/knowledge/backup', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceFolder: effectiveResourceFolder, fileName }),
+      const ok = await knowledgeClient.deleteBackup({
+        resourceFolder: effectiveResourceFolder,
+        fileName,
+        resourceFolderHandle: effectiveHandle,
       });
-      const data = await res.json();
-      if (data.ok) {
-        showToast(data.message || '백업 파일이 안전하게 삭제되었습니다.', 'success');
-        if (Array.isArray(data.backups)) {
-          setBackups(data.backups);
-        } else {
-          fetchBackups();
-        }
+      if (ok) {
+        showToast('백업 파일이 안전하게 삭제되었습니다.', 'success');
+        fetchBackups();
       } else {
-        showToast(data.message || '백업 삭제 실패', 'error');
+        showToast('백업 삭제 실패', 'error');
       }
-    } catch {
-      showToast('백업 파일 삭제 요청 중 오류가 발생했습니다.', 'error');
+    } catch (err: any) {
+      showToast(err?.message || '백업 파일 삭제 요청 중 오류가 발생했습니다.', 'error');
     } finally {
       setDeletingFileName(null);
     }
   };
 
+  // 웹 브라우저 환경에서 사용자 PC의 Onrivi_Asset 폴더 직접 연결/재인증
+  const handleConnectResourceFolder = async () => {
+    if (typeof (window as any).showDirectoryPicker === 'function') {
+      try {
+        const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+        if (handle) {
+          (window as any).__resourceFolderHandle = handle;
+          await idb.set('resourceFolderHandle', handle);
+          fetchBackups();
+          showToast(`자원 폴더(${handle.name})가 브라우저에 성공적으로 연결되었습니다.`, 'success');
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          showToast('폴더 연결 중 오류가 발생했습니다: ' + err.message, 'error');
+        }
+      }
+    } else {
+      showToast('이 브라우저는 폴더 접근 API(showDirectoryPicker)를 지원하지 않습니다. Chrome 또는 Edge를 사용해 주세요.', 'warning');
+    }
+  };
+
   // --- 지식 DB 완전 초기화 (위험 작업) ---
   const handleResetKnowledgeDb = async () => {
-    if (!effectiveResourceFolder) {
+    if (!effectiveResourceFolder && !effectiveHandle) {
       showToast('리소스 폴더가 설정되지 않았습니다.', 'warning');
       return;
     }
@@ -531,17 +546,12 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
 
     setDbResetting(true);
     try {
-      const res = await fetch('/api/knowledge/init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          resourceFolder: effectiveResourceFolder, 
-          forceReset: true,
-          reason: backupReason.trim() || '초기화 직전 안전 자동 백업'
-        }),
+      const ok = await knowledgeClient.resetDatabase({
+        resourceFolder: effectiveResourceFolder,
+        reason: backupReason.trim() || '초기화 직전 안전 자동 백업',
+        resourceFolderHandle: effectiveHandle,
       });
-      const data = await res.json();
-      if (data.ok) {
+      if (ok) {
         // 클라이언트 로컬 캐시 및 등록 문서 목록 초기화
         try {
           localStorage.removeItem('onrivi_registered_knowledge_docs');
@@ -551,17 +561,13 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
         window.dispatchEvent(new CustomEvent('knowledge:updated-from-hub'));
         window.dispatchEvent(new CustomEvent('app:knowledge-refresh'));
 
-        showToast(data.message || '지식 데이터베이스가 성공적으로 완전 초기화되었습니다.', 'success');
-        if (data.backups && Array.isArray(data.backups)) {
-          setBackups(data.backups);
-        } else {
-          fetchBackups();
-        }
+        showToast('지식 데이터베이스가 성공적으로 완전 초기화되었습니다.', 'success');
+        fetchBackups();
       } else {
-        showToast(data.message || '초기화 실패', 'error');
+        showToast('데이터베이스 초기화 실패', 'error');
       }
-    } catch {
-      showToast('초기화 요청 중 오류가 발생했습니다.', 'error');
+    } catch (err: any) {
+      showToast(err?.message || '초기화 처리 중 오류가 발생했습니다.', 'error');
     } finally {
       setDbResetting(false);
     }
@@ -906,6 +912,19 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingBackups ? 'animate-spin' : ''}`} />
           </button>
+
+          {/* 웹 브라우저 환경 자원 관리 폴더 연결 버튼 */}
+          {!isServerApiAvailable && (
+            <button
+              type="button"
+              onClick={handleConnectResourceFolder}
+              title="브라우저에 내 PC Onrivi_Asset 자원 폴더 연결/권한 갱신"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition shadow-xs cursor-pointer ml-auto"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-[#06C755]" />
+              내 PC 자원 폴더 연결
+            </button>
+          )}
         </div>
 
         {/* 저장된 백업 목록 테이블 */}
@@ -923,8 +942,22 @@ export const KUI011_KnowledgeSettings: React.FC<KUI011KnowledgeSettingsProps> = 
           </div>
 
           {backups.length === 0 ? (
-            <div className="p-6 text-center text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-              {loadingBackups ? '백업 목록을 불러오는 중입니다...' : '생성된 로컬 백업이 없습니다. [지금 지식 DB 백업 생성] 버튼을 클릭해 보세요.'}
+            <div className="p-6 text-center text-xs text-zinc-500 dark:text-zinc-400 font-medium flex flex-col items-center justify-center gap-3">
+              <p>
+                {loadingBackups 
+                  ? '백업 목록을 불러오는 중입니다...' 
+                  : '생성된 로컬 백업이 없거나 자원 폴더(Onrivi_Asset) 연결이 필요합니다.'}
+              </p>
+              {!isServerApiAvailable && (
+                <button
+                  type="button"
+                  onClick={handleConnectResourceFolder}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-[#06C755] hover:bg-[#05b34c] text-white shadow-xs transition cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  내 PC의 Onrivi_Asset 폴더 연결하기
+                </button>
+              )}
             </div>
           ) : (
             <div className="divide-y divide-zinc-200 dark:divide-zinc-800 max-h-60 overflow-y-auto">

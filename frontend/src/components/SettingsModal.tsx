@@ -1,7 +1,7 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
-// 🎯 @KICK  : 에디터 환경 설정 모달 - 일반 설정, 단축키, 테마, AI 설정(Google Gemini) 제공
-// 🚨 @PATCH : **2026-09-05** — AI 설정(Gemini API 키) 즉시 영구 삭제 및 연동 해제 기능(handleDeleteAiSettings) 구현, 공통 리소스 폴더 연결 해제(onClearResourceFolder) 실시간 UI 및 스토리지 동기화 반영, 버튼 라벨 직관적 순화('연동 해제', '폴더 해제')
+// 🚨 @PATCH : **2026-09-11** — 단축키 설정 입력창에서 non-Mac 환경(Windows/Linux)의 Meta(Win) 키를 Ctrl로 오인하지 않도록 isMac 분기 적용
+//             **2026-09-05** — AI 설정(Gemini API 키) 즉시 영구 삭제 및 연동 해제 기능(handleDeleteAiSettings) 구현, 공통 리소스 폴더 연결 해제(onClearResourceFolder) 실시간 UI 및 스토리지 동기화 반영, 버튼 라벨 직관적 순화('연동 해제', '폴더 해제')
 //             **2026-09-05** — 데스크톱 앱 내비게이션 결함 방어: 로그인 페이지 및 대시보드 이동 링크 클릭 시 Electron 환경(window.electronAPI.openExternal) 지원 및 target="_blank" 적용으로 Electron 창 내부 404 및 흰 화면 결함 해결
 //             **2026-09-03** — 단축키/명령어 매핑 테이블의 아이콘, 명령어, 단축키 충돌을 플로팅 툴바 및 마크다운 표준과 100% 일치 동기화
 //             **2026-09-03** — fetchAccountData를 useCallback으로 격리하고 useEffect 의존성 배열에 추가하여 ESLint react-hooks/exhaustive-deps 경고 완벽 해소

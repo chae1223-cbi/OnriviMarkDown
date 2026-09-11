@@ -2,7 +2,8 @@
 // 📊 [OMD-MODAL-KnowledgeHub-0001] KnowledgeHubModal.tsx ➔ Onrivi 지식 엔진 통합 관리 센터 (KUI-001 ~ KUI-012)
 // 🎯 @KICK  : 대량 문서 수집/지식화 명세서(ONRIVI-KNOWLEDGE-ENGINE-002.1) 12대 화면 통합 관제 허브 모달
 // 🛡️ @GUARD : LINE Design System LDSG v5.0 (#06C755), LNB 럭셔리 그라데이션(.bg-sidebar-luxury) & 라운드 하이라이트 표준 준수 (Rule 6), 중앙 서버 비개입 100% 로컬 격리
-// 🚨 @PATCH : **2026-09-06** — [localhost 지식 엔진 연동 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 SQLite 지식 베이스 조회/등록을 활성화하고, prod 웹 환경에서만 데스크톱 안내 배너를 노출하도록 가드 개선
+// 🚨 @PATCH : **2026-09-11** — [KUI011 환경설정 resourceFolderHandle 연동] 웹 환경에서 백업/원복 조회를 위해 KUI011_KnowledgeSettings에 resourceFolderHandle 전달
+//             **2026-09-06** — [localhost 지식 엔진 연동 지원] 데스크톱뿐만 아니라 로컬 웹 개발 환경(localhost, 127.0.0.1)에서도 SQLite 지식 베이스 조회/등록을 활성화하고, prod 웹 환경에서만 데스크톱 안내 배너를 노출하도록 가드 개선
 //             **2026-09-06** — [웹/데스크톱 로컬 SQLite 격리] 웹 브라우저 환경에서 로컬 SQLite API 불필요 호출 차단 및 상단 LDSG v5.0 데스크톱 전용 안내 배너 표시
 //             **2026-09-04** — [사이드바 디자인 통일] 지식 허브 모달 좌측 사이드바를 에디터 좌측 사이드바(LeftSidebar)와 1:1 완벽 대응(서체, 테두리, 헤더 바, 저장소 실폴더 바, 12px 볼드 메뉴, 시스템 현황 위젯)하도록 디자인 고도화
 //             **2026-09-04** — [브랜드 로고 통일] Onrivi Knowledge Hub 모달 헤더 로고를 이모지(🧠)에서 온리비 공식 네잎클로버 펜촉 브랜드 로고(/icon.png)로 교체
@@ -57,6 +58,7 @@ interface KnowledgeHubModalProps {
   fileTreeNodes?: any[];
   showToast: (msg: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
   initialTab?: KnowledgeHubTab;
+  resourceFolderHandle?: any;
 }
 
 export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
@@ -71,6 +73,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
   fileTreeNodes = [],
   showToast,
   initialTab = 'dashboard',
+  resourceFolderHandle,
 }) => {
   const [activeTab, setActiveTab] = useState<KnowledgeHubTab>(initialTab);
   const [previousTab, setPreviousTab] = useState<KnowledgeHubTab>('dashboard');
@@ -708,6 +711,7 @@ export const KnowledgeHubModal: React.FC<KnowledgeHubModalProps> = ({
                 aiModelName={aiModelName}
                 onSaveModelName={(model) => onSaveModelName?.(model)}
                 showToast={showToast}
+                resourceFolderHandle={resourceFolderHandle || (typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : undefined)}
               />
             )}
 
