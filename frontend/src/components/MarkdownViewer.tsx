@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-09-11** — 미리보기 영역 사용자 정의 CSS 전면 지원: customCss prop, 마크다운 Frontmatter custom_css/css 추출 주입, 마크다운 본문 내 인라인 <style> 태그 실시간 렌더링 지원
+// 🚨 @PATCH : **2026-09-11** — 단일 물결표(~, 기간·인사말 등) 취소선 오인식 방지: remark-gfm singleTilde: false 옵션 적용 (표준 2개 물결표 ~~취소선~~만 허용)
+//             **2026-09-11** — 미리보기 영역 사용자 정의 CSS 전면 지원: customCss prop, 마크다운 Frontmatter custom_css/css 추출 주입, 마크다운 본문 내 인라인 <style> 태그 실시간 렌더링 지원
 //             **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트 및 .onrivi-line 정밀 분할] rehypeSourceLinesPlugin에서 문단(p) 내부를 줄바꿈(br) 단위로 <span class="onrivi-line" data-line="...">로 분할 래핑하여 여러 줄로 구성된 문단에서도 커서가 위치한 특정 행 하나만 정확하게 독립 하이라이트되도록 전면 개선
 //             **2026-09-06** — [에디터-미리보기 하이라이트 일원화 및 잔상/중복 테두리 제거] 인라인 activeLine dashed 아웃라인 스타일 태그를 제거하고 단일 preview-highlight-line 클래스로 통일하여 표(tr) 및 일반 요소 하이라이트 시인성 일원화
 //             **2026-09-05** — [표 전체 래퍼 중복 앵커 제거 및 행(tr) 단위 초정밀 싱크 보장] TableWrapper에서 테이블 전체를 묶는 중복 data-line 속성을 제거하여 자식 tr 개별 행들이 독립적인 40px 단위 앵커로 정확히 인식되도록 개선; iframe 지도 래퍼(map-embed-wrapper) 단일 앵커 일원화
@@ -1864,7 +1865,7 @@ function MarkdownViewer({
             if (cleanUri.trim().toLowerCase().startsWith('javascript:')) return '';
             return cleanUri;
           }}
-          remarkPlugins={[remarkGfm, remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
+          remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkExtendedTable, remarkBreaks, remarkMath, remarkDisableIndentedCode]}
           rehypePlugins={[
             [rehypeKatex, { strict: false }],
             rehypeBrRaw,
