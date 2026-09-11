@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-Footer-0021] Footer ➔ Footer
 // 🎯 @KICK  : 웹사이트 하단 푸터로 주요 서비스 바로가기 링크 및 사업자 고지 정보 노출
 // 🛡️ @GUARD : 정적 데이터 출력 위주이나 현재 연도를 new Date().getFullYear()로 안전하게 가져와 출력
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
+//             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-06-28** — 하단 제품 메뉴에 온라인 문의하기(/contact) 네비게이션 링크 추가 패치
 //             **2026-06-21** — OMDLanding UI 이식 패치; 로고 아이콘 /icon.png 변경 패치
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 푸터, Ice Blue 링크 호버)
@@ -29,7 +30,7 @@ const footerLinks = {
 export function Footer() {
   return (
     <footer
-      className="bg-[#DCE1FF] dark:bg-zinc-950 border-t border-[#C5CEF8] dark:border-white/10 pt-14 pb-8 text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="bg-[#EFEFFF] dark:bg-zinc-950 border-t border-[#E2E4F6] dark:border-white/10 pt-14 pb-8 text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{
         fontFamily: "Pretendard, sans-serif",
       }}
@@ -117,7 +118,7 @@ export function Footer() {
                 background: "rgba(255,255,255,0.85)",
                 backdropFilter: "blur(20px)",
                 WebkitBackdropFilter: "blur(20px)",
-                border: "1px solid #C5CEF8",
+                border: "1px solid #E2E4F6",
                 borderRadius: "0.75rem",
                 padding: "14px 16px",
               }}
@@ -134,7 +135,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div style={{ borderTop: "1px solid #C5CEF8", paddingTop: 24, display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ borderTop: "1px solid #E2E4F6", paddingTop: 24, display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <p style={{ fontSize: 12, color: "#475569" }}>
             &copy; {new Date().getFullYear()} {SITE_NAME}. All rights reserved.
           </p>

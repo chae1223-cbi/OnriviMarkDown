@@ -2,7 +2,7 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-05** — 로그아웃(handleLogout) 시 onrivi_* 및 sb-* 로컬스토리지 전량 파기로 계정 간 세션 오염 원천 차단 및 p_user_id 전달 연동
 //             **2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 헤더 높이(76px) 및 최대폭(1240px) 최적화, 단일 Primary CTA 중심 정돈 및 LDSG v5.0 글래스모피즘 표준 적용
 //             **2026-08-27** — 비로그인 상태 헤더 우측 영역에 '즉시 체험하기' 버튼을 추가하고, 클릭 시 로컬 스토리지 게스트 플래그(onrivi_guest_mode)를 셋업하여 복잡한 로그인/가입 없이 브라우저 가상 스페이스 에디터로 즉시 진입하도록 액션 탑재; **2026-06-28** — 데스크톱 앱(Electron) 환경 진입 시 웹 상단 헤더가 레이아웃을 해쳐 에디터 집중을 방해하지 않도록 렌더링 무조건 스킵(return null) 가드 패치; 비밀번호 재설정(/reset-password) 화면 진입 시 임시 토큰으로 로그인 상태의 헤더 UI가 노출되지 않도록 강제 필터링 우회 패치
@@ -149,8 +149,8 @@ export function Navbar({ content }: { content?: NavbarContent }) {
     <nav
       className={`fixed w-full z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-[#DCE1FF]/90 dark:bg-[#121314]/90 backdrop-blur-md border-b border-[#C5CEF8] dark:border-white/10 shadow-[0_4px_20px_-4px_rgba(29,78,216,0.06)]"
-          : "bg-[#DCE1FF]/60 dark:bg-[#121314]/60 backdrop-blur-sm border-b border-transparent"
+          ? "bg-white/90 dark:bg-[#121314]/90 backdrop-blur-md border-b border-[#E2E4F6] dark:border-white/10 shadow-[0_4px_20px_-4px_rgba(29,78,216,0.04)]"
+          : "bg-white/60 dark:bg-[#121314]/60 backdrop-blur-sm border-b border-transparent"
       }`}
       style={{
         fontFamily: "Pretendard, LineSeed, sans-serif",

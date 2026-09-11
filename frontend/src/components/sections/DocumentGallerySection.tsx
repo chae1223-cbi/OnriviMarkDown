@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-DocumentGallerySection-0028] DocumentGallerySection ➔ DocumentGallerySection
 // 🎯 @KICK  : 실무에서 작성되는 4대 핵심 문서(기획서, 기능명세서, 회의록, 기술문서)를 사진 대신 실제 조판된 문서 카드로 쇼케이스하는 갤러리 섹션
 // 🛡️ @GUARD : 문서 카드 그리드 반응형 가드 및 호버 인터랙션 보장
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
+//             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: '문서가 곧 비주얼이 된다'는 기획 철학을 구현한 Documents Gallery 컴포넌트 신규 생성
 // 🔗 @CALLS : motion.div, FileText, CheckSquare, Code2, Calendar
@@ -87,13 +88,13 @@ export function DocumentGallerySection() {
   return (
     <section
       id="documents"
-      className="py-24 sm:py-32 bg-[#DCE1FF] dark:bg-[#15171A] border-y border-[#C5CEF8] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="py-24 sm:py-32 bg-[#EFEFFF] dark:bg-[#15171A] border-y border-[#E2E4F6] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#C5CEF8] text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4 shadow-2xs">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4 shadow-2xs">
             DOCUMENTS
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">
@@ -115,13 +116,13 @@ export function DocumentGallerySection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: idx * 0.08 }}
-                className="group rounded-2xl border border-[#C5CEF8] dark:border-white/10 bg-white dark:bg-[#1A1D22] p-6 sm:p-8 hover:border-[#1d4ed8] transition-all duration-300 hover:shadow-[0_16px_40px_-10px_rgba(29,78,216,0.12)] flex flex-col justify-between text-left"
+                className="group rounded-2xl border border-[#E2E4F6] dark:border-white/10 bg-white dark:bg-[#1A1D22] p-6 sm:p-8 hover:border-[#1d4ed8] transition-all duration-300 hover:shadow-[0_16px_40px_-10px_rgba(29,78,216,0.12)] flex flex-col justify-between text-left"
               >
                 <div>
                   {/* Card Top Metadata */}
-                  <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#C5CEF8] dark:border-white/10">
+                  <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#E2E4F6] dark:border-white/10">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#DCE1FF]/40 border border-[#C5CEF8] text-[#1d4ed8] dark:text-blue-300">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#EFEFFF] border border-[#E2E4F6] text-[#1d4ed8] dark:text-blue-300">
                         {doc.category}
                       </span>
                       <span className="text-[11px] font-mono text-[#68716D] dark:text-zinc-400">
@@ -143,7 +144,7 @@ export function DocumentGallerySection() {
                   </div>
 
                   {/* Document Sheet Simulation */}
-                  <div className="rounded-xl border border-[#C5CEF8]/60 dark:border-white/5 bg-[#DCE1FF]/15 dark:bg-[#14161A] p-4 sm:p-5 font-sans text-xs space-y-3">
+                  <div className="rounded-xl border border-[#E2E4F6] dark:border-white/5 bg-[#EFEFFF]/50 dark:bg-[#14161A] p-4 sm:p-5 font-sans text-xs space-y-3">
                     <div className="font-mono text-zinc-400 text-[11px]">
                       {doc.content.h1}
                     </div>

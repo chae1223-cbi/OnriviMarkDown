@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-HeroSection-0022] HeroSection ➔ HeroSection
 // 🎯 @KICK  : Onrivi Author Premium V2의 타이포그래피 가치 제안 및 실제 라이프스타일/업무 씬을 2열 레이아웃과 무깜빡임(Cross-Fade) 3초 자동 롤링 이미지 슬라이더로 전달하는 히어로 영역
 // 🛡️ @GUARD : 슬라이더 타이머 메모리 릭 방지(clearInterval) 및 이미지 상시 DOM 적재 기반 깜빡임 원천 차단
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
+//             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — '제품 살펴보기' 버튼 제거 및 슬라이더 이미지 상시 렌더링(CSS Cross-Fade) 전환으로 깜빡임 현상 완벽 제거
 //             **2026-09-11** — 히어로 섹션 2열(좌측 카피/CTA + 우측 3초 자동 롤링 이미지 슬라이더 5종) 전면 개편 및 기존 목업 제거
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
@@ -87,7 +88,7 @@ export function HeroSection() {
 
   return (
     <section
-      className="pt-28 pb-16 sm:pt-36 sm:pb-24 overflow-hidden relative bg-[#DCE1FF] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="pt-28 pb-16 sm:pt-36 sm:pb-24 overflow-hidden relative bg-[#FFFFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       {/* Subtle Top Ambient Glow (Cobalt Authority on Warm Base) */}
@@ -110,7 +111,7 @@ export function HeroSection() {
               transition={{ duration: 0.4 }}
               className="inline-flex mb-5"
             >
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-zinc-800/80 border border-[#C5CEF8] dark:border-white/10 text-xs font-semibold text-[#1A1A18] dark:text-zinc-200 tracking-tight shadow-2xs">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#EFEFFF] dark:bg-zinc-800/80 border border-[#E2E4F6] dark:border-white/10 text-xs font-semibold text-[#1A1A18] dark:text-zinc-200 tracking-tight shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-[#1d4ed8] animate-pulse" />
                 AI-NATIVE DOCUMENT PLATFORM
               </div>
@@ -163,7 +164,7 @@ export function HeroSection() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.28 }}
-              className="grid grid-cols-3 gap-3 pt-6 border-t border-[#C5CEF8] dark:border-white/10"
+              className="grid grid-cols-3 gap-3 pt-6 border-t border-[#E2E4F6] dark:border-white/10"
             >
               <div className="flex items-center gap-2">
                 <ShieldCheck size={16} className="text-[#1d4ed8] shrink-0" />
@@ -198,7 +199,7 @@ export function HeroSection() {
             onMouseLeave={() => setIsPaused(false)}
           >
             {/* Slider Card Container */}
-            <div className="relative aspect-square w-full max-w-[540px] mx-auto rounded-2xl sm:rounded-3xl overflow-hidden border border-[#C5CEF8] dark:border-white/10 bg-zinc-950 shadow-[0_20px_60px_-15px_rgba(29,78,216,0.22)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] group select-none">
+            <div className="relative aspect-square w-full max-w-[540px] mx-auto rounded-2xl sm:rounded-3xl overflow-hidden border border-[#E2E4F6] dark:border-white/10 bg-zinc-950 shadow-[0_20px_60px_-15px_rgba(29,78,216,0.22)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] group select-none">
               {/* All slides mounted continuously in DOM - Pure CSS Cross-Fade to prevent any flash/blink */}
               {HERO_SLIDES.map((s, idx) => {
                 const isActive = idx === currentSlide;
