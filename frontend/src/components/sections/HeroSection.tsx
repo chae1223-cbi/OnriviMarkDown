@@ -1,18 +1,19 @@
 // ====================================================================
 // 📊 [OMD-UI-HeroSection-0022] HeroSection ➔ HeroSection
-// 🎯 @KICK  : Onrivi Author Premium V2의 타이포그래피 가치 제안 및 실제 라이프스타일/업무 씬(데스크톱, 태블릿, 모바일, 협업)을 2열 레이아웃과 3초 자동 롤링 이미지 슬라이더로 전달하는 히어로 영역
-// 🛡️ @GUARD : 슬라이더 타이머 메모리 릭 방지(clearInterval) 및 Framer Motion 부드러운 전환 가드
-// 🚨 @PATCH : **2026-09-11** — 히어로 섹션 2열(좌측 카피/CTA + 우측 3초 자동 롤링 이미지 슬라이더 5종) 전면 개편 및 기존 목업 제거
+// 🎯 @KICK  : Onrivi Author Premium V2의 타이포그래피 가치 제안 및 실제 라이프스타일/업무 씬을 2열 레이아웃과 무깜빡임(Cross-Fade) 3초 자동 롤링 이미지 슬라이더로 전달하는 히어로 영역
+// 🛡️ @GUARD : 슬라이더 타이머 메모리 릭 방지(clearInterval) 및 이미지 상시 DOM 적재 기반 깜빡임 원천 차단
+// 🚨 @PATCH : **2026-09-11** — '제품 살펴보기' 버튼 제거 및 슬라이더 이미지 상시 렌더링(CSS Cross-Fade) 전환으로 깜빡임 현상 완벽 제거
+//             **2026-09-11** — 히어로 섹션 2열(좌측 카피/CTA + 우측 3초 자동 롤링 이미지 슬라이더 5종) 전면 개편 및 기존 목업 제거
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — Onrivi Author Premium V2 개편: 웜 페이퍼 크림(#F9F8F6) 베이스 및 멀티미디어 비주얼 쇼케이스 탑재
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치
 //             **2026-06-21** — OMDLanding UI 디자인 이식 및 /login 리다이렉트 변경 패치
-// 🔗 @CALLS : motion.div, AnimatePresence, Link, ChevronLeft, ChevronRight
+// 🔗 @CALLS : motion.div, Link, ChevronLeft, ChevronRight
 // ====================================================================
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight, ShieldCheck, Zap, Sparkles } from "lucide-react";
 
@@ -83,8 +84,6 @@ export function HeroSection() {
     return () => clearInterval(timer);
   }, [isPaused, nextSlide]);
 
-  const slide = HERO_SLIDES[currentSlide];
-
   return (
     <section
       className="pt-28 pb-16 sm:pt-36 sm:pb-24 overflow-hidden relative bg-[#F9F8F6] dark:bg-[#121314] text-[#1A1A18] dark:text-[#E8ECE9]"
@@ -100,7 +99,7 @@ export function HeroSection() {
         {/* 2-Column Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center">
           {/* ======================================================= */}
-          {/* Left Column: Headline, Copy, CTA & Badges */}
+          {/* Left Column: Headline, Copy, Single CTA & Badges */}
           {/* ======================================================= */}
           <div className="lg:col-span-6 text-left">
             {/* Top Badge */}
@@ -143,7 +142,7 @@ export function HeroSection() {
               타이핑의 즉시성과 출판 규격의 조판 품질을 하나의 화면에서 완성합니다.
             </motion.p>
 
-            {/* CTA Buttons */}
+            {/* CTA Button (단일 무료로 시작하기 버튼) */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -151,16 +150,11 @@ export function HeroSection() {
               className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 mb-10"
             >
               <Link href="/signup" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[15px] shadow-[0_4px_24px_rgba(29,78,216,0.28)] hover:shadow-[0_6px_28px_rgba(29,78,216,0.4)] transition-all transform hover:-translate-y-0.5 active:translate-y-0">
+                <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[16px] shadow-[0_4px_24px_rgba(29,78,216,0.28)] hover:shadow-[0_6px_28px_rgba(29,78,216,0.4)] transition-all transform hover:-translate-y-0.5 active:translate-y-0">
                   무료로 시작하기
-                  <ArrowRight size={16} />
+                  <ArrowRight size={17} />
                 </button>
               </Link>
-              <a href="#philosophy" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 rounded-xl border border-[#E0DED7] dark:border-white/15 bg-white dark:bg-zinc-900/50 hover:bg-[#F2F0EB] dark:hover:bg-zinc-800 text-[#1A1A18] dark:text-zinc-200 font-semibold text-[15px] transition-all shadow-2xs">
-                  제품 살펴보기
-                </button>
-              </a>
             </motion.div>
 
             {/* Trust Highlights */}
@@ -192,7 +186,7 @@ export function HeroSection() {
           </div>
 
           {/* ======================================================= */}
-          {/* Right Column: 3-Second Auto-Rolling Image Slider */}
+          {/* Right Column: Seamless Cross-Fade 3s Image Slider */}
           {/* ======================================================= */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
@@ -203,41 +197,54 @@ export function HeroSection() {
             onMouseLeave={() => setIsPaused(false)}
           >
             {/* Slider Card Container */}
-            <div className="relative aspect-square w-full max-w-[540px] mx-auto rounded-2xl sm:rounded-3xl overflow-hidden border border-[#E0DED7] dark:border-white/10 bg-white dark:bg-zinc-900 shadow-[0_20px_60px_-15px_rgba(29,78,216,0.16)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] group">
-              {/* Image Transition Viewport */}
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={slide.id}
-                  initial={{ opacity: 0, scale: 1.03 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute inset-0 w-full h-full"
-                >
-                  <img
-                    src={slide.src}
-                    alt={slide.title}
-                    className="w-full h-full object-cover select-none"
-                    loading="eager"
-                  />
-                  {/* Subtle Gradient Overlay for Text Readability */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent pointer-events-none" />
-                </motion.div>
-              </AnimatePresence>
+            <div className="relative aspect-square w-full max-w-[540px] mx-auto rounded-2xl sm:rounded-3xl overflow-hidden border border-[#E0DED7] dark:border-white/10 bg-zinc-950 shadow-[0_20px_60px_-15px_rgba(29,78,216,0.16)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] group select-none">
+              {/* All slides mounted continuously in DOM - Pure CSS Cross-Fade to prevent any flash/blink */}
+              {HERO_SLIDES.map((s, idx) => {
+                const isActive = idx === currentSlide;
+                return (
+                  <div
+                    key={s.id}
+                    className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${
+                      isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+                    }`}
+                  >
+                    <img
+                      src={s.src}
+                      alt={s.title}
+                      className="w-full h-full object-cover select-none transform scale-100 transition-transform duration-1000 ease-out"
+                      loading="eager"
+                    />
+                    {/* Subtle Gradient Overlay for Text Readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent pointer-events-none" />
+                  </div>
+                );
+              })}
 
-              {/* Caption Overlay at Bottom */}
-              <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 text-left z-10 select-none">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md text-[10px] sm:text-[11px] font-extrabold text-[#1d4ed8] uppercase tracking-wider mb-2 shadow-xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
-                  {slide.tag}
-                </div>
-                <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight drop-shadow-sm mb-1">
-                  {slide.title}
-                </h3>
-                <p className="text-xs sm:text-sm text-zinc-200/90 font-normal leading-relaxed drop-shadow-xs line-clamp-2">
-                  {slide.subtitle}
-                </p>
-              </div>
+              {/* Caption Overlays (Cross-Faded smoothly per slide) */}
+              {HERO_SLIDES.map((s, idx) => {
+                const isActive = idx === currentSlide;
+                return (
+                  <div
+                    key={`caption-${s.id}`}
+                    className={`absolute bottom-0 left-0 right-0 p-5 sm:p-7 text-left z-20 select-none transition-all duration-700 ease-in-out ${
+                      isActive
+                        ? "opacity-100 translate-y-0"
+                        : "opacity-0 translate-y-2 pointer-events-none"
+                    }`}
+                  >
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md text-[10px] sm:text-[11px] font-extrabold text-[#1d4ed8] uppercase tracking-wider mb-2 shadow-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
+                      {s.tag}
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight drop-shadow-sm mb-1">
+                      {s.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-zinc-200/90 font-normal leading-relaxed drop-shadow-xs line-clamp-2">
+                      {s.subtitle}
+                    </p>
+                  </div>
+                );
+              })}
 
               {/* Navigation Arrows (Visible on Hover) */}
               <button
@@ -246,7 +253,7 @@ export function HeroSection() {
                   e.stopPropagation();
                   prevSlide();
                 }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-20 cursor-pointer"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-30 cursor-pointer"
                 aria-label="이전 이미지"
               >
                 <ChevronLeft size={18} />
@@ -257,14 +264,14 @@ export function HeroSection() {
                   e.stopPropagation();
                   nextSlide();
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-20 cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-30 cursor-pointer"
                 aria-label="다음 이미지"
               >
                 <ChevronRight size={18} />
               </button>
 
               {/* Pagination Dots (Top Right Inside Container) */}
-              <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1.5 rounded-full">
+              <div className="absolute top-4 right-4 z-30 flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1.5 rounded-full">
                 {HERO_SLIDES.map((s, idx) => (
                   <button
                     key={s.id}
@@ -273,7 +280,7 @@ export function HeroSection() {
                       e.stopPropagation();
                       setCurrentSlide(idx);
                     }}
-                    className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                    className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
                       idx === currentSlide
                         ? "w-5 bg-[#1d4ed8] shadow-[0_0_8px_rgba(29,78,216,0.8)]"
                         : "w-1.5 bg-white/50 hover:bg-white/80"
