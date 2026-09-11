@@ -2,8 +2,8 @@
 // 📊 [OMD-EDIT-markdownCleaner-0001 ✅ FIXED] markdownCleaner.ts ➔ cleanMarkdownDocument
 // 🎯 @KICK  : 마크다운 문서 내 서식 및 문법을 지능적으로 교정하고 표를 수직 정렬하는 뷰티파이어 엔진
 // 🛡️ @GUARD : 코드블록/수식/Frontmatter 마스킹 보호, 동아시아 문자 폭 계산, 실행 취소 안전성 보장
-// 🚨 @PATCH : **2026-09-11** — 에디터 줄바꿈(Word Wrap) 가독성을 위해 과대 하이픈 및 패딩 공백을 최소화하여 단정한 컴팩트 표(formatCompactMarkdownTable)로 축소 정돈; 코드/수식/프론트매터 마스킹, 헤딩/인용구 공백 자동 교정, HTML 태그 마크다운 변환, 세부 통계 수집 기능 통합 신설
-// 🔗 @CALLS : formatMarkdownTables
+// 🚨 @PATCH : **2026-09-11** — 볼드(**) 및 취소선(~~) 내부 선행/후행 공백(예: ** 상속세·증여세**, (** 단, 당해세는 예외** )) 및 닫힘 뒤 쉼표 앞 공백 자동 교정 탑재; 에디터 줄바꿈(Word Wrap) 가독성을 위해 과대 하이픈 및 패딩 공백을 최소화하여 단정한 컴팩트 표(formatCompactMarkdownTable)로 축소 정돈; 코드/수식/프론트매터 마스킹, 헤딩/인용구 공백 자동 교정, HTML 태그 마크다운 변환, 세부 통계 수집 기능 통합 신설
+// 🔗 @CALLS : formatCompactMarkdownTable
 // ====================================================================
 
 export interface CleanStats {
@@ -13,6 +13,7 @@ export interface CleanStats {
   htmlConverted: number;
   brCollapsed: number;
   linesReduced: number;
+  boldFixed: number;
 }
 
 export interface CleanResult {
@@ -26,6 +27,7 @@ export interface CleanOptions {
   formatTables?: boolean;
   fixHeadings?: boolean;
   fixQuotes?: boolean;
+  fixEmphasisSpacing?: boolean;
   convertHtmlTags?: boolean;
   cleanExcessiveNewlines?: boolean;
 }
@@ -206,6 +208,7 @@ export function cleanMarkdownDocument(
     formatTables = true,
     fixHeadings = true,
     fixQuotes = true,
+    fixEmphasisSpacing = true,
     convertHtmlTags = true,
     cleanExcessiveNewlines = true,
   } = options;
@@ -221,6 +224,7 @@ export function cleanMarkdownDocument(
         htmlConverted: 0,
         brCollapsed: 0,
         linesReduced: 0,
+        boldFixed: 0,
       },
       summaryMessage: '정리할 서식이 없습니다.',
     };
@@ -233,6 +237,7 @@ export function cleanMarkdownDocument(
     htmlConverted: 0,
     brCollapsed: 0,
     linesReduced: 0,
+    boldFixed: 0,
   };
 
   let working = content;
@@ -308,6 +313,36 @@ export function cleanMarkdownDocument(
     });
 
     stats.htmlConverted += strongMatches + emMatches + delMatches;
+  }
+
+  // -------------------------------------------------------------
+  // 3-1. 볼드(**) 및 취소선(~~) 내부 불필요 공백 및 닫힘 뒤 쉼표/괄호 정돈
+  // -------------------------------------------------------------
+  if (fixEmphasisSpacing) {
+    // 볼드 내부 선행/후행 공백 제거 (예: ** 상속세·증여세** -> **상속세·증여세**, (** 단, 당해세는 예외** ) -> (**단, 당해세는 예외**))
+    const boldSpaceRegex = /(?<!\*)\*\*[\s\t]*(\S(?:[^|*\n]*?\S)?)\s*\*\*(?!\*)/g;
+    working = working.replace(boldSpaceRegex, (m, p1) => {
+      if (m !== `**${p1}**`) {
+        stats.boldFixed++;
+      }
+      return `**${p1}**`;
+    });
+
+    // 취소선 내부 선행/후행 공백 제거 (예: ~~ 취소선 ~~ -> ~~취소선~~)
+    const delSpaceRegex = /(?<!~)~~[\s\t]*(\S(?:[^|~\n]*?\S)?)\s*~~(?!~)/g;
+    working = working.replace(delSpaceRegex, (m, p1) => {
+      if (m !== `~~${p1}~~`) {
+        stats.boldFixed++;
+      }
+      return `~~${p1}~~`;
+    });
+
+    // 볼드/취소선 닫힘 뒤 쉼표나 마침표 앞의 어색한 공백 정리: **텍스트** , -> **텍스트**,
+    working = working.replace(/(\*\*|~~)\s+([,.:;?!])/g, '$1$2');
+
+    // 괄호 내부의 불필요한 공백 정돈: ( **텍스트** ) -> (**텍스트**)
+    working = working.replace(/\(\s+(\*\*|~~)/g, '($1');
+    working = working.replace(/(\*\*|~~)\s+\)/g, '$1)');
   }
 
   // -------------------------------------------------------------
@@ -388,6 +423,7 @@ export function cleanMarkdownDocument(
   if (stats.quotesFixed > 0) summaryParts.push(`인용구 ${stats.quotesFixed}곳 교정`);
   if (stats.htmlConverted > 0) summaryParts.push(`HTML ${stats.htmlConverted}개 변환`);
   if (stats.brCollapsed > 0) summaryParts.push(`<br> ${stats.brCollapsed}곳 정돈`);
+  if (stats.boldFixed > 0) summaryParts.push(`강조 기호 ${stats.boldFixed}곳 교정`);
   if (stats.linesReduced > 0) summaryParts.push(`빈 줄 압축`);
 
   let summaryMessage = '정리할 서식이 없습니다.';

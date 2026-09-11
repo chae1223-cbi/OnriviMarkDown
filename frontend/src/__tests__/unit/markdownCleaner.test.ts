@@ -115,5 +115,12 @@ describe('markdownCleaner - Unit Tests', () => {
       expect(res.cleanedText).toBe('문단 1\n\n문단 2');
       expect(res.stats.linesReduced).toBeGreaterThan(0);
     });
+
+    it('fixes inner and trailing spaces in bold (**) and strikethrough (~~)', () => {
+      const content = '** 상속세·증여세** , (** 단, 당해세는 예외** ) 및 ~~ 취소선 ~~ 테스트';
+      const res = cleanMarkdownDocument(content);
+      expect(res.cleanedText).toBe('**상속세·증여세**, (**단, 당해세는 예외**) 및 ~~취소선~~ 테스트');
+      expect(res.stats.boldFixed).toBe(3);
+    });
   });
 });
