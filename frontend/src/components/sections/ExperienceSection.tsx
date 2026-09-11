@@ -1,8 +1,9 @@
 // ====================================================================
 // 📊 [OMD-UI-ExperienceSection-0027] ExperienceSection ➔ ExperienceSection
-// 🎯 @KICK  : Onrivi Author의 3대 핵심 경험(WRITE, REFINE, PUBLISH)을 실제 제품 UI 목업과 함께 단계별로 몰입감 있게 선보이는 피처 섹션
+// 🎯 @KICK  : Onrivi Author의 3대 핵심 경험(집중 에디터, 실시간 AI 비서, 자동 스타일링)을 실제 제품 UI 목업과 함께 단계별로 몰입감 있게 선보이는 피처 섹션
 // 🛡️ @GUARD : 탭 상태 스위칭 및 반응형 카드 UI 오버플로우 방지
-// 🚨 @PATCH : **2026-09-11** — ExperienceSection 문구를 실생활 친화적이고 직관적인 일상 언어(편안한 작성, 다정한 AI 도우미, 예쁜 문서 완성 등)로 전면 개편
+// 🚨 @PATCH : **2026-09-11** — 간편한 4단계 작성 섹션과의 메시지 중복을 해소하고, '미리 만나는 온리비' 에디터 핵심 기능 체험(집중 에디터, 실시간 AI 비서, 자동 스타일링) 쇼케이스로 전면 차별화 개편
+//             **2026-09-11** — ExperienceSection 문구를 실생활 친화적이고 직관적인 일상 언어(편안한 작성, 다정한 AI 도우미, 예쁜 문서 완성 등)로 전면 개편
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
@@ -22,44 +23,50 @@ export function ExperienceSection() {
     {
       id: "write",
       tabNumber: "01",
-      tabTitle: "WRITE",
-      tag: "자유로운 생각 기록",
-      heading: "생각나는 대로 키보드로 톡톡, 거침없이 써 내려가세요.",
-      subheading: "서식 맞추느라 멈추지 않고, 떠오르는 생각을 그대로 담아냅니다.",
-      desc: "글씨 크기나 줄 간격을 신경 쓰느라 좋은 아이디어를 놓치지 마세요. # 하나로 제목을 달고, - 기호로 목록을 만들며 손가락이 키보드를 떠나지 않고 편안하게 글에 몰입할 수 있습니다.",
+      tabTitle: "집중 에디터",
+      tag: "방해 없는 타이핑 환경",
+      heading: "마우스에 손대지 않고, 오직 생각과 글에만 몰입합니다.",
+      subheading: "키보드 하나로 제목, 표, 체크리스트까지 물 흐르듯 완성.",
+      desc: "글씨 크기나 줄 간격을 마우스로 일일이 맞추느라 글 쓰는 흐름을 끊지 마세요. 가벼운 기호(#, -)만으로 제목과 목록이 단정하게 잡히며, 긴 글도 렉 없이 부드럽게 써 내려갈 수 있습니다.",
       bullets: [
-        "버벅임 없이 빠르고 부드러운 실시간 타이핑",
-        "키보드만으로 제목, 체크박스, 표를 1초 만에 생성",
-        "내 컴퓨터 속 폴더와 문서를 그대로 안전하게 보관",
+        "대용량 문서도 버벅임 없는 초고속 실시간 타이핑",
+        "단축키와 기호(#, -)만으로 제목·목록·표 즉시 생성",
+        "내 컴퓨터의 로컬 파일과 1:1 직결되어 안전한 보관",
       ],
+      chromeTitle: "meeting-notes.md — 집중 에디터 모드",
+      modeLabel: "EDITOR MODE",
     },
     {
       id: "refine",
       tabNumber: "02",
-      tabTitle: "REFINE",
-      tag: "다정한 AI 문장 도우미",
-      heading: "내가 쓴 생각을 존중하며, 더 읽기 좋게 다듬어 줍니다.",
-      subheading: "어색한 문장이나 놓친 내용을 AI가 다정하게 찾아줍니다.",
-      desc: "글의 주도권은 언제나 사용자에게 있습니다. 대충 적어둔 거친 메모도 AI가 꼼꼼히 살펴보고, 보고서나 안내문 등 상황에 꼭 맞는 매끄럽고 친절한 문장으로 추천해 드립니다.",
+      tabTitle: "실시간 AI 비서",
+      tag: "문맥 맞춤 지능형 첨삭",
+      heading: "작성자의 생각을 존중하며, 더 매끄러운 표현을 제안합니다.",
+      subheading: "어색하거나 빠진 내용을 에디터 안에서 실시간으로 추천.",
+      desc: "글의 주도권은 언제나 사용자에게 있습니다. 두서없이 적어둔 거친 메모도 AI가 꼼꼼히 읽어보고, 보고서나 안내문 등 상황에 꼭 맞는 매끄럽고 친절한 문장으로 추천해 드립니다.",
       bullets: [
-        "글의 흐름을 파악해 꼭 알맞은 표현과 맞춤법 제안",
+        "문맥을 파악해 어색한 표현과 맞춤법 실시간 제안",
         "클릭 한 번으로 단정한 업무용 톤이나 친근한 말투로 전환",
-        "별도 창 없이 글 쓰는 화면에서 마음에 드는 문장만 쏙 선택",
+        "별도 모달창 없이 글 쓰는 화면에서 추천 문장 원클릭 반영",
       ],
+      chromeTitle: "ai-assistant.md — AI 비서 첨삭 모드",
+      modeLabel: "AI ASSIST MODE",
     },
     {
       id: "publish",
       tabNumber: "03",
-      tabTitle: "PUBLISH",
-      tag: "예쁜 문서 원클릭 완성",
-      heading: "디자이너가 다듬은 듯, 보기 좋은 문서로 바로 변신합니다.",
-      subheading: "누구에게 보여줘도 칭찬받는 깔끔한 레이아웃이 자동으로 완성됩니다.",
-      desc: "줄 맞춤이나 폰트 설정 때문에 고민하지 마세요. 문서에 꼭 맞는 여백과 세련된 디자인이 알아서 입혀집니다. 완성된 문서는 PDF, 웹 링크, 이미지 파일로 언제 어디서나 바로 공유할 수 있습니다.",
+      tabTitle: "자동 스타일링",
+      tag: "원클릭 고품질 조판",
+      heading: "디자이너가 만진 듯, 읽기 편한 서식과 레이아웃이 입혀집니다.",
+      subheading: "누구에게 보여줘도 칭찬받는 깔끔한 조판 디자인이 자동으로 완성.",
+      desc: "복잡한 서식 툴 없이도 글에 어울리는 최적의 폰트, 여백, 표 디자인이 알아서 정리됩니다. 완성된 문서는 PDF, 웹 링크, 이미지 파일로 언제 어디서나 깔끔하게 공유할 수 있습니다.",
       bullets: [
-        "눈이 편안한 전용 폰트와 세련된 여백 자동 조판",
-        "인쇄와 공유에 최적화된 깔끔한 PDF 원클릭 저장",
-        "웹 링크나 이미지로 팀원과 주고받는 손쉬운 공유",
+        "눈이 편안한 전용 서체와 황금비율 여백 자동 조판",
+        "인쇄와 보고에 최적화된 깔끔한 PDF 원클릭 저장",
+        "팀원 및 고객과 간편하게 주고받는 웹 공유 링크 지원",
       ],
+      chromeTitle: "proposal-output.pdf — 자동 조판 완료",
+      modeLabel: "PUBLISH MODE",
     },
   ] as const;
 
@@ -74,15 +81,15 @@ export function ExperienceSection() {
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-14">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EFEFFF] dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4 shadow-2xs">
-            EXPERIENCE
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EFEFFF] dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase mb-4 shadow-2xs">
+            미리 만나는 온리비
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">
-            온리비 하나면 충분해요,<br />
-            모든 글쓰기의 편안한 시작점.
+            직접 써보면 느껴지는,<br />
+            글쓰기에 꼭 맞춘 세심한 디테일.
           </h2>
-          <p className="text-[#2D3748] dark:text-zinc-300 text-base sm:text-lg">
-            가볍게 적고(Write), 똑똑하게 다듬고(Refine), 예쁘게 완성(Publish)하는 기분 좋은 문서 작성 여정.
+          <p className="text-[#2D3748] dark:text-zinc-300 text-base sm:text-lg leading-relaxed font-normal">
+            몰입을 돕는 스마트 에디터부터 문맥을 읽는 AI 비서, 완성도 높은 자동 서식까지 화면으로 직접 확인해 보세요.
           </p>
         </div>
 
@@ -162,13 +169,11 @@ export function ExperienceSection() {
                     <span className="w-2.5 h-2.5 rounded-full bg-zinc-300 dark:bg-zinc-700 inline-block" />
                     <span className="w-2.5 h-2.5 rounded-full bg-zinc-300 dark:bg-zinc-700 inline-block" />
                     <span className="ml-2 font-mono text-zinc-500 text-[11px]">
-                      {activeTab === "write" && "meeting-notes.md — WRITE"}
-                      {activeTab === "refine" && "ai-assistant.md — REFINE"}
-                      {activeTab === "publish" && "proposal-output.pdf — PUBLISH"}
+                      {currentExp.chromeTitle}
                     </span>
                   </div>
                   <span className="text-[11px] font-bold text-[#1d4ed8]">
-                    {activeTab.toUpperCase()} MODE
+                    {currentExp.modeLabel}
                   </span>
                 </div>
 
