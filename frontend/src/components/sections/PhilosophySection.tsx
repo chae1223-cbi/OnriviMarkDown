@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-PhilosophySection-0026] PhilosophySection ➔ PhilosophySection
 // 🎯 @KICK  : Onrivi Author의 핵심 설계 철학인 '생각은 Markdown으로, 사람은 문서로'를 시각화하고 개념도를 전달하는 섹션
 // 🛡️ @GUARD : 반응형 플로우 단계 렌더링 및 모바일 가독성 가드
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
+// 🚨 @PATCH : **2026-09-11** — PhilosophySection 문구를 실생활 친화적이고 직관적인 일상 언어(자유로운 기록, AI 문장 다듬기 등)로 전면 개편
+//             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: HOW IT WORKS 및 생각-AI-구조화-문서 파이프라인 시각화 신규 구현
@@ -17,33 +18,33 @@ export function PhilosophySection() {
   const steps = [
     {
       step: "01",
-      title: "Markdown",
-      subtitle: "생각의 속도",
-      desc: "단축키와 순수 텍스트로 머릿속 생각을 즉시 쏟아냅니다.",
+      title: "자유로운 기록",
+      subtitle: "서식 걱정 없는 타이핑",
+      desc: "줄 맞춤이나 폰트 고민 없이, 머릿속에 떠오른 생각을 키보드로 편안하게 적어보세요.",
       icon: FileText,
       accent: false,
     },
     {
       step: "02",
-      title: "AI 어시스트",
-      subtitle: "지능형 보강",
-      desc: "문맥을 이해하고 누락된 요건과 표현을 정밀하게 제안합니다.",
+      title: "AI 문장 다듬기",
+      subtitle: "어색한 표현 바로잡기",
+      desc: "거친 메모나 빠진 내용을 AI가 꼼꼼히 살피고 읽기 좋은 매끄러운 문장으로 다듬어 줍니다.",
       icon: Sparkles,
       accent: true,
     },
     {
       step: "03",
-      title: "Structure",
-      subtitle: "자동 구조화",
-      desc: "헤딩, 목록, 표, 코드블록이 논리적 체계로 자동 정렬됩니다.",
+      title: "깔끔한 자동 정돈",
+      subtitle: "한눈에 쏙 들어오는 구조",
+      desc: "제목, 목록, 표, 체크리스트가 알아서 보기 좋게 정리되어 글의 흐름이 한눈에 보입니다.",
       icon: Layers,
       accent: false,
     },
     {
       step: "04",
-      title: "Document",
-      subtitle: "출판급 조판",
-      desc: "LDSG v5.0 서식이 입혀진 사람이 읽는 완결된 문서로 사출됩니다.",
+      title: "완성된 예쁜 문서",
+      subtitle: "PDF · 웹으로 바로 공유",
+      desc: "회사 보고서나 팀 공유용으로 바로 건넬 수 있는 완성도 높은 문서로 즉시 출력됩니다.",
       icon: Users,
       accent: false,
     },
@@ -59,15 +60,15 @@ export function PhilosophySection() {
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4 shadow-2xs">
-            HOW IT WORKS
+            간편한 4단계 작성
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-5 text-[#111413] dark:text-white">
-            생각은 Markdown으로.<br className="hidden sm:inline" />
-            <span className="text-[#1d4ed8]">완성은 읽는 이의 언어로.</span>
+            메모하듯 편하게 쓰면,<br className="hidden sm:inline" />
+            <span className="text-[#1d4ed8]">단정한 문서로 완성됩니다.</span>
           </h2>
           <p className="text-[#2D3748] dark:text-zinc-300 text-base sm:text-lg leading-relaxed font-normal">
-            빠르게 쓰는 것과 잘 읽히는 문서는 하나일 수 있습니다.<br className="hidden sm:inline" />
-            복잡한 서식 설정 없이 오직 글에만 집중하고, 결과물은 전문가의 조판물처럼 세상과 나눕니다.
+            글 쓸 때 서식이나 줄 맞춤 때문에 스트레스받지 마세요.<br className="hidden sm:inline" />
+            떠오르는 생각을 가볍게 적기만 하면, 보기 좋은 문서 디자인은 온리비가 알아서 정돈해 드립니다.
           </p>
         </div>
 
@@ -91,7 +92,7 @@ export function PhilosophySection() {
                 {/* Step Number */}
                 <div className="flex items-center justify-between mb-5">
                   <span className={`text-xs font-mono font-extrabold tracking-wider ${item.accent ? "text-[#1d4ed8]" : "text-[#68716D] dark:text-zinc-500"}`}>
-                    PHASE {item.step}
+                    STEP {item.step}
                   </span>
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${item.accent ? "bg-[#1d4ed8]/15 text-[#1d4ed8]" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"}`}>
                     <Icon size={18} />
