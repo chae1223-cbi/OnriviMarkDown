@@ -173,19 +173,13 @@ export function Navbar({ content }: { content?: NavbarContent }) {
               href="#philosophy"
               className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
             >
-              철학
+              추천대상
             </a>
             <a
               href="#experience"
               className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
             >
               기능
-            </a>
-            <a
-              href="#documents"
-              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
-            >
-              문서
             </a>
             <a
               href="#pricing"

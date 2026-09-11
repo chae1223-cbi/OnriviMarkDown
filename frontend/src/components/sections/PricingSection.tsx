@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-UI-PricingSection-0023 ✅ FIXED] PricingSection ➔ PricingSection
 // 🎯 @KICK  : Onrivi Author 서비스 멤버십 가격표 출력
-// 🚨 @PATCH : **2026-09-11** — 요금제 카드 목록에서 Reader(제한사용자) 제거 및 하단에 '회원가입 후 무료 사용 가능' 별도 안내 박스 연동
+// 🚨 @PATCH : **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(Pricing: #EFEFFF)
+//             **2026-09-11** — 요금제 카드 목록에서 Reader(제한사용자) 제거 및 하단에 '회원가입 후 무료 사용 가능' 별도 안내 박스 연동
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
@@ -23,8 +24,16 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal"; // ConfirmModal : �
 // ====================================================================
 export function PricingSection() {   // PricingSection : Onrivi Author 서비스 멤버십 가격표를 위한 컴포넌트  
   const [modalConfig, setModalConfig] = useState<{
-    isOpen: boolean; title: string; message: string; onConfirm: () => void;
-  }>({ isOpen: false, title: "", message: "", onConfirm: () => { } }); // modalConfig : 모달 설정을 위한 상태  
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  }); // modalConfig : 모달 설정을 위한 상태  
 
   const [dbPlans, setDbPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,13 +68,13 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
   return (
     <section
       id="pricing"
-      className="py-24 sm:py-32 bg-[#FFFFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="py-24 sm:py-32 bg-[#EFEFFF] dark:bg-[#15171A] border-y border-[#E2E4F6] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EFEFFF] dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1A1A18] dark:text-zinc-200 tracking-wider uppercase mb-4 shadow-2xs">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase mb-4 shadow-2xs">
             MEMBERSHIP
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">

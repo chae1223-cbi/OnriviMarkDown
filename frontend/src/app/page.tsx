@@ -3,7 +3,6 @@ import { Footer } from "@/components/layout/Footer";
 import { HeroSection } from "@/components/sections/HeroSection";
 import { PhilosophySection } from "@/components/sections/PhilosophySection";
 import { ExperienceSection } from "@/components/sections/ExperienceSection";
-import { DocumentGallerySection } from "@/components/sections/DocumentGallerySection";
 import { PricingSection } from "@/components/sections/PricingSection";
 import { FaqSection } from "@/components/sections/FaqSection";
 import { CtaSection } from "@/components/sections/CtaSection";
@@ -39,7 +38,6 @@ export default function HomePage() {
         <HeroSection />
         <PhilosophySection />
         <ExperienceSection />
-        <DocumentGallerySection />
         <PricingSection />
         <FaqSection />
         <CtaSection />
