@@ -4,7 +4,8 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
-// 🚨 @PATCH : 2026-09-06 - [에디터-미리보기 하이라이트 동기화 완결] onMouseDown 시 클릭된 행 번호로 즉시 setActiveLine/setCursorLine을 동기화하고, onDidChangeCursorPosition에서 hasLineChanged 가드로 인해 RAF 이벤트 병합 시 activeLine 갱신이 누락되던 버그를 제거하여 마우스 클릭/방향키/타이핑 시 에디터와 미리보기 하이라이트 위치가 항상 100% 동일하게 일치하도록 보장
+// 🚨 @PATCH : 2026-09-11 - [리스트(숫자/글머리/체크/인용) 본문 중간 Tab/Shift+Tab 커서 위치 분기 정밀 보정] 리스트 항목 본문 텍스트 중간에서 Tab 입력 시 해당 행 전체가 들여쓰기되던 버그를 해결하여, 커서가 리스트 마커 접두사(prefix) 구간 내에 있을 때만 행 전체 들여쓰기/내어쓰기가 동작하고 본문 텍스트 중간에서는 들여쓰기가 아닌 일반 탭 공백(tabSize 스페이스)이 커서 위치에 자연스럽게 삽입되도록 개편
+//             2026-09-06 - [에디터-미리보기 하이라이트 동기화 완결] onMouseDown 시 클릭된 행 번호로 즉시 setActiveLine/setCursorLine을 동기화하고, onDidChangeCursorPosition에서 hasLineChanged 가드로 인해 RAF 이벤트 병합 시 activeLine 갱신이 누락되던 버그를 제거하여 마우스 클릭/방향키/타이핑 시 에디터와 미리보기 하이라이트 위치가 항상 100% 동일하게 일치하도록 보장
 //             2026-09-05 - [커서 이동 시 Race Condition 완전 차단] cursorSyncLock(150ms) 도입: syncPreviewFromCursor 실행 직후 Monaco 자동 스크롤로 발화되는 onDidScrollChange → syncPreviewFromEditorScroll이 syncPreviewToTargetLine 결과를 덮어쓰던 Race Condition을 이벤트 핸들러 레벨에서 원천 봉쇄; onDidChangeCursorPosition에서 isNearEnd(마지막 줄 부근) 감지 시 항상 syncPreviewFromCursor 강제 실행
 //             2026-09-05 - [마지막 행 및 긴 문단 가로 줄바꿈 타이핑 시 실시간 상향 추종] onDidChangeModelContent에서 타이머 캔슬링으로 인한 타이핑 중 스크롤 멈춤 결함을 단일 RAF 스케줄링 및 컬럼 파라미터 전달로 전면 개선; 동일 행 내 장문 문단 타이핑(hasWrappedRowChanged, 컬럼 이동) 시에도 syncPreviewFromCursor가 가로 줄바꿈을 감지하여 엔터 2회 없이 즉각 미리보기 하단이 밀려 올라가도록 완전 해결
 //             2026-09-05 - [타이핑 시 미리보기 흔들림 및 덜컹거림 원천 차단] 타이핑 중 onDidScrollChange의 syncPreviewFromEditor 바닥 밀착 간섭을 완전 차단하여 syncPreviewToTargetLine과의 충돌 진동 제거; 동일 행 타이핑(e.reason 0/1) 시 커서 변경 이벤트의 불필요한 중복 동기화 차단; onDidChangeModelContent 타이머를 단일 RAF 및 100ms 디바운스로 통폐합하여 무진동 안정적 타이핑 보장
@@ -280,26 +281,55 @@ export function useMonacoSetup(deps: any) {
                       // ② 기존 리스트 및 인용문 들여쓰기(Indent) 처리
                       const startLine = selection.startLineNumber;
                       const endLine = selection.endLineNumber;
+                      const indentSize = (tabSizeRef && typeof tabSizeRef.current === 'number') ? tabSizeRef.current : 4;
+
+                      // 단일 행 커서(선택 영역 없음)인 경우, 커서가 리스트/인용구 접두사(prefix) 내에 위치하는지 검사
+                      // - 커서가 접두사 구간(행 시작 ~ 마커 직후 공백) 내에 있을 때: 리스트 행 들여쓰기 수행
+                      // - 커서가 항목 본문 텍스트 중간에 있을 때: 행 들여쓰기를 하지 않고 커서 위치에 탭 공백(tabSize 스페이스) 삽입
+                      const isSingleCursor = startLine === endLine && selection.isEmpty();
+                      let cursorInPrefix = !isSingleCursor; // 다중 행 선택인 경우 기본 들여쓰기 대상
 
                       let hasList = false;
                       for (let i = startLine; i <= endLine; i++) {
                         const lineContent = model.getLineContent(i);
-                        if (/^[ \t]*([-*+]|\d+\.|>)/.test(lineContent)) {
+                        if (/^[ \t]*([-*+]|\d+[\.\)]|>)/.test(lineContent)) {
                           hasList = true;
                           break;
                         }
                       }
 
+                      if (isSingleCursor && hasList) {
+                        const currentLineContent = model.getLineContent(startLine);
+                        // 체크리스트, 일반 불릿, 순서 리스트(1. 또는 1)), 인용구(>) 접두사 패턴 매칭
+                        const listPrefixMatch = currentLineContent.match(
+                          /^([ \t\u200b\u00a0]*(?:[-*+][ \t]+\[[ xX]\]|[-*+]|\d+[\.\)]|>+)[ \t\u200b\u00a0]*)/
+                        );
+                        if (listPrefixMatch) {
+                          const prefixLength = listPrefixMatch[1].length;
+                          // 1-based column: 커서가 마커 접두사 구간 이하(또는 접두사 바로 뒤 첫 글자)에 있을 때만 들여쓰기
+                          cursorInPrefix = selection.startColumn <= prefixLength + 1;
+                        } else {
+                          cursorInPrefix = false;
+                        }
+                      }
+
                       if (hasList && !isTable) {
-                        // 
-                        // 
-                        
+                        if (isSingleCursor && !cursorInPrefix) {
+                          // 리스트 항목 본문 텍스트 중간에 커서가 있을 때는 해당 행 전체를 들여쓰지 않고 현재 커서 위치에 탭 간격 공백만 삽입
+                          editor.pushUndoStop();
+                          editor.executeEdits("insertTabSpaces", [{
+                            range: selection,
+                            text: " ".repeat(indentSize),
+                            forceMoveMarkers: true
+                          }]);
+                          editor.pushUndoStop();
+                          return;
+                        }
 
                         editor.pushUndoStop();
                         const edits: any[] = [];
                         const virtualLines = new Map<number, string>();
                         const getLine = (lineIdx: number) => virtualLines.has(lineIdx) ? virtualLines.get(lineIdx)! : model.getLineContent(lineIdx);
-                        const indentSize = (tabSizeRef && typeof tabSizeRef.current === 'number') ? tabSizeRef.current : 4;
 
                         for (let i = startLine; i <= endLine; i++) {
                           const lineContent = model.getLineContent(i);
@@ -337,17 +367,17 @@ export function useMonacoSetup(deps: any) {
                           }
                         }
                         editor.executeEdits("indentList", edits);
-                          editor.pushUndoStop();
-                          setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
-                        } else if (!isTable) {
-                          const contextKeyService = (editor as any)._contextKeyService;
-                          const isSuggestVisible = contextKeyService?.getContextKeyValue('suggestWidgetVisible') === true;
-                          if (isSuggestVisible) {
-                            editor.trigger('keyboard', 'acceptSelectedSuggestion', null);
-                          } else {
-                            editor.trigger("keyboard", "tab", null);
-                          }
+                        editor.pushUndoStop();
+                        setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+                      } else if (!isTable) {
+                        const contextKeyService = (editor as any)._contextKeyService;
+                        const isSuggestVisible = contextKeyService?.getContextKeyValue('suggestWidgetVisible') === true;
+                        if (isSuggestVisible) {
+                          editor.trigger('keyboard', 'acceptSelectedSuggestion', null);
+                        } else {
+                          editor.trigger("keyboard", "tab", null);
                         }
+                      }
                     }
                   });
 
@@ -1026,9 +1056,40 @@ console.log('[DEBUG] trigger-custom-action called with actionId =', actionId);
                       }
                     }
 
-                    // 일반 문장이면 기본 아웃덴트 기능 트리거
+                    // ② 리스트 또는 일반 문장 Shift + Tab (내어쓰기/공백 소거) 처리
+                    const isSingleCursor = selection.startLineNumber === selection.endLineNumber && selection.isEmpty();
+                    if (isSingleCursor && position) {
+                      const lineContent = model.getLineContent(position.lineNumber);
+                      const listMatch = lineContent.match(
+                        /^([ \t\u200b\u00a0]*(?:[-*+][ \t]+\[[ xX]\]|[-*+]|\d+[\.\)]|>+)[ \t\u200b\u00a0]*)/
+                      );
+                      if (listMatch) {
+                        const prefixLength = listMatch[1].length;
+                        // 커서가 마커 접두사 이후(항목 본문 텍스트 내부)에 있는 경우
+                        if (position.column > prefixLength + 1) {
+                          // 커서 바로 앞의 공백(최대 indentSize 스페이스 또는 1개 탭)을 찾아 소거
+                          const indentSize = (tabSizeRef && typeof tabSizeRef.current === 'number') ? tabSizeRef.current : 4;
+                          const beforeCursorText = lineContent.substring(0, position.column - 1);
+                          const spaceMatch = beforeCursorText.match(/(?:[ \u200b\u00a0]{1,4}|\t)$/);
+                          if (spaceMatch && spaceMatch[0].length > 0) {
+                            const deleteLen = Math.min(spaceMatch[0].length, indentSize);
+                            const startCol = position.column - deleteLen;
+                            editor.pushUndoStop();
+                            editor.executeEdits("removeTabSpaces", [{
+                              range: new monaco.Range(position.lineNumber, startCol, position.lineNumber, position.column),
+                              text: "",
+                              forceMoveMarkers: true
+                            }]);
+                            editor.pushUndoStop();
+                          }
+                          return;
+                        }
+                      }
+                    }
+
+                    // 커서가 행 시작/접두사 구간에 있거나 여러 행을 선택한 경우 기본 아웃덴트 기능 트리거
                     editor.trigger('keyboard', 'outdent', null);
-                      setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
+                    setTimeout(() => editor.getAction('autoRenumberList')?.run(), 10);
                   }, "textInputFocus && !suggestWidgetVisible && !inSnippetMode");
 
                   // 🛡️ [한글 주석 탑재] 엔터 키 입력 시 자동완성 및 리스트 연속 번호 매기기 처리 (텍스트 보존 및 커서 추적 지원)
