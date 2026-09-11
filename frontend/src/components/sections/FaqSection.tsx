@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-FaqSection-0024] FaqSection ➔ FaqSection
 // 🎯 @KICK  : 자주 묻는 질문(FAQ)의 목록을 바인딩하고 아코디언 컴포넌트를 호출하여 상태를 매핑하는 섹션
 // 🛡️ @GUARD : openFaqIndex 상태를 통해 오직 하나의 질문만 열릴 수 있도록 토글 제어
-// 🚨 @PATCH : **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(FAQ: #FFFFFF)
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(FAQ: #EFEFFF)
+//             **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(FAQ: #FFFFFF)
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
@@ -17,27 +18,30 @@
 import { useState, useEffect } from "react";
 import { FaqItem } from "@/components/ui/FaqItem";
 
-interface FAQ {
-  id: string;
+interface Faq {
+  id: number | string;
   question: string;
   answer: string;
-  sort_order: number;
+  category?: string;
+  sort_order?: number;
 }
 
 export function FaqSection() {
+  const [faqs, setFaqs] = useState<Faq[]>([]);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
-  const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchFaqs = async () => {
       try {
-        const res = await fetch('/api/faqs');
-        if (!res.ok) throw new Error('Failed to fetch FAQs');
+        const res = await fetch("/api/faqs");
+        if (!res.ok) throw new Error("Failed to fetch FAQs");
         const data = await res.json();
-        setFaqs(data);
+        if (Array.isArray(data)) {
+          setFaqs(data);
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch faqs:", err);
       } finally {
         setLoading(false);
       }
@@ -55,12 +59,12 @@ export function FaqSection() {
   return (
     <section
       id="faq"
-      className="py-24 sm:py-32 bg-[#FFFFFF] dark:bg-[#0A0D14] border-y border-[#E2E4F6] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="py-24 sm:py-32 bg-[#EFEFFF] dark:bg-[#15171A] border-y border-[#E2E4F6] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[760px] mx-auto px-6 lg:px-8">
         <div className="text-center mb-14">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EFEFFF] dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase mb-4 shadow-2xs">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase mb-4 shadow-2xs">
             FAQ
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">

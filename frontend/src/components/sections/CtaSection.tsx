@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-CtaSection-0025] CtaSection ➔ CtaSection
 // 🎯 @KICK  : 사용자 가입 전환(CTA)을 강력하게 소구하고 회원가입 경로로 리다이렉트하는 랜딩페이지 마지막 전환 유도 영역
 // 🛡️ @GUARD : viewport once 옵션을 활성화하여 모션 버벅임 억제
-// 🚨 @PATCH : **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(CTA: #EFEFFF)
+// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(CTA: #FFFFFF)
+//             **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(CTA: #EFEFFF)
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
@@ -20,7 +21,7 @@ import Link from "next/link";
 export function CtaSection() {
   return (
     <section
-      className="py-28 sm:py-36 px-6 relative overflow-hidden bg-[#EFEFFF] dark:bg-[#15171A] text-[#1A1A18] dark:text-[#E8ECE9] border-t border-[#E2E4F6] dark:border-white/5"
+      className="py-28 sm:py-36 px-6 relative overflow-hidden bg-[#FFFFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9] border-t border-[#E2E4F6] dark:border-white/5"
       style={{
         fontFamily: "Pretendard, sans-serif",
       }}
