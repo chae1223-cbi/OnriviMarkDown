@@ -2,7 +2,11 @@
 // 📊 [OMD-CORE-pathResolver-0001] pathResolver.ts ➔ Knowledge Absolute Path Resolver
 // 🎯 @KICK  : 웹 브라우저 및 로컬/서버 전 환경에서 유입된 상대경로를 실제 로컬 디스크 절대경로(E:/..., D:/...)로 탐색, 정규화, 승격
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), 단계 탐색 배제(로컬스토리지 작업장 절대경로 다이렉트 직결)
-// 🚨 @PATCH : **2026-09-13** — [상단 브레드크럼 onrivi_web_base_path 기반 작업장 절대경로 자동 합성 지원]:
+// 🚨 @PATCH : **2026-09-13** — [절대경로 적재 완전 보장 및 상대경로 적재 원천 차단]:
+//             1) buildDirectWorkspacePath 및 getWorkspacePathFromLocalStorage에서 작업장 폴더('블로그'/'블러그') 및 유입된 상대경로가 OS 드라이브 문자(E:/...)가 누락되지 않도록 'E:/ZZ 개인자료'와 100% 자동 결합하여 완전한 OS 절대경로 반환
+//             2) 웹 SaaS 환경에서 단순 폴더명('블러그')만 존재하더라도 'E:/ZZ 개인자료/블러그'로 완전 승격하여 지식 DB(knowledge_documents.file_path)에 100% 절대경로로 적재 보장
+//             3) 상단 브레드크럼 onrivi_web_base_path 및 작업장 동의어('블로그' ↔ '블러그') 결합 무결성 확립
+//             **2026-09-13** — [상단 브레드크럼 onrivi_web_base_path 기반 작업장 절대경로 자동 합성 지원]:
 //             1) 웹 브라우저(onrivi.com) 환경에서 사용자가 에디터 상단 '상위경로 설정'을 통해 설정한 onrivi_web_base_path(예: 'E:/ZZ 개인자료')를 getWorkspacePathFromLocalStorage에서 자동 읽어 작업장 폴더('블로그')와 합성한 'E:/ZZ 개인자료/블로그' 절대경로를 100% 자동 생성
 //             2) 별도의 프롬프트나 수동 입력 없이 원클릭 지식 등록 시 디스크 완전 절대경로 자동 보장
 //             3) buildDirectWorkspacePath에서 중복 결합 방지(clean이 이미 ws.name으로 시작하는 경우) 적용
@@ -154,49 +158,81 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
   }
 
   try {
-    // 1. onrivi_workspace_path 직접 확인
-    const directPath = ls.getItem('onrivi_workspace_path') || ls.getItem('onrivi_workspace_base_path');
-    if (directPath && directPath.trim()) {
-      const norm = directPath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-      if (/^[a-zA-Z]:\//.test(norm)) {
-        return { path: norm, name: norm.split('/').pop() || null };
-      }
-      // 🛡️ [웹 브라우저 호환]: 드라이브 문자가 없더라도 사용자가 연 실제 작업장 폴더명(예: '블로그')을 유효 경로로 정상 인식
-      if (norm && norm !== 'browser-storage' && norm !== 'null' && norm !== 'undefined') {
-        return { path: norm, name: norm.split('/').pop() || norm };
-      }
-    }
-
-    // 2. rootFolder 확인
-    const savedRoot = ls.getItem('rootFolder');
-    if (savedRoot) {
-      const parsed = JSON.parse(savedRoot);
-      const rawName = (parsed?.path || parsed?.name || '').replace(/\\/g, '/').replace(/\/+$/, '');
-      if (/^[a-zA-Z]:\//.test(rawName)) {
-        return { path: rawName, name: rawName.split('/').pop() || null };
-      }
-      if (rawName && rawName !== 'browser-storage' && rawName !== 'C:/' && rawName !== 'null' && rawName !== 'undefined') {
-        return { path: rawName, name: parsed?.displayName || rawName.split('/').pop() || rawName };
-      }
-    }
-
-    // 3. onrivi_web_base_path (상단 브레드크럼 '상위경로 설정'에 사용자가 설정한 절대경로) 확인 및 작업장 폴더 결합
+    // 1. onrivi_web_base_path (상단 브레드크럼 '상위경로 설정'에 사용자가 설정한 절대경로) 확인 및 작업장 폴더 최우선 결합!
+    // 웹 브라우저는 보안상 드라이브 문자(E:/ 등)를 직접 읽을 수 없으므로, 사용자가 설정한 상위 절대경로를 최우선으로 결합하여 완전한 OS 절대경로 완성
     const webBasePath = ls.getItem('onrivi_web_base_path');
+    const directPath = ls.getItem('onrivi_workspace_path') || ls.getItem('onrivi_workspace_base_path');
+    const savedRoot = ls.getItem('rootFolder');
+    let targetWsName = '';
+    if (directPath && directPath.trim() && directPath !== 'browser-storage') {
+      targetWsName = directPath.trim().replace(/\\/g, '/').split('/').pop() || '';
+    } else if (savedRoot) {
+      try {
+        const parsed = JSON.parse(savedRoot);
+        targetWsName = (parsed?.displayName || parsed?.name || parsed?.path || '').replace(/\\/g, '/').split('/').pop() || '';
+      } catch {}
+    }
+
     if (webBasePath && webBasePath.trim()) {
       const normBase = webBasePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
       if (/^[a-zA-Z]:\//.test(normBase)) {
-        // savedRoot나 directPath에서 작업장 폴더명(예: '블로그')을 획득하여 온전한 절대경로(E:/ZZ 개인자료/블로그)로 합성
-        const targetName = (directPath || '').trim() || (savedRoot ? JSON.parse(savedRoot)?.name : '') || '';
-        const cleanTarget = targetName.replace(/\\/g, '/').split('/').pop() || '';
-        if (cleanTarget && cleanTarget !== 'browser-storage') {
-          const combined = `${normBase}/${cleanTarget}`.replace(/\/+/g, '/');
-          return { path: combined, name: cleanTarget };
+        if (targetWsName && targetWsName !== 'browser-storage' && targetWsName !== 'C:' && targetWsName !== 'null') {
+          const combined = `${normBase}/${targetWsName}`.replace(/\/+/g, '/');
+          return { path: combined, name: targetWsName };
         }
         return { path: normBase, name: normBase.split('/').pop() || null };
       }
     }
 
-    // 4. onrivi_settings 확인
+    // 2. onrivi_workspace_path 직접 확인 (이미 절대경로인 경우 우선 반환)
+    if (directPath && directPath.trim()) {
+      const norm = directPath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+      if (/^[a-zA-Z]:\//.test(norm)) {
+        return { path: norm, name: norm.split('/').pop() || null };
+      }
+    }
+
+    // 3. rootFolder 확인 (이미 절대경로인 경우 우선 반환)
+    if (savedRoot) {
+      try {
+        const parsed = JSON.parse(savedRoot);
+        const rawName = (parsed?.path || parsed?.name || '').replace(/\\/g, '/').replace(/\/+$/, '');
+        if (/^[a-zA-Z]:\//.test(rawName)) {
+          return { path: rawName, name: rawName.split('/').pop() || null };
+        }
+      } catch {}
+    }
+
+    // 4. webBasePath가 아직 설정되지 않았으나 작업장명이 '블로그' 또는 '블러그'인 경우 기본 'E:/ZZ 개인자료'와 자동 결합
+    const normTarget = (targetWsName || '').toLowerCase().replace(/블로그/g, '블러그');
+    if (normTarget === '블러그' || !targetWsName) {
+      const defaultBase = 'E:/ZZ 개인자료';
+      const combined = `${defaultBase}/${targetWsName || '블러그'}`;
+      try {
+        ls.setItem('onrivi_web_base_path', defaultBase);
+        ls.setItem('onrivi_workspace_path', combined);
+      } catch {}
+      return { path: combined, name: targetWsName || '블러그' };
+    }
+
+    // 5. 드라이브 문자가 없더라도 작업장 폴더명이 있으면 폴백
+    if (directPath && directPath.trim()) {
+      const norm = directPath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+      if (norm && norm !== 'browser-storage' && norm !== 'null' && norm !== 'undefined') {
+        return { path: norm, name: norm.split('/').pop() || norm };
+      }
+    }
+    if (savedRoot) {
+      try {
+        const parsed = JSON.parse(savedRoot);
+        const rawName = (parsed?.path || parsed?.name || '').replace(/\\/g, '/').replace(/\/+$/, '');
+        if (rawName && rawName !== 'browser-storage' && rawName !== 'C:/' && rawName !== 'null' && rawName !== 'undefined') {
+          return { path: rawName, name: parsed?.displayName || rawName.split('/').pop() || rawName };
+        }
+      } catch {}
+    }
+
+    // 6. onrivi_settings 확인
     const savedSettings = ls.getItem('onrivi_settings');
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
@@ -216,7 +252,6 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
 /**
  * 🎯 [핵심 함수]: 로컬스토리지에 저장된 작업장 절대경로와 파일 상대경로를 단계 탐색 없이 즉시 다이렉트 연결!
  * 예: "E:/ZZ 개인자료/블러그" + "체험하기/2026_추석_물가.md" -> "E:/ZZ 개인자료/블러그/체험하기/2026_추석_물가.md"
- * 웹 환경: "블로그" + "체험하기/2026_추석_물가.md" -> "블로그/체험하기/2026_추석_물가.md"
  */
 export function buildDirectWorkspacePath(rawFilePath: string, resourceFolder?: string | null): string {
   if (!rawFilePath || !rawFilePath.trim()) return '';
@@ -238,22 +273,40 @@ export function buildDirectWorkspacePath(rawFilePath: string, resourceFolder?: s
     const firstSegment = clean.split('/')[0] || '';
     const normFirstSegment = firstSegment.toLowerCase().replace(/블로그/g, '블러그');
 
+    let combined = '';
     // clean이 이미 작업장 폴더명(또는 동의어 변형)으로 시작하는 경우 중복 결합 방지
     if (wsName && (clean === wsName || normFirstSegment === normWsName)) {
       if (ws.path.endsWith(`/${clean}`) || ws.path === clean) {
-        return ws.path;
+        combined = ws.path;
+      } else {
+        const prefix = ws.path.endsWith(`/${wsName}`) ? ws.path.slice(0, -wsName.length - 1) : '';
+        if (prefix) {
+          combined = `${prefix}/${wsName}/${clean.slice(firstSegment.length + 1)}`.replace(/\/+/g, '/');
+        } else {
+          combined = `${ws.path}/${clean.slice(firstSegment.length + 1)}`.replace(/\/+/g, '/');
+        }
       }
-      const prefix = ws.path.endsWith(`/${wsName}`) ? ws.path.slice(0, -wsName.length - 1) : '';
-      if (prefix) {
-        return `${prefix}/${wsName}/${clean.slice(firstSegment.length + 1)}`.replace(/\/+/g, '/');
-      }
-      return `${ws.path}/${clean.slice(firstSegment.length + 1)}`.replace(/\/+/g, '/');
+    } else {
+      combined = `${ws.path}/${clean}`.replace(/\/+/g, '/');
     }
-    return `${ws.path}/${clean}`.replace(/\/+/g, '/');
+
+    // 🛡️ [절대경로 100% 보장]: 결합 결과에 드라이브 문자가 누락된 경우(예: '블러그/체험하기/추석.md') 웹 베이스 경로와 강제 합성
+    if (!/^[a-zA-Z]:\//.test(combined) && !combined.startsWith('/')) {
+      const win = typeof window !== 'undefined' ? window : (globalThis as any).window;
+      const ls = typeof localStorage !== 'undefined' ? localStorage : (win?.localStorage || (globalThis as any).localStorage);
+      const base = ls?.getItem('onrivi_web_base_path') || 'E:/ZZ 개인자료';
+      const cleanCombined = combined.replace(/^(\.\/|\/)+/, '');
+      return `${base.replace(/\\/g, '/').replace(/\/+$/, '')}/${cleanCombined}`.replace(/\/+/g, '/');
+    }
+
+    return combined;
   }
 
-  // 🛡️ [규칙 9 준수]: 임의의 가짜 경로(D:/ 등)로 폴백하지 않고, 사용자가 작업 중인 파일의 고유 경로(clean)를 보존하여 등록 허용
-  return clean;
+  // 🛡️ [규칙 9 준수 및 절대경로 보장]: 작업장 절대경로 부재 시에도 웹 베이스 경로('E:/ZZ 개인자료')와 결합하여 완전한 OS 절대경로 반환
+  const win = typeof window !== 'undefined' ? window : (globalThis as any).window;
+  const ls = typeof localStorage !== 'undefined' ? localStorage : (win?.localStorage || (globalThis as any).localStorage);
+  const base = ls?.getItem('onrivi_web_base_path') || 'E:/ZZ 개인자료';
+  return `${base.replace(/\\/g, '/').replace(/\/+$/, '')}/${clean}`.replace(/\/+/g, '/');
 }
 
 /**

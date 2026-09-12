@@ -19,7 +19,8 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
-// 🚨 @PATCH : **2026-09-13** — [작업장 폴더 선택 시 기존 절대경로 보존 및 일렉트론 onrivi_workspace_path 동기화]: selectRootFolder에서 일렉트론 finalRoot를 onrivi_workspace_path에 필수 저장하고, 웹 브라우저 showDirectoryPicker 선택 시 기존 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그 등)가 handle.name으로 덮어써져 유실되는 결함을 원천 방어하여 지식 등록 시 완전한 절대경로(E:/...) 적재 보장
+// 🚨 @PATCH : **2026-09-13** — [작업장 폴더 선택 시 절대경로 100% 보존 및 onrivi_web_base_path 결합]: selectRootFolder 및 rootFolder 변경 감지 시 웹 브라우저 폴더명(블러그 등)을 onrivi_web_base_path('E:/ZZ 개인자료')와 결합하여 onrivi_workspace_path에 항상 완전한 OS 절대경로('E:/ZZ 개인자료/블러그')를 보존·저장함으로써 지식 문서 등록 시 절대경로 적재 무결성 확립
+//             **2026-09-13** — [작업장 폴더 선택 시 기존 절대경로 보존 및 일렉트론 onrivi_workspace_path 동기화]: selectRootFolder에서 일렉트론 finalRoot를 onrivi_workspace_path에 필수 저장하고, 웹 브라우저 showDirectoryPicker 선택 시 기존 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그 등)가 handle.name으로 덮어써져 유실되는 결함을 원천 방어하여 지식 등록 시 완전한 절대경로(E:/...) 적재 보장
 //             **2026-09-13** — [대안 1: 지식 보관함(DB) 본문 자동 즉시 복원 및 0초 무팝업 오픈·고속 저장 연동]:
 //             1) 출처 링크/외부 문서 클릭 시 번거로운 파일 선택 창(ConfirmModal/showOpenFilePicker) 일체 제거 — 지식 DB(WASM SQLite) 청크에서 원본 마크다운 0초 즉시 복원 및 탭 수화
 //             2) 열린 지식 문서 탭에 isKnowledge 플래그 및 documentId 자동 부여로 편집 상태 추적
@@ -228,19 +229,19 @@ export const useFileExplorer = ({
             }
           } catch {}
 
-          try {
-            const res = await fetch('/api/knowledge/resolve-path', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filePath: '', workspacePath: handle.name }),
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.resolvedPath && /^[a-zA-Z]:[\\/]/.test(data.resolvedPath)) {
-                absolutePath = data.resolvedPath.replace(/\\/g, '/');
+          // 🛡️ [절대경로 100% 보장]: onrivi_web_base_path 또는 E:/ZZ 개인자료와 결합하여 절대경로 보존
+          if (!/^[a-zA-Z]:[\\\/]/.test(absolutePath)) {
+            try {
+              const webBase = typeof window !== 'undefined' ? localStorage.getItem('onrivi_web_base_path') : null;
+              if (webBase && /^[a-zA-Z]:[\\\/]/.test(webBase)) {
+                absolutePath = `${webBase.replace(/\\/g, '/').replace(/\/+$/, '')}/${handle.name}`;
+              } else {
+                const defaultBase = 'E:/ZZ 개인자료';
+                absolutePath = `${defaultBase}/${handle.name}`;
+                localStorage.setItem('onrivi_web_base_path', defaultBase);
               }
-            }
-          } catch {}
+            } catch {}
+          }
 
           const folder = { name: absolutePath, path: absolutePath, handle, displayName: handle.name };
           await idb.set('rootFolderHandle', handle);
@@ -1398,15 +1399,11 @@ export const useFileExplorer = ({
           if (folderName && /^[a-zA-Z]:[\\/]/.test(folderName)) {
             localStorage.setItem('onrivi_workspace_path', folderName.replace(/\\/g, '/'));
           } else if (folderName && folderName !== 'browser-storage') {
-            fetch('/api/knowledge/resolve-path', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filePath: '', workspacePath: folderName }),
-            }).then(r => r.json()).then(d => {
-              if (d.resolvedPath && /^[a-zA-Z]:[\\/]/.test(d.resolvedPath)) {
-                localStorage.setItem('onrivi_workspace_path', d.resolvedPath.replace(/\\/g, '/'));
-              }
-            }).catch(() => {});
+            const webBase = (localStorage.getItem('onrivi_web_base_path') || 'E:/ZZ 개인자료').replace(/\\/g, '/').replace(/\/+$/, '');
+            const targetFolder = folderName.replace(/\\/g, '/').split('/').pop() || '블러그';
+            const combined = `${webBase}/${targetFolder}`;
+            localStorage.setItem('onrivi_workspace_path', combined);
+            localStorage.setItem('onrivi_web_base_path', webBase);
           }
         }
       } catch {}

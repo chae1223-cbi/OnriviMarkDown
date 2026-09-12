@@ -2,7 +2,8 @@
 // 📊 [OMD-MODAL-KnowledgeDetail-0001] KnowledgeDetailModal.tsx ➔ 지식 문서 설정 상세 분석 모달
 // 🎯 @KICK  : 지식 문서 등록/설정 시 생성된 AI 요약, 핵심 요점, 헤딩별 분할 청크(라인 범위, 키워드), 추출 태그(관련도 점수), 확장 검색어의 상세 분석 결과를 직관적으로 시각화
 // 🛡️ @GUARD : LINE Design System LDSG v5.0 (#1d4ed8), 청크별 에디터 라인 점프 연동, 빈 데이터 안전 가드
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-13** — [Rule 8 고대비 시인성 및 절대경로 보장]: 파일 경로 스타일을 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하고 ensureClientAbsolutePath를 적용하여 완전한 절대경로 시각화 보장
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-04** — 모달 상단 헤더 아이콘을 남성 학사(📗)로 교체
 //             **2026-09-04** — [지식 문서 설정 상세내역 모달 신규 구현] 단순 알림 메시지 대신 청크 분할 구조, 태그, 요약 등을 완벽 시각화하여 사용자에게 즉시 안내
 // 🔗 @CALLS : /api/knowledge/detail, app:open-file-at-line, app:open-knowledge-manager
@@ -14,6 +15,7 @@ import {
   ExternalLink, Search, Hash, ChevronDown, ChevronUp, Database, ArrowRight
 } from 'lucide-react';
 import type { KnowledgeDocumentDetail } from '@/types/knowledge';
+import { ensureClientAbsolutePath } from '@/lib/knowledge/pathResolver';
 
 interface KnowledgeDetailModalProps {
   isOpen: boolean;
@@ -85,8 +87,8 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-0.5 font-mono">
-                📁 {detail.filePath}
+              <p className="text-xs text-zinc-700 dark:text-zinc-300 font-bold font-mono truncate mt-0.5">
+                📁 {ensureClientAbsolutePath(detail.filePath)}
               </p>
             </div>
           </div>

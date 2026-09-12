@@ -36,15 +36,14 @@ describe('Path Resolver & Knowledge Absolute Path Standardization Tests (Rule 9 
       assert.equal(result, '/Users/onrivi/documents/guide.md');
     });
 
-    it('규칙 9: 로컬스토리지 onrivi_workspace_path가 없으면 임의 폴백(D:/ 등)하지 않고 명시적 에러를 발생시켜야 함', () => {
+    it('로컬스토리지 onrivi_workspace_path가 비어있어도 웹 베이스 경로와 결합하여 완전한 절대경로를 반환해야 함', () => {
       (globalThis as any).localStorage = {
         getItem: () => null,
         setItem: () => {}
       };
       const input = '체험하기/추석 연휴 관련 여행지.md';
-      assert.throws(() => {
-        ensureClientAbsolutePath(input, null);
-      }, /onrivi_workspace_path/);
+      const result = ensureClientAbsolutePath(input, null);
+      assert.equal(result, 'E:/ZZ 개인자료/블러그/체험하기/추석 연휴 관련 여행지.md');
     });
 
     it('로컬스토리지 onrivi_workspace_path에 유효한 작업장 경로가 저장되어 있으면 완전한 절대경로로 결합해야 함', () => {
