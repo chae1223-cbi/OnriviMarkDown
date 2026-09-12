@@ -1,6 +1,6 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
-// 🚨 @PATCH : **2026-09-13** — [WASM SQLite 지식 DB 기존 레코드 기반 작업장 절대경로 자동 복원]: getBrowserKnowledgeDb 로드 시 브라우저 로컬스토리지에 드라이브 문자(E:/...)가 누락되어 있더라도 기존 DB의 완전한 절대경로(E:\ZZ 개인자료\블러그\...)에서 프리픽스를 자동 추출하여 onrivi_workspace_path를 복원함으로써 지식 등록 시 100% 완전한 OS 절대경로 적재 보장
+// 🚨 @PATCH : **2026-09-13** — [getBrowserKnowledgeDb WASM DB 인스턴스화 누락 치명적 결함 복구]: sourceData 존재 시 new SQL.Database(sourceData) 인스턴스 생성 호출 누락으로 db가 undefined 상태가 되어 발생하던 TypeError(reading 'prepare', reading 'run')를 완벽하게 정상 복구
 // 🚨 @PATCH : **2026-09-13** — [대안 1: 지식 보관함 고속 저장 updateBrowserKnowledgeDocumentFast 신설]: 외부 I/O 및 LLM 호출 없이 원문 청킹 및 WASM SQLite 단일 원트랜잭션(All-or-Nothing)으로 document_chunks 및 knowledge_documents 메타데이터를 5ms 내 초고속 갱신하고 사용자 PC의 onrivi_knowledge.db 및 IndexedDB에 영구 동기화
 // 🚨 @PATCH : **2026-09-13** — [유니코드 NFC 정규화 및 WASM SQLite 인메모리 심층 문서 매칭 고도화]: getBrowserDocumentDetail에서 char(92) 경로 슬래시 치환 및 NFD/NFC 자모 분리 불일치 해결을 위한 인메모리 유니코드 정규화(NFC) 6단계 스캔 폴백을 추가하여 한국어 특수 파일명/경로 지식 문서 100% 탐색 보장
 // 🚨 @PATCH : **2026-09-12** — [로컬스토리지 작업장 경로 연동 및 Onrivi_Asset 오탐 자동 치유]
@@ -246,6 +246,7 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
 
   let db: any;
   if (sourceData && sourceData.byteLength > 0) {
+    db = new SQL.Database(sourceData);
     // 🛡️ chunk_text 컬럼 안전 자동 마이그레이션
     try { db.run('ALTER TABLE document_chunks ADD COLUMN chunk_text TEXT;'); } catch {}
 
