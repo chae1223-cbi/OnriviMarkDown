@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-CORE-knowledgeDb-0001] knowledgeDb.ts ➔ Knowledge SQLite Engine
 // 🎯 @KICK  : 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db) SQLite FTS5 데이터베이스 인프라 및 원자적 트랜잭션 관리
-// 🚨 @PATCH : **2026-09-11** — [SQLite database is locked 치명적 자동 복구 파괴 방어 및 백업 파일 복사 폴백] initKnowledgeDatabase에서 database is locked / busy 경합 발생 시 auto-recovery(DB 삭제 및 빈 DB 덮어쓰기)로 진입하지 않고 즉시 예외를 발생시키도록 보호하고, backupKnowledgeDatabase에서 잠금 경합 시 직접 파일 복사 폴백을 지원하여 DB 파괴를 원천 방어
+// 🚨 @PATCH : **2026-09-12** — [지식 문서 상세조회 제목/헤딩/청크 다중 폴백 고도화] getDocumentDetailFromDb에 heading 매개변수 지원 및 청크(document_chunks) heading_title/heading_path 검색 폴백, 제목 부분 일치(LIKE) 지원
+//             **2026-09-11** — [SQLite database is locked 치명적 자동 복구 파괴 방어 및 백업 파일 복사 폴백] initKnowledgeDatabase에서 database is locked / busy 경합 발생 시 auto-recovery(DB 삭제 및 빈 DB 덮어쓰기)로 진입하지 않고 즉시 예외를 발생시키도록 보호하고, backupKnowledgeDatabase에서 잠금 경합 시 직접 파일 복사 폴백을 지원하여 DB 파괴를 원천 방어
 //             **2026-09-06** — [실제 리소스 폴더 드라이브 자동 순회 탐색] resolveSafeResourceFolder에서 'Onrivi_Asset' 또는 'C:\Onrivi_Asset' 유입 시 실제 D:\, C:\, E:\ 드라이브를 순회하여 onrivi_knowledge.db가 존재하는 실제 드라이브를 찾아 연결 — 데스크톱/로컬 환경 탐색기 📗 지식문서 표시 정상화
 //             **2026-09-06** — [AES 암호화 문자열 원천 방어 및 리소스 폴더 정규화] resolveSafeResourceFolder에서 로컬스토리지 AES 암호문(U2FsdGVkX1...)이 폴더명으로 유입 시 D:\U2FsdGVkX1... 등 엉뚱한 폴더와 가짜 DB 생성을 원천 방어하도록 복호화 및 Onrivi_Asset 표준 폴더로 강제 정규화
 //             **2026-09-06** — [document_chunks chunk_text 스키마 통일 및 자동 마이그레이션] Web WASM SQLite와의 스키마 불일치(table document_chunks has no column named chunk_text)를 해결하기 위해 DDL에 chunk_text TEXT를 추가하고 기존 DB 로드 시 ALTER TABLE 및 FTS5 동기화 자동 마이그레이션 탑재
@@ -743,31 +744,72 @@ export function saveCompleteKnowledgeDocumentAtomic(
  */
 export function getDocumentDetailFromDb(
   db: any,
-  params: { documentId?: string; filePath?: string }
+  params: { documentId?: string; filePath?: string; heading?: string }
 ): KnowledgeDocumentDetail | null {
-  const { documentId, filePath } = params;
+  const { documentId, filePath, heading } = params;
 
   let doc: any = null;
   if (documentId) {
     doc = db.prepare('SELECT * FROM knowledge_documents WHERE id = ?').get(documentId);
-  } else if (filePath) {
-    // 1) 정확 매칭
-    doc = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = ?').get(filePath);
-    // 2) 슬래시/역슬래시 정규화 매칭
-    if (!doc) {
-      const normSlash = filePath.replace(/\\/g, '/');
-      const normBack = filePath.replace(/\//g, '\\');
-      doc = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, \'\\\', \'/\') = ? OR replace(file_path, \'/\', \'\\\') = ?').get(normSlash, normBack);
+  } else if (filePath || heading) {
+    if (filePath) {
+      // 1) 정확 매칭
+      doc = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = ?').get(filePath);
+      // 2) 슬래시/역슬래시 정규화 매칭
+      if (!doc) {
+        const normSlash = filePath.replace(/\\/g, '/');
+        const normBack = filePath.replace(/\//g, '\\');
+        doc = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, \'\\\', \'/\') = ? OR replace(file_path, \'/\', \'\\\') = ?').get(normSlash, normBack);
+      }
+      // 3) 파일명(Basename) 접미사 매칭 폴백
+      if (!doc) {
+        const rawName = filePath.split(/[/\\]/).pop() || '';
+        const nameWithMd = rawName.endsWith('.md') ? rawName : `${rawName}.md`;
+        const nameWithoutMd = rawName.replace(/\.md$/i, '');
+        if (nameWithoutMd) {
+          doc = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = ? OR file_path LIKE ? OR file_path LIKE ? OR file_path = ? OR file_path LIKE ? OR file_path LIKE ? LIMIT 1').get(
+            nameWithoutMd,
+            `%/${nameWithoutMd}`,
+            `%\\${nameWithoutMd}`,
+            nameWithMd,
+            `%/${nameWithMd}`,
+            `%\\${nameWithMd}`
+          );
+        }
+      }
+      // 4) 문서 제목(title) 매칭 폴백 (정확/부분 일치)
+      if (!doc) {
+        const cleanTitle = (filePath.split(/[/\\]/).pop() || filePath).replace(/\.md$/i, '').trim();
+        if (cleanTitle) {
+          doc = db.prepare('SELECT * FROM knowledge_documents WHERE title = ? OR title = ? OR replace(title, \'.md\', \'\') = ? OR title LIKE ? OR ? LIKE (\'%\' || replace(title, \'.md\', \'\') || \'%\') LIMIT 1').get(
+            cleanTitle,
+            `${cleanTitle}.md`,
+            cleanTitle,
+            `%${cleanTitle}%`,
+            cleanTitle
+          );
+        }
+      }
     }
-    // 3) 파일명(Basename) 접미사 매칭 폴백
-    if (!doc) {
-      const fileName = filePath.split(/[/\\]/).pop() || '';
-      if (fileName) {
-        doc = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = ? OR file_path LIKE ? OR file_path LIKE ? LIMIT 1').get(
-          fileName,
-          `%/${fileName}`,
-          `%\\${fileName}`
-        );
+
+    // 5) 헤딩(heading) 또는 청크 검색 폴백
+    if (!doc && (heading || filePath)) {
+      const searchHeading = (heading || filePath || '').replace(/^#+\s*/, '').replace(/\.md$/i, '').trim();
+      if (searchHeading && searchHeading.length >= 2) {
+        try {
+          doc = db.prepare(`
+            SELECT d.* FROM knowledge_documents d
+            JOIN document_chunks c ON c.document_id = d.id
+            WHERE c.heading_title = ?
+               OR c.heading_title LIKE ?
+               OR c.heading_path LIKE ?
+            LIMIT 1
+          `).get(
+            searchHeading,
+            `%${searchHeading}%`,
+            `%${searchHeading}%`
+          );
+        } catch {}
       }
     }
   }

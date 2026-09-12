@@ -33,9 +33,10 @@ describe('hybridRetriever', () => {
 
   it('사용자 검색어를 FTS5 구문으로 정확하게 생성한다', () => {
     const fts = buildFtsQuery('JWT 인증');
-    assert.ok(fts.includes('"JWT 인증"'));
-    assert.ok(fts.includes('"JWT"*'));
+    assert.ok(fts.includes('"jwt 인증"'));
+    assert.ok(fts.includes('"jwt"*'));
     assert.ok(fts.includes('"인증"*'));
+    assert.ok(fts.includes('AND'));
   });
 
   it('하이브리드 검색 시 가중치가 반영되어 점수 순으로 후보군을 반환한다', () => {

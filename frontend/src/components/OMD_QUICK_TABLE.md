@@ -120,8 +120,8 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-HOOK-0004 | useEditorTabs.ts:35 | updateContent | setContent, setTabs | 콘텐츠 변경 탭 동기화(100ms 디바운스) |
 | OMD-HOOK-0005 ✅ FIXED | useEditorTabs.ts:59 | switchTab | editor.setModel, setActiveTabId | 탭 전환·스크롤 저장·모델 교체 *(수정: 2026-06-17 — css-style↔일반 탭 전환 시 모드 자동 전환, 도움말 탭 preview 모드 강제; 2026-06-18 — isDisposed() 가드로 Model is disposed! 크래시 방지 + stale ref 복원 버그 수정)* |
 | OMD-HOOK-0006 ✅ FIXED | useEditorTabs.ts:89 | createNewTab | monaco.editor.createModel, setTabs | 새 탭 생성 및 Monaco 모델 초기화 *(수정: 2026-06-18 — onDidChangeContent isModified: true → val !== t.content 비교)* |
-| OMD-HOOK-0005 | useFileExplorer.ts | loadHelp | 도움말 마크다운 파일 로드 | - |
-| OMD-HOOK-0006 | useFileExplorer.ts | handleFileOpenByPath | 경로 문자열 기반 파일 탐색 및 탭 오픈 | - |
+| OMD-HOOK-0006 ✅ FIXED | useFileExplorer.ts | handleFileOpenByPath | 경로 문자열 기반 파일 탐색 및 탭 오픈 | 🚨 @PATCH: 2026-09-13 (작업장 불일치 외부 절대경로 문서 오픈 및 로컬 디스크 원문 로드: /api/file-content 호출 및 기존 빈 탭 수화 로직, L시작-L끝 라인 범위 점프); 2026-09-13 (출처 링크 점프 고도화 및 에디터-미리보기 동시 스크롤·하이라이트); 2026-09-12 (웹 브라우저 출처 링크 파일 열기 및 헤딩 점프 결함 완벽 해결) |
+| OMD-MODAL-0002 ✅ FIXED | AIDraftModal.tsx | handleGenerate, handleApply | AI 초안 생성 및 본문 적용 | 🚨 @PATCH: 2026-09-13 (출처 링크 일원화 및 본문 인라인 링크 결합: 하단 출처 목록 [출처 N: 문서명](<file:///...#L시작-L끝>) 단일 링크화 및 본문 인라인 [출처 N: ...] 태그 자동 링크 결합); 2026-09-12 (본문 인라인 출처 번호 매칭 [출처 N: 문서명], 하단 출처 목록 1:1 번호화 및 절대경로 <file:///> 꺾쇠 포맷 적용) |
 | OMD-HOOK-0007 | useFileExplorer.ts | restoreFolderPermission | 브라우저 파일 시스템 권한 복구 유틸리티 | - |
 | OMD-HOOK-0008 ✅ FIXED | useFileExplorer.ts | saveFile | 파일 저장 로직 및 탭 상태(isModified) 동기화 | 🚨 @PATCH: 2026-08-05 (저장 후 t.content 갱신을 통해 영구적인 isModified 꼬임 버그 해결) |
 | OMD-EDIT-0050 ✅ FIXED | useEditorHandlers.ts | save, saveAs | api.saveFile, api.saveFileAs, updateCssProfileInFrontmatter | 에디터 내용을 파일로 저장 및 새 이름으로 저장 *(수정: 2026-08-05 — 저장 시점 css_profile 강제 주입 로직 추가 및 isModified 레이스 컨디션 버그 픽스)* |
@@ -130,7 +130,7 @@ if (e.shiftKey && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.ke
 | OMD-EDIT-0066 ✅ FIXED | MEA.tsx:2900 | insertWithR2Fallback | api.saveImage | 🚨 2026-07-30 — R2 업로드 로직 제거, api.saveImage → mediaPath 우선 사용, 로컬 저장 전용으로 리팩토링 |
 | OMD-EDIT-0067 ✅ FIXED | VideoCard.tsx:29 | useEffect | - | 로컬 환경(데스크탑/dev) 동영상 썸네일 생략 및 텍스트 설명 표시 |
 | OMD-EDIT-0068 ✅ FIXED | VideoCard.tsx:49 | useEffect | - | 동영상 썸네일 추출 시 검은 화면 방지를 위해 1초 시점으로 이동(seeking) 후 추출 |
-| OMD-EDIT-0069 ✅ FIXED | MarkdownViewer.tsx:1400 | p | - | 중첩된 이미지에서 p 태그 Hydration 에러 방지를 위해 mdast가 아닌 hast 속성(tagName === 'img')을 기준으로 재귀적 노드 검사하도록 수정 |
+| OMD-EDIT-0069 ✅ FIXED | MarkdownViewer.tsx:1400 | p, code, a | - | 🚨 @PATCH: 2026-09-13 (출처 링크 클릭 시 동일/타겟 문서 판별 고도화 및 미리보기·에디터 동시 스크롤·하이라이트 연동: isSameFile 3중 경로 비교, scrollIntoView 및 preview-highlight-line 부여, onFileOpen 동시 호출); 2026-09-12 (인라인 코드 code에 걸려 있던 white-space: pre !important 해제 및 pre-wrap, break-word, overflow-wrap anywhere 적용으로 페이지 가로 넘침 및 텍스트 잘림 현상 완벽 해결); 중첩된 이미지에서 p 태그 Hydration 에러 방지를 위해 mdast가 아닌 hast 속성(tagName === 'img')을 기준으로 재귀적 노드 검사하도록 수정 |
 | OMD-EDIT-0070 ✅ FIXED | VideoCard.tsx:35 | useEffect | - | "데스크탑은 원래대로": 데스크탑 썸네일 추출 유지. "로컬에서는 파일명": 로컬 웹서버(localhost)에서만 추출 건너뛰어 CORS 에러 방지 |
 | OMD-EDIT-0071 ✅ FIXED | ReferenceManagerModal.tsx | handleSave | vfsWriteFile, api.saveFile | 외부 참조 파일(.bib, .json 등)을 리소스 폴더에 생성 및 저장하는 별도의 도구 모달 추가 *(수정: 2026-08-05 — 좌측 목록 조회, 수정, 삭제를 포함한 2-Pane CRUD 관리자 형태로 완전 개편)* |
 | OMD-EDIT-0038 | ImageModal.tsx | handleInsert | 모달 완료 시 본문에 이미지 경로 삽입 | - |

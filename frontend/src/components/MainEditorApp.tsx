@@ -4,7 +4,11 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
-//             **2026-09-12** — [AI 모델 단일 소스(SSOT) 표준화]: 하단 플로팅 AI 모델 팝오버 및 2행 상태 표시줄을 ONRIVI_AI_MODELS 중앙 정의와 100% 동기화 (누락되었던 Gemini 1.5 Flash 포함 10대 모델 일치)
+// 🚨 @PATCH : **2026-09-13** — [작업장 외부 절대경로(file:///) 파일 readFileText 로컬 서버 API 폴백 연동]: 브라우저 핸들이 없는 작업장 외부 절대경로 파일에 대해 /api/file-content를 호출하여 로컬 디스크 원문을 100% 정상 수급하도록 보강
+// 🚨 @PATCH : **2026-09-12** — [웹(Web) 환경 전용 문서 링크(DocLinkPicker) 검색 및 연결 완벽 지원]: 브라우저 FileSystemHandle 하위 미확장 폴더 scanDirectoryDeep 심층 재귀 스캔, Web WASM SQLite 지식 보관함(knowledgeClient.listDocuments) 실시간 문서 병합, 유니코드 NFC 및 제목(title) 3중 필터 매칭, 웹 readFileText 및 handleFileOpenByPath 지식 DB/상대경로 추적 지원으로 웹 환경 문서 연결 실패 결함 원천 해결
+// 🚨 @PATCH : **2026-09-12** — [AI 모달 호출 시 현재 편집 문서(fullText/selectedText) 100% 인식 보장]: 메뉴바, 단축키, 플로팅 툴바 등 모든 진입점에서 현재 에디터 문서 내용을 aiEditorContext로 완벽 추출·주입하여 문서 전체 작업 시 기존 내용이 누락되는 결함 원천 해결
+// 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 전면 제거, 동적 모델 연동]: 하단 플로팅 AI 모델 팝오버를 getCachedAIModels()와 연동하고 구버전 Gemini(<= 3.1) 및 구형 Gemma 완전 배제, Google AI Studio 최신 모델(Gemini 3.8/3.7/3.6/3.5, Gemma 4 31B/26B) 동적 노출
+//             **2026-09-12** — [AI 모델 단일 소스(SSOT) 표준화]: 하단 플로팅 AI 모델 팝오버 및 2행 상태 표시줄을 ONRIVI_AI_MODELS 중앙 정의와 100% 동기화
 //             **2026-09-12** — AIDraftModal에 onModelChange prop 전달하여 모달 내부 모델 선택과 에디터 상태 실시간 양방향 동기화; 하단 플로팅 AI 모델 목록에 공인 안정 모델(Gemini 2.5 Flash, Gemini 2.0 Flash) 추가 연동
 //             **2026-09-12** — [플로팅 툴바 이모지 서식 원복 유지] 사용자 피드백을 반영하여 플로팅 서식 툴바의 친숙한 컬러 이모지(🔢, ☰, ❝, ☑️, 🧹, 🔗, 🔖, 📝, 🖼️, 🎞️, 📅, 🌏, 📶, ⇤, ↔, ⇥, ⌨️, 🧮) 인터페이스를 원래대로 완벽 복원 및 유지
 //             **2026-09-11** — [에디터 Pretendard 웹폰트 1순위 적용] 모나코 에디터 fontFamily를 Pretendard/Pretendard Variable 최우선으로 변경하여 원번호(①, ②, ③) 크기 불일치 해소 및 무설치 고품질 한글 렌더링 보장
@@ -134,7 +138,8 @@ import { msg } from '@/lib/systemMessages'; // 메시지
 import { getApiUrl } from '@/lib/apiUrlBuilder'; // api 서버 경로
 import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandlers'; // 파일 내보내기 핸들러
 import { configureMonacoEnvironment } from '@/lib/monacoEnv'; // Monaco 환경 설정
-import { idb, FileNode, scanDirectory, getFileIcon } from '@/lib/indexedDbHelper'; // indexedDB 헬퍼
+import { idb, FileNode, scanDirectory, scanDirectoryDeep, getFileIcon } from '@/lib/indexedDbHelper'; // indexedDB 헬퍼
+import { knowledgeClient } from '@/lib/knowledge/knowledgeClient'; // 지식 베이스 클라이언트
 import { preprocessMarkdownForPreview, stripFrontmatter } from "@/lib/editorUtils"; // 마크다운 프리뷰
 import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from "@/lib/syncEngine"; // 동기화 엔진
 import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig"; // 툴바 설정
@@ -149,7 +154,7 @@ import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder 
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import ExportModal from '@/components/ExportModal'; // 모달
 import OAIcon from './icon_onriveauther.png'; // 아이콘 
-import { ONRIVI_AI_MODELS, DEFAULT_AI_MODEL } from '@/lib/gemini';
+import { ONRIVI_AI_MODELS, DEFAULT_AI_MODEL, getCachedAIModels, normalizeAIModelName, fetchGoogleAIStudioModels } from '@/lib/gemini';
 
 // 분리된 컴포넌트들 임포트
 import MenuBar from '@/components/MenuBar'; // 메뉴바
@@ -317,27 +322,63 @@ const getMdFiles = (nodes: FileNode[]): FileNode[] => {
 
 // ====================================================================
 // 📊 [OMD-FILE-MainEditorApp-0002] MainEditorApp.tsx ➔ fetchAllMdFiles
-// 🎯 @KICK  : 멀티 플랫폼 비동기 파일 트리 스캔: 브라우저, 로컬/Electron 또는 클라우드 API
-// 🛡️ @GUARD : visited Set으로 무한 디렉토리 루프 사이클 방지
-// 🚨 @PATCH : None
-// 🔗 @CALLS : getMdFiles, fetch, api.listDirectory
+// 🎯 @KICK  : 멀티 플랫폼 비동기 파일 트리 스캔: 브라우저(scanDirectoryDeep & WASM 지식 DB), 로컬/Electron 및 열린 탭 전 환경 마크다운 통합 수집
+// 🛡️ @GUARD : visited Set 무한 디렉토리 루프 방지, NFC 정규화 및 슬래시 표준화 기반 중복 제거, 📗 지식 문서 뱃지 태깅
+// 🚨 @PATCH : **2026-09-12** — [웹 환경 문서 연결 검색 완벽 지원] 브라우저 FileSystemDirectoryHandle 하위 미확장 폴더 scanDirectoryDeep 심층 재귀 스캔, Web WASM SQLite 지식 보관함 문서(knowledgeClient.listDocuments) 실시간 병합, 열린 탭 및 VFS 통합
+// 🔗 @CALLS : scanDirectoryDeep, knowledgeClient.listDocuments, getMdFiles, getVfsFiles, api.listDirectory
 // ====================================================================
 const fetchAllMdFiles = async (
   workspaceType: string,
   fileList: FileNode[],
-  rootFolder: { name: string; handle?: any } | null
+  rootFolder: { name: string; handle?: any } | null,
+  resourceFolder?: string | null,
+  resourceFolderHandle?: any,
+  currentFileNode?: FileNode | null,
+  tabs?: any[]
 ): Promise<FileNode[]> => {
   const api = (window as any).electronAPI;
+  const fileMap = new Map<string, FileNode>();
 
+  const addToFileMap = (node: FileNode, extra?: Partial<FileNode & { title?: string; isKnowledge?: boolean }>) => {
+    if (!node || !node.name) return;
+    const ext = node.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'md' && ext !== 'markdown') return;
+    const rawKey = (node.path || node.name).replace(/\\/g, '/').toLowerCase().normalize('NFC');
+    if (!fileMap.has(rawKey)) {
+      fileMap.set(rawKey, { ...node, ...extra });
+    } else if (extra) {
+      const existing = fileMap.get(rawKey)!;
+      fileMap.set(rawKey, { ...existing, ...extra });
+    }
+  };
+
+  // 1. 브라우저(Web) 환경 수집: FileSystemDirectoryHandle 심층 재귀 스캔
   if (workspaceType === 'browser') {
-    return getMdFiles(fileList);
-  }
+    if (rootFolder?.handle) {
+      try {
+        const deepFiles = await scanDirectoryDeep(rootFolder.handle);
+        deepFiles.forEach(f => addToFileMap(f));
+      } catch (e) {
+        console.warn('[fetchAllMdFiles] scanDirectoryDeep failed:', e);
+      }
+    }
 
-  if (workspaceType === 'local') {
+    // 메모리 트리 및 가상 파일 시스템(VFS) 병합
+    const shallowMd = getMdFiles(fileList);
+    shallowMd.forEach(f => addToFileMap(f));
+
+    try {
+      const vfsFiles = getVfsFiles();
+      if (Array.isArray(vfsFiles)) {
+        vfsFiles.forEach((f: any) => {
+          addToFileMap({ name: f.name, path: f.path || f.name, kind: 'file' });
+        });
+      }
+    } catch {}
+  } else if (workspaceType === 'local') {
+    // 2. 데스크톱(Electron) 로컬 워크스페이스 수집
     if (api?.listDirectory && rootFolder?.name) {
-      const allFiles: FileNode[] = [];
       const visited = new Set<string>();
-
       const scan = async (dirPath: string) => {
         if (visited.has(dirPath)) return;
         visited.add(dirPath);
@@ -346,8 +387,8 @@ const fetchAllMdFiles = async (
           for (const item of list) {
             if (item.kind === 'file') {
               const nameLower = item.name.toLowerCase();
-              if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown') || nameLower.endsWith('.bib')) {
-                allFiles.push(item);
+              if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown')) {
+                addToFileMap(item);
               }
             } else if (item.kind === 'directory' && item.path) {
               await scan(item.path);
@@ -359,21 +400,78 @@ const fetchAllMdFiles = async (
       };
 
       await scan(rootFolder.name);
-      return allFiles;
-    }
-
-    try {
-      const res = await fetch(getApiUrl(`/api/files?t=${Date.now()}`));
-      if (res.ok) {
-        const list = await res.json();
-        return getMdFiles(list);
+    } else {
+      try {
+        const res = await fetch(getApiUrl(`/api/files?t=${Date.now()}`));
+        if (res.ok) {
+          const list = await res.json();
+          getMdFiles(list).forEach(f => addToFileMap(f));
+        }
+      } catch (err) {
+        console.error('[fetchAllMdFiles] fetch full files error:', err);
       }
-    } catch (err) {
-      console.error('[fetchAllMdFiles] fetch full files error:', err);
     }
+    getMdFiles(fileList).forEach(f => addToFileMap(f));
+  } else {
+    getMdFiles(fileList).forEach(f => addToFileMap(f));
   }
 
-  return getMdFiles(fileList);
+  // 3. 현재 열려 있는 탭(tabs) 병합 (현재 작업 중인 파일 및 미저장 탭 포함)
+  if (tabs && Array.isArray(tabs)) {
+    tabs.forEach(t => {
+      if (t && t.name && (t.name.endsWith('.md') || t.name.endsWith('.markdown'))) {
+        addToFileMap({
+          name: t.name,
+          path: t.path || t.name,
+          kind: 'file',
+          handle: t.node?.handle
+        });
+      }
+    });
+  }
+
+  // 4. 지식 보관함(Knowledge Base) 문서 웹 WASM & 로컬 전면 통합
+  try {
+    const rfHandle = resourceFolderHandle || (typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : null);
+    const knowDocs = await knowledgeClient.listDocuments({
+      resourceFolder,
+      resourceFolderHandle: rfHandle
+    });
+    if (Array.isArray(knowDocs)) {
+      for (const doc of knowDocs) {
+        if (!doc.filePath && !doc.title) continue;
+        const filePath = doc.filePath || `${doc.title}.md`;
+        const fileName = filePath.split(/[/\\]/).pop() || `${doc.title}.md`;
+        addToFileMap({
+          name: fileName,
+          path: filePath,
+          kind: 'file',
+        }, {
+          title: doc.title,
+          isKnowledge: true
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[fetchAllMdFiles] knowledgeClient.listDocuments failed:', err);
+  }
+
+  // 5. 로컬스토리지 등록 지식 문서 플래그 동기화
+  try {
+    const registered = JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
+    if (Array.isArray(registered)) {
+      for (const reg of registered) {
+        const normReg = reg.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+        for (const [key, node] of fileMap.entries()) {
+          if (key.includes(normReg) || normReg.includes(key) || (node.name && node.name.toLowerCase().normalize('NFC') === normReg)) {
+            (node as any).isKnowledge = true;
+          }
+        }
+      }
+    }
+  } catch {}
+
+  return Array.from(fileMap.values());
 };
 
 // ====================================================================
@@ -390,8 +488,11 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
     return srcPath;   // @srcPath : 절대 경로 (외부 링크, data URI, blob URI 등) 
   }
 
-  // 💡 [윈도우 절대 경로 방어] 드라이브 문자(D:/)나 절대 경로로 시작하면 그대로 반환합니다.
-  const normalizedSrc = srcPath.replace(/\\/g, '/');
+  // 💡 [윈도우 절대 경로 및 file:/// URI 방어]
+  let normalizedSrc = srcPath.replace(/\\/g, '/');
+  if (normalizedSrc.startsWith('file:///')) {
+    normalizedSrc = normalizedSrc.replace(/^file:\/\/\//, '');
+  }
   const isAbsolute = /^[a-zA-Z]:\//.test(normalizedSrc) || normalizedSrc.startsWith('/');
   if (isAbsolute) {
     return normalizedSrc;
@@ -453,6 +554,14 @@ const getRelativePath = (fromPath: string | null | undefined, toPath: string): s
   }
   const normFrom = fromPath.replace(/\\/g, '/');
   const normTo = toPath.replace(/\\/g, '/');
+
+  // 💡 [서로 다른 윈도우 드라이브 가드] D: 와 C: 간에는 물리적 상대 경로가 성립하지 않으므로 절대 경로 그대로 반환
+  const fromDrive = normFrom.match(/^[a-zA-Z]:/)?.[0]?.toUpperCase();
+  const toDrive = normTo.match(/^[a-zA-Z]:/)?.[0]?.toUpperCase();
+  if (fromDrive && toDrive && fromDrive !== toDrive) {
+    return normTo;
+  }
+
   const fromParts = normFrom.split('/').filter(Boolean);
   const toParts = normTo.split('/').filter(Boolean);
 
@@ -1214,7 +1323,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const loadFiles = async () => {
         setIsDocLinkLoading(true);
         try {
-          const files = await fetchAllMdFiles(workspaceType, fileList, rootFolder);
+          const files = await fetchAllMdFiles(
+            workspaceType,
+            fileList,
+            rootFolder,
+            resourceFolder,
+            resourceFolderHandle,
+            currentFileNode,
+            tabsRef.current
+          );
           setAllMdFiles(files);
           docLinkFilesRef.current = files;
         } catch (e) {
@@ -1232,16 +1349,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       setIsHeadingLoading(false);
       setDocHeadingSearchText('');
     }
-  }, [showDocLinkPicker, workspaceType, fileList, rootFolder]);
+  }, [showDocLinkPicker, workspaceType, fileList, rootFolder, resourceFolder, resourceFolderHandle, currentFileNode]);
 
   // 📊 [[ 자동완성용 파일 목록 로드
   useEffect(() => {
-    if (workspaceType && fileList.length > 0 && !showDocLinkPicker) {
-      fetchAllMdFiles(workspaceType, fileList, rootFolder).then(files => {
+    if (workspaceType && (fileList.length > 0 || rootFolder?.handle) && !showDocLinkPicker) {
+      fetchAllMdFiles(
+        workspaceType,
+        fileList,
+        rootFolder,
+        resourceFolder,
+        resourceFolderHandle,
+        currentFileNode,
+        tabsRef.current
+      ).then(files => {
         docLinkFilesRef.current = files;
       }).catch(() => { });
     }
-  }, [workspaceType, fileList, rootFolder, showDocLinkPicker]);
+  }, [workspaceType, fileList, rootFolder, showDocLinkPicker, resourceFolder, resourceFolderHandle, currentFileNode]);
 
   // 💡 [Step 2 리팩토링으로 세팅 및 스타일 모달 상태 삭제됨 (useEditorModals로 이관)]
 
@@ -4103,10 +4228,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-FILE-MainEditorApp-0057] MainEditorApp.tsx ➔ readFileText
-  // 🎯 @KICK  : 브라우저 FileSystemHandle, 로컬 electronAPI, VFS 또는 클라우드 API에서 파일 내용 읽기
-  // 🛡️ @GUARD : 경로/핸들 존재 여부에 따라 활성 모드 결정; 오류를 정상적으로 처리
-  // 🚨 @PATCH : None
-  // 🔗 @CALLS : node.handle.getFile, vfsReadFile, api.readFromPath, fetch
+  // 🎯 @KICK  : 브라우저 FileSystemHandle, rootFolder 심층 추적, 지식 베이스(knowledgeClient), 로컬 electronAPI, VFS에서 파일 내용 읽기
+  // 🛡️ @GUARD : 경로/핸들/지식문서 여부에 따라 활성 모드 결정; 브라우저 미확장 핸들 추적 및 오류 시 안전한 빈 문자열
+  // 🚨 @PATCH : **2026-09-12** — [웹 환경 readFileText 보강] 브라우저 환경에서 node.handle 부재 시 rootFolder.handle 경로 추적 자동 해결 및 지식 보관함(knowledgeClient.getDocumentDetail) 폴백 연동
+  // 🔗 @CALLS : node.handle.getFile, rootFolder.handle, knowledgeClient.getDocumentDetail, vfsReadFile, api.readFromPath, fetch
   // ====================================================================
   const readFileText = async (node: FileNode): Promise<string> => {
     let fileContent = '';
@@ -4121,10 +4246,50 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
     if (activeMode === 'browser') {
       if (node.handle) {
-        const file = await node.handle.getFile();
-        fileContent = await file.text();
-      } else if (node.path) {
+        try {
+          const file = await node.handle.getFile();
+          fileContent = await file.text();
+        } catch (e) {
+          console.warn('[readFileText] node.handle.getFile failed:', e);
+        }
+      }
+
+      // 💡 [브라우저 rootFolder.handle 직접 추적 가드]
+      if (!fileContent && rootFolder?.handle && node.path) {
+        try {
+          const parts = node.path.replace(/\\/g, '/').split('/').filter(p => p && p !== '.');
+          if (parts.length > 0 && (parts[0] === rootFolder.handle.name || parts[0] === rootFolder.name)) {
+            parts.shift();
+          }
+          let currentDir = rootFolder.handle;
+          for (let i = 0; i < parts.length - 1; i++) {
+            currentDir = await currentDir.getDirectoryHandle(parts[i], { create: false });
+          }
+          if (parts.length > 0) {
+            const fileHandle = await currentDir.getFileHandle(parts[parts.length - 1], { create: false });
+            const file = await fileHandle.getFile();
+            fileContent = await file.text();
+            node.handle = fileHandle;
+          }
+        } catch (e) {
+          // 탐색 실패 시 다음 폴백으로 이동
+        }
+      }
+
+      // VFS 가상 파일 시스템 폴백
+      if (!fileContent && node.path) {
         fileContent = vfsReadFile(node.path);
+        if (!fileContent && /^(?:file:\/\/\/|[a-zA-Z]:[/\\]|\/)/i.test(node.path)) {
+          try {
+            const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
+            if (res.ok) {
+              const data = await res.json();
+              if (data.ok && typeof data.content === 'string') {
+                fileContent = data.content;
+              }
+            }
+          } catch (e) {}
+        }
       }
     } else if (activeMode === 'local' && node.path) {
       const api = (window as any).electronAPI;
@@ -4149,6 +4314,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
     }
+
+    // 💡 [지식 보관함 WASM & 로컬 폴백]
+    if (!fileContent && ((node as any).isKnowledge || node.path)) {
+      try {
+        const rfHandle = resourceFolderHandleRef.current || resourceFolderHandle || (typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : null);
+        const detail = await knowledgeClient.getDocumentDetail({
+          filePath: node.path,
+          resourceFolder,
+          resourceFolderHandle: rfHandle
+        });
+        if (detail && detail.document) {
+          const headingList = (detail.chunks || []).map(c => `# ${c.content.slice(0, 40)}...`).join('\n');
+          fileContent = `# ${detail.document.title}\n\n${detail.document.summary || ''}\n\n${headingList}\n\n` + (detail.chunks ? detail.chunks.map(c => c.content).join('\n\n') : '');
+        }
+      } catch (err) {
+        console.warn('[readFileText] knowledgeClient.getDocumentDetail fallback failed:', err);
+      }
+    }
+
     return fileContent;
   };
   readFileTextRef.current = readFileText;
@@ -4227,8 +4411,29 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const selectedText = model.getValueInRange(selection);
 
     const targetPath = targetNode.path;
-    const currentPath = currentFileNode?.path;
-    const relativePath = getRelativePath(currentPath, targetPath);
+    let baseFromPath = currentFileNode?.path;
+    if (!baseFromPath) {
+      if (workspaceType === 'local' && rootFolder?.name) {
+        baseFromPath = rootFolder.name.replace(/\\/g, '/') + '/_workspace_root_.md';
+      } else {
+        baseFromPath = '_workspace_root_.md';
+      }
+    }
+    let relativePath = getRelativePath(baseFromPath, targetPath);
+
+    // 💡 [에디터 문서 연결 작업장 내 무조건 상대경로 보장]
+    if (rootFolder?.name && workspaceType === 'local') {
+      const normRoot = rootFolder.name.replace(/\\/g, '/').toLowerCase();
+      const normTarget = targetPath.replace(/\\/g, '/').toLowerCase();
+      if (normTarget.startsWith(normRoot)) {
+        const fromRef = baseFromPath || (rootFolder.name.replace(/\\/g, '/') + '/_workspace_root_.md');
+        relativePath = getRelativePath(fromRef, targetPath);
+      }
+    }
+
+    if (!relativePath.startsWith('.') && !relativePath.startsWith('/') && !relativePath.includes(':')) {
+      relativePath = './' + relativePath;
+    }
 
     // 💡 [웹/데스크톱 공통 표준 상대경로 링크 생성]
     // 표시 이름: 선택된 텍스트 > 헤딩 제목 > 순수 문서명(확장자 제거)
@@ -5584,7 +5789,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
           return;
         }
-        setAiDraftInitialMode('draft');
+        const editor = editorRef.current;
+        const selection = editor ? editor.getSelection() : null;
+        const model = editor ? editor.getModel() : null;
+        let selectedText = '';
+        let fullText = contentRef.current || content || '';
+        if (editor && model) {
+          fullText = model.getValue();
+          if (selection && !selection.isEmpty()) {
+            selectedText = model.getValueInRange(selection);
+          }
+        }
+        setAiEditorContext({ selectedText, fullText });
+        setAiDraftInitialMode(selectedText ? 'editorial' : 'draft');
         setIsAIDraftModalOpen(true); 
         return;
       }
@@ -5885,7 +6102,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             showToast('편집 모드에서 문서가 열려있을 때만 사용 가능합니다.', 'warning');
             return;
           }
-          setAiDraftInitialMode('draft');
+          const editor = editorRef.current;
+          const selection = editor ? editor.getSelection() : null;
+          const model = editor ? editor.getModel() : null;
+          let selectedText = '';
+          let fullText = contentRef.current || content || '';
+          if (editor && model) {
+            fullText = model.getValue();
+            if (selection && !selection.isEmpty()) {
+              selectedText = model.getValueInRange(selection);
+            }
+          }
+          setAiEditorContext({ selectedText, fullText });
+          setAiDraftInitialMode(selectedText ? 'editorial' : 'draft');
           setIsAIDraftModalOpen(true);
           return;
         }
@@ -7011,7 +7240,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">Gemini / Gemma</span>
                               </div>
                               <div className="max-h-56 overflow-y-auto space-y-0.5">
-                                {ONRIVI_AI_MODELS.map((m) => {
+                                {getCachedAIModels().map((m) => {
                                   const isSelected = (aiModelName || DEFAULT_AI_MODEL) === m.id;
                                   return (
                                     <button
@@ -7129,7 +7358,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                             {/* 2행: 모델 선택 */}
                             {(() => {
-                              const currentModelObj = ONRIVI_AI_MODELS.find(m => m.id === aiModelName);
+                              const currentModelObj = getCachedAIModels().find(m => m.id === aiModelName);
                               const displayModelFullName = currentModelObj ? currentModelObj.name : (aiModelName || 'Gemini 3.8 Flash');
 
                               return (
@@ -7141,6 +7370,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     if (!geminiApiKey) {
                                       showToast("AI 연동이 해제된 상태입니다. 환경설정에서 Gemini API Key를 등록해주세요.", "warning");
                                       return;
+                                    }
+                                    if (!isBottomAiDropdownOpen) {
+                                      fetchGoogleAIStudioModels(geminiApiKey).catch(() => {});
                                     }
                                     setIsBottomAiDropdownOpen(!isBottomAiDropdownOpen);
                                   }}
@@ -7418,15 +7650,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     } catch { return []; }
                                   })();
 
-                                  const filtered = allMdFiles.filter(f =>
-                                    f.name.toLowerCase().includes(docLinkSearchText.toLowerCase()) ||
-                                    (f.path && f.path.toLowerCase().includes(docLinkSearchText.toLowerCase()))
-                                  ).sort((a, b) => {
-                                    const aKnow = registeredDocs.includes(a.path) || registeredDocs.includes(a.name);
-                                    const bKnow = registeredDocs.includes(b.path) || registeredDocs.includes(b.name);
+                                  const query = (docLinkSearchText || '').normalize('NFC').trim().toLowerCase();
+
+                                  const filtered = allMdFiles.filter(f => {
+                                    if (!query) return true;
+                                    const nameNorm = (f.name || '').normalize('NFC').toLowerCase();
+                                    const pathNorm = (f.path || '').normalize('NFC').toLowerCase();
+                                    const titleNorm = ((f as any).title || '').normalize('NFC').toLowerCase();
+                                    return nameNorm.includes(query) || pathNorm.includes(query) || titleNorm.includes(query);
+                                  }).sort((a, b) => {
+                                    const aKnow = (a as any).isKnowledge || registeredDocs.includes(a.path) || registeredDocs.includes(a.name);
+                                    const bKnow = (b as any).isKnowledge || registeredDocs.includes(b.path) || registeredDocs.includes(b.name);
                                     if (aKnow && !bKnow) return -1;
                                     if (!aKnow && bKnow) return 1;
-                                    return a.name.localeCompare(b.name);
+                                    return (a.name || '').localeCompare(b.name || '');
                                   });
 
                                   if (filtered.length === 0) {
@@ -7437,10 +7674,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     );
                                   }
                                   return filtered.map((node) => {
-                                    const isKnowledge = registeredDocs.includes(node.path) || registeredDocs.includes(node.name);
+                                    const isKnowledge = (node as any).isKnowledge || registeredDocs.includes(node.path) || registeredDocs.includes(node.name);
+                                    const displayTitle = (node as any).title && (node as any).title !== node.name
+                                      ? `${(node as any).title} (${node.name})`
+                                      : node.name;
                                     return (
                                       <button
-                                        key={node.path}
+                                        key={node.path || node.name}
                                         onMouseDown={(e) => {
                                           e.preventDefault();
                                           handleDocFileClick(node);
@@ -7454,7 +7694,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       >
                                         <div className="flex items-center justify-between gap-1.5">
                                           <span className="font-semibold text-slate-800 dark:text-zinc-100 break-all whitespace-normal leading-snug">
-                                            {node.name}
+                                            {displayTitle}
                                           </span>
                                           {isKnowledge && (
                                             <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-[#1d4ed8] text-white font-bold shrink-0">
@@ -7462,7 +7702,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                             </span>
                                           )}
                                         </div>
-                                        <span className="text-[10.5px] text-slate-400 dark:text-zinc-400 break-all whitespace-normal leading-tight mt-0.5">{node.path}</span>
+                                        <span className="text-[10.5px] text-slate-600 dark:text-zinc-300 font-mono break-all whitespace-normal leading-tight mt-0.5">{node.path}</span>
                                       </button>
                                     );
                                   });
@@ -7512,8 +7752,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       📂 [문서 자체를 바로 연결]
                                     </button>
                                     {(() => {
+                                      const hQuery = (docHeadingSearchText || '').normalize('NFC').trim().toLowerCase();
                                       const filteredHeadings = docHeadings.filter(h =>
-                                        h.toLowerCase().includes(docHeadingSearchText.toLowerCase())
+                                        !hQuery || h.normalize('NFC').toLowerCase().includes(hQuery)
                                       );
                                       if (filteredHeadings.length === 0) {
                                         return (
@@ -7848,9 +8089,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               aiModelName={aiModelName || 'gemini-3.8-flash'}
               onModelChange={(newModel) => setAiModelName?.(newModel)}
               initialMode={aiDraftInitialMode}
-              editorContext={aiEditorContext}
+              editorContext={{
+                selectedText: aiEditorContext?.selectedText ?? (editorRef.current && !editorRef.current.getSelection()?.isEmpty() ? editorRef.current.getModel()?.getValueInRange(editorRef.current.getSelection()!) : '') ?? '',
+                fullText: aiEditorContext?.fullText || editorRef.current?.getModel()?.getValue() || contentRef.current || content || '',
+              }}
               resourceFolder={resourceFolder}
               resourceFolderHandle={resourceFolderHandle}
+              rootFolder={rootFolder}
             />
           )}
 

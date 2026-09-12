@@ -3,6 +3,30 @@
  * 파일명 : AIDraftModal.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-09-13** — [출처 링크 일원화 및 본문 인라인 링크 결합]:
+ *             1) 출처 목록 포맷 일원화: 하단 출처 목록에서 불필요한 화살표와 중복 문서명([출처 N: 문서] ➔ [문서](...))을 제거하고 [출처 N: 문서명](<file:///...#L시작-L끝>) 단일 링크로 결합
+ *             2) 본문 인라인 출처 태그 링크화: 본문 내부의 [출처 N: ...] 태그에도 해당 청크의 파일 및 라인 앵커(<file:///...#L시작-L끝>)를 자동 결합하여 본문에서 즉시 출처 원문으로 점프 지원
+ * 🚨 @PATCH : **2026-09-12** — [지식 보관함 출처 고유 번호 부여([출처 N: 문서명]) 및 하단 1:1 매칭, 절대경로 마크다운 링크화]:
+ *             1) 본문 인라인 출처 번호화: 본문 서술 시 인용한 지식 자료 번호와 1:1 대응되는 [출처 N: 문서명] (예: [출처 1: 추석], [출처 2: ...]) 태그를 생성하도록 AI 프롬프트 규칙 고도화
+ *             2) 하단 출처 목록 1:1 번호 매칭 및 절대경로: 하단 출처 목록 항목을 1. [출처 1: 문서명] ➔ [문서명](<file:///절대경로#L시작-L끝>) 형식으로 결합하여 본문 인라인 태그와 완벽히 상호 매칭
+ *             3) 꺾쇠 포맷 적용: 경로에 공백/특수문자가 포함되어도 안전하도록 마크다운 링크를 <...>로 래핑
+ * 🚨 @PATCH : **2026-09-12** — [본문 인라인 출처 표기 의무화 및 문서 태그([출처: 문서명]) 표준화]:
+ *             1) 본문 인라인 출처 의무화: 지식 보관함(RAG)의 사실, 규격, 데이터를 본문에서 서술할 때마다 해당 문장 바로 뒤에 [출처: 문서명] 문서 태그를 필수로 삽입하도록 프롬프트 지침 전면 강화
+ *             2) 하단 출처 목록과 1:1 매칭: 하단 지식 출처 목록의 각 항목을 [출처: 문서명] ➔ [문서명](file:///...) 형식으로 정돈하여 본문 인라인 태그와 하단 원본 출처 목록 간의 직관적 상호 연계 보장
+ *             3) 환각 방어 강화: 참조 지식 0건 시 가상 [출처: ...] 태그 생성 차단 및 소거 필터링 적용
+ * 🚨 @PATCH : **2026-09-12** — [Auto-RAG 및 출처 각주 무조건 기본 OFF(false) 설정 및 연동]:
+ *             1) 모달 진입 시 및 작업 대상 범위 전환 시 Auto-RAG(isAutoRagEnabled)와 출처 각주 포함(includeCitations)을 무조건 기본 false(OFF)로 초기화하여 사용자가 명시적으로 켜기 전까지 비활성화 유지
+ *             2) Auto-RAG 스위치 ON 시 출처 각주 포함도 함께 자동으로 ON 되도록 동기화 연동 보장
+ *             3) 3대 RAG 세트 defaultExpanded={true} 전달로 모달 진입 시 접기/펼치기 대상 3개가 모두 펼쳐진 상태로 렌더링되도록 개선
+ * 🚨 @PATCH : **2026-09-12** — [현재 작업 중인 문서 100% 인식 보장, 에디팅 프롬프트 전면 개편, Auto-RAG 하이재킹 원천 방어 및 UX 시인성 강화]:
+ *             1) 현재 문서 인식 보장: '문서 전체' 모드 시 기존의 '양식만 참조하고 완전히 새 문서 작성/요약 금지' 프롬프트를 전면 폐기하고, 사용자의 현재 문서를 1순위 핵심 본문으로 인식하여 수정·보완·교정·확장·요약하도록 지침 전면 개편
+ *             2) Auto-RAG 하이재킹 방어: 문서/선택 영역 작업 시 단순 교정/편집 명령에 대해 무관한 외래 지식 검색을 차단하고, 지식 보관함 검색 결과를 '보조 참고 자료'로 격하하여 현재 문서 본문이 엉뚱한 지식으로 대체되는 현상 원천 차단
+ *             3) 대상 범위 UI 개선: '문서 전체 (양식 참조)' 라벨을 '문서 전체'로 간소화하고, 활성 범위 및 현재 문서의 실제 글자 수를 실시간 표시하는 안내 배너 탑재
+ * 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 전면 제거, 동적 모델 탐색 연동]:
+ *             1) 모델 제공사 구글 AI 스튜디오 공식으로 한정: 불필요한 OpenAI/Anthropic 및 Gemini 3.1 이하(3.1, 2.5, 2.0, 1.5), 구버전 Gemma 제거
+ *             2) Gemini 플래그십(3.8/3.7/3.6/3.5) 및 최신 오픈 모델 Gemma 4(gemma-4-31b-it, gemma-4-26b-a4b-it) 반영
+ *             3) 동적 모델 탐색: fetchGoogleAIStudioModels 연동으로 API 키를 통한 Google AI Studio 실시간 모델 목록 동적 주입
+ *             4) 구버전 저장 모델 자동 정규화(normalizeAIModelName) 및 오류 진단 추천 모델(Gemini 3.8/3.7 Flash) 갱신
  * 🚨 @PATCH : **2026-09-12** — [하단 선택기 라벨 간소화: '제조사:', '모델:' 텍스트 제거 및 컴팩트 드롭다운 정돈]
  *             1) 사용자 UX 피드백 반영: 하단 드롭다운 선택기 내부의 불필요한 '제조사:', '모델:' 텍스트 라벨을 전면 제거하여 모던하고 슬림한 버튼 형태로 정돈
  * 🚨 @PATCH : **2026-09-12** — [가상 출처 환각 전면 차단 및 내부 시스템 출처만 단일 공급원(SSOT) 결합 보장]
@@ -12,40 +36,7 @@
  *             4) 지식 참조가 0건이거나 출처 옵션 해제 시 어떠한 참고자료나 출처 블록도 일체 노출되지 않도록 철저히 통제
  * 🚨 @PATCH : **2026-09-12** — [하단 액션바 UI 정돈: 초기화·에디터 이동 제거 및 AI 제조사(Provider)/모델 듀얼 선택기 복원]
  *             1) AI 실행 버튼 좌측에 위치했던 불필요한 '초기화' 및 '에디터 이동' 버튼을 전면 제거하여 하단 바 공간 확보 및 실행 집중도 강화
- *             2) AI 서비스 제조사(Google Gemini, Google Gemma, OpenAI, Anthropic, 직접 입력)와 세부 모델을 연동하여 고를 수 있는 듀얼 선택기 복원 탑재
- *             3) 실제 지식 문서가 주입되지 않은 일반 작성 시 AI가 가상의 출처(NUT_001_..., file:///... 등)를 지어내지 못하도록 환각(Hallucination) 방어 프롬프트 엄격화
- * 🚨 @PATCH : **2026-09-12** — [UI 버튼 정리: 우측 액션바 복사·각주 제거, 복사 아이콘 활성화, Auto-RAG 하단 각주 스위치 재배치]
- *             1) 우측 미리보기 상단 액션바에서 불필요하게 중복/돌출되던 '출처 각주 포함' 체크박스와 텍스트 '복사' 버튼 전면 제거
- *             2) '결과 미리보기' 타이틀 우측에 컴팩트한 복사 아이콘 활성 버튼을 배치하여 결과 텍스트가 있을 때 즉시 복사 가능하도록 사용성 극대화
- *             3) '출처 각주 포함' 옵션을 좌측 지식 팔레트 내 '지식 보관함 자동 참조 (Auto-RAG)' 스위치 바로 아래로 통합 재배치
- * 🚨 @PATCH : **2026-09-12** — [프롬프트 재실행 및 수정 시 지식 출처 배너 즉시 리셋(초기화) 및 닫기 버튼 탑재]
- *             1) 프롬프트 입력창(textarea) 수정 시 이전 실행의 citedSources 및 generationComplete 상태를 즉각 초기화하여 이전 출처 배너가 화면에 계속 남아있는 결함 원천 차단
- *             2) AI 재실행(isGenerating) 중에는 이전 출처 배너를 은닉하고 '새로운 프롬프트 관련 지식 문서 검색 중...' 실시간 상태 표시
- *             3) 참조된 지식 출처 요약 배너 우측 상단에 명시적 닫기([✕]) 버튼을 신설하여 언제든 사용자가 원클릭으로 출처 배너를 해제/초기화할 수 있도록 사용성 극대화
- *             4) Auto-RAG 검색 결과 0건 시 citedSources를 빈 배열([])로 유지하여 인공적인 오매칭 출처 생성 원천 차단
- * 🚨 @PATCH : **2026-09-12** — [환경설정-에디터-AI모달 3자간 AI 모델 단일 소스(SSOT) 동기화 및 단일 선택기 통일]
- *             1) 환경설정과 상이했던 AI 제조사(OpenAI/Anthropic 등 불필요 항목) 및 2단 듀얼 선택기를 전면 제거하고 환경설정과 100% 동일한 공인 10대 모델(ONRIVI_AI_MODELS) 단일 고대비 선택기로 일원화
- *             2) 환경설정의 aiModelName을 실시간 반영하고, 모달 내 선택 시 에디터 상태(onModelChange) 및 localStorage 양방향 즉시 동기화
- *             3) 모달 상단/하단 [초기화] 클릭 시 환경설정에 저장된 기본 모델로 완전 복원 동기화
- * 🚨 @PATCH : **2026-09-12** — [AI 모달 '초기화' 및 '에디터 이동' 버튼 전면 복원 및 시인성 강화]
- *             1) 상단 헤더에 '초기화' 및 '에디터 이동' 버튼을 Modern Technical Editorial 고대비 버튼 스타일로 격상하고 isGenerating 시에도 은닉되지 않도록 보장
- *             2) 하단 액션바(Action Bar)에도 '초기화' 및 '에디터 이동' 버튼을 추가 배치하여 사용자가 어느 위치에서든 즉시 모달 초기화 및 에디터 복귀가 가능하도록 사용성 극대화
- *             3) 우측 에러 진단 화면에도 '초기화' 및 '에디터 이동' 버튼을 추가하여 오류 상황에서도 즉시 탈출 및 재작성 가능
- * 🚨 @PATCH : **2026-09-12** — [사용자 직접 모델 선택 존중: 임의 모델 자동 폴백 전면 제거 및 명확한 오류 진단창 노출]
- *             1) 시스템에 의한 임의 모델 자동 폴백(gemini-2.5-flash 등)을 전면 제거하고 사용자가 지정한 모델만 정직하게 호출하도록 원복
- *             2) 503 과부하 또는 스트림 파싱 에러 발생 시 숨김 없이 화면 양측(좌측 프롬프트 하단 경고 배너 및 우측 전용 에러 화면)에 명확한 오류 원인과 권장 조치 안내를 100% 즉각 노출하여 사용자가 직접 원하는 모델로 변경할 수 있도록 개편
- *             3) draftResult 유무와 무관하게 오류 발생 시 에러 화면을 무조건 최우선 렌더링하고 오류 토스트 명확히 발화
- * 🚨 @PATCH : **2026-09-12** — [RAG 지식 검색 및 출처 연동 전면 정상화]
- *             1) knowledgeClient 통합 파사드 적용으로 웹 브라우저(WASM SQLite) 및 데스크톱 환경 모두에서 지식 검색 및 Auto-RAG 100% 정상 작동 보장
- *             2) resourceFolder/resourceFolderHandle 유연한 폴백(effectiveResourceFolder) 적용 및 KnowledgeAttachmentPalette 무조건 렌더링
- *             3) Auto-RAG 후보 청크 추출 시 신뢰할 수 있는 SSOT 지식 프롬프트 주입 및 상단 출처 배너와 '## 📚 참고 자료 및 출처' 섹션 자동 생성 완전 연동
- * 🚨 @PATCH : **2026-09-12** — 사용자 요구사항 반영: AI 실행 시 입력/참고 문서 상단 메타데이터(YAML Frontmatter, 메타 속성, 주석) 추출 및 출력 원천 차단(stripFrontmatterAndMeta 및 시스템 프롬프트 금지 규칙), RAG 지식 자료 추출 시 인라인 출처 명기 및 '## 📚 참고 자료 및 출처' 섹션 생성 규칙 엄격화; AI 제조사·모델 듀얼 선택기 하단 재배치 및 슬림화; 사용자 친화적 에러 진단 시스템 완비
- * 🚨 @PATCH : **2026-09-12** — 모달 타이틀을 'AI 프롬프트'로 변경, 용어 체계를 '프리셋'에서 '라이브러리'로 전면 통일, 라이브러리 저장 팝오버 Modern Technical Editorial 디자인 시스템 적용 및 기존 저장 폴더 드롭다운/칩 UI 탑재
- * 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
- *             2026-09-04** — [ONRIVI-KNOWLEDGE-EDITOR-001] 로컬 지식 보관함 검색 & 청크 첨부(KnowledgeAttachmentPalette) 연동, Auto-RAG 자동 참조 모드, 출처 각주(Citations) 자동 생성 및 LDSG v5.0 그린(#1d4ed8) 디자인 토큰 일원화
- * *2026-09-03** — 기본 AI 모델을 최신 플래그십 최고 버전인 Gemini 3.8 Flash(gemini-3.8-flash)로 전면 갱신
- * *2026-08-16** — useEffect 의존성 배열 누락 경고 해결: getPromptTemplates와 loadPresets useEffect에 resourceFolder, resourceFolderHandle 추가
- * *2026-07-20** — AI 모달창의 '프리셋 불러오기' 및 '현재 설정 저장' 팝업 드롭다운이 외부 영역(outside) 클릭 시 자동으로 닫히도록 `useRef` 및 이벤트 리스너(handleClickOutside) 로직 추가 적용
+ *             2) AI 서비스 제조사(Google Gemini, Google Gemma, 직접 입력)와 세부 모델을 연동하여 고를 수 있는 듀얼 선택기 탑재
  * -----------------------------------------------------------------------
  */
 "use client";
@@ -54,7 +45,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Sparkles, Wand2, Loader2, Check, Save, FolderOpen, Trash2, Copy, Paperclip, Edit2, BookOpen, RotateCcw, Database, ExternalLink, ChevronDown, AlertCircle, Zap } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 import { getPromptTemplates, savePromptTemplates, getPromptTemplate, PromptTemplate } from '@/lib/promptTemplates';
-import { generateDraftWithAIStream, formatUserFriendlyAIError, FormattedAIError, ONRIVI_AI_MODELS, DEFAULT_AI_MODEL } from '@/lib/gemini';
+import { generateDraftWithAIStream, formatUserFriendlyAIError, FormattedAIError, ONRIVI_AI_MODELS, DEFAULT_AI_MODEL, fetchGoogleAIStudioModels, getCachedAIModels, normalizeAIModelName } from '@/lib/gemini';
 import AIPromptLibrary from './AIPromptLibrary';
 import { KnowledgeAttachmentPalette } from './knowledge/KnowledgeAttachmentPalette';
 import { knowledgeClient } from '@/lib/knowledge/knowledgeClient';
@@ -69,7 +60,7 @@ export interface AIModelItem {
 }
 
 export interface AIProviderItem {
-  id: 'google-gemini' | 'google-gemma' | 'openai' | 'anthropic' | 'custom';
+  id: 'google-gemini' | 'google-gemma' | 'custom';
   name: string;
   vendor: string;
   badge?: string;
@@ -86,10 +77,6 @@ export const AI_PROVIDERS: AIProviderItem[] = [
       { id: 'gemini-3.7-flash', label: '⚡ Gemini 3.7 Flash (차세대 고성능 모델)', badge: '추천' },
       { id: 'gemini-3.6-flash', label: '🛡️ Gemini 3.6 Flash (고성능 안정화 모델)' },
       { id: 'gemini-3.5-flash', label: '💡 Gemini 3.5 Flash (지능형 균형 모델)' },
-      { id: 'gemini-3.1-flash-lite', label: '🪶 Gemini 3.1 Flash Lite (초경량 초고속 응답)' },
-      { id: 'gemini-2.5-flash', label: '🚀 Gemini 2.5 Flash (최신 공인 안정 플래그십)', badge: '안정' },
-      { id: 'gemini-2.0-flash', label: '⚡ Gemini 2.0 Flash (초고속 실시간 스트리밍)' },
-      { id: 'gemini-1.5-flash', label: '📦 Gemini 1.5 Flash (글로벌 공인 표준 모델)' },
     ]
   },
   {
@@ -97,29 +84,8 @@ export const AI_PROVIDERS: AIProviderItem[] = [
     name: 'Google (Gemma)',
     vendor: 'Google',
     models: [
-      { id: 'gemma-2-27b-it', label: '💎 Gemma 2 27B IT (고성능 오픈 모델)' },
-      { id: 'gemma-2-9b-it', label: '💎 Gemma 2 9B IT (경량 오픈 모델)' },
-    ]
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI (GPT)',
-    vendor: 'OpenAI',
-    models: [
-      { id: 'gpt-4.5-preview', label: '🧠 GPT-4.5 Preview (최신 리서치 프리뷰)' },
-      { id: 'gpt-4o', label: '🌟 GPT-4o (옴니 플래그십 모델)' },
-      { id: 'gpt-4o-mini', label: '⚡ GPT-4o Mini (경량 고속 모델)' },
-      { id: 'o3-mini', label: '🔬 o3 Mini (차세대 추론 모델)' },
-    ]
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic (Claude)',
-    vendor: 'Anthropic',
-    models: [
-      { id: 'claude-3-7-sonnet-latest', label: '🎭 Claude 3.7 Sonnet (최신 하이브리드 추론)' },
-      { id: 'claude-3-5-sonnet-latest', label: '⚡ Claude 3.5 Sonnet (최고 인기 코딩/작성 모델)' },
-      { id: 'claude-3-5-haiku-latest', label: '🪶 Claude 3.5 Haiku (초고속 경량 모델)' },
+      { id: 'gemma-4-31b-it', label: '💎 Gemma 4 31B IT (Google DeepMind 256K 플래그십)', badge: '신규' },
+      { id: 'gemma-4-26b-a4b-it', label: '💎 Gemma 4 26B A4B IT (MoE 경량 고처리량)', badge: '신규' },
     ]
   },
   {
@@ -133,8 +99,6 @@ export const AI_PROVIDERS: AIProviderItem[] = [
 function inferProviderFromModel(modelName: string): AIProviderItem['id'] {
   if (!modelName) return 'google-gemini';
   if (modelName.startsWith('gemma')) return 'google-gemma';
-  if (modelName.startsWith('gpt-') || modelName.startsWith('o3-') || modelName.startsWith('o1-')) return 'openai';
-  if (modelName.startsWith('claude-')) return 'anthropic';
   if (modelName.startsWith('gemini-')) return 'google-gemini';
   return 'custom';
 }
@@ -152,6 +116,7 @@ interface AIDraftModalProps {
   initialMode?: 'draft' | 'editorial';
   resourceFolder?: string;
   resourceFolderHandle?: any;
+  rootFolder?: any;
 }
 
 interface AIPreset {
@@ -180,7 +145,8 @@ export default function AIDraftModal({
   editorContext,
   initialMode = 'draft',
   resourceFolder,
-  resourceFolderHandle
+  resourceFolderHandle,
+  rootFolder
 }: AIDraftModalProps) {
   const { showToast } = useToast();
 
@@ -198,32 +164,80 @@ export default function AIDraftModal({
   const effectiveResourceFolderHandle = resourceFolderHandle;
 
   const [currentModel, setCurrentModel] = useState<string>(() => {
-    return aiModelName || (typeof window !== 'undefined' ? localStorage.getItem('onrivi_ai_model_name') || '' : '') || DEFAULT_AI_MODEL;
+    const raw = aiModelName || (typeof window !== 'undefined' ? localStorage.getItem('onrivi_ai_model_name') || '' : '') || DEFAULT_AI_MODEL;
+    return normalizeAIModelName(raw);
   });
   const [selectedProviderId, setSelectedProviderId] = useState<AIProviderItem['id']>(() => {
-    return inferProviderFromModel(aiModelName || (typeof window !== 'undefined' ? localStorage.getItem('onrivi_ai_model_name') || '' : '') || DEFAULT_AI_MODEL);
+    const raw = aiModelName || (typeof window !== 'undefined' ? localStorage.getItem('onrivi_ai_model_name') || '' : '') || DEFAULT_AI_MODEL;
+    return inferProviderFromModel(normalizeAIModelName(raw));
   });
   const [formattedError, setFormattedError] = useState<FormattedAIError | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
+  // 구글 AI 스튜디오 동적 모델 목록 캐시 및 실시간 동기화
+  const [providers, setProviders] = useState<AIProviderItem[]>(() => {
+    const cached = getCachedAIModels();
+    if (cached && cached.length > 0) {
+      const geminiList: AIModelItem[] = [];
+      const gemmaList: AIModelItem[] = [];
+      cached.forEach(m => {
+        if (m.id.startsWith('gemma-')) {
+          gemmaList.push({ id: m.id, label: m.label, badge: m.badge, desc: m.desc });
+        } else {
+          geminiList.push({ id: m.id, label: m.label, badge: m.badge, desc: m.desc });
+        }
+      });
+      return [
+        { id: 'google-gemini', name: 'Google (Gemini)', vendor: 'Google', models: geminiList.length > 0 ? geminiList : AI_PROVIDERS[0].models },
+        { id: 'google-gemma', name: 'Google (Gemma)', vendor: 'Google', models: gemmaList.length > 0 ? gemmaList : AI_PROVIDERS[1].models },
+        { id: 'custom', name: '직접 입력 (Custom)', vendor: 'Custom', models: [] }
+      ];
+    }
+    return AI_PROVIDERS;
+  });
+
+  useEffect(() => {
+    if (geminiApiKey) {
+      fetchGoogleAIStudioModels(geminiApiKey).then((dynamicModels) => {
+        if (dynamicModels && dynamicModels.length > 0) {
+          const geminiList: AIModelItem[] = [];
+          const gemmaList: AIModelItem[] = [];
+          dynamicModels.forEach(m => {
+            if (m.id.startsWith('gemma-')) {
+              gemmaList.push({ id: m.id, label: m.label, badge: m.badge, desc: m.desc });
+            } else {
+              geminiList.push({ id: m.id, label: m.label, badge: m.badge, desc: m.desc });
+            }
+          });
+          setProviders([
+            { id: 'google-gemini', name: 'Google (Gemini)', vendor: 'Google', models: geminiList.length > 0 ? geminiList : AI_PROVIDERS[0].models },
+            { id: 'google-gemma', name: 'Google (Gemma)', vendor: 'Google', models: gemmaList.length > 0 ? gemmaList : AI_PROVIDERS[1].models },
+            { id: 'custom', name: '직접 입력 (Custom)', vendor: 'Custom', models: [] }
+          ]);
+        }
+      }).catch(() => {});
+    }
+  }, [geminiApiKey]);
+
   useEffect(() => {
     if (aiModelName) {
-      setCurrentModel(aiModelName);
-      setSelectedProviderId(inferProviderFromModel(aiModelName));
+      const clean = normalizeAIModelName(aiModelName);
+      setCurrentModel(clean);
+      setSelectedProviderId(inferProviderFromModel(clean));
     }
   }, [aiModelName]);
 
   const currentProviderModels = useMemo(() => {
-    const prov = AI_PROVIDERS.find(p => p.id === selectedProviderId);
+    const prov = providers.find(p => p.id === selectedProviderId);
     return prov ? prov.models : [];
-  }, [selectedProviderId]);
+  }, [providers, selectedProviderId]);
 
   const handleProviderSelect = (providerId: AIProviderItem['id']) => {
     setSelectedProviderId(providerId);
     setFormattedError(null);
     setLastError(null);
 
-    const targetProv = AI_PROVIDERS.find(p => p.id === providerId);
+    const targetProv = providers.find(p => p.id === providerId);
     if (targetProv && targetProv.models.length > 0) {
       const firstModel = targetProv.models[0].id;
       handleModelSelect(firstModel);
@@ -281,7 +295,11 @@ export default function AIDraftModal({
 
   // Editorial Command State
   const [editorialCommand, setEditorialCommand] = useState('');
-  const [targetScope, setTargetScope] = useState<'selection' | 'document' | 'none'>('selection');
+  const [targetScope, setTargetScope] = useState<'selection' | 'document' | 'none'>(() => {
+    if (editorContext?.selectedText && editorContext.selectedText.trim()) return 'selection';
+    if (editorContext?.fullText && editorContext.fullText.trim()) return 'document';
+    return 'none';
+  });
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -291,9 +309,17 @@ export default function AIDraftModal({
   
   // 🧠 [ONRIVI-KNOWLEDGE-INTEGRATION] 로컬 지식 보관함 RAG 연동 상태
   const [attachedKnowledgeChunks, setAttachedKnowledgeChunks] = useState<RetrievalCandidate[]>([]);
-  const [isAutoRagEnabled, setIsAutoRagEnabled] = useState(true);
-  const [includeCitations, setIncludeCitations] = useState(true);
+  // 🌟 [사용자 요구사항]: 디폴트는 지식 보관함 자동 참조(Auto-RAG) 및 출처 각주 포함 모두 OFF(false)
+  const [isAutoRagEnabled, setIsAutoRagEnabled] = useState<boolean>(false);
+  const [includeCitations, setIncludeCitations] = useState<boolean>(false);
   const [citedSources, setCitedSources] = useState<RetrievalCandidate[]>([]);
+
+  // 작업 대상 범위 변경 핸들러: 범위 전환 시에도 Auto-RAG 및 각주는 기본 OFF 유지 (사용자가 필요 시 명시적 ON)
+  const handleScopeChange = (newScope: 'selection' | 'document' | 'none') => {
+    setTargetScope(newScope);
+    setIsAutoRagEnabled(false);
+    setIncludeCitations(false);
+  };
 
   // File Attachment State
   const [attachedFileName, setAttachedFileName] = useState('');
@@ -378,7 +404,7 @@ export default function AIDraftModal({
   // Set default targetScope if no selection
   useEffect(() => {
     if (!editorContext?.selectedText && targetScope === 'selection') {
-      setTargetScope('document');
+      handleScopeChange('document');
     }
   }, [editorContext, targetScope]);
 
@@ -499,10 +525,10 @@ export default function AIDraftModal({
       // Legacy preset migration on load
       const combined = `[작성 규칙]\n${preset.systemPrompt || ''}\n\n[입력 데이터]\n${preset.userPrompt || ''}`;
       setEditorialCommand(combined.trim());
-      setTargetScope('document');
+      handleScopeChange('document');
     } else {
       setEditorialCommand(preset.editorialCommand || '');
-      setTargetScope(preset.targetScope || 'selection');
+      handleScopeChange(preset.targetScope || 'selection');
     }
     setShowPresetDropdown(false);
     setShowLibrary(false);
@@ -636,19 +662,7 @@ export default function AIDraftModal({
       return;
     }
 
-    if (selectedProviderId === 'openai' || selectedProviderId === 'anthropic') {
-      const vendorName = selectedProviderId === 'openai' ? 'OpenAI' : 'Anthropic';
-      const diag: FormattedAIError = {
-        title: `${vendorName} 서비스 연동 준비 중`,
-        description: `현재 온리비 에디터에는 Google Gemini API 키가 적용되어 있습니다. ${vendorName} 모델 직접 호출은 차기 업데이트에서 별도 API 키 설정과 함께 지원될 예정입니다.`,
-        solution: "하단 '제조사'를 'Google (Gemini)' 또는 'Google (Gemma)'로 선택하시면 즉시 AI 초안 생성을 이용하실 수 있습니다.",
-        category: 'unknown'
-      };
-      setFormattedError(diag);
-      setLastError(diag.description);
-      showToast(`${vendorName} 연동은 준비 중입니다. Google (Gemini) 제조사를 선택해 주세요.`, 'warning');
-      return;
-    }
+    // Google AI Studio (Gemini / Gemma / Custom) 전용 실행
 
     const targetModel = overrideModel || currentModel || DEFAULT_AI_MODEL;
     if (overrideModel && overrideModel !== currentModel) {
@@ -670,8 +684,10 @@ export default function AIDraftModal({
     // 🧠 [ONRIVI-KNOWLEDGE-INTEGRATION] 지식 보관함 연동 및 Auto-RAG 처리
     let activeKnowledge: RetrievalCandidate[] = [...attachedKnowledgeChunks];
 
-    // 수동 첨부 청크가 없는데 Auto-RAG가 켜져 있는 경우, 프롬프트 기반으로 지식 자동 검색 수행
-    if (activeKnowledge.length === 0 && isAutoRagEnabled) {
+    // Auto-RAG 지식 검색 수행:
+    // 사용자가 '지식 보관함 자동 참조 (Auto-RAG)'를 활성화(ON)한 경우 지식 보관함에서 검색을 수행합니다.
+    // 문서 전체/선택 영역 작업 시에도 사용자가 필요에 의해 RAG를 켰다면 관련 지식을 검색하여 보조 자료로 주입합니다.
+    if (isAutoRagEnabled) {
       try {
         const searchData = await knowledgeClient.searchKnowledge({
           query: editorialCommand.trim(),
@@ -682,13 +698,13 @@ export default function AIDraftModal({
           aiModelName: targetModel,
         });
         if (searchData && Array.isArray(searchData.candidates) && searchData.candidates.length > 0) {
-          activeKnowledge = searchData.candidates.slice(0, 4);
-        } else {
-          activeKnowledge = [];
+          // 기존 수동 첨부 청크와 중복되지 않도록 병합 (최대 5건 유지)
+          const existingIds = new Set(activeKnowledge.map(k => k.chunkId));
+          const newCandidates = searchData.candidates.filter(c => !existingIds.has(c.chunkId));
+          activeKnowledge = [...activeKnowledge, ...newCandidates].slice(0, 5);
         }
       } catch (err) {
         console.warn('[AIDraftModal] Auto-RAG 검색 폴백 실패:', err);
-        activeKnowledge = [];
       }
     }
 
@@ -719,14 +735,21 @@ export default function AIDraftModal({
 
     let finalUserPrompt = editorialCommand;
 
-    if (targetScope === 'selection' && editorContext?.selectedText) {
+    if (targetScope === 'selection' && editorContext?.selectedText && editorContext.selectedText.trim()) {
       const cleanSelection = stripFrontmatterAndMeta(editorContext.selectedText);
-      finalSystemPrompt += "\n사용자가 제공한 [대상 영역 텍스트]를 참고하거나 이를 바탕으로 명령을 수행하십시오.";
-      finalUserPrompt = `${editorialCommand}\n\n[대상 영역 텍스트]\n${cleanSelection}`;
-    } else if (targetScope === 'document' && editorContext?.fullText) {
+      finalSystemPrompt += `\n\n[선택 영역 텍스트 기반 작업 지침]
+당신은 사용자가 선택한 [대상 영역 텍스트]를 정확하게 이해하고, 사용자의 [작업 명령]에 따라 수정, 보완, 교정, 개선, 번역 또는 확장하는 전문 에디터입니다.
+- 제공된 [대상 영역 텍스트]의 맥락과 문맥을 충실히 반영하여 결과물을 작성하십시오.
+- 불필요한 서론이나 사족 없이 교정/수정 완료된 마크다운 텍스트 결과물만 제공하십시오.`;
+      finalUserPrompt = `[대상 영역 텍스트]\n${cleanSelection}\n\n[사용자 작업 명령]\n${editorialCommand}\n\n위 [대상 영역 텍스트]의 내용을 정확히 인식하고 바탕으로 삼아, [사용자 작업 명령]을 충실히 반영한 완성도 높은 마크다운 텍스트를 작성해 주세요.`;
+    } else if (targetScope === 'document' && editorContext?.fullText && editorContext.fullText.trim()) {
       const cleanDoc = stripFrontmatterAndMeta(editorContext.fullText);
-      finalSystemPrompt += "\nYou are a professional editorial assistant. Your task is to write a COMPLETELY NEW document based on the user's command. The provided existing document is ONLY a reference for output formatting (layout, lists, tables), style, tone, and structural format (like heading levels). Do NOT summarize or edit the existing document. Create brand new content that matches the user's command, but strictly mimics the output format, layout, form, and feeling of the reference document. Return only the finalized text without markdown code blocks unless requested.";
-      finalUserPrompt = `[새 문서 작성 명령]\n${editorialCommand}\n\n[스타일/구조/출력양식 참고용 기존 문서]\n${cleanDoc}\n\n위의 '참고용 기존 문서'를 요약하거나 정리하지 마세요. 해당 문서는 오직 글의 출력 양식(레이아웃, 표, 목록 구조), 구조(제목 수준 등), 느낌(어조, 문체)을 파악하기 위한 '제공 자료'일 뿐입니다. 반드시 이 자료에 사용된 출력 양식과 톤앤매너 및 일관성을 똑같이 유지하면서, 맨 위 '[새 문서 작성 명령]'에 따라 '완전히 새로운 문서' 창작해 주세요.`;
+      finalSystemPrompt += `\n\n[현재 작업 문서 기반 에디팅 및 집필 지침]
+당신은 사용자가 현재 열어두고 집필 중인 [현재 편집 중인 문서 원본]을 최우선 바탕으로 삼아, 사용자의 [작업 명령]을 수행하는 전문 마크다운 에디터입니다.
+1. [현재 편집 중인 문서 원본]의 실제 텍스트, 목차, 문맥, 주제 및 사실관계를 가장 먼저 정확히 정독하고 파악하십시오.
+2. 사용자의 [작업 명령]이 오탈자 검수, 내용 요약, 문체 다듬기, 추가 작성, 특정 섹션 수정/보강 등인 경우, 절대로 엉뚱한 외부 주제를 지어내지 말고 [현재 편집 중인 문서 원본]의 내용을 바탕으로 결과물을 완성하십시오.
+3. 사족이나 불필요한 메타 설명 없이, 요청된 작업이 온전히 적용된 마크다운 결과물을 제공하십시오.`;
+      finalUserPrompt = `[현재 편집 중인 문서 원본]\n${cleanDoc}\n\n[사용자 작업 명령]\n${editorialCommand}\n\n위의 [현재 편집 중인 문서 원본]의 내용을 100% 인지하고 바탕으로 삼아, [사용자 작업 명령]에 맞게 수정·보강·요약·교정하거나 이어서 집필한 완성도 높은 마크다운 본문을 작성해 주세요.`;
     }
 
     if (attachedFileContent) {
@@ -749,16 +772,28 @@ export default function AIDraftModal({
 ${snippet}`;
       }).join('\n\n---\n\n');
 
-      finalUserPrompt += `\n\n[참고 지식 문서 컨텍스트 (Knowledge Base Evidence)]\n${knowledgeContextBlocks}\n\n[출처 표기 필수 원칙] 위의 [참고 지식 문서 컨텍스트]를 최우선 근거로 활용하여 글을 작성하십시오. 단, 글의 마지막에 '참고 자료'나 '출처' 섹션을 절대로 직접 작성하지 마십시오. (시스템 엔진이 검증된 실제 내부 출처 링크를 하단에 자동 결합합니다.)`;
-      finalSystemPrompt += `\n\n[지식 자료 추출 및 출처 표기 규칙]
+      const sampleDocTitle = activeKnowledge[0]?.documentTitle || activeKnowledge[0]?.headingTitle || '문서명';
+
+      if (targetScope === 'document' || targetScope === 'selection') {
+        // 본문 작업 중 지식 보관함은 보조 참고 자료로 주입하여 현재 문서 내용이 주인이 되도록 보장
+        finalUserPrompt += `\n\n[보조 참고 지식 자료 (보충/팩트 체크용)]\n${knowledgeContextBlocks}\n\n위 [보조 참고 지식 자료]는 필요한 경우에만 팩트 확인, 기술 규격 보완 또는 보충 설명 자료로만 참고하십시오. 작업의 최우선 기준은 [현재 편집 중인 문서 원본] 및 사용자의 [작업 명령]입니다. 지식 자료의 사실이나 데이터를 인용·보강한 문장 바로 뒤에는 반드시 [출처 N: 문서명] (예: [출처 1: ${sampleDocTitle}]) 형태처럼 해당 참고 지식 자료 번호(N)가 포함된 문서 태그를 표기하십시오. 단, 글의 마지막에 '참고 자료'나 '출처' 목록 섹션을 절대로 직접 작성하지 마십시오.`;
+        finalSystemPrompt += `\n\n[보조 지식 자료 활용 및 본문 인라인 출처 태그 규칙]
+1. 제공된 [보조 참고 지식 자료]는 사실 관계 검증이나 보충 정보로만 보조적으로 활용하십시오.
+2. 작업의 중심은 사용자의 [현재 편집 중인 문서 원본] 또는 [대상 영역 텍스트]이며, 외래 지식이 문서의 본래 내용이나 맥락을 덮어쓰거나 왜곡해서는 안 됩니다.
+3. [본문 내 문서 태그 형태의 출처 번호 표기 (필수)]: 지식 자료의 사실, 규격, 데이터를 본문에 인용하거나 보완 서술한 문장 바로 뒤에는 반드시 [출처 N: 문서명] (예: [출처 1: ${sampleDocTitle}]) 형태처럼 인용한 [참고 지식 자료 N]의 번호와 문서명을 함께 삽입하십시오.
+4. [출처 목록 섹션 직접 작성 절대 금지]: 본문 끝에 '## 참고 자료', '## 출처', '## 참고문헌', 'References' 등의 출처 목록 섹션을 절대로 직접 작성하지 마십시오.`;
+      } else {
+        finalUserPrompt += `\n\n[참고 지식 문서 컨텍스트 (Knowledge Base Evidence)]\n${knowledgeContextBlocks}\n\n[출처 표기 필수 원칙] 위의 [참고 지식 문서 컨텍스트]를 최우선 근거로 활용하여 글을 작성하십시오. 본문에서 지식 자료의 사실이나 내용을 서술한 문장 바로 뒤에는 반드시 [출처 N: 문서명] (예: [출처 1: ${sampleDocTitle}]) 형태처럼 인용한 [참고 지식 자료 N]의 번호가 포함된 문서 태그를 명시하십시오. 단, 글의 마지막에 '참고 자료'나 '출처' 목록 섹션을 절대로 직접 작성하지 마십시오. (시스템 엔진이 검증된 실제 내부 출처 링크를 하단에 번호별로 자동 결합합니다.)`;
+        finalSystemPrompt += `\n\n[지식 자료 추출 및 본문 인라인 출처 태그 규칙]
 1. 당신에게 제공된 [참고 지식 문서 컨텍스트]는 신뢰할 수 있는 단일 진실 공급원(Single Source of Truth)입니다. 지식 자료의 사실, 정책, 기술 규격 및 상세 정보를 우선적으로 반영하여 작성하십시오. 불필요한 날조나 왜곡(Hallucination)은 엄격히 금지됩니다.
-2. 본문 작성 중 특정 지식 자료를 인용할 때는 필요 시 본문 내에서 가볍게 *(출처: [문서명])* 정도로만 언급하십시오.
-3. [출처 목록 섹션 직접 작성 절대 금지] 본문 끝에 '## 참고 자료', '## 출처', '## 참고문헌', 'References' 등의 출처 목록 섹션을 절대로 직접 작성하지 마십시오. 검증된 실제 내부 지식 보관함 출처는 시스템에 의해 안전하게 자동 결합됩니다.`;
+2. [본문 내 문서 태그 형태의 출처 번호 표기 (필수)]: 본문 작성 중 특정 지식 자료의 사실, 규격, 정책, 데이터, 통계 등을 서술할 때마다, 해당 문장(또는 단락) 바로 뒤에 반드시 [출처 N: 문서명] (예: [출처 1: ${sampleDocTitle}]) 형태처럼 인용한 [참고 지식 자료 N]의 번호(N)와 문서명을 정확히 삽입하십시오.
+3. [출처 목록 섹션 직접 작성 절대 금지]: 본문 끝에 '## 참고 자료', '## 출처', '## 참고문헌', 'References' 등의 출처 목록 섹션을 절대로 직접 작성하지 마십시오. 검증된 실제 내부 지식 보관함 출처는 시스템에 의해 하단에 [출처 N: 문서명] 태그와 연계되어 안전하게 자동 결합됩니다.`;
+      }
     } else {
       // 🛡️ [환각 방어] 참조된 실제 지식 문서가 없는 경우, AI가 가상의 파일명이나 출처 링크를 날조(Hallucination)하지 못하도록 원천 차단
       finalSystemPrompt += `\n\n[가상 출처 날조 절대 금지 규칙]
 현재 작성 중인 작업에는 외부/내부 지식 보관함 문서가 주입되지 않았습니다(참조 문서 0건).
-존재하지 않는 가상의 문서명(예: NUT_001_..., 과일_영양_DB 등), 가상의 파일 경로(file:///...), 가상의 출처 각주, 또는 '참고 자료 및 출처'/'References' 섹션을 절대로 지어내거나 포함하지 마십시오. 어떠한 참고자료나 출처 목록도 생성하지 말고, 오직 순수한 본문 콘텐츠만 완성도 있게 작성하십시오.`;
+존재하지 않는 가상의 문서명, 가상의 파일 경로(file:///...), 가상의 출처 태그([출처: ...] 또는 [출처 N: ...]), 가상의 각주, 또는 '참고 자료 및 출처'/'References' 섹션을 절대로 지어내거나 포함하지 마십시오. 어떠한 참고자료나 출처 태그/목록도 생성하지 말고, 오직 순수한 본문 콘텐츠만 완성도 있게 작성하십시오.`;
     }
 
     try {
@@ -790,9 +825,10 @@ ${snippet}`;
           ''
         );
 
-        // 3. 지식 문서가 0건일 때 AI가 본문 내에 날조한 가상 file:/// 링크를 일반 텍스트로 치환 방어
+        // 3. 지식 문서가 0건일 때 AI가 본문 내에 날조한 가상 file:/// 링크 및 가상 [출처: ...] 태그 치환 방어
         if (activeKnowledge.length === 0) {
           cleaned = cleaned.replace(/\[([^\]]+)\]\(file:\/\/\/[^\)]+\)/gi, '$1');
+          cleaned = cleaned.replace(/\[출처(?:\s*\d+)?:\s*[^\]]+\]/gi, '');
         }
 
         return cleaned.trim();
@@ -803,16 +839,36 @@ ${snippet}`;
 
       // 📚 [단일 진실 공급원(SSOT)] 오직 내부 시스템에 실제 존재하는 지식 청크가 있고, 출처 각주 포함 옵션이 켜져 있을 때만 시스템이 직접 검증된 출처 블록 결합!
       if (activeKnowledge.length > 0 && includeCitations) {
+        let linkedBody = cleanedContent;
+
         const sourceList = activeKnowledge.map((c, i) => {
+          const num = i + 1;
           const title = c.documentTitle || c.headingTitle || '내부 지식 문서';
           const path = c.headingPath || c.headingTitle || '';
-          const fileUri = (c.filePath || '').replace(/\\/g, '/');
+          
+          // 절대경로 정규화: 데스크톱 상대경로인 경우 rootFolder.name과 합성
+          let fullPath = (c.filePath || '').replace(/\\/g, '/');
+          const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+          if (isDesktop && !/^[a-zA-Z]:\//.test(fullPath) && !fullPath.startsWith('/') && rootFolder?.name) {
+            const base = rootFolder.name.replace(/\\/g, '/').replace(/\/$/, '');
+            const rel = fullPath.replace(/^\.\//, '').replace(/^\//, '');
+            fullPath = `${base}/${rel}`;
+          }
+
+          const fileUri = fullPath.startsWith('/') || /^[a-zA-Z]:\//.test(fullPath)
+            ? `file:///${fullPath.replace(/^\/+/, '')}`
+            : fullPath;
           const lineAnchor = (c.startLine && c.endLine) ? `#L${c.startLine}-L${c.endLine}` : '';
           const lineInfo = (c.startLine && c.endLine) ? ` (L${c.startLine}~L${c.endLine})` : '';
           const pathInfo = path ? ` - 섹션: \`${path}\`` : '';
-          return `${i + 1}. [${title}](file:///${fileUri}${lineAnchor})${pathInfo}${lineInfo}`;
+
+          // 🔗 본문 인라인 [출처 N: ...] 태그에도 직접 출처 링크 자동 결합
+          const inlineRegex = new RegExp(`\\[출처\\s*${num}:\\s*([^\\]]+)\\](?!\\()`, 'g');
+          linkedBody = linkedBody.replace(inlineRegex, `[출처 ${num}: $1](<${fileUri}${lineAnchor}>)`);
+
+          return `${num}. [출처 ${num}: ${title}](<${fileUri}${lineAnchor}>)${pathInfo}${lineInfo}`;
         }).join('\n');
-        finalized = `${cleanedContent}\n\n---\n\n## 📚 내부 지식 보관함 출처\n${sourceList}\n`;
+        finalized = `${linkedBody}\n\n---\n\n## 📚 내부 지식 보관함 출처\n${sourceList}\n`;
       }
       setDraftResult(finalized);
       setGenerationComplete(true);
@@ -831,6 +887,9 @@ ${snippet}`;
       setDraftResult('');
       setGenerationComplete(false);
       showToast(`${diagnosed.title}: ${diagnosed.description}`, 'error');
+      if (typeof window !== 'undefined') {
+        window.alert(`❌ AI 글 생성 실패 (${diagnosed.title})\n\n${diagnosed.description}\n\n💡 해결 방법: ${diagnosed.solution || 'API 키 또는 모델 설정을 확인해 주세요.'}`);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -840,7 +899,10 @@ ${snippet}`;
     setEditorialCommand('');
     setLoadedPresetName('');
     setLoadedPresetFolder('');
-    setTargetScope('selection');
+    const defaultScope: 'selection' | 'document' | 'none' = 
+      (editorContext?.selectedText && editorContext.selectedText.trim()) ? 'selection' : 
+      ((editorContext?.fullText && editorContext.fullText.trim()) ? 'document' : 'none');
+    handleScopeChange(defaultScope);
     setAttachedFileName('');
     setAttachedFileContent('');
     setAttachedKnowledgeChunks([]);
@@ -866,13 +928,30 @@ ${snippet}`;
       const hasDirectFileLinks = finalOutput.includes('file:///');
       if (!hasDirectFileLinks) {
         const footnotes = citedSources.map((c, i) => {
+          const num = i + 1;
           const title = c.documentTitle || c.headingTitle || '내부 지식 문서';
           const path = c.headingPath || c.headingTitle || '';
-          const fileUri = (c.filePath || '').replace(/\\/g, '/');
+          
+          let fullPath = (c.filePath || '').replace(/\\/g, '/');
+          const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+          if (isDesktop && !/^[a-zA-Z]:\//.test(fullPath) && !fullPath.startsWith('/') && rootFolder?.name) {
+            const base = rootFolder.name.replace(/\\/g, '/').replace(/\/$/, '');
+            const rel = fullPath.replace(/^\.\//, '').replace(/^\//, '');
+            fullPath = `${base}/${rel}`;
+          }
+
+          const fileUri = fullPath.startsWith('/') || /^[a-zA-Z]:\//.test(fullPath)
+            ? `file:///${fullPath.replace(/^\/+/, '')}`
+            : fullPath;
           const lineAnchor = (c.startLine && c.endLine) ? `#L${c.startLine}-L${c.endLine}` : '';
           const lineInfo = (c.startLine && c.endLine) ? ` (L${c.startLine}~L${c.endLine})` : '';
-          const pathInfo = path ? ` : \`${path}\`` : '';
-          return `> ${i + 1}. [${title}](file:///${fileUri}${lineAnchor})${pathInfo}${lineInfo}`;
+          const pathInfo = path ? ` - 섹션: \`${path}\`` : '';
+
+          // 🔗 본문 인라인 [출처 N: ...] 태그에도 직접 출처 링크 자동 결합
+          const inlineRegex = new RegExp(`\\[출처\\s*${num}:\\s*([^\\]]+)\\](?!\\()`, 'g');
+          finalOutput = finalOutput.replace(inlineRegex, `[출처 ${num}: $1](<${fileUri}${lineAnchor}>)`);
+
+          return `> ${num}. [출처 ${num}: ${title}](<${fileUri}${lineAnchor}>)${pathInfo}${lineInfo}`;
         }).join('\n');
         finalOutput += `\n\n---\n> 📚 **내부 지식 보관함 원본 출처**:\n${footnotes}\n`;
       }
@@ -1230,44 +1309,63 @@ ${snippet}`;
                 )}
 
                 {/* Scope & Context Options */}
-                <div className="p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 bg-white dark:bg-zinc-900/60 flex flex-col gap-3">
+                <div className="p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 bg-white dark:bg-zinc-900/60 flex flex-col gap-2.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-zinc-700 dark:text-zinc-300">작업 대상 범위</span>
                     <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg">
                       <button
                         type="button"
-                        onClick={() => setTargetScope('selection')}
-                        className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                        onClick={() => handleScopeChange('selection')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer ${
                           targetScope === 'selection'
                             ? 'bg-white dark:bg-zinc-700 text-[#1d4ed8] shadow-xs'
-                            : 'text-zinc-500'
+                            : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
                         }`}
                       >
                         선택 영역만
                       </button>
                       <button
                         type="button"
-                        onClick={() => setTargetScope('document')}
-                        className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                        onClick={() => handleScopeChange('document')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer ${
                           targetScope === 'document'
                             ? 'bg-white dark:bg-zinc-700 text-[#1d4ed8] shadow-xs'
-                            : 'text-zinc-500'
+                            : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
                         }`}
                       >
-                        문서 전체 (양식 참조)
+                        문서 전체
                       </button>
                       <button
                         type="button"
-                        onClick={() => setTargetScope('none')}
-                        className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                        onClick={() => handleScopeChange('none')}
+                        className={`px-2.5 py-1 rounded-md font-semibold transition cursor-pointer ${
                           targetScope === 'none'
                             ? 'bg-white dark:bg-zinc-700 text-[#1d4ed8] shadow-xs'
-                            : 'text-zinc-500'
+                            : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
                         }`}
                       >
-                        본문 무시 (신규)
+                        새 글 작성 (본문 미참조)
                       </button>
                     </div>
+                  </div>
+
+                  {/* Context Scope Info Banner */}
+                  <div className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/60 flex items-center justify-between text-zinc-600 dark:text-zinc-300">
+                    {targetScope === 'document' && (
+                      <span>
+                        📄 <strong>현재 편집 문서 전체</strong> ({(editorContext?.fullText || '').trim().length.toLocaleString()}자)를 기반으로 작업합니다.
+                      </span>
+                    )}
+                    {targetScope === 'selection' && (
+                      <span>
+                        ✂️ <strong>선택한 영역 텍스트</strong> ({(editorContext?.selectedText || '').trim().length.toLocaleString()}자)를 기반으로 작업합니다.
+                      </span>
+                    )}
+                    {targetScope === 'none' && (
+                      <span>
+                        ✨ 기존 본문을 참조하지 않고 프롬프트 명령에 따라 새로운 글을 작성합니다.
+                      </span>
+                    )}
                   </div>
 
                   {/* Attachment Bar */}
@@ -1319,6 +1417,7 @@ ${snippet}`;
                   onToggleAutoRag={setIsAutoRagEnabled}
                   includeCitations={includeCitations}
                   onToggleIncludeCitations={setIncludeCitations}
+                  defaultExpanded={true}
                   currentCharsUsed={
                     attachedKnowledgeChunks.reduce((acc, c) => acc + (c.snippet?.length || 0), 0) +
                     (attachedFileContent?.length || 0)
@@ -1344,7 +1443,7 @@ ${snippet}`;
                       className="appearance-none bg-transparent pr-4 text-[12px] font-bold text-[#1d4ed8] dark:text-blue-400 outline-none cursor-pointer disabled:opacity-50"
                       title="AI 서비스 제조사를 선택하세요"
                     >
-                      {AI_PROVIDERS.map((p) => (
+                      {providers.map((p) => (
                         <option key={p.id} value={p.id} className="bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-medium">
                           {p.name}
                         </option>
@@ -1588,34 +1687,34 @@ ${snippet}`;
                         <button
                           type="button"
                           onClick={() => {
-                            handleModelSelect('gemini-2.5-flash');
-                            showToast('AI 모델이 Gemini 2.5 Flash로 변경되었습니다. 이제 다시 실행하실 수 있습니다.', 'info');
+                            handleModelSelect('gemini-3.8-flash');
+                            showToast('AI 모델이 최신 플래그십 Gemini 3.8 Flash로 변경되었습니다. 이제 다시 실행하실 수 있습니다.', 'info');
                           }}
                           className={`flex-1 py-2 px-3 rounded-xl text-[12px] font-bold border shadow-2xs active:scale-98 transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                            currentModel === 'gemini-2.5-flash'
+                            currentModel === 'gemini-3.8-flash'
                               ? 'bg-[#1d4ed8] text-white border-[#1d4ed8]'
                               : 'text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 border-zinc-300 dark:border-zinc-700'
                           }`}
-                          title="공인 안정 버전 Gemini 2.5 Flash로 모델을 변경합니다"
+                          title="최신 플래그십 버전 Gemini 3.8 Flash로 모델을 변경합니다"
                         >
                           <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                          <span className="truncate">Gemini 2.5 Flash로 변경</span>
+                          <span className="truncate">Gemini 3.8 Flash로 변경</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => {
-                            handleModelSelect('gemini-1.5-flash');
-                            showToast('AI 모델이 Gemini 1.5 Flash로 변경되었습니다. 이제 다시 실행하실 수 있습니다.', 'info');
+                            handleModelSelect('gemini-3.7-flash');
+                            showToast('AI 모델이 Gemini 3.7 Flash로 변경되었습니다. 이제 다시 실행하실 수 있습니다.', 'info');
                           }}
                           className={`flex-1 py-2 px-3 rounded-xl text-[12px] font-bold border shadow-2xs active:scale-98 transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                            currentModel === 'gemini-1.5-flash'
+                            currentModel === 'gemini-3.7-flash'
                               ? 'bg-[#1d4ed8] text-white border-[#1d4ed8]'
                               : 'text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 border-zinc-300 dark:border-zinc-700'
                           }`}
-                          title="글로벌 표준 안정 버전 Gemini 1.5 Flash로 모델을 변경합니다"
+                          title="차세대 고성능 버전 Gemini 3.7 Flash로 모델을 변경합니다"
                         >
                           <Zap className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                          <span className="truncate">Gemini 1.5 Flash로 변경</span>
+                          <span className="truncate">Gemini 3.7 Flash로 변경</span>
                         </button>
                       </div>
 

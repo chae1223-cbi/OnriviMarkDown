@@ -5,6 +5,7 @@ import { THEME_MAP } from "@/lib/editorThemes";
 import { idb } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
+import { normalizeAIModelName } from '@/lib/gemini';
 
 /**
  * [ONR-16-002] useEditorSettings 커스텀 훅
@@ -14,8 +15,9 @@ import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 // 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
 // 🛡️ @GUARD : 각 스토리지 로드 실패 시 기본값 fallback
-// 🚨 @PATCH : **2026-09-05** — 환경설정에서 AI 설정(API 키) 삭제 시 null/빈문자열 상태를 즉시 빈값('')으로 반영하여 이전 키 부활 방지; **2026-09-03** — 환경설정에서 API 키 삭제 시 로컬스토리지 복구 단계에서 빈 문자열('')을 유효 상태로 인식하여 즉시 삭제 반영되도록 보완
-// 🔗 @CALLS : getDefaultHotkeys, getDefaultCommands, idb.get, api.loadSettings, api.saveSettings
+// 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 자동 정규화]: 로컬스토리지에 기존 <= 3.1 모델 잔존 시 normalizeAIModelName을 통해 최신 플래그십(gemini-3.8-flash)으로 자동 무해 정규화
+//             **2026-09-05** — 환경설정에서 AI 설정(API 키) 삭제 시 null/빈문자열 상태를 즉시 빈값('')으로 반영하여 이전 키 부활 방지; **2026-09-03** — 환경설정에서 API 키 삭제 시 로컬스토리지 복구 단계에서 빈 문자열('')을 유효 상태로 인식하여 즉시 삭제 반영되도록 보완
+// 🔗 @CALLS : getDefaultHotkeys, getDefaultCommands, idb.get, api.loadSettings, api.saveSettings, normalizeAIModelName
 // ====================================================================
 // 🚨 @PATCH : **2026-06-20** — 다크모드 전면 비활성화 패치: isDarkMode 상태를 항상 false로 고정하고 HTML documentElement의 dark 클래스 조작을 비활성화하여 에디터 및 렌더러가 항상 라이트 모드로 동작하도록 강제
 export const useEditorSettings = (
@@ -46,7 +48,7 @@ export const useEditorSettings = (
   });
   const [aiModelName, setAiModelName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('onrivi_ai_model_name') || 'gemini-3.8-flash';
+      return normalizeAIModelName(localStorage.getItem('onrivi_ai_model_name') || 'gemini-3.8-flash');
     }
     return 'gemini-3.8-flash';
   });
@@ -230,7 +232,7 @@ export const useEditorSettings = (
       setThemePalette(baseSettings.themePalette);
       setLicenseKey(baseSettings.licenseKey);
       setGeminiApiKey((baseSettings.geminiApiKey || '').trim());
-      setAiModelName(baseSettings.aiModelName || 'gemini-3.8-flash');
+      setAiModelName(normalizeAIModelName(baseSettings.aiModelName || 'gemini-3.8-flash'));
       setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
 
       document.documentElement.classList.remove('dark');

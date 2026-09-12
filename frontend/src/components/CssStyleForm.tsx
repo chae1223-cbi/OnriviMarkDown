@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-12 — [모든 AI 질의 표준 재시도 적용]: 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 에러 표출 규칙 및 기본 모델 gemini-3.8-flash 통일 적용
  *   2026-09-11 — Modern Technical Editorial 표준 적용 및 미리보기 영역 사용자 정의 CSS (Custom CSS 직접 입력) 편집 아코디언 신설
  *   2026-09-05 — 표 상단 여백 (제목 문구와의 간격, margin-top) 및 하단 여백(margin-bottom) 정밀 조절 슬라이더 위젯 추가
  *   2026-09-02 — LINE Design System (LDSG v5.0) 표준 적용: 테마 드롭다운 및 갤러리 팝오버 LDSG Green(#1d4ed8) 악센트 및 LDSG 경계선 규격 통일
@@ -342,13 +343,32 @@ ${guideContent}
 반드시 위 가이드라인과 JSON 구조를 준수해야 하며, 다른 텍스트 설명이나 코드 블록 기호(\`\`\`) 없이 오직 순수한 JSON 문자열만 출력해 주세요.`;
 
       // GoogleGenerativeAI 직접 호출 — processTextWithAI의 사전 코드블록 제거가 JSON 파싱과 충돌하므로 raw 응답을 직접 수신
+      const targetModel = aiModelName || 'gemini-3.8-flash';
       const genAI = new GoogleGenerativeAI((geminiApiKey || '').trim());
       const model = genAI.getGenerativeModel({
-        model: aiModelName || 'gemini-1.5-pro',
+        model: targetModel,
         systemInstruction: '당신은 CSS 서식 JSON 생성 전문가입니다. 오직 순수한 JSON 객체만 출력하십시오. 마크다운 코드 블록 기호, 설명 문구, 부연 텍스트는 절대 포함하지 마십시오. 가이드에 정의된 모든 태그와 CSS 속성을 단 하나도 빠짐없이 완벽하게 채워서 JSON 결과물로 출력해야 합니다.',
       });
-      const result = await model.generateContent(promptText);
-      const responseText = result.response.text();
+
+      let attempts = 0;
+      const maxAttempts = 3;
+      let responseText = '';
+
+      while (attempts < maxAttempts) {
+        try {
+          attempts++;
+          const result = await model.generateContent(promptText);
+          responseText = result.response.text();
+          break;
+        } catch (callErr: any) {
+          if (attempts < maxAttempts) {
+            console.warn(`[CssStyleForm] '${targetModel}' AI 서식 생성 ${attempts}회 실패. 3초 후 재시도합니다...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            continue;
+          }
+          throw callErr;
+        }
+      }
 
       // JSON 문자열 정제 (코드 블록 및 사족 제거)
       let cleanedText = responseText.trim();

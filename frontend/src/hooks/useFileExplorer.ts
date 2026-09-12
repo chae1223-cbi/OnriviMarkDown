@@ -7,15 +7,25 @@ import { stripFrontmatter } from "@/lib/editorUtils";
 import { EditorTab } from '@/components/UnifiedTabBar';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { triggerKnowledgeAutoSyncOnSave } from '@/lib/knowledge/knowledgeAutoSync';
+import { knowledgeClient } from '@/lib/knowledge/knowledgeClient';
 
 /**
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
-// 🎯 @KICK  : 워크스페이스 폴더 연결, 파일 트리 스캔, 파일 열기/저장 I/O 전담
-// 🛡️ @GUARD : 각 환경별 API 실패 시 예외 처리 및 fallback
-// 🚨 @PATCH : **2026-09-11** — [브라우저 파일 열기 폴백 404 방어] docs/ 또는 welcome.md 등 내장 샘플 문서가 아닌 로컬 사용자 경로에 대한 무의미한 웹 서버 fetch 시도를 차단하여 404 콘솔 오류 원천 제거
+// 🚨 @PATCH : **2026-09-13** — [작업장 불일치 외부 절대경로(file:///) 문서 오픈 및 로컬 디스크 원문 로드 연동]: 현재 열린 작업장 폴더와 출처 문서의 폴더가 상이할 때 브라우저 권한 한계를 극복하기 위해 /api/file-content를 호출하여 실제 로컬 디스크 원본 파일(2,000자 이상)을 100% 온전히 로드하고, 기존 빈 플레이스홀더 탭 자동 수화(Hydration) 및 라인 범위(#L시작-L끝) 점프 연동
+//             **2026-09-13** — [출처 링크 점프 고도화 및 에디터-미리보기 동시 스크롤·하이라이트]: jumpToAnchor에서 라인 범위(#L시작-L끝) 파싱, Monaco Range 전체 선택 및 중앙 정렬, 미리보기 요소 자동 스크롤 및 preview-highlight-line 시각적 강조 애니메이션 플래시, 탭 마운트 시차 보정을 위한 지연 재시도(Retry) 적용
+//             **2026-09-13** — [하드코딩 시딩 배제 및 서버 동적 경로 획득 정착]: selectRootFolder 및 rootFolderRefreshEffect에서 임의 하드코딩 시딩을 완전 배제하고, 서버 API(/api/knowledge/resolve-path)를 통해 OS 실제 작업장 절대경로를 동적 획득하여 onrivi_workspace_path에 저장
+//             **2026-09-12** — [file:/// 링크 파일 오픈 및 서브폴더 탐색 결함 해결]:
+//             1) handleFileOpenByPath에서 file:/// 절대경로 유입 시 rootFolder 이름 이후 내부 상대경로 분리 추출 및 findFileHandleInDirectoryDeep 하위 폴더 재귀 탐색으로 '체험하기' 등 서브디렉토리 문서 100% 정상 오픈 및 라인 앵커(#L..) 점프 보장
+//             2) selectRootFolder에서 브라우저 폴더 선택 시 실제 OS 절대경로를 즉시 획득하여 localStorage(onrivi_workspace_path, rootFolder)에 1회 영구 저장
+//             1) handleFileOpenByPath에 decodeURIComponent 정규화 및 targetBaseName 3중 매칭(findNodeByPath, rootFolder, VFS, tabs) 탑재
+//             2) knowledgeClient.getDocumentDetail에 heading 연계 및 파일명/제목 다중 폴백으로 WASM SQLite 지식 문서 100% 탐색
+//             3) jumpToAnchor에서 Monaco Editor 모델 헤딩 텍스트(#제목) 검색 및 revealLineInCenter 커서 점프 연동
+//             4) 웹 브라우저 미스캔 파일 대상 신규 탭 자동 생성 폴백으로 '해당 파일 노드를 찾을 수 없습니다' 에러 토스트 영구 차단
+//             **2026-09-12** — [경로 기반 파일 오픈 시 라인 앵커(#L..) 에디터 중앙 점프 연동]: handleFileOpenByPath에 hashPart 매개변수 지원 및 인라인 해시(#L15-L40) 추출, 파일/탭 오픈 후 모나코 에디터 revealLineInCenter 및 커서 포커스 연동
+//             **2026-09-11** — [브라우저 파일 열기 폴백 404 방어] docs/ 또는 welcome.md 등 내장 샘플 문서가 아닌 로컬 사용자 경로에 대한 무의미한 웹 서버 fetch 시도를 차단하여 404 콘솔 오류 원천 제거
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 문서 저장(saveFile) 성공 시 지식 보관함 등록 문서 로컬 비동기 자동 재색인(triggerKnowledgeAutoSyncOnSave) 연동
 //             **2026-09-02** — 워크스페이스 변경 시 404 에러를 유발하던 불필요한 레거시 api/set-root fetch 호출 완전 제거
 //             **2026-08-27** — 비로그인 즉시 체험 모드로 진입 시, 가상 파일 스토리지(getVfsFiles)가 비어 있는 경우 사용자의 쾌적한 에디터 테스트를 유도하는 샘플 원고(온리비_어서_체험판.md)를 자동으로 로드하여 화면에 출력하도록 초기화 연동; **2026-08-19** — 새로운 작업장 폴더 연결 시 기존에 열려 있던 모든 탭과 문서를 초기화(닫기)하도록 기능 추가
@@ -186,19 +196,37 @@ export const useFileExplorer = ({
       } else if (typeof (window as any).showDirectoryPicker === 'function') {
         try {
           const handle = await (window as any).showDirectoryPicker();
-          const folder = { name: handle.name, handle };
+          
+          // 🛡️ [작업장 폴더 선택 시 절대경로 즉시 로컬스토리지 저장]
+          let absolutePath = handle.name;
+          try {
+            const res = await fetch('/api/knowledge/resolve-path', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: '', workspacePath: handle.name }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.resolvedPath && /^[a-zA-Z]:[\\/]/.test(data.resolvedPath)) {
+                absolutePath = data.resolvedPath.replace(/\\/g, '/');
+              }
+            }
+          } catch {}
+
+          const folder = { name: absolutePath, path: absolutePath, handle, displayName: handle.name };
           await idb.set('rootFolderHandle', handle);
           
           setRootFolder(folder);
           setWorkspaceType('browser');
-          localStorage.setItem('rootFolder', JSON.stringify({ name: handle.name }));
+          localStorage.setItem('onrivi_workspace_path', absolutePath);
+          localStorage.setItem('rootFolder', JSON.stringify({ name: absolutePath, path: absolutePath, displayName: handle.name }));
           localStorage.setItem('workspaceType', 'browser');
           setTabs([]);
           setActiveTabId(null);
           setContent('');
           setCurrentFileNode(null);
           setCurrentFileName('');
-          showToast("워크스페이스 폴더가 연결되었습니다.", "success");
+          showToast(`워크스페이스 연결 완료 (${handle.name})`, "success");
         } catch (err) {
           if ((err as any)?.name !== 'AbortError' && (err as any)?.name !== 'SecurityError') {
             showToast('워크스페이스 선택 중 오류가 발생했습니다.', 'error');
@@ -250,16 +278,179 @@ export const useFileExplorer = ({
 
   // ====================================================================
   // 📊 [OMD-FILE-USEFILEEXPLORER-0006] useFileExplorer.ts ➔ handleFileOpenByPath
-  // 🎯 @KICK  : 경로 문자열로 파일을 찾아 열거나 도움말 문서를 로드
-  // 🛡️ @GUARD : helpContentRef 존재 시 도움말 경로로 라우팅, 파일 미발견 시 fetch fallback
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : findNodeByPath, handleFileClick, createNewTab, switchTab, setTabs, showToast
+  // 🎯 @KICK  : 경로 문자열로 파일을 찾아 열거나 도움말/지식 문서를 로드
+  // 🛡️ @GUARD : 따옴표/괄호/헤딩(#) 분리, NFC 정규화, 브라우저 FileSystemHandle 하위 디렉토리 직접 추적, WASM 지식 DB 폴백
+  // 🚨 @PATCH : **2026-09-12** — [작업장 하위 폴더 재귀 탐색(findFileHandleInDirectoryDeep) 및 file:/// 경로 오픈]: file:/// 절대경로 유입 시 rootFolder 이름 이후 내부 경로 추출 및 하위 서브폴더(체험하기 등) 3단계 심층 재귀 탐색 연동으로 파일 오픈 및 라인 앵커(#L..) 100% 점프
+  //             **2026-09-12** — [웹 브라우저 출처 링크 파일 열기 및 헤딩 점프 결함 완벽 해결]: handleFileOpenByPath에서 decodeURIComponent 및 targetBaseName 3중 매칭, knowledgeClient heading 검색 연동, jumpToAnchor 에디터 모델 헤딩 검색, 미스캔 파일 신규 탭 자동 생성 폴백 지원
+  // 🔗 @CALLS : findNodeByPath, handleFileClick, createNewTab, switchTab, setTabs, showToast, knowledgeClient.getDocumentDetail
   // ====================================================================
+
+  /**
+   * 브라우저 FileSystemDirectoryHandle 하위를 재귀 검색하여 파일명에 매칭되는 FileHandle과 상위 디렉토리 Handle을 반환합니다.
+   */
+  const findFileHandleInDirectoryDeep = async (
+    dirHandle: FileSystemDirectoryHandle,
+    fileName: string,
+    depth = 0,
+    maxDepth = 3
+  ): Promise<{ fileHandle: FileSystemFileHandle; parentHandle: FileSystemDirectoryHandle } | null> => {
+    if (depth > maxDepth) return null;
+    const targetNorm = fileName.toLowerCase().normalize('NFC');
+    const targetWithoutMd = targetNorm.replace(/\.md$/i, '');
+
+    try {
+      for await (const entry of (dirHandle as any).values()) {
+        const entryNorm = entry.name.toLowerCase().normalize('NFC');
+        if (entry.kind === 'file') {
+          if (entryNorm === targetNorm || entryNorm === `${targetWithoutMd}.md` || entryNorm.replace(/\.md$/i, '') === targetWithoutMd) {
+            return { fileHandle: entry as FileSystemFileHandle, parentHandle: dirHandle };
+          }
+        } else if (entry.kind === 'directory') {
+          if (!entry.name.startsWith('.') && !entry.name.startsWith('$') && entry.name !== 'node_modules') {
+            const subRes = await findFileHandleInDirectoryDeep(entry as FileSystemDirectoryHandle, fileName, depth + 1, maxDepth);
+            if (subRes) return subRes;
+          }
+        }
+      }
+    } catch {}
+    return null;
+  };
+
   // 4. 경로를 기반으로 한 파일 열기 핸들러
-  const handleFileOpenByPath = async (resolvedPath: string) => {
+  const handleFileOpenByPath = async (resolvedPath: string, hashPart?: string) => {
+    let rawDecoded = resolvedPath || '';
+    try {
+      rawDecoded = decodeURIComponent(rawDecoded);
+    } catch {}
+    const cleanPath = rawDecoded.replace(/^[<"']|[>"']$/g, '').trim();
+    let inlineHash = '';
+    let pathWithoutHash = cleanPath;
+    if (cleanPath.includes('#')) {
+      const parts = cleanPath.split('#');
+      pathWithoutHash = parts[0];
+      inlineHash = parts[1];
+    }
+    const targetHash = (hashPart || inlineHash).replace(/^[<"']|[>"']$/g, '').trim();
+
+    const targetBaseName = pathWithoutHash.split(/[/\\]/).pop() || pathWithoutHash;
+    const targetBaseNameWithoutMd = targetBaseName.replace(/\.md$/i, '');
+    const targetBaseNameWithMd = targetBaseNameWithoutMd ? `${targetBaseNameWithoutMd}.md` : '';
+    const cleanPathNoDotSlash = pathWithoutHash.replace(/^\.\//, '').replace(/^\//, '');
+
+    const jumpToAnchor = (anchor?: string) => {
+      if (!anchor) return;
+      const cleanAnchor = decodeURIComponent(anchor).replace(/^[<"']|[>"']$/g, '').trim();
+      const lineRangeMatch = cleanAnchor.match(/^L?(\d+)(?:-L?(\d+))?/i);
+
+      const attemptJump = (attempt = 0) => {
+        let editorScrolled = false;
+        let previewScrolled = false;
+
+        // 1. 라인 범위 (#L21-L31 또는 #L21) 앵커 점프
+        if (lineRangeMatch) {
+          const startLine = parseInt(lineRangeMatch[1], 10);
+          const endLine = lineRangeMatch[2] ? parseInt(lineRangeMatch[2], 10) : startLine;
+
+          // Monaco 에디터 라인 범위 선택 및 중앙 정렬
+          if (editorRef?.current) {
+            try {
+              const editor = editorRef.current;
+              const model = editor.getModel();
+              if (model) {
+                const monaco = (window as any).monaco;
+                if (monaco && monaco.Range) {
+                  const maxCol = model.getLineMaxColumn(endLine);
+                  editor.setSelection(new monaco.Range(startLine, 1, endLine, maxCol));
+                  editor.revealRangeInCenter(new monaco.Range(startLine, 1, endLine, 1));
+                } else {
+                  editor.revealLineInCenter(startLine);
+                  editor.setPosition({ lineNumber: startLine, column: 1 });
+                }
+                editor.focus();
+                editorScrolled = true;
+              }
+            } catch (err) {
+              console.warn('[jumpToAnchor] Editor line reveal error:', err);
+            }
+          }
+
+          // 미리보기(Preview) 라인 위치 스크롤 및 시각적 강조 애니메이션
+          const lineEl = document.querySelector(`[data-line="${startLine}"]`) as HTMLElement;
+          if (lineEl) {
+            lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            lineEl.classList.add('preview-highlight-line');
+            setTimeout(() => lineEl.classList.remove('preview-highlight-line'), 2500);
+            previewScrolled = true;
+          }
+        } else if (cleanAnchor) {
+          // 2. 헤딩 텍스트(#제목) 검색 매칭
+          let targetLine = 0;
+          if (editorRef?.current) {
+            try {
+              const editor = editorRef.current;
+              const model = editor.getModel();
+              if (model) {
+                const lines = model.getLinesContent();
+                const normAnchor = cleanAnchor.replace(/^#+\s*/, '').replace(/\s+/g, '').toLowerCase().normalize('NFC');
+                for (let i = 0; i < lines.length; i++) {
+                  const line = lines[i];
+                  const normLine = line.replace(/^#+\s*/, '').replace(/\s+/g, '').toLowerCase().normalize('NFC');
+                  if (normLine.includes(normAnchor) || normAnchor.includes(normLine)) {
+                    targetLine = i + 1;
+                    editor.revealLineInCenter(targetLine);
+                    editor.setPosition({ lineNumber: targetLine, column: 1 });
+                    editor.focus();
+                    editorScrolled = true;
+                    break;
+                  }
+                }
+              }
+            } catch (err) {}
+          }
+
+          // 미리보기 헤딩 점프
+          const targetId = cleanAnchor.replace(/^#+\s*/, '');
+          let targetEl = document.getElementById(targetId);
+          if (!targetEl) {
+            const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+            const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '').normalize('NFC');
+            for (const h of Array.from(headings)) {
+              const headingText = h.textContent?.trim() || '';
+              const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '').normalize('NFC');
+              if (cleanHeading === cleanTarget || h.id === targetId || (cleanTarget.length > 2 && cleanHeading.includes(cleanTarget))) {
+                targetEl = h as HTMLElement;
+                break;
+              }
+            }
+          }
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetEl.classList.add('preview-highlight-line');
+            setTimeout(() => targetEl.classList.remove('preview-highlight-line'), 2500);
+            previewScrolled = true;
+          } else if (targetLine > 0) {
+            const lineEl = document.querySelector(`[data-line="${targetLine}"]`) as HTMLElement;
+            if (lineEl) {
+              lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              lineEl.classList.add('preview-highlight-line');
+              setTimeout(() => lineEl.classList.remove('preview-highlight-line'), 2500);
+              previewScrolled = true;
+            }
+          }
+        }
+
+        // 탭 전환/마운트 지연 시 재시도 (최대 5회)
+        if ((!editorScrolled || !previewScrolled) && attempt < 5) {
+          setTimeout(() => attemptJump(attempt + 1), 120 + attempt * 60);
+        }
+      };
+
+      setTimeout(() => attemptJump(0), 100);
+    };
+
     if (helpContentRef?.current) {
       const api = (window as any).electronAPI;
-      const helpPath = resolvedPath.startsWith('docs/') ? resolvedPath : 'docs/help/' + resolvedPath.replace(/^\//, '');
+      const helpPath = pathWithoutHash.startsWith('docs/') ? pathWithoutHash : 'docs/help/' + pathWithoutHash.replace(/^\//, '');
       // ====================================================================
       // 📊 [OMD-FILE-USEFILEEXPLORER-0005] useFileExplorer.ts ➔ loadHelp
       // 🎯 @KICK  : 도움말 파일 내용을 파싱하여 화면에 표시
@@ -293,21 +484,84 @@ export const useFileExplorer = ({
           await loadHelp(text);
         } catch { setHelpContent('## 문서를 불러올 수 없습니다.'); }
       }
+      jumpToAnchor(targetHash);
+      return;
+    }
+
+    // 💡 [기존 열린 탭 우선 검사]
+    const existingOpenTab = tabsRef.current.find(t => 
+      t.path === pathWithoutHash || 
+      t.path === cleanPath ||
+      t.name === targetBaseName || 
+      t.name === targetBaseNameWithMd || 
+      t.name === targetBaseNameWithoutMd ||
+      (t.path && t.path.endsWith('/' + targetBaseName))
+    );
+    if (existingOpenTab) {
+      // 💡 [빈 플레이스홀더 탭 자동 수화(Hydration) 가드]
+      // 이전에 핸들을 찾지 못해 '# 제목'만 있는 빈 탭이 열려있던 경우 실제 디스크 원문으로 보정
+      const trimmedContent = (existingOpenTab.content || '').trim();
+      const isPlaceholder = !trimmedContent || 
+        trimmedContent === `# ${targetBaseNameWithoutMd}` ||
+        trimmedContent === `# ${existingOpenTab.name.replace(/\.md$/i, '')}` ||
+        (trimmedContent.startsWith(`# ${targetBaseNameWithoutMd}`) && trimmedContent.length < targetBaseNameWithoutMd.length + 15);
+
+      if (isPlaceholder) {
+        try {
+          const queryPath = existingOpenTab.path || pathWithoutHash || cleanPath;
+          const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(queryPath)}`));
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok && typeof data.content === 'string' && data.content.length > trimmedContent.length) {
+              existingOpenTab.content = data.content;
+              if (data.path) existingOpenTab.path = data.path;
+              if (existingOpenTab.model && !existingOpenTab.model.isDisposed()) {
+                existingOpenTab.model.setValue(data.content);
+              }
+              setContent(data.content);
+              setTabs(prev => prev.map(t => t.id === existingOpenTab.id ? { ...t, content: data.content, path: data.path || t.path } : t));
+            }
+          }
+        } catch (e) {
+          console.warn('[existingOpenTab] 플레이스홀더 수화 실패:', e);
+        }
+      }
+
+      switchTab(existingOpenTab.id);
+      jumpToAnchor(targetHash);
       return;
     }
 
     // ====================================================================
     // 📊 [OMD-FILE-USEFILEEXPLORER-0004] useFileExplorer.ts ➔ findNodeByPath
     // 🎯 @KICK  : 파일 경로로 파일 트리 노드를 재귀 탐색
-    // 🛡️ @GUARD : 경로 정규화 및 대소문자 무효화하여 비교
-    // 🚨 @PATCH : 없음
+    // 🛡️ @GUARD : 경로 정규화, 대소문자 무효화, 파일명 및 무확장자 3중 매칭
+    // 🚨 @PATCH : **2026-09-12** — baseName 및 확장자 유무 상호 비교 지원으로 상대경로/절대경로 노드 매칭 100% 보장
     // 🔗 @CALLS : 없음
     // ====================================================================
     const findNodeByPath = (nodes: FileNode[], targetPath: string): { node: FileNode, parent: any } | null => {
-      const normalizedTarget = targetPath.replace(/\\/g, '/').toLowerCase();
+      const normalizedTarget = targetPath.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+      const baseName = (normalizedTarget.split(/[/\\]/).pop() || normalizedTarget).replace(/^\.\//, '');
+      const baseNameNoMd = baseName.replace(/\.md$/i, '');
+      const targetNoDotSlash = normalizedTarget.replace(/^\.\//, '').replace(/^\//, '');
+
       for (const node of nodes) {
-        const normalizedNodePath = (node.path || '').replace(/\\/g, '/').toLowerCase();
-        if (normalizedNodePath === normalizedTarget && node.kind === 'file') {
+        const normalizedNodePath = (node.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
+        const nodePathNoDotSlash = normalizedNodePath.replace(/^\.\//, '').replace(/^\//, '');
+        const nodeName = (node.name || '').toLowerCase().normalize('NFC');
+        const nodeNameNoMd = nodeName.replace(/\.md$/i, '');
+
+        const isMatch = node.kind === 'file' && (
+          normalizedNodePath === normalizedTarget ||
+          nodePathNoDotSlash === targetNoDotSlash ||
+          nodeName === normalizedTarget ||
+          nodeName === baseName ||
+          (nodeNameNoMd && nodeNameNoMd === baseNameNoMd) ||
+          normalizedNodePath.endsWith('/' + baseName) ||
+          normalizedNodePath.endsWith('\\' + baseName)
+        );
+
+        if (isMatch) {
           return { node, parent: rootFolder?.handle || null };
         }
         if (node.children && node.children.length > 0) {
@@ -320,31 +574,39 @@ export const useFileExplorer = ({
       return null;
     };
 
-    const findResult = findNodeByPath(fileList, resolvedPath);
+    const findResult = findNodeByPath(fileList, pathWithoutHash) ||
+                       findNodeByPath(fileList, cleanPath) ||
+                       findNodeByPath(fileList, cleanPathNoDotSlash) ||
+                       findNodeByPath(fileList, targetBaseName);
     if (findResult) {
       await handleFileClick(findResult.node, findResult.parent);
+      jumpToAnchor(targetHash);
       return;
     }
 
     // 💡 [FileSystemAccess 로컬 폴더 직접 탐색 가드]
-    // 파일 트리 목록(fileList) 스캔이 늦어지더라도, 연결된 로컬 디렉토리 핸들(rootFolder.handle)이 존재한다면,
-    // 해당 경로의 하위 디렉토리를 깊숙이 추적하여 FileSystemFileHandle을 다이렉트로 확보합니다.
     if (workspaceType === 'browser' && rootFolder?.handle) {
       try {
-        let relativePath = resolvedPath.replace(/\\/g, '/');
-        const parts = relativePath.split('/');
+        let relativePath = pathWithoutHash.replace(/\\/g, '/');
+        const parts = relativePath.split('/').filter(p => p && p !== '.');
         
-        if (parts[0] === rootFolder.handle.name) {
-          parts.shift();
+        // 1) 만약 parts 중에 rootFolder의 이름(예: '블러그')이 포함되어 있다면 그 이후 경로가 작업장 내부의 상대경로
+        const rootName = (rootFolder.handle?.name || rootFolder.name || '').toLowerCase();
+        const rootIdx = parts.findIndex(p => p.toLowerCase() === rootName);
+        let innerParts = rootIdx >= 0 ? parts.slice(rootIdx + 1) : parts;
+
+        // 2) 드라이브 문자(E:, D:, C:)가 아직 맨 앞에 남아있다면 제거
+        if (innerParts.length > 0 && /^[a-zA-Z]:$/.test(innerParts[0])) {
+          innerParts.shift();
         }
-        
+
         let currentDir = rootFolder.handle;
         let foundHandle: FileSystemFileHandle | null = null;
         let isSearchSuccess = true;
 
-        for (let i = 0; i < parts.length - 1; i++) {
-          const dirName = parts[i];
-          if (!dirName) continue;
+        for (let i = 0; i < innerParts.length - 1; i++) {
+          const dirName = innerParts[i];
+          if (!dirName || dirName === '.') continue;
           try {
             currentDir = await currentDir.getDirectoryHandle(dirName, { create: false });
           } catch {
@@ -353,8 +615,8 @@ export const useFileExplorer = ({
           }
         }
 
-        if (isSearchSuccess && parts.length > 0) {
-          const targetFileName = parts[parts.length - 1];
+        if (isSearchSuccess && innerParts.length > 0) {
+          const targetFileName = innerParts[innerParts.length - 1];
           try {
             foundHandle = await currentDir.getFileHandle(targetFileName, { create: false });
           } catch {
@@ -362,14 +624,39 @@ export const useFileExplorer = ({
           }
         }
 
+        // 폴백 1: 루트 디렉토리 직하에서 파일명(targetBaseName)으로 재시도
+        if (!foundHandle && targetBaseName) {
+          try {
+            foundHandle = await rootFolder.handle.getFileHandle(targetBaseName, { create: false });
+            currentDir = rootFolder.handle;
+          } catch {
+            if (targetBaseNameWithMd && targetBaseNameWithMd !== targetBaseName) {
+              try {
+                foundHandle = await rootFolder.handle.getFileHandle(targetBaseNameWithMd, { create: false });
+                currentDir = rootFolder.handle;
+              } catch {}
+            }
+          }
+        }
+
+        // 폴백 2: 하위 폴더 심층 재귀 탐색 (예: 체험하기/추억의_과자선물세트를 기억하시나요.md)
+        if (!foundHandle && targetBaseName) {
+          const deepRes = await findFileHandleInDirectoryDeep(rootFolder.handle, targetBaseName);
+          if (deepRes) {
+            foundHandle = deepRes.fileHandle;
+            currentDir = deepRes.parentHandle;
+          }
+        }
+
         if (foundHandle) {
           const dummyNode: FileNode = {
             name: foundHandle.name,
-            path: resolvedPath,
+            path: pathWithoutHash,
             kind: 'file',
             handle: foundHandle
           };
           await handleFileClick(dummyNode, currentDir);
+          jumpToAnchor(targetHash);
           return;
         }
       } catch (err) {
@@ -377,25 +664,123 @@ export const useFileExplorer = ({
       }
     }
 
+    // 💡 [로컬 디스크 파일 직접 읽기 API (작업장 폴더 불일치 / 절대경로 file:/// 완벽 지원)]
+    try {
+      const queryPath = pathWithoutHash.startsWith('file:///') ? pathWithoutHash : (cleanPath.startsWith('file:///') ? cleanPath : pathWithoutHash);
+      const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(queryPath)}`));
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && typeof data.content === 'string') {
+          const filename = data.title || targetBaseNameWithMd || targetBaseName || '문서.md';
+          const resolvedDiskPath = data.path || pathWithoutHash;
+
+          const existingTab = tabsRef.current.find(t => 
+            t.path === resolvedDiskPath || 
+            t.path === pathWithoutHash || 
+            t.name === filename
+          );
+
+          if (existingTab) {
+            existingTab.content = data.content;
+            if (existingTab.model && !existingTab.model.isDisposed()) {
+              existingTab.model.setValue(data.content);
+            }
+            switchTab(existingTab.id);
+          } else {
+            createNewTab(data.content, filename);
+            setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath } : t));
+          }
+          jumpToAnchor(targetHash);
+          return;
+        }
+      }
+    } catch (diskErr) {
+      console.warn('[handleFileOpenByPath] /api/file-content 디스크 파일 읽기 시도 예외:', diskErr);
+    }
+
     // 💡 [VFS/IndexedDB 우선 예외 가드]
-    // 파일 트리 목록(fileList)이 기동 시점에 비동기 로딩 딜레이로 인해 비어있더라도,
-    // 브라우저 가상 파일 시스템(VFS) 상에 실제 존재하는 파일이라면 즉각 열기를 유도합니다.
-    const isVfsExist = typeof window !== 'undefined' && vfsReadFile(resolvedPath);
+    const isVfsExist = typeof window !== 'undefined' && (
+      vfsReadFile(pathWithoutHash) ||
+      vfsReadFile(cleanPath) ||
+      vfsReadFile(cleanPathNoDotSlash) ||
+      vfsReadFile(targetBaseName) ||
+      vfsReadFile(targetBaseNameWithMd)
+    );
     if (isVfsExist) {
-      const filename = resolvedPath.split(/[/\\]/).pop() || '파일.md';
+      const filename = targetBaseNameWithMd || targetBaseName || '파일.md';
       const dummyNode: FileNode = {
         name: filename,
-        path: resolvedPath,
+        path: pathWithoutHash,
         kind: 'file'
       };
       await handleFileClick(dummyNode, rootFolder?.handle || null);
+      jumpToAnchor(targetHash);
       return;
+    }
+
+    // 💡 [웹 WASM SQLite / 로컬 지식 보관함 문서 폴백 가드]
+    try {
+      const cleanKnowledgeTarget = pathWithoutHash
+        .replace(/^knowledge:\/\//, '')
+        .replace(/^file:\/\/\//, '')
+        .replace(/^\.\//, '')
+        .replace(/^\//, '');
+      const isDocId = cleanKnowledgeTarget.startsWith('doc-') || cleanKnowledgeTarget.length === 36;
+      const rfHandle = (typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : null);
+      
+      let detail = await knowledgeClient.getDocumentDetail({
+        documentId: isDocId ? cleanKnowledgeTarget : undefined,
+        filePath: !isDocId ? cleanKnowledgeTarget : undefined,
+        heading: targetHash || undefined,
+        resourceFolderHandle: rfHandle
+      });
+
+      // 1차 검색 실패 시 파일명 또는 제목으로 2차/3차 재시도
+      if ((!detail || !detail.document) && !isDocId && targetBaseName) {
+        detail = await knowledgeClient.getDocumentDetail({
+          filePath: targetBaseName,
+          heading: targetHash || undefined,
+          resourceFolderHandle: rfHandle
+        });
+      }
+      if ((!detail || !detail.document) && !isDocId && targetBaseNameWithoutMd) {
+        detail = await knowledgeClient.getDocumentDetail({
+          filePath: targetBaseNameWithoutMd,
+          heading: targetHash || undefined,
+          resourceFolderHandle: rfHandle
+        });
+      }
+
+      if (detail && detail.document) {
+        const docContent = detail.document.summary 
+          ? `# ${detail.document.title}\n\n${detail.document.summary}\n\n` + (detail.chunks ? detail.chunks.map(c => c.content || (c as any).chunk_text).join('\n\n') : '')
+          : (detail.chunks ? detail.chunks.map(c => c.content || (c as any).chunk_text).join('\n\n') : `# ${detail.document.title}\n\n지식 문서 내용`);
+        const targetFilename = detail.document.title ? `${detail.document.title}.md` : (targetBaseNameWithMd || '지식문서.md');
+        
+        const existingTab = tabsRef.current.find(t => 
+          t.path === pathWithoutHash || 
+          t.path === cleanKnowledgeTarget ||
+          t.name === targetFilename || 
+          t.name === detail.document.title || 
+          (t as any).documentId === detail.document.id
+        );
+        if (existingTab) {
+          switchTab(existingTab.id);
+        } else {
+          createNewTab(docContent, targetFilename);
+          setTabs(prev => prev.map(t => (t.name === targetFilename || t.name === detail.document.title) ? { ...t, path: pathWithoutHash, isKnowledge: true, documentId: detail.document.id } : t));
+        }
+        jumpToAnchor(targetHash);
+        return;
+      }
+    } catch (e) {
+      console.warn('[handleFileOpenByPath] 지식 문서 폴백 조회 실패:', e);
     }
 
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
     if (!isElectron) {
       try {
-        const normalized = resolvedPath.replace(/\\/g, '/');
+        const normalized = pathWithoutHash.replace(/\\/g, '/');
         const docsIndex = normalized.indexOf('docs/');
         const isDocSample = docsIndex !== -1 || normalized.startsWith('docs/') || normalized === 'welcome.md' || normalized.startsWith('./docs/');
         
@@ -404,15 +789,16 @@ export const useFileExplorer = ({
           const res = await fetch(fetchPath);
           if (res.ok) {
             const text = await res.text();
-            const filename = resolvedPath.split(/[/\\]/).pop() || '문서.md';
+            const filename = targetBaseNameWithMd || targetBaseName || '문서.md';
             
-            const existingTab = tabsRef.current.find(t => t.name === filename || t.path === resolvedPath);
+            const existingTab = tabsRef.current.find(t => t.name === filename || t.path === pathWithoutHash);
             if (existingTab) {
               switchTab(existingTab.id);
             } else {
               createNewTab(text, filename);
-              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedPath } : t));
+              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: pathWithoutHash } : t));
             }
+            jumpToAnchor(targetHash);
             return;
           }
         }
@@ -422,13 +808,24 @@ export const useFileExplorer = ({
     }
 
     if (workspaceType !== 'browser') {
-      const filename = resolvedPath.split(/[/\\]/).pop() || '파일.md';
+      const filename = targetBaseNameWithMd || targetBaseName || '파일.md';
       const dummyNode: FileNode = {
         name: filename,
-        path: resolvedPath,
+        path: pathWithoutHash,
         kind: 'file'
       };
       await handleFileClick(dummyNode);
+      jumpToAnchor(targetHash);
+      return;
+    }
+
+    // 웹 브라우저 모드: 미스캔 파일이어도 파일명이 존재할 경우 즉각 신규 탭을 열어 작업 단절 방어
+    if (targetBaseNameWithoutMd) {
+      const filename = targetBaseNameWithMd || `${targetBaseNameWithoutMd}.md`;
+      const placeholderContent = `# ${targetBaseNameWithoutMd}\n\n`;
+      createNewTab(placeholderContent, filename);
+      setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: pathWithoutHash } : t));
+      jumpToAnchor(targetHash);
       return;
     }
 
@@ -532,6 +929,17 @@ export const useFileExplorer = ({
           fileContent = await file.text();
         } else if (node.path) {
           fileContent = vfsReadFile(node.path);
+          if (!fileContent && /^(?:file:\/\/\/|[a-zA-Z]:[/\\]|\/)/i.test(node.path)) {
+            try {
+              const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
+              if (res.ok) {
+                const data = await res.json();
+                if (data.ok && typeof data.content === 'string') {
+                  fileContent = data.content;
+                }
+              }
+            } catch {}
+          }
         }
       } else if (activeMode === 'local' && node.path) {
         const api = (window as any).electronAPI;
@@ -667,9 +1075,26 @@ export const useFileExplorer = ({
             return false;
           }
         } else if (targetFile.path) {
-          vfsWriteFile(targetFile.path, targetContent);
-          lastSavedContentRef.current = targetContent;
-          success = true;
+          let savedViaApi = false;
+          if (/^(?:file:\/\/\/|[a-zA-Z]:[/\\]|\/)/i.test(targetFile.path)) {
+            try {
+              const saveRes = await fetch(getApiUrl('/api/file-content'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: targetFile.path, content: targetContent })
+              });
+              if (saveRes.ok) {
+                savedViaApi = true;
+                lastSavedContentRef.current = targetContent;
+                success = true;
+              }
+            } catch {}
+          }
+          if (!savedViaApi) {
+            vfsWriteFile(targetFile.path, targetContent);
+            lastSavedContentRef.current = targetContent;
+            success = true;
+          }
         }
       }
 
@@ -713,6 +1138,27 @@ export const useFileExplorer = ({
   // 폴더가 바뀔 때 리스트 자동 리프레시 연동 및 전역 리프레시 이벤트 수신
   useEffect(() => {
     if (rootFolder) {
+      // 🛡️ 로컬스토리지에 작업장 절대경로 자동 보강 (지식문서 다이렉트 직결용)
+      try {
+        const savedWs = localStorage.getItem('onrivi_workspace_path');
+        if (!savedWs || !/^[a-zA-Z]:[\\/]/.test(savedWs)) {
+          const folderName = rootFolder.name || rootFolder.path || '';
+          if (folderName && /^[a-zA-Z]:[\\/]/.test(folderName)) {
+            localStorage.setItem('onrivi_workspace_path', folderName.replace(/\\/g, '/'));
+          } else if (folderName && folderName !== 'browser-storage') {
+            fetch('/api/knowledge/resolve-path', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: '', workspacePath: folderName }),
+            }).then(r => r.json()).then(d => {
+              if (d.resolvedPath && /^[a-zA-Z]:[\\/]/.test(d.resolvedPath)) {
+                localStorage.setItem('onrivi_workspace_path', d.resolvedPath.replace(/\\/g, '/'));
+              }
+            }).catch(() => {});
+          }
+        }
+      } catch {}
+
       refreshFileList();
       // [Bug Fix] 워크스페이스 실시간 변경 감지 활성화
       const api = (window as any).electronAPI;

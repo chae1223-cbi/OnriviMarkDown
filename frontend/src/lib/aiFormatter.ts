@@ -1,6 +1,7 @@
 // ====================================================================
 // 🚀 [OMD-LIB-AiFormatter-0001] aiFormatter
 // 📝 @KICK : 추출된 원본 텍스트를 AI를 통해 구조화된 마크다운으로 변환
+// 🚨 @PATCH : **2026-09-12** — [모든 AI 질의 표준 재시도 적용]: 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 에러 표출 규칙 및 기본 모델 gemini-3.8-flash 통일 적용
 // 🚨 @PATCH : **2026-08-20** HWP 문서에서 추출된 표 데이터(뭉쳐진 텍스트)를 정확히 행/열로 분리하여 마크다운 표로 복원하도록 프롬프트 지시 강화.
 // ====================================================================
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -10,12 +11,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * 서식이 잘 갖춰진 마크다운(Markdown)으로 재구성(포맷팅)합니다.
  * @param rawText 외부 문서에서 추출한 원시 텍스트
  * @param apiKey Google Gemini API 키
- * @param modelName 사용할 모델 (기본: gemini-1.5-flash)
+ * @param modelName 사용할 모델 (기본: gemini-3.8-flash)
  */
 export async function formatRawTextToMarkdown(
   rawText: string,
   apiKey: string,
-  modelName: string = 'gemini-1.5-pro'
+  modelName: string = 'gemini-3.8-flash'
 ): Promise<string> {
   if (!apiKey) {
     throw new Error('AI API 키가 설정되지 않았습니다.');
@@ -49,15 +50,31 @@ ${rawText}
 
   try {
     let result;
-    try {
-      result = await model.generateContent(prompt);
-    } catch (e: any) {
-      if (e.message && e.message.includes('404')) {
-        throw new Error(`선택하신 AI 모델 '${modelName}'을(를) 호출할 수 없습니다 (404). 상단 헤더의 모델 뱃지에서 다른 AI 모델을 직접 선택해 주세요.`);
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      try {
+        attempts++;
+        result = await model.generateContent(prompt);
+        break;
+      } catch (e: any) {
+        if (e.message && e.message.includes('404')) {
+          throw new Error(`선택하신 AI 모델 '${modelName}'을(를) 호출할 수 없습니다 (404). 상단 헤더의 모델 뱃지에서 다른 AI 모델을 직접 선택해 주세요.`);
+        }
+        if (attempts < maxAttempts) {
+          console.warn(`[aiFormatter] '${modelName}' 변환 ${attempts}회 실패. 3초 후 재시도합니다...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          continue;
+        }
+        throw e;
       }
-      throw e;
     }
     
+    if (!result) {
+      throw new Error(`AI 모델 '${modelName}' 응답이 비어있습니다.`);
+    }
+
     const response = await result.response;
     let markdown = response.text();
     

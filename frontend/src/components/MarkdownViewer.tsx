@@ -1,4 +1,8 @@
-// 🚨 @PATCH : **2026-09-11** — [인용문 Alert 태그 및 색상 유실 버그 완벽 수정] rehypeSourceLinesPlugin의 span.onrivi-line 래핑 환경에서도 첫 번째 텍스트 노드를 재귀적으로 추적(findFirstText/removeTag)하여 [!NOTE/TIP/IMPORTANT/WARNING/CAUTION] 태그와 고유 색상 및 아이콘이 풀리지 않도록 조치, cleanContent의 인용구(&nbsp;) 간섭 차단 및 다크모드 컬러 보정
+// 🚨 @PATCH : **2026-09-13** — [출처 링크 클릭 시 동일/타겟 문서 판별 고도화 및 미리보기·에디터 동시 스크롤·하이라이트 연동]: 상대/절대경로 및 파일명 베이스네임 매칭으로 동일 문서 오판을 해결하고, 링크 클릭 시 미리보기 부드러운 스크롤 및 하이라이트 효과와 에디터 라인 범위 선택·중앙 정렬을 동시에 트리거
+//             **2026-09-12** — [미리보기 문서 링크 꺾쇠(<...>) 및 앵커(#) 분리 정제 고도화]: 꺾쇠 괄호(<...>)로 감싸진 상대/절대경로 및 한글 헤딩(#) 링크에서 해시 분리 전 꺾쇠를 사전 제거하고 URI 디코딩을 선행 적용하여 탭 오픈 및 스크롤 점프 완벽 보장
+//             **2026-09-12** — [인라인 코드(code) 페이지 가로 넘침 방지 및 줄바꿈(word-break) 완벽 보장]: .onrivi-content-root code에 걸려 있던 white-space: pre !important를 코드블록(pre code) 한정으로 축소하고, 인라인 코드에 white-space: pre-wrap, word-break: break-word, overflow-wrap: anywhere를 적용하여 긴 텍스트/섹션 경로가 페이지 밖으로 잘리는 결함 완벽 해결
+//             **2026-09-12** — [절대경로(file:///) 링크 내부 탭 오픈 및 라인 앵커(#L..) 점프 연동]: 마크다운 미리보기에서 file:/// 절대경로 링크 클릭 시 외부 브라우저 호출을 방어하고 에디터 내부 handleFileOpenByPath로 연결, 동일/타겟 문서 라인 앵커(#L시작-L끝) 점프 및 스크롤 지원
+//             **2026-09-11** — [인용문 Alert 태그 및 색상 유실 버그 완벽 수정] rehypeSourceLinesPlugin의 span.onrivi-line 래핑 환경에서도 첫 번째 텍스트 노드를 재귀적으로 추적(findFirstText/removeTag)하여 [!NOTE/TIP/IMPORTANT/WARNING/CAUTION] 태그와 고유 색상 및 아이콘이 풀리지 않도록 조치, cleanContent의 인용구(&nbsp;) 간섭 차단 및 다크모드 컬러 보정
 //             **2026-09-11** — 단일 물결표(~, 기간·인사말 등) 취소선 오인식 방지: remark-gfm singleTilde: false 옵션 적용 (표준 2개 물결표 ~~취소선~~만 허용)
 //             **2026-09-11** — 미리보기 영역 사용자 정의 CSS 전면 지원: customCss prop, 마크다운 Frontmatter custom_css/css 추출 주입, 마크다운 본문 내 인라인 <style> 태그 실시간 렌더링 지원
 //             **2026-09-06** — [문단 내 커서 위치 행 단독 하이라이트 및 .onrivi-line 정밀 분할] rehypeSourceLinesPlugin에서 문단(p) 내부를 줄바꿈(br) 단위로 <span class="onrivi-line" data-line="...">로 분할 래핑하여 여러 줄로 구성된 문단에서도 커서가 위치한 특정 행 하나만 정확하게 독립 하이라이트되도록 전면 개선
@@ -1787,6 +1791,8 @@ function MarkdownViewer({
           counter-reset: onrivi-figure;
           tab-size: 4 !important;
           -moz-tab-size: 4 !important;
+          word-break: break-word;
+          overflow-wrap: break-word;
         }
         .onrivi-content-root p,
         .onrivi-content-root blockquote,
@@ -1833,9 +1839,17 @@ function MarkdownViewer({
           white-space: normal !important;
         }
         .onrivi-content-root pre,
-        .onrivi-content-root pre code,
-        .onrivi-content-root code {
+        .onrivi-content-root pre code {
           white-space: pre !important;
+          word-break: normal !important;
+          overflow-wrap: normal !important;
+        }
+        .onrivi-content-root code:not(pre code),
+        .onrivi-content-root p code,
+        .onrivi-content-root li code {
+          white-space: pre-wrap !important;
+          word-break: break-word !important;
+          overflow-wrap: anywhere !important;
         }
         .markdown-viewer-root figure {
             counter-increment: onrivi-figure;
@@ -2288,41 +2302,92 @@ function MarkdownViewer({
                 return <a href={href} onClick={handleClick} {...props}>{children}</a>;
               }
 
-              if (href && !isWebLink && (href.endsWith('.md') || href.endsWith('.markdown') || href.includes('.md#') || href.includes('.markdown#'))) {
+              const isKnowledgeLink = href && href.startsWith('knowledge://');
+              const isFileLink = href && (href.startsWith('file:///') || /^[a-zA-Z]:[/\\]/.test(href));
+              if (href && !isWebLink && (href.endsWith('.md') || href.endsWith('.markdown') || href.includes('.md#') || href.includes('.markdown#') || isKnowledgeLink || isFileLink)) {
                 const handleClick = (e: React.MouseEvent) => {
                   e.preventDefault();
                   if (dynamicPropsRef.current.onFileOpen) {
-                    const cleanHref = href.split('#')[0];
-                    const resolved = resolveRelativeImagePath(cleanHref, dynamicPropsRef.current.currentFilePath);
+                    // 1) 꺾쇠 <...>, 따옴표 제거 및 URI 디코딩 선행 정제
+                    let unbracketed = (href || '').trim();
+                    if (unbracketed.startsWith('<') && unbracketed.endsWith('>')) {
+                      unbracketed = unbracketed.slice(1, -1).trim();
+                    }
+                    unbracketed = unbracketed.replace(/^[<"']|[>"']$/g, '').trim();
+                    try { unbracketed = decodeURIComponent(unbracketed); } catch {}
+
+                    if (isKnowledgeLink) {
+                      const hashPart = unbracketed.includes('#') ? unbracketed.split('#')[1].replace(/^[<"']|[>"']$/g, '').trim() : undefined;
+                      dynamicPropsRef.current.onFileOpen(unbracketed, hashPart || undefined);
+                      return;
+                    }
+
+                    const cleanHref = unbracketed.split('#')[0].replace(/^[<"']|[>"']$/g, '').trim();
+                    const hashPart = unbracketed.includes('#') ? unbracketed.split('#')[1].replace(/^[<"']|[>"']$/g, '').trim() : undefined;
+
+                    // file:/// URI 디코딩 또는 상대 경로 resolve
+                    let resolved = cleanHref;
+                    if (cleanHref.startsWith('file:///')) {
+                      resolved = decodeURIComponent(cleanHref.replace(/^file:\/\/\//, ''));
+                    } else {
+                      resolved = resolveRelativeImagePath(cleanHref, dynamicPropsRef.current.currentFilePath);
+                    }
                     
-                    const normalizePath = (p: string | undefined) => (p || '').replace(/\\/g, '/').toLowerCase();
-                    const isSameFile = normalizePath(resolved) === normalizePath(dynamicPropsRef.current.currentFilePath);
+                    const normalizePath = (p: string | undefined) => (p || '').replace(/\\/g, '/').toLowerCase().normalize('NFC').trim();
+                    const normResolved = normalizePath(resolved);
+                    const normCurrent = normalizePath(dynamicPropsRef.current.currentFilePath);
+                    const baseResolved = normResolved.split('/').pop() || '';
+                    const baseCurrent = normCurrent.split('/').pop() || '';
+
+                    const isSameFile = Boolean(
+                      normCurrent && (
+                        normResolved === normCurrent ||
+                        normResolved.endsWith('/' + normCurrent) ||
+                        normCurrent.endsWith('/' + normResolved) ||
+                        (baseResolved && baseCurrent && baseResolved === baseCurrent)
+                      )
+                    );
 
                     if (isSameFile) {
-                      // 💡 [동일 파일 가드] 같은 파일인 경우 파일을 다시 로드하지 않고 헤딩 위치로 즉시 스크롤 이동합니다.
-                      const hashPart = href.split('#')[1];
+                      // 💡 [동일 파일 가드] 같은 파일인 경우 파일을 다시 로드하지 않고 헤딩 또는 라인 위치로 즉시 스크롤 이동합니다.
                       if (hashPart) {
-                        const targetId = decodeURIComponent(hashPart);
-                        let targetEl = document.getElementById(targetId);
-                        if (!targetEl) {
-                          const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                          const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '').normalize('NFC');
-                          for (const h of Array.from(headings)) {
-                            const headingText = h.textContent?.trim() || '';
-                            const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '').normalize('NFC');
-                            if (cleanHeading === cleanTarget || h.id === targetId || (cleanTarget.length > 2 && cleanHeading.includes(cleanTarget))) {
-                              targetEl = h as HTMLElement;
-                              break;
+                        // 1) #L15-L40 또는 #L15 라인 앵커 점프 지원
+                        const lineMatch = hashPart.match(/^L?(\d+)/i);
+                        if (lineMatch) {
+                          const lineNum = parseInt(lineMatch[1], 10);
+                          const lineEl = document.querySelector(`[data-line="${lineNum}"]`) as HTMLElement;
+                          if (lineEl) {
+                            lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            lineEl.classList.add('preview-highlight-line');
+                            setTimeout(() => lineEl.classList.remove('preview-highlight-line'), 2500);
+                          }
+                        } else {
+                          // 2) 헤딩 ID 또는 텍스트 점프
+                          const targetId = decodeURIComponent(hashPart);
+                          let targetEl = document.getElementById(targetId);
+                          if (!targetEl) {
+                            const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                            const cleanTarget = targetId.toLowerCase().replace(/\s+/g, '').normalize('NFC');
+                            for (const h of Array.from(headings)) {
+                              const headingText = h.textContent?.trim() || '';
+                              const cleanHeading = headingText.toLowerCase().replace(/\s+/g, '').normalize('NFC');
+                              if (cleanHeading === cleanTarget || h.id === targetId || (cleanTarget.length > 2 && cleanHeading.includes(cleanTarget))) {
+                                targetEl = h as HTMLElement;
+                                break;
+                              }
                             }
                           }
-                        }
-                        if (targetEl) {
-                          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          if (targetEl) {
+                            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            targetEl.classList.add('preview-highlight-line');
+                            setTimeout(() => targetEl.classList.remove('preview-highlight-line'), 2500);
+                          }
                         }
                       }
+                      // 에디터도 함께 해당 라인/영역으로 동시 이동
+                      dynamicPropsRef.current.onFileOpen(resolved, hashPart || undefined);
                     } else {
-                      // 다른 파일인 경우 파일을 열고 헤딩이 있다면 대기 후 이동합니다.
-                      const hashPart = href.split('#')[1];
+                      // 다른 파일인 경우 파일을 열고 라인/헤딩 해시를 함께 전달하여 탭 전환 후 스크롤
                       dynamicPropsRef.current.onFileOpen(resolved, hashPart || undefined);
                     }
                   }
@@ -2484,7 +2549,7 @@ function MarkdownViewer({
               const codeContent = getTextFromChildren(children).replace(/\n$/, '');
               const isInline = inline || (!match && !codeContent.includes('\n'));
               if (isInline) {
-                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-[0.9em] bg-zinc-200/80 dark:bg-zinc-700/90 text-zinc-900 dark:text-zinc-100" {...props}>{children}</code>;
+                return <code className="px-1.5 py-0.5 mx-0.5 rounded-md font-mono text-[0.9em] bg-zinc-200/80 dark:bg-zinc-700/90 text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap break-words [overflow-wrap:anywhere]" {...props}>{children}</code>;
               }
               if (lang === 'mermaid') {
                 return <MermaidBlock code={codeContent} dataLine={extractDataLine(props, node)} />;

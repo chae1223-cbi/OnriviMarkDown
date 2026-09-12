@@ -2,7 +2,10 @@
 // 📊 [OMD-CORE-knowledgeClient-0001] knowledgeClient.ts ➔ Unified Knowledge Client Facade
 // 🎯 @KICK  : 데스크톱/로컬(Node SQLite)과 프로드 웹(WASM SQLite)을 자동 감지하여 동일한 지식 인터페이스를 제공하는 통합 클라이언트 파사드
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), Rule 7(선행 검증 후 원자적 트랜잭션 무결성), 404/405 자동 WASM 폴백
-// 🚨 @PATCH : **2026-09-11** — [지식 DB 백업/원복/다운로드/삭제 웹 WASM 파사드 완성] deleteBackup, downloadBackup, restoreFromUploadedFile 파사드 메서드 추가 연동으로 프로드 웹(onrivi.com) 환경에서도 사용자 PC 로컬 Onrivi_Asset/db/backups 백업 목록 조회 및 백업 생성/원복/다운로드가 100% 동일하게 동작하도록 구현
+// 🚨 @PATCH : **2026-09-12** — [workspacePath 최우선 탐색 추가] indexDocument에서 localStorage rootFolder 절대경로를 workspacePath로 읽어 resolvedParams 및 서버 API 요청에 포함, E:\ZZ 개인자료\블러그 등 실제 작업장 경로 정확한 탐색 보장
+//             **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 보장] indexDocument 호출 시 resolveClientAbsolutePath를 통해 상대경로를 완전한 디스크 절대경로로 사전 승격 후 전달
+//             **2026-09-12** — [지식 문서 상세조회 heading 파라미터 파사드 연동] getDocumentDetail에 heading 매개변수 추가 및 WASM/Server API 연계
+//             **2026-09-11** — [지식 DB 백업/원복/다운로드/삭제 웹 WASM 파사드 완성] deleteBackup, downloadBackup, restoreFromUploadedFile 파사드 메서드 추가 연동으로 프로드 웹(onrivi.com) 환경에서도 사용자 PC 로컬 Onrivi_Asset/db/backups 백업 목록 조회 및 백업 생성/원복/다운로드가 100% 동일하게 동작하도록 구현
 //             **2026-09-06** — [localhost↔prod WASM 코드경로 통일: isServerApiAvailable에서 localhost 조건 제거] 로컬 개발(localhost)도 prod(onrivi.com)와 동일하게 browserKnowledgeDb(WASM sql.js + IndexedDB) 경로를 타도록 변경 — 로컬에서 테스트한 코드가 prod에 동일하게 반영되는 신뢰성 있는 개발/배포 파이프라인 확보. Electron 데스크탑(electronAPI 보유)만 /api/knowledge/* API 라우트 사용
 //             **2026-09-06** — [데스크톱 ↔ 프로드 웹 로컬 DB 일치화 파사드 구축] 데스크톱/로컬에서는 /api/knowledge/* 및 electronAPI를 사용하고, 프로드 웹(onrivi.com)에서는 browserKnowledgeDb(WASM sql.js + resourceFolderHandle)를 호출하여 사용자 PC의 Onrivi_Asset/db/onrivi_knowledge.db를 100% 동일하게 공유하도록 단일 진입점 구현
 // 🔗 @CALLS : ./browserKnowledgeDb, ../indexedDbHelper
@@ -34,6 +37,7 @@ import {
   resetBrowserKnowledgeDb,
   resolveResourceFolderHandle,
 } from './browserKnowledgeDb';
+import { resolveClientAbsolutePath } from './pathResolver';
 import { idb } from '../indexedDbHelper';
 
 /**
@@ -115,6 +119,7 @@ export const knowledgeClient = {
   async getDocumentDetail(params: {
     documentId?: string;
     filePath?: string;
+    heading?: string;
     resourceFolder?: string | null;
     geminiApiKey?: string | null;
     planCode?: string | null;
@@ -125,6 +130,7 @@ export const knowledgeClient = {
         const queryParams = new URLSearchParams();
         if (params.documentId) queryParams.set('docId', params.documentId);
         if (params.filePath) queryParams.set('filePath', params.filePath);
+        if (params.heading) queryParams.set('heading', params.heading);
         if (params.resourceFolder) queryParams.set('resourceFolder', params.resourceFolder);
 
         const res = await fetch(`/api/knowledge/detail?${queryParams.toString()}`);
@@ -138,7 +144,7 @@ export const knowledgeClient = {
     }
 
     return await getBrowserDocumentDetail(
-      { documentId: params.documentId, filePath: params.filePath },
+      { documentId: params.documentId, filePath: params.filePath, heading: params.heading },
       params.resourceFolderHandle
     );
   },
@@ -156,15 +162,34 @@ export const knowledgeClient = {
     aiModelName?: string | null;
     resourceFolderHandle?: any;
   }): Promise<{ documentId: string; chunksCount: number; detail: KnowledgeDocumentDetail }> {
+    // 🛡️ [지식 문서 등록 시 절대경로 표준화 보장]
+    // localStorage의 rootFolder 절대경로를 workspacePath로 읽어 서버 경로 탐색에 활용
+    let workspacePath: string | null = null;
+    try {
+      if (typeof window !== 'undefined') {
+        const savedRootFolder = localStorage.getItem('rootFolder');
+        if (savedRootFolder) {
+          const rf = JSON.parse(savedRootFolder);
+          const rfName = (rf?.name || rf?.path || '').replace(/\\/g, '/');
+          if (/^[a-zA-Z]:\//.test(rfName)) {
+            workspacePath = rfName;
+          }
+        }
+      }
+    } catch {}
+
+    const effectivePath = await resolveClientAbsolutePath(params.filePath, params.resourceFolder);
+    const resolvedParams = { ...params, filePath: effectivePath, workspacePath };
+
     // 데스크톱 electronAPI 전용 가속 우선 시도
     if (typeof window !== 'undefined' && (window as any).electronAPI?.indexKnowledgeDocument) {
       const deskRes = await (window as any).electronAPI.indexKnowledgeDocument({
-        filePath: params.filePath,
-        fileContent: params.fileContent,
-        title: params.title,
-        resourceFolder: params.resourceFolder,
-        geminiApiKey: params.geminiApiKey,
-        planCode: params.planCode,
+        filePath: resolvedParams.filePath,
+        fileContent: resolvedParams.fileContent,
+        title: resolvedParams.title,
+        resourceFolder: resolvedParams.resourceFolder,
+        geminiApiKey: resolvedParams.geminiApiKey,
+        planCode: resolvedParams.planCode,
       });
       if (deskRes?.ok && deskRes?.detail) {
         return {
@@ -180,7 +205,7 @@ export const knowledgeClient = {
         const res = await fetch('/api/knowledge/index', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params),
+          body: JSON.stringify(resolvedParams),
         });
         const data = await res.json();
         if (res.ok && data.ok && data.detail) {
@@ -196,8 +221,9 @@ export const knowledgeClient = {
     }
 
     // 웹 WASM SQLite 엔진 호출
-    return await indexBrowserDocument(params, params.resourceFolderHandle);
+    return await indexBrowserDocument(resolvedParams, resolvedParams.resourceFolderHandle);
   },
+
 
   /**
    * 4. 문서 삭제

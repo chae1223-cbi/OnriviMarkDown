@@ -2,7 +2,9 @@
 // 📊 [OMD-API-knowledgeIndex-0001] route.ts ➔ Knowledge Index API Route
 // 🎯 @KICK  : 웹 브라우저 환경에서 지식 베이스 등록 요청을 받아 Node.js 서버 런타임의 SQLite DB 색인 및 AI 분석 수행
 // 🛡️ @GUARD : Node.js 서버 환경 보장, 3대 가드 검증, 에러 JSON 응답
-// 🚨 @PATCH : **2026-09-04** — [백그라운드 큐 워커 지원] fileContent 누락 시 로컬 파일시스템(fs.readFileSync) 자동 로드 폴백 추가
+// 🚨 @PATCH : **2026-09-12** — [workspacePath 파라미터 추가] 클라이언트 localStorage rootFolder를 workspacePath로 수신, 작업장 실경로 최우선 탐색 보장
+//             **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 보장] filePath 유입 시 resolveDiskAbsolutePath를 통해 디스크 실제 파일 절대경로로 자동 승격
+//             **2026-09-04** — [백그라운드 큐 워커 지원] fileContent 누락 시 로컬 파일시스템(fs.readFileSync) 자동 로드 폴백 추가
 //             **2026-09-04** — [등록 결과 상세 내역 응답] result.detail(청크, 태그, 검색어) 반환 지원
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 웹 브라우저 지원용 /api/knowledge/index API 라우트 최초 구현
 // 🔗 @CALLS : @/lib/knowledge/knowledgeService
@@ -10,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { KnowledgeService } from '@/lib/knowledge/knowledgeService';
+import { resolveDiskAbsolutePath } from '@/lib/knowledge/pathResolver';
 
 import path from 'node:path';
 import fs from 'node:fs';
@@ -19,7 +22,13 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    let { filePath, fileContent, title, resourceFolder, geminiApiKey, planCode, aiModelName } = body;
+    let { filePath, fileContent, title, resourceFolder, geminiApiKey, planCode, aiModelName, workspacePath } = body;
+
+    // 🛡️ [절대경로 표준화 가드] 상대경로 유입 시 실제 디스크 파일 탐색 및 절대경로로 자동 승격
+    // workspacePath(클라이언트 localStorage rootFolder 절대경로)를 최우선 탐색 기준으로 활용
+    if (filePath) {
+      filePath = resolveDiskAbsolutePath(filePath, resourceFolder, workspacePath);
+    }
 
     // 🛡️ 백그라운드 큐 워커에서 filePath만 넘긴 경우 로컬 디스크에서 내용 자동 읽기
     if (!fileContent && filePath && fs.existsSync(filePath)) {

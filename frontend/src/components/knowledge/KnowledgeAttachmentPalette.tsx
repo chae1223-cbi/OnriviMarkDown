@@ -2,6 +2,10 @@
 // 📊 [OMD-KUI-PALETTE-001] KnowledgeAttachmentPalette.tsx ➔ AI 모달 지식 검색 및 첨부 팔레트
 // 🎯 @KICK  : 에디터 AI 모달 내 로컬 지식 문서 검색, 청크 선택 첨부, Auto-RAG 토글 및 토큰 예산 관리
 // 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 로컬 SQLite FTS5 검색, 예산 게이지 시각화, 비대화 방지 UI 분리
+// 🚨 @PATCH : **2026-09-12** — [3대 RAG 세트(Auto-RAG, 각주, 검색) 기본 펼침 및 Auto-RAG OFF 기본값 & 연동 정밀화]
+//             1) 아코디언 접기/펼치기 대상을 '지식 문서 검색 키워드'뿐만 아니라 Auto-RAG 스위치, 출처 각주 포함 스위치까지 3개 전체를 완벽히 포함하여 단일 세트로 일체화
+//             2) defaultExpanded 기본값을 true로 설정하여 모달 진입 시 3개 컨트롤이 모두 시각적으로 노출되도록 하고, 헤더의 [접기 ^] 버튼 클릭 시 3개 세트가 통째로 접히도록 보장
+//             3) Auto-RAG 토글 시 출처 각주 포함 스위치 상호 동기화(ON 시 각주 ON 및 펼침, OFF 시 각주 OFF)
 // 🚨 @PATCH : **2026-09-12** — [Auto-RAG 아래 '출처 각주 포함' 스위치 재배치 탑재]
 //             1) 사용자 UX 정돈 요구에 따라 우측 미리보기 헤더에 있던 '출처 각주 포함' 옵션을 좌측 지식 팔레트 내 Auto-RAG 스위치 바로 아래로 통합 재배치
 //             2) includeCitations 및 onToggleIncludeCitations props 연동으로 단일 상태 바인딩 보장
@@ -37,6 +41,7 @@ export interface KnowledgeAttachmentPaletteProps {
   maxTokenBudget?: number; // 기본 4,000자
   currentCharsUsed: number;
   showToast: (msg: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
+  defaultExpanded?: boolean;
 }
 
 export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProps> = ({
@@ -48,13 +53,14 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
   onClearAllChunks,
   isAutoRagEnabled,
   onToggleAutoRag,
-  includeCitations = true,
+  includeCitations = false,
   onToggleIncludeCitations,
   maxTokenBudget = 4000,
   currentCharsUsed,
   showToast,
+  defaultExpanded = true,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('ALL');
   const [collections, setCollections] = useState<KnowledgeCollection[]>([]);
@@ -118,29 +124,54 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
   // 용량 게이지 백분율 계산
   const usagePercent = Math.min(100, Math.round((currentCharsUsed / maxTokenBudget) * 100));
 
+  // 🌟 Auto-RAG 토글 시 출처 각주 포함 동시 연동 (ON 시 각주 ON 및 펼치기, OFF 시 각주 OFF)
+  const handleToggleAutoRag = (enabled: boolean) => {
+    onToggleAutoRag(enabled);
+    onToggleIncludeCitations?.(enabled);
+    if (enabled) {
+      setIsExpanded(true);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 bg-white dark:bg-zinc-900/60 shadow-2xs overflow-hidden transition-all duration-200">
-      {/* 헤더 & 토글 바 */}
-      <div className="p-3.5 flex items-center justify-between bg-zinc-50/70 dark:bg-zinc-800/40 border-b border-zinc-200/60 dark:border-zinc-800/60">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center">
+      {/* 헤더 & 토글 바 (3대 RAG 세트 접기/펼치기) */}
+      <div className={`p-3.5 flex items-center justify-between bg-zinc-50/70 dark:bg-zinc-800/40 transition-colors ${isExpanded ? 'border-b border-zinc-200/60 dark:border-zinc-800/60' : ''}`}>
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <div className="w-6 h-6 rounded-md bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center shrink-0">
             <Database className="w-3.5 h-3.5" />
           </div>
-          <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">
+          <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200 shrink-0">
             지식 보관함 연동 (Knowledge RAG)
           </span>
+
+          {/* 실시간 상태 배지 */}
+          {isAutoRagEnabled ? (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 shrink-0">
+              Auto-RAG ON
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 shrink-0">
+              Auto-RAG OFF
+            </span>
+          )}
+          {includeCitations && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 shrink-0">
+              출처 각주 ON
+            </span>
+          )}
           {attachedChunks.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#1d4ed8]/15 text-[#1d4ed8]">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#1d4ed8]/15 text-[#1d4ed8] shrink-0">
               {attachedChunks.length}건 첨부됨
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 rounded-md transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 rounded-md transition-colors cursor-pointer"
           >
             {isExpanded ? (
               <>
@@ -149,7 +180,7 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
               </>
             ) : (
               <>
-                <span>검색 및 관리</span>
+                <span>펼치기</span>
                 <ChevronDown className="w-3.5 h-3.5" />
               </>
             )}
@@ -157,137 +188,136 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
         </div>
       </div>
 
-      {/* 스마트 토글 & 첨부 요약 바 */}
-      <div className="p-3.5 flex flex-col gap-3">
-        {/* Auto-RAG 스마트 스위치 */}
-        <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#1d4ed8]" />
-              <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">
-                지식 보관함 자동 참조 (Auto-RAG)
-              </span>
-            </div>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              {isAutoRagEnabled 
-                ? '프롬프트 키워드에 따라 관련 지식을 자동으로 검색하여 답변에 반영합니다.'
-                : '비활성화됨: 수동으로 첨부한 지식 문서만 컨텍스트로 전달됩니다.'}
-            </span>
-          </div>
-
-          <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
-            <input
-              type="checkbox"
-              checked={isAutoRagEnabled}
-              onChange={(e) => onToggleAutoRag(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-9 h-5 bg-zinc-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1d4ed8]"></div>
-          </label>
-        </div>
-
-        {/* 📚 출처 각주 포함 스마트 스위치 (사용자 요구사항 반영) */}
-        <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/30">
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-1.5">
-              <BookOpen className="w-3.5 h-3.5 text-[#1d4ed8]" />
-              <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">
-                출처 각주 포함
-              </span>
-            </div>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              {includeCitations
-                ? '결과 문서 하단에 참조한 지식 문서의 파일 경로와 각주 링크를 자동 생성합니다.'
-                : '비활성화됨: 본문에 별도의 참고 자료 및 출처 각주를 추가하지 않습니다.'}
-            </span>
-          </div>
-
-          <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
-            <input
-              type="checkbox"
-              checked={includeCitations}
-              onChange={(e) => onToggleIncludeCitations?.(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-9 h-5 bg-zinc-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1d4ed8]"></div>
-          </label>
-        </div>
-
-        {/* 선택된 청크 트레이 (Attached Chunks Tray) */}
-        {attachedChunks.length > 0 && (
-          <div className="flex flex-col gap-2 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-850 border border-zinc-200/60 dark:border-zinc-800">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-700 dark:text-zinc-300">
-                <FileText className="w-3.5 h-3.5 text-[#1d4ed8]" />
-                <span>첨부된 지식 컨텍스트 ({attachedChunks.length})</span>
-              </div>
-              {onClearAllChunks && (
-                <button
-                  type="button"
-                  onClick={onClearAllChunks}
-                  className="text-[10px] font-medium text-zinc-400 hover:text-red-500 transition-colors"
-                >
-                  전체 해제
-                </button>
-              )}
-            </div>
-
-            {/* 청크 칩 목록 */}
-            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-              {attachedChunks.map((chunk) => (
-                <div
-                  key={chunk.chunkId}
-                  className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-white dark:bg-zinc-800 border border-[#1d4ed8]/30 text-[11px] text-zinc-800 dark:text-zinc-200 shadow-2xs"
-                  title={`${chunk.documentTitle} > ${chunk.headingPath || chunk.headingTitle} (L${chunk.startLine}~L${chunk.endLine})`}
-                >
-                  <span className="font-bold text-[#1d4ed8] truncate max-w-[120px]">
-                    {chunk.documentTitle}
-                  </span>
-                  <span className="text-zinc-400 dark:text-zinc-500 truncate max-w-[110px]">
-                    {chunk.headingPath || chunk.headingTitle}
-                  </span>
-                  <span className="text-[10px] font-mono text-zinc-400">
-                    L{chunk.startLine}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onDetachChunk(chunk.chunkId)}
-                    className="p-0.5 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                    title="첨부 해제"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* 예산 게이지 바 */}
-            <div className="flex flex-col gap-1 pt-1 border-t border-zinc-200/50 dark:border-zinc-800">
-              <div className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
-                <span>컨텍스트 예산 사용량</span>
-                <span className="font-mono font-bold">
-                  {currentCharsUsed.toLocaleString()} / {maxTokenBudget.toLocaleString()} 자 ({usagePercent}%)
+      {/* 📦 3대 RAG 세트 아코디언 바디 (접기/펼치기 일체화) */}
+      {isExpanded && (
+        <div className="p-3.5 flex flex-col gap-3">
+          {/* 1. Auto-RAG 스마트 스위치 */}
+          <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#1d4ed8]" />
+                <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">
+                  지식 보관함 자동 참조 (Auto-RAG)
                 </span>
               </div>
-              <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-300 ${
-                    usagePercent > 90
-                      ? 'bg-rose-500'
-                      : usagePercent > 70
-                      ? 'bg-amber-500'
-                      : 'bg-[#1d4ed8]'
-                  }`}
-                  style={{ width: `${usagePercent}%` }}
-                />
-              </div>
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                {isAutoRagEnabled 
+                  ? '프롬프트 키워드에 따라 관련 지식을 자동으로 검색하여 답변에 보조 자료로 반영합니다.'
+                  : '비활성화됨: 수동으로 첨부한 지식 문서만 보조 컨텍스트로 전달됩니다.'}
+              </span>
             </div>
-          </div>
-        )}
 
-        {/* 확장 영역: 검색 패널 */}
-        {isExpanded && (
+            <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+              <input
+                type="checkbox"
+                checked={isAutoRagEnabled}
+                onChange={(e) => handleToggleAutoRag(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-zinc-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1d4ed8]"></div>
+            </label>
+          </div>
+
+          {/* 2. 📚 출처 각주 포함 스마트 스위치 */}
+          <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/30">
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-[#1d4ed8]" />
+                <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">
+                  출처 각주 포함
+                </span>
+              </div>
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                {includeCitations
+                  ? '결과 문서 하단에 참조한 지식 문서의 파일 경로와 각주 링크를 자동 생성합니다.'
+                  : '비활성화됨: 본문에 별도의 참고 자료 및 출처 각주를 추가하지 않습니다.'}
+              </span>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+              <input
+                type="checkbox"
+                checked={includeCitations}
+                onChange={(e) => onToggleIncludeCitations?.(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-zinc-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1d4ed8]"></div>
+            </label>
+          </div>
+
+          {/* 3. 🔍 지식 문서 직접 검색 및 수동 첨부 관리 영역 */}
           <div className="flex flex-col gap-3 pt-2 border-t border-zinc-200/80 dark:border-zinc-800">
+            {/* 선택된 청크 트레이 (Attached Chunks Tray) */}
+            {attachedChunks.length > 0 && (
+              <div className="flex flex-col gap-2 p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-850 border border-zinc-200/60 dark:border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-700 dark:text-zinc-300">
+                    <FileText className="w-3.5 h-3.5 text-[#1d4ed8]" />
+                    <span>첨부된 지식 컨텍스트 ({attachedChunks.length})</span>
+                  </div>
+                  {onClearAllChunks && (
+                    <button
+                      type="button"
+                      onClick={onClearAllChunks}
+                      className="text-[10px] font-medium text-zinc-400 hover:text-red-500 transition-colors"
+                    >
+                      전체 해제
+                    </button>
+                  )}
+                </div>
+
+                {/* 청크 칩 목록 */}
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                  {attachedChunks.map((chunk) => (
+                    <div
+                      key={chunk.chunkId}
+                      className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-white dark:bg-zinc-800 border border-[#1d4ed8]/30 text-[11px] text-zinc-800 dark:text-zinc-200 shadow-2xs"
+                      title={`${chunk.documentTitle} > ${chunk.headingPath || chunk.headingTitle} (L${chunk.startLine}~L${chunk.endLine})`}
+                    >
+                      <span className="font-bold text-[#1d4ed8] truncate max-w-[120px]">
+                        {chunk.documentTitle}
+                      </span>
+                      <span className="text-zinc-400 dark:text-zinc-500 truncate max-w-[110px]">
+                        {chunk.headingPath || chunk.headingTitle}
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-400">
+                        L{chunk.startLine}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onDetachChunk(chunk.chunkId)}
+                        className="p-0.5 rounded text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                        title="첨부 해제"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 예산 게이지 바 */}
+                <div className="flex flex-col gap-1 pt-1 border-t border-zinc-200/50 dark:border-zinc-800">
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
+                    <span>컨텍스트 예산 사용량</span>
+                    <span className="font-mono font-bold">
+                      {currentCharsUsed.toLocaleString()} / {maxTokenBudget.toLocaleString()} 자 ({usagePercent}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        usagePercent > 90
+                          ? 'bg-rose-500'
+                          : usagePercent > 70
+                          ? 'bg-amber-500'
+                          : 'bg-[#1d4ed8]'
+                      }`}
+                      style={{ width: `${usagePercent}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             {/* 검색 툴바 (컬렉션 필터 + 검색창) */}
             <form onSubmit={handleExecuteSearch} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               {collections.length > 0 && (
@@ -432,8 +462,8 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

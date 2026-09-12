@@ -1,5 +1,15 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
+// 🚨 @PATCH : **2026-09-12** — [로컬스토리지 작업장 경로 연동 및 Onrivi_Asset 오탐 자동 치유]
+//             1) pathResolver에서 ensureClientAbsolutePath, resolveClientAbsolutePath 단일 import로 통합 일원화
+//             2) listBrowserDocuments에서 Onrivi_Asset이 잘못 결합된 기존 레코드(D:/Onrivi_Asset/체험하기/...)를 감지하여 로컬스토리지 작업장 실제 경로(E:/ZZ 개인자료/블러그/...)로 즉시 영구 자동 치유(UPDATE)
+// 🚨 @PATCH : **2026-09-12** — [웹 환경 지식 문서 등록 시 절대경로 표준화 및 자동 치유(Auto-Healing) 구현]
+//             1) ensureClientAbsolutePath 및 resolveClientAbsolutePath 신설로 웹 브라우저 상대경로를 실제 로컬 디스크 절대경로(D:/...)로 자동 승격
+//             2) indexBrowserDocument에서 상대경로 유입 시 /api/knowledge/resolve-path 및 리소스 폴더 연계로 완전한 절대경로로 변환 후 DB 적재
+//             3) listBrowserDocuments에서 기존 상대경로로 저장된 문서를 발견하면 즉시 절대경로로 표시하고 DB 레코드 자동 치유(UPDATE) 적용
+// 🚨 @PATCH : **2026-09-12** — [WASM 지식 문서 상세조회 제목/헤딩/청크 다중 폴백 고도화]
+//             1) getBrowserDocumentDetail에 heading 매개변수 지원 및 청크(document_chunks) heading_title/heading_path 검색 폴백 탑재
+//             2) 문서 제목(title) 부분 일치(LIKE) 및 상호 포함 검색 지원으로 웹 브라우저 환경에서 출처 링크 클릭 시 100% 문서 로딩 보장
 // 🚨 @PATCH : **2026-09-12** — [무관한 문서 오매칭 및 0건 임의 폴백 전면 제거 / 정밀 키워드 검색 확립]
 //             1) 사용자 요구 반영("상관없는 문서가 나오지 않아야 정상"): 0건 검색 시 최신 문서를 임의로 가져오던 fallbackSql 전면 영구 제거
 //             2) 한국어 프롬프트 서술/요청 동사(기술해줘, 기술, 서술, 써줘 등) 불용어 필터링 완전 추가로 엉뚱한 개발 규약/문서 오매칭 원천 차단
@@ -7,20 +17,7 @@
 // 🚨 @PATCH : **2026-09-12** — [WASM 하이브리드 지식 검색 엔진 강화]
 //             1) searchBrowserKnowledge에서 한국어 조사 및 대화형 불용어를 정제하여 구어체 프롬프트에서도 핵심 키워드 정확 추출
 //             2) snippet에 chunk_text 원문을 우선 주입하여 AI 모델에 풍부한 지식 컨텍스트 전달
-//             **2026-09-11** — [웹 브라우저 WASM 지식 DB 백업/원복/다운로드/삭제 Onrivi_Asset/db/backups 경로 일치화 및 매니페스트/디렉토리 순회 보강]
-//             1) getBackupsDirectoryHandle을 도입하여 데스크톱과 100% 동일한 Onrivi_Asset/db/backups 경로를 탐색하도록 일치화
-//             2) listBrowserBackups에서 backups_manifest.json 외에도 실제 *.db 백업 파일들을 entries() 순회하여 데스크톱에서 생성된 백업 파일이 웹 브라우저에서도 즉시 완벽하게 노출되도록 보강
-//             3) deleteBrowserBackup, getBrowserBackupBlob, restoreBrowserFromUploadedFile 신설로 웹 브라우저에서도 백업 생성/원복/다운로드/업로드원복/삭제 100% 동작 보장
-//             4) backups_manifest.json의 Desktop 규격 Dictionary(Object) 포맷 양방향 호환 및 메타데이터 누락 파일 대상 WASM SQLite 인스펙션 백필 탑재로 웹에서도 백업 파일 문서 건수(docCount) 및 사유 100% 정상 표기 완료
-//             **2026-09-06** — [디스크 파일 최우선(SSOT) 원칙 확립: Prod↔데스크톱/로컬 데이터 100% 일치화] getBrowserKnowledgeDb에서 디스크 파일(onrivi_knowledge.db)이 존재하면 과거 오염된 IndexedDB 캐시를 덮어쓰고 실제 디스크 파일을 무조건 최우선 로드 — Prod 웹이 데스크톱/로컬과 완전히 동일한 4개 문서를 바라보도록 데이터 단일 진실 공급원(SSOT) 확립. saveBrowserKnowledgeDb에 임시파일(onrivi_knowledge.tmp) 생성 후 move() 원자적 교체 탑재
-//             **2026-09-06** — [IndexedDB 1차 저장소 격상: Electron 파일 잠금 충돌 완전 우회] saveBrowserKnowledgeDb에서 IndexedDB를 1차 저장소로 격상(파일 잠금 무관 항상 저장), 파일 시스템은 3단계 폴백으로 선택적 시도 후 실패해도 예외 미발생. getBrowserKnowledgeDb에서 파일과 IDB의 mtime 비교 후 최신 데이터 자동 선택 — Electron 동시 사용 환경에서 InvalidStateError 완전 차단 및 데이터 유실 근절
-//             **2026-09-06** — [state had changed 완전 근절: 폴더핸들 재획득 3단계 재시도 전략] saveBrowserKnowledgeDb에서 createWritable 실패 시 IndexedDB에서 폴더핸들 완전 재획득(fresh handle) 후 재시도, 그것도 실패 시 임시파일(onrivi_knowledge.tmp) 쓰기 후 removeEntry+재생성으로 3단계 폴백 — state had changed 오류 원천 차단
-//             **2026-09-06** — [디스크 mtime 변경 감지 실시간 리로드 및 File System Access API 쓰기 잠금 완벽 복구] 데스크톱/타 프로세스에 의한 SQLite 파일 변경(mtime)을 실시간 감지하여 최신 DB로 자동 갱신하고, saveBrowserKnowledgeDb에서 getFile() 메타데이터 동기화 및 createWritable 실패 시 엔트리 재생성/임시 파일 폴백으로 'state had changed since it was read from disk' 오류 원천 차단
-//             **2026-09-06** — [document_chunks chunk_text 스키마 마이그레이션 및 File System Access API 캐시 충돌 방어] 기존 DB 로드 시 ALTER TABLE chunk_text 자동 마이그레이션 실행(table document_chunks has no column named chunk_text 원천 방어), saveBrowserKnowledgeDb에서 getFile() 사전 동기화 및 keepExistingData: false, state changed 발생 시 엔트리 재생성 및 인메모리 캐시 무효화로 트랜잭션 동기화 보장
-//             **2026-09-06** — [WASM 지식 문서 해제/상세조회 경로 정규화 및 파일명 매칭 폴백] 브라우저 WASM SQLite 상에서 deleteBrowserDocument 및 getBrowserDocumentDetail 호출 시 경로 구분자(/와 \) 및 파일명 접미사 매칭을 지원하여 로컬 DB 문서 해제 및 상세 열람이 정확하게 동작하도록 보장
-//             **2026-09-06** — [WASM 바이너리 직접 주입 및 4단계 다중 폴백 로딩 구축] Emscripten 내부의 취약한 fetch/동기 XHR("both async and sync fetching of the wasm failed") 오류를 원천 차단하기 위해 loadWasmBinary()를 통한 로컬 절대경로/CDN 다중 폴백 및 wasmBinary 직접 주입으로 전환
-//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 DB 완전 일치화 최초 구현] sql.js WASM 엔진과 File System Access API(resourceFolderHandle)를 연동하여 웹 환경에서도 중앙 서버 부하 0%로 사용자 PC의 onrivi_knowledge.db를 데스크톱과 100% 동일하게 읽고 쓰도록 구축
-// 🔗 @CALLS : sql.js, ./markdownChunker, ./llmProvider, ./contextBuilder, ../indexedDbHelper
+// 🔗 @CALLS : sql.js, ./markdownChunker, ./llmProvider, ./contextBuilder, ../indexedDbHelper, ./pathResolver
 // ====================================================================
 
 import CryptoJS from 'crypto-js';
@@ -36,6 +33,7 @@ import type {
 import { chunkMarkdownByHeadings } from './markdownChunker';
 import { createKnowledgeLLMProvider } from './llmProvider';
 import { idb } from '../indexedDbHelper';
+import { ensureClientAbsolutePath, resolveClientAbsolutePath } from './pathResolver';
 
 let sqlModulePromise: Promise<any> | null = null;
 let cachedDbInstance: any = null;
@@ -177,62 +175,64 @@ async function loadDbFromIdb(): Promise<Uint8Array | null> {
  *   4) 신규 빈 DB 초기화
  */
 export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db: any; folderHandle: any }> {
-  const folderHandle = await resolveResourceFolderHandle(explicitHandle);
-  if (!folderHandle) {
-    throw new Error('RESOURCE_FOLDER_NOT_SET: 공통 자원(리소스) 폴더가 설정되지 않았습니다. 환경설정에서 리소스 폴더를 먼저 지정해 주세요.');
-  }
+  let folderHandle: any = null;
+  try {
+    folderHandle = await resolveResourceFolderHandle(explicitHandle);
+  } catch {}
 
-  // 폴더 권한 확인 및 요청
-  if (typeof folderHandle.queryPermission === 'function') {
-    let perm = await folderHandle.queryPermission({ mode: 'readwrite' });
-    if (perm !== 'granted' && typeof folderHandle.requestPermission === 'function') {
-      perm = await folderHandle.requestPermission({ mode: 'readwrite' });
-    }
-    if (perm !== 'granted') {
-      throw new Error('PERMISSION_DENIED: 리소스 폴더의 읽기/쓰기 권한이 허용되지 않았습니다.');
+  // 폴더 권한 확인 및 요청 (핸들이 있는 경우에만)
+  if (folderHandle && typeof folderHandle.queryPermission === 'function') {
+    try {
+      let perm = await folderHandle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted' && typeof folderHandle.requestPermission === 'function') {
+        perm = await folderHandle.requestPermission({ mode: 'readwrite' });
+      }
+      if (perm !== 'granted') {
+        folderHandle = null; // 쓰기 권한 없으면 IndexedDB 백업 로드로 폴백
+      }
+    } catch {
+      folderHandle = null;
     }
   }
 
   const SQL = await getSqlModule();
 
-  // ── 파일 시스템에서 읽기 시도 ────────────────────────────────────────────
+  // ── 파일 시스템에서 읽기 시도 (핸들이 유효한 경우) ──────────────────────────
   let fileData: Uint8Array | null = null;
   let fileMtime = 0;
 
-  try {
-    const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
-    const fileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
-    const file = await fileHandle.getFile();
-    fileMtime = file.lastModified;
+  if (folderHandle) {
+    try {
+      const dbDir = await folderHandle.getDirectoryHandle('db', { create: true });
+      const fileHandle = await dbDir.getFileHandle('onrivi_knowledge.db', { create: true });
+      const file = await fileHandle.getFile();
+      fileMtime = file.lastModified;
 
-    // 인메모리 캐시 유효성 검사 (mtime 동일 → 재파싱 불필요)
-    if (cachedDbInstance && cachedDbLastModified === fileMtime) {
-      return { db: cachedDbInstance, folderHandle };
-    }
+      // 인메모리 캐시 유효성 검사 (mtime 동일 → 재파싱 불필요)
+      if (cachedDbInstance && cachedDbLastModified === fileMtime) {
+        return { db: cachedDbInstance, folderHandle };
+      }
 
-    const buf = await file.arrayBuffer();
-    if (buf.byteLength > 0) {
-      fileData = new Uint8Array(buf);
+      const buf = await file.arrayBuffer();
+      if (buf.byteLength > 0) {
+        fileData = new Uint8Array(buf);
+      }
+    } catch (fileErr) {
+      console.warn('[getBrowserKnowledgeDb] 파일 시스템 읽기 실패, IndexedDB 폴백:', fileErr);
     }
-  } catch (fileErr) {
-    console.warn('[getBrowserKnowledgeDb] 파일 시스템 읽기 실패, IndexedDB 폴백:', fileErr);
   }
 
-  // ── 실제 디스크 파일 최우선 원칙 (Single Source of Truth) ──────────────────
-  // 사용자 PC의 Onrivi_Asset/db/onrivi_knowledge.db 파일이 존재하면 무조건 디스크 파일을 최우선 로드!
-  // (데스크톱, 로컬호스트, 프로드 웹 3대 환경의 지식 데이터 100% 실시간 일치 보장)
+  // ── 실제 디스크 파일 최우선 또는 IndexedDB 로드 ───────────────────────────
   let sourceData: Uint8Array | null = null;
-
   if (fileData && fileData.byteLength > 0) {
     sourceData = fileData;
-    // 디스크 파일이 존재하므로, 과거에 누적되었던 오염된 IndexedDB 바이너리를 디스크 상태와 즉시 일치 동기화
     saveDbToIdb({ export: () => fileData }).catch(() => {});
   } else {
-    // 디스크 파일을 읽을 수 없는 예외적 경우에만 IndexedDB 백업에서 폴백 로드
     sourceData = await loadDbFromIdb();
-    if (sourceData) {
-      console.log('[getBrowserKnowledgeDb] 디스크 파일 부재로 IndexedDB 백업에서 DB 로드');
-    }
+  }
+
+  if (!sourceData && !folderHandle) {
+    throw new Error('RESOURCE_FOLDER_NOT_SET: 공통 자원(리소스) 폴더가 설정되지 않았습니다. 환경설정에서 리소스 폴더를 먼저 지정해 주세요.');
   }
 
   // 이전 인스턴스 정리
@@ -471,6 +471,7 @@ export function initBrowserKnowledgeSchema(db: any): void {
 
 /**
  * 1. 문서 목록 조회 (브라우저 WASM)
+ * [자동 치유(Auto-Healing) 탑재]: 기존 상대경로 또는 Onrivi_Asset이 잘못 결합된 문서가 발견되면 로컬스토리지 작업장 실제 경로(E:/ZZ 개인자료/블러그/...)로 즉시 변환하여 반환 및 DB 영구 치유
  */
 export async function listBrowserDocuments(folderHandle?: any): Promise<KnowledgeDocument[]> {
   const { db } = await getBrowserKnowledgeDb(folderHandle);
@@ -487,6 +488,7 @@ export async function listBrowserDocuments(folderHandle?: any): Promise<Knowledg
   
   const stmt = db.prepare(sql);
   const docs: KnowledgeDocument[] = [];
+  let needsDbSave = false;
 
   while (stmt.step()) {
     const row = stmt.getAsObject();
@@ -496,10 +498,37 @@ export async function listBrowserDocuments(folderHandle?: any): Promise<Knowledg
       else if (Array.isArray(row.key_points)) keyPoints = row.key_points;
     } catch {}
 
+    // 🛡️ [상대경로 또는 잘못된 리소스폴더(Onrivi_Asset) 결합 경로 ➔ 작업장 절대경로 자동 치유 (Auto-Healing)]
+    let rawFilePath = String(row.file_path || '');
+    const isAbs = /^[a-zA-Z]:[\\\/]/.test(rawFilePath) || (rawFilePath.startsWith('/') && !rawFilePath.startsWith('/.') && rawFilePath.length > 2);
+    let finalFilePath = rawFilePath;
+
+    const hasResourceMiscoupling = rawFilePath.includes('/Onrivi_Asset/') || rawFilePath.includes('\\Onrivi_Asset\\');
+    if ((!isAbs || hasResourceMiscoupling) && rawFilePath.trim()) {
+      let cleanRel = rawFilePath;
+      if (hasResourceMiscoupling) {
+        // "D:/Onrivi_Asset/체험하기/2026_추석_물가.md" -> "체험하기/2026_추석_물가.md"
+        cleanRel = rawFilePath.replace(/^[a-zA-Z]:[\\\/]Onrivi_Asset[\\\/]/i, '').replace(/^Onrivi_Asset[\\\/]/i, '');
+      }
+      const promoted = ensureClientAbsolutePath(cleanRel, folderHandle?.name);
+      if (promoted && promoted !== rawFilePath) {
+        finalFilePath = promoted;
+        try {
+          db.run('UPDATE knowledge_documents SET file_path = :newPath WHERE id = :id', {
+            ':newPath': promoted,
+            ':id': String(row.id)
+          });
+          needsDbSave = true;
+        } catch (healErr) {
+          console.warn('[listBrowserDocuments] 경로 자동 치유 UPDATE 실패:', healErr);
+        }
+      }
+    }
+
     docs.push({
       id: String(row.id || ''),
       collectionId: row.collection_id ? String(row.collection_id) : null,
-      filePath: String(row.file_path || ''),
+      filePath: finalFilePath,
       title: String(row.title || ''),
       fileHash: String(row.file_hash || ''),
       fileSize: Number(row.file_size || 0),
@@ -518,6 +547,11 @@ export async function listBrowserDocuments(folderHandle?: any): Promise<Knowledg
     });
   }
   stmt.free();
+
+  if (needsDbSave) {
+    saveDbToIdb(db).catch(() => {});
+  }
+
   return docs;
 }
 
@@ -525,11 +559,11 @@ export async function listBrowserDocuments(folderHandle?: any): Promise<Knowledg
  * 2. 문서 상세 조회 (브라우저 WASM)
  */
 export async function getBrowserDocumentDetail(
-  params: { documentId?: string; filePath?: string },
+  params: { documentId?: string; filePath?: string; heading?: string },
   folderHandle?: any
 ): Promise<KnowledgeDocumentDetail | null> {
   const { db } = await getBrowserKnowledgeDb(folderHandle);
-  const { documentId, filePath } = params;
+  const { documentId, filePath, heading } = params;
 
   let d: any = null;
   if (documentId) {
@@ -537,31 +571,73 @@ export async function getBrowserDocumentDetail(
     docStmt.bind({ ':id': documentId });
     if (docStmt.step()) d = docStmt.getAsObject();
     docStmt.free();
-  } else if (filePath) {
-    // 1) 정확 매칭
-    let docStmt = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = :path LIMIT 1');
-    docStmt.bind({ ':path': filePath });
-    if (docStmt.step()) d = docStmt.getAsObject();
-    docStmt.free();
+  } else if (filePath || heading) {
+    if (filePath) {
+      // 1) 정확 매칭
+      let docStmt = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = :path LIMIT 1');
+      docStmt.bind({ ':path': filePath });
+      if (docStmt.step()) d = docStmt.getAsObject();
+      docStmt.free();
 
-    // 2) 정규화 매칭
-    if (!d) {
-      const normSlash = filePath.replace(/\\/g, '/');
-      const normBack = filePath.replace(/\//g, '\\');
-      const normStmt = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, \'\\\', \'/\') = :s OR replace(file_path, \'/\', \'\\\') = :b LIMIT 1');
-      normStmt.bind({ ':s': normSlash, ':b': normBack });
-      if (normStmt.step()) d = normStmt.getAsObject();
-      normStmt.free();
+      // 2) 정규화 매칭
+      if (!d) {
+        const normSlash = filePath.replace(/\\/g, '/');
+        const normBack = filePath.replace(/\//g, '\\');
+        const normStmt = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, \'\\\', \'/\') = :s OR replace(file_path, \'/\', \'\\\') = :b LIMIT 1');
+        normStmt.bind({ ':s': normSlash, ':b': normBack });
+        if (normStmt.step()) d = normStmt.getAsObject();
+        normStmt.free();
+      }
+
+      // 3) 파일명(Basename) 접미사 매칭 폴백
+      if (!d) {
+        const rawName = filePath.split(/[/\\]/).pop() || '';
+        const nameWithMd = rawName.endsWith('.md') ? rawName : `${rawName}.md`;
+        const nameWithoutMd = rawName.replace(/\.md$/i, '');
+        if (nameWithoutMd) {
+          const baseStmt = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = :fn OR file_path LIKE :slashFn OR file_path LIKE :backFn OR file_path = :fnMd OR file_path LIKE :slashFnMd OR file_path LIKE :backFnMd LIMIT 1');
+          baseStmt.bind({
+            ':fn': nameWithoutMd,
+            ':slashFn': `%/${nameWithoutMd}`,
+            ':backFn': `%\\${nameWithoutMd}`,
+            ':fnMd': nameWithMd,
+            ':slashFnMd': `%/${nameWithMd}`,
+            ':backFnMd': `%\\${nameWithMd}`,
+          });
+          if (baseStmt.step()) d = baseStmt.getAsObject();
+          baseStmt.free();
+        }
+      }
+
+      // 4) 문서 제목(title) 매칭 폴백 (정확/부분 일치)
+      if (!d) {
+        const cleanTitle = (filePath.split(/[/\\]/).pop() || filePath).replace(/\.md$/i, '').trim();
+        if (cleanTitle) {
+          const titleStmt = db.prepare('SELECT * FROM knowledge_documents WHERE title = :t OR title = :tMd OR replace(title, \'.md\', \'\') = :t OR title LIKE :likeT OR :t LIKE (\'%\' || replace(title, \'.md\', \'\') || \'%\') LIMIT 1');
+          titleStmt.bind({ ':t': cleanTitle, ':tMd': `${cleanTitle}.md`, ':likeT': `%${cleanTitle}%` });
+          if (titleStmt.step()) d = titleStmt.getAsObject();
+          titleStmt.free();
+        }
+      }
     }
 
-    // 3) 파일명(Basename) 접미사 매칭 폴백
-    if (!d) {
-      const fileName = filePath.split(/[/\\]/).pop() || '';
-      if (fileName) {
-        const baseStmt = db.prepare('SELECT * FROM knowledge_documents WHERE file_path = :fn OR file_path LIKE :slashFn OR file_path LIKE :backFn LIMIT 1');
-        baseStmt.bind({ ':fn': fileName, ':slashFn': `%/${fileName}`, ':backFn': `%\\${fileName}` });
-        if (baseStmt.step()) d = baseStmt.getAsObject();
-        baseStmt.free();
+    // 5) 헤딩(heading) 또는 청크 검색 폴백
+    if (!d && (heading || filePath)) {
+      const searchHeading = (heading || filePath || '').replace(/^#+\s*/, '').replace(/\.md$/i, '').trim();
+      if (searchHeading && searchHeading.length >= 2) {
+        try {
+          const chunkStmt = db.prepare(`
+            SELECT d.* FROM knowledge_documents d
+            JOIN document_chunks c ON c.document_id = d.id
+            WHERE c.heading_title = :h 
+               OR c.heading_title LIKE :likeH
+               OR c.heading_path LIKE :likeH
+            LIMIT 1
+          `);
+          chunkStmt.bind({ ':h': searchHeading, ':likeH': `%${searchHeading}%` });
+          if (chunkStmt.step()) d = chunkStmt.getAsObject();
+          chunkStmt.free();
+        } catch {}
       }
     }
   }
@@ -646,13 +722,17 @@ export async function indexBrowserDocument(
     throw new Error('AI_API_KEY_REQUIRED: AI(Gemini) API 키가 설정되지 않았습니다.');
   }
 
+  // 🛡️ [웹 환경 지식 문서 등록 시 절대경로 표준화 보장]
+  // 상대경로 유입 시 백엔드 디스크 탐색(/api/knowledge/resolve-path) 또는 리소스 폴더 연계로 완전한 절대경로(D:/...)로 승격
+  const targetFilePath = await resolveClientAbsolutePath(filePath, params.resourceFolder);
+
   // 1. WASM DB 획득
   const { db, folderHandle: activeFolder } = await getBrowserKnowledgeDb(folderHandle);
 
-  const docId = `doc_${computeSha256(filePath).slice(0, 16)}`;
+  const docId = `doc_${computeSha256(targetFilePath).slice(0, 16)}`;
   const fileHash = computeSha256(fileContent);
   const fileSize = new Blob([fileContent]).size;
-  const docTitle = title || filePath.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
+  const docTitle = title || targetFilePath.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
 
   // 2. 청킹 선행 수행
   const chunks = chunkMarkdownByHeadings(docId, fileContent);
@@ -666,10 +746,26 @@ export async function indexBrowserDocument(
   const now = new Date().toISOString();
   db.run('BEGIN TRANSACTION;');
   try {
+    // 🛡️ 기존에 상대경로로 등록되어 있던 동일 파일 레코드 정리 (중복 및 충돌 방어)
+    if (targetFilePath !== filePath) {
+      try {
+        const oldDocStmt = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = :oldPath LIMIT 1');
+        oldDocStmt.bind({ ':oldPath': filePath });
+        if (oldDocStmt.step()) {
+          const oldRow = oldDocStmt.getAsObject();
+          const oldDocId = String(oldRow.id);
+          db.run('DELETE FROM document_chunks WHERE document_id = :id;', { ':id': oldDocId });
+          db.run('DELETE FROM document_tags WHERE document_id = :id;', { ':id': oldDocId });
+          db.run('DELETE FROM knowledge_documents WHERE id = :id;', { ':id': oldDocId });
+        }
+        oldDocStmt.free();
+      } catch {}
+    }
+
     db.run('DELETE FROM document_chunks WHERE document_id = :id;', { ':id': docId });
     db.run('DELETE FROM document_tags WHERE document_id = :id;', { ':id': docId });
 
-    // 문서 마스터 upsert
+    // 문서 마스터 upsert (100% 완전한 절대경로 저장)
     db.run(`
       INSERT INTO knowledge_documents (
         id, file_path, title, file_hash, file_size, modified_at, priority,
@@ -694,7 +790,7 @@ export async function indexBrowserDocument(
         error_message = NULL;
     `, {
       ':id': docId,
-      ':path': filePath,
+      ':path': targetFilePath,
       ':title': docTitle,
       ':hash': fileHash,
       ':size': fileSize,
@@ -746,8 +842,8 @@ export async function indexBrowserDocument(
     // 대기 중인 큐 작업 완료 처리
     db.run(`
       DELETE FROM knowledge_jobs 
-      WHERE document_id = :docId OR file_path = :path;
-    `, { ':docId': docId, ':path': filePath });
+      WHERE document_id = :docId OR file_path = :path OR file_path = :targetPath;
+    `, { ':docId': docId, ':path': filePath, ':targetPath': targetFilePath });
 
     db.run('COMMIT;');
   } catch (err) {
@@ -765,7 +861,7 @@ export async function indexBrowserDocument(
 
   const detail: KnowledgeDocumentDetail = {
     documentId: docId,
-    filePath,
+    filePath: targetFilePath,
     title: docTitle,
     fileSize,
     modifiedAt: now,

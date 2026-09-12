@@ -4,7 +4,8 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
- * <2026-08-15> 최초작성 * 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+ * <2026-08-15> 최초작성 * 🚨 @PATCH : **2026-09-12** — [모든 AI 질의 표준 재시도 적용]: 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 에러 표출 규칙 및 기본 모델 gemini-3.8-flash 통일 적용
+ * 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
  *             2026-09-05** — AI 미연결 시 서식 관리 모달의 AI 서식 생성 입력창, 추천 칩 및 버튼을 비활성화(disabled) 및 연동 안내 플레이스홀더 적용
  * *2026-09-02** — 서식 데이터 관리 파일 내보내기 아이콘을 공식 아이콘(/icons/icon-export.png)으로 교체 및 통일
  * *2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 좌측 서식 목록 사이드바 .bg-sidebar-luxury 럭셔리 그라데이션 적용 및 LDSG Green(#1d4ed8)/Blue(#4D73FF) 컬러 시스템 100% 통일
@@ -197,13 +198,33 @@ ${guideContent}
 
 반드시 위 가이드라인과 JSON 구조를 준수해야 하며, 다른 텍스트 설명이나 코드 블록 기호(\`\`\`) 없이 오직 순수한 JSON 문자열만 출력해 주세요.`;
 
+      const targetModel = aiModelName || 'gemini-3.8-flash';
       const genAI = new GoogleGenerativeAI((geminiApiKey || '').trim());
       const model = genAI.getGenerativeModel({
-        model: aiModelName || 'gemini-1.5-pro',
+        model: targetModel,
         systemInstruction: '당신은 CSS 서식 JSON 생성 전문가입니다. 오직 순수한 JSON 객체만 출력하십시오.',
       });
-      const result = await model.generateContent(promptText);
-      let cleanedText = result.response.text().trim();
+
+      let attempts = 0;
+      const maxAttempts = 3;
+      let resultText = '';
+
+      while (attempts < maxAttempts) {
+        try {
+          attempts++;
+          const result = await model.generateContent(promptText);
+          resultText = result.response.text().trim();
+          break;
+        } catch (callErr: any) {
+          if (attempts < maxAttempts) {
+            console.warn(`[StyleManagerModal] '${targetModel}' AI 서식 생성 ${attempts}회 실패. 3초 후 재시도합니다...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            continue;
+          }
+          throw callErr;
+        }
+      }
+      let cleanedText = resultText;
 
       const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
       const match = cleanedText.match(jsonBlockRegex);

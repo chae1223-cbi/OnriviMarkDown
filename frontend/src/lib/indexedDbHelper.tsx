@@ -117,6 +117,42 @@ export async function scanDirectory(dirHandle: any, parentPath: string = ""): Pr
   });
 }
 
+// ====================================================================
+// 📊 [OMD-CORE-indexedDbHelper-0004] indexedDbHelper.tsx ➔ scanDirectoryDeep
+// 🎯 @KICK  : 웹 환경 문서 링크 검색을 위해 하위 모든 폴더를 지연 로딩 없이 끝까지 재귀 탐색하여 .md/.markdown/.bib FileNode 배열 수집
+// 🛡️ @GUARD : visited Set으로 순환 참조 방지, .git 및 node_modules 제외 필터링, 예외 시 안전 빈 배열
+// 🚨 @PATCH : **2026-09-12** — [웹 환경 문서 연결 검색 완벽 지원] 브라우저 FileSystemDirectoryHandle 하위 모든 디렉토리를 깊숙이 재귀 탐색하여 모든 .md 파일을 100% 수집하는 scanDirectoryDeep 신설
+// 🔗 @CALLS : msg.error
+// ====================================================================
+export async function scanDirectoryDeep(dirHandle: any, parentPath: string = "", visited: Set<any> = new Set()): Promise<FileNode[]> {
+  if (!dirHandle) return [];
+  if (visited.has(dirHandle)) return [];
+  visited.add(dirHandle);
+
+  const files: FileNode[] = [];
+
+  try {
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (name.startsWith('.') || name === 'node_modules') continue;
+
+      const currentPath = parentPath ? `${parentPath}/${name}` : name;
+      if (handle.kind === 'file') {
+        const nameLower = name.toLowerCase();
+        if (nameLower.endsWith('.md') || nameLower.endsWith('.markdown') || nameLower.endsWith('.bib')) {
+          files.push({ name, kind: 'file', handle, path: currentPath });
+        }
+      } else if (handle.kind === 'directory') {
+        const subFiles = await scanDirectoryDeep(handle, currentPath, visited);
+        files.push(...subFiles);
+      }
+    }
+  } catch (e) {
+    console.warn('[scanDirectoryDeep] directory scan error for path:', parentPath, e);
+  }
+
+  return files;
+}
+
 // 파일/폴더 확장자에 따른 아이콘 및 색상 반환 함수
 // ====================================================================
 // 📊 [OMD-CORE-indexedDbHelper-0003] indexedDbHelper.tsx ➔ getFileIcon

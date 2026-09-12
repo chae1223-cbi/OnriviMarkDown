@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-12** — [모든 AI 질의 표준 재시도 적용]: 지식 베이스 AI 문서 분석 fetch 호출 시 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 처리 규칙 적용
 // 🚨 @PATCH : **2026-09-11** — [CSP connect-src data: blob: 스키마 추가] 클립보드 스크린샷 캡처 이미지 데이터 처리 및 fetch 시 CSP 위반 에러 방어
 //             **2026-09-11** — [SQLite getDesktopKnowledgeDb 파일 잠금 누수 및 WAL 전환 락 경합 원천 방어] getDesktopKnowledgeDb에서 이미 wal 저널 모드인 경우 PRAGMA journal_mode=WAL 재실행을 건너뛰어 배타적 락 충돌을 방지하고, 오픈/초기화 실패 시 db.close()를 반드시 수행하여 좀비 파일 락 누수를 완벽 차단; init 핸들러에서 초기화 전 자동 스냅샷 백업 및 최신 백업 목록 반환 연동
 //             **2026-09-11** — [지식 베이스 복원 시 안전 스냅샷 WAL 체크포인트 및 캐시 해제 순서 정상화] restore 핸들러에서 스냅샷 생성 전 기존 활성 DB의 wal_checkpoint(TRUNCATE) 및 DB close를 선행하여 WAL 누락 및 파일 잠금(database is locked) 충돌 방어
@@ -1207,25 +1208,44 @@ async function handleDesktopKnowledgeApi(request, pathname, url) {
 [분석할 마크다운 원문]:
 ${fileContent.slice(0, 15000)}`;
 
-          const aiRes = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ role: 'user', parts: [{ text: prompt }] }],
-              generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
-            })
-          });
+          let attempts = 0;
+          const maxAttempts = 3;
+          while (attempts < maxAttempts) {
+            try {
+              attempts++;
+              const aiRes = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                  generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+                })
+              });
 
-          if (aiRes.ok) {
-            const aiData = await aiRes.json();
-            const textOut = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (textOut) {
-              const parsed = JSON.parse(textOut);
-              if (parsed.summary) analysis.summary = parsed.summary;
-              if (Array.isArray(parsed.key_points)) analysis.key_points = parsed.key_points;
-              if (parsed.document_type) analysis.document_type = parsed.document_type;
-              if (Array.isArray(parsed.tags)) analysis.tags = parsed.tags;
-              if (Array.isArray(parsed.search_terms)) analysis.search_terms = parsed.search_terms;
+              if (aiRes.ok) {
+                const aiData = await aiRes.json();
+                const textOut = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (textOut) {
+                  const parsed = JSON.parse(textOut);
+                  if (parsed.summary) analysis.summary = parsed.summary;
+                  if (Array.isArray(parsed.key_points)) analysis.key_points = parsed.key_points;
+                  if (parsed.document_type) analysis.document_type = parsed.document_type;
+                  if (Array.isArray(parsed.tags)) analysis.tags = parsed.tags;
+                  if (Array.isArray(parsed.search_terms)) analysis.search_terms = parsed.search_terms;
+                }
+                break;
+              } else if (attempts < maxAttempts) {
+                console.warn(`[DesktopKnowledgeApi] AI 분석 ${attempts}회차 HTTP ${aiRes.status}. 3초 후 재시도합니다...`);
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+              }
+            } catch (aiAttemptErr) {
+              if (attempts < maxAttempts) {
+                console.warn(`[DesktopKnowledgeApi] AI 분석 ${attempts}회차 통신오류. 3초 후 재시도합니다...`);
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+              }
+              throw aiAttemptErr;
             }
           }
         } catch (aiErr) {

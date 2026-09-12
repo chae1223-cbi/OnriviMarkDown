@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeAutoSync-0001] knowledgeAutoSync.ts ➔ Knowledge Auto-Sync on Save
 // 🎯 @KICK  : 에디터 문서 저장(Ctrl+S/autoSave) 시 등록된 지식 문서의 변경을 감지하여 로컬 큐에 비동기 재색인(REINDEX, Priority 1) 자동 등록
 // 🛡️ @GUARD : 비활성화 옵션 가드, 미등록 문서 O(1) 패스, 세션 해시 캐시 기반 중복 억제, 에디터 타이핑 논블로킹, 5초 토스트 디바운스
-// 🚨 @PATCH : **2026-09-06** — [AES 암호문 리소스 폴더 방어] localStorage.getItem 직접 참조 시 암호문(U2FsdGVkX1...)이 유입되어 잘못된 SQLite 경로를 타던 현상을 loadSecureData 및 Onrivi_Asset 정규화로 방어
+// 🚨 @PATCH : **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 보장] 상대경로/절대경로 양방향 접미사 매칭 지원 및 자동 재색인 큐 적재 시 ensureClientAbsolutePath로 절대경로 승격
+//             **2026-09-06** — [AES 암호문 리소스 폴더 방어] localStorage.getItem 직접 참조 시 암호문(U2FsdGVkX1...)이 유입되어 잘못된 SQLite 경로를 타던 현상을 loadSecureData 및 Onrivi_Asset 정규화로 방어
 //             **2026-09-04** — 자동 재색인 토스트 알림 아이콘을 남성 학사(📗)로 교체
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003] 에디터 실시간 저장 시 100% 로컬 비동기 자동 재색인 엔진 최초 구현
 // 🔗 @CALLS : crypto-js, ./knowledgeWorker, @/utils/toast
@@ -12,6 +13,7 @@ import CryptoJS from 'crypto-js';
 import { KnowledgeWorkerEngine } from './knowledgeWorker';
 import { showToast } from '@/utils/toast';
 import { loadSecureData } from '../secureStorage';
+import { ensureClientAbsolutePath } from './pathResolver';
 
 export interface AutoSyncParams {
   filePath: string;
@@ -54,8 +56,12 @@ export function isKnowledgeDocumentRegistered(filePath: string, registeredList: 
     // 1. 파일 전체 경로가 정확히 일치하는 경우 (Windows 역슬래시 및 POSIX 슬래시 정규화)
     if (np === normalizedTarget) return true;
 
-    // 2. 브라우저 VFS 가상 파일 시스템 등에서 단일 파일명으로만 관리되는 경우에 한하여 매칭
-    // (절대 경로가 포함된 파일이 다른 폴더의 동일 파일명과 잘못 매칭되는 것을 엄격히 방지)
+    // 2. 상대 경로 ↔ 절대 경로 간 접미사 일치 (예: 'd:/path/체험하기/doc.md' 와 '체험하기/doc.md')
+    if (np.endsWith('/' + normalizedTarget) || normalizedTarget.endsWith('/' + np)) {
+      return true;
+    }
+
+    // 3. 브라우저 VFS 가상 파일 시스템 등에서 단일 파일명으로만 관리되는 경우에 한하여 매칭
     if (!np.includes('/') && !normalizedTarget.includes('/') && np === normalizedTarget) {
       return true;
     }
@@ -115,7 +121,7 @@ export async function triggerKnowledgeAutoSyncOnSave(params: AutoSyncParams): Pr
   }
 
   // 5. 환경설정 값 로드
-  const rawFolder = params.resourceFolder || loadSecureData<string>('resourceFolder') || localStorage.getItem('onrivi_resource_folder') || 'Onrivi_Asset';
+  const rawFolder = params.resourceFolder || loadSecureData<string>('resourceFolder') || localStorage.getItem('resourceFolder') || localStorage.getItem('onrivi_resource_folder') || 'Onrivi_Asset';
   const resourceFolder = rawFolder.startsWith('U2FsdGVkX1') ? 'Onrivi_Asset' : rawFolder;
   const geminiApiKey = params.geminiApiKey || localStorage.getItem('onrivi_gemini_api_key') || '';
   const aiModelName = params.aiModelName || localStorage.getItem('onrivi_ai_model_name') || 'gemini-3.8-flash';
@@ -125,6 +131,7 @@ export async function triggerKnowledgeAutoSyncOnSave(params: AutoSyncParams): Pr
 
   try {
     // 6. 로컬 SQLite 큐에 REINDEX 작업 등록 (Priority 1: 에디터 저장 실시간 최우선 처리)
+    const effectivePath = ensureClientAbsolutePath(filePath, resourceFolder);
     const res = await fetch('/api/knowledge/queue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -133,7 +140,7 @@ export async function triggerKnowledgeAutoSyncOnSave(params: AutoSyncParams): Pr
         resourceFolder,
         items: [
           {
-            filePath,
+            filePath: effectivePath,
             title: docTitle,
             targetHash,
             priority: 1,

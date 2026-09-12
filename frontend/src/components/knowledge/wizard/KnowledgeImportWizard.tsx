@@ -2,7 +2,8 @@
 // 📊 [OMD-WIZARD-ImportWizard-0001] KnowledgeImportWizard.tsx ➔ KUI-004 ~ KUI-006 대량 지식 수집 위저드
 // 🎯 @KICK  : 3단계(대상 선택 -> 로컬 파일 탐색 및 해시 분류 -> 컬렉션/우선순위 설정) 대량 문서 수집 마법사
 // 🛡️ @GUARD : LINE Design System LDSG v5.0 (#1d4ed8), AI 비개입 로컬 선행 검증, 대량 큐 일괄 적재
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+// 🚨 @PATCH : **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 보장] 위저드 큐 일괄 적재(handleFinalSubmit) 시 ensureClientAbsolutePath를 적용하여 100% 완전한 절대경로(D:/...)로 큐 등록
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-05** — ESLint react-hooks/exhaustive-deps 경고 해결: fetchCollections를 useCallback으로 메모이제이션하고 useEffect 의존성 배열에 등록
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-004~KUI-006 대량 문서 수집 마법사 통합 모달 구현
 // 🔗 @CALLS : ./Step1_TargetSelect, ./Step2_ScanResult, ./Step3_ImportConfig, /api/knowledge/queue, /api/knowledge/collection
@@ -15,6 +16,7 @@ import { Step2_ScanResult } from './Step2_ScanResult';
 import { Step3_ImportConfig } from './Step3_ImportConfig';
 import { classifyScannedDocuments, flattenFileTreeNodes, RawScanTarget } from '@/lib/knowledge/documentScanner';
 import { KnowledgeWorkerEngine } from '@/lib/knowledge/knowledgeWorker';
+import { ensureClientAbsolutePath } from '@/lib/knowledge/pathResolver';
 import type { ScanResultSummary, ImportConfig, KnowledgeCollection } from '@/types/knowledge';
 
 interface KnowledgeImportWizardProps {
@@ -186,7 +188,7 @@ export const KnowledgeImportWizard: React.FC<KnowledgeImportWizardProps> = ({
     try {
       const itemsToEnqueue = selectedFiles.map(f => ({
         documentId: f.existingDocId || `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        filePath: f.path,
+        filePath: ensureClientAbsolutePath(f.path, resourceFolder),
         title: f.name.replace(/\.md$/i, ''),
         targetHash: f.hash,
         priority: importConfig.defaultPriority,

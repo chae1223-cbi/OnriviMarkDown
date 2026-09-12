@@ -2,7 +2,9 @@
 // 📊 [OMD-CORE-knowledgeService-0001] knowledgeService.ts ➔ Knowledge Service Facade
 // 🎯 @KICK  : 지식 엔진의 청킹, DB 인프라, LLM 분석, 하이브리드 검색, 출처 생성을 통합 제공하는 서비스 파사드
 // 🛡️ @GUARD : 3대 가드(리소스 폴더/AI 연결/플랜) 검증, SHA-256 파일 해시 무결성, 단일 트랜잭션(All-or-Nothing) 완전 롤백
-// 🚨 @PATCH : **2026-09-12** — [DB 순수 FTS5 검색 시 AI 키 가드 유연화] searchCandidates 호출 시 LLM 비호출 순수 DB 검색에 대해 DUMMY_KEY_FOR_SEARCH 폴백을 적용하여 API 키 미전달 상태에서도 지식 후보 청크가 원활히 검색되도록 보장
+// 🚨 @PATCH : **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 및 디스크 자동 탐색 승격]: indexDocument에서 상대경로 유입 시 resolveDiskAbsolutePath를 통해 실제 로컬 디스크 파일시스템을 탐색하여 완전한 절대경로(D:/...)로 자동 승격
+//             **2026-09-12** — [지식 문서 상세조회 heading 파라미터 지원] getDocumentDetail에 heading 매개변수 추가 및 getDocumentDetailFromDb로 연계
+//             **2026-09-12** — [DB 순수 FTS5 검색 시 AI 키 가드 유연화] searchCandidates 호출 시 LLM 비호출 순수 DB 검색에 대해 DUMMY_KEY_FOR_SEARCH 폴백을 적용하여 API 키 미전달 상태에서도 지식 후보 청크가 원활히 검색되도록 보장
 //             **2026-09-06** — [지식 문서 해제 경로 정규화 및 파일명 매칭 폴백] deleteDocument 호출 시 클라이언트와 DB 간의 경로 표기법(슬래시/역슬래시, 상대/절대경로) 차이로 인해 문서가 삭제되지 않던 현상을 해결하기 위해 정규화 경로 및 파일명 접미사 매칭 폴백 쿼리를 적용하여 100% 원자적 삭제 보장
 //             **2026-09-06** — [빈 문서 예외 방어 및 조회/삭제 시 AI 키 가드 유연화] 파일 내용이 비어있거나 읽기 실패 시 safeContent 기본 구조화 폴백을 적용하여 DB 등록 에러 원천 차단, listDocuments/deleteDocument 등 DB 순수 조회/삭제 시 AI API 키 미설정 상태에서도 정상 작동하도록 DUMMY_KEY 폴백 적용
 //             **2026-09-05** — [지식 문서 해제 시 작업 큐 원자적 연계 청소] deleteDocument 및 deleteErrorDocuments 수행 시 knowledge_jobs의 대기/실행 작업도 단일 트랜잭션에서 함께 원자적 삭제하도록 무결성 강화
@@ -21,6 +23,7 @@ import {
   saveCompleteKnowledgeDocumentAtomic,
   getDocumentDetailFromDb
 } from './knowledgeDb';
+import { resolveDiskAbsolutePath } from './pathResolver';
 import { checkKnowledgeGuard, assertKnowledgeAccess } from './knowledgeGuard';
 import { chunkMarkdownByHeadings } from './markdownChunker';
 import { createKnowledgeLLMProvider } from './llmProvider';
@@ -73,10 +76,13 @@ export class KnowledgeService {
     const dbPath = getResourceKnowledgeDbPath(resourceFolder);
     const db = initKnowledgeDatabase(dbPath);
 
-    const docId = `doc_${computeSha256(filePath).slice(0, 16)}`;
+    // 🛡️ [절대경로 표준화 가드] Node.js/서버 환경에서 상대경로 유입 시 실제 디스크 파일 탐색 및 절대경로로 자동 승격
+    const targetFilePath = resolveDiskAbsolutePath(filePath, resourceFolder);
+
+    const docId = `doc_${computeSha256(targetFilePath).slice(0, 16)}`;
     const fileHash = computeSha256(fileContent);
     const fileSize = typeof Blob !== 'undefined' ? new Blob([fileContent]).size : fileContent.length;
-    const docTitle = title || filePath.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
+    const docTitle = title || targetFilePath.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
 
     // 3. 마크다운 청킹 (DB 쓰기 전 메모리에서 선행 수행)
     const chunks = chunkMarkdownByHeadings(docId, fileContent);
@@ -91,7 +97,7 @@ export class KnowledgeService {
     saveCompleteKnowledgeDocumentAtomic(db, {
       document: {
         id: docId,
-        filePath,
+        filePath: targetFilePath,
         title: docTitle,
         fileHash,
         fileSize,
@@ -105,7 +111,7 @@ export class KnowledgeService {
 
     const detail: KnowledgeDocumentDetail = {
       documentId: docId,
-      filePath,
+      filePath: targetFilePath,
       title: docTitle,
       fileSize,
       modifiedAt: new Date().toISOString(),
@@ -141,8 +147,8 @@ export class KnowledgeService {
   /**
    * 특정 지식 문서의 전체 상세 내역(요약, 키포인트, 태그, 모든 청크 계층)을 조회합니다.
    */
-  static getDocumentDetail(params: { documentId?: string; filePath?: string; resourceFolder?: string | null; geminiApiKey?: string | null; planCode?: string | null }): KnowledgeDocumentDetail | null {
-    const { documentId, filePath, resourceFolder, geminiApiKey, planCode } = params;
+  static getDocumentDetail(params: { documentId?: string; filePath?: string; heading?: string; resourceFolder?: string | null; geminiApiKey?: string | null; planCode?: string | null }): KnowledgeDocumentDetail | null {
+    const { documentId, filePath, heading, resourceFolder, geminiApiKey, planCode } = params;
     assertKnowledgeAccess({ resourceFolder, geminiApiKey: geminiApiKey || 'DUMMY_KEY_FOR_READ', planCode });
 
     if (!hasKnowledgeDatabase(resourceFolder)) return null;
@@ -150,7 +156,7 @@ export class KnowledgeService {
     const dbPath = getResourceKnowledgeDbPath(resourceFolder);
     const db = initKnowledgeDatabase(dbPath);
 
-    return getDocumentDetailFromDb(db, { documentId, filePath });
+    return getDocumentDetailFromDb(db, { documentId, filePath, heading });
   }
 
   /**

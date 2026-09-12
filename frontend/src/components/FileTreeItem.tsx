@@ -4,17 +4,9 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-11** — 탐색기 파일트리 아이템 폰트를 Pretendard 최우선으로 일원화 적용
-//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
-//             2026-09-06** — [데스크톱 탐색기 지식 문서 연동 안정화] resourceFolder 취득 시 loadSecureData 복호화 및 Onrivi_Asset 폴백을 적용하여 데스크톱 환경에서 지식 베이스 등록/해제/상세조회 시 올바른 드라이브 DB와 연동 보장
-//             **2026-09-06** — [AES 암호문 리소스 폴더 방어] 암호문(U2FsdGVkX1...)이 resourceFolder로 전달되어 가짜 디렉토리가 생성되는 현상을 방어하기 위해 Onrivi_Asset 표준 폴더로 강제 정규화
-//             **2026-09-06** — [지식 문서 등록/해제/상세조회 resourceFolderHandle 연동 보강] 웹 브라우저 WASM SQLite 연동 시 getDocumentDetail, deleteDocument, indexDocument에 window.__resourceFolderHandle을 전달하여 프로드 환경에서도 사용자 로컬 리소스 폴더와 100% 동일하게 동기화 보장
-//             **2026-09-06** — [지식 문서 해제 캐시 정규화 및 다중 이벤트 브로드캐스트] 지식문서 해제 시 로컬 캐시(onrivi_registered_knowledge_docs)에서 경로 구분자 및 파일명 불일치로 해제 후에도 아이콘이 남던 현상을 정규화 비교로 해결하고, 즉각적인 UI 반영을 위해 knowledge:updated, knowledge:refresh, file:refresh-all-directories 3중 동기화 발행
-//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 로컬 지식 문서 등록/해제/상세조회 일치화] 데스크톱뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient 및 canAccessKnowledgeDb를 통해 사용자 로컬 PC의 onrivi_knowledge.db에 직접 지식문서 등록/해제/상세분석 조회 수행 가능하도록 전면 연동
-//             **2026-09-06** — [데스크톱 파일 읽기 결함 및 localhost 지식 연동 해결] 데스크톱 환경에서 electronAPI.readFromPath content 객체 추출 및 fallback readFile 구현으로 파일 내용 빈값 판정 버그 해결, localhost 환경 지식 엔진 API 접근 허용 및 resourceFolder 키 정규화
-//             **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
-//             **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
-// 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/lib/knowledge/knowledgeGuard, @/components/ToastProvider
+// 🚨 @PATCH : **2026-09-12** — [스캔 배제 및 로컬스토리지 작업장 절대경로 직결]: 지식문서 등록 시 buildDirectWorkspacePath로 로컬스토리지 작업장 절대경로와 파일 상대경로를 즉시 다이렉트 연결하여 등록
+//             **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 및 양방향 캐싱]: 지식 등록 결과(registeredDetail.filePath)의 완전한 절대경로와 기존 상대경로를 동시 캐싱하여 📗 아이콘 표시 무결성 확보
+// 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/lib/knowledge/pathResolver, @/lib/knowledge/knowledgeGuard
 // ====================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -29,6 +21,7 @@ import { useToast } from '@/components/ToastProvider';
 import { checkKnowledgeGuard } from '@/lib/knowledge/knowledgeGuard';
 import { loadSecureData } from '@/lib/secureStorage';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
+import { buildDirectWorkspacePath } from '@/lib/knowledge/pathResolver';
 
 interface FileTreeItemProps {
   node: FileNode;
@@ -52,26 +45,6 @@ interface FileTreeItemProps {
   isRestrictedUser?: boolean;
 }
 
-// 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
-// 🚨 @PATCH : **2026-09-06** — [지식 문서 해제 캐시 정규화 및 다중 이벤트 브로드캐스트] 지식문서 해제 시 로컬 캐시(onrivi_registered_knowledge_docs)에서 경로 구분자 및 파일명 불일치로 해제 후에도 아이콘이 남던 현상을 정규화 비교로 해결하고, 즉각적인 UI 반영을 위해 knowledge:updated, knowledge:refresh, file:refresh-all-directories 3중 동기화 발행
-//             **2026-09-06** — [웹 브라우저 WASM SQLite 기반 지식문서 등록/해제/상세 연동] 데스크톱/로컬뿐만 아니라 웹 프로드(onrivi.com) 환경에서도 knowledgeClient를 통해 사용자 PC의 onrivi_knowledge.db에 직접 문서를 등록하고 상세 분석을 열람할 수 있도록 전면 지원
-//             **2026-09-06** — [데스크톱 파일 읽기 결함 및 localhost 지식 연동 해결] 데스크톱 환경에서 electronAPI.readFromPath content 객체 추출 및 fallback readFile 구현으로 파일 내용 빈값 판정 버그 해결, localhost 환경 지식 엔진 API 접근 허용 및 resourceFolder 키 정규화
-//             **2026-09-06** — [웹/데스크톱 로컬 지식 엔진 격리] 웹 브라우저 환경에서 탐색기 우클릭 지식 등록/해제/상세조회 시 불필요 API 호출 차단 및 데스크톱 전용 안내 토스트 피드백 적용
-//             **2026-09-05** — [ONRIVI-KNOWLEDGE-PATH-NORM-SYNC] 탐색기 새로고침(file:refresh-all-directories) 이벤트 연동 및 지식 문서 등록 판정 시 슬래시/역슬래시 및 경로 접미사/파일명 정규화(Normalization) 비교 알고리즘 적용하여 새로고침 시에도 지식문서 아이콘(📗)이 항상 완벽하게 유지/반영되도록 개선
-//             **2026-09-05** — AI 미연결 시 우클릭 컨텍스트 메뉴의 '지식 베이스에 등록' 버튼을 비활성화(disabled, 흐린 흑백 스타일, 연동 필요 안내 툴팁) 처리
-//             **2026-09-04** — 파일 탐색기 우클릭 컨텍스트 메뉴에서 '지식 허브 열기' 버튼 제거하여 메뉴 간소화
-//             **2026-09-04** — 지식문서 등록 뱃지 및 우클릭 컨텍스트 메뉴의 지식문서 아이콘을 초록색 책(📗)으로 전면 교체
-//             **2026-09-04** — [ONRIVI-CONTEXTMENU-CLAMP] 화면 하단(작업표시줄 인근)에서 우클릭 시 메뉴 하단이 잘리던 결함 해결 (BoundingRect 기반 동적 상향 클램핑 및 뷰포트 오버플로 방어 적용)
-//             **2026-09-04** — [ONRIVI-KNOWLEDGE-UI-FIX] 파일 탐색기 우클릭 컨텍스트 메뉴 내 '지식문서 등록(⭐)' 텍스트 라벨 누락 결함 복원 (별 아이콘만 노출되던 현상 해결)
-//             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 탐색기 우클릭 컨텍스트 메뉴에 '지식 분석 상세 (KUI-010)' 및 '지식 허브 열기' 원터치 진입점 연동
-//             **2026-09-04** — [ONRIVI-KNOWLEDGE-DETAIL-001] 지식 베이스 등록 완료 시 단순 토스트 대신 상세 분석 결과(분할 청크, 행 범위, 키워드, 지식 태그, 검색어) 모달(knowledge:show-detail) 자동 팝업 연동
-//             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 파일 탐색기 우클릭 컨텍스트 메뉴에 지식 베이스 등록(⭐) 및 등록 완료(🧠) 뱃지 연동
-//             **2026-09-02** — 파일 노드 우클릭 시에도 부모 폴더를 대상으로 붙여넣기(Paste)를 직접 수행할 수 있도록 컨텍스트 메뉴 바인딩 개선
-//             **2026-09-02** — 탐색기 선택 하이라이트 왼쪽 세로선(border-l) 제거, 선택 노드 폰트 색상을 고대비 선명한 검정/흰색(text-zinc-950 dark:text-white font-extrabold)으로 강화 및 폴더/파일 경로 정규화 기반 정확한 단독 선택 동기화
-//             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) 표준 적용 (LINE Green #1d4ed8 활성 노드 하이라이트 및 LineSeed 폰트)
-//             **2026-08-27** — 탐색기 새로고침/폴더 생성 시 전체 트리가 다시 패치되어 모든 노드가 강제 닫힘(Collapse) 상태로 초기화되어 파일/폴더 위치를 매번 다시 찾아야 하는 불편을 해결하기 위해, localStorage(onrivi_expanded_paths) 기반의 폴더 펼침(isOpen) 상태 영구 보존 및 동기화 구현하고 마운트 시 열린 폴더의 자식 노드 목록을 자동 비동기 지연 로딩(onLazyLoad) 복원하도록 이펙트 보완 및 부모 리팩토링 시 빈 자식 props 주입에 의해 기존 지연 로딩 데이터가 깡통(length=0)으로 덮어써져 사라지는 리셋 버그 차단 가드 적용; 파일/폴더 삭제 시 확인 모달 타이틀("폴더 삭제"/"파일 삭제") 및 메시지 본문("폴더를 정말 삭제하시겠습니까?"/"파일을 정말 삭제하시겠습니까?")을 노드 종류에 맞춰 분기하여 정확하게 표시하도록 갱신; 이름 변경(Rename) 시 팝업 프롬프트 제목 및 실패 토스트 피드백 문구에서 폴더와 파일을 명확히 분리("폴더의 새 이름을 입력하세요"/"파일의 새 이름을 입력하세요")하여 노출하도록 리펙토링; **2026-08-23** — 폴더 생성 후 부모 폴더 자동 열기(setIsOpen) 및 file:select-node 이벤트로 신규 폴더 자동 선택 구현; 액션 버튼 이모지(📖📁✏❌) → lucide-react SVG(FilePlus/FolderPlus/Pencil/Trash2) 14px로 전면 교체 및 기능별 호버 컬러 적용; **2026-08-12** — 탐색기 아이템 텍스트 폰트 크기를 상태바와 동일한 12px 굵은 글씨로 변경 및 에디터 전용 fontFamily 지정, 아이콘 크기 배율 최적화; **2026-06-19** — 드래그 이동 시 열린 탭 보호: openTabPaths prop으로 열린 파일/포함 폴더 이동 차단; onRefreshAll prop으로 이동 후 전체 트리 갱신; **2026-07-06** — 파일명 변경 시 openFile 대신 file:tab-renamed 이벤트 발송으로 새 탭 생성 버그 수정, 탐색기 refresh 이벤트 시스템 추가
-// 🔗 @CALLS : FileTreeItem (재귀), PromptModal, getFileIcon
-// ====================================================================
 const FileTreeItem = ({ 
   node: rawNode, parentHandle, level, openFile, previewMode, setPreviewMode, currentFileName, currentFilePath, workspaceType, refreshParent, onRefreshAll, openTabPaths,
   askConfirm, siblings,
@@ -1318,9 +1291,14 @@ const FileTreeItem = ({
                                   return;
                                 }
 
+                                showToast(`[${node.name}] AI 지식 분석 및 등록을 진행 중입니다...`, 'info');
+
+                                // 🛡️ [스캔 배제]: 단계 찾아가지 않고 로컬스토리지 작업장 절대경로와 즉시 다이렉트 직결!
+                                const directFilePath = buildDirectWorkspacePath(node.path || node.name);
+
                                 // 통합 지식 서비스(Electron / Local / Web WASM) 호출
                                 const regRes = await knowledgeClient.indexDocument({
-                                  filePath: node.path || node.name,
+                                  filePath: directFilePath,
                                   fileContent: content,
                                   title: node.name.replace(/\.md$/i, ''),
                                   resourceFolder,
@@ -1331,14 +1309,14 @@ const FileTreeItem = ({
                                 });
                                 const registeredDetail = regRes?.detail;
 
-                                // 🧠 클라이언트 로컬 스토리지에 등록 상태 보존
+                                // 🧠 클라이언트 로컬 스토리지에 등록 상태 보존 (절대경로 및 상대경로 동시 캐싱)
                                 try {
                                   const myPath = node.path || node.name;
+                                  const resolvedPath = registeredDetail?.filePath || regRes?.documentId;
                                   const list = JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
-                                  if (!list.includes(myPath)) {
-                                    list.push(myPath);
-                                    localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(list));
-                                  }
+                                  if (myPath && !list.includes(myPath)) list.push(myPath);
+                                  if (resolvedPath && !list.includes(resolvedPath)) list.push(resolvedPath);
+                                  localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(list));
                                 } catch {}
 
                                 window.dispatchEvent(new CustomEvent('knowledge:updated'));
@@ -1350,7 +1328,12 @@ const FileTreeItem = ({
                                   showToast(`[${node.name}] 지식 베이스에 성공적으로 등록되었습니다! 📗`, 'success');
                                 }
                               } catch (err: any) {
-                                showToast(`지식 등록 실패: ${err?.message || '알 수 없는 오류'}`, 'error');
+                                console.error('[지식 등록 실패]', err);
+                                const errMsg = err?.message || String(err || '알 수 없는 오류');
+                                showToast(`❌ 지식 등록 실패: ${errMsg}`, 'error');
+                                if (typeof window !== 'undefined') {
+                                  window.alert(`❌ AI 지식 문서 분석 및 등록 실패\n\n원인: ${errMsg}\n\n조치 방법: Google Gemini API 키가 유효한지, 또는 에디터 하단의 AI 모델(Gemini 3.8 Flash 등)을 확인해 주세요.`);
+                                }
                               }
                             }}
                             className={`flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors font-bold ${

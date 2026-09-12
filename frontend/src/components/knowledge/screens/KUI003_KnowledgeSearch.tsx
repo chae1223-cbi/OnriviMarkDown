@@ -122,8 +122,13 @@ export const KUI003_KnowledgeSearch: React.FC<KUI003KnowledgeSearchProps> = ({
           showToast('AI 답변을 생성하지 못했습니다. 질문을 구체화하거나 다른 모델을 선택해 주세요.', 'warning');
         }
       }
-    } catch {
-      showToast('AI 응답 생성 중 오류가 발생했습니다.', 'error');
+    } catch (err: any) {
+      console.error('[AI 응답 오류]', err);
+      const errMsg = err?.message || String(err || '알 수 없는 오류');
+      showToast(`❌ AI 응답 생성 실패: ${errMsg}`, 'error');
+      if (typeof window !== 'undefined') {
+        window.alert(`❌ AI 응답 생성 실패\n\n${errMsg}`);
+      }
     } finally {
       setLoading(false);
     }
