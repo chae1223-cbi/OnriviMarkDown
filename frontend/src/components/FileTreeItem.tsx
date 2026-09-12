@@ -4,7 +4,8 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-12** — [스캔 배제 및 로컬스토리지 작업장 절대경로 직결]: 지식문서 등록 시 buildDirectWorkspacePath로 로컬스토리지 작업장 절대경로와 파일 상대경로를 즉시 다이렉트 연결하여 등록
+// 🚨 @PATCH : **2026-09-13** — [웹 브라우저 작업장 절대경로 1회 입력 지원 및 오류 알림 가이드 정화]: 웹 SaaS 환경에서 드라이브 절대경로가 누락된 경우 사용자에게 작업장 절대경로를 1회 입력받아 로컬스토리지에 저장 후 등록을 자동 연계하고, 오해를 유발하던 Gemini API 키 알림을 전면 정화
+//             **2026-09-12** — [스캔 배제 및 로컬스토리지 작업장 절대경로 직결]: 지식문서 등록 시 buildDirectWorkspacePath로 로컬스토리지 작업장 절대경로와 파일 상대경로를 즉시 다이렉트 연결하여 등록
 //             **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 및 양방향 캐싱]: 지식 등록 결과(registeredDetail.filePath)의 완전한 절대경로와 기존 상대경로를 동시 캐싱하여 📗 아이콘 표시 무결성 확보
 // 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/lib/knowledge/pathResolver, @/lib/knowledge/knowledgeGuard
 // ====================================================================
@@ -1294,7 +1295,26 @@ const FileTreeItem = ({
                                 showToast(`[${node.name}] AI 지식 분석 및 등록을 진행 중입니다...`, 'info');
 
                                 // 🛡️ [스캔 배제]: 단계 찾아가지 않고 로컬스토리지 작업장 절대경로와 즉시 다이렉트 직결!
-                                const directFilePath = buildDirectWorkspacePath(node.path || node.name);
+                                let directFilePath = buildDirectWorkspacePath(node.path || node.name);
+
+                                // 💡 [웹 브라우저 작업장 절대경로 1회 입력 지원]:
+                                // 웹 브라우저(onrivi.com) 환경에서는 브라우저 보안상 드라이브 문자(E:/ 등)를 직접 읽을 수 없으므로,
+                                // 절대경로가 없는 경우 사용자에게 1회 프롬프트로 입력받아 로컬스토리지에 영구 저장
+                                if (typeof window !== 'undefined' && !/^[a-zA-Z]:[\\\/]/.test(directFilePath)) {
+                                  const savedWs = localStorage.getItem('onrivi_workspace_path') || '';
+                                  if (!/^[a-zA-Z]:[\\\/]/.test(savedWs)) {
+                                    const defaultPath = 'E:/ZZ 개인자료/블러그';
+                                    const inputPath = window.prompt(
+                                      `[지식 보관함 절대경로 등록 안내]\n\n웹 브라우저 보안으로 인해 내 PC의 실제 드라이브 경로가 확인되지 않습니다.\n출처 점프를 위해 작업장 절대경로를 입력해 주세요:\n(취소 시 상대경로 [${directFilePath}]로 등록됩니다)`,
+                                      defaultPath
+                                    );
+                                    if (inputPath && inputPath.trim() && /^[a-zA-Z]:[\\\/]/.test(inputPath.trim())) {
+                                      const normWs = inputPath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+                                      localStorage.setItem('onrivi_workspace_path', normWs);
+                                      directFilePath = buildDirectWorkspacePath(node.path || node.name);
+                                    }
+                                  }
+                                }
 
                                 // 통합 지식 서비스(Electron / Local / Web WASM) 호출
                                 const regRes = await knowledgeClient.indexDocument({
@@ -1332,7 +1352,7 @@ const FileTreeItem = ({
                                 const errMsg = err?.message || String(err || '알 수 없는 오류');
                                 showToast(`❌ 지식 등록 실패: ${errMsg}`, 'error');
                                 if (typeof window !== 'undefined') {
-                                  window.alert(`❌ AI 지식 문서 분석 및 등록 실패\n\n원인: ${errMsg}\n\n조치 방법: Google Gemini API 키가 유효한지, 또는 에디터 하단의 AI 모델(Gemini 3.8 Flash 등)을 확인해 주세요.`);
+                                  window.alert(`❌ AI 지식 문서 분석 및 등록 실패\n\n원인: ${errMsg}`);
                                 }
                               }
                             }}

@@ -58,6 +58,18 @@ describe('Path Resolver & Knowledge Absolute Path Standardization Tests (Rule 9 
       const result = ensureClientAbsolutePath(input);
       assert.equal(result, 'C:/UserWorkspace/Docs/체험하기/여행지.md');
     });
+
+    it('웹 브라우저 환경에서 드라이브 문자 없는 작업장 폴더명(블로그)도 정상 인식하여 결합해야 함', () => {
+      const mockStorage = new Map<string, string>();
+      mockStorage.set('onrivi_workspace_path', '블로그');
+      (globalThis as any).localStorage = {
+        getItem: (key: string) => mockStorage.get(key) || null,
+        setItem: (key: string, value: string) => { mockStorage.set(key, value); }
+      };
+      const input = '체험하기/2026_추석_물가.md';
+      const result = ensureClientAbsolutePath(input);
+      assert.equal(result, '블로그/체험하기/2026_추석_물가.md');
+    });
   });
 
   // 2. resolveDiskAbsolutePath 테스트

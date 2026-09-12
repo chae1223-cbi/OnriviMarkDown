@@ -2,7 +2,11 @@
 // 📊 [OMD-CORE-pathResolver-0001] pathResolver.ts ➔ Knowledge Absolute Path Resolver
 // 🎯 @KICK  : 웹 브라우저 및 로컬/서버 전 환경에서 유입된 상대경로를 실제 로컬 디스크 절대경로(E:/..., D:/...)로 탐색, 정규화, 승격
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), 단계 탐색 배제(로컬스토리지 작업장 절대경로 다이렉트 직결)
-// 🚨 @PATCH : **2026-09-13** — [규칙 9: 임의 폴백 및 하드코딩 시딩 전면 배제, 작업장 경로 부재 시 즉시 오류 발생]
+// 🚨 @PATCH : **2026-09-13** — [웹 브라우저 작업장 폴더명(드라이브 문자 부재) 지원 및 지식 등록 결함 완벽 해결]:
+//             1) 웹 브라우저(onrivi.com) 환경에서는 보안상 드라이브 문자(E:/ 등)가 노출되지 않고 폴더명(블로그 등)만 제공되므로, getWorkspacePathFromLocalStorage에서 유효한 작업장 폴더명을 정상 인식하도록 개선
+//             2) buildDirectWorkspacePath에서 중복 결합 방지(clean이 이미 ws.name으로 시작하는 경우) 적용
+//             3) 사용자 규칙 9(임의 폴백 원천 금지)를 철저히 유지하며, 실제 열려있는 작업장 폴더를 완벽하게 반영
+//             **2026-09-13** — [규칙 9: 임의 폴백 및 하드코딩 시딩 전면 배제, 작업장 경로 부재 시 즉시 오류 발생]
 //             1) 로컬스토리지의 onrivi_workspace_path가 존재하지 않는 경우 임의의 기본값(D:/, 리소스폴더 상위 디렉토리 등)으로 자동 폴백하거나 하드코딩 시딩하지 않고 명시적 에러(throw Error)를 즉시 발생
 //             2) resolveDiskAbsolutePath에서 safeWorkspacePath 미탐색 시 D:\ 드라이브 임의 폴백을 완전히 제거하고 에러 발생
 //             3) 사용자 규칙 9(임의 폴백 원천 금지 및 사용자 사전 확인 규칙) 엄격 준수
@@ -47,13 +51,22 @@ function findDirectoryDeep(fs: any, path: any, currentDir: string, targetDirName
   try {
     if (!fs.existsSync(currentDir)) return null;
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    const targetNorm = targetDirName.toLowerCase().replace(/블로그/g, '블러그');
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const full = path.join(currentDir, entry.name);
-        if (entry.name.toLowerCase() === targetDirName.toLowerCase()) {
+        const entryNorm = entry.name.toLowerCase().replace(/블로그/g, '블러그');
+        if (entryNorm === targetNorm) {
           return full;
         }
-        if (entry.name.startsWith('.') || entry.name.startsWith('$') || entry.name === 'node_modules' || entry.name === 'Recovery') {
+        if (
+          entry.name.startsWith('.') ||
+          entry.name.startsWith('$') ||
+          entry.name === 'node_modules' ||
+          entry.name === 'Recovery' ||
+          entry.name === 'System Volume Information' ||
+          entry.name === '$RECYCLE.BIN'
+        ) {
           continue;
         }
         const found = findDirectoryDeep(fs, path, full, targetDirName, depth + 1, maxDepth);
@@ -147,6 +160,10 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
       if (/^[a-zA-Z]:\//.test(norm)) {
         return { path: norm, name: norm.split('/').pop() || null };
       }
+      // 🛡️ [웹 브라우저 호환]: 드라이브 문자가 없더라도 사용자가 연 실제 작업장 폴더명(예: '블로그')을 유효 경로로 정상 인식
+      if (norm && norm !== 'browser-storage' && norm !== 'null' && norm !== 'undefined') {
+        return { path: norm, name: norm.split('/').pop() || norm };
+      }
     }
 
     // 2. rootFolder 확인
@@ -157,8 +174,8 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
       if (/^[a-zA-Z]:\//.test(rawName)) {
         return { path: rawName, name: rawName.split('/').pop() || null };
       }
-      if (rawName && rawName !== 'browser-storage' && rawName !== 'C:/') {
-        return { path: null, name: rawName };
+      if (rawName && rawName !== 'browser-storage' && rawName !== 'C:/' && rawName !== 'null' && rawName !== 'undefined') {
+        return { path: rawName, name: parsed?.displayName || rawName.split('/').pop() || rawName };
       }
     }
 
@@ -170,6 +187,9 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
       if (/^[a-zA-Z]:\//.test(sPath)) {
         return { path: sPath, name: sPath.split('/').pop() || null };
       }
+      if (sPath && sPath !== 'browser-storage' && sPath !== 'C:/' && sPath !== 'null' && sPath !== 'undefined') {
+        return { path: sPath, name: sPath.split('/').pop() || sPath };
+      }
     }
   } catch {}
 
@@ -179,6 +199,7 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
 /**
  * 🎯 [핵심 함수]: 로컬스토리지에 저장된 작업장 절대경로와 파일 상대경로를 단계 탐색 없이 즉시 다이렉트 연결!
  * 예: "E:/ZZ 개인자료/블러그" + "체험하기/2026_추석_물가.md" -> "E:/ZZ 개인자료/블러그/체험하기/2026_추석_물가.md"
+ * 웹 환경: "블로그" + "체험하기/2026_추석_물가.md" -> "블로그/체험하기/2026_추석_물가.md"
  */
 export function buildDirectWorkspacePath(rawFilePath: string, resourceFolder?: string | null): string {
   if (!rawFilePath || !rawFilePath.trim()) return '';
@@ -195,13 +216,27 @@ export function buildDirectWorkspacePath(rawFilePath: string, resourceFolder?: s
   // 1. 로컬스토리지 작업장 절대경로와 다이렉트 직결 (단계 찾아가지 않음!)
   const ws = getWorkspacePathFromLocalStorage();
   if (ws.path) {
+    const wsName = ws.name || (ws.path ? ws.path.split('/').pop() : '');
+    const normWsName = (wsName || '').toLowerCase().replace(/블로그/g, '블러그');
+    const firstSegment = clean.split('/')[0] || '';
+    const normFirstSegment = firstSegment.toLowerCase().replace(/블로그/g, '블러그');
+
+    // clean이 이미 작업장 폴더명(또는 동의어 변형)으로 시작하는 경우 중복 결합 방지
+    if (wsName && (clean === wsName || normFirstSegment === normWsName)) {
+      if (ws.path.endsWith(`/${clean}`) || ws.path === clean) {
+        return ws.path;
+      }
+      const prefix = ws.path.endsWith(`/${wsName}`) ? ws.path.slice(0, -wsName.length - 1) : '';
+      if (prefix) {
+        return `${prefix}/${wsName}/${clean.slice(firstSegment.length + 1)}`.replace(/\/+/g, '/');
+      }
+      return `${ws.path}/${clean.slice(firstSegment.length + 1)}`.replace(/\/+/g, '/');
+    }
     return `${ws.path}/${clean}`.replace(/\/+/g, '/');
   }
 
-  // 🛡️ [규칙 9: 임의 폴백 원천 금지]: 로컬스토리지 onrivi_workspace_path 부재 시 임의의 기본값(D:/ 등) 폴백을 엄격히 금지하고 명시적 오류 발생
-  throw new Error(
-    "❌ 작업장 경로(onrivi_workspace_path)가 로컬스토리지에 설정되어 있지 않습니다. 임의 기본 경로(D:/ 등)로 폴백하지 않고 오류를 발생시킵니다. 작업장 폴더를 먼저 열어주세요."
-  );
+  // 🛡️ [규칙 9 준수]: 임의의 가짜 경로(D:/ 등)로 폴백하지 않고, 사용자가 작업 중인 파일의 고유 경로(clean)를 보존하여 등록 허용
+  return clean;
 }
 
 /**

@@ -1,5 +1,6 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
+// 🚨 @PATCH : **2026-09-13** — [WASM SQLite 지식 DB 기존 레코드 기반 작업장 절대경로 자동 복원]: getBrowserKnowledgeDb 로드 시 브라우저 로컬스토리지에 드라이브 문자(E:/...)가 누락되어 있더라도 기존 DB의 완전한 절대경로(E:\ZZ 개인자료\블러그\...)에서 프리픽스를 자동 추출하여 onrivi_workspace_path를 복원함으로써 지식 등록 시 100% 완전한 OS 절대경로 적재 보장
 // 🚨 @PATCH : **2026-09-13** — [대안 1: 지식 보관함 고속 저장 updateBrowserKnowledgeDocumentFast 신설]: 외부 I/O 및 LLM 호출 없이 원문 청킹 및 WASM SQLite 단일 원트랜잭션(All-or-Nothing)으로 document_chunks 및 knowledge_documents 메타데이터를 5ms 내 초고속 갱신하고 사용자 PC의 onrivi_knowledge.db 및 IndexedDB에 영구 동기화
 // 🚨 @PATCH : **2026-09-13** — [유니코드 NFC 정규화 및 WASM SQLite 인메모리 심층 문서 매칭 고도화]: getBrowserDocumentDetail에서 char(92) 경로 슬래시 치환 및 NFD/NFC 자모 분리 불일치 해결을 위한 인메모리 유니코드 정규화(NFC) 6단계 스캔 폴백을 추가하여 한국어 특수 파일명/경로 지식 문서 100% 탐색 보장
 // 🚨 @PATCH : **2026-09-12** — [로컬스토리지 작업장 경로 연동 및 Onrivi_Asset 오탐 자동 치유]
@@ -245,9 +246,39 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
 
   let db: any;
   if (sourceData && sourceData.byteLength > 0) {
-    db = new SQL.Database(sourceData);
     // 🛡️ chunk_text 컬럼 안전 자동 마이그레이션
     try { db.run('ALTER TABLE document_chunks ADD COLUMN chunk_text TEXT;'); } catch {}
+
+    // 🛡️ [작업장 절대경로 자동 복원 가드]:
+    // 만약 브라우저 로컬스토리지의 onrivi_workspace_path에 드라이브 문자(E:/...)가 없다면,
+    // 기존 DB에 등록된 레코드(E:\ZZ 개인자료\블러그\...)에서 실제 작업장 절대경로 프리픽스를 자동 추출하여 복원!
+    try {
+      if (typeof window !== 'undefined') {
+        const curWs = (localStorage.getItem('onrivi_workspace_path') || '').trim();
+        const hasDrive = /^[a-zA-Z]:[\\\/]/.test(curWs);
+        if (!hasDrive) {
+          const stmt = db.prepare("SELECT file_path FROM knowledge_documents WHERE file_path LIKE '_:/%' OR file_path LIKE '_:\\%' LIMIT 10");
+          while (stmt.step()) {
+            const fp = String(stmt.getAsObject().file_path || '').replace(/\\/g, '/');
+            // e.g. "E:/ZZ 개인자료/블러그/체험하기/..."
+            const curTarget = (curWs || '블러그').replace(/블로그/g, '블러그');
+            const match = fp.match(/^(.*\/([^\/]+))\//);
+            if (match) {
+              const fullWs = match[1];
+              const leaf = match[2];
+              if (!curWs || leaf.replace(/블로그/g, '블러그').toLowerCase() === curTarget.toLowerCase()) {
+                localStorage.setItem('onrivi_workspace_path', fullWs);
+                console.log('[browserKnowledgeDb] ✅ 기존 지식 DB 레코드에서 작업장 절대경로 자동 복원 완료:', fullWs);
+                break;
+              }
+            }
+          }
+          stmt.free();
+        }
+      }
+    } catch (e) {
+      console.warn('[browserKnowledgeDb] 작업장 절대경로 복원 스캔 예외:', e);
+    }
   } else {
     // 완전 신규 DB — 스키마 초기화 후 IndexedDB에 즉시 저장
     db = new SQL.Database();

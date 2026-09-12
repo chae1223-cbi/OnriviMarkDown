@@ -19,8 +19,8 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
-// 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
-// 🚨 @PATCH : **2026-09-13** — [대안 1: 지식 보관함(DB) 본문 자동 즉시 복원 및 0초 무팝업 오픈·고속 저장 연동]:
+// 🚨 @PATCH : **2026-09-13** — [작업장 폴더 선택 시 기존 절대경로 보존 및 일렉트론 onrivi_workspace_path 동기화]: selectRootFolder에서 일렉트론 finalRoot를 onrivi_workspace_path에 필수 저장하고, 웹 브라우저 showDirectoryPicker 선택 시 기존 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그 등)가 handle.name으로 덮어써져 유실되는 결함을 원천 방어하여 지식 등록 시 완전한 절대경로(E:/...) 적재 보장
+//             **2026-09-13** — [대안 1: 지식 보관함(DB) 본문 자동 즉시 복원 및 0초 무팝업 오픈·고속 저장 연동]:
 //             1) 출처 링크/외부 문서 클릭 시 번거로운 파일 선택 창(ConfirmModal/showOpenFilePicker) 일체 제거 — 지식 DB(WASM SQLite) 청크에서 원본 마크다운 0초 즉시 복원 및 탭 수화
 //             2) 열린 지식 문서 탭에 isKnowledge 플래그 및 documentId 자동 부여로 편집 상태 추적
 //             3) 문서 저장(Ctrl+S/자동저장) 시 브라우저 디스크 핸들이 없는 외부 문서라도 knowledgeClient.updateDocumentFast를 통해 WASM SQLite 지식 DB에 5ms 내 원자적 초고속 반영
@@ -191,9 +191,11 @@ export const useFileExplorer = ({
           const result = await (window as any).electronAPI.selectFolder(targetPath);
           if (result.status === 'success') {
             const finalRoot = result.path;
-            setRootFolder({ name: finalRoot });
+            const normFinalRoot = finalRoot.replace(/\\/g, '/');
+            setRootFolder({ name: finalRoot, path: normFinalRoot });
             setWorkspaceType('local');
-            localStorage.setItem('rootFolder', JSON.stringify({ name: finalRoot }));
+            localStorage.setItem('onrivi_workspace_path', normFinalRoot);
+            localStorage.setItem('rootFolder', JSON.stringify({ name: finalRoot, path: normFinalRoot }));
             localStorage.setItem('workspaceType', 'local');
             setTabs([]);
             setActiveTabId(null);
@@ -212,7 +214,20 @@ export const useFileExplorer = ({
           const handle = await (window as any).showDirectoryPicker();
           
           // 🛡️ [작업장 폴더 선택 시 절대경로 즉시 로컬스토리지 저장]
+          // 기존에 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그 등)가 있다면 우선 보존
           let absolutePath = handle.name;
+          try {
+            const existingWs = typeof window !== 'undefined' ? localStorage.getItem('onrivi_workspace_path') : null;
+            if (existingWs && /^[a-zA-Z]:[\\\/]/.test(existingWs)) {
+              const normExist = existingWs.replace(/\\/g, '/');
+              const existBase = normExist.split('/').pop() || '';
+              const normTarget = (handle.name || '').replace(/블로그/g, '블러그');
+              if (existBase.replace(/블로그/g, '블러그').toLowerCase() === normTarget.toLowerCase()) {
+                absolutePath = normExist;
+              }
+            }
+          } catch {}
+
           try {
             const res = await fetch('/api/knowledge/resolve-path', {
               method: 'POST',
