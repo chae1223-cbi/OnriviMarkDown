@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-13** — [ESLint 경고 제거 및 클라우드 빌드 안정화]: hotkeyRegistration useEffect 내 content 직접 참조를 contentRef.current로 전환하여 react-hooks/exhaustive-deps 경고 해소
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 절대경로(file:///) 파일 readFileText 로컬 서버 API 폴백 연동]: 브라우저 핸들이 없는 작업장 외부 절대경로 파일에 대해 /api/file-content를 호출하여 로컬 디스크 원문을 100% 정상 수급하도록 보강
 // 🚨 @PATCH : **2026-09-12** — [웹(Web) 환경 전용 문서 링크(DocLinkPicker) 검색 및 연결 완벽 지원]: 브라우저 FileSystemHandle 하위 미확장 폴더 scanDirectoryDeep 심층 재귀 스캔, Web WASM SQLite 지식 보관함(knowledgeClient.listDocuments) 실시간 문서 병합, 유니코드 NFC 및 제목(title) 3중 필터 매칭, 웹 readFileText 및 handleFileOpenByPath 지식 DB/상대경로 추적 지원으로 웹 환경 문서 연결 실패 결함 원천 해결
 // 🚨 @PATCH : **2026-09-12** — [AI 모달 호출 시 현재 편집 문서(fullText/selectedText) 100% 인식 보장]: 메뉴바, 단축키, 플로팅 툴바 등 모든 진입점에서 현재 에디터 문서 내용을 aiEditorContext로 완벽 추출·주입하여 문서 전체 작업 시 기존 내용이 누락되는 결함 원천 해결
@@ -6072,7 +6073,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-EDIT-MainEditorApp-0072] MainEditorApp.tsx ➔ hotkeyRegistration
   // 🎯 @KICK  : 모든 TOOLBAR_ITEMS에 대해 사용자 정의 단축키(Ctrl+S/Ctrl+Shift+S 포함)로 Monaco 에디터 액션 등록
   // 🛡️ @GUARD : 재실행 시 이전 disposables 해제; 키바인딩 문자열을 Monaco KeyMod/KeyCode로 파싱
-  // 🚨 @PATCH : None
+  // 🚨 @PATCH : **2026-09-13** — [ESLint 경고 제거] useEffect 내 content 직접 참조 대신 contentRef.current 사용으로 react-hooks/exhaustive-deps 경고 해소
   // 🔗 @CALLS : TOOLBAR_ITEMS.forEach, editor.addAction, monaco.editor.defineTheme, monaco.editor.setTheme, updateDecorations, handleEditorPaste
   // ====================================================================
   useEffect(() => {
@@ -6106,7 +6107,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           const selection = editor ? editor.getSelection() : null;
           const model = editor ? editor.getModel() : null;
           let selectedText = '';
-          let fullText = contentRef.current || content || '';
+          let fullText = contentRef.current || '';
           if (editor && model) {
             fullText = model.getValue();
             if (selection && !selection.isEmpty()) {
