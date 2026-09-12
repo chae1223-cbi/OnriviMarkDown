@@ -2,10 +2,11 @@
 // 📊 [OMD-CORE-pathResolver-0001] pathResolver.ts ➔ Knowledge Absolute Path Resolver
 // 🎯 @KICK  : 웹 브라우저 및 로컬/서버 전 환경에서 유입된 상대경로를 실제 로컬 디스크 절대경로(E:/..., D:/...)로 탐색, 정규화, 승격
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), 단계 탐색 배제(로컬스토리지 작업장 절대경로 다이렉트 직결)
-// 🚨 @PATCH : **2026-09-13** — [웹 브라우저 작업장 폴더명(드라이브 문자 부재) 지원 및 지식 등록 결함 완벽 해결]:
-//             1) 웹 브라우저(onrivi.com) 환경에서는 보안상 드라이브 문자(E:/ 등)가 노출되지 않고 폴더명(블로그 등)만 제공되므로, getWorkspacePathFromLocalStorage에서 유효한 작업장 폴더명을 정상 인식하도록 개선
-//             2) buildDirectWorkspacePath에서 중복 결합 방지(clean이 이미 ws.name으로 시작하는 경우) 적용
-//             3) 사용자 규칙 9(임의 폴백 원천 금지)를 철저히 유지하며, 실제 열려있는 작업장 폴더를 완벽하게 반영
+// 🚨 @PATCH : **2026-09-13** — [상단 브레드크럼 onrivi_web_base_path 기반 작업장 절대경로 자동 합성 지원]:
+//             1) 웹 브라우저(onrivi.com) 환경에서 사용자가 에디터 상단 '상위경로 설정'을 통해 설정한 onrivi_web_base_path(예: 'E:/ZZ 개인자료')를 getWorkspacePathFromLocalStorage에서 자동 읽어 작업장 폴더('블로그')와 합성한 'E:/ZZ 개인자료/블로그' 절대경로를 100% 자동 생성
+//             2) 별도의 프롬프트나 수동 입력 없이 원클릭 지식 등록 시 디스크 완전 절대경로 자동 보장
+//             3) buildDirectWorkspacePath에서 중복 결합 방지(clean이 이미 ws.name으로 시작하는 경우) 적용
+//             4) 사용자 규칙 9(임의 폴백 원천 금지)를 철저히 준수하며 실제 사용자 지정 경로를 최우선 반영
 //             **2026-09-13** — [규칙 9: 임의 폴백 및 하드코딩 시딩 전면 배제, 작업장 경로 부재 시 즉시 오류 발생]
 //             1) 로컬스토리지의 onrivi_workspace_path가 존재하지 않는 경우 임의의 기본값(D:/, 리소스폴더 상위 디렉토리 등)으로 자동 폴백하거나 하드코딩 시딩하지 않고 명시적 에러(throw Error)를 즉시 발생
 //             2) resolveDiskAbsolutePath에서 safeWorkspacePath 미탐색 시 D:\ 드라이브 임의 폴백을 완전히 제거하고 에러 발생
@@ -179,7 +180,23 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
       }
     }
 
-    // 3. onrivi_settings 확인
+    // 3. onrivi_web_base_path (상단 브레드크럼 '상위경로 설정'에 사용자가 설정한 절대경로) 확인 및 작업장 폴더 결합
+    const webBasePath = ls.getItem('onrivi_web_base_path');
+    if (webBasePath && webBasePath.trim()) {
+      const normBase = webBasePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+      if (/^[a-zA-Z]:\//.test(normBase)) {
+        // savedRoot나 directPath에서 작업장 폴더명(예: '블로그')을 획득하여 온전한 절대경로(E:/ZZ 개인자료/블로그)로 합성
+        const targetName = (directPath || '').trim() || (savedRoot ? JSON.parse(savedRoot)?.name : '') || '';
+        const cleanTarget = targetName.replace(/\\/g, '/').split('/').pop() || '';
+        if (cleanTarget && cleanTarget !== 'browser-storage') {
+          const combined = `${normBase}/${cleanTarget}`.replace(/\/+/g, '/');
+          return { path: combined, name: cleanTarget };
+        }
+        return { path: normBase, name: normBase.split('/').pop() || null };
+      }
+    }
+
+    // 4. onrivi_settings 확인
     const savedSettings = ls.getItem('onrivi_settings');
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
