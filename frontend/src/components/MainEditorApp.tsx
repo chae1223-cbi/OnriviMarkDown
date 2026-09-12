@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-13** — [작업장 외부 문서 온디맨드 권한 획득 및 스마트 캐싱 연동]: useFileExplorer에 setConfirmConfig 전달 및 OPEN_FILE/외부 문서 오픈 시 externalFileStore 연동으로 웹 SaaS 환경에서 작업장 외 문서라도 사용자 승인 후 즉시 열람/편집/디스크 저장 완벽 지원
 // 🚨 @PATCH : **2026-09-13** — [WASM 지식 DB 청크 본문 추출 정상화]: readFileText에서 getDocumentDetail의 docObj(detail.chunks/chunkText) 연동으로 브라우저 핸들이 없는 지식 문서의 원본 본문 100% 정상 수급
 // 🚨 @PATCH : **2026-09-13** — [ESLint 경고 제거 및 클라우드 빌드 안정화]: hotkeyRegistration useEffect 내 content 직접 참조를 contentRef.current로 전환하여 react-hooks/exhaustive-deps 경고 해소
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 절대경로(file:///) 파일 readFileText 로컬 서버 API 폴백 연동]: 브라우저 핸들이 없는 작업장 외부 절대경로 파일에 대해 /api/file-content를 호출하여 로컬 디스크 원문을 100% 정상 수급하도록 보강
@@ -198,6 +199,7 @@ import ModalManager from '@/components/editor/modals/ModalManager';
 import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { KnowledgeHubView } from '@/components/knowledge/KnowledgeHubView';
 import { useSingleTabGuard } from '@/lib/singleTabGuard';
+import { saveExternalFileHandle } from '@/lib/storage/externalFileStore';
 
 
 /**
@@ -2686,7 +2688,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     workspaceType,
     setWorkspaceType,
     licenseStatus,
-    sessionRestoringRef
+    sessionRestoringRef,
+    setConfirmConfig
   });
 
   // 💡 [TDZ 방어] useFileExplorer 반환값에서 즉시 구조분해 할당하여 참조 에러 방지
@@ -5712,6 +5715,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           });
           const file = await fileHandle.getFile();
           const text = await file.text();
+          await saveExternalFileHandle(file.name, fileHandle);
           updateContent(text);
           setCurrentFileName(file.name);
           setCurrentFileNode({ name: file.name, kind: 'file', handle: fileHandle });
