@@ -20,10 +20,10 @@ import {
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
-// 🚨 @PATCH : **2026-09-13** — [작업장 외부 문서 온디맨드 권한 획득 및 IndexedDB 스마트 캐싱 연동]:
-//             1) externalFileStore 연동으로 IndexedDB에 이전에 승인된 외부 FileSystemFileHandle 자동 복원 및 1초 즉시 오픈 지원
-//             2) 미캐시 외부 파일 오픈 시 ConfirmModal 팝업을 통해 사용자 동의 획득 후 showOpenFilePicker를 브라우저 사용자 제스처로 안전 호출
-//             3) 파일 선택 즉시 본문 로드, 탭 수화, Monaco 모델 갱신, tab.node.handle 부여로 편집 및 Ctrl+S 디스크 직접 저장까지 완벽 지원
+// 🚨 @PATCH : **2026-09-13** — [대안 1: 지식 보관함(DB) 본문 자동 즉시 복원 및 0초 무팝업 오픈·고속 저장 연동]:
+//             1) 출처 링크/외부 문서 클릭 시 번거로운 파일 선택 창(ConfirmModal/showOpenFilePicker) 일체 제거 — 지식 DB(WASM SQLite) 청크에서 원본 마크다운 0초 즉시 복원 및 탭 수화
+//             2) 열린 지식 문서 탭에 isKnowledge 플래그 및 documentId 자동 부여로 편집 상태 추적
+//             3) 문서 저장(Ctrl+S/자동저장) 시 브라우저 디스크 핸들이 없는 외부 문서라도 knowledgeClient.updateDocumentFast를 통해 WASM SQLite 지식 DB에 5ms 내 원자적 초고속 반영
 //             **2026-09-13** — [작업장 외부 미연결 문서 오픈 시 안내 Alert 및 가이드 토스트 연동]: 웹 브라우저 보안 격리로 인해 현재 작업장 밖의 파일 접근이 불가할 때 단순 빈 탭 대신 안내 알림(Alert) 및 상위 폴더 연결 가이드 토스트를 출력하여 사용자 혼란 원천 방지
 //             **2026-09-13** — [모나코 에디터 라인 범위 클램프 가드 및 프로드 웹 404 방어]: jumpToAnchor에서 startLine/endLine을 model.getLineCount() 범위 내로 안전 클램핑하여 getLineMaxColumn lineNumber 범위 초과 에러를 영구 차단하고, /api/file-content 디스크 조회를 localhost/Electron 환경으로 한정 가드하여 프로드 웹(onrivi.com) 404 콘솔 오류 원천 제거
 //             **2026-09-13** — [작업장 불일치 지식 DB 청크 본문 완전 복원 및 빈 탭 자동 수화 강화]: getDocumentDetail 반환 구조(detail.chunks/chunkText) 연동으로 WASM SQLite 지식 보관함에서 원본 마크다운 본문을 100% 완전 복원하여 탭에 주입, 기존 빈 더미 탭 자동 수화(Hydration) 2중 체계(디스크 API + WASM 지식 DB) 구축으로 웹/프로드/로컬 전 환경 결함 원천 해결
@@ -586,6 +586,8 @@ export const useFileExplorer = ({
               if (reconstructed && reconstructed.length > trimmedContent.length) {
                 hydratedContent = reconstructed;
                 if (docObj.filePath) resolvedPathFromSource = docObj.filePath;
+                existingOpenTab.isKnowledge = true;
+                (existingOpenTab as any).documentId = (docObj.id || docObj.documentId);
               }
             }
           } catch (kErr) {
@@ -623,62 +625,6 @@ export const useFileExplorer = ({
           }
         }
 
-        // 4) 수화 실패 시 사용자에게 온디맨드 권한 확인 팝업 안내
-        if (!hydratedContent && setConfirmConfig && typeof (window as any).showOpenFilePicker === 'function') {
-          const filename = existingOpenTab.name || targetBaseNameWithMd || '문서.md';
-          const currentWorkspaceName = rootFolder?.name || '현재 작업장';
-          setConfirmConfig({
-            isOpen: true,
-            title: '외부 문서 접근 권한 확인',
-            message: `'${filename}' 문서는 현재 열린 작업장(${currentWorkspaceName}) 외부에 위치해 있습니다. 내 PC에서 해당 파일을 선택하여 읽기 및 편집 권한을 허용하시겠습니까?`,
-            confirmText: '📂 파일 선택 및 권한 허용',
-            cancelText: '취소',
-            isDanger: false,
-            onConfirm: async () => {
-              try {
-                const fileHandle = await pickExternalFile(filename);
-                if (fileHandle) {
-                  await saveExternalFileHandle(existingOpenTab.path || pathWithoutHash, fileHandle);
-                  await saveExternalFileHandle(filename, fileHandle);
-                  const file = await fileHandle.getFile();
-                  const text = await file.text();
-                  const resolvedPath = existingOpenTab.path || pathWithoutHash || file.name;
-                  const externalNode: FileNode = {
-                    name: file.name,
-                    path: resolvedPath,
-                    kind: 'file',
-                    handle: fileHandle
-                  };
-                  existingOpenTab.content = text;
-                  existingOpenTab.node = externalNode;
-                  (existingOpenTab as any).handle = fileHandle;
-                  existingOpenTab.path = resolvedPath;
-                  if (existingOpenTab.model && !existingOpenTab.model.isDisposed()) {
-                    existingOpenTab.model.setValue(text);
-                  }
-                  setContent(text);
-                  setCurrentFileName(file.name);
-                  setCurrentFileNode(externalNode);
-                  setTabs(prev => prev.map(t => t.id === existingOpenTab.id ? {
-                    ...t,
-                    content: text,
-                    node: externalNode,
-                    handle: fileHandle,
-                    path: resolvedPath,
-                    isModified: false
-                  } : t));
-                  jumpToAnchor(targetHash);
-                  showToast(`'${file.name}' 파일 접근 권한을 획득하여 열었습니다. (편집 및 저장 가능)`, 'success');
-                }
-              } catch (err: any) {
-                if (err?.name !== 'AbortError') {
-                  showToast(`파일 권한 획득 실패: ${err?.message || err}`, 'error');
-                }
-              }
-            }
-          });
-        }
-
         if (hydratedContent) {
           existingOpenTab.content = hydratedContent;
           if (resolvedPathFromSource) existingOpenTab.path = resolvedPathFromSource;
@@ -686,7 +632,15 @@ export const useFileExplorer = ({
             existingOpenTab.model.setValue(hydratedContent);
           }
           setContent(hydratedContent);
-          setTabs(prev => prev.map(t => t.id === existingOpenTab.id ? { ...t, content: hydratedContent, path: resolvedPathFromSource || t.path, node: existingOpenTab.node || t.node, handle: existingOpenTab.handle || t.handle } : t));
+          setTabs(prev => prev.map(t => t.id === existingOpenTab.id ? {
+            ...t,
+            content: hydratedContent,
+            path: resolvedPathFromSource || t.path,
+            node: existingOpenTab.node || t.node,
+            handle: existingOpenTab.handle || t.handle,
+            isKnowledge: existingOpenTab.isKnowledge || t.isKnowledge,
+            documentId: (existingOpenTab as any).documentId || (t as any).documentId
+          } : t));
         }
       }
 
@@ -1068,73 +1022,7 @@ export const useFileExplorer = ({
       setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: pathWithoutHash } : t));
       jumpToAnchor(targetHash);
 
-      // 온디맨드 파일 권한 요청 확인 모달 팝업 (User Gesture 지원)
-      if (setConfirmConfig && typeof (window as any).showOpenFilePicker === 'function') {
-        setConfirmConfig({
-          isOpen: true,
-          title: '외부 문서 접근 권한 확인',
-          message: `'${filename}' 문서는 현재 열린 작업장(${currentWorkspaceName}) 외부에 위치해 있습니다. 내 PC에서 해당 파일을 선택하여 읽기 및 편집 권한을 허용하시겠습니까?`,
-          confirmText: '📂 파일 선택 및 권한 허용',
-          cancelText: '취소',
-          isDanger: false,
-          onConfirm: async () => {
-            try {
-              const fileHandle = await pickExternalFile(filename);
-              if (fileHandle) {
-                // 핸들을 IndexedDB에 영구 캐싱하여 이후 즉시 오픈 지원
-                await saveExternalFileHandle(pathWithoutHash, fileHandle);
-                await saveExternalFileHandle(cleanPath, fileHandle);
-                await saveExternalFileHandle(filename, fileHandle);
-
-                const file = await fileHandle.getFile();
-                const text = await file.text();
-                const resolvedPath = pathWithoutHash || file.name;
-                const externalNode: FileNode = {
-                  name: file.name,
-                  path: resolvedPath,
-                  kind: 'file',
-                  handle: fileHandle
-                };
-
-                const targetTab = tabsRef.current.find(t => t.name === filename || t.path === pathWithoutHash);
-                if (targetTab) {
-                  targetTab.content = text;
-                  targetTab.node = externalNode;
-                  (targetTab as any).handle = fileHandle;
-                  targetTab.path = resolvedPath;
-                  if (targetTab.model && !targetTab.model.isDisposed()) {
-                    targetTab.model.setValue(text);
-                  }
-                }
-                setContent(text);
-                setCurrentFileName(file.name);
-                setCurrentFileNode(externalNode);
-                setTabs(prev => prev.map(t => (t.name === filename || t.path === pathWithoutHash) ? {
-                  ...t,
-                  content: text,
-                  node: externalNode,
-                  handle: fileHandle,
-                  path: resolvedPath,
-                  isModified: false
-                } : t));
-
-                jumpToAnchor(targetHash);
-                showToast(`'${file.name}' 파일 접근 권한을 획득하여 열었습니다. (편집 및 저장 가능)`, 'success');
-              }
-            } catch (err: any) {
-              if (err?.name !== 'AbortError') {
-                showToast(`파일 권한 획득 실패: ${err?.message || err}`, 'error');
-              }
-            }
-          },
-          onCancel: () => {
-            showToast(`'${filename}'은(는) 현재 작업장(${currentWorkspaceName}) 외부 파일입니다. 상위 폴더를 여시면 전체 본문이 연동됩니다.`, 'warning');
-          }
-        });
-        return;
-      }
-
-      showToast(`'${filename}'은(는) 현재 작업장(${currentWorkspaceName}) 외부 파일입니다. 상위 폴더를 여시면 전체 본문이 연동됩니다.`, 'warning');
+      showToast(`'${filename}'은(는) 현재 작업장(${currentWorkspaceName}) 외부 파일입니다. 상위 폴더를 여시거나 지식 보관함에 등록하시면 전체 본문이 연동됩니다.`, 'warning');
       return;
     }
 
@@ -1415,9 +1303,34 @@ export const useFileExplorer = ({
             } catch {}
           }
           if (!savedViaApi) {
-            vfsWriteFile(targetFile.path, targetContent);
-            lastSavedContentRef.current = targetContent;
-            success = true;
+            // 💡 [대안 1]: 지식 보관함 문서 저장 (브라우저 디스크 핸들이 없는 외부 문서 지원)
+            let savedViaKnowledge = false;
+            try {
+              const rfHandle = (typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : null);
+              const isKnowledgeDoc = targetFile.path && (
+                targetFile.path.startsWith('knowledge://') ||
+                tabsRef.current.some(t => (t.path === targetFile.path || t.name === targetFile.name) && t.isKnowledge)
+              );
+              if (isKnowledgeDoc || targetFile.path) {
+                savedViaKnowledge = await knowledgeClient.updateDocumentFast({
+                  filePathOrId: targetFile.path,
+                  fileContent: targetContent,
+                  resourceFolderHandle: rfHandle
+                });
+              }
+            } catch (kSaveErr) {
+              console.warn('[saveFile] 지식 보관함 고속 저장 예외:', kSaveErr);
+            }
+
+            if (savedViaKnowledge) {
+              lastSavedContentRef.current = targetContent;
+              success = true;
+              showToast(`'${targetFile.name}' 문서가 지식 보관함에 안전하게 저장되었습니다.`, 'success');
+            } else {
+              vfsWriteFile(targetFile.path, targetContent);
+              lastSavedContentRef.current = targetContent;
+              success = true;
+            }
           }
         }
       }

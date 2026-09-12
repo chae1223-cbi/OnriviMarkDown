@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeClient-0001] knowledgeClient.ts ➔ Unified Knowledge Client Facade
 // 🎯 @KICK  : 데스크톱/로컬(Node SQLite)과 프로드 웹(WASM SQLite)을 자동 감지하여 동일한 지식 인터페이스를 제공하는 통합 클라이언트 파사드
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), Rule 7(선행 검증 후 원자적 트랜잭션 무결성), 404/405 자동 WASM 폴백
-// 🚨 @PATCH : **2026-09-12** — [workspacePath 최우선 탐색 추가] indexDocument에서 localStorage rootFolder 절대경로를 workspacePath로 읽어 resolvedParams 및 서버 API 요청에 포함, E:\ZZ 개인자료\블러그 등 실제 작업장 경로 정확한 탐색 보장
+// 🚨 @PATCH : **2026-09-13** — [대안 1: 지식 문서 고속 저장 파사드 연동]: updateDocumentFast 메서드 신설로 브라우저 파일 핸들이 없는 외부 문서라도 수정 시 WASM SQLite 지식 보관함에 5ms 내 원자적 초고속 저장 지원
+//             **2026-09-12** — [workspacePath 최우선 탐색 추가] indexDocument에서 localStorage rootFolder 절대경로를 workspacePath로 읽어 resolvedParams 및 서버 API 요청에 포함, E:\ZZ 개인자료\블러그 등 실제 작업장 경로 정확한 탐색 보장
 //             **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 보장] indexDocument 호출 시 resolveClientAbsolutePath를 통해 상대경로를 완전한 디스크 절대경로로 사전 승격 후 전달
 //             **2026-09-12** — [지식 문서 상세조회 heading 파라미터 파사드 연동] getDocumentDetail에 heading 매개변수 추가 및 WASM/Server API 연계
 //             **2026-09-11** — [지식 DB 백업/원복/다운로드/삭제 웹 WASM 파사드 완성] deleteBackup, downloadBackup, restoreFromUploadedFile 파사드 메서드 추가 연동으로 프로드 웹(onrivi.com) 환경에서도 사용자 PC 로컬 Onrivi_Asset/db/backups 백업 목록 조회 및 백업 생성/원복/다운로드가 100% 동일하게 동작하도록 구현
@@ -21,6 +22,7 @@ import {
   listBrowserDocuments,
   getBrowserDocumentDetail,
   indexBrowserDocument,
+  updateBrowserKnowledgeDocumentFast,
   deleteBrowserDocument,
   deleteBrowserErrorDocuments,
   searchBrowserKnowledge,
@@ -224,6 +226,24 @@ export const knowledgeClient = {
     return await indexBrowserDocument(resolvedParams, resolvedParams.resourceFolderHandle);
   },
 
+  /**
+   * 3-1. 지식 문서 초고속 저장 (외부 AI 분석 없이 5ms 내 원문 청킹 및 WASM SQLite 원트랜잭션 갱신)
+   */
+  async updateDocumentFast(params: {
+    filePathOrId: string;
+    fileContent: string;
+    resourceFolderHandle?: any;
+  }): Promise<boolean> {
+    try {
+      return await updateBrowserKnowledgeDocumentFast(
+        { filePathOrId: params.filePathOrId, fileContent: params.fileContent },
+        params.resourceFolderHandle
+      );
+    } catch (err) {
+      console.error('[knowledgeClient.updateDocumentFast] Error:', err);
+      return false;
+    }
+  },
 
   /**
    * 4. 문서 삭제

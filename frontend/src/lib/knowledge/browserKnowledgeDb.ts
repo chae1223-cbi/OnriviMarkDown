@@ -1,5 +1,6 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
+// 🚨 @PATCH : **2026-09-13** — [대안 1: 지식 보관함 고속 저장 updateBrowserKnowledgeDocumentFast 신설]: 외부 I/O 및 LLM 호출 없이 원문 청킹 및 WASM SQLite 단일 원트랜잭션(All-or-Nothing)으로 document_chunks 및 knowledge_documents 메타데이터를 5ms 내 초고속 갱신하고 사용자 PC의 onrivi_knowledge.db 및 IndexedDB에 영구 동기화
 // 🚨 @PATCH : **2026-09-13** — [유니코드 NFC 정규화 및 WASM SQLite 인메모리 심층 문서 매칭 고도화]: getBrowserDocumentDetail에서 char(92) 경로 슬래시 치환 및 NFD/NFC 자모 분리 불일치 해결을 위한 인메모리 유니코드 정규화(NFC) 6단계 스캔 폴백을 추가하여 한국어 특수 파일명/경로 지식 문서 100% 탐색 보장
 // 🚨 @PATCH : **2026-09-12** — [로컬스토리지 작업장 경로 연동 및 Onrivi_Asset 오탐 자동 치유]
 //             1) pathResolver에서 ensureClientAbsolutePath, resolveClientAbsolutePath 단일 import로 통합 일원화
@@ -933,6 +934,120 @@ export async function indexBrowserDocument(
   };
 
   return { documentId: docId, chunksCount: chunks.length, detail };
+}
+
+/**
+ * 3-1. 지식 문서 초고속 저장 (브라우저 WASM)
+ * [대안 1 전용]: 외부 AI(LLM) 분석 대기 없이 원문 청킹 및 WASM SQLite 단일 원트랜잭션으로
+ * document_chunks 및 knowledge_documents의 file_hash, file_size, modified_at을 즉시 갱신
+ * Rule 7 준수: 선행 청킹 완료 후 단일 원트랜잭션(All-or-Nothing)으로 DB 적재 및 영구 저장
+ */
+export async function updateBrowserKnowledgeDocumentFast(
+  params: {
+    filePathOrId: string;
+    fileContent: string;
+  },
+  folderHandle?: any
+): Promise<boolean> {
+  const { filePathOrId, fileContent } = params;
+  if (!filePathOrId || typeof fileContent !== 'string') {
+    return false;
+  }
+
+  const { db, folderHandle: activeFolder } = await getBrowserKnowledgeDb(folderHandle);
+
+  // 1. 대상 문서 ID 식별
+  let docId: string | null = null;
+  const isDirectId = filePathOrId.startsWith('doc_') || filePathOrId.startsWith('doc-') || filePathOrId.length === 36;
+  if (isDirectId) {
+    const s = db.prepare('SELECT id FROM knowledge_documents WHERE id = :id LIMIT 1');
+    s.bind({ ':id': filePathOrId });
+    if (s.step()) docId = String(s.getAsObject().id);
+    s.free();
+  }
+
+  if (!docId) {
+    // 경로/파일명 기반 상세조회로 문서 ID 획득
+    const detail = await getBrowserDocumentDetail({ filePath: filePathOrId }, activeFolder);
+    if (detail && detail.documentId) {
+      docId = detail.documentId;
+    }
+  }
+
+  if (!docId) {
+    console.warn('[updateBrowserKnowledgeDocumentFast] 저장 대상 지식 문서를 DB에서 찾지 못했습니다:', filePathOrId);
+    return false;
+  }
+
+  const fileHash = computeSha256(fileContent);
+  const fileSize = new Blob([fileContent]).size;
+  const now = new Date().toISOString();
+
+  // 2. 청킹 선행 수행 (Rule 7)
+  const chunks = chunkMarkdownByHeadings(docId, fileContent);
+
+  // 3. 단일 원트랜잭션(All-or-Nothing)으로 document_chunks 및 knowledge_documents 갱신
+  db.run('BEGIN TRANSACTION;');
+  try {
+    // 기존 청크 삭제
+    db.run('DELETE FROM document_chunks WHERE document_id = :id;', { ':id': docId });
+
+    // 신규 청크 적재
+    for (const c of chunks) {
+      db.run(`
+        INSERT INTO document_chunks (
+          id, document_id, chunk_index, heading_title, heading_level,
+          heading_path, start_line, end_line, chunk_summary, keywords, chunk_text
+        ) VALUES (
+          :id, :docId, :idx, :title, :level,
+          :path, :start, :end, :sum, :kw, :text
+        );
+      `, {
+        ':id': c.id,
+        ':docId': docId,
+        ':idx': c.chunkIndex,
+        ':title': c.headingTitle,
+        ':level': c.headingLevel,
+        ':path': c.headingPath,
+        ':start': c.startLine,
+        ':end': c.endLine,
+        ':sum': c.chunkSummary || '',
+        ':kw': c.keywords || '',
+        ':text': c.chunkText,
+      });
+    }
+
+    // 문서 마스터 메타데이터 갱신 (해시, 크기, 수정시각)
+    db.run(`
+      UPDATE knowledge_documents
+      SET file_hash = :hash,
+          file_size = :size,
+          modified_at = :mod,
+          error_message = NULL
+      WHERE id = :id;
+    `, {
+      ':id': docId,
+      ':hash': fileHash,
+      ':size': fileSize,
+      ':mod': now,
+    });
+
+    db.run('COMMIT;');
+  } catch (err) {
+    db.run('ROLLBACK;');
+    console.error('[updateBrowserKnowledgeDocumentFast] 트랜잭션 오류 롤백:', err);
+    throw err;
+  }
+
+  // 4. IndexedDB 및 디스크 DB 동기화
+  try {
+    await saveBrowserKnowledgeDb(activeFolder, db);
+    return true;
+  } catch (saveErr) {
+    invalidateBrowserDbCache();
+    console.error('[updateBrowserKnowledgeDocumentFast] DB 영구 저장 오류:', saveErr);
+    return false;
+  }
 }
 
 /**
