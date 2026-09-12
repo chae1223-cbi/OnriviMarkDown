@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-CtaSection-0025] CtaSection ➔ CtaSection
 // 🎯 @KICK  : 사용자 가입 전환(CTA)을 강력하게 소구하고 회원가입 경로로 리다이렉트하는 랜딩페이지 마지막 전환 유도 영역
 // 🛡️ @GUARD : viewport once 옵션을 활성화하여 모션 버벅임 억제
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(CTA: #FFFFFF)
+// 🚨 @PATCH : **2026-09-12** — 랜딩페이지 섹션 교차(#EFEFFF / #FFFFFF) 배경 순서 반전 적용 (CtaSection: #EFEFFF)
+//             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(CTA: #FFFFFF)
 //             **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(CTA: #EFEFFF)
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
@@ -21,7 +22,7 @@ import Link from "next/link";
 export function CtaSection() {
   return (
     <section
-      className="py-28 sm:py-36 px-6 relative overflow-hidden bg-[#FFFFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9] border-t border-[#E2E4F6] dark:border-white/5"
+      className="py-28 sm:py-36 px-6 relative overflow-hidden bg-[#EFEFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9] border-t border-[#E2E4F6] dark:border-white/5"
       style={{
         fontFamily: "Pretendard, sans-serif",
       }}
@@ -41,7 +42,7 @@ export function CtaSection() {
           className="space-y-6"
         >
           {/* Top Tag */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-extrabold text-[#1A1A18] dark:text-zinc-200 tracking-widest uppercase shadow-2xs">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-extrabold text-[#1A1A18] dark:text-zinc-200 tracking-widest uppercase shadow-2xs">
             <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
             ONRIVI AUTHOR
           </div>

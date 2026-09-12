@@ -1,6 +1,8 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
-// 🚨 @PATCH : **2026-09-11** — 단축키 및 슬래시 명령어 매핑 테이블에 플로팅 툴바와 일치하는 구분(그룹 배지) 열 추가 및 복사 텍스트 그룹 반영
+// 🚨 @PATCH : **2026-09-12** — AI 모델 선택 옵션을 중앙 공인 모델(ONRIVI_AI_MODELS)과 100% 동기화하여 에디터 및 AI 모달 전반의 정합성 보장
+//             **2026-09-12** — AI 모델 선택 옵션에 최신 공인 안정 모델(Gemini 2.5 Flash, Gemini 2.0 Flash, Gemini 1.5 Flash) 추가 탑재하여 503 트래픽 과부하 회피 및 안정성 보장
+//             **2026-09-11** — 단축키 및 슬래시 명령어 매핑 테이블에 플로팅 툴바와 일치하는 구분(그룹 배지) 열 추가 및 복사 텍스트 그룹 반영
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-11** — 단축키 설정 입력창에서 non-Mac 환경(Windows/Linux)의 Meta(Win) 키를 Ctrl로 오인하지 않도록 isMac 분기 적용
 //             **2026-09-05** — AI 설정(Gemini API 키) 즉시 영구 삭제 및 연동 해제 기능(handleDeleteAiSettings) 구현, 공통 리소스 폴더 연결 해제(onClearResourceFolder) 실시간 UI 및 스토리지 동기화 반영, 버튼 라벨 직관적 순화('연동 해제', '폴더 해제')
@@ -18,7 +20,7 @@ import { useToast } from '@/components/ToastProvider';
 import { createPortal } from 'react-dom';
 import { X, Settings, Command, Loader2, CheckCircle, AlertCircle, KeyRound, Key, Type, AlignLeft, Braces, Save, RotateCcw, Copy, ChevronDown, Check, User, Mail, Shield, Calendar, ExternalLink, RefreshCw } from 'lucide-react';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
-import { testGeminiConnection } from '@/lib/gemini';
+import { testGeminiConnection, ONRIVI_AI_MODELS } from '@/lib/gemini';
 import { supabase } from '@/lib/supabaseClient';
 
 interface SettingsModalProps {
@@ -667,15 +669,7 @@ export default function SettingsModal({
                       {/* 선명한 리스트박스 (Select Box) */}
                       <div className="relative mb-3">
                         <select
-                          value={[
-                            'gemini-3.8-flash',
-                            'gemini-3.7-flash',
-                            'gemini-3.6-flash',
-                            'gemini-3.5-flash',
-                            'gemini-3.1-flash-lite',
-                            'gemma-4-31b-it',
-                            'gemma-4-26b-a4b-it'
-                          ].includes(aiModelName) ? aiModelName : 'custom'}
+                          value={ONRIVI_AI_MODELS.some(m => m.id === aiModelName) ? aiModelName : 'custom'}
                           onChange={(e) => {
                             if (e.target.value !== 'custom') {
                               setAiModelName(e.target.value);
@@ -687,13 +681,11 @@ export default function SettingsModal({
                               : 'bg-white border-[#E0DED7] text-slate-900 focus:border-[#1d4ed8] focus:ring-2 focus:ring-[#1d4ed8]/15 shadow-2xs'
                           }`}
                         >
-                          <option value="gemini-3.8-flash">👑 Gemini 3.8 Flash (최신 최고 버전 / 초고속 플래그십)</option>
-                          <option value="gemini-3.7-flash">⚡ Gemini 3.7 Flash (차세대 고성능 모델)</option>
-                          <option value="gemini-3.6-flash">🛡️ Gemini 3.6 Flash (고성능 안정화 모델)</option>
-                          <option value="gemini-3.5-flash">💡 Gemini 3.5 Flash (지능형 균형 모델)</option>
-                          <option value="gemini-3.1-flash-lite">🪶 Gemini 3.1 Flash Lite (초경량 초고속 응답)</option>
-                          <option value="gemma-4-31b-it">💎 Gemma 4 31B IT (확장 오픈 모델)</option>
-                          <option value="gemma-4-26b-a4b-it">💎 Gemma 4 26B (경량 오픈 모델)</option>
+                          {ONRIVI_AI_MODELS.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.label}
+                            </option>
+                          ))}
                           <option value="custom">✏️ 직접 입력 (Custom Model)</option>
                         </select>
                         <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500 dark:text-zinc-400">

@@ -5,7 +5,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
- * 작성자 : 채병익
+ * 🚨 @PATCH : **2026-09-12** — AI 버튼 툴팁을 'AI 프롬프트'로 명칭 일원화 및 툴바 원래 이모지 서식 원복 유지
  * 🚨 @PATCH : **2026-09-11** — 인용구(❝) 버튼에 Alert 태그 선택 콤보 드롭다운(일반 인용구, Note, Tip, Important, Warning, Caution) 추가 탑재
  * 🚨 @PATCH : **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 서식 툴바의 AI 글쓰기 어시스턴트 버튼(Sparkles) 비활성화(disabled, opacity-30, grayscale) 적용
  * 🚨 @PATCH : **2026-07-20** — 툴바의 '문서 서식 일괄 정리' 버튼 아이콘을 플로팅 툴바 및 환경설정과 동일하게 `🧹`로 변경하여, AI 글쓰기 어시스턴트 아이콘(`✨`)과의 시각적 중복 및 혼선 방지 패치
@@ -63,7 +63,7 @@ export default function FormattingToolbar() {
       <FormatBtn
         disabled={!geminiApiKey}
         label={<Sparkles size={15} className={geminiApiKey ? "text-purple-500 animate-pulse" : "text-slate-400 dark:text-zinc-500"} />}
-        title={geminiApiKey ? "AI 글쓰기 팝업 어시스턴트" : "AI 연동 해제됨 (설정에서 API 키를 등록해 주세요)"}
+        title={geminiApiKey ? "AI 프롬프트" : "AI 연동 해제됨 (설정에서 API 키를 등록해 주세요)"}
         onAction={() => {
           if (!geminiApiKey) {
             showToast("AI 기능을 사용하려면 설정에서 Gemini API Key를 등록해 주세요.", "warning");

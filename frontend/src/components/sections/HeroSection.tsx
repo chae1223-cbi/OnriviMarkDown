@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-HeroSection-0022] HeroSection ➔ HeroSection
 // 🎯 @KICK  : Onrivi Author Premium V2의 타이포그래피 가치 제안 및 실제 라이프스타일/업무 씬을 2열 레이아웃과 무깜빡임(Cross-Fade) 3초 자동 롤링 이미지 슬라이더로 전달하는 히어로 영역
 // 🛡️ @GUARD : 슬라이더 타이머 메모리 릭 방지(clearInterval) 및 이미지 상시 DOM 적재 기반 깜빡임 원천 차단
-// 🚨 @PATCH : **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
+// 🚨 @PATCH : **2026-09-12** — 랜딩페이지 섹션 교차(#EFEFFF / #FFFFFF) 배경 순서 반전 적용 (HeroSection: #EFEFFF)
+//             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — '제품 살펴보기' 버튼 제거 및 슬라이더 이미지 상시 렌더링(CSS Cross-Fade) 전환으로 깜빡임 현상 완벽 제거
 //             **2026-09-11** — 히어로 섹션 2열(좌측 카피/CTA + 우측 3초 자동 롤링 이미지 슬라이더 5종) 전면 개편 및 기존 목업 제거
@@ -69,26 +70,26 @@ export function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  const nextSlide = useCallback(() => {
-    setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-  }, []);
-
-  const prevSlide = useCallback(() => {
-    setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
-  }, []);
-
-  // 3초 자동 슬라이더 타이머 (hover 시 일시정지)
+  // 3초 무깜빡임(Cross-Fade) 자동 롤링 슬라이더
   useEffect(() => {
     if (isPaused) return;
     const timer = setInterval(() => {
-      nextSlide();
+      setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
     }, 3000);
     return () => clearInterval(timer);
-  }, [isPaused, nextSlide]);
+  }, [isPaused]);
+
+  const handlePrev = useCallback(() => {
+    setCurrentSlide((prev) => (prev === 0 ? HERO_SLIDES.length - 1 : prev - 1));
+  }, []);
+
+  const handleNext = useCallback(() => {
+    setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+  }, []);
 
   return (
     <section
-      className="pt-28 pb-16 sm:pt-36 sm:pb-24 overflow-hidden relative bg-[#FFFFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="pt-28 pb-16 sm:pt-36 sm:pb-24 overflow-hidden relative bg-[#EFEFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       {/* Subtle Top Ambient Glow (Cobalt Authority on Warm Base) */}
@@ -111,7 +112,7 @@ export function HeroSection() {
               transition={{ duration: 0.4 }}
               className="inline-flex mb-5"
             >
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#EFEFFF] dark:bg-zinc-800/80 border border-[#E2E4F6] dark:border-white/10 text-xs font-semibold text-[#1A1A18] dark:text-zinc-200 tracking-tight shadow-2xs">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800/80 border border-[#E2E4F6] dark:border-white/10 text-xs font-semibold text-[#1A1A18] dark:text-zinc-200 tracking-tight shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-[#1d4ed8] animate-pulse" />
                 AI-NATIVE DOCUMENT PLATFORM
               </div>
@@ -253,7 +254,7 @@ export function HeroSection() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  prevSlide();
+                  handlePrev();
                 }}
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-30 cursor-pointer"
                 aria-label="이전 이미지"
@@ -264,7 +265,7 @@ export function HeroSection() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  nextSlide();
+                  handleNext();
                 }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-30 cursor-pointer"
                 aria-label="다음 이미지"

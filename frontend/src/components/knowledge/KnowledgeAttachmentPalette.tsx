@@ -2,9 +2,14 @@
 // 📊 [OMD-KUI-PALETTE-001] KnowledgeAttachmentPalette.tsx ➔ AI 모달 지식 검색 및 첨부 팔레트
 // 🎯 @KICK  : 에디터 AI 모달 내 로컬 지식 문서 검색, 청크 선택 첨부, Auto-RAG 토글 및 토큰 예산 관리
 // 🛡️ @GUARD : LDSG v5.0 (#1d4ed8), 로컬 SQLite FTS5 검색, 예산 게이지 시각화, 비대화 방지 UI 분리
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
-//             2026-09-04** — [ONRIVI-KNOWLEDGE-EDITOR-001] 에디터 AI 어시스턴트 모달 전용 지식 검색 & RAG 첨부 팔레트 신규 구현
-// 🔗 @CALLS : /api/knowledge/search, /api/knowledge/collection, @/types/knowledge
+// 🚨 @PATCH : **2026-09-12** — [Auto-RAG 아래 '출처 각주 포함' 스위치 재배치 탑재]
+//             1) 사용자 UX 정돈 요구에 따라 우측 미리보기 헤더에 있던 '출처 각주 포함' 옵션을 좌측 지식 팔레트 내 Auto-RAG 스위치 바로 아래로 통합 재배치
+//             2) includeCitations 및 onToggleIncludeCitations props 연동으로 단일 상태 바인딩 보장
+// 🚨 @PATCH : **2026-09-12** — [지식 검색 및 컬렉션 조회 knowledgeClient 통합 파사드 전환]
+//             웹 브라우저(WASM SQLite)와 데스크톱(Electron Node API) 간 단일 인터페이스 연동, resourceFolderHandle 지원 및 검색 안정성 보장
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             **2026-09-04** — [ONRIVI-KNOWLEDGE-EDITOR-001] 에디터 AI 어시스턴트 모달 전용 지식 검색 & RAG 첨부 팔레트 신규 구현
+// 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/types/knowledge
 // ====================================================================
 
 "use client";
@@ -16,15 +21,19 @@ import {
   X, HelpCircle, BookOpen, ExternalLink, Loader2
 } from 'lucide-react';
 import type { RetrievalCandidate, KnowledgeCollection } from '@/types/knowledge';
+import { knowledgeClient } from '@/lib/knowledge/knowledgeClient';
 
 export interface KnowledgeAttachmentPaletteProps {
   resourceFolder: string;
+  resourceFolderHandle?: any;
   attachedChunks: RetrievalCandidate[];
   onAttachChunk: (chunk: RetrievalCandidate) => void;
   onDetachChunk: (chunkId: string) => void;
   onClearAllChunks?: () => void;
   isAutoRagEnabled: boolean;
   onToggleAutoRag: (enabled: boolean) => void;
+  includeCitations?: boolean;
+  onToggleIncludeCitations?: (included: boolean) => void;
   maxTokenBudget?: number; // 기본 4,000자
   currentCharsUsed: number;
   showToast: (msg: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
@@ -32,12 +41,15 @@ export interface KnowledgeAttachmentPaletteProps {
 
 export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProps> = ({
   resourceFolder,
+  resourceFolderHandle,
   attachedChunks,
   onAttachChunk,
   onDetachChunk,
   onClearAllChunks,
   isAutoRagEnabled,
   onToggleAutoRag,
+  includeCitations = true,
+  onToggleIncludeCitations,
   maxTokenBudget = 4000,
   currentCharsUsed,
   showToast,
@@ -50,55 +62,47 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
   const [isSearching, setIsSearching] = useState(false);
   const [previewSnippetId, setPreviewSnippetId] = useState<string | null>(null);
 
-  // 컬렉션 목록 로드
+  // 컬렉션 목록 로드 (knowledgeClient 파사드로 데스크톱/웹 통합)
   useEffect(() => {
-    if (!resourceFolder) return;
+    let isMounted = true;
     const fetchCollections = async () => {
       try {
-        const res = await fetch(`/api/knowledge/collection?resourceFolder=${encodeURIComponent(resourceFolder)}`);
-        const data = await res.json();
-        if (data.ok && Array.isArray(data.collections)) {
-          setCollections(data.collections);
+        const cols = await knowledgeClient.listCollections({
+          resourceFolder,
+          resourceFolderHandle,
+        });
+        if (isMounted && Array.isArray(cols)) {
+          setCollections(cols);
         }
       } catch (err) {
-        console.error('[KnowledgeAttachmentPalette] 컬렉션 로드 실패:', err);
+        console.warn('[KnowledgeAttachmentPalette] 컬렉션 로드 실패:', err);
       }
     };
     fetchCollections();
-  }, [resourceFolder]);
+    return () => { isMounted = false; };
+  }, [resourceFolder, resourceFolderHandle]);
 
-  // 검색 실행
+  // 검색 실행 (knowledgeClient 파사드로 데스크톱/웹 통합)
   const handleExecuteSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!searchQuery.trim()) {
       showToast('검색할 키워드를 입력해 주세요.', 'warning');
       return;
     }
-    if (!resourceFolder) {
-      showToast('리소스 폴더가 설정되지 않았습니다.', 'warning');
-      return;
-    }
 
     setIsSearching(true);
     try {
-      const res = await fetch('/api/knowledge/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: searchQuery.trim(),
-          resourceFolder,
-          collectionId: selectedCollectionId === 'ALL' ? undefined : selectedCollectionId,
-          limit: 15,
-        }),
+      const data = await knowledgeClient.searchKnowledge({
+        query: searchQuery.trim(),
+        resourceFolder,
+        resourceFolderHandle,
+        collectionId: selectedCollectionId === 'ALL' ? undefined : selectedCollectionId,
+        limit: 15,
       });
-      const data = await res.json();
-      if (data.ok) {
-        setSearchResults(data.candidates || []);
-        if ((data.candidates || []).length === 0) {
-          showToast('일치하는 지식 청크를 찾을 수 없습니다.', 'info');
-        }
-      } else {
-        showToast(data.message || '지식 검색 실패', 'error');
+      const candidates = data.candidates || [];
+      setSearchResults(candidates);
+      if (candidates.length === 0) {
+        showToast('일치하는 지식 청크를 찾을 수 없습니다.', 'info');
       }
     } catch {
       showToast('지식 검색 중 오류가 발생했습니다.', 'error');
@@ -176,6 +180,33 @@ export const KnowledgeAttachmentPalette: React.FC<KnowledgeAttachmentPaletteProp
               type="checkbox"
               checked={isAutoRagEnabled}
               onChange={(e) => onToggleAutoRag(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-zinc-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1d4ed8]"></div>
+          </label>
+        </div>
+
+        {/* 📚 출처 각주 포함 스마트 스위치 (사용자 요구사항 반영) */}
+        <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/30">
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-[#1d4ed8]" />
+              <span className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200">
+                출처 각주 포함
+              </span>
+            </div>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+              {includeCitations
+                ? '결과 문서 하단에 참조한 지식 문서의 파일 경로와 각주 링크를 자동 생성합니다.'
+                : '비활성화됨: 본문에 별도의 참고 자료 및 출처 각주를 추가하지 않습니다.'}
+            </span>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+            <input
+              type="checkbox"
+              checked={includeCitations}
+              onChange={(e) => onToggleIncludeCitations?.(e.target.checked)}
               className="sr-only peer"
             />
             <div className="w-9 h-5 bg-zinc-300 dark:bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1d4ed8]"></div>

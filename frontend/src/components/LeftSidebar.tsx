@@ -11,6 +11,7 @@ import { vfsRename, vfsCopyItem } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
 import { Plus } from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
 import { msg } from '@/lib/systemMessages';
 import { useUIStore } from '@/store/useUIStore';
 
@@ -1031,39 +1032,42 @@ export default function LeftSidebar() {
                 setSidebarTab('explorer');
                 setIsSearchOpen(false);
               }}
-              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
+              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 sidebarTab === 'explorer' 
                   ? 'bg-[#1d4ed8] text-white shadow-xs font-black' 
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
               }`}
             >
-              📂 탐색기
+              <Icon name="Explorer" size={13} strokeWidth={2.2} />
+              <span>탐색기</span>
             </button>
             <button
               onClick={() => {
                 setSidebarTab('toc');
                 setIsSearchOpen(false);
               }}
-              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
+              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 sidebarTab === 'toc' 
                   ? 'bg-[#1d4ed8] text-white shadow-xs font-black' 
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
               }`}
             >
-              📝 개요
+              <Icon name="Toc" size={13} strokeWidth={2.2} />
+              <span>개요</span>
             </button>
             <button
               onClick={() => {
                 setSidebarTab('search');
                 setIsSearchOpen(true);
               }}
-              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
+              className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 sidebarTab === 'search' 
                   ? 'bg-[#1d4ed8] text-white shadow-xs font-black' 
                   : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
               }`}
             >
-              🔍 검색
+              <Icon name="Search" size={13} strokeWidth={2.2} />
+              <span>검색</span>
             </button>
           </div>
         </div>
@@ -1080,7 +1084,11 @@ export default function LeftSidebar() {
               shadow-2xs truncate"
             title={rootFolder?.name ? `워크스페이스 변경 (현재: ${rootFolder.name})` : '워크스페이스 폴더 선택'}
           >
-            <span className="shrink-0">{rootFolder?.name ? '📁' : '📂'}</span>
+            <Icon 
+              name={rootFolder?.name ? "FolderOpen" : "Folder"} 
+              size={14} 
+              className={rootFolder?.name ? "text-[#1d4ed8] dark:text-blue-400" : "text-slate-400"} 
+            />
             <span className="truncate font-bold">
               {rootFolder?.name ? rootFolder.name : '폴더를 선택하세요'}
             </span>

@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-llmProvider-0001] llmProvider.ts ➔ Knowledge LLM Provider
 // 🎯 @KICK  : Gemini JSON Mode 기반 정형 분석(요약, 핵심요점, 태그, 검색어) 및 질의응답 프로바이더 구현
 // 🛡️ @GUARD : API 키 미연결 방어, JSON Mode 강제 파싱, Rate-Limit(429) 지수 백오프 재시도, 다중 블록 병합
-// 🚨 @PATCH : **2026-09-05** — [사용자 지시 반영: 임의 모델 폴백 전면 제거 및 실패 원인 진단 고도화] gemini-2.5-flash 등 레거시 모델로의 임의 자동 폴백 로직을 전면 제거하고 사용자가 지정한 모델만 호출하도록 단일화; 404(모델 미지원/폐기), 503(일시적 트래픽 폭증/High Demand), 429(할당량 초과) 등 구체적 실패 원인과 조치 방법을 명확히 진단 메시지로 전달하도록 개편
+// 🚨 @PATCH : **2026-09-12** — [사용자 선택 모델 존중: 임의 모델 폴백 배제 및 503/404 상세 진단 제공] answerQuestion 호출 시 사용자가 지정한 모델만 호출하며, 503(과부하) 또는 404(미지원) 발생 시 임의 모델로 바꿔치기하지 않고 명확한 에러 원인 및 권장 모델 변경 안내를 반환
+//             **2026-09-05** — [사용자 지시 반영: 임의 모델 폴백 전면 제거 및 실패 원인 진단 고도화] gemini-2.5-flash 등 레거시 모델로의 임의 자동 폴백 로직을 전면 제거하고 사용자가 지정한 모델만 호출하도록 단일화; 404(모델 미지원/폐기), 503(일시적 트래픽 폭증/High Demand), 429(할당량 초과) 등 구체적 실패 원인과 조치 방법을 명확히 진단 메시지로 전달하도록 개편
 //             **2026-09-04** — [503 Service Unavailable 및 고수요 모델 자동 폴백] gemma 등 특정 모델의 일시적 고수요(503 high demand) 또는 404 발생 시 gemini-2.5-flash/1.5-flash 안정 모델로 자동 폴백 및 503 재시도 로직 구축
 //             **2026-09-04** — [Gemma 등 다중 JSON 블록 분할 및 비정형 출력 복원] llmJsonParser 연동, 균형 잡힌 중괄호 추출 및 다중 블록 자동 병합(Object.assign), 트레일링 콤마 보정 탑재
 //             **2026-09-04** — [비정형 텍스트 및 사족 자동 정제] Gemma 등 모델이 JSON 서두에 설명문/사족을 붙이거나 코드블록을 출력할 때 순수 JSON 블록 자동 슬라이싱 및 파싱 안전 가드 탑재
@@ -183,14 +184,21 @@ ${query}
         throw new Error(
           `MODEL_NOT_FOUND: 선택하신 AI 모델 '${selectedModel}'을(를) Google API에서 찾을 수 없거나 사용 중단되었습니다 (404 Not Found).\n` +
           `상세 사유: ${msg}\n` +
-          `조치 방법: 에디터 또는 환경설정에서 다른 Gemini 모델을 선택해 주세요.`
+          `조치 방법: 에디터 또는 환경설정에서 다른 Gemini 모델(예: gemini-2.5-flash, gemini-1.5-flash 등)을 선택해 주세요.`
+        );
+      }
+
+      if (status === 500 || msg.includes('500') || msg.includes('internal error')) {
+        throw new Error(
+          `SERVER_ERROR: 선택하신 AI 모델 '${selectedModel}' 처리 중 Google 서버 내부 오류(500)가 발생했습니다.\n` +
+          `조치 방법: 안정적인 공식 플래그십 모델(Gemini 3.8 Flash, Gemini 2.5 Flash 등)을 선택해 주세요.`
         );
       }
 
       if (status === 503 || msg.includes('503') || msg.includes('high demand')) {
         throw new Error(
           `MODEL_BUSY: 선택하신 AI 모델 '${selectedModel}'이(가) Google 서버의 일시적 트래픽 폭증으로 응답할 수 없습니다 (503 Service Unavailable / High Demand).\n` +
-          `잠시 후 다시 시도하시거나 다른 모델을 선택해 주세요.`
+          `잠시 후 다시 시도하시거나 다른 모델(gemini-2.5-flash, gemini-1.5-flash 등)을 선택해 주세요.`
         );
       }
 

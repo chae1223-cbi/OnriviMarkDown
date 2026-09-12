@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
-// 🚨 @PATCH : **2026-09-11** — 상단 메뉴바 폰트를 Pretendard 최우선으로 일원화 적용
+// 🚨 @PATCH : **2026-09-12** — 메뉴바 전체 드롭다운 메뉴 아이템의 이모지를 통합 Icon 컴포넌트로 일원화 교체 (Modern Technical Editorial 벡터 스타일 통일)
+//             **2026-09-11** — 상단 메뉴바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-11** — 편집(Edit) 메뉴에 GitHub Alert 인용구 스타일 5종(Note, Tip, Important, Warning, Caution) 및 일반 인용구 선택 서브메뉴 신설
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-04** — 도구 메뉴의 '서식 정의 (갤러리)' 아이콘을 🎨로 변경하여 우측 툴바 서식관리와 시각적 일관성 확보
@@ -18,6 +19,7 @@ import { EDITOR_THEMES } from '@/lib/editorThemes';
 import { useRouter } from 'next/navigation';
 import { useEditorContext } from '@/context/EditorContext';
 import { supabase } from '@/lib/supabaseClient';
+import { Icon } from '@/components/icons/Icon';
 
 const localTranslations: Record<string, Record<string, string>> = {
   ko: {
@@ -31,10 +33,10 @@ const localTranslations: Record<string, Record<string, string>> = {
     saveFile: "저장",
     saveFileAs: "다른 이름으로 저장",
     export: "내보내기",
-    print: "🖨️인쇄/PDF",
-    html: "📜HTML 파일 (.html)",
-    epub: "📘EPUB 전자책(.epub)",
-    png: "🖼️PNG 이미지(.png)",
+    print: "인쇄/PDF",
+    html: "HTML 파일 (.html)",
+    epub: "EPUB 전자책 (.epub)",
+    png: "PNG 이미지 (.png)",
     exit: "로그아웃",
     undo: "실행 취소",
     redo: "다시 실행",
@@ -46,9 +48,9 @@ const localTranslations: Record<string, Record<string, string>> = {
     zoomOut: "축소",
     sidebarToggle: "사이드바 표시/숨김",
     viewMode: "화면 보기 모드",
-    modeEdit: "✍️편집 전용 모드",
-    modeSplit: "📖분할 화면 모드",
-    modePreview: "👁️미리보기 전용 모드",
+    modeEdit: "편집 전용 모드",
+    modeSplit: "분할 화면 모드",
+    modePreview: "미리보기 전용 모드",
     themeSwitch: "테마 전환",
     globalSearch: "전역 검색",
     copyPreview: "마크다운 복사",
@@ -71,7 +73,7 @@ const localTranslations: Record<string, Record<string, string>> = {
     saveFile: "Save File",
     saveFileAs: "Save File As",
     export: "Export",
-    print: "🖨️Print/PDF",
+    print: "Print/PDF",
     html: "HTML File (.html)",
     epub: "EPUB E-book (.epub)",
     png: "PNG Image (.png)",
@@ -225,23 +227,23 @@ export default function MenuBar() {
   }, []);
 
   const fileItems = [
-    { label: t('openFolder'), icon: <span>📂</span>, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') },
-    { label: t('openWorkspace'), icon: <span>📁</span>, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
+    { label: t('openFolder'), icon: <Icon name="FolderOpen" size={15} />, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') },
+    { label: t('openWorkspace'), icon: <Icon name="Folder" size={15} />, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
     { divider: true },
-    { label: t('saveFile'), icon: <span>💾</span>, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
-    { label: t('saveFileAs'), icon: <span>💿</span>, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
+    { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
+    { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
     { divider: true },
-    { label: "문서 가져오기", icon: <span>📥</span>, onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
+    { label: "문서 가져오기", icon: <Icon name="Import" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
-      icon: <span>📤</span>,
+      icon: <Icon name="Export" size={15} />,
       disabled: previewMode !== 'preview',
       subItems: [
-        { label: t('print'), onClick: () => dispatch('PRINT') },
-        { label: t('html'), onClick: () => dispatch('EXPORT_HTML') },
+        { label: t('print'), icon: <Icon name="Print" size={14} />, onClick: () => dispatch('PRINT') },
+        { label: t('html'), icon: <Icon name="FileCode" size={14} />, onClick: () => dispatch('EXPORT_HTML') },
         { divider: true },
-        { label: t('epub'), onClick: () => dispatch('EXPORT_EPUB') },
-        { label: t('png'), onClick: () => dispatch('EXPORT_PNG') },
+        { label: t('epub'), icon: <Icon name="Book" size={14} />, onClick: () => dispatch('EXPORT_EPUB') },
+        { label: t('png'), icon: <Icon name="Image" size={14} />, onClick: () => dispatch('EXPORT_PNG') },
       ]
     },
     { divider: true },
@@ -249,11 +251,11 @@ export default function MenuBar() {
     // 🎯 @KICK  : useRouter.push('/') / push('/dashboard') 로 페이지 이동
     // 🚨 @PATCH : 2026-06-22 — 에디터에서 랜딩/대시보드 이동 가능하도록 추가
     ...((typeof window !== 'undefined' && !!(window as any).electronAPI) ? [] : [
-      { label: t('exit'), icon: <span>🚪</span>, onClick: () => dispatch('EXIT') },
+      { label: t('exit'), icon: <Icon name="LogOut" size={15} />, onClick: () => dispatch('EXIT') },
       { divider: true },
     ]),
-    { label: "🏠 홈으로", icon: <span>🏠</span>, onClick: () => router.push('/') },
-    { label: "📊 대시보드", icon: <span>📊</span>, onClick: () => router.push('/dashboard') },
+    { label: "홈으로", icon: <Icon name="Home" size={15} />, onClick: () => router.push('/') },
+    { label: "대시보드", icon: <Icon name="Dashboard" size={15} />, onClick: () => router.push('/dashboard') },
   ];
 
   /* [ONR-UI-003] 상단 메뉴바 이벤트 연동: 테마 스위칭, 내보내기 대화상자 등 전역 레이아웃 제어를 메뉴 트리거와 연결합니다. */
@@ -278,29 +280,29 @@ export default function MenuBar() {
         onClose={() => setActiveMenu(null)}
         isDarkMode={isDarkMode}
         items={[
-          { label: t('undo'), icon: <span>↩️</span>, shortcut: 'Ctrl+Z', onClick: () => dispatch('UNDO'), disabled: previewMode === 'preview' },
-          { label: t('redo'), icon: <span>↪️</span>, shortcut: 'Ctrl+Y', onClick: () => dispatch('REDO'), disabled: previewMode === 'preview' },
+          { label: t('undo'), icon: <Icon name="Undo" size={15} />, shortcut: 'Ctrl+Z', onClick: () => dispatch('UNDO'), disabled: previewMode === 'preview' },
+          { label: t('redo'), icon: <Icon name="Redo" size={15} />, shortcut: 'Ctrl+Y', onClick: () => dispatch('REDO'), disabled: previewMode === 'preview' },
           { divider: true },
-          { label: t('find'), icon: <span>🔍</span>, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
-          { label: t('replace'), icon: <span>🔄</span>, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE'), disabled: previewMode === 'preview' },
+          { label: t('find'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
+          { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE'), disabled: previewMode === 'preview' },
           { divider: true },
           { 
             label: "인용구 스타일 (Alert)", 
-            icon: <span>❝</span>, 
+            icon: <Icon name="Quote" size={15} />, 
             disabled: previewMode === 'preview',
             subItems: [
-              { label: "일반 인용구", icon: <span>❝</span>, shortcut: 'Ctrl+Q', onClick: () => dispatch('QUOTE') },
+              { label: "일반 인용구", icon: <Icon name="Quote" size={14} />, shortcut: 'Ctrl+Q', onClick: () => dispatch('QUOTE') },
               { divider: true },
-              { label: "참고 (Note)", icon: <span>ℹ️</span>, onClick: () => dispatch('QUOTE_NOTE') },
-              { label: "팁 (Tip)", icon: <span>💡</span>, onClick: () => dispatch('QUOTE_TIP') },
-              { label: "중요 (Important)", icon: <span>📢</span>, onClick: () => dispatch('QUOTE_IMPORTANT') },
-              { label: "주의 (Warning)", icon: <span>⚠️</span>, onClick: () => dispatch('QUOTE_WARNING') },
-              { label: "경고 (Caution)", icon: <span>🛑</span>, onClick: () => dispatch('QUOTE_CAUTION') },
+              { label: "참고 (Note)", icon: <Icon name="AlertInfo" size={14} className="text-[#0969da] dark:text-[#2f81f7]" />, onClick: () => dispatch('QUOTE_NOTE') },
+              { label: "팁 (Tip)", icon: <Icon name="AlertTip" size={14} className="text-[#1a7f37] dark:text-[#3fb950]" />, onClick: () => dispatch('QUOTE_TIP') },
+              { label: "중요 (Important)", icon: <Icon name="AlertImportant" size={14} className="text-[#8250df] dark:text-[#a371f7]" />, onClick: () => dispatch('QUOTE_IMPORTANT') },
+              { label: "주의 (Warning)", icon: <Icon name="AlertWarning" size={14} className="text-[#9a6700] dark:text-[#d29922]" />, onClick: () => dispatch('QUOTE_WARNING') },
+              { label: "경고 (Caution)", icon: <Icon name="AlertCaution" size={14} className="text-[#d1242f] dark:text-[#f85149]" />, onClick: () => dispatch('QUOTE_CAUTION') },
             ]
           },
           { divider: true },
-          { label: t('zoomIn'), icon: <span>🔎</span>, onClick: () => dispatch('ZOOM_IN') },
-          { label: t('zoomOut'), icon: <span>🔍</span>, onClick: () => dispatch('ZOOM_OUT') },
+          { label: t('zoomIn'), icon: <Icon name="ZoomIn" size={15} />, onClick: () => dispatch('ZOOM_IN') },
+          { label: t('zoomOut'), icon: <Icon name="ZoomOut" size={15} />, onClick: () => dispatch('ZOOM_OUT') },
         ]}
       />
       <MenuDropdown 
@@ -310,14 +312,15 @@ export default function MenuBar() {
         onClose={() => setActiveMenu(null)}
         isDarkMode={isDarkMode}
         items={[
-          { label: t('sidebarToggle'), icon: <span>📁</span>, onClick: () => setIsSidebarOpen(!isSidebarOpen) },
-          { label: t('toolbarToggle'), icon: <span>🛠️</span>, onClick: () => setIsToolbarOpen(!isToolbarOpen) },
+          { label: t('sidebarToggle'), icon: <Icon name="CloseSidebar" size={15} />, onClick: () => setIsSidebarOpen(!isSidebarOpen) },
+          { label: t('toolbarToggle'), icon: <Icon name="Sliders" size={15} />, onClick: () => setIsToolbarOpen(!isToolbarOpen) },
           { 
             label: "화면 보기 모드", 
-            icon: <span>🖥️</span>, 
+            icon: <Icon name="Preview" size={15} />, 
             subItems: [
               { 
                 label: "편집 전용", 
+                icon: <Icon name="EditOnly" size={14} />,
                 disabled: isRestrictedUser,
                 title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined,
                 isActive: previewMode === 'edit',
@@ -325,6 +328,7 @@ export default function MenuBar() {
               },
               { 
                 label: "분할 화면", 
+                icon: <Icon name="ClosePanel" size={14} />,
                 disabled: isRestrictedUser,
                 title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined,
                 isActive: previewMode === 'both',
@@ -332,6 +336,7 @@ export default function MenuBar() {
               },
               { 
                 label: "미리보기", 
+                icon: <Icon name="Preview" size={14} />,
                 isActive: previewMode === 'preview',
                 onClick: () => setPreviewMode('preview') 
               }
@@ -339,20 +344,20 @@ export default function MenuBar() {
           },
           { 
             label: "지식 보관함 관리자", 
-            icon: <span>📗</span>, 
+            icon: <Icon name="KnowledgeHub" size={15} />, 
             shortcut: 'Ctrl+Shift+K', 
             disabled: isRestrictedUser,
             title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined,
             onClick: () => !isRestrictedUser && window.dispatchEvent(new CustomEvent('app:open-knowledge-manager')) 
           },
           { divider: true },
-          { label: "서식 정의 (갤러리)", icon: <span>🎨</span>, onClick: () => setPreviewMode('css-style') },
+          { label: "서식 정의 (갤러리)", icon: <Icon name="Palette" size={15} />, onClick: () => setPreviewMode('css-style') },
           { divider: true },
-          { label: t('globalSearch'), icon: <span>🔎</span>, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
-          { label: t('copyPreview'), icon: <span>📋</span>, onClick: () => dispatch('COPY_ALL') },
-          { label: "문서 병합", icon: <span>🔀</span>, onClick: () => dispatch('MERGE') },
-            { label: "각주 정리", icon: <span>📑</span>, onClick: () => dispatch('ORGANIZE_FOOTNOTES') },
-          { label: "환경 설정", icon: <span>⚙️</span>, onClick: () => dispatch('SETTINGS') },
+          { label: t('globalSearch'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
+          { label: t('copyPreview'), icon: <Icon name="Copy" size={15} />, onClick: () => dispatch('COPY_ALL') },
+          { label: "문서 병합", icon: <Icon name="Layers" size={15} />, onClick: () => dispatch('MERGE') },
+          { label: "각주 정리", icon: <Icon name="Document" size={15} />, onClick: () => dispatch('ORGANIZE_FOOTNOTES') },
+          { label: "환경 설정", icon: <Icon name="Settings" size={15} />, onClick: () => dispatch('SETTINGS') },
         ]}
       />
       <MenuDropdown 
@@ -362,8 +367,8 @@ export default function MenuBar() {
         onClose={() => setActiveMenu(null)}
         isDarkMode={isDarkMode}
           items={[
-            { label: "사용 설명서", icon: <span>📖</span>, onClick: () => dispatch('HELP') },
-            { label: t('license'), icon: <span>🔑</span>, onClick: () => dispatch('LICENSE') },
+            { label: "사용 설명서", icon: <Icon name="Book" size={15} />, onClick: () => dispatch('HELP') },
+            { label: t('license'), icon: <Icon name="Key" size={15} />, onClick: () => dispatch('LICENSE') },
           ]}
       />
       

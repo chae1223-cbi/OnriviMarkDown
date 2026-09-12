@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeService-0001] knowledgeService.ts ➔ Knowledge Service Facade
 // 🎯 @KICK  : 지식 엔진의 청킹, DB 인프라, LLM 분석, 하이브리드 검색, 출처 생성을 통합 제공하는 서비스 파사드
 // 🛡️ @GUARD : 3대 가드(리소스 폴더/AI 연결/플랜) 검증, SHA-256 파일 해시 무결성, 단일 트랜잭션(All-or-Nothing) 완전 롤백
-// 🚨 @PATCH : **2026-09-06** — [지식 문서 해제 경로 정규화 및 파일명 매칭 폴백] deleteDocument 호출 시 클라이언트와 DB 간의 경로 표기법(슬래시/역슬래시, 상대/절대경로) 차이로 인해 문서가 삭제되지 않던 현상을 해결하기 위해 정규화 경로 및 파일명 접미사 매칭 폴백 쿼리를 적용하여 100% 원자적 삭제 보장
+// 🚨 @PATCH : **2026-09-12** — [DB 순수 FTS5 검색 시 AI 키 가드 유연화] searchCandidates 호출 시 LLM 비호출 순수 DB 검색에 대해 DUMMY_KEY_FOR_SEARCH 폴백을 적용하여 API 키 미전달 상태에서도 지식 후보 청크가 원활히 검색되도록 보장
+//             **2026-09-06** — [지식 문서 해제 경로 정규화 및 파일명 매칭 폴백] deleteDocument 호출 시 클라이언트와 DB 간의 경로 표기법(슬래시/역슬래시, 상대/절대경로) 차이로 인해 문서가 삭제되지 않던 현상을 해결하기 위해 정규화 경로 및 파일명 접미사 매칭 폴백 쿼리를 적용하여 100% 원자적 삭제 보장
 //             **2026-09-06** — [빈 문서 예외 방어 및 조회/삭제 시 AI 키 가드 유연화] 파일 내용이 비어있거나 읽기 실패 시 safeContent 기본 구조화 폴백을 적용하여 DB 등록 에러 원천 차단, listDocuments/deleteDocument 등 DB 순수 조회/삭제 시 AI API 키 미설정 상태에서도 정상 작동하도록 DUMMY_KEY 폴백 적용
 //             **2026-09-05** — [지식 문서 해제 시 작업 큐 원자적 연계 청소] deleteDocument 및 deleteErrorDocuments 수행 시 knowledge_jobs의 대기/실행 작업도 단일 트랜잭션에서 함께 원자적 삭제하도록 무결성 강화
 //             **2026-09-04** — [지식 문서 등록 상세 내역 및 getDocumentDetail 구현] indexDocument 반환값에 청크/태그/검색어 상세내역(detail) 포함 및 getDocumentDetail 서비스 메소드 구현
@@ -174,7 +175,7 @@ export class KnowledgeService {
    */
   static searchCandidates(params: SearchKnowledgeParams): RetrievalCandidate[] {
     const { query, resourceFolder, geminiApiKey, planCode, collectionId, limit } = params;
-    const guard = checkKnowledgeGuard({ resourceFolder, geminiApiKey, planCode });
+    const guard = checkKnowledgeGuard({ resourceFolder, geminiApiKey: geminiApiKey || 'DUMMY_KEY_FOR_SEARCH', planCode });
     if (!guard.canUseKnowledge) return [];
     if (!hasKnowledgeDatabase(resourceFolder)) return [];
 

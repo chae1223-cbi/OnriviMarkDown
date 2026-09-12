@@ -1,6 +1,13 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
-// 🚨 @PATCH : **2026-09-11** — [웹 브라우저 WASM 지식 DB 백업/원복/다운로드/삭제 Onrivi_Asset/db/backups 경로 일치화 및 매니페스트/디렉토리 순회 보강]
+// 🚨 @PATCH : **2026-09-12** — [무관한 문서 오매칭 및 0건 임의 폴백 전면 제거 / 정밀 키워드 검색 확립]
+//             1) 사용자 요구 반영("상관없는 문서가 나오지 않아야 정상"): 0건 검색 시 최신 문서를 임의로 가져오던 fallbackSql 전면 영구 제거
+//             2) 한국어 프롬프트 서술/요청 동사(기술해줘, 기술, 서술, 써줘 등) 불용어 필터링 완전 추가로 엉뚱한 개발 규약/문서 오매칭 원천 차단
+//             3) 복합 키워드 검색 시 다중 핵심어 동시 일치(AND) 요구조건 및 임계 점수(단일 30점, 복수 35점) 적용으로 무관 문서 유입 0건 방어 보장
+// 🚨 @PATCH : **2026-09-12** — [WASM 하이브리드 지식 검색 엔진 강화]
+//             1) searchBrowserKnowledge에서 한국어 조사 및 대화형 불용어를 정제하여 구어체 프롬프트에서도 핵심 키워드 정확 추출
+//             2) snippet에 chunk_text 원문을 우선 주입하여 AI 모델에 풍부한 지식 컨텍스트 전달
+//             **2026-09-11** — [웹 브라우저 WASM 지식 DB 백업/원복/다운로드/삭제 Onrivi_Asset/db/backups 경로 일치화 및 매니페스트/디렉토리 순회 보강]
 //             1) getBackupsDirectoryHandle을 도입하여 데스크톱과 100% 동일한 Onrivi_Asset/db/backups 경로를 탐색하도록 일치화
 //             2) listBrowserBackups에서 backups_manifest.json 외에도 실제 *.db 백업 파일들을 entries() 순회하여 데스크톱에서 생성된 백업 파일이 웹 브라우저에서도 즉시 완벽하게 노출되도록 보강
 //             3) deleteBrowserBackup, getBrowserBackupBlob, restoreBrowserFromUploadedFile 신설로 웹 브라우저에서도 백업 생성/원복/다운로드/업로드원복/삭제 100% 동작 보장
@@ -909,9 +916,58 @@ export async function searchBrowserKnowledge(
   }
 
   const { db } = await getBrowserKnowledgeDb(folderHandle);
-  const terms = query.replace(/[^\w\s가-힣]/g, ' ').trim().split(/\s+/).filter(t => t.length > 0);
+  
+  // 한국어 조사 및 대화형 불용어 정제 후 핵심 검색 키워드 추출
+  const rawTerms = query.replace(/[^\w\s가-힣]/g, ' ').trim().split(/\s+/).filter(t => t.length > 0);
+  const termsSet = new Set<string>();
+  const josaRegex = /(은|는|이|가|을|를|의|에|에게|에서|로|으로|와|과|도|만|처럼|같이|부터|까지|하고|하여|해서|해줘|해줄래|해주세요|인|인스턴스)?$/;
+  const conversationalStopwords = new Set([
+    '작성', '작성해', '작성해줘', '작성해줄래', '작성해주세요', '작성하기', '작성된',
+    '기술', '기술해', '기술해줘', '기술해줄래', '기술해주세요', '기술하기', '기술한', '기술된',
+    '서술', '서술해', '서술해줘', '서술해줄래', '서술해주세요', '서술하기', '서술한', '서술된',
+    '설명', '설명해', '설명해줘', '설명해줄래', '설명해주세요', '설명하기', '설명된',
+    '알려줘', '알려줄래', '알려주세요', '알려', '알려주기',
+    '찾아줘', '찾아줄래', '찾아주세요', '검색', '검색해', '검색해줘', '검색해주세요',
+    '가르쳐줘', '가르쳐주세요', '가르쳐',
+    '요약', '요약해', '요약해줘', '요약해주세요', '요약하기',
+    '정리', '정리해', '정리해줘', '정리해주세요', '정리하기',
+    '말해줘', '말해줄래', '말해주세요', '이야기', '이야기해줘',
+    '적어줘', '적어줄래', '적어주세요', '써줘', '써주세요', '써줄래', '쓰기',
+    '소개', '소개해', '소개해줘', '소개해주세요', '소개하는',
+    '추천', '추천해', '추천해줘', '추천해주세요',
+    '비교', '비교해', '비교해줘', '비교해주세요',
+    '분석', '분석해', '분석해줘', '분석해주세요',
+    '안내', '안내해', '안내해줘', '안내해주세요',
+    '답변', '답변해', '답변해줘', '답변해주세요', '답해줘',
+    '보여줘', '보여주세요', '출력', '출력해', '출력해줘',
+    '부탁', '부탁해', '부탁해요', '부탁드립니다',
+    '관련', '관련된', '관련한', '관해서', '관하여', '관한', '관해',
+    '대해', '대해서', '대하여', '대한',
+    '내용', '글', '글을', '문서', '자료', '정보', '항목', '방법', '방식',
+    '무엇', '어떤', '어떻게', '있는', '있는지', '새로운', '가장', '위', '아래', '통해', '위해',
+    '대략', '자세히', '상세히', '친절히', '간단히', '명확히', '모두', '전부'
+  ]);
 
-  // 모든 READY 문서의 청크와 태그를 매칭
+  for (const t of rawTerms) {
+    const lower = t.toLowerCase();
+    const stripped = lower.replace(josaRegex, '');
+    if (conversationalStopwords.has(lower) || conversationalStopwords.has(stripped)) {
+      continue;
+    }
+    if (stripped.length >= 2) {
+      termsSet.add(stripped);
+    } else if (lower.length >= 2 && !conversationalStopwords.has(lower)) {
+      termsSet.add(lower);
+    }
+  }
+  const terms = Array.from(termsSet);
+
+  // 의미 있는 검색 키워드가 하나도 없으면 0건 반환 (불용어로만 구성된 질의 방어)
+  if (terms.length === 0) {
+    return { candidates: [] };
+  }
+
+  // 모든 활성(READY/ACTIVE/INDEXED) 문서의 청크와 태그 매칭
   const sql = `
     SELECT 
       c.id AS chunk_id, c.document_id, c.chunk_index, c.heading_title,
@@ -920,7 +976,7 @@ export async function searchBrowserKnowledge(
       d.file_path, d.title AS doc_title, d.priority AS doc_priority
     FROM document_chunks c
     JOIN knowledge_documents d ON c.document_id = d.id
-    WHERE d.status = 'READY'
+    WHERE UPPER(d.status) IN ('READY', 'ACTIVE', 'INDEXED')
     ORDER BY d.modified_at DESC;
   `;
 
@@ -936,16 +992,25 @@ export async function searchBrowserKnowledge(
     const docTitle = String(row.doc_title || '');
 
     let matchScore = 0;
+    let matchedTermsCount = 0;
     for (const term of terms) {
       const lowerTerm = term.toLowerCase();
-      if (docTitle.toLowerCase().includes(lowerTerm)) matchScore += 35;
-      if (heading.toLowerCase().includes(lowerTerm)) matchScore += 30;
-      if (keywords.toLowerCase().includes(lowerTerm)) matchScore += 25;
-      if (summary.toLowerCase().includes(lowerTerm)) matchScore += 15;
-      if (text.toLowerCase().includes(lowerTerm)) matchScore += 10;
+      let termMatched = false;
+      if (docTitle.toLowerCase().includes(lowerTerm)) { matchScore += 35; termMatched = true; }
+      if (heading.toLowerCase().includes(lowerTerm)) { matchScore += 30; termMatched = true; }
+      if (keywords.toLowerCase().includes(lowerTerm)) { matchScore += 25; termMatched = true; }
+      if (summary.toLowerCase().includes(lowerTerm)) { matchScore += 15; termMatched = true; }
+      if (text.toLowerCase().includes(lowerTerm)) { matchScore += 10; termMatched = true; }
+      if (termMatched) matchedTermsCount++;
     }
 
-    if (matchScore > 0) {
+    // 최소 유효 매칭 기준:
+    // 1) 2개 이상의 복수 핵심어 검색 시: 최소 2개 이상의 서로 다른 핵심어가 매칭되어야 함 (단순 1개 단어 우연 등장 배제)
+    // 2) 최소 신뢰 점수(단일어 30점 이상, 복수어 35점 이상) 미달 시 탈락 -> 질의와 무관한 문서 노이즈 유입 원천 차단
+    const minRequiredTerms = terms.length >= 2 ? Math.min(terms.length, 2) : 1;
+    const minRequiredScore = terms.length >= 2 ? 35 : 30;
+
+    if (matchScore >= minRequiredScore && matchedTermsCount >= minRequiredTerms) {
       const cand: RetrievalCandidate = {
         chunkId: String(row.chunk_id),
         documentId: String(row.document_id),
@@ -963,12 +1028,17 @@ export async function searchBrowserKnowledge(
         priorityScore: Number(row.doc_priority || 3) * 5,
         finalScore: Math.min(100, matchScore),
         score: Math.min(100, matchScore),
-        snippet: summary || text.slice(0, 160),
+        snippet: text || summary || '',
       };
       scoredList.push({ cand, score: matchScore });
     }
   }
   stmt.free();
+
+  // 검색 결과가 0건이면 임의 문서를 폴백하지 않고 깨끗하게 빈 배열 반환 (사용자 의도: 안 나와야 정상)
+  if (scoredList.length === 0) {
+    return { candidates: [] };
+  }
 
   scoredList.sort((a, b) => b.score - a.score);
   const topCandidates = scoredList.slice(0, limit).map(item => item.cand);
@@ -977,12 +1047,9 @@ export async function searchBrowserKnowledge(
   if (geminiApiKey && geminiApiKey.trim() && geminiApiKey !== 'DUMMY_KEY' && topCandidates.length > 0) {
     try {
       const provider = createKnowledgeLLMProvider('gemini', geminiApiKey, aiModelName || 'gemini-3.8-flash');
-      const contextText = topCandidates.map(c => `[출처: ${c.documentTitle} (${c.headingTitle})]\n${c.snippet}`).join('\n\n');
-      const answerPrompt = `사용자 질문: "${query}"\n\n아래 지식 베이스 문맥을 바탕으로 명확하게 답변해 주세요:\n\n${contextText}`;
-      const res = await (provider as any).genAI
-        .getGenerativeModel({ model: aiModelName || 'gemini-3.8-flash' })
-        .generateContent(answerPrompt);
-      answer = res.response.text();
+      const contextText = topCandidates.map(c => `[출처: ${c.documentTitle} > ${c.headingPath || c.headingTitle} (L${c.startLine}~L${c.endLine})]\n${c.snippet}`).join('\n\n');
+      const { answer: ans } = await provider.answerQuestion(query, contextText);
+      answer = ans;
     } catch (e) {
       console.warn('[searchBrowserKnowledge] LLM 답변 생성 실패:', e);
     }

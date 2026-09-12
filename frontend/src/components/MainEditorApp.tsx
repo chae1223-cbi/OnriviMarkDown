@@ -4,6 +4,9 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+//             **2026-09-12** — [AI 모델 단일 소스(SSOT) 표준화]: 하단 플로팅 AI 모델 팝오버 및 2행 상태 표시줄을 ONRIVI_AI_MODELS 중앙 정의와 100% 동기화 (누락되었던 Gemini 1.5 Flash 포함 10대 모델 일치)
+//             **2026-09-12** — AIDraftModal에 onModelChange prop 전달하여 모달 내부 모델 선택과 에디터 상태 실시간 양방향 동기화; 하단 플로팅 AI 모델 목록에 공인 안정 모델(Gemini 2.5 Flash, Gemini 2.0 Flash) 추가 연동
+//             **2026-09-12** — [플로팅 툴바 이모지 서식 원복 유지] 사용자 피드백을 반영하여 플로팅 서식 툴바의 친숙한 컬러 이모지(🔢, ☰, ❝, ☑️, 🧹, 🔗, 🔖, 📝, 🖼️, 🎞️, 📅, 🌏, 📶, ⇤, ↔, ⇥, ⌨️, 🧮) 인터페이스를 원래대로 완벽 복원 및 유지
 //             **2026-09-11** — [에디터 Pretendard 웹폰트 1순위 적용] 모나코 에디터 fontFamily를 Pretendard/Pretendard Variable 최우선으로 변경하여 원번호(①, ②, ③) 크기 불일치 해소 및 무설치 고품질 한글 렌더링 보장
 //             **2026-09-11** — [코드블록 퀵래핑 언어 지원] quickWrap('code') 실행 시 insertBlockTag('```markdown', '```', '코드')로 연동하여 기본 언어를 markdown으로 지정하고 언어 자동 선택 보장
 //             **2026-09-11** — [인용구 Alert 태그 선택 커맨드 및 핸들러 연동] applyLinePrefix에 alertType 지원 및 Alert 태그 치환 로직 추가, QUOTE_NOTE ~ QUOTE_CAUTION 5종 커맨드 디스패치 연동
@@ -146,10 +149,12 @@ import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder 
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import ExportModal from '@/components/ExportModal'; // 모달
 import OAIcon from './icon_onriveauther.png'; // 아이콘 
+import { ONRIVI_AI_MODELS, DEFAULT_AI_MODEL } from '@/lib/gemini';
 
 // 분리된 컴포넌트들 임포트
 import MenuBar from '@/components/MenuBar'; // 메뉴바
 import Toolbar from '@/components/Toolbar'; // 툴바
+import { Icon } from '@/components/icons/Icon';
 
 import StatusBar from '@/components/StatusBar'; // 상태바
 import ImageModal from '@/components/ImageModal'; // 모달
@@ -7006,16 +7011,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">Gemini / Gemma</span>
                               </div>
                               <div className="max-h-56 overflow-y-auto space-y-0.5">
-                                {[
-                                  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', desc: '최신 플래그십 / 초고속', badge: '최신' },
-                                  { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', desc: '차세대 고성능 모델', badge: '추천' },
-                                  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: '고성능 안정화 모델' },
-                                  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', desc: '지능형 균형 모델' },
-                                  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', desc: '초경량 초고속 응답' },
-                                  { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT', desc: '확장 오픈 모델' },
-                                  { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B', desc: '경량 오픈 모델' }
-                                ].map((m) => {
-                                  const isSelected = (aiModelName || 'gemini-3.8-flash') === m.id;
+                                {ONRIVI_AI_MODELS.map((m) => {
+                                  const isSelected = (aiModelName || DEFAULT_AI_MODEL) === m.id;
                                   return (
                                     <button
                                       key={m.id}
@@ -7098,7 +7095,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                               }`}
                               title={
                                 geminiApiKey
-                                  ? `${userNickname || '익명'} AI 어시스턴트 열기`
+                                  ? `${userNickname || '익명'} AI 프롬프트 열기`
                                   : 'AI 연동 해제됨 (환경설정에서 API 키 등록 필요)'
                               }
                             >
@@ -7132,16 +7129,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                             {/* 2행: 모델 선택 */}
                             {(() => {
-                              const AI_AVAILABLE_MODELS = [
-                                { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
-                                { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
-                                { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash' },
-                                { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash' },
-                                { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite' },
-                                { id: 'gemma-4-31b-it', name: 'Gemma 4 31B IT' },
-                                { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B' }
-                              ];
-                              const currentModelObj = AI_AVAILABLE_MODELS.find(m => m.id === aiModelName);
+                              const currentModelObj = ONRIVI_AI_MODELS.find(m => m.id === aiModelName);
                               const displayModelFullName = currentModelObj ? currentModelObj.name : (aiModelName || 'Gemini 3.8 Flash');
 
                               return (
@@ -7292,11 +7280,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                          <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full left-0 mt-1 w-44 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50 flex flex-col">
                                            {[
                                              { id: 'QUOTE', label: '일반 인용구', icon: '❝' },
-                                             { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️' },
-                                             { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡' },
-                                             { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢' },
-                                             { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️' },
-                                             { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🛑' },
+                                             { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️', color: 'text-[#0969da] dark:text-[#2f81f7]' },
+                                             { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡', color: 'text-[#1a7f37] dark:text-[#3fb950]' },
+                                             { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢', color: 'text-[#8250df] dark:text-[#a371f7]' },
+                                             { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️', color: 'text-[#9a6700] dark:text-[#d29922]' },
+                                             { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🚨', color: 'text-[#d1242f] dark:text-[#f85149]' },
                                            ].map((opt) => (
                                              <button
                                                key={opt.id}
@@ -7308,7 +7296,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                                }}
                                                className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
                                              >
-                                               <span className="text-sm shrink-0">{opt.icon}</span>
+                                               <span className="text-[14px]">{opt.icon}</span>
                                                <span className="font-semibold text-zinc-800 dark:text-zinc-200">{opt.label}</span>
                                              </button>
                                            ))}
@@ -7316,7 +7304,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                        )}
                                      </div>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CHECK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="체크리스트">☑️</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="태그 취소"><Eraser size={14} className="text-red-500 opacity-80 hover:opacity-100" /></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="태그 취소">🚫</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="문서 서식 일괄 정리">🧹</button>
                                   </div>
                                   <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
@@ -7858,10 +7846,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               onApply={handleAIDraftApply} 
               geminiApiKey={geminiApiKey || ''}
               aiModelName={aiModelName || 'gemini-3.8-flash'}
+              onModelChange={(newModel) => setAiModelName?.(newModel)}
               initialMode={aiDraftInitialMode}
               editorContext={aiEditorContext}
               resourceFolder={resourceFolder}
-                resourceFolderHandle={resourceFolderHandle}
+              resourceFolderHandle={resourceFolderHandle}
             />
           )}
 

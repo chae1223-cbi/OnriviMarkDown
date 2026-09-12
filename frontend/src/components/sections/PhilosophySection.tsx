@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-PhilosophySection-0026] PhilosophySection ➔ PhilosophySection
 // 🎯 @KICK  : Onrivi Author가 꼭 필요한 4대 핵심 직업군(기획자·PM, 개발자·엔지니어, 마케터·작가, 연구원·학생)의 일상 속 고민과 해결 가치를 시각화하는 추천 대상 섹션
 // 🛡️ @GUARD : 반응형 4열 그리드 렌더링 및 모바일 가독성 가드
-// 🚨 @PATCH : **2026-09-11** — 4단계 프로세스를 '온리비가 꼭 필요한 4대 핵심 직업군(기획자, 개발자, 마케터, 연구원)' 추천 카드 섹션으로 전면 개편하여 Experience 섹션과의 중복 완전 해소
+// 🚨 @PATCH : **2026-09-12** — 랜딩페이지 섹션 교차(#EFEFFF / #FFFFFF) 배경 순서 반전 적용 (PhilosophySection: #FFFFFF)
+//             **2026-09-11** — 4단계 프로세스를 '온리비가 꼭 필요한 4대 핵심 직업군(기획자, 개발자, 마케터, 연구원)' 추천 카드 섹션으로 전면 개편하여 Experience 섹션과의 중복 완전 해소
 //             **2026-09-11** — 간편한 4단계 작성 카드 4종 전체를 사용자 지정 고화질 실사형 그래픽 이미지(/steps/step-1~4.jpg)로 전면 교체 반영
 //             **2026-09-11** — STEP 01(자유로운 기록) 카드를 사용자 지정 고화질 그래픽 이미지(/steps/step-1.jpg)로 교체 반영
 //             **2026-09-11** — 간편한 4단계 작성 카드를 사용자 지정 그래픽 이미지 카드(/steps/step-1~4.png)로 교체 탑재
@@ -58,9 +59,9 @@ const AUDIENCE_CARDS: AudienceCard[] = [
     tagline: "막힘없는 초안 & AI 문장 다듬기",
     painPoint: "“글 쓸 때마다 어색한 문장과 맞춤법을 다듬느라 퇴근 시간이 늦어지고 머리가 지끈거려요.”",
     solutions: [
-      "거친 메모를 읽기 좋은 매끄러운 카피로 AI 교정",
-      "보고서·안내문·블로그 등 타겟별 톤앤매너 전환",
-      "독자의 눈을 사로잡는 세련된 서체와 감각적 여백",
+      "생각나는 대로 빠르게 초안을 타이핑",
+      "AI가 어색한 문장과 띄어쓰기를 실시간 교정",
+      "블로그·뉴스레터·SNS 규격에 맞춰 원클릭 변환",
     ],
     icon: PenTool,
   },
@@ -82,13 +83,13 @@ export function PhilosophySection() {
   return (
     <section
       id="philosophy"
-      className="py-24 sm:py-32 bg-[#EFEFFF] dark:bg-[#15171A] border-y border-[#E2E4F6] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="py-24 sm:py-32 bg-[#FFFFFF] dark:bg-[#15171A] border-y border-[#E2E4F6] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase mb-4 shadow-2xs">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EFEFFF] dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase mb-4 shadow-2xs">
             누구에게 필요할까요?
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-5 text-[#111413] dark:text-white">

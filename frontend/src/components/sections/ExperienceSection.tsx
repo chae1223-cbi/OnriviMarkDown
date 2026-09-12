@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-ExperienceSection-0027] ExperienceSection ➔ ExperienceSection
 // 🎯 @KICK  : Onrivi Author의 3대 핵심 경험(집중 에디터, 실시간 AI 비서, 자동 스타일링)을 실제 제품 UI 목업과 함께 단계별로 몰입감 있게 선보이는 피처 섹션
 // 🛡️ @GUARD : 탭 상태 스위칭 및 반응형 카드 UI 오버플로우 방지
-// 🚨 @PATCH : **2026-09-11** — 간편한 4단계 작성 섹션과의 메시지 중복을 해소하고, '미리 만나는 온리비' 에디터 핵심 기능 체험(집중 에디터, 실시간 AI 비서, 자동 스타일링) 쇼케이스로 전면 차별화 개편
+// 🚨 @PATCH : **2026-09-12** — 랜딩페이지 섹션 교차(#EFEFFF / #FFFFFF) 배경 순서 반전 적용 (ExperienceSection: #EFEFFF)
+//             **2026-09-11** — 간편한 4단계 작성 섹션과의 메시지 중복을 해소하고, '미리 만나는 온리비' 에디터 핵심 기능 체험(집중 에디터, 실시간 AI 비서, 자동 스타일링) 쇼케이스로 전면 차별화 개편
 //             **2026-09-11** — ExperienceSection 문구를 실생활 친화적이고 직관적인 일상 언어(편안한 작성, 다정한 AI 도우미, 예쁜 문서 완성 등)로 전면 개편
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
@@ -58,10 +59,10 @@ export function ExperienceSection() {
       tabTitle: "자동 스타일링",
       tag: "원클릭 고품질 조판",
       heading: "디자이너가 만진 듯, 읽기 편한 서식과 레이아웃이 입혀집니다.",
-      subheading: "누구에게 보여줘도 칭찬받는 깔끔한 조판 디자인이 자동으로 완성.",
-      desc: "복잡한 서식 툴 없이도 글에 어울리는 최적의 폰트, 여백, 표 디자인이 알아서 정리됩니다. 완성된 문서는 PDF, 웹 링크, 이미지 파일로 언제 어디서나 깔끔하게 공유할 수 있습니다.",
+      subheading: "작성 완료 즉시 단정한 여백과 폰트가 적용된 문서로 완성.",
+      desc: "스타일 서식을 고민할 필요가 없습니다. 온리비의 검증된 활자 조판 템플릿이 문단과 제목을 보기 좋게 정렬해 주며, 곧바로 인쇄하거나 PDF로 공유할 수 있습니다.",
       bullets: [
-        "눈이 편안한 전용 서체와 황금비율 여백 자동 조판",
+        "출판 및 학술 논문 규격의 황금 비율 폰트·줄간격 자동 배분",
         "인쇄와 보고에 최적화된 깔끔한 PDF 원클릭 저장",
         "팀원 및 고객과 간편하게 주고받는 웹 공유 링크 지원",
       ],
@@ -75,13 +76,13 @@ export function ExperienceSection() {
   return (
     <section
       id="experience"
-      className="py-24 sm:py-32 bg-[#FFFFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9] relative overflow-hidden"
+      className="py-24 sm:py-32 bg-[#EFEFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9] relative overflow-hidden"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-14">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EFEFFF] dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase mb-4 shadow-2xs">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase mb-4 shadow-2xs">
             미리 만나는 온리비
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 text-[#111413] dark:text-white">
@@ -95,7 +96,7 @@ export function ExperienceSection() {
 
         {/* Tab Selector Buttons */}
         <div className="flex justify-center mb-12 sm:mb-16">
-          <div className="inline-flex p-1.5 rounded-2xl bg-[#EFEFFF] dark:bg-[#1A1D22] border border-[#E2E4F6] dark:border-white/10 max-w-full overflow-x-auto shadow-2xs">
+          <div className="inline-flex p-1.5 rounded-2xl bg-white dark:bg-[#1A1D22] border border-[#E2E4F6] dark:border-white/10 max-w-full overflow-x-auto shadow-2xs">
             {experiences.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -126,7 +127,7 @@ export function ExperienceSection() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.35 }}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center rounded-3xl border border-[#E2E4F6] dark:border-white/10 bg-[#EFEFFF]/70 dark:bg-[#16181D] p-6 sm:p-10 lg:p-12 shadow-sm"
+            className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center rounded-3xl border border-[#E2E4F6] dark:border-white/10 bg-white dark:bg-[#16181D] p-6 sm:p-10 lg:p-12 shadow-sm"
           >
             {/* Left Description Column */}
             <div className="lg:col-span-5 space-y-6 text-left">
