@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-knowledgeDb-0001] knowledgeDb.ts ➔ Knowledge SQLite Engine
 // 🎯 @KICK  : 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db) SQLite FTS5 데이터베이스 인프라 및 원자적 트랜잭션 관리
+// 🚨 @PATCH : **2026-09-13** — [유니코드 NFC 정규화 및 Node SQLite 인메모리 심층 문서 매칭 고도화]: getDocumentDetailFromDb에서 char(92) 경로 슬래시 치환 및 NFD/NFC 자모 분리 불일치 해결을 위한 인메모리 유니코드 정규화(NFC) 6단계 스캔 폴백을 추가하여 한국어 특수 파일명/경로 지식 문서 100% 탐색 보장
 // 🚨 @PATCH : **2026-09-12** — [지식 문서 상세조회 제목/헤딩/청크 다중 폴백 고도화] getDocumentDetailFromDb에 heading 매개변수 지원 및 청크(document_chunks) heading_title/heading_path 검색 폴백, 제목 부분 일치(LIKE) 지원
 //             **2026-09-11** — [SQLite database is locked 치명적 자동 복구 파괴 방어 및 백업 파일 복사 폴백] initKnowledgeDatabase에서 database is locked / busy 경합 발생 시 auto-recovery(DB 삭제 및 빈 DB 덮어쓰기)로 진입하지 않고 즉시 예외를 발생시키도록 보호하고, backupKnowledgeDatabase에서 잠금 경합 시 직접 파일 복사 폴백을 지원하여 DB 파괴를 원천 방어
 //             **2026-09-06** — [실제 리소스 폴더 드라이브 자동 순회 탐색] resolveSafeResourceFolder에서 'Onrivi_Asset' 또는 'C:\Onrivi_Asset' 유입 시 실제 D:\, C:\, E:\ 드라이브를 순회하여 onrivi_knowledge.db가 존재하는 실제 드라이브를 찾아 연결 — 데스크톱/로컬 환경 탐색기 📗 지식문서 표시 정상화
@@ -759,7 +760,7 @@ export function getDocumentDetailFromDb(
       if (!doc) {
         const normSlash = filePath.replace(/\\/g, '/');
         const normBack = filePath.replace(/\//g, '\\');
-        doc = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, \'\\\', \'/\') = ? OR replace(file_path, \'/\', \'\\\') = ?').get(normSlash, normBack);
+        doc = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, char(92), \'/\') = ? OR replace(file_path, \'/\', char(92)) = ?').get(normSlash, normBack);
       }
       // 3) 파일명(Basename) 접미사 매칭 폴백
       if (!doc) {
@@ -811,6 +812,37 @@ export function getDocumentDetailFromDb(
           );
         } catch {}
       }
+    }
+
+    // 6) 💡 [유니코드 NFC 정규화 및 인메모리 심층 문서 매칭 폴백]
+    if (!doc && (filePath || heading)) {
+      try {
+        const rawTarget = (filePath || heading || '').normalize('NFC').replace(/\\/g, '/');
+        const targetClean = rawTarget.split(/[?#]/)[0].trim();
+        const targetBase = (targetClean.split('/').pop() || targetClean).replace(/\.md$/i, '').toLowerCase();
+
+        if (targetBase) {
+          const allDocs = db.prepare('SELECT id, file_path, title FROM knowledge_documents').all() as any[];
+          for (const row of allDocs) {
+            const rowPath = String(row.file_path || '').normalize('NFC').replace(/\\/g, '/');
+            const rowTitle = String(row.title || '').normalize('NFC').toLowerCase();
+            const rowBase = (rowPath.split('/').pop() || '').replace(/\.md$/i, '').toLowerCase();
+
+            if (
+              rowPath.toLowerCase() === targetClean.toLowerCase() ||
+              rowPath.toLowerCase().endsWith('/' + targetBase + '.md') ||
+              rowPath.toLowerCase().endsWith('/' + targetBase) ||
+              rowBase === targetBase ||
+              rowTitle === targetBase ||
+              (targetBase.length >= 3 && (rowTitle.includes(targetBase) || targetBase.includes(rowTitle))) ||
+              (targetBase.length >= 3 && (rowBase.includes(targetBase) || targetBase.includes(rowBase)))
+            ) {
+              doc = db.prepare('SELECT * FROM knowledge_documents WHERE id = ?').get(row.id);
+              break;
+            }
+          }
+        }
+      } catch {}
     }
   }
 

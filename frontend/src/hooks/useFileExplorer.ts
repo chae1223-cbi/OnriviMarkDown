@@ -14,7 +14,8 @@ import { knowledgeClient } from '@/lib/knowledge/knowledgeClient';
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
-// 🚨 @PATCH : **2026-09-13** — [작업장 불일치 지식 DB 청크 본문 완전 복원 및 빈 탭 자동 수화 강화]: getDocumentDetail 반환 구조(detail.chunks/chunkText) 연동으로 WASM SQLite 지식 보관함에서 원본 마크다운 본문을 100% 완전 복원하여 탭에 주입, 기존 빈 더미 탭 자동 수화(Hydration) 2중 체계(디스크 API + WASM 지식 DB) 구축으로 웹/프로드/로컬 전 환경 결함 원천 해결
+// 🚨 @PATCH : **2026-09-13** — [모나코 에디터 라인 범위 클램프 가드 및 프로드 웹 404 방어]: jumpToAnchor에서 startLine/endLine을 model.getLineCount() 범위 내로 안전 클램핑하여 getLineMaxColumn lineNumber 범위 초과 에러를 영구 차단하고, /api/file-content 디스크 조회를 localhost/Electron 환경으로 한정 가드하여 프로드 웹(onrivi.com) 404 콘솔 오류 원천 제거
+//             **2026-09-13** — [작업장 불일치 지식 DB 청크 본문 완전 복원 및 빈 탭 자동 수화 강화]: getDocumentDetail 반환 구조(detail.chunks/chunkText) 연동으로 WASM SQLite 지식 보관함에서 원본 마크다운 본문을 100% 완전 복원하여 탭에 주입, 기존 빈 더미 탭 자동 수화(Hydration) 2중 체계(디스크 API + WASM 지식 DB) 구축으로 웹/프로드/로컬 전 환경 결함 원천 해결
 //             **2026-09-13** — [작업장 불일치 외부 절대경로(file:///) 문서 오픈 및 로컬 디스크 원문 로드 연동]: 현재 열린 작업장 폴더와 출처 문서의 폴더가 상이할 때 브라우저 권한 한계를 극복하기 위해 /api/file-content를 호출하여 실제 로컬 디스크 원본 파일(2,000자 이상)을 100% 온전히 로드하고, 기존 빈 플레이스홀더 탭 자동 수화(Hydration) 및 라인 범위(#L시작-L끝) 점프 연동
 //             **2026-09-13** — [출처 링크 점프 고도화 및 에디터-미리보기 동시 스크롤·하이라이트]: jumpToAnchor에서 라인 범위(#L시작-L끝) 파싱, Monaco Range 전체 선택 및 중앙 정렬, 미리보기 요소 자동 스크롤 및 preview-highlight-line 시각적 강조 애니메이션 플래시, 탭 마운트 시차 보정을 위한 지연 재시도(Retry) 적용
 //             **2026-09-13** — [하드코딩 시딩 배제 및 서버 동적 경로 획득 정착]: selectRootFolder 및 rootFolderRefreshEffect에서 임의 하드코딩 시딩을 완전 배제하고, 서버 API(/api/knowledge/resolve-path)를 통해 OS 실제 작업장 절대경로를 동적 획득하여 onrivi_workspace_path에 저장
@@ -359,13 +360,16 @@ export const useFileExplorer = ({
               const model = editor.getModel();
               if (model) {
                 const monaco = (window as any).monaco;
+                const lineCount = model.getLineCount();
+                const clampedStart = Math.min(Math.max(1, startLine), Math.max(1, lineCount));
+                const clampedEnd = Math.min(Math.max(clampedStart, endLine), Math.max(1, lineCount));
                 if (monaco && monaco.Range) {
-                  const maxCol = model.getLineMaxColumn(endLine);
-                  editor.setSelection(new monaco.Range(startLine, 1, endLine, maxCol));
-                  editor.revealRangeInCenter(new monaco.Range(startLine, 1, endLine, 1));
+                  const maxCol = model.getLineMaxColumn(clampedEnd);
+                  editor.setSelection(new monaco.Range(clampedStart, 1, clampedEnd, maxCol));
+                  editor.revealRangeInCenter(new monaco.Range(clampedStart, 1, clampedEnd, 1));
                 } else {
-                  editor.revealLineInCenter(startLine);
-                  editor.setPosition({ lineNumber: startLine, column: 1 });
+                  editor.revealLineInCenter(clampedStart);
+                  editor.setPosition({ lineNumber: clampedStart, column: 1 });
                 }
                 editor.focus();
                 editorScrolled = true;
@@ -726,38 +730,45 @@ export const useFileExplorer = ({
     }
 
     // 💡 [로컬 디스크 파일 직접 읽기 API (작업장 폴더 불일치 / 절대경로 file:/// 완벽 지원)]
-    try {
-      const queryPath = pathWithoutHash.startsWith('file:///') ? pathWithoutHash : (cleanPath.startsWith('file:///') ? cleanPath : pathWithoutHash);
-      const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(queryPath)}`));
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ok && typeof data.content === 'string') {
-          const filename = data.title || targetBaseNameWithMd || targetBaseName || '문서.md';
-          const resolvedDiskPath = data.path || pathWithoutHash;
+    const canCallDiskApi = typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      !!(window as any).electronAPI
+    );
+    if (canCallDiskApi) {
+      try {
+        const queryPath = pathWithoutHash.startsWith('file:///') ? pathWithoutHash : (cleanPath.startsWith('file:///') ? cleanPath : pathWithoutHash);
+        const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(queryPath)}`));
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && typeof data.content === 'string') {
+            const filename = data.title || targetBaseNameWithMd || targetBaseName || '문서.md';
+            const resolvedDiskPath = data.path || pathWithoutHash;
 
-          const existingTab = tabsRef.current.find(t => 
-            t.path === resolvedDiskPath || 
-            t.path === pathWithoutHash || 
-            t.name === filename
-          );
+            const existingTab = tabsRef.current.find(t => 
+              t.path === resolvedDiskPath || 
+              t.path === pathWithoutHash || 
+              t.name === filename
+            );
 
-          if (existingTab) {
-            existingTab.content = data.content;
-            if (existingTab.model && !existingTab.model.isDisposed()) {
-              existingTab.model.setValue(data.content);
+            if (existingTab) {
+              existingTab.content = data.content;
+              if (existingTab.model && !existingTab.model.isDisposed()) {
+                existingTab.model.setValue(data.content);
+              }
+              setContent(data.content);
+              switchTab(existingTab.id);
+            } else {
+              createNewTab(data.content, filename, false, resolvedDiskPath);
+              setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath } : t));
             }
-            setContent(data.content);
-            switchTab(existingTab.id);
-          } else {
-            createNewTab(data.content, filename, false, resolvedDiskPath);
-            setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath } : t));
+            jumpToAnchor(targetHash);
+            return;
           }
-          jumpToAnchor(targetHash);
-          return;
         }
+      } catch (diskErr) {
+        console.warn('[handleFileOpenByPath] /api/file-content 디스크 파일 읽기 시도 예외:', diskErr);
       }
-    } catch (diskErr) {
-      console.warn('[handleFileOpenByPath] /api/file-content 디스크 파일 읽기 시도 예외:', diskErr);
     }
 
     // 💡 [VFS/IndexedDB 우선 예외 가드]

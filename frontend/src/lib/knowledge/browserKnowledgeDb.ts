@@ -1,5 +1,6 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
+// 🚨 @PATCH : **2026-09-13** — [유니코드 NFC 정규화 및 WASM SQLite 인메모리 심층 문서 매칭 고도화]: getBrowserDocumentDetail에서 char(92) 경로 슬래시 치환 및 NFD/NFC 자모 분리 불일치 해결을 위한 인메모리 유니코드 정규화(NFC) 6단계 스캔 폴백을 추가하여 한국어 특수 파일명/경로 지식 문서 100% 탐색 보장
 // 🚨 @PATCH : **2026-09-12** — [로컬스토리지 작업장 경로 연동 및 Onrivi_Asset 오탐 자동 치유]
 //             1) pathResolver에서 ensureClientAbsolutePath, resolveClientAbsolutePath 단일 import로 통합 일원화
 //             2) listBrowserDocuments에서 Onrivi_Asset이 잘못 결합된 기존 레코드(D:/Onrivi_Asset/체험하기/...)를 감지하여 로컬스토리지 작업장 실제 경로(E:/ZZ 개인자료/블러그/...)로 즉시 영구 자동 치유(UPDATE)
@@ -583,7 +584,7 @@ export async function getBrowserDocumentDetail(
       if (!d) {
         const normSlash = filePath.replace(/\\/g, '/');
         const normBack = filePath.replace(/\//g, '\\');
-        const normStmt = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, \'\\\', \'/\') = :s OR replace(file_path, \'/\', \'\\\') = :b LIMIT 1');
+        const normStmt = db.prepare('SELECT * FROM knowledge_documents WHERE replace(file_path, char(92), \'/\') = :s OR replace(file_path, \'/\', char(92)) = :b LIMIT 1');
         normStmt.bind({ ':s': normSlash, ':b': normBack });
         if (normStmt.step()) d = normStmt.getAsObject();
         normStmt.free();
@@ -638,6 +639,50 @@ export async function getBrowserDocumentDetail(
           if (chunkStmt.step()) d = chunkStmt.getAsObject();
           chunkStmt.free();
         } catch {}
+      }
+    }
+
+    // 6) 💡 [유니코드 NFC 정규화 및 인메모리 심층 문서 매칭 폴백]
+    if (!d && (filePath || heading)) {
+      try {
+        const rawTarget = (filePath || heading || '').normalize('NFC').replace(/\\/g, '/');
+        const targetClean = rawTarget.split(/[?#]/)[0].trim();
+        const targetBase = (targetClean.split('/').pop() || targetClean).replace(/\.md$/i, '').toLowerCase();
+
+        if (targetBase) {
+          const allDocsStmt = db.prepare('SELECT id, file_path, title FROM knowledge_documents');
+          let matchedId: string | null = null;
+          while (allDocsStmt.step()) {
+            const row = allDocsStmt.getAsObject();
+            const rowId = String(row.id || '');
+            const rowPath = String(row.file_path || '').normalize('NFC').replace(/\\/g, '/');
+            const rowTitle = String(row.title || '').normalize('NFC').toLowerCase();
+            const rowBase = (rowPath.split('/').pop() || '').replace(/\.md$/i, '').toLowerCase();
+
+            if (
+              rowPath.toLowerCase() === targetClean.toLowerCase() ||
+              rowPath.toLowerCase().endsWith('/' + targetBase + '.md') ||
+              rowPath.toLowerCase().endsWith('/' + targetBase) ||
+              rowBase === targetBase ||
+              rowTitle === targetBase ||
+              (targetBase.length >= 3 && (rowTitle.includes(targetBase) || targetBase.includes(rowTitle))) ||
+              (targetBase.length >= 3 && (rowBase.includes(targetBase) || targetBase.includes(rowBase)))
+            ) {
+              matchedId = rowId;
+              break;
+            }
+          }
+          allDocsStmt.free();
+
+          if (matchedId) {
+            const mStmt = db.prepare('SELECT * FROM knowledge_documents WHERE id = :id LIMIT 1');
+            mStmt.bind({ ':id': matchedId });
+            if (mStmt.step()) d = mStmt.getAsObject();
+            mStmt.free();
+          }
+        }
+      } catch (scanErr) {
+        console.warn('[getBrowserDocumentDetail] 인메모리 NFC 매칭 폴백 예외:', scanErr);
       }
     }
   }
