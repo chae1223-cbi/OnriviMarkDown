@@ -14,7 +14,8 @@ import { knowledgeClient } from '@/lib/knowledge/knowledgeClient';
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
 // 📊 [OMD-FILE-USEFILEEXPLORER-0010] useFileExplorer.ts ➔ useFileExplorer
-// 🚨 @PATCH : **2026-09-13** — [작업장 불일치 외부 절대경로(file:///) 문서 오픈 및 로컬 디스크 원문 로드 연동]: 현재 열린 작업장 폴더와 출처 문서의 폴더가 상이할 때 브라우저 권한 한계를 극복하기 위해 /api/file-content를 호출하여 실제 로컬 디스크 원본 파일(2,000자 이상)을 100% 온전히 로드하고, 기존 빈 플레이스홀더 탭 자동 수화(Hydration) 및 라인 범위(#L시작-L끝) 점프 연동
+// 🚨 @PATCH : **2026-09-13** — [작업장 불일치 지식 DB 청크 본문 완전 복원 및 빈 탭 자동 수화 강화]: getDocumentDetail 반환 구조(detail.chunks/chunkText) 연동으로 WASM SQLite 지식 보관함에서 원본 마크다운 본문을 100% 완전 복원하여 탭에 주입, 기존 빈 더미 탭 자동 수화(Hydration) 2중 체계(디스크 API + WASM 지식 DB) 구축으로 웹/프로드/로컬 전 환경 결함 원천 해결
+//             **2026-09-13** — [작업장 불일치 외부 절대경로(file:///) 문서 오픈 및 로컬 디스크 원문 로드 연동]: 현재 열린 작업장 폴더와 출처 문서의 폴더가 상이할 때 브라우저 권한 한계를 극복하기 위해 /api/file-content를 호출하여 실제 로컬 디스크 원본 파일(2,000자 이상)을 100% 온전히 로드하고, 기존 빈 플레이스홀더 탭 자동 수화(Hydration) 및 라인 범위(#L시작-L끝) 점프 연동
 //             **2026-09-13** — [출처 링크 점프 고도화 및 에디터-미리보기 동시 스크롤·하이라이트]: jumpToAnchor에서 라인 범위(#L시작-L끝) 파싱, Monaco Range 전체 선택 및 중앙 정렬, 미리보기 요소 자동 스크롤 및 preview-highlight-line 시각적 강조 애니메이션 플래시, 탭 마운트 시차 보정을 위한 지연 재시도(Retry) 적용
 //             **2026-09-13** — [하드코딩 시딩 배제 및 서버 동적 경로 획득 정착]: selectRootFolder 및 rootFolderRefreshEffect에서 임의 하드코딩 시딩을 완전 배제하고, 서버 API(/api/knowledge/resolve-path)를 통해 OS 실제 작업장 절대경로를 동적 획득하여 onrivi_workspace_path에 저장
 //             **2026-09-12** — [file:/// 링크 파일 오픈 및 서브폴더 탐색 결함 해결]:
@@ -499,7 +500,7 @@ export const useFileExplorer = ({
     );
     if (existingOpenTab) {
       // 💡 [빈 플레이스홀더 탭 자동 수화(Hydration) 가드]
-      // 이전에 핸들을 찾지 못해 '# 제목'만 있는 빈 탭이 열려있던 경우 실제 디스크 원문으로 보정
+      // 이전에 핸들을 찾지 못해 '# 제목'만 있는 빈 탭이 열려있던 경우 실제 디스크 원문 또는 지식 DB 청크로 완벽 보정
       const trimmedContent = (existingOpenTab.content || '').trim();
       const isPlaceholder = !trimmedContent || 
         trimmedContent === `# ${targetBaseNameWithoutMd}` ||
@@ -507,23 +508,83 @@ export const useFileExplorer = ({
         (trimmedContent.startsWith(`# ${targetBaseNameWithoutMd}`) && trimmedContent.length < targetBaseNameWithoutMd.length + 15);
 
       if (isPlaceholder) {
+        let hydratedContent = '';
+        let resolvedPathFromSource = '';
+
+        // 1) 로컬 디스크 파일 읽기 API 시도 (/api/file-content)
         try {
           const queryPath = existingOpenTab.path || pathWithoutHash || cleanPath;
           const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(queryPath)}`));
           if (res.ok) {
             const data = await res.json();
             if (data.ok && typeof data.content === 'string' && data.content.length > trimmedContent.length) {
-              existingOpenTab.content = data.content;
-              if (data.path) existingOpenTab.path = data.path;
-              if (existingOpenTab.model && !existingOpenTab.model.isDisposed()) {
-                existingOpenTab.model.setValue(data.content);
-              }
-              setContent(data.content);
-              setTabs(prev => prev.map(t => t.id === existingOpenTab.id ? { ...t, content: data.content, path: data.path || t.path } : t));
+              hydratedContent = data.content;
+              resolvedPathFromSource = data.path || '';
             }
           }
         } catch (e) {
-          console.warn('[existingOpenTab] 플레이스홀더 수화 실패:', e);
+          console.warn('[existingOpenTab] 플레이스홀더 디스크 수화 스킵/실패:', e);
+        }
+
+        // 2) 웹 WASM SQLite 지식 보관함 청크 수화 시도 (웹 브라우저 및 프로드 환경 100% 지원)
+        if (!hydratedContent) {
+          try {
+            const cleanKnowledgeTarget = (existingOpenTab.path || pathWithoutHash || cleanPath)
+              .replace(/^knowledge:\/\//, '')
+              .replace(/^file:\/\/\//, '')
+              .replace(/^\.\//, '')
+              .replace(/^\//, '');
+            const isDocId = cleanKnowledgeTarget.startsWith('doc-') || cleanKnowledgeTarget.length === 36;
+            const rfHandle = (typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : null);
+
+            let detail = await knowledgeClient.getDocumentDetail({
+              documentId: isDocId ? cleanKnowledgeTarget : undefined,
+              filePath: !isDocId ? cleanKnowledgeTarget : undefined,
+              heading: targetHash || undefined,
+              resourceFolderHandle: rfHandle
+            });
+
+            if (!detail && !isDocId && targetBaseName) {
+              detail = await knowledgeClient.getDocumentDetail({
+                filePath: targetBaseName,
+                heading: targetHash || undefined,
+                resourceFolderHandle: rfHandle
+              });
+            }
+            if (!detail && !isDocId && targetBaseNameWithoutMd) {
+              detail = await knowledgeClient.getDocumentDetail({
+                filePath: targetBaseNameWithoutMd,
+                heading: targetHash || undefined,
+                resourceFolderHandle: rfHandle
+              });
+            }
+
+            const docObj = detail ? (detail.title ? detail : (detail as any).document) : null;
+            if (docObj) {
+              const docChunks = docObj.chunks || [];
+              const chunksText = docChunks
+                .map((c: any) => c.chunkText || c.chunk_text || c.content || '')
+                .filter(Boolean)
+                .join('\n\n');
+              const reconstructed = chunksText.trim() || (docObj.summary ? `# ${docObj.title}\n\n${docObj.summary}\n\n` : '');
+              if (reconstructed && reconstructed.length > trimmedContent.length) {
+                hydratedContent = reconstructed;
+                if (docObj.filePath) resolvedPathFromSource = docObj.filePath;
+              }
+            }
+          } catch (kErr) {
+            console.warn('[existingOpenTab] 지식 DB 플레이스홀더 수화 예외:', kErr);
+          }
+        }
+
+        if (hydratedContent) {
+          existingOpenTab.content = hydratedContent;
+          if (resolvedPathFromSource) existingOpenTab.path = resolvedPathFromSource;
+          if (existingOpenTab.model && !existingOpenTab.model.isDisposed()) {
+            existingOpenTab.model.setValue(hydratedContent);
+          }
+          setContent(hydratedContent);
+          setTabs(prev => prev.map(t => t.id === existingOpenTab.id ? { ...t, content: hydratedContent, path: resolvedPathFromSource || t.path } : t));
         }
       }
 
@@ -685,9 +746,10 @@ export const useFileExplorer = ({
             if (existingTab.model && !existingTab.model.isDisposed()) {
               existingTab.model.setValue(data.content);
             }
+            setContent(data.content);
             switchTab(existingTab.id);
           } else {
-            createNewTab(data.content, filename);
+            createNewTab(data.content, filename, false, resolvedDiskPath);
             setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath } : t));
           }
           jumpToAnchor(targetHash);
@@ -736,14 +798,14 @@ export const useFileExplorer = ({
       });
 
       // 1차 검색 실패 시 파일명 또는 제목으로 2차/3차 재시도
-      if ((!detail || !detail.document) && !isDocId && targetBaseName) {
+      if (!detail && !isDocId && targetBaseName) {
         detail = await knowledgeClient.getDocumentDetail({
           filePath: targetBaseName,
           heading: targetHash || undefined,
           resourceFolderHandle: rfHandle
         });
       }
-      if ((!detail || !detail.document) && !isDocId && targetBaseNameWithoutMd) {
+      if (!detail && !isDocId && targetBaseNameWithoutMd) {
         detail = await knowledgeClient.getDocumentDetail({
           filePath: targetBaseNameWithoutMd,
           heading: targetHash || undefined,
@@ -751,24 +813,38 @@ export const useFileExplorer = ({
         });
       }
 
-      if (detail && detail.document) {
-        const docContent = detail.document.summary 
-          ? `# ${detail.document.title}\n\n${detail.document.summary}\n\n` + (detail.chunks ? detail.chunks.map(c => c.content || (c as any).chunk_text).join('\n\n') : '')
-          : (detail.chunks ? detail.chunks.map(c => c.content || (c as any).chunk_text).join('\n\n') : `# ${detail.document.title}\n\n지식 문서 내용`);
-        const targetFilename = detail.document.title ? `${detail.document.title}.md` : (targetBaseNameWithMd || '지식문서.md');
+      const docObj = detail ? (detail.title ? detail : (detail as any).document) : null;
+      if (docObj) {
+        const docTitle = docObj.title || targetBaseNameWithoutMd || '지식문서';
+        const docChunks = docObj.chunks || [];
+        const chunksText = docChunks
+          .map((c: any) => c.chunkText || c.chunk_text || c.content || '')
+          .filter(Boolean)
+          .join('\n\n');
+        const docContent = chunksText.trim() || (docObj.summary 
+          ? `# ${docTitle}\n\n${docObj.summary}\n\n`
+          : `# ${docTitle}\n\n지식 문서 내용`);
+        const targetFilename = docTitle ? `${docTitle.replace(/\.md$/i, '')}.md` : (targetBaseNameWithMd || '지식문서.md');
+        const docResolvedPath = docObj.filePath || pathWithoutHash;
         
         const existingTab = tabsRef.current.find(t => 
           t.path === pathWithoutHash || 
+          t.path === docResolvedPath ||
           t.path === cleanKnowledgeTarget ||
           t.name === targetFilename || 
-          t.name === detail.document.title || 
-          (t as any).documentId === detail.document.id
+          t.name === docTitle || 
+          (t as any).documentId === (docObj.id || docObj.documentId)
         );
         if (existingTab) {
+          existingTab.content = docContent;
+          if (existingTab.model && !existingTab.model.isDisposed()) {
+            existingTab.model.setValue(docContent);
+          }
+          setContent(docContent);
           switchTab(existingTab.id);
         } else {
-          createNewTab(docContent, targetFilename);
-          setTabs(prev => prev.map(t => (t.name === targetFilename || t.name === detail.document.title) ? { ...t, path: pathWithoutHash, isKnowledge: true, documentId: detail.document.id } : t));
+          createNewTab(docContent, targetFilename, false, docResolvedPath);
+          setTabs(prev => prev.map(t => (t.name === targetFilename || t.name === docTitle) ? { ...t, path: docResolvedPath, isKnowledge: true, documentId: (docObj.id || docObj.documentId) } : t));
         }
         jumpToAnchor(targetHash);
         return;
@@ -937,6 +1013,21 @@ export const useFileExplorer = ({
                 if (data.ok && typeof data.content === 'string') {
                   fileContent = data.content;
                 }
+              }
+            } catch {}
+          }
+          if (!fileContent && node.path) {
+            try {
+              const rfHandle = (typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : null);
+              const detail = await knowledgeClient.getDocumentDetail({
+                filePath: node.path,
+                resourceFolderHandle: rfHandle
+              });
+              const docObj = detail ? (detail.title ? detail : (detail as any).document) : null;
+              if (docObj) {
+                const chunks = docObj.chunks || [];
+                const chunksText = chunks.map((c: any) => c.chunkText || c.chunk_text || c.content || '').filter(Boolean).join('\n\n');
+                fileContent = chunksText.trim() || (docObj.summary ? `# ${docObj.title}\n\n${docObj.summary}\n\n` : '');
               }
             } catch {}
           }

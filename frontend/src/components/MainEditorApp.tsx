@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-13** — [WASM 지식 DB 청크 본문 추출 정상화]: readFileText에서 getDocumentDetail의 docObj(detail.chunks/chunkText) 연동으로 브라우저 핸들이 없는 지식 문서의 원본 본문 100% 정상 수급
 // 🚨 @PATCH : **2026-09-13** — [ESLint 경고 제거 및 클라우드 빌드 안정화]: hotkeyRegistration useEffect 내 content 직접 참조를 contentRef.current로 전환하여 react-hooks/exhaustive-deps 경고 해소
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 절대경로(file:///) 파일 readFileText 로컬 서버 API 폴백 연동]: 브라우저 핸들이 없는 작업장 외부 절대경로 파일에 대해 /api/file-content를 호출하여 로컬 디스크 원문을 100% 정상 수급하도록 보강
 // 🚨 @PATCH : **2026-09-12** — [웹(Web) 환경 전용 문서 링크(DocLinkPicker) 검색 및 연결 완벽 지원]: 브라우저 FileSystemHandle 하위 미확장 폴더 scanDirectoryDeep 심층 재귀 스캔, Web WASM SQLite 지식 보관함(knowledgeClient.listDocuments) 실시간 문서 병합, 유니코드 NFC 및 제목(title) 3중 필터 매칭, 웹 readFileText 및 handleFileOpenByPath 지식 DB/상대경로 추적 지원으로 웹 환경 문서 연결 실패 결함 원천 해결
@@ -4325,9 +4326,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           resourceFolder,
           resourceFolderHandle: rfHandle
         });
-        if (detail && detail.document) {
-          const headingList = (detail.chunks || []).map(c => `# ${c.content.slice(0, 40)}...`).join('\n');
-          fileContent = `# ${detail.document.title}\n\n${detail.document.summary || ''}\n\n${headingList}\n\n` + (detail.chunks ? detail.chunks.map(c => c.content).join('\n\n') : '');
+        const docObj = detail ? (detail.title ? detail : (detail as any).document) : null;
+        if (docObj) {
+          const chunks = docObj.chunks || [];
+          const chunksText = chunks
+            .map((c: any) => c.chunkText || c.chunk_text || c.content || '')
+            .filter(Boolean)
+            .join('\n\n');
+          fileContent = chunksText.trim() || (docObj.summary ? `# ${docObj.title}\n\n${docObj.summary}\n\n` : `# ${docObj.title}\n\n`);
         }
       } catch (err) {
         console.warn('[readFileText] knowledgeClient.getDocumentDetail fallback failed:', err);
