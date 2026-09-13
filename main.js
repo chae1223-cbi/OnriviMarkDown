@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-13** — [IPC 파일 읽기/쓰기 절대경로 및 file:/// 프로토콜 정규화]: file:readFromPath 및 file:save에서 file:/// 접두사 제거 및 decodeURIComponent 디코딩, path.resolve 정규화를 지원하여 외부 절대경로 파일 I/O 100% 보장
 // 🚨 @PATCH : **2026-09-12** — [모든 AI 질의 표준 재시도 적용]: 지식 베이스 AI 문서 분석 fetch 호출 시 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 처리 규칙 적용
 // 🚨 @PATCH : **2026-09-11** — [CSP connect-src data: blob: 스키마 추가] 클립보드 스크린샷 캡처 이미지 데이터 처리 및 fetch 시 CSP 위반 에러 방어
 //             **2026-09-11** — [SQLite getDesktopKnowledgeDb 파일 잠금 누수 및 WAL 전환 락 경합 원천 방어] getDesktopKnowledgeDb에서 이미 wal 저널 모드인 경우 PRAGMA journal_mode=WAL 재실행을 건너뛰어 배타적 락 충돌을 방지하고, 오픈/초기화 실패 시 db.close()를 반드시 수행하여 좀비 파일 락 누수를 완벽 차단; init 핸들러에서 초기화 전 자동 스냅샷 백업 및 최신 백업 목록 반환 연동
@@ -1979,7 +1980,14 @@ ipcMain.handle('session:getLastSession', () => {
 // 2. 현재 파일 덮어쓰기 저장 핸들러
 ipcMain.handle('file:save', async (event, filePath, content) => {
   try {
-    const cleanPath = filePath.normalize('NFC');
+    let cleanPath = filePath.normalize('NFC');
+    if (cleanPath.startsWith('file:///')) {
+      cleanPath = decodeURIComponent(cleanPath.replace(/^file:\/\/\/?/, ''));
+    }
+    const normalized = cleanPath.replace(/\\/g, '/');
+    if (path.isAbsolute(cleanPath) || /^[a-zA-Z]:\//.test(normalized) || cleanPath.startsWith('/')) {
+      cleanPath = path.resolve(cleanPath);
+    }
     fs.writeFileSync(cleanPath, content, 'utf-8');
     return true;
   } catch (e) {
@@ -2068,16 +2076,19 @@ ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
 ipcMain.handle('file:readFromPath', async (event, filePath) => {
   try {
     let cleanPath = filePath.normalize('NFC');
+    if (cleanPath.startsWith('file:///')) {
+      cleanPath = decodeURIComponent(cleanPath.replace(/^file:\/\/\/?/, ''));
+    }
     
     // 윈도우 슬래시 스타일 포함하여 절대 경로 정밀 판별
-    const normalizedPath = filePath.replace(/\\/g, '/');
-    const isAbsolute = path.isAbsolute(filePath) || /^[a-zA-Z]:\//.test(normalizedPath) || filePath.startsWith('/');
+    const normalizedPath = cleanPath.replace(/\\/g, '/');
+    const isAbsolute = path.isAbsolute(cleanPath) || /^[a-zA-Z]:\//.test(normalizedPath) || cleanPath.startsWith('/');
 
     if (isAbsolute) {
-      cleanPath = filePath;
-    } else if (filePath.startsWith('docs/help/')) {
+      cleanPath = path.resolve(cleanPath);
+    } else if (cleanPath.startsWith('docs/help/')) {
       const projectRoot = app.getAppPath();
-      cleanPath = path.join(projectRoot, filePath).normalize('NFC');
+      cleanPath = path.join(projectRoot, cleanPath).normalize('NFC');
     } else {
       // 기존 로직: 개발/번들 내부, 설치된 환경 외부 리소스 순서로 탐색
       // 📌 Next.js 정적 빌드 시 public/ 폴더 내용이 out/ 폴더로 자동 복사됨.

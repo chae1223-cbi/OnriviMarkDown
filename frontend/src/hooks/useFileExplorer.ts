@@ -19,6 +19,7 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-09-13** — [데스크톱 Electron 네이티브 파일 I/O 직접 연동 및 실서버 404 방어]: handleFileOpenByPath, existingOpenTab 수화, handleFileClick, saveFile에서 데스크톱(Electron) 환경 시 electronAPI.readFromPath / saveFile을 최우선으로 직접 호출하도록 개편하고, /api/file-content 웹 호출은 순수 localhost 개발 환경으로 엄격히 제한하여 프로덕션(onrivi.com) 404 에러 영구 차단
 // 🚨 @PATCH : **2026-09-13** — [작업장 폴더 선택 시 절대경로 100% 보존 및 onrivi_web_base_path 결합]: selectRootFolder 및 rootFolder 변경 감지 시 웹 브라우저 폴더명(블러그 등)을 onrivi_web_base_path('E:/ZZ 개인자료')와 결합하여 onrivi_workspace_path에 항상 완전한 OS 절대경로('E:/ZZ 개인자료/블러그')를 보존·저장함으로써 지식 문서 등록 시 절대경로 적재 무결성 확립
 //             **2026-09-13** — [작업장 폴더 선택 시 기존 절대경로 보존 및 일렉트론 onrivi_workspace_path 동기화]: selectRootFolder에서 일렉트론 finalRoot를 onrivi_workspace_path에 필수 저장하고, 웹 브라우저 showDirectoryPicker 선택 시 기존 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그 등)가 handle.name으로 덮어써져 유실되는 결함을 원천 방어하여 지식 등록 시 완전한 절대경로(E:/...) 적재 보장
 //             **2026-09-13** — [대안 1: 지식 보관함(DB) 본문 자동 즉시 복원 및 0초 무팝업 오픈·고속 저장 연동]:
@@ -543,19 +544,37 @@ export const useFileExplorer = ({
         let hydratedContent = '';
         let resolvedPathFromSource = '';
 
-        // 1) 로컬 디스크 파일 읽기 API 시도 (/api/file-content)
-        try {
-          const queryPath = existingOpenTab.path || pathWithoutHash || cleanPath;
-          const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(queryPath)}`));
-          if (res.ok) {
-            const data = await res.json();
-            if (data.ok && typeof data.content === 'string' && data.content.length > trimmedContent.length) {
-              hydratedContent = data.content;
-              resolvedPathFromSource = data.path || '';
+        // 1) 로컬 디스크 파일 읽기 시도 (데스크톱 Electron IPC 우선, 로컬 개발 서버 폴백)
+        const electronApi = typeof window !== 'undefined' ? ((window as any).electronAPI || (window as any).api) : null;
+        if (electronApi?.readFromPath) {
+          try {
+            const queryPath = existingOpenTab.path || pathWithoutHash || cleanPath;
+            let nativePath = queryPath;
+            if (nativePath.startsWith('file:///')) {
+              nativePath = decodeURIComponent(nativePath.replace(/^file:\/\/\/?/, ''));
             }
+            const fileObj = await electronApi.readFromPath(nativePath);
+            if (fileObj && typeof fileObj.content === 'string' && fileObj.content.length > trimmedContent.length) {
+              hydratedContent = fileObj.content;
+              resolvedPathFromSource = fileObj.path || '';
+            }
+          } catch (e) {
+            console.warn('[existingOpenTab] 데스크톱 디스크 수화 실패:', e);
           }
-        } catch (e) {
-          console.warn('[existingOpenTab] 플레이스홀더 디스크 수화 스킵/실패:', e);
+        } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+          try {
+            const queryPath = existingOpenTab.path || pathWithoutHash || cleanPath;
+            const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(queryPath)}`));
+            if (res.ok) {
+              const data = await res.json();
+              if (data.ok && typeof data.content === 'string' && data.content.length > trimmedContent.length) {
+                hydratedContent = data.content;
+                resolvedPathFromSource = data.path || '';
+              }
+            }
+          } catch (e) {
+            console.warn('[existingOpenTab] 플레이스홀더 디스크 수화 스킵/실패:', e);
+          }
         }
 
         // 2) 웹 WASM SQLite 지식 보관함 청크 수화 시도 (웹 브라우저 및 프로드 환경 100% 지원)
@@ -852,13 +871,43 @@ export const useFileExplorer = ({
       console.warn('[handleFileOpenByPath] 캐시된 외부 파일 핸들 열기 예외:', e);
     }
 
-    // 💡 [로컬 디스크 파일 직접 읽기 API (작업장 폴더 불일치 / 절대경로 file:/// 완벽 지원)]
-    const canCallDiskApi = typeof window !== 'undefined' && (
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      !!(window as any).electronAPI
-    );
-    if (canCallDiskApi) {
+    // 💡 [로컬 디스크 파일 직접 읽기 (데스크톱 Electron IPC 우선, 로컬 개발 서버 디스크 API 폴백)]
+    const electronApi = typeof window !== 'undefined' ? ((window as any).electronAPI || (window as any).api) : null;
+    if (electronApi?.readFromPath) {
+      try {
+        let nativePath = pathWithoutHash.startsWith('file:///') ? pathWithoutHash : (cleanPath.startsWith('file:///') ? cleanPath : pathWithoutHash);
+        if (nativePath.startsWith('file:///')) {
+          nativePath = decodeURIComponent(nativePath.replace(/^file:\/\/\/?/, ''));
+        }
+        const fileObj = await electronApi.readFromPath(nativePath);
+        if (fileObj && typeof fileObj.content === 'string') {
+          const filename = fileObj.name || targetBaseNameWithMd || targetBaseName || '문서.md';
+          const resolvedDiskPath = fileObj.path || nativePath;
+
+          const existingTab = tabsRef.current.find(t => 
+            t.path === resolvedDiskPath || 
+            t.path === pathWithoutHash || 
+            t.name === filename
+          );
+
+          if (existingTab) {
+            existingTab.content = fileObj.content;
+            if (existingTab.model && !existingTab.model.isDisposed()) {
+              existingTab.model.setValue(fileObj.content);
+            }
+            setContent(fileObj.content);
+            switchTab(existingTab.id);
+          } else {
+            createNewTab(fileObj.content, filename, false, resolvedDiskPath);
+            setTabs(prev => prev.map(t => t.name === filename ? { ...t, path: resolvedDiskPath } : t));
+          }
+          jumpToAnchor(targetHash);
+          return;
+        }
+      } catch (electronErr) {
+        console.warn('[handleFileOpenByPath] 데스크톱 readFromPath 파일 읽기 시도 예외:', electronErr);
+      }
+    } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
       try {
         const queryPath = pathWithoutHash.startsWith('file:///') ? pathWithoutHash : (cleanPath.startsWith('file:///') ? cleanPath : pathWithoutHash);
         const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(queryPath)}`));
@@ -1143,15 +1192,29 @@ export const useFileExplorer = ({
         } else if (node.path) {
           fileContent = vfsReadFile(node.path);
           if (!fileContent && /^(?:file:\/\/\/|[a-zA-Z]:[/\\]|\/)/i.test(node.path)) {
-            try {
-              const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
-              if (res.ok) {
-                const data = await res.json();
-                if (data.ok && typeof data.content === 'string') {
-                  fileContent = data.content;
+            const electronApi = typeof window !== 'undefined' ? ((window as any).electronAPI || (window as any).api) : null;
+            if (electronApi?.readFromPath) {
+              try {
+                let nativePath = node.path;
+                if (nativePath.startsWith('file:///')) {
+                  nativePath = decodeURIComponent(nativePath.replace(/^file:\/\/\/?/, ''));
                 }
-              }
-            } catch {}
+                const f = await electronApi.readFromPath(nativePath);
+                if (f && typeof f.content === 'string') {
+                  fileContent = f.content;
+                }
+              } catch {}
+            } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+              try {
+                const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.ok && typeof data.content === 'string') {
+                    fileContent = data.content;
+                  }
+                }
+              } catch {}
+            }
           }
           if (!fileContent && node.path) {
             try {
@@ -1180,7 +1243,7 @@ export const useFileExplorer = ({
           } catch (e) {
             showToast('파일 읽기 실패', 'error');
           }
-        } else {
+        } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
           const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
           if (res.ok) {
             const data = await res.json();
@@ -1305,18 +1368,36 @@ export const useFileExplorer = ({
         } else if (targetFile.path) {
           let savedViaApi = false;
           if (/^(?:file:\/\/\/|[a-zA-Z]:[/\\]|\/)/i.test(targetFile.path)) {
-            try {
-              const saveRes = await fetch(getApiUrl('/api/file-content'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: targetFile.path, content: targetContent })
-              });
-              if (saveRes.ok) {
-                savedViaApi = true;
-                lastSavedContentRef.current = targetContent;
-                success = true;
+            const electronApi = typeof window !== 'undefined' ? ((window as any).electronAPI || (window as any).api) : null;
+            if (electronApi?.saveFile) {
+              try {
+                let nativePath = targetFile.path;
+                if (nativePath.startsWith('file:///')) {
+                  nativePath = decodeURIComponent(nativePath.replace(/^file:\/\/\/?/, ''));
+                }
+                const saveOk = await electronApi.saveFile(nativePath, targetContent);
+                if (saveOk) {
+                  savedViaApi = true;
+                  lastSavedContentRef.current = targetContent;
+                  success = true;
+                }
+              } catch (e) {
+                console.warn('[saveFile] 데스크톱 saveFile 실패:', e);
               }
-            } catch {}
+            } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+              try {
+                const saveRes = await fetch(getApiUrl('/api/file-content'), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ path: targetFile.path, content: targetContent })
+                });
+                if (saveRes.ok) {
+                  savedViaApi = true;
+                  lastSavedContentRef.current = targetContent;
+                  success = true;
+                }
+              } catch {}
+            }
           }
           if (!savedViaApi) {
             // 💡 [대안 1]: 지식 보관함 문서 저장 (브라우저 디스크 핸들이 없는 외부 문서 지원)
