@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar.tsx ➔ StatusBar
 // 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드 및 행/열 정보 표시
-// 🚨 @PATCH : **2026-09-11** — 하단 상태바 폰트를 Pretendard 최우선으로 일원화 적용
+// 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 및 팝업리스트 가시성 보장을 위한 StatusBar z-index 조정]: 상태표시줄의 z-index를 z-40에서 z-20으로 낮추어 플로팅 툴바 드롭다운 및 모달 위계 충돌 방지
+//             **2026-09-11** — 하단 상태바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-05** — 제한사용자/읽기 전용 모드(isRestrictedUser) 시 하단 상태바의 편집보기 및 분할모드 버튼을 비활성화(disabled, opacity-40, 안내 툴팁) 처리하고 미리보기 버튼만 상시 활성화 유지
 //             **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 흐릿하게 노출되던 상태바 AI 버튼(✨)을 완전히 숨김 처리하여 깔끔한 UI 유지
 //             **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 상태바 하단 AI 버튼(✨) 비활성화(disabled, opacity-30, grayscale) 및 안내 툴팁/토스트 적용
@@ -232,7 +233,7 @@ function StatusBar() {
   return (
     <footer 
       style={{ fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif" }}
-      className="h-12 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[12px] font-bold text-gray-700 dark:text-zinc-300 relative z-40 whitespace-nowrap select-none"
+      className="h-12 bg-zinc-100 dark:bg-zinc-900 border-t border-black/5 dark:border-white/10 flex justify-between items-center px-4 text-[12px] font-bold text-gray-700 dark:text-zinc-300 relative z-20 whitespace-nowrap select-none"
     >
       <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
         {/* 💡 라이선스 뱃지(isExpired/isActivated)는 SettingsModal로 이동되었습니다. */}
