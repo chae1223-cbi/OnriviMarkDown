@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-13** — [세션 등록 insert API 500 에러 시 제한사용자 잠금 방지]: /api/rpc/license/insert가 500(서버 내부 오류)을 반환할 때 구독 자체가 유효하면 제한사용자로 처리하지 않고 경고 토스트 후 정상 접근 허용; SERVER_ERROR 코드 및 fetch 예외도 동일하게 처리; insert.js catch 블록 500→200 반환 개선으로 클라이언트 JSON 파싱 안전성 확보
 // 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 인용구 Alert 드롭다운 fixed 최상위 포털 전환]: Windows 작업표시줄 뒤로 드롭다운 항목이 숨는 문제 완전 해결 — absolute→fixed 포지셔닝 전환, getBoundingClientRect() 기반 실제 화면 좌표 측정, zIndex 2147483647(max) 적용, 하단 여유 부족 시 DropUp 자동 반전, floatingQuoteDropdown 상태(open/x/y/dropUp) 통합 관리, 바깥클릭/Escape 닫힘 안전 가드 유지
 // 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 검증 이메일 식별자 보존 및 제한사용자 오강등 영구 차단]: loadAndVerifyLicense에서 session.user.id(UUID)로 이메일이 덮어써져 NOT_FOUND가 발생하던 결함을 session.user.email 및 desktop fullData.userId 우선 채택으로 해결하고, 서버 일시 오류 시 로컬 라이선스 파기 방지 및 오프라인 유예기간 보호 강화
 // 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: handleOpenKnowledge 및 Ctrl+Shift+K 단축키에 isDesktop 가드를 적용하여 웹 브라우저 환경에서 데스크톱 전용 안내 토스트 출력 및 불필요한 화면 전환 차단
@@ -1904,32 +1905,59 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             let activationFailed = false;
             let activationError = '';
+            // 🚨 @PATCH : 2026-09-13 — insert API 500(서버 내부 오류) 시 구독 자체가 유효하면 제한사용자로 처리하지 않고 경고 토스트 후 정상 접근 허용
+            // (세션 등록 서버 장애와 비즈니스 로직 실패(기기 초과)를 구분하여 서버 오류로 인한 불필요한 잠금 원천 차단)
+            let isInsertServerError = false; // insert API 500 여부 (비즈니스 실패 아닌 순수 서버 오류)
+            let isDeviceLimitHit = false; // 기기 초과 여부 (try 블록 바깥에서도 참조)
 
             const currentDeviceName = isDesktop ? 'Desktop App' : 'Web SaaS';
             console.log('[loadAndVerifyLicense] insert: user=', savedUserId, 'session=', sessionId, 'device=', currentDeviceName, 'licenseId=', currentLicenseId, 'isREADER=', sub?.plan_name === 'READER');
-            const actRes = await fetch(getApiUrl('/api/rpc/license/insert'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ p_license_id: currentLicenseId, p_device_uuid: sessionId, p_device_name: currentDeviceName, p_user_id: savedUserId, p_is_expired: sub?.plan_name === 'READER' })
-            });
-            const actResult = actRes.ok ? await actRes.json() : null;
-            const actErr = !actRes.ok ? new Error('서버 오류') : null;
+            try {
+              const actRes = await fetch(getApiUrl('/api/rpc/license/insert'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ p_license_id: currentLicenseId, p_device_uuid: sessionId, p_device_name: currentDeviceName, p_user_id: savedUserId, p_is_expired: sub?.plan_name === 'READER' })
+              });
 
-            if (actResult && actResult.activation_id) {
-              localStorage.setItem('onrivi_activation_id', actResult.activation_id);
+              if (!actRes.ok) {
+                // 500 등 서버 내부 오류 → 구독이 유효하면 접근 허용 (세션 등록만 실패한 것이므로 제한사용자로 잠그지 않음)
+                isInsertServerError = true;
+                console.warn('[loadAndVerifyLicense] insert API server error status=%o — allowing access based on valid subscription', actRes.status);
+                showToast('세션 등록 서버에 일시적 오류가 발생했습니다. 잠시 후 자동 복구됩니다.', 'warning');
+              } else {
+                const actResult = await actRes.json();
+                if (actResult?.activation_id) {
+                  localStorage.setItem('onrivi_activation_id', actResult.activation_id);
+                }
+
+                const isDeviceLimitHitLocal = actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' || actResult?.code === 'EXCEED_MAX_DEVICES';
+                isDeviceLimitHit = isDeviceLimitHitLocal;
+                if (!actResult?.success) {
+                  if (actResult?.code === 'SERVER_ERROR') {
+                    // 서버 내부 오류(DB 장애 등) → 구독 유효 시 접근 허용 (제한사용자 처리 금지)
+                    isInsertServerError = true;
+                    console.warn('[loadAndVerifyLicense] insert SERVER_ERROR — allowing access based on valid subscription');
+                    showToast('세션 등록 서버에 일시적 오류가 발생했습니다. 잠시 후 자동 복구됩니다.', 'warning');
+                  } else {
+                    activationFailed = true;
+                    activationError = isDeviceLimitHit
+                      ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자`
+                      : `라이선스 오류: ${actResult?.message || '알 수 없는 오류'}`;
+                  }
+                }
+                console.log('[loadAndVerifyLicense] insert result: success=%o code=%o', actResult?.success, actResult?.code);
+              }
+            } catch (insertFetchErr) {
+              // 네트워크 단절 등 fetch 자체 실패 → 서버 오류와 동일하게 취급, 구독 유효 시 접근 허용
+              isInsertServerError = true;
+              console.warn('[loadAndVerifyLicense] insert API fetch failed (network?):', insertFetchErr);
+              showToast('세션 등록 네트워크 오류가 발생했습니다. 구독은 유효하므로 계속 이용 가능합니다.', 'warning');
             }
-            
-            const isDeviceLimitHit = actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' || actResult?.code === 'EXCEED_MAX_DEVICES';
-            if (actErr || (actResult && !actResult.success)) {
-              activationFailed = true;
-              activationError = isDeviceLimitHit
-                ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자` 
-                : `라이선스 오류: ${actResult?.message || actErr?.message || '알 수 없는 오류'}`;
-            }
 
-            const isRestricted = activationFailed || sub?.plan_name === 'READER';
+            // 비즈니스 실패(기기 초과 등)만 isRestricted 처리; 순수 서버/네트워크 오류는 구독 유효성으로 판단
+            const isRestricted = (activationFailed && !isInsertServerError) || sub?.plan_name === 'READER';
 
-            if (activationFailed) {
+            if (activationFailed && !isInsertServerError) {
               isExpired = true;
               planName = activationError;
             }

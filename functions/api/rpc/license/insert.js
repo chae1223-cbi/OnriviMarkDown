@@ -92,7 +92,9 @@ export async function onRequestPost(context) {
     } else {
       if (max_devices !== null && max_devices > 0) {
         const countRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&select=id`, { headers });
-        const activeRows = await countRes.json();
+        let activeRows = [];
+        try { activeRows = await countRes.json(); } catch (_) { activeRows = []; }
+        if (!Array.isArray(activeRows)) activeRows = [];
         if (activeRows.length >= max_devices) {
           newIsActive = false;
         }
@@ -114,8 +116,12 @@ export async function onRequestPost(context) {
         body: JSON.stringify(payload)
       });
       if (!insertRes.ok) {
-        const err = await insertRes.json();
-        throw new Error(err.message || '삽입 실패');
+        // 🚨 @PATCH : 2026-09-13 — JSON 파싱 실패 방어: Supabase가 비정상 응답 시 throw 대신 텍스트로 에러 처리
+        let errMsg = '삽입 실패';
+        try { const errBody = await insertRes.json(); errMsg = errBody?.message || errMsg; } catch (_) {
+          try { errMsg = await insertRes.text() || errMsg; } catch (__) {}
+        }
+        throw new Error(errMsg);
       }
     }
 
