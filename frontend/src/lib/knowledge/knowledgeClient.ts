@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeClient-0001] knowledgeClient.ts ➔ Unified Knowledge Client Facade
 // 🎯 @KICK  : 데스크톱/로컬(Node SQLite)과 프로드 웹(WASM SQLite)을 자동 감지하여 동일한 지식 인터페이스를 제공하는 통합 클라이언트 파사드
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), Rule 7(선행 검증 후 원자적 트랜잭션 무결성), 404/405 자동 WASM 폴백
-// 🚨 @PATCH : **2026-09-13** — [웹 브라우저 작업장 폴더명 지원]: indexDocument에서 웹 SaaS(onrivi.com) 작업장 폴더명(블로그 등)을 workspacePath로 인식하여 지식 등록 지원
+// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: canAccessKnowledgeDb를 데스크톱 환경(isServerApiAvailable) 전용으로 한정하여 웹 브라우저 WASM SQLite/IndexedDB 불필요 로딩 차단 및 경량화
+//             **2026-09-13** — [웹 브라우저 작업장 폴더명 지원]: indexDocument에서 웹 SaaS(onrivi.com) 작업장 폴더명(블로그 등)을 workspacePath로 인식하여 지식 등록 지원
 //             **2026-09-13** — [대안 1: 지식 문서 고속 저장 파사드 연동]: updateDocumentFast 메서드 신설로 브라우저 파일 핸들이 없는 외부 문서라도 수정 시 WASM SQLite 지식 보관함에 5ms 내 원자적 초고속 저장 지원
 //             **2026-09-12** — [workspacePath 최우선 탐색 추가] indexDocument에서 localStorage rootFolder 절대경로를 workspacePath로 읽어 resolvedParams 및 서버 API 요청에 포함, E:\ZZ 개인자료\블러그 등 실제 작업장 경로 정확한 탐색 보장
 //             **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 보장] indexDocument 호출 시 resolveClientAbsolutePath를 통해 상대경로를 완전한 디스크 절대경로로 사전 승격 후 전달
@@ -45,10 +46,7 @@ import { idb } from '../indexedDbHelper';
 
 /**
  * Node.js 기반 백엔드 API 라우트(/api/knowledge/*)를 사용할 수 있는 환경인지 판별합니다.
- * Electron 데스크톱 앱만 해당 — localhost(로컬 개발)와 prod 웹은 동일하게 WASM browserKnowledgeDb 경로 사용
- * ⚠️ localhost를 여기서 제외한 이유:
- *   로컬 개발(localhost)도 prod(onrivi.com)와 동일한 WASM/IndexedDB 코드 경로를 타야
- *   로컬에서 테스트한 결과가 prod에 그대로 반영되는 신뢰성 있는 파이프라인이 됩니다.
+ * Electron 데스크톱 앱만 해당
  */
 export function isServerApiAvailable(): boolean {
   if (typeof window === 'undefined') return true; // SSR 환경
@@ -56,12 +54,11 @@ export function isServerApiAvailable(): boolean {
 }
 
 /**
- * 지식 DB를 사용할 수 있는 상태인지 검사합니다 (데스크톱, 로컬, 또는 브라우저 리소스 폴더 핸들 보유 시 true)
+ * 지식 DB를 사용할 수 있는 상태인지 검사합니다.
+ * 🚀 데스크톱(Electron) 환경에서만 로컬 지식 DB 접근 허용
  */
 export async function canAccessKnowledgeDb(explicitHandle?: any): Promise<boolean> {
-  if (isServerApiAvailable()) return true;
-  const handle = await resolveResourceFolderHandle(explicitHandle);
-  return Boolean(handle);
+  return isServerApiAvailable();
 }
 
 export const knowledgeClient = {
@@ -108,11 +105,14 @@ export const knowledgeClient = {
           }
         }
       } catch (err) {
-        console.warn('[knowledgeClient.listDocuments] Server API failed, attempting WASM fallback:', err);
+        console.warn('[knowledgeClient.listDocuments] Server API failed:', err);
       }
+    } else {
+      // 🚀 웹 브라우저(SaaS) 환경: 지식 베이스는 데스크톱 전용 기능이므로 WASM 로드 없이 즉시 빈 목록 반환
+      return [];
     }
 
-    // 웹 WASM SQLite 엔진 호출 (Cloudflare Pages 또는 서버 405 폴백)
+    // 웹 WASM SQLite 엔진 호출 (Electron 데스크톱 내 API 에러 시 폴백용)
     return await listBrowserDocuments(params.resourceFolderHandle);
   },
 
@@ -221,11 +221,13 @@ export const knowledgeClient = {
           };
         }
       } catch (err) {
-        console.warn('[knowledgeClient.indexDocument] Server API failed, attempting WASM fallback:', err);
+        console.warn('[knowledgeClient.indexDocument] Server API failed:', err);
       }
+    } else {
+      throw new Error('지식 베이스 등록은 데스크톱 앱 전용 기능입니다.');
     }
 
-    // 웹 WASM SQLite 엔진 호출
+    // 웹 WASM SQLite 엔진 호출 (Electron 데스크톱 내 API 에러 시 폴백용)
     return await indexBrowserDocument(resolvedParams, resolvedParams.resourceFolderHandle);
   },
 
@@ -237,6 +239,7 @@ export const knowledgeClient = {
     fileContent: string;
     resourceFolderHandle?: any;
   }): Promise<boolean> {
+    if (!isServerApiAvailable()) return false;
     try {
       return await updateBrowserKnowledgeDocumentFast(
         { filePathOrId: params.filePathOrId, fileContent: params.fileContent },
@@ -259,6 +262,7 @@ export const knowledgeClient = {
     planCode?: string | null;
     resourceFolderHandle?: any;
   }): Promise<boolean> {
+    if (!isServerApiAvailable()) return false;
     if (isServerApiAvailable()) {
       try {
         const res = await fetch('/api/knowledge/delete', {
@@ -269,7 +273,7 @@ export const knowledgeClient = {
         const data = await res.json();
         if (res.ok && data.ok) return true;
       } catch (err) {
-        console.warn('[knowledgeClient.deleteDocument] Server API failed, attempting WASM fallback:', err);
+        console.warn('[knowledgeClient.deleteDocument] Server API failed:', err);
       }
     }
 
@@ -280,7 +284,7 @@ export const knowledgeClient = {
   },
 
   /**
-   * 5. 오류 문서 일괄 삭제
+   * 5. 오류(ERROR) 문서 일괄 정리
    */
   async deleteErrorDocuments(params: {
     resourceFolder?: string | null;
@@ -288,17 +292,18 @@ export const knowledgeClient = {
     planCode?: string | null;
     resourceFolderHandle?: any;
   }): Promise<number> {
+    if (!isServerApiAvailable()) return 0;
     if (isServerApiAvailable()) {
       try {
-        const res = await fetch('/api/knowledge/delete', {
+        const res = await fetch('/api/knowledge/clean-errors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...params, deleteErrorsOnly: true }),
+          body: JSON.stringify(params),
         });
         const data = await res.json();
         if (res.ok && data.ok) return data.deletedCount || 0;
       } catch (err) {
-        console.warn('[knowledgeClient.deleteErrorDocuments] Server API failed, attempting WASM fallback:', err);
+        console.warn('[knowledgeClient.deleteErrorDocuments] Server API failed:', err);
       }
     }
 
@@ -306,15 +311,15 @@ export const knowledgeClient = {
   },
 
   /**
-   * 6. 하이브리드 검색 및 질의응답
+   * 6. 지식 검색 (하이브리드 FTS5 + 시맨틱)
    */
   async searchKnowledge(params: {
     query: string;
     resourceFolder?: string | null;
-    geminiApiKey?: string | null;
-    planCode?: string | null;
     collectionId?: string;
     limit?: number;
+    geminiApiKey?: string | null;
+    planCode?: string | null;
     aiModelName?: string | null;
     resourceFolderHandle?: any;
   }): Promise<{ candidates: RetrievalCandidate[]; answer?: string }> {
@@ -330,8 +335,11 @@ export const knowledgeClient = {
           return { candidates: data.candidates || [], answer: data.answer };
         }
       } catch (err) {
-        console.warn('[knowledgeClient.searchKnowledge] Server API failed, attempting WASM fallback:', err);
+        console.warn('[knowledgeClient.searchKnowledge] Server API failed:', err);
       }
+    } else {
+      // 🚀 웹 브라우저: 데스크톱 전용 기능이므로 검색 후보 없음 즉시 반환
+      return { candidates: [] };
     }
 
     return await searchBrowserKnowledge(params, params.resourceFolderHandle);

@@ -2,7 +2,8 @@
 // 📊 [OMD-EDIT-Toolbar-0003] Toolbar.tsx ➔ Toolbar
 // 🎯 @KICK  : 에디터 우측 사이드바 툴바 - 홈, 대시보드, 지식베이스, 서식, 참조, 환경설정 퀵 액션 제공
 // 🛡️ @GUARD : 라이선스 및 뷰포트 상태에 따른 프로덕티비티 도구 조건부 노출
-// 🚨 @PATCH : **2026-09-12** — 사용자 요청에 따라 우측 툴바의 친숙한 컬러 이모지(🎈, ⚡, 🔠, 🏛️, 🎨, 📚, 🚪) 인터페이스를 원래대로 복원 및 유지
+// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 우측 툴바의 지식 베이스 전환 버튼(🏛️)을 isDesktop 전용으로 한정하여 웹 브라우저 UI 슬림화
+//             **2026-09-12** — 사용자 요청에 따라 우측 툴바의 친숙한 컬러 이모지(🎈, ⚡, 🔠, 🏛️, 🎨, 📚, 🚪) 인터페이스를 원래대로 복원 및 유지
 //             **2026-09-05** — 제한모드(isRestrictedUser) 시 우측 툴바의 지식 베이스 전환 버튼(🏛️) 비활성화(disabled, opacity-30, grayscale, 안내 툴팁 및 토스트) 적용
 //             **2026-09-05** — AI 미연결(!geminiApiKey) 시 우측 툴바의 지식 베이스 전환 버튼(🏛️) 비활성화(disabled, 흐린 흑백 스타일, 연동 안내 툴팁/토스트) 적용
 //             **2026-09-04** — 우측 툴바의 지식 베이스 아이콘을 🏛️로 변경 연동 (클릭 시 app:open-knowledge-manager 이벤트 디스패치)
@@ -94,8 +95,15 @@ export default function Toolbar() {
         <span className="text-zinc-500 dark:text-zinc-400 text-sm">🔠</span>
       </button>
 
-      {/* 🏛️ 지식 베이스 화면 전환 (제한 모드 또는 AI 미연결 시 비활성화) */}
+      {/* 🏛️ 지식 베이스 화면 전환 (데스크톱 전용 기능) */}
       {(() => {
+        const isDesktop = typeof window !== "undefined" && (
+          !!(window as any).electronAPI || 
+          navigator.userAgent.toLowerCase().includes('electron') ||
+          new URLSearchParams(window.location.search).get('env') === 'desktop'
+        );
+        if (!isDesktop) return null;
+
         const isKnowledgeDisabled = Boolean(isRestrictedUser || !geminiApiKey);
         const disabledReasonTitle = isRestrictedUser
           ? "🔒 읽기 전용(제한사용자) 모드에서는 지식 베이스 화면으로 이동할 수 없습니다."

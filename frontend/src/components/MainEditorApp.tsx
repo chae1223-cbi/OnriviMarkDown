@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: handleOpenKnowledge 및 Ctrl+Shift+K 단축키에 isDesktop 가드를 적용하여 웹 브라우저 환경에서 데스크톱 전용 안내 토스트 출력 및 불필요한 화면 전환 차단
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 문서 온디맨드 권한 획득 및 스마트 캐싱 연동]: useFileExplorer에 setConfirmConfig 전달 및 OPEN_FILE/외부 문서 오픈 시 externalFileStore 연동으로 웹 SaaS 환경에서 작업장 외 문서라도 사용자 승인 후 즉시 열람/편집/디스크 저장 완벽 지원
 // 🚨 @PATCH : **2026-09-13** — [WASM 지식 DB 청크 본문 추출 정상화]: readFileText에서 getDocumentDetail의 docObj(detail.chunks/chunkText) 연동으로 브라우저 핸들이 없는 지식 문서의 원본 본문 100% 정상 수급
 // 🚨 @PATCH : **2026-09-13** — [ESLint 경고 제거 및 클라우드 빌드 안정화]: hotkeyRegistration useEffect 내 content 직접 참조를 contentRef.current로 전환하여 react-hooks/exhaustive-deps 경고 해소
@@ -652,7 +653,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
 
   useEffect(() => {
+    const isDesktop = typeof window !== 'undefined' && (
+      !!(window as any).electronAPI ||
+      navigator.userAgent.toLowerCase().includes('electron') ||
+      new URLSearchParams(window.location.search).get('env') === 'desktop'
+    );
+
     const handleOpenKnowledge = () => {
+      if (!isDesktop) {
+        showToast("🖥️ 지식 보관함은 데스크톱(Electron) 앱 전용 기능입니다. 데스크톱 앱을 이용해 주세요.", "info");
+        return;
+      }
       let key = '';
       try {
         const raw = localStorage.getItem('onrivi_settings');
@@ -676,6 +687,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
         e.preventDefault();
         e.stopPropagation();
+        if (!isDesktop) {
+          showToast("🖥️ 지식 보관함은 데스크톱(Electron) 앱 전용 기능입니다. 데스크톱 앱을 이용해 주세요.", "info");
+          return;
+        }
         setActiveMainView(prev => {
           if (prev === 'knowledge') return 'editor';
           let key = '';

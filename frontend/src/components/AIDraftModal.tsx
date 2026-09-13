@@ -3,6 +3,7 @@
  * 파일명 : AIDraftModal.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: KnowledgeAttachmentPalette 및 Auto-RAG/출처 각주 컨트롤을 isDesktop 전용으로 한정하여 웹 브라우저 AI 작성 UI 경량화 및 집중도 향상
  * 🚨 @PATCH : **2026-09-13** — [출처 링크 일원화 및 본문 인라인 링크 결합]:
  *             1) 출처 목록 포맷 일원화: 하단 출처 목록에서 불필요한 화살표와 중복 문서명([출처 N: 문서] ➔ [문서](...))을 제거하고 [출처 N: 문서명](<file:///...#L시작-L끝>) 단일 링크로 결합
  *             2) 본문 인라인 출처 태그 링크화: 본문 내부의 [출처 N: ...] 태그에도 해당 청크의 파일 및 라인 앵커(<file:///...#L시작-L끝>)를 자동 결합하여 본문에서 즉시 출처 원문으로 점프 지원
@@ -162,6 +163,13 @@ export default function AIDraftModal({
     return saved || 'Onrivi_Asset';
   }, [resourceFolder]);
   const effectiveResourceFolderHandle = resourceFolderHandle;
+
+  const isDesktop = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return !!(window as any).electronAPI ||
+      navigator.userAgent.toLowerCase().includes('electron') ||
+      new URLSearchParams(window.location.search).get('env') === 'desktop';
+  }, []);
 
   const [currentModel, setCurrentModel] = useState<string>(() => {
     const raw = aiModelName || (typeof window !== 'undefined' ? localStorage.getItem('onrivi_ai_model_name') || '' : '') || DEFAULT_AI_MODEL;
@@ -1398,32 +1406,34 @@ ${snippet}`;
                   />
                 </div>
 
-                {/* 🧠 [ONRIVI-KNOWLEDGE-PALETTE] 지식 보관함 검색 & 첨부 팔레트 */}
-                <KnowledgeAttachmentPalette
-                  resourceFolder={effectiveResourceFolder}
-                  resourceFolderHandle={effectiveResourceFolderHandle}
-                  attachedChunks={attachedKnowledgeChunks}
-                  onAttachChunk={(chunk) => {
-                    if (!attachedKnowledgeChunks.some(c => c.chunkId === chunk.chunkId)) {
-                      setAttachedKnowledgeChunks(prev => [...prev, chunk]);
-                      showToast(`'${chunk.headingPath || chunk.headingTitle}' 청크가 첨부되었습니다.`, 'success');
+                {/* 🧠 [ONRIVI-KNOWLEDGE-PALETTE] 지식 보관함 검색 & 첨부 팔레트 (데스크톱 전용) */}
+                {isDesktop && (
+                  <KnowledgeAttachmentPalette
+                    resourceFolder={effectiveResourceFolder}
+                    resourceFolderHandle={effectiveResourceFolderHandle}
+                    attachedChunks={attachedKnowledgeChunks}
+                    onAttachChunk={(chunk) => {
+                      if (!attachedKnowledgeChunks.some(c => c.chunkId === chunk.chunkId)) {
+                        setAttachedKnowledgeChunks(prev => [...prev, chunk]);
+                        showToast(`'${chunk.headingPath || chunk.headingTitle}' 청크가 첨부되었습니다.`, 'success');
+                      }
+                    }}
+                    onDetachChunk={(chunkId) => {
+                      setAttachedKnowledgeChunks(prev => prev.filter(c => c.chunkId !== chunkId));
+                    }}
+                    onClearAllChunks={() => setAttachedKnowledgeChunks([])}
+                    isAutoRagEnabled={isAutoRagEnabled}
+                    onToggleAutoRag={setIsAutoRagEnabled}
+                    includeCitations={includeCitations}
+                    onToggleIncludeCitations={setIncludeCitations}
+                    defaultExpanded={true}
+                    currentCharsUsed={
+                      attachedKnowledgeChunks.reduce((acc, c) => acc + (c.snippet?.length || 0), 0) +
+                      (attachedFileContent?.length || 0)
                     }
-                  }}
-                  onDetachChunk={(chunkId) => {
-                    setAttachedKnowledgeChunks(prev => prev.filter(c => c.chunkId !== chunkId));
-                  }}
-                  onClearAllChunks={() => setAttachedKnowledgeChunks([])}
-                  isAutoRagEnabled={isAutoRagEnabled}
-                  onToggleAutoRag={setIsAutoRagEnabled}
-                  includeCitations={includeCitations}
-                  onToggleIncludeCitations={setIncludeCitations}
-                  defaultExpanded={true}
-                  currentCharsUsed={
-                    attachedKnowledgeChunks.reduce((acc, c) => acc + (c.snippet?.length || 0), 0) +
-                    (attachedFileContent?.length || 0)
-                  }
-                  showToast={showToast}
-                />
+                    showToast={showToast}
+                  />
+                )}
 
               </div>
 

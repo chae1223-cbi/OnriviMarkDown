@@ -4,7 +4,8 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-13** — [지식 문서 등록 시 불필요한 입력 팝업 전면 제거 및 무간섭 원클릭 등록 복원]: 웹 환경에서 상단 브레드크럼의 상위 설정(onrivi_web_base_path) 및 작업장 정보를 pathResolver가 자동 감지하도록 연계하고, 사용자에게 경로를 묻는 window.prompt를 전면 제거하여 원클릭 0초 즉시 등록 완벽 복원
+// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 탐색기 📗 뱃지 및 우클릭 컨텍스트 메뉴(지식문서 등록/해제/상세분석)를 isDesktop 전용으로 한정하여 웹 브라우저 UI 경량화
+//             **2026-09-13** — [지식 문서 등록 시 불필요한 입력 팝업 전면 제거 및 무간섭 원클릭 등록 복원]: 웹 환경에서 상단 브레드크럼의 상위 설정(onrivi_web_base_path) 및 작업장 정보를 pathResolver가 자동 감지하도록 연계하고, 사용자에게 경로를 묻는 window.prompt를 전면 제거하여 원클릭 0초 즉시 등록 완벽 복원
 //             **2026-09-12** — [스캔 배제 및 로컬스토리지 작업장 절대경로 직결]: 지식문서 등록 시 buildDirectWorkspacePath로 로컬스토리지 작업장 절대경로와 파일 상대경로를 즉시 다이렉트 연결하여 등록
 //             **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 및 양방향 캐싱]: 지식 등록 결과(registeredDetail.filePath)의 완전한 절대경로와 기존 상대경로를 동시 캐싱하여 📗 아이콘 표시 무결성 확보
 // 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/lib/knowledge/pathResolver, @/lib/knowledge/knowledgeGuard
@@ -852,10 +853,18 @@ const FileTreeItem = ({
   const isMergeSelected = node.kind === 'file' && selectedMergeNodes.some(n => n.path ? n.path === node.path : n.name === node.name);
   const isMarkdown = node.kind === 'file' && node.name.toLowerCase().endsWith('.md');
 
-  // 🧠 지식 베이스 등록 여부 추적 (경로 정규화 및 실시간 동기화)
+  // 🧠 지식 베이스 등록 여부 추적 (데스크톱 전용 기능)
   const [isKnowledgeRegistered, setIsKnowledgeRegistered] = useState(false);
   useEffect(() => {
-    if (!isMarkdown) return;
+    const isDesktop = typeof window !== 'undefined' && (
+      !!(window as any).electronAPI ||
+      navigator.userAgent.toLowerCase().includes('electron') ||
+      new URLSearchParams(window.location.search).get('env') === 'desktop'
+    );
+    if (!isDesktop || !isMarkdown) {
+      setIsKnowledgeRegistered(false);
+      return;
+    }
     const checkRegistered = () => {
       try {
         const registeredList = JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
@@ -1126,6 +1135,17 @@ const FileTreeItem = ({
                       })() ||
                       'gemini-3.8-flash'
                     ).trim();
+
+                    const isDesktopEnv = typeof window !== 'undefined' && (
+                      !!(window as any).electronAPI ||
+                      navigator.userAgent.toLowerCase().includes('electron') ||
+                      new URLSearchParams(window.location.search).get('env') === 'desktop'
+                    );
+
+                    // 🚀 웹 브라우저(SaaS) 환경에서는 지식문서 등록/해제 메뉴를 숨김 (데스크톱 전용 기능)
+                    if (!isDesktopEnv) {
+                      return null;
+                    }
 
                     const guard = checkKnowledgeGuard({ resourceFolder, geminiApiKey, planCode });
 

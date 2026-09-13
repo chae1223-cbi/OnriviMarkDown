@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
-// 🚨 @PATCH : **2026-09-12** — 메뉴바 전체 드롭다운 메뉴 아이템의 이모지를 통합 Icon 컴포넌트로 일원화 교체 (Modern Technical Editorial 벡터 스타일 통일)
+// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 도구(Tools) 메뉴의 '지식 보관함 관리자' 항목을 isDesktop 전용으로 한정하여 웹 브라우저 메뉴 간결화
+//             **2026-09-12** — 메뉴바 전체 드롭다운 메뉴 아이템의 이모지를 통합 Icon 컴포넌트로 일원화 교체 (Modern Technical Editorial 벡터 스타일 통일)
 //             **2026-09-11** — 상단 메뉴바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-11** — 편집(Edit) 메뉴에 GitHub Alert 인용구 스타일 5종(Note, Tip, Important, Warning, Caution) 및 일반 인용구 선택 서브메뉴 신설
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
@@ -342,14 +343,20 @@ export default function MenuBar() {
               }
             ]
           },
-          { 
-            label: "지식 보관함 관리자", 
-            icon: <Icon name="KnowledgeHub" size={15} />, 
-            shortcut: 'Ctrl+Shift+K', 
-            disabled: isRestrictedUser,
-            title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined,
-            onClick: () => !isRestrictedUser && window.dispatchEvent(new CustomEvent('app:open-knowledge-manager')) 
-          },
+          ...(typeof window !== 'undefined' && (
+            !!(window as any).electronAPI ||
+            navigator.userAgent.toLowerCase().includes('electron') ||
+            new URLSearchParams(window.location.search).get('env') === 'desktop'
+          ) ? [
+            { 
+              label: "지식 보관함 관리자", 
+              icon: <Icon name="KnowledgeHub" size={15} />, 
+              shortcut: 'Ctrl+Shift+K', 
+              disabled: isRestrictedUser,
+              title: isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined,
+              onClick: () => !isRestrictedUser && window.dispatchEvent(new CustomEvent('app:open-knowledge-manager')) 
+            }
+          ] : []),
           { divider: true },
           { label: "서식 정의 (갤러리)", icon: <Icon name="Palette" size={15} />, onClick: () => setPreviewMode('css-style') },
           { divider: true },

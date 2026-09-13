@@ -24,7 +24,8 @@ import { loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-11** — 좌측 사이드바 폰트를 Pretendard 최우선으로 일원화 적용
+// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: syncKnowledgeDocs를 데스크톱 환경(isDesktop) 전용으로 한정하여 웹 브라우저 백그라운드 DB 스캔 및 콘솔 노이즈 원천 제거
+//             **2026-09-11** — 좌측 사이드바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-06** — [데스크톱 탐색기 📗 지식 문서 뱃지 복원] effectiveResourceFolder 결정 시 loadSecureData 복호화 및 Onrivi_Asset 기본값 폴백을 완비하여 데스크톱 환경에서 등록된 지식 문서 4건이 탐색기에 즉시 📗 뱃지로 노출되도록 보장
 //             **2026-09-06** — [AES 암호문 리소스 폴더 방어 및 지식 문서 동기화 안전 정규화] localStorage.getItem 직접 호출로 암호문(U2FsdGVkX1...)이 전달되어 가짜 DB가 생성되던 결함을 차단하고 loadSecureData 복호화 및 Onrivi_Asset 안전 폴더 정규화 적용
@@ -126,8 +127,11 @@ export default function LeftSidebar() {
     }
   }, [contextMenu]);
 
-  // 🧠 등록된 지식 문서 경로 목록 동기화 (탐색기 뱃지 표시용)
+  // 🧠 등록된 지식 문서 경로 목록 동기화 (데스크톱 전용 기능)
   useEffect(() => {
+    // 🚀 웹 브라우저(SaaS) 환경에서는 백그라운드 지식 DB 동기화 완전 스킵
+    if (!isDesktop) return;
+
     const syncKnowledgeDocs = async () => {
       let rawFolder = (
         resourceFolder ||
@@ -192,7 +196,7 @@ export default function LeftSidebar() {
       window.removeEventListener('knowledge:refresh', syncKnowledgeDocs);
       window.removeEventListener('file:refresh-all-directories', syncKnowledgeDocs);
     };
-  }, [resourceFolder, geminiApiKey]);
+  }, [resourceFolder, geminiApiKey, isDesktop]);
 
   // 📋 파일/폴더 복사 및 붙여넣기 클립보드 상태
   const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any } | null>(null);
