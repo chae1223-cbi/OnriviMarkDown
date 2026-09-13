@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 인용구 Alert 드롭다운 fixed 최상위 포털 전환]: Windows 작업표시줄 뒤로 드롭다운 항목이 숨는 문제 완전 해결 — absolute→fixed 포지셔닝 전환, getBoundingClientRect() 기반 실제 화면 좌표 측정, zIndex 2147483647(max) 적용, 하단 여유 부족 시 DropUp 자동 반전, floatingQuoteDropdown 상태(open/x/y/dropUp) 통합 관리, 바깥클릭/Escape 닫힘 안전 가드 유지
 // 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 검증 이메일 식별자 보존 및 제한사용자 오강등 영구 차단]: loadAndVerifyLicense에서 session.user.id(UUID)로 이메일이 덮어써져 NOT_FOUND가 발생하던 결함을 session.user.email 및 desktop fullData.userId 우선 채택으로 해결하고, 서버 일시 오류 시 로컬 라이선스 파기 방지 및 오프라인 유예기간 보호 강화
 // 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: handleOpenKnowledge 및 Ctrl+Shift+K 단축키에 isDesktop 가드를 적용하여 웹 브라우저 환경에서 데스크톱 전용 안내 토스트 출력 및 불필요한 화면 전환 차단
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 문서 온디맨드 권한 획득 및 스마트 캐싱 연동]: useFileExplorer에 setConfirmConfig 전달 및 OPEN_FILE/외부 문서 오픈 시 externalFileStore 연동으로 웹 SaaS 환경에서 작업장 외 문서라도 사용자 승인 후 즉시 열람/편집/디스크 저장 완벽 지원
@@ -2502,7 +2503,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [cursorColumn, setCursorColumn] = useState(1);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | ''>('');
   const [floatingHeadingLevel, setFloatingHeadingLevel] = useState(3);
-  const [isFloatingQuoteDropdownOpen, setIsFloatingQuoteDropdownOpen] = useState(false);
+  const [floatingQuoteDropdown, setFloatingQuoteDropdown] = useState<{ open: boolean; x: number; y: number; dropUp: boolean }>({ open: false, x: 0, y: 0, dropUp: false });
 
   // ====================================================================
   // 📊 [OMD-FILE-MainEditorApp-0019] MainEditorApp.tsx ➔ toggleMergeNodeSelect
@@ -6318,8 +6319,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
 
-      // Escape: 플로팅 툴바 숨김 (에디터 포커스 무관)
+      // Escape: 인용구 드롭다운 또는 플로팅 툴바 숨김 (에디터 포커스 무관)
       if (e.key === 'Escape') {
+        if (floatingQuoteDropdown.open) {
+          e.preventDefault();
+          e.stopPropagation();
+          setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
+          return;
+        }
         if (floatingToolbar.visible) {
           e.preventDefault();
           e.stopPropagation();
@@ -6452,7 +6459,20 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 캡처(true) 모드로 등록하여 최우선순위로 가로챕니다.
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
-  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar]);
+  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open]);
+
+  // 💡 플로팅 툴바 인용구 Alert 드롭다운 외부 클릭 시 자동 닫힘 감지기
+  useEffect(() => {
+    if (!floatingQuoteDropdown.open) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('#floating-quote-dropdown-container') && !target.closest('#floating-quote-dropdown-fixed')) {
+        setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
+      }
+    };
+    window.addEventListener('mousedown', handleOutsideClick, true);
+    return () => window.removeEventListener('mousedown', handleOutsideClick, true);
+  }, [floatingQuoteDropdown.open]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0074] MainEditorApp.tsx ➔ toc
@@ -7473,6 +7493,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           fixedLeft = Math.max(16, fixedLeft);
                           fixedTop = Math.max(65, fixedTop);
                         }
+
+                        // 💡 플로팅 툴바가 화면 하단(상태바 부근)에 있을 때 드롭다운 상향(DropUp) 자동 반전 계산 (드롭다운 높이 ~240px)
+                        const winHeight = typeof window !== 'undefined' ? window.innerHeight : 900;
+                        const isDropUp = (winHeight - Math.max(fixedTop, 60)) < 260;
+
                         const handleDragStart = (dragEvent: React.MouseEvent) => {
                           const target = dragEvent.target as HTMLElement;
                           if (target.closest('button') || target.closest('input')) {
@@ -7561,36 +7586,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('HR'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="구분선">—</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ORDERED_LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="숫자 목록">🔢</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="글머리 기호">☰</button>
-                                     <div className="relative inline-flex items-center rounded border border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-800/50">
-                                       <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setIsFloatingQuoteDropdownOpen(false); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-6 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded-l transition-all flex items-center justify-center text-[12px]" title="인용구 (기본)">❝</button>
-                                       <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setIsFloatingQuoteDropdownOpen(prev => !prev); }} className="w-3.5 h-7 hover:bg-black/10 dark:hover:bg-white/10 rounded-r transition-all flex items-center justify-center text-[7px] text-zinc-500 dark:text-zinc-400" title="인용구 스타일/Alert 태그 선택">▼</button>
-                                       {isFloatingQuoteDropdownOpen && (
-                                         <div onMouseDown={(e) => e.stopPropagation()} className="absolute top-full left-0 mt-1 w-44 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50 flex flex-col">
-                                           {[
-                                             { id: 'QUOTE', label: '일반 인용구', icon: '❝' },
-                                             { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️', color: 'text-[#0969da] dark:text-[#2f81f7]' },
-                                             { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡', color: 'text-[#1a7f37] dark:text-[#3fb950]' },
-                                             { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢', color: 'text-[#8250df] dark:text-[#a371f7]' },
-                                             { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️', color: 'text-[#9a6700] dark:text-[#d29922]' },
-                                             { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🚨', color: 'text-[#d1242f] dark:text-[#f85149]' },
-                                           ].map((opt) => (
-                                             <button
-                                               key={opt.id}
-                                               onMouseDown={(e) => {
-                                                 e.preventDefault();
-                                                 dispatchCommand(opt.id as any);
-                                                 setIsFloatingQuoteDropdownOpen(false);
-                                                 setFloatingToolbar(prev => ({ ...prev, visible: false }));
-                                               }}
-                                               className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
-                                             >
-                                               <span className="text-[14px]">{opt.icon}</span>
-                                               <span className="font-semibold text-zinc-800 dark:text-zinc-200">{opt.label}</span>
-                                             </button>
-                                           ))}
-                                         </div>
-                                       )}
-                                     </div>
+                                      <div id="floating-quote-dropdown-container" className="relative inline-flex items-center rounded border border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-800/50">
+                                        <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-6 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded-l transition-all flex items-center justify-center text-[12px]" title="인용구 (기본)">❝</button>
+                                        <button
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const winH = window.innerHeight;
+                                            // 드롭다운 예상 높이 ~200px, 하단 여유 부족 시 위쪽으로 반전
+                                            const spaceBelow = winH - rect.bottom;
+                                            const dropUp = spaceBelow < 210;
+                                            setFloatingQuoteDropdown(prev => ({
+                                              open: !prev.open,
+                                              x: rect.left,
+                                              y: dropUp ? rect.top : rect.bottom,
+                                              dropUp,
+                                            }));
+                                          }}
+                                          className="w-3.5 h-7 hover:bg-black/10 dark:hover:bg-white/10 rounded-r transition-all flex items-center justify-center text-[7px] text-zinc-500 dark:text-zinc-400"
+                                          title="인용구 스타일/Alert 태그 선택"
+                                        >▼</button>
+                                      </div>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CHECK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="체크리스트">☑️</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="태그 취소">🚫</button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="문서 서식 일괄 정리">🧹</button>
@@ -8282,6 +8299,46 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   AI가 문장을 다듬고 있습니다...
                 </span>
               </div>
+            </div>
+          )}
+          {/* ── 인용구 Alert 드롭다운 팝업 (fixed 최상위 레이어 — Windows 작업표시줄 위로 노출) ── */}
+          {floatingQuoteDropdown.open && (
+            <div
+              id="floating-quote-dropdown-fixed"
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{
+                position: 'fixed',
+                zIndex: 2147483647,
+                left: floatingQuoteDropdown.x,
+                ...(floatingQuoteDropdown.dropUp
+                  ? { bottom: window.innerHeight - floatingQuoteDropdown.y + 4 }
+                  : { top: floatingQuoteDropdown.y + 4 }),
+                minWidth: '176px',
+              }}
+              className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl py-1 flex flex-col overflow-y-auto"
+            >
+              {[
+                { id: 'QUOTE', label: '일반 인용구', icon: '❝' },
+                { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️' },
+                { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡' },
+                { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢' },
+                { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️' },
+                { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🚨' },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    dispatchCommand(opt.id as any);
+                    setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
+                    setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                  }}
+                  className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <span className="text-[14px]">{opt.icon}</span>
+                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">{opt.label}</span>
+                </button>
+              ))}
             </div>
           )}
         </div>
