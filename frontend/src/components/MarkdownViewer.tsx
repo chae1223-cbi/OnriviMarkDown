@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-13** — [데스크탑 Mermaid '새 창으로 확대' 팝업 차단 오류 해결]: Electron setWindowOpenHandler의 deny로 window.open()이 차단되던 문제를, openInNewWindow()에서 isDesktop(electronAPI.openMermaidWindow 존재 여부) 분기를 추가하여 데스크탑 환경에서는 IPC mermaid:open-window 경유 BrowserWindow 직접 생성, 웹 환경에서는 기존 window.open() 방식을 유지하도록 분기 처리
 // 🚨 @PATCH : **2026-09-13** — [출처 링크 클릭 시 동일/타겟 문서 판별 고도화 및 미리보기·에디터 동시 스크롤·하이라이트 연동]: 상대/절대경로 및 파일명 베이스네임 매칭으로 동일 문서 오판을 해결하고, 링크 클릭 시 미리보기 부드러운 스크롤 및 하이라이트 효과와 에디터 라인 범위 선택·중앙 정렬을 동시에 트리거
 //             **2026-09-12** — [미리보기 문서 링크 꺾쇠(<...>) 및 앵커(#) 분리 정제 고도화]: 꺾쇠 괄호(<...>)로 감싸진 상대/절대경로 및 한글 헤딩(#) 링크에서 해시 분리 전 꺾쇠를 사전 제거하고 URI 디코딩을 선행 적용하여 탭 오픈 및 스크롤 점프 완벽 보장
 //             **2026-09-12** — [인라인 코드(code) 페이지 가로 넘침 방지 및 줄바꿈(word-break) 완벽 보장]: .onrivi-content-root code에 걸려 있던 white-space: pre !important를 코드블록(pre code) 한정으로 축소하고, 인라인 코드에 white-space: pre-wrap, word-break: break-word, overflow-wrap: anywhere를 적용하여 긴 텍스트/섹션 경로가 페이지 밖으로 잘리는 결함 완벽 해결
@@ -820,8 +821,8 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
   const mermaidRetryRef = useRef(0);
   const mermaidRetryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🔍 다이어그램 새 브라우저 창/탭으로 확대 뷰잉 기능 구현
-  const openInNewWindow = () => {
+  // 🔍 다이어그램 새 창으로 확대 뷰잉 기능 구현 (데스크탑/웹 환경 분기 처리)
+  const openInNewWindow = async () => {
     if (!containerRef.current) return;
     const svgElement = containerRef.current.querySelector('svg');
     if (!svgElement) return;
@@ -853,11 +854,25 @@ const MermaidBlock = React.memo(function MermaidBlock({ code, dataLine }: { code
     svgClone.style.display = 'block';
 
     const svgData = new XMLSerializer().serializeToString(svgClone);
-    
+
     // 모니터 크기에 맞춰 적절한 윈도우 크기 동적 할당
     const winWidth = Math.min(svgWidth + 100, window.screen.availWidth * 0.85);
     const winHeight = Math.min(svgHeight + 150, window.screen.availHeight * 0.85);
-    
+
+    // ✅ 데스크탑(Electron) 환경: IPC 경유로 BrowserWindow 직접 생성 (window.open 팝업 차단 우회)
+    const isDesktop = typeof window !== 'undefined' && typeof (window as any).electronAPI?.openMermaidWindow === 'function';
+    if (isDesktop) {
+      const result = await (window as any).electronAPI.openMermaidWindow(svgData, {
+        width: Math.round(winWidth),
+        height: Math.round(winHeight),
+      });
+      if (result && !result.success) {
+        showToast(`💡 다이어그램 창 열기 실패: ${result.error}`, 'warning');
+      }
+      return;
+    }
+
+    // 🌐 웹 브라우저 환경: 기존 window.open() 방식 유지
     const newWindow = window.open(
       '',
       '_blank',

@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-13** — [데스크탑 Mermaid '새 창으로 확대' 팝업 차단 오류 해결]: setWindowOpenHandler가 window.open()을 deny하여 Mermaid 확대 창이 열리지 않던 문제를 mermaid:open-window IPC 핸들러(BrowserWindow 직접 생성 + data:text/html loadURL)로 완전 대체; preload.js에 openMermaidWindow API 추가, MarkdownViewer.tsx에서 isDesktop 분기 적용
 // 🚨 @PATCH : **2026-09-13** — [IPC 파일 읽기/쓰기 절대경로 및 file:/// 프로토콜 정규화]: file:readFromPath 및 file:save에서 file:/// 접두사 제거 및 decodeURIComponent 디코딩, path.resolve 정규화를 지원하여 외부 절대경로 파일 I/O 100% 보장
 // 🚨 @PATCH : **2026-09-12** — [모든 AI 질의 표준 재시도 적용]: 지식 베이스 AI 문서 분석 fetch 호출 시 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 처리 규칙 적용
 // 🚨 @PATCH : **2026-09-11** — [CSP connect-src data: blob: 스키마 추가] 클립보드 스크린샷 캡처 이미지 데이터 처리 및 fetch 시 CSP 위반 에러 방어
@@ -3196,6 +3197,70 @@ ipcMain.handle('presets:save', async (event, presets, resourceFolder) => {
     return { success: true };
   } catch (e) {
     console.error('AI 프리셋 저장 실패:', e);
+    return { success: false, error: e.message };
+  }
+});
+
+// ====================================================================
+// 📊 [OMD-MAIN-main-0002] main.js ➔ mermaid:open-window
+// 🎯 @KICK  : 미리보기 Mermaid 다이어그램을 새 Electron BrowserWindow에서 확대 뷰잉
+// 🛡️ @GUARD : setWindowOpenHandler가 window.open()을 원천 차단하므로 IPC 경유 방식 사용
+// 🚨 @PATCH : **2026-09-13** — [데스크탑 Mermaid '새 창으로 확대' 팝업 차단 오류 해결]: window.open()이 deny되던 문제를 IPC 경유 BrowserWindow 직접 생성 방식으로 완전 대체
+// 🔗 @CALLS : BrowserWindow, loadURL (data:text/html), screen.getPrimaryDisplay
+// ====================================================================
+ipcMain.handle('mermaid:open-window', async (event, svgHtml, options = {}) => {
+  try {
+    const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+    const winWidth = Math.round(Math.min(options.width || 900, screenW * 0.88));
+    const winHeight = Math.round(Math.min(options.height || 700, screenH * 0.88));
+
+    const mermaidWin = new BrowserWindow({
+      width: winWidth,
+      height: winHeight,
+      title: 'Onrivi — 다이어그램 확대 뷰어',
+      resizable: true,
+      center: true,
+      show: false,
+      backgroundColor: '#ffffff',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        // 이 창은 읽기 전용 SVG 표시만 하므로 preload 불필요
+      },
+    });
+
+    // SVG를 감싸는 HTML을 data: URL로 직접 로드
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Onrivi 다이어그램 돋보기</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      background-color: #ffffff;
+      overflow: auto;
+    }
+    .svg-container {
+      padding: 40px; box-sizing: border-box;
+      width: 100%; max-width: 95%; height: auto;
+      display: flex; align-items: center; justify-content: center;
+    }
+    svg { width: 100% !important; height: auto !important; max-width: 100% !important; display: block; }
+  </style>
+</head>
+<body>
+  <div class="svg-container">${svgHtml}</div>
+</body>
+</html>`;
+
+    await mermaidWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    mermaidWin.show();
+    return { success: true };
+  } catch (e) {
+    console.error('[mermaid:open-window] 오류:', e);
     return { success: false, error: e.message };
   }
 });
