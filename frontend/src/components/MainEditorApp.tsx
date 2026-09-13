@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 검증 이메일 식별자 보존 및 제한사용자 오강등 영구 차단]: loadAndVerifyLicense에서 session.user.id(UUID)로 이메일이 덮어써져 NOT_FOUND가 발생하던 결함을 session.user.email 및 desktop fullData.userId 우선 채택으로 해결하고, 서버 일시 오류 시 로컬 라이선스 파기 방지 및 오프라인 유예기간 보호 강화
 // 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: handleOpenKnowledge 및 Ctrl+Shift+K 단축키에 isDesktop 가드를 적용하여 웹 브라우저 환경에서 데스크톱 전용 안내 토스트 출력 및 불필요한 화면 전환 차단
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 문서 온디맨드 권한 획득 및 스마트 캐싱 연동]: useFileExplorer에 setConfirmConfig 전달 및 OPEN_FILE/외부 문서 오픈 시 externalFileStore 연동으로 웹 SaaS 환경에서 작업장 외 문서라도 사용자 승인 후 즉시 열람/편집/디스크 저장 완벽 지원
 // 🚨 @PATCH : **2026-09-13** — [WASM 지식 DB 청크 본문 추출 정상화]: readFileText에서 getDocumentDetail의 docObj(detail.chunks/chunkText) 연동으로 브라우저 핸들이 없는 지식 문서의 원본 본문 100% 정상 수급
@@ -1496,7 +1497,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     savedUserId = localStorage.getItem('onrivi_user_id') || '';
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) savedUserId = session.user.id;
+      // 🚨 [결함 교정] UUID(session.user.id)로 이메일을 덮어쓰면 서버 verify-desktop에서 NOT_FOUND 발생!
+      // 따라서 session.user.email을 최우선으로 취득하고, 없을 때만 fallback
+      if (session?.user?.email) {
+        savedUserId = session.user.email;
+      } else if (!savedUserId && session?.user?.id) {
+        savedUserId = session.user.id;
+      }
     } catch (e) {}
     savedPaymentNo = localStorage.getItem('onrivi_payment_no') || '';
     savedLastRunTime = parseInt(localStorage.getItem('onrivi_last_run_time') || '0', 10);
@@ -1512,8 +1519,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (isDesktop) {
       if (typeof api.loadLicenseFull === 'function') {
         const fullData = await api.loadLicenseFull();
-        if (fullData && fullData.userId) {
-          savedUserId = fullData.userId || savedUserId;
+        if (fullData) {
+          // 데스크톱 license.json에 유효한 이메일 계정이 있으면 최우선 채택
+          if (fullData.userId && fullData.userId.includes('@')) {
+            savedUserId = fullData.userId;
+          } else if (fullData.userId && !savedUserId) {
+            savedUserId = fullData.userId;
+          }
           savedLastRunTime = fullData.lastRunTime || savedLastRunTime;
           savedNextPaymentDate = fullData.nextPaymentDate || savedNextPaymentDate;
           savedLicenseKey = fullData.licenseKey || savedKey;
@@ -1604,7 +1616,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               planName: data.message, nextPaymentDate: data.next_payment_date || ''
             });
           } else {
-            // NO_PLAN, NOT_FOUND 등 구독 자체가 없는 경우 로컬 라이선스 완전 초기화
+            // 🚨 만약 로컬에 아직 유효기간이 남아있는 라이선스가 있다면, 일시적 식별자 불일치나 네트워크/서버 일시 오류로 즉시 로컬 라이선스를 영구 파기하지 않고 오프라인 유예기간으로 안전하게 보호
+            if (savedNextPaymentDate) {
+              const expiryMs = parseDateStringToMs(savedNextPaymentDate);
+              const remainingDays = Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
+              if (remainingDays > 0) {
+                console.warn('[loadAndVerifyLicense] Desktop verification rejected (' + data.code + '), but local license is valid until ' + savedNextPaymentDate + '. Fallback to offline grace mode.');
+                showToast(`서버 라이선스 확인 중 일시적 오류가 발생하여 오프라인 모드로 안전 전환되었습니다. (만료 D-${remainingDays})`, "warning");
+                setLicenseStatus({
+                  isActivated: true, isExpired: false, remainingDays,
+                  userId: savedUserId, licenseKey: savedLicenseKey, paymentNo: '',
+                  planName: savedPlanName || '오프라인 프리미엄 요금제',
+                  nextPaymentDate: savedNextPaymentDate
+                });
+                setIsLicenseChecking(false);
+                return;
+              }
+            }
+
+            // 만료일도 지났거나 라이선스가 전혀 없는 경우에만 완전 초기화
             if (typeof api !== 'undefined' && api.saveLicenseFull) {
               await api.saveLicenseFull({});
             }

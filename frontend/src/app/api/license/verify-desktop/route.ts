@@ -2,7 +2,8 @@
 // 📊 [OMD-AUTH-verify-desktop-0001 ✅ FIXED] /api/license/verify-desktop
 // 🎯 @KICK  : 데스크탑 앱 실행 시 이메일 기반 라이선스 인증 및 Desktop 기기 세션 안전 등록
 // 🛡️ @GUARD : 데스크탑 1대 한도 검사 및 활성 구독(ELITEPRO / DESKTOP) 검증 가드
-// 🚨 @PATCH : **2026-09-05** — 제거된 PostgreSQL RPC(verify_desktop_license) 의존성 완전 탈피 및 서버사이드 직접 조회/등록 로직 전환
+// 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 인증 식별자 다중 지원]: p_email에 이메일 또는 users.id(UUID) 유입 시 모두 정상 조회되도록 듀얼 쿼리 지원으로 NOT_FOUND 오인식 및 제한사용자 오강등 영구 차단
+//             **2026-09-05** — 제거된 PostgreSQL RPC(verify_desktop_license) 의존성 완전 탈피 및 서버사이드 직접 조회/등록 로직 전환
 // 🔗 @CALLS : supabaseAdmin.from('users'), supabaseAdmin.from('subscriptions'), supabaseAdmin.from('license_activations')
 // ====================================================================
 import { NextResponse } from 'next/server';
@@ -17,17 +18,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, code: 'INVALID_PARAMS', message: '필수 파라미터가 누락되었습니다.' }, { status: 400 });
     }
 
-    const cleanEmail = p_email.trim().toLowerCase();
+    const cleanInput = String(p_email).trim();
 
-    // 1. 사용자 조회 (users 테이블)
-    const { data: userRow, error: userErr } = await supabaseAdmin
-      .from('users')
-      .select('id, email')
-      .ilike('email', cleanEmail)
-      .maybeSingle();
+    // 1. 사용자 조회 (이메일 또는 UUID 동시 지원)
+    let userRow: any = null;
+    let userErr: any = null;
+
+    if (cleanInput.includes('@')) {
+      const res = await supabaseAdmin
+        .from('users')
+        .select('id, email')
+        .ilike('email', cleanInput.toLowerCase())
+        .maybeSingle();
+      userRow = res.data;
+      userErr = res.error;
+    } else {
+      const res = await supabaseAdmin
+        .from('users')
+        .select('id, email')
+        .eq('id', cleanInput)
+        .maybeSingle();
+      userRow = res.data;
+      userErr = res.error;
+    }
 
     if (userErr || !userRow) {
-      return NextResponse.json({ success: false, code: 'NOT_FOUND', message: '등록되지 않은 이메일입니다.' });
+      return NextResponse.json({ success: false, code: 'NOT_FOUND', message: '등록되지 않은 사용자입니다.' });
     }
 
     // 2. 데스크탑 사용 가능한 활성 구독 조회 (ELITEPRO 또는 DESKTOP)
@@ -52,12 +68,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, code: 'NO_PLAN', message: '데스크탑을 지원하는 요금제(ELITEPRO) 구독이 없습니다.' });
     }
 
-    // 3. 기존 동일 기기 세션 확인
+    // 3. 기존 동일 기기 세션 확인 (대소문자 무관 안전 조회)
     const { data: existingAct } = await supabaseAdmin
       .from('license_activations')
       .select('*')
       .eq('subscription_id', desktopSub.id)
-      .eq('device_uuid', p_device_uuid)
+      .ilike('device_uuid', p_device_uuid.trim())
       .maybeSingle();
 
     const nowIso = new Date().toISOString();
