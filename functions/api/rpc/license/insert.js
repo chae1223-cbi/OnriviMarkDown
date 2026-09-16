@@ -1,3 +1,10 @@
+// ====================================================================
+// 📊 [OMD-API-licenseInsert-0001] functions/api/rpc/license/insert.js
+// 🎯 @KICK  : Cloudflare Pages Functions 라이선스 기기 활성화/등록 API
+// 🛡️ @GUARD : Rule 1, Rule 2, p_user_id 이메일 유입 시 UUID 유효성 검증 및 subscription.user_id 폴백, 500 에러 차단 (200 SERVER_ERROR)
+// 🚨 @PATCH : **2026-09-16** — [p_user_id 이메일 유입 시 Postgres UUID 문법 오류(500) 및 activation_id 누락 결함 해결]: p_user_id가 이메일 주소로 전달될 때 UUID 정규식 검증으로 subscription의 소유자 UUID로 자동 대체하고, 예외 시 500 대신 200 SERVER_ERROR 반환 및 activation_id 응답 동기화
+// ====================================================================
+
 export async function onRequestOptions() {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -55,7 +62,11 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ success: false, code: 'ERROR', message: '구독/라이선스 정보를 찾을 수 없습니다.' }), { status: 200, headers: corsHeaders });
     }
     const max_devices = subRows[0].max_devices;
-    const userId = subRows[0].user_id;
+    const subOwnerId = subRows[0].user_id;
+
+    // 🛡️ UUID 유효성 검증 방어 (이메일 주소 등이 들어왔을 때 Postgres UUID 문법 오류 방지)
+    const isValidUUID = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const validUserId = isValidUUID(p_user_id) ? p_user_id : (isValidUUID(subOwnerId) ? subOwnerId : null);
 
     // 2. Fetch existing session
     const actRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&device_uuid=eq.${p_device_uuid}&select=id,is_active&limit=1`, { headers });
@@ -63,8 +74,10 @@ export async function onRequestPost(context) {
 
     let isCurrentlyActive = false;
     let newIsActive = true;
+    let activationId = null;
 
     if (actRows && actRows.length > 0) {
+      activationId = actRows[0].id;
       isCurrentlyActive = actRows[0].is_active;
 
       if (!isCurrentlyActive && max_devices !== null && max_devices > 0) {
@@ -83,11 +96,12 @@ export async function onRequestPost(context) {
           updated_at: now,
           is_active: newIsActive,
           device_name: p_device_name,
-          updated_by: p_user_id || userId
+          updated_by: validUserId
         })
       });
       if (!updateRes.ok) {
-        throw new Error('업데이트 실패');
+        const err = await updateRes.json().catch(() => ({}));
+        throw new Error(err.message || '세션 갱신 실패');
       }
     } else {
       if (max_devices !== null && max_devices > 0) {
@@ -104,8 +118,8 @@ export async function onRequestPost(context) {
         device_name: p_device_name,
         activated_at: now,
         is_active: newIsActive,
-        created_by: p_user_id || userId,
-        updated_by: p_user_id || userId
+        created_by: validUserId,
+        updated_by: validUserId
       };
 
       const insertRes = await fetch(`${supabaseUrl}/rest/v1/license_activations`, {
@@ -114,17 +128,22 @@ export async function onRequestPost(context) {
         body: JSON.stringify(payload)
       });
       if (!insertRes.ok) {
-        const err = await insertRes.json();
-        throw new Error(err.message || '삽입 실패');
+        const err = await insertRes.json().catch(() => ({}));
+        throw new Error(err.message || '세션 등록 실패');
+      }
+      const inserted = await insertRes.json().catch(() => null);
+      if (inserted && Array.isArray(inserted) && inserted.length > 0) {
+        activationId = inserted[0].id;
       }
     }
 
     if (!newIsActive) {
-      return new Response(JSON.stringify({ success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하여 제한 모드로 연결됩니다.', max_devices }), { status: 200, headers: corsHeaders });
+      return new Response(JSON.stringify({ success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하여 제한 모드로 연결됩니다.', max_devices, activation_id: activationId }), { status: 200, headers: corsHeaders });
     }
 
-    return new Response(JSON.stringify({ success: true, code: 'SUCCESS', message: '기기가 활성화되었습니다.' }), { status: 200, headers: corsHeaders });
+    return new Response(JSON.stringify({ success: true, code: 'SUCCESS', message: '기기가 활성화되었습니다.', activation_id: activationId }), { status: 200, headers: corsHeaders });
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, code: 'ERROR', message: error.message }), { status: 500, headers: corsHeaders });
+    console.error('[/api/rpc/license/insert Functions Error]:', error);
+    return new Response(JSON.stringify({ success: false, code: 'SERVER_ERROR', message: error.message }), { status: 200, headers: corsHeaders });
   }
 }

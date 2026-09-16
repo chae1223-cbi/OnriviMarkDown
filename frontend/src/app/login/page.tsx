@@ -2,6 +2,7 @@
 // 📊 [OMD-AUTH-login-page-0001] page ➔ LoginPage
 // 🎯 @KICK  : Supabase Auth 기반 이메일/구글 소셜 로그인 및 마스킹 해제 기능 지원 로그인 화면
 // 🛡️ @GUARD : 이메일/비밀번호 빈 값 방지, Supabase 연동 검증 및 상용 계정 사전 검증
+// 🚨 @PATCH : **2026-09-16** — [로그인 시 세션 등록 기기 한도 초과 안내 콘솔 warn 전환]: 로그인 시 기기 한도 초과(EXCEED_MAX_DEVICES) 응답을 console.error 대신 console.warn으로 처리하여 정상 비즈니스 분기 시 콘솔 에러 오염 방지
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#1d4ed8) 버튼 및 Lucide React 아이콘 교체
 //             **2026-07-22** — 로그인 시 users 존재 확인 API(/api/rpc/user/check) 1차 연동 및 subscriptions 이중 유효성 검증 폴백 구조 적용 패치
@@ -121,9 +122,9 @@ export default function LoginPage() {
               body: JSON.stringify({ p_license_id: subData.id, p_device_uuid: sessionId, p_device_name: "Web SaaS", p_user_id: loggedInUser.id }),
             });
             const actResult = await actRes.json();
-            if (!actResult.success) console.error("[ACTIVATION] API error:", actResult.message);
+            if (!actResult.success) console.warn("[ACTIVATION] API note:", actResult.message);
           } catch (actError) {
-            console.error("[ACTIVATION] Fetch error:", actError);
+            console.warn("[ACTIVATION] Fetch note:", actError);
           }
           router.push(`/editor${window.location.search}`);
         } else {

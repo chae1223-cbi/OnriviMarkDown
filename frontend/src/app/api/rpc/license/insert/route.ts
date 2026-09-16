@@ -1,3 +1,14 @@
+/**
+ * 프로그램명 : 라이선스 기기 활성화/등록 API Route (insert/route.ts)
+ * 버전 정보 : 1.0.1
+ * 프로그램 ID : OMD-API-licenseInsert-0001
+ * -----------------------------------------------------------------------
+ * 변경내역
+ * -----------------------------------------------------------------------
+ * <2026.07.05> 최초작성
+ * 🚨 @PATCH : **2026-09-16** — [p_user_id 이메일 유입 시 Postgres UUID 문법 오류 방어 및 500 에러 차단]: p_user_id가 이메일 주소일 때 subscriptions 소유자 UUID(subOwnerId)로 자동 승격하여 Postgres 22P02 오류 원천 방어, 서버 예외 발생 시 500 대신 200 SERVER_ERROR를 반환하여 브라우저 콘솔 오류 로그 차단
+ * -----------------------------------------------------------------------
+ */
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
@@ -41,7 +52,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, code: 'ERROR', message: '구독/라이선스 정보를 찾을 수 없습니다.' }, { status: 200 });
       }
 
-      const { max_devices, plan_name } = subRows[0];
+      const { max_devices, plan_name, user_id: subOwnerId } = subRows[0];
+      const effectiveUserId = validUserId || (subOwnerId && isValidUUID(subOwnerId) ? subOwnerId : null);
       const nowIso = new Date().toISOString();
       const isElitePro = plan_name?.toUpperCase().replace(/\s/g, '').includes('ELITE');
       const isDesktopReq = p_device_name?.toLowerCase().includes('desktop');
@@ -106,7 +118,7 @@ export async function POST(request: Request) {
             updated_at: nowIso,
             is_active: newIsActive,
             device_name: p_device_name,
-            updated_by: validUserId
+            updated_by: effectiveUserId
           })
           .eq('id', activationId);
       } else {
@@ -119,8 +131,8 @@ export async function POST(request: Request) {
             activated_at: nowIso,
             updated_at: nowIso,
             is_active: newIsActive,
-            created_by: validUserId,
-            updated_by: validUserId
+            created_by: effectiveUserId,
+            updated_by: effectiveUserId
           })
           .select('id');
         if (inserted && inserted.length > 0) activationId = inserted[0].id;
@@ -134,6 +146,6 @@ export async function POST(request: Request) {
     }
   } catch (error: any) {
     console.error('[/api/rpc/license/insert] Error:', error);
-    return NextResponse.json({ success: false, code: 'ERROR', message: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, code: 'SERVER_ERROR', message: error.message }, { status: 200 });
   }
 }

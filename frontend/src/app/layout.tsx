@@ -52,7 +52,8 @@ export const metadata: Metadata = {
 // 📊 [OMD-CORE-layout-0001] layout ➔ RootLayout
 // 🎯 @KICK  : Next.js 루트 레이아웃 - 전역 HTML 구조, CSP, 폰트, Mermaid 설정 및 ToastProvider 래핑
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : **2026-09-12** — 크롬 확장 프로그램(Chrome Extension) 비동기 메시지 채널 조기 종료로 인한 무해한 unhandledrejection 콘솔 에러 필터 가드 탑재
+// 🚨 @PATCH : **2026-09-16** — 크롬 확장 프로그램(Chrome Extension) 비동기 메시지 채널 조기 종료 및 서드파티 VM 에러(startTime 등) 무해한 콘솔 에러 필터 가드 강화
+//           : **2026-09-12** — 크롬 확장 프로그램(Chrome Extension) 비동기 메시지 채널 조기 종료로 인한 무해한 unhandledrejection 콘솔 에러 필터 가드 탑재
 //           : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용: Plus Jakarta Sans, Inter, JetBrains Mono 구글 웹폰트 사전 로드 및 연동
 //           : **2026-09-05** — 파비콘 경로를 상대경로(./)에서 절대경로(/icon_onriveauther.png?v=1)로 변경하여 /login 등 중첩 라우트 진입 시 404 리소스 로드 에러 방지 | CSP script-src 'self' 차단으로 mermaid.min.js <script defer> 복원 (2026-06-18); Next.js hydration이 <script>를 제거하여 dynamic load 방식으로 전환, plain script defer 제거 (2026-06-18) | **2026-06-20** — 백엔드 API(포트 5000) 연동을 위해 CSP connect-src에 http://localhost:5000 추가 허용
 //           : **2026-06-23** — Cloudflare Web Analytics 억까 차단 방지를 위해 script-src 목록에 https://static.cloudflareinsights.com 정밀 추가
@@ -100,14 +101,29 @@ export default function RootLayout({
             })
           }}
         />
-        {/* 크롬 확장 프로그램(Chrome Extension) 무해한 비동기 메시지 채널 조기 종료 에러 콘솔 오염 억제 */}
+        {/* 크롬 확장 프로그램(Chrome Extension) 무해한 비동기 메시지 채널 조기 종료 및 서드파티 VM 에러 콘솔 오염 억제 */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               if (typeof window !== 'undefined') {
+                var filterMsg = function(msg) {
+                  if (!msg || typeof msg !== 'string') return false;
+                  return msg.indexOf('A listener indicated an asynchronous response') !== -1 ||
+                         msg.indexOf('message channel closed before a response was received') !== -1 ||
+                         msg.indexOf('startTime') !== -1;
+                };
                 window.addEventListener('unhandledrejection', function(e) {
-                  if (e && e.reason && typeof e.reason.message === 'string' && e.reason.message.indexOf('A listener indicated an asynchronous response by returning true') !== -1) {
+                  var m = (e && e.reason && (e.reason.message || e.reason)) ? String(e.reason.message || e.reason) : '';
+                  if (filterMsg(m)) {
                     e.preventDefault();
+                    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+                  }
+                });
+                window.addEventListener('error', function(e) {
+                  var m = (e && (e.message || (e.error && e.error.message))) ? String(e.message || e.error.message) : '';
+                  if (filterMsg(m)) {
+                    e.preventDefault();
+                    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
                   }
                 });
               }

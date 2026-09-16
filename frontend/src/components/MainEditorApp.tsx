@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-16** — [라이선스 세션 등록 UUID 식별자 우선 전송 및 500 오류 방어]: loadAndVerifyLicense 및 handleCrossDeviceTakeover에서 p_user_id로 이메일 대신 subscription.user_id(UUID) 또는 auth session UUID를 우선 전송하여 Postgres 22P02 오류 원천 차단
 // 🚨 @PATCH : **2026-09-16** — [삭제된 폴더 스캔 시 ENOENT/EPERM 콘솔 에러 가드]: fetchAllMdFiles 데스크톱 스캔 시 삭제/이동 직후의 ENOENT/EPERM 예외 콘솔 경고를 안전하게 억제하고 스킵 처리
 // 🚨 @PATCH : **2026-09-13** — [세션 등록 insert API 500 에러 시 제한사용자 잠금 방지]: /api/rpc/license/insert가 500(서버 내부 오류)을 반환할 때 구독 자체가 유효하면 제한사용자로 처리하지 않고 경고 토스트 후 정상 접근 허용; SERVER_ERROR 코드 및 fetch 예외도 동일하게 처리; insert.js catch 블록 500→200 반환 개선으로 클라이언트 JSON 파싱 안전성 확보
 // 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 인용구 Alert 드롭다운 fixed 최상위 포털 전환]: Windows 작업표시줄 뒤로 드롭다운 항목이 숨는 문제 완전 해결 — absolute→fixed 포지셔닝 전환, getBoundingClientRect() 기반 실제 화면 좌표 측정, zIndex 2147483647(max) 적용, 하단 여유 부족 시 DropUp 자동 반전, floatingQuoteDropdown 상태(open/x/y/dropUp) 통합 관리, 바깥클릭/Escape 닫힘 안전 가드 유지
@@ -1914,12 +1915,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             let isDeviceLimitHit = false; // 기기 초과 여부 (try 블록 바깥에서도 참조)
 
             const currentDeviceName = isDesktop ? 'Desktop App' : 'Web SaaS';
-            console.log('[loadAndVerifyLicense] insert: user=', savedUserId, 'session=', sessionId, 'device=', currentDeviceName, 'licenseId=', currentLicenseId, 'isREADER=', sub?.plan_name === 'READER');
+            const isValidUUID = (id: any) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            const reqUserId = (sub?.user_id && isValidUUID(sub.user_id))
+              ? sub.user_id
+              : (currentAuthUser?.id && isValidUUID(currentAuthUser.id) ? currentAuthUser.id : savedUserId);
+
+            console.log('[loadAndVerifyLicense] insert: user=', reqUserId, 'session=', sessionId, 'device=', currentDeviceName, 'licenseId=', currentLicenseId, 'isREADER=', sub?.plan_name === 'READER');
             try {
               const actRes = await fetch(getApiUrl('/api/rpc/license/insert'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ p_license_id: currentLicenseId, p_device_uuid: sessionId, p_device_name: currentDeviceName, p_user_id: savedUserId, p_is_expired: sub?.plan_name === 'READER' })
+                body: JSON.stringify({ p_license_id: currentLicenseId, p_device_uuid: sessionId, p_device_name: currentDeviceName, p_user_id: reqUserId, p_is_expired: sub?.plan_name === 'READER' })
               });
 
               if (!actRes.ok) {
@@ -2043,17 +2049,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       } else {
         // 웹 SaaS 환경 제어권 인수
         let licenseId = localStorage.getItem('onrivi_license_id') || '';
+        const { data: authSessionData } = await supabase.auth.getSession();
+        const authUserId = authSessionData?.session?.user?.id;
+        const isValidUUID = (id: any) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        const effectiveAuthUserId = (authUserId && isValidUUID(authUserId)) ? authUserId : (isValidUUID(savedUserId) ? savedUserId : null);
+
         if (!licenseId) {
-          const { data: userSub } = await supabase
-            .from('subscriptions')
-            .select('id')
-            .eq('user_id', savedUserId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (userSub?.id) {
-            licenseId = userSub.id;
-            localStorage.setItem('onrivi_license_id', licenseId);
+          if (effectiveAuthUserId) {
+            const { data: userSub } = await supabase
+              .from('subscriptions')
+              .select('id')
+              .eq('user_id', effectiveAuthUserId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (userSub?.id) {
+              licenseId = userSub.id;
+              localStorage.setItem('onrivi_license_id', licenseId);
+            }
+          }
+          if (!licenseId && savedPaymentNo) {
+            const { data: userSub } = await supabase
+              .from('subscriptions')
+              .select('id')
+              .eq('payment_no', savedPaymentNo)
+              .maybeSingle();
+            if (userSub?.id) {
+              licenseId = userSub.id;
+              localStorage.setItem('onrivi_license_id', licenseId);
+            }
           }
         }
 
@@ -2070,7 +2094,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             p_license_id: licenseId,
             p_device_uuid: sessionId,
             p_device_name: 'Web SaaS',
-            p_user_id: savedUserId,
+            p_user_id: effectiveAuthUserId || savedUserId,
             p_is_expired: false,
             p_force_takeover: true
           })
