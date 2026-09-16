@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       success: true,
       has_session: isActiveSession, // 제한 사용자에게는 false를 반환하여 프론트가 계속 제한 상태로 두도록 함
       is_restricted: isExpiredPlan ? true : (sessionExists && !isActiveSession),
-      max_devices: max_devices || 1
+      max_devices: 1
     });
   } catch (error: any) {
     console.error('[/api/license/check-session] Error:', error);

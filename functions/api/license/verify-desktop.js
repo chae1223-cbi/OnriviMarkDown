@@ -1,7 +1,7 @@
 // ====================================================================
 // 📊 [OMD-AUTH-verify-desktop-0002 ✅ FIXED] functions/api/license/verify-desktop.js
 // 🎯 @KICK  : Cloudflare Pages 데스크탑 앱 라이선스 인증 및 세션 검증
-// 🛡️ @GUARD : is_active=true 활성 세션만 집계, 데스크탑 전용 기기 필터링 및 동시접속 1대 가드
+// 🚨 @PATCH : **2026-09-16** — [데스크톱 1대 엄격 제한 및 타 기기 사용 시 재인증 차단]: 기존 동일 기기 세션이 있더라도 비활성 상태이고 다른 데스크탑이 활성화되어 있으면 forceTakeover 없이 재인증 시 ERR_MAX_DEVICES_EXCEEDED 반환하여 1대 초과 방어
 // 🚨 @PATCH : **2026-09-16** — [데스크톱 세션 검증 is_active=true 필터링 및 데스크톱 기기 구분 집계]: 과거 비활성화(is_active=false)된 이전 세션이 기기 수에 누적 합산되어 발생하던 ERR_MAX_DEVICES_EXCEEDED 차단 오류 해결, 데스크탑(Desktop App) 기기만 한도(1대)로 독립 집계
 // 🔗 @CALLS : Supabase REST API (users, subscriptions, license_activations)
 // ====================================================================
@@ -101,6 +101,26 @@ export async function onRequestPost(context) {
       });
     }
 
+    // 5. 타 활성 데스크탑 동시접속 한도 검사 (오직 활성 데스크탑 기기만 1대 한도 체크)
+    const activeDesktopRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${sub.id}&device_uuid=neq.${encodeURIComponent(p_device_uuid.trim())}&is_active=eq.true&device_name=ilike.*desktop*&select=id`, { headers });
+    const activeDesktopSessions = await activeDesktopRes.json();
+    const hasOtherActive = activeDesktopSessions && activeDesktopSessions.length >= 1;
+
+    if (hasOtherActive && !p_force_takeover && (!existingDevice || !existingDevice.is_active)) {
+      return new Response(JSON.stringify({
+        success: false,
+        code: 'ERR_MAX_DEVICES_EXCEEDED',
+        message: '데스크탑 동시 접속 허용 대수(1대)를 초과했습니다. 다른 데스크탑에서 사용 중입니다.',
+        max_devices: 1,
+        current_devices: activeDesktopSessions.length,
+        verify_key: sub.verify_key,
+        payment_no: sub.payment_no,
+        license_key: sub.license_key,
+        plan_name: displayPlanName,
+        next_payment_date: sub.current_period_end
+      }), { status: 200, headers: corsHeaders });
+    }
+
     if (existingDevice) {
       // 기존 세션 활성화 및 갱신
       await fetch(`${supabaseUrl}/rest/v1/license_activations?id=eq.${existingDevice.id}`, {
@@ -131,11 +151,7 @@ export async function onRequestPost(context) {
       }), { status: 200, headers: corsHeaders });
     }
 
-    // 5. 신규 기기 등록 시 데스크탑 동시접속 한도 검사 (오직 활성 데스크탑 기기만 1대 한도 체크)
-    const activeDesktopRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${sub.id}&is_active=eq.true&device_name=ilike.*desktop*&select=id`, { headers });
-    const activeDesktopSessions = await activeDesktopRes.json();
-
-    if (activeDesktopSessions && activeDesktopSessions.length >= 1) {
+    if (hasOtherActive) {
       return new Response(JSON.stringify({
         success: false,
         code: 'ERR_MAX_DEVICES_EXCEEDED',

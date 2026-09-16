@@ -179,7 +179,7 @@ export const insertLicenseActivationQuery = async (
     }
 
     if (!newIsActive) {
-      return { success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하거나 만료(READER)되어 제한 모드로 연결됩니다.', max_devices, activation_id: activationId };
+      return { success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하거나 만료(READER)되어 제한 모드로 연결됩니다.', max_devices: 1, activation_id: activationId };
     }
 
     return { success: true, code: 'SUCCESS', message: '기기가 활성화되었습니다.', activation_id: activationId };

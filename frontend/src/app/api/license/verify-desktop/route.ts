@@ -2,6 +2,7 @@
 // 📊 [OMD-AUTH-verify-desktop-0001 ✅ FIXED] /api/license/verify-desktop
 // 🎯 @KICK  : 데스크탑 앱 실행 시 이메일 기반 라이선스 인증 및 Desktop 기기 세션 안전 등록
 // 🛡️ @GUARD : 데스크탑 1대 한도 검사 및 활성 구독(ELITEPRO / DESKTOP) 검증 가드
+// 🚨 @PATCH : **2026-09-16** — [데스크톱 1대 엄격 제한 및 타 기기 사용 시 재인증 차단]: 기존 동일 기기 세션이 있더라도 비활성 상태이고 다른 데스크탑이 활성화되어 있으면 forceTakeover 없이 재인증 시 ERR_MAX_DEVICES_EXCEEDED 반환하여 1대 초과 방어
 // 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 인증 식별자 다중 지원]: p_email에 이메일 또는 users.id(UUID) 유입 시 모두 정상 조회되도록 듀얼 쿼리 지원으로 NOT_FOUND 오인식 및 제한사용자 오강등 영구 차단
 //             **2026-09-05** — 제거된 PostgreSQL RPC(verify_desktop_license) 의존성 완전 탈피 및 서버사이드 직접 조회/등록 로직 전환
 // 🔗 @CALLS : supabaseAdmin.from('users'), supabaseAdmin.from('subscriptions'), supabaseAdmin.from('license_activations')
@@ -92,6 +93,32 @@ export async function POST(request: Request) {
         .eq('is_active', true);
     }
 
+    // 4. 타 활성 데스크탑 세션 검사 (데스크탑 1대 한도)
+    const { data: otherActiveDesktopSessions } = await supabaseAdmin
+      .from('license_activations')
+      .select('id')
+      .eq('subscription_id', desktopSub.id)
+      .neq('device_uuid', p_device_uuid)
+      .eq('is_active', true)
+      .ilike('device_name', '%desktop%');
+
+    const hasOtherActive = otherActiveDesktopSessions && otherActiveDesktopSessions.length >= 1;
+
+    // 이미 다른 데스크탑이 활성화되어 있고, 제어권 인수가 아니며, 현재 기기가 비활성(또는 신규)인 경우 차단
+    if (hasOtherActive && !p_force_takeover && (!existingAct || !existingAct.is_active)) {
+      return NextResponse.json({
+        success: false,
+        code: 'ERR_MAX_DEVICES_EXCEEDED',
+        message: '데스크탑 동시 접속 허용 대수(1대)를 초과했습니다. 다른 데스크탑에서 사용 중입니다.',
+        max_devices: 1,
+        verify_key: desktopSub.verify_key || '',
+        payment_no: desktopSub.payment_no || '',
+        license_key: desktopSub.license_key || '',
+        plan_name: desktopSub.plan_name || 'ELITEPRO',
+        next_payment_date: desktopSub.current_period_end
+      });
+    }
+
     if (existingAct) {
       // 기존 세션 갱신 (Desktop App 명칭 보장)
       await supabaseAdmin
@@ -116,15 +143,8 @@ export async function POST(request: Request) {
       });
     }
 
-    // 4. 신규 기기 등록 시 데스크탑 동시접속 한도 검사 (데스크탑 1대)
-    const { data: activeDesktopSessions } = await supabaseAdmin
-      .from('license_activations')
-      .select('id')
-      .eq('subscription_id', desktopSub.id)
-      .eq('is_active', true)
-      .ilike('device_name', '%desktop%');
-
-    if (activeDesktopSessions && activeDesktopSessions.length >= 1) {
+    // 4-1. 신규 기기 등록 시 데스크탑 동시접속 한도 검사
+    if (hasOtherActive) {
       return NextResponse.json({
         success: false,
         code: 'ERR_MAX_DEVICES_EXCEEDED',

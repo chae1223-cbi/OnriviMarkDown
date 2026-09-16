@@ -150,7 +150,7 @@ export async function POST(request: Request) {
       }
 
       if (!newIsActive) {
-        return NextResponse.json({ success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하여 제한 모드로 연결됩니다.', max_devices, activation_id: activationId });
+        return NextResponse.json({ success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하여 제한 모드로 연결됩니다.', max_devices: 1, activation_id: activationId });
       }
 
       return NextResponse.json({ success: true, code: 'SUCCESS', message: '기기가 활성화되었습니다.', activation_id: activationId });
