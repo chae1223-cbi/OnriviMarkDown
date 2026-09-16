@@ -92,29 +92,29 @@ export async function onRequestPost(context) {
     let newIsActive = true;
     let activationId = null;
 
-    // 활성 웹 세션 카운트 헬퍼 (데스크탑 제외, 타 기기만 카운트)
+    // 🚨 @PATCH : 2026-09-16 활성 세션 카운트 헬퍼 (PostgREST 인코딩/와일드카드 오류 원천 차단을 위해 select=id,device_name 으로 전체 활성 세션을 받아 JS에서 엄격 분리 집계)
     const checkLimitExceeded = async () => {
       if (max_devices === null || max_devices <= 0) return false;
-      let countUrl = `${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&device_uuid=neq.${p_device_uuid}&select=id`;
-      if (!isDesktop) {
-        countUrl += '&device_name=not.ilike.*desktop*';
-      } else {
-        countUrl += '&device_name=ilike.*desktop*';
-      }
+      const countUrl = `${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&device_uuid=neq.${p_device_uuid}&select=id,device_name`;
       const countRes = await fetch(countUrl, { headers });
       const activeRows = await countRes.json();
-      const limit = isDesktop ? 1 : 1; // 데스크탑 1대, 웹 브라우저 1대 엄격 제한
-      return (activeRows || []).length >= limit;
+      const list = Array.isArray(activeRows) ? activeRows : [];
+      if (!isDesktop) {
+        const activeWebCount = list.filter(r => !String(r.device_name || '').toLowerCase().includes('desktop')).length;
+        return activeWebCount >= 1; // 웹 브라우저 접속은 1대만 허용
+      } else {
+        const activeDesktopCount = list.filter(r => String(r.device_name || '').toLowerCase().includes('desktop')).length;
+        return activeDesktopCount >= 1; // 데스크탑 앱 접속은 1대만 허용
+      }
     };
 
     if (actRows && actRows.length > 0) {
       activationId = actRows[0].id;
       isCurrentlyActive = actRows[0].is_active;
 
-      if (!isCurrentlyActive) {
-        if (await checkLimitExceeded()) {
-          newIsActive = false;
-        }
+      // 1차 통과 시 무조건 타 활성 세션 존재 여부 검사 (웹 1대 초과 시 무조건 제한 사용자로 격리)
+      if (newIsActive && await checkLimitExceeded()) {
+        newIsActive = false;
       }
 
       const updateRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&device_uuid=eq.${p_device_uuid}`, {
@@ -133,7 +133,7 @@ export async function onRequestPost(context) {
         throw new Error(err.message || '세션 갱신 실패');
       }
     } else {
-      if (await checkLimitExceeded()) {
+      if (newIsActive && await checkLimitExceeded()) {
         newIsActive = false;
       }
 

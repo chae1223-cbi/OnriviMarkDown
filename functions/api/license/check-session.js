@@ -62,27 +62,14 @@ export async function onRequestPost(context) {
 
     const sessionExists = actRows && actRows.length > 0;
     let isActiveSession = sessionExists && actRows[0].is_active;
-    let promoted = false;
-
-    // 3. Auto-promote if restricted but capacity available
-    if (sessionExists && !isActiveSession && max_devices > 0) {
-      const countRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&is_active=eq.true&select=id`, { headers });
-      const activeRows = await countRes.json();
-      if (activeRows && activeRows.length < max_devices) {
-        isActiveSession = true;
-        promoted = true;
-      }
-    }
-
-    // 4. updated_at 갱신 (하트비트) 및 필요시 is_active 승급
+    // 3. 🚨 @PATCH : 2026-09-16 하트비트에서 임의 1대 한도 동기화 및 자동 승급(Auto-promote) 완전 배제
+    // 사용자의 명시적 지침에 따라 하트비트는 세션 상태를 조작하지 않고, 오직 DB 세션의 생존(updated_at)만 갱신하며
+    // 다른 곳(대시보드 기기 해제, 타 기기 인수 등)에서 세션이 비활성화되거나 삭제된 것을 그대로 감지하여 반환합니다.
     if (sessionExists) {
-      const patchBody = { updated_at: new Date().toISOString(), updated_by: userId };
-      if (promoted) patchBody.is_active = true;
-      
       await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&device_uuid=eq.${p_device_uuid}`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify(patchBody)
+        body: JSON.stringify({ updated_at: new Date().toISOString(), updated_by: userId })
       });
     }
 
@@ -90,6 +77,7 @@ export async function onRequestPost(context) {
       success: true,
       has_session: isActiveSession,
       is_restricted: sessionExists && !isActiveSession,
+      is_terminated: !sessionExists,
       max_devices: max_devices || 1
     }), { status: 200, headers: corsHeaders });
 

@@ -67,6 +67,7 @@
 //             **2026-09-02** — 서식 설정(CSS 프로필)의 P 태그 줄간격(line-height), 여백, 들여쓰기 변경이 실시간으로 반영되도록 line-height inherit 충돌을 해소하고 선택자에 onrivi-content-root 확장
 //             **2026-09-02** — CSS 프로필(서식) 적용 시 p 태그 마진이 리스트 내부로 흘러들어가 행간이 벌어지던 현상을 막기 위해 generatePreviewCss에 li, li p 제로 마진 압착 규칙 주입
 // 🚨 @PATCH : **2026-09-11** — Alert 인용구 5종(Note, Tip, Important, Warning, Caution) 접두사 삽입 및 태그 치환 엔진(applyLinePrefix alertType) 연동, QUOTE_* 커맨드 디스패치 등록
+//             **2026-09-16** — [웹 브라우저 탭 격리 및 하트비트 세션 해제 캐치 보강]: 웹 SaaS 환경에서 동일 브라우저의 다중 탭/창 접속을 격리 식별하기 위해 sessionStorage(onrivi_tab_session_id)를 우선 채택하여 2번째 탭/창 접속 시 100% 동시 접속 초과(제한 모드)로 격리하고, 하트비트(/api/license/check-session)에서 타 기기 제어권 인수 또는 세션 해제(DELETE/비활성화)를 즉시 캐치하여 자동 세션 종료 및 제한 모드로 전환되도록 안전 가드 연동
 //             **2026-09-02** — 에디터 마지막 행 아래의 과도한 스크롤 빈 공간을 없애기 위해 scrollBeyondLastLine: false 및 padding.bottom: 24로 최적화
 //             **2026-09-02** — 에디터 Monaco 패딩(top: 16, bottom: 24, right: 16) 및 미리보기 페이지 시트 상하 여백(my-3~4, pb-12)을 슬림하게 축소 조정하여 쾌적한 작업 공간 확보
 //             **2026-09-02** — 타이핑 시 180ms 지연 깜빡임을 완전히 제거하기 위해 React 18 useDeferredValue 기반 동시성 실시간 렌더링 적용 및 에디터 마지막 행 입력 시 미리보기가 가려지지 않고 실시간 바닥(최하단)을 즉시 추종하도록 동기화 개선
@@ -1806,13 +1807,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
       try {
-        let sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
+        // 🚨 @PATCH : 2026-09-16 웹 환경에서는 동일 브라우저의 다중 탭/창을 독립 격리하기 위해 sessionStorage를 우선 사용
+        let sessionId = !isDesktop ? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) : null;
         if (!sessionId) {
           sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
             ? crypto.randomUUID()
             : 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 15);
-          localStorage.setItem('onrivi_session_id', sessionId);
+          if (!isDesktop && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('onrivi_tab_session_id', sessionId);
+          }
         }
+        localStorage.setItem('onrivi_session_id', sessionId);
 
         let { data: license } = await supabase
           .from('subscriptions')
@@ -2026,7 +2031,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     try {
       const isDesktopEnv = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
       const savedUserId = localStorage.getItem('onrivi_user_id') || localStorage.getItem('onrivi_auth_user_id') || licenseStatus.userId || '';
-      const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id') || deviceId;
+      const sessionId = (!isDesktopEnv && typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id') || deviceId;
 
       if (isDesktopEnv) {
         // 데스크탑 환경 제어권 인수
@@ -2154,8 +2159,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (!paymentNo) return;
 
       try {
-        // p_device_uuid는 로컬의 sessionId를 넘겨야 현재 브라우저 탭 세션을 추적함
-        const currentSessionId = localStorage.getItem('onrivi_session_id') || deviceId;
+        const isDesktopEnv = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
+        // 🚨 @PATCH : 2026-09-16 웹 환경에서는 탭 격리 세션 ID를 우선 전송하여 타 기기/탭의 세션 변경을 정밀 감지
+        const currentSessionId = (!isDesktopEnv && typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || deviceId;
         const chkRes = await fetch(getApiUrl('/api/license/check-session'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2164,31 +2170,31 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const chk = chkRes.ok ? await chkRes.json() : null;
 
         if (chk) {
-          if (chk.success && chk.has_session === false && chk.is_restricted === false) {
-            // 세션 자체가 DB에서 완전히 삭제(DELETE)된 경우 (대시보드 기기 해제 등) -> 무조건 강제 로그아웃
+          if (chk.success && (chk.is_terminated || (chk.has_session === false && chk.is_restricted === false))) {
+            // 세션 자체가 DB에서 완전히 삭제(DELETE)된 경우 (대시보드 기기 해제, 타 기기/관리자 세션 종료 등) -> 무조건 강제 로그아웃
             setLicenseStatus(prev => {
-              showToast("🛑 동시접속 관리에 의해 현재 기기의 세션이 강제 해제되었습니다. 보호를 위해 로그아웃됩니다.", "error");
+              showToast("🛑 다른 화면 또는 대시보드에서 세션이 해제되었습니다. 자동으로 로그아웃됩니다.", "error");
               setTimeout(async () => {
                 const pNo = localStorage.getItem('onrivi_payment_no');
-                const sId = localStorage.getItem('onrivi_session_id') || deviceId;
+                const sId = (!isDesktopEnv && typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || deviceId;
                 if (pNo && sId) {
                   await fetch(getApiUrl('/api/device/deactivate'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: pNo, p_device_uuid: sId }) });
                 }
+                if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('onrivi_tab_session_id');
                 localStorage.removeItem('onrivi_session_id');
                 Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
                 await supabase.auth.signOut({ scope: 'local' });
-                const isDesktop = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
-                if (!isDesktop) {
+                if (!isDesktopEnv) {
                   window.location.href = '/login';
                 }
-              }, 3000);
+              }, 2500);
               return { ...prev, isActivated: false, isExpired: true, planName: '세션 해제 (로그아웃 중...)' };
             });
           } else if (chk.success && chk.has_session === false && chk.is_restricted !== false) {
-            // 세션은 존재하지만 활성화되지 않은 제한 사용자 상태인 경우 -> 제한 모드 유지
+            // 세션은 존재하지만 활성화되지 않은 제한 사용자 상태인 경우 (타 화면에서 제어권 인수했거나 동시접속 초과)
             setLicenseStatus(prev => {
-              if (!prev.isExpired) {
-                showToast("⚠️ 동시 접속 한도를 초과하여 본 세션은 제한 모드(읽기 전용)로 동작합니다.", "warning");
+              if (prev.isActivated) {
+                showToast("⚠️ 다른 화면에서 편집 권한을 가져갔거나 동시접속 초과로 현재 화면은 제한 모드(읽기 전용)로 전환되었습니다.", "warning");
               }
               return {
                 ...prev,
