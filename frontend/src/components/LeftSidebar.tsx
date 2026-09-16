@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import GlobalSearch from './GlobalSearch';
@@ -24,7 +24,8 @@ import { loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
-// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: syncKnowledgeDocs를 데스크톱 환경(isDesktop) 전용으로 한정하여 웹 브라우저 백그라운드 DB 스캔 및 콘솔 노이즈 원천 제거
+// 🚨 @PATCH : **2026-09-16** — [워크스페이스 검색 줄 이동 & 검색 텍스트 하이라이트 연동 및 토스트 알림 제거] 1) previewMode === 'preview' 및 분할 모드에서 [data-line] 기반 중앙 스크롤 및 행 하이라이트(preview-highlight-line), 검색어 텍스트 노드 인라인 마킹(onrivi-search-text-highlight)을 수행하는 executeJumpAndHighlight 구축, 2) '...번째 줄로 이동했습니다' 토스트 팝업 4개소 전면 제거
+//             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: syncKnowledgeDocs를 데스크톱 환경(isDesktop) 전용으로 한정하여 웹 브라우저 백그라운드 DB 스캔 및 콘솔 노이즈 원천 제거
 //             **2026-09-11** — 좌측 사이드바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-06** — [데스크톱 탐색기 📗 지식 문서 뱃지 복원] effectiveResourceFolder 결정 시 loadSecureData 복호화 및 Onrivi_Asset 기본값 폴백을 완비하여 데스크톱 환경에서 등록된 지식 문서 4건이 탐색기에 즉시 📗 뱃지로 노출되도록 보장
@@ -44,7 +45,7 @@ import { loadSecureData } from '@/lib/secureStorage';
 //             **2026-09-02** — 좌측 사이드바 워크스페이스 실폴더 라벨 및 파일 트리/목차 폰트를 font-bold 및 고대비 색상으로 굵기/선명도 강화
 //             **2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] LINE Design System (LDSG) LNB 표준 디자인 적용 (Clean White Surface, LINE Green #1d4ed8 탭 배지, LineSeed 폰트)
 //             **2026-08-12** — 개요(TOC) 클릭 시 preview/both(분할) 모드에 맞춰 스크롤 동작을 이원화하고 하위 수준 존재 여부와 무관하게 정상 스크롤되도록 보완; H3 이하의 뎁스 목차가 기본적으로 접힌 채 렌더링에서 누락되던 조건 버그(undefined!==false)를 ===true 접힘으로 전면 교정하여 전체 펼침 구현; **2026-08-12** — 미리보기 스크롤 시 좌측 개요(TOC) 탭 목록도 활성 헤딩 위치를 자동으로 추적하여 뷰포트 내로 자동 스크롤(Auto-scroll Follow)되는 지능형 연동 기능 구현; **2026-08-12** — 개요(TOC) 클릭 시 에디터-미리보기 간의 양방향 스크롤 동기화 간섭을 일시 차단하는 락킹(isScrollingRef) 루틴을 적용하고 미리보기 컨테이너(previewRef) 내에서 부드러운 스크롤(scrollTo)이 동작하도록 개선; **2026-08-12** — 사이드바 배경을 라이트모드에 최적화된 고급스러운 아이스 블루 및 실버 톤 그라데이션(linear-gradient)으로 교체하고 탭 헤더 및 워크스페이스 바를 반투명 처리하는 프리미엄 디자인 리뉴얼 패치 적용; **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
-// 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, FileTreeItem, GlobalSearch, PromptModal
+// 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, executeJumpAndHighlight, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
 export default function LeftSidebar() {
   const {
@@ -58,10 +59,189 @@ export default function LeftSidebar() {
     askConfirm, isMergeMode = false, selectedMergeNodes = [],
     toggleMergeNodeSelect, onOpenMergeModal,
     onSelectRootFolder, onRestoreFolder, previewMode, setPreviewMode,
-    tabs = [], licenseStatus,
+    tabs = [], activeTabId, switchTab, licenseStatus,
     setIsMergeMode, setSelectedMergeNodes,
     geminiApiKey, aiModelName
   } = useEditorContext();
+
+  // ====================================================================
+  // 📊 [OMD-FILE-LeftSidebar-0008] LeftSidebar ➔ executeJumpAndHighlight
+  // 🎯 @KICK  : 검색 결과 또는 목차 클릭 시 에디터와 미리보기 동시 스크롤 및 검색어 텍스트 하이라이트
+  // 🛡️ @GUARD : previewRef 및 editorRef 유효성 검증, 최대 10회 재시도 가드, 동기화 스크롤 간섭 락(isScrollingRef)
+  // 🚨 @PATCH : 2026-09-16 — [미리보기/에디터 통합 줄 이동 및 텍스트 하이라이트] previewMode가 preview인 상태에서도 [data-line] 요소를 찾아 중앙 스크롤 및 preview-highlight-line 처리하고, 검색어가 전달된 경우 TreeWalker로 일치 텍스트 노드를 찾아 onrivi-search-text-highlight로 인라인 마킹
+  // 🔗 @CALLS : editorRef.current.revealLineInCenter, previewRef.current.scrollTo, TreeWalker
+  // ====================================================================
+  const executeJumpAndHighlight = useCallback((targetLine: number, term?: string) => {
+    let attempt = 0;
+    const maxAttempts = 10;
+
+    const doJump = () => {
+      let previewSuccess = false;
+      let editorSuccess = false;
+
+      // 스크롤 동기화 간섭 방지 락
+      if (isScrollingRef && scrollTimeoutRef) {
+        isScrollingRef.current = 'preview';
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => {
+          if (isScrollingRef) isScrollingRef.current = null;
+        }, 800);
+      }
+
+      // 1. Monaco 에디터 줄 이동 및 단어 선택
+      if (editorRef.current) {
+        const editor = editorRef.current;
+        try {
+          editor.revealLineInCenter(targetLine);
+          editor.setPosition({ lineNumber: targetLine, column: 1 });
+          if (term && term.trim()) {
+            const model = editor.getModel?.();
+            if (model && !model.isDisposed()) {
+              const lineContent = model.getLineContent(targetLine) || '';
+              const colIdx = lineContent.toLowerCase().indexOf(term.toLowerCase());
+              if (colIdx !== -1) {
+                const startCol = colIdx + 1;
+                const endCol = startCol + term.length;
+                editor.setSelection({
+                  startLineNumber: targetLine,
+                  startColumn: startCol,
+                  endLineNumber: targetLine,
+                  endColumn: endCol
+                });
+                editor.revealRangeInCenter({
+                  startLineNumber: targetLine,
+                  startColumn: startCol,
+                  endLineNumber: targetLine,
+                  endColumn: endCol
+                });
+              }
+            }
+          }
+          editorSuccess = true;
+        } catch (e) {
+          // Monaco error ignore
+        }
+      }
+
+      // 2. 미리보기(Preview) DOM 줄 이동 및 하이라이트
+      if (previewRef.current) {
+        const previewContainer = previewRef.current;
+        const elements = Array.from(previewContainer.querySelectorAll('[data-line]')) as HTMLElement[];
+
+        if (elements.length > 0) {
+          let bestEl: HTMLElement | null = null;
+          let bestDiff = Infinity;
+
+          for (const el of elements) {
+            const line = parseInt(el.getAttribute('data-line') || '1', 10);
+            if (line === targetLine) {
+              bestEl = el;
+              break;
+            }
+            if (line <= targetLine) {
+              const diff = targetLine - line;
+              if (diff < bestDiff) {
+                bestDiff = diff;
+                bestEl = el;
+              }
+            }
+          }
+
+          if (!bestEl) {
+            bestEl = elements[0];
+          }
+
+          if (bestEl) {
+            const targetLineVal = bestEl.getAttribute('data-line');
+            const matchingLineEls = elements.filter(el => el.getAttribute('data-line') === targetLineVal);
+
+            // 기존 하이라이트 클래스 및 mark 태그 정리
+            elements.forEach(el => el.classList.remove('preview-highlight-line'));
+            previewContainer.querySelectorAll('mark.onrivi-search-text-highlight').forEach(mark => {
+              const parent = mark.parentNode;
+              if (parent) {
+                parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
+                parent.normalize();
+              }
+            });
+
+            // 해당 줄 하이라이트 클래스 부여
+            matchingLineEls.forEach(el => el.classList.add('preview-highlight-line'));
+
+            // 미리보기 컨테이너 중앙 스크롤
+            const scrollTarget = matchingLineEls[0] || bestEl;
+            const containerRect = previewContainer.getBoundingClientRect();
+            const elRect = scrollTarget.getBoundingClientRect();
+            const targetScrollTop = previewContainer.scrollTop + (elRect.top - containerRect.top) - (containerRect.height / 2) + (elRect.height / 2);
+            previewContainer.scrollTo({
+              top: Math.max(0, targetScrollTop),
+              behavior: 'smooth'
+            });
+
+            // 검색어 텍스트 인라인 하이라이트 (TreeWalker)
+            if (term && term.trim() !== '') {
+              const trimmedTerm = term.trim();
+              for (const lineEl of (matchingLineEls.length > 0 ? matchingLineEls : [bestEl])) {
+                const walker = document.createTreeWalker(lineEl, NodeFilter.SHOW_TEXT);
+                const textNodes: Text[] = [];
+                let currNode: Node | null;
+                while ((currNode = walker.nextNode())) {
+                  if (currNode.nodeValue && currNode.nodeValue.toLowerCase().includes(trimmedTerm.toLowerCase())) {
+                    textNodes.push(currNode as Text);
+                  }
+                }
+
+                for (const textNode of textNodes) {
+                  const text = textNode.nodeValue || '';
+                  const regex = new RegExp(`(${trimmedTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+                  const parts = text.split(regex);
+                  if (parts.length > 1) {
+                    const fragment = document.createDocumentFragment();
+                    for (const part of parts) {
+                      if (part.toLowerCase() === trimmedTerm.toLowerCase()) {
+                        const mark = document.createElement('mark');
+                        mark.className = 'onrivi-search-text-highlight';
+                        mark.textContent = part;
+                        fragment.appendChild(mark);
+                      } else if (part.length > 0) {
+                        fragment.appendChild(document.createTextNode(part));
+                      }
+                    }
+                    textNode.parentNode?.replaceChild(fragment, textNode);
+                  }
+                }
+              }
+            }
+
+            // 4초 후 하이라이트 자동 정리
+            setTimeout(() => {
+              matchingLineEls.forEach(el => el.classList.remove('preview-highlight-line'));
+              previewContainer.querySelectorAll('mark.onrivi-search-text-highlight').forEach(mark => {
+                const parent = mark.parentNode;
+                if (parent) {
+                  parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
+                  parent.normalize();
+                }
+              });
+            }, 4000);
+
+            previewSuccess = true;
+          }
+        }
+      }
+
+      // 렌더링 지연 대응 재시도 가드
+      const isPreviewVisible = previewMode === 'preview' || previewMode === 'both';
+      const isSuccess = isPreviewVisible ? previewSuccess : editorSuccess;
+
+      attempt++;
+      if (!isSuccess && attempt < maxAttempts) {
+        setTimeout(doJump, 80 * attempt);
+      }
+    };
+
+    requestAnimationFrame(doJump);
+  }, [editorRef, previewRef, isScrollingRef, scrollTimeoutRef, previewMode]);
 
   const isRestrictedUser = !!(
     licenseStatus?.isExpired ||
@@ -1522,82 +1702,95 @@ export default function LeftSidebar() {
             onSelectFolder={onSelectRootFolder}
             /* [ONR-UI-002] 전체 검색 더블클릭 연동: 파일 내 특정 줄을 더블클릭할 때 해당 파일 노드를 찾아 오픈한 뒤 지정 줄로 즉시 화면을 포커스시킵니다. */
 // ====================================================================
-// 📊 [OMD-FILE-LeftSidebar-0001] LeftSidebar ➔ onFileOpenAndJump
-// 🎯 @KICK  : 전역 검색 결과 파일을 열고 지정 줄로 이동
-// 🛡️ @GUARD : 파일 경로를 트리에서 재귀 탐색 후 없으면 dummy/브라우저 핸들로 fallback
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : scrollToLine, openFile, findNodeRecursively, showToast
+// 📊 [OMD-FILE-LeftSidebar-0001 ✅ FIXED] LeftSidebar ➔ onFileOpenAndJump
+// 🎯 @KICK  : 전역 검색 결과 파일을 열고 지정 줄로 이동 및 검색어 하이라이트
+// 🛡️ @GUARD : 현재 활성 파일 여부 판별, 탭 전환 우선 처리, 트리 재귀 탐색, 이동 완료 팝업 알림 전면 제거
+// 🚨 @PATCH : 2026-09-16 — [검색 결과 줄 이동 및 하이라이트 처리 & 토스트 알림 제거] 1) previewMode === 'preview' 및 분할 모드에서 미리보기 [data-line] 스크롤 및 텍스트 하이라이트 연동, 2) '...번째 줄로 이동했습니다' 불필요한 토스트 알림 4개소 전면 제거
+// 🔗 @CALLS : executeJumpAndHighlight, openFile, switchTab, findNodeRecursively
 // ====================================================================
-            onFileOpenAndJump={async (filePath, lineNumber) => {
+            onFileOpenAndJump={async (filePath, lineNumber, term) => {
               // 서식설정이 켜져 있다면 일반 뷰어로 강제 원복
               if (previewMode === 'css-style') {
                 setPreviewMode('preview');
               }
 
-              if (filePath === 'current') {
-                scrollToLine(lineNumber);
-              } else {
-                // 1. 탐색기 트리에서 해당 노드 재귀 탐색
-                const findNodeRecursively = (nodes: FileNode[], targetPath: string): FileNode | null => {
-                  for (const n of nodes) {
-                    const normN = n.path ? n.path.replace(/\\/g, '/').toLowerCase() : '';
-                    const normT = targetPath.replace(/\\/g, '/').toLowerCase();
-                    if (n.kind === 'file' && (normN === normT || n.name.toLowerCase() === targetPath.toLowerCase())) {
-                      return n;
-                    }
-                    if (n.kind === 'directory' && n.children) {
-                      const found = findNodeRecursively(n.children, targetPath);
-                      if (found) return found;
-                    }
-                  }
-                  return null;
-                };
+              const targetLine = typeof lineNumber === 'number' && lineNumber > 0 ? lineNumber : 1;
 
-                const targetNode = findNodeRecursively(fileList, filePath);
+              // 1. 현재 열려 있는 활성 문서인지 확인
+              const fileNameOnly = filePath.split(/[\\/]/).pop() || filePath;
+              const isAlreadyActive = (
+                filePath === 'current' ||
+                (currentFileName && (currentFileName === fileNameOnly || currentFileName === filePath)) ||
+                (currentFileNode?.path && (currentFileNode.path === filePath || currentFileNode.path.replace(/\\/g, '/').toLowerCase() === filePath.replace(/\\/g, '/').toLowerCase()))
+              );
 
-                if (targetNode) {
-                  openFile(targetNode);
+              if (isAlreadyActive) {
+                executeJumpAndHighlight(targetLine, term);
+                return;
+              }
+
+              // 2. 이미 열려 있는 탭 목록에 있는지 확인
+              if (tabs && tabs.length > 0 && switchTab) {
+                const matchedTab = tabs.find(t => {
+                  if (!t) return false;
+                  const normTabPath = t.path ? t.path.replace(/\\/g, '/').toLowerCase() : '';
+                  const normFilePath = filePath.replace(/\\/g, '/').toLowerCase();
+                  return normTabPath === normFilePath || t.name.toLowerCase() === fileNameOnly.toLowerCase();
+                });
+
+                if (matchedTab) {
+                  switchTab(matchedTab.id);
                   setTimeout(() => {
-                    scrollToLine(lineNumber);
-                  }, 150);
-                  showToast(`'${targetNode.name}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
-                } else if (tabs && tabs.length > 0) {
-                  const matchedTab = tabs.find(t => t.path === filePath || t.name === filePath || (filePath !== 'current' && (t.path === filePath || t.name === filePath.split(/[\\/]/).pop())));
-                  if (matchedTab) {
-                    const tabNode = { name: matchedTab.name, kind: 'file' as const, path: matchedTab.path || matchedTab.name };
-                    openFile(tabNode);
+                    executeJumpAndHighlight(targetLine, term);
+                  }, 60);
+                  return;
+                }
+              }
+
+              // 3. 탐색기 트리에서 해당 노드 재귀 탐색
+              const findNodeRecursively = (nodes: FileNode[], targetPath: string): FileNode | null => {
+                for (const n of nodes) {
+                  const normN = n.path ? n.path.replace(/\\/g, '/').toLowerCase() : '';
+                  const normT = targetPath.replace(/\\/g, '/').toLowerCase();
+                  if (n.kind === 'file' && (normN === normT || n.name.toLowerCase() === targetPath.toLowerCase() || n.name.toLowerCase() === fileNameOnly.toLowerCase())) {
+                    return n;
+                  }
+                  if (n.kind === 'directory' && n.children) {
+                    const found = findNodeRecursively(n.children, targetPath);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+
+              const targetNode = findNodeRecursively(fileList, filePath);
+
+              if (targetNode) {
+                openFile(targetNode);
+                setTimeout(() => {
+                  executeJumpAndHighlight(targetLine, term);
+                }, 100);
+              } else if (typeof window !== 'undefined' && (window as any).electronAPI) {
+                const dummyNode = { name: fileNameOnly, kind: 'file' as const, path: filePath };
+                openFile(dummyNode);
+                setTimeout(() => {
+                  executeJumpAndHighlight(targetLine, term);
+                }, 120);
+              } else if (rootFolder?.handle) {
+                try {
+                  const fileHandle = await rootFolder.handle.getFileHandle(filePath);
+                  if (fileHandle) {
+                    const tempNode = { name: filePath, kind: 'file' as const, handle: fileHandle };
+                    openFile(tempNode, rootFolder.handle);
                     setTimeout(() => {
-                      scrollToLine(lineNumber);
-                    }, 150);
-                    showToast(`'${matchedTab.name}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
-                  } else {
-                    showToast("파일을 찾지 못했습니다.", "error");
+                      executeJumpAndHighlight(targetLine, term);
+                    }, 100);
                   }
-                } else if (typeof window !== 'undefined' && (window as any).electronAPI) {
-                  const fileName = filePath.split(/[\\/]/).pop() || filePath;
-                  const dummyNode = { name: fileName, kind: 'file' as const, path: filePath };
-                  openFile(dummyNode);
-                  setTimeout(() => {
-                    scrollToLine(lineNumber);
-                  }, 200);
-                  showToast(`'${fileName}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
-                } else if (rootFolder?.handle) {
-                  try {
-                    const fileHandle = await rootFolder.handle.getFileHandle(filePath);
-                    if (fileHandle) {
-                      const tempNode = { name: filePath, kind: 'file' as const, handle: fileHandle };
-                      openFile(tempNode, rootFolder.handle);
-                      setTimeout(() => {
-                        scrollToLine(lineNumber);
-                      }, 150);
-                      showToast(`'${filePath}' 파일을 열고 ${lineNumber}번째 줄로 이동했습니다.`, 'success');
-                    }
-                  } catch (e) {
-                    showToast("파일을 찾지 못했습니다.", "error");
-                  }
-                } else {
+                } catch (e) {
                   showToast("파일을 찾지 못했습니다.", "error");
                 }
+              } else {
+                showToast("파일을 찾지 못했습니다.", "error");
               }
             }}
           />

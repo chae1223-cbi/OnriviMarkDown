@@ -26,7 +26,7 @@ interface GlobalSearchProps {
   isDarkMode: boolean;
   content: string;
   currentFileName: string;
-  onFileOpenAndJump: (filePath: string, lineNumber: number) => void;
+  onFileOpenAndJump: (filePath: string, lineNumber: number, searchTerm?: string) => void;
   workspacePath?: string;
   rootFolderHandle?: any;
   onSelectFolder?: () => void;
@@ -36,10 +36,11 @@ interface GlobalSearchProps {
 }
 
 // ====================================================================
-// 📊 [OMD-FILE-GlobalSearch-0001] GlobalSearch ➔ GlobalSearch
+// 📊 [OMD-FILE-GlobalSearch-0001 ✅ FIXED] GlobalSearch ➔ GlobalSearch
 // 🎯 @KICK  : 현재 지정된 작업장 실폴더(Workspace) 내에서 md 파일 및 문서 전체 검색 후 클릭 시 해당 줄로 점프
 // 🛡️ @GUARD : 150ms 디바운스, 검색어 미입력 시 결과 초기화, 작업장 폴더 동기화 보장
-// 🚨 @PATCH : 2026-09-12 — [작업장 실폴더 한정 검색 보장 & 고대비 UI] searchFolder가 현재 선택된 작업장(workspacePath)과 항상 자동 동기화되도록 수정하고, 작업장 내 검색 안내 뱃지 및 Modern Technical Editorial 디자인 시스템 적용
+// 🚨 @PATCH : 2026-09-16 — [워크스페이스 검색 점프 및 검색어 하이라이트 연동] onFileOpenAndJump 시그니처에 searchTerm 파라미터를 추가 전달하여 파일 열기 및 줄 이동 시 일치하는 검색어 텍스트가 하이라이트되도록 연동
+//             2026-09-12 — [작업장 실폴더 한정 검색 보장 & 고대비 UI] searchFolder가 현재 선택된 작업장(workspacePath)과 항상 자동 동기화되도록 수정하고, 작업장 내 검색 안내 뱃지 및 Modern Technical Editorial 디자인 시스템 적용
 // 🔗 @CALLS : handleSelectFolder, scanDirectory
 // ====================================================================
 export default function GlobalSearch({ isDarkMode, content, currentFileName, onFileOpenAndJump, workspacePath, rootFolderHandle, onSelectFolder, tabs, workspaceType, fileList }: GlobalSearchProps) {
@@ -316,7 +317,7 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
             <div className="p-1.5 space-y-1">
               {result.fileNameMatch ? (
                 <div 
-                  onClick={() => onFileOpenAndJump(result.path, 1)}
+                  onClick={() => onFileOpenAndJump(result.path, 1, searchTerm)}
                   className="px-2 py-1.5 text-[11px] text-[#1d4ed8] dark:text-blue-400 font-semibold flex items-center gap-1.5 cursor-pointer rounded-md hover:bg-[#1d4ed8]/10 dark:hover:bg-[#1d4ed8]/20 transition-colors"
                 >
                   <span>📄</span> 파일명 일치 (클릭하여 파일 열기)
@@ -331,8 +332,8 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
                   return (
                     <div 
                       key={i} 
-                      onClick={() => lineNum && onFileOpenAndJump(result.path, lineNum)}
-                      onDoubleClick={() => lineNum && onFileOpenAndJump(result.path, lineNum)}
+                      onClick={() => lineNum && onFileOpenAndJump(result.path, lineNum, searchTerm)}
+                      onDoubleClick={() => lineNum && onFileOpenAndJump(result.path, lineNum, searchTerm)}
                       className="group flex items-start gap-1.5 px-2 py-1.5 rounded-md text-[12px] text-slate-800 dark:text-zinc-200 hover:text-slate-950 dark:hover:text-white hover:bg-[#1d4ed8]/10 dark:hover:bg-[#1d4ed8]/20 transition-all cursor-pointer leading-normal"
                       title="클릭 시 해당 줄로 바로 이동합니다"
                     >
