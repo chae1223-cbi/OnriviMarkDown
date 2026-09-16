@@ -64,12 +64,26 @@ export default function LeftSidebar() {
     geminiApiKey, aiModelName
   } = useEditorContext();
 
+  const searchHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 언마운트 시 CSS 하이라이트 및 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (searchHighlightTimeoutRef.current) clearTimeout(searchHighlightTimeoutRef.current);
+      if (typeof CSS !== 'undefined' && (CSS as any).highlights) {
+        try {
+          (CSS as any).highlights.delete('onrivi-search-text-highlight');
+        } catch (e) {}
+      }
+    };
+  }, []);
+
   // ====================================================================
-  // 📊 [OMD-FILE-LeftSidebar-0008] LeftSidebar ➔ executeJumpAndHighlight
+  // 📊 [OMD-FILE-LeftSidebar-0008 ✅ FIXED] LeftSidebar ➔ executeJumpAndHighlight
   // 🎯 @KICK  : 검색 결과 또는 목차 클릭 시 에디터와 미리보기 동시 스크롤 및 검색어 텍스트 하이라이트
-  // 🛡️ @GUARD : previewRef 및 editorRef 유효성 검증, 최대 10회 재시도 가드, 동기화 스크롤 간섭 락(isScrollingRef)
-  // 🚨 @PATCH : 2026-09-16 — [미리보기/에디터 통합 줄 이동 및 텍스트 하이라이트] previewMode가 preview인 상태에서도 [data-line] 요소를 찾아 중앙 스크롤 및 preview-highlight-line 처리하고, 검색어가 전달된 경우 TreeWalker로 일치 텍스트 노드를 찾아 onrivi-search-text-highlight로 인라인 마킹
-  // 🔗 @CALLS : editorRef.current.revealLineInCenter, previewRef.current.scrollTo, TreeWalker
+  // 🛡️ @GUARD : React DOM 절대 불변(Zero Mutation) 보장 - CSS Custom Highlight API 사용으로 React removeChild 에러 원천 차단
+  // 🚨 @PATCH : 2026-09-16 — [React removeChild 크래시 원천 차단] DOM 노드를 임의 교체(replaceChild/mark)하던 구 로직을 전면 폐기하고, React Fiber 트리를 100% 보존하는 브라우저 표준 CSS.highlights API 및 preview-highlight-line 클래스 기반으로 전면 리팩토링
+  // 🔗 @CALLS : editorRef.current.revealLineInCenter, previewRef.current.scrollTo, CSS.highlights
   // ====================================================================
   const executeJumpAndHighlight = useCallback((targetLine: number, term?: string) => {
     let attempt = 0;
@@ -123,7 +137,7 @@ export default function LeftSidebar() {
         }
       }
 
-      // 2. 미리보기(Preview) DOM 줄 이동 및 하이라이트
+      // 2. 미리보기(Preview) DOM 줄 이동 및 하이라이트 (Zero DOM Mutation)
       if (previewRef.current) {
         const previewContainer = previewRef.current;
         const elements = Array.from(previewContainer.querySelectorAll('[data-line]')) as HTMLElement[];
@@ -155,15 +169,21 @@ export default function LeftSidebar() {
             const targetLineVal = bestEl.getAttribute('data-line');
             const matchingLineEls = elements.filter(el => el.getAttribute('data-line') === targetLineVal);
 
-            // 기존 하이라이트 클래스 및 mark 태그 정리
+            // 이전 하이라이트 타이머 취소
+            if (searchHighlightTimeoutRef.current) {
+              clearTimeout(searchHighlightTimeoutRef.current);
+              searchHighlightTimeoutRef.current = null;
+            }
+
+            // 기존 줄 하이라이트 클래스 해제
             elements.forEach(el => el.classList.remove('preview-highlight-line'));
-            previewContainer.querySelectorAll('mark.onrivi-search-text-highlight').forEach(mark => {
-              const parent = mark.parentNode;
-              if (parent) {
-                parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
-                parent.normalize();
-              }
-            });
+
+            // 기존 CSS Custom Highlight 해제 (DOM을 건드리지 않음)
+            if (typeof CSS !== 'undefined' && (CSS as any).highlights) {
+              try {
+                (CSS as any).highlights.delete('onrivi-search-text-highlight');
+              } catch (e) {}
+            }
 
             // 해당 줄 하이라이트 클래스 부여
             matchingLineEls.forEach(el => el.classList.add('preview-highlight-line'));
@@ -178,51 +198,49 @@ export default function LeftSidebar() {
               behavior: 'smooth'
             });
 
-            // 검색어 텍스트 인라인 하이라이트 (TreeWalker)
-            if (term && term.trim() !== '') {
+            // 🔍 CSS Custom Highlight API로 검색어 인라인 하이라이트 (DOM 노드를 전혀 생성/치환/삭제하지 않음)
+            if (term && term.trim() !== '' && typeof CSS !== 'undefined' && (CSS as any).highlights && typeof (window as any).Highlight !== 'undefined') {
               const trimmedTerm = term.trim();
+              const ranges: Range[] = [];
+
               for (const lineEl of (matchingLineEls.length > 0 ? matchingLineEls : [bestEl])) {
                 const walker = document.createTreeWalker(lineEl, NodeFilter.SHOW_TEXT);
-                const textNodes: Text[] = [];
                 let currNode: Node | null;
                 while ((currNode = walker.nextNode())) {
-                  if (currNode.nodeValue && currNode.nodeValue.toLowerCase().includes(trimmedTerm.toLowerCase())) {
-                    textNodes.push(currNode as Text);
-                  }
-                }
-
-                for (const textNode of textNodes) {
-                  const text = textNode.nodeValue || '';
-                  const regex = new RegExp(`(${trimmedTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
-                  const parts = text.split(regex);
-                  if (parts.length > 1) {
-                    const fragment = document.createDocumentFragment();
-                    for (const part of parts) {
-                      if (part.toLowerCase() === trimmedTerm.toLowerCase()) {
-                        const mark = document.createElement('mark');
-                        mark.className = 'onrivi-search-text-highlight';
-                        mark.textContent = part;
-                        fragment.appendChild(mark);
-                      } else if (part.length > 0) {
-                        fragment.appendChild(document.createTextNode(part));
-                      }
+                  const text = currNode.nodeValue || '';
+                  const lowerText = text.toLowerCase();
+                  const lowerTerm = trimmedTerm.toLowerCase();
+                  let startIdx = 0;
+                  while ((startIdx = lowerText.indexOf(lowerTerm, startIdx)) !== -1) {
+                    try {
+                      const range = new Range();
+                      range.setStart(currNode, startIdx);
+                      range.setEnd(currNode, startIdx + trimmedTerm.length);
+                      ranges.push(range);
+                    } catch (e) {
+                      // ignore range errors
                     }
-                    textNode.parentNode?.replaceChild(fragment, textNode);
+                    startIdx += lowerTerm.length;
                   }
                 }
+              }
+
+              if (ranges.length > 0) {
+                try {
+                  const highlight = new (window as any).Highlight(...ranges);
+                  (CSS as any).highlights.set('onrivi-search-text-highlight', highlight);
+                } catch (e) {}
               }
             }
 
             // 4초 후 하이라이트 자동 정리
-            setTimeout(() => {
+            searchHighlightTimeoutRef.current = setTimeout(() => {
               matchingLineEls.forEach(el => el.classList.remove('preview-highlight-line'));
-              previewContainer.querySelectorAll('mark.onrivi-search-text-highlight').forEach(mark => {
-                const parent = mark.parentNode;
-                if (parent) {
-                  parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
-                  parent.normalize();
-                }
-              });
+              if (typeof CSS !== 'undefined' && (CSS as any).highlights) {
+                try {
+                  (CSS as any).highlights.delete('onrivi-search-text-highlight');
+                } catch (e) {}
+              }
             }, 4000);
 
             previewSuccess = true;

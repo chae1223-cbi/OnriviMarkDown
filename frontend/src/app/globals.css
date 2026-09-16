@@ -657,7 +657,19 @@ tr.preview-highlight-line th {
   background-color: rgba(251, 191, 36, 0.12) !important;
 }
 
-/* 🔍 검색 텍스트 단어 인라인 하이라이트 (프리뷰) */
+/* 🔍 검색 텍스트 단어 인라인 하이라이트 (CSS Custom Highlight API — Zero DOM Mutation) */
+::highlight(onrivi-search-text-highlight) {
+  background-color: #fde047 !important;
+  color: #854d0e !important;
+  text-decoration: underline 2px solid #eab308 !important;
+}
+
+.dark ::highlight(onrivi-search-text-highlight) {
+  background-color: #ca8a04 !important;
+  color: #fef08a !important;
+  text-decoration: underline 2px solid #fef08a !important;
+}
+
 mark.onrivi-search-text-highlight {
   background-color: #fef08a !important;
   color: #854d0e !important;
