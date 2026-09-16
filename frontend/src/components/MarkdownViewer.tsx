@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-16** — [데스크톱 미리보기 외부 링크 클릭 시 기본 웹브라우저 오픈 연동]: <a> 태그 렌더러에 handleExternalLinkClick 탑재하여 데스크톱(Electron) 환경에서 외부 웹 링크(http/https/mailto/tel) 및 www 링크 클릭 시 electronAPI.openExternal을 통해 시스템 기본 웹브라우저 새 창이 즉시 실행되도록 개선, 로컬 파일(file:///) 링크 openPath 연동
 // 🚨 @PATCH : **2026-09-13** — [데스크탑 Mermaid '새 창으로 확대' 팝업 차단 오류 해결]: Electron setWindowOpenHandler의 deny로 window.open()이 차단되던 문제를, openInNewWindow()에서 isDesktop(electronAPI.openMermaidWindow 존재 여부) 분기를 추가하여 데스크탑 환경에서는 IPC mermaid:open-window 경유 BrowserWindow 직접 생성, 웹 환경에서는 기존 window.open() 방식을 유지하도록 분기 처리
 // 🚨 @PATCH : **2026-09-13** — [출처 링크 클릭 시 동일/타겟 문서 판별 고도화 및 미리보기·에디터 동시 스크롤·하이라이트 연동]: 상대/절대경로 및 파일명 베이스네임 매칭으로 동일 문서 오판을 해결하고, 링크 클릭 시 미리보기 부드러운 스크롤 및 하이라이트 효과와 에디터 라인 범위 선택·중앙 정렬을 동시에 트리거
 //             **2026-09-12** — [미리보기 문서 링크 꺾쇠(<...>) 및 앵커(#) 분리 정제 고도화]: 꺾쇠 괄호(<...>)로 감싸진 상대/절대경로 및 한글 헤딩(#) 링크에서 해시 분리 전 꺾쇠를 사전 제거하고 URI 디코딩을 선행 적용하여 탭 오픈 및 스크롤 점프 완벽 보장
@@ -2282,7 +2283,7 @@ function MarkdownViewer({
               );
             },
             a: ({ node, href, children, ...props }: any) => {
-              const isWebLink = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:'));
+              const isWebLink = href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('www.'));
               const isAnchor = href && (href.startsWith('#') || href.startsWith('.#'));
               
               if (isAnchor) {
@@ -2530,7 +2531,35 @@ function MarkdownViewer({
                   </figure>
                 );
               }
-              return <a href={apiHref} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+              const handleExternalLinkClick = (e: React.MouseEvent) => {
+                let targetUrl = apiHref || href || '';
+                if (targetUrl.startsWith('www.')) {
+                  targetUrl = `https://${targetUrl}`;
+                }
+                const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+                if (api?.openExternal && targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://') || targetUrl.startsWith('mailto:') || targetUrl.startsWith('tel:'))) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  api.openExternal(targetUrl);
+                } else if (api?.openPath && targetUrl && (targetUrl.startsWith('file:///') || /^[a-zA-Z]:[/\\]/.test(targetUrl))) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const cleanLocalPath = targetUrl.startsWith('file:///') ? decodeURIComponent(targetUrl.replace(/^file:\/\/\//, '')) : targetUrl;
+                  api.openPath(cleanLocalPath);
+                }
+              };
+
+              return (
+                <a
+                  href={apiHref?.startsWith('www.') ? `https://${apiHref}` : apiHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleExternalLinkClick}
+                  {...props}
+                >
+                  {children}
+                </a>
+              );
             },
             table: ({ node, children, className, ...props }: any) => {
                return (

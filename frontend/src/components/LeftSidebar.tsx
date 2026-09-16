@@ -10,7 +10,7 @@ import { FileNode } from '@/lib/indexedDbHelper';
 import { vfsRename, vfsCopyItem } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
-import { Plus } from 'lucide-react';
+import { Plus, Scissors, FolderOpen, FolderTree, FilePlus, FolderPlus, Copy, ClipboardPaste, RotateCw, FolderInput } from 'lucide-react';
 import { Icon } from '@/components/icons/Icon';
 import { msg } from '@/lib/systemMessages';
 import { useUIStore } from '@/store/useUIStore';
@@ -24,6 +24,12 @@ import { loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
+// 🚨 @PATCH : **2026-09-16** — [삭제/이동된 폴더 지연 로딩 시 NotFoundError 콘솔 경고 억제 및 onrivi_expanded_paths 자동 소거]: handleLazyLoad에서 이미 삭제되거나 이동된 폴더의 NotFoundError 발생 시 불필요한 콘솔 경고 스팸을 차단하고 localStorage의 onrivi_expanded_paths에서 해당 경로를 즉시 자동 소거하며, handlePasteNode 이동 시에도 기존 폴더의 확장 상태를 정리하여 클린 트리 유지
+// 🚨 @PATCH : **2026-09-16** — [웹 브라우저 루트 붙여넣기 오류 수정 & 열린 탭 잘라내기 방어 가드 강화]: 1) handlePasteNode에서 rootFolderHandle 오참조를 rootFolder?.handle로 교체하여 웹 루트 붙여넣기 실패 결함 해결, 2) handleCutNode 및 handlePasteNode에서 openTabPaths 검사로 열려 있는 파일/하위 파일 포함 폴더 잘라내기 원천 차단
+// 🚨 @PATCH : **2026-09-16** — [루트 시스템 탐색기/Finder 열기 메뉴 데스크톱 전용 격리]: 웹 브라우저 환경에서 보안상 지원 불가능한 OS 탐색기 열기 메뉴를 원천 은닉하고 오직 electronAPI가 주입된 데스크톱 환경에서만 선택적으로 노출
+// 🚨 @PATCH : **2026-09-16** — [탐색기 우클릭 컨텍스트 메뉴 아이콘 세련된 미니멀리즘 전면 교체]: 기존 다색상 PNG 이미지 및 유색 아이콘을 전면 제거하고, 폰트 색상과 100% 일치(text-current)하는 strokeWidth 1.75 Lucide 미니멀 라인 아이콘(FilePlus, FolderPlus, Copy, Scissors, ClipboardPaste, RotateCw, FolderInput, FolderOpen)으로 통일
+// 🚨 @PATCH : **2026-09-16** — [탐색기 루트 및 폴더/파일 아이콘 세련된 미니멀리즘 통일]: 루트 이모지(📁)를 FolderTree 미니멀 라인 아이콘으로 교체, text-current를 통해 폰트 색상과 100% 일치하도록 일원화
+// 🚨 @PATCH : **2026-09-16** — [탐색기 잘라내기(Cut & Paste) 이동 엔진 & 루트 탐색기/Finder 보기 탑재]: 1) handleCutNode 및 file:cut-node 수신 추가, handlePasteNode에 cut 분기 탑재하여 Electron(api.moveFile), 브라우저(copy+removeEntry), VFS(vfsRename) 전 환경 안전 이동 지원, 2) 루트 컨텍스트 메뉴에 OS 자동 감지 기반 '파일 탐색기에서 보기 / Finder에서 보기' 버튼 추가
 // 🚨 @PATCH : **2026-09-16** — [워크스페이스 검색 줄 이동 & 검색 텍스트 하이라이트 연동 및 토스트 알림 제거] 1) previewMode === 'preview' 및 분할 모드에서 [data-line] 기반 중앙 스크롤 및 행 하이라이트(preview-highlight-line), 검색어 텍스트 노드 인라인 마킹(onrivi-search-text-highlight)을 수행하는 executeJumpAndHighlight 구축, 2) '...번째 줄로 이동했습니다' 토스트 팝업 4개소 전면 제거
 //             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: syncKnowledgeDocs를 데스크톱 환경(isDesktop) 전용으로 한정하여 웹 브라우저 백그라운드 DB 스캔 및 콘솔 노이즈 원천 제거
 //             **2026-09-11** — 좌측 사이드바 폰트를 Pretendard 최우선으로 일원화 적용
@@ -396,8 +402,8 @@ export default function LeftSidebar() {
     };
   }, [resourceFolder, geminiApiKey, isDesktop]);
 
-  // 📋 파일/폴더 복사 및 붙여넣기 클립보드 상태
-  const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any } | null>(null);
+  // 📋 파일/폴더 복사 및 붙여넣기/잘라내기 클립보드 상태
+  const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any; op?: 'copy' | 'cut' } | null>(null);
 
   const handleCopyNode = (targetNode?: FileNode, parentHandle?: any) => {
     const nodeToCopy = targetNode || currentFileNode;
@@ -405,22 +411,61 @@ export default function LeftSidebar() {
       showToast('복사할 파일 또는 폴더를 선택하세요.', 'warning');
       return;
     }
-    setClipboardNode({ node: nodeToCopy, parentHandle });
+    const item = { node: nodeToCopy, parentHandle, op: 'copy' as const };
+    setClipboardNode(item);
     if (typeof window !== 'undefined') {
-      (window as any)._omdClipboardNode = { node: nodeToCopy, parentHandle };
+      (window as any)._omdClipboardNode = item;
+      window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: item }));
     }
     showToast(`'${nodeToCopy.name}'이(가) 클립보드에 복사되었습니다.`, 'success');
+  };
+
+  const handleCutNode = (targetNode?: FileNode, parentHandle?: any) => {
+    const nodeToCut = targetNode || currentFileNode;
+    if (!nodeToCut) {
+      showToast('잘라낼 파일 또는 폴더를 선택하세요.', 'warning');
+      return;
+    }
+
+    // 🛡️ [열린 탭 보호 가드] 열려 있는 문서나 그 문서가 포함된 폴더는 잘라내기 차단
+    if (openTabPaths && openTabPaths.length > 0 && nodeToCut.path) {
+      const normPath = nodeToCut.path.replace(/\\/g, '/');
+      if (nodeToCut.kind === 'directory') {
+        const hasOpenDescendant = openTabPaths.some(tp => {
+          const normTp = tp.replace(/\\/g, '/');
+          return normTp === normPath || normTp.startsWith(normPath + '/');
+        });
+        if (hasOpenDescendant) {
+          showToast('열려 있는 파일이 포함된 폴더는 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
+          return;
+        }
+      } else {
+        if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath)) {
+          showToast('편집기에서 열려 있는 파일은 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
+          return;
+        }
+      }
+    }
+
+    const item = { node: nodeToCut, parentHandle, op: 'cut' as const };
+    setClipboardNode(item);
+    if (typeof window !== 'undefined') {
+      (window as any)._omdClipboardNode = item;
+      window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: item }));
+    }
+    showToast(`'${nodeToCut.name}'이(가) 잘라내기되었습니다. 붙여넣을 위치를 선택하세요.`, 'info');
   };
 
   const handlePasteNode = async (targetDirNode?: FileNode, targetHandle?: any) => {
     const clip = clipboardNode || (typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null);
     if (!clip || !clip.node) {
-      showToast('클립보드에 복사된 파일 또는 폴더가 없습니다.', 'warning');
+      showToast('클립보드에 복사되거나 잘라낸 파일 또는 폴더가 없습니다.', 'warning');
       return;
     }
 
     const srcNode = clip.node;
-    let destDirPath = targetDirNode ? (targetDirNode.path || '') : (rootFolder?.path || '');
+    const isCut = clip.op === 'cut';
+    let destDirPath = targetDirNode ? (targetDirNode.path || '') : (rootFolder?.path || rootFolder?.name || '');
 
     // 대상 노드가 파일인 경우 부모 디렉토리로 계산
     if (targetDirNode && targetDirNode.kind === 'file') {
@@ -428,14 +473,64 @@ export default function LeftSidebar() {
       destDirPath = lastSlash >= 0 ? destDirPath.substring(0, lastSlash) : '';
     }
 
+    // 🛡️ [열린 탭 보호 가드] 잘라낸 파일이 현재 탭에 열려 있는 경우 이동 차단
+    if (isCut && openTabPaths && openTabPaths.length > 0 && srcNode.path) {
+      const normSrc = srcNode.path.replace(/\\/g, '/');
+      const isOpen = srcNode.kind === 'directory'
+        ? openTabPaths.some(tp => {
+            const normTp = tp.replace(/\\/g, '/');
+            return normTp === normSrc || normTp.startsWith(normSrc + '/');
+          })
+        : openTabPaths.some(tp => tp.replace(/\\/g, '/') === normSrc);
+      if (isOpen) {
+        showToast('편집기에서 열려 있는 파일은 이동할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
+        return;
+      }
+    }
+
+    // 동일 위치 이동 방지 가드
+    if (isCut && srcNode.path) {
+      const normSrc = srcNode.path.replace(/\\/g, '/');
+      const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
+      const normDest = destDirPath.replace(/\\/g, '/');
+      if (normSrc === normDest || srcDir === normDest) {
+        showToast('동일한 위치로는 이동할 수 없습니다.', 'warning');
+        return;
+      }
+      if (srcNode.kind === 'directory' && (normDest === normSrc || normDest.startsWith(normSrc + '/'))) {
+        showToast('하위 폴더로는 이동할 수 없습니다.', 'warning');
+        return;
+      }
+    }
+
     try {
       // 1. Electron Desktop 환경
       if (workspaceType === 'local') {
         const api = (window as any).electronAPI;
-        if (api?.copyFile && srcNode.path) {
-          const newPath = destDirPath ? `${destDirPath}\\${srcNode.name}` : srcNode.name;
-          await api.copyFile(srcNode.path, newPath);
-          showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+        if (srcNode.path) {
+          const sep = destDirPath.includes('/') ? '/' : '\\';
+          const newPath = destDirPath ? `${destDirPath}${sep}${srcNode.name}` : srcNode.name;
+
+          if (isCut) {
+            if (api?.moveFile) {
+              const res = await api.moveFile(srcNode.path, newPath);
+              if (res && res.error) throw new Error(res.error);
+            } else if (api?.renameFile) {
+              await api.renameFile(srcNode.path, newPath);
+            }
+            showToast(`'${srcNode.name}'을(를) 이동했습니다.`, 'success');
+            dispatchMovedEvent(srcNode.path, destDirPath, newPath, srcNode.name);
+            setClipboardNode(null);
+            if (typeof window !== 'undefined') {
+              (window as any)._omdClipboardNode = null;
+              window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: null }));
+            }
+          } else {
+            if (api?.copyFile) {
+              await api.copyFile(srcNode.path, newPath);
+              showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+            }
+          }
           await refreshFileList();
           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
           setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
@@ -443,8 +538,8 @@ export default function LeftSidebar() {
         }
       }
 
-      // 2. 브라우저 File System Access API 환경 (rootFolderHandle 또는 targetHandle이 존재하는 경우)
-      const effectiveDirHandle = targetHandle || (targetDirNode?.kind === 'directory' ? targetDirNode.handle : null) || rootFolderHandle;
+      // 2. 브라우저 File System Access API 환경 (rootFolder.handle 또는 targetHandle이 존재하는 경우)
+      const effectiveDirHandle = targetHandle || (targetDirNode?.kind === 'directory' ? targetDirNode.handle : null) || rootFolder?.handle;
       if (effectiveDirHandle && typeof effectiveDirHandle.getFileHandle === 'function') {
         const srcName = srcNode.name;
         const isDir = srcNode.kind === 'directory';
@@ -492,7 +587,7 @@ export default function LeftSidebar() {
               }
             }
           };
-          await copyDirRecursive(srcNode.handle, effectiveDirHandle, newName);
+          await copyDirRecursive(srcNode.handle, effectiveDirHandle, isCut ? srcName : newName);
         } else {
           let content: any = null;
           if (srcNode.handle && typeof srcNode.handle.getFile === 'function') {
@@ -503,7 +598,8 @@ export default function LeftSidebar() {
             content = await readFileText(srcNode);
           }
 
-          const newFileHandle = await effectiveDirHandle.getFileHandle(newName, { create: true });
+          const targetFileName = isCut ? srcName : newName;
+          const newFileHandle = await effectiveDirHandle.getFileHandle(targetFileName, { create: true });
           const writable = await newFileHandle.createWritable();
           if (content instanceof Blob || content instanceof File) {
             await writable.write(content);
@@ -513,7 +609,56 @@ export default function LeftSidebar() {
           await writable.close();
         }
 
-        showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+        // 잘라내기인 경우 원래 부모 핸들에서 기존 항목 제거
+        let sourceParentHandle = clip.parentHandle;
+        if (!sourceParentHandle && rootFolder?.handle) {
+          const normSrc = (srcNode.path || '').replace(/\\/g, '/');
+          const parts = normSrc.split('/').filter(Boolean);
+          if (parts.length <= 1) {
+            sourceParentHandle = rootFolder.handle;
+          } else {
+            try {
+              let curr = rootFolder.handle;
+              for (let i = 0; i < parts.length - 1; i++) {
+                curr = await curr.getDirectoryHandle(parts[i]);
+              }
+              sourceParentHandle = curr;
+            } catch (pErr) {
+              console.warn('[handlePasteNode] 부모 핸들 탐색 실패:', pErr);
+            }
+          }
+        }
+        if (isCut && sourceParentHandle && typeof sourceParentHandle.removeEntry === 'function') {
+          try {
+            await sourceParentHandle.removeEntry(srcNode.name, { recursive: isDir });
+          } catch (delErr) {
+            console.warn('[handlePasteNode] 기존 항목 제거 실패:', delErr);
+          }
+        }
+        if (isCut) {
+          if (srcNode.kind === 'directory' && srcNode.path) {
+            try {
+              const saved = localStorage.getItem('onrivi_expanded_paths');
+              if (saved) {
+                const normSrc = srcNode.path.replace(/\\/g, '/');
+                const paths = JSON.parse(saved).filter((p: string) => {
+                  const np = p.replace(/\\/g, '/');
+                  return np !== normSrc && !np.startsWith(normSrc + '/');
+                });
+                localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+              }
+            } catch {}
+          }
+          setClipboardNode(null);
+          if (typeof window !== 'undefined') {
+            (window as any)._omdClipboardNode = null;
+            window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: null }));
+          }
+          showToast(`'${srcNode.name}'을(를) 이동했습니다.`, 'success');
+        } else {
+          showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+        }
+
         await refreshFileList();
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
         setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
@@ -522,15 +667,26 @@ export default function LeftSidebar() {
 
       // 3. VFS (Web LocalStorage 가상 파일 시스템)
       if (srcNode.path) {
-        vfsCopyItem(srcNode.path, destDirPath);
-        showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+        if (isCut) {
+          const newPath = destDirPath ? `${destDirPath}/${srcNode.name}` : srcNode.name;
+          vfsRename(srcNode.path, newPath);
+          setClipboardNode(null);
+          if (typeof window !== 'undefined') {
+            (window as any)._omdClipboardNode = null;
+            window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: null }));
+          }
+          showToast(`'${srcNode.name}'을(를) 이동했습니다.`, 'success');
+        } else {
+          vfsCopyItem(srcNode.path, destDirPath);
+          showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
+        }
         await refreshFileList();
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
         setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
         return;
       }
     } catch (e: any) {
-      showToast('붙여넣기 실패: ' + (e.message || e), 'error');
+      showToast((isCut ? '이동' : '붙여넣기') + ' 실패: ' + (e.message || e), 'error');
     }
   };
 
@@ -552,11 +708,14 @@ export default function LeftSidebar() {
 
   useEffect(() => {
     const onCopyEvent = (e: any) => handleCopyNode(e.detail?.node, e.detail?.parentHandle);
+    const onCutEvent = (e: any) => handleCutNode(e.detail?.node, e.detail?.parentHandle);
     const onPasteEvent = (e: any) => handlePasteNode(e.detail?.targetDirNode, e.detail?.targetHandle);
     window.addEventListener('file:copy-node', onCopyEvent);
+    window.addEventListener('file:cut-node', onCutEvent);
     window.addEventListener('file:paste-node', onPasteEvent);
     return () => {
       window.removeEventListener('file:copy-node', onCopyEvent);
+      window.removeEventListener('file:cut-node', onCutEvent);
       window.removeEventListener('file:paste-node', onPasteEvent);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1150,8 +1309,8 @@ export default function LeftSidebar() {
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0002] LeftSidebar ➔ handleLazyLoad
 // 🎯 @KICK  : FileSystem API 또는 로컬 API로 폴더 내 .md 파일 목록을 지연 로딩
-// 🛡️ @GUARD : 파일 확장자가 .md/.markdown인 경우만 포함
-// 🚨 @PATCH : 없음
+// 🛡️ @GUARD : 파일 확장자가 .md/.markdown인 경우만 포함, NotFoundError 예외 억제 및 자동 정리
+// 🚨 @PATCH : **2026-09-16** — [삭제/이동된 폴더 NotFoundError 콘솔 경고 억제 및 onrivi_expanded_paths 자동 소거]: 폴더가 삭제되거나 이동되어 File System Access API에서 NotFoundError 발생 시 경고 스팸을 차단하고 localStorage 경로를 정리한 뒤 NotFoundError 예외를 전달하여 상위 컴포넌트가 트리를 즉시 정리하도록 보강
 // 🔗 @CALLS : fetch, getVfsFiles, listDirectory
 // ====================================================================
   const handleLazyLoad = async (node: FileNode): Promise<FileNode[]> => {
@@ -1208,10 +1367,29 @@ export default function LeftSidebar() {
       if (res.ok) {
         return await res.json();
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === 'NotFoundError' || err?.message?.includes('could not be found')) {
+        // 🛡️ [삭제/이동된 폴더 NotFoundError 안전 가드]
+        // 폴더가 삭제되었거나 이동되어 물리적으로 존재하지 않는 경우 불필요한 콘솔 경고 스팸을 차단하고
+        // 호출자(FileTreeItem)가 부모를 갱신하여 트리에서 깨끗하게 제거할 수 있도록 예외 전달
+        if (typeof window !== 'undefined' && node.path) {
+          try {
+            const saved = localStorage.getItem('onrivi_expanded_paths');
+            if (saved) {
+              const normPath = node.path.replace(/\\/g, '/');
+              const paths = JSON.parse(saved).filter((p: string) => {
+                const np = p.replace(/\\/g, '/');
+                return np !== normPath && !np.startsWith(normPath + '/');
+              });
+              localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+            }
+          } catch {}
+        }
+        throw err;
+      }
       msg.warn('폴더 목록 조회 실패', err);
+      return [];
     }
-    return [];
   };
 
   if (!isSidebarOpen) return <input type="file" ref={importFileInputRef} style={{ display: 'none' }} accept=".docx,.hwp,.pdf,.txt,.md,.markdown,.html" onChange={handleImportFile} />;
@@ -1286,10 +1464,10 @@ export default function LeftSidebar() {
               shadow-2xs truncate"
             title={rootFolder?.name ? `워크스페이스 변경 (현재: ${rootFolder.name})` : '워크스페이스 폴더 선택'}
           >
-            <Icon 
-              name={rootFolder?.name ? "FolderOpen" : "Folder"} 
+            <FolderTree 
               size={14} 
-              className={rootFolder?.name ? "text-[#1d4ed8] dark:text-blue-400" : "text-slate-400"} 
+              strokeWidth={1.75} 
+              className="shrink-0 text-current opacity-75" 
             />
             <span className="truncate font-bold">
               {rootFolder?.name ? rootFolder.name : '폴더를 선택하세요'}
@@ -1336,7 +1514,10 @@ export default function LeftSidebar() {
                   setContextMenu({ x: e.clientX, y: e.clientY });
                 }}
               >
-                <span className="truncate flex-1 font-bold">📁 {rootFolder.name}</span>
+                <div className="flex items-center gap-1.5 truncate flex-1 font-bold">
+                  <FolderTree size={14} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <span className="truncate">{rootFolder.name}</span>
+                </div>
 
                 {/* Context Menu Portal */}
                 {contextMenu && createPortal(
@@ -1364,7 +1545,7 @@ export default function LeftSidebar() {
                     onMouseEnter={handleMenuMouseEnter}
                     onMouseLeave={handleMenuMouseLeave}
                   >
-                    <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium">
+                    <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium py-0.5">
                       {!isRestrictedUser && (
                         <>
                           <button
@@ -1378,9 +1559,9 @@ export default function LeftSidebar() {
                                 type: 'createFile'
                               });
                             }}
-                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                            className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                           >
-                            <img src="/icons/icon-file-plus.png" width={16} height={16} alt="새 파일" className="opacity-90" />
+                            <FilePlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                             <span>새 파일</span>
                           </button>
                           <button
@@ -1394,9 +1575,9 @@ export default function LeftSidebar() {
                                 type: 'createFolder'
                               });
                             }}
-                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                            className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                           >
-                            <img src="/icons/icon-folder-plus.png" width={16} height={16} alt="새 폴더" className="opacity-90" />
+                            <FolderPlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                             <span>새 폴더</span>
                           </button>
                           <button
@@ -1405,20 +1586,54 @@ export default function LeftSidebar() {
                               setContextMenu(null);
                               handleCopyNode();
                             }}
-                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                            className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                           >
-                            <img src="/icons/icon-copy.png" width={16} height={16} alt="복사하기" className="opacity-90" />
+                            <Copy size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                             <span>복사하기</span>
                           </button>
+                          {(() => {
+                            const isCurrentOpen = !!currentFileNode?.path && !!openTabPaths?.length && (() => {
+                              const normPath = currentFileNode.path.replace(/\\/g, '/');
+                              if (currentFileNode.kind === 'directory') {
+                                return openTabPaths.some(tp => {
+                                  const normTp = tp.replace(/\\/g, '/');
+                                  return normTp === normPath || normTp.startsWith(normPath + '/');
+                                });
+                              }
+                              return openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath);
+                            })();
+
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isCurrentOpen) {
+                                    showToast('편집기에서 열려 있는 파일은 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
+                                    return;
+                                  }
+                                  setContextMenu(null);
+                                  handleCutNode();
+                                }}
+                                disabled={isCurrentOpen}
+                                className={`flex items-center gap-2.5 px-3 py-1.5 w-full text-left transition-colors ${
+                                  isCurrentOpen ? 'opacity-40 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white'
+                                }`}
+                                title={isCurrentOpen ? "탭에서 열려있는 파일은 잘라내기할 수 없습니다" : "잘라내기"}
+                              >
+                                <Scissors size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                <span>잘라내기</span>
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setContextMenu(null);
                               handlePasteNode();
                             }}
-                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                            className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                           >
-                            <img src="/icons/icon-paste.png" width={16} height={16} alt="붙여넣기" className="opacity-90" />
+                            <ClipboardPaste size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                             <span>붙여넣기</span>
                           </button>
                         </>
@@ -1430,9 +1645,9 @@ export default function LeftSidebar() {
                           await refreshFileList();
                           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
                         }}
-                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-green-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                       >
-                        <img src="/icons/icon-refresh.png" width={16} height={16} alt="새로고침" className="opacity-90" />
+                        <RotateCw size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                         <span>새로고침</span>
                       </button>
                       {!isRestrictedUser && (
@@ -1442,12 +1657,36 @@ export default function LeftSidebar() {
                             setContextMenu(null);
                             importFileInputRef.current?.click();
                           }}
-                          className="flex items-center gap-2 px-3 py-1.5 hover:bg-purple-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                          className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                         >
-                          <img src="/icons/icon-import.png" width={16} height={16} alt="가져오기" className="opacity-90" />
+                          <FolderInput size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                           <span>가져오기</span>
                         </button>
                       )}
+                      {(() => {
+                        const isDesktopApp = typeof window !== 'undefined' && !!(window as any).electronAPI;
+                        if (!isDesktopApp) return null;
+                        const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+                        const explorerLabel = isMac ? 'Finder에서 보기' : '파일 탐색기에서 보기';
+                        return (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setContextMenu(null);
+                              const targetPath = (workspaceType === 'local' ? rootFolder?.name : rootFolder?.path) || rootFolder?.path || rootFolder?.name;
+                              const api = (window as any).electronAPI;
+                              if (api?.openPath && targetPath) {
+                                await api.openPath(targetPath);
+                              }
+                            }}
+                            className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+                            title={explorerLabel}
+                          >
+                            <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                            <span>{explorerLabel}</span>
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>,
                   document.body
@@ -1517,8 +1756,8 @@ export default function LeftSidebar() {
               </div>
           ) : (
             // 폴더 미연결 상태 — 간결한 안내
-            <div className="flex flex-col items-center justify-center h-full min-h-[150px] text-zinc-400 dark:text-zinc-500 text-[8px] text-center space-y-2 px-4">
-              <span className="text-xl opacity-40">📁</span>
+            <div className="flex flex-col items-center justify-center h-full min-h-[150px] text-zinc-400 dark:text-zinc-500 text-[11px] text-center space-y-2 px-4">
+              <FolderTree size={28} strokeWidth={1.5} className="text-current opacity-35 mb-1" />
               <p className="font-medium opacity-70">위의 폴더 선택 바를 눌러<br/>워크스페이스를 시작하세요.</p>
             </div>
           )}

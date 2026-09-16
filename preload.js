@@ -41,6 +41,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 9-1. 파일/폴더 복사 (Copy & Paste)
   copyFile: (srcPath, destPath) => ipcRenderer.invoke('file:copy', srcPath, destPath),
 
+  // 9-2. 파일/폴더 이동 (Cut & Paste)
+  moveFile: (srcPath, destPath) => ipcRenderer.invoke('file:move', srcPath, destPath),
+
+  // 9-3. 시스템 탐색기 / Finder 열기 및 위치 표시
+  openPath: (targetPath) => ipcRenderer.invoke('system:openPath', targetPath),
+  showItemInFolder: (targetPath) => ipcRenderer.invoke('system:showItemInFolder', targetPath),
+
   // 10. 파일/폴더 삭제
   deleteFile: (targetPath) => ipcRenderer.invoke('file:delete', targetPath),
 

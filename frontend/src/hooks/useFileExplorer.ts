@@ -19,6 +19,7 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-09-16** — [외부 작업폴더 변경 실시간 자동 감지 & 전역 리프레시 리스너 누락 방어]: watchWorkspace 대상 경로(rootFolder.path || rootFolder.name) 정상화, early return으로 인한 file:refresh-all-directories 리스너 등록 누락 버그 해결, 윈도우 포커스/가시성 복귀 시 자동 새로고침(웹/데스크탑) 연동
 // 🚨 @PATCH : **2026-09-13** — [데스크톱 Electron 네이티브 파일 I/O 직접 연동 및 실서버 404 방어]: handleFileOpenByPath, existingOpenTab 수화, handleFileClick, saveFile에서 데스크톱(Electron) 환경 시 electronAPI.readFromPath / saveFile을 최우선으로 직접 호출하도록 개편하고, /api/file-content 웹 호출은 순수 localhost 개발 환경으로 엄격히 제한하여 프로덕션(onrivi.com) 404 에러 영구 차단
 // 🚨 @PATCH : **2026-09-13** — [작업장 폴더 선택 시 절대경로 100% 보존 및 onrivi_web_base_path 결합]: selectRootFolder 및 rootFolder 변경 감지 시 웹 브라우저 폴더명(블러그 등)을 onrivi_web_base_path('E:/ZZ 개인자료')와 결합하여 onrivi_workspace_path에 항상 완전한 OS 절대경로('E:/ZZ 개인자료/블러그')를 보존·저장함으로써 지식 문서 등록 시 절대경로 적재 무결성 확립
 //             **2026-09-13** — [작업장 폴더 선택 시 기존 절대경로 보존 및 일렉트론 onrivi_workspace_path 동기화]: selectRootFolder에서 일렉트론 finalRoot를 onrivi_workspace_path에 필수 저장하고, 웹 브라우저 showDirectoryPicker 선택 시 기존 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그 등)가 handle.name으로 덮어써져 유실되는 결함을 원천 방어하여 지식 등록 시 완전한 절대경로(E:/...) 적재 보장
@@ -1463,13 +1464,16 @@ export const useFileExplorer = ({
 
   // ====================================================================
   // 📊 [OMD-FILE-USEFILEEXPLORER-0001] useFileExplorer.ts ➔ rootFolderRefreshEffect
-  // 🎯 @KICK  : rootFolder 변경 시 파일 목록 자동 새로고침 또는 초기화
-  // 🛡️ @GUARD : rootFolder null 시 fileList를 빈 배열로 초기화
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : refreshFileList, setFileList
+  // 🎯 @KICK  : rootFolder 변경 시 파일 목록 자동 새로고침 또는 초기화, 외부 변경 실시간 감시 연동
+  // 🛡️ @GUARD : rootFolder null 시 fileList를 빈 배열로 초기화, unwatch/리스너 누수 방지
+  // 🚨 @PATCH : **2026-09-16** — [외부 작업폴더 변경 실시간 감지 & 리스너 등록 누락 방어]: targetWatchPath(path || name) 전달 및 unwatch/전역 리프레시/윈도우 포커스 감지 단일 클린업 통합
+  // 🔗 @CALLS : refreshFileList, setFileList, api.watchWorkspace, api.onWorkspaceChanged
   // ====================================================================
   // 폴더가 바뀔 때 리스트 자동 리프레시 연동 및 전역 리프레시 이벤트 수신
   useEffect(() => {
+    let unwatchElectron: (() => void) | null = null;
+    let focusTimer: any = null;
+
     if (rootFolder) {
       // 🛡️ 로컬스토리지에 작업장 절대경로 자동 보강 (지식문서 다이렉트 직결용)
       try {
@@ -1490,27 +1494,46 @@ export const useFileExplorer = ({
       } catch {}
 
       refreshFileList();
-      // [Bug Fix] 워크스페이스 실시간 변경 감지 활성화
+
+      // [외부 변경 실시간 감지] Electron 네이티브 chokidar 워처 연동
       const api = (window as any).electronAPI;
-      if (workspaceType === 'local' && api?.watchWorkspace && api?.onWorkspaceChanged) {
-        api.watchWorkspace(rootFolder.path);
-        const unwatch = api.onWorkspaceChanged(() => {
+      const targetWatchPath = rootFolder.path || (rootFolder.name && isAbsolutePath(rootFolder.name) ? rootFolder.name : null);
+      if (workspaceType === 'local' && api?.watchWorkspace && api?.onWorkspaceChanged && targetWatchPath) {
+        api.watchWorkspace(targetWatchPath);
+        unwatchElectron = api.onWorkspaceChanged(() => {
           refreshFileList();
         });
-        return () => {
-          unwatch();
-        };
       }
     } else {
       setFileList([]);
     }
 
+    // 전역 수동 리프레시 커스텀 이벤트 수신기
     const handleGlobalRefresh = () => {
       if (rootFolder) refreshFileList();
     };
     window.addEventListener('file:refresh-all-directories', handleGlobalRefresh);
+
+    // 외부 편집/변경 후 앱 창 복귀 시 자동 새로고침 안전망 (웹/데스크탑 공통)
+    const handleFocusRefresh = () => {
+      if (rootFolder) {
+        if (focusTimer) clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+          refreshFileList();
+        }, 500);
+      }
+    };
+    window.addEventListener('focus', handleFocusRefresh);
+    document.addEventListener('visibilitychange', handleFocusRefresh);
+
     return () => {
+      if (unwatchElectron) {
+        unwatchElectron();
+      }
+      if (focusTimer) clearTimeout(focusTimer);
       window.removeEventListener('file:refresh-all-directories', handleGlobalRefresh);
+      window.removeEventListener('focus', handleFocusRefresh);
+      document.removeEventListener('visibilitychange', handleFocusRefresh);
     };
   }, [rootFolder, refreshFileList, setFileList, workspaceType]);
 

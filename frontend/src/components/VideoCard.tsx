@@ -2,6 +2,7 @@
 // 📊 [OMD-EDIT-VideoCard-0001] VideoCard ➔ VideoCard
 // 🎯 @KICK  : YouTube 및 로컬 비디오 썸네일 카드 렌더링 및 에디터-미리보기 1:1 동기화(data-line) 지원
 // 🛡️ @GUARD : 로컬 웹 환경 CORS 방어, 데스크탑 전용 썸네일 추출, 1초 시점 프레임 추출
+// 🚨 @PATCH : **2026-09-16** — [데스크톱 비디오 카드 링크 외부 브라우저 오픈 연동]: <a> 태그에 handleClick을 바인딩하여 Electron 환경에서 동영상 카드 클릭 시 electronAPI.openExternal로 시스템 기본 웹브라우저 오픈 지원
 // 🚨 @PATCH : 2026-09-05 - [미디어 스크롤 싱크 및 data-line 보완] outer <a> 태그에 data-line 속성 바인딩을 지원하여 동영상 줄 타이핑 및 커서 이동 시 위치 추종 지원
 // 🔗 @CALLS : thumbnailCache, canvas.toDataURL
 // ====================================================================
@@ -89,11 +90,20 @@ export default function VideoCard({ src, href, displayName, isYoutube, youtubeId
     return () => { cancelled = true; clearTimeout(timeout); video.remove(); };
   }, [src, isYoutube, youtubeId, cachedKey]);
 
+  const handleClick = (e: React.MouseEvent) => {
+    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    if (isDesktop && href) {
+      e.preventDefault();
+      (window as any).electronAPI.openExternal(href);
+    }
+  };
+
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={handleClick}
       data-line={dataLine || dataLineProp || (props as any)['data-line']}
       className="block no-underline my-2 group"
       style={{ display: 'block', textDecoration: 'none' }}

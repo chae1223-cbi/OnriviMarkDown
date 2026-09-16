@@ -2,6 +2,9 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-16** — [데스크톱 외부 링크 및 비디오 링크 시스템 기본 브라우저 오픈 보장]: setWindowOpenHandler 및 will-navigate에서 mailto/tel 및 외부 URL을 shell.openExternal로 안정적으로 위임하고 MarkdownViewer/VideoCard에서 IPC system:openExternal 직접 호출 연동
+// 🚨 @PATCH : **2026-09-16** — [데스크톱 폴더 삭제 재귀/강제(rmSync) 개편 & ENOTEMPTY/EPERM 해결]: file:delete 핸들러에서 하위 파일/폴더가 존재해도 fs.rmSync({ recursive: true, force: true })로 안전하고 깨끗하게 재귀 삭제 지원하여 빈 폴더만 삭제되던 제약 및 ENOTEMPTY/EPERM 오류 완전 해결
+// 🚨 @PATCH : **2026-09-16** — [시스템 탐색기/Finder 연동 & 잘라내기 이동 & 외부 파일 감시 디바운스 강화]: system:openPath, system:showItemInFolder, file:move IPC 핸들러 신규 추가, file:watchWorkspace에 300ms 디바운스 및 awaitWriteFinish 적용하여 외부 작업폴더 변경 실시간 감지 무결성 확보
 // 🚨 @PATCH : **2026-09-13** — [데스크탑 Mermaid '새 창으로 확대' 팝업 차단 오류 해결]: setWindowOpenHandler가 window.open()을 deny하여 Mermaid 확대 창이 열리지 않던 문제를 mermaid:open-window IPC 핸들러(BrowserWindow 직접 생성 + data:text/html loadURL)로 완전 대체; preload.js에 openMermaidWindow API 추가, MarkdownViewer.tsx에서 isDesktop 분기 적용
 // 🚨 @PATCH : **2026-09-13** — [IPC 파일 읽기/쓰기 절대경로 및 file:/// 프로토콜 정규화]: file:readFromPath 및 file:save에서 file:/// 접두사 제거 및 decodeURIComponent 디코딩, path.resolve 정규화를 지원하여 외부 절대경로 파일 I/O 100% 보장
 // 🚨 @PATCH : **2026-09-12** — [모든 AI 질의 표준 재시도 적용]: 지식 베이스 AI 문서 분석 fetch 호출 시 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 처리 규칙 적용
@@ -258,7 +261,7 @@ function createWindow(port) {
       if (url.startsWith('app://')) {
         const parsed = new URL(url);
         shell.openExternal(`https://onrivi.com${parsed.pathname}${parsed.search}`);
-      } else if (url.startsWith('http:') || url.startsWith('https:')) {
+      } else if (url.startsWith('http:') || url.startsWith('https:') || url.startsWith('mailto:') || url.startsWith('tel:')) {
         shell.openExternal(url);
       }
     }
@@ -279,7 +282,7 @@ function createWindow(port) {
     if (url.startsWith('app://')) {
       const parsed = new URL(url);
       shell.openExternal(`https://onrivi.com${parsed.pathname}${parsed.search}`);
-    } else if (url.startsWith('http:') || url.startsWith('https:')) {
+    } else if (url.startsWith('http:') || url.startsWith('https:') || url.startsWith('mailto:') || url.startsWith('tel:')) {
       shell.openExternal(url);
     }
   });
@@ -2175,26 +2178,42 @@ ipcMain.handle('file:getDrives', async () => {
 
 // 워크스페이스 실시간 감지 (chokidar)
 let workspaceWatcher = null;
+let workspaceNotifyTimer = null;
 ipcMain.handle('file:watchWorkspace', (event, workspacePath) => {
   try {
     if (workspaceWatcher) {
       workspaceWatcher.close();
       workspaceWatcher = null;
     }
-    if (!workspacePath) return;
+    if (workspaceNotifyTimer) {
+      clearTimeout(workspaceNotifyTimer);
+      workspaceNotifyTimer = null;
+    }
+    if (!workspacePath) return { success: false, error: '경로 없음' };
 
-    const cleanPath = workspacePath.normalize('NFC');
+    const cleanPath = path.resolve(workspacePath.replace(/^file:\/\/\/?/, '')).normalize('NFC');
+    if (!fs.existsSync(cleanPath)) {
+      return { success: false, error: '경로가 존재하지 않음: ' + cleanPath };
+    }
+
     workspaceWatcher = chokidar.watch(cleanPath, {
       ignored: [/(^|[\/])\../, '**/node_modules/**', '**/.git/**', '**/.next/**', '**/.vscode/**'],
       persistent: true,
       ignoreInitial: true,
-      depth: 10
+      depth: 10,
+      awaitWriteFinish: {
+        stabilityThreshold: 250,
+        pollInterval: 100
+      }
     });
 
     const notify = () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('workspace-changed');
-      }
+      if (workspaceNotifyTimer) clearTimeout(workspaceNotifyTimer);
+      workspaceNotifyTimer = setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('workspace-changed');
+        }
+      }, 300);
     };
 
     workspaceWatcher
@@ -2239,12 +2258,12 @@ ipcMain.handle('file:listDirectory', async (event, dirPath) => {
       });
     return nodes;
     } catch (e) {
-      if (e.code === 'ENOENT') {
-        // 폴더가 삭제되었거나 이동된 직후 React가 언마운트되기 전 호출된 경우 무시
+      if (['ENOENT', 'EPERM', 'EBUSY', 'EACCES'].includes(e.code) || !fs.existsSync(cleanPath)) {
+        // 폴더가 삭제/이동된 직후이거나 가상/클라우드 드라이브(구글드라이브 등) 일시 잠금 시 빈 목록 반환하여 크래시 방지
         return [];
       }
       console.error(`[Electron] listDirectory 오류 - 경로: [${dirPath}]:`, e);
-      throw e; // 하위 에러를 삼키지 않고 프론트엔드로 전파
+      throw e;
     }
 });
 
@@ -2327,6 +2346,89 @@ ipcMain.handle('file:copy', async (event, srcPath, destPath) => {
   }
 });
 
+// 9-2. 파일/폴더 이동 (Cut & Paste / Move)
+ipcMain.handle('file:move', async (event, srcPath, destPath) => {
+  try {
+    const cleanSrc = srcPath.normalize('NFC');
+    let cleanDest = destPath.normalize('NFC');
+
+    if (!fs.existsSync(cleanSrc)) {
+      throw new Error(`원본 파일 또는 폴더가 존재하지 않습니다: ${cleanSrc}`);
+    }
+
+    const srcStat = fs.statSync(cleanSrc);
+    const isDir = srcStat.isDirectory();
+
+    // 대상 부모 디렉토리가 없으면 생성
+    const destParent = path.dirname(cleanDest);
+    if (!fs.existsSync(destParent)) {
+      fs.mkdirSync(destParent, { recursive: true });
+    }
+
+    // 동일 경로인 경우 스킵
+    if (path.resolve(cleanSrc) === path.resolve(cleanDest)) {
+      return { success: true, newPath: cleanDest };
+    }
+
+    try {
+      fs.renameSync(cleanSrc, cleanDest);
+    } catch (renameErr) {
+      // 드라이브 간 이동 또는 EXDEV 에러 시 fallback
+      if (isDir) {
+        fs.cpSync(cleanSrc, cleanDest, { recursive: true });
+        fs.rmSync(cleanSrc, { recursive: true, force: true });
+      } else {
+        fs.copyFileSync(cleanSrc, cleanDest);
+        fs.unlinkSync(cleanSrc);
+      }
+    }
+
+    return { success: true, newPath: cleanDest };
+  } catch (e) {
+    console.error('파일/폴더 이동 실패:', e);
+    throw e;
+  }
+});
+
+// ====================================================================
+// 📊 [OMD-MAIN-main-0003] main.js ➔ system:openPath & system:showItemInFolder
+// 🎯 @KICK  : 지정 폴더/파일을 운영체제 기본 파일 탐색기(Windows Explorer / macOS Finder)로 열기
+// 🛡️ @GUARD : 경로 유효성 검증, shell.openPath / shell.showItemInFolder 호출
+// 🚨 @PATCH : 2026-09-16 — 루트 및 탐색기에서 시스템 파일 탐색기/Finder 열기 IPC 신규 추가
+// 🔗 @CALLS : shell.openPath, shell.showItemInFolder
+// ====================================================================
+ipcMain.handle('system:openPath', async (event, targetPath) => {
+  try {
+    if (!targetPath) return { success: false, error: '경로가 유효하지 않습니다.' };
+    const { shell } = require('electron');
+    const cleanPath = targetPath.replace(/^file:\/\/\/?/, '').normalize('NFC');
+    const fullPath = path.resolve(decodeURIComponent(cleanPath));
+    if (!fs.existsSync(fullPath)) {
+      return { success: false, error: '경로가 존재하지 않습니다: ' + fullPath };
+    }
+    const err = await shell.openPath(fullPath);
+    if (err) {
+      return { success: false, error: err };
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('system:showItemInFolder', async (event, targetPath) => {
+  try {
+    if (!targetPath) return { success: false, error: '경로가 유효하지 않습니다.' };
+    const { shell } = require('electron');
+    const cleanPath = targetPath.replace(/^file:\/\/\/?/, '').normalize('NFC');
+    const fullPath = path.resolve(decodeURIComponent(cleanPath));
+    shell.showItemInFolder(fullPath);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // 10. 파일/폴더 삭제
 ipcMain.handle('file:delete', async (event, targetPath) => {
   try {
@@ -2336,18 +2438,23 @@ ipcMain.handle('file:delete', async (event, targetPath) => {
     }
     const stat = fs.statSync(cleanPath);
     if (stat.isDirectory()) {
-      const items = fs.readdirSync(cleanPath);
-      if (items.length > 0) {
-        throw new Error('ENOTEMPTY: directory not empty');
-      }
-      fs.rmdirSync(cleanPath);
+      fs.rmSync(cleanPath, { recursive: true, force: true });
     } else {
       fs.unlinkSync(cleanPath);
     }
     return { success: true };
   } catch (e) {
-    console.error('파일 삭제 실패:', e);
-    throw e;
+    console.error('파일/폴더 삭제 1차 실패, force 재시도:', e);
+    try {
+      if (fs.existsSync(targetPath)) {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+        return { success: true };
+      }
+    } catch (retryErr) {
+      console.error('파일/폴더 삭제 2차 실패:', retryErr);
+      throw retryErr;
+    }
+    return { success: true };
   }
 });
 

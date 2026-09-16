@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { FileText, FileCode, FileJson, FileType, File, Folder, Library } from 'lucide-react';
+import { FileText, FileCode, FileJson, FileType, File, Folder, FolderOpen, FileImage } from 'lucide-react';
 import { msg } from './systemMessages';
 
 // IndexedDB 헬퍼 (핸들 저장을 위해 필요)
@@ -121,6 +121,7 @@ export async function scanDirectory(dirHandle: any, parentPath: string = ""): Pr
 // 📊 [OMD-CORE-indexedDbHelper-0004] indexedDbHelper.tsx ➔ scanDirectoryDeep
 // 🎯 @KICK  : 웹 환경 문서 링크 검색을 위해 하위 모든 폴더를 지연 로딩 없이 끝까지 재귀 탐색하여 .md/.markdown/.bib FileNode 배열 수집
 // 🛡️ @GUARD : visited Set으로 순환 참조 방지, .git 및 node_modules 제외 필터링, 예외 시 안전 빈 배열
+// 🚨 @PATCH : **2026-09-16** — [삭제된 폴더 탐색 시 NotFoundError 콘솔 노이즈 방어]: 폴더 삭제 직후 재귀 스캔 시 이미 삭제된 디렉토리 핸들에 대한 NotFoundError 에러 경고 억제 및 안전 건너뛰기
 // 🚨 @PATCH : **2026-09-12** — [웹 환경 문서 연결 검색 완벽 지원] 브라우저 FileSystemDirectoryHandle 하위 모든 디렉토리를 깊숙이 재귀 탐색하여 모든 .md 파일을 100% 수집하는 scanDirectoryDeep 신설
 // 🔗 @CALLS : msg.error
 // ====================================================================
@@ -142,12 +143,18 @@ export async function scanDirectoryDeep(dirHandle: any, parentPath: string = "",
           files.push({ name, kind: 'file', handle, path: currentPath });
         }
       } else if (handle.kind === 'directory') {
-        const subFiles = await scanDirectoryDeep(handle, currentPath, visited);
-        files.push(...subFiles);
+        try {
+          const subFiles = await scanDirectoryDeep(handle, currentPath, visited);
+          files.push(...subFiles);
+        } catch {
+          // 이미 삭제되었거나 일시적으로 접근 불가능한 하위 디렉토리는 안전하게 스킵
+        }
       }
     }
-  } catch (e) {
-    console.warn('[scanDirectoryDeep] directory scan error for path:', parentPath, e);
+  } catch (e: any) {
+    if (e?.name !== 'NotFoundError') {
+      console.warn('[scanDirectoryDeep] directory scan error for path:', parentPath, e);
+    }
   }
 
   return files;
@@ -156,28 +163,33 @@ export async function scanDirectoryDeep(dirHandle: any, parentPath: string = "",
 // 파일/폴더 확장자에 따른 아이콘 및 색상 반환 함수
 // ====================================================================
 // 📊 [OMD-CORE-indexedDbHelper-0003] indexedDbHelper.tsx ➔ getFileIcon
-// 🎯 @KICK  : 파일/폴더 확장자에 따른 Lucide 아이콘 및 색상 반환
-// 🛡️ @GUARD : directory/file 분기, 확장자 lowercase 매핑
-// 🚨 @PATCH : 없음
+// 🎯 @KICK  : 파일/폴더 확장자에 따른 Lucide 아이콘 및 세련된 미니멀리즘 렌더링 (폰트 색상과 일치)
+// 🛡️ @GUARD : directory/file 분기, isOpen 상태 지원, text-current 상속으로 주변 텍스트와 100% 색상 일치
+// 🚨 @PATCH : **2026-09-16** — [탐색기 아이콘 세련된 미니멀리즘 전면 개편]: 파일, 폴더(열림/닫힘), 루트 아이콘을 인접 텍스트와 완벽 일치하는 text-current 및 strokeWidth 1.75 미니멀 라인 아이콘으로 통일
 // 🔗 @CALLS : 없음
 // ====================================================================
-export const getFileIcon = (node: FileNode, isSelected: boolean) => {
-  const baseClass = "shrink-0 transition-colors";
+export const getFileIcon = (node: FileNode, isSelected: boolean = false, isOpen: boolean = false) => {
+  const baseClass = "shrink-0 text-current transition-colors";
   
   if (node.kind === 'directory') {
-    return <Folder size={16} className={`${baseClass} text-yellow-500 fill-yellow-500/20`} />;
+    if (isOpen) {
+      return <FolderOpen size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
+    }
+    return <Folder size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
   }
 
   const fileName = node.name;
   const ext = fileName.split('.').pop()?.toLowerCase();
   
-  if (ext === 'md' || ext === 'markdown') return <FileText size={16} className={`${baseClass} text-blue-500`} />;
-  if (ext === 'bib') return <Library size={16} className={`${baseClass} text-purple-500`} />;
-  if (ext === 'js' || ext === 'jsx') return <FileCode size={16} className={`${baseClass} text-yellow-500`} />;
-  if (ext === 'ts' || ext === 'tsx') return <FileCode size={16} className={`${baseClass} text-blue-400`} />;
-  if (ext === 'json') return <FileJson size={16} className={`${baseClass} text-orange-400`} />;
-  if (ext === 'css') return <FileType size={16} className={`${baseClass} text-blue-300`} />;
-  if (ext === 'html') return <FileCode size={16} className={`${baseClass} text-orange-500`} />;
+  if (ext === 'md' || ext === 'markdown') {
+    return <FileText size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
+  }
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico'].includes(ext || '')) {
+    return <FileImage size={14} strokeWidth={1.75} className={`${baseClass} opacity-75 group-hover:opacity-100`} />;
+  }
+  if (['js', 'jsx', 'ts', 'tsx', 'json', 'css', 'scss', 'html', 'py', 'sh', 'bib'].includes(ext || '')) {
+    return <FileCode size={14} strokeWidth={1.75} className={`${baseClass} opacity-75 group-hover:opacity-100`} />;
+  }
   
-  return <File size={16} className={`${baseClass} ${isSelected ? "text-blue-500" : "text-gray-400"}`} />;
+  return <File size={14} strokeWidth={1.75} className={`${baseClass} opacity-70 group-hover:opacity-100`} />;
 };

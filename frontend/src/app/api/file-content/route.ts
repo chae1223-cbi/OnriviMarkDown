@@ -2,6 +2,7 @@
 // 📊 [OMD-API-fileContent-0001] route.ts ➔ Local File Content Reader & Writer API
 // 🎯 @KICK  : 웹 브라우저 환경에서 작업장 외부/절대경로(file:///) 파일의 실제 로컬 디스크 파일 내용을 안전하게 읽기 및 쓰기
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), 경로 정규화, UTF-8/EUC-KR 디코딩, 쓰기 안전성
+// 🚨 @PATCH : **2026-09-16** — [디스크 파일 부재 시 콘솔 404 에러 억제 및 notFound 200 반환]: 존재하지 않거나 삭제된 파일 조회 시 HTTP 404 대신 status 200과 { ok: false, notFound: true }를 반환하여 브라우저 콘솔의 불필요한 빨간색 404 리소스 로드 에러 원천 방어
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 절대경로(file:///) 파일 읽기 및 쓰기 Next.js API 엔드포인트 신설]
 // 🔗 @CALLS : node:fs, node:path, @/lib/knowledge/pathResolver
 // ====================================================================
@@ -122,8 +123,8 @@ export async function GET(req: NextRequest) {
         resolvedPath = altPath;
       } else {
         return NextResponse.json(
-          { ok: false, message: `디스크에서 파일을 찾을 수 없습니다: ${resolvedPath}` },
-          { status: 404 }
+          { ok: false, notFound: true, message: `디스크에서 파일을 찾을 수 없습니다: ${resolvedPath}` },
+          { status: 200 }
         );
       }
     }

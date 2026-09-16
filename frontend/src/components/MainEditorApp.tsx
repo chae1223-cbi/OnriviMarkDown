@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-16** — [삭제된 폴더 스캔 시 ENOENT/EPERM 콘솔 에러 가드]: fetchAllMdFiles 데스크톱 스캔 시 삭제/이동 직후의 ENOENT/EPERM 예외 콘솔 경고를 안전하게 억제하고 스킵 처리
 // 🚨 @PATCH : **2026-09-13** — [세션 등록 insert API 500 에러 시 제한사용자 잠금 방지]: /api/rpc/license/insert가 500(서버 내부 오류)을 반환할 때 구독 자체가 유효하면 제한사용자로 처리하지 않고 경고 토스트 후 정상 접근 허용; SERVER_ERROR 코드 및 fetch 예외도 동일하게 처리; insert.js catch 블록 500→200 반환 개선으로 클라이언트 JSON 파싱 안전성 확보
 // 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 인용구 Alert 드롭다운 fixed 최상위 포털 전환]: Windows 작업표시줄 뒤로 드롭다운 항목이 숨는 문제 완전 해결 — absolute→fixed 포지셔닝 전환, getBoundingClientRect() 기반 실제 화면 좌표 측정, zIndex 2147483647(max) 적용, 하단 여유 부족 시 DropUp 자동 반전, floatingQuoteDropdown 상태(open/x/y/dropUp) 통합 관리, 바깥클릭/Escape 닫힘 안전 가드 유지
 // 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 검증 이메일 식별자 보존 및 제한사용자 오강등 영구 차단]: loadAndVerifyLicense에서 session.user.id(UUID)로 이메일이 덮어써져 NOT_FOUND가 발생하던 결함을 session.user.email 및 desktop fullData.userId 우선 채택으로 해결하고, 서버 일시 오류 시 로컬 라이선스 파기 방지 및 오프라인 유예기간 보호 강화
@@ -402,8 +403,10 @@ const fetchAllMdFiles = async (
               await scan(item.path);
             }
           }
-        } catch (e) {
-          console.error('[fetchAllMdFiles] scan error for path:', dirPath, e);
+        } catch (e: any) {
+          if (!e?.message?.includes('ENOENT') && !e?.message?.includes('EPERM')) {
+            console.warn('[fetchAllMdFiles] scan error for path:', dirPath, e);
+          }
         }
       };
 

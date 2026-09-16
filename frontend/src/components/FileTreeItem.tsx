@@ -4,6 +4,13 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-16** — [삭제/이동된 폴더 NotFoundError 예외 처리 및 트리 자동 소거]: refreshThisDirectory 및 지연 로드 effect에서 NotFoundError 발생 시 경고 콘솔을 억제하고 isOpen 상태 해제, onrivi_expanded_paths 정리, refreshParent() 호출로 삭제된 폴더를 탐색기 트리에서 즉시 자동 제거하도록 개선
+// 🚨 @PATCH : **2026-09-16** — [열려 있는 탭 파일/폴더 잘라내기(Cut) 방어 가드 탑재]: 탭에 열려 있는 파일이나 하위 파일이 포함된 폴더인 경우 우클릭 컨텍스트 메뉴의 '잘라내기' 버튼을 비활성화(disabled, opacity-40)하고, 클릭 시 탭을 먼저 닫도록 안내 토스트를 출력하여 원본 데이터 유실 원천 방어
+// 🚨 @PATCH : **2026-09-16** — [웹/데스크톱 폴더 재귀 삭제 완벽 지원 & 삭제 차단 해제]: 비어있지 않은 폴더 삭제 차단 가드를 제거하고 브라우저(removeEntry recursive: true) 및 데스크톱(Electron) 양쪽 모두 하위 파일 포함 폴더 삭제를 완벽 지원, 삭제 후 file:refresh-all-directories 전역 동기화 연동
+// 🚨 @PATCH : **2026-09-16** — [시스템 탐색기/Finder 열기 메뉴 데스크톱(Electron) 환경 전용 격리]: 웹 브라우저 환경에서 보안상 구동 불가능한 OS 탐색기 열기 메뉴를 원천 은닉하고 오직 electronAPI가 주입된 데스크톱 앱에서만 선택적으로 노출
+// 🚨 @PATCH : **2026-09-16** — [탐색기 우클릭 컨텍스트 메뉴 아이콘 세련된 미니멀리즘 전면 교체]: 새 파일, 새 폴더, 이름 변경, 복사, 잘라내기, 붙여넣기, 탐색기 열기, 삭제 아이콘을 text-current 기반 Lucide 미니멀 라인 아이콘으로 통일하여 폰트 색상과 100% 일치
+// 🚨 @PATCH : **2026-09-16** — [탐색기 세련된 미니멀리즘 아이콘 연동]: getFileIcon(node, isSelected, isOpen) 호출로 폴더 열림/닫힘 상태별 미니멀 라인 아이콘 렌더링, text-current 기반 인접 폰트 색상과 100% 동기화
+// 🚨 @PATCH : **2026-09-16** — [탐색기 항목 잘라내기(Cut) 및 시스템 탐색기/Finder 열기 연동]: Scissors 아이콘 기반 잘라내기 메뉴(file:cut-node 발송) 추가, 잘라내기 활성 상태 시 opacity-40 반투명 시각 피드백 부여, 데스크톱 환경 파일/폴더 위치 탐색기/Finder 열기 메뉴 연동
 // 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 탐색기 📗 뱃지 및 우클릭 컨텍스트 메뉴(지식문서 등록/해제/상세분석)를 isDesktop 전용으로 한정하여 웹 브라우저 UI 경량화
 //             **2026-09-13** — [지식 문서 등록 시 불필요한 입력 팝업 전면 제거 및 무간섭 원클릭 등록 복원]: 웹 환경에서 상단 브레드크럼의 상위 설정(onrivi_web_base_path) 및 작업장 정보를 pathResolver가 자동 감지하도록 연계하고, 사용자에게 경로를 묻는 window.prompt를 전면 제거하여 원클릭 0초 즉시 등록 완벽 복원
 //             **2026-09-12** — [스캔 배제 및 로컬스토리지 작업장 절대경로 직결]: 지식문서 등록 시 buildDirectWorkspacePath로 로컬스토리지 작업장 절대경로와 파일 상대경로를 즉시 다이렉트 연결하여 등록
@@ -13,7 +20,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste } from 'lucide-react';
 import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/virtualFileSystem';
@@ -53,6 +60,31 @@ const FileTreeItem = ({
   isMergeMode = false, selectedMergeNodes = [], toggleMergeNodeSelect, onLazyLoad, isRestrictedUser = false
 }: FileTreeItemProps) => {
   const { showToast } = useToast();
+
+  const isDesktop = typeof window !== 'undefined' && (
+    !!(window as any).electronAPI ||
+    navigator.userAgent.toLowerCase().includes('electron') ||
+    new URLSearchParams(window.location.search).get('env') === 'desktop'
+  );
+
+  const [isCut, setIsCut] = useState(false);
+  useEffect(() => {
+    const checkIsCut = () => {
+      const clip = typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null;
+      if (clip && clip.op === 'cut' && clip.node) {
+        const clipPath = clip.node.path || clip.node.name;
+        const myPath = rawNode.path || rawNode.name;
+        setIsCut(clipPath === myPath);
+      } else {
+        setIsCut(false);
+      }
+    };
+    checkIsCut();
+    window.addEventListener('file:clipboard-changed', checkIsCut);
+    return () => {
+      window.removeEventListener('file:clipboard-changed', checkIsCut);
+    };
+  }, [rawNode.path, rawNode.name]);
 
   // 🛡️ 백엔드/VFS 노드 규격(type: 'dir'/'file' -> kind) 자동 호환 안전장치
   const node = React.useMemo(() => {
@@ -140,12 +172,20 @@ const FileTreeItem = ({
           setLocalChildren(children);
         })
         .catch((err) => {
-          console.error("폴더 자동 갱신 실패", err);
+          if (err?.name === 'NotFoundError' || err?.message?.includes('could not be found')) {
+            setIsOpen(false);
+            if (typeof refreshParent === 'function') {
+              refreshParent();
+            }
+          } else {
+            console.error("폴더 자동 갱신 실패", err);
+          }
         })
         .finally(() => {
           setIsLoading(false);
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, node, localChildren, onLazyLoad]);
 
   useEffect(() => {
@@ -180,9 +220,9 @@ const FileTreeItem = ({
   // ====================================================================
   // 📊 [OMD-FILE-FileTreeItem-0003] FileTreeItem ➔ refreshThisDirectory
   // 🎯 @KICK  : 현재 디렉토리 노드의 자식 목록을 지연 로딩(onLazyLoad)으로 갱신
-  // 🛡️ @GUARD : 디렉토리가 아니거나 onLazyLoad 미존재 시 실행 차단
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : onLazyLoad
+  // 🛡️ @GUARD : 디렉토리가 아니거나 onLazyLoad 미존재 시 실행 차단; NotFoundError 시 트리 및 로컬스토리지 정리
+  // 🚨 @PATCH : **2026-09-16** — [삭제/이동된 폴더 NotFoundError 예외 처리 및 부모 갱신]: 삭제된 폴더 갱신 시 경고 대신 트리 닫기 및 부모 리프레시 연동
+  // 🔗 @CALLS : onLazyLoad, refreshParent
   // ====================================================================
   const refreshThisDirectory = async () => {
     if (node.kind !== 'directory' || !onLazyLoad) return;
@@ -190,8 +230,26 @@ const FileTreeItem = ({
     try {
       const children = await onLazyLoad(node);
       setLocalChildren(children);
-    } catch (err) {
-      msg.warn('폴더 재갱신 실패', err);
+    } catch (err: any) {
+      if (err?.name === 'NotFoundError' || err?.message?.includes('could not be found')) {
+        setIsOpen(false);
+        try {
+          const saved = localStorage.getItem('onrivi_expanded_paths');
+          if (saved && node.path) {
+            const normPath = node.path.replace(/\\/g, '/');
+            const paths = JSON.parse(saved).filter((p: string) => {
+              const np = p.replace(/\\/g, '/');
+              return np !== normPath && !np.startsWith(normPath + '/');
+            });
+            localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+          }
+        } catch {}
+        if (typeof refreshParent === 'function') {
+          refreshParent();
+        }
+      } else {
+        msg.warn('폴더 재갱신 실패', err);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -775,34 +833,61 @@ const FileTreeItem = ({
         }
       }
     }
-    // 🚀 [비어있지 않은 폴더 삭제 방지] 클라이언트 상태 기반 1차 방어
-    if (node.kind === 'directory') {
-      const rawChildren = localChildren !== null ? localChildren : node.children;
-      if (rawChildren && rawChildren.length > 0) {
-        showToast("하위 폴더나 파일이 존재하는 폴더는 삭제할 수 없습니다. 내용을 먼저 비워주세요.", "warning");
-        return;
-      }
-    }
-
     const isDir = node.kind === 'directory';
+    const rawChildren = localChildren !== null ? localChildren : node.children;
+    const hasChildren = isDir && rawChildren && rawChildren.length > 0;
+
     askConfirm({
       title: isDir ? "폴더 삭제" : "파일 삭제",
       message: isDir 
-        ? `'${node.name}' 폴더를 정말 삭제하시겠습니까?` 
+        ? (hasChildren 
+            ? `'${node.name}' 폴더와 그 안의 모든 하위 파일/폴더를 완전히 삭제하시겠습니까?` 
+            : `'${node.name}' 폴더를 정말 삭제하시겠습니까?`)
         : `'${node.name}' 파일을 정말 삭제하시겠습니까?`,
       isDanger: true,
       onConfirm: async () => {
         try {
           if (workspaceType === 'browser') {
             if (node.handle) {
-              // 🚀 [안전장치] recursive: true를 제거하여 하위 파일이 있을 때 삭제 실패를 유도함
-              await parentHandle.removeEntry(node.name);
+              // 🚀 폴더 및 파일 재귀 삭제 지원 (recursive: true)
+              await parentHandle.removeEntry(node.name, { recursive: true });
+              if (isDir && node.path) {
+                try {
+                  const saved = localStorage.getItem('onrivi_expanded_paths');
+                  if (saved) {
+                    const normPath = node.path.replace(/\\/g, '/');
+                    const paths = JSON.parse(saved).filter((p: string) => {
+                      const np = p.replace(/\\/g, '/');
+                      return np !== normPath && !np.startsWith(normPath + '/');
+                    });
+                    localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+                  }
+                } catch {}
+              }
               refreshParent();
-              setTimeout(() => refreshParent(), 300); // 🛡️ 지연 인덱싱 동기화 갱신
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+              setTimeout(() => {
+                refreshParent();
+                window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+              }, 300);
             } else if (node.path) {
               // LocalStorage 가상 파일/폴더 삭제
               vfsDelete(node.path);
+              if (isDir && node.path) {
+                try {
+                  const saved = localStorage.getItem('onrivi_expanded_paths');
+                  if (saved) {
+                    const normPath = node.path.replace(/\\/g, '/');
+                    const paths = JSON.parse(saved).filter((p: string) => {
+                      const np = p.replace(/\\/g, '/');
+                      return np !== normPath && !np.startsWith(normPath + '/');
+                    });
+                    localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+                  }
+                } catch {}
+              }
               refreshParent();
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             }
           } else {
             const api = (window as any).electronAPI;
@@ -817,7 +902,11 @@ const FileTreeItem = ({
               if (!res.ok) return;
             }
             refreshParent();
-            setTimeout(() => refreshParent(), 300);
+            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            setTimeout(() => {
+              refreshParent();
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            }, 300);
           }
           if (currentFileName === node.name) {
             openFile(null); 
@@ -826,13 +915,10 @@ const FileTreeItem = ({
           if (node.path) {
             window.dispatchEvent(new CustomEvent('file:tab-deleted', { detail: { deletedPath: node.path } }));
           }
+          showToast(`[${node.name}] ${isDir ? "폴더" : "파일"}가 삭제되었습니다.`, 'success');
         } catch(e: any) { 
           const errStr = e.message || e.toString();
-          if (errStr.includes('not empty') || errStr.includes('ENOTEMPTY') || errStr.includes('directory not empty')) {
-            showToast("하위 폴더나 파일이 존재하는 폴더는 삭제할 수 없습니다. 내용을 먼저 비워주세요.", 'error');
-          } else {
-            showToast("삭제 실패: " + errStr, 'error'); 
-          }
+          showToast("삭제 실패: " + errStr, 'error'); 
         }
       }
     });
@@ -856,11 +942,6 @@ const FileTreeItem = ({
   // 🧠 지식 베이스 등록 여부 추적 (데스크톱 전용 기능)
   const [isKnowledgeRegistered, setIsKnowledgeRegistered] = useState(false);
   useEffect(() => {
-    const isDesktop = typeof window !== 'undefined' && (
-      !!(window as any).electronAPI ||
-      navigator.userAgent.toLowerCase().includes('electron') ||
-      new URLSearchParams(window.location.search).get('env') === 'desktop'
-    );
     if (!isDesktop || !isMarkdown) {
       setIsKnowledgeRegistered(false);
       return;
@@ -902,7 +983,7 @@ const FileTreeItem = ({
       window.removeEventListener('knowledge:updated', checkRegistered);
       window.removeEventListener('file:refresh-all-directories', checkRegistered);
     };
-  }, [node.path, node.name, isMarkdown]);
+  }, [node.path, node.name, isMarkdown, isDesktop]);
 
   return (
     <div className="select-none">
@@ -928,7 +1009,7 @@ const FileTreeItem = ({
             : isDragOver
               ? 'bg-[#1d4ed8]/20 scale-[1.01]'
               : 'text-[#2A2A2A] dark:text-[#D4D4D4] hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 hover:text-black dark:hover:text-white hover:font-bold hover:shadow-2xs'
-        }`}
+        } ${isCut ? 'opacity-40 italic' : ''}`}
         style={{ 
           paddingLeft: `${(level * 12) + 8}px`,
           fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif"
@@ -958,8 +1039,8 @@ const FileTreeItem = ({
           />
         )}
         
-        <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 origin-center">
-          {getFileIcon(node, isSelected)}
+        <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 origin-center text-current">
+          {getFileIcon(node, isSelected, isOpen)}
         </span>
         
         <span className="ml-1.5 truncate text-[12px] font-bold text-left flex-1 flex items-center gap-1">
@@ -1013,25 +1094,25 @@ const FileTreeItem = ({
                     <>
                       <button
                         onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleCreateFile(e); }}
-                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                       >
-                        <img src="/icons/icon-file-plus.png" width={16} height={16} alt="새 파일" className="opacity-90" />
+                        <FilePlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                         <span>새 파일</span>
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleCreateFolder(e); }}
-                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                       >
-                        <img src="/icons/icon-folder-plus.png" width={16} height={16} alt="새 폴더" className="opacity-90" />
+                        <FolderPlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                         <span>새 폴더</span>
                       </button>
                     </>
                   )}
                   <button
                     onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleRename(e); }}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-amber-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                    className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                   >
-                    <img src="/icons/icon-rename.png" width={16} height={16} alt="이름 변경" className="opacity-90" />
+                    <Pencil size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                     <span>이름 변경</span>
                   </button>
                   <button
@@ -1042,10 +1123,31 @@ const FileTreeItem = ({
                         detail: { node, parentHandle }
                       }));
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                    className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                   >
-                    <img src="/icons/icon-copy.png" width={16} height={16} alt="복사하기" className="opacity-90" />
+                    <Copy size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                     <span>복사하기</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isOpenInTab) {
+                        showToast('편집기에서 열려 있는 파일은 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
+                        return;
+                      }
+                      setContextMenu(null);
+                      window.dispatchEvent(new CustomEvent('file:cut-node', {
+                        detail: { node, parentHandle }
+                      }));
+                    }}
+                    disabled={isOpenInTab}
+                    className={`flex items-center gap-2.5 px-3 py-1.5 w-full text-left transition-colors ${
+                      isOpenInTab ? 'opacity-40 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white'
+                    }`}
+                    title={isOpenInTab ? "탭에서 열려있는 파일은 잘라내기할 수 없습니다" : "잘라내기"}
+                  >
+                    <Scissors size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                    <span>잘라내기</span>
                   </button>
                   <button
                     onClick={(e) => {
@@ -1058,11 +1160,35 @@ const FileTreeItem = ({
                         }
                       }));
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 dark:hover:bg-white/5 w-full text-left transition-colors"
+                    className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                   >
-                    <img src="/icons/icon-paste.png" width={16} height={16} alt="붙여넣기" className="opacity-90" />
+                    <ClipboardPaste size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                     <span>붙여넣기</span>
                   </button>
+                  {(() => {
+                    const isElectronApp = typeof window !== 'undefined' && !!(window as any).electronAPI;
+                    if (!isElectronApp || !node.path) return null;
+                    const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+                    const label = isMac ? 'Finder에서 보기' : '파일 탐색기에서 보기';
+                    return (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setContextMenu(null);
+                          const api = (window as any).electronAPI;
+                          if (node.kind === 'file' && api?.showItemInFolder) {
+                            await api.showItemInFolder(node.path);
+                          } else if (api?.openPath) {
+                            await api.openPath(node.path);
+                          }
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+                      >
+                        <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                        <span>{label}</span>
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={(e) => { 
                       e.stopPropagation(); 
@@ -1072,14 +1198,14 @@ const FileTreeItem = ({
                       }
                     }}
                     disabled={isOpenInTab}
-                    className={`flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors ${
+                    className={`flex items-center gap-2.5 px-3 py-1.5 w-full text-left transition-colors ${
                       isOpenInTab 
                         ? 'opacity-40 cursor-not-allowed' 
-                        : 'hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400'
+                        : 'hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
                     }`}
                     title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
                   >
-                    <img src="/icons/icon-delete.png" width={16} height={16} alt="삭제" className={`opacity-90 ${isOpenInTab ? 'grayscale' : ''}`} />
+                    <Trash2 size={15} strokeWidth={1.75} className={`shrink-0 text-current opacity-80 ${isOpenInTab ? 'opacity-40' : ''}`} />
                     <span>삭제</span>
                   </button>
 

@@ -2,6 +2,7 @@
 // 📊 [OMD-EDIT-SocialVideoCard-0001] SocialVideoCard ➔ SocialVideoCard
 // 🎯 @KICK  : SNS 동영상(TikTok, Instagram, Vimeo 등) 임베드 카드 렌더링 및 에디터-미리보기 1:1 동기화(data-line) 지원
 // 🛡️ @GUARD : oEmbed 비동기 호출 및 취소 플래그 가드, 플랫폼별 브랜드 컬러 격리
+// 🚨 @PATCH : **2026-09-16** — [데스크톱 SNS 동영상 카드 링크 외부 브라우저 오픈 연동]: <a> 태그에 handleClick을 바인딩하여 Electron 환경에서 카드 클릭 시 electronAPI.openExternal로 시스템 기본 웹브라우저 오픈 지원
 // 🚨 @PATCH : 2026-09-05 - [미디어 스크롤 싱크 및 data-line 보완] outer <a> 태그에 data-line 속성 바인딩을 지원하여 SNS 동영상 링크 줄 타이핑 및 커서 이동 시 위치 추종 지원
 // 🔗 @CALLS : fetch, oembedUrl
 // ====================================================================
@@ -56,11 +57,20 @@ export default function SocialVideoCard({ url, displayName, dataLine, 'data-line
     return () => { cancelled = true; };
   }, [url]);
 
+  const handleClick = (e: React.MouseEvent) => {
+    const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    if (isDesktop && url) {
+      e.preventDefault();
+      (window as any).electronAPI.openExternal(url);
+    }
+  };
+
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={handleClick}
       data-line={dataLine || dataLineProp || (props as any)['data-line']}
       className="block no-underline my-2 group"
       style={{ display: 'block', textDecoration: 'none' }}
