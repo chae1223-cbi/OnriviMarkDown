@@ -2,6 +2,7 @@
 // 📊 [OMD-API-licenseInsert-0001] functions/api/rpc/license/insert.js
 // 🎯 @KICK  : Cloudflare Pages Functions 라이선스 기기 활성화/등록 API
 // 🛡️ @GUARD : Rule 1, Rule 2, p_user_id 이메일 유입 시 UUID 유효성 검증 및 subscription.user_id 폴백, 500 에러 차단 (200 SERVER_ERROR)
+// 🚨 @PATCH : **2026-09-16** — [데스크탑 1대 / 웹 1대 독립 엄격 제한 적용]: 데스크탑과 웹 브라우저를 각각 1대씩만 편집 가능한 전체사용자로 허용하도록 web limit을 1대로 엄격화
 // 🚨 @PATCH : **2026-09-16** — [p_user_id 이메일 유입 시 Postgres UUID 문법 오류(500) 및 activation_id 누락 결함 해결]: p_user_id가 이메일 주소로 전달될 때 UUID 정규식 검증으로 subscription의 소유자 UUID로 자동 대체하고, 예외 시 500 대신 200 SERVER_ERROR 반환 및 activation_id 응답 동기화
 // ====================================================================
 
@@ -102,7 +103,8 @@ export async function onRequestPost(context) {
       }
       const countRes = await fetch(countUrl, { headers });
       const activeRows = await countRes.json();
-      return (activeRows || []).length >= max_devices;
+      const limit = isDesktop ? 1 : 1; // 데스크탑 1대, 웹 브라우저 1대 엄격 제한
+      return (activeRows || []).length >= limit;
     };
 
     if (actRows && actRows.length > 0) {

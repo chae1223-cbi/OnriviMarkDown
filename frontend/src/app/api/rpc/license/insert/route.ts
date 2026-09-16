@@ -6,6 +6,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.07.05> 최초작성
+ * 🚨 @PATCH : **2026-09-16** — [데스크탑 1대 / 웹 1대 독립 엄격 제한 적용]: Elite Pro 플랜에서 데스크탑끼리 비교하여 1대, 웹 브라우저끼리 비교하여 1대만 편집 가능한 전체사용자로 허용하도록 webCount >= 1 검사로 엄격화
  * 🚨 @PATCH : **2026-09-16** — [좀비 세션 자동 정리 및 Elite Pro 분리 집계 한도 교정]: 2분 이상 비활성 웹 세션 자동 정리 가드 추가, Elite Pro 웹 세션 상한을 max_devices(2대) 기준으로 교정하여 브라우저 재접속 시 동시 접속 초과 오탐지 차단
  * -----------------------------------------------------------------------
  */
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
           const desktopCount = list.filter((s: any) => s.device_name?.toLowerCase().includes('desktop')).length;
           const webCount = list.filter((s: any) => !s.device_name?.toLowerCase().includes('desktop')).length;
           if (isDesktopReq && desktopCount >= 1) newIsActive = false;
-          else if (!isDesktopReq && webCount >= (max_devices || 2)) newIsActive = false;
+          else if (!isDesktopReq && webCount >= 1) newIsActive = false;
         } else {
           if (list.length >= max_devices) newIsActive = false;
         }
