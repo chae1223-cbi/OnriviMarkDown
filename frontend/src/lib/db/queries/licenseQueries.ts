@@ -6,6 +6,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.07.05> 최초작성
+//             **2026-09-16** — [좀비 세션 자동 정리 및 Elite Pro 분리 집계 한도 교정]: 2분 이상 비활성 웹 세션 자동 정리 쿼리 추가, Elite Pro 웹 세션 상한을 max_devices(2대) 기준으로 교정하여 브라우저 재접속 시 동시 접속 초과 오탐지 차단
 //             **2026-09-16** — [UUID 유효성 검증 및 subscription 소유자 UUID 자동 승격]: userId가 이메일 주소 등 비-UUID 문자열로 유입될 때 Postgres UUID 구문 오류를 방지하기 위해 subscriptions.user_id로 자동 보정하고, UPDATE 시에도 updated_by 갱신 연동
 //             **2026-09-05** — 다른 브라우저/기기에서 동시접속 초과 시 편집 제어권을 가져올 수 있도록 forceTakeover 인수 지원 (동일 타입의 타 활성 세션 자동 비활성화)
 //             **2026-09-05** — 세션 등록 및 갱신 시 activation_id 반환 지원으로 클라이언트 단의 세션별 소유권 식별 보장
@@ -39,6 +40,16 @@ export const insertLicenseActivationQuery = async (
 
     const isElitePro = plan_name?.toUpperCase().replace(/\s/g, '').includes('ELITE');
     const isDesktopReq = deviceName?.toLowerCase().includes('desktop');
+
+    // 🧹 [좀비 세션 자동 정리 가드]: 2분 이상 활동(Heartbeat)이 중단된 웹 세션은 자동 비활성화하여 오탐지 방지
+    await tx`
+      UPDATE license_activations
+      SET is_active = false, updated_at = now()
+      WHERE subscription_id = ${licenseId}
+        AND is_active = true
+        AND LOWER(device_name) NOT LIKE '%desktop%'
+        AND updated_at < (now() - interval '2 minutes')
+    `;
 
     // ⚡ 제어권 강제 인수(forceTakeover) 요청 시: 동일 플랜 내 다른 활성 세션을 비활성화하여 현재 기기 승격
     if (forceTakeover && !isExpired && plan_name?.toUpperCase() !== 'READER') {
@@ -90,7 +101,7 @@ export const insertLicenseActivationQuery = async (
           
           if (isDesktopReq && desktopSessions.length >= 1) {
             return false;
-          } else if (!isDesktopReq && webSessions.length >= 1) {
+          } else if (!isDesktopReq && webSessions.length >= (max_devices || 2)) {
             return false;
           }
         } else {

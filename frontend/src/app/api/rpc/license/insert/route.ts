@@ -6,7 +6,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.07.05> 최초작성
- * 🚨 @PATCH : **2026-09-16** — [p_user_id 이메일 유입 시 Postgres UUID 문법 오류 방어 및 500 에러 차단]: p_user_id가 이메일 주소일 때 subscriptions 소유자 UUID(subOwnerId)로 자동 승격하여 Postgres 22P02 오류 원천 방어, 서버 예외 발생 시 500 대신 200 SERVER_ERROR를 반환하여 브라우저 콘솔 오류 로그 차단
+ * 🚨 @PATCH : **2026-09-16** — [좀비 세션 자동 정리 및 Elite Pro 분리 집계 한도 교정]: 2분 이상 비활성 웹 세션 자동 정리 가드 추가, Elite Pro 웹 세션 상한을 max_devices(2대) 기준으로 교정하여 브라우저 재접속 시 동시 접속 초과 오탐지 차단
  * -----------------------------------------------------------------------
  */
 import { NextResponse } from 'next/server';
@@ -58,7 +58,17 @@ export async function POST(request: Request) {
       const isElitePro = plan_name?.toUpperCase().replace(/\s/g, '').includes('ELITE');
       const isDesktopReq = p_device_name?.toLowerCase().includes('desktop');
 
-      // ⚡ 제어권 강제 인수 시 타 활성 세션 비활성화
+      // 🧹 [좀비 세션 자동 정리 가드]: 2분 이상 활동(Heartbeat)이 중단된 웹 세션은 자동 비활성화하여 오탐지 방지
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      await supabaseAdmin
+        .from('license_activations')
+        .update({ is_active: false, updated_at: nowIso })
+        .eq('subscription_id', p_license_id)
+        .eq('is_active', true)
+        .not('device_name', 'ilike', '%desktop%')
+        .lt('updated_at', twoMinutesAgo);
+
+      // ⚡ 제어권 강제 인수 시 타 활성 세션 비활성화 (웹 인수 시 데스크탑 세션 보존)
       if (p_force_takeover && !p_is_expired && plan_name?.toUpperCase() !== 'READER') {
         let deactQuery = supabaseAdmin
           .from('license_activations')
@@ -103,7 +113,7 @@ export async function POST(request: Request) {
           const desktopCount = list.filter((s: any) => s.device_name?.toLowerCase().includes('desktop')).length;
           const webCount = list.filter((s: any) => !s.device_name?.toLowerCase().includes('desktop')).length;
           if (isDesktopReq && desktopCount >= 1) newIsActive = false;
-          else if (!isDesktopReq && webCount >= 1) newIsActive = false;
+          else if (!isDesktopReq && webCount >= (max_devices || 2)) newIsActive = false;
         } else {
           if (list.length >= max_devices) newIsActive = false;
         }

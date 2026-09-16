@@ -44,10 +44,25 @@ export async function onRequestPost(context) {
     };
 
     const now = new Date().toISOString();
+    const isDesktop = String(p_device_name || '').toLowerCase().includes('desktop');
 
-    // ⚡ 제어권 인수 요청 시 타 활성 세션 비활성화
+    // 🧹 [좀비 세션 자동 정리 가드]: 2분 이상 활동(Heartbeat)이 중단된 웹 세션은 자동 비활성화하여 오탐지 방지
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&device_name=not.ilike.*desktop*&updated_at=lt.${twoMinutesAgo}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ is_active: false, updated_at: now })
+    }).catch(() => {});
+
+    // ⚡ 제어권 인수 요청 시 타 활성 세션 비활성화 (웹 인수 시 데스크탑 세션 보존)
     if (p_force_takeover) {
-      await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&device_uuid=neq.${p_device_uuid}&is_active=eq.true`, {
+      let takeoverUrl = `${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&device_uuid=neq.${p_device_uuid}&is_active=eq.true`;
+      if (!isDesktop) {
+        takeoverUrl += '&device_name=not.ilike.*desktop*';
+      } else {
+        takeoverUrl += '&device_name=ilike.*desktop*';
+      }
+      await fetch(takeoverUrl, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({ is_active: false, updated_at: now })
@@ -76,14 +91,26 @@ export async function onRequestPost(context) {
     let newIsActive = true;
     let activationId = null;
 
+    // 활성 웹 세션 카운트 헬퍼 (데스크탑 제외, 타 기기만 카운트)
+    const checkLimitExceeded = async () => {
+      if (max_devices === null || max_devices <= 0) return false;
+      let countUrl = `${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&device_uuid=neq.${p_device_uuid}&select=id`;
+      if (!isDesktop) {
+        countUrl += '&device_name=not.ilike.*desktop*';
+      } else {
+        countUrl += '&device_name=ilike.*desktop*';
+      }
+      const countRes = await fetch(countUrl, { headers });
+      const activeRows = await countRes.json();
+      return (activeRows || []).length >= max_devices;
+    };
+
     if (actRows && actRows.length > 0) {
       activationId = actRows[0].id;
       isCurrentlyActive = actRows[0].is_active;
 
-      if (!isCurrentlyActive && max_devices !== null && max_devices > 0) {
-        const countRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&select=id`, { headers });
-        const activeRows = await countRes.json();
-        if (activeRows.length >= max_devices) {
+      if (!isCurrentlyActive) {
+        if (await checkLimitExceeded()) {
           newIsActive = false;
         }
       }
@@ -104,12 +131,8 @@ export async function onRequestPost(context) {
         throw new Error(err.message || '세션 갱신 실패');
       }
     } else {
-      if (max_devices !== null && max_devices > 0) {
-        const countRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&select=id`, { headers });
-        const activeRows = await countRes.json();
-        if (activeRows.length >= max_devices) {
-          newIsActive = false;
-        }
+      if (await checkLimitExceeded()) {
+        newIsActive = false;
       }
 
       const payload = {
