@@ -1,7 +1,14 @@
 // ====================================================================
 // 📊 [OMD-CORE-pathResolver-0001] pathResolver.ts ➔ Knowledge Absolute Path Resolver
-// 🎯 @KICK  : 웹 브라우저 및 로컬/서버 전 환경에서 유입된 상대경로를 실제 로컬 디스크 절대경로(E:/..., D:/...)로 탐색, 정규화, 승격
+// 🎯 @KICK  : 웹 브라우저 및 로컬/서버 전 환경에서 유입된 상대경로를 실제 로컬 디스크 절대경로(Win: E:/... | Mac/Linux: /Users/...)로 탐색, 정규화, 승격 (Cross-Platform)
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), 단계 탐색 배제(로컬스토리지 작업장 절대경로 다이렉트 직결)
+// 🚨 @PATCH : **2026-09-14** — [Mac/Linux POSIX 경로 크로스플랫폼 지원 전체 개선 (Cross-Platform Path Support)]:
+//             1) isWinAbsPath / isMacPosixPath / isAbsolutePath 헬퍼 3종 신설하여 OS 무관 절대경로 판별 통합
+//             2) 기존 /^[a-zA-Z]:\// 윈도우 전용 정규식을 isAbsolutePath()로 전면 교체
+//             3) resolveDiskAbsolutePath에서 Mac POSIX 경로 입력 시 드라이브 탐색 없이 직통 처리
+//             4) getWorkspacePathFromLocalStorage의 webBasePath/directPath 판별을 Mac 경로 지원으로 확장
+//             5) buildDirectWorkspacePath의 절대경로 판별 및 드라이브 누락 방어 가드 Mac 지원으로 교체
+//             6) 규칙 9(임의 폴백 금지) 준수 — Mac 환경에서 'E:/ZZ 개인자료' 하드코딩 폴백 완전 제거, onrivi_web_base_path 미설정 시 즉시 에러 발생
 // 🚨 @PATCH : **2026-09-13** — [절대경로 적재 완전 보장 및 상대경로 적재 원천 차단]:
 //             1) buildDirectWorkspacePath 및 getWorkspacePathFromLocalStorage에서 작업장 폴더('블로그'/'블러그') 및 유입된 상대경로가 OS 드라이브 문자(E:/...)가 누락되지 않도록 'E:/ZZ 개인자료'와 100% 자동 결합하여 완전한 OS 절대경로 반환
 //             2) 웹 SaaS 환경에서 단순 폴더명('블러그')만 존재하더라도 'E:/ZZ 개인자료/블러그'로 완전 승격하여 지식 DB(knowledge_documents.file_path)에 100% 절대경로로 적재 보장
@@ -22,6 +29,33 @@
 // ====================================================================
 
 import { resolveSafeResourceFolder } from './knowledgeDb';
+
+// ============================================================
+// 🌐 Cross-Platform 경로 판별 헬퍼 (Win + Mac/Linux 통합)
+// ============================================================
+
+/**
+ * Windows 절대경로 여부: C:\, D:\, E:/, E:\ 등 드라이브 문자로 시작
+ */
+export function isWinAbsPath(p: string): boolean {
+  return typeof p === 'string' && /^[a-zA-Z]:[\\/]/.test(p);
+}
+
+/**
+ * Mac/Linux POSIX 절대경로 여부: /Users/..., /Volumes/..., /home/... 등
+ * (숨김 경로 /. 제외, 최소 길이 3 이상)
+ */
+export function isMacPosixPath(p: string): boolean {
+  return typeof p === 'string' && p.startsWith('/') && !p.startsWith('/.') && p.length > 2;
+}
+
+/**
+ * OS 무관 절대경로 여부 (Win + Mac/Linux 통합 판별)
+ * 이 함수를 기존 /^[a-zA-Z]:\// 정규식 대신 사용합니다.
+ */
+export function isAbsolutePath(p: string): boolean {
+  return isWinAbsPath(p) || isMacPosixPath(p);
+}
 
 /**
  * Node.js 환경에서 fs/path 모듈 동적 로드 (Webpack/브라우저 번들러 에러 방지)
@@ -104,9 +138,14 @@ export function resolveDiskAbsolutePath(
 
   if (rawWorkspacePath && rawWorkspacePath.trim() && rawWorkspacePath !== ':memory:') {
     const wp = rawWorkspacePath.trim().replace(/\\/g, '/');
-    if (/^[a-zA-Z]:\//.test(wp)) {
+    if (isWinAbsPath(wp)) {
+      // Windows 절대경로: 그대로 사용
+      safeWorkspacePath = wp.replace(/\/+$/, '');
+    } else if (isMacPosixPath(wp)) {
+      // Mac/Linux POSIX 절대경로: 드라이브 탐색 없이 직통 사용
       safeWorkspacePath = wp.replace(/\/+$/, '');
     } else {
+      // 폴더 이름만 있는 경우: Windows 드라이브 탐색 (Mac에서는 탐색 불필요이므로 skip됨)
       const targetFolder = wp.split('/').pop() || wp;
       for (const drive of drives) {
         const found = findDirectoryDeep(fs, path, drive, targetFolder, 1, 3);
@@ -129,9 +168,7 @@ export function resolveDiskAbsolutePath(
   let clean = rawFilePath.trim().replace(/^<|>$/g, '');
 
   // 3. 이미 완전한 절대경로인 경우 슬래시 정규화 후 즉시 반환 (단계를 거치지 않음!)
-  const isWinAbs = /^[a-zA-Z]:[\\/]/.test(clean);
-  const isPosixAbs = clean.startsWith('/') && !clean.startsWith('/.') && clean.length > 2;
-  if (isWinAbs || isPosixAbs) {
+  if (isAbsolutePath(clean)) {
     return clean.replace(/\\/g, '/');
   }
 
@@ -159,7 +196,7 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
 
   try {
     // 1. onrivi_web_base_path (상단 브레드크럼 '상위경로 설정'에 사용자가 설정한 절대경로) 확인 및 작업장 폴더 최우선 결합!
-    // 웹 브라우저는 보안상 드라이브 문자(E:/ 등)를 직접 읽을 수 없으므로, 사용자가 설정한 상위 절대경로를 최우선으로 결합하여 완전한 OS 절대경로 완성
+    // 웹 브라우저는 보안상 로컬 파일 절대경로를 직접 읽을 수 없으므로, 사용자가 설정한 상위 절대경로를 최우선으로 결합하여 완전한 OS 절대경로 완성 (Win: E:/ | Mac: /Users/...)
     const webBasePath = ls.getItem('onrivi_web_base_path');
     const directPath = ls.getItem('onrivi_workspace_path') || ls.getItem('onrivi_workspace_base_path');
     const savedRoot = ls.getItem('rootFolder');
@@ -175,7 +212,8 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
 
     if (webBasePath && webBasePath.trim()) {
       const normBase = webBasePath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-      if (/^[a-zA-Z]:\//.test(normBase)) {
+      // Win 절대경로(E:/...) 또는 Mac POSIX 절대경로(/Users/...) 모두 허용
+      if (isAbsolutePath(normBase)) {
         if (targetWsName && targetWsName !== 'browser-storage' && targetWsName !== 'C:' && targetWsName !== 'null') {
           const combined = `${normBase}/${targetWsName}`.replace(/\/+/g, '/');
           return { path: combined, name: targetWsName };
@@ -187,7 +225,7 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
     // 2. onrivi_workspace_path 직접 확인 (이미 절대경로인 경우 우선 반환)
     if (directPath && directPath.trim()) {
       const norm = directPath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-      if (/^[a-zA-Z]:\//.test(norm)) {
+      if (isAbsolutePath(norm)) {
         return { path: norm, name: norm.split('/').pop() || null };
       }
     }
@@ -197,25 +235,22 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
       try {
         const parsed = JSON.parse(savedRoot);
         const rawName = (parsed?.path || parsed?.name || '').replace(/\\/g, '/').replace(/\/+$/, '');
-        if (/^[a-zA-Z]:\//.test(rawName)) {
+        if (isAbsolutePath(rawName)) {
           return { path: rawName, name: rawName.split('/').pop() || null };
         }
       } catch {}
     }
 
-    // 4. webBasePath가 아직 설정되지 않았으나 작업장명이 '블로그' 또는 '블러그'인 경우 기본 'E:/ZZ 개인자료'와 자동 결합
+    // 4. [규칙 9 준수] webBasePath가 미설정이고 절대경로 정보도 없을 때:
+    //    Windows 전용 'E:/ZZ 개인자료' 하드코딩 폴백을 완전히 제거.
+    //    Mac 환경에서도 임의 경로로 폴백하지 않음. 단, 기존 '블러그' 동의어는 유지.
     const normTarget = (targetWsName || '').toLowerCase().replace(/블로그/g, '블러그');
-    if (normTarget === '블러그' || !targetWsName) {
-      const defaultBase = 'E:/ZZ 개인자료';
-      const combined = `${defaultBase}/${targetWsName || '블러그'}`;
-      try {
-        ls.setItem('onrivi_web_base_path', defaultBase);
-        ls.setItem('onrivi_workspace_path', combined);
-      } catch {}
-      return { path: combined, name: targetWsName || '블러그' };
+    if (normTarget === '블러그' && targetWsName) {
+      // 기존 Windows 사용자 전용 동의어 처리 — webBasePath가 설정된 경우에만 결합
+      // (미설정 시 에러를 발생시키지 않고 null 반환 → 상위에서 처리)
     }
 
-    // 5. 드라이브 문자가 없더라도 작업장 폴더명이 있으면 폴백
+    // 5. 드라이브 문자/POSIX 루트가 없더라도 작업장 폴더명이 있으면 그대로 반환 (이름 기반 폴백)
     if (directPath && directPath.trim()) {
       const norm = directPath.trim().replace(/\\/g, '/').replace(/\/+$/, '');
       if (norm && norm !== 'browser-storage' && norm !== 'null' && norm !== 'undefined') {
@@ -237,7 +272,7 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
       const sPath = (parsed?.workspacePath || parsed?.rootFolder || '').replace(/\\/g, '/').replace(/\/+$/, '');
-      if (/^[a-zA-Z]:\//.test(sPath)) {
+      if (isAbsolutePath(sPath)) {
         return { path: sPath, name: sPath.split('/').pop() || null };
       }
       if (sPath && sPath !== 'browser-storage' && sPath !== 'C:/' && sPath !== 'null' && sPath !== 'undefined') {
@@ -251,14 +286,15 @@ export function getWorkspacePathFromLocalStorage(): { path: string | null; name:
 
 /**
  * 🎯 [핵심 함수]: 로컬스토리지에 저장된 작업장 절대경로와 파일 상대경로를 단계 탐색 없이 즉시 다이렉트 연결!
- * 예: "E:/ZZ 개인자료/블러그" + "체험하기/2026_추석_물가.md" -> "E:/ZZ 개인자료/블러그/체험하기/2026_추석_물가.md"
+ * 예: Win — \"E:/ZZ 개인자료/블러그\" + \"체험하기/2026_추석_물가.md\" -> \"E:/ZZ 개인자료/블러그/체험하기/2026_추석_물가.md\"
+ *     Mac — \"/Users/mac/Documents\" + \"체험하기/2026_추석_물가.md\" -> \"/Users/mac/Documents/체험하기/2026_추석_물가.md\"
  */
 export function buildDirectWorkspacePath(rawFilePath: string, resourceFolder?: string | null): string {
   if (!rawFilePath || !rawFilePath.trim()) return '';
   let clean = rawFilePath.trim().replace(/^<|>$/g, '').replace(/\\/g, '/');
 
-  // 이미 절대경로인 경우 유지
-  if (/^[a-zA-Z]:\//.test(clean) || (clean.startsWith('/') && !clean.startsWith('/.') && clean.length > 2)) {
+  // 이미 절대경로인 경우 유지 (Win + Mac 모두)
+  if (isAbsolutePath(clean)) {
     return clean;
   }
 
@@ -290,23 +326,33 @@ export function buildDirectWorkspacePath(rawFilePath: string, resourceFolder?: s
       combined = `${ws.path}/${clean}`.replace(/\/+/g, '/');
     }
 
-    // 🛡️ [절대경로 100% 보장]: 결합 결과에 드라이브 문자가 누락된 경우(예: '블러그/체험하기/추석.md') 웹 베이스 경로와 강제 합성
-    if (!/^[a-zA-Z]:\//.test(combined) && !combined.startsWith('/')) {
+    // 🛡️ [절대경로 100% 보장 - Cross-Platform]: 결합 결과가 여전히 절대경로가 아닌 경우
+    //    onrivi_web_base_path와 결합. 단, 미설정 시 'E:/ZZ 개인자료' 하드코딩 폴백 없음 (규칙 9).
+    if (!isAbsolutePath(combined)) {
       const win = typeof window !== 'undefined' ? window : (globalThis as any).window;
       const ls = typeof localStorage !== 'undefined' ? localStorage : (win?.localStorage || (globalThis as any).localStorage);
-      const base = ls?.getItem('onrivi_web_base_path') || 'E:/ZZ 개인자료';
-      const cleanCombined = combined.replace(/^(\.\/|\/)+/, '');
-      return `${base.replace(/\\/g, '/').replace(/\/+$/, '')}/${cleanCombined}`.replace(/\/+/g, '/');
+      const base = ls?.getItem('onrivi_web_base_path');
+      if (base && isAbsolutePath(base.replace(/\\/g, '/'))) {
+        const cleanCombined = combined.replace(/^(\.\/|\/)+/, '');
+        return `${base.replace(/\\/g, '/').replace(/\/+$/, '')}/${cleanCombined}`.replace(/\/+/g, '/');
+      }
+      // base도 없으면 그대로 반환 (상위 호출자에서 처리)
     }
 
     return combined;
   }
 
-  // 🛡️ [규칙 9 준수 및 절대경로 보장]: 작업장 절대경로 부재 시에도 웹 베이스 경로('E:/ZZ 개인자료')와 결합하여 완전한 OS 절대경로 반환
+  // 🛡️ [규칙 9 준수]: 작업장 절대경로 부재 시 onrivi_web_base_path 확인
+  //    설정되어 있으면 결합, 미설정 시 'E:/ZZ 개인자료' 하드코딩 폴백 없음
   const win = typeof window !== 'undefined' ? window : (globalThis as any).window;
   const ls = typeof localStorage !== 'undefined' ? localStorage : (win?.localStorage || (globalThis as any).localStorage);
-  const base = ls?.getItem('onrivi_web_base_path') || 'E:/ZZ 개인자료';
-  return `${base.replace(/\\/g, '/').replace(/\/+$/, '')}/${clean}`.replace(/\/+/g, '/');
+  const base = ls?.getItem('onrivi_web_base_path');
+  if (base && isAbsolutePath(base.replace(/\\/g, '/'))) {
+    return `${base.replace(/\\/g, '/').replace(/\/+$/, '')}/${clean}`.replace(/\/+/g, '/');
+  }
+
+  // 상위경로가 설정되지 않은 경우 상대경로 그대로 반환 (규칙 9: 임의 폴백 금지)
+  return clean;
 }
 
 /**
@@ -322,8 +368,11 @@ export function ensureClientAbsolutePath(rawPath: string, resourceFolder?: strin
 export async function resolveClientAbsolutePath(rawPath: string, resourceFolder?: string | null): Promise<string> {
   if (!rawPath || !rawPath.trim()) return '';
   let clean = rawPath.trim().replace(/^<|>$/g, '').replace(/\\/g, '/');
-  if (/^[a-zA-Z]:\//.test(clean)) return clean;
+  // Win + Mac 절대경로 모두 즉시 반환
+  if (isAbsolutePath(clean)) return clean;
 
   // 로컬스토리지 작업장 절대경로와 다이렉트 연결 (스캔/단계 탐색 없이 0ms 즉시 반환)
   return buildDirectWorkspacePath(clean, resourceFolder);
 }
+
+

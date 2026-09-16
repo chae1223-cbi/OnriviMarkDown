@@ -47,8 +47,10 @@ import {
 //             **2026-08-19** — 파일 저장 시 대상 경로와 탭 경로 비교 정규화 버그로 인해 자동저장 황금 도트 미해제 결함 픽스 (대소문자/슬래시 무시 매칭 적용)
 //             **2026-08-12** — 에디터를 열 때 제한사용자(만료, 동시접속 제한, 미인증 등) 권한 가드가 풀리는 현상 해결을 위해 isRestrictedUser 검사 기준으로 모드 전환 로직 단일화 및 보완 적용
 //             **2026-07-04** — 탭 전환/닫기 시 제한(만료) 사용자의 경우 항상 미리보기('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 설정된 에디터 뷰잉 모드를 그대로 보존 및 상속하도록 UI 모드 자동 보정 연동 패치
-// 🔗 @CALLS : scanDirectory, getVfsFiles, fetch, vfsReadFile, vfsWriteFile, stripFrontmatter, idb.get, api.saveFile, api.listDirectory, api.readFromPath, triggerKnowledgeAutoSyncOnSave, saveExternalFileHandle, getExternalFileHandle, verifyHandlePermission, pickExternalFile
+//             **2026-09-14** — [Mac/Linux POSIX 경로 지원 전체 개선]: 작업장 절대경로 판별에 isAbsolutePath() 헬퍼 적용 (Win: /^[a-zA-Z]:/ → isAbsolutePath), Windows 하드코딩 폴백('E:/ZZ 개인자료') 완전 제거, Mac 환경에서도 규칙 9(임의 폴백 금지) 준수
+// 🔗 @CALLS : scanDirectory, getVfsFiles, fetch, vfsReadFile, vfsWriteFile, stripFrontmatter, idb.get, api.saveFile, api.listDirectory, api.readFromPath, triggerKnowledgeAutoSyncOnSave, saveExternalFileHandle, getExternalFileHandle, verifyHandlePermission, pickExternalFile, isAbsolutePath
 // ====================================================================
+import { isAbsolutePath } from '@/lib/knowledge/pathResolver';
 export const useFileExplorer = ({
   editorRef,
   contentRef,
@@ -216,11 +218,11 @@ export const useFileExplorer = ({
           const handle = await (window as any).showDirectoryPicker();
           
           // 🛡️ [작업장 폴더 선택 시 절대경로 즉시 로컬스토리지 저장]
-          // 기존에 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그 등)가 있다면 우선 보존
+          // 기존에 로컬스토리지에 저장되어 있던 절대경로(E:/ZZ 개인자료/블러그, /Users/mac/Documents 등)가 있다면 우선 보존
           let absolutePath = handle.name;
           try {
             const existingWs = typeof window !== 'undefined' ? localStorage.getItem('onrivi_workspace_path') : null;
-            if (existingWs && /^[a-zA-Z]:[\\\/]/.test(existingWs)) {
+            if (existingWs && isAbsolutePath(existingWs.replace(/\\/g, '/'))) {
               const normExist = existingWs.replace(/\\/g, '/');
               const existBase = normExist.split('/').pop() || '';
               const normTarget = (handle.name || '').replace(/블로그/g, '블러그');
@@ -230,17 +232,14 @@ export const useFileExplorer = ({
             }
           } catch {}
 
-          // 🛡️ [절대경로 100% 보장]: onrivi_web_base_path 또는 E:/ZZ 개인자료와 결합하여 절대경로 보존
-          if (!/^[a-zA-Z]:[\\\/]/.test(absolutePath)) {
+          // 🛡️ [절대경로 100% 보장 - Cross-Platform]: onrivi_web_base_path와 결합하여 절대경로 보존 (규칙 9: 하드코딩 폴백 없음)
+          if (!isAbsolutePath(absolutePath.replace(/\\/g, '/'))) {
             try {
               const webBase = typeof window !== 'undefined' ? localStorage.getItem('onrivi_web_base_path') : null;
-              if (webBase && /^[a-zA-Z]:[\\\/]/.test(webBase)) {
+              if (webBase && isAbsolutePath(webBase.replace(/\\/g, '/'))) {
                 absolutePath = `${webBase.replace(/\\/g, '/').replace(/\/+$/, '')}/${handle.name}`;
-              } else {
-                const defaultBase = 'E:/ZZ 개인자료';
-                absolutePath = `${defaultBase}/${handle.name}`;
-                localStorage.setItem('onrivi_web_base_path', defaultBase);
               }
+              // webBase 미설정 시: handle.name 그대로 사용 (규칙 9: 임의 폴백 금지)
             } catch {}
           }
 
@@ -1475,16 +1474,17 @@ export const useFileExplorer = ({
       // 🛡️ 로컬스토리지에 작업장 절대경로 자동 보강 (지식문서 다이렉트 직결용)
       try {
         const savedWs = localStorage.getItem('onrivi_workspace_path');
-        if (!savedWs || !/^[a-zA-Z]:[\\/]/.test(savedWs)) {
+        if (!savedWs || !isAbsolutePath(savedWs.replace(/\\/g, '/'))) {
           const folderName = rootFolder.name || rootFolder.path || '';
-          if (folderName && /^[a-zA-Z]:[\\/]/.test(folderName)) {
+          if (folderName && isAbsolutePath(folderName.replace(/\\/g, '/'))) {
             localStorage.setItem('onrivi_workspace_path', folderName.replace(/\\/g, '/'));
           } else if (folderName && folderName !== 'browser-storage') {
-            const webBase = (localStorage.getItem('onrivi_web_base_path') || 'E:/ZZ 개인자료').replace(/\\/g, '/').replace(/\/+$/, '');
-            const targetFolder = folderName.replace(/\\/g, '/').split('/').pop() || '블러그';
-            const combined = `${webBase}/${targetFolder}`;
-            localStorage.setItem('onrivi_workspace_path', combined);
-            localStorage.setItem('onrivi_web_base_path', webBase);
+            const webBase = (localStorage.getItem('onrivi_web_base_path') || '').replace(/\\/g, '/').replace(/\/+$/, '');
+            const targetFolder = folderName.replace(/\\/g, '/').split('/').pop() || folderName;
+            if (webBase && isAbsolutePath(webBase)) {
+              const combined = `${webBase}/${targetFolder}`;
+              localStorage.setItem('onrivi_workspace_path', combined);
+            }
           }
         }
       } catch {}

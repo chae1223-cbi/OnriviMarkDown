@@ -1,5 +1,9 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
+// 🚨 @PATCH : **2026-09-14** — [Mac/Linux POSIX 경로 크로스플랫폼 지원 전체 개선]:
+//             1) pathResolver에서 신설된 isAbsolutePath() 헬퍼를 import하여 기존 /^[a-zA-Z]:/ 윈도우 전용 정규식 전면 교체
+//             2) Auto-Healing 절대경로 판별(L280, L302~307), promoted 검증(L607), webBase 검증(L893) 모두 Mac POSIX 경로 지원
+//             3) 'E:/ZZ 개인자료' 하드코딩 폴백 완전 제거, onrivi_web_base_path 미설정 시 규칙 9(임의 폴백 금지) 준수
 // 🚨 @PATCH : **2026-09-13** — [절대경로 적재 100% 보장 및 기존 DB 상대경로 자동 일괄 치유(Auto-Healing)]:
 //             1) getBrowserKnowledgeDb 로드 시 기존 DB 레코드에서 작업장 경로 및 상위 베이스(E:/ZZ 개인자료)를 인덱스 기반으로 정확히 복원
 //             2) DB 내에 잔존하던 '블러그/체험하기/추석.md' 등 드라이브 문자 누락 레코드를 발견 즉시 'E:/ZZ 개인자료/블러그/...' 완전 절대경로로 자동 일괄 치유(UPDATE) 및 IndexedDB 영구 저장
@@ -41,7 +45,7 @@ import type {
 import { chunkMarkdownByHeadings } from './markdownChunker';
 import { createKnowledgeLLMProvider } from './llmProvider';
 import { idb } from '../indexedDbHelper';
-import { ensureClientAbsolutePath, resolveClientAbsolutePath } from './pathResolver';
+import { ensureClientAbsolutePath, resolveClientAbsolutePath, isAbsolutePath } from './pathResolver';
 
 let sqlModulePromise: Promise<any> | null = null;
 let cachedDbInstance: any = null;
@@ -261,7 +265,7 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
     try {
       if (typeof window !== 'undefined') {
         const curWs = (localStorage.getItem('onrivi_workspace_path') || '').trim();
-        const hasDrive = /^[a-zA-Z]:[\\\/]/.test(curWs);
+        const hasDrive = isAbsolutePath(curWs);
         if (!hasDrive) {
           const stmt = db.prepare("SELECT file_path FROM knowledge_documents WHERE file_path LIKE '_:/%' OR file_path LIKE '_:\\%' LIMIT 20");
           while (stmt.step()) {
@@ -277,7 +281,7 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
               localStorage.setItem('onrivi_web_base_path', webBase);
               console.log('[browserKnowledgeDb] ✅ 기존 지식 DB 레코드에서 작업장 절대경로 자동 복원 완료:', fullWs);
               break;
-            } else if (parts.length >= 2 && /^[a-zA-Z]:$/.test(parts[0])) {
+            } else if (parts.length >= 2 && (isAbsolutePath(parts[0] + ':/') || parts[0] === '')) {
               const webBase = parts.slice(0, 2).join('/');
               localStorage.setItem('onrivi_web_base_path', webBase);
               const fullWs = `${webBase}/${curWs || '블러그'}`;
@@ -299,22 +303,24 @@ export async function getBrowserKnowledgeDb(explicitHandle?: any): Promise<{ db:
       if (typeof window !== 'undefined') {
         const healStmt = db.prepare("SELECT id, file_path FROM knowledge_documents WHERE file_path NOT LIKE '_:/%' AND file_path NOT LIKE '_:\\%' AND file_path NOT LIKE '/%'");
         const toHeal: { id: string; oldPath: string; newPath: string }[] = [];
-        const baseWs = (localStorage.getItem('onrivi_workspace_path') && /^[a-zA-Z]:[\\\/]/.test(localStorage.getItem('onrivi_workspace_path')!))
-          ? localStorage.getItem('onrivi_workspace_path')!.replace(/\\/g, '/')
-          : 'E:/ZZ 개인자료/블러그';
-        const webBase = (localStorage.getItem('onrivi_web_base_path') && /^[a-zA-Z]:[\\\/]/.test(localStorage.getItem('onrivi_web_base_path')!))
-          ? localStorage.getItem('onrivi_web_base_path')!.replace(/\\/g, '/')
-          : 'E:/ZZ 개인자료';
+        const savedWs = localStorage.getItem('onrivi_workspace_path');
+        const baseWs = (savedWs && isAbsolutePath(savedWs))
+          ? savedWs.replace(/\\/g, '/')
+          : '';
+        const savedWebBase = localStorage.getItem('onrivi_web_base_path');
+        const webBase = (savedWebBase && isAbsolutePath(savedWebBase))
+          ? savedWebBase.replace(/\\/g, '/')
+          : '';
 
         while (healStmt.step()) {
           const row = healStmt.getAsObject();
           const oldPath = String(row.file_path || '').replace(/\\/g, '/');
           let promoted = ensureClientAbsolutePath(oldPath, folderHandle?.name);
-          if (!/^[a-zA-Z]:[\\\/]/.test(promoted)) {
+          if (!isAbsolutePath(promoted)) {
             const clean = oldPath.replace(/^(\.\/|\/)+/, '');
-            if (clean.startsWith('블로그/') || clean.startsWith('블러그/')) {
+            if (webBase && (clean.startsWith('블로그/') || clean.startsWith('블러그/'))) {
               promoted = `${webBase}/${clean}`.replace(/\/+/g, '/');
-            } else {
+            } else if (baseWs) {
               promoted = `${baseWs}/${clean}`.replace(/\/+/g, '/');
             }
           }
@@ -593,7 +599,7 @@ export async function listBrowserDocuments(folderHandle?: any): Promise<Knowledg
 
     // 🛡️ [상대경로 또는 잘못된 리소스폴더(Onrivi_Asset) 결합 경로 ➔ 작업장 절대경로 자동 치유 (Auto-Healing)]
     let rawFilePath = String(row.file_path || '');
-    const isAbs = /^[a-zA-Z]:[\\\/]/.test(rawFilePath) || (rawFilePath.startsWith('/') && !rawFilePath.startsWith('/.') && rawFilePath.length > 2);
+    const isAbs = isAbsolutePath(rawFilePath);
     let finalFilePath = rawFilePath;
 
     const hasResourceMiscoupling = rawFilePath.includes('/Onrivi_Asset/') || rawFilePath.includes('\\Onrivi_Asset\\');
@@ -601,14 +607,19 @@ export async function listBrowserDocuments(folderHandle?: any): Promise<Knowledg
       let cleanRel = rawFilePath;
       if (hasResourceMiscoupling) {
         // "D:/Onrivi_Asset/체험하기/2026_추석_물가.md" -> "체험하기/2026_추석_물가.md"
-        cleanRel = rawFilePath.replace(/^[a-zA-Z]:[\\\/]Onrivi_Asset[\\\/]/i, '').replace(/^Onrivi_Asset[\\\/]/i, '');
+        cleanRel = rawFilePath.replace(/^.*?Onrivi_Asset[\\\/]/i, '');
       }
       let promoted = ensureClientAbsolutePath(cleanRel, folderHandle?.name);
-      if (!/^[a-zA-Z]:[\\\/]/.test(promoted)) {
-        const webBase = (typeof localStorage !== 'undefined' ? localStorage.getItem('onrivi_web_base_path') : null) || 'E:/ZZ 개인자료';
-        const clean = cleanRel.replace(/^(\.\/|\/)+/, '');
-        promoted = `${webBase.replace(/\\/g, '/').replace(/\/+$/, '')}/${clean}`.replace(/\/+/g, '/');
+      if (!isAbsolutePath(promoted)) {
+        const savedBase = typeof localStorage !== 'undefined' ? localStorage.getItem('onrivi_web_base_path') : null;
+        if (savedBase && isAbsolutePath(savedBase)) {
+          const clean = cleanRel.replace(/^(\.\/|\/)+/, '');
+          promoted = `${savedBase.replace(/\\/g, '/').replace(/\/+$/, '')}/${clean}`.replace(/\/+/g, '/');
+        }
       }
+
+
+
       if (promoted && promoted !== rawFilePath) {
         finalFilePath = promoted;
         try {
@@ -870,8 +881,8 @@ export async function indexBrowserDocument(
   // 🛡️ [웹 환경 지식 문서 등록 시 절대경로 표준화 100% 강제 보장]
   let targetFilePath = await resolveClientAbsolutePath(filePath, params.resourceFolder);
 
-  // 🛡️ [최후 방어 가드]: 만약 targetFilePath에 여전히 드라이브 문자가 없는 경우 (예: '블러그/체험하기/추석.md')
-  if (!/^[a-zA-Z]:[\\\/]/.test(targetFilePath) && !targetFilePath.startsWith('/')) {
+  // 🛡️ [최후 방어 가드 - Cross-Platform]: 만약 targetFilePath에 여전히 절대경로가 아닌 경우
+  if (!isAbsolutePath(targetFilePath)) {
     let baseDrivePrefix = '';
     try {
       const pStmt = db.prepare("SELECT file_path FROM knowledge_documents WHERE file_path LIKE '_:/%' OR file_path LIKE '_:\\%' LIMIT 10");
@@ -882,7 +893,7 @@ export async function indexBrowserDocument(
         if (bIdx > 0) {
           baseDrivePrefix = pParts.slice(0, bIdx).join('/');
           break;
-        } else if (pParts.length >= 2 && /^[a-zA-Z]:$/.test(pParts[0])) {
+        } else if (pParts.length >= 2 && (isAbsolutePath(pParts[0] + ':/') || pParts[0] === '')) {
           baseDrivePrefix = pParts.slice(0, 2).join('/');
           break;
         }
@@ -890,16 +901,19 @@ export async function indexBrowserDocument(
       pStmt.free();
     } catch {}
 
-    const webBase = (typeof localStorage !== 'undefined' ? localStorage.getItem('onrivi_web_base_path') : null) || baseDrivePrefix || 'E:/ZZ 개인자료';
-    const cleanTarget = targetFilePath.replace(/^(\.\/|\/)+/, '');
-    targetFilePath = `${webBase.replace(/\\/g, '/').replace(/\/+$/, '')}/${cleanTarget}`.replace(/\/+/g, '/');
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('onrivi_web_base_path', webBase);
-        const wsFolder = cleanTarget.split('/')[0] || '블러그';
-        localStorage.setItem('onrivi_workspace_path', `${webBase}/${wsFolder}`.replace(/\/+/g, '/'));
-      }
-    } catch {}
+    const savedWebBase = typeof localStorage !== 'undefined' ? localStorage.getItem('onrivi_web_base_path') : null;
+    const webBase = (savedWebBase && isAbsolutePath(savedWebBase) ? savedWebBase : null) || (baseDrivePrefix && isAbsolutePath(baseDrivePrefix) ? baseDrivePrefix : null);
+    if (webBase) {
+      const cleanTarget = targetFilePath.replace(/^(\.\/|\/)+/, '');
+      targetFilePath = `${webBase.replace(/\\/g, '/').replace(/\/+$/, '')}/${cleanTarget}`.replace(/\/+/g, '/');
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('onrivi_web_base_path', webBase);
+          const wsFolder = cleanTarget.split('/')[0] || (activeFolder?.name || 'workspace');
+          localStorage.setItem('onrivi_workspace_path', `${webBase}/${wsFolder}`.replace(/\/+/g, '/'));
+        }
+      } catch {}
+    }
   }
 
   const docId = `doc_${computeSha256(targetFilePath).slice(0, 16)}`;
@@ -922,7 +936,7 @@ export async function indexBrowserDocument(
     // 🛡️ 기존에 상대경로로 등록되어 있던 동일 파일 레코드 정리 (중복 및 충돌 방어)
     try {
       const oldDocStmt = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = :oldPath OR file_path = :relPath LIMIT 5');
-      const cleanRel = targetFilePath.replace(/^[a-zA-Z]:\/[^/]+\/[^/]+\//, ''); // e.g. '체험하기/추석.md'
+      const cleanRel = targetFilePath.replace(/^([a-zA-Z]:\/|\/)[^/]+\/[^/]+\//, ''); // e.g. '체험하기/추석.md'
       const blogRel = '블러그/' + cleanRel;
       oldDocStmt.bind({ ':oldPath': filePath, ':relPath': blogRel });
       while (oldDocStmt.step()) {
