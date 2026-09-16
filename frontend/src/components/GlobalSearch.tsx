@@ -38,8 +38,8 @@ interface GlobalSearchProps {
 // ====================================================================
 // 📊 [OMD-FILE-GlobalSearch-0001 ✅ FIXED] GlobalSearch ➔ GlobalSearch
 // 🎯 @KICK  : 현재 지정된 작업장 실폴더(Workspace) 내에서 md 파일 및 문서 전체 검색 후 클릭 시 해당 줄로 점프
-// 🛡️ @GUARD : 150ms 디바운스, 검색어 미입력 시 결과 초기화, 작업장 폴더 동기화 보장
-// 🚨 @PATCH : 2026-09-16 — [워크스페이스 검색 점프 및 검색어 하이라이트 연동] onFileOpenAndJump 시그니처에 searchTerm 파라미터를 추가 전달하여 파일 열기 및 줄 이동 시 일치하는 검색어 텍스트가 하이라이트되도록 연동
+// 🚨 @PATCH : 2026-09-16 — [검색 결과 긴 문장 전체 노출 및 고대비 시인성 강화] 1) truncate 해제 및 whitespace-normal break-words 적용으로 긴 문장 자연 줄바꿈 전문 표시, 2) 호버 툴팁(title)에 행 번호 및 전체 문장 전문 노출, 3) 규칙 8 준수 고대비 텍스트(text-slate-900/zinc-100) 및 선명한 앰버 검색어 하이라이트(bg-amber-300/400 font-extrabold) 적용
+//             2026-09-16 — [워크스페이스 검색 점프 및 검색어 하이라이트 연동] onFileOpenAndJump 시그니처에 searchTerm 파라미터를 추가 전달하여 파일 열기 및 줄 이동 시 일치하는 검색어 텍스트가 하이라이트되도록 연동
 //             2026-09-12 — [작업장 실폴더 한정 검색 보장 & 고대비 UI] searchFolder가 현재 선택된 작업장(workspacePath)과 항상 자동 동기화되도록 수정하고, 작업장 내 검색 안내 뱃지 및 Modern Technical Editorial 디자인 시스템 적용
 // 🔗 @CALLS : handleSelectFolder, scanDirectory
 // ====================================================================
@@ -334,19 +334,19 @@ export default function GlobalSearch({ isDarkMode, content, currentFileName, onF
                       key={i} 
                       onClick={() => lineNum && onFileOpenAndJump(result.path, lineNum, searchTerm)}
                       onDoubleClick={() => lineNum && onFileOpenAndJump(result.path, lineNum, searchTerm)}
-                      className="group flex items-start gap-1.5 px-2 py-1.5 rounded-md text-[12px] text-slate-800 dark:text-zinc-200 hover:text-slate-950 dark:hover:text-white hover:bg-[#1d4ed8]/10 dark:hover:bg-[#1d4ed8]/20 transition-all cursor-pointer leading-normal"
-                      title="클릭 시 해당 줄로 바로 이동합니다"
+                      className="group flex items-start gap-2 px-2.5 py-2 rounded-lg text-slate-900 dark:text-zinc-100 hover:bg-[#1d4ed8]/10 dark:hover:bg-[#1d4ed8]/20 transition-all cursor-pointer leading-relaxed border border-transparent hover:border-[#1d4ed8]/30"
+                      title={`[Line ${lineDisplay || '?'}] ${cleanSnippet}\n(클릭 시 해당 위치로 이동)`}
                     >
                       {lineDisplay && (
-                        <span className="shrink-0 mt-0.5 px-1 py-0.2 rounded text-[10px] font-mono font-bold bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-zinc-400 group-hover:bg-[#1d4ed8]/20 group-hover:text-[#1d4ed8] dark:group-hover:text-blue-300 transition-colors">
+                        <span className="shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 group-hover:bg-[#1d4ed8] group-hover:text-white transition-colors">
                           L.{lineDisplay}
                         </span>
                       )}
-                      <div className="flex-1 min-w-0 font-mono text-[11.5px] truncate">
+                      <div className="flex-1 min-w-0 font-mono text-[12px] font-medium break-words whitespace-normal leading-relaxed select-text">
                         {cleanSnippet.split(new RegExp(`(${searchTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi')).map((part, pi) => (
                           <React.Fragment key={pi}>
                             {part.toLowerCase() === searchTerm.toLowerCase() && searchTerm !== "" ? (
-                              <mark className="bg-[#f97316]/20 text-[#ea580c] dark:text-[#fb923c] font-black rounded px-0.5">
+                              <mark className="bg-amber-300 dark:bg-amber-400 text-amber-950 dark:text-black font-extrabold px-1 py-0.5 rounded shadow-xs">
                                 {part}
                               </mark>
                             ) : (
