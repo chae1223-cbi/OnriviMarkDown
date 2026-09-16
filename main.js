@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-16** — [CSP connect-src http: http://localhost:* 포트 3100 허용]: connect-src에 http: 및 localhost 포트 전 범위 허용 보강
 // 🚨 @PATCH : **2026-09-16** — [데스크톱 외부 링크 및 비디오 링크 시스템 기본 브라우저 오픈 보장]: setWindowOpenHandler 및 will-navigate에서 mailto/tel 및 외부 URL을 shell.openExternal로 안정적으로 위임하고 MarkdownViewer/VideoCard에서 IPC system:openExternal 직접 호출 연동
 // 🚨 @PATCH : **2026-09-16** — [데스크톱 폴더 삭제 재귀/강제(rmSync) 개편 & ENOTEMPTY/EPERM 해결]: file:delete 핸들러에서 하위 파일/폴더가 존재해도 fs.rmSync({ recursive: true, force: true })로 안전하고 깨끗하게 재귀 삭제 지원하여 빈 폴더만 삭제되던 제약 및 ENOTEMPTY/EPERM 오류 완전 해결
 // 🚨 @PATCH : **2026-09-16** — [시스템 탐색기/Finder 연동 & 잘라내기 이동 & 외부 파일 감시 디바운스 강화]: system:openPath, system:showItemInFolder, file:move IPC 핸들러 신규 추가, file:watchWorkspace에 300ms 디바운스 및 awaitWriteFinish 적용하여 외부 작업폴더 변경 실시간 감지 무결성 확보
@@ -298,7 +299,7 @@ function createWindow(port) {
     "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
     "img-src 'self' app: data: blob: http: https: file: media:",
     "font-src 'self' app: data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
-    "connect-src 'self' app: data: blob: ws: wss: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com http://localhost:11434 https://onrivi.com https://cdn.jsdelivr.net https://maps.googleapis.com",
+    "connect-src 'self' app: data: blob: ws: wss: https: http: http://localhost:* http://127.0.0.1:* http://localhost:3100 http://localhost:3000 http://localhost:4000 http://localhost:5000 http://localhost:11434 http://127.0.0.1:3100 http://127.0.0.1:3000 http://127.0.0.1:4000 http://127.0.0.1:5000 media: media-local: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://onrivi.com https://cdn.jsdelivr.net https://maps.googleapis.com",
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com",
     "media-src 'self' app: media: https:"
   ];
