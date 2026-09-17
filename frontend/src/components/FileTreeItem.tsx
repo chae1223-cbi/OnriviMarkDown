@@ -4,6 +4,7 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-17** — [ESLint react-hooks/exhaustive-deps 경고 100% 해소]: refreshThisDirectory 및 handleDelete를 useCallback으로 래핑하여 의존성 배열 안정성 확보 및 불필요한 재렌더링 방지
 // 🚨 @PATCH : **2026-09-17** — [탐색기 단축키 고도화 & 붙여넣기 후 즉시 새로고침 연동]: 컨텍스트 메뉴 및 트리 포커스 시 새 폴더 단축키를 Ctrl+Alt+N(⌥⌘N)으로 개편하고, 붙여넣기(Ctrl+V) 완료 시 대상 디렉토리 자동 펼침(isOpen) 및 지연 2중 새로고침(refreshThisDirectory/file:refresh-all-directories)을 즉각 수행하도록 보강
 // 🚨 @PATCH : **2026-09-17** — [탐색기 파일/폴더 컨텍스트 메뉴 일반 단축키 적용 및 힌트 뱃지 표기]: 컨텍스트 메뉴 및 트리 항목 포커스 시 F2(이름변경), Del(삭제), Ctrl+C(복사), Ctrl+X(잘라내기), Ctrl+V(붙여넣기), Alt+N(새파일), Ctrl+Alt+N(새폴더), Shift+Alt+R(탐색기보기) 일반 단축키 전면 연동 및 메뉴 우측 단축키 라벨 시각화
 // 🚨 @PATCH : **2026-09-17** — [지식 문서 등록/재분석 시 실시간 진행 모달 연동]: performKnowledgeIndex에서 백그라운드 토스트 대신 knowledge:open-index-progress 글로벌 이벤트를 발송하여 전용 실시간 진행 모달(4단계 파이프라인 및 AI 요약/요점/태그 구조화)을 즉시 팝업
@@ -234,7 +235,7 @@ const FileTreeItem = ({
   // 🚨 @PATCH : **2026-09-16** — [삭제/이동된 폴더 NotFoundError 예외 처리 및 부모 갱신]: 삭제된 폴더 갱신 시 경고 대신 트리 닫기 및 부모 리프레시 연동
   // 🔗 @CALLS : onLazyLoad, refreshParent
   // ====================================================================
-  const refreshThisDirectory = async () => {
+  const refreshThisDirectory = useCallback(async () => {
     if (node.kind !== 'directory' || !onLazyLoad) return;
     setIsLoading(true);
     try {
@@ -263,7 +264,7 @@ const FileTreeItem = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [node, onLazyLoad, refreshParent]);
   // 드래그 이동 완료 후 이 디렉토리가 source/target이면 자식 목록 갱신
   const refreshThisDirectoryRef = useRef(refreshThisDirectory);
   refreshThisDirectoryRef.current = refreshThisDirectory;
@@ -821,7 +822,7 @@ const FileTreeItem = ({
   // 🚨 @PATCH : setTimeout 300ms 지연 인덱싱 동기화 갱신으로 OS 파일 락 방어; **2026-06-19** — 열린 탭 보호 가드 추가
   // 🔗 @CALLS : askConfirm, refreshParent, vfsDelete, openFile, showToast
   // ====================================================================
-  const handleDelete = async (e: any) => {
+  const handleDelete = useCallback(async (e: any) => {
     e.stopPropagation();
 
     // 열린 탭 보호 복구: 열려있는 문서나 그 문서가 포함된 폴더는 삭제 불가
@@ -932,7 +933,7 @@ const FileTreeItem = ({
         }
       }
     });
-  };
+  }, [openTabPaths, node, showToast, localChildren, askConfirm, workspaceType, parentHandle, refreshParent, currentFileName, openFile]);
 
   const isSelected = (() => {
     if (currentFilePath && node.path) {
