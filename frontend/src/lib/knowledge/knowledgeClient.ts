@@ -2,7 +2,8 @@
 // 📊 [OMD-CORE-knowledgeClient-0001] knowledgeClient.ts ➔ Unified Knowledge Client Facade
 // 🎯 @KICK  : 데스크톱/로컬(Node SQLite)과 프로드 웹(WASM SQLite)을 자동 감지하여 동일한 지식 인터페이스를 제공하는 통합 클라이언트 파사드
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), Rule 7(선행 검증 후 원자적 트랜잭션 무결성), 404/405 자동 WASM 폴백
-// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: canAccessKnowledgeDb를 데스크톱 환경(isServerApiAvailable) 전용으로 한정하여 웹 브라우저 WASM SQLite/IndexedDB 불필요 로딩 차단 및 경량화
+// 🚨 @PATCH : **2026-09-17** — [데스크톱 색인 실패 시 WASM 임의 폴백 원천 차단 및 명확한 에러 전파]: Rule 9 준수, 데스크톱 환경(isServerApiAvailable)에서 색인/상세조회 실패 시 WASM(sql.js)으로 임의 폴백하여 CSP 위반(CompileError)을 유발하는 결함을 방어하고 서버 실제 에러를 상위로 즉시 전파
+//             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: canAccessKnowledgeDb를 데스크톱 환경(isServerApiAvailable) 전용으로 한정하여 웹 브라우저 WASM SQLite/IndexedDB 불필요 로딩 차단 및 경량화
 //             **2026-09-13** — [웹 브라우저 작업장 폴더명 지원]: indexDocument에서 웹 SaaS(onrivi.com) 작업장 폴더명(블로그 등)을 workspacePath로 인식하여 지식 등록 지원
 //             **2026-09-13** — [대안 1: 지식 문서 고속 저장 파사드 연동]: updateDocumentFast 메서드 신설로 브라우저 파일 핸들이 없는 외부 문서라도 수정 시 WASM SQLite 지식 보관함에 5ms 내 원자적 초고속 저장 지원
 //             **2026-09-12** — [workspacePath 최우선 탐색 추가] indexDocument에서 localStorage rootFolder 절대경로를 workspacePath로 읽어 resolvedParams 및 서버 API 요청에 포함, E:\ZZ 개인자료\블러그 등 실제 작업장 경로 정확한 탐색 보장
@@ -142,8 +143,9 @@ export const knowledgeClient = {
           if (data.ok && data.detail) return data.detail;
         }
       } catch (err) {
-        console.warn('[knowledgeClient.getDocumentDetail] Server API failed, attempting WASM fallback:', err);
+        console.warn('[knowledgeClient.getDocumentDetail] Server API failed:', err);
       }
+      return null;
     }
 
     return await getBrowserDocumentDetail(
@@ -220,15 +222,14 @@ export const knowledgeClient = {
             detail: data.detail,
           };
         }
-      } catch (err) {
-        console.warn('[knowledgeClient.indexDocument] Server API failed:', err);
+        throw new Error(data?.message || data?.error || `데스크톱 색인 실패 (HTTP ${res.status})`);
+      } catch (err: any) {
+        console.error('[knowledgeClient.indexDocument] Desktop API error:', err);
+        throw err;
       }
     } else {
       throw new Error('지식 베이스 등록은 데스크톱 앱 전용 기능입니다.');
     }
-
-    // 웹 WASM SQLite 엔진 호출 (Electron 데스크톱 내 API 에러 시 폴백용)
-    return await indexBrowserDocument(resolvedParams, resolvedParams.resourceFolderHandle);
   },
 
   /**

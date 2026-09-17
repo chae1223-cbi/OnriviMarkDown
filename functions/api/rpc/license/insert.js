@@ -1,9 +1,9 @@
 // ====================================================================
-// 📊 [OMD-API-licenseInsert-0001] functions/api/rpc/license/insert.js
+// 📊 [OMD-API-licenseInsert-0001 ✅ FIXED] frontend/functions/api/rpc/license/insert.js
 // 🎯 @KICK  : Cloudflare Pages Functions 라이선스 기기 활성화/등록 API
 // 🛡️ @GUARD : Rule 1, Rule 2, p_user_id 이메일 유입 시 UUID 유효성 검증 및 subscription.user_id 폴백, 500 에러 차단 (200 SERVER_ERROR)
-// 🚨 @PATCH : **2026-09-16** — [데스크탑 1대 / 웹 1대 독립 엄격 제한 적용]: 데스크탑과 웹 브라우저를 각각 1대씩만 편집 가능한 전체사용자로 허용하도록 web limit을 1대로 엄격화
-// 🚨 @PATCH : **2026-09-16** — [p_user_id 이메일 유입 시 Postgres UUID 문법 오류(500) 및 activation_id 누락 결함 해결]: p_user_id가 이메일 주소로 전달될 때 UUID 정규식 검증으로 subscription의 소유자 UUID로 자동 대체하고, 예외 시 500 대신 200 SERVER_ERROR 반환 및 activation_id 응답 동기화
+// 🚨 @PATCH : **2026-09-16** — [좀비 세션 자동 정리 및 데스크톱/웹 세션 분리 한도 체크]: 2분 이상 활동(Heartbeat)이 중단된 웹 세션 자동 비활성화, 웹 세션 한도 체크 시 Desktop App 제외 분리 집계하여 브라우저 재실행 시 동시 접속 초과 오인식 원천 차단
+//             **2026-09-16** — [p_user_id 이메일 유입 시 Postgres UUID 문법 오류(500) 및 activation_id 누락 결함 해결]: p_user_id가 이메일 주소로 전달될 때 UUID 정규식 검증으로 subscription의 소유자 UUID로 자동 대체하고, 예외 시 500 대신 200 SERVER_ERROR 반환 및 activation_id 응답 동기화
 // ====================================================================
 
 export async function onRequestOptions() {
@@ -92,29 +92,28 @@ export async function onRequestPost(context) {
     let newIsActive = true;
     let activationId = null;
 
-    // 🚨 @PATCH : 2026-09-16 활성 세션 카운트 헬퍼 (PostgREST 인코딩/와일드카드 오류 원천 차단을 위해 select=id,device_name 으로 전체 활성 세션을 받아 JS에서 엄격 분리 집계)
+    // 활성 웹 세션 카운트 헬퍼 (데스크탑 제외, 타 기기만 카운트)
     const checkLimitExceeded = async () => {
       if (max_devices === null || max_devices <= 0) return false;
-      const countUrl = `${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&device_uuid=neq.${p_device_uuid}&select=id,device_name`;
+      let countUrl = `${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&is_active=eq.true&device_uuid=neq.${p_device_uuid}&select=id`;
+      if (!isDesktop) {
+        countUrl += '&device_name=not.ilike.*desktop*';
+      } else {
+        countUrl += '&device_name=ilike.*desktop*';
+      }
       const countRes = await fetch(countUrl, { headers });
       const activeRows = await countRes.json();
-      const list = Array.isArray(activeRows) ? activeRows : [];
-      if (!isDesktop) {
-        const activeWebCount = list.filter(r => !String(r.device_name || '').toLowerCase().includes('desktop')).length;
-        return activeWebCount >= 1; // 웹 브라우저 접속은 1대만 허용
-      } else {
-        const activeDesktopCount = list.filter(r => String(r.device_name || '').toLowerCase().includes('desktop')).length;
-        return activeDesktopCount >= 1; // 데스크탑 앱 접속은 1대만 허용
-      }
+      return (activeRows || []).length >= max_devices;
     };
 
     if (actRows && actRows.length > 0) {
       activationId = actRows[0].id;
       isCurrentlyActive = actRows[0].is_active;
 
-      // 1차 통과 시 무조건 타 활성 세션 존재 여부 검사 (웹 1대 초과 시 무조건 제한 사용자로 격리)
-      if (newIsActive && await checkLimitExceeded()) {
-        newIsActive = false;
+      if (!isCurrentlyActive) {
+        if (await checkLimitExceeded()) {
+          newIsActive = false;
+        }
       }
 
       const updateRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${p_license_id}&device_uuid=eq.${p_device_uuid}`, {
@@ -133,7 +132,7 @@ export async function onRequestPost(context) {
         throw new Error(err.message || '세션 갱신 실패');
       }
     } else {
-      if (newIsActive && await checkLimitExceeded()) {
+      if (await checkLimitExceeded()) {
         newIsActive = false;
       }
 
@@ -172,3 +171,4 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ success: false, code: 'SERVER_ERROR', message: error.message }), { status: 200, headers: corsHeaders });
   }
 }
+

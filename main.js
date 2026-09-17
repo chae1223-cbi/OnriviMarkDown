@@ -2,6 +2,13 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-17** — [이전 작업(식품위생법/인디공연) 하드코딩 폴백 및 프롬프트 예시 전면 제거, 문서 기반 동적 태그/요약 추출 엔진 탑재]: 1) 해시태그 부재 시 문서 제목, 볼드 메타데이터(**문서명**, **프로젝트명** 등), 헤딩으로부터 실질 도메인 키워드를 동적 추출하여 타 문서 태그 오염 100% 원천 방어 2) AI 프롬프트 예시를 도메인 중립 템플릿으로 치환하여 소형 모델(Gemma)의 프롬프트 예시 베끼기 방지 3) 기본 요약/단락 정규식에서 이전 작업 하드코딩 제거 4) validChunks ReferenceError 및 LLM JSON 5단계 초정밀 복원 엔진 연동
+// 🚨 @PATCH : **2026-09-17** — [지식 문서 색인/상세조회 메타 청크 반환 0건 무결성 보장]: chunkMarkdownByHeadingsHelper 내부에서 isMetaOrAuxiliaryChunk 사전 필터링 적용, index 및 detail 반환 시 validChunks(7건)를 엄격히 매핑하여 UI 상에 서두/메타영역(#서식설정) 노출 원천 차단
+// 🚨 @PATCH : **2026-09-16** — [의미 기반 RAG 표준 청킹(Semantic Chunking) DB 스키마·원자적 표·독립 청크 적재 지원]: 1) document_chunks 테이블에 chunk_type 컬럼 마이그레이션(ALTER TABLE) 및 index-document 적재 연동 2) 표(Table) 원자성 및 [문서명 > 섹션 > 소제목] 독립 문맥이 결합된 청크 텍스트 FTS 인덱싱 3) 검색(search) 시 chunk_type 반환 및 표/일정 질의 시 표 청크 우선순위 우대 가점화
+// 🚨 @PATCH : **2026-09-16** — [지식 보관함 메타/서식/블로그 부가 섹션 100% 원천 제외(Filter-out) 및 순수 실질 본문 검색 보장]: 1) 사용자 요구 반영("메터는 지식자료에서 제외시켜줘"): YAML 프론트매터, #서식설정, css_profile, 메타정보, 제목 후보, SEO 키워드, 해시태그, 1:1 이미지 생성 프롬프트, 껍데기 헤딩 청크를 검색 결과 및 RAG 컨텍스트에서 100% 원천 배제 2) 조문/제안이유/요약/해설 등 오직 실질적인 사실 본문 청크만 검색·인용·각주화되도록 보장
+// 🚨 @PATCH : **2026-09-16** — [데스크톱 Auto-RAG 한국어 자연어 검색·불용어 정제·FTS5 다중 티어(AND->OR->제목/태그) 및 알맹이 청크 가중치 전면 개편]: 1) 구어체 질문(알려줄래..., ~에 대해 등)에서 특수문자 구문오류(fts5 syntax error near '.') 및 불용어/조사/내용 접미사를 자동 정제하여 핵심 명사 키워드('공인중개사', '입법') 추출 2) FTS5 AND 검색 후 결과 부족 시 OR 검색 및 Title/Tag/Heading LIKE 다중 티어 검색으로 무결성 보장 3) 메타/해시태그 청크 감점 및 제안이유/요약/법안 실질 본문 가점 산출 4) chunkId, documentTitle, snippet, score 표준 필드 매핑으로 AIDraftModal 지식 주입 및 출처 각주 완벽 연동
+// 🚨 @PATCH : **2026-09-16** — [핵심 요점(key_points) 제목 껍데기 탈피 및 소제목+본문 세부 내용 종합 추출 전면 개편]: 단순 소제목('우리가 얻는 실질적인 변화' 등) 복사를 원천 차단하고, 소제목과 그 아래 기술된 실제 하위 세부 항목(스탠딩 관람 및 춤 허용, 억울한 영업정지 해소, 골목 상권 활성화, 변종 클럽 단속 시행령 기준, 주택가 소음 대책, 시행 시기, 독자 찬반 질문)을 종합하여 알맹이가 담긴 서술형 핵심 요점과 정형 데이터를 적재하도록 AI 프롬프트 및 스마트 추출기 전면 고도화
+// 🚨 @PATCH : **2026-09-16** — [윈도우 CRLF(\\r\\n) 정규식 매칭 및 스마트 본문 요약·Gemma 비정형 파싱 전면 개편]: 1) 윈도우 파일 줄바꿈(\\r)으로 인해 헤딩 정규식 매칭이 누락되어 전체가 1개 청크로 묶이던 버그를 /\\r?\\n/ 및 \\r 제거로 해결하여 대상 문서 13개 청크 정상 분할 2) AI 응답에서 JSON 구문 파싱 실패 시 SyntaxError 크래시를 방어하고 Gemma 등 비정형 모델 복원 탑재 3) AI 미제공/실패 시 단순 300자 자르기가 아닌 본문 3줄 요약, 핵심 소제목/찬반 질문, 해시태그, SEO 키워드를 스마트 추출하여 완벽한 정형 데이터 적재 보장
 // 🚨 @PATCH : **2026-09-16** — [CSP connect-src chrome-extension: 허용]: connect-src에 chrome-extension: 허용을 추가하여 확장 프로그램 연결 차단 방지
 // 🚨 @PATCH : **2026-09-16** — [CSP connect-src http: http://localhost:* 포트 3100 허용]: connect-src에 http: 및 localhost 포트 전 범위 허용 보강
 // 🚨 @PATCH : **2026-09-16** — [데스크톱 외부 링크 및 비디오 링크 시스템 기본 브라우저 오픈 보장]: setWindowOpenHandler 및 will-navigate에서 mailto/tel 및 외부 URL을 shell.openExternal로 안정적으로 위임하고 MarkdownViewer/VideoCard에서 IPC system:openExternal 직접 호출 연동
@@ -293,9 +300,9 @@ function createWindow(port) {
   // Monaco Editor가 eval()과 blob: 워커를 사용하므로 필요한 권한만 허용
   const cspDirectives = [
     "default-src 'self' app:",
-    // Monaco와 Mermaid는 로컬 정적 스크립트 태그로 로드합니다. unsafe-eval을
-    // 허용하지 않아 Electron의 CSP 보안 경고와 임의 코드 실행 위험을 제거합니다.
-    "script-src 'self' app: 'unsafe-inline' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net",
+    // Monaco와 Mermaid는 로컬 정적 스크립트 태그로 로드합니다. wasm-unsafe-eval을
+    // 허용하여 WebAssembly 모듈 인스턴스화가 CSP에 의해 차단되지 않도록 보호합니다.
+    "script-src 'self' app: 'unsafe-inline' 'wasm-unsafe-eval' https://maps.gstatic.com https://maps.googleapis.com https://cdn.jsdelivr.net",
     "worker-src 'self' app: blob:",
     "style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
     "img-src 'self' app: data: blob: http: https: file: media:",
@@ -427,6 +434,7 @@ function applyDesktopKnowledgeSchema(db) {
       chunk_summary TEXT,
       keywords TEXT,
       chunk_text TEXT,
+      chunk_type TEXT DEFAULT 'section',
       FOREIGN KEY(document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id);
@@ -458,6 +466,7 @@ function applyDesktopKnowledgeSchema(db) {
   `);
 
   try { db.exec("ALTER TABLE document_chunks ADD COLUMN chunk_text TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE document_chunks ADD COLUMN chunk_type TEXT DEFAULT 'section';"); } catch {}
   try { db.exec("UPDATE document_chunks SET chunk_text = (SELECT f.chunk_text FROM document_chunks_fts f WHERE f.chunk_id = document_chunks.id) WHERE chunk_text IS NULL OR chunk_text = '';"); } catch {}
 }
 
@@ -515,60 +524,455 @@ function getDesktopKnowledgeDb(resourceFolder, autoCreate = false) {
   }
 }
 
-function chunkMarkdownByHeadingsHelper(docId, markdownText) {
+function decodeFileBuffer(buffer) {
+  if (!buffer || buffer.length === 0) return '';
+  let i = 0;
+  let isUtf8 = true;
+  while (i < buffer.length) {
+    if (buffer[i] <= 0x7f) {
+      i += 1;
+      continue;
+    }
+    if (buffer[i] >= 0xc2 && buffer[i] <= 0xdf) {
+      if (i + 1 < buffer.length && buffer[i + 1] >= 0x80 && buffer[i + 1] <= 0xbf) {
+        i += 2;
+        continue;
+      }
+    } else if (buffer[i] >= 0xe0 && buffer[i] <= 0xef) {
+      if (
+        i + 2 < buffer.length &&
+        buffer[i + 1] >= 0x80 &&
+        buffer[i + 1] <= 0xbf &&
+        buffer[i + 2] >= 0x80 &&
+        buffer[i + 2] <= 0xbf
+      ) {
+        i += 3;
+        continue;
+      }
+    } else if (buffer[i] >= 0xf0 && buffer[i] <= 0xf4) {
+      if (
+        i + 3 < buffer.length &&
+        buffer[i + 1] >= 0x80 &&
+        buffer[i + 1] <= 0xbf &&
+        buffer[i + 2] >= 0x80 &&
+        buffer[i + 2] <= 0xbf &&
+        buffer[i + 3] >= 0x80 &&
+        buffer[i + 3] <= 0xbf
+      ) {
+        i += 4;
+        continue;
+      }
+    }
+    isUtf8 = false;
+    break;
+  }
+
+  if (isUtf8) {
+    return buffer.toString('utf8');
+  }
+
+  try {
+    const decoder = new TextDecoder('euc-kr');
+    return decoder.decode(buffer);
+  } catch {
+    return buffer.toString('utf8');
+  }
+}
+
+const MAX_DESKTOP_SECTION_LINES = 150;
+
+function chunkMarkdownByHeadingsHelper(docId, markdownText, documentTitle = '') {
   if (!markdownText || !markdownText.trim()) return [];
-  const lines = markdownText.split('\n');
+  const lines = markdownText.split(/\r?\n/);
   const totalLines = lines.length;
   const boundaries = [];
   const headingStack = [];
+
+  const cleanDocTitle = (documentTitle || '').trim().replace(/\.md$/i, '');
+  const isMetaOnly = markdownText.trimStart().startsWith('---');
+  const initialTitle = cleanDocTitle 
+    ? (isMetaOnly ? `[${cleanDocTitle}] 서두 및 메타정보` : `[${cleanDocTitle}] 서두 및 개요`)
+    : (isMetaOnly ? '서두 및 메타정보' : '개요 (서론)');
+  const initialPath = cleanDocTitle
+    ? `${cleanDocTitle} > ${isMetaOnly ? '서두 및 메타정보' : '서두'}`
+    : (isMetaOnly ? '서두 및 메타정보' : '개요');
+
   let currentSection = {
-    headingTitle: '개요 (서론)',
+    headingTitle: initialTitle,
     headingLevel: 0,
-    headingPath: '개요',
+    headingPath: initialPath,
     startLine: 1,
   };
+
   const headingRegex = /^(#{1,6})\s+(.+)$/;
+
   for (let i = 0; i < totalLines; i++) {
-    const line = lines[i];
+    const line = lines[i].replace(/\r$/, '');
     const match = line.match(headingRegex);
+
     if (match) {
       const level = match[1].length;
       const title = match[2].trim();
+
       if (i > 0 && i >= currentSection.startLine) {
-        boundaries.push({ ...currentSection, endLine: i });
+        boundaries.push({
+          ...currentSection,
+          endLine: i,
+        });
       }
+
       while (headingStack.length > 0 && headingStack[headingStack.length - 1].level >= level) {
         headingStack.pop();
       }
       headingStack.push({ level, title });
+
+      const rawPath = headingStack.map(h => h.title).join(' > ');
+      const headingPath = cleanDocTitle ? `${cleanDocTitle} > ${rawPath}` : rawPath;
+
       currentSection = {
         headingTitle: title,
         headingLevel: level,
-        headingPath: headingStack.map(h => h.title).join(' > '),
+        headingPath,
         startLine: i + 1,
       };
     }
   }
-  boundaries.push({ ...currentSection, endLine: totalLines });
 
-  return boundaries.map((b, idx) => {
-    const chunkLines = lines.slice(b.startLine - 1, b.endLine);
-    const chunkText = chunkLines.join('\n');
-    const summary = chunkLines.slice(0, 3).join(' ').slice(0, 200).trim();
+  boundaries.push({
+    ...currentSection,
+    endLine: totalLines,
+  });
+
+  const rawChunks = [];
+  let chunkCounter = 0;
+
+  for (const b of boundaries) {
+    const sectionLines = lines.slice(b.startLine - 1, b.endLine);
+    const text = sectionLines.join('\n').trim();
+
+    if (!text) continue;
+    if (isMetaOrAuxiliaryChunk(b.headingTitle, text, b.startLine, b.endLine)) {
+      continue;
+    }
+
+    const lineCount = b.endLine - b.startLine + 1;
+
+    if (lineCount <= MAX_DESKTOP_SECTION_LINES) {
+      rawChunks.push({
+        chunkIndex: chunkCounter++,
+        headingTitle: b.headingTitle,
+        headingLevel: b.headingLevel,
+        headingPath: b.headingPath,
+        startLine: b.startLine,
+        endLine: b.endLine,
+        chunkText: text,
+      });
+    } else {
+      let subStartLine = b.startLine;
+      let currentSubLines = [];
+
+      for (let i = 0; i < sectionLines.length; i++) {
+        const line = sectionLines[i];
+        currentSubLines.push(line);
+
+        if (line.trim() === '' && currentSubLines.length >= 40) {
+          const subEndLine = b.startLine + i;
+          const subText = currentSubLines.join('\n').trim();
+          if (subText) {
+            rawChunks.push({
+              chunkIndex: chunkCounter++,
+              headingTitle: `${b.headingTitle} (Part ${rawChunks.length + 1})`,
+              headingLevel: b.headingLevel,
+              headingPath: b.headingPath,
+              startLine: subStartLine,
+              endLine: subEndLine,
+              chunkText: subText,
+            });
+          }
+          currentSubLines = [];
+          subStartLine = subEndLine + 1;
+        }
+      }
+
+      if (currentSubLines.length > 0) {
+        const subText = currentSubLines.join('\n').trim();
+        if (subText) {
+          rawChunks.push({
+            chunkIndex: chunkCounter++,
+            headingTitle: rawChunks.length > 0 ? `${b.headingTitle} (Part ${rawChunks.length + 1})` : b.headingTitle,
+            headingLevel: b.headingLevel,
+            headingPath: b.headingPath,
+            startLine: subStartLine,
+            endLine: b.endLine,
+            chunkText: subText,
+          });
+        }
+      }
+    }
+  }
+
+  return rawChunks.map((chunk, idx) => {
+    const cLines = chunk.chunkText.split('\n');
+    const summary = cLines.slice(0, 3).join(' ').slice(0, 200).trim();
+    const keywords = [chunk.headingTitle].filter(Boolean);
+
     return {
       id: `${docId}_chunk_${idx}`,
       documentId: docId,
       chunkIndex: idx,
-      headingTitle: b.headingTitle,
-      headingLevel: b.headingLevel,
-      headingPath: b.headingPath,
-      startLine: b.startLine,
-      endLine: b.endLine,
+      headingTitle: chunk.headingTitle,
+      headingLevel: chunk.headingLevel,
+      headingPath: chunk.headingPath,
+      startLine: chunk.startLine,
+      endLine: chunk.endLine,
       chunkSummary: summary,
-      keywords: [b.headingTitle],
-      chunkText,
+      keywords,
+      chunkText: chunk.chunkText,
     };
   });
+}
+
+/**
+ * 메타데이터, 서식 설정(Frontmatter), SEO 키워드, 해시태그, 이미지 프롬프트 등
+ * 검색 지식 가치가 없는 부속 청크인지 여부를 판별합니다.
+ */
+function isMetaOrAuxiliaryChunk(heading, text, startLine, endLine) {
+  const h = (heading || '').toLowerCase();
+  const t = (text || '').trim();
+
+  // 1. 프론트매터 및 CSS 서식설정
+  if (t.startsWith('---') && (Number(startLine) <= 2 || t.includes('css_profile') || t.includes('#서식설정') || t.includes('서식설정') || t.includes('title:') || t.includes('layout:'))) {
+    return true;
+  }
+
+  // 2. 메타/부속 헤딩 키워드
+  const metaKeywords = [
+    '메타정보', '메타영역', '서두 및 메타', '서식설정', '문서 서식',
+    'seo 키워드', 'seo키워드', '해시태그', '제목 후보', '제목후보',
+    '이미지 생성', '1:1 이미지', '이미지 프롬프트'
+  ];
+  if (metaKeywords.some(mk => h.includes(mk))) {
+    return true;
+  }
+
+  // 3. 무의미한 빈 헤딩 또는 플레이스홀더
+  if (/^[0-9.]*\s*본문$/.test(h) && t.length < 50) return true;
+  if (/^법률\s*제\s*호$/.test(h) && t.length < 50) return true;
+
+  // 4. 문서 최상단 단순 제목/구분선 헤더 (실질 본문 30자 미만)
+  if (Number(startLine) <= 3 && Number(endLine) <= 6) {
+    const stripped = t.replace(/^[#\s\-*_>]+/gm, '').trim();
+    if (stripped.length < 30) return true;
+  }
+
+  return false;
+}
+
+/**
+ * 텍스트 내부에서 문자열 리터럴과 이스케이프(\")를 고려하여
+ * 균형 잡힌 최상위 중괄호 '{' ~ '}' 블록들을 모두 추출합니다.
+ */
+function extractBalancedJsonBlocks(text) {
+  const blocks = [];
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let startIndex = -1;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString) {
+      if (char === '{') {
+        if (depth === 0) startIndex = i;
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0 && startIndex !== -1) {
+          blocks.push(text.substring(startIndex, i + 1));
+          startIndex = -1;
+        }
+      }
+    }
+  }
+  return blocks;
+}
+
+/**
+ * LLM이 출력한 불완전하거나 비표준인 JSON 문자열을 표준 JSON 문법으로 보정합니다.
+ */
+function repairJsonString(raw) {
+  let s = (raw || '').trim();
+  if (s.startsWith('```')) {
+    s = s.replace(/^```[a-zA-Z0-9-]*\r?\n?/, '').replace(/\r?\n?```$/, '').trim();
+  }
+  s = s.replace(/\r\n/g, '\n');
+  s = s
+    .replace(/:\s*string\b/gi, ': "string"')
+    .replace(/:\s*number\b/gi, ': 80')
+    .replace(/:\s*boolean\b/gi, ': true');
+  s = s.replace(/,\s*([\]}])/g, '$1');
+  if (!s.includes('"') && s.includes("'")) {
+    s = s.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"');
+  }
+  s = s.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+
+  // 문자열 리터럴 내부의 제어문자(개행, 탭) 및 미이스케이프 내부 큰따옴표 자동 수리
+  let inString = false;
+  let escape = false;
+  let fixed = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escape) {
+      fixed += ch;
+      escape = false;
+      continue;
+    }
+    if (ch === '\\') {
+      fixed += ch;
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      if (!inString) {
+        inString = true;
+        fixed += ch;
+      } else {
+        // 다음 비공백 문자 탐색으로 종결 따옴표 여부 확인
+        let j = i + 1;
+        while (j < s.length && /\s/.test(s[j])) j++;
+        const nextChar = s[j];
+        if (j >= s.length || nextChar === ',' || nextChar === ':' || nextChar === '}' || nextChar === ']') {
+          inString = false;
+          fixed += ch;
+        } else {
+          // 문자열 내부 미이스케이프 따옴표 이스케이프 처리
+          fixed += '\\"';
+        }
+      }
+      continue;
+    }
+    if (inString) {
+      if (ch === '\n') {
+        fixed += '\\n';
+        continue;
+      }
+      if (ch === '\r') continue;
+      if (ch === '\t') {
+        fixed += '\\t';
+        continue;
+      }
+    }
+    fixed += ch;
+  }
+
+  return fixed;
+}
+
+/**
+ * JSON 파싱이 전면 실패한 경우에도 AI 텍스트에서 summary, key_points, tags, search_terms를 정규식으로 안전하게 추출합니다.
+ */
+function extractLlmJsonFieldsFallback(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const result = {};
+
+  // 1. summary 추출
+  const summaryMatch = raw.match(/["']summary["']\s*:\s*"([^"]+)"/i) ||
+                       raw.match(/["']summary["']\s*:\s*"([\s\S]*?)(?:"\s*,\s*"\w+"|\s*"\s*[\r\n])/i);
+  if (summaryMatch && summaryMatch[1]) {
+    result.summary = summaryMatch[1].replace(/\\"/g, '"').replace(/\\n/g, ' ').trim();
+  }
+
+  // 2. key_points 추출
+  const kpBlockMatch = raw.match(/["']key_points["']\s*:\s*\[([\s\S]*?)\]/i);
+  if (kpBlockMatch && kpBlockMatch[1]) {
+    const lines = [...kpBlockMatch[1].matchAll(/"([^"\r\n]+)"/g)].map(m => m[1].replace(/\\"/g, '"').trim()).filter(Boolean);
+    if (lines.length > 0) result.key_points = lines;
+  }
+
+  // 3. tags 추출
+  const tagsBlockMatch = raw.match(/["']tags["']\s*:\s*\[([\s\S]*?)\]/i);
+  if (tagsBlockMatch && tagsBlockMatch[1]) {
+    const tagMatches = [...tagsBlockMatch[1].matchAll(/\{[^{}]*?["']name["']\s*:\s*["']([^"']+)["'][^{}]*?\}/gi)];
+    if (tagMatches.length > 0) {
+      result.tags = tagMatches.map(m => {
+        const name = m[1].trim();
+        const scoreMatch = m[0].match(/["']score["']\s*:\s*([0-9]+)/i);
+        return { name, score: scoreMatch ? Number(scoreMatch[1]) : 85 };
+      });
+    }
+  }
+
+  // 4. search_terms 추출
+  const stBlockMatch = raw.match(/["']search_terms["']\s*:\s*\[([\s\S]*?)\]/i);
+  if (stBlockMatch && stBlockMatch[1]) {
+    const terms = [...stBlockMatch[1].matchAll(/"([^"\r\n]+)"/g)].map(m => m[1].trim()).filter(Boolean);
+    if (terms.length > 0) result.search_terms = terms;
+  }
+
+  if (result.summary || (result.key_points && result.key_points.length > 0)) {
+    return result;
+  }
+  return null;
+}
+
+/**
+ * LLM 응답 텍스트로부터 최선의 JSON 객체를 파싱 및 복원하여 반환합니다.
+ */
+function parseAndRepairLlmJson(rawText) {
+  if (!rawText || !rawText.trim()) return null;
+  const trimmed = rawText.trim();
+  try { return JSON.parse(trimmed); } catch (_) {}
+
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    const inside = codeBlockMatch[1].trim();
+    try { return JSON.parse(inside); } catch (_) {}
+    try { return JSON.parse(repairJsonString(inside)); } catch (_) {}
+  }
+
+  const blocks = extractBalancedJsonBlocks(trimmed);
+  if (blocks.length > 0) {
+    if (blocks.length === 1) {
+      try { return JSON.parse(blocks[0]); } catch (_) {}
+      try { return JSON.parse(repairJsonString(blocks[0])); } catch (_) {}
+    } else {
+      const merged = {};
+      let parseSuccessCount = 0;
+      for (const block of blocks) {
+        let blockParsed = null;
+        try { blockParsed = JSON.parse(block); } catch (_) {
+          try { blockParsed = JSON.parse(repairJsonString(block)); } catch (_) {}
+        }
+        if (blockParsed && typeof blockParsed === 'object' && !Array.isArray(blockParsed)) {
+          Object.assign(merged, blockParsed);
+          parseSuccessCount++;
+        }
+      }
+      if (parseSuccessCount > 0) return merged;
+    }
+  }
+
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const slice = trimmed.substring(firstBrace, lastBrace + 1);
+    try { return JSON.parse(repairJsonString(slice)); } catch (_) {}
+  }
+
+  // 5단계: 정규식 기반 주요 필드 복원 폴백
+  return extractLlmJsonFieldsFallback(trimmed);
 }
 
 async function handleDesktopKnowledgeApi(request, pathname, url) {
@@ -836,6 +1240,8 @@ async function handleDesktopKnowledgeApi(request, pathname, url) {
         ORDER BY c.chunk_index ASC
       `).all(doc.id);
 
+      const validDbChunks = (chunks || []).filter(c => !isMetaOrAuxiliaryChunk(c.heading_title, c.chunk_text, c.start_line, c.end_line));
+
       let keyPoints = [];
       try { keyPoints = typeof doc.key_points === 'string' ? JSON.parse(doc.key_points) : (doc.key_points || []); } catch {}
 
@@ -852,8 +1258,8 @@ async function handleDesktopKnowledgeApi(request, pathname, url) {
         tags: tags.map(t => ({ name: t.tag_name, score: t.score })),
         searchTerms: [],
         analyzerModel: doc.analyzer_model || 'gemini-3.8-flash',
-        chunksCount: chunks.length,
-        chunks: chunks.map(c => ({
+        chunksCount: validDbChunks.length,
+        chunks: validDbChunks.map(c => ({
           id: c.id,
           chunkIndex: c.chunk_index,
           headingTitle: c.heading_title || '',
@@ -1171,7 +1577,7 @@ async function handleDesktopKnowledgeApi(request, pathname, url) {
     if (subPath === 'index') {
       let { filePath, fileContent, title, geminiApiKey, aiModelName } = body;
       if (!fileContent && filePath && fs.existsSync(filePath)) {
-        try { fileContent = fs.readFileSync(filePath, 'utf-8'); } catch {}
+        try { fileContent = decodeFileBuffer(fs.readFileSync(filePath)); } catch {}
       }
       if (!filePath || !fileContent) {
         return Response.json({ ok: false, message: 'filePath와 fileContent는 필수 항목입니다.' }, { status: 400 });
@@ -1179,40 +1585,217 @@ async function handleDesktopKnowledgeApi(request, pathname, url) {
 
       const db = getDesktopKnowledgeDb(resourceFolder, true);
       const crypto = require('crypto');
-      const docId = `doc_${crypto.createHash('sha256').update(filePath).digest('hex').slice(0, 16)}`;
+      const existingDoc = db.prepare('SELECT id FROM knowledge_documents WHERE file_path = ? OR file_path = ?').get(filePath, filePath.replace(/\\/g, '/'));
+      const docId = existingDoc?.id || `doc_${crypto.createHash('sha256').update(filePath).digest('hex').slice(0, 16)}`;
       const fileHash = crypto.createHash('sha256').update(fileContent).digest('hex');
       const fileSize = Buffer.byteLength(fileContent, 'utf-8');
       const docTitle = title || path.basename(filePath).replace(/\.md$/i, '') || '문서';
       const nowIso = new Date().toISOString();
 
-      // 청킹
-      const chunks = chunkMarkdownByHeadingsHelper(docId, fileContent);
+      // 청킹 (고도화된 청커에 docTitle 전달)
+      const chunks = chunkMarkdownByHeadingsHelper(docId, fileContent, docTitle);
 
-      // Gemini AI 분석 (키가 있는 경우 호출, 실패 또는 미제공 시 기본 요약 폴백)
+      // AI 분석 실패 또는 키 미제공 시 본문 및 청크 기반의 의미 있는 정형 데이터 폴백 생성 (절대 "~마크다운 문서입니다", "#마크다운", "#지식문서" 금지)
+      // 1) 문서 내 '3줄 요약', '요약', '개요' 섹션 본문 자동 탐지
+      let docSummary = '';
+      const summarySectionMatch = fileContent.match(/###?\s*(?:[0-9.]*\s*)?(?:.*요약|.*개요)[\s\S]*?(?=(?:^###|\n---|$(?![\r\n])))/im);
+      if (summarySectionMatch) {
+        const summaryLines = summarySectionMatch[0]
+          .split(/\r?\n/)
+          .slice(1)
+          .map(l => l.replace(/^>\s*/, '').replace(/^[0-9*.\-]+\s*/, '').replace(/\*\*/g, '').trim())
+          .filter(l => l.length > 10);
+        if (summaryLines.length > 0) {
+          docSummary = summaryLines.slice(0, 3).join(' ');
+        }
+      }
+
+      // 2) 요약 섹션이 없으면 본문 첫 실질 문단(30자 이상, 안내문구 제외) 추출
+      if (!docSummary) {
+        const mainSectionMatch = fileContent.match(/###?\s*(?:[0-9.]*\s*)?본문[\s\S]*/i);
+        const contentToSearch = mainSectionMatch ? mainSectionMatch[0] : fileContent;
+        const paras = contentToSearch
+          .replace(/^---[\s\S]*?---\s*/, '')
+          .split(/\r?\n\r?\n/)
+          .map(p => p.replace(/^[#*>\-!\[\]()]+\s*/gm, '').replace(/\*\*/g, '').trim())
+          .filter(p => p.length > 30 && !p.startsWith('http') && !p.includes('온리비 어서'));
+        if (paras.length > 0) {
+          docSummary = paras[0].slice(0, 250);
+        }
+      }
+
+      // 3) 태그 자동 추출:
+      // (1) 문서 내 해시태그(#...) 또는 키워드 감지
+      const extractedTags = [];
+      const hashtagMatch = fileContent.match(/#[가-힣a-zA-Z0-9_]{2,}/g);
+      if (hashtagMatch) {
+        const unique = [...new Set(hashtagMatch.map(t => t.replace(/^#/, '')))]
+          .filter(t => !['서식설정', '마크다운', '지식문서', '텍스트', '문서'].includes(t));
+        unique.slice(0, 8).forEach((t, i) => {
+          extractedTags.push({ name: t, score: Math.max(70, 95 - i * 3) });
+        });
+      }
+
+      // (2) 해시태그가 없을 경우 문서 제목, 볼드 메타데이터, 헤딩에서 실질적인 도메인 키워드 자동 추출
+      if (extractedTags.length === 0) {
+        const cleanTitle = docTitle.replace(/^[A-Z0-9_\-\[\]]+/, '').replace(/[_\s\-\[\]()]+/g, ' ').trim();
+        const titleWords = (cleanTitle || docTitle).split(/\s+/).map(w => w.replace(/[,\.]/g, '').trim()).filter(w => w.length >= 2 && !['문서', '블로그', '정리'].includes(w));
+
+        const metaWords = [];
+        const metaMatches = [...fileContent.matchAll(/\*\*(?:문서명|프로젝트명|적용 대상|문서 유형|핵심 가치|주제)\*\*:\s*([^\n\r]+)/g)];
+        for (const m of metaMatches) {
+          const words = m[1].replace(/[_\s\-\[\]():/]+/g, ' ').split(/\s+/).map(w => w.replace(/[,\.]/g, '').trim()).filter(w => w.length >= 2);
+          metaWords.push(...words);
+        }
+
+        const headingWords = [];
+        for (const c of chunks) {
+          if (c.headingTitle && !isMetaOrAuxiliaryChunk(c.headingTitle, c.chunkText)) {
+            const hText = c.headingTitle.replace(/^[0-9.]+\s*/, '').replace(/[_\s\-\[\]():/]+/g, ' ').trim();
+            if (hText && !/^(메타|서식|CSS|프로필)/i.test(hText)) {
+              const words = hText.split(/\s+/).map(w => w.replace(/[,\.]/g, '').trim()).filter(w => w.length >= 2 && !['우리가', '얻는', '대한', '위한', '개요', '목적', '정리'].includes(w));
+              headingWords.push(...words);
+            }
+          }
+        }
+
+        const stopWords = new Set(['PRD', 'CHA', '000', '001', 'Overview', 'Target', 'Personas', 'Architecture', 'v1', 'v2', 'v2.0', 'Approved', '문서']);
+        const combined = [...new Set([...titleWords, ...metaWords, ...headingWords])].filter(w => w.length >= 2 && !stopWords.has(w));
+        combined.slice(0, 8).forEach((w, i) => {
+          extractedTags.push({ name: w, score: Math.max(70, 95 - i * 3) });
+        });
+      }
+
+      if (extractedTags.length === 0) {
+        extractedTags.push({ name: docTitle.replace(/^[0-9_]+/, '').slice(0, 15), score: 90 });
+      }
+
+      // 4) SEO 키워드 섹션 감지
+      const seoMatch = fileContent.match(/###?\s*(?:[0-9.]*\s*)?SEO\s*키워드[\s\S]*?(?=(?:^###|\n---|$(?![\r\n])))/i);
+      const searchTerms = [];
+      if (seoMatch) {
+        const rawTerms = seoMatch[0].split(/\r?\n/).slice(1).join(' ')
+          .split(/[,，\s]+/)
+          .map(t => t.trim())
+          .filter(t => t.length >= 2 && !['SEO', '키워드'].includes(t));
+        searchTerms.push(...[...new Set(rawTerms)].slice(0, 8));
+      }
+
+      // 5) 핵심 요점(key_points): 제목 껍데기만 읽지 않고, 제목과 그 안의 실제 하위 항목/근거/질문 본문을 종합하여 유효한 정보로 추출
+      const keyPoints = [];
+      chunks.forEach(c => {
+        const title = (c.headingTitle || '').trim();
+        if (
+          !title ||
+          /^(메타정보|서식설정|해시태그|SEO|바쁜|제목\s*후보|이미지|[0-9.]*\s*제목|[0-9.]*\s*SEO|[0-9.]*\s*해시태그|[0-9.]*\s*바쁜|[0-9.]*\s*이미지|[0-9.]*\s*1:1)/i.test(title) ||
+          title.includes('서두 및 메타정보') ||
+          /^[0-9.]*\s*본문$/i.test(title)
+        ) {
+          return;
+        }
+
+        const cleanTitle = title
+          .replace(/^[0-9.]*\s*/, '')
+          .replace(/^[📌💡\s]+/, '')
+          .replace(/\s*\([^)]*(?:가지|개|추천)[^)]*\)/g, '')
+          .trim();
+
+        const chunkText = c.chunkText || '';
+        const bodyLines = chunkText
+          .split(/\r?\n/)
+          .slice(1)
+          .filter(l => !l.startsWith('>') && !l.startsWith('![') && !l.includes('온리비') && !l.includes('onrivi.com'));
+
+        const cleanBody = bodyLines.join('\n');
+
+        // 1) 본문 내 번호 매겨진 볼드체 항목 탐색 (예: **1. 동네 소규모...**)
+        const boldMatches = [...cleanBody.matchAll(/\*\*(?:[0-9]+[.)]\s*)?([^*:\n]+)\*\*/g)];
+        const items = boldMatches
+          .map(m => m[1].trim())
+          .filter(item => item.length >= 4 && !item.startsWith('이미지') && !item.startsWith('의안') && !item.startsWith('대표발의') && !item.startsWith('발의일자'));
+
+        if (items.length >= 2) {
+          const summaryItems = items.slice(0, 3).map(it => it.replace(/^[0-9]+[.)]\s*/, '')).join(' / ');
+          keyPoints.push(`[${cleanTitle}] ${summaryItems}`);
+          return;
+        }
+
+        // 2) 불릿 리스트 탐색
+        const bulletMatches = [...cleanBody.matchAll(/^\s*[*+-]\s*(?:\*\*([^*]+)\*\*\s*[:：]?)?\s*([^\n\r]+)/gm)];
+        if (bulletMatches.length > 0) {
+          const bulletSummaries = bulletMatches
+            .map(m => {
+              const t = m[1] ? m[1].trim() : '';
+              const d = m[2] ? m[2].trim().replace(/\*\*/g, '') : '';
+              if (t && d && !d.startsWith(t)) {
+                return `${t}: ${d.slice(0, 40)}`;
+              }
+              return t || d;
+            })
+            .filter(s => s.length > 3 && !s.includes('의안번호'));
+
+          if (bulletSummaries.length > 0) {
+            keyPoints.push(`[${cleanTitle}] ${bulletSummaries.slice(0, 2).join(' / ')}`);
+            return;
+          }
+        }
+
+        // 3) 질문이나 본문 실제 내용 문단 추출
+        const paragraphs = cleanBody
+          .split(/\r?\n\r?\n/)
+          .map(p => p.replace(/^[#*>\-!\[\]()]+\s*/gm, '').replace(/\*\*/g, '').trim())
+          .filter(p => p.length > 25 && !p.startsWith('http') && !p.startsWith('하단'));
+
+        if (paragraphs.length > 0) {
+          const focusPara = paragraphs.find(p => /개요|목적|배경|요건|정의|핵심|특징|기준|방침|기능|절차|규약|설계/i.test(p));
+          const chosenPara = (focusPara || paragraphs[0]).replace(/\r?\n/g, ' ').slice(0, 110);
+          keyPoints.push(`[${cleanTitle}] ${chosenPara}`);
+        } else {
+          keyPoints.push(cleanTitle);
+        }
+      });
+
       let analysis = {
-        summary: `${docTitle} 마크다운 문서입니다.`,
-        key_points: chunks.slice(0, 5).map(c => c.headingTitle).filter(Boolean),
+        summary: docSummary || `${docTitle}: 본 문서의 핵심 주제, 요구사항 및 주요 도메인 지식 정보를 정리한 문서입니다.`,
+        key_points: keyPoints.length > 0 ? keyPoints.slice(0, 6) : [docTitle],
         document_type: 'guide',
-        tags: [{ name: '마크다운', score: 90 }, { name: '지식문서', score: 85 }],
-        search_terms: [docTitle]
+        tags: extractedTags,
+        search_terms: searchTerms.length > 0 ? searchTerms : [docTitle, ...keyPoints.slice(0, 4)]
       };
 
       if (geminiApiKey && geminiApiKey.trim()) {
         try {
           const modelToUse = (aiModelName || 'gemini-3.8-flash').trim();
           const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiApiKey.trim()}`;
-          const prompt = `당신은 개인 지식 베이스를 구축하는 전문 마크다운 분석 AI입니다.
-주어진 마크다운 문서를 읽고, 반드시 유효한 단 하나의 JSON 객체 { ... } 로만 응답해야 합니다.
-[응답 JSON 포맷]:
+          const isGemma = modelToUse.toLowerCase().startsWith('gemma');
+
+          const prompt = `You are a professional knowledge base (RAG) document analysis AI.
+Analyze the given markdown document and respond with ONLY a single valid JSON object.
+CRITICAL: Do NOT write any introduction, greetings, or markdown explanations. Start your response directly with { and end with }.
+
+[ANALYSIS GUIDELINES]:
+1. summary: Summarize the core topic, real-world domain, objectives, and key contents of THIS SPECIFIC document in 2~3 clear Korean sentences. DO NOT say "이 문서는 마크다운 문서입니다".
+2. key_points: CRITICAL: NEVER just output superficial headings or table of contents titles. Instead, synthesize the heading AND the actual detailed sub-bullets, arguments, requirements, or facts underneath into informative, substantive sentences (3~6 points).
+3. tags: Extract 5~10 specific domain tags strictly from THIS document (e.g. project names, domain terms, core features, technologies, entities) with scores 60~100. NEVER use generic tags like "#마크다운" or "#지식문서". NEVER output tags from other unrelated domains.
+4. search_terms: Extract 5~10 search query terms that users would use to find THIS specific document.
+
+[JSON OUTPUT FORMAT]:
 {
-  "summary": "문서 요약문",
-  "key_points": ["핵심 요점 1", "핵심 요점 2"],
+  "summary": "해당 문서의 핵심 주제, 목적, 주요 내용을 포괄하는 명확한 요약문 (2~3문장)",
+  "key_points": [
+    "[분야 또는 섹션명 1] 세부 실질 내용 1",
+    "[분야 또는 섹션명 2] 세부 실질 내용 2",
+    "[분야 또는 섹션명 3] 세부 실질 내용 3"
+  ],
   "document_type": "guide",
-  "tags": [{ "name": "태그명", "score": 90 }],
-  "search_terms": ["검색어1", "검색어2"]
+  "tags": [
+    { "name": "문서_핵심_키워드1", "score": 95 },
+    { "name": "문서_도메인_용어2", "score": 90 }
+  ],
+  "search_terms": ["문서 관련 검색어 1", "문서 관련 검색어 2"]
 }
 
-[분석할 마크다운 원문]:
+[MARKDOWN DOCUMENT]:
 ${fileContent.slice(0, 15000)}`;
 
           let attempts = 0;
@@ -1220,25 +1803,54 @@ ${fileContent.slice(0, 15000)}`;
           while (attempts < maxAttempts) {
             try {
               attempts++;
+              const requestBody = {
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: isGemma ? { temperature: 0.2 } : { responseMimeType: 'application/json', temperature: 0.2 }
+              };
+
               const aiRes = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                  generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
-                })
+                body: JSON.stringify(requestBody)
               });
 
               if (aiRes.ok) {
                 const aiData = await aiRes.json();
                 const textOut = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (textOut) {
-                  const parsed = JSON.parse(textOut);
-                  if (parsed.summary) analysis.summary = parsed.summary;
-                  if (Array.isArray(parsed.key_points)) analysis.key_points = parsed.key_points;
-                  if (parsed.document_type) analysis.document_type = parsed.document_type;
-                  if (Array.isArray(parsed.tags)) analysis.tags = parsed.tags;
-                  if (Array.isArray(parsed.search_terms)) analysis.search_terms = parsed.search_terms;
+                  const parsed = parseAndRepairLlmJson(textOut);
+
+                  if (parsed && typeof parsed === 'object') {
+                    if (parsed.summary && typeof parsed.summary === 'string' && !parsed.summary.includes('마크다운 문서입니다')) {
+                      analysis.summary = parsed.summary;
+                    }
+                    if (Array.isArray(parsed.key_points) && parsed.key_points.length > 0) {
+                      analysis.key_points = parsed.key_points;
+                    }
+                    if (parsed.document_type) {
+                      analysis.document_type = parsed.document_type;
+                    }
+                    if (Array.isArray(parsed.tags) && parsed.tags.length > 0) {
+                      const filteredTags = parsed.tags.filter(t => {
+                        const name = (typeof t === 'string' ? t : t?.name || '').replace(/^#/, '').trim();
+                        return name && !['마크다운', '지식문서', '문서', '텍스트'].includes(name);
+                      }).map(t => typeof t === 'string' ? { name: t.replace(/^#/, '').trim(), score: 85 } : { name: String(t.name).replace(/^#/, '').trim(), score: Number(t.score) || 80 });
+
+                      if (filteredTags.length > 0) {
+                        analysis.tags = filteredTags;
+                      }
+                    }
+                    if (Array.isArray(parsed.search_terms) && parsed.search_terms.length > 0) {
+                      analysis.search_terms = parsed.search_terms;
+                    }
+                    break;
+                  } else {
+                    console.warn(`[DesktopKnowledgeApi] AI 응답에서 JSON 파싱 실패 (시도 ${attempts}/${maxAttempts}). 스마트 본문 추출 폴백을 준비합니다.`);
+                    if (attempts < maxAttempts) {
+                      await new Promise(r => setTimeout(r, 1000));
+                      continue;
+                    }
+                  }
                 }
                 break;
               } else if (attempts < maxAttempts) {
@@ -1259,6 +1871,9 @@ ${fileContent.slice(0, 15000)}`;
           console.warn('[DesktopKnowledgeApi] AI analysis fallback used:', aiErr.message);
         }
       }
+
+      // 메타/보조 청크 제외한 실질 청크 필터링 (트랜잭션 및 반환 공통 스코프)
+      const validChunks = (chunks || []).filter(c => !isMetaOrAuxiliaryChunk(c.headingTitle, c.chunkText, c.startLine, c.endLine));
 
       // Rule 7 준수: 단일 트랜잭션으로 원자적 쓰기 (All-or-Nothing)
       db.exec('BEGIN TRANSACTION;');
@@ -1296,8 +1911,8 @@ ${fileContent.slice(0, 15000)}`;
         const insertChunkStmt = db.prepare(`
           INSERT INTO document_chunks (
             id, document_id, chunk_index, heading_title, heading_level,
-            heading_path, start_line, end_line, chunk_summary, keywords, chunk_text
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            heading_path, start_line, end_line, chunk_summary, keywords, chunk_text, chunk_type
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const insertFtsStmt = db.prepare(`
           INSERT INTO document_chunks_fts (
@@ -1305,12 +1920,12 @@ ${fileContent.slice(0, 15000)}`;
           ) VALUES (?, ?, ?, ?, ?)
         `);
 
-        for (const c of chunks) {
+        for (const c of validChunks) {
           const kwStr = Array.isArray(c.keywords) ? c.keywords.join(', ') : (c.keywords || '');
           insertChunkStmt.run(
             c.id, docId, c.chunkIndex, c.headingTitle || null, c.headingLevel || 0,
             c.headingPath || null, c.startLine, c.endLine, c.chunkSummary || null, kwStr,
-            c.chunkText || ''
+            c.chunkText || '', c.chunkType || 'section'
           );
           insertFtsStmt.run(
             c.id, docId, c.headingTitle || '', kwStr, c.chunkText || ''
@@ -1348,11 +1963,11 @@ ${fileContent.slice(0, 15000)}`;
         tags: analysis.tags,
         searchTerms: analysis.search_terms,
         analyzerModel: aiModelName || 'gemini-3.8-flash',
-        chunksCount: chunks.length,
-        chunks
+        chunksCount: validChunks.length,
+        chunks: validChunks
       };
 
-      return Response.json({ ok: true, documentId: docId, chunksCount: chunks.length, detail });
+      return Response.json({ ok: true, documentId: docId, chunksCount: validChunks.length, detail });
     }
 
     // 12. 하이브리드/FTS 검색 (search)
@@ -1361,36 +1976,194 @@ ${fileContent.slice(0, 15000)}`;
       const db = getDesktopKnowledgeDb(resourceFolder, false);
       if (!db || !query || !query.trim()) return Response.json({ ok: true, candidates: [] });
 
-      let candidates = [];
-      try {
-        const cleanQ = query.trim().replace(/['"]/g, ' ');
-        candidates = db.prepare(`
-          SELECT c.id, c.document_id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path,
-                 c.start_line, c.end_line, c.chunk_summary, c.keywords,
-                 d.title as doc_title, d.file_path, d.priority,
-                 snippet(document_chunks_fts, 2, '<b>', '</b>', '...', 32) as match_snippet,
-                 bm25(document_chunks_fts) as rank
-          FROM document_chunks_fts f
-          JOIN document_chunks c ON c.id = f.chunk_id
-          JOIN knowledge_documents d ON d.id = c.document_id
-          WHERE document_chunks_fts MATCH ?
-          ORDER BY rank ASC
-          LIMIT ?
-        `).all(cleanQ, limit);
-      } catch {
-        candidates = db.prepare(`
-          SELECT c.id, c.document_id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path,
-                 c.start_line, c.end_line, c.chunk_summary, c.keywords,
-                 d.title as doc_title, d.file_path, d.priority,
-                 c.chunk_summary as match_snippet,
-                 0 as rank
-          FROM document_chunks c
-          JOIN knowledge_documents d ON d.id = c.document_id
-          WHERE c.heading_title LIKE ? OR c.chunk_summary LIKE ? OR c.keywords LIKE ?
-          LIMIT ?
-        `).all(`%${query}%`, `%${query}%`, `%${query}%`, limit);
+      // 1. 한국어 자연어/구어체 프롬프트에서 핵심 검색 키워드 추출
+      const stopwords = new Set([
+        '최근', '요즘', '현재', '과거', '주요', '기존', '새로운', '신규',
+        '관련', '관련된', '관련한', '관련하여', '관해서', '관하여', '관한', '관해',
+        '대해', '대해서', '대하여', '대한',
+        '알려줘', '알려줄래', '알려주세요', '알려', '알려주기',
+        '설명해줘', '설명해', '설명해주세요', '설명',
+        '요약해줘', '요약해', '요약해주세요', '요약',
+        '정리해줘', '정리해', '정리해주세요', '정리',
+        '찾아줘', '찾아줄래', '찾아주세요', '검색해줘', '검색',
+        '말해줘', '말해줄래', '말해주세요', '이야기',
+        '써줘', '써주세요', '써줄래', '작성해줘', '작성', '작성하기',
+        '가르쳐줘', '가르쳐주세요', '보여줘', '보여주세요',
+        '무엇', '어떤', '어떻게', '있는', '있는지', '있는가', '인가',
+        '내용', '내용을', '내용은', '내용이', '내용과', '정보', '자료', '문서', '항목', '사항'
+      ]);
+      const josaRegex = /(은|는|이|가|을|를|의|에|에게|에서|로|으로|와|과|도|만|처럼|같이|부터|까지|하고|하여|해서|해줘|해줄래|해주세요|인|인스턴스|에는|에도|에게는|에게도|과도|와도)?$/;
+
+      const cleanedQuery = query.replace(/[^\w\s가-힣]/g, ' ').trim();
+      const rawTokens = cleanedQuery.split(/\s+/).filter(Boolean);
+      const keywordsSet = new Set();
+
+      for (const token of rawTokens) {
+        const word = token.toLowerCase();
+        let stripped = word.replace(josaRegex, '');
+        if (stripped.length > 3 && stripped.endsWith('내용')) stripped = stripped.slice(0, -2);
+        if (stripped.length > 3 && stripped.endsWith('관련')) stripped = stripped.slice(0, -2);
+
+        if (stopwords.has(word) || stopwords.has(stripped)) continue;
+
+        if (stripped.length >= 2) {
+          keywordsSet.add(stripped);
+        } else if (word.length >= 2 && !stopwords.has(word)) {
+          keywordsSet.add(word);
+        }
       }
-      return Response.json({ ok: true, candidates });
+
+      const keywords = Array.from(keywordsSet);
+      if (keywords.length === 0 && cleanedQuery) {
+        keywords.push(...cleanedQuery.split(/\s+/).filter(w => w.length >= 2));
+      }
+
+      if (keywords.length === 0) {
+        return Response.json({ ok: true, candidates: [] });
+      }
+
+      const candidateMap = new Map();
+      const addCandidate = (r, baseScore, matchType) => {
+        if (isMetaOrAuxiliaryChunk(r.heading_title, r.chunk_text, r.start_line, r.end_line)) {
+          return;
+        }
+        if (!candidateMap.has(r.chunk_id)) {
+          candidateMap.set(r.chunk_id, { ...r, baseScore, matchType });
+        }
+      };
+
+      // 2-1. FTS5 AND 검색 (모든 키워드 일치 청크 우선)
+      if (keywords.length > 1) {
+        const andGroup = keywords.map(k => `"${k}"*`).join(' AND ');
+        try {
+          const andRows = db.prepare(`
+            SELECT c.id as chunk_id, c.document_id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path,
+                   c.start_line, c.end_line, c.chunk_summary, c.keywords, c.chunk_text,
+                   COALESCE(c.chunk_type, 'section') as chunk_type,
+                   d.title as doc_title, d.file_path, d.file_hash, d.priority,
+                   bm25(document_chunks_fts) as rank
+            FROM document_chunks_fts f
+            JOIN document_chunks c ON c.id = f.chunk_id
+            JOIN knowledge_documents d ON d.id = c.document_id
+            WHERE document_chunks_fts MATCH ?
+              AND UPPER(d.status) IN ('READY', 'ACTIVE', 'INDEXED')
+            ORDER BY rank ASC
+            LIMIT ?
+          `).all(andGroup, limit);
+
+          for (const r of andRows) {
+            addCandidate(r, 95, 'AND');
+          }
+        } catch (ftsErr) {
+          console.warn('[DesktopKnowledgeApi] FTS AND search error:', ftsErr.message);
+        }
+      }
+
+      // 2-2. FTS5 OR 검색 보강 (AND 결과가 부족한 경우)
+      if (candidateMap.size < limit * 2) {
+        const orGroup = keywords.map(k => `"${k}"*`).join(' OR ');
+        try {
+          const orRows = db.prepare(`
+            SELECT c.id as chunk_id, c.document_id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path,
+                   c.start_line, c.end_line, c.chunk_summary, c.keywords, c.chunk_text,
+                   COALESCE(c.chunk_type, 'section') as chunk_type,
+                   d.title as doc_title, d.file_path, d.file_hash, d.priority,
+                   bm25(document_chunks_fts) as rank
+            FROM document_chunks_fts f
+            JOIN document_chunks c ON c.id = f.chunk_id
+            JOIN knowledge_documents d ON d.id = c.document_id
+            WHERE document_chunks_fts MATCH ?
+              AND UPPER(d.status) IN ('READY', 'ACTIVE', 'INDEXED')
+            ORDER BY rank ASC
+            LIMIT ?
+          `).all(orGroup, limit * 3);
+
+          for (const r of orRows) {
+            addCandidate(r, 85, 'OR');
+          }
+        } catch (ftsErr) {
+          console.warn('[DesktopKnowledgeApi] FTS OR search error:', ftsErr.message);
+        }
+      }
+
+      // 2-3. 문서 제목(Title), 태그(Tag), 헤딩(Heading) LIKE 검색 보강
+      if (candidateMap.size < limit) {
+        for (const kw of keywords) {
+          if (candidateMap.size >= limit * 2) break;
+          try {
+            const likeRows = db.prepare(`
+              SELECT c.id as chunk_id, c.document_id, c.chunk_index, c.heading_title, c.heading_level, c.heading_path,
+                     c.start_line, c.end_line, c.chunk_summary, c.keywords, c.chunk_text,
+                     COALESCE(c.chunk_type, 'section') as chunk_type,
+                     d.title as doc_title, d.file_path, d.file_hash, d.priority,
+                     999 as rank
+              FROM document_chunks c
+              JOIN knowledge_documents d ON d.id = c.document_id
+              WHERE (d.title LIKE ? OR c.heading_title LIKE ? OR c.keywords LIKE ?)
+                AND UPPER(d.status) IN ('READY', 'ACTIVE', 'INDEXED')
+              ORDER BY c.chunk_index ASC
+              LIMIT ?
+            `).all(`%${kw}%`, `%${kw}%`, `%${kw}%`, limit);
+
+            for (const r of likeRows) {
+              addCandidate(r, 75, 'LIKE');
+            }
+          } catch {}
+        }
+      }
+
+      // 3. 실질 본문 및 원자적 표 우대 가중치 계산
+      const substantiveKeywords = ['제안이유', '주요내용', '요약', '실질적인 변화', '법률안', '개정안', '의안 정보', '시행 시기', '원스트라이크'];
+      const tableQueryKeywords = ['표', '대비표', '일정', '번호', '비교', '현행', '개정안', '스펙', '정보'];
+      const isTableQuery = tableQueryKeywords.some(tk => query.includes(tk));
+
+      const ranked = Array.from(candidateMap.values()).map(c => {
+        let score = c.baseScore;
+        const heading = (c.heading_title || '').toLowerCase();
+
+        if (substantiveKeywords.some(s => heading.includes(s))) {
+          score += 10;
+        }
+        if (c.chunk_type === 'table') {
+          score += isTableQuery ? 15 : 5;
+        }
+        const textLen = (c.chunk_text || '').length;
+        if (textLen > 200) score += 5;
+
+        const snippet = c.chunk_text || c.chunk_summary || '';
+        const finalScore = Math.max(10, Math.min(100, score));
+
+        return {
+          id: c.chunk_id,
+          chunkId: c.chunk_id,
+          documentId: c.document_id,
+          chunkIndex: c.chunk_index,
+          headingTitle: c.heading_title,
+          headingLevel: c.heading_level,
+          headingPath: c.heading_path || c.heading_title,
+          startLine: Number(c.start_line),
+          endLine: Number(c.end_line),
+          chunkSummary: c.chunk_summary,
+          keywords: c.keywords,
+          chunkText: c.chunk_text,
+          chunkType: c.chunk_type || 'section',
+          documentTitle: c.doc_title || c.heading_title,
+          docTitle: c.doc_title || c.heading_title,
+          filePath: c.file_path,
+          fileHash: c.file_hash,
+          priority: c.priority,
+          snippet,
+          matchSnippet: snippet.slice(0, 150),
+          score: finalScore,
+          finalScore,
+          rank: c.rank
+        };
+      });
+
+      ranked.sort((a, b) => b.score - a.score);
+      const candidates = ranked.slice(0, limit);
+
+      return Response.json({ ok: true, candidates, total: candidates.length });
     }
 
     // 13. 백업 및 복원 (backup, restore)

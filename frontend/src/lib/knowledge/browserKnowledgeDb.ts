@@ -1,6 +1,9 @@
 // ====================================================================
 // 📊 [OMD-CORE-browserKnowledgeDb-0001] browserKnowledgeDb.ts ➔ WebAssembly SQLite Browser Knowledge Engine
-// 🚨 @PATCH : **2026-09-14** — [Mac/Linux POSIX 경로 크로스플랫폼 지원 전체 개선]:
+// 🚨 @PATCH : **2026-09-16** — [청크 생성 시 문서명 맥락 결합 연동]:
+//             1) indexBrowserDocument 및 updateBrowserKnowledgeDocumentFast에서 chunkMarkdownByHeadings 호출 시 docTitle 전달
+//             2) 서두 청크 및 모든 하위 청크에 문서 고유 맥락(문서명 > ...)이 온전히 유지되도록 보장
+//             **2026-09-14** — [Mac/Linux POSIX 경로 크로스플랫폼 지원 전체 개선]:
 //             1) pathResolver에서 신설된 isAbsolutePath() 헬퍼를 import하여 기존 /^[a-zA-Z]:/ 윈도우 전용 정규식 전면 교체
 //             2) Auto-Healing 절대경로 판별(L280, L302~307), promoted 검증(L607), webBase 검증(L893) 모두 Mac POSIX 경로 지원
 //             3) 'E:/ZZ 개인자료' 하드코딩 폴백 완전 제거, onrivi_web_base_path 미설정 시 규칙 9(임의 폴백 금지) 준수
@@ -10,6 +13,7 @@
 //             3) indexBrowserDocument에서 targetFilePath에 드라이브 문자가 누락되지 않도록 최후 방어 가드를 적용하여 DB 적재 무결성 100% 확립
 //             4) listBrowserDocuments에서도 상대경로 감지 시 실시간 절대경로 승격 및 DB 영구 치유 보장
 // 🚨 @PATCH : **2026-09-13** — [getBrowserKnowledgeDb WASM DB 인스턴스화 누락 치명적 결함 복구]: sourceData 존재 시 new SQL.Database(sourceData) 인스턴스 생성 호출 누락으로 db가 undefined 상태가 되어 발생하던 TypeError(reading 'prepare', reading 'run')를 완벽하게 정상 복구
+// 🚨 @PATCH : **2026-09-17** — [지식 문서 상세조회 메타 청크 배제]: getBrowserDocumentDetail에서 isMetaOrAuxiliaryChunk 방어 필터를 적용하여 서두/메타영역/서식설정 청크 반환 원천 차단
 // 🚨 @PATCH : **2026-09-13** — [대안 1: 지식 보관함 고속 저장 updateBrowserKnowledgeDocumentFast 신설]: 외부 I/O 및 LLM 호출 없이 원문 청킹 및 WASM SQLite 단일 원트랜잭션(All-or-Nothing)으로 document_chunks 및 knowledge_documents 메타데이터를 5ms 내 초고속 갱신하고 사용자 PC의 onrivi_knowledge.db 및 IndexedDB에 영구 동기화
 // 🚨 @PATCH : **2026-09-13** — [유니코드 NFC 정규화 및 WASM SQLite 인메모리 심층 문서 매칭 고도화]: getBrowserDocumentDetail에서 char(92) 경로 슬래시 치환 및 NFD/NFC 자모 분리 불일치 해결을 위한 인메모리 유니코드 정규화(NFC) 6단계 스캔 폴백을 추가하여 한국어 특수 파일명/경로 지식 문서 100% 탐색 보장
 // 🚨 @PATCH : **2026-09-12** — [로컬스토리지 작업장 경로 연동 및 Onrivi_Asset 오탐 자동 치유]
@@ -42,7 +46,7 @@ import type {
   RetrievalCandidate,
   KnowledgeJob
 } from '../../types/knowledge';
-import { chunkMarkdownByHeadings } from './markdownChunker';
+import { chunkMarkdownByHeadings, isMetaOrAuxiliaryChunk } from './markdownChunker';
 import { createKnowledgeLLMProvider } from './llmProvider';
 import { idb } from '../indexedDbHelper';
 import { ensureClientAbsolutePath, resolveClientAbsolutePath, isAbsolutePath } from './pathResolver';
@@ -836,6 +840,8 @@ export async function getBrowserDocumentDetail(
     else if (Array.isArray(d.key_points)) keyPoints = d.key_points;
   } catch {}
 
+  const validChunks = (chunks || []).filter(c => !isMetaOrAuxiliaryChunk(c.headingTitle, c.chunkText, c.startLine, c.endLine));
+
   return {
     documentId: realDocId,
     filePath: String(d.file_path),
@@ -849,8 +855,8 @@ export async function getBrowserDocumentDetail(
     tags,
     searchTerms: tags.map(t => t.name),
     analyzerModel: String(d.analyzer_model || ''),
-    chunksCount: chunks.length,
-    chunks,
+    chunksCount: validChunks.length,
+    chunks: validChunks,
   };
 }
 
@@ -921,8 +927,8 @@ export async function indexBrowserDocument(
   const fileSize = new Blob([fileContent]).size;
   const docTitle = title || targetFilePath.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
 
-  // 2. 청킹 선행 수행
-  const chunks = chunkMarkdownByHeadings(docId, fileContent);
+  // 2. 청킹 선행 수행 (문서 제목 맥락 결합)
+  const chunks = chunkMarkdownByHeadings(docId, fileContent, docTitle);
 
   // 3. 외부 AI 분석 선행 수행
   const modelToUse = (aiModelName || 'gemini-3.8-flash').trim();
@@ -1122,12 +1128,24 @@ export async function updateBrowserKnowledgeDocumentFast(
     return false;
   }
 
+  // 1-1. 문서 제목 조회
+  let docTitle = filePathOrId.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
+  try {
+    const titleStmt = db.prepare('SELECT title FROM knowledge_documents WHERE id = :id LIMIT 1');
+    titleStmt.bind({ ':id': docId });
+    if (titleStmt.step()) {
+      const row = titleStmt.getAsObject();
+      if (row.title) docTitle = String(row.title);
+    }
+    titleStmt.free();
+  } catch {}
+
   const fileHash = computeSha256(fileContent);
   const fileSize = new Blob([fileContent]).size;
   const now = new Date().toISOString();
 
-  // 2. 청킹 선행 수행 (Rule 7)
-  const chunks = chunkMarkdownByHeadings(docId, fileContent);
+  // 2. 청킹 선행 수행 (문서 제목 맥락 결합, Rule 7)
+  const chunks = chunkMarkdownByHeadings(docId, fileContent, docTitle);
 
   // 3. 단일 원트랜잭션(All-or-Nothing)으로 document_chunks 및 knowledge_documents 갱신
   db.run('BEGIN TRANSACTION;');

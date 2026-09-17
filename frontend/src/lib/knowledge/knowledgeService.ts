@@ -2,7 +2,10 @@
 // 📊 [OMD-CORE-knowledgeService-0001] knowledgeService.ts ➔ Knowledge Service Facade
 // 🎯 @KICK  : 지식 엔진의 청킹, DB 인프라, LLM 분석, 하이브리드 검색, 출처 생성을 통합 제공하는 서비스 파사드
 // 🛡️ @GUARD : 3대 가드(리소스 폴더/AI 연결/플랜) 검증, SHA-256 파일 해시 무결성, 단일 트랜잭션(All-or-Nothing) 완전 롤백
-// 🚨 @PATCH : **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 및 디스크 자동 탐색 승격]: indexDocument에서 상대경로 유입 시 resolveDiskAbsolutePath를 통해 실제 로컬 디스크 파일시스템을 탐색하여 완전한 절대경로(D:/...)로 자동 승격
+// 🚨 @PATCH : **2026-09-16** — [청크 생성 시 문서 제목 맥락 결합]:
+//             1) indexDocument에서 chunkMarkdownByHeadings 호출 시 docTitle 전달
+//             2) 서두 청크('[문서명] 서두 및 개요') 및 모든 하위 청크에 문서 고유 맥락(문서명 > ...) 자동 주입
+//             **2026-09-12** — [지식 문서 등록 시 절대경로 표준화 및 디스크 자동 탐색 승격]: indexDocument에서 상대경로 유입 시 resolveDiskAbsolutePath를 통해 실제 로컬 디스크 파일시스템을 탐색하여 완전한 절대경로(D:/...)로 자동 승격
 //             **2026-09-12** — [지식 문서 상세조회 heading 파라미터 지원] getDocumentDetail에 heading 매개변수 추가 및 getDocumentDetailFromDb로 연계
 //             **2026-09-12** — [DB 순수 FTS5 검색 시 AI 키 가드 유연화] searchCandidates 호출 시 LLM 비호출 순수 DB 검색에 대해 DUMMY_KEY_FOR_SEARCH 폴백을 적용하여 API 키 미전달 상태에서도 지식 후보 청크가 원활히 검색되도록 보장
 //             **2026-09-06** — [지식 문서 해제 경로 정규화 및 파일명 매칭 폴백] deleteDocument 호출 시 클라이언트와 DB 간의 경로 표기법(슬래시/역슬래시, 상대/절대경로) 차이로 인해 문서가 삭제되지 않던 현상을 해결하기 위해 정규화 경로 및 파일명 접미사 매칭 폴백 쿼리를 적용하여 100% 원자적 삭제 보장
@@ -84,8 +87,8 @@ export class KnowledgeService {
     const fileSize = typeof Blob !== 'undefined' ? new Blob([fileContent]).size : fileContent.length;
     const docTitle = title || targetFilePath.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || '문서';
 
-    // 3. 마크다운 청킹 (DB 쓰기 전 메모리에서 선행 수행)
-    const chunks = chunkMarkdownByHeadings(docId, fileContent);
+    // 3. 마크다운 청킹 (DB 쓰기 전 메모리에서 선행 수행, 문서 제목 맥락 결합)
+    const chunks = chunkMarkdownByHeadings(docId, fileContent, docTitle);
 
     // 4. Gemini 정형 분석 실행 (DB 쓰기 전 외부 AI 분석 선행 수행)
     const modelToUse = (params.aiModelName || 'gemini-3.8-flash').trim();

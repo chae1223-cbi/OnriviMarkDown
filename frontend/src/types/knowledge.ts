@@ -2,6 +2,7 @@
 // 📊 [OMD-CORE-knowledge-0001] knowledge.ts ➔ Knowledge Types & Contracts
 // 🎯 @KICK  : Onrivi 지능형 개인 지식 관리 & 하이브리드 AI 질의 엔진 데이터 모델 및 인터페이스 정의
 // 🛡️ @GUARD : DocumentStatus / JobStatus 분리, 점수 범위(0~100) 및 우선순위(1~5) 엄격 제한
+// 🚨 @PATCH : **2026-09-16** — [의미 기반 RAG 표준 청킹(Semantic Chunking) 구조화 메타데이터 확장]: DocumentChunk에 chunkType('section' | 'paragraph' | 'table' | 'code'), parentChunkId, contextHeader 필드 추가하여 표 원자성 및 단독 청크 독립성 보장
 // 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-001~KUI-012 명세 준수를 위한 KnowledgeCollection, KnowledgeJob, ScannedDocumentItem, QueueProgressStats 등 핵심 타입 대규모 확장
 //             **2026-09-04** — [지식 문서 상세 정보 모델 정의] KnowledgeDocumentDetail 인터페이스 추가 (청크 계층, 태그 점수, 확장 검색어, AI 요약 포괄)
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 지식 엔진 v1용 데이터 모델, 쿼리 파라미터, 하이브리드 후보자 인터페이스 최초 생성
@@ -178,6 +179,9 @@ export interface DocumentChunk {
   chunkSummary?: string;
   keywords?: string;   // 콤마 구분 한국어 확장 키워드
   chunkText: string;   // FTS 인덱스용 텍스트
+  chunkType?: 'section' | 'paragraph' | 'table' | 'code'; // 청크 구조 유형 (표 원자성 식별)
+  parentChunkId?: string; // 상위 섹션 청크 ID (Parent-Child 맥락 연계)
+  contextHeader?: string; // 단독 검색 시 완결성을 위한 문맥 접두사 (예: [문서명 > 섹션])
 }
 
 /**

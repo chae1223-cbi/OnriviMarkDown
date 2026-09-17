@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-17** — [지식 베이스 상세 모달/출처 링크 '에디터에서 열기' 파일 로드 및 라인 점프 연동]: app:open-file-at-line 이벤트 리스너가 filePath를 무시하고 활성 문서 스크롤만 수행하던 결함을 해결하여, handleFileOpenByPath와 결합하여 비활성/미오픈 파일 로드, 탭 전환, Monaco 커서 포커스 및 라인 센터 스크롤, 프리뷰 data-line 동시 하이라이트 완벽 지원
 // 🚨 @PATCH : **2026-09-16** — [라이선스 세션 등록 UUID 식별자 우선 전송 및 500 오류 방어]: loadAndVerifyLicense 및 handleCrossDeviceTakeover에서 p_user_id로 이메일 대신 subscription.user_id(UUID) 또는 auth session UUID를 우선 전송하여 Postgres 22P02 오류 원천 차단
 // 🚨 @PATCH : **2026-09-16** — [삭제된 폴더 스캔 시 ENOENT/EPERM 콘솔 에러 가드]: fetchAllMdFiles 데스크톱 스캔 시 삭제/이동 직후의 ENOENT/EPERM 예외 콘솔 경고를 안전하게 억제하고 스킵 처리
 // 🚨 @PATCH : **2026-09-13** — [세션 등록 insert API 500 에러 시 제한사용자 잠금 방지]: /api/rpc/license/insert가 500(서버 내부 오류)을 반환할 때 구독 자체가 유효하면 제한사용자로 처리하지 않고 경고 토스트 후 정상 접근 허용; SERVER_ERROR 코드 및 fetch 예외도 동일하게 처리; insert.js catch 블록 500→200 반환 개선으로 클라이언트 JSON 파싱 안전성 확보
@@ -2606,19 +2607,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const previewRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
 
-  // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003] 지식 베이스 출처 점프 리스너: 에디터 특정 라인으로 스크롤 이동
-  useEffect(() => {
-    const handleJump = (e: CustomEvent) => {
-      const { filePath, startLine } = e.detail || {};
-      if (editorRef.current && startLine) {
-        editorRef.current.revealPositionInCenter({ lineNumber: startLine, column: 1 }, 1);
-        editorRef.current.setPosition({ lineNumber: startLine, column: 1 });
-        editorRef.current.focus();
-      }
-    };
-    window.addEventListener('app:open-file-at-line', handleJump as any);
-    return () => window.removeEventListener('app:open-file-at-line', handleJump as any);
-  }, []);
   // 💡 다중 탭 관련 상태 선언 및 백업 레퍼런스
   const useEditorTabsResult = useEditorTabs(
     editorRef,
@@ -2808,6 +2796,57 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     restoreFolderPermission,
     handleFileOpenByPath
   } = useFileExplorerResult;
+
+  // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003] 지식 베이스 / 출처 링크 에디터 파일 열기 및 라인 점프 리스너
+  useEffect(() => {
+    const handleOpenFileAtLine = async (e: CustomEvent) => {
+      const { filePath, startLine } = e.detail || {};
+      if (!filePath && !startLine) return;
+
+      if (previewModeRef.current === 'preview' && setPreviewModeRaw) {
+        setPreviewModeRaw('both');
+        previewModeRef.current = 'both';
+      }
+
+      const normTarget = (filePath || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
+      const targetBase = normTarget.split('/').pop() || '';
+      const currentPath = (currentFileNode?.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
+      const currentName = (currentFileName || '').toLowerCase().normalize('NFC');
+
+      const isAlreadyActive = filePath && (
+        currentPath === normTarget ||
+        (currentPath && normTarget && currentPath.endsWith('/' + targetBase)) ||
+        currentName === targetBase ||
+        currentName === targetBase.replace(/\.md$/i, '')
+      );
+
+      if (isAlreadyActive && editorRef.current && startLine) {
+        editorRef.current.revealPositionInCenter({ lineNumber: startLine, column: 1 }, 1);
+        editorRef.current.setPosition({ lineNumber: startLine, column: 1 });
+        editorRef.current.focus();
+
+        const lineEl = document.querySelector(`[data-line="${startLine}"]`) as HTMLElement;
+        if (lineEl) {
+          lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          lineEl.classList.add('preview-highlight-line');
+          setTimeout(() => lineEl.classList.remove('preview-highlight-line'), 2500);
+        }
+        return;
+      }
+
+      if (filePath && handleFileOpenByPath) {
+        const anchor = startLine ? `L${startLine}` : undefined;
+        await handleFileOpenByPath(filePath, anchor);
+      } else if (editorRef.current && startLine) {
+        editorRef.current.revealPositionInCenter({ lineNumber: startLine, column: 1 }, 1);
+        editorRef.current.setPosition({ lineNumber: startLine, column: 1 });
+        editorRef.current.focus();
+      }
+    };
+
+    window.addEventListener('app:open-file-at-line', handleOpenFileAtLine as any);
+    return () => window.removeEventListener('app:open-file-at-line', handleOpenFileAtLine as any);
+  }, [handleFileOpenByPath, currentFileNode, currentFileName, setPreviewModeRaw]);
 
   const selectResourceFolder = async () => {
     const api = (window as any).electronAPI;

@@ -1,45 +1,43 @@
-/**
- * 프로그램명 : OnriviAuthor 
- * 파일명 : AIDraftModal.tsx
- * -----------------------------------------------------------------------
- * 변경내역
- * 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: KnowledgeAttachmentPalette 및 Auto-RAG/출처 각주 컨트롤을 isDesktop 전용으로 한정하여 웹 브라우저 AI 작성 UI 경량화 및 집중도 향상
- * 🚨 @PATCH : **2026-09-13** — [출처 링크 일원화 및 본문 인라인 링크 결합]:
- *             1) 출처 목록 포맷 일원화: 하단 출처 목록에서 불필요한 화살표와 중복 문서명([출처 N: 문서] ➔ [문서](...))을 제거하고 [출처 N: 문서명](<file:///...#L시작-L끝>) 단일 링크로 결합
- *             2) 본문 인라인 출처 태그 링크화: 본문 내부의 [출처 N: ...] 태그에도 해당 청크의 파일 및 라인 앵커(<file:///...#L시작-L끝>)를 자동 결합하여 본문에서 즉시 출처 원문으로 점프 지원
- * 🚨 @PATCH : **2026-09-12** — [지식 보관함 출처 고유 번호 부여([출처 N: 문서명]) 및 하단 1:1 매칭, 절대경로 마크다운 링크화]:
- *             1) 본문 인라인 출처 번호화: 본문 서술 시 인용한 지식 자료 번호와 1:1 대응되는 [출처 N: 문서명] (예: [출처 1: 추석], [출처 2: ...]) 태그를 생성하도록 AI 프롬프트 규칙 고도화
- *             2) 하단 출처 목록 1:1 번호 매칭 및 절대경로: 하단 출처 목록 항목을 1. [출처 1: 문서명] ➔ [문서명](<file:///절대경로#L시작-L끝>) 형식으로 결합하여 본문 인라인 태그와 완벽히 상호 매칭
- *             3) 꺾쇠 포맷 적용: 경로에 공백/특수문자가 포함되어도 안전하도록 마크다운 링크를 <...>로 래핑
- * 🚨 @PATCH : **2026-09-12** — [본문 인라인 출처 표기 의무화 및 문서 태그([출처: 문서명]) 표준화]:
- *             1) 본문 인라인 출처 의무화: 지식 보관함(RAG)의 사실, 규격, 데이터를 본문에서 서술할 때마다 해당 문장 바로 뒤에 [출처: 문서명] 문서 태그를 필수로 삽입하도록 프롬프트 지침 전면 강화
- *             2) 하단 출처 목록과 1:1 매칭: 하단 지식 출처 목록의 각 항목을 [출처: 문서명] ➔ [문서명](file:///...) 형식으로 정돈하여 본문 인라인 태그와 하단 원본 출처 목록 간의 직관적 상호 연계 보장
- *             3) 환각 방어 강화: 참조 지식 0건 시 가상 [출처: ...] 태그 생성 차단 및 소거 필터링 적용
- * 🚨 @PATCH : **2026-09-12** — [Auto-RAG 및 출처 각주 무조건 기본 OFF(false) 설정 및 연동]:
- *             1) 모달 진입 시 및 작업 대상 범위 전환 시 Auto-RAG(isAutoRagEnabled)와 출처 각주 포함(includeCitations)을 무조건 기본 false(OFF)로 초기화하여 사용자가 명시적으로 켜기 전까지 비활성화 유지
- *             2) Auto-RAG 스위치 ON 시 출처 각주 포함도 함께 자동으로 ON 되도록 동기화 연동 보장
- *             3) 3대 RAG 세트 defaultExpanded={true} 전달로 모달 진입 시 접기/펼치기 대상 3개가 모두 펼쳐진 상태로 렌더링되도록 개선
- * 🚨 @PATCH : **2026-09-12** — [현재 작업 중인 문서 100% 인식 보장, 에디팅 프롬프트 전면 개편, Auto-RAG 하이재킹 원천 방어 및 UX 시인성 강화]:
- *             1) 현재 문서 인식 보장: '문서 전체' 모드 시 기존의 '양식만 참조하고 완전히 새 문서 작성/요약 금지' 프롬프트를 전면 폐기하고, 사용자의 현재 문서를 1순위 핵심 본문으로 인식하여 수정·보완·교정·확장·요약하도록 지침 전면 개편
- *             2) Auto-RAG 하이재킹 방어: 문서/선택 영역 작업 시 단순 교정/편집 명령에 대해 무관한 외래 지식 검색을 차단하고, 지식 보관함 검색 결과를 '보조 참고 자료'로 격하하여 현재 문서 본문이 엉뚱한 지식으로 대체되는 현상 원천 차단
- *             3) 대상 범위 UI 개선: '문서 전체 (양식 참조)' 라벨을 '문서 전체'로 간소화하고, 활성 범위 및 현재 문서의 실제 글자 수를 실시간 표시하는 안내 배너 탑재
- * 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 전면 제거, 동적 모델 탐색 연동]:
- *             1) 모델 제공사 구글 AI 스튜디오 공식으로 한정: 불필요한 OpenAI/Anthropic 및 Gemini 3.1 이하(3.1, 2.5, 2.0, 1.5), 구버전 Gemma 제거
- *             2) Gemini 플래그십(3.8/3.7/3.6/3.5) 및 최신 오픈 모델 Gemma 4(gemma-4-31b-it, gemma-4-26b-a4b-it) 반영
- *             3) 동적 모델 탐색: fetchGoogleAIStudioModels 연동으로 API 키를 통한 Google AI Studio 실시간 모델 목록 동적 주입
- *             4) 구버전 저장 모델 자동 정규화(normalizeAIModelName) 및 오류 진단 추천 모델(Gemini 3.8/3.7 Flash) 갱신
- * 🚨 @PATCH : **2026-09-12** — [하단 선택기 라벨 간소화: '제조사:', '모델:' 텍스트 제거 및 컴팩트 드롭다운 정돈]
- *             1) 사용자 UX 피드백 반영: 하단 드롭다운 선택기 내부의 불필요한 '제조사:', '모델:' 텍스트 라벨을 전면 제거하여 모던하고 슬림한 버튼 형태로 정돈
- * 🚨 @PATCH : **2026-09-12** — [가상 출처 환각 전면 차단 및 내부 시스템 출처만 단일 공급원(SSOT) 결합 보장]
- *             1) AI가 임의로 '참고 자료 및 출처' 섹션이나 가상 파일 경로(file:///...)를 날조하지 못하도록 프롬프트 금지 규칙을 엄격히 지정
- *             2) 생성 완료 후 stripHallucinatedCitations 정규식 필터링을 통해 AI가 임의로 덧붙인 모든 후행 출처 섹션 및 가상 링크를 100% 무조건 박멸
- *             3) 오직 실제 내부 지식 보관함에서 검색/첨부된 청크(activeKnowledge)가 존재하고 '출처 각주 포함' 옵션이 활성화된 경우에만 시스템 프로그램이 검증된 실제 내부 지식 출처 마크다운 블록을 단일 공급원(SSOT)으로 결합
- *             4) 지식 참조가 0건이거나 출처 옵션 해제 시 어떠한 참고자료나 출처 블록도 일체 노출되지 않도록 철저히 통제
- * 🚨 @PATCH : **2026-09-12** — [하단 액션바 UI 정돈: 초기화·에디터 이동 제거 및 AI 제조사(Provider)/모델 듀얼 선택기 복원]
- *             1) AI 실행 버튼 좌측에 위치했던 불필요한 '초기화' 및 '에디터 이동' 버튼을 전면 제거하여 하단 바 공간 확보 및 실행 집중도 강화
- *             2) AI 서비스 제조사(Google Gemini, Google Gemma, 직접 입력)와 세부 모델을 연동하여 고를 수 있는 듀얼 선택기 탑재
- * -----------------------------------------------------------------------
- */
+// ====================================================================
+// 📊 [OMD-MODAL-0002 ✅ FIXED] AIDraftModal.tsx
+// 🎯 @KICK  : AI 초안 생성 및 에디토리얼 어시스턴트 모달
+// 🛡️ @GUARD : Rule 1, Rule 2, Rule 7 (원트랜잭션 무결성 및 실패 시 클린 롤백), 실시간 단계별 진행 가시성
+// 🚨 @PATCH : **2026-09-16** — [문서 전체 모드 질문/요약 프롬프트 원본 통복제 방어 및 Auto-RAG 후보 식별자 호환성 보장]: 1) 질의/요약/일정안내 요청 시 원본 문서 통복사 및 사족 출력을 엄격히 금지하고 질문에 대응되는 핵심 정보만 정리·요약하여 답변하도록 프롬프트 지침 전면 개편 2) searchKnowledge limit 5건 상향 및 chunkId/id 상호 호환 식별자 병합 지원
+// 🚨 @PATCH : **2026-09-16** — [AI 생성 단계별 실시간 진행(Generating Step) 표시 및 원트랜잭션 무결성 보장]:
+//             1) 실시간 3단계 진행 표시: [1/3 지식 검색] ➔ [2/3 AI 모델 추론] ➔ [3/3 스트리밍 수신] 단계별 상태 텍스트를 상단 배너와 실행 버튼에 실시간 노출하여 대기 체감 및 가시성 대폭 향상
+//             2) 원트랜잭션(All-or-Nothing) 클린 롤백: 중간 오류(429, 네트워크, 스트림 단절) 발생 시 불완전한 찌꺼기 텍스트를 즉시 비우고(setDraftResult('')) 정확한 한글 원인 및 해결책을 붉은색 배너로 명확히 표시
+//             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: KnowledgeAttachmentPalette 및 Auto-RAG/출처 각주 컨트롤을 isDesktop 전용으로 한정하여 웹 브라우저 AI 작성 UI 경량화 및 집중도 향상
+//             **2026-09-13** — [출처 링크 일원화 및 본문 인라인 링크 결합]:
+//             1) 출처 목록 포맷 일원화: 하단 출처 목록에서 불필요한 화살표와 중복 문서명([출처 N: 문서] ➔ [문서](...))을 제거하고 [출처 N: 문서명](<file:///...#L시작-L끝>) 단일 링크로 결합
+//             2) 본문 인라인 출처 태그 링크화: 본문 내부의 [출처 N: ...] 태그에도 해당 청크의 파일 및 라인 앵커(<file:///...#L시작-L끝>)를 자동 결합하여 본문에서 즉시 출처 원문으로 점프 지원
+//             **2026-09-12** — [지식 보관함 출처 고유 번호 부여([출처 N: 문서명]) 및 하단 1:1 매칭, 절대경로 마크다운 링크화]:
+//             1) 본문 인라인 출처 번호화: 본문 서술 시 인용한 지식 자료 번호와 1:1 대응되는 [출처 N: 문서명] (예: [출처 1: 추석], [출처 2: ...]) 태그를 생성하도록 AI 프롬프트 규칙 고도화
+//             2) 하단 출처 목록 1:1 번호 매칭 및 절대경로: 하단 출처 목록 항목을 1. [출처 1: 문서명] ➔ [문서명](<file:///절대경로#L시작-L끝>) 형식으로 결합하여 본문 인라인 태그와 완벽히 상호 매칭
+//             3) 꺾쇠 포맷 적용: 경로에 공백/특수문자가 포함되어도 안전하도록 마크다운 링크를 <...>로 래핑
+//             **2026-09-12** — [본문 인라인 출처 표기 의무화 및 문서 태그([출처: 문서명]) 표준화]:
+//             1) 본문 인라인 출처 의무화: 지식 보관함(RAG)의 사실, 규격, 데이터를 본문에서 서술할 때마다 해당 문장 바로 뒤에 [출처: 문서명] 문서 태그를 필수로 삽입하도록 프롬프트 지침 전면 강화
+//             2) 하단 출처 목록과 1:1 매칭: 하단 지식 출처 목록의 각 항목을 [출처: 문서명] ➔ [문서명](file:///...) 형식으로 정돈하여 본문 인라인 태그와 하단 원본 출처 목록 간의 직관적 상호 연계 보장
+//             3) 환각 방어 강화: 참조 지식 0건 시 가상 [출처: ...] 태그 생성 차단 및 소거 필터링 적용
+//             **2026-09-12** — [Auto-RAG 및 출처 각주 무조건 기본 OFF(false) 설정 및 연동]:
+//             1) 모달 진입 시 및 작업 대상 범위 전환 시 Auto-RAG(isAutoRagEnabled)와 출처 각주 포함(includeCitations)을 무조건 기본 false(OFF)로 초기화하여 사용자가 명시적으로 켜기 전까지 비활성화 유지
+//             2) Auto-RAG 스위치 ON 시 출처 각주 포함도 함께 자동으로 ON 되도록 동기화 연동 보장
+//             3) 3대 RAG 세트 defaultExpanded={true} 전달로 모달 진입 시 접기/펼치기 대상 3개가 모두 펼쳐진 상태로 렌더링되도록 개선
+//             **2026-09-12** — [현재 작업 중인 문서 100% 인식 보장, 에디팅 프롬프트 전면 개편, Auto-RAG 하이재킹 원천 방어 및 UX 시인성 강화]:
+//             1) 현재 문서 인식 보장: '문서 전체' 모드 시 기존의 '양식만 참조하고 완전히 새 문서 작성/요약 금지' 프롬프트를 전면 폐기하고, 사용자의 현재 문서를 1순위 핵심 본문으로 인식하여 수정·보완·교정·확장·요약하도록 지침 전면 개편
+//             2) Gemini 플래그십(3.8/3.7/3.6/3.5) 및 최신 오픈 모델 Gemma 4(gemma-4-31b-it, gemma-4-26b-a4b-it) 반영
+//             3) 동적 모델 탐색: fetchGoogleAIStudioModels 연동으로 API 키를 통한 Google AI Studio 실시간 모델 목록 동적 주입
+//             4) 구버전 저장 모델 자동 정규화(normalizeAIModelName) 및 오류 진단 추천 모델(Gemini 3.8/3.7 Flash) 갱신
+//             **2026-09-12** — [하단 선택기 라벨 간소화: '제조사:', '모델:' 텍스트 제거 및 컴팩트 드롭다운 정돈]
+//             1) 사용자 UX 피드백 반영: 하단 드롭다운 선택기 내부의 불필요한 '제조사:', '모델:' 텍스트 라벨을 전면 제거하여 모던하고 슬림한 버튼 형태로 정돈
+//             **2026-09-12** — [가상 출처 환각 전면 차단 및 내부 시스템 출처만 단일 공급원(SSOT) 결합 보장]
+//             1) AI가 임의로 '참고 자료 및 출처' 섹션이나 가상 파일 경로(file:///...)를 날조하지 못하도록 프롬프트 금지 규칙을 엄격히 지정
+//             2) 생성 완료 후 stripHallucinatedCitations 정규식 필터링을 통해 AI가 임의로 덧붙인 모든 후행 출처 섹션 및 가상 링크를 100% 무조건 박멸
+//             3) 오직 실제 내부 지식 보관함에서 검색/첨부된 청크(activeKnowledge)가 존재하고 '출처 각주 포함' 옵션이 활성화된 경우에만 시스템 프로그램이 검증된 실제 내부 지식 출처 마크다운 블록을 단일 공급원(SSOT)으로 결합
+//             4) 지식 참조가 0건이거나 출처 옵션 해제 시 어떠한 참고자료나 출처 블록도 일체 노출되지 않도록 철저히 통제
+//             **2026-09-12** — [하단 액션바 UI 정돈: 초기화·에디터 이동 제거 및 AI 제조사(Provider)/모델 듀얼 선택기 복원]
+//             1) AI 실행 버튼 좌측에 위치했던 불필요한 '초기화' 및 '에디터 이동' 버튼을 전면 제거하여 하단 바 공간 확보 및 실행 집중도 강화
+//             2) AI 서비스 제조사(Google Gemini, Google Gemma, 직접 입력)와 세부 모델을 연동하여 고를 수 있는 듀얼 선택기 탑재
+// ====================================================================
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -311,6 +309,7 @@ export default function AIDraftModal({
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingStep, setGeneratingStep] = useState<'idle' | 'rag' | 'prompt' | 'stream'>('idle');
   const [draftResult, setDraftResult] = useState('');
   const [generationComplete, setGenerationComplete] = useState(false);
   const [aiCopied, setAiCopied] = useState(false);
@@ -685,6 +684,7 @@ export default function AIDraftModal({
     }
 
     setIsGenerating(true);
+    setGeneratingStep(isAutoRagEnabled ? 'rag' : 'prompt');
     setDraftResult('');
     setGenerationComplete(false);
     setCitedSources([]); // 🌟 [화면 즉각 초기화] 이전 실행의 지식 출처 요약 배너를 즉각 비워 새로운 추출 준비
@@ -701,14 +701,21 @@ export default function AIDraftModal({
           query: editorialCommand.trim(),
           resourceFolder: effectiveResourceFolder,
           resourceFolderHandle: effectiveResourceFolderHandle,
-          limit: 4,
+          limit: 5,
           geminiApiKey,
           aiModelName: targetModel,
         });
         if (searchData && Array.isArray(searchData.candidates) && searchData.candidates.length > 0) {
           // 기존 수동 첨부 청크와 중복되지 않도록 병합 (최대 5건 유지)
-          const existingIds = new Set(activeKnowledge.map(k => k.chunkId));
-          const newCandidates = searchData.candidates.filter(c => !existingIds.has(c.chunkId));
+          const existingIds = new Set(activeKnowledge.map(k => k.chunkId || (k as any).id));
+          const newCandidates = searchData.candidates
+            .map(c => ({
+              ...c,
+              chunkId: c.chunkId || (c as any).id,
+              documentTitle: c.documentTitle || (c as any).doc_title || c.headingTitle,
+              snippet: c.snippet || (c as any).chunk_text || (c as any).chunk_summary || '',
+            }))
+            .filter(c => !existingIds.has(c.chunkId));
           activeKnowledge = [...activeKnowledge, ...newCandidates].slice(0, 5);
         }
       } catch (err) {
@@ -717,6 +724,7 @@ export default function AIDraftModal({
     }
 
     setCitedSources(activeKnowledge);
+    setGeneratingStep('prompt');
 
     // 문서 상단 메타정보(YAML Frontmatter, JSDoc/HTML 주석) 제거 헬퍼
     const stripFrontmatterAndMeta = (text: string): string => {
@@ -753,11 +761,12 @@ export default function AIDraftModal({
     } else if (targetScope === 'document' && editorContext?.fullText && editorContext.fullText.trim()) {
       const cleanDoc = stripFrontmatterAndMeta(editorContext.fullText);
       finalSystemPrompt += `\n\n[현재 작업 문서 기반 에디팅 및 집필 지침]
-당신은 사용자가 현재 열어두고 집필 중인 [현재 편집 중인 문서 원본]을 최우선 바탕으로 삼아, 사용자의 [작업 명령]을 수행하는 전문 마크다운 에디터입니다.
+당신은 사용자가 현재 열어두고 집필 중인 [현재 편집 중인 문서 원본]을 바탕으로 삼아, 사용자의 [작업 명령]을 수행하는 전문 마크다운 에디터입니다.
 1. [현재 편집 중인 문서 원본]의 실제 텍스트, 목차, 문맥, 주제 및 사실관계를 가장 먼저 정확히 정독하고 파악하십시오.
-2. 사용자의 [작업 명령]이 오탈자 검수, 내용 요약, 문체 다듬기, 추가 작성, 특정 섹션 수정/보강 등인 경우, 절대로 엉뚱한 외부 주제를 지어내지 말고 [현재 편집 중인 문서 원본]의 내용을 바탕으로 결과물을 완성하십시오.
-3. 사족이나 불필요한 메타 설명 없이, 요청된 작업이 온전히 적용된 마크다운 결과물을 제공하십시오.`;
-      finalUserPrompt = `[현재 편집 중인 문서 원본]\n${cleanDoc}\n\n[사용자 작업 명령]\n${editorialCommand}\n\n위의 [현재 편집 중인 문서 원본]의 내용을 100% 인지하고 바탕으로 삼아, [사용자 작업 명령]에 맞게 수정·보강·요약·교정하거나 이어서 집필한 완성도 높은 마크다운 본문을 작성해 주세요.`;
+2. [단순 원본 본문 복제/반복 출력 절대 금지]: 사용자의 [작업 명령]이 질문 답변, 요약, 핵심 정리, 일정/현황 안내인 경우 원본 문서를 통째로 복사하거나 사족, 이미지 프롬프트 등을 그대로 앵무새처럼 출력하지 마십시오. 질문에 직접 대응되는 핵심 정보와 팩트를 일목요연하게 요약·정리하여 완성된 답변을 작성하십시오.
+3. 사용자의 [작업 명령]이 오탈자 검수, 문체 다듬기, 추가 작성, 특정 섹션 수정/보강 등인 경우에만 [현재 편집 중인 문서 원본]의 내용을 바탕으로 해당 작업을 온전히 적용하십시오.
+4. 사족이나 불필요한 메타 설명 없이, 요청된 작업이 온전히 적용된 마크다운 결과물을 제공하십시오.`;
+      finalUserPrompt = `[현재 편집 중인 문서 원본]\n${cleanDoc}\n\n[사용자 작업 명령]\n${editorialCommand}\n\n위 [현재 편집 중인 문서 원본]의 내용과 보조 참고 지식을 종합하여, [사용자 작업 명령]에 맞게 핵심 내용을 명확히 정리·요약하거나 수정·보완한 완성도 높은 마크다운 텍스트를 작성해 주세요. (단순한 원본 본문 복제가 아닌, 사용자의 질문과 지시사항을 정확하게 해결하는 정리된 결과물을 출력하십시오.)`;
     }
 
     if (attachedFileContent) {
@@ -805,6 +814,7 @@ ${snippet}`;
     }
 
     try {
+      setGeneratingStep('stream');
       const generated = await generateDraftWithAIStream(
         geminiApiKey,
         targetModel,
@@ -878,8 +888,10 @@ ${snippet}`;
         }).join('\n');
         finalized = `${linkedBody}\n\n---\n\n## 📚 내부 지식 보관함 출처\n${sourceList}\n`;
       }
+      // 🌟 [원트랜잭션 무결성] 100% 정상 완성된 최종 문서만 원자적으로 한 번에 반영
       setDraftResult(finalized);
       setGenerationComplete(true);
+      setGeneratingStep('idle');
       setFormattedError(null);
       setLastError(null);
       if (activeKnowledge.length > 0) {
@@ -892,14 +904,17 @@ ${snippet}`;
       const diagnosed: FormattedAIError = (e as any).diagnosed || formatUserFriendlyAIError(e, targetModel);
       setFormattedError(diagnosed);
       setLastError(diagnosed.description);
+      // 🛡️ [원트랜잭션 클린 롤백] 오류 발생 시 중간 생성 찌꺼기 텍스트를 즉시 완전 제거
       setDraftResult('');
       setGenerationComplete(false);
+      setGeneratingStep('idle');
       showToast(`${diagnosed.title}: ${diagnosed.description}`, 'error');
       if (typeof window !== 'undefined') {
         window.alert(`❌ AI 글 생성 실패 (${diagnosed.title})\n\n${diagnosed.description}\n\n💡 해결 방법: ${diagnosed.solution || 'API 키 또는 모델 설정을 확인해 주세요.'}`);
       }
     } finally {
       setIsGenerating(false);
+      setGeneratingStep('idle');
     }
   };
 
@@ -1506,12 +1521,17 @@ ${snippet}`;
                 type="button"
                 onClick={() => handleGenerate()}
                 disabled={isGenerating}
-                className="flex-1 py-3.5 text-[14px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] disabled:bg-[#1d4ed8]/40 dark:disabled:bg-zinc-700 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm shadow-[#1d4ed8]/20 cursor-pointer"
+                className="flex-1 py-3.5 text-[14px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] disabled:bg-[#1d4ed8]/50 dark:disabled:bg-zinc-700 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm shadow-[#1d4ed8]/20 cursor-pointer"
               >
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    AI 작업 수행 중...
+                    <span>
+                      {generatingStep === 'rag' && '[1/3] 지식 검색 중...'}
+                      {generatingStep === 'prompt' && '[2/3] AI 추론 준비 중...'}
+                      {generatingStep === 'stream' && '[3/3] 본문 스트리밍 수신 중...'}
+                      {generatingStep === 'idle' && 'AI 작업 수행 중...'}
+                    </span>
                   </>
                 ) : generationComplete ? (
                   <>
@@ -1532,11 +1552,11 @@ ${snippet}`;
           <div className="flex-1 bg-white dark:bg-zinc-900 flex flex-col relative overflow-hidden">
             
             {/* Right Pane Header */}
-            <div className="flex items-center justify-between px-8 py-5 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <h3 className="text-[11px] font-extrabold text-zinc-400 tracking-wider">
-                  결과 미리보기 <span className="font-medium">(OUTPUT PREVIEW)</span>
-                </h3>
+            <div className="px-8 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                  AI 작성 결과 미리보기
+                </span>
                 {draftResult.trim() && (
                   <button
                     type="button"
@@ -1587,14 +1607,19 @@ ${snippet}`;
               )}
             </div>
 
-            {/* 참조된 지식 출처 요약 배너 (재실행 시 즉시 초기화 및 실시간 탐색 상태 연동) */}
-            {isGenerating && isAutoRagEnabled ? (
-              <div className="mx-8 mb-3 p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/25 border border-blue-200 dark:border-blue-800/60 flex items-center justify-between shrink-0 shadow-2xs">
-                <span className="text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 flex items-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#1d4ed8]" />
-                  새로운 프롬프트 관련 지식 문서 검색 중...
+            {/* 참조된 지식 출처 요약 배너 및 실시간 단계별 진행 배너 */}
+            {isGenerating ? (
+              <div className="mx-8 mb-3 p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/80 flex items-center justify-between shrink-0 shadow-2xs animate-pulse">
+                <span className="text-[12px] font-bold text-[#1d4ed8] dark:text-blue-300 flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#1d4ed8] shrink-0" />
+                  {generatingStep === 'rag' && '[1/3] 📚 지식 보관함에서 관련 문서 및 청크 검색 중...'}
+                  {generatingStep === 'prompt' && '[2/3] 🧠 Gemini 모델 분석 및 프롬프트 추론 준비 중...'}
+                  {generatingStep === 'stream' && '[3/3] ✍️ 실시간 초안 본문 스트리밍 수신 중...'}
+                  {generatingStep === 'idle' && 'AI 작업 수행 중...'}
                 </span>
-                <span className="text-[10px] text-zinc-400">Auto-RAG 지식 엔진 실시간 연동</span>
+                <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 bg-blue-100/80 dark:bg-blue-900/50 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                  {currentModel}
+                </span>
               </div>
             ) : (!isGenerating && citedSources.length > 0) ? (
               <div className="mx-8 mb-3 p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-[#1d4ed8]/30 flex flex-col gap-1.5 shrink-0">

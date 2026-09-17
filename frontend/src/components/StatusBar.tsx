@@ -1,18 +1,20 @@
 // ====================================================================
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar.tsx ➔ StatusBar
-// 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드 및 행/열 정보 표시
-// 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 및 팝업리스트 가시성 보장을 위한 StatusBar z-index 조정]: 상태표시줄의 z-index를 z-40에서 z-20으로 낮추어 플로팅 툴바 드롭다운 및 모달 위계 충돌 방지
+// 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드, 행/열 정보 및 지식 색인 실시간 진행률 표시
+// 🚨 @PATCH : **2026-09-16** — [지식 베이스 색인 실시간 진행 표시기(Progress Badge) 연동]: 백그라운드 지식 수집/색인 중(knowledge:queue-progress) 현재 파일명, 진행률(%), 완료 및 실패 상태를 상태바 중앙에 실시간 스피너 배지로 상시 노출하여 작업 가시성 100% 확보
+//             **2026-09-13** — [플로팅 서식 툴바 및 팝업리스트 가시성 보장을 위한 StatusBar z-index 조정]: 상태표시줄의 z-index를 z-40에서 z-20으로 낮추어 플로팅 툴바 드롭다운 및 모달 위계 충돌 방지
 //             **2026-09-11** — 하단 상태바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-05** — 제한사용자/읽기 전용 모드(isRestrictedUser) 시 하단 상태바의 편집보기 및 분할모드 버튼을 비활성화(disabled, opacity-40, 안내 툴팁) 처리하고 미리보기 버튼만 상시 활성화 유지
 //             **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 흐릿하게 노출되던 상태바 AI 버튼(✨)을 완전히 숨김 처리하여 깔끔한 UI 유지
 //             **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 상태바 하단 AI 버튼(✨) 비활성화(disabled, opacity-30, grayscale) 및 안내 툴팁/토스트 적용
 //             **2026-09-04** — 툴바 숨기기/보이기 옆에 에디터 하단 2줄 AI 버튼 숨기기/보이기 토글 버튼(✨) 및 다국어 툴팁(aiButtonHide/aiButtonShow) 추가 연동
 //             **2026-09-03** — 모니터 해상도 축소 시 프로그레스바와 서식 이름이 겹치는 현상을 해결하기 위해 프로그레스바를 xl 브레이크포인트로 최적화하고 서식 이름에 max-w 및 truncate 적용
-// 🔗 @CALLS : useEditorContext, EDITOR_THEMES
+// 🔗 @CALLS : useEditorContext, EDITOR_THEMES, lucide-react
 // ====================================================================
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Loader2, CheckCircle2, AlertTriangle, BookOpen } from 'lucide-react';
 import { EDITOR_THEMES } from '@/lib/editorThemes';
 
 import { useEditorContext } from '@/context/EditorContext';
@@ -179,6 +181,92 @@ function StatusBar() {
     };
   }, [editorRef, workspaceType, activeProfileId, fileName]); // 탭이나 모드가 변경될 때마다 재연결
 
+  // 🧠 [지식 엔진 백그라운드 색인 실시간 진행 가시성 보장]
+  const [knowledgeProgress, setKnowledgeProgress] = useState<{
+    isProcessing: boolean;
+    total: number;
+    completed: number;
+    queued: number;
+    running: number;
+    percent: number;
+    currentFile?: string;
+    currentStep?: string;
+    failedCount: number;
+    isFinishedRecent: boolean;
+  }>({
+    isProcessing: false,
+    total: 0,
+    completed: 0,
+    queued: 0,
+    running: 0,
+    percent: 0,
+    failedCount: 0,
+    isFinishedRecent: false
+  });
+
+  useEffect(() => {
+    let finishTimer: any = null;
+
+    const handleProgress = (e: any) => {
+      const stats = e.detail;
+      if (!stats) return;
+
+      const total = stats.total || 0;
+      const completed = stats.completed || 0;
+      const running = stats.running || 0;
+      const queued = stats.queued || 0;
+      const failed = stats.failed || 0;
+      const percent = stats.percent || (total > 0 ? Math.round((completed / total) * 100) : 0);
+      const isProcessing = (running > 0 || queued > 0);
+
+      setKnowledgeProgress(prev => {
+        const wasProcessing = prev.isProcessing;
+        const justFinished = wasProcessing && !isProcessing && completed > 0;
+
+        if (justFinished) {
+          if (finishTimer) clearTimeout(finishTimer);
+          finishTimer = setTimeout(() => {
+            setKnowledgeProgress(p => ({ ...p, isFinishedRecent: false }));
+          }, 4500);
+        }
+
+        return {
+          isProcessing,
+          total,
+          completed,
+          queued,
+          running,
+          percent,
+          currentFile: stats.currentFile || prev.currentFile,
+          currentStep: stats.currentStep || prev.currentStep,
+          failedCount: failed,
+          isFinishedRecent: justFinished ? true : prev.isFinishedRecent
+        };
+      });
+    };
+
+    window.addEventListener('knowledge:queue-progress', handleProgress);
+
+    // 최초 마운트 시 리소스 폴더의 큐 통계 1회 체크
+    const checkInitialStats = async () => {
+      try {
+        const resFolder = localStorage.getItem('onrivi_resource_folder');
+        if (!resFolder) return;
+        const res = await fetch(`/api/knowledge/queue/stats?resourceFolder=${encodeURIComponent(resFolder)}`);
+        const data = await res.json();
+        if (data.ok && data.stats) {
+          handleProgress({ detail: data.stats });
+        }
+      } catch {}
+    };
+    checkInitialStats();
+
+    return () => {
+      window.removeEventListener('knowledge:queue-progress', handleProgress);
+      if (finishTimer) clearTimeout(finishTimer);
+    };
+  }, []);
+
   const currentTheme = EDITOR_THEMES.find(t => t.id === themePalette) || EDITOR_THEMES[0];
   const charCount = content.length;
   const charCountNoSpace = content.replace(/\s/g, '').length;
@@ -258,7 +346,43 @@ function StatusBar() {
         </div>
 
       </div>
-      <div className="flex items-center gap-2 shrink-0 ml-2">
+
+      {/* 🧠 지식 엔진 백그라운드 색인 실시간 진행 표시기 (Progress Badge) */}
+      <div className="flex items-center gap-2 shrink-0 ml-auto mr-2">
+        {knowledgeProgress.isProcessing ? (
+          <div 
+            onClick={() => window.open('/knowledge', '_blank')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-500/15 dark:bg-blue-400/20 border border-blue-500/40 text-blue-600 dark:text-blue-300 cursor-pointer hover:bg-blue-500/25 transition-all shrink-0 shadow-2xs"
+            title="클릭하여 지식 베이스 관리 센터(/knowledge) 열기"
+          >
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#1d4ed8] shrink-0" />
+            <span className="font-extrabold text-[11px] tabular-nums">
+              지식 색인 중 {knowledgeProgress.percent}% ({knowledgeProgress.completed}/{knowledgeProgress.total})
+            </span>
+            {knowledgeProgress.currentFile && (
+              <span className="hidden lg:inline text-[11px] font-mono text-zinc-700 dark:text-zinc-200 max-w-[150px] truncate">
+                - {knowledgeProgress.currentFile.split(/[/\\]/).pop()}
+              </span>
+            )}
+          </div>
+        ) : knowledgeProgress.isFinishedRecent ? (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 shrink-0 animate-in fade-in">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span className="font-extrabold text-[11px]">지식 색인 완료 ({knowledgeProgress.completed}건)</span>
+          </div>
+        ) : knowledgeProgress.failedCount > 0 ? (
+          <div 
+            onClick={() => window.open('/knowledge', '_blank')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/15 border border-rose-500/40 text-rose-700 dark:text-rose-300 cursor-pointer hover:bg-rose-500/25 shrink-0"
+            title="클릭하여 지식 관리 센터에서 실패 내역 확인"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            <span className="font-extrabold text-[11px]">지식 색인 오류 ({knowledgeProgress.failedCount}건)</span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
         {displayProfileName && (
           <>
             <span className="hidden md:inline-block max-w-[140px] xl:max-w-[240px] truncate text-blue-600 dark:text-blue-400 font-semibold align-middle" title={`현재 서식: ${displayProfileName}`}>

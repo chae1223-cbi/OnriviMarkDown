@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-knowledgeDb-0001] knowledgeDb.ts ➔ Knowledge SQLite Engine
 // 🎯 @KICK  : 리소스 폴더({resourceFolder}/db/onrivi_knowledge.db) SQLite FTS5 데이터베이스 인프라 및 원자적 트랜잭션 관리
+// 🚨 @PATCH : **2026-09-17** — [지식 문서 상세조회 메타 청크 배제]: getDocumentDetailFromDb에서 isMetaOrAuxiliaryChunk 방어 필터를 적용하여 서두/메타영역/서식설정 청크 노출 원천 차단
 // 🚨 @PATCH : **2026-09-13** — [유니코드 NFC 정규화 및 Node SQLite 인메모리 심층 문서 매칭 고도화]: getDocumentDetailFromDb에서 char(92) 경로 슬래시 치환 및 NFD/NFC 자모 분리 불일치 해결을 위한 인메모리 유니코드 정규화(NFC) 6단계 스캔 폴백을 추가하여 한국어 특수 파일명/경로 지식 문서 100% 탐색 보장
 // 🚨 @PATCH : **2026-09-12** — [지식 문서 상세조회 제목/헤딩/청크 다중 폴백 고도화] getDocumentDetailFromDb에 heading 매개변수 지원 및 청크(document_chunks) heading_title/heading_path 검색 폴백, 제목 부분 일치(LIKE) 지원
 //             **2026-09-11** — [SQLite database is locked 치명적 자동 복구 파괴 방어 및 백업 파일 복사 폴백] initKnowledgeDatabase에서 database is locked / busy 경합 발생 시 auto-recovery(DB 삭제 및 빈 DB 덮어쓰기)로 진입하지 않고 즉시 예외를 발생시키도록 보호하고, backupKnowledgeDatabase에서 잠금 경합 시 직접 파일 복사 폴백을 지원하여 DB 파괴를 원천 방어
@@ -36,6 +37,7 @@ import type {
   KnowledgeJobStep,
   KnowledgeCollection
 } from '../../types/knowledge';
+import { isMetaOrAuxiliaryChunk } from './markdownChunker';
 
 function getNodeModules() {
   if (typeof window !== 'undefined') {
@@ -873,6 +875,13 @@ export function getDocumentDetailFromDb(
   } catch {}
 
   let searchTerms: string[] = [];
+  try {
+    if (doc.search_terms) {
+      searchTerms = JSON.parse(doc.search_terms);
+    }
+  } catch {}
+
+  const validChunks = (chunks || []).filter(c => !isMetaOrAuxiliaryChunk(c.heading_title, c.chunk_text, c.start_line, c.end_line));
 
   return {
     documentId: doc.id,
@@ -887,8 +896,8 @@ export function getDocumentDetailFromDb(
     tags: tags || [],
     searchTerms,
     analyzerModel: doc.analyzer_model || 'Gemini',
-    chunksCount: chunks.length,
-    chunks: chunks.map(c => {
+    chunksCount: validChunks.length,
+    chunks: validChunks.map(c => {
       let keywordsArr: string[] = [];
       if (Array.isArray(c.keywords)) {
         keywordsArr = c.keywords;

@@ -4,7 +4,15 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-16** — [삭제/이동된 폴더 NotFoundError 예외 처리 및 트리 자동 소거]: refreshThisDirectory 및 지연 로드 effect에서 NotFoundError 발생 시 경고 콘솔을 억제하고 isOpen 상태 해제, onrivi_expanded_paths 정리, refreshParent() 호출로 삭제된 폴더를 탐색기 트리에서 즉시 자동 제거하도록 개선
+// 🚨 @PATCH : **2026-09-17** — [지식 문서 등록/재분석 시 실시간 진행 모달 연동]: performKnowledgeIndex에서 백그라운드 토스트 대신 knowledge:open-index-progress 글로벌 이벤트를 발송하여 전용 실시간 진행 모달(4단계 파이프라인 및 AI 요약/요점/태그 구조화)을 즉시 팝업
+// 🚨 @PATCH : **2026-09-16** — [지식 문서 재분석(재색인) 컨텍스트 메뉴 및 실시간 3단계 진행 토스트 탑재]:
+//             1) 등록된 지식 문서 우클릭 메뉴에 '🔄 지식 재분석 (재색인)' 항목 신설하여 구버전 레코드 즉시 최신화 지원
+//             2) performKnowledgeIndex로 [1/3] 본문 로드 -> [2/3] 헤딩 청킹 및 AI 분석 요청 -> [3/3] 갱신 완료 단계별 실시간 토스트 피드백 제공
+//             3) 완료 시 knowledge:show-detail 및 knowledge:updated를 즉시 디스패치하여 화면 실시간 동기화
+//             **2026-09-16** — [지식 문서 등록 시 본문 4단계 안전 로드 폴백 탑재]:
+//             1) Web File System Access API ➔ 2) electronAPI.readFromPath ➔ 3) electronAPI.readFile ➔ 4) /api/file-content 4단계 안전 읽기 파이프라인 구축
+//             2) 구글 드라이브(G:/내 드라이브) 및 로컬 디스크 파일 본문 누락을 100% 방지하여 모든 헤딩 및 청크가 온전히 파싱되도록 무결성 확보
+//             **2026-09-16** — [삭제/이동된 폴더 NotFoundError 예외 처리 및 트리 자동 소거]: refreshThisDirectory 및 지연 로드 effect에서 NotFoundError 발생 시 경고 콘솔을 억제하고 isOpen 상태 해제, onrivi_expanded_paths 정리, refreshParent() 호출로 삭제된 폴더를 탐색기 트리에서 즉시 자동 제거하도록 개선
 // 🚨 @PATCH : **2026-09-16** — [열려 있는 탭 파일/폴더 잘라내기(Cut) 방어 가드 탑재]: 탭에 열려 있는 파일이나 하위 파일이 포함된 폴더인 경우 우클릭 컨텍스트 메뉴의 '잘라내기' 버튼을 비활성화(disabled, opacity-40)하고, 클릭 시 탭을 먼저 닫도록 안내 토스트를 출력하여 원본 데이터 유실 원천 방어
 // 🚨 @PATCH : **2026-09-16** — [웹/데스크톱 폴더 재귀 삭제 완벽 지원 & 삭제 차단 해제]: 비어있지 않은 폴더 삭제 차단 가드를 제거하고 브라우저(removeEntry recursive: true) 및 데스크톱(Electron) 양쪽 모두 하위 파일 포함 폴더 삭제를 완벽 지원, 삭제 후 file:refresh-all-directories 전역 동기화 연동
 // 🚨 @PATCH : **2026-09-16** — [시스템 탐색기/Finder 열기 메뉴 데스크톱(Electron) 환경 전용 격리]: 웹 브라우저 환경에서 보안상 구동 불가능한 OS 탐색기 열기 메뉴를 원천 은닉하고 오직 electronAPI가 주입된 데스크톱 앱에서만 선택적으로 노출
@@ -1275,6 +1283,37 @@ const FileTreeItem = ({
 
                     const guard = checkKnowledgeGuard({ resourceFolder, geminiApiKey, planCode });
 
+                    const performKnowledgeIndex = async (isReindex: boolean) => {
+                      setContextMenu(null);
+                      const canUseLocalDb = await canAccessKnowledgeDb();
+                      if (!canUseLocalDb) {
+                        showToast('로컬 지식 베이스를 사용하려면 먼저 공통 리소스 폴더(Onrivi_Asset)를 지정해 주세요.', 'info');
+                        return;
+                      }
+                      if (!guard.canUseKnowledge) {
+                        showToast(guard.blockMessage || '지식 엔진을 사용할 수 없습니다.', 'warning');
+                        window.dispatchEvent(new CustomEvent('app:dispatch-command', { detail: 'SETTINGS' }));
+                        return;
+                      }
+
+                      // 🛡️ [스캔 배제]: 로컬스토리지 작업장 절대경로와 다이렉트 직결!
+                      const directFilePath = buildDirectWorkspacePath(node.path || node.name);
+
+                      // 🚀 전용 실시간 진행 모달 팝업 및 파이프라인 가동
+                      window.dispatchEvent(new CustomEvent('knowledge:open-index-progress', {
+                        detail: {
+                          filePath: directFilePath,
+                          title: node.name.replace(/\.md$/i, ''),
+                          isReindex,
+                          fileNode: node,
+                          resourceFolder,
+                          geminiApiKey,
+                          planCode,
+                          aiModelName,
+                        }
+                      }));
+                    };
+
                     return (
                       <>
                         <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
@@ -1310,11 +1349,26 @@ const FileTreeItem = ({
                                   showToast('지식 상세 정보 로드 실패', 'error');
                                 }
                               }}
-                              className="flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold"
+                              className="flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold cursor-pointer"
                               title="이 문서의 AI 요약, 핵심 요점, 청크 구조 및 태그를 상세 열람합니다"
                             >
                               <span className="text-[14px]">📑</span>
                               <span>지식 분석 상세 (KUI-010)</span>
+                            </button>
+
+                            {/* 🔄 지식 재분석 (최신 규칙으로 재색인) */}
+                            <button
+                              type="button"
+                              disabled={!guard.canUseKnowledge}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                performKnowledgeIndex(true);
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors hover:bg-blue-50 dark:hover:bg-blue-500/10 text-[#1d4ed8] dark:text-blue-400 font-bold cursor-pointer"
+                              title="최신 청킹 규칙 및 AI 분석 모델로 이 문서를 다시 분석하여 갱신합니다"
+                            >
+                              <span className="text-[14px]">🔄</span>
+                              <span>지식 재분석 (재색인)</span>
                             </button>
 
                             {/* 🧠 지식문서 해제 버튼 */}
@@ -1374,7 +1428,7 @@ const FileTreeItem = ({
                                   showToast(`지식 해제 실패: ${err?.message || '알 수 없는 오류'}`, 'error');
                                 }
                               }}
-                              className="flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold"
+                              className="flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold cursor-pointer"
                               title="이 마크다운 문서를 지식 베이스에서 해제합니다"
                             >
                               <span className="text-[14px]">📗</span>
@@ -1386,107 +1440,14 @@ const FileTreeItem = ({
                           <button
                             type="button"
                             disabled={!guard.canUseKnowledge}
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation();
-                              setContextMenu(null);
-                              const canUseLocalDb = await canAccessKnowledgeDb();
-                              if (!canUseLocalDb) {
-                                showToast('로컬 지식 베이스를 사용하려면 먼저 공통 리소스 폴더(Onrivi_Asset)를 지정해 주세요.', 'info');
-                                return;
-                              }
-                              if (!guard.canUseKnowledge) {
-                                showToast(guard.blockMessage || '지식 엔진을 사용할 수 없습니다.', 'warning');
-                                window.dispatchEvent(new CustomEvent('app:dispatch-command', { detail: 'SETTINGS' }));
-                                return;
-                              }
-
-                              try {
-                                showToast(`[${node.name}] 지식 베이스 등록을 시작합니다...`, 'info');
-                                let content = '';
-                                // 1) Web File System Access API
-                                if (node.handle?.getFile) {
-                                  try {
-                                    const file = await node.handle.getFile();
-                                    content = await file.text();
-                                  } catch (e) {
-                                    console.warn('[지식 등록] handle.getFile() 실패:', e);
-                                  }
-                                }
-                                // 2) 데스크톱 electronAPI.readFromPath (반환: { name, path, content } 또는 string)
-                                if (!content && (window as any).electronAPI?.readFromPath && node.path) {
-                                  try {
-                                    const res = await (window as any).electronAPI.readFromPath(node.path);
-                                    content = typeof res === 'string' ? res : (res?.content || '');
-                                  } catch (e) {
-                                    console.warn('[지식 등록] electronAPI.readFromPath() 실패:', e);
-                                  }
-                                }
-                                // 3) 데스크톱 electronAPI.readFile 폴백
-                                if (!content && (window as any).electronAPI?.readFile && node.path) {
-                                  try {
-                                    const res = await (window as any).electronAPI.readFile(node.path);
-                                    content = typeof res === 'string' ? res : (res?.content || '');
-                                  } catch (e) {
-                                    console.warn('[지식 등록] electronAPI.readFile() 실패:', e);
-                                  }
-                                }
-
-                                // 🛡️ 로컬 데스크톱 또는 Node 서버 환경에서는 백엔드에서 node.path로 fs.readFileSync 자동 폴백을 수행할 수 있음
-                                const hasValidDiskPath = Boolean(node.path && canUseLocalDb);
-                                if (!content.trim() && !hasValidDiskPath) {
-                                  showToast('파일 내용이 비어있어 등록할 수 없습니다.', 'warning');
-                                  return;
-                                }
-
-                                showToast(`[${node.name}] AI 지식 분석 및 등록을 진행 중입니다...`, 'info');
-
-                                // 🛡️ [스캔 배제]: 단계 찾아가지 않고 로컬스토리지 작업장 절대경로와 즉시 다이렉트 직결!
-                                const directFilePath = buildDirectWorkspacePath(node.path || node.name);
-
-                                // 통합 지식 서비스(Electron / Local / Web WASM) 호출
-                                const regRes = await knowledgeClient.indexDocument({
-                                  filePath: directFilePath,
-                                  fileContent: content,
-                                  title: node.name.replace(/\.md$/i, ''),
-                                  resourceFolder,
-                                  geminiApiKey,
-                                  planCode,
-                                  aiModelName,
-                                  resourceFolderHandle: typeof window !== 'undefined' ? (window as any).__resourceFolderHandle : undefined,
-                                });
-                                const registeredDetail = regRes?.detail;
-
-                                // 🧠 클라이언트 로컬 스토리지에 등록 상태 보존 (절대경로 및 상대경로 동시 캐싱)
-                                try {
-                                  const myPath = node.path || node.name;
-                                  const resolvedPath = registeredDetail?.filePath || regRes?.documentId;
-                                  const list = JSON.parse(localStorage.getItem('onrivi_registered_knowledge_docs') || '[]');
-                                  if (myPath && !list.includes(myPath)) list.push(myPath);
-                                  if (resolvedPath && !list.includes(resolvedPath)) list.push(resolvedPath);
-                                  localStorage.setItem('onrivi_registered_knowledge_docs', JSON.stringify(list));
-                                } catch {}
-
-                                window.dispatchEvent(new CustomEvent('knowledge:updated'));
-
-                                // 🧠 상세 분석 결과 모달 팝업 또는 토스트 피드백
-                                if (registeredDetail) {
-                                  window.dispatchEvent(new CustomEvent('knowledge:show-detail', { detail: registeredDetail }));
-                                } else {
-                                  showToast(`[${node.name}] 지식 베이스에 성공적으로 등록되었습니다! 📗`, 'success');
-                                }
-                              } catch (err: any) {
-                                console.error('[지식 등록 실패]', err);
-                                const errMsg = err?.message || String(err || '알 수 없는 오류');
-                                showToast(`❌ 지식 등록 실패: ${errMsg}`, 'error');
-                                if (typeof window !== 'undefined') {
-                                  window.alert(`❌ AI 지식 문서 분석 및 등록 실패\n\n원인: ${errMsg}`);
-                                }
-                              }
+                              performKnowledgeIndex(false);
                             }}
                             className={`flex items-center gap-2 px-3 py-1.5 w-full text-left transition-colors font-bold ${
                               !guard.canUseKnowledge
                                 ? 'opacity-40 cursor-not-allowed grayscale text-zinc-400 dark:text-zinc-500'
-                                : 'hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                : 'hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 cursor-pointer'
                             }`}
                             title={guard.canUseKnowledge ? "이 마크다운 문서를 개인 지식 베이스에 등록합니다" : (guard.blockMessage || "지식 베이스에 등록하려면 AI 연동 설정이 필요합니다")}
                           >

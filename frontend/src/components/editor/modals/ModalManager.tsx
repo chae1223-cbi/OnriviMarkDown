@@ -4,6 +4,7 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-09-17** — [지식 문서 등록 실시간 진행 모달 연동]: KnowledgeIndexProgressModal 임포트 및 knowledge:open-index-progress 글로벌 이벤트 리스너 통합으로 문서 등록 4단계 및 AI 분석 실시간 시각화 지원
  * 🚨 @PATCH : **2026-09-06** — [미디어 삽입 후 2행 자동 추가 및 커서 이동] YoutubeModal·MapModal·ImageModal 삽입 시 insertMediaAtCursor 사용으로 교체: 삽입 후 빈 줄 2행 자동 추가 및 커서 마지막 빈 행 이동
  * 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 지식 허브를 모달 대신 독립 전용 페이지(/knowledge)로 분리하여 에디터 모달 난립 해소 및 Ctrl+Shift+K 단독 페이지 라우팅 적용
  * 🚨 @PATCH : **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] 12대 화면 통합 관리 센터 KnowledgeHubModal 연동 및 API Key / 모델명 양방향 동기화
@@ -32,6 +33,7 @@ import ReferenceManagerModal from '@/components/ReferenceManagerModal'; // 참�
 import CitationSelectionModal from '@/components/CitationSelectionModal'; // 참조자 선택 모달 컴포넌트
 import ResourceFolderGuideModal from '@/components/editor/modals/ResourceFolderGuideModal'; // 리소스 폴더 안내 모달
 import { KnowledgeDetailModal } from '@/components/KnowledgeDetailModal';
+import { KnowledgeIndexProgressModal, type KnowledgeIndexProgressParams } from '@/components/knowledge/KnowledgeIndexProgressModal';
 
 import { useEditorModals } from '@/hooks/editor/useEditorModals';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage'; // 모달 관련 상태와 함수들을 hook으로 관리하는 hooks
@@ -90,6 +92,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
   } = deps;
 
   const [knowledgeDetailData, setKnowledgeDetailData] = React.useState<any | null>(null);
+  const [indexProgressParams, setIndexProgressParams] = React.useState<KnowledgeIndexProgressParams | null>(null);
 
   React.useEffect(() => {
     const handleShowDetail = (e: any) => {
@@ -98,10 +101,18 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
       }
     };
 
+    const handleOpenIndexProgress = (e: any) => {
+      if (e.detail) {
+        setIndexProgressParams(e.detail);
+      }
+    };
+
     window.addEventListener('knowledge:show-detail', handleShowDetail);
+    window.addEventListener('knowledge:open-index-progress', handleOpenIndexProgress);
 
     return () => {
       window.removeEventListener('knowledge:show-detail', handleShowDetail);
+      window.removeEventListener('knowledge:open-index-progress', handleOpenIndexProgress);
     };
   }, []);
 
@@ -611,6 +622,14 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           setKnowledgeDetailData(null);
           window.dispatchEvent(new CustomEvent('app:open-knowledge-manager'));
         }}
+        showToast={deps.showToast}
+      />
+
+      {/* 🚀 AI 지식 문서 등록 및 실시간 진행 모달 */}
+      <KnowledgeIndexProgressModal
+        isOpen={Boolean(indexProgressParams)}
+        onClose={() => setIndexProgressParams(null)}
+        params={indexProgressParams}
         showToast={deps.showToast}
       />
     </>

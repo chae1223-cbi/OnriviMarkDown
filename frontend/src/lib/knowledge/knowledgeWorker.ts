@@ -1,7 +1,11 @@
 // ====================================================================
 // 📊 [OMD-CORE-knowledgeWorker-0001] knowledgeWorker.ts ➔ Knowledge Worker & Resource Controller
 // 🎯 @KICK  : 로컬 SQLite 큐 기반 비동기 워커 풀, 에디터 타이핑 시 동시성 자동 감속(자원 제어), 429 지수 백오프 관리
-// 🚨 @PATCH : **2026-09-04** — [서버 부하 방어] 큐가 비어있고 활성 워커가 0일 때 무한 1초 pop 반복 루프를 즉시 중단하고 완전 유휴(Idle) 전이하여 불필요한 백엔드 API 호출 및 CPU 부하 원천 제거
+// 🛡️ @GUARD : Rule 1, Rule 2, Rule 7 (원트랜잭션 무결성 및 실패 시 클린 롤백), 실시간 진행 가시성
+// 🚨 @PATCH : **2026-09-16** — [지식 색인 단계별 실시간 진행 브로드캐스트 및 친절한 오류 진단]:
+//             1) 단계별 세부 진행(PARSE/EMBED) 및 현재 처리 파일명을 브라우저 UI로 실시간 브로드캐스트하여 가시성 100% 보장
+//             2) AI 실패 시(429 할당량 초과, 401 키 오류, 503 서버 지연) 친절한 한글 오류 진단(knowledge:error) 및 전체 완료 이벤트(knowledge:all-completed) 연동
+//             **2026-09-04** — [서버 부하 방어] 큐가 비어있고 활성 워커가 0일 때 무한 1초 pop 반복 루프를 즉시 중단하고 완전 유휴(Idle) 전이하여 불필요한 백엔드 API 호출 및 CPU 부하 원천 제거
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-002.1] KUI-007/KUI-008 대량 문서 백그라운드 워커 및 리소스 컨트롤러 최초 구현
 // 🔗 @CALLS : ./knowledgeDb, ./documentScanner
 // ====================================================================
@@ -193,6 +197,9 @@ export class KnowledgeWorkerEngine {
         this.timer = null;
       }
       this.broadcastProgress();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('knowledge:all-completed'));
+      }
       return;
     }
 
@@ -242,8 +249,10 @@ export class KnowledgeWorkerEngine {
     try {
       // 1. 단계별 상태 갱신: PARSE & CHUNK
       await this.reportStep(job.id, 'PARSE');
+      this.broadcastProgress({ currentFile: job.filePath, currentStep: 'PARSE' });
 
       // 2. 파일 색인 API 호출 (선행 검증 -> LLM 정형 분석 -> FTS/청크 단일 트랜잭션)
+      this.broadcastProgress({ currentFile: job.filePath, currentStep: 'AI_ANALYSIS' });
       const indexRes = await fetch('/api/knowledge/index', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -278,8 +287,18 @@ export class KnowledgeWorkerEngine {
         window.dispatchEvent(new CustomEvent('knowledge:updated'));
       }
     } catch (err: any) {
-      const errMsg = err?.message || '알 수 없는 오류';
-      const isRateLimit = errMsg.includes('429') || errMsg.includes('Quota') || errMsg.includes('Rate Limit');
+      const rawErrMsg = err?.message || '알 수 없는 오류';
+      let friendlyMsg = rawErrMsg;
+
+      if (rawErrMsg.includes('429') || rawErrMsg.includes('Quota') || rawErrMsg.includes('RESOURCE_EXHAUSTED')) {
+        friendlyMsg = 'Gemini API 분당 요청 한도(429 Quota Exceeded)에 도달했습니다. 잠시 후 자동 재시도합니다.';
+      } else if (rawErrMsg.includes('401') || rawErrMsg.includes('API_KEY_INVALID')) {
+        friendlyMsg = 'Gemini API 키가 유효하지 않습니다. 환경설정에서 API 키를 확인해주세요.';
+      } else if (rawErrMsg.includes('503') || rawErrMsg.includes('Overloaded') || rawErrMsg.includes('UNAVAILABLE')) {
+        friendlyMsg = 'Gemini AI 서버가 일시적으로 과부하 상태입니다. 백오프 대기 후 재시도합니다.';
+      }
+
+      const isRateLimit = rawErrMsg.includes('429') || rawErrMsg.includes('Quota') || rawErrMsg.includes('Rate Limit');
       const backoffSeconds = isRateLimit ? Math.pow(2, (job.retryCount || 0) + 1) * 2 : undefined;
 
       await fetch('/api/knowledge/queue/complete', {
@@ -288,11 +307,20 @@ export class KnowledgeWorkerEngine {
         body: JSON.stringify({
           jobId: job.id,
           success: false,
-          errorLog: errMsg,
+          errorLog: friendlyMsg,
           backoffSeconds,
           resourceFolder: this.options.resourceFolder
         })
       });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('knowledge:error', {
+          detail: {
+            filePath: job.filePath,
+            error: friendlyMsg
+          }
+        }));
+      }
     }
   }
 
