@@ -16,6 +16,7 @@ import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
 // 🛡️ @GUARD : 각 스토리지 로드 실패 시 기본값 fallback
+// 🚨 @PATCH : **2026-09-17** — [AES 암호화 키/모델명 평문 누출 원천 차단 및 양방향 자동 복호화 연동]: 스토리지 내 U2FsdGVkX1... 암호문 유입 시 loadSecureData를 통한 즉시 복호화 보장, aiModelName 불필요한 암호화 제거 및 기본 플래그십 자동 무해 전환
 // 🚨 @PATCH : **2026-09-17** — [환경설정 Gemini API 키 및 AI 모델 영구 보존 및 다중 백업 복구 체계 구축]: 암호화 보안 스토리지(saveSecureData/loadSecureData) 연동, 빈 문자열 덮어쓰기 방어 가드 적용, 로그인/로그아웃 시 API 키 유실 결함 원천 해결
 // 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 자동 정규화]: 로컬스토리지에 기존 <= 3.1 모델 잔존 시 normalizeAIModelName을 통해 최신 플래그십(gemini-3.8-flash)으로 자동 무해 정규화
 //             **2026-09-05** — 환경설정에서 AI 설정(API 키) 삭제 시 null/빈문자열 상태를 즉시 빈값('')으로 반영하여 이전 키 부활 방지; **2026-09-03** — 환경설정에서 API 키 삭제 시 로컬스토리지 복구 단계에서 빈 문자열('')을 유효 상태로 인식하여 즉시 삭제 반영되도록 보완
@@ -44,19 +45,29 @@ export const useEditorSettings = (
   const [licenseKey, setLicenseKey] = useState<string>('');
   const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      const localKey = (localStorage.getItem('onrivi_gemini_api_key') || '').trim();
-      if (localKey) return localKey;
+      const raw = (localStorage.getItem('onrivi_gemini_api_key') || localStorage.getItem('geminiApiKey') || '').trim();
+      if (raw.startsWith('U2FsdGVkX1')) {
+        const dec = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
+        if (dec && !dec.startsWith('U2FsdGVkX1')) return dec;
+      }
+      if (raw && !raw.startsWith('U2FsdGVkX1')) return raw;
       const secKey = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
-      if (secKey) return secKey;
+      if (secKey && !secKey.startsWith('U2FsdGVkX1')) return secKey;
     }
     return '';
   });
   const [aiModelName, setAiModelName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      const localModel = localStorage.getItem('onrivi_ai_model_name');
-      if (localModel) return normalizeAIModelName(localModel);
-      const secModel = loadSecureData<string>('onrivi_ai_model_name');
-      if (secModel) return normalizeAIModelName(secModel);
+      let localModel = (localStorage.getItem('onrivi_ai_model_name') || '').trim();
+      if (localModel.startsWith('U2FsdGVkX1')) {
+        const dec = (loadSecureData<string>('onrivi_ai_model_name') || '').trim();
+        localModel = (dec && !dec.startsWith('U2FsdGVkX1')) ? dec : '';
+      }
+      if (!localModel) {
+        const secModel = (loadSecureData<string>('onrivi_ai_model_name') || '').trim();
+        if (secModel && !secModel.startsWith('U2FsdGVkX1')) localModel = secModel;
+      }
+      if (localModel && !localModel.startsWith('U2FsdGVkX1')) return normalizeAIModelName(localModel);
     }
     return 'gemini-3.8-flash';
   });
@@ -160,21 +171,49 @@ export const useEditorSettings = (
           Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
         }
         
-        // 2차 백업 키에서 API 키와 모델명 개별 복구 (암호화 보안 스토리지 포함 다중 복구 및 유효 키 보존)
-        const backupApiKey = localStorage.getItem('onrivi_gemini_api_key');
-        const secureApiKey = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
-        if (backupApiKey !== null && backupApiKey.trim()) {
-          baseSettings.geminiApiKey = backupApiKey.trim();
-        } else if (secureApiKey) {
-          baseSettings.geminiApiKey = secureApiKey;
-        } else if (!baseSettings.geminiApiKey) {
-          baseSettings.geminiApiKey = '';
+        // 2차 백업 키에서 API 키와 모델명 개별 복구 (암호화 보안 스토리지 복호화 및 유효 키 보존)
+        let resolvedApiKey = '';
+        const rawLocalKey = (localStorage.getItem('onrivi_gemini_api_key') || localStorage.getItem('geminiApiKey') || '').trim();
+        if (rawLocalKey.startsWith('U2FsdGVkX1')) {
+          const dec = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
+          if (dec && !dec.startsWith('U2FsdGVkX1')) resolvedApiKey = dec;
+        } else if (rawLocalKey) {
+          resolvedApiKey = rawLocalKey;
         }
+        if (!resolvedApiKey) {
+          const secureApiKey = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
+          if (secureApiKey && !secureApiKey.startsWith('U2FsdGVkX1')) resolvedApiKey = secureApiKey;
+        }
+        if (!resolvedApiKey && baseSettings.geminiApiKey) {
+          if (baseSettings.geminiApiKey.startsWith('U2FsdGVkX1')) {
+            const dec = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
+            if (dec && !dec.startsWith('U2FsdGVkX1')) resolvedApiKey = dec;
+          } else {
+            resolvedApiKey = baseSettings.geminiApiKey.trim();
+          }
+        }
+        baseSettings.geminiApiKey = resolvedApiKey;
 
-        const backupModelName = localStorage.getItem('onrivi_ai_model_name') || loadSecureData<string>('onrivi_ai_model_name');
-        if (backupModelName) {
-          baseSettings.aiModelName = backupModelName;
+        let resolvedModelName = '';
+        const rawModel = (localStorage.getItem('onrivi_ai_model_name') || '').trim();
+        if (rawModel.startsWith('U2FsdGVkX1')) {
+          const dec = (loadSecureData<string>('onrivi_ai_model_name') || '').trim();
+          if (dec && !dec.startsWith('U2FsdGVkX1')) resolvedModelName = dec;
+        } else if (rawModel) {
+          resolvedModelName = rawModel;
         }
+        if (!resolvedModelName) {
+          const dec = (loadSecureData<string>('onrivi_ai_model_name') || '').trim();
+          if (dec && !dec.startsWith('U2FsdGVkX1')) resolvedModelName = dec;
+        }
+        if (!resolvedModelName && baseSettings.aiModelName) {
+          if (baseSettings.aiModelName.startsWith('U2FsdGVkX1')) {
+            resolvedModelName = 'gemini-3.8-flash';
+          } else {
+            resolvedModelName = baseSettings.aiModelName;
+          }
+        }
+        baseSettings.aiModelName = normalizeAIModelName(resolvedModelName || 'gemini-3.8-flash');
       } catch (e) {
         console.error('로컬스토리지 로드 실패:', e);
       }
@@ -248,15 +287,15 @@ export const useEditorSettings = (
       setThemePalette(baseSettings.themePalette);
       const finalApiKey = (baseSettings.geminiApiKey || '').trim();
       setGeminiApiKey(finalApiKey);
-      if (finalApiKey) {
+      if (finalApiKey && !finalApiKey.startsWith('U2FsdGVkX1')) {
         localStorage.setItem('onrivi_gemini_api_key', finalApiKey);
         saveSecureData('onrivi_gemini_api_key', finalApiKey);
         saveSecureData('geminiApiKey', finalApiKey);
       }
       const finalModel = normalizeAIModelName(baseSettings.aiModelName || 'gemini-3.8-flash');
-      setAiModelName(finalModel);
-      localStorage.setItem('onrivi_ai_model_name', finalModel);
-      saveSecureData('onrivi_ai_model_name', finalModel);
+      const safeModel = (finalModel && !finalModel.startsWith('U2FsdGVkX1')) ? finalModel : 'gemini-3.8-flash';
+      setAiModelName(safeModel);
+      localStorage.setItem('onrivi_ai_model_name', safeModel);
       setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
 
       document.documentElement.classList.remove('dark');
@@ -373,15 +412,20 @@ export const useEditorSettings = (
     localStorage.setItem('customSlashCommands', JSON.stringify(customSlashCommands));
     localStorage.setItem('themePalette', themePalette);
     localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
-    localStorage.setItem('onrivi_gemini_api_key', geminiApiKey);
-    if (geminiApiKey) {
-      saveSecureData('onrivi_gemini_api_key', geminiApiKey);
-      saveSecureData('geminiApiKey', geminiApiKey);
+    const cleanKey = (geminiApiKey || '').trim();
+    if (cleanKey && !cleanKey.startsWith('U2FsdGVkX1')) {
+      localStorage.setItem('onrivi_gemini_api_key', cleanKey);
+      saveSecureData('onrivi_gemini_api_key', cleanKey);
+      saveSecureData('geminiApiKey', cleanKey);
+    } else if (!cleanKey) {
+      localStorage.removeItem('onrivi_gemini_api_key');
+      localStorage.setItem('onrivi_gemini_api_key', '');
+      saveSecureData('onrivi_gemini_api_key', '');
+      saveSecureData('geminiApiKey', '');
     }
-    localStorage.setItem('onrivi_ai_model_name', aiModelName);
-    if (aiModelName) {
-      saveSecureData('onrivi_ai_model_name', aiModelName);
-    }
+    const cleanModel = normalizeAIModelName(aiModelName);
+    const safeModel = (cleanModel && !cleanModel.startsWith('U2FsdGVkX1')) ? cleanModel : 'gemini-3.8-flash';
+    localStorage.setItem('onrivi_ai_model_name', safeModel);
     if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
 
     const chromeStorage = (window as any).chrome?.storage?.local;

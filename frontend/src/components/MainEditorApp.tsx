@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-17** — [Gemini API 키 및 AI 모델명 암호문(AES) 자동 복호화 및 모델명 노출 차단]: 과거 암호화 저장된 API 키(U2FsdGVkX1...)의 Google API 400 Bad Request 에러 해결 및 하단 캡슐 버튼에 암호화된 모델명 대신 정식 모델명('Gemini 3.8 Flash')이 안전하게 렌더링되도록 자가 치유(Self-Healing) 및 복호화 파이프라인 연동
 // 🚨 @PATCH : **2026-09-17** — [인증/세션 로그아웃 시 환경설정(Gemini API 키 등) 영구 보존]: 비인증 리다이렉트 및 동시접속 기기 해제 시 clearAuthSessionStorage 연동으로 API 키 및 사용자 설정 삭제 결함 해결
 // 🚨 @PATCH : **2026-09-17** — [지식 베이스 상세 모달/출처 링크 '에디터에서 열기' 파일 로드 및 라인 점프 연동]: app:open-file-at-line 이벤트 리스너가 filePath를 무시하고 활성 문서 스크롤만 수행하던 결함을 해결하여, handleFileOpenByPath와 결합하여 비활성/미오픈 파일 로드, 탭 전환, Monaco 커서 포커스 및 라인 센터 스크롤, 프리뷰 data-line 동시 하이라이트 완벽 지원
 // 🚨 @PATCH : **2026-09-16** — [라이선스 세션 등록 UUID 식별자 우선 전송 및 500 오류 방어]: loadAndVerifyLicense 및 handleCrossDeviceTakeover에서 p_user_id로 이메일 대신 subscription.user_id(UUID) 또는 auth session UUID를 우선 전송하여 Postgres 22P02 오류 원천 차단
@@ -168,7 +169,7 @@ import { clearAuthSessionStorage } from '@/lib/authSessionHelper';
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import ExportModal from '@/components/ExportModal'; // 모달
 import OAIcon from './icon_onriveauther.png'; // 아이콘 
-import { ONRIVI_AI_MODELS, DEFAULT_AI_MODEL, getCachedAIModels, normalizeAIModelName, fetchGoogleAIStudioModels } from '@/lib/gemini';
+import { ONRIVI_AI_MODELS, DEFAULT_AI_MODEL, getCachedAIModels, normalizeAIModelName, fetchGoogleAIStudioModels, ensureDecryptedApiKey } from '@/lib/gemini';
 
 // 분리된 컴포넌트들 임포트
 import MenuBar from '@/components/MenuBar'; // 메뉴바
@@ -3189,6 +3190,38 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     aiModelName,
     setAiModelName
   } = useEditorSettingsResult;
+
+  // 🛡️ [AI 암호화 키 및 모델명 자가 치유(Self-Healing) 파이프라인]
+  // 과거 로컬스토리지에 AES 암호문(U2FsdGVkX1...) 형태로 저장되었던 API 키 및 모델명을 즉시 자동 감지하여 복호화/정상화
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (geminiApiKey && geminiApiKey.startsWith('U2FsdGVkX1')) {
+      const decrypted = ensureDecryptedApiKey(geminiApiKey);
+      if (decrypted && !decrypted.startsWith('U2FsdGVkX1')) {
+        setGeminiApiKey?.(decrypted);
+        try {
+          localStorage.setItem('onrivi_gemini_api_key', decrypted);
+          saveSecureData('onrivi_gemini_api_key', decrypted);
+          saveSecureData('geminiApiKey', decrypted);
+        } catch {}
+      }
+    }
+
+    if (aiModelName && (aiModelName.startsWith('U2FsdGVkX1') || aiModelName.length > 50)) {
+      const fixedModel = normalizeAIModelName(aiModelName);
+      setAiModelName?.(fixedModel);
+      try {
+        localStorage.setItem('onrivi_ai_model_name', fixedModel);
+        const raw = localStorage.getItem('onrivi_settings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          parsed.aiModelName = fixedModel;
+          localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
+        }
+      } catch {}
+    }
+  }, [geminiApiKey, aiModelName, setGeminiApiKey, setAiModelName]);
 
   const [isAiLoading, setIsAiLoading] = useState(false);
 
@@ -7543,8 +7576,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                             {/* 2행: 모델 선택 */}
                             {(() => {
-                              const currentModelObj = getCachedAIModels().find(m => m.id === aiModelName);
-                              const displayModelFullName = currentModelObj ? currentModelObj.name : (aiModelName || 'Gemini 3.8 Flash');
+                              const safeModel = (aiModelName && !aiModelName.startsWith('U2FsdGVkX1')) ? aiModelName : 'gemini-3.8-flash';
+                              const currentModelObj = getCachedAIModels().find(m => m.id === safeModel);
+                              const rawDisplayName = currentModelObj ? currentModelObj.name : safeModel;
+                              const displayModelFullName = (rawDisplayName && !rawDisplayName.startsWith('U2FsdGVkX1')) ? rawDisplayName : 'Gemini 3.8 Flash';
 
                               return (
                                 <button
@@ -7557,7 +7592,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       return;
                                     }
                                     if (!isBottomAiDropdownOpen) {
-                                      fetchGoogleAIStudioModels(geminiApiKey).catch(() => {});
+                                      const cleanKey = ensureDecryptedApiKey(geminiApiKey);
+                                      fetchGoogleAIStudioModels(cleanKey).catch(() => {});
                                     }
                                     setIsBottomAiDropdownOpen(!isBottomAiDropdownOpen);
                                   }}

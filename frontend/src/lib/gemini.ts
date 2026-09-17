@@ -1,7 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { loadSecureData } from '@/lib/secureStorage';
 
 /**
  * [ONR-AI-001] Gemini API 헬퍼 유틸리티
+ * 🚨 @PATCH : **2026-09-17** — [AES 암호화 키/모델명 유입 방어 및 복호화 자동화]:
+ *             1) ensureDecryptedApiKey 도입으로 U2FsdGVkX1... 암호문이 전달되어도 loadSecureData로 실시간 자동 복호화하여 400 Bad Request 원천 방어
+ *             2) normalizeAIModelName에서 암호문(U2FsdGVkX1...) 유입 시 기본 플래그십(gemini-3.8-flash)으로 즉시 무해 전환
+ *             3) getGenAI, fetchGoogleAIStudioModels, testGeminiConnection에 자동 복호화 파이프라인 일괄 적용
  * 🚨 @PATCH : **2026-09-12** — [모든 AI 질의 표준 재시도 주기 적용: 1회 실패 시 3초 대기 -> 2회차 시도 -> 실패 시 3초 대기 -> 3회차 시도 최종 실패 시 에러 메시지 표출]:
  *             1) 3초 주기 3회 재시도 규칙 확립: 1차 실패 후 3000ms 대기, 2차 실패 후 3000ms 대기, 3차 최종 실패 시에만 사용자 에러 팝업을 표출하는 표준 루프 전면 적용
  *             2) 500 내부 오류(Internal Error), 503, 429, 네트워크 지연 등 통신 오류 전반을 재시도 대상에 편입하고 비정상 상태 시 즉각 에러 팝업 방어
@@ -48,11 +53,42 @@ export const ONRIVI_AI_MODELS: OnriviAIModelItem[] = [
 export const DEFAULT_AI_MODEL = 'gemini-3.8-flash';
 
 /**
- * 레거시 구버전(<= 3.1) 모델명이 저장되어 있을 경우 기본 플래그십으로 안전하게 정규화
+ * 암호화된 API 키(U2FsdGVkX1...)가 전달된 경우 loadSecureData를 통해 평문으로 복호화 보장
+ */
+export function ensureDecryptedApiKey(apiKey?: string): string {
+  let cleanKey = (apiKey || '').trim();
+  if (cleanKey.startsWith('U2FsdGVkX1')) {
+    try {
+      const dec = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
+      if (dec && !dec.startsWith('U2FsdGVkX1')) {
+        cleanKey = dec;
+      }
+    } catch {}
+  }
+  return cleanKey;
+}
+
+/**
+ * 레거시 구버전(<= 3.1) 모델명 또는 암호문 잔존 시 기본 플래그십으로 안전하게 정규화
  */
 export function normalizeAIModelName(rawModel?: string): string {
-  const model = (rawModel || '').trim();
-  if (!model) return DEFAULT_AI_MODEL;
+  let model = (rawModel || '').trim();
+  if (!model || model.startsWith('U2FsdGVkX1')) {
+    if (typeof window !== 'undefined' && model.startsWith('U2FsdGVkX1')) {
+      try {
+        const dec = (loadSecureData<string>('onrivi_ai_model_name') || '').trim();
+        if (dec && !dec.startsWith('U2FsdGVkX1')) {
+          model = dec;
+        } else {
+          return DEFAULT_AI_MODEL;
+        }
+      } catch {
+        return DEFAULT_AI_MODEL;
+      }
+    } else {
+      return DEFAULT_AI_MODEL;
+    }
+  }
   if (model.startsWith('gemini-')) {
     const match = model.match(/^gemini-(\d+(?:\.\d+)?)/);
     if (match && parseFloat(match[1]) <= 3.1) {
@@ -74,8 +110,8 @@ export function normalizeAIModelName(rawModel?: string): string {
  * - Gemini 3.1 이하 레거시(gemini-3.1 및 그 이하) 및 구버전 Gemma(gemma-1/2/3) 완전 배제
  */
 export async function fetchGoogleAIStudioModels(apiKey?: string): Promise<OnriviAIModelItem[]> {
-  const cleanKey = (apiKey || '').trim();
-  if (!cleanKey) return getCachedAIModels();
+  const cleanKey = ensureDecryptedApiKey(apiKey);
+  if (!cleanKey || cleanKey.startsWith('U2FsdGVkX1')) return getCachedAIModels();
 
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);
@@ -200,9 +236,9 @@ export function getCachedAIModels(): OnriviAIModelItem[] {
 
 // API 키 유효성 검사 헬퍼
 const getGenAI = (apiKey: string) => {
-  const cleanKey = (apiKey || '').trim();
-  if (!cleanKey) {
-    throw new Error('Gemini API Key가 설정되지 않았습니다. 환경설정에서 API 키를 입력해주세요.');
+  const cleanKey = ensureDecryptedApiKey(apiKey);
+  if (!cleanKey || cleanKey.startsWith('U2FsdGVkX1')) {
+    throw new Error('Gemini API Key가 설정되지 않았거나 유효하지 않습니다. 환경설정에서 API 키를 입력해주세요.');
   }
   return new GoogleGenerativeAI(cleanKey);
 };
@@ -212,8 +248,10 @@ const getGenAI = (apiKey: string) => {
  */
 export const testGeminiConnection = async (apiKey: string, modelName: string): Promise<boolean> => {
   try {
-    const genAI = getGenAI(apiKey);
-    const modelsToTest = [modelName || 'gemini-3.8-flash', 'gemini-3.7-flash'];
+    const cleanKey = ensureDecryptedApiKey(apiKey);
+    const cleanModel = normalizeAIModelName(modelName);
+    const genAI = getGenAI(cleanKey);
+    const modelsToTest = [cleanModel || 'gemini-3.8-flash', 'gemini-3.7-flash'];
     for (const m of modelsToTest) {
       try {
         const model = genAI.getGenerativeModel({ model: m });
@@ -290,30 +328,30 @@ export function formatUserFriendlyAIError(error: any, modelName: string): Format
     };
   }
 
-  // 3. API 키 미등록 또는 인증 실패 (400, 401, 403, API_KEY_INVALID)
+  // 3. API 키 인증 및 권한 오류 (400, 401, 403 / API key not valid / expired)
   if (
     status === 400 ||
     status === 401 ||
     status === 403 ||
-    msg.includes('api_key') ||
-    msg.includes('api key') ||
-    msg.includes('unauthorized') ||
+    msg.includes('api key not valid') ||
+    msg.includes('api_key_invalid') ||
+    msg.includes('unauthenticated') ||
     msg.includes('permission_denied')
   ) {
     return {
-      title: 'API 키 인증 오류',
-      description: '입력된 Google Gemini API 키가 올바르지 않거나 사용 권한이 만료되었습니다.',
-      solution: '에디터 환경설정에서 유효한 Gemini API 키를 다시 입력해 주세요.',
+      title: 'Gemini API Key 인증 필요',
+      description: '등록된 Google Gemini API Key가 유효하지 않거나 만료되었습니다.',
+      solution: '환경설정(도구 > 환경설정 > 일반설정)에서 Google AI Studio의 유효한 API Key를 다시 입력해 주세요.',
       category: 'auth'
     };
   }
 
-  // 4. 모델 미지원 / 404 (Not Found)
-  if (status === 404 || msg.includes('404') || msg.includes('not found') || msg.includes('unsupported')) {
+  // 4. 모델 미존재 오류 (404 / Model not found)
+  if (status === 404 || msg.includes('404') || msg.includes('not found')) {
     return {
-      title: '선택하신 AI 모델 사용 불가',
-      description: `'${modelName}' 모델을 Google API에서 찾을 수 없거나 현재 지원되지 않는 식별자입니다.`,
-      solution: '하단 AI 모델 목록에서 Gemini 3.8 Flash 또는 Gemini 3.7 Flash 등 서비스 중인 공식 모델을 선택해 주세요.',
+      title: '지정된 AI 모델을 찾을 수 없음 (404)',
+      description: `Google AI 서버에 '${modelName}' 모델이 존재하지 않거나 더 이상 지원되지 않습니다.`,
+      solution: '하단 AI 모델 선택기에서 Gemini 3.8 Flash 등 현재 지원되는 공식 모델을 선택해 주세요.',
       category: 'not_found'
     };
   }
@@ -355,8 +393,9 @@ export const generateDraftWithAIStream = async (
   userPrompt: string,
   onChunk: (chunkText: string) => void
 ): Promise<string> => {
-  const genAI = getGenAI(apiKey);
-  const targetModelName = modelName || 'gemini-3.8-flash';
+  const cleanKey = ensureDecryptedApiKey(apiKey);
+  const genAI = getGenAI(cleanKey);
+  const targetModelName = normalizeAIModelName(modelName || 'gemini-3.8-flash');
   
   const tagRule = '\n\n[중요 규칙]\n1. 당신이 작성한 초안의 마크다운 본문은 반드시 첫 시작 부분에 [출력결과] 라는 한글 태그를 달고 시작하십시오. 이 태그 밖(앞부분)에는 당신의 생각 과정이나 개요를 영어로 자유롭게 작성하셔도 좋으나, 태그 이하에는 오직 마크다운 형식의 초안 문서만 출력해야 합니다.\n2. [메타정보 추출 금지] 원본 문서나 참고 자료 상단의 메타데이터(YAML Frontmatter `--- ... ---`, 문서 속성, 작성자/작성일 등)는 절대로 추출하거나 출력물 상단에 복제하지 마십시오. 본문의 실제 제목 헤딩(#)이나 첫 단락부터 곧바로 작성하십시오.';
   const finalSystemPrompt = systemPrompt + tagRule;

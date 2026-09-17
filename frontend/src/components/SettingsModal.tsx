@@ -1,5 +1,7 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
+// 🚨 @PATCH : **2026-09-17** — [AI 모델 직접 입력 필드 전면 제거 및 공인 리스트박스 선택 강제]: 사용자 요구 반영에 따라 모델명 직접 입력란 및 Custom 옵션을 완전히 제거하고 오직 공인 모델 목록 리스트박스에서만 선택되도록 단일화하여 오입력 및 키 뒤바뀜 결함 원천 차단
+// 🚨 @PATCH : **2026-09-17** — [AES 암호화 키/모델명 평문 누출 원천 차단 및 양방향 자동 복호화 연동]: 스토리지 내 U2FsdGVkX1... 암호문 유입 시 loadSecureData를 통한 즉시 복호화 보장, aiModelName 불필요한 암호화 제거 및 기본 플래그십 자동 무해 전환
 // 🚨 @PATCH : **2026-09-17** — [환경설정 Gemini API 키 및 모델 암호화 보존 강화]: saveSecureData 연동으로 API 키 및 AI 모델명 다중 백업 보존 및 삭제 시 안전 동기화
 // 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 전면 제거, 동적 모델 탐색 연동]:
 //             1) Gemini 3.1 이하 버전(gemini-3.1-flash-lite, 2.5, 2.0, 1.5) 및 구형 Gemma 완전 제거
@@ -16,7 +18,7 @@
 //             **2026-09-03** — fetchAccountData를 useCallback으로 격리하고 useEffect 의존성 배열에 추가하여 ESLint react-hooks/exhaustive-deps 경고 완벽 해소
 //             **2026-09-03** — 자원 관리(공통 자원 폴더)에 '전체사용자 필수 항목' 배지 및 미지정 시 강조 UI 적용; initialTab prop 지원을 통해 계정 관리 탭 다이렉트 전환 지원; 환경설정 모달 '계정 관리' 탭의 별명(활동명) 수정 시 [별명 저장] 및 좌측 하단 통합 [저장] 클릭 즉시 에디터 우측 하단 AI 챗봇 버튼명 및 DB users 테이블에 100% 실시간 영구 반영되도록 prop/이벤트/비동기 핸들러 전면 고도화; DB users 개인정보 실시간 조회 및 최신 Gemini 3.8 Flash 연동
 //             **2026-07-16** — 단축키 설정 인풋 keydown 버블링 차단 및 PDF/인쇄 설정 모달 인터페이스 추가
-// 🔗 @CALLS : testGeminiConnection, useToast, fetchGoogleAIStudioModels, saveSecureData
+// 🔗 @CALLS : testGeminiConnection, useToast, fetchGoogleAIStudioModels, saveSecureData, loadSecureData
 // ====================================================================
 "use client";
 
@@ -27,7 +29,7 @@ import { X, Settings, Command, Loader2, CheckCircle, AlertCircle, KeyRound, Key,
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
 import { testGeminiConnection, ONRIVI_AI_MODELS, getCachedAIModels, fetchGoogleAIStudioModels, normalizeAIModelName, OnriviAIModelItem } from '@/lib/gemini';
 import { supabase } from '@/lib/supabaseClient';
-import { saveSecureData } from '@/lib/secureStorage';
+import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -477,35 +479,43 @@ export default function SettingsModal({
               <button
                 type="button"
                 onClick={() => {
-                  const trimmedKey = (geminiApiKey || '').trim();
-                  setGeminiApiKey(trimmedKey);
-                  const modelToSave = aiModelName || 'gemini-3.8-flash';
+                  const rawKey = (geminiApiKey || '').trim();
+                  const cleanKey = rawKey.startsWith('U2FsdGVkX1')
+                    ? ((loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim())
+                    : rawKey;
+                  setGeminiApiKey(cleanKey);
+
+                  const rawModel = aiModelName || 'gemini-3.8-flash';
+                  const cleanModel = rawModel.startsWith('U2FsdGVkX1')
+                    ? (loadSecureData<string>('onrivi_ai_model_name') || 'gemini-3.8-flash')
+                    : rawModel;
+                  const modelToSave = (cleanModel && !cleanModel.startsWith('U2FsdGVkX1')) ? cleanModel : 'gemini-3.8-flash';
                   setAiModelName(modelToSave);
 
-                    try {
-                      if (trimmedKey) {
-                        localStorage.setItem('onrivi_gemini_api_key', trimmedKey);
-                        saveSecureData('onrivi_gemini_api_key', trimmedKey);
-                        saveSecureData('geminiApiKey', trimmedKey);
-                      } else {
-                        localStorage.removeItem('onrivi_gemini_api_key');
-                        localStorage.setItem('onrivi_gemini_api_key', '');
-                        saveSecureData('onrivi_gemini_api_key', '');
-                        saveSecureData('geminiApiKey', '');
-                      }
-                      localStorage.setItem('onrivi_ai_model_name', modelToSave);
-                      saveSecureData('onrivi_ai_model_name', modelToSave);
+                  try {
+                    if (cleanKey && !cleanKey.startsWith('U2FsdGVkX1')) {
+                      localStorage.setItem('onrivi_gemini_api_key', cleanKey);
+                      saveSecureData('onrivi_gemini_api_key', cleanKey);
+                      saveSecureData('geminiApiKey', cleanKey);
+                    } else {
+                      localStorage.removeItem('onrivi_gemini_api_key');
+                      localStorage.setItem('onrivi_gemini_api_key', '');
+                      saveSecureData('onrivi_gemini_api_key', '');
+                      saveSecureData('geminiApiKey', '');
+                    }
+                    // 모델명은 보안 암호화 대상이 아니므로 순수 평문으로만 저장
+                    localStorage.setItem('onrivi_ai_model_name', modelToSave);
 
                       const raw = localStorage.getItem('onrivi_settings');
                       if (raw) {
                         const parsed = JSON.parse(raw);
-                        parsed.geminiApiKey = trimmedKey;
+                        parsed.geminiApiKey = cleanKey;
                         parsed.aiModelName = modelToSave;
                         localStorage.setItem('onrivi_settings', JSON.stringify(parsed));
                       }
                       const chromeStorage = (window as any).chrome?.storage?.local;
                       if (chromeStorage) {
-                        chromeStorage.set({ onrivi_gemini_api_key: trimmedKey });
+                        chromeStorage.set({ onrivi_gemini_api_key: cleanKey });
                       }
                       const api = (window as any).electronAPI;
                       if (api && typeof api.saveSettings === 'function') {
@@ -520,7 +530,7 @@ export default function SettingsModal({
                     handleSaveNickname(cleanNick);
                   }
 
-                  if (trimmedKey) {
+                  if (cleanKey) {
                     showToast(`설정이 성공적으로 저장되었습니다. (${modelToSave} 활성화)`, 'success');
                   } else {
                     showToast('설정이 저장되었습니다. (AI 챗봇 비활성화)', 'info');
@@ -704,16 +714,14 @@ export default function SettingsModal({
                     </div>
                     <div className="flex-1">
                       <label className="block text-[15px] font-semibold text-on-surface mb-1">AI 모델 선택 (Model Name)</label>
-                      <p className="text-[13px] text-on-surface-variant mb-4">사용하실 AI 모델을 리스트박스에서 선택하거나 직접 입력하세요.</p>
+                      <p className="text-[13px] text-on-surface-variant mb-4">사용하실 공식 AI 모델을 리스트박스에서 선택하세요.</p>
                       
-                      {/* 선명한 리스트박스 (Select Box) */}
-                      <div className="relative mb-3">
+                      {/* 선명한 공식 모델 선택 리스트박스 (Select Box) */}
+                      <div className="relative">
                         <select
-                          value={availableAIModels.some(m => m.id === aiModelName) ? aiModelName : 'custom'}
+                          value={availableAIModels.some(m => m.id === aiModelName) ? aiModelName : (availableAIModels[0]?.id || 'gemini-3.8-flash')}
                           onChange={(e) => {
-                            if (e.target.value !== 'custom') {
-                              setAiModelName(e.target.value);
-                            }
+                            setAiModelName(e.target.value);
                           }}
                           className={`w-full px-4 py-3 pr-10 rounded-xl text-[14px] font-semibold outline-none border transition-all appearance-none cursor-pointer ${
                             isDarkMode 
@@ -726,29 +734,10 @@ export default function SettingsModal({
                               {m.label}
                             </option>
                           ))}
-                          <option value="custom">✏️ 직접 입력 (Custom Model)</option>
                         </select>
                         <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500 dark:text-zinc-400">
                           <ChevronDown size={16} />
                         </div>
-                      </div>
-
-                      {/* 모델 식별자 텍스트 입력창 (세부 확인 및 직접 입력용) */}
-                      <div className="space-y-1">
-                        <label className="text-[12px] font-bold text-slate-500 dark:text-zinc-400 block">
-                          공식 모델 식별자 직접 확인 및 수정
-                        </label>
-                        <input
-                          type="text"
-                          value={aiModelName || ''}
-                          onChange={(e) => setAiModelName(e.target.value)}
-                          placeholder="예) gemini-3.8-flash"
-                          className={`w-full px-4 py-2.5 rounded-xl text-[14px] font-mono outline-none border transition-all ${
-                            isDarkMode 
-                              ? 'bg-zinc-900/80 border-zinc-700 text-white focus:border-[#1d4ed8]' 
-                              : 'bg-slate-50 border-[#E0DED7] text-slate-900 focus:border-[#1d4ed8]'
-                          }`}
-                        />
                       </div>
                     </div>
                   </div>
