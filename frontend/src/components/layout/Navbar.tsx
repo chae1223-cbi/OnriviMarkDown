@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
+// 🚨 @PATCH : **2026-09-17** — [로그아웃 시 환경설정(Gemini API 키 등) 영구 보존 및 선별적 세션 정리]: clearAuthSessionStorage 연동으로 API 키 및 사용자 설정 삭제 결함 해결
 // 🚨 @PATCH : **2026-09-11** — 헤더(Navbar) 딥 네이비(#0B0F19) 진한 색상 및 고대비 화이트/코발트 UI 적용
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-05** — 로그아웃(handleLogout) 시 onrivi_* 및 sb-* 로컬스토리지 전량 파기로 계정 간 세션 오염 원천 차단 및 p_user_id 전달 연동
@@ -11,7 +12,7 @@
 //             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스모피즘 Navbar, Inter 폰트, Ice Blue 액센트); 비로그인 상태 진입 경로 제거(로그인/시작하기 버튼 숨김) 패치; 헤더에 비로그인용 '시작하기' 버튼 복원 패치
 //             **2026-06-21** — OMDLanding UI 디자인 이식에 따른 신규 컴포넌트 생성 및 Supabase Auth 연동 패치; 깨진 logo 이미지 아이콘을 /icon.png로 변경; 다운로드 네비게이션 링크 제거 대응 패치
 //             **2026-08-10** — 진행 중 이벤트 동적 뱃지 링크 추가 (활성 프로모션 없으면 숨김)
-// 🔗 @CALLS : window.electronAPI, supabase.auth, supabase.rpc, Button, useRouter
+// 🔗 @CALLS : window.electronAPI, supabase.auth, supabase.rpc, Button, useRouter, clearAuthSessionStorage
 // ====================================================================
 "use client";
 
@@ -20,6 +21,7 @@ import { NAV_LINKS, SITE_NAME } from "@/lib/constants"; //NAV_LINKS, SITE_NAME :
 import Link from "next/link"; // next/link : 페이지 이동
 import { useRouter } from "next/navigation"; // useRouter : 페이지 이동
 import { supabase } from "@/lib/supabaseClient"; // supabase : 데이터베이스 연동
+import { clearAuthSessionStorage } from "@/lib/authSessionHelper";
 
 // =====================================================================
 // 인터페이스 선언 
@@ -125,10 +127,8 @@ export function Navbar({ content }: { content?: NavbarContent }) {
           body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId, p_user_id: session?.user?.id }) 
         }); // API 호출로 세션 비활성화 
       }
-      // 🚨 계정 간 세션/결제번호/기기식별자 오염 방지를 위해 모든 onrivi_* 및 Supabase 캐시 전량 삭제
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('onrivi_') || k.startsWith('sb-'))
-        .forEach(k => localStorage.removeItem(k));
+      // 🚨 @PATCH : 2026-09-17 환경설정(Gemini API 키 등)을 안전하게 보존하고 인증 세션만 선별 삭제
+      clearAuthSessionStorage();
       await supabase.auth.signOut(); // 로그아웃 
       setUserEmail(null); // 사용자 이메일을 null로 설정 
       setIsLoggedIn(false); // 로그인 상태를 false로 설정 

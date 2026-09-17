@@ -6,6 +6,7 @@ import { idb } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { normalizeAIModelName } from '@/lib/gemini';
+import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 
 /**
  * [ONR-16-002] useEditorSettings 커스텀 훅
@@ -15,9 +16,10 @@ import { normalizeAIModelName } from '@/lib/gemini';
 // 📊 [OMD-EDIT-USEEDITORSETTINGS-0005] useEditorSettings.ts ➔ useEditorSettings
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
 // 🛡️ @GUARD : 각 스토리지 로드 실패 시 기본값 fallback
+// 🚨 @PATCH : **2026-09-17** — [환경설정 Gemini API 키 및 AI 모델 영구 보존 및 다중 백업 복구 체계 구축]: 암호화 보안 스토리지(saveSecureData/loadSecureData) 연동, 빈 문자열 덮어쓰기 방어 가드 적용, 로그인/로그아웃 시 API 키 유실 결함 원천 해결
 // 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 자동 정규화]: 로컬스토리지에 기존 <= 3.1 모델 잔존 시 normalizeAIModelName을 통해 최신 플래그십(gemini-3.8-flash)으로 자동 무해 정규화
 //             **2026-09-05** — 환경설정에서 AI 설정(API 키) 삭제 시 null/빈문자열 상태를 즉시 빈값('')으로 반영하여 이전 키 부활 방지; **2026-09-03** — 환경설정에서 API 키 삭제 시 로컬스토리지 복구 단계에서 빈 문자열('')을 유효 상태로 인식하여 즉시 삭제 반영되도록 보완
-// 🔗 @CALLS : getDefaultHotkeys, getDefaultCommands, idb.get, api.loadSettings, api.saveSettings, normalizeAIModelName
+// 🔗 @CALLS : getDefaultHotkeys, getDefaultCommands, idb.get, api.loadSettings, api.saveSettings, normalizeAIModelName, saveSecureData, loadSecureData
 // ====================================================================
 // 🚨 @PATCH : **2026-06-20** — 다크모드 전면 비활성화 패치: isDarkMode 상태를 항상 false로 고정하고 HTML documentElement의 dark 클래스 조작을 비활성화하여 에디터 및 렌더러가 항상 라이트 모드로 동작하도록 강제
 export const useEditorSettings = (
@@ -42,13 +44,19 @@ export const useEditorSettings = (
   const [licenseKey, setLicenseKey] = useState<string>('');
   const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('onrivi_gemini_api_key') || '').trim();
+      const localKey = (localStorage.getItem('onrivi_gemini_api_key') || '').trim();
+      if (localKey) return localKey;
+      const secKey = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
+      if (secKey) return secKey;
     }
     return '';
   });
   const [aiModelName, setAiModelName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return normalizeAIModelName(localStorage.getItem('onrivi_ai_model_name') || 'gemini-3.8-flash');
+      const localModel = localStorage.getItem('onrivi_ai_model_name');
+      if (localModel) return normalizeAIModelName(localModel);
+      const secModel = loadSecureData<string>('onrivi_ai_model_name');
+      if (secModel) return normalizeAIModelName(secModel);
     }
     return 'gemini-3.8-flash';
   });
@@ -152,14 +160,18 @@ export const useEditorSettings = (
           Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
         }
         
-        // 2차 백업 키에서 API 키와 모델명 개별 복구 (빈 문자열 및 null 삭제 상태도 즉시 빈값 반영)
+        // 2차 백업 키에서 API 키와 모델명 개별 복구 (암호화 보안 스토리지 포함 다중 복구 및 유효 키 보존)
         const backupApiKey = localStorage.getItem('onrivi_gemini_api_key');
-        if (backupApiKey !== null) {
-          baseSettings.geminiApiKey = backupApiKey;
-        } else {
+        const secureApiKey = (loadSecureData<string>('onrivi_gemini_api_key') || loadSecureData<string>('geminiApiKey') || '').trim();
+        if (backupApiKey !== null && backupApiKey.trim()) {
+          baseSettings.geminiApiKey = backupApiKey.trim();
+        } else if (secureApiKey) {
+          baseSettings.geminiApiKey = secureApiKey;
+        } else if (!baseSettings.geminiApiKey) {
           baseSettings.geminiApiKey = '';
         }
-        const backupModelName = localStorage.getItem('onrivi_ai_model_name');
+
+        const backupModelName = localStorage.getItem('onrivi_ai_model_name') || loadSecureData<string>('onrivi_ai_model_name');
         if (backupModelName) {
           baseSettings.aiModelName = backupModelName;
         }
@@ -187,7 +199,11 @@ export const useEditorSettings = (
         try {
           const desktopData = await api.loadSettings();
           if (desktopData) {
+            const effectiveApiKey = (desktopData.geminiApiKey || '').trim() || (baseSettings.geminiApiKey || '').trim();
+            const effectiveModelName = desktopData.aiModelName || baseSettings.aiModelName;
             Object.assign(baseSettings, desktopData);
+            if (effectiveApiKey) baseSettings.geminiApiKey = effectiveApiKey;
+            if (effectiveModelName) baseSettings.aiModelName = effectiveModelName;
           }
         } catch (e) {
           console.error('데스크탑 스토리지 로드 실패:', e);
@@ -230,9 +246,17 @@ export const useEditorSettings = (
       setCustomHotkeys(baseSettings.customHotkeys);
       setCustomSlashCommands(baseSettings.customSlashCommands);
       setThemePalette(baseSettings.themePalette);
-      setLicenseKey(baseSettings.licenseKey);
-      setGeminiApiKey((baseSettings.geminiApiKey || '').trim());
-      setAiModelName(normalizeAIModelName(baseSettings.aiModelName || 'gemini-3.8-flash'));
+      const finalApiKey = (baseSettings.geminiApiKey || '').trim();
+      setGeminiApiKey(finalApiKey);
+      if (finalApiKey) {
+        localStorage.setItem('onrivi_gemini_api_key', finalApiKey);
+        saveSecureData('onrivi_gemini_api_key', finalApiKey);
+        saveSecureData('geminiApiKey', finalApiKey);
+      }
+      const finalModel = normalizeAIModelName(baseSettings.aiModelName || 'gemini-3.8-flash');
+      setAiModelName(finalModel);
+      localStorage.setItem('onrivi_ai_model_name', finalModel);
+      saveSecureData('onrivi_ai_model_name', finalModel);
       setAutoClosingBrackets(baseSettings.autoClosingBrackets !== undefined ? baseSettings.autoClosingBrackets : true);
 
       document.documentElement.classList.remove('dark');
@@ -350,7 +374,14 @@ export const useEditorSettings = (
     localStorage.setItem('themePalette', themePalette);
     localStorage.setItem('autoSave', autoSave ? 'true' : 'false');
     localStorage.setItem('onrivi_gemini_api_key', geminiApiKey);
+    if (geminiApiKey) {
+      saveSecureData('onrivi_gemini_api_key', geminiApiKey);
+      saveSecureData('geminiApiKey', geminiApiKey);
+    }
     localStorage.setItem('onrivi_ai_model_name', aiModelName);
+    if (aiModelName) {
+      saveSecureData('onrivi_ai_model_name', aiModelName);
+    }
     if (previewMode !== 'css-style') localStorage.setItem('previewMode', previewMode);
 
     const chromeStorage = (window as any).chrome?.storage?.local;

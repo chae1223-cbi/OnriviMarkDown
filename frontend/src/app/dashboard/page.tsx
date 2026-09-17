@@ -2,14 +2,16 @@
 // 📊 [OMD-AUTH-dashboard-0001 ✅ FIXED] DashboardPage ➔ DashboardPage
 // 🎯 @KICK  : 로그인 유저 구독/라이선스/접속세션 관리 및 요금제 선택 대시보드
 // 🛡️ @GUARD : getUser() 인증 가드, 비인증 진입 시 /login 리다이렉트
+// 🚨 @PATCH : **2026-09-17** — [로그아웃/기기해제 시 환경설정(Gemini API 키 등) 영구 보존 및 선별적 세션 정리]: clearAuthSessionStorage 연동으로 API 키 및 사용자 설정 삭제 결함 해결
 // 🚨 @PATCH : **2026-09-05** — 대시보드 기기 테이블에서 데스크탑 앱 명확한 상태 배지(정품 사용중/제한됨) 표시 및 웹에서 데스크탑 기기 원격 해제 기능 허용; 기기 해제 시 p_user_id 전달로 사용자 소유권 검증 연동, 로그아웃(handleLogout) 시 onrivi_* 및 sb-* 로컬스토리지 전량 파기로 계정 간 세션 오염 원천 차단; **2026-08-07** — DB `pricing_plans` 테이블을 기반으로 멤버십 데이터를 동적 조회(fetch)하여 렌더링하도록 마이그레이션 패치; **2026-07-22** — 사용자 요금제 변동 내역 테이블을 `subscriptions` 칼럼(`current_period_start`, `current_period_end`, `plan_name`, `billing_cycle`, `plan_status`) 및 DB 공통코드(`common_codes`) 1:1 매핑 변환 체계로 동동 조율 적용 완결 패치; 공통코드(common_codes) 명세(`PLAN_STATUS`: `ACTIVE`, `CANCELED`, `EXPIRED` / `PLAN_NAME`: `APPRENTICE`, `REGULAR`, `ELITEPRO`) 100% 동기화 적용 및 대시보드 상태 배지/히스토리 상태 라벨 정리 완료 패치; 요금제 등록/신청 시 대문자 코드값 표준화 규칙 적용 (`plan.name.toUpperCase().replace(/\s+/g, '')`) 및 OMD 규칙 1에 의거한 OMD 주석 동기화 패치; 무료 요금제(FREE)의 라이선스가 DB상 is_active=false로 입력되는 비즈니스 제약에 따라 현재 활성 구독(subData.id)을 기준으로 현재 요금제 여부(is_active_license)를 동적 매핑 식별하도록 판별 방식을 고도화 보완 패치; 사용자 ID에 매칭되는 모든 라이선스의 동시접속 레코드를 일괄적으로 불러와(Show all activations regardless of license), 현재 사용자가 활성 구독 중인 플랜의 현재 브라우저 세션만 "현재 상태(보안)"로 표기하고 그 외(과거 요금제 및 다른 브라우저)는 모두 "해제 대상(해제)"으로 일원화 표기/제어하도록 동시접속 기기 관리 테이블 고도화 패치; 복수 요금제 이력 존재 시 software_licenses 테이블 maybeSingle 조회 카드 크래시(cardinality violation)를 방지하기 위해 is_active = true인 활성 라이선스를 우선 조회하고 없을 시 최신 등록 라이선스 순으로 fallback 탐색하도록 2단계 보완 패치; 동시접속자 기기 관리 목록을 특정 활성 요금제(subData) 존재 여부와 무관하게 사용자 ID(user_id) 단위로 직접 라이선스 테이블을 역추적 조회(Show activations by user_id)하여, 플랜 상태에 따라 동시접속 기기 제어 테이블이 화면에서 사라지지 않고 언제나 전체 표시/관리 가능하도록 개선 패치; 화면 내 고정식 {message} 경고 영역과 브라우저 alert 팝업을 모두 제거하고 모든 성공/오류/경고 안내를 공통 토스트 알람(showToast)으로 일괄 통합 개편 패치; 플랜 선택(handleSelectPlan) 처리를 프론트엔드 다중 DML에서 Supabase Stored Procedure (subscribe_user_plan RPC) 단일 호출 트랜잭션 방식으로 전환하여 보안 및 RLS 호환성을 확보하고, 각 단계별 트랜잭션 진행 상황 및 PostgreSQL 원천 예외 메시지를 사용자 에러 창에 구체적으로 표시(리턴)하도록 개편 패치; 기기 해제(handleDeactivateDevice) 및 로그아웃(handleLogout) 시의 직접 delete DML 작업을 Supabase stored procedure(delete_device_activation, deactivate_session_on_logout RPC) 호출 방식으로 위임 마이그레이션 패치; 요금제 선택 시 무료 플랜(FREE)을 제외한 모든 유료 요금제 카드를 비활성화하고 버튼을 '공사중' 상태로 노출하여 비즈니스 진입을 차단하는 임시 가드 패치; 구독 및 무료 체험 신청 이력이 한 번이라도 존재(`historyList.length > 0`)하면 무료 플랜으로의 재가입/재신청을 원천 차단하는 재가입 방지 가드 패치
-// 🔗 @CALLS : supabase.auth, supabase.from, useRouter, plans constants, useToast, fetch(/api/license/check-session, /api/subscription/subscribe-desktop)
+// 🔗 @CALLS : supabase.auth, supabase.from, useRouter, plans constants, useToast, fetch(/api/license/check-session, /api/subscription/subscribe-desktop), clearAuthSessionStorage
 // ====================================================================
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'; // 🔗 React 코어 — 상태관리(useState), 부수효과(useEffect), 콜백 메모이제이션(useCallback), DOM/타이머 참조(useRef)
 import { useRouter } from 'next/navigation'; // 🔗 Next.js 라우터 — 페이지 이동(router.push) 및 쿼리 파라미터 접근
 import { supabase } from '@/lib/supabaseClient'; // 🔗 Supabase 클라이언트 — Auth 세션 관리, DB 쿼리(from), RPC 호출
+import { clearAuthSessionStorage } from '@/lib/authSessionHelper';
 import {
   Laptop, Power, RefreshCw, Key, ShieldCheck, AlertCircle,
   LogOut, ArrowRight, User, Calendar, CreditCard,
@@ -243,10 +245,8 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
         body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId, p_user_id: user?.id }) 
       }); // 🔗 API 호출 — license_activations에서 해당 세션 삭제
     }
-    // 🚨 계정 간 세션/결제번호/기기식별자 오염 방지를 위해 모든 onrivi_* 및 Supabase 캐시 전량 삭제
-    Object.keys(localStorage)
-      .filter(k => k.startsWith('onrivi_') || k.startsWith('sb-'))
-      .forEach(k => localStorage.removeItem(k));
+    // 🚨 @PATCH : 2026-09-17 환경설정(Gemini API 키 등)을 안전하게 보존하고 인증 세션만 선별 삭제
+    clearAuthSessionStorage();
     await supabase.auth.signOut({ scope: 'local' }); // 🚪 Supabase Auth 로컬 로그아웃
     router.push('/'); // 🏠 루트 페이지로 이동
   };
@@ -339,7 +339,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       const deactivatedDevice = devices.find(d => d.id === activationId);
       if (deactivatedDevice && deactivatedDevice.device_uuid === currentSessionId && deactivatedDevice.is_active !== false) {
         showToast('현재 기기의 세션이 해제되어 로그아웃됩니다.', 'error');
-        Object.keys(localStorage).filter(k => k.startsWith('sb-') || k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
+        clearAuthSessionStorage();
         try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) { }
         window.location.href = '/login';
         return;

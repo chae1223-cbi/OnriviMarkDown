@@ -1,5 +1,6 @@
 // ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
+// 🚨 @PATCH : **2026-09-17** — [환경설정 Gemini API 키 및 모델 암호화 보존 강화]: saveSecureData 연동으로 API 키 및 AI 모델명 다중 백업 보존 및 삭제 시 안전 동기화
 // 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 전면 제거, 동적 모델 탐색 연동]:
 //             1) Gemini 3.1 이하 버전(gemini-3.1-flash-lite, 2.5, 2.0, 1.5) 및 구형 Gemma 완전 제거
 //             2) Google AI Studio 최신 모델 라인업(Gemini 3.8/3.7/3.6/3.5 Flash 및 Gemma 4 31B/26B IT) 동적 탑재
@@ -15,7 +16,7 @@
 //             **2026-09-03** — fetchAccountData를 useCallback으로 격리하고 useEffect 의존성 배열에 추가하여 ESLint react-hooks/exhaustive-deps 경고 완벽 해소
 //             **2026-09-03** — 자원 관리(공통 자원 폴더)에 '전체사용자 필수 항목' 배지 및 미지정 시 강조 UI 적용; initialTab prop 지원을 통해 계정 관리 탭 다이렉트 전환 지원; 환경설정 모달 '계정 관리' 탭의 별명(활동명) 수정 시 [별명 저장] 및 좌측 하단 통합 [저장] 클릭 즉시 에디터 우측 하단 AI 챗봇 버튼명 및 DB users 테이블에 100% 실시간 영구 반영되도록 prop/이벤트/비동기 핸들러 전면 고도화; DB users 개인정보 실시간 조회 및 최신 Gemini 3.8 Flash 연동
 //             **2026-07-16** — 단축키 설정 인풋 keydown 버블링 차단 및 PDF/인쇄 설정 모달 인터페이스 추가
-// 🔗 @CALLS : testGeminiConnection, useToast, fetchGoogleAIStudioModels
+// 🔗 @CALLS : testGeminiConnection, useToast, fetchGoogleAIStudioModels, saveSecureData
 // ====================================================================
 "use client";
 
@@ -26,6 +27,7 @@ import { X, Settings, Command, Loader2, CheckCircle, AlertCircle, KeyRound, Key,
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
 import { testGeminiConnection, ONRIVI_AI_MODELS, getCachedAIModels, fetchGoogleAIStudioModels, normalizeAIModelName, OnriviAIModelItem } from '@/lib/gemini';
 import { supabase } from '@/lib/supabaseClient';
+import { saveSecureData } from '@/lib/secureStorage';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -292,6 +294,8 @@ export default function SettingsModal({
     try {
       localStorage.removeItem('onrivi_gemini_api_key');
       localStorage.setItem('onrivi_gemini_api_key', '');
+      saveSecureData('onrivi_gemini_api_key', '');
+      saveSecureData('geminiApiKey', '');
       const raw = localStorage.getItem('onrivi_settings');
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -481,11 +485,16 @@ export default function SettingsModal({
                     try {
                       if (trimmedKey) {
                         localStorage.setItem('onrivi_gemini_api_key', trimmedKey);
+                        saveSecureData('onrivi_gemini_api_key', trimmedKey);
+                        saveSecureData('geminiApiKey', trimmedKey);
                       } else {
                         localStorage.removeItem('onrivi_gemini_api_key');
                         localStorage.setItem('onrivi_gemini_api_key', '');
+                        saveSecureData('onrivi_gemini_api_key', '');
+                        saveSecureData('geminiApiKey', '');
                       }
                       localStorage.setItem('onrivi_ai_model_name', modelToSave);
+                      saveSecureData('onrivi_ai_model_name', modelToSave);
 
                       const raw = localStorage.getItem('onrivi_settings');
                       if (raw) {

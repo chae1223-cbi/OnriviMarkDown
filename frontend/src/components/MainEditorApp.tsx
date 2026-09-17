@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-17** — [인증/세션 로그아웃 시 환경설정(Gemini API 키 등) 영구 보존]: 비인증 리다이렉트 및 동시접속 기기 해제 시 clearAuthSessionStorage 연동으로 API 키 및 사용자 설정 삭제 결함 해결
 // 🚨 @PATCH : **2026-09-17** — [지식 베이스 상세 모달/출처 링크 '에디터에서 열기' 파일 로드 및 라인 점프 연동]: app:open-file-at-line 이벤트 리스너가 filePath를 무시하고 활성 문서 스크롤만 수행하던 결함을 해결하여, handleFileOpenByPath와 결합하여 비활성/미오픈 파일 로드, 탭 전환, Monaco 커서 포커스 및 라인 센터 스크롤, 프리뷰 data-line 동시 하이라이트 완벽 지원
 // 🚨 @PATCH : **2026-09-16** — [라이선스 세션 등록 UUID 식별자 우선 전송 및 500 오류 방어]: loadAndVerifyLicense 및 handleCrossDeviceTakeover에서 p_user_id로 이메일 대신 subscription.user_id(UUID) 또는 auth session UUID를 우선 전송하여 Postgres 22P02 오류 원천 차단
 // 🚨 @PATCH : **2026-09-16** — [삭제된 폴더 스캔 시 ENOENT/EPERM 콘솔 에러 가드]: fetchAllMdFiles 데스크톱 스캔 시 삭제/이동 직후의 ENOENT/EPERM 예외 콘솔 경고를 안전하게 억제하고 스킵 처리
@@ -161,6 +162,7 @@ import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐�
 import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import { getVfsFiles, vfsReadFile, vfsWriteFile, vfsCreateFile, vfsCreateFolder } from '@/lib/virtualFileSystem'; // 가상 파일 시스템 헬퍼
+import { clearAuthSessionStorage } from '@/lib/authSessionHelper';
 
 import FileTreeItem from '@/components/FileTreeItem'; // 파일 트리 아이템
 import ExportModal from '@/components/ExportModal'; // 모달
@@ -1796,13 +1798,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.user) {
-            Object.keys(localStorage).filter(k => k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
+            clearAuthSessionStorage();
             window.location.href = '/login';
             return;
           }
           currentAuthUser = session.user;
         } catch (_) {
-          Object.keys(localStorage).filter(k => k.startsWith('onrivi_')).forEach(k => localStorage.removeItem(k));
+          clearAuthSessionStorage();
           window.location.href = '/login';
           return;
         }
@@ -2465,7 +2467,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             showToast("🛑 동시접속 관리에 의해 현재 기기의 세션이 강제 해제되었습니다. 보호를 위해 로그아웃됩니다.", "error");
             setTimeout(async () => {
-              Object.keys(localStorage).filter(k => k.startsWith('onrivi_') || k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+              // 🚨 @PATCH : 2026-09-17 환경설정(Gemini API 키 등)을 안전하게 보존하고 인증 세션만 선별 삭제
+              clearAuthSessionStorage();
               await supabase.auth.signOut({ scope: 'local' });
               const isDesktop = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
               if (!isDesktop) {
