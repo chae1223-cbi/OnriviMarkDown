@@ -594,7 +594,7 @@ option {
   background-color: rgba(255, 152, 0, 0.07) !important;
   border-left: 0 !important;
   box-shadow: none !important;
-  transition: background-color 0.15s ease, outline 0.15s ease;
+  transition: background-color 0.15s ease, outline 0.15s ease, box-shadow 0.15s ease;
   border-radius: 4px;
 }
 
@@ -607,6 +607,19 @@ option {
 }
 .onrivi-line.preview-highlight-line {
   background-color: rgba(255, 152, 0, 0.12) !important;
+  border-radius: 4px;
+}
+
+/* 💻 코드블록 내부 행 하이라이트 — 다크/어두운 배경에서도 뚜렷하게 식별 가능한 고대비 코발트 블루 및 1px 아웃라인 */
+.dark .onrivi-line.preview-highlight-line {
+  background-color: rgba(251, 191, 36, 0.22) !important;
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.5) !important;
+  border-radius: 4px;
+}
+.dark .codeblock-area .onrivi-line.preview-highlight-line,
+.dark pre .onrivi-line.preview-highlight-line {
+  background-color: rgba(59, 130, 246, 0.3) !important;
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.65) !important;
   border-radius: 4px;
 }
 
@@ -634,10 +647,6 @@ tr.preview-highlight-line th {
   background-color: rgba(255, 152, 0, 0.12) !important;
   border-left: 0 !important;
   box-shadow: none !important;
-}
-.dark .onrivi-line.preview-highlight-line {
-  background-color: rgba(255, 152, 0, 0.18) !important;
-  border-radius: 4px;
 }
 
 .dark figure.preview-highlight-line,

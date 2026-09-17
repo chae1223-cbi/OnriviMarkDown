@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: generateExportCss 내 codeBlock 배경색 명도 판별 및 다크 계열 고대비 코발트 블루 하이라이트 동적 CSS 일원화
 // 🚨 @PATCH : **2026-09-11** — generateExportCss에 profile.customCss 사용자 정의 CSS 주입 연동
 //             **2026-08-16** — PDF 페이지 나누기: CSS page-break 선택자 방식의 한계(h3·h4 레벨에서 섹션 내부 이중 break 발생)를 해결하기 위해 DOM 직접 삽입 방식의 injectPageBreakMarkers() 유틸 함수 신규 구현. 버퍼 알고리즘으로 섹션 경계를 찾아 해당 요소 앞에 break-before:page 마커 div를 삽입함.
 //             **2026-07-18** — PDF 내보내기 시 배경 대각선 반투명 워터마크(pdfWatermark, pdfWatermarkOpacity) 설정 및 가상 DOM/CSS 템플릿 인젝션 기능 추가
@@ -101,6 +102,34 @@ function generateExportCss(profile: any): string {
 
       if (bgColor) {
         css += `.custom-preview-container .codeblock-area {\n  background-color: ${bgColor} !important;\n}\n`;
+
+        const isDarkBg = (() => {
+          const c = (bgColor || '').trim().toLowerCase();
+          if (c.startsWith('#')) {
+            let hex = c.slice(1);
+            if (hex.length === 3) hex = hex.split('').map((x: string) => x + x).join('');
+            if (hex.length === 6) {
+              const r = parseInt(hex.substring(0, 2), 16);
+              const g = parseInt(hex.substring(2, 4), 16);
+              const b = parseInt(hex.substring(4, 6), 16);
+              return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 140;
+            }
+          }
+          const rgb = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+          if (rgb) {
+            const r = parseInt(rgb[1], 10);
+            const g = parseInt(rgb[2], 10);
+            const b = parseInt(rgb[3], 10);
+            return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 140;
+          }
+          return true;
+        })();
+
+        if (isDarkBg) {
+          css += `.custom-preview-container .codeblock-area .onrivi-line.preview-highlight-line {\n  background-color: rgba(59, 130, 246, 0.3) !important;\n  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.65) !important;\n  border-radius: 4px;\n}\n`;
+        } else {
+          css += `.custom-preview-container .codeblock-area .onrivi-line.preview-highlight-line {\n  background-color: rgba(255, 152, 0, 0.16) !important;\n  border-radius: 4px;\n}\n`;
+        }
       }
       if (borderRadius) {
         css += `.custom-preview-container .codeblock-area {\n  border-radius: ${borderRadius} !important;\n}\n`;

@@ -19,6 +19,7 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-09-17** — [탐색기 변동 시 중복 2중 새로고침 결함 완벽 해결]: refreshFileList에 250ms 쿨다운 락을 부여하고 전역 리프레시 및 Electron 워처 이벤트 수신 시 단일 디바운스를 적용하여, 파일 조작 후 탐색기가 2회 반복 새로고침되던 현상을 1회로 깔끔하게 단일화
 // 🚨 @PATCH : **2026-09-17** — [웹 브라우저 파일 목록 새로고침 404 오류 원천 차단 및 VFS/핸들 스캔 정상화]: refreshFileList에서 electronAPI 부재 시(/api/files 404 호출 방지) File System Access API 핸들 스캔 또는 VFS(Virtual File System) 목록을 즉시 갱신하도록 분기 처리
 // 🚨 @PATCH : **2026-09-16** — [외부 작업폴더 변경 실시간 자동 감지 & 전역 리프레시 리스너 누락 방어]: watchWorkspace 대상 경로(rootFolder.path || rootFolder.name) 정상화, early return으로 인한 file:refresh-all-directories 리스너 등록 누락 버그 해결, 윈도우 포커스/가시성 복귀 시 자동 새로고침(웹/데스크탑) 연동
 // 🚨 @PATCH : **2026-09-13** — [데스크톱 Electron 네이티브 파일 I/O 직접 연동 및 실서버 404 방어]: handleFileOpenByPath, existingOpenTab 수화, handleFileClick, saveFile에서 데스크톱(Electron) 환경 시 electronAPI.readFromPath / saveFile을 최우선으로 직접 호출하도록 개편하고, /api/file-content 웹 호출은 순수 localhost 개발 환경으로 엄격히 제한하여 프로덕션(onrivi.com) 404 에러 영구 차단
@@ -98,65 +99,80 @@ export const useFileExplorer = ({
   const rootFolderRef = useRef(rootFolder);
   useEffect(() => { rootFolderRef.current = rootFolder; }, [rootFolder]);
 
+  // 🛡️ [중복 새로고침 방어] 파일 변동 시 2중/3중 중복 새로고침 차단용 타임스탬프 및 락 ref
+  const lastRefreshTimeRef = useRef<number>(0);
+  const isRefreshingRef = useRef<boolean>(false);
+
   // ====================================================================
   // 📊 [OMD-FILE-USEFILEEXPLORER-0009] useFileExplorer.ts ➔ refreshFileList
   // 🎯 @KICK  : 브라우저/Electron/웹 환경별 파일 트리 목록을 새로고침
-  // 🛡️ @GUARD : 각 환경별 API 실패 시 console.error로 대응
-  // 🚨 @PATCH : 없음
+  // 🛡️ @GUARD : 각 환경별 API 실패 시 console.error로 대응; 250ms 이내 중복 호출 시 2중 새로고침 차단
+  // 🚨 @PATCH : **2026-09-17** — [탐색기 변동 시 중복 2중 새로고침 결함 완벽 해결]: 250ms 쿨다운 락(lastRefreshTimeRef/isRefreshingRef)을 구축하여 동일 작업으로 인한 연쇄 중복 새로고침 및 화면 깜빡임을 1회로 깔끔하게 단일화
   // 🔗 @CALLS : scanDirectory, getVfsFiles, api.listDirectory, fetch, setFileList
   // ====================================================================
   // 1. 파일 목록 리프레시 헬퍼 함수
-  const refreshFileList = useCallback(async () => {
-    const api = (window as any).electronAPI;
-    const isDesktopApp = typeof window !== 'undefined' && !!api;
-
-    if (!isDesktopApp) {
-      const handle = rootFolderRef.current?.handle;
-      if (handle) {
-        try {
-          const tree = await scanDirectory(handle);
-          setFileList(tree);
-        } catch (err) {
-          console.error('[refreshFileList scanDirectory Error]', err);
-        }
-      } else {
-        // 🛡️ [게스트 체험 모드 가이드] 첫 진입 시 가상 스페이스에 예쁜 체험용 웰컴 문서 탑재
-        const isGuestMode = typeof window !== 'undefined' && localStorage.getItem('onrivi_guest_mode') === 'Y';
-        let vfsList = getVfsFiles();
-        if (isGuestMode && vfsList.length === 0) {
-          try {
-            const { vfsCreateFile, vfsWriteFile } = require('@/lib/virtualFileSystem');
-            vfsCreateFile('', '온리비_어서_체험판.md');
-            fetch('/welcome.md')
-              .then(res => {
-                if (!res.ok) throw new Error("welcome.md 로딩 실패");
-                return res.text();
-              })
-              .then(text => {
-                vfsWriteFile('온리비_어서_체험판.md', text);
-                setFileList(getVfsFiles());
-              })
-              .catch(err => {
-                console.error("체험판 웰컴 마크다운 파일 로드 오류:", err);
-                vfsWriteFile('온리비_어서_체험판.md', '# 🚀 온리비 어서 5분 마법의 글쓰기 챌린지!\n\n가이드를 참고하여 체험을 계속해 보셔요.');
-                setFileList(getVfsFiles());
-              });
-          } catch (e) {
-            console.error("체험판 웰컴 문서 생성 오류:", e);
-          }
-        }
-        setFileList(vfsList);
-      }
+  const refreshFileList = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && (isRefreshingRef.current || now - lastRefreshTimeRef.current < 250)) {
       return;
     }
+    isRefreshingRef.current = true;
+    lastRefreshTimeRef.current = now;
 
-    if (api?.listDirectory && rootFolderRef.current?.name) {
-      try {
-        const list = await api.listDirectory(rootFolderRef.current.name);
-        setFileList(list);
-      } catch (e) {
-        console.error('[refreshFileList listDirectory Error]', e);
+    try {
+      const api = (window as any).electronAPI;
+      const isDesktopApp = typeof window !== 'undefined' && !!api;
+
+      if (!isDesktopApp) {
+        const handle = rootFolderRef.current?.handle;
+        if (handle) {
+          try {
+            const tree = await scanDirectory(handle);
+            setFileList(tree);
+          } catch (err) {
+            console.error('[refreshFileList scanDirectory Error]', err);
+          }
+        } else {
+          // 🛡️ [게스트 체험 모드 가이드] 첫 진입 시 가상 스페이스에 예쁜 체험용 웰컴 문서 탑재
+          const isGuestMode = typeof window !== 'undefined' && localStorage.getItem('onrivi_guest_mode') === 'Y';
+          let vfsList = getVfsFiles();
+          if (isGuestMode && vfsList.length === 0) {
+            try {
+              const { vfsCreateFile, vfsWriteFile } = require('@/lib/virtualFileSystem');
+              vfsCreateFile('', '온리비_어서_체험판.md');
+              fetch('/welcome.md')
+                .then(res => {
+                  if (!res.ok) throw new Error("welcome.md 로딩 실패");
+                  return res.text();
+                })
+                .then(text => {
+                  vfsWriteFile('온리비_어서_체험판.md', text);
+                  setFileList(getVfsFiles());
+                })
+                .catch(err => {
+                  console.error("체험판 웰컴 마크다운 파일 로드 오류:", err);
+                  vfsWriteFile('온리비_어서_체험판.md', '# 🚀 온리비 어서 5분 마법의 글쓰기 챌린지!\n\n가이드를 참고하여 체험을 계속해 보셔요.');
+                  setFileList(getVfsFiles());
+                });
+            } catch (e) {
+              console.error("체험판 웰컴 문서 생성 오류:", e);
+            }
+          }
+          setFileList(vfsList);
+        }
+        return;
       }
+
+      if (api?.listDirectory && rootFolderRef.current?.name) {
+        try {
+          const list = await api.listDirectory(rootFolderRef.current.name);
+          setFileList(list);
+        } catch (e) {
+          console.error('[refreshFileList listDirectory Error]', e);
+        }
+      }
+    } finally {
+      isRefreshingRef.current = false;
     }
   }, [setFileList]);
 
@@ -1493,16 +1509,24 @@ export const useFileExplorer = ({
       if (workspaceType === 'local' && api?.watchWorkspace && api?.onWorkspaceChanged && targetWatchPath) {
         api.watchWorkspace(targetWatchPath);
         unwatchElectron = api.onWorkspaceChanged(() => {
-          refreshFileList();
+          if (focusTimer) clearTimeout(focusTimer);
+          focusTimer = setTimeout(() => {
+            refreshFileList();
+          }, 80);
         });
       }
     } else {
       setFileList([]);
     }
 
-    // 전역 수동 리프레시 커스텀 이벤트 수신기
+    // 전역 수동 리프레시 커스텀 이벤트 수신기 (단일 디바운스로 2중 새로고침 차단)
     const handleGlobalRefresh = () => {
-      if (rootFolder) refreshFileList();
+      if (rootFolder) {
+        if (focusTimer) clearTimeout(focusTimer);
+        focusTimer = setTimeout(() => {
+          refreshFileList();
+        }, 80);
+      }
     };
     window.addEventListener('file:refresh-all-directories', handleGlobalRefresh);
 
@@ -1512,7 +1536,7 @@ export const useFileExplorer = ({
         if (focusTimer) clearTimeout(focusTimer);
         focusTimer = setTimeout(() => {
           refreshFileList();
-        }, 500);
+        }, 400);
       }
     };
     window.addEventListener('focus', handleFocusRefresh);

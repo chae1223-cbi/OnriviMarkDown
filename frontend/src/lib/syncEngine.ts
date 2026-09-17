@@ -4,7 +4,8 @@
 // 🎯 @KICK  : 에디터 스크롤 이벤트 전담 1:1 미리보기 동기화 및 최상단/최하단 완벽 밀착
 // 🛡️ @GUARD : 상위 1,000자 동적 Frontmatter 감지, 에디터 바닥 도달 시 미리보기 maxScrollTop 밀착,
 //             SCROLL_EPSILON(1px) 미세 떨림 방어, 0~maxScroll 클램핑
-// 🚨 @PATCH : 2026-09-06 - [문단 내 개별 행(.onrivi-line) Safe Zone 동기화 정밀 연동] blockSelectors 최우선에 .onrivi-line을 추가하여 다중 행 문단 내부 커서 이동 및 타이핑 시 문단 전체가 아닌 커서가 위치한 개별 행을 기준으로 Safe Zone 정밀 정렬
+// 🚨 @PATCH : 2026-09-17 - [코드블록 및 다중행 블록 내부 커서 위치 추종 및 Safe Zone 클램핑 정상화]: 1) syncPreviewToTargetLine 및 syncPreviewFromEditorScroll에서 다중행 블록(height > 32px) 내부 행 타깃팅 시 maxBottom에 extraLines를 단순 누적하여 뷰포트 밖으로 치솟던 버그를 제거하고 블록 상단(minTop) 기준 오프셋 보정 적용, 2) 타깃 요소가 이미 Safe Zone(상단 40px, 하단 140px) 내에 정상 노출 중일 때는 불필요한 스크롤(delta=0)을 스킵하여 진동 및 위치 어긋남 원천 방어, 3) 뷰포트 초과 대형 블록 상단 정렬 가드 탑재
+//             2026-09-06 - [문단 내 개별 행(.onrivi-line) Safe Zone 동기화 정밀 연동] blockSelectors 최우선에 .onrivi-line을 추가하여 다중 행 문단 내부 커서 이동 및 타이핑 시 문단 전체가 아닌 커서가 위치한 개별 행을 기준으로 Safe Zone 정밀 정렬
 //             2026-09-05 - [단일 정렬 규칙 전면 도입] syncPreviewToTargetLine 및 syncPreviewFromEditorScroll Step5의 모든 블록 타입 분기(isAtLastBlock/isMedia/일반블록)를 단일 규칙(delta = elementBottom - BOTTOM_SAFE)으로 통합: 마우스 클릭이나 타이핑 시 커서 위치 요소의 끝(bottom)이 항상 BOTTOM_SAFE에 정렬되어 이미지·동영상·지도·표·문단 모두 무조건 끝 부분이 보이도록 보장
 //             2026-09-05 - [타이핑 시 미리보기 흔들림 및 상하 진동(Oscillation) 결함 완전 박멸] 대형 블록 임계값을 safeZoneHeight(BOTTOM_SAFE - TOP_SAFE)로 재정의하여 상하단 조건 상충으로 인한 무한 왕복 스크롤 헌팅을 원천 제거; 텍스트/표 블록에 하단 우선 가시성 및 반동 억제 가드 탑재; JITTER_THRESHOLD를 6px로 조정하여 미세 폰트 리플로우 진동 완전 흡수
 //             2026-09-05 - [하단 Safe Zone 140px 확장으로 커서/타이핑 라인 2~3줄 상향 가시성 확보] 미리보기 하단 여백(BOTTOM_SAFE)을 60px에서 140px로 대폭 확장(약 80px, 3줄 상향 확보)하여 커서 이동이나 타이핑 시 "결국" 등 마지막 문장이 윈도우 하단 경계나 상태바에 가려지지 않고 2~3줄의 넉넉한 여유 공간을 두고 쾌적하게 노출되도록 전면 개선; syncPreviewFromEditorScroll 커서 보정에도 extraLines * 26px 증분 연동 반영
@@ -191,28 +192,49 @@ export function syncPreviewFromEditorScroll(
       const blockRect = blockEl.getBoundingClientRect();
       const elRect = cursorEl.getBoundingClientRect();
 
-      const minTop = Math.min(blockRect.top, elRect.top);
+      let minTop = Math.min(blockRect.top, elRect.top);
       let maxBottom = Math.max(blockRect.bottom, elRect.bottom);
 
-      // 타깃 라인이 앵커 라인보다 큰 경우 (빈 줄 생성 또는 문단 내 추가 행 커서) 여유 공간 보정
+      // 타깃 라인이 앵커 라인보다 큰 경우 (빈 줄 생성 또는 다중행 블록 내부 행) 위치 보정
       const elLine = parseInt(cursorEl.getAttribute('data-line') || '1', 10);
       if (cursorLine > elLine) {
         const extraLines = cursorLine - elLine;
-        maxBottom += extraLines * 26;
+        const currentHeight = maxBottom - minTop;
+        if (currentHeight > 32) {
+          const lineOffset = extraLines * 24;
+          const estimatedTop = minTop + lineOffset;
+          const estimatedBottom = estimatedTop + 24;
+          if (estimatedTop < maxBottom) {
+            minTop = estimatedTop;
+            maxBottom = Math.min(maxBottom, estimatedBottom);
+          } else {
+            minTop = maxBottom + (extraLines * 24 - currentHeight);
+            maxBottom = minTop + 24;
+          }
+        } else {
+          maxBottom += extraLines * 26;
+        }
       }
 
       const previewCursorBottom = maxBottom - containerRect.top + previewScrollTop;
+      const previewCursorTop = minTop - containerRect.top + previewScrollTop;
 
       const containerHeight = previewContainer.clientHeight;
       const TOP_SAFE = 40;
       const BOTTOM_SAFE = Math.max(TOP_SAFE + 60, containerHeight - 140);
 
       // 미리보기에서 커서 요소의 상대적 위치 계산 (desiredScrollTop 적용 시)
+      const relativeTop = previewCursorTop - desiredScrollTop;
       const relativeBottom = previewCursorBottom - desiredScrollTop;
 
-      // 💡 [단일 정렬 규칙] syncPreviewToTargetLine과 동일:
-      // 커서 요소의 끝(relativeBottom)을 항상 BOTTOM_SAFE에 정렬
-      const scrollCorrection = relativeBottom - BOTTOM_SAFE;
+      // 💡 [Safe Zone 클램핑] 커서가 Safe Zone 밖으로 벗어난 경우에만 보정 (이미 내부인 경우 불필요한 스크롤 스킵)
+      let scrollCorrection = 0;
+      if (relativeBottom > BOTTOM_SAFE) {
+        scrollCorrection = relativeBottom - BOTTOM_SAFE;
+      } else if (relativeTop < TOP_SAFE) {
+        scrollCorrection = relativeTop - TOP_SAFE;
+      }
+
       if (Math.abs(scrollCorrection) >= 1) {
         desiredScrollTop += scrollCorrection;
       }
@@ -314,10 +336,24 @@ export function syncPreviewToTargetLine(
     maxBottom = fallbackRect.bottom;
   }
 
-  // 타깃 라인이 앵커 라인보다 큰 경우 (빈 줄 생성 또는 문단 내 추가 행 커서) 여유 공간 보정
+  // 타깃 라인이 앵커 라인보다 큰 경우 (빈 줄 생성 또는 다중행 블록 내부 행) 위치 보정
   if (targetLine > bestLine) {
     const extraLines = targetLine - bestLine;
-    maxBottom += extraLines * 26;
+    const currentHeight = maxBottom - minTop;
+    if (currentHeight > 32) {
+      const lineOffset = extraLines * 24;
+      const estimatedTop = minTop + lineOffset;
+      const estimatedBottom = estimatedTop + 24;
+      if (estimatedTop < maxBottom) {
+        minTop = estimatedTop;
+        maxBottom = Math.min(maxBottom, estimatedBottom);
+      } else {
+        minTop = maxBottom + (extraLines * 24 - currentHeight);
+        maxBottom = minTop + 24;
+      }
+    } else {
+      maxBottom += extraLines * 26;
+    }
   }
 
   // 💡 [실시간 타이핑 및 긴 문단 가로 줄바꿈 사전 높이 예측]
@@ -355,17 +391,27 @@ export function syncPreviewToTargetLine(
   const BOTTOM_SAFE = Math.max(TOP_SAFE + 60, containerHeight - 140);
 
   // ============================================================
-  // 💡 [단일 정렬 규칙] 모든 블록 타입에 동일하게 적용:
-  // 커서가 위치한 요소의 끝(elementBottom)을 항상 BOTTOM_SAFE에 정렬한다.
-  //
-  // - elementBottom > BOTTOM_SAFE  : 요소 끝이 뷰포트 아래 → 위로 스크롤 (끌어올림)
-  // - elementBottom < BOTTOM_SAFE  : 요소 끝이 뷰포트 위에 → 아래로 스크롤 (BOTTOM_SAFE에 끌어붙임)
-  //
-  // 이 규칙은 마지막 문단·중간 문단·이미지·동영상·지도(iframe)·표 등
-  // 모든 요소 타입에 예외 없이 적용되어, 마우스 클릭이나 타이핑 후 항상
-  // 현재 커서 위치의 요소 끝이 미리보기 하단(BOTTOM_SAFE) 영역에 노출된다.
+  // 💡 [Safe Zone 클램핑]
+  // - 뷰포트보다 큰 대형 블록(elementHeight > containerHeight - 100): 상단(TOP_SAFE) 기준 정렬
+  // - 일반 요소 및 개별 행:
+  //   - elementBottom > BOTTOM_SAFE  : 요소 끝이 뷰포트 아래로 벗어남 → 위로 스크롤
+  //   - elementTop < TOP_SAFE        : 요소 시작이 뷰포트 위로 벗어남 → 아래로 스크롤
+  //   - 이미 Safe Zone 내부           : 스크롤 스킵 (불필요한 진동/솟구침 원천 차단)
   // ============================================================
-  const delta = elementBottom - BOTTOM_SAFE;
+  let delta = 0;
+  if (elementHeight > containerHeight - 100) {
+    if (elementTop < TOP_SAFE || elementTop > TOP_SAFE + 100) {
+      delta = elementTop - TOP_SAFE;
+    }
+  } else {
+    if (elementBottom > BOTTOM_SAFE) {
+      delta = elementBottom - BOTTOM_SAFE;
+    } else if (elementTop < TOP_SAFE) {
+      delta = elementTop - TOP_SAFE;
+    } else {
+      return; // 이미 Safe Zone 안에 완전히 들어와 있음 (불필요한 스크롤 및 진동 차단)
+    }
+  }
 
   const JITTER_THRESHOLD = options?.isTyping ? 2 : 4;
   if (Math.abs(delta) < JITTER_THRESHOLD) {

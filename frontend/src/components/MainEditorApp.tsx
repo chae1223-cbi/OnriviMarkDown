@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: 코드블록 배경색(bgColor)의 명도를 판별하여 다크 계열일 경우 은은한 갈색 대신 고대비 코발트 블루(rgba(59,130,246,0.3)) 및 1px 인셋 아웃라인(rgba(96,165,250,0.65))을 동적 주입하여 어두운 배경에서도 활성 행이 즉각 식별되도록 개선
 // 🚨 @PATCH : **2026-09-17** — [Gemini API 키 및 AI 모델명 암호문(AES) 자동 복호화 및 모델명 노출 차단]: 과거 암호화 저장된 API 키(U2FsdGVkX1...)의 Google API 400 Bad Request 에러 해결 및 하단 캡슐 버튼에 암호화된 모델명 대신 정식 모델명('Gemini 3.8 Flash')이 안전하게 렌더링되도록 자가 치유(Self-Healing) 및 복호화 파이프라인 연동
 // 🚨 @PATCH : **2026-09-17** — [인증/세션 로그아웃 시 환경설정(Gemini API 키 등) 영구 보존]: 비인증 리다이렉트 및 동시접속 기기 해제 시 clearAuthSessionStorage 연동으로 API 키 및 사용자 설정 삭제 결함 해결
 // 🚨 @PATCH : **2026-09-17** — [지식 베이스 상세 모달/출처 링크 '에디터에서 열기' 파일 로드 및 라인 점프 연동]: app:open-file-at-line 이벤트 리스너가 filePath를 무시하고 활성 문서 스크롤만 수행하던 결함을 해결하여, handleFileOpenByPath와 결합하여 비활성/미오픈 파일 로드, 탭 전환, Monaco 커서 포커스 및 라인 센터 스크롤, 프리뷰 data-line 동시 하이라이트 완벽 지원
@@ -5398,7 +5399,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-CORE-MainEditorApp-0068] MainEditorApp.tsx ➔ dynamicCssString
   // 🎯 @KICK  : 활성 CSS 프로필에서 타이포그래피, 코드 블록, 표, 체크박스, 구분선, 다크모드 재정의를 포함한 동적 CSS 생성
   // 🛡️ @GUARD : 기본 프로필은 빈 문자열 반환; blockquote, hr, color에 대한 다크모드 재정의; h2-h6 font-size 건너뜀(자동 계산)
-  // 🚨 @PATCH : 박스 중첩 아티팩트 방지를 위한 codeBlock 중첩 border/background 투명 재정의
+  // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: 코드블록 배경색(bgColor)의 명도를 판별하여 다크 계열일 경우 은은한 갈색 대신 고대비 코발트 블루(rgba(59,130,246,0.3)) 및 1px 인셋 아웃라인(rgba(96,165,250,0.65))을 동적 주입하여 어두운 배경에서도 활성 행이 즉각 식별되도록 개선; 박스 중첩 아티팩트 방지를 위한 codeBlock 중첩 border/background 투명 재정의
   // 🔗 @CALLS : None
   // ====================================================================
   const dynamicCssString = useMemo(() => {
@@ -5490,6 +5491,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
         if (bgColor) {
           css += `.custom-preview-container .codeblock-area {\n  background-color: ${bgColor} !important;\n}\n`;
+
+          // 💡 코드블록 배경색 명도(Luminance) 판별: 다크모드 계열/어두운 배경일 경우 고대비 코발트 블루 및 1px 아웃라인 하이라이트 적용
+          const isDarkBg = (() => {
+            const c = (bgColor || '').trim().toLowerCase();
+            if (c.startsWith('#')) {
+              let hex = c.slice(1);
+              if (hex.length === 3) hex = hex.split('').map((x: string) => x + x).join('');
+              if (hex.length === 6) {
+                const r = parseInt(hex.substring(0, 2), 16);
+                const g = parseInt(hex.substring(2, 4), 16);
+                const b = parseInt(hex.substring(4, 6), 16);
+                return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 140;
+              }
+            }
+            const rgb = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+            if (rgb) {
+              const r = parseInt(rgb[1], 10);
+              const g = parseInt(rgb[2], 10);
+              const b = parseInt(rgb[3], 10);
+              return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 140;
+            }
+            return true;
+          })();
+
+          if (isDarkBg) {
+            css += `.custom-preview-container .codeblock-area .onrivi-line.preview-highlight-line {\n  background-color: rgba(59, 130, 246, 0.3) !important;\n  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.65) !important;\n  border-radius: 4px;\n}\n`;
+          } else {
+            css += `.custom-preview-container .codeblock-area .onrivi-line.preview-highlight-line {\n  background-color: rgba(255, 152, 0, 0.16) !important;\n  border-radius: 4px;\n}\n`;
+          }
         }
         if (borderRadius) {
           css += `.custom-preview-container .codeblock-area {\n  border-radius: ${borderRadius} !important;\n}\n`;

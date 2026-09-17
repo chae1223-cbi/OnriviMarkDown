@@ -29,7 +29,7 @@ const VFS_CONTENT_PREFIX = 'onrivi_vfs_content_';
 // 📊 [OMD-FILE-virtualFileSystem-0001] virtualFileSystem.ts ➔ getVfsFiles
 // 🎯 @KICK  : localStorage에서 가상 파일 목록 조회, 없으면 Welcome.md로 초기화
 // 🛡️ @GUARD : window 부재, JSON 파싱 오류 시 빈 배열
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-18** — [가상 파일 시스템 노드 이동 함수 vfsMoveItem 신규 추가]: 원본 위치에서 노드를 완전히 분리(detach)한 뒤 대상 디렉토리로 이동 삽입 및 하위 콘텐츠 로컬스토리지 키 재귀 마이그레이션 완비
 // 🔗 @CALLS : saveVfsFiles, vfsWriteFile, msg.error
 // ====================================================================
 export function getVfsFiles(): FileNode[] {
@@ -347,7 +347,10 @@ export function vfsCopyItem(sourcePath: string, destDirPath: string = ''): strin
   }
 
   // 2. 새 이름 결정 (중복 방지)
-  const destDirNorm = destDirPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  let destDirNorm = destDirPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (destDirNorm === '브라우저 로컬 저장소' || destDirNorm === 'BROWSER_STORAGE_NAME') {
+    destDirNorm = '';
+  }
   const getExistingNames = (nodes: FileNode[], targetDir: string): string[] => {
     if (!targetDir) return nodes.map(n => n.name);
     for (const node of nodes) {
@@ -431,6 +434,142 @@ export function vfsCopyItem(sourcePath: string, destDirPath: string = ''): strin
   };
 
   insertNode(files, destDirNorm);
+  saveVfsFiles(files);
+  return newPath;
+}
+
+/**
+ * 가상 파일/폴더를 대상 폴더로 이동합니다. (원래 부모로부터 분리하여 대상 폴더에 삽입 및 재귀적 경로/콘텐츠 마이그레이션)
+ */
+// ====================================================================
+// 📊 [OMD-FILE-virtualFileSystem-0011] virtualFileSystem.ts ➔ vfsMoveItem
+// 🎯 @KICK  : 가상 파일/폴더를 원본 위치에서 분리(detach)하여 대상 폴더로 이동
+// 🛡️ @GUARD : 부모 배열 splice 분리, 하위 경로 및 콘텐츠 localStorage 키 재귀 마이그레이션
+// 🚨 @PATCH : **2026-09-18** — [가상 파일 시스템(VFS) 노드 실제 이동 함수 신규 구현]: 잘라내기 후 루트 또는 타 폴더 붙여넣기 시 기존 부모 배열(children)에서 노드를 완전히 분리(splice)하고 대상 디렉토리로 이동 삽입하며, 하위 콘텐츠 로컬스토리지 키 재귀 마이그레이션 지원
+// 🔗 @CALLS : getVfsFiles, saveVfsFiles, vfsReadFile, vfsWriteFile, updateChildPaths
+// ====================================================================
+export function vfsMoveItem(sourcePath: string, destDirPath: string = ''): string {
+  const files = getVfsFiles();
+
+  // 1. 소스 노드 탐색 및 기존 부모 배열에서 완전히 분리(detach)
+  let removedNode: FileNode | null = null;
+  const detachNode = (nodes: FileNode[]): boolean => {
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].path === sourcePath) {
+        [removedNode] = nodes.splice(i, 1);
+        return true;
+      }
+      if (nodes[i].kind === 'directory' && nodes[i].children) {
+        if (detachNode(nodes[i].children!)) return true;
+      }
+    }
+    return false;
+  };
+  detachNode(files);
+
+  if (!removedNode) {
+    throw new Error('이동할 원본 파일/폴더를 찾을 수 없습니다.');
+  }
+
+  const targetNode = removedNode as FileNode;
+
+  // 2. 대상 디렉토리 정규화 ('브라우저 로컬 저장소'는 루트 ''로 정규화)
+  let destDirNorm = destDirPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (destDirNorm === '브라우저 로컬 저장소' || destDirNorm === 'BROWSER_STORAGE_NAME') {
+    destDirNorm = '';
+  }
+
+  // 3. 대상 디렉토리 내 중복 이름 방지
+  const getExistingNames = (nodes: FileNode[], targetDir: string): string[] => {
+    if (!targetDir) return nodes.map(n => n.name);
+    for (const node of nodes) {
+      if (node.path === targetDir && node.kind === 'directory') {
+        return (node.children || []).map(n => n.name);
+      }
+      if (node.kind === 'directory' && node.children) {
+        const res = getExistingNames(node.children, targetDir);
+        if (res.length > 0) return res;
+      }
+    }
+    return [];
+  };
+
+  const existingNames = getExistingNames(files, destDirNorm);
+  const srcName = targetNode.name;
+  let newName = srcName;
+
+  if (existingNames.includes(newName)) {
+    if (targetNode.kind === 'file') {
+      const extMatch = srcName.match(/\.[^.]+$/);
+      const ext = extMatch ? extMatch[0] : '';
+      const baseName = ext ? srcName.slice(0, -ext.length) : srcName;
+      let counter = 1;
+      while (existingNames.includes(`${baseName}_copy${counter > 1 ? counter : ''}${ext}`)) {
+        counter++;
+      }
+      newName = `${baseName}_copy${counter > 1 ? counter : ''}${ext}`;
+    } else {
+      let counter = 1;
+      while (existingNames.includes(`${srcName}_copy${counter > 1 ? counter : ''}`)) {
+        counter++;
+      }
+      newName = `${srcName}_copy${counter > 1 ? counter : ''}`;
+    }
+  }
+
+  const newPath = destDirNorm ? `${destDirNorm}/${newName}` : newName;
+
+  // 4. 경로 및 파일 콘텐츠 키 마이그레이션
+  if (targetNode.kind === 'file') {
+    const content = vfsReadFile(sourcePath);
+    vfsWriteFile(newPath, content);
+    localStorage.removeItem(VFS_CONTENT_PREFIX + sourcePath);
+    targetNode.name = newName;
+    targetNode.path = newPath;
+  } else if (targetNode.kind === 'directory') {
+    const migrateContents = (n: FileNode) => {
+      if (n.kind === 'file' && n.path) {
+        const childOldPath = n.path;
+        const childNewPath = n.path.replace(sourcePath, newPath);
+        const content = vfsReadFile(childOldPath);
+        vfsWriteFile(childNewPath, content);
+        localStorage.removeItem(VFS_CONTENT_PREFIX + childOldPath);
+      }
+      if (n.kind === 'directory' && n.children) {
+        n.children.forEach(migrateContents);
+      }
+    };
+    migrateContents(targetNode);
+    updateChildPaths(targetNode, sourcePath, newPath);
+    targetNode.name = newName;
+    targetNode.path = newPath;
+  }
+
+  // 5. 대상 디렉토리에 삽입
+  const insertNode = (nodes: FileNode[], targetDir: string): boolean => {
+    if (!targetDir) {
+      nodes.push(targetNode);
+      return true;
+    }
+    for (const node of nodes) {
+      if (node.path === targetDir && node.kind === 'directory') {
+        if (!node.children) node.children = [];
+        node.children.push(targetNode);
+        return true;
+      }
+      if (node.kind === 'directory' && node.children) {
+        if (insertNode(node.children, targetDir)) return true;
+      }
+    }
+    return false;
+  };
+
+  const inserted = insertNode(files, destDirNorm);
+  if (!inserted && destDirNorm) {
+    // 대상 폴더를 찾지 못한 경우 안전하게 루트에 삽입
+    files.push(targetNode);
+  }
+
   saveVfsFiles(files);
   return newPath;
 }

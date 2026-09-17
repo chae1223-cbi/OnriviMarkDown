@@ -1,3 +1,5 @@
+// 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: 어두운 배경의 코드블록 내부 활성 줄 하이라이트 시 코발트 블루 및 1px 인셋 아웃라인 스타일 연동으로 시인성 극대화
+// 🚨 @PATCH : **2026-09-17** — [코드블록 내부 에디터-미리보기 커서 위치 불일치 및 솟구침 결함 완벽 해결]: 코드블록 내부를 splitChildrenIntoLines로 분할하여 각 행마다 <span class="onrivi-line" data-line="...">를 1:1로 부여, 에디터 커서 이동 시 코드블록 내부 활성 줄 단독 하이라이트 및 Safe Zone 정밀 추종 연동
 // 🚨 @PATCH : **2026-09-16** — [데스크톱 미리보기 외부 링크 클릭 시 기본 웹브라우저 오픈 연동]: <a> 태그 렌더러에 handleExternalLinkClick 탑재하여 데스크톱(Electron) 환경에서 외부 웹 링크(http/https/mailto/tel) 및 www 링크 클릭 시 electronAPI.openExternal을 통해 시스템 기본 웹브라우저 새 창이 즉시 실행되도록 개선, 로컬 파일(file:///) 링크 openPath 연동
 // 🚨 @PATCH : **2026-09-13** — [데스크탑 Mermaid '새 창으로 확대' 팝업 차단 오류 해결]: Electron setWindowOpenHandler의 deny로 window.open()이 차단되던 문제를, openInNewWindow()에서 isDesktop(electronAPI.openMermaidWindow 존재 여부) 분기를 추가하여 데스크탑 환경에서는 IPC mermaid:open-window 경유 BrowserWindow 직접 생성, 웹 환경에서는 기존 window.open() 방식을 유지하도록 분기 처리
 // 🚨 @PATCH : **2026-09-13** — [출처 링크 클릭 시 동일/타겟 문서 판별 고도화 및 미리보기·에디터 동시 스크롤·하이라이트 연동]: 상대/절대경로 및 파일명 베이스네임 매칭으로 동일 문서 오판을 해결하고, 링크 클릭 시 미리보기 부드러운 스크롤 및 하이라이트 효과와 에디터 라인 범위 선택·중앙 정렬을 동시에 트리거
@@ -568,14 +570,92 @@ function remarkDisableIndentedCode(this: any) {
   });
 }
 
+// 💡 [코드블록 내부 React 자식 노드 줄바꿈(\n) 단위 정밀 분할 헬퍼]
+// highlight.js로 파싱된 React 노드 트리(span, text)를 줄 단위(array of lines)로 안전하게 분할 보존
+function splitChildrenIntoLines(children: React.ReactNode): React.ReactNode[][] {
+  const lines: React.ReactNode[][] = [[]];
+
+  function processNode(node: React.ReactNode) {
+    if (node === null || node === undefined || node === false) return;
+
+    if (typeof node === 'string') {
+      const parts = node.split('\n');
+      for (let i = 0; i < parts.length; i++) {
+        if (i > 0) {
+          lines.push([]);
+        }
+        if (parts[i].length > 0) {
+          lines[lines.length - 1].push(parts[i]);
+        }
+      }
+      return;
+    }
+
+    if (typeof node === 'number') {
+      lines[lines.length - 1].push(String(node));
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        processNode(child);
+      }
+      return;
+    }
+
+    if (React.isValidElement(node)) {
+      const childNodes = React.Children.toArray((node.props as any)?.children);
+      const subLines: React.ReactNode[][] = [[]];
+      const processSubNode = (subNode: React.ReactNode): void => {
+        if (typeof subNode === 'string') {
+          const parts = subNode.split('\n');
+          for (let i = 0; i < parts.length; i++) {
+            if (i > 0) subLines.push([]);
+            if (parts[i].length > 0) subLines[subLines.length - 1].push(parts[i]);
+          }
+          return;
+        }
+        if (Array.isArray(subNode)) {
+          for (const c of subNode) processSubNode(c);
+          return;
+        }
+        subLines[subLines.length - 1].push(subNode);
+      };
+
+      for (const c of childNodes) {
+        processSubNode(c);
+      }
+
+      for (let i = 0; i < subLines.length; i++) {
+        if (i > 0) lines.push([]);
+        if (subLines[i].length > 0) {
+          lines[lines.length - 1].push(
+            React.cloneElement(node, { key: `${node.key || 'cb-line'}-${i}` }, ...subLines[i])
+          );
+        }
+      }
+      return;
+    }
+
+    lines[lines.length - 1].push(node);
+  }
+
+  processNode(children);
+  // 마지막 행이 코드 끝 \n으로 인해 빈 배열인 경우 제거
+  if (lines.length > 1 && lines[lines.length - 1].length === 0) {
+    lines.pop();
+  }
+  return lines;
+}
+
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0008] MarkdownViewer ➔ CodeBlock
-// 🎯 @KICK  : 코드블록을 언어명 헤더 + 복사 버튼 + 모노스페이스 렌더링
-// 🛡️ @GUARD : navigator.clipboard.writeText API 존재 여부
-// 🚨 @PATCH : 없음
-// 🔗 @CALLS : handleCopy, navigator.clipboard.writeText
+// 🎯 @KICK  : 코드블록을 언어명 헤더 + 복사 버튼 + 개별 행(.onrivi-line) 1:1 라인 매핑 및 모노스페이스 렌더링
+// 🛡️ @GUARD : navigator.clipboard.writeText API 존재 여부, 빈 행 \u200B 보존, AST/lineMap 기반 정밀 줄 번호 부여
+// 🚨 @PATCH : **2026-09-17** — [코드블록 내부 에디터-미리보기 커서 위치 불일치 및 솟구침 결함 완벽 해결]: 코드블록 내부를 splitChildrenIntoLines로 분할하여 각 행마다 <span class="onrivi-line" data-line="...">를 1:1로 부여, 에디터 커서 이동 시 코드블록 내부 활성 줄 단독 하이라이트 및 Safe Zone 정밀 추종 연동
+// 🔗 @CALLS : handleCopy, navigator.clipboard.writeText, splitChildrenIntoLines
 // ====================================================================
-function CodeBlock({ lang, code, className, children, ...props }: { lang: string; code: string; className?: string; children?: React.ReactNode; [key: string]: any }) {
+function CodeBlock({ lang, code, className, node, lineMap, children, ...props }: { lang: string; code: string; className?: string; node?: any; lineMap?: number[]; children?: React.ReactNode; [key: string]: any }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -588,11 +668,19 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
     }
   };
 
+  const startLine = extractDataLine(props, node);
+  const currentLineMap = lineMap || [];
+
+  const splitLines = useMemo(() => {
+    if (children) return splitChildrenIntoLines(children);
+    if (code) return splitChildrenIntoLines([code]);
+    return [];
+  }, [children, code]);
 
   return (
-    <div data-line={extractDataLine(props)} className="codeblock-area group my-4 rounded-lg bg-zinc-100/90 dark:bg-zinc-900/95 overflow-hidden shadow-sm select-text max-w-full border border-zinc-200/70 dark:border-zinc-800/90">
+    <div data-line={startLine} className="codeblock-area group my-4 rounded-lg bg-zinc-100/90 dark:bg-zinc-900/95 overflow-hidden shadow-sm select-text max-w-full border border-zinc-200/70 dark:border-zinc-800/90">
       {/* 코드블록 상단 헤더 (언어명 및 복사 버튼) */}
-      <div className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-zinc-200/80 dark:bg-zinc-800/95 h-9 border-b border-zinc-200/70 dark:border-zinc-800/90">
+      <div data-line={startLine} className="codeblock-header flex items-center justify-between px-4 py-1.5 bg-zinc-200/80 dark:bg-zinc-800/95 h-9 border-b border-zinc-200/70 dark:border-zinc-800/90">
         <span className="codeblock-header-text text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
           {lang || 'plaintext'}
         </span>
@@ -619,7 +707,32 @@ function CodeBlock({ lang, code, className, children, ...props }: { lang: string
       <div className="overflow-x-auto w-full custom-scrollbar">
         <pre className="m-0 p-4 font-mono text-sm leading-normal bg-transparent w-max min-w-full text-zinc-800 dark:text-white">
           <code className={`hljs ${className || ''}`} style={{ whiteSpace: 'pre' }} {...props}>
-            {children || code}
+            {splitLines.length > 0 ? (
+              splitLines.map((lineItems, idx) => {
+                const astStartLine = node?.position?.start?.line;
+                let lineNum: number | undefined = undefined;
+                if (astStartLine) {
+                  const targetAstLine = astStartLine + 1 + idx;
+                  lineNum = currentLineMap.length > 0
+                    ? (currentLineMap[targetAstLine - 1] || targetAstLine)
+                    : (startLine ? startLine + 1 + idx : targetAstLine);
+                } else if (startLine) {
+                  lineNum = startLine + 1 + idx;
+                }
+                return (
+                  <span
+                    key={idx}
+                    data-line={lineNum}
+                    className="onrivi-line block w-full min-h-[1.5em]"
+                    style={{ whiteSpace: 'pre' }}
+                  >
+                    {lineItems.length > 0 ? lineItems : '\u200B'}
+                  </span>
+                );
+              })
+            ) : (
+              children || code
+            )}
             </code>
         </pre>
       </div>
@@ -2598,7 +2711,7 @@ function MarkdownViewer({
               if (lang === 'mermaid') {
                 return <MermaidBlock code={codeContent} dataLine={extractDataLine(props, node)} />;
               }
-              return <CodeBlock lang={lang} code={codeContent} className={className} {...props}>{children}</CodeBlock>;
+              return <CodeBlock lang={lang} code={codeContent} className={className} node={node} lineMap={dynamicPropsRef.current.lineMap} {...props}>{children}</CodeBlock>;
             },
             h1: ({ node, children, style, ...props }) => {
               const line = (node as any).position?.start?.line;

@@ -7,10 +7,10 @@ import ReactMarkdown from 'react-markdown';
 import GlobalSearch from './GlobalSearch';
 import FileTreeItem from './FileTreeItem';
 import { FileNode } from '@/lib/indexedDbHelper';
-import { vfsRename, vfsCopyItem } from '@/lib/virtualFileSystem';
+import { vfsRename, vfsCopyItem, vfsMoveItem } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
-import { Plus, Scissors, FolderOpen, FolderTree, FilePlus, FolderPlus, Copy, ClipboardPaste, RotateCw, FolderInput } from 'lucide-react';
+import { Plus, Scissors, FolderOpen, FolderTree, FilePlus, FolderPlus, Copy, ClipboardPaste, RotateCw, FolderInput, Undo2 } from 'lucide-react';
 import { Icon } from '@/components/icons/Icon';
 import { msg } from '@/lib/systemMessages';
 import { useUIStore } from '@/store/useUIStore';
@@ -24,6 +24,16 @@ import { loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
+// 🚨 @PATCH : **2026-09-18** — [루트 붙여넣기 시 원래 위치 잔존 결함 해결 & 빈 영역 우클릭 메뉴 지원]:
+//             1) triggerPasteRoot/triggerCutRoot/triggerCopyRoot의 의존성 누락(stale closure) 제거 및 handlePasteNode useCallback 최신화
+//             2) 루트 붙여넣기 시 destDirPath 정상화(VFS 및 Browser FSA 환경에서 루트를 빈 상대경로 ''로 정규화)
+//             3) VFS 잘라내기 이동 시 단순 이름변경 대신 실제 부모 배열에서 분리 및 이동하는 vfsMoveItem 연동 및 dispatchMovedEvent 전파로 원래 위치 잔존 현상 원천 차단
+//             4) 브라우저 FSA 부모 핸들 탐색 시 루트 경로 접두사 정규화 제거 및 삭제 시 동일 디렉토리 방어 가드 강화
+//             5) 탐색기 빈 영역 우클릭 시 루트 컨텍스트 메뉴 즉각 호출 연동
+// 🚨 @PATCH : **2026-09-18** — [탐색기 파일/폴더 잘라내기(Cut) 및 이동(Move) 2단계 되돌리기(Undo) 시스템 탑재]:
+//             1) 잘라내기 선택 취소: Esc 및 Ctrl+Z, 컨텍스트 메뉴 '잘라내기 취소'를 통해 클립보드 cut 상태를 즉시 해제하고 반투명 효과를 100% 정상 복원
+//             2) 이동 실행 취소: 이동 이력 스택(moveHistoryRef)을 기반으로 Ctrl+Z 또는 컨텍스트 메뉴 '이동 되돌리기' 실행 시 Electron/브라우저 FSA/VFS 환경에서 원본 폴더로 역방향 자동 복원 및 탭/트리 실시간 동기화
+// 🚨 @PATCH : **2026-09-17** — [붙여넣기 시 불필요한 2중/3중 지연 새로고침 제거]: handlePasteNode에서 250ms 및 700ms로 중복 호출되던 setTimeout 지연 리프레시를 전면 제거하고 1회 즉시 갱신으로 최적화
 // 🚨 @PATCH : **2026-09-17** — [탐색기 단축키 고도화 & 붙여넣기 후 지연 다중 새로고침 연동]: 탐색기 루트 및 컨텍스트 메뉴 단축키 개편(새로고침: Ctrl+F5/⌘F5, 새 폴더: Ctrl+Alt+N/⌥⌘N), 웹 브라우저 환경에서 Electron 미주입 시 FSA/VFS로의 안전 폴백 보장 및 붙여넣기 후 다중 디렉토리 새로고침 완비
 // 🚨 @PATCH : **2026-09-16** — [삭제/이동된 폴더 지연 로딩 시 NotFoundError 콘솔 경고 억제 및 onrivi_expanded_paths 자동 소거]: handleLazyLoad에서 이미 삭제되거나 이동된 폴더의 NotFoundError 발생 시 불필요한 콘솔 경고 스팸을 차단하고 localStorage의 onrivi_expanded_paths에서 해당 경로를 즉시 자동 소거하며, handlePasteNode 이동 시에도 기존 폴더의 확장 상태를 정리하여 클린 트리 유지
 // 🚨 @PATCH : **2026-09-16** — [웹 브라우저 루트 붙여넣기 오류 수정 & 열린 탭 잘라내기 방어 가드 강화]: 1) handlePasteNode에서 rootFolderHandle 오참조를 rootFolder?.handle로 교체하여 웹 루트 붙여넣기 실패 결함 해결, 2) handleCutNode 및 handlePasteNode에서 openTabPaths 검사로 열려 있는 파일/하위 파일 포함 폴더 잘라내기 원천 차단
@@ -406,7 +416,152 @@ export default function LeftSidebar() {
   // 📋 파일/폴더 복사 및 붙여넣기/잘라내기 클립보드 상태
   const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any; op?: 'copy' | 'cut' } | null>(null);
 
-  const handleCopyNode = (targetNode?: FileNode, parentHandle?: any) => {
+  // ↩️ 파일/폴더 이동 실행 취소(Undo) 히스토리 스택
+  interface MoveHistoryItem {
+    srcPath: string;
+    destPath: string;
+    srcDirPath: string;
+    destDirPath: string;
+    name: string;
+    kind: 'file' | 'directory';
+    workspaceType: string;
+    sourceParentHandle?: any;
+    destParentHandle?: any;
+    srcNode?: FileNode;
+  }
+  const moveHistoryRef = useRef<MoveHistoryItem[]>([]);
+  const [hasUndoableMove, setHasUndoableMove] = useState(false);
+
+  // ✂️ 잘라내기 선택 상태 취소 핸들러
+  const handleCancelCut = useCallback(() => {
+    const clip = clipboardNode || (typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null);
+    if (!clip || clip.op !== 'cut') return;
+
+    const nodeName = clip.node?.name || '항목';
+    setClipboardNode(null);
+    if (typeof window !== 'undefined') {
+      (window as any)._omdClipboardNode = null;
+      window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: null }));
+    }
+    showToast(`'${nodeName}' 잘라내기가 취소되었습니다.`, 'info');
+  }, [clipboardNode, showToast]);
+
+  // 📡 이동 완료 전역 이벤트 발송 (FileTreeItem 디렉토리 갱신 및 에디터 탭 동기화)
+  const dispatchMovedEvent = useCallback((srcPath: string, tgtPath: string, newPath?: string, sourceName?: string, newHandle?: any) => {
+    const normSrc = srcPath.replace(/\\/g, '/');
+    const normTgt = tgtPath.replace(/\\/g, '/');
+    const srcParentPath = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
+    const tgtParentPath = normTgt.includes('/') ? normTgt.substring(0, normTgt.lastIndexOf('/')) : '';
+    
+    window.dispatchEvent(new CustomEvent('file:moved', {
+      detail: { sourceParentPath: srcParentPath, targetParentPath: tgtParentPath, targetPath: normTgt }
+    }));
+
+    if (newPath && sourceName) {
+      window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+        detail: { oldPath: srcPath, newPath, newName: sourceName, newHandle }
+      }));
+    }
+  }, []);
+
+  // ↩️ 이동 실행 취소(되돌리기) 핸들러
+  const handleUndoMove = useCallback(async () => {
+    const history = moveHistoryRef.current;
+    if (history.length === 0) {
+      showToast('되돌릴 이동 작업이 없습니다.', 'info');
+      return;
+    }
+
+    const lastAction = history.pop();
+    setHasUndoableMove(history.length > 0);
+    window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: history.length } }));
+
+    if (!lastAction) return;
+
+    const { srcPath, destPath, destDirPath, srcDirPath, name, kind, sourceParentHandle, destParentHandle, workspaceType: moveWorkspaceType } = lastAction;
+    const isDir = kind === 'directory';
+
+    try {
+      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+
+      // 1. Electron 데스크톱 환경
+      if ((workspaceType === 'local' || moveWorkspaceType === 'local') && api) {
+        if (api?.moveFile) {
+          const res = await api.moveFile(destPath, srcPath);
+          if (res && res.error) throw new Error(res.error);
+        } else if (api?.renameFile) {
+          await api.renameFile(destPath, srcPath);
+        } else {
+          const res = await fetch(getApiUrl('/api/rename'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oldPath: destPath, newPath: srcPath })
+          });
+          if (!res.ok) throw new Error('되돌리기 API 호출 실패');
+        }
+      }
+      // 2. 브라우저 FSA 환경
+      else if (destParentHandle && sourceParentHandle) {
+        if (isDir) {
+          const copyDirRecursive = async (sourceDirHandle: any, targetParentHandle: any, dirName: string) => {
+            const newDir = await targetParentHandle.getDirectoryHandle(dirName, { create: true });
+            for await (const [entryName, entryHandle] of sourceDirHandle.entries()) {
+              if (entryHandle.kind === 'directory') {
+                await copyDirRecursive(entryHandle, newDir, entryName);
+              } else {
+                const f = await entryHandle.getFile();
+                const newF = await newDir.getFileHandle(entryName, { create: true });
+                const w = await newF.createWritable();
+                await w.write(f);
+                await w.close();
+              }
+            }
+          };
+          const targetDir = await destParentHandle.getDirectoryHandle(name);
+          await copyDirRecursive(targetDir, sourceParentHandle, name);
+          await destParentHandle.removeEntry(name, { recursive: true });
+        } else {
+          const fileHandle = await destParentHandle.getFileHandle(name);
+          const file = await fileHandle.getFile();
+          const newFileHandle = await sourceParentHandle.getFileHandle(name, { create: true });
+          const writable = await newFileHandle.createWritable();
+          await writable.write(file);
+          await writable.close();
+          await destParentHandle.removeEntry(name);
+        }
+      }
+      // 3. VFS 환경
+      else if (destPath && srcPath) {
+        vfsMoveItem(destPath, srcDirPath);
+      }
+
+      dispatchMovedEvent(destPath, srcDirPath, srcPath, name);
+      await refreshFileList();
+      window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+      showToast(`'${name}'을(를) 원래 위치로 되돌렸습니다.`, 'success');
+    } catch (err: any) {
+      showToast(`되돌리기 실패: ${err.message || err}`, 'error');
+      history.push(lastAction);
+      setHasUndoableMove(true);
+      window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: history.length } }));
+    }
+  }, [workspaceType, refreshFileList, showToast, dispatchMovedEvent]);
+
+  // ⌨️ 되돌리기 단축키(Ctrl+Z) 통합 트리거 (잘라내기 취소 우선, 그 다음 이동 되돌리기)
+  const triggerUndo = useCallback(() => {
+    const clip = clipboardNode || (typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null);
+    if (clip && clip.op === 'cut') {
+      handleCancelCut();
+      return;
+    }
+    if (moveHistoryRef.current.length > 0) {
+      handleUndoMove();
+    } else {
+      showToast('되돌릴 이동 또는 잘라내기 작업이 없습니다.', 'info');
+    }
+  }, [clipboardNode, handleCancelCut, handleUndoMove, showToast]);
+
+  const handleCopyNode = useCallback((targetNode?: FileNode, parentHandle?: any) => {
     const nodeToCopy = targetNode || currentFileNode;
     if (!nodeToCopy) {
       showToast('복사할 파일 또는 폴더를 선택하세요.', 'warning');
@@ -419,9 +574,9 @@ export default function LeftSidebar() {
       window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: item }));
     }
     showToast(`'${nodeToCopy.name}'이(가) 클립보드에 복사되었습니다.`, 'success');
-  };
+  }, [currentFileNode, showToast]);
 
-  const handleCutNode = (targetNode?: FileNode, parentHandle?: any) => {
+  const handleCutNode = useCallback((targetNode?: FileNode, parentHandle?: any) => {
     const nodeToCut = targetNode || currentFileNode;
     if (!nodeToCut) {
       showToast('잘라낼 파일 또는 폴더를 선택하세요.', 'warning');
@@ -455,9 +610,9 @@ export default function LeftSidebar() {
       window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: item }));
     }
     showToast(`'${nodeToCut.name}'이(가) 잘라내기되었습니다. 붙여넣을 위치를 선택하세요.`, 'info');
-  };
+  }, [currentFileNode, openTabPaths, showToast]);
 
-  const handlePasteNode = async (targetDirNode?: FileNode, targetHandle?: any) => {
+  const handlePasteNode = useCallback(async (targetDirNode?: FileNode, targetHandle?: any) => {
     const clip = clipboardNode || (typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null);
     if (!clip || !clip.node) {
       showToast('클립보드에 복사되거나 잘라낸 파일 또는 폴더가 없습니다.', 'warning');
@@ -466,7 +621,16 @@ export default function LeftSidebar() {
 
     const srcNode = clip.node;
     const isCut = clip.op === 'cut';
-    let destDirPath = targetDirNode ? (targetDirNode.path || '') : (rootFolder?.path || rootFolder?.name || '');
+    let destDirPath = targetDirNode ? (targetDirNode.path || '') : '';
+    if (!targetDirNode) {
+      if (workspaceType === 'local') {
+        destDirPath = (rootFolder?.name || rootFolder?.path || '');
+      } else {
+        destDirPath = (rootFolder?.path && rootFolder.path !== BROWSER_STORAGE_NAME && rootFolder.path !== '브라우저 로컬 저장소')
+          ? rootFolder.path
+          : '';
+      }
+    }
 
     // 대상 노드가 파일인 경우 부모 디렉토리로 계산
     if (targetDirNode && targetDirNode.kind === 'file') {
@@ -521,6 +685,23 @@ export default function LeftSidebar() {
             }
             showToast(`'${srcNode.name}'을(를) 이동했습니다.`, 'success');
             dispatchMovedEvent(srcNode.path, destDirPath, newPath, srcNode.name);
+
+            // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
+            const normSrc = srcNode.path.replace(/\\/g, '/');
+            const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
+            moveHistoryRef.current.push({
+              srcPath: srcNode.path,
+              destPath: newPath,
+              srcDirPath: srcDir,
+              destDirPath: destDirPath,
+              name: srcNode.name,
+              kind: srcNode.kind || 'file',
+              workspaceType: 'local',
+              srcNode
+            });
+            setHasUndoableMove(true);
+            window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: moveHistoryRef.current.length } }));
+
             setClipboardNode(null);
             if (typeof window !== 'undefined') {
               (window as any)._omdClipboardNode = null;
@@ -534,8 +715,6 @@ export default function LeftSidebar() {
           }
           await refreshFileList();
           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-          setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
-          setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 700);
           return;
         }
       }
@@ -614,7 +793,18 @@ export default function LeftSidebar() {
         // 잘라내기인 경우 원래 부모 핸들에서 기존 항목 제거
         let sourceParentHandle = clip.parentHandle;
         if (!sourceParentHandle && rootFolder?.handle) {
-          const normSrc = (srcNode.path || '').replace(/\\/g, '/');
+          let normSrc = (srcNode.path || '').replace(/\\/g, '/');
+          const rootNorm = (rootFolder?.path || '').replace(/\\/g, '/');
+          if (rootNorm && normSrc.startsWith(rootNorm + '/')) {
+            normSrc = normSrc.slice(rootNorm.length + 1);
+          } else if (rootNorm && normSrc === rootNorm) {
+            normSrc = '';
+          }
+          if (rootFolder?.name && normSrc.startsWith(rootFolder.name + '/')) {
+            normSrc = normSrc.slice(rootFolder.name.length + 1);
+          }
+          normSrc = normSrc.replace(/^\/+/, '');
+
           const parts = normSrc.split('/').filter(Boolean);
           if (parts.length <= 1) {
             sourceParentHandle = rootFolder.handle;
@@ -630,7 +820,7 @@ export default function LeftSidebar() {
             }
           }
         }
-        if (isCut && sourceParentHandle && typeof sourceParentHandle.removeEntry === 'function') {
+        if (isCut && sourceParentHandle && typeof sourceParentHandle.removeEntry === 'function' && sourceParentHandle !== effectiveDirHandle) {
           try {
             await sourceParentHandle.removeEntry(srcNode.name, { recursive: isDir });
           } catch (delErr) {
@@ -651,6 +841,27 @@ export default function LeftSidebar() {
               }
             } catch {}
           }
+          // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
+          const normSrc = (srcNode.path || srcNode.name).replace(/\\/g, '/');
+          const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
+          const newPath = destDirPath ? `${destDirPath}/${srcNode.name}` : srcNode.name;
+          moveHistoryRef.current.push({
+            srcPath: srcNode.path || srcNode.name,
+            destPath: newPath,
+            srcDirPath: srcDir,
+            destDirPath: destDirPath,
+            name: srcNode.name,
+            kind: srcNode.kind || 'file',
+            workspaceType: 'browser',
+            sourceParentHandle: sourceParentHandle,
+            destParentHandle: effectiveDirHandle,
+            srcNode
+          });
+          setHasUndoableMove(true);
+          window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: moveHistoryRef.current.length } }));
+
+          dispatchMovedEvent(srcNode.path || srcNode.name, destDirPath, newPath, srcNode.name);
+
           setClipboardNode(null);
           if (typeof window !== 'undefined') {
             (window as any)._omdClipboardNode = null;
@@ -663,16 +874,32 @@ export default function LeftSidebar() {
 
         await refreshFileList();
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-        setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
-        setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 700);
         return;
       }
 
       // 3. VFS (Web LocalStorage 가상 파일 시스템)
       if (srcNode.path) {
         if (isCut) {
-          const newPath = destDirPath ? `${destDirPath}/${srcNode.name}` : srcNode.name;
-          vfsRename(srcNode.path, newPath);
+          const newPath = vfsMoveItem(srcNode.path, destDirPath);
+
+          // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
+          const normSrc = srcNode.path.replace(/\\/g, '/');
+          const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
+          moveHistoryRef.current.push({
+            srcPath: srcNode.path,
+            destPath: newPath,
+            srcDirPath: srcDir,
+            destDirPath: destDirPath,
+            name: srcNode.name,
+            kind: srcNode.kind || 'file',
+            workspaceType: 'vfs',
+            srcNode
+          });
+          setHasUndoableMove(true);
+          window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: moveHistoryRef.current.length } }));
+
+          dispatchMovedEvent(srcNode.path, destDirPath, newPath, srcNode.name);
+
           setClipboardNode(null);
           if (typeof window !== 'undefined') {
             (window as any)._omdClipboardNode = null;
@@ -685,14 +912,12 @@ export default function LeftSidebar() {
         }
         await refreshFileList();
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-        setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 250);
-        setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 700);
         return;
       }
     } catch (e: any) {
       showToast((isCut ? '이동' : '붙여넣기') + ' 실패: ' + (e.message || e), 'error');
     }
-  };
+  }, [clipboardNode, rootFolder, workspaceType, openTabPaths, showToast, refreshFileList, dispatchMovedEvent]);
 
   const handleRenameActive = () => {
     if (!currentFileName && !currentFileNode) {
@@ -714,16 +939,64 @@ export default function LeftSidebar() {
     const onCopyEvent = (e: any) => handleCopyNode(e.detail?.node, e.detail?.parentHandle);
     const onCutEvent = (e: any) => handleCutNode(e.detail?.node, e.detail?.parentHandle);
     const onPasteEvent = (e: any) => handlePasteNode(e.detail?.targetDirNode, e.detail?.targetHandle);
+    const onCancelCutEvent = () => handleCancelCut();
+    const onUndoMoveEvent = () => handleUndoMove();
+
     window.addEventListener('file:copy-node', onCopyEvent);
     window.addEventListener('file:cut-node', onCutEvent);
     window.addEventListener('file:paste-node', onPasteEvent);
+    window.addEventListener('file:cancel-cut', onCancelCutEvent);
+    window.addEventListener('file:undo-move', onUndoMoveEvent);
     return () => {
       window.removeEventListener('file:copy-node', onCopyEvent);
       window.removeEventListener('file:cut-node', onCutEvent);
       window.removeEventListener('file:paste-node', onPasteEvent);
+      window.removeEventListener('file:cancel-cut', onCancelCutEvent);
+      window.removeEventListener('file:undo-move', onUndoMoveEvent);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clipboardNode, currentFileNode, rootFolder, workspaceType]);
+  }, [handleCopyNode, handleCutNode, handlePasteNode, handleCancelCut, handleUndoMove]);
+
+  // ⌨️ [전역 탐색기 단축키] Esc(잘라내기 취소) 및 Ctrl+Z(이동 되돌리기) 연동
+  useEffect(() => {
+    const handleGlobalShortcuts = (e: KeyboardEvent) => {
+      const isMacPlatform = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isCtrl = isMacPlatform ? e.metaKey : e.ctrlKey;
+
+      if (e.key === 'Escape') {
+        const clip = typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null;
+        if (clip && clip.op === 'cut') {
+          handleCancelCut();
+        }
+        return;
+      }
+
+      if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')) {
+        const target = e.target as HTMLElement;
+        if (target) {
+          const isFormElement = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+          const isInsideMonaco = !!target.closest('.monaco-editor');
+          if (isFormElement || isInsideMonaco) {
+            return;
+          }
+        }
+        const clip = typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null;
+        if (clip && clip.op === 'cut') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleCancelCut();
+        } else if (moveHistoryRef.current.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleUndoMove();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalShortcuts);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalShortcuts);
+    };
+  }, [handleCancelCut, handleUndoMove]);
 
   // ⌨️ [루트 액션 트리거]
   const triggerCreateRootFile = useCallback(() => {
@@ -749,20 +1022,27 @@ export default function LeftSidebar() {
   const triggerCopyRoot = useCallback(() => {
     setContextMenu(null);
     handleCopyNode();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleCopyNode]);
 
   const triggerCutRoot = useCallback(() => {
     setContextMenu(null);
     handleCutNode();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleCutNode]);
 
   const triggerPasteRoot = useCallback(() => {
     setContextMenu(null);
     handlePasteNode();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handlePasteNode]);
+
+  const triggerCancelCutRoot = useCallback(() => {
+    setContextMenu(null);
+    handleCancelCut();
+  }, [handleCancelCut]);
+
+  const triggerUndoMoveRoot = useCallback(() => {
+    setContextMenu(null);
+    handleUndoMove();
+  }, [handleUndoMove]);
 
   const triggerRefreshRoot = useCallback(async () => {
     setContextMenu(null);
@@ -794,6 +1074,9 @@ export default function LeftSidebar() {
       if (e.key === 'Escape') {
         e.preventDefault();
         setContextMenu(null);
+        if (clipboardNode?.op === 'cut') {
+          handleCancelCut();
+        }
         return;
       }
 
@@ -865,6 +1148,15 @@ export default function LeftSidebar() {
         return;
       }
 
+      // Ctrl+Z: 되돌리기 (잘라내기 취소 또는 이동 되돌리기)
+      if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu(null);
+        triggerUndo();
+        return;
+      }
+
       // Shift+Alt+R: 탐색기에서 보기
       if (e.shiftKey && e.altKey && (e.key === 'R' || e.key === 'r')) {
         e.preventDefault();
@@ -878,7 +1170,7 @@ export default function LeftSidebar() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [contextMenu, isRestrictedUser, triggerRefreshRoot, triggerImportRoot, triggerCreateRootFolder, triggerCreateRootFile, triggerCopyRoot, triggerCutRoot, triggerPasteRoot, triggerRevealRoot]);
+  }, [contextMenu, isRestrictedUser, clipboardNode, handleCancelCut, triggerUndo, triggerRefreshRoot, triggerImportRoot, triggerCreateRootFolder, triggerCreateRootFile, triggerCopyRoot, triggerCutRoot, triggerPasteRoot, triggerRevealRoot]);
 
   const handleDragOverRoot = (e: React.DragEvent) => {
     e.preventDefault();
@@ -890,23 +1182,6 @@ export default function LeftSidebar() {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOverRoot(false);
-  };
-
-  const dispatchMovedEvent = (srcPath: string, tgtPath: string, newPath?: string, sourceName?: string, newHandle?: any) => {
-    const normSrc = srcPath.replace(/\\/g, '/');
-    const normTgt = tgtPath.replace(/\\/g, '/');
-    const srcParentPath = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
-    const tgtParentPath = normTgt.includes('/') ? normTgt.substring(0, normTgt.lastIndexOf('/')) : '';
-    
-    window.dispatchEvent(new CustomEvent('file:moved', {
-      detail: { sourceParentPath: srcParentPath, targetParentPath: tgtParentPath, targetPath: normTgt }
-    }));
-
-    if (newPath && sourceName) {
-      window.dispatchEvent(new CustomEvent('file:tab-renamed', {
-        detail: { oldPath: srcPath, newPath, newName: sourceName, newHandle }
-      }));
-    }
   };
 
   const handleDropRoot = async (e: React.DragEvent) => {
@@ -1636,7 +1911,19 @@ export default function LeftSidebar() {
 
       {/* 탭 바디 — 항상 마운트, hidden으로 표시/숨김 제어 */}
       <div className="flex-1 min-h-0 relative flex flex-col">
-        <div className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}>
+        <div 
+          className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}
+          onContextMenu={(e) => {
+            if (isRestrictedUser) return;
+            const target = e.target as HTMLElement;
+            if (!target.closest('[role="treeitem"]')) {
+              e.preventDefault();
+              e.stopPropagation();
+              window.dispatchEvent(new CustomEvent('close-context-menus'));
+              setContextMenu({ x: e.clientX, y: e.clientY });
+            }
+          }}
+        >
           {(rootFolder as any)?.needPermission ? (
             // 이전 워크스페이스 권한 복구 안내
             <div className="text-zinc-500 dark:text-zinc-400 text-[12px] text-center py-5 space-y-2.5 px-3">
@@ -1854,6 +2141,36 @@ export default function LeftSidebar() {
                                 </div>
                                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘V' : 'Ctrl+V'}</kbd>
                               </button>
+                              {clipboardNode?.op === 'cut' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    triggerCancelCutRoot();
+                                  }}
+                                  className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-amber-600 dark:text-amber-400 font-medium"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                    <span className="truncate">잘라내기 취소</span>
+                                  </div>
+                                  <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">Esc</kbd>
+                                </button>
+                              )}
+                              {hasUndoableMove && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    triggerUndoMoveRoot();
+                                  }}
+                                  className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                    <span className="truncate">이동 되돌리기</span>
+                                  </div>
+                                  <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘Z' : 'Ctrl+Z'}</kbd>
+                                </button>
+                              )}
                             </>
                           )}
                           <button

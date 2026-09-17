@@ -21,6 +21,7 @@ interface MergeModalProps {
 // 📊 [OMD-FILE-MergeModal-0007] MergeModal ➔ MergeModal
 // 🎯 @KICK  : 여러 파일을 선택 순서대로 병합하여 새 파일로 저장 (로컬/브라우저 모드 대응)
 // 🛡️ @GUARD : isOpen/mounted false 시 null 반환; 최소 2개 파일 필요
+// 🚨 @PATCH : **2026-09-17** — [문서 병합 후 2중 중복 새로고침 제거]: 병합 완료 시 불필요하게 300ms 후 재호출되던 setTimeout 지연 리프레시 5개소를 전면 제거하고 1회 즉시 갱신으로 일원화
 // 🚨 @PATCH : **2026-07-06** — 타이틀 아이콘 깨짐 수정(? → Layers), 찾아보기 버튼 조건 electronAPI 유무로 변경, 브라우저 모드 저장 위치 지정(showSaveFilePicker / showDirectoryPicker) 추가
 // 🔗 @CALLS : handleMerge, moveUp, moveDown, removeItem, showToast
 // ====================================================================
@@ -190,7 +191,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
             refreshParent();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-            setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
             onClose();
           } else {
             showToast("글 병합 중 오류가 발생했습니다: " + result.error, 'error');
@@ -215,7 +215,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
             refreshParent();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-            setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
             onClose();
           } else {
             const errData = await res.json();
@@ -315,7 +314,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
             refreshParent();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-            setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
             onClose();
           } else {
             // showDirectoryPicker로 선택한 폴더에 저장
@@ -333,7 +331,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
             showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
             refreshParent();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-            setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
             onClose();
           }
 
@@ -356,7 +353,6 @@ const MergeModal: React.FC<MergeModalProps> = ({
           showToast("문서 병합이 정상적으로 처리되었습니다.", 'success');
           refreshParent();
           window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-          setTimeout(() => { refreshParent(); window.dispatchEvent(new CustomEvent('file:refresh-all-directories')); }, 300);
           onClose();
         }
       }

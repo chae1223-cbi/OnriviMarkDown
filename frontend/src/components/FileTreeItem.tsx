@@ -4,6 +4,11 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-18** — [파일 노드 우클릭 붙여넣기 시 대상 부모 디렉토리 정상 계산 연동]: triggerPaste에서 파일 노드 우클릭 시 targetDirNode로 현재 노드를 온전히 전달하여 부모 폴더 경로가 정상 산출되도록 보강
+// 🚨 @PATCH : **2026-09-18** — [탐색기 파일/폴더 잘라내기(Cut) 및 이동(Move) 2단계 되돌리기(Undo) 시스템 탑재]:
+//             1) 잘라내기 선택 취소: Esc 및 Ctrl+Z, 컨텍스트 메뉴 '잘라내기 취소'를 통해 클립보드 cut 상태를 즉시 해제하고 반투명 효과를 100% 정상 복원
+//             2) 이동 실행 취소: 이동 이력 스택을 기반으로 Ctrl+Z 또는 컨텍스트 메뉴 '이동 되돌리기' 실행 시 Electron/브라우저 FSA/VFS 환경에서 원본 폴더로 역방향 자동 복원 및 파일 트리 실시간 동기화
+// 🚨 @PATCH : **2026-09-17** — [탐색기 조작 시 2중 중복 새로고침 결함 완벽 해결]: 파일/폴더 생성·이름변경·삭제·붙여넣기 시 잔존하던 불필요한 setTimeout 지연 재호출(300ms/700ms/800ms)을 전면 제거하고 단일 즉시 갱신 및 250ms 쿨다운 락으로 일원화
 // 🚨 @PATCH : **2026-09-17** — [ESLint react-hooks/exhaustive-deps 경고 100% 해소]: refreshThisDirectory 및 handleDelete를 useCallback으로 래핑하여 의존성 배열 안정성 확보 및 불필요한 재렌더링 방지
 // 🚨 @PATCH : **2026-09-17** — [탐색기 단축키 고도화 & 붙여넣기 후 즉시 새로고침 연동]: 컨텍스트 메뉴 및 트리 포커스 시 새 폴더 단축키를 Ctrl+Alt+N(⌥⌘N)으로 개편하고, 붙여넣기(Ctrl+V) 완료 시 대상 디렉토리 자동 펼침(isOpen) 및 지연 2중 새로고침(refreshThisDirectory/file:refresh-all-directories)을 즉각 수행하도록 보강
 // 🚨 @PATCH : **2026-09-17** — [탐색기 파일/폴더 컨텍스트 메뉴 일반 단축키 적용 및 힌트 뱃지 표기]: 컨텍스트 메뉴 및 트리 항목 포커스 시 F2(이름변경), Del(삭제), Ctrl+C(복사), Ctrl+X(잘라내기), Ctrl+V(붙여넣기), Alt+N(새파일), Ctrl+Alt+N(새폴더), Shift+Alt+R(탐색기보기) 일반 단축키 전면 연동 및 메뉴 우측 단축키 라벨 시각화
@@ -31,7 +36,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste } from 'lucide-react';
+import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2 } from 'lucide-react';
 import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/virtualFileSystem';
@@ -79,6 +84,9 @@ const FileTreeItem = ({
   );
 
   const [isCut, setIsCut] = useState(false);
+  const [hasClipboardCut, setHasClipboardCut] = useState(false);
+  const [hasUndoableMove, setHasUndoableMove] = useState(false);
+
   useEffect(() => {
     const checkIsCut = () => {
       const clip = typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null;
@@ -86,8 +94,10 @@ const FileTreeItem = ({
         const clipPath = clip.node.path || clip.node.name;
         const myPath = rawNode.path || rawNode.name;
         setIsCut(clipPath === myPath);
+        setHasClipboardCut(true);
       } else {
         setIsCut(false);
+        setHasClipboardCut(false);
       }
     };
     checkIsCut();
@@ -96,6 +106,16 @@ const FileTreeItem = ({
       window.removeEventListener('file:clipboard-changed', checkIsCut);
     };
   }, [rawNode.path, rawNode.name]);
+
+  useEffect(() => {
+    const onMoveHistoryChanged = (e: any) => {
+      setHasUndoableMove((e.detail?.count || 0) > 0);
+    };
+    window.addEventListener('file:move-history-changed', onMoveHistoryChanged);
+    return () => {
+      window.removeEventListener('file:move-history-changed', onMoveHistoryChanged);
+    };
+  }, []);
 
   // 🛡️ 백엔드/VFS 노드 규격(type: 'dir'/'file' -> kind) 자동 호환 안전장치
   const node = React.useMemo(() => {
@@ -231,12 +251,20 @@ const FileTreeItem = ({
   // ====================================================================
   // 📊 [OMD-FILE-FileTreeItem-0003] FileTreeItem ➔ refreshThisDirectory
   // 🎯 @KICK  : 현재 디렉토리 노드의 자식 목록을 지연 로딩(onLazyLoad)으로 갱신
-  // 🛡️ @GUARD : 디렉토리가 아니거나 onLazyLoad 미존재 시 실행 차단; NotFoundError 시 트리 및 로컬스토리지 정리
-  // 🚨 @PATCH : **2026-09-16** — [삭제/이동된 폴더 NotFoundError 예외 처리 및 부모 갱신]: 삭제된 폴더 갱신 시 경고 대신 트리 닫기 및 부모 리프레시 연동
+  // 🛡️ @GUARD : 디렉토리가 아니거나 onLazyLoad 미존재 시 실행 차단; NotFoundError 시 트리 및 로컬스토리지 정리; 250ms 이내 중복 실행 차단
+  // 🚨 @PATCH : **2026-09-17** — [폴더 자식 갱신 시 2중 깜빡임 및 중복 로딩 차단]: 250ms 쿨다운 락을 부여하여 동일 폴더가 짧은 시간 내 2회 이상 연속 갱신되는 현상 방어
   // 🔗 @CALLS : onLazyLoad, refreshParent
   // ====================================================================
+  const isDirRefreshingRef = useRef(false);
+  const lastDirRefreshTimeRef = useRef(0);
   const refreshThisDirectory = useCallback(async () => {
     if (node.kind !== 'directory' || !onLazyLoad) return;
+    const now = Date.now();
+    if (isDirRefreshingRef.current || now - lastDirRefreshTimeRef.current < 250) {
+      return;
+    }
+    isDirRefreshingRef.current = true;
+    lastDirRefreshTimeRef.current = now;
     setIsLoading(true);
     try {
       const children = await onLazyLoad(node);
@@ -263,6 +291,7 @@ const FileTreeItem = ({
       }
     } finally {
       setIsLoading(false);
+      isDirRefreshingRef.current = false;
     }
   }, [node, onLazyLoad, refreshParent]);
   // 드래그 이동 완료 후 이 디렉토리가 source/target이면 자식 목록 갱신
@@ -609,9 +638,7 @@ const FileTreeItem = ({
               node.name = finalName;
               node.path = newPath;
 
-              setTimeout(() => {
-                refreshParent();
-              }, 800);
+              refreshParent();
               // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음)
               window.dispatchEvent(new CustomEvent('file:tab-renamed', {
                 detail: { oldPath, newPath, newName: finalName, newHandle }
@@ -655,10 +682,8 @@ const FileTreeItem = ({
               node.children = [];
               setLocalChildren(null);
 
-              setTimeout(() => {
-                refreshParent();
-                refreshThisDirectory();
-              }, 800);
+              refreshParent();
+              refreshThisDirectory();
             }
           } else if (node.path) {
             // LocalStorage 가상 파일/폴더 이름 변경
@@ -691,8 +716,6 @@ const FileTreeItem = ({
             node.path = newPath;
             node.name = finalName;
             refreshParent();
-            // 🛡️ [요구사항 1] 지연 새로고침을 800ms로 상향하여 OS 파일 인덱싱 락 완벽 방어
-            setTimeout(() => refreshParent(), 800);
 
             // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음) — oldNodePath 스냅샷 사용
             window.dispatchEvent(new CustomEvent('file:tab-renamed', {
@@ -709,7 +732,6 @@ const FileTreeItem = ({
               node.path = newPath;
               node.name = finalName;
               refreshParent();
-              setTimeout(() => refreshParent(), 800);
               // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음) — oldNodePath 스냅샷 사용
               window.dispatchEvent(new CustomEvent('file:tab-renamed', {
                 detail: { oldPath: oldNodePath, newPath, newName: finalName }
@@ -753,7 +775,6 @@ const FileTreeItem = ({
             if (result.success) {
               await refreshThisDirectory();
               window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-              setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 300);
               openFile({ name: finalName, kind: 'file', path: result.path }, node.handle);
             }
           } else {
@@ -766,7 +787,6 @@ const FileTreeItem = ({
               const data = await res.json();
               await refreshThisDirectory();
               window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-              setTimeout(() => window.dispatchEvent(new CustomEvent('file:refresh-all-directories')), 300);
               openFile({ name: finalName, kind: 'file', path: data.path }, node.handle);
             }
           }
@@ -803,14 +823,10 @@ const FileTreeItem = ({
         // 🆕 생성 직후 부모 폴더를 열고 새 폴더를 자동 선택/하이라이트
         setIsOpen(true);
         const newFolderPath = node.path ? `${node.path}/${name}` : name;
-        
-        // 🛡️ [OS 파일 인덱싱 지연 보정 가드] 300ms의 마진을 두고 자식 리스트 갱신 및 파일 시스템 전역 리플래시 연동
-        setTimeout(async () => {
-          await refreshThisDirectory();
-          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-          // 새로 생성된 폴더 자동 선택 이벤트
-          window.dispatchEvent(new CustomEvent('file:select-node', { detail: { path: newFolderPath } }));
-        }, 300);
+        await refreshThisDirectory();
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        // 새로 생성된 폴더 자동 선택 이벤트
+        window.dispatchEvent(new CustomEvent('file:select-node', { detail: { path: newFolderPath } }));
       } catch(e) { showToast("생성 실패: " + e, 'error'); }
     }
   };
@@ -877,10 +893,6 @@ const FileTreeItem = ({
               }
               refreshParent();
               window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-              setTimeout(() => {
-                refreshParent();
-                window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-              }, 300);
             } else if (node.path) {
               // LocalStorage 가상 파일/폴더 삭제
               vfsDelete(node.path);
@@ -914,10 +926,6 @@ const FileTreeItem = ({
             }
             refreshParent();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-            setTimeout(() => {
-              refreshParent();
-              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-            }, 300);
           }
           if (currentFileName === node.name) {
             openFile(null); 
@@ -1026,20 +1034,14 @@ const FileTreeItem = ({
       if (!isOpen) {
         setIsOpen(true);
       }
-      setTimeout(() => {
-        refreshThisDirectory();
-      }, 250);
-      setTimeout(() => {
-        refreshThisDirectory();
-      }, 700);
     }
     window.dispatchEvent(new CustomEvent('file:paste-node', {
       detail: { 
-        targetDirNode: node.kind === 'directory' ? node : undefined, 
+        targetDirNode: node, 
         targetHandle: node.kind === 'directory' ? node.handle : parentHandle 
       }
     }));
-  }, [node, parentHandle, isOpen, refreshThisDirectory]);
+  }, [node, parentHandle, isOpen]);
 
   const triggerReveal = useCallback(async (e?: any) => {
     if (e?.stopPropagation) e.stopPropagation();
@@ -1051,6 +1053,18 @@ const FileTreeItem = ({
       await api.openPath(node.path);
     }
   }, [node.kind, node.path]);
+
+  const triggerCancelCut = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    setContextMenu(null);
+    window.dispatchEvent(new CustomEvent('file:cancel-cut'));
+  }, []);
+
+  const triggerUndoMove = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    setContextMenu(null);
+    window.dispatchEvent(new CustomEvent('file:undo-move'));
+  }, []);
 
   const triggerDelete = useCallback((e?: any) => {
     if (e?.stopPropagation) e.stopPropagation();
@@ -1071,6 +1085,9 @@ const FileTreeItem = ({
       if (e.key === 'Escape') {
         e.preventDefault();
         setContextMenu(null);
+        if (hasClipboardCut) {
+          window.dispatchEvent(new CustomEvent('file:cancel-cut'));
+        }
         return;
       }
 
@@ -1131,6 +1148,18 @@ const FileTreeItem = ({
         return;
       }
 
+      if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu(null);
+        if (hasClipboardCut) {
+          window.dispatchEvent(new CustomEvent('file:cancel-cut'));
+        } else if (hasUndoableMove) {
+          window.dispatchEvent(new CustomEvent('file:undo-move'));
+        }
+        return;
+      }
+
       if (e.shiftKey && e.altKey && (e.key === 'R' || e.key === 'r')) {
         e.preventDefault();
         e.stopPropagation();
@@ -1143,7 +1172,7 @@ const FileTreeItem = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [contextMenu, isMac, isOpenInTab, node.kind, triggerRename, triggerDelete, triggerCreateFolder, triggerCreateFile, triggerCopy, triggerCut, triggerPaste, triggerReveal]);
+  }, [contextMenu, isMac, isOpenInTab, hasClipboardCut, hasUndoableMove, node.kind, triggerRename, triggerDelete, triggerCreateFolder, triggerCreateFile, triggerCopy, triggerCut, triggerPaste, triggerReveal]);
 
   // 🧠 지식 베이스 등록 여부 추적 (데스크톱 전용 기능)
   const [isKnowledgeRegistered, setIsKnowledgeRegistered] = useState(false);
@@ -1413,6 +1442,30 @@ const FileTreeItem = ({
                 </div>
                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘V' : 'Ctrl+V'}</kbd>
               </button>
+              {hasClipboardCut && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); triggerCancelCut(e); }}
+                  className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-amber-600 dark:text-amber-400 font-medium"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                    <span className="truncate">잘라내기 취소</span>
+                  </div>
+                  <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">Esc</kbd>
+                </button>
+              )}
+              {hasUndoableMove && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); triggerUndoMove(e); }}
+                  className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                    <span className="truncate">이동 되돌리기</span>
+                  </div>
+                  <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘Z' : 'Ctrl+Z'}</kbd>
+                </button>
+              )}
               {(() => {
                 const isElectronApp = typeof window !== 'undefined' && !!(window as any).electronAPI;
                 if (!isElectronApp || !node.path) return null;

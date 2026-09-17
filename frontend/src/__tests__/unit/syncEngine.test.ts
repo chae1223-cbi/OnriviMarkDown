@@ -311,6 +311,48 @@ describe('syncEngine Scroll Dedicated Tests', () => {
       expect(mockContainer.scrollTop).toBe(1538);
     });
 
+    it('코드 블록 내부 행 타깃팅 시 다중행 컨테이너 밖으로 치솟지 않고 Safe Zone 내부로 정확히 정렬 동기화', () => {
+      // 663: ```markdown, 664~667: 코드 행, 668: ```
+      const mockCodeLine666 = {
+        tagName: 'SPAN',
+        className: 'onrivi-line',
+        classList: { contains: (c: string) => c === 'onrivi-line' },
+        getAttribute: (attr: string) => (attr === 'data-line' ? '666' : null),
+        closest: (sel: string) => mockCodeLine666,
+        getBoundingClientRect: () => ({
+          top: 200,
+          bottom: 224, // Safe Zone (40 ~ 460) 안에 안전하게 위치
+          height: 24,
+        }),
+      };
+
+      const mockCodeBlock = {
+        tagName: 'DIV',
+        className: 'codeblock-area',
+        classList: { contains: (c: string) => c === 'codeblock-area' },
+        getAttribute: (attr: string) => (attr === 'data-line' ? '663' : null),
+        closest: (sel: string) => mockCodeBlock,
+        getBoundingClientRect: () => ({
+          top: 150,
+          bottom: 350,
+          height: 200,
+        }),
+      };
+
+      const mockContainer = {
+        clientHeight: 600,
+        scrollHeight: 3000,
+        scrollTop: 500,
+        getBoundingClientRect: () => ({ top: 0, bottom: 600, height: 600 }),
+        querySelectorAll: (sel: string) => [mockCodeBlock, mockCodeLine666],
+      } as unknown as HTMLElement;
+
+      // targetLine = 666 (코드 블록 내부 커서)
+      syncPreviewToTargetLine(mockContainer, 666, '');
+      // Safe Zone (40 ~ 460) 내부에 이미 위치하므로 scrollTop 유지
+      expect(mockContainer.scrollTop).toBe(500);
+    });
+
     it('표(Table) 전후 라인 매핑 정밀 진단', async () => {
       const { preprocessMarkdownForPreview } = await import('../../lib/editorUtils');
       const { unified } = await import('unified');
