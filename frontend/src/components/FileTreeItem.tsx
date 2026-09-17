@@ -4,6 +4,8 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-17** — [탐색기 단축키 고도화 & 붙여넣기 후 즉시 새로고침 연동]: 컨텍스트 메뉴 및 트리 포커스 시 새 폴더 단축키를 Ctrl+Alt+N(⌥⌘N)으로 개편하고, 붙여넣기(Ctrl+V) 완료 시 대상 디렉토리 자동 펼침(isOpen) 및 지연 2중 새로고침(refreshThisDirectory/file:refresh-all-directories)을 즉각 수행하도록 보강
+// 🚨 @PATCH : **2026-09-17** — [탐색기 파일/폴더 컨텍스트 메뉴 일반 단축키 적용 및 힌트 뱃지 표기]: 컨텍스트 메뉴 및 트리 항목 포커스 시 F2(이름변경), Del(삭제), Ctrl+C(복사), Ctrl+X(잘라내기), Ctrl+V(붙여넣기), Alt+N(새파일), Ctrl+Alt+N(새폴더), Shift+Alt+R(탐색기보기) 일반 단축키 전면 연동 및 메뉴 우측 단축키 라벨 시각화
 // 🚨 @PATCH : **2026-09-17** — [지식 문서 등록/재분석 시 실시간 진행 모달 연동]: performKnowledgeIndex에서 백그라운드 토스트 대신 knowledge:open-index-progress 글로벌 이벤트를 발송하여 전용 실시간 진행 모달(4단계 파이프라인 및 AI 요약/요점/태그 구조화)을 즉시 팝업
 // 🚨 @PATCH : **2026-09-16** — [지식 문서 재분석(재색인) 컨텍스트 메뉴 및 실시간 3단계 진행 토스트 탑재]:
 //             1) 등록된 지식 문서 우클릭 메뉴에 '🔄 지식 재분석 (재색인)' 항목 신설하여 구버전 레코드 즉시 최신화 지원
@@ -26,7 +28,7 @@
 // 🔗 @CALLS : @/lib/knowledge/knowledgeClient, @/lib/knowledge/pathResolver, @/lib/knowledge/knowledgeGuard
 // ====================================================================
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste } from 'lucide-react';
 import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
@@ -946,6 +948,201 @@ const FileTreeItem = ({
 
   const isMergeSelected = node.kind === 'file' && selectedMergeNodes.some(n => n.path ? n.path === node.path : n.name === node.name);
   const isMarkdown = node.kind === 'file' && node.name.toLowerCase().endsWith('.md');
+  const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  // 탭에 열려있는지 확인
+  const isOpenInTab = !!node.path && !!openTabPaths?.length && (() => {
+    const normPath = node.path.replace(/\\/g, '/');
+    if (node.kind === 'directory') {
+      return openTabPaths.some(tp => {
+        const normTp = tp.replace(/\\/g, '/');
+        return normTp === normPath || normTp.startsWith(normPath + '/');
+      });
+    }
+    return openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath);
+  })();
+
+  const triggerCreateFile = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    setContextMenu(null);
+    setPromptConfig({
+      isOpen: true,
+      title: `[${node.name}]에 생성할 새 파일의 이름을 입력하세요:`,
+      defaultValue: "untitled.md",
+      type: 'createFile'
+    });
+  }, [node.name]);
+
+  const triggerCreateFolder = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    setContextMenu(null);
+    setPromptConfig({
+      isOpen: true,
+      title: `[${node.name}]에 생성할 새 폴더의 이름을 입력하세요:`,
+      defaultValue: "",
+      type: 'createFolder'
+    });
+  }, [node.name]);
+
+  const triggerRename = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    setContextMenu(null);
+    const isDir = node.kind === 'directory';
+    setPromptConfig({
+      isOpen: true,
+      title: isDir 
+        ? `'${node.name}' 폴더의 새 이름을 입력하세요:` 
+        : `'${node.name}' 파일의 새 이름을 입력하세요:`,
+      defaultValue: node.name,
+      type: 'rename'
+    });
+  }, [node.kind, node.name]);
+
+  const triggerCopy = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    setContextMenu(null);
+    window.dispatchEvent(new CustomEvent('file:copy-node', {
+      detail: { node, parentHandle }
+    }));
+  }, [node, parentHandle]);
+
+  const triggerCut = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    if (isOpenInTab) {
+      showToast('편집기에서 열려 있는 파일은 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
+      return;
+    }
+    setContextMenu(null);
+    window.dispatchEvent(new CustomEvent('file:cut-node', {
+      detail: { node, parentHandle }
+    }));
+  }, [isOpenInTab, node, parentHandle, showToast]);
+
+  const triggerPaste = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    setContextMenu(null);
+    if (node.kind === 'directory') {
+      if (!isOpen) {
+        setIsOpen(true);
+      }
+      setTimeout(() => {
+        refreshThisDirectory();
+      }, 250);
+      setTimeout(() => {
+        refreshThisDirectory();
+      }, 700);
+    }
+    window.dispatchEvent(new CustomEvent('file:paste-node', {
+      detail: { 
+        targetDirNode: node.kind === 'directory' ? node : undefined, 
+        targetHandle: node.kind === 'directory' ? node.handle : parentHandle 
+      }
+    }));
+  }, [node, parentHandle, isOpen, refreshThisDirectory]);
+
+  const triggerReveal = useCallback(async (e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    setContextMenu(null);
+    const api = (window as any).electronAPI;
+    if (node.kind === 'file' && api?.showItemInFolder && node.path) {
+      await api.showItemInFolder(node.path);
+    } else if (api?.openPath && node.path) {
+      await api.openPath(node.path);
+    }
+  }, [node.kind, node.path]);
+
+  const triggerDelete = useCallback((e?: any) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    if (isOpenInTab) {
+      showToast('편집기에서 열려 있는 파일은 삭제할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
+      return;
+    }
+    setContextMenu(null);
+    handleDelete(e);
+  }, [isOpenInTab, handleDelete, showToast]);
+
+  // ⌨️ [단축키 연동] 컨텍스트 메뉴 오픈 시 일반 단축키 즉각 실행
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setContextMenu(null);
+        return;
+      }
+
+      if (e.key === 'F2') {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerRename(e);
+        return;
+      }
+
+      if (e.key === 'Delete') {
+        if (!isOpenInTab) {
+          e.preventDefault();
+          e.stopPropagation();
+          triggerDelete(e);
+        }
+        return;
+      }
+
+      if (isCtrl && e.altKey && !e.shiftKey && (e.key === 'N' || e.key === 'n')) {
+        if (node.kind === 'directory') {
+          e.preventDefault();
+          e.stopPropagation();
+          triggerCreateFolder(e);
+        }
+        return;
+      }
+
+      if (e.altKey && !isCtrl && (e.key === 'N' || e.key === 'n')) {
+        if (node.kind === 'directory') {
+          e.preventDefault();
+          e.stopPropagation();
+          triggerCreateFile(e);
+        }
+        return;
+      }
+
+      if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerCopy(e);
+        return;
+      }
+
+      if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'x' || e.key === 'X')) {
+        if (!isOpenInTab) {
+          e.preventDefault();
+          e.stopPropagation();
+          triggerCut(e);
+        }
+        return;
+      }
+
+      if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerPaste(e);
+        return;
+      }
+
+      if (e.shiftKey && e.altKey && (e.key === 'R' || e.key === 'r')) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerReveal(e);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [contextMenu, isMac, isOpenInTab, node.kind, triggerRename, triggerDelete, triggerCreateFolder, triggerCreateFile, triggerCopy, triggerCut, triggerPaste, triggerReveal]);
 
   // 🧠 지식 베이스 등록 여부 추적 (데스크톱 전용 기능)
   const [isKnowledgeRegistered, setIsKnowledgeRegistered] = useState(false);
@@ -1005,13 +1202,76 @@ const FileTreeItem = ({
       />
       <div 
         title={node.name}
+        tabIndex={0}
+        role="treeitem"
+        aria-selected={isSelected}
         draggable={!isMergeMode && !isRestrictedUser}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onMouseLeave={handleItemMouseLeave}
-        className={`group relative flex items-center w-full py-1 pr-2 my-0.5 rounded-lg transition-all cursor-pointer ${
+        onKeyDown={(e) => {
+          if (isMergeMode || isRestrictedUser) return;
+          const target = e.target as HTMLElement;
+          if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+
+          const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+          if (e.key === 'F2') {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerRename(e);
+            return;
+          }
+          if (e.key === 'Delete') {
+            if (!isOpenInTab) {
+              e.preventDefault();
+              e.stopPropagation();
+              triggerDelete(e);
+            }
+            return;
+          }
+          if (isCmdOrCtrl && !e.shiftKey && !e.altKey && (e.key === 'c' || e.key === 'C')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerCopy(e);
+            return;
+          }
+          if (isCmdOrCtrl && !e.shiftKey && !e.altKey && (e.key === 'x' || e.key === 'X')) {
+            if (!isOpenInTab) {
+              e.preventDefault();
+              e.stopPropagation();
+              triggerCut(e);
+            }
+            return;
+          }
+          if (isCmdOrCtrl && !e.shiftKey && !e.altKey && (e.key === 'v' || e.key === 'V')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerPaste(e);
+            return;
+          }
+          if (isCmdOrCtrl && e.altKey && !e.shiftKey && (e.key === 'N' || e.key === 'n') && node.kind === 'directory') {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerCreateFolder(e);
+            return;
+          }
+          if (e.altKey && !isCmdOrCtrl && (e.key === 'N' || e.key === 'n') && node.kind === 'directory') {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerCreateFile(e);
+            return;
+          }
+          if (e.shiftKey && e.altKey && (e.key === 'R' || e.key === 'r')) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerReveal(e);
+            return;
+          }
+        }}
+        className={`group relative flex items-center w-full py-1 pr-2 my-0.5 rounded-lg transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#1d4ed8]/40 ${
           isSelected 
             ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-sm' 
             : isDragOver
@@ -1073,149 +1333,126 @@ const FileTreeItem = ({
                 }
               }
             }}
-            className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[160px] max-h-[calc(100vh-24px)] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100"
+            className="fixed z-[100000] py-1 bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-black/10 dark:border-white/10 min-w-[210px] max-h-[calc(100vh-24px)] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100"
             style={{ 
               top: Math.max(10, Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 340 : contextMenu.y)), 
-              left: Math.max(10, Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 220 : contextMenu.x)) 
+              left: Math.max(10, Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 240 : contextMenu.x)) 
             }}
             onClick={(e) => e.stopPropagation()}
             onContextMenu={(e) => e.preventDefault()}
             onMouseEnter={handleMenuMouseEnter}
             onMouseLeave={handleMenuMouseLeave}
           >
-            {(() => {
-              // 탭에 열려있는지 확인
-              const isOpenInTab = !!node.path && !!openTabPaths?.length && (() => {
-                const normPath = node.path.replace(/\\/g, '/');
-                if (node.kind === 'directory') {
-                  return openTabPaths.some(tp => {
-                    const normTp = tp.replace(/\\/g, '/');
-                    return normTp === normPath || normTp.startsWith(normPath + '/');
-                  });
-                }
-                return openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath);
-              })();
-
-              return (
-                <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium">
-                  {node.kind === 'directory' && (
-                    <>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleCreateFile(e); }}
-                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
-                      >
-                        <FilePlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                        <span>새 파일</span>
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleCreateFolder(e); }}
-                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
-                      >
-                        <FolderPlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                        <span>새 폴더</span>
-                      </button>
-                    </>
-                  )}
+            <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium">
+              {node.kind === 'directory' && (
+                <>
                   <button
-                    onClick={(e) => { e.stopPropagation(); setContextMenu(null); handleRename(e); }}
-                    className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+                    onClick={(e) => { e.stopPropagation(); triggerCreateFile(e); }}
+                    className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                   >
-                    <Pencil size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                    <span>이름 변경</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FilePlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <span className="truncate">새 파일</span>
+                    </div>
+                    <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥N' : 'Alt+N'}</kbd>
                   </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); triggerCreateFolder(e); }}
+                    className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FolderPlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <span className="truncate">새 폴더</span>
+                    </div>
+                    <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥⌘N' : 'Ctrl+Alt+N'}</kbd>
+                  </button>
+                </>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); triggerRename(e); }}
+                className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Pencil size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <span className="truncate">이름 변경</span>
+                </div>
+                <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">F2</kbd>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); triggerCopy(e); }}
+                className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Copy size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <span className="truncate">복사하기</span>
+                </div>
+                <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘C' : 'Ctrl+C'}</kbd>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); triggerCut(e); }}
+                disabled={isOpenInTab}
+                className={`flex items-center justify-between gap-3 px-3 py-1.5 w-full text-left transition-colors ${
+                  isOpenInTab ? 'opacity-40 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white'
+                }`}
+                title={isOpenInTab ? "탭에서 열려있는 파일은 잘라내기할 수 없습니다" : "잘라내기"}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Scissors size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <span className="truncate">잘라내기</span>
+                </div>
+                <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘X' : 'Ctrl+X'}</kbd>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); triggerPaste(e); }}
+                className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <ClipboardPaste size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <span className="truncate">붙여넣기</span>
+                </div>
+                <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘V' : 'Ctrl+V'}</kbd>
+              </button>
+              {(() => {
+                const isElectronApp = typeof window !== 'undefined' && !!(window as any).electronAPI;
+                if (!isElectronApp || !node.path) return null;
+                const label = isMac ? 'Finder에서 보기' : '파일 탐색기에서 보기';
+                return (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setContextMenu(null);
-                      window.dispatchEvent(new CustomEvent('file:copy-node', {
-                        detail: { node, parentHandle }
-                      }));
+                      triggerReveal(e);
                     }}
-                    className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
+                    className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                   >
-                    <Copy size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                    <span>복사하기</span>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <span className="truncate">{label}</span>
+                    </div>
+                    <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥⇧R' : 'Shift+Alt+R'}</kbd>
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isOpenInTab) {
-                        showToast('편집기에서 열려 있는 파일은 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
-                        return;
-                      }
-                      setContextMenu(null);
-                      window.dispatchEvent(new CustomEvent('file:cut-node', {
-                        detail: { node, parentHandle }
-                      }));
-                    }}
-                    disabled={isOpenInTab}
-                    className={`flex items-center gap-2.5 px-3 py-1.5 w-full text-left transition-colors ${
-                      isOpenInTab ? 'opacity-40 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white'
-                    }`}
-                    title={isOpenInTab ? "탭에서 열려있는 파일은 잘라내기할 수 없습니다" : "잘라내기"}
-                  >
-                    <Scissors size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                    <span>잘라내기</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setContextMenu(null);
-                      window.dispatchEvent(new CustomEvent('file:paste-node', {
-                        detail: { 
-                          targetDirNode: node.kind === 'directory' ? node : undefined, 
-                          targetHandle: node.kind === 'directory' ? node.handle : parentHandle 
-                        }
-                      }));
-                    }}
-                    className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
-                  >
-                    <ClipboardPaste size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                    <span>붙여넣기</span>
-                  </button>
-                  {(() => {
-                    const isElectronApp = typeof window !== 'undefined' && !!(window as any).electronAPI;
-                    if (!isElectronApp || !node.path) return null;
-                    const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
-                    const label = isMac ? 'Finder에서 보기' : '파일 탐색기에서 보기';
-                    return (
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          setContextMenu(null);
-                          const api = (window as any).electronAPI;
-                          if (node.kind === 'file' && api?.showItemInFolder) {
-                            await api.showItemInFolder(node.path);
-                          } else if (api?.openPath) {
-                            await api.openPath(node.path);
-                          }
-                        }}
-                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
-                      >
-                        <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                        <span>{label}</span>
-                      </button>
-                    );
-                  })()}
-                  <button
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      if (!isOpenInTab) {
-                        setContextMenu(null); 
-                        handleDelete(e); 
-                      }
-                    }}
-                    disabled={isOpenInTab}
-                    className={`flex items-center gap-2.5 px-3 py-1.5 w-full text-left transition-colors ${
-                      isOpenInTab 
-                        ? 'opacity-40 cursor-not-allowed' 
-                        : 'hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
-                    }`}
-                    title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
-                  >
-                    <Trash2 size={15} strokeWidth={1.75} className={`shrink-0 text-current opacity-80 ${isOpenInTab ? 'opacity-40' : ''}`} />
-                    <span>삭제</span>
-                  </button>
+                );
+              })()}
+              <button
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  if (!isOpenInTab) {
+                    triggerDelete(e); 
+                  }
+                }}
+                disabled={isOpenInTab}
+                className={`flex items-center justify-between gap-3 px-3 py-1.5 w-full text-left transition-colors ${
+                  isOpenInTab 
+                    ? 'opacity-40 cursor-not-allowed' 
+                    : 'hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
+                }`}
+                title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Trash2 size={15} strokeWidth={1.75} className={`shrink-0 text-current opacity-80 ${isOpenInTab ? 'opacity-40' : ''}`} />
+                  <span className="truncate">삭제</span>
+                </div>
+                <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">Del</kbd>
+              </button>
 
                   {/* 🧠 지식 베이스 등록 버튼 (마크다운 전용) */}
                   {node.kind === 'file' && isMarkdown && (() => {
@@ -1459,8 +1696,6 @@ const FileTreeItem = ({
                     );
                   })()}
                 </div>
-              );
-            })()}
           </div>,
           document.body
         )}
