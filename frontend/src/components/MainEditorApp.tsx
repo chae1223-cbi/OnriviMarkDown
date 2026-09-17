@@ -12,7 +12,7 @@
 // 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 인용구 Alert 드롭다운 fixed 최상위 포털 전환]: Windows 작업표시줄 뒤로 드롭다운 항목이 숨는 문제 완전 해결 — absolute→fixed 포지셔닝 전환, getBoundingClientRect() 기반 실제 화면 좌표 측정, zIndex 2147483647(max) 적용, 하단 여유 부족 시 DropUp 자동 반전, floatingQuoteDropdown 상태(open/x/y/dropUp) 통합 관리, 바깥클릭/Escape 닫힘 안전 가드 유지
 // 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 검증 이메일 식별자 보존 및 제한사용자 오강등 영구 차단]: loadAndVerifyLicense에서 session.user.id(UUID)로 이메일이 덮어써져 NOT_FOUND가 발생하던 결함을 session.user.email 및 desktop fullData.userId 우선 채택으로 해결하고, 서버 일시 오류 시 로컬 라이선스 파기 방지 및 오프라인 유예기간 보호 강화
 // 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: handleOpenKnowledge 및 Ctrl+Shift+K 단축키에 isDesktop 가드를 적용하여 웹 브라우저 환경에서 데스크톱 전용 안내 토스트 출력 및 불필요한 화면 전환 차단
-// 🚨 @PATCH : **2026-09-17** — [웹 브라우저 환경 워크스페이스 타입 초기화 정상화]: electronAPI가 없는 웹 브라우저 환경에서 workspaceType 초기 상태를 'browser'로 자동 지정하여 데스크톱 Electron 전용 코드 오작동 및 404 API 호출 원천 차단
+// 🚨 @PATCH : **2026-09-17** — [fileList 상태 보존 및 웹 브라우저 환경 워크스페이스 타입 초기화 정상화]: fileList 선언 누락으로 인한 ReferenceError 차단 및 electronAPI가 없는 웹 브라우저 환경에서 workspaceType 초기 상태를 'browser'로 자동 지정하여 데스크톱 Electron 전용 코드 오작동 및 404 API 호출 원천 차단
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 문서 온디맨드 권한 획득 및 스마트 캐싱 연동]: useFileExplorer에 setConfirmConfig 전달 및 OPEN_FILE/외부 문서 오픈 시 externalFileStore 연동으로 웹 SaaS 환경에서 작업장 외 문서라도 사용자 승인 후 즉시 열람/편집/디스크 저장 완벽 지원
 // 🚨 @PATCH : **2026-09-13** — [WASM 지식 DB 청크 본문 추출 정상화]: readFileText에서 getDocumentDetail의 docObj(detail.chunks/chunkText) 연동으로 브라우저 핸들이 없는 지식 문서의 원본 본문 100% 정상 수급
 // 🚨 @PATCH : **2026-09-13** — [ESLint 경고 제거 및 클라우드 빌드 안정화]: hotkeyRegistration useEffect 내 content 직접 참조를 contentRef.current로 전환하여 react-hooks/exhaustive-deps 경고 해소
@@ -1196,6 +1196,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return (saved && typeof saved === 'string' && saved.trim() !== '') ? saved.trim() : null;
   });
   const [resourceFolderHandle, setResourceFolderHandle] = useState<any>(null);
+  const [fileList, setFileList] = useState<FileNode[]>([]);
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>(() => {
     if (typeof window !== 'undefined' && !(window as any).electronAPI) {
       return 'browser';
