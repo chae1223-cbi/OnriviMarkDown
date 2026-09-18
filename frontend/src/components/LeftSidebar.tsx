@@ -511,7 +511,6 @@ export default function LeftSidebar() {
   type UndoActionItem = MoveActionItem | DeleteActionItem;
 
   const undoHistoryRef = useRef<UndoActionItem[]>([]);
-  const moveHistoryRef = undoHistoryRef; // 하위 호환성 유지
   const [hasUndoableMove, setHasUndoableMove] = useState(false);
   const [lastUndoType, setLastUndoType] = useState<'move' | 'delete'>('move');
 
@@ -1056,7 +1055,7 @@ export default function LeftSidebar() {
             }
           }
           // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
-          moveHistoryRef.current.push({
+          undoHistoryRef.current.push({
             type: 'move',
             srcPath: srcNode.path || srcNode.name,
             destPath: newPath,
@@ -1070,7 +1069,8 @@ export default function LeftSidebar() {
             srcNode
           });
           setHasUndoableMove(true);
-          window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: moveHistoryRef.current.length } }));
+          setLastUndoType('move');
+          window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: undoHistoryRef.current.length, lastType: 'move' } }));
 
           dispatchMovedEvent(srcNode.path || srcNode.name, destDirPath, newPath, srcNode.name);
 
@@ -1119,7 +1119,7 @@ export default function LeftSidebar() {
           // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
           const normSrc = srcNode.path.replace(/\\/g, '/');
           const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
-          moveHistoryRef.current.push({
+          undoHistoryRef.current.push({
             type: 'move',
             srcPath: srcNode.path,
             destPath: newPath,
@@ -1131,7 +1131,8 @@ export default function LeftSidebar() {
             srcNode
           });
           setHasUndoableMove(true);
-          window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: moveHistoryRef.current.length } }));
+          setLastUndoType('move');
+          window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: undoHistoryRef.current.length, lastType: 'move' } }));
 
           dispatchMovedEvent(srcNode.path, destDirPath, newPath, srcNode.name);
 
@@ -1154,7 +1155,7 @@ export default function LeftSidebar() {
     } catch (e: any) {
       showToast((isCut ? '이동' : '붙여넣기') + ' 실패: ' + (e.message || e), 'error');
     }
-  }, [clipboardNode, rootFolder, workspaceType, openTabPaths, showToast, refreshFileList, dispatchMovedEvent]);
+  }, [clipboardNode, rootFolder, workspaceType, showToast, refreshFileList, dispatchMovedEvent]);
 
   const handleRenameActive = () => {
     if (!currentFileName && !currentFileNode) {
@@ -1234,7 +1235,7 @@ export default function LeftSidebar() {
           e.preventDefault();
           e.stopPropagation();
           handleCancelCut();
-        } else if (moveHistoryRef.current.length > 0) {
+        } else if (undoHistoryRef.current.length > 0) {
           e.preventDefault();
           e.stopPropagation();
           handleUndoMove();
