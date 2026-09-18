@@ -4,6 +4,12 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-18** — [열린 문서의 상위 폴더명 변경 시 탭 경로·브레드크럼·활성 노드 실시간 동기화]:
+//             1) 탐색기에서 폴더 이름 변경 시 해당 폴더 하위에 열려 있는 모든 탭의 경로(t.path, t.node.path, t.id) 및 activeTabId, currentFileNode를 대소문자 무관 및 구분자 호환 방식으로 일괄 갱신
+//             2) 상단 브레드크럼 경로 바에서 activeTab?.path를 즉각 반영하여 변경된 새 폴더명이 즉시 화면에 표기되도록 동기화
+//             3) tabsRef 및 onrivi_tabs_order 동기화로 탭 전환 및 저장(Ctrl+S) 시 새 경로로 무결성 유지
+// 🚨 @PATCH : **2026-09-18** — [열린 문서가 포함된 폴더 잘라내기/붙여넣기 및 되돌리기 시 탭 경로 정규화 일괄 갱신]: 폴더 이동 및 되돌리기 시 해당 폴더 하위에 열려 있는 모든 탭의 경로(t.path, t.id), activeTabId, currentFileNode를 OS 구분자(\\ vs /)에 맞추어 완벽하게 일괄 동기화
+// 🚨 @PATCH : **2026-09-18** — [열린 파일 삭제 지원 및 탭 자동 닫기(file:close-tab-by-path) / 잘라내기 이동 및 되돌리기 시 탭 경로 동기화]: 파일/폴더 삭제 시 열려있던 탭을 강제 정리하고, 잘라내기 이동/되돌리기 시 탭 ID 및 활성 탭 식별자를 새 경로로 일치 동기화
 // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: 코드블록 배경색(bgColor)의 명도를 판별하여 다크 계열일 경우 은은한 갈색 대신 고대비 코발트 블루(rgba(59,130,246,0.3)) 및 1px 인셋 아웃라인(rgba(96,165,250,0.65))을 동적 주입하여 어두운 배경에서도 활성 행이 즉각 식별되도록 개선
 // 🚨 @PATCH : **2026-09-17** — [Gemini API 키 및 AI 모델명 암호문(AES) 자동 복호화 및 모델명 노출 차단]: 과거 암호화 저장된 API 키(U2FsdGVkX1...)의 Google API 400 Bad Request 에러 해결 및 하단 캡슐 버튼에 암호화된 모델명 대신 정식 모델명('Gemini 3.8 Flash')이 안전하게 렌더링되도록 자가 치유(Self-Healing) 및 복호화 파이프라인 연동
 // 🚨 @PATCH : **2026-09-17** — [인증/세션 로그아웃 시 환경설정(Gemini API 키 등) 영구 보존]: 비인증 리다이렉트 및 동시접속 기기 해제 시 clearAuthSessionStorage 연동으로 API 키 및 사용자 설정 삭제 결함 해결
@@ -1264,54 +1270,108 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-EDIT-MainEditorApp-0012b] MainEditorApp.tsx ➔ file:tab-renamed listener
   // 🎯 @KICK  : 탐색기에서 파일/폴더 이름 변경 시 새 탭을 열지 않고 기존 탭 메타데이터만 갱신
   // 🛡️ @GUARD : oldPath가 현재 열린 탭과 일치하거나 하위 경로에 포함될 때만 동작
-  // 🚨 @PATCH : **2026-07-06** — 추가 (이름 변경 시 새 탭이 생기는 버그 수정)
-  // 🔗 @CALLS : setCurrentFileName, setCurrentFileNode, setTabs
+  // 🚨 @PATCH : **2026-09-18** — [폴더명 변경 시 열린 탭 경로·브레드크럼 동기화 및 탭 순서/활성 노드 일괄 갱신]
+  // 🔗 @CALLS : setCurrentFileName, setCurrentFileNode, setTabs, setActiveTabId
   // ====================================================================
   useEffect(() => {
     const handler = (e: Event) => {
       const { oldPath, newPath, newName, newHandle } = (e as CustomEvent).detail;
       if (!oldPath || !newPath) return;
 
-      const normOld = oldPath.replace(/\\/g, '/');
-      const normNew = newPath.replace(/\\/g, '/');
+      const cleanOld = oldPath.replace(/[/\\]+$/, '');
+      const cleanNew = newPath.replace(/[/\\]+$/, '');
+      const normOld = cleanOld.replace(/\\/g, '/');
+      const normNew = cleanNew.replace(/\\/g, '/');
+      const normOldLower = normOld.toLowerCase();
 
-      // 현재 열린 파일이 변경된 파일이거나 변경된 폴더 하위에 있을 때
-      setTabs(prev => prev.map(t => {
-        const tabPath = (t.path || '').replace(/\\/g, '/');
-        if (tabPath === normOld) {
-          // 정확히 이름 변경된 파일
-          return { ...t, name: newName, path: newPath, node: { ...t.node, name: newName, path: newPath, ...(newHandle ? { handle: newHandle } : {}) } };
-        } else if (tabPath.startsWith(normOld + '/')) {
-          // 이름 변경된 폴더의 하위 파일
-          const updatedPath = newPath + t.path.substring(oldPath.length);
-          const updatedName = t.name; // 파일명 자체는 변경 없음
-          return { ...t, path: updatedPath, node: { ...t.node, path: updatedPath } };
+      // 현재 열린 파일이 변경/이동된 파일이거나 변경된 폴더 하위에 있을 때
+      setTabs(prev => {
+        const updatedTabs = prev.map(t => {
+          const rawPath = t.path || '';
+          const cleanTabPath = rawPath.replace(/[/\\]+$/, '');
+          const tabPath = cleanTabPath.replace(/\\/g, '/');
+          const tabPathLower = tabPath.toLowerCase();
+
+          if (tabPathLower === normOldLower) {
+            // 정확히 이름 변경/이동된 파일
+            const targetId = (t.id === t.path || t.id === oldPath || t.id.replace(/\\/g, '/').toLowerCase() === normOldLower) ? cleanNew : t.id;
+            return {
+              ...t,
+              id: targetId,
+              name: newName,
+              path: cleanNew,
+              node: { ...t.node, name: newName, path: cleanNew, ...(newHandle ? { handle: newHandle } : {}) }
+            };
+          } else if (tabPathLower.startsWith(normOldLower + '/')) {
+            // 이름 변경/이동된 폴더의 하위 파일
+            const subRel = tabPath.substring(normOld.length);
+            const isBackslash = cleanNew.includes('\\') || (!cleanNew.includes('/') && rawPath.includes('\\'));
+            const subRelFormatted = isBackslash ? subRel.replace(/\//g, '\\') : subRel;
+            const updatedPath = `${cleanNew}${subRelFormatted}`;
+            const targetId = (t.id === t.path || t.id.replace(/\\/g, '/').toLowerCase() === tabPathLower) ? updatedPath : t.id;
+            return {
+              ...t,
+              id: targetId,
+              path: updatedPath,
+              node: { ...t.node, path: updatedPath }
+            };
+          }
+          return t;
+        });
+
+        // 💡 tabsRef 및 로컬스토리지 onrivi_tabs_order 동기화
+        tabsRef.current = updatedTabs;
+        try {
+          const tabOrders = updatedTabs.map(t => ({ id: t.id, name: t.name, path: t.path }));
+          localStorage.setItem('onrivi_tabs_order', JSON.stringify(tabOrders));
+        } catch (_) {}
+
+        return updatedTabs;
+      });
+
+      // 활성 탭 식별자(activeTabId)도 함께 갱신
+      const curActive = activeTabIdRef.current || '';
+      if (curActive) {
+        const cleanActive = curActive.replace(/[/\\]+$/, '');
+        const normActive = cleanActive.replace(/\\/g, '/');
+        const normActiveLower = normActive.toLowerCase();
+
+        if (normActiveLower === normOldLower || cleanActive === cleanOld) {
+          setActiveTabId(cleanNew);
+          activeTabIdRef.current = cleanNew;
+        } else if (normActiveLower.startsWith(normOldLower + '/')) {
+          const subRel = normActive.substring(normOld.length);
+          const isBackslash = cleanNew.includes('\\') || (!cleanNew.includes('/') && curActive.includes('\\'));
+          const subRelFormatted = isBackslash ? subRel.replace(/\//g, '\\') : subRel;
+          const updatedActive = `${cleanNew}${subRelFormatted}`;
+          setActiveTabId(updatedActive);
+          activeTabIdRef.current = updatedActive;
         }
-        return t;
-      }));
+      }
 
-      // 현재 활성 파일도 갱신
+      // 현재 활성 파일(currentFileNode) 및 파일명 동시 갱신
       setCurrentFileNode(prev => {
         if (!prev) return prev;
-        const normCur = (prev.path || '').replace(/\\/g, '/');
-        if (normCur === normOld) {
-          return { ...prev, name: newName, path: newPath, ...(newHandle ? { handle: newHandle } : {}) };
-        } else if (normCur.startsWith(normOld + '/')) {
-          const updatedPath = newPath + (prev.path || '').substring(oldPath.length);
+        const curPath = (prev.path || '').replace(/[/\\]+$/, '');
+        const normCur = curPath.replace(/\\/g, '/');
+        const normCurLower = normCur.toLowerCase();
+
+        if (normCurLower === normOldLower) {
+          setCurrentFileName(newName);
+          return { ...prev, name: newName, path: cleanNew, ...(newHandle ? { handle: newHandle } : {}) };
+        } else if (normCurLower.startsWith(normOldLower + '/')) {
+          const subRel = normCur.substring(normOld.length);
+          const isBackslash = cleanNew.includes('\\') || (!cleanNew.includes('/') && curPath.includes('\\'));
+          const subRelFormatted = isBackslash ? subRel.replace(/\//g, '\\') : subRel;
+          const updatedPath = `${cleanNew}${subRelFormatted}`;
           return { ...prev, path: updatedPath };
         }
-        return prev;
-      });
-      setCurrentFileName(prev => {
-        const normCur = (currentFileNode?.path || '').replace(/\\/g, '/');
-        if (normCur === normOld) return newName;
         return prev;
       });
     };
     window.addEventListener('file:tab-renamed', handler);
     return () => window.removeEventListener('file:tab-renamed', handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentFileNode]);
+  }, []);
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAIDraftModalOpen, setIsAIDraftModalOpen] = useState(false);
@@ -2703,6 +2763,63 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       observer.disconnect();
     };
   }, [isA4GuardEnabled, previewRef]);
+
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0012c] MainEditorApp.tsx ➔ file:close-tab-by-path listener
+  // 🎯 @KICK  : 탐색기에서 파일/폴더 삭제 시 해당 열린 탭을 즉시 닫고 에디터 정리
+  // 🛡️ @GUARD : 삭제된 경로와 일치하거나 하위 경로에 속한 모든 탭 정리, 활성 탭 전환 또는 빈 탭 처리
+  // 🚨 @PATCH : **2026-09-18** — 열려있는 파일/폴더 삭제 지원 및 연관 탭 자동 닫기 연동 (TDZ 방어 배치)
+  // 🔗 @CALLS : setTabs, switchTab, setContent, setCurrentFileName, setCurrentFileNode, setActiveTabId
+  // ====================================================================
+  useEffect(() => {
+    const handleCloseTabByPath = (e: Event) => {
+      const { path, name } = (e as CustomEvent).detail || {};
+      if (!path && !name) return;
+
+      const normTarget = (path || '').replace(/\\/g, '/').toLowerCase();
+
+      // 삭제된 파일 또는 삭제된 폴더 하위에 속한 탭들 찾기
+      const tabsToClose = tabsRef.current.filter(t => {
+        const tabPath = (t.path || '').replace(/\\/g, '/').toLowerCase();
+        if (normTarget && (tabPath === normTarget || tabPath.startsWith(normTarget + '/'))) {
+          return true;
+        }
+        if (!t.path && name && t.name === name) {
+          return true;
+        }
+        return false;
+      });
+
+      if (tabsToClose.length === 0) return;
+
+      tabsToClose.forEach(tab => {
+        if (tab.model) {
+          try { tab.model.dispose(); } catch {}
+        }
+      });
+
+      const closeIds = new Set(tabsToClose.map(t => t.id));
+      const nextTabs = tabsRef.current.filter(t => !closeIds.has(t.id));
+      tabsRef.current = nextTabs;
+      setTabs(nextTabs);
+
+      if (activeTabIdRef.current && closeIds.has(activeTabIdRef.current)) {
+        if (nextTabs.length > 0) {
+          switchTab(nextTabs[0].id);
+        } else {
+          setContent('');
+          setCurrentFileName('새 파일.md');
+          setCurrentFileNode(null);
+          setActiveTabId(null);
+          if (editorRef.current) {
+            editorRef.current.setValue('');
+          }
+        }
+      }
+    };
+    window.addEventListener('file:close-tab-by-path', handleCloseTabByPath);
+    return () => window.removeEventListener('file:close-tab-by-path', handleCloseTabByPath);
+  }, [setTabs, switchTab, setContent, setCurrentFileName, setCurrentFileNode, setActiveTabId]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0021] MainEditorApp.tsx ➔ currentFileNodeRef_sync
@@ -7192,9 +7309,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     let folders: string[] = [];
                     let fileName = currentFileName || '';
 
-                    // 1. 데스크톱 / 로컬 파일 시스템 (currentFileNode.path에 OS 실제 절대경로가 있는 경우)
-                    if (currentFileNode?.path && (currentFileNode.path.includes(':') || currentFileNode.path.startsWith('/'))) {
-                      const cleanPath = currentFileNode.path.replace(/\\/g, '/');
+                    const targetPath = currentFileNode?.path || activeTab?.path || '';
+
+                    // 1. 데스크톱 / 로컬 파일 시스템 (targetPath에 OS 실제 절대경로가 있는 경우)
+                    if (targetPath && (targetPath.includes(':') || targetPath.startsWith('/'))) {
+                      const cleanPath = targetPath.replace(/\\/g, '/');
                       const parts = cleanPath.split('/').filter(Boolean);
                       if (cleanPath.includes(':')) {
                         rootDrive = parts[0]; // 예: "E:"
@@ -7220,7 +7339,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                       }
 
                       rootName = rootFolder?.name || '블로그';
-                      const subPath = currentFileNode?.path || '';
+                      const subPath = targetPath;
                       const subSegments = subPath.replace(/\\/g, '/').split('/').filter(Boolean);
                       if (subSegments.length > 0) {
                         fileName = subSegments[subSegments.length - 1];
@@ -7229,7 +7348,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     } else if (workspaceType === 'cloud') {
                       rootDrive = 'Cloud:';
                       rootName = `[${cloudProvider || 'Cloud'}] ${rootFolder?.name || 'Sync'}`;
-                      const subPath = currentFileNode?.path || '';
+                      const subPath = targetPath;
                       const subSegments = subPath.replace(/\\/g, '/').split('/').filter(Boolean);
                       if (subSegments.length > 0) {
                         fileName = subSegments[subSegments.length - 1];

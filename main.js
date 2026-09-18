@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) IPC 지원 및 파일/폴더 조작 안정성 고도화]: 1) file:backupFolderForUndo 및 file:restoreFolderFromUndo 핸들러 신설하여 폴더 삭제 전 임시 디렉토리 백업 및 Ctrl+Z 복원 완벽 지원 2) file:rename, file:move, file:delete에서 Windows 파일 잠금 및 백신 프로세스 점유로 인한 EPERM/EBUSY 예외를 방어하기 위해 fs.rmSync에 maxRetries: 5, retryDelay: 100 옵션 탑재
 // 🚨 @PATCH : **2026-09-17** — [이전 작업(식품위생법/인디공연) 하드코딩 폴백 및 프롬프트 예시 전면 제거, 문서 기반 동적 태그/요약 추출 엔진 탑재]: 1) 해시태그 부재 시 문서 제목, 볼드 메타데이터(**문서명**, **프로젝트명** 등), 헤딩으로부터 실질 도메인 키워드를 동적 추출하여 타 문서 태그 오염 100% 원천 방어 2) AI 프롬프트 예시를 도메인 중립 템플릿으로 치환하여 소형 모델(Gemma)의 프롬프트 예시 베끼기 방지 3) 기본 요약/단락 정규식에서 이전 작업 하드코딩 제거 4) validChunks ReferenceError 및 LLM JSON 5단계 초정밀 복원 엔진 연동
 // 🚨 @PATCH : **2026-09-17** — [지식 문서 색인/상세조회 메타 청크 반환 0건 무결성 보장]: chunkMarkdownByHeadingsHelper 내부에서 isMetaOrAuxiliaryChunk 사전 필터링 적용, index 및 detail 반환 시 validChunks(7건)를 엄격히 매핑하여 UI 상에 서두/메타영역(#서식설정) 노출 원천 차단
 // 🚨 @PATCH : **2026-09-16** — [의미 기반 RAG 표준 청킹(Semantic Chunking) DB 스키마·원자적 표·독립 청크 적재 지원]: 1) document_chunks 테이블에 chunk_type 컬럼 마이그레이션(ALTER TABLE) 및 index-document 적재 연동 2) 표(Table) 원자성 및 [문서명 > 섹션 > 소제목] 독립 문맥이 결합된 청크 텍스트 FTS 인덱싱 3) 검색(search) 시 chunk_type 반환 및 표/일정 질의 시 표 청크 우선순위 우대 가점화
@@ -3060,7 +3061,7 @@ ipcMain.handle('file:rename', async (event, oldPath, newPath) => {
       const stat = fs.statSync(cleanOld);
       if (stat.isDirectory()) {
         fs.cpSync(cleanOld, cleanNew, { recursive: true });
-        fs.rmSync(cleanOld, { recursive: true, force: true });
+        fs.rmSync(cleanOld, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
       } else {
         fs.copyFileSync(cleanOld, cleanNew);
         fs.unlinkSync(cleanOld);
@@ -3151,7 +3152,7 @@ ipcMain.handle('file:move', async (event, srcPath, destPath) => {
       // 드라이브 간 이동 또는 EXDEV 에러 시 fallback
       if (isDir) {
         fs.cpSync(cleanSrc, cleanDest, { recursive: true });
-        fs.rmSync(cleanSrc, { recursive: true, force: true });
+        fs.rmSync(cleanSrc, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
       } else {
         fs.copyFileSync(cleanSrc, cleanDest);
         fs.unlinkSync(cleanSrc);
@@ -3213,7 +3214,7 @@ ipcMain.handle('file:delete', async (event, targetPath) => {
     }
     const stat = fs.statSync(cleanPath);
     if (stat.isDirectory()) {
-      fs.rmSync(cleanPath, { recursive: true, force: true });
+      fs.rmSync(cleanPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     } else {
       fs.unlinkSync(cleanPath);
     }
@@ -3222,7 +3223,7 @@ ipcMain.handle('file:delete', async (event, targetPath) => {
     console.error('파일/폴더 삭제 1차 실패, force 재시도:', e);
     try {
       if (fs.existsSync(targetPath)) {
-        fs.rmSync(targetPath, { recursive: true, force: true });
+        fs.rmSync(targetPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
         return { success: true };
       }
     } catch (retryErr) {
@@ -3230,6 +3231,52 @@ ipcMain.handle('file:delete', async (event, targetPath) => {
       throw retryErr;
     }
     return { success: true };
+  }
+});
+
+// 10-1. 폴더 삭제 되돌리기(Undo) 지원을 위한 임시 백업
+ipcMain.handle('file:backupFolderForUndo', async (event, folderPath) => {
+  try {
+    if (!folderPath) return { success: false, error: '경로가 비어있습니다.' };
+    const cleanPath = folderPath.normalize('NFC');
+    if (!fs.existsSync(cleanPath)) return { success: false, error: '경로가 존재하지 않습니다: ' + cleanPath };
+    const stat = fs.statSync(cleanPath);
+    if (!stat.isDirectory()) return { success: false, error: '디렉토리가 아닙니다.' };
+
+    const backupBase = path.join(app.getPath('temp'), 'onrivi_undo_backups');
+    const backupId = `backup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const tempDir = path.join(backupBase, backupId);
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    const folderName = path.basename(cleanPath);
+    const backupDest = path.join(tempDir, folderName);
+    fs.cpSync(cleanPath, backupDest, { recursive: true });
+
+    return { success: true, backupPath: backupDest };
+  } catch (e) {
+    console.error('폴더 삭제 백업 실패:', e);
+    return { success: false, error: e.message };
+  }
+});
+
+// 10-2. 폴더 삭제 되돌리기(Undo) 복원
+ipcMain.handle('file:restoreFolderFromUndo', async (event, backupPath, targetPath) => {
+  try {
+    if (!backupPath || !targetPath) return { success: false, error: '경로가 유효하지 않습니다.' };
+    const cleanBackup = backupPath.normalize('NFC');
+    const cleanTarget = targetPath.normalize('NFC');
+    if (!fs.existsSync(cleanBackup)) return { success: false, error: '백업 디렉토리가 존재하지 않습니다: ' + cleanBackup };
+
+    const targetParent = path.dirname(cleanTarget);
+    if (!fs.existsSync(targetParent)) {
+      fs.mkdirSync(targetParent, { recursive: true });
+    }
+
+    fs.cpSync(cleanBackup, cleanTarget, { recursive: true });
+    return { success: true };
+  } catch (e) {
+    console.error('폴더 삭제 복원 실패:', e);
+    return { success: false, error: e.message };
   }
 });
 

@@ -4,6 +4,28 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
+//             1) 폴더 삭제 되돌리기: 데스크톱 api.backupFolderForUndo, 웹 브라우저 snapshotFsaDirectory/VFS 스냅샷으로 하위 구조 100% 보존 및 Ctrl+Z 복원 완비
+//             2) 탐색기 덜렁거림 제거: dragleave 자식 요소 진입 방어, scale-[1.01] 제거(ring-1 교체), transition-all을 transition-colors로 최적화, React Key 고유 경로화로 깜빡임 원천 차단
+// 🚨 @PATCH : **2026-09-18** — [데스크톱(Electron) 환경 파일 탐색기 기능 동기화 및 패리티 완성]:
+//             1) checkIsCut 경로 비교 시 replace(/\\/g, '/').toLowerCase() 정규화로 데스크톱 잘라내기 반투명 피드백(opacity-40 italic) 100% 보장
+//             2) handleDrop: 역슬래시 및 대소문자 무관 하위 폴더 이동 차단, api.moveFile 우선 호출, onrivi_expanded_paths 갱신, file:push-undo-action 연동으로 드래그 이동도 Ctrl+Z 지원
+//             3) 폴더 이름 변경 시 onrivi_expanded_paths 대소문자 무관 정규화 및 targetDir 강제 새로고침 연동
+//             4) handleDelete: 데스크톱 폴더 삭제 시 onrivi_expanded_paths 하위 경로 완전 제거로 유령 상태 원천 차단
+//             5) file:refresh-all-directories 및 file:moved 핸들러에서 대소문자 무관 정규화 비교로 Windows 경로 갱신 누락 방지
+// 🚨 @PATCH : **2026-09-18** — [폴더 이름 변경 시 열린 탭 경로·브레드크럼 동기화 및 하위 노드 캐시 리셋]:
+//             1) 폴더 이름 변경 시 하위 열린 문서 탭들의 경로를 동기화하기 위해 file:tab-renamed 및 file:refresh-all-directories를 브라우저/Electron 전 환경에서 발송
+//             2) in-memory 자식 노드 캐시(children/localChildren)를 리셋하고 refreshThisDirectory(true)로 신규 경로 목록을 즉시 재스캔
+//             3) onrivi_expanded_paths의 펼침 상태를 신규 폴더 경로로 일괄 자동 갱신
+// 🚨 @PATCH : **2026-09-18** — [타문서 변환 후 탐색기 자동 새로고침 및 디렉토리 자동 펼침 고도화]:
+//             1) refreshThisDirectory에 force 파라미터(force=false)를 지원하여 250ms 쿨다운 락을 우회하는 즉시 강제 갱신 체계 구축
+//             2) file:refresh-all-directories 이벤트 수신 시 targetDir 대상 폴더 및 상위 폴더를 자동 펼침(isOpen=true) 및 강제 새로고침(force=true) 수행
+// 🚨 @PATCH : **2026-09-18** — [탐색기 UX 고도화 및 삭제/잘라내기/되돌리기 무결성 강화]:
+//             1) 열려 있는 문서 삭제 및 잘라내기 전면 허용: 열린 파일/폴더 삭제 시 탭을 즉시 자동 닫기(file:close-tab-by-path) 처리하고, 단일 파일 삭제 시 스냅샷을 백업하여 Ctrl+Z 삭제 되돌리기 완벽 지원
+//             2) 열려 있는 문서 잘라내기 허용 & 이동/되돌리기 시 탭 경로 자동 동기화(file:tab-renamed)
+//             3) 탐색기 파일 클릭 시 에디터로 포커스 이탈 방지(itemRef 포커스 지속 유지)
+//             4) 하위 폴더 '타문서 변환'(Ctrl+Alt+O) 컨텍스트 메뉴 신설 및 단축키 연동
+//             5) '새 폴더' 및 '파일 탐색기에서 보기' 단축키 및 뱃지 제거
 // 🚨 @PATCH : **2026-09-18** — [파일 노드 우클릭 붙여넣기 시 대상 부모 디렉토리 정상 계산 연동]: triggerPaste에서 파일 노드 우클릭 시 targetDirNode로 현재 노드를 온전히 전달하여 부모 폴더 경로가 정상 산출되도록 보강
 // 🚨 @PATCH : **2026-09-18** — [탐색기 파일/폴더 잘라내기(Cut) 및 이동(Move) 2단계 되돌리기(Undo) 시스템 탑재]:
 //             1) 잘라내기 선택 취소: Esc 및 Ctrl+Z, 컨텍스트 메뉴 '잘라내기 취소'를 통해 클립보드 cut 상태를 즉시 해제하고 반투명 효과를 100% 정상 복원
@@ -36,10 +58,10 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2, FileText } from 'lucide-react';
 import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
-import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete } from '@/lib/virtualFileSystem';
+import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete, vfsReadFile } from '@/lib/virtualFileSystem';
 import PromptModal from '@/components/PromptModal';
 import { msg } from '@/lib/systemMessages';
 import { useToast } from '@/components/ToastProvider';
@@ -47,6 +69,30 @@ import { checkKnowledgeGuard } from '@/lib/knowledge/knowledgeGuard';
 import { loadSecureData } from '@/lib/secureStorage';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
 import { buildDirectWorkspacePath } from '@/lib/knowledge/pathResolver';
+
+// 📂 브라우저 File System Access API 폴더 재귀 스냅샷 추출기 (되돌리기 지원용)
+export const snapshotFsaDirectory = async (dirHandle: any, prefix = ''): Promise<{ relativePath: string; kind: 'file' | 'directory'; content?: string }[]> => {
+  const items: { relativePath: string; kind: 'file' | 'directory'; content?: string }[] = [];
+  try {
+    for await (const [name, entry] of (dirHandle as any).entries()) {
+      const rel = prefix ? `${prefix}/${name}` : name;
+      if (entry.kind === 'directory') {
+        items.push({ relativePath: rel, kind: 'directory' });
+        const sub = await snapshotFsaDirectory(entry, rel);
+        items.push(...sub);
+      } else if (entry.kind === 'file') {
+        try {
+          const file = await entry.getFile();
+          const content = await file.text();
+          items.push({ relativePath: rel, kind: 'file', content });
+        } catch {}
+      }
+    }
+  } catch (e) {
+    console.warn('[snapshotFsaDirectory Error]', e);
+  }
+  return items;
+};
 
 interface FileTreeItemProps {
   node: FileNode;
@@ -83,16 +129,18 @@ const FileTreeItem = ({
     new URLSearchParams(window.location.search).get('env') === 'desktop'
   );
 
+  const itemRef = useRef<HTMLDivElement>(null);
   const [isCut, setIsCut] = useState(false);
   const [hasClipboardCut, setHasClipboardCut] = useState(false);
   const [hasUndoableMove, setHasUndoableMove] = useState(false);
+  const [lastUndoType, setLastUndoType] = useState<'move' | 'delete'>('move');
 
   useEffect(() => {
     const checkIsCut = () => {
       const clip = typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null;
       if (clip && clip.op === 'cut' && clip.node) {
-        const clipPath = clip.node.path || clip.node.name;
-        const myPath = rawNode.path || rawNode.name;
+        const clipPath = (clip.node.path || clip.node.name || '').replace(/\\/g, '/').toLowerCase();
+        const myPath = (rawNode.path || rawNode.name || '').replace(/\\/g, '/').toLowerCase();
         setIsCut(clipPath === myPath);
         setHasClipboardCut(true);
       } else {
@@ -110,6 +158,9 @@ const FileTreeItem = ({
   useEffect(() => {
     const onMoveHistoryChanged = (e: any) => {
       setHasUndoableMove((e.detail?.count || 0) > 0);
+      if (e.detail?.lastType) {
+        setLastUndoType(e.detail.lastType);
+      }
     };
     window.addEventListener('file:move-history-changed', onMoveHistoryChanged);
     return () => {
@@ -257,10 +308,10 @@ const FileTreeItem = ({
   // ====================================================================
   const isDirRefreshingRef = useRef(false);
   const lastDirRefreshTimeRef = useRef(0);
-  const refreshThisDirectory = useCallback(async () => {
+  const refreshThisDirectory = useCallback(async (force = false) => {
     if (node.kind !== 'directory' || !onLazyLoad) return;
     const now = Date.now();
-    if (isDirRefreshingRef.current || now - lastDirRefreshTimeRef.current < 250) {
+    if (!force && (isDirRefreshingRef.current || now - lastDirRefreshTimeRef.current < 250)) {
       return;
     }
     isDirRefreshingRef.current = true;
@@ -301,17 +352,34 @@ const FileTreeItem = ({
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (node.kind !== 'directory' || !node.path) return;
-      const normNodePath = node.path.replace(/\\/g, '/');
+      const normNodePath = node.path.replace(/\\/g, '/').toLowerCase();
       const matches =
-        normNodePath === (detail.sourceParentPath || '').replace(/\\/g, '/') ||
-        normNodePath === (detail.targetParentPath || '').replace(/\\/g, '/') ||
-        normNodePath === (detail.targetPath || '').replace(/\\/g, '/');
-      if (matches) refreshThisDirectoryRef.current();
+        normNodePath === (detail.sourceParentPath || '').replace(/\\/g, '/').toLowerCase() ||
+        normNodePath === (detail.targetParentPath || '').replace(/\\/g, '/').toLowerCase() ||
+        normNodePath === (detail.targetPath || '').replace(/\\/g, '/').toLowerCase();
+      if (matches) refreshThisDirectoryRef.current(true);
     };
     
-    const refreshAllHandler = () => {
-      if (node.kind === 'directory' && isOpen) {
-        refreshThisDirectoryRef.current();
+    const refreshAllHandler = (e?: Event) => {
+      if (node.kind !== 'directory') return;
+      const detail = (e as CustomEvent)?.detail;
+      const isForce = detail?.force === true;
+      const targetDir = detail?.targetDir ? detail.targetDir.replace(/\\/g, '/') : null;
+      const normNodePath = node.path ? node.path.replace(/\\/g, '/') : '';
+
+      // 대상 디렉토리이거나 대상 디렉토리의 상위 폴더라면 폴더를 즉시 펼치고 강제 갱신
+      if (targetDir) {
+        const targetDirLower = targetDir.toLowerCase();
+        const normNodePathLower = normNodePath.toLowerCase();
+        if (normNodePathLower === targetDirLower || targetDirLower.startsWith(normNodePathLower + '/')) {
+          setIsOpen(true);
+          refreshThisDirectoryRef.current(true);
+          return;
+        }
+      }
+
+      if (isOpen) {
+        refreshThisDirectoryRef.current(isForce);
       }
     };
 
@@ -319,8 +387,8 @@ const FileTreeItem = ({
     const selectNodeHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail?.path || !node.path) return;
-      const normTarget = detail.path.replace(/\\/g, '/');
-      const normThis = node.path.replace(/\\/g, '/');
+      const normTarget = detail.path.replace(/\\/g, '/').toLowerCase();
+      const normThis = node.path.replace(/\\/g, '/').toLowerCase();
       if (normTarget === normThis && node.kind === 'directory') {
         openFile(node, parentHandle);
       }
@@ -377,7 +445,9 @@ const FileTreeItem = ({
     if (typeof window !== 'undefined') {
       (window as any)._draggedNode = node;
       (window as any)._draggedNodeParentHandle = parentHandle;
-      (window as any)._draggedNodeParentPath = node.path ? node.path.substring(0, node.path.lastIndexOf('/')) : '';
+      const normPath = (node.path || '').replace(/\\/g, '/');
+      const lastSlash = normPath.lastIndexOf('/');
+      (window as any)._draggedNodeParentPath = lastSlash !== -1 ? normPath.substring(0, lastSlash) : '';
     }
   };
 
@@ -393,6 +463,8 @@ const FileTreeItem = ({
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // 🛡️ 자식 요소(아이콘, 텍스트) 진입으로 인한 가짜 dragleave 방어 (덜렁거림/깜빡임 완전 해소)
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragOver(false);
   };
 
@@ -418,9 +490,11 @@ const FileTreeItem = ({
     const draggedNodeParent = typeof window !== 'undefined' ? (window as any)._draggedNodeParentHandle : null;
 
     if (sourcePath === node.path) return; // 자기 자신에게 드롭 방지
-    // 드롭 대상이 드래그 중인 원본 폴더 하위에 위치하는지 방지 (재귀 루프 방지)
+    // 드롭 대상이 드래그 중인 원본 폴더 하위에 위치하는지 방지 (재귀 루프 방지 - Windows 대소문자 및 슬래시 정규화)
     if (draggedNode && draggedNode.kind === 'directory' && node.path && draggedNode.path) {
-      if (node.path.startsWith(draggedNode.path + '/')) {
+      const normNode = (node.path || '').replace(/\\/g, '/').toLowerCase();
+      const normDragged = (draggedNode.path || '').replace(/\\/g, '/').toLowerCase();
+      if (normNode === normDragged || normNode.startsWith(normDragged + '/')) {
         showToast("하위 폴더로는 이동할 수 없습니다.", "warning");
         return;
       }
@@ -430,29 +504,72 @@ const FileTreeItem = ({
 
       try {
         if (workspaceType === 'local') {
-          const newPath = node.path ? `${node.path}\\${sourceName}` : sourceName;
+          const cleanDestDir = (node.path || '').replace(/[/\\]+$/, '');
+          const sep = cleanDestDir.includes('/') && !cleanDestDir.includes('\\') ? '/' : '\\';
+          const newPath = cleanDestDir ? `${cleanDestDir}${sep}${sourceName}` : sourceName;
           const api = (window as any).electronAPI;
-          if (api?.renameFile) {
+          if (api?.moveFile) {
+            const res = await api.moveFile(sourcePath, newPath);
+            if (res && res.error) throw new Error(res.error);
+          } else if (api?.renameFile) {
             await api.renameFile(sourcePath, newPath);
-            showToast(`'${sourceName}' 이동 완료`, 'success');
-            dispatchMovedEvent(sourcePath, node.path || '', newPath, sourceName);
-            onRefreshAll?.();
-            refreshParent();
-            await refreshThisDirectory();
           } else {
             const res = await fetch(getApiUrl('/api/rename'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ oldPath: sourcePath, newPath })
             });
-            if (res.ok) {
-              showToast(`'${sourceName}' 이동 완료`, 'success');
-              dispatchMovedEvent(sourcePath, node.path || '', newPath, sourceName);
-              onRefreshAll?.();
-              refreshParent();
-              await refreshThisDirectory();
-            }
+            if (!res.ok) throw new Error('이동 실패');
           }
+
+          showToast(`'${sourceName}' 이동 완료`, 'success');
+          dispatchMovedEvent(sourcePath, node.path || '', newPath, sourceName);
+
+          // 📂 대상 폴더 자동 펼침 및 하위 펼침 상태 보존
+          if (sourceKind === 'directory' && sourcePath) {
+            try {
+              const saved = localStorage.getItem('onrivi_expanded_paths');
+              let paths: string[] = saved ? JSON.parse(saved) : [];
+              const nodePath = node.path;
+              if (nodePath) {
+                const normNodePath = nodePath.replace(/\\/g, '/').toLowerCase();
+                if (!paths.some(p => p.replace(/\\/g, '/').toLowerCase() === normNodePath)) {
+                  paths.push(nodePath);
+                }
+              }
+              const normSrc = sourcePath.replace(/\\/g, '/').toLowerCase();
+              paths = paths.map((p: string) => {
+                const np = p.replace(/\\/g, '/');
+                if (np.toLowerCase() === normSrc) return newPath;
+                if (np.toLowerCase().startsWith(normSrc + '/')) {
+                  const sub = np.substring(normSrc.length);
+                  return `${newPath}${sep === '\\' ? sub.replace(/\//g, '\\') : sub.replace(/\\/g, '/')}`;
+                }
+                return p;
+              });
+              localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+            } catch {}
+          }
+
+          // ↩️ 드래그 앤 드롭 이동 실행 취소(되돌리기) 히스토리 등록
+          const normSrc = sourcePath.replace(/\\/g, '/');
+          const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
+          window.dispatchEvent(new CustomEvent('file:push-undo-action', {
+            detail: {
+              type: 'move',
+              srcPath: sourcePath,
+              destPath: newPath,
+              srcDirPath: srcDir,
+              destDirPath: node.path || '',
+              name: sourceName,
+              kind: sourceKind || 'file',
+              workspaceType: 'local'
+            }
+          }));
+
+          onRefreshAll?.();
+          refreshParent();
+          await refreshThisDirectory(true);
         } else if (workspaceType === 'browser') {
           if (draggedNode && draggedNode.handle) {
             // FileSystem API 환경
@@ -535,6 +652,7 @@ const FileTreeItem = ({
   const handleClick = (e: React.MouseEvent) => {
     /* [ONR-UI-005] 파일 트리 노드 클릭 연동: 사용자가 좌측 파일 탐색기 트리의 특정 노드를 클릭 시 폴더인 경우 자식 노드 토글/지연로드를 처리하고, 파일인 경우 openFile 콜백을 트리거하여 탭을 열고 로드합니다. */
     e.stopPropagation();
+    itemRef.current?.focus();
     if (isMergeMode && node.kind === 'file' && node.name.toLowerCase().endsWith('.md')) {
       if (toggleMergeNodeSelect) toggleMergeNodeSelect(node);
       return;
@@ -554,6 +672,9 @@ const FileTreeItem = ({
       }
     } else if (node.kind === 'file') {
       openFile(node, parentHandle);
+      // 탐색기 파일 클릭 시 에디터나 탭으로 포커스가 강제 전환되지 않고 탐색기 항목에 포커스 지속 유지
+      setTimeout(() => itemRef.current?.focus(), 50);
+      setTimeout(() => itemRef.current?.focus(), 150);
     }
   };
 
@@ -683,7 +804,27 @@ const FileTreeItem = ({
               setLocalChildren(null);
 
               refreshParent();
-              refreshThisDirectory();
+              refreshThisDirectory(true);
+
+              // 💡 폴더 하위 열린 탭 메타데이터 및 경로 동기화 이벤트 발송
+              window.dispatchEvent(new CustomEvent('file:tab-renamed', {
+                detail: { oldPath, newPath, newName: finalName, newHandle: newDirHandle }
+              }));
+
+              // 💡 폴더 펼침 상태(onrivi_expanded_paths) 업데이트
+              try {
+                const raw = localStorage.getItem('onrivi_expanded_paths');
+                if (raw) {
+                  const paths: string[] = JSON.parse(raw);
+                  const updated = paths.map(p => {
+                    if (p === oldPath) return newPath;
+                    if (p.startsWith(oldPath + '/')) return newPath + p.substring(oldPath.length);
+                    return p;
+                  });
+                  localStorage.setItem('onrivi_expanded_paths', JSON.stringify(updated));
+                }
+              } catch (_) {}
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
             }
           } else if (node.path) {
             // LocalStorage 가상 파일/폴더 이름 변경
@@ -692,49 +833,129 @@ const FileTreeItem = ({
             const lastSlashIndex = normalizedPath.lastIndexOf('/');
             const parentPath = lastSlashIndex !== -1 ? normalizedPath.substring(0, lastSlashIndex) : "";
             const newPath = parentPath ? `${parentPath}/${finalName}` : finalName;
-            
+            const isDir = node.kind === 'directory';
+
             vfsRename(oldPath, newPath);
+            node.path = newPath;
+            node.name = finalName;
+            if (isDir) {
+              node.children = [];
+              setLocalChildren(null);
+            }
             refreshParent();
             // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음)
             window.dispatchEvent(new CustomEvent('file:tab-renamed', {
               detail: { oldPath, newPath, newName: finalName }
             }));
+
+            if (isDir) {
+              try {
+                const raw = localStorage.getItem('onrivi_expanded_paths');
+                if (raw) {
+                  const paths: string[] = JSON.parse(raw);
+                  const updated = paths.map(p => {
+                    if (p === oldPath) return newPath;
+                    if (p.startsWith(oldPath + '/')) return newPath + p.substring(oldPath.length);
+                    return p;
+                  });
+                  localStorage.setItem('onrivi_expanded_paths', JSON.stringify(updated));
+                }
+              } catch (_) {}
+              refreshThisDirectory(true);
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            }
           }
         } else {
           const api = (window as any).electronAPI;
-          const normalizedPath = node.path ? node.path.replace(/\\/g, '/') : "";
+          const cleanOldPath = (node.path || "").replace(/[/\\]+$/, '');
+          const normalizedPath = cleanOldPath.replace(/\\/g, '/');
           const lastSlashIndex = normalizedPath.lastIndexOf('/');
           const parentPath = lastSlashIndex !== -1 ? normalizedPath.substring(0, lastSlashIndex) : "";
           const finalParentPath = parentPath.replace(/\//g, '\\');
           // 🛡️ 한글 자소 분리 깨짐 방지를 위한 NFC 경로 표준화
           const newPath = (finalParentPath ? `${finalParentPath}\\${finalName}` : finalName).normalize('NFC');
+          const isDir = node.kind === 'directory';
 
-          const oldNodePath = node.path || "";
           if (api?.renameFile) {
-            await api.renameFile(node.path, newPath);
+            await api.renameFile(cleanOldPath, newPath);
             // 💡 [요구사항 1] 이름 변경 시 노드 메모리 정보 즉시 갱신하여 하위 목록의 404 경로 유실 에러 원천 차단
             node.path = newPath;
             node.name = finalName;
+            if (isDir) {
+              node.children = [];
+              setLocalChildren(null);
+            }
             refreshParent();
 
-            // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음) — oldNodePath 스냅샷 사용
+            if (isDir) {
+              try {
+                const raw = localStorage.getItem('onrivi_expanded_paths');
+                if (raw) {
+                  const paths: string[] = JSON.parse(raw);
+                  const normOld = cleanOldPath.replace(/\\/g, '/').toLowerCase();
+                  const updated = paths.map(p => {
+                    const normP = p.replace(/[/\\]+$/, '').replace(/\\/g, '/').toLowerCase();
+                    if (normP === normOld) return newPath;
+                    if (normP.startsWith(normOld + '/')) {
+                      return newPath + p.substring(cleanOldPath.length);
+                    }
+                    return p;
+                  });
+                  localStorage.setItem('onrivi_expanded_paths', JSON.stringify(updated));
+                }
+              } catch (_) {}
+              refreshThisDirectory(true);
+              window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+                detail: { force: true, targetDir: newPath }
+              }));
+            }
+
+            // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음) — cleanOldPath 스냅샷 사용
             window.dispatchEvent(new CustomEvent('file:tab-renamed', {
-              detail: { oldPath: oldNodePath, newPath, newName: finalName }
+              detail: { oldPath: cleanOldPath, newPath, newName: finalName }
             }));
           } else {
             const res = await fetch(getApiUrl('/api/rename'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ oldPath: node.path, newPath })
+              body: JSON.stringify({ oldPath: cleanOldPath, newPath })
             });
             if (res.ok) {
               // 💡 [요구사항 1] 이름 변경 시 노드 메모리 정보 즉시 갱신하여 하위 목록의 404 경로 유실 에러 원천 차단
               node.path = newPath;
               node.name = finalName;
+              if (isDir) {
+                node.children = [];
+                setLocalChildren(null);
+              }
               refreshParent();
-              // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음) — oldNodePath 스냅샷 사용
+
+              if (isDir) {
+                try {
+                  const raw = localStorage.getItem('onrivi_expanded_paths');
+                  if (raw) {
+                    const paths: string[] = JSON.parse(raw);
+                    const normOld = cleanOldPath.replace(/\\/g, '/').toLowerCase();
+                    const updated = paths.map(p => {
+                      const normP = p.replace(/[/\\]+$/, '').replace(/\\/g, '/').toLowerCase();
+                      if (normP === normOld) return newPath;
+                      if (normP.startsWith(normOld + '/')) {
+                        return newPath + p.substring(cleanOldPath.length);
+                      }
+                      return p;
+                    });
+                    localStorage.setItem('onrivi_expanded_paths', JSON.stringify(updated));
+                  }
+                } catch (_) {}
+                refreshThisDirectory(true);
+                window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+                  detail: { force: true, targetDir: newPath }
+                }));
+              }
+
+              // 💡 탭 메타데이터만 갱신 (새 탭 열지 않음) — cleanOldPath 스냅샷 사용
               window.dispatchEvent(new CustomEvent('file:tab-renamed', {
-                detail: { oldPath: oldNodePath, newPath, newName: finalName }
+                detail: { oldPath: cleanOldPath, newPath, newName: finalName }
               }));
             }
           }
@@ -841,25 +1062,6 @@ const FileTreeItem = ({
   const handleDelete = useCallback(async (e: any) => {
     e.stopPropagation();
 
-    // 열린 탭 보호 복구: 열려있는 문서나 그 문서가 포함된 폴더는 삭제 불가
-    if (openTabPaths && openTabPaths.length > 0 && node.path) {
-      const normPath = node.path.replace(/\\/g, '/');
-      if (node.kind === 'directory') {
-        const hasOpenDescendant = openTabPaths.some(tp => {
-          const normTp = tp.replace(/\\/g, '/');
-          return normTp === normPath || normTp.startsWith(normPath + '/');
-        });
-        if (hasOpenDescendant) {
-          showToast("열려 있는 파일이 포함된 폴더는 삭제할 수 없습니다.", "warning");
-          return;
-        }
-      } else {
-        if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath)) {
-          showToast("편집기에서 열려 있는 파일은 삭제할 수 없습니다.", "warning");
-          return;
-        }
-      }
-    }
     const isDir = node.kind === 'directory';
     const rawChildren = localChildren !== null ? localChildren : node.children;
     const hasChildren = isDir && rawChildren && rawChildren.length > 0;
@@ -874,6 +1076,91 @@ const FileTreeItem = ({
       isDanger: true,
       onConfirm: async () => {
         try {
+          // 💡 [되돌리기 지원] 파일 및 폴더 삭제 시 복원용 내용/구조 스냅샷 사전 추출
+          let content = '';
+          let backupPath = '';
+          let items: any[] = [];
+
+          try {
+            if (!isDir) {
+              if (workspaceType === 'browser') {
+                if (node.handle) {
+                  const f = await node.handle.getFile();
+                  content = await f.text();
+                } else if (node.path) {
+                  content = vfsReadFile(node.path) || '';
+                }
+              } else {
+                const api = (window as any).electronAPI;
+                if (api?.readFromPath && node.path) {
+                  const res = await api.readFromPath(node.path);
+                  content = res?.content || '';
+                } else if (node.path) {
+                  const res = await fetch(getApiUrl(`/api/file-content?path=${encodeURIComponent(node.path)}`));
+                  if (res.ok) {
+                    const data = await res.json();
+                    content = data.content || '';
+                  }
+                }
+              }
+            } else {
+              // 📂 폴더 삭제 전 전체 하위 파일/폴더 스냅샷 백업
+              if (workspaceType === 'browser') {
+                if (node.handle) {
+                  items = await snapshotFsaDirectory(node.handle);
+                } else if (node.path) {
+                  // VFS 폴더 하위 항목 스냅샷
+                  try {
+                    const normPath = node.path.replace(/\\/g, '/').toLowerCase();
+                    const allKeys = Object.keys(localStorage);
+                    for (const k of allKeys) {
+                      if (k.startsWith('vfs:')) {
+                        const filePath = k.slice(4);
+                        const normFp = filePath.replace(/\\/g, '/').toLowerCase();
+                        if (normFp.startsWith(normPath + '/')) {
+                          const rel = filePath.slice(node.path.length).replace(/^[/\\]+/, '');
+                          items.push({ relativePath: rel, kind: 'file', content: localStorage.getItem(k) || '' });
+                        }
+                      }
+                    }
+                  } catch (vfsErr) {
+                    console.warn('[handleDelete] VFS folder snapshot error:', vfsErr);
+                  }
+                }
+              } else {
+                // Desktop Electron 환경: 임시 백업 폴더 생성
+                const api = (window as any).electronAPI;
+                if (api?.backupFolderForUndo && node.path) {
+                  const res = await api.backupFolderForUndo(node.path);
+                  if (res?.success && res.backupPath) {
+                    backupPath = res.backupPath;
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('[handleDelete] 삭제 전 내용 스냅샷 실패:', err);
+          }
+
+          const normalizedPath = (node.path || node.name).replace(/\\/g, '/');
+          const lastSlash = normalizedPath.lastIndexOf('/');
+          const parentPath = lastSlash !== -1 ? normalizedPath.substring(0, lastSlash) : '';
+
+          window.dispatchEvent(new CustomEvent('file:push-undo-action', {
+            detail: {
+              type: 'delete',
+              name: node.name,
+              path: node.path || node.name,
+              parentPath,
+              kind: node.kind,
+              content,
+              backupPath,
+              items,
+              parentHandle,
+              workspaceType
+            }
+          }));
+
           if (workspaceType === 'browser') {
             if (node.handle) {
               // 🚀 폴더 및 파일 재귀 삭제 지원 (recursive: true)
@@ -924,15 +1211,29 @@ const FileTreeItem = ({
               });
               if (!res.ok) return;
             }
+            if (isDir && node.path) {
+              try {
+                const saved = localStorage.getItem('onrivi_expanded_paths');
+                if (saved) {
+                  const normPath = node.path.replace(/\\/g, '/').toLowerCase();
+                  const paths = JSON.parse(saved).filter((p: string) => {
+                    const np = p.replace(/\\/g, '/').toLowerCase();
+                    return np !== normPath && !np.startsWith(normPath + '/');
+                  });
+                  localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+                }
+              } catch {}
+            }
             refreshParent();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
           }
           if (currentFileName === node.name) {
             openFile(null); 
           }
-          // 🚀 삭제된 파일/폴더와 연관된 탭들을 닫도록 이벤트 발송
+          // 🚀 삭제된 파일/폴더와 연관된 탭들을 즉시 닫도록 이벤트 발송
           if (node.path) {
             window.dispatchEvent(new CustomEvent('file:tab-deleted', { detail: { deletedPath: node.path } }));
+            window.dispatchEvent(new CustomEvent('file:close-tab-by-path', { detail: { path: node.path, name: node.name } }));
           }
           showToast(`[${node.name}] ${isDir ? "폴더" : "파일"}가 삭제되었습니다.`, 'success');
         } catch(e: any) { 
@@ -941,7 +1242,7 @@ const FileTreeItem = ({
         }
       }
     });
-  }, [openTabPaths, node, showToast, localChildren, askConfirm, workspaceType, parentHandle, refreshParent, currentFileName, openFile]);
+  }, [node, showToast, localChildren, askConfirm, workspaceType, parentHandle, refreshParent, currentFileName, openFile]);
 
   const isSelected = (() => {
     if (currentFilePath && node.path) {
@@ -958,18 +1259,6 @@ const FileTreeItem = ({
   const isMergeSelected = node.kind === 'file' && selectedMergeNodes.some(n => n.path ? n.path === node.path : n.name === node.name);
   const isMarkdown = node.kind === 'file' && node.name.toLowerCase().endsWith('.md');
   const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
-
-  // 탭에 열려있는지 확인
-  const isOpenInTab = !!node.path && !!openTabPaths?.length && (() => {
-    const normPath = node.path.replace(/\\/g, '/');
-    if (node.kind === 'directory') {
-      return openTabPaths.some(tp => {
-        const normTp = tp.replace(/\\/g, '/');
-        return normTp === normPath || normTp.startsWith(normPath + '/');
-      });
-    }
-    return openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath);
-  })();
 
   const triggerCreateFile = useCallback((e?: any) => {
     if (e?.stopPropagation) e.stopPropagation();
@@ -1017,15 +1306,11 @@ const FileTreeItem = ({
 
   const triggerCut = useCallback((e?: any) => {
     if (e?.stopPropagation) e.stopPropagation();
-    if (isOpenInTab) {
-      showToast('편집기에서 열려 있는 파일은 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
-      return;
-    }
     setContextMenu(null);
     window.dispatchEvent(new CustomEvent('file:cut-node', {
       detail: { node, parentHandle }
     }));
-  }, [isOpenInTab, node, parentHandle, showToast]);
+  }, [node, parentHandle]);
 
   const triggerPaste = useCallback((e?: any) => {
     if (e?.stopPropagation) e.stopPropagation();
@@ -1068,13 +1353,9 @@ const FileTreeItem = ({
 
   const triggerDelete = useCallback((e?: any) => {
     if (e?.stopPropagation) e.stopPropagation();
-    if (isOpenInTab) {
-      showToast('편집기에서 열려 있는 파일은 삭제할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
-      return;
-    }
     setContextMenu(null);
     handleDelete(e);
-  }, [isOpenInTab, handleDelete, showToast]);
+  }, [handleDelete]);
 
   // ⌨️ [단축키 연동] 컨텍스트 메뉴 오픈 시 일반 단축키 즉각 실행
   useEffect(() => {
@@ -1099,19 +1380,18 @@ const FileTreeItem = ({
       }
 
       if (e.key === 'Delete') {
-        if (!isOpenInTab) {
-          e.preventDefault();
-          e.stopPropagation();
-          triggerDelete(e);
-        }
+        e.preventDefault();
+        e.stopPropagation();
+        triggerDelete(e);
         return;
       }
 
-      if (isCtrl && e.altKey && !e.shiftKey && (e.key === 'N' || e.key === 'n')) {
+      if (isCtrl && e.altKey && !e.shiftKey && (e.key === 'o' || e.key === 'O')) {
         if (node.kind === 'directory') {
           e.preventDefault();
           e.stopPropagation();
-          triggerCreateFolder(e);
+          setContextMenu(null);
+          window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT', { detail: { node, parentHandle: node.handle || parentHandle } }));
         }
         return;
       }
@@ -1133,11 +1413,9 @@ const FileTreeItem = ({
       }
 
       if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'x' || e.key === 'X')) {
-        if (!isOpenInTab) {
-          e.preventDefault();
-          e.stopPropagation();
-          triggerCut(e);
-        }
+        e.preventDefault();
+        e.stopPropagation();
+        triggerCut(e);
         return;
       }
 
@@ -1159,20 +1437,13 @@ const FileTreeItem = ({
         }
         return;
       }
-
-      if (e.shiftKey && e.altKey && (e.key === 'R' || e.key === 'r')) {
-        e.preventDefault();
-        e.stopPropagation();
-        triggerReveal(e);
-        return;
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [contextMenu, isMac, isOpenInTab, hasClipboardCut, hasUndoableMove, node.kind, triggerRename, triggerDelete, triggerCreateFolder, triggerCreateFile, triggerCopy, triggerCut, triggerPaste, triggerReveal]);
+  }, [contextMenu, isMac, hasClipboardCut, hasUndoableMove, node, parentHandle, triggerRename, triggerDelete, triggerCreateFile, triggerCopy, triggerCut, triggerPaste]);
 
   // 🧠 지식 베이스 등록 여부 추적 (데스크톱 전용 기능)
   const [isKnowledgeRegistered, setIsKnowledgeRegistered] = useState(false);
@@ -1231,6 +1502,7 @@ const FileTreeItem = ({
         onCancel={() => setPromptConfig({ ...promptConfig, isOpen: false, error: '' })}
       />
       <div 
+        ref={itemRef}
         title={node.name}
         tabIndex={0}
         role="treeitem"
@@ -1241,6 +1513,9 @@ const FileTreeItem = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onMouseLeave={handleItemMouseLeave}
+        onMouseDown={() => {
+          itemRef.current?.focus();
+        }}
         onKeyDown={(e) => {
           if (isMergeMode || isRestrictedUser) return;
           const target = e.target as HTMLElement;
@@ -1255,11 +1530,9 @@ const FileTreeItem = ({
             return;
           }
           if (e.key === 'Delete') {
-            if (!isOpenInTab) {
-              e.preventDefault();
-              e.stopPropagation();
-              triggerDelete(e);
-            }
+            e.preventDefault();
+            e.stopPropagation();
+            triggerDelete(e);
             return;
           }
           if (isCmdOrCtrl && !e.shiftKey && !e.altKey && (e.key === 'c' || e.key === 'C')) {
@@ -1269,11 +1542,9 @@ const FileTreeItem = ({
             return;
           }
           if (isCmdOrCtrl && !e.shiftKey && !e.altKey && (e.key === 'x' || e.key === 'X')) {
-            if (!isOpenInTab) {
-              e.preventDefault();
-              e.stopPropagation();
-              triggerCut(e);
-            }
+            e.preventDefault();
+            e.stopPropagation();
+            triggerCut(e);
             return;
           }
           if (isCmdOrCtrl && !e.shiftKey && !e.altKey && (e.key === 'v' || e.key === 'V')) {
@@ -1282,10 +1553,10 @@ const FileTreeItem = ({
             triggerPaste(e);
             return;
           }
-          if (isCmdOrCtrl && e.altKey && !e.shiftKey && (e.key === 'N' || e.key === 'n') && node.kind === 'directory') {
+          if (isCmdOrCtrl && e.altKey && !e.shiftKey && (e.key === 'o' || e.key === 'O') && node.kind === 'directory') {
             e.preventDefault();
             e.stopPropagation();
-            triggerCreateFolder(e);
+            window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT', { detail: { node, parentHandle: node.handle || parentHandle } }));
             return;
           }
           if (e.altKey && !isCmdOrCtrl && (e.key === 'N' || e.key === 'n') && node.kind === 'directory') {
@@ -1294,19 +1565,13 @@ const FileTreeItem = ({
             triggerCreateFile(e);
             return;
           }
-          if (e.shiftKey && e.altKey && (e.key === 'R' || e.key === 'r')) {
-            e.preventDefault();
-            e.stopPropagation();
-            triggerReveal(e);
-            return;
-          }
         }}
-        className={`group relative flex items-center w-full py-1 pr-2 my-0.5 rounded-lg transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#1d4ed8]/40 ${
+        className={`group relative flex items-center w-full py-1 pr-2 my-0.5 rounded-lg transition-colors duration-100 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#1d4ed8]/40 ${
           isSelected 
             ? 'bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 text-zinc-950 dark:text-white font-extrabold shadow-sm' 
             : isDragOver
-              ? 'bg-[#1d4ed8]/20 scale-[1.01]'
-              : 'text-[#2A2A2A] dark:text-[#D4D4D4] hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 hover:text-black dark:hover:text-white hover:font-bold hover:shadow-2xs'
+              ? 'bg-[#1d4ed8]/20 ring-1 ring-[#1d4ed8]'
+              : 'text-[#2A2A2A] dark:text-[#D4D4D4] hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 hover:text-black dark:hover:text-white hover:shadow-2xs'
         } ${isCut ? 'opacity-40 italic' : ''}`}
         style={{ 
           paddingLeft: `${(level * 12) + 8}px`,
@@ -1394,7 +1659,20 @@ const FileTreeItem = ({
                       <FolderPlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                       <span className="truncate">새 폴더</span>
                     </div>
-                    <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥⌘N' : 'Ctrl+Alt+N'}</kbd>
+                  </button>
+                  <button
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      setContextMenu(null);
+                      window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT', { detail: { node, parentHandle: node.handle || parentHandle } })); 
+                    }}
+                    className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-blue-600 dark:text-blue-400 font-medium"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileText size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <span className="truncate">타문서 변환</span>
+                    </div>
+                    <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥⌘O' : 'Ctrl+Alt+O'}</kbd>
                   </button>
                 </>
               )}
@@ -1420,11 +1698,7 @@ const FileTreeItem = ({
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); triggerCut(e); }}
-                disabled={isOpenInTab}
-                className={`flex items-center justify-between gap-3 px-3 py-1.5 w-full text-left transition-colors ${
-                  isOpenInTab ? 'opacity-40 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white'
-                }`}
-                title={isOpenInTab ? "탭에서 열려있는 파일은 잘라내기할 수 없습니다" : "잘라내기"}
+                className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Scissors size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
@@ -1461,7 +1735,7 @@ const FileTreeItem = ({
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                    <span className="truncate">이동 되돌리기</span>
+                    <span className="truncate">{lastUndoType === 'delete' ? '삭제 되돌리기' : '이동 되돌리기'}</span>
                   </div>
                   <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘Z' : 'Ctrl+Z'}</kbd>
                 </button>
@@ -1482,27 +1756,18 @@ const FileTreeItem = ({
                       <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                       <span className="truncate">{label}</span>
                     </div>
-                    <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥⇧R' : 'Shift+Alt+R'}</kbd>
                   </button>
                 );
               })()}
               <button
                 onClick={(e) => { 
                   e.stopPropagation(); 
-                  if (!isOpenInTab) {
-                    triggerDelete(e); 
-                  }
+                  triggerDelete(e); 
                 }}
-                disabled={isOpenInTab}
-                className={`flex items-center justify-between gap-3 px-3 py-1.5 w-full text-left transition-colors ${
-                  isOpenInTab 
-                    ? 'opacity-40 cursor-not-allowed' 
-                    : 'hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400'
-                }`}
-                title={isOpenInTab ? "탭에서 열려있는 파일은 삭제할 수 없습니다" : "삭제"}
+                className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 w-full text-left transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Trash2 size={15} strokeWidth={1.75} className={`shrink-0 text-current opacity-80 ${isOpenInTab ? 'opacity-40' : ''}`} />
+                  <Trash2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                   <span className="truncate">삭제</span>
                 </div>
                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">Del</kbd>
@@ -1767,9 +2032,9 @@ const FileTreeItem = ({
             {children.length === 0 && (
               <div className="text-[10px] text-zinc-400 pl-6 py-1 italic">빈 폴더</div>
             )}
-            {children.map((child, idx) => (
+            {children.map((child) => (
               <FileTreeItem 
-                key={`${child.path || child.name}-${idx}`} 
+                key={child.path || (node.path ? `${node.path}/${child.name}` : child.name)} 
                 node={child} 
                 parentHandle={node.handle}
                 level={level + 1}

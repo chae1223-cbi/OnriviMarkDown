@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 10. 파일/폴더 삭제
   deleteFile: (targetPath) => ipcRenderer.invoke('file:delete', targetPath),
+  backupFolderForUndo: (folderPath) => ipcRenderer.invoke('file:backupFolderForUndo', folderPath),
+  restoreFolderFromUndo: (backupPath, targetPath) => ipcRenderer.invoke('file:restoreFolderFromUndo', backupPath, targetPath),
 
   // 11. 새 파일 생성
   createFile: (parentPath, name) => ipcRenderer.invoke('file:createFile', parentPath, name),

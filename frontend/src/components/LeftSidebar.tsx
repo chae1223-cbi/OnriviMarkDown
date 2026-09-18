@@ -24,6 +24,26 @@ import { loadSecureData } from '@/lib/secureStorage';
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
 // 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
+// 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
+//             1) 폴더 삭제 되돌리기: handleUndoMove에서 kind === 'directory' 지원(데스크톱 api.restoreFolderFromUndo, 웹 FSA restoreFsaDirectory, VFS 복원 및 onrivi_expanded_paths 자동 전개)
+//             2) 탐색기 덜렁거림 제거: 120ms 중복 재새로고침 제거(단일 갱신 일원화), aside 너비 고정(shrink-0 min-w/max-w), [scrollbar-gutter:stable], handleDragLeaveRoot 자식 진입 방어
+// 🚨 @PATCH : **2026-09-18** — [데스크톱(Electron) 환경 파일 탐색기 기능 동기화 및 패리티 완성]:
+//             1) handlePasteNode: destDirPath 끝 슬래시 정규화, 대소문자 무관 이동 가드, api.moveFile/copyFile 에러 검증 및 onrivi_expanded_paths/undoHistory 갱신
+//             2) handleUndoMove: 폴더 이동 되돌리기 시 onrivi_expanded_paths 역방향 갱신 및 삭제 되돌리기 시 parentPath 강제 새로고침 전달
+//             3) handleDropRoot: actualRootPath 정규화, api.moveFile 우선 호출, undoHistory 및 onrivi_expanded_paths 갱신
+// 🚨 @PATCH : **2026-09-18** — [열린 문서가 포함된 폴더의 잘라내기/붙여넣기 및 되돌리기 전면 허용]:
+//             1) handlePasteNode에서 열린 탭 존재 시 폴더 이동을 차단하던 가드를 전면 해제하여 열린 문서가 있는 폴더도 자유롭게 잘라내기/붙여넣기 가능
+//             2) 폴더 이동 시 대상 폴더 자동 펼침(onrivi_expanded_paths) 및 하위 열린 탭들의 경로를 file:tab-renamed를 통해 일괄 갱신
+//             3) 이동 되돌리기(Undo) 히스토리에 type: 'move'를 명시하여 원본 위치 복원 및 열린 탭 역방향 원복 완벽 보장
+// 🚨 @PATCH : **2026-09-18** — [타문서 변환 후 탐색기 자동 새로고침 및 디렉토리 자동 펼침 고도화]:
+//             1) 변환 완료 후 triggerExplorerRefresh를 통해 refreshFileList(true) 강제 호출 및 file:refresh-all-directories(force: true, targetDir) 발송
+//             2) 하위 폴더 타문서 변환 시 대상 폴더 및 상위 경로를 onrivi_expanded_paths에 자동 추가하여 파일 트리 자동 펼침 및 새로고침 완비
+//             3) OS 디스크 I/O 레이스 컨디션 방어용 120ms 2차 안전 갱신 및 생성 파일 자동 선택(file:select-node) 연동
+// 🚨 @PATCH : **2026-09-18** — [타문서 변환 명칭 및 Ctrl+Alt+O 변경 / 하위 폴더 변환 지원 / 삭제 되돌리기(Undo) 복원 지원 / 열린 파일 잘라내기 허용 / 새폴더·탐색기보기 단축키 제거]:
+//             1) '가져오기'를 '타문서 변환'으로 변경하고 단축키를 Ctrl+Alt+O로 변경, 하위 폴더 타문서 변환 지원
+//             2) 열린 파일 잘라내기 허용 및 이동/되돌리기 시 탭 경로 동기화
+//             3) 삭제 작업도 Undo 스택(undoHistoryRef)에 보존하여 Ctrl+Z 시 탐색기에 원본 내용 복원
+//             4) 새 폴더(Ctrl+Alt+N) 및 탐색기에서 보기(Shift+Alt+R) 단축키 제거
 // 🚨 @PATCH : **2026-09-18** — [루트 붙여넣기 시 원래 위치 잔존 결함 해결 & 빈 영역 우클릭 메뉴 지원]:
 //             1) triggerPasteRoot/triggerCutRoot/triggerCopyRoot의 의존성 누락(stale closure) 제거 및 handlePasteNode useCallback 최신화
 //             2) 루트 붙여넣기 시 destDirPath 정상화(VFS 및 Browser FSA 환경에서 루트를 빈 상대경로 ''로 정규화)
@@ -64,6 +84,54 @@ import { loadSecureData } from '@/lib/secureStorage';
 //             **2026-08-12** — 개요(TOC) 클릭 시 preview/both(분할) 모드에 맞춰 스크롤 동작을 이원화하고 하위 수준 존재 여부와 무관하게 정상 스크롤되도록 보완; H3 이하의 뎁스 목차가 기본적으로 접힌 채 렌더링에서 누락되던 조건 버그(undefined!==false)를 ===true 접힘으로 전면 교정하여 전체 펼침 구현; **2026-08-12** — 미리보기 스크롤 시 좌측 개요(TOC) 탭 목록도 활성 헤딩 위치를 자동으로 추적하여 뷰포트 내로 자동 스크롤(Auto-scroll Follow)되는 지능형 연동 기능 구현; **2026-08-12** — 개요(TOC) 클릭 시 에디터-미리보기 간의 양방향 스크롤 동기화 간섭을 일시 차단하는 락킹(isScrollingRef) 루틴을 적용하고 미리보기 컨테이너(previewRef) 내에서 부드러운 스크롤(scrollTo)이 동작하도록 개선; **2026-08-12** — 사이드바 배경을 라이트모드에 최적화된 고급스러운 아이스 블루 및 실버 톤 그라데이션(linear-gradient)으로 교체하고 탭 헤더 및 워크스페이스 바를 반투명 처리하는 프리미엄 디자인 리뉴얼 패치 적용; **2026-08-12** — 사이드바 폰트 크기를 상태바와 동일하게 12px 굵은 글씨로 통일 적용 및 탐색기 폴더 명칭을 '작업장 실폴더'로 명명 변경; **2026-07-05** — MainEditorApp의 Props 의존성을 전면 제거하고 EditorContext 참조 방식으로 아키텍처 완전 개편 및 ts-nocheck 우회 적용; **2026-06-19** — openTabPaths prop 추가; **2026-07-06** — 탭 헤더 바로 아래 항상 표시되는 워크스페이스 선택 바 추가: FileTreeItem으로 전달하여 드래그 이동 시 열린 파일 보호
 // 🔗 @CALLS : fetchDrives, handleLazyLoad, onPromptConfirm, onFileOpenAndJump, executeJumpAndHighlight, FileTreeItem, GlobalSearch, PromptModal
 // ====================================================================
+// 📂 브라우저 File System Access API 폴더 재귀 복원기 (되돌리기 지원용)
+const restoreFsaDirectory = async (parentHandle: any, folderName: string, items: { relativePath: string; kind: 'file' | 'directory'; content?: string }[]) => {
+  if (!parentHandle) return;
+  const folderHandle = await parentHandle.getDirectoryHandle(folderName, { create: true });
+  const dirHandles = new Map<string, any>();
+  dirHandles.set('', folderHandle);
+
+  for (const item of items) {
+    const parts = item.relativePath.split('/');
+    if (item.kind === 'directory') {
+      let current = folderHandle;
+      let currentPath = '';
+      for (const part of parts) {
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        if (!dirHandles.has(currentPath)) {
+          const sub = await current.getDirectoryHandle(part, { create: true });
+          dirHandles.set(currentPath, sub);
+          current = sub;
+        } else {
+          current = dirHandles.get(currentPath)!;
+        }
+      }
+    } else if (item.kind === 'file') {
+      const fileName = parts.pop()!;
+      let targetDir = folderHandle;
+      if (parts.length > 0) {
+        let curr = folderHandle;
+        let cp = '';
+        for (const p of parts) {
+          cp = cp ? `${cp}/${p}` : p;
+          if (!dirHandles.has(cp)) {
+            const sub = await curr.getDirectoryHandle(p, { create: true });
+            dirHandles.set(cp, sub);
+            curr = sub;
+          } else {
+            curr = dirHandles.get(cp)!;
+          }
+        }
+        targetDir = curr;
+      }
+      const fileHandle = await targetDir.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(item.content || '');
+      await writable.close();
+    }
+  }
+};
+
 export default function LeftSidebar() {
   const {
     isSearchOpen, setIsSearchOpen,
@@ -416,8 +484,9 @@ export default function LeftSidebar() {
   // 📋 파일/폴더 복사 및 붙여넣기/잘라내기 클립보드 상태
   const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any; op?: 'copy' | 'cut' } | null>(null);
 
-  // ↩️ 파일/폴더 이동 실행 취소(Undo) 히스토리 스택
-  interface MoveHistoryItem {
+  // ↩️ 파일/폴더 이동 및 삭제 실행 취소(Undo) 히스토리 스택
+  interface MoveActionItem {
+    type: 'move';
     srcPath: string;
     destPath: string;
     srcDirPath: string;
@@ -429,8 +498,22 @@ export default function LeftSidebar() {
     destParentHandle?: any;
     srcNode?: FileNode;
   }
-  const moveHistoryRef = useRef<MoveHistoryItem[]>([]);
+  interface DeleteActionItem {
+    type: 'delete';
+    path: string;
+    parentPath: string;
+    name: string;
+    kind: 'file' | 'directory';
+    workspaceType: string;
+    content?: string;
+    parentHandle?: any;
+  }
+  type UndoActionItem = MoveActionItem | DeleteActionItem;
+
+  const undoHistoryRef = useRef<UndoActionItem[]>([]);
+  const moveHistoryRef = undoHistoryRef; // 하위 호환성 유지
   const [hasUndoableMove, setHasUndoableMove] = useState(false);
+  const [lastUndoType, setLastUndoType] = useState<'move' | 'delete'>('move');
 
   // ✂️ 잘라내기 선택 상태 취소 핸들러
   const handleCancelCut = useCallback(() => {
@@ -464,100 +547,219 @@ export default function LeftSidebar() {
     }
   }, []);
 
-  // ↩️ 이동 실행 취소(되돌리기) 핸들러
+  // ↩️ 실행 취소(되돌리기) 핸들러 - 이동 및 삭제 완벽 복원
   const handleUndoMove = useCallback(async () => {
-    const history = moveHistoryRef.current;
+    const history = undoHistoryRef.current;
     if (history.length === 0) {
-      showToast('되돌릴 이동 작업이 없습니다.', 'info');
+      showToast('되돌릴 작업이 없습니다.', 'info');
       return;
     }
 
     const lastAction = history.pop();
     setHasUndoableMove(history.length > 0);
-    window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: history.length } }));
+    const nextLastType = history.length > 0 ? history[history.length - 1].type : 'move';
+    setLastUndoType(nextLastType);
+    window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: history.length, lastType: nextLastType } }));
 
     if (!lastAction) return;
 
-    const { srcPath, destPath, destDirPath, srcDirPath, name, kind, sourceParentHandle, destParentHandle, workspaceType: moveWorkspaceType } = lastAction;
-    const isDir = kind === 'directory';
+    if (lastAction.type === 'move' || (!lastAction.type && (lastAction as any).srcPath)) {
+      const { srcPath, destPath, destDirPath, srcDirPath, name, kind, sourceParentHandle, destParentHandle, workspaceType: moveWorkspaceType } = lastAction;
+      const isDir = kind === 'directory';
 
-    try {
-      const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+      try {
+        const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
 
-      // 1. Electron 데스크톱 환경
-      if ((workspaceType === 'local' || moveWorkspaceType === 'local') && api) {
-        if (api?.moveFile) {
-          const res = await api.moveFile(destPath, srcPath);
-          if (res && res.error) throw new Error(res.error);
-        } else if (api?.renameFile) {
-          await api.renameFile(destPath, srcPath);
-        } else {
-          const res = await fetch(getApiUrl('/api/rename'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ oldPath: destPath, newPath: srcPath })
-          });
-          if (!res.ok) throw new Error('되돌리기 API 호출 실패');
+        // 1. Electron 데스크톱 환경
+        if ((workspaceType === 'local' || moveWorkspaceType === 'local') && api) {
+          if (api?.moveFile) {
+            const res = await api.moveFile(destPath, srcPath);
+            if (res && res.error) throw new Error(res.error);
+          } else if (api?.renameFile) {
+            await api.renameFile(destPath, srcPath);
+          } else {
+            const res = await fetch(getApiUrl('/api/rename'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ oldPath: destPath, newPath: srcPath })
+            });
+            if (!res.ok) throw new Error('되돌리기 API 호출 실패');
+          }
+          if (isDir && destPath && srcPath) {
+            try {
+              const saved = localStorage.getItem('onrivi_expanded_paths');
+              if (saved) {
+                const normDest = destPath.replace(/\\/g, '/').toLowerCase();
+                const paths: string[] = JSON.parse(saved);
+                const updated = paths.map(p => {
+                  const normP = p.replace(/\\/g, '/').toLowerCase();
+                  if (normP === normDest || normP.startsWith(normDest + '/')) {
+                    return srcPath + p.slice(destPath.length);
+                  }
+                  return p;
+                });
+                localStorage.setItem('onrivi_expanded_paths', JSON.stringify(updated));
+              }
+            } catch (e) {
+              console.error('Error reverting expanded paths on undo:', e);
+            }
+          }
         }
+        // 2. 브라우저 FSA 환경
+        else if (destParentHandle && sourceParentHandle) {
+          if (isDir) {
+            const copyDirRecursive = async (sourceDirHandle: any, targetParentHandle: any, dirName: string) => {
+              const newDir = await targetParentHandle.getDirectoryHandle(dirName, { create: true });
+              for await (const [entryName, entryHandle] of sourceDirHandle.entries()) {
+                if (entryHandle.kind === 'directory') {
+                  await copyDirRecursive(entryHandle, newDir, entryName);
+                } else {
+                  const f = await entryHandle.getFile();
+                  const newF = await newDir.getFileHandle(entryName, { create: true });
+                  const w = await newF.createWritable();
+                  await w.write(f);
+                  await w.close();
+                }
+              }
+            };
+            const targetDir = await destParentHandle.getDirectoryHandle(name);
+            await copyDirRecursive(targetDir, sourceParentHandle, name);
+            await destParentHandle.removeEntry(name, { recursive: true });
+          } else {
+            const fileHandle = await destParentHandle.getFileHandle(name);
+            const file = await fileHandle.getFile();
+            const newFileHandle = await sourceParentHandle.getFileHandle(name, { create: true });
+            const writable = await newFileHandle.createWritable();
+            await writable.write(file);
+            await writable.close();
+            await destParentHandle.removeEntry(name);
+          }
+        }
+        // 3. VFS 환경
+        else if (destPath && srcPath) {
+          vfsMoveItem(destPath, srcDirPath);
+        }
+
+        dispatchMovedEvent(destPath, srcDirPath, srcPath, name);
+        await refreshFileList(true);
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+          detail: { force: true, targetDir: srcDirPath }
+        }));
+        showToast(`'${name}'을(를) 원래 위치로 되돌렸습니다.`, 'success');
+      } catch (err: any) {
+        showToast(`이동 되돌리기 실패: ${err.message || err}`, 'error');
+        history.push(lastAction);
+        setHasUndoableMove(true);
+        setLastUndoType('move');
+        window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: history.length, lastType: 'move' } }));
       }
-      // 2. 브라우저 FSA 환경
-      else if (destParentHandle && sourceParentHandle) {
+    } else if (lastAction.type === 'delete') {
+      const { path, parentPath, name, kind, content = '', backupPath, items = [], parentHandle } = lastAction;
+      const isDir = kind === 'directory';
+      try {
         if (isDir) {
-          const copyDirRecursive = async (sourceDirHandle: any, targetParentHandle: any, dirName: string) => {
-            const newDir = await targetParentHandle.getDirectoryHandle(dirName, { create: true });
-            for await (const [entryName, entryHandle] of sourceDirHandle.entries()) {
-              if (entryHandle.kind === 'directory') {
-                await copyDirRecursive(entryHandle, newDir, entryName);
-              } else {
-                const f = await entryHandle.getFile();
-                const newF = await newDir.getFileHandle(entryName, { create: true });
-                const w = await newF.createWritable();
-                await w.write(f);
-                await w.close();
+          if (workspaceType === 'browser') {
+            if (parentHandle) {
+              await restoreFsaDirectory(parentHandle, name, items);
+            } else {
+              // VFS 환경 폴더 복원
+              const { vfsCreateFolder, vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
+              vfsCreateFolder(parentPath, name);
+              for (const item of items) {
+                const subParent = item.relativePath.includes('/')
+                  ? `${path}/${item.relativePath.substring(0, item.relativePath.lastIndexOf('/'))}`
+                  : path;
+                const fileName = item.relativePath.includes('/')
+                  ? item.relativePath.substring(item.relativePath.lastIndexOf('/') + 1)
+                  : item.relativePath;
+                const filePath = `${path}/${item.relativePath}`;
+                vfsCreateFile(subParent, fileName);
+                vfsWriteFile(filePath, item.content || '');
               }
             }
-          };
-          const targetDir = await destParentHandle.getDirectoryHandle(name);
-          await copyDirRecursive(targetDir, sourceParentHandle, name);
-          await destParentHandle.removeEntry(name, { recursive: true });
-        } else {
-          const fileHandle = await destParentHandle.getFileHandle(name);
-          const file = await fileHandle.getFile();
-          const newFileHandle = await sourceParentHandle.getFileHandle(name, { create: true });
-          const writable = await newFileHandle.createWritable();
-          await writable.write(file);
-          await writable.close();
-          await destParentHandle.removeEntry(name);
-        }
-      }
-      // 3. VFS 환경
-      else if (destPath && srcPath) {
-        vfsMoveItem(destPath, srcDirPath);
-      }
+          } else {
+            // Electron 데스크톱 환경 폴더 복원
+            const api = (window as any).electronAPI;
+            if (api?.restoreFolderFromUndo && backupPath) {
+              const res = await api.restoreFolderFromUndo(backupPath, path);
+              if (res && res.error) throw new Error(res.error);
+            } else if (api?.createFolder) {
+              await api.createFolder(parentPath, name);
+            }
+          }
 
-      dispatchMovedEvent(destPath, srcDirPath, srcPath, name);
-      await refreshFileList();
-      window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-      showToast(`'${name}'을(를) 원래 위치로 되돌렸습니다.`, 'success');
-    } catch (err: any) {
-      showToast(`되돌리기 실패: ${err.message || err}`, 'error');
-      history.push(lastAction);
-      setHasUndoableMove(true);
-      window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: history.length } }));
+          // 📂 복원된 폴더 자동 펼침 상태 복구
+          try {
+            const saved = localStorage.getItem('onrivi_expanded_paths');
+            let paths: string[] = saved ? JSON.parse(saved) : [];
+            const normPath = path.replace(/\\/g, '/').toLowerCase();
+            if (!paths.some(p => p.replace(/\\/g, '/').toLowerCase() === normPath)) {
+              paths.push(path);
+              localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+            }
+          } catch {}
+
+          await refreshFileList(true);
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+            detail: { force: true, targetDir: parentPath }
+          }));
+          showToast(`삭제되었던 '${name}' 폴더를 탐색기에 복원했습니다.`, 'success');
+        } else {
+          // 단일 파일 복원
+          if (workspaceType === 'browser') {
+            if (parentHandle && kind === 'file') {
+              const handle = await parentHandle.getFileHandle(name, { create: true });
+              const w = await handle.createWritable();
+              await w.write(content);
+              await w.close();
+            } else {
+              const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
+              vfsCreateFile(parentPath, name);
+              vfsWriteFile(path, content);
+            }
+          } else {
+            // Electron 데스크톱 환경 파일 복원
+            const api = (window as any).electronAPI;
+            if (api?.createFile && api?.saveFile) {
+              const res = await api.createFile(parentPath, name);
+              if (res?.success) {
+                await api.saveFile(res.path || path, content);
+              }
+            } else {
+              await fetch(getApiUrl('/api/create-file'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ parentPath, name, content })
+              });
+            }
+          }
+          await refreshFileList(true);
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+            detail: { force: true, targetDir: parentPath }
+          }));
+          showToast(`삭제되었던 '${name}'을(를) 탐색기에 복원했습니다.`, 'success');
+        }
+      } catch (err: any) {
+        showToast(`삭제 되돌리기 실패: ${err.message || err}`, 'error');
+        history.push(lastAction);
+        setHasUndoableMove(true);
+        setLastUndoType('delete');
+        window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: history.length, lastType: 'delete' } }));
+      }
     }
   }, [workspaceType, refreshFileList, showToast, dispatchMovedEvent]);
 
-  // ⌨️ 되돌리기 단축키(Ctrl+Z) 통합 트리거 (잘라내기 취소 우선, 그 다음 이동 되돌리기)
+  // ⌨️ 되돌리기 단축키(Ctrl+Z) 통합 트리거 (잘라내기 취소 우선, 그 다음 이동/삭제 되돌리기)
   const triggerUndo = useCallback(() => {
     const clip = clipboardNode || (typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null);
     if (clip && clip.op === 'cut') {
       handleCancelCut();
       return;
     }
-    if (moveHistoryRef.current.length > 0) {
+    if (undoHistoryRef.current.length > 0) {
       handleUndoMove();
     } else {
-      showToast('되돌릴 이동 또는 잘라내기 작업이 없습니다.', 'info');
+      showToast('되돌릴 작업이 없습니다.', 'info');
     }
   }, [clipboardNode, handleCancelCut, handleUndoMove, showToast]);
 
@@ -583,26 +785,7 @@ export default function LeftSidebar() {
       return;
     }
 
-    // 🛡️ [열린 탭 보호 가드] 열려 있는 문서나 그 문서가 포함된 폴더는 잘라내기 차단
-    if (openTabPaths && openTabPaths.length > 0 && nodeToCut.path) {
-      const normPath = nodeToCut.path.replace(/\\/g, '/');
-      if (nodeToCut.kind === 'directory') {
-        const hasOpenDescendant = openTabPaths.some(tp => {
-          const normTp = tp.replace(/\\/g, '/');
-          return normTp === normPath || normTp.startsWith(normPath + '/');
-        });
-        if (hasOpenDescendant) {
-          showToast('열려 있는 파일이 포함된 폴더는 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
-          return;
-        }
-      } else {
-        if (openTabPaths.some(tp => tp.replace(/\\/g, '/') === normPath)) {
-          showToast('편집기에서 열려 있는 파일은 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
-          return;
-        }
-      }
-    }
-
+    // 💡 열려 있는 문서도 자유롭게 잘라내기 허용 (이동 완료 및 되돌리기 시 탭 경로 동기화)
     const item = { node: nodeToCut, parentHandle, op: 'cut' as const };
     setClipboardNode(item);
     if (typeof window !== 'undefined') {
@@ -610,7 +793,7 @@ export default function LeftSidebar() {
       window.dispatchEvent(new CustomEvent('file:clipboard-changed', { detail: item }));
     }
     showToast(`'${nodeToCut.name}'이(가) 잘라내기되었습니다. 붙여넣을 위치를 선택하세요.`, 'info');
-  }, [currentFileNode, openTabPaths, showToast]);
+  }, [currentFileNode, showToast]);
 
   const handlePasteNode = useCallback(async (targetDirNode?: FileNode, targetHandle?: any) => {
     const clip = clipboardNode || (typeof window !== 'undefined' ? (window as any)._omdClipboardNode : null);
@@ -638,26 +821,11 @@ export default function LeftSidebar() {
       destDirPath = lastSlash >= 0 ? destDirPath.substring(0, lastSlash) : '';
     }
 
-    // 🛡️ [열린 탭 보호 가드] 잘라낸 파일이 현재 탭에 열려 있는 경우 이동 차단
-    if (isCut && openTabPaths && openTabPaths.length > 0 && srcNode.path) {
-      const normSrc = srcNode.path.replace(/\\/g, '/');
-      const isOpen = srcNode.kind === 'directory'
-        ? openTabPaths.some(tp => {
-            const normTp = tp.replace(/\\/g, '/');
-            return normTp === normSrc || normTp.startsWith(normSrc + '/');
-          })
-        : openTabPaths.some(tp => tp.replace(/\\/g, '/') === normSrc);
-      if (isOpen) {
-        showToast('편집기에서 열려 있는 파일은 이동할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
-        return;
-      }
-    }
-
     // 동일 위치 이동 방지 가드
     if (isCut && srcNode.path) {
-      const normSrc = srcNode.path.replace(/\\/g, '/');
+      const normSrc = srcNode.path.replace(/\\/g, '/').toLowerCase();
       const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
-      const normDest = destDirPath.replace(/\\/g, '/');
+      const normDest = destDirPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
       if (normSrc === normDest || srcDir === normDest) {
         showToast('동일한 위치로는 이동할 수 없습니다.', 'warning');
         return;
@@ -673,34 +841,64 @@ export default function LeftSidebar() {
       const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
       if (workspaceType === 'local' && api) {
         if (srcNode.path) {
-          const sep = destDirPath.includes('/') ? '/' : '\\';
-          const newPath = destDirPath ? `${destDirPath}${sep}${srcNode.name}` : srcNode.name;
+          const cleanDestDir = destDirPath.replace(/[/\\]+$/, '');
+          const sep = cleanDestDir.includes('/') ? '/' : '\\';
+          const newPath = cleanDestDir ? `${cleanDestDir}${sep}${srcNode.name}` : srcNode.name;
 
           if (isCut) {
+            let movedPath = newPath;
             if (api?.moveFile) {
               const res = await api.moveFile(srcNode.path, newPath);
               if (res && res.error) throw new Error(res.error);
+              if (res && res.newPath) movedPath = res.newPath;
             } else if (api?.renameFile) {
               await api.renameFile(srcNode.path, newPath);
             }
             showToast(`'${srcNode.name}'을(를) 이동했습니다.`, 'success');
-            dispatchMovedEvent(srcNode.path, destDirPath, newPath, srcNode.name);
+            dispatchMovedEvent(srcNode.path, cleanDestDir, movedPath, srcNode.name);
+
+            // 📂 대상 디렉토리 자동 펼침 및 하위 펼침 상태 보존
+            try {
+              const saved = localStorage.getItem('onrivi_expanded_paths');
+              let paths: string[] = saved ? JSON.parse(saved) : [];
+              const normCleanDest = cleanDestDir.replace(/\\/g, '/').toLowerCase();
+              if (cleanDestDir && !paths.some(p => p.replace(/\\/g, '/').toLowerCase() === normCleanDest)) {
+                paths.push(cleanDestDir);
+              }
+              if (srcNode.kind === 'directory' && srcNode.path) {
+                const normSrc = srcNode.path.replace(/\\/g, '/').toLowerCase();
+                paths = paths.map((p: string) => {
+                  const np = p.replace(/\\/g, '/').toLowerCase();
+                  if (np === normSrc) return movedPath;
+                  if (np.startsWith(normSrc + '/')) {
+                    const sub = p.substring(srcNode.path.length);
+                    return `${movedPath}${sep === '\\' ? sub.replace(/\//g, '\\') : sub.replace(/\\/g, '/')}`;
+                  }
+                  return p;
+                });
+              }
+              localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+            } catch (expErr) {
+              console.warn('[handlePasteNode] expanded_paths 갱신 오류:', expErr);
+            }
 
             // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
             const normSrc = srcNode.path.replace(/\\/g, '/');
             const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
-            moveHistoryRef.current.push({
+            undoHistoryRef.current.push({
+              type: 'move',
               srcPath: srcNode.path,
-              destPath: newPath,
+              destPath: movedPath,
               srcDirPath: srcDir,
-              destDirPath: destDirPath,
+              destDirPath: cleanDestDir,
               name: srcNode.name,
               kind: srcNode.kind || 'file',
               workspaceType: 'local',
               srcNode
             });
             setHasUndoableMove(true);
-            window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: moveHistoryRef.current.length } }));
+            setLastUndoType('move');
+            window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: undoHistoryRef.current.length, lastType: 'move' } }));
 
             setClipboardNode(null);
             if (typeof window !== 'undefined') {
@@ -709,12 +907,15 @@ export default function LeftSidebar() {
             }
           } else {
             if (api?.copyFile) {
-              await api.copyFile(srcNode.path, newPath);
+              const res = await api.copyFile(srcNode.path, newPath);
+              if (res && res.error) throw new Error(res.error);
               showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
             }
           }
-          await refreshFileList();
-          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+          await refreshFileList(true);
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+            detail: { force: true, targetDir: cleanDestDir }
+          }));
           return;
         }
       }
@@ -828,24 +1029,35 @@ export default function LeftSidebar() {
           }
         }
         if (isCut) {
-          if (srcNode.kind === 'directory' && srcNode.path) {
-            try {
-              const saved = localStorage.getItem('onrivi_expanded_paths');
-              if (saved) {
-                const normSrc = srcNode.path.replace(/\\/g, '/');
-                const paths = JSON.parse(saved).filter((p: string) => {
-                  const np = p.replace(/\\/g, '/');
-                  return np !== normSrc && !np.startsWith(normSrc + '/');
-                });
-                localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
-              }
-            } catch {}
-          }
-          // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
           const normSrc = (srcNode.path || srcNode.name).replace(/\\/g, '/');
           const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
           const newPath = destDirPath ? `${destDirPath}/${srcNode.name}` : srcNode.name;
+
+          if (srcNode.kind === 'directory' && srcNode.path) {
+            try {
+              const saved = localStorage.getItem('onrivi_expanded_paths');
+              let paths: string[] = saved ? JSON.parse(saved) : [];
+              if (destDirPath && !paths.includes(destDirPath)) {
+                paths.push(destDirPath);
+              }
+              const normNew = newPath.replace(/\\/g, '/');
+              paths = paths.map((p: string) => {
+                const np = p.replace(/\\/g, '/');
+                if (np === normSrc) return newPath;
+                if (np.startsWith(normSrc + '/')) {
+                  const sub = np.substring(normSrc.length);
+                  return `${newPath}${sub}`;
+                }
+                return p;
+              });
+              localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+            } catch (expErr) {
+              console.warn('[handlePasteNode] expanded_paths 갱신 오류:', expErr);
+            }
+          }
+          // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
           moveHistoryRef.current.push({
+            type: 'move',
             srcPath: srcNode.path || srcNode.name,
             destPath: newPath,
             srcDirPath: srcDir,
@@ -872,8 +1084,10 @@ export default function LeftSidebar() {
           showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
         }
 
-        await refreshFileList();
-        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        await refreshFileList(true);
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+          detail: { force: true, targetDir: destDirPath }
+        }));
         return;
       }
 
@@ -882,10 +1096,31 @@ export default function LeftSidebar() {
         if (isCut) {
           const newPath = vfsMoveItem(srcNode.path, destDirPath);
 
+          if (srcNode.kind === 'directory') {
+            try {
+              const saved = localStorage.getItem('onrivi_expanded_paths');
+              let paths: string[] = saved ? JSON.parse(saved) : [];
+              if (destDirPath && !paths.includes(destDirPath)) {
+                paths.push(destDirPath);
+              }
+              const normSrc = srcNode.path.replace(/\\/g, '/');
+              paths = paths.map((p: string) => {
+                const np = p.replace(/\\/g, '/');
+                if (np === normSrc) return newPath;
+                if (np.startsWith(normSrc + '/')) {
+                  return `${newPath}${np.substring(normSrc.length)}`;
+                }
+                return p;
+              });
+              localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+            } catch {}
+          }
+
           // ↩️ 이동 실행 취소(되돌리기) 히스토리 등록
           const normSrc = srcNode.path.replace(/\\/g, '/');
           const srcDir = normSrc.includes('/') ? normSrc.substring(0, normSrc.lastIndexOf('/')) : '';
           moveHistoryRef.current.push({
+            type: 'move',
             srcPath: srcNode.path,
             destPath: newPath,
             srcDirPath: srcDir,
@@ -910,8 +1145,10 @@ export default function LeftSidebar() {
           vfsCopyItem(srcNode.path, destDirPath);
           showToast(`'${srcNode.name}'을(를) 붙여넣었습니다.`, 'success');
         }
-        await refreshFileList();
-        window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+        await refreshFileList(true);
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+          detail: { force: true, targetDir: destDirPath }
+        }));
         return;
       }
     } catch (e: any) {
@@ -942,17 +1179,30 @@ export default function LeftSidebar() {
     const onCancelCutEvent = () => handleCancelCut();
     const onUndoMoveEvent = () => handleUndoMove();
 
+    const onPushUndoAction = (e: any) => {
+      if (e.detail) {
+        undoHistoryRef.current.push(e.detail);
+        setHasUndoableMove(true);
+        setLastUndoType(e.detail.type || 'delete');
+        window.dispatchEvent(new CustomEvent('file:move-history-changed', {
+          detail: { count: undoHistoryRef.current.length, lastType: e.detail.type || 'delete' }
+        }));
+      }
+    };
+
     window.addEventListener('file:copy-node', onCopyEvent);
     window.addEventListener('file:cut-node', onCutEvent);
     window.addEventListener('file:paste-node', onPasteEvent);
     window.addEventListener('file:cancel-cut', onCancelCutEvent);
     window.addEventListener('file:undo-move', onUndoMoveEvent);
+    window.addEventListener('file:push-undo-action', onPushUndoAction);
     return () => {
       window.removeEventListener('file:copy-node', onCopyEvent);
       window.removeEventListener('file:cut-node', onCutEvent);
       window.removeEventListener('file:paste-node', onPasteEvent);
       window.removeEventListener('file:cancel-cut', onCancelCutEvent);
       window.removeEventListener('file:undo-move', onUndoMoveEvent);
+      window.removeEventListener('file:push-undo-action', onPushUndoAction);
     };
   }, [handleCopyNode, handleCutNode, handlePasteNode, handleCancelCut, handleUndoMove]);
 
@@ -1052,6 +1302,8 @@ export default function LeftSidebar() {
 
   const triggerImportRoot = useCallback(() => {
     setContextMenu(null);
+    targetImportNodeRef.current = null;
+    targetImportParentHandleRef.current = null;
     importFileInputRef.current?.click();
   }, []);
 
@@ -1088,22 +1340,12 @@ export default function LeftSidebar() {
         return;
       }
 
-      // Ctrl+O: 가져오기
-      if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O')) {
+      // Ctrl+Alt+O: 타문서 변환
+      if (isCtrl && e.altKey && !e.shiftKey && (e.key === 'o' || e.key === 'O')) {
         if (!isRestrictedUser) {
           e.preventDefault();
           e.stopPropagation();
           triggerImportRoot();
-        }
-        return;
-      }
-
-      // Ctrl+Alt+N: 새 폴더
-      if (isCtrl && e.altKey && !e.shiftKey && (e.key === 'N' || e.key === 'n')) {
-        if (!isRestrictedUser) {
-          e.preventDefault();
-          e.stopPropagation();
-          triggerCreateRootFolder();
         }
         return;
       }
@@ -1148,20 +1390,12 @@ export default function LeftSidebar() {
         return;
       }
 
-      // Ctrl+Z: 되돌리기 (잘라내기 취소 또는 이동 되돌리기)
+      // Ctrl+Z: 되돌리기 (잘라내기 취소 또는 이동/삭제 되돌리기)
       if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         e.stopPropagation();
         setContextMenu(null);
         triggerUndo();
-        return;
-      }
-
-      // Shift+Alt+R: 탐색기에서 보기
-      if (e.shiftKey && e.altKey && (e.key === 'R' || e.key === 'r')) {
-        e.preventDefault();
-        e.stopPropagation();
-        triggerRevealRoot();
         return;
       }
     };
@@ -1170,7 +1404,7 @@ export default function LeftSidebar() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [contextMenu, isRestrictedUser, clipboardNode, handleCancelCut, triggerUndo, triggerRefreshRoot, triggerImportRoot, triggerCreateRootFolder, triggerCreateRootFile, triggerCopyRoot, triggerCutRoot, triggerPasteRoot, triggerRevealRoot]);
+  }, [contextMenu, isRestrictedUser, clipboardNode, handleCancelCut, triggerUndo, triggerRefreshRoot, triggerImportRoot, triggerCreateRootFile, triggerCopyRoot, triggerCutRoot, triggerPasteRoot]);
 
   const handleDragOverRoot = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1181,6 +1415,7 @@ export default function LeftSidebar() {
   const handleDragLeaveRoot = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragOverRoot(false);
   };
 
@@ -1198,34 +1433,81 @@ export default function LeftSidebar() {
 
     const actualRootPath = (workspaceType === 'local' ? rootFolder?.name : rootFolder?.path) || '';
 
-    if (!sourcePath || sourcePath === actualRootPath) return;
+    const normSource = sourcePath.replace(/\\/g, '/').toLowerCase();
+    const normRoot = actualRootPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const normSourceParent = (sourceParentPath || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+
+    if (!sourcePath || normSource === normRoot) return;
     // 이미 최상위(루트) 폴더에 있는 파일이면 이동하지 않음
-    if (sourceParentPath === actualRootPath) return;
+    if (normSourceParent && normSourceParent === normRoot) return;
 
     try {
       if (workspaceType === 'local') {
-        const rootPath = actualRootPath;
-        const newPath = rootPath ? `${rootPath}\\${sourceName}` : sourceName;
+        const rootPath = actualRootPath.replace(/[/\\]+$/, '');
+        const sep = rootPath.includes('/') ? '/' : '\\';
+        const newPath = rootPath ? `${rootPath}${sep}${sourceName}` : sourceName;
         const api = (window as any).electronAPI;
-        if (api?.renameFile) {
+        let movedPath = newPath;
+        if (api?.moveFile) {
+          const res = await api.moveFile(sourcePath, newPath);
+          if (res && res.error) throw new Error(res.error);
+          if (res && res.newPath) movedPath = res.newPath;
+        } else if (api?.renameFile) {
           await api.renameFile(sourcePath, newPath);
-          showToast(`'${sourceName}' 루트로 이동 완료`, 'success');
-          dispatchMovedEvent(sourcePath, rootPath, newPath, sourceName);
-          await refreshFileList();
-          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
         } else {
           const res = await fetch(getApiUrl('/api/rename'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ oldPath: sourcePath, newPath })
           });
-          if (res.ok) {
-            showToast(`'${sourceName}' 루트로 이동 완료`, 'success');
-            dispatchMovedEvent(sourcePath, rootPath, newPath, sourceName);
-            await refreshFileList();
-            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-          }
+          if (!res.ok) throw new Error('루트 이동 실패');
         }
+
+        showToast(`'${sourceName}' 루트로 이동 완료`, 'success');
+        dispatchMovedEvent(sourcePath, rootPath, movedPath, sourceName);
+
+        // 📂 expanded_paths 갱신
+        try {
+          const saved = localStorage.getItem('onrivi_expanded_paths');
+          if (saved && draggedNode?.kind === 'directory') {
+            const normSrc = sourcePath.replace(/\\/g, '/').toLowerCase();
+            let paths: string[] = JSON.parse(saved);
+            paths = paths.map((p: string) => {
+              const np = p.replace(/\\/g, '/').toLowerCase();
+              if (np === normSrc) return movedPath;
+              if (np.startsWith(normSrc + '/')) {
+                const sub = p.substring(sourcePath.length);
+                return `${movedPath}${sep === '\\' ? sub.replace(/\//g, '\\') : sub.replace(/\\/g, '/')}`;
+              }
+              return p;
+            });
+            localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+          }
+        } catch (expErr) {
+          console.warn('[handleDropRoot] expanded_paths 갱신 오류:', expErr);
+        }
+
+        // ↩️ undo history push
+        undoHistoryRef.current.push({
+          type: 'move',
+          srcPath: sourcePath,
+          destPath: movedPath,
+          srcDirPath: sourceParentPath || '',
+          destDirPath: rootPath,
+          name: sourceName,
+          kind: draggedNode?.kind || 'file',
+          workspaceType: 'local',
+          srcNode: draggedNode
+        });
+        setHasUndoableMove(true);
+        setLastUndoType('move');
+        window.dispatchEvent(new CustomEvent('file:move-history-changed', { detail: { count: undoHistoryRef.current.length, lastType: 'move' } }));
+
+        await refreshFileList(true);
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+          detail: { force: true, targetDir: rootPath }
+        }));
+        return;
       } else if (workspaceType === 'browser') {
         if (draggedNode && draggedNode.handle && rootFolder?.handle) {
           const targetDirHandle = rootFolder.handle as FileSystemDirectoryHandle;
@@ -1406,9 +1688,13 @@ export default function LeftSidebar() {
   }>({ isOpen: false, title: "", defaultValue: "", type: null, error: "" });
 
   const importFileInputRef = useRef<HTMLInputElement>(null);
+  const targetImportNodeRef = useRef<FileNode | null>(null);
+  const targetImportParentHandleRef = useRef<any>(null);
 
   useEffect(() => {
-    const handleTriggerImport = () => {
+    const handleTriggerImport = (e?: any) => {
+      targetImportNodeRef.current = e?.detail?.node || null;
+      targetImportParentHandleRef.current = e?.detail?.parentHandle || null;
       importFileInputRef.current?.click();
     };
     window.addEventListener('TRIGGER_IMPORT', handleTriggerImport);
@@ -1619,8 +1905,15 @@ export default function LeftSidebar() {
           }
         }
       }
+      const targetNode = targetImportNodeRef.current;
+      const targetParentHandle = targetImportParentHandleRef.current;
+      targetImportNodeRef.current = null;
+      targetImportParentHandleRef.current = null;
+
       const originalName = file.name.split('.').slice(0, -1).join('.') || file.name;
       let finalName = `${originalName}.md`;
+
+      const targetPath = targetNode ? (targetNode.path || targetNode.name || "") : (rootFolder?.name || rootFolder?.path || "");
 
       let counter = 1;
       while (fileList.some((c: any) => c.name.toLowerCase() === finalName.toLowerCase())) {
@@ -1628,40 +1921,78 @@ export default function LeftSidebar() {
         counter++;
       }
 
-      const rootPath = rootFolder?.name || "";
+      // 📂 [하위 폴더 펼침 보장] 대상 폴더 및 상위 폴더 경로를 onrivi_expanded_paths에 즉시 등록
+      if (targetNode?.path) {
+        try {
+          const saved = localStorage.getItem('onrivi_expanded_paths');
+          let paths: string[] = saved ? JSON.parse(saved) : [];
+          const norm = targetNode.path.replace(/\\/g, '/');
+          const parts = norm.split('/');
+          let cur = '';
+          for (const part of parts) {
+            cur = cur ? `${cur}/${part}` : part;
+            if (!paths.some(p => p.replace(/\\/g, '/') === cur)) {
+              paths.push(cur);
+            }
+          }
+          localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+        } catch (e) {}
+      }
+
+      // 🔄 탐색기 즉시 새로고침 및 2차 안전 갱신 헬퍼
+      const triggerExplorerRefresh = async (createdFilePath?: string) => {
+        const refreshDir = targetNode?.path || targetPath;
+        await refreshFileList(true);
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+          detail: { force: true, targetDir: refreshDir }
+        }));
+        if (createdFilePath) {
+          window.dispatchEvent(new CustomEvent('file:select-node', {
+            detail: { path: createdFilePath }
+          }));
+        }
+        setTimeout(async () => {
+          await refreshFileList(true);
+          window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+            detail: { force: true, targetDir: refreshDir }
+          }));
+        }, 120);
+      };
 
       if (workspaceType === 'browser') {
-        if (rootFolder?.handle) {
-          const handle = await rootFolder.handle.getFileHandle(finalName, { create: true });
+        const destDirHandle = targetNode?.handle || (targetNode ? targetParentHandle : rootFolder?.handle);
+        if (destDirHandle && typeof destDirHandle.getFileHandle === 'function') {
+          const handle = await destDirHandle.getFileHandle(finalName, { create: true });
           const writable = await handle.createWritable();
           await writable.write(markdown);
           await writable.close();
-          await refreshFileList();
-          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-          openFile({ name: finalName, kind: 'file', handle, path: finalName }, rootFolder?.handle);
+          const createdPath = targetNode?.path ? `${targetNode.path}/${finalName}` : finalName;
+          await triggerExplorerRefresh(createdPath);
+          openFile({ name: finalName, kind: 'file', handle, path: createdPath }, destDirHandle);
         } else {
           const { vfsCreateFile, vfsWriteFile } = await import('@/lib/virtualFileSystem');
-          vfsCreateFile("", finalName);
-          vfsWriteFile(finalName, markdown);
-          await refreshFileList();
-          window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
-          openFile({ name: finalName, kind: 'file', path: finalName });
+          const vfsDir = targetNode ? (targetNode.path || targetNode.name || "") : "";
+          vfsCreateFile(vfsDir, finalName);
+          const createdPath = vfsDir ? `${vfsDir}/${finalName}` : finalName;
+          vfsWriteFile(createdPath, markdown);
+          await triggerExplorerRefresh(createdPath);
+          openFile({ name: finalName, kind: 'file', path: createdPath });
         }
       } else {
         const api = (window as any).electronAPI;
+        const parentDir = targetPath || rootFolder?.name || "";
         if (api?.createFile && api?.saveFile) {
-          const result = await api.createFile(rootPath, finalName);
+          const result = await api.createFile(parentDir, finalName);
           if (result.success) {
             await api.saveFile(result.path, markdown);
-            await refreshFileList();
-            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            await triggerExplorerRefresh(result.path);
             openFile({ name: finalName, kind: 'file', path: result.path });
           }
         } else {
           const res = await fetch(getApiUrl('/api/create-file'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ parentPath: rootPath, name: finalName })
+            body: JSON.stringify({ parentPath: parentDir, name: finalName })
           });
           if (res.ok) {
             const data = await res.json();
@@ -1670,17 +2001,16 @@ export default function LeftSidebar() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ path: data.path, content: markdown })
             });
-            await refreshFileList();
-            window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
+            await triggerExplorerRefresh(data.path);
             openFile({ name: finalName, kind: 'file', path: data.path });
           } else {
             throw new Error(`파일 생성 API 호출 실패: ${res.status}`);
           }
         }
       }
-      showToast(`'${file.name}' 문서를 성공적으로 가져왔습니다.`, 'success');
+      showToast(`'${file.name}' 문서가 성공적으로 변환되었습니다.`, 'success');
     } catch (error: any) {
-      showToast(error.message || '파일을 가져오는 중 오류가 발생했습니다.', 'error');
+      showToast(error.message || '파일을 변환하는 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsImporting(false);
     }
@@ -1836,7 +2166,7 @@ export default function LeftSidebar() {
           width: sidebarWidth,
           fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif",
         }} 
-        className="flex flex-col border-r border-slate-300 dark:border-zinc-700 select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-sm"
+        className="flex flex-col shrink-0 min-w-[180px] max-w-[450px] border-r border-slate-300 dark:border-zinc-700 select-none relative z-10 bg-sidebar-luxury text-on-surface shadow-sm"
       >
         {/* 탭 헤더 (Modern Technical Editorial - Cobalt Authority & Hairline) */}
         <div className="h-10 border-b border-[#E2E8F0] dark:border-slate-800 flex items-center px-2 bg-white/70 dark:bg-slate-900/50 backdrop-blur-md justify-between">
@@ -1912,7 +2242,7 @@ export default function LeftSidebar() {
       {/* 탭 바디 — 항상 마운트, hidden으로 표시/숨김 제어 */}
       <div className="flex-1 min-h-0 relative flex flex-col">
         <div 
-          className={`flex-1 overflow-y-auto p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}
+          className={`flex-1 overflow-y-auto [scrollbar-gutter:stable] p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}
           onContextMenu={(e) => {
             if (isRestrictedUser) return;
             const target = e.target as HTMLElement;
@@ -2092,7 +2422,6 @@ export default function LeftSidebar() {
                                   <FolderPlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                   <span className="truncate">새 폴더</span>
                                 </div>
-                                <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌥⌘N' : 'Ctrl+Alt+N'}</kbd>
                               </button>
                               <button
                                 onClick={(e) => {
@@ -2110,17 +2439,9 @@ export default function LeftSidebar() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (isCurrentOpen) {
-                                    showToast('편집기에서 열려 있는 파일은 잘라내기할 수 없습니다. 탭을 먼저 닫아주세요.', 'warning');
-                                    return;
-                                  }
                                   triggerCutRoot();
                                 }}
-                                disabled={isCurrentOpen}
-                                className={`flex items-center justify-between gap-3 px-3 py-1.5 w-full text-left transition-colors ${
-                                  isCurrentOpen ? 'opacity-40 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white'
-                                }`}
-                                title={isCurrentOpen ? "탭에서 열려있는 파일은 잘라내기할 수 없습니다" : "잘라내기"}
+                                className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
                                   <Scissors size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
@@ -2166,7 +2487,7 @@ export default function LeftSidebar() {
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0">
                                     <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                                    <span className="truncate">이동 되돌리기</span>
+                                    <span className="truncate">{lastUndoType === 'delete' ? '삭제 되돌리기' : '이동 되돌리기'}</span>
                                   </div>
                                   <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘Z' : 'Ctrl+Z'}</kbd>
                                 </button>
@@ -2196,9 +2517,9 @@ export default function LeftSidebar() {
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <FolderInput size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                                <span className="truncate">가져오기</span>
+                                <span className="truncate">타문서 변환</span>
                               </div>
-                              <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘O' : 'Ctrl+O'}</kbd>
+                              <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌥⌘O' : 'Ctrl+Alt+O'}</kbd>
                             </button>
                           )}
                           {(() => {
@@ -2218,7 +2539,6 @@ export default function LeftSidebar() {
                                   <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                   <span className="truncate">{explorerLabel}</span>
                                 </div>
-                                <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌥⇧R' : 'Shift+Alt+R'}</kbd>
                               </button>
                             );
                           })()}

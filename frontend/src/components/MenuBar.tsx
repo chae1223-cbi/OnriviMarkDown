@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
-// 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 도구(Tools) 메뉴의 '지식 보관함 관리자' 항목을 isDesktop 전용으로 한정하여 웹 브라우저 메뉴 간결화
+// 🚨 @PATCH : **2026-09-18** — [타문서 변환 명칭 및 단축키(Ctrl+Alt+O) 표준화]: 상단 파일 메뉴의 '문서 가져오기'를 '타문서 변환'으로 변경하고 바로가기 단축키(Ctrl+Alt+O) 라벨 동기화
+//             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 도구(Tools) 메뉴의 '지식 보관함 관리자' 항목을 isDesktop 전용으로 한정하여 웹 브라우저 메뉴 간결화
 //             **2026-09-12** — 메뉴바 전체 드롭다운 메뉴 아이템의 이모지를 통합 Icon 컴포넌트로 일원화 교체 (Modern Technical Editorial 벡터 스타일 통일)
 //             **2026-09-11** — 상단 메뉴바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-11** — 편집(Edit) 메뉴에 GitHub Alert 인용구 스타일 5종(Note, Tip, Important, Warning, Caution) 및 일반 인용구 선택 서브메뉴 신설
@@ -234,7 +235,7 @@ export default function MenuBar() {
     { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
     { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
     { divider: true },
-    { label: "문서 가져오기", icon: <Icon name="Import" size={15} />, onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
+    { label: "타문서 변환", icon: <Icon name="Import" size={15} />, shortcut: 'Ctrl+Alt+O', onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
       icon: <Icon name="Export" size={15} />,
