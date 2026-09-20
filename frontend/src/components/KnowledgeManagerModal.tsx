@@ -1,21 +1,17 @@
-// ====================================================================
+﻿// ====================================================================
 // 📊 [OMD-MODAL-KnowledgeManager-0001] KnowledgeManagerModal.tsx ➔ 지식 보관함 관리자 모달
 // 🎯 @KICK  : 대량 문서 스케일에 최적화된 리스트/카드 뷰 토글, 페이지네이션, 정렬/필터 및 일괄 가져오기 제공
-// 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
-//             2026-09-05** — 외부 DB 원복(Restore) 및 완전 초기화 시 knowledge:updated-from-hub, knowledge:refresh 이벤트를 수신하여 보관함 문서 목록(docs)을 즉시 자동 재동기화하도록 개선
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import 전체 제거, Icon 컴포넌트로 교체
+//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+//             **2026-09-05** — 외부 DB 원복(Restore) 및 완전 초기화 시 knowledge:updated-from-hub, knowledge:refresh 이벤트를 수신하여 보관함 문서 목록(docs)을 즉시 자동 재동기화하도록 개선
 //             **2026-09-04** — 지식문서 항목 및 인스펙터 헤더 아이콘을 남성 학사(📗)로 전면 교체
-//             **2026-09-04** — [ONRIVI-KNOWLEDGE-DETAIL-001] 문서 클릭 또는 눈 아이콘(Eye) 클릭 시 전용 청크/태그 상세 분석 모달(knowledge:show-detail) 연동
-//             **2026-09-04** — [오류 항목 원터치 일괄 삭제 및 테이블 가로 스크롤/삭제 버튼 시인성 개선] errorCount 기반 '오류건 모두 삭제' 툴바 버튼 추가, 테이블 overflow-x-auto 및 상태 열 내 즉시 삭제 액션 탑재
+//             **2026-09-04** — [오류 항목 원터치 일괄 삭제] errorCount 기반 '오류건 모두 삭제' 툴바 버튼 추가
 //             **2026-09-04** — [ONRIVI-KNOWLEDGE-ENGINE-003.1] 대량 문서 지원용 컴팩트 테이블 뷰, 페이지네이션(10/20/50), 정렬/필터 고도화
 // 🔗 @CALLS : /api/knowledge/list, /api/knowledge/delete, /api/knowledge/index, KnowledgeQueue
 // ====================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  X, RefreshCw, Trash2, Database, UploadCloud, CheckCircle2, 
-  AlertCircle, FileText, Search, Tag, LayoutGrid, List, 
-  ChevronLeft, ChevronRight, ArrowUpDown, Filter, Eye, ExternalLink 
-} from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
 import { KnowledgeQueue, QueueProgress } from '@/lib/knowledge/knowledgeQueue';
 
 interface KnowledgeDocItem {
@@ -287,7 +283,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 flex items-center justify-center text-[#1d4ed8]">
-              <Database className="w-5 h-5" />
+              <Icon name="KnowledgeHub" className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
@@ -305,7 +301,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
             onClick={onClose}
             className="p-2 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
           >
-            <X className="w-5 h-5" />
+            <Icon name="Close" className="w-5 h-5" />
           </button>
         </div>
 
@@ -313,7 +309,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-6 py-3 bg-zinc-50/70 dark:bg-zinc-900/60 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
           <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/60 shadow-2xs flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-[#1d4ed8] flex items-center justify-center font-bold">
-              <FileText className="w-4 h-4" />
+              <Icon name="Document" className="w-4 h-4" />
             </div>
             <div>
               <span className="text-[11px] text-zinc-400 font-medium block">총 보관 문서</span>
@@ -323,7 +319,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
 
           <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/60 shadow-2xs flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold">
-              <Database className="w-4 h-4" />
+              <Icon name="KnowledgeHub" className="w-4 h-4" />
             </div>
             <div>
               <span className="text-[11px] text-zinc-400 font-medium block">총 색인 청크</span>
@@ -335,7 +331,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
 
           <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/60 shadow-2xs flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-500 flex items-center justify-center font-bold">
-              <Tag className="w-4 h-4" />
+              <Icon name="Tag" className="w-4 h-4" />
             </div>
             <div>
               <span className="text-[11px] text-zinc-400 font-medium block">추출된 지식 태그</span>
@@ -347,7 +343,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
 
           <div className="p-2.5 rounded-xl bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/60 shadow-2xs flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
-              <RefreshCw className="w-4 h-4" />
+              <Icon name="Refresh" className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <span className="text-[11px] text-zinc-400 font-medium block">최근 동기화 상태</span>
@@ -369,7 +365,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800'
               }`}
             >
-              <FileText className="w-3.5 h-3.5" />
+              <Icon name="Document" className="w-3.5 h-3.5" />
               보관된 문서 ({docs.length})
             </button>
             <button
@@ -380,7 +376,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800'
               }`}
             >
-              <UploadCloud className="w-3.5 h-3.5" />
+              <Icon name="UploadCloud" className="w-3.5 h-3.5" />
               대량 일괄 가져오기
             </button>
 
@@ -391,7 +387,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                 className="py-1.5 px-3 text-xs font-bold rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0 ml-1"
                 title="오류(ERROR) 상태 문서 일괄 삭제"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                <Icon name="Delete" className="w-3.5 h-3.5 text-rose-500" />
                 <span>오류건 모두 삭제 ({errorCount})</span>
               </button>
             )}
@@ -408,7 +404,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   }`}
                   title="컴팩트 테이블 보기 (대량 문서에 최적)"
                 >
-                  <List className="w-3.5 h-3.5" />
+                  <Icon name="BulletList" className="w-3.5 h-3.5" />
                   <span>목록형</span>
                 </button>
                 <button
@@ -418,14 +414,14 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   }`}
                   title="카드 그리드 보기"
                 >
-                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <Icon name="GridView" className="w-3.5 h-3.5" />
                   <span>카드형</span>
                 </button>
               </div>
 
               {/* 검색창 */}
               <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <Icon name="Search" className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
                 <input
                   type="text"
                   placeholder="제목, 요약, 태그, 경로 검색..."
@@ -468,7 +464,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                 className="p-2 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"
                 title="새로고침"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <Icon name="Refresh" className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           )}
@@ -480,12 +476,12 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
             <div>
               {loading ? (
                 <div className="py-24 text-center text-zinc-400 text-sm flex flex-col items-center gap-3">
-                  <RefreshCw className="w-6 h-6 animate-spin text-[#1d4ed8]" />
+                  <Icon name="Refresh" className="w-6 h-6 animate-spin text-[#1d4ed8]" />
                   <span>지식 보관함 문서를 불러오는 중입니다...</span>
                 </div>
               ) : filteredAndSortedDocs.length === 0 ? (
                 <div className="py-24 text-center text-zinc-400 text-sm flex flex-col items-center gap-2">
-                  <Database className="w-12 h-12 stroke-1 text-zinc-300 dark:text-zinc-600 mb-1" />
+                  <Icon name="KnowledgeHub" className="w-12 h-12 stroke-1 text-zinc-300 dark:text-zinc-600 mb-1" />
                   <span className="font-semibold text-zinc-700 dark:text-zinc-300">조건에 일치하는 지식 문서가 없습니다.</span>
                   <span className="text-xs text-zinc-400">
                     탐색기에서 마크다운 파일 우클릭 ➔ &apos;⭐ 지식 베이스에 등록&apos; 또는 &apos;대량 일괄 가져오기&apos;를 이용하세요.
@@ -526,7 +522,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                                   className="p-0.5 text-rose-500 hover:text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-sm transition"
                                   title="오류 문서 삭제"
                                 >
-                                  <Trash2 className="w-3 h-3" />
+                                  <Icon name="Delete" className="w-3 h-3" />
                                 </button>
                               )}
                             </div>
@@ -556,7 +552,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                               {d.tags && d.tags.length > 0 ? (
                                 d.tags.slice(0, 3).map((t, idx) => (
                                   <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded-sm bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 flex items-center gap-0.5 truncate">
-                                    <Tag className="w-2 h-2" />
+                                    <Icon name="Tag" className="w-2 h-2" />
                                     {t.tag_name}
                                   </span>
                                 ))
@@ -575,14 +571,14 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                                 className="p-1 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition"
                                 title="상세 정보 및 AI 분석 보기"
                               >
-                                <Eye className="w-3.5 h-3.5" />
+                                <Icon name="Preview" className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleDeleteDoc(d.id, d.title)}
                                 className="p-1 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
                                 title="삭제"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Icon name="Delete" className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </td>
@@ -635,7 +631,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                                 key={idx}
                                 className="text-[10px] px-1.5 py-0.5 rounded-sm bg-zinc-200/60 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 flex items-center gap-0.5"
                               >
-                                <Tag className="w-2.5 h-2.5" />
+                                <Icon name="Tag" className="w-2.5 h-2.5" />
                                 {t.tag_name}
                               </span>
                             ))}
@@ -651,14 +647,14 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                             className="p-1 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition"
                             title="상세 보기"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <Icon name="Preview" className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDeleteDoc(d.id, d.title)}
                             className="p-1 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
                             title="삭제"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Icon name="Delete" className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -702,7 +698,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   disabled={isImporting || importFiles.filter(f => f.selected).length === 0}
                   className="px-4 py-2 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] disabled:opacity-50 rounded-lg shadow-xs transition flex items-center gap-1.5"
                 >
-                  <UploadCloud className="w-4 h-4" />
+                  <Icon name="UploadCloud" className="w-4 h-4" />
                   {isImporting ? '일괄 등록 진행 중...' : `선택한 ${importFiles.filter(f => f.selected).length}개 파일 등록 시작`}
                 </button>
               </div>
@@ -724,7 +720,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                         }}
                         className="rounded-sm text-[#1d4ed8] focus:ring-[#1d4ed8]"
                       />
-                      <FileText className="w-4 h-4 text-zinc-400" />
+                      <Icon name="Document" className="w-4 h-4 text-zinc-400" />
                       <span className="text-zinc-800 dark:text-zinc-200 font-medium">{file.name}</span>
                     </div>
                     <span className="text-[11px] text-zinc-400 truncate max-w-xs">{file.path}</span>
@@ -760,7 +756,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                 disabled={currentPage === 1}
                 className="p-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 transition"
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <Icon name="ArrowLeft" className="w-3.5 h-3.5" />
               </button>
 
               <span className="px-2 font-bold text-zinc-800 dark:text-zinc-200">
@@ -772,7 +768,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                 disabled={currentPage === totalPages}
                 className="p-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 transition"
               >
-                <ChevronRight className="w-3.5 h-3.5" />
+                <Icon name="ArrowRight" className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -799,7 +795,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   onClick={() => setSelectedDocForDetail(null)}
                   className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
                 >
-                  <X className="w-4 h-4" />
+                  <Icon name="Close" className="w-4 h-4" />
                 </button>
               </div>
 
@@ -835,7 +831,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                 {selectedDocForDetail.tags && selectedDocForDetail.tags.length > 0 && (
                   <div>
                     <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 mb-1.5 text-xs">
-                      <Tag className="w-3.5 h-3.5 text-violet-500" /> 추출된 연관 태그 ({selectedDocForDetail.tags.length}개)
+                      <Icon name="Tag" className="w-3.5 h-3.5 text-violet-500" /> 추출된 연관 태그 ({selectedDocForDetail.tags.length}개)
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedDocForDetail.tags.map((t, idx) => (
@@ -861,7 +857,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                   }}
                   className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition flex items-center gap-1"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Icon name="Delete" className="w-3.5 h-3.5" />
                   <span>지식에서 삭제</span>
                 </button>
 
@@ -880,7 +876,7 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
                     className="px-4 py-1.5 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#05a847] rounded-lg transition flex items-center gap-1.5 shadow-xs"
                   >
                     <span>에디터에서 열기</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <Icon name="External" className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -891,3 +887,4 @@ export const KnowledgeManagerModal: React.FC<KnowledgeManagerModalProps> = ({
     </div>
   );
 };
+

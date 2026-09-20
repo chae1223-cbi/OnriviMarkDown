@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, FolderSync) 제거, Icon 컴포넌트(ArrowRight, FolderSync) 로 교체
 // 🚨 @PATCH : **2026-09-18** — [타문서 변환 명칭 및 단축키(Ctrl+Alt+O) 표준화]: 상단 파일 메뉴의 '문서 가져오기'를 '타문서 변환'으로 변경하고 바로가기 단축키(Ctrl+Alt+O) 라벨 동기화
 //             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 도구(Tools) 메뉴의 '지식 보관함 관리자' 항목을 isDesktop 전용으로 한정하여 웹 브라우저 메뉴 간결화
 //             **2026-09-12** — 메뉴바 전체 드롭다운 메뉴 아이템의 이모지를 통합 Icon 컴포넌트로 일원화 교체 (Modern Technical Editorial 벡터 스타일 통일)
@@ -16,7 +17,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronRight, FolderSync } from 'lucide-react';
+
+
 import { EDITOR_THEMES } from '@/lib/editorThemes';
 import { useRouter } from 'next/navigation';
 import { useEditorContext } from '@/context/EditorContext';
@@ -390,7 +392,7 @@ export default function MenuBar() {
              title="공통 리소스 폴더(서식/이미지/AI템플릿)가 지정되지 않았습니다. 클릭하여 폴더를 지정하세요."
              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-all text-xs font-bold animate-pulse cursor-pointer shadow-xs active:scale-98"
            >
-             <FolderSync size={13} strokeWidth={2.5} />
+             <Icon name="FolderSync" size={13} strokeWidth={2.5} />
              <span>리소스 폴더 미설정</span>
            </button>
         )}
@@ -466,7 +468,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                     <span className="w-4 flex justify-center opacity-70">{item.icon}</span>
                     <span>{item.label}</span>
                   </div>
-                  {item.subItems && <ChevronRight size={14} className="opacity-50" />}
+                  {item.subItems && <Icon name="ArrowRight" size={14} className="opacity-50" />}
                 </button>
 
                 {/* Submenu — CSS group-hover로 제어 (mouse leave 문제 해결) */}

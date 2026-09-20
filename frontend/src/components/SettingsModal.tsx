@@ -1,4 +1,4 @@
-// ====================================================================
+﻿// ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
 // 🚨 @PATCH : **2026-09-17** — [AI 모델 직접 입력 필드 전면 제거 및 공인 리스트박스 선택 강제]: 사용자 요구 반영에 따라 모델명 직접 입력란 및 Custom 옵션을 완전히 제거하고 오직 공인 모델 목록 리스트박스에서만 선택되도록 단일화하여 오입력 및 키 뒤바뀜 결함 원천 차단
 // 🚨 @PATCH : **2026-09-17** — [AES 암호화 키/모델명 평문 누출 원천 차단 및 양방향 자동 복호화 연동]: 스토리지 내 U2FsdGVkX1... 암호문 유입 시 loadSecureData를 통한 즉시 복호화 보장, aiModelName 불필요한 암호화 제거 및 기본 플래그십 자동 무해 전환
@@ -25,7 +25,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/ToastProvider';
 import { createPortal } from 'react-dom';
-import { X, Settings, Command, Loader2, CheckCircle, AlertCircle, KeyRound, Key, Type, AlignLeft, Braces, Save, RotateCcw, Copy, ChevronDown, Check, User, Mail, Shield, Calendar, ExternalLink, RefreshCw } from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
 import { TOOLBAR_ITEMS, getDefaultHotkeys, getDefaultCommands } from '@/lib/toolbarConfig';
 import { testGeminiConnection, ONRIVI_AI_MODELS, getCachedAIModels, fetchGoogleAIStudioModels, normalizeAIModelName, OnriviAIModelItem } from '@/lib/gemini';
 import { supabase } from '@/lib/supabaseClient';
@@ -409,14 +409,14 @@ export default function SettingsModal({
           onClick={handleClose} 
           className="absolute top-6 right-6 p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors z-50 text-outline hover:text-on-surface"
         >
-          <X size={24} />
+          <Icon name="Close" size={24} />
         </button>
 
         {/* Sidebar */}
         <aside className={`w-full md:w-[260px] shrink-0 border-r ${isDarkMode ? 'border-white/10' : 'border-outline-variant/15'} p-6 flex flex-col relative z-10`}>
           <div className="flex items-center gap-3 mb-8">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#1d4ed8]/15 text-[#1d4ed8]">
-              <Settings size={18} />
+              <Icon name="Settings" size={18} />
             </div>
             <h2 className="text-lg font-bold text-[#1d4ed8] tracking-tight">환경 설정</h2>
           </div>
@@ -430,7 +430,7 @@ export default function SettingsModal({
                   : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
-              <Settings size={18} />
+              <Icon name="Settings" size={18} />
               일반 설정
             </button>
             <button 
@@ -441,7 +441,7 @@ export default function SettingsModal({
                   : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
-              <Command size={18} />
+              <Icon name="Command" size={18} />
               단축키 / 명령어
             </button>
             <button 
@@ -452,7 +452,7 @@ export default function SettingsModal({
                   : 'text-on-surface-variant hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
-              <User size={18} />
+              <Icon name="User" size={18} />
               계정 관리
             </button>
           </nav>
@@ -539,7 +539,7 @@ export default function SettingsModal({
                 }}
                 className="w-full py-3 bg-[#1d4ed8] hover:bg-[#1e40af] text-white rounded-xl font-bold text-sm shadow-md shadow-[#1d4ed8]/20 transition-all flex justify-center items-center gap-2 cursor-pointer active:scale-98"
               >
-                <Save size={16} />
+                <Icon name="Save" size={16} />
                 <span>저장</span>
               </button>
           </div>
@@ -556,7 +556,7 @@ export default function SettingsModal({
                 <h3 className="font-serif text-[20px] font-semibold text-on-surface border-b pb-2 border-outline-variant/20 dark:border-white/10">에디터 동작</h3>
                 
                 <SettingRow 
-                  icon={<AlignLeft size={18} />}
+                  icon={<Icon name="AlignLeft" size={18} />}
                   title="자동 줄 바꿈 (Word Wrap)"
                   description="에디터 너비에 맞춰 텍스트를 자동으로 줄바꿈합니다."
                   control={
@@ -568,7 +568,7 @@ export default function SettingsModal({
                 />
 
                 <SettingRow 
-                  icon={<Braces size={18} />}
+                  icon={<Icon name="Braces" size={18} />}
                   title="괄호 자동 완성 (Auto Closing Brackets)"
                   description="여는 괄호를 입력할 때 닫는 괄호를 자동으로 추가합니다."
                   control={
@@ -580,7 +580,7 @@ export default function SettingsModal({
                 />
 
                 <SettingRow 
-                  icon={<Save size={18} />}
+                  icon={<Icon name="Save" size={18} />}
                   title="자동 저장 (Auto Save)"
                   description="문서를 자동으로 저장하는 주기를 설정합니다."
                   control={
@@ -611,7 +611,7 @@ export default function SettingsModal({
                 </div>
                 
                 <SettingRow 
-                  icon={<Save size={18} />}
+                  icon={<Icon name="Save" size={18} />}
                   title="공통 자원 폴더 (Resource Folder)"
                   description="모든 서식(프로필)과 미디어(이미지/영상), AI 템플릿이 저장될 PC 내 공통 폴더를 지정합니다."
                   control={
@@ -656,7 +656,7 @@ export default function SettingsModal({
                 <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-800/50 border-white/10' : 'bg-surface-container-low/50 border-outline-variant/20'}`}>
                   <div className="flex items-start gap-4 mb-6">
                     <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                      <KeyRound size={20} />
+                      <Icon name="KeyRound" size={20} />
                     </div>
                     <div className="flex-1">
                       <label className="block text-[15px] font-semibold text-on-surface mb-1">Google Gemini API Key</label>
@@ -681,7 +681,7 @@ export default function SettingsModal({
                           disabled={isTestingKey || !geminiApiKey}
                           className="px-4 py-2.5 rounded-xl text-[13px] font-bold bg-[#1d4ed8] hover:bg-[#1e40af] text-white shadow-xs hover:shadow-sm active:scale-98 disabled:opacity-40 transition-all flex items-center justify-center min-w-[90px] cursor-pointer shrink-0"
                         >
-                          {isTestingKey ? <Loader2 size={16} className="animate-spin text-white" /> : '연동 테스트'}
+                          {isTestingKey ? <Icon name="Loading" size={16} className="animate-spin text-white" /> : '연동 테스트'}
                         </button>
 
                         {/* AI 연동 해제 버튼 (API 키를 제거하고 연동 해제) */}
@@ -701,7 +701,7 @@ export default function SettingsModal({
                         <div className={`mt-3 px-4 py-2.5 rounded-lg text-[13px] font-medium flex items-center gap-2 ${
                           testResult.success ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                         }`}>
-                          {testResult.success ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                          {testResult.success ? <Icon name="CheckSuccess" size={16} /> : <Icon name="AlertError" size={16} />}
                           {testResult.msg}
                         </div>
                       )}
@@ -710,7 +710,7 @@ export default function SettingsModal({
 
                   <div className="flex items-start gap-4">
                     <div className="p-2.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                      <Type size={20} />
+                      <Icon name="TypeIcon" size={20} />
                     </div>
                     <div className="flex-1">
                       <label className="block text-[15px] font-semibold text-on-surface mb-1">AI 모델 선택 (Model Name)</label>
@@ -736,7 +736,7 @@ export default function SettingsModal({
                           ))}
                         </select>
                         <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500 dark:text-zinc-400">
-                          <ChevronDown size={16} />
+                          <Icon name="ArrowDown" size={16} />
                         </div>
                       </div>
                     </div>
@@ -770,7 +770,7 @@ export default function SettingsModal({
                     }}
                     className="px-4 py-2 text-[13px] font-bold rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-all flex items-center gap-2"
                   >
-                    <Copy size={14} />
+                    <Icon name="Copy" size={14} />
                     복사하기
                   </button>
                   <button
@@ -785,7 +785,7 @@ export default function SettingsModal({
                   }}
                   className="px-4 py-2 text-[13px] font-bold rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-all flex items-center gap-2"
                 >
-                  <RotateCcw size={14} />
+                  <Icon name="RotateCcw" size={14} />
                   초기화
                   </button>
                 </div>
@@ -900,7 +900,7 @@ export default function SettingsModal({
               <div className="border-b pb-4 border-outline-variant/20 dark:border-white/10 flex items-center justify-between">
                 <div>
                   <h3 className="font-serif text-[22px] font-semibold text-on-surface flex items-center gap-2.5">
-                    <User className="text-[#1d4ed8]" size={24} />
+                    <Icon name="User" className="text-[#1d4ed8]" size={24} />
                     계정 관리 (개인정보)
                   </h3>
                   <p className="text-[13px] text-on-surface-variant mt-1">
@@ -914,19 +914,19 @@ export default function SettingsModal({
                   className="px-3.5 py-2 rounded-xl text-[12px] font-bold text-slate-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/5 border border-slate-200 dark:border-zinc-700 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   title="최신 DB 데이터 다시 불러오기"
                 >
-                  <RefreshCw size={14} className={isLoadingUser ? 'animate-spin' : ''} />
+                  <Icon name="Refresh" size={14} className={isLoadingUser ? 'animate-spin' : ''} />
                   <span>새로고침</span>
                 </button>
               </div>
 
               {isLoadingUser ? (
                 <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-400">
-                  <Loader2 className="w-8 h-8 animate-spin text-[#1d4ed8]" />
+                  <Icon name="Loading" className="w-8 h-8 animate-spin text-[#1d4ed8]" />
                   <span className="text-[14px] font-medium">데이터베이스에서 회원 정보를 불러오는 중입니다...</span>
                 </div>
               ) : !sessionUser ? (
                 <div className="p-8 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-4">
-                  <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
+                  <Icon name="AlertError" className="w-10 h-10 text-amber-500 mx-auto" />
                   <div>
                     <h4 className="text-base font-bold text-slate-900 dark:text-zinc-100">현재 비로그인 (체험판/게스트) 모드입니다</h4>
                     <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1.5 leading-relaxed">
@@ -948,7 +948,7 @@ export default function SettingsModal({
                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#1d4ed8] hover:bg-[#1e40af] text-white transition-all shadow-xs cursor-pointer"
                     >
                       <span>로그인 페이지로 이동</span>
-                      <ExternalLink size={14} />
+                      <Icon name="External" size={14} />
                     </a>
                   </div>
                 </div>
@@ -957,7 +957,7 @@ export default function SettingsModal({
                   {/* 1. 개인정보 기본 정보 카드 */}
                   <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-900/60 border-zinc-800' : 'bg-slate-50/80 border-slate-200/80'} shadow-xs space-y-5`}>
                     <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-zinc-100 border-b pb-3 border-slate-200/60 dark:border-zinc-800">
-                      <Shield className="text-[#1d4ed8]" size={18} />
+                      <Icon name="Shield" className="text-[#1d4ed8]" size={18} />
                       <span>회원 기본 원장 (DB users)</span>
                     </div>
 
@@ -965,7 +965,7 @@ export default function SettingsModal({
                       {/* 이메일 */}
                       <div className="space-y-1">
                         <span className="text-slate-400 dark:text-zinc-500 font-medium text-[11px] flex items-center gap-1.5">
-                          <Mail size={12} /> 계정 이메일
+                          <Icon name="Mail" size={12} /> 계정 이메일
                         </span>
                         <div className="font-semibold text-slate-800 dark:text-zinc-200 font-mono bg-white dark:bg-zinc-800/80 px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-zinc-700/60 select-all">
                           {dbUser?.email || sessionUser?.email || '-'}
@@ -975,7 +975,7 @@ export default function SettingsModal({
                       {/* 가입 방식 */}
                       <div className="space-y-1">
                         <span className="text-slate-400 dark:text-zinc-500 font-medium text-[11px] flex items-center gap-1.5">
-                          <KeyRound size={12} /> 가입/로그인 제공자 (Provider)
+                          <Icon name="KeyRound" size={12} /> 가입/로그인 제공자 (Provider)
                         </span>
                         <div className="font-semibold text-slate-800 dark:text-zinc-200 bg-white dark:bg-zinc-800/80 px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-zinc-700/60 flex items-center justify-between">
                           <span className="uppercase font-bold text-[#1d4ed8]">
@@ -988,7 +988,7 @@ export default function SettingsModal({
                       {/* 회원 고유식별자 UUID */}
                       <div className="space-y-1">
                         <span className="text-slate-400 dark:text-zinc-500 font-medium text-[11px] flex items-center gap-1.5">
-                          <Key size={12} /> 고유 식별자 (User UUID)
+                          <Icon name="Key" size={12} /> 고유 식별자 (User UUID)
                         </span>
                         <div className="font-mono text-[12px] text-slate-600 dark:text-zinc-400 bg-white dark:bg-zinc-800/80 px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-zinc-700/60 flex items-center justify-between">
                           <span className="truncate max-w-[200px]">{dbUser?.id || sessionUser?.id || '-'}</span>
@@ -1008,7 +1008,7 @@ export default function SettingsModal({
                       {/* 가입일시 */}
                       <div className="space-y-1">
                         <span className="text-slate-400 dark:text-zinc-500 font-medium text-[11px] flex items-center gap-1.5">
-                          <Calendar size={12} /> 회원 가입 일시
+                          <Icon name="DateNow" size={12} /> 회원 가입 일시
                         </span>
                         <div className="font-medium text-slate-700 dark:text-zinc-300 bg-white dark:bg-zinc-800/80 px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-zinc-700/60">
                           {dbUser?.created_at ? new Date(dbUser.created_at).toLocaleString('ko-KR') : '-'}
@@ -1021,7 +1021,7 @@ export default function SettingsModal({
                   <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-900/60 border-zinc-800' : 'bg-slate-50/80 border-slate-200/80'} shadow-xs space-y-4`}>
                     <div className="flex items-center justify-between border-b pb-3 border-slate-200/60 dark:border-zinc-800">
                       <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-zinc-100">
-                        <User className="text-[#8B5CF6]" size={18} />
+                        <Icon name="User" className="text-[#8B5CF6]" size={18} />
                         <span>활동명 / 별명 관리 (AI 챗봇 호칭 연동)</span>
                       </div>
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 font-bold">
@@ -1051,7 +1051,7 @@ export default function SettingsModal({
                         disabled={isSavingNick || !editNickName.trim()}
                         className="px-5 py-2.5 rounded-xl text-[13px] font-bold bg-[#8B5CF6] hover:bg-[#7C3AED] text-white shadow-xs active:scale-98 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                       >
-                        {isSavingNick ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                        {isSavingNick ? <Icon name="Loading" size={15} className="animate-spin" /> : <Icon name="Save" size={15} />}
                         <span>별명 저장</span>
                       </button>
                     </div>
@@ -1079,7 +1079,7 @@ export default function SettingsModal({
                       className="px-4 py-2 rounded-xl text-[12px] font-bold bg-slate-200 dark:bg-zinc-800 hover:bg-slate-300 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 transition-all flex items-center gap-1.5 shrink-0"
                     >
                       <span>대시보드 이동</span>
-                      <ExternalLink size={13} />
+                      <Icon name="External" size={13} />
                     </a>
                   </div>
                 </div>
@@ -1128,3 +1128,5 @@ function ToggleSwitch({ active, onChange }: { active: boolean; onChange: () => v
     </button>
   );
 }
+
+

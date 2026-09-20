@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(PanelLeft, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2, ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2, Layers, X, Eraser, Sparkles, Loader2, Lock, HardDrive, Bot, Settings) 전체 제거, Icon 컴포넌트로 교체
 // 🚨 @PATCH : **2026-09-18** — [열린 문서의 상위 폴더명 변경 시 탭 경로·브레드크럼·활성 노드 실시간 동기화]:
 //             1) 탐색기에서 폴더 이름 변경 시 해당 폴더 하위에 열려 있는 모든 탭의 경로(t.path, t.node.path, t.id) 및 activeTabId, currentFileNode를 대소문자 무관 및 구분자 호환 방식으로 일괄 갱신
 //             2) 상단 브레드크럼 경로 바에서 activeTab?.path를 즉각 반영하여 변경된 새 폴더명이 즉시 화면에 표기되도록 동기화
@@ -140,11 +141,7 @@ import 'katex/dist/katex.min.css'; // 카텍스 스타일 - 수학 공식 렌더
   Layers, X
  * ==================================================================================
  */
-import {
-  PanelLeft as SidebarIcon, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2,
-  ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2,
-  Layers, X, Eraser, Sparkles, Loader2, Lock, HardDrive, Bot, Settings
-} from 'lucide-react';
+
 
 /**
  * ==================================================================================
@@ -7374,10 +7371,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           {rootDrive && (
                             <>
                               <span className="flex items-center gap-1 shrink-0 text-slate-800 dark:text-zinc-300 font-bold bg-slate-200/80 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-[10px] font-mono border border-slate-300/60 dark:border-zinc-700">
-                                <HardDrive size={12} className="text-slate-600 dark:text-zinc-400 shrink-0" />
+                                <Icon name="HardDrive" size={12} className="text-slate-600 dark:text-zinc-400 shrink-0" />
                                 <span>{rootDrive}</span>
                               </span>
-                              <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                              <Icon name="ArrowRight" size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
                             </>
                           )}
 
@@ -7385,10 +7382,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           {baseFolders.map((bFolder, idx) => (
                             <React.Fragment key={`base-${idx}`}>
                               <span className="flex items-center gap-1.5 shrink-0 text-slate-800 dark:text-zinc-200 font-bold">
-                                <Folder size={13} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <Icon name="FolderOpen" size={13} className="text-amber-500 shrink-0 fill-amber-400" />
                                 <span>{bFolder}</span>
                               </span>
-                              <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                              <Icon name="ArrowRight" size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
                             </React.Fragment>
                           ))}
 
@@ -7396,10 +7393,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           {rootName && (
                             <>
                               <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
-                                <Folder size={14} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <Icon name="FolderOpen" size={14} className="text-amber-500 shrink-0 fill-amber-400" />
                                 <span>{rootName}</span>
                               </span>
-                              <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                              <Icon name="ArrowRight" size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
                             </>
                           )}
 
@@ -7407,16 +7404,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           {folders.map((folder, idx) => (
                             <React.Fragment key={`folder-${idx}`}>
                               <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
-                                <Folder size={13} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <Icon name="FolderOpen" size={13} className="text-amber-500 shrink-0 fill-amber-400" />
                                 <span>{folder}</span>
                               </span>
-                              <ChevronRight size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
+                              <Icon name="ArrowRight" size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
                             </React.Fragment>
                           ))}
 
                           {/* 현재 활성 파일명 */}
                           <span className="flex items-center gap-1.5 shrink-0 font-bold text-slate-950 dark:text-white bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 px-2 py-0.5 rounded-md shadow-xs">
-                            <FileText size={13} className="text-[#1d4ed8] shrink-0 stroke-[2.5]" />
+                            <Icon name="Document" size={13} className="text-[#1d4ed8] shrink-0 stroke-[2.5]" />
                             <span className="truncate max-w-[350px]">{fileName}</span>
                           </span>
                         </div>
@@ -7443,7 +7440,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                               className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors font-normal border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 cursor-pointer"
                               title="웹 환경 상위 절대경로(드라이브/폴더) 설정"
                             >
-                              <Settings size={11} />
+                              <Icon name="Settings" size={11} />
                               <span className="hidden md:inline">상위경로 설정</span>
                             </button>
                           )}
@@ -7460,7 +7457,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                             className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors font-normal border border-transparent hover:border-slate-300 dark:hover:border-zinc-700 cursor-pointer"
                             title="절대경로 복사"
                           >
-                            <Copy size={11} />
+                            <Icon name="Copy" size={11} />
                             <span className="hidden sm:inline">경로 복사</span>
                           </button>
                         </div>
@@ -7491,7 +7488,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 tabs.length === 0 || !activeTab ? (
                   <div className="flex-grow flex flex-col items-center justify-center bg-zinc-200 dark:bg-zinc-900 text-center gap-4 transition-all duration-300 p-8 select-none">
                     <div className="p-4 bg-zinc-300/60 dark:bg-zinc-800/85 rounded-full text-zinc-500 dark:text-zinc-400 shadow-sm">
-                      <Lock size={32} />
+                      <Icon name="Lock" size={32} />
                     </div>
                     <div className="flex flex-col gap-2">
                       <h3 className="text-sm font-black text-zinc-700 dark:text-zinc-200">
@@ -7644,7 +7641,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                         </div>
                                         <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-normal">{m.desc}</div>
                                       </div>
-                                      {isSelected && <Check size={14} className="text-purple-600 dark:text-purple-400 shrink-0 stroke-[2.5]" />}
+                                      {isSelected && <Icon name="Checkmark" size={14} className="text-purple-600 dark:text-purple-400 shrink-0 stroke-[2.5]" />}
                                     </button>
                                   );
                                 })}
@@ -7760,7 +7757,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                   <span className={`whitespace-nowrap tracking-tight ${geminiApiKey ? 'text-violet-100' : 'text-slate-400 dark:text-zinc-500'}`}>
                                     {geminiApiKey ? displayModelFullName : '연동 해제됨'}
                                   </span>
-                                  <ChevronDown size={12} className={`shrink-0 ${geminiApiKey ? 'text-violet-200' : 'text-slate-400 dark:text-zinc-600'} transition-transform duration-200 ${isBottomAiDropdownOpen ? 'rotate-180' : ''}`} />
+                                  <Icon name="ArrowDown" size={12} className={`shrink-0 ${geminiApiKey ? 'text-violet-200' : 'text-slate-400 dark:text-zinc-600'} transition-transform duration-200 ${isBottomAiDropdownOpen ? 'rotate-180' : ''}`} />
                                 </button>
                               );
                             })()}
@@ -8588,7 +8585,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           {isAiLoading && (
             <div className="fixed inset-0 z-[99999] bg-black/25 dark:bg-black/55 flex items-center justify-center pointer-events-none select-none">
               <div className="bg-white dark:bg-zinc-800 shadow-2xl border border-purple-500/20 rounded-2xl px-6 py-4 flex items-center gap-3.5 animate-in fade-in zoom-in-95 duration-200">
-                <Loader2 className="animate-spin text-purple-500" size={20} />
+                <Icon name="Loading" className="animate-spin text-purple-500" size={20} />
                 <span className="text-[13px] font-bold text-zinc-700 dark:text-zinc-200">
                   AI가 문장을 다듬고 있습니다...
                 </span>
@@ -8640,3 +8637,4 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     </>
   );
 }
+

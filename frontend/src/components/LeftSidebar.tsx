@@ -1,5 +1,15 @@
+// ====================================================================
+// 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
+// 🎯 @KICK  : 파일 트리 탐색기, TOC, 북마크, 전역 검색 탭 제공. 폴더 CRUD/드래그앤드롭/컨텍스트메뉴 지원
+// 🛡️ @GUARD : FSA API(웹), IPC(데스크톱) 이중 운영, 드래그 덜렁거림(anti-rattle) 방지 적용
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Plus, Scissors, FolderOpen, FolderTree, FilePlus, FolderPlus, Copy, ClipboardPaste, RotateCw, FolderInput, Undo2) 제거, Icon 컴포넌트로 교체
+//             **2026-09-20** — [eslint exhaustive-deps 경고 해소] moveHistoryRef alias 제거 및 deps 배열 정리
+//             **2026-09-20** — [폴더 삭제 되돌리기] 데스크탑/웹 폴더 삭제 시 스냅샷 기반 되돌리기 지원 추가
+// 🔗 @CALLS : FileTreeItem, GlobalSearch, PromptModal, virtualFileSystem, indexedDbHelper
+// ====================================================================
 // @ts-nocheck
 "use client";
+
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -10,8 +20,8 @@ import { FileNode } from '@/lib/indexedDbHelper';
 import { vfsRename, vfsCopyItem, vfsMoveItem } from '@/lib/virtualFileSystem';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import PromptModal from '@/components/PromptModal';
-import { Plus, Scissors, FolderOpen, FolderTree, FilePlus, FolderPlus, Copy, ClipboardPaste, RotateCw, FolderInput, Undo2 } from 'lucide-react';
 import { Icon } from '@/components/icons/Icon';
+
 import { msg } from '@/lib/systemMessages';
 import { useUIStore } from '@/store/useUIStore';
 
@@ -2229,7 +2239,7 @@ export default function LeftSidebar() {
               shadow-2xs truncate"
             title={rootFolder?.name ? `워크스페이스 변경 (현재: ${rootFolder.name})` : '워크스페이스 폴더 선택'}
           >
-            <FolderTree 
+            <Icon name="FolderTree" 
               size={14} 
               strokeWidth={1.75} 
               className="shrink-0 text-current opacity-75" 
@@ -2352,7 +2362,7 @@ export default function LeftSidebar() {
                 }}
               >
                 <div className="flex items-center gap-1.5 truncate flex-1 font-bold">
-                  <FolderTree size={14} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <Icon name="FolderTree" size={14} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                   <span className="truncate">{rootFolder.name}</span>
                 </div>
 
@@ -2407,7 +2417,7 @@ export default function LeftSidebar() {
                                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <FilePlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                  <Icon name="FileAdd" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                   <span className="truncate">새 파일</span>
                                 </div>
                                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌥N' : 'Alt+N'}</kbd>
@@ -2420,7 +2430,7 @@ export default function LeftSidebar() {
                                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <FolderPlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                  <Icon name="FolderAdd" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                   <span className="truncate">새 폴더</span>
                                 </div>
                               </button>
@@ -2432,7 +2442,7 @@ export default function LeftSidebar() {
                                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <Copy size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                  <Icon name="Copy" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                   <span className="truncate">복사하기</span>
                                 </div>
                                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘C' : 'Ctrl+C'}</kbd>
@@ -2445,7 +2455,7 @@ export default function LeftSidebar() {
                                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <Scissors size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                  <Icon name="Cut" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                   <span className="truncate">잘라내기</span>
                                 </div>
                                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘X' : 'Ctrl+X'}</kbd>
@@ -2458,7 +2468,7 @@ export default function LeftSidebar() {
                                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <ClipboardPaste size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                  <Icon name="ClipboardPaste" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                   <span className="truncate">붙여넣기</span>
                                 </div>
                                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘V' : 'Ctrl+V'}</kbd>
@@ -2472,7 +2482,7 @@ export default function LeftSidebar() {
                                   className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-amber-600 dark:text-amber-400 font-medium"
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0">
-                                    <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                    <Icon name="Undo2" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                     <span className="truncate">잘라내기 취소</span>
                                   </div>
                                   <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">Esc</kbd>
@@ -2487,7 +2497,7 @@ export default function LeftSidebar() {
                                   className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0">
-                                    <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                    <Icon name="Undo2" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                     <span className="truncate">{lastUndoType === 'delete' ? '삭제 되돌리기' : '이동 되돌리기'}</span>
                                   </div>
                                   <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘Z' : 'Ctrl+Z'}</kbd>
@@ -2503,7 +2513,7 @@ export default function LeftSidebar() {
                             className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <RotateCw size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                              <Icon name="RotateCw" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                               <span className="truncate">새로고침</span>
                             </div>
                             <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘F5' : 'Ctrl+F5'}</kbd>
@@ -2517,7 +2527,7 @@ export default function LeftSidebar() {
                               className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <FolderInput size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                <Icon name="FolderInput" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                 <span className="truncate">타문서 변환</span>
                               </div>
                               <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌥⌘O' : 'Ctrl+Alt+O'}</kbd>
@@ -2537,7 +2547,7 @@ export default function LeftSidebar() {
                                 title={explorerLabel}
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                                  <Icon name="FolderOpen" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                   <span className="truncate">{explorerLabel}</span>
                                 </div>
                               </button>
@@ -2615,7 +2625,7 @@ export default function LeftSidebar() {
           ) : (
             // 폴더 미연결 상태 — 간결한 안내
             <div className="flex flex-col items-center justify-center h-full min-h-[150px] text-zinc-400 dark:text-zinc-500 text-[11px] text-center space-y-2 px-4">
-              <FolderTree size={28} strokeWidth={1.5} className="text-current opacity-35 mb-1" />
+              <Icon name="FolderTree" size={28} strokeWidth={1.5} className="text-current opacity-35 mb-1" />
               <p className="font-medium opacity-70">위의 폴더 선택 바를 눌러<br/>워크스페이스를 시작하세요.</p>
             </div>
           )}

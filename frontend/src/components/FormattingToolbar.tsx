@@ -5,6 +5,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
+ * 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Eraser, Sparkles) 제거, Icon 컴포넌트로 교체. 나머지 이모지 버튼은 사용자 요청에 따라 유지.
  * 🚨 @PATCH : **2026-09-12** — AI 버튼 툴팁을 'AI 프롬프트'로 명칭 일원화 및 툴바 원래 이모지 서식 원복 유지
  * 🚨 @PATCH : **2026-09-11** — 인용구(❝) 버튼에 Alert 태그 선택 콤보 드롭다운(일반 인용구, Note, Tip, Important, Warning, Caution) 추가 탑재
  * 🚨 @PATCH : **2026-09-05** — AI 연동 해제(!geminiApiKey) 시 서식 툴바의 AI 글쓰기 어시스턴트 버튼(Sparkles) 비활성화(disabled, opacity-30, grayscale) 적용
@@ -13,7 +14,9 @@
  */
 "use client";
 import React from 'react';
-import { Eraser, Sparkles } from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
+
+
 
 import { useEditorContext } from '@/context/EditorContext';
 
@@ -62,7 +65,7 @@ export default function FormattingToolbar() {
       {/* AI 글쓰기 단독 버튼 */}
       <FormatBtn
         disabled={!geminiApiKey}
-        label={<Sparkles size={15} className={geminiApiKey ? "text-purple-500 animate-pulse" : "text-slate-400 dark:text-zinc-500"} />}
+        label={<Icon name="AiAssistant" size={15} className={geminiApiKey ? "text-purple-500 animate-pulse" : "text-slate-400 dark:text-zinc-500"} />}
         title={geminiApiKey ? "AI 프롬프트" : "AI 연동 해제됨 (설정에서 API 키를 등록해 주세요)"}
         onAction={() => {
           if (!geminiApiKey) {
@@ -102,7 +105,7 @@ export default function FormattingToolbar() {
       <FormatBtn label="☰" title={tooltip('글머리 기호', SHORTCUTS.list)} onAction={() => dispatch('LIST')} />
       <QuoteDropdownBtn dispatch={dispatch} />
       <FormatBtn label="☑️" title={tooltip('체크리스트', SHORTCUTS.check)} onAction={() => dispatch('CHECK')} />
-      <FormatBtn label={<Eraser size={15} className="text-red-500 opacity-80" />} title={tooltip('태그 취소', SHORTCUTS.eraser)} onAction={() => dispatch('REMOVE_PREFIX')} />
+      <FormatBtn label={<Icon name="Eraser" size={15} className="text-red-500 opacity-80" />} title={tooltip('태그 취소', SHORTCUTS.eraser)} onAction={() => dispatch('REMOVE_PREFIX')} />
       <FormatBtn label="🧹" title={tooltip('문서 서식 일괄 정리', SHORTCUTS.cleanDoc)} onAction={() => dispatch('CLEAN_DOC')} />
 
       <Divider />

@@ -4,6 +4,7 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2, FileText) 전체 제거, Icon 컴포넌트로 교체
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
 //             1) 폴더 삭제 되돌리기: 데스크톱 api.backupFolderForUndo, 웹 브라우저 snapshotFsaDirectory/VFS 스냅샷으로 하위 구조 100% 보존 및 Ctrl+Z 복원 완비
 //             2) 탐색기 덜렁거림 제거: dragleave 자식 요소 진입 방어, scale-[1.01] 제거(ring-1 교체), transition-all을 transition-colors로 최적화, React Key 고유 경로화로 깜빡임 원천 차단
@@ -58,7 +59,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2, FileText } from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
 import { FileNode, getFileIcon } from '@/lib/indexedDbHelper';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { vfsCreateFile, vfsCreateFolder, vfsRename, vfsDelete, vfsReadFile } from '@/lib/virtualFileSystem';
@@ -1588,7 +1589,7 @@ const FileTreeItem = ({
       >
         <span className="w-3.5 h-3.5 flex items-center justify-center mr-0.5 opacity-60 origin-center">
           {node.kind === 'directory' ? (
-            isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />
+            isOpen ? <Icon name="ArrowDown" size={12} /> : <Icon name="ArrowRight" size={12} />
           ) : null}
         </span>
         
@@ -1646,7 +1647,7 @@ const FileTreeItem = ({
                     className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <FilePlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <Icon name="FileAdd" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                       <span className="truncate">새 파일</span>
                     </div>
                     <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥N' : 'Alt+N'}</kbd>
@@ -1656,7 +1657,7 @@ const FileTreeItem = ({
                     className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <FolderPlus size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <Icon name="FolderAdd" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                       <span className="truncate">새 폴더</span>
                     </div>
                   </button>
@@ -1669,7 +1670,7 @@ const FileTreeItem = ({
                     className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-blue-600 dark:text-blue-400 font-medium"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <FileText size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <Icon name="Document" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                       <span className="truncate">타문서 변환</span>
                     </div>
                     <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥⌘O' : 'Ctrl+Alt+O'}</kbd>
@@ -1681,7 +1682,7 @@ const FileTreeItem = ({
                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Pencil size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <Icon name="Pencil" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                   <span className="truncate">이름 변경</span>
                 </div>
                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">F2</kbd>
@@ -1691,7 +1692,7 @@ const FileTreeItem = ({
                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Copy size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <Icon name="Copy" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                   <span className="truncate">복사하기</span>
                 </div>
                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘C' : 'Ctrl+C'}</kbd>
@@ -1701,7 +1702,7 @@ const FileTreeItem = ({
                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Scissors size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <Icon name="Cut" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                   <span className="truncate">잘라내기</span>
                 </div>
                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘X' : 'Ctrl+X'}</kbd>
@@ -1711,7 +1712,7 @@ const FileTreeItem = ({
                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <ClipboardPaste size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <Icon name="ClipboardPaste" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                   <span className="truncate">붙여넣기</span>
                 </div>
                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘V' : 'Ctrl+V'}</kbd>
@@ -1722,7 +1723,7 @@ const FileTreeItem = ({
                   className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-amber-600 dark:text-amber-400 font-medium"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                    <Icon name="Undo2" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                     <span className="truncate">잘라내기 취소</span>
                   </div>
                   <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">Esc</kbd>
@@ -1734,7 +1735,7 @@ const FileTreeItem = ({
                   className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Undo2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                    <Icon name="Undo2" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                     <span className="truncate">{lastUndoType === 'delete' ? '삭제 되돌리기' : '이동 되돌리기'}</span>
                   </div>
                   <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌘Z' : 'Ctrl+Z'}</kbd>
@@ -1753,7 +1754,7 @@ const FileTreeItem = ({
                     className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <FolderOpen size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <Icon name="FolderOpen" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                       <span className="truncate">{label}</span>
                     </div>
                   </button>
@@ -1767,7 +1768,7 @@ const FileTreeItem = ({
                 className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 w-full text-left transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Trash2 size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                  <Icon name="Delete" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                   <span className="truncate">삭제</span>
                 </div>
                 <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">Del</kbd>

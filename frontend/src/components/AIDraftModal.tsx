@@ -1,7 +1,8 @@
-// ====================================================================
+﻿// ====================================================================
 // 📊 [OMD-MODAL-0002 ✅ FIXED] AIDraftModal.tsx
 // 🎯 @KICK  : AI 초안 생성 및 에디토리얼 어시스턴트 모달
 // 🛡️ @GUARD : Rule 1, Rule 2, Rule 7 (원트랜잭션 무결성 및 실패 시 클린 롤백), 실시간 단계별 진행 가시성
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import 전체 제거, Icon 컴포넌트로 교체
 // 🚨 @PATCH : **2026-09-16** — [문서 전체 모드 질문/요약 프롬프트 원본 통복제 방어 및 Auto-RAG 후보 식별자 호환성 보장]: 1) 질의/요약/일정안내 요청 시 원본 문서 통복사 및 사족 출력을 엄격히 금지하고 질문에 대응되는 핵심 정보만 정리·요약하여 답변하도록 프롬프트 지침 전면 개편 2) searchKnowledge limit 5건 상향 및 chunkId/id 상호 호환 식별자 병합 지원
 // 🚨 @PATCH : **2026-09-16** — [AI 생성 단계별 실시간 진행(Generating Step) 표시 및 원트랜잭션 무결성 보장]:
 //             1) 실시간 3단계 진행 표시: [1/3 지식 검색] ➔ [2/3 AI 모델 추론] ➔ [3/3 스트리밍 수신] 단계별 상태 텍스트를 상단 배너와 실행 버튼에 실시간 노출하여 대기 체감 및 가시성 대폭 향상
@@ -41,7 +42,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Sparkles, Wand2, Loader2, Check, Save, FolderOpen, Trash2, Copy, Paperclip, Edit2, BookOpen, RotateCcw, Database, ExternalLink, ChevronDown, AlertCircle, Zap } from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
 import { useToast } from '@/components/ToastProvider';
 import { getPromptTemplates, savePromptTemplates, getPromptTemplate, PromptTemplate } from '@/lib/promptTemplates';
 import { generateDraftWithAIStream, formatUserFriendlyAIError, FormattedAIError, ONRIVI_AI_MODELS, DEFAULT_AI_MODEL, fetchGoogleAIStudioModels, getCachedAIModels, normalizeAIModelName } from '@/lib/gemini';
@@ -1019,7 +1020,7 @@ ${snippet}`;
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#EFEFEF] dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-[#1d4ed8]/15 text-[#1d4ed8] flex items-center justify-center">
-              <Sparkles className="w-4 h-4" />
+              <Icon name="AiAssistant" className="w-4 h-4" />
             </div>
             <div className="flex flex-col">
               <h2 className="text-base font-bold text-[#1d4ed8] tracking-tight">
@@ -1043,7 +1044,7 @@ ${snippet}`;
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 border border-zinc-200/90 dark:border-zinc-700 font-bold text-[12px] shadow-2xs transition-all disabled:opacity-40 cursor-pointer"
                 title="모든 입력 내용 및 설정 초기화"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <Icon name="RotateCcw" className="w-3.5 h-3.5" />
                 <span>초기화</span>
               </button>
               <button
@@ -1053,7 +1054,7 @@ ${snippet}`;
                 title="AI 모달을 닫고 에디터로 돌아갑니다"
               >
                 <span>에디터 이동</span>
-                <X className="w-3.5 h-3.5" />
+                <Icon name="Close" className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1078,14 +1079,14 @@ ${snippet}`;
                   onClick={() => { setShowLibrary(true); setIsSavingPreset(false); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
-                  <BookOpen className="w-3.5 h-3.5" />
+                  <Icon name="Book" className="w-3.5 h-3.5" />
                   라이브러리 열기
                 </button>
                 <button
                   onClick={handleSavePresetClick}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-[#1d4ed8] dark:text-blue-400 hover:bg-[#1d4ed8]/10 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                 >
-                  <Save className="w-3.5 h-3.5" />
+                  <Icon name="Save" className="w-3.5 h-3.5" />
                   현재 설정 저장
                 </button>
 
@@ -1096,7 +1097,7 @@ ${snippet}`;
                     <div className="flex items-center justify-between pb-2.5 border-b border-zinc-100 dark:border-zinc-800">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-md bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 flex items-center justify-center text-[#1d4ed8] dark:text-blue-400">
-                          <BookOpen className="w-3.5 h-3.5" />
+                          <Icon name="Book" className="w-3.5 h-3.5" />
                         </div>
                         <span className="text-[13px] font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">라이브러리 저장</span>
                       </div>
@@ -1106,7 +1107,7 @@ ${snippet}`;
                         className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded transition-colors"
                         title="닫기"
                       >
-                        <X className="w-4 h-4" />
+                        <Icon name="Close" className="w-4 h-4" />
                       </button>
                     </div>
 
@@ -1115,7 +1116,7 @@ ${snippet}`;
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
                           <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-                            <FolderOpen className="w-3.5 h-3.5 text-[#1d4ed8] dark:text-blue-400" />
+                            <Icon name="FolderOpen" className="w-3.5 h-3.5 text-[#1d4ed8] dark:text-blue-400" />
                             <span>폴더명 <span className="text-[10px] font-normal text-zinc-600 dark:text-zinc-400">(선택)</span></span>
                           </label>
                           <button
@@ -1127,9 +1128,9 @@ ${snippet}`;
                                 : 'text-[#1d4ed8] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800/60'
                             }`}
                           >
-                            <FolderOpen className="w-3 h-3" />
+                            <Icon name="FolderOpen" className="w-3 h-3" />
                             <span>폴더 선택</span>
-                            <ChevronDown className={`w-3 h-3 transition-transform duration-150 ${showFolderDropdown ? 'rotate-180' : ''}`} />
+                            <Icon name="ArrowDown" className={`w-3 h-3 transition-transform duration-150 ${showFolderDropdown ? 'rotate-180' : ''}`} />
                           </button>
                         </div>
 
@@ -1175,11 +1176,11 @@ ${snippet}`;
                                     }`}
                                   >
                                     <span className="flex items-center gap-1.5 truncate">
-                                      <FolderOpen className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                      <Icon name="FolderOpen" className="w-3.5 h-3.5 shrink-0 opacity-70" />
                                       <span className="truncate">{folder}</span>
                                     </span>
                                     {presetFolderInput === folder && (
-                                      <Check className="w-3.5 h-3.5 text-[#1d4ed8] shrink-0" />
+                                      <Icon name="Checkmark" className="w-3.5 h-3.5 text-[#1d4ed8] shrink-0" />
                                     )}
                                   </button>
                                 ))
@@ -1213,7 +1214,7 @@ ${snippet}`;
                       {/* Library Name */}
                       <div className="flex flex-col gap-1.5">
                         <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-                          <BookOpen className="w-3.5 h-3.5 text-[#1d4ed8] dark:text-blue-400" />
+                          <Icon name="Book" className="w-3.5 h-3.5 text-[#1d4ed8] dark:text-blue-400" />
                           <span>라이브러리 이름 <span className="text-red-500">*</span></span>
                         </label>
                         <input 
@@ -1245,7 +1246,7 @@ ${snippet}`;
                         onClick={handleConfirmSavePreset} 
                         className="px-3.5 py-1.5 text-[11px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] active:bg-[#1e3a8a] rounded-md shadow-sm transition-colors flex items-center gap-1.5"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Icon name="Checkmark" className="w-3.5 h-3.5" />
                         저장하기
                       </button>
                     </div>
@@ -1261,7 +1262,7 @@ ${snippet}`;
                   <div className="bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200/80 dark:border-blue-800/60 rounded-lg p-3 flex items-center justify-between shadow-2xs">
                     <div className="flex items-center gap-2.5">
                       <div className="w-6 h-6 rounded bg-[#1d4ed8]/10 dark:bg-[#1d4ed8]/20 flex items-center justify-center">
-                        <BookOpen className="w-3.5 h-3.5 text-[#1d4ed8] dark:text-blue-400" />
+                        <Icon name="Book" className="w-3.5 h-3.5 text-[#1d4ed8] dark:text-blue-400" />
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-[#1d4ed8] dark:text-blue-400">적용된 템플릿/라이브러리</span>
@@ -1269,7 +1270,7 @@ ${snippet}`;
                       </div>
                     </div>
                     <button onClick={() => setLoadedPresetName('')} className="p-1 hover:bg-blue-100 dark:hover:bg-blue-800/40 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">
-                      <X className="w-3.5 h-3.5" />
+                      <Icon name="Close" className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
@@ -1278,7 +1279,7 @@ ${snippet}`;
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-xl border border-zinc-200/60 dark:border-zinc-800 shadow-2xs">
                     <label className="text-[12px] font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-[#1d4ed8]" />
+                      <Icon name="AiAssistant" className="w-3.5 h-3.5 text-[#1d4ed8]" />
                       <span>어시스턴트에게 지시할 내용 (프롬프트)</span>
                     </label>
                     <span className="text-[10px] font-medium text-zinc-400">Ctrl + Enter 로 즉시 실행</span>
@@ -1306,7 +1307,7 @@ ${snippet}`;
                   <div className="p-3.5 rounded-xl bg-rose-50/95 dark:bg-rose-950/50 border-2 border-rose-300 dark:border-rose-800/80 text-rose-800 dark:text-rose-200 flex flex-col gap-2 shadow-sm animate-in fade-in duration-200">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                        <Icon name="AlertError" className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                         <span className="font-extrabold text-[13px] text-rose-700 dark:text-rose-300">
                           {formattedError?.title || "AI 실행 오류 발생"}
                         </span>
@@ -1317,7 +1318,7 @@ ${snippet}`;
                         className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer"
                         title="닫기"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <Icon name="Close" className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     <div className="text-[12px] text-zinc-800 dark:text-zinc-200 leading-relaxed font-medium bg-white/80 dark:bg-zinc-900/80 p-2.5 rounded-lg border border-rose-200 dark:border-rose-900/60">
@@ -1395,11 +1396,11 @@ ${snippet}`;
                   {attachedFileName ? (
                     <div className="flex items-center justify-between bg-[#1d4ed8]/10 border border-[#1d4ed8]/30 px-3 py-2 rounded-xl">
                       <div className="flex items-center gap-2 overflow-hidden">
-                        <Paperclip className="w-4 h-4 text-[#1d4ed8] shrink-0" />
+                        <Icon name="Paperclip" className="w-4 h-4 text-[#1d4ed8] shrink-0" />
                         <span className="text-[12px] font-bold text-[#1d4ed8] truncate">{attachedFileName}</span>
                       </div>
                       <button onClick={handleRemoveAttachment} className="p-1 hover:bg-[#1d4ed8]/20 rounded-md text-[#1d4ed8] transition-colors shrink-0">
-                        <X className="w-4 h-4" />
+                        <Icon name="Close" className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
@@ -1408,7 +1409,7 @@ ${snippet}`;
                       disabled={isGenerating}
                       className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-zinc-200 dark:border-zinc-700/80 hover:border-[#1d4ed8]/50 hover:bg-[#1d4ed8]/5 rounded-xl py-2.5 text-[12px] font-bold text-zinc-500 dark:text-zinc-400 transition-colors disabled:opacity-50 cursor-pointer"
                     >
-                      <Paperclip className="w-4 h-4" />
+                      <Icon name="Paperclip" className="w-4 h-4" />
                       참조할 텍스트 문서(.md, .txt) 첨부하기
                     </button>
                   )}
@@ -1474,7 +1475,7 @@ ${snippet}`;
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-0 pointer-events-none" />
+                    <Icon name="ArrowDown" className="w-3.5 h-3.5 text-zinc-400 absolute right-0 pointer-events-none" />
                   </div>
                 </div>
 
@@ -1509,7 +1510,7 @@ ${snippet}`;
                             </option>
                           )}
                         </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-0 pointer-events-none" />
+                        <Icon name="ArrowDown" className="w-3.5 h-3.5 text-zinc-400 absolute right-0 pointer-events-none" />
                       </>
                     )}
                   </div>
@@ -1525,7 +1526,7 @@ ${snippet}`;
               >
                 {isGenerating ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Icon name="Loading" className="w-5 h-5 animate-spin" />
                     <span>
                       {generatingStep === 'rag' && '[1/3] 지식 검색 중...'}
                       {generatingStep === 'prompt' && '[2/3] AI 추론 준비 중...'}
@@ -1535,12 +1536,12 @@ ${snippet}`;
                   </>
                 ) : generationComplete ? (
                   <>
-                    <Sparkles className="w-5 h-5" />
+                    <Icon name="AiAssistant" className="w-5 h-5" />
                     프롬프트 수정하여 다시 실행
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-5 h-5" />
+                    <Icon name="AiAssistant" className="w-5 h-5" />
                     AI 실행
                   </>
                 )}
@@ -1568,7 +1569,7 @@ ${snippet}`;
                     }`}
                     title={aiCopied ? "클립보드에 복사되었습니다!" : "결과 미리보기 전체 복사"}
                   >
-                    {aiCopied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
+                    {aiCopied ? <Icon name="Checkmark" className="w-3.5 h-3.5 text-white" /> : <Icon name="Copy" className="w-3.5 h-3.5" />}
                   </button>
                 )}
               </div>
@@ -1590,7 +1591,7 @@ ${snippet}`;
                         className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] rounded-md transition-colors flex items-center gap-1 cursor-pointer"
                         title="기존 내용은 유지하고 그 아래에 결과를 이어서 붙입니다."
                       >
-                        <Check className="w-3 h-3" />
+                        <Icon name="Checkmark" className="w-3 h-3" />
                         아래에 추가
                       </button>
                     </>
@@ -1600,7 +1601,7 @@ ${snippet}`;
                     className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] rounded-md transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
                     title="에디터에서 현재 깜빡이고 있는 커서 위치에 결과를 삽입합니다."
                   >
-                    <Check className="w-3 h-3" />
+                    <Icon name="Checkmark" className="w-3 h-3" />
                     커서 위치에 삽입
                   </button>
                 </div>
@@ -1611,7 +1612,7 @@ ${snippet}`;
             {isGenerating ? (
               <div className="mx-8 mb-3 p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/80 flex items-center justify-between shrink-0 shadow-2xs animate-pulse">
                 <span className="text-[12px] font-bold text-[#1d4ed8] dark:text-blue-300 flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#1d4ed8] shrink-0" />
+                  <Icon name="Loading" className="w-4 h-4 animate-spin text-[#1d4ed8] shrink-0" />
                   {generatingStep === 'rag' && '[1/3] 📚 지식 보관함에서 관련 문서 및 청크 검색 중...'}
                   {generatingStep === 'prompt' && '[2/3] 🧠 Gemini 모델 분석 및 프롬프트 추론 준비 중...'}
                   {generatingStep === 'stream' && '[3/3] ✍️ 실시간 초안 본문 스트리밍 수신 중...'}
@@ -1625,7 +1626,7 @@ ${snippet}`;
               <div className="mx-8 mb-3 p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-[#1d4ed8]/30 flex flex-col gap-1.5 shrink-0">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-extrabold text-[#1d4ed8] flex items-center gap-1.5">
-                    <BookOpen className="w-3.5 h-3.5" />
+                    <Icon name="Book" className="w-3.5 h-3.5" />
                     참조된 지식 문서 ({citedSources.length}건)
                   </span>
                   <div className="flex items-center gap-2">
@@ -1642,7 +1643,7 @@ ${snippet}`;
                       className="p-1 rounded text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer flex items-center gap-0.5 text-[10px] font-medium"
                       title="참조 지식 배너 닫기 및 해제"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <Icon name="Close" className="w-3.5 h-3.5" />
                       <span>해제</span>
                     </button>
                   </div>
@@ -1672,7 +1673,7 @@ ${snippet}`;
                   <div className="max-w-md w-full bg-rose-50/90 dark:bg-rose-950/40 border-2 border-rose-300 dark:border-rose-800/70 rounded-2xl p-6 shadow-md flex flex-col gap-4">
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
-                        <AlertCircle className="w-6 h-6" />
+                        <Icon name="AlertError" className="w-6 h-6" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
@@ -1688,7 +1689,7 @@ ${snippet}`;
                             className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 rounded-md transition cursor-pointer"
                             title="안내 닫기"
                           >
-                            <X className="w-4 h-4" />
+                            <Icon name="Close" className="w-4 h-4" />
                           </button>
                         </div>
                         <div className="mt-1 flex items-center gap-1.5 text-[11px] font-mono font-bold text-rose-900 dark:text-rose-200 bg-rose-200/70 dark:bg-rose-900/50 px-2 py-0.5 rounded-md inline-block">
@@ -1732,7 +1733,7 @@ ${snippet}`;
                           }`}
                           title="최신 플래그십 버전 Gemini 3.8 Flash로 모델을 변경합니다"
                         >
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <Icon name="AiAssistant" className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                           <span className="truncate">Gemini 3.8 Flash로 변경</span>
                         </button>
                         <button
@@ -1748,7 +1749,7 @@ ${snippet}`;
                           }`}
                           title="차세대 고성능 버전 Gemini 3.7 Flash로 모델을 변경합니다"
                         >
-                          <Zap className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <Icon name="FastSpeed" className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                           <span className="truncate">Gemini 3.7 Flash로 변경</span>
                         </button>
                       </div>
@@ -1758,7 +1759,7 @@ ${snippet}`;
                         onClick={() => handleGenerate()}
                         className="w-full py-2.5 px-4 rounded-xl text-[13px] font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] shadow-xs active:scale-98 transition flex items-center justify-center gap-2 cursor-pointer mt-1"
                       >
-                        <RotateCcw className="w-4 h-4" />
+                        <Icon name="RotateCcw" className="w-4 h-4" />
                         현재 선택된 모델({currentModel})로 실행
                       </button>
 
@@ -1769,7 +1770,7 @@ ${snippet}`;
                           className="flex-1 py-2 px-3 rounded-xl text-[12px] font-bold text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                           title="모든 입력 및 에러 내용 초기화"
                         >
-                          <RotateCcw className="w-3.5 h-3.5" />
+                          <Icon name="RotateCcw" className="w-3.5 h-3.5" />
                           <span>초기화</span>
                         </button>
                         <button
@@ -1778,7 +1779,7 @@ ${snippet}`;
                           className="flex-1 py-2 px-3 rounded-xl text-[12px] font-bold text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                           title="AI 모달을 닫고 에디터로 복귀"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <Icon name="Close" className="w-3.5 h-3.5" />
                           <span>에디터 이동</span>
                         </button>
                       </div>
@@ -1835,3 +1836,4 @@ ${snippet}`;
     </div>
   );
 }
+

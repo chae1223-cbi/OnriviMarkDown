@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-EDIT-StatusBar-0003] StatusBar.tsx ➔ StatusBar
 // 🎯 @KICK  : 하단 상태표시줄 - 글자 수, 단어 수, 서식 프로필, 저장 상태, 뷰포트 모드, 행/열 정보 및 지식 색인 실시간 진행률 표시
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Loader2, CheckCircle2, AlertTriangle, BookOpen) 제거, Icon 컴포넌트(Loading, CheckCircle, AlertWarning)로 교체
 // 🚨 @PATCH : **2026-09-16** — [지식 베이스 색인 실시간 진행 표시기(Progress Badge) 연동]: 백그라운드 지식 수집/색인 중(knowledge:queue-progress) 현재 파일명, 진행률(%), 완료 및 실패 상태를 상태바 중앙에 실시간 스피너 배지로 상시 노출하여 작업 가시성 100% 확보
 //             **2026-09-13** — [플로팅 서식 툴바 및 팝업리스트 가시성 보장을 위한 StatusBar z-index 조정]: 상태표시줄의 z-index를 z-40에서 z-20으로 낮추어 플로팅 툴바 드롭다운 및 모달 위계 충돌 방지
 //             **2026-09-11** — 하단 상태바 폰트를 Pretendard 최우선으로 일원화 적용
@@ -14,7 +15,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, CheckCircle2, AlertTriangle, BookOpen } from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
+
 import { EDITOR_THEMES } from '@/lib/editorThemes';
 
 import { useEditorContext } from '@/context/EditorContext';
@@ -355,7 +357,7 @@ function StatusBar() {
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-500/15 dark:bg-blue-400/20 border border-blue-500/40 text-blue-600 dark:text-blue-300 cursor-pointer hover:bg-blue-500/25 transition-all shrink-0 shadow-2xs"
             title="클릭하여 지식 베이스 관리 센터(/knowledge) 열기"
           >
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#1d4ed8] shrink-0" />
+            <Icon name="Loading" className="w-3.5 h-3.5 animate-spin text-[#1d4ed8] shrink-0" />
             <span className="font-extrabold text-[11px] tabular-nums">
               지식 색인 중 {knowledgeProgress.percent}% ({knowledgeProgress.completed}/{knowledgeProgress.total})
             </span>
@@ -367,7 +369,7 @@ function StatusBar() {
           </div>
         ) : knowledgeProgress.isFinishedRecent ? (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 shrink-0 animate-in fade-in">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <Icon name="CheckCircle" className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span className="font-extrabold text-[11px]">지식 색인 완료 ({knowledgeProgress.completed}건)</span>
           </div>
         ) : knowledgeProgress.failedCount > 0 ? (
@@ -376,7 +378,7 @@ function StatusBar() {
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/15 border border-rose-500/40 text-rose-700 dark:text-rose-300 cursor-pointer hover:bg-rose-500/25 shrink-0"
             title="클릭하여 지식 관리 센터에서 실패 내역 확인"
           >
-            <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            <Icon name="AlertWarning" className="w-3.5 h-3.5 text-rose-500 shrink-0" />
             <span className="font-extrabold text-[11px]">지식 색인 오류 ({knowledgeProgress.failedCount}건)</span>
           </div>
         ) : null}

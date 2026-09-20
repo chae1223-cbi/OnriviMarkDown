@@ -1,27 +1,17 @@
-// ====================================================================
+﻿// ====================================================================
 // 📊 [OMD-MODAL-KnowledgeDetail-0001] KnowledgeDetailModal.tsx ➔ 지식 문서 설정 상세 분석 모달
 // 🎯 @KICK  : 지식 문서 등록/설정 시 생성된 AI 요약, 핵심 요점, 헤딩별 분할 청크(라인 범위, 키워드), 추출 태그(관련도 점수), 확장 검색어의 상세 분석 결과를 직관적으로 시각화
 // 🛡️ @GUARD : LINE Design System LDSG v5.0 (#1d4ed8), 청크별 에디터 라인 점프 연동, 빈 데이터 안전 가드
-// 🚨 @PATCH : **2026-09-17** — [메타 청크 원천 배제 및 실시간 재분석 모달 연동]:
-//             1) isMetaOrAuxiliaryChunk 방어 필터를 적용하여 서두/메타영역/서식설정 청크 노출 0건 보장 (displayChunks)
-//             2) '🔄 최신 AI 재분석' 클릭 시 knowledge:open-index-progress 이벤트를 발송하여 전용 실시간 진행 모달로 즉시 연결
-//             **2026-09-16** — [최신 규칙 기반 AI 재분석(재색인) 및 실시간 3단계 진행 피드백 탑재]:
-//             1) 모달 상단 및 하단에 '🔄 최신 AI 재분석' 버튼 추가하여 기존 구버전 색인 레코드를 원클릭으로 최신 청킹(13개 청크) 및 Gemini 정형 분석 결과로 즉시 갱신
-//             2) 재분석 실행 시 단계별([1/3] 본문 로드 -> [2/3] 헤딩 계층 청킹 -> [3/3] Gemini AI 분석) 진행 인디케이터 배너 실시간 표시
-//             3) 재분석 완료 시 currentDetail 상태 및 지식 캐시 자동 동기화
-//             **2026-09-13** — [Rule 8 고대비 시인성 및 절대경로 보장]: 파일 경로 스타일을 text-zinc-700 dark:text-zinc-300 font-bold font-mono로 강화하고 ensureClientAbsolutePath를 적용하여 완전한 절대경로 시각화 보장
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import 전체 제거, Icon 컴포넌트로 교체
+//             **2026-09-17** — [메타 청크 원천 배제 및 실시간 재분석 모달 연동]
+//             **2026-09-16** — [최신 규칙 기반 AI 재분석(재색인) 및 실시간 3단계 진행 피드백 탑재]
+//             **2026-09-13** — [Rule 8 고대비 시인성 및 절대경로 보장]
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
-//             2026-09-04** — 모달 상단 헤더 아이콘을 남성 학사(📗)로 교체
-//             **2026-09-04** — [지식 문서 설정 상세내역 모달 신규 구현] 단순 알림 메시지 대신 청크 분할 구조, 태그, 요약 등을 완벽 시각화하여 사용자에게 즉시 안내
 // 🔗 @CALLS : /api/knowledge/detail, app:open-file-at-line, app:open-knowledge-manager, knowledgeClient.indexDocument, knowledge:open-index-progress
 // ====================================================================
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  X, CheckCircle2, Sparkles, Tag, Layers, FileText, 
-  ExternalLink, Search, Hash, ChevronDown, ChevronUp, Database, ArrowRight,
-  RefreshCw, Loader2
-} from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
 import type { KnowledgeDocumentDetail } from '@/types/knowledge';
 import { ensureClientAbsolutePath } from '@/lib/knowledge/pathResolver';
 import { isMetaOrAuxiliaryChunk } from '@/lib/knowledge/markdownChunker';
@@ -142,7 +132,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               className="px-3 py-1.5 text-xs font-bold rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white flex items-center gap-1.5 shadow-xs transition disabled:opacity-50 cursor-pointer"
               title="최신 청킹 규칙 및 AI 분석으로 이 문서를 다시 분석하여 DB를 갱신합니다"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isReindexing ? 'animate-spin' : ''}`} />
+              <Icon name="Refresh" className={`w-3.5 h-3.5 ${isReindexing ? 'animate-spin' : ''}`} />
               <span>{isReindexing ? '재분석 진행 중...' : '🔄 최신 AI 재분석'}</span>
             </button>
 
@@ -151,7 +141,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               className="p-2 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition shrink-0"
               title="닫기"
             >
-              <X className="w-5 h-5" />
+              <Icon name="Close" className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -160,7 +150,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
         {isReindexing && (
           <div className="bg-blue-50 dark:bg-blue-950/50 border-b border-blue-200 dark:border-blue-800/80 px-6 py-2.5 flex items-center justify-between text-xs text-blue-700 dark:text-blue-300 font-semibold animate-pulse">
             <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-[#1d4ed8]" />
+              <Icon name="Loading" className="w-4 h-4 animate-spin text-[#1d4ed8]" />
               <span>{reindexStep || 'AI 지식 분석 작업을 진행하고 있습니다...'}</span>
             </div>
             <span className="text-[11px] text-blue-500 font-mono">실시간 처리 중...</span>
@@ -199,7 +189,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                 : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Icon name="AiAssistant" className="w-3.5 h-3.5" />
             <span>AI 요약 & 핵심 요점</span>
           </button>
 
@@ -211,7 +201,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                 : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Layers className="w-3.5 h-3.5" />
+            <Icon name="Layers" className="w-3.5 h-3.5" />
             <span>분할 청크 내역 ({displayChunks.length}개)</span>
           </button>
 
@@ -223,7 +213,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                 : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Tag className="w-3.5 h-3.5" />
+            <Icon name="Tag" className="w-3.5 h-3.5" />
             <span>지식 태그 & 검색어 ({activeDetail.tags?.length || 0})</span>
           </button>
         </div>
@@ -246,7 +236,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               {/* 핵심 요점 리스트 */}
               <div>
                 <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 mb-2 text-xs">
-                  <CheckCircle2 className="w-4 h-4 text-[#1d4ed8]" /> 추출된 핵심 요점 (Key Points)
+                  <Icon name="CheckCircle" className="w-4 h-4 text-[#1d4ed8]" /> 추출된 핵심 요점 (Key Points)
                 </span>
                 {activeDetail.keyPoints && activeDetail.keyPoints.length > 0 ? (
                   <div className="space-y-2">
@@ -313,7 +303,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                           className="px-2 py-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 hover:text-[#1d4ed8] dark:hover:text-[#1d4ed8] hover:bg-white dark:hover:bg-zinc-700 rounded-md transition flex items-center gap-1 cursor-pointer"
                           title="이 청크 위치의 에디터 라인으로 이동"
                         >
-                          <ExternalLink className="w-3 h-3" />
+                          <Icon name="External" className="w-3 h-3" />
                           <span>이동</span>
                         </button>
                         <button
@@ -321,7 +311,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                           className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition cursor-pointer"
                           title={isExpanded ? '본문 접기' : '본문 미리보기'}
                         >
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          {isExpanded ? <Icon name="ArrowUp" className="w-4 h-4" /> : <Icon name="ArrowDown" className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
@@ -372,7 +362,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               {/* 태그 영역 */}
               <div>
                 <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 mb-2 text-xs">
-                  <Tag className="w-4 h-4 text-violet-500" />
+                  <Icon name="Tag" className="w-4 h-4 text-violet-500" />
                   문서 관련도 지식 태그 ({activeDetail.tags?.length || 0}개)
                 </span>
                 {activeDetail.tags && activeDetail.tags.length > 0 ? (
@@ -401,7 +391,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               {/* 연관 검색어 영역 */}
               <div>
                 <span className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 mb-2 text-xs">
-                  <Search className="w-4 h-4 text-blue-500" />
+                  <Icon name="Search" className="w-4 h-4 text-blue-500" />
                   하이브리드 RAG 검색 매칭용 연관 검색어 ({activeDetail.searchTerms?.length || 0}개)
                 </span>
                 <p className="text-[11px] text-zinc-400 mb-2.5">
@@ -414,7 +404,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
                         key={idx} 
                         className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800/50 font-medium text-xs flex items-center gap-1"
                       >
-                        <Search className="w-2.5 h-2.5 opacity-60" />
+                        <Icon name="Search" className="w-2.5 h-2.5 opacity-60" />
                         <span>{term}</span>
                       </span>
                     ))}
@@ -435,7 +425,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
             onClick={handleOpenManager}
             className="px-3.5 py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-zinc-800 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
           >
-            <Database className="w-3.5 h-3.5 text-zinc-500" />
+            <Icon name="KnowledgeHub" className="w-3.5 h-3.5 text-zinc-500" />
             <span>지식 보관함 전체보기</span>
           </button>
 
@@ -446,7 +436,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               className="px-4 py-2 text-xs font-bold text-white bg-[#1d4ed8] hover:bg-[#1e40af] rounded-xl shadow-xs transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               title="최신 청킹 규칙 및 AI 모델로 재분석하여 갱신합니다"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isReindexing ? 'animate-spin' : ''}`} />
+              <Icon name="Refresh" className={`w-3.5 h-3.5 ${isReindexing ? 'animate-spin' : ''}`} />
               <span>{isReindexing ? '재분석 진행 중...' : '🔄 최신 AI 재분석'}</span>
             </button>
             <button
@@ -454,7 +444,7 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
               className="px-4 py-2 text-xs font-bold text-[#1d4ed8] bg-[#1d4ed8]/10 hover:bg-[#1d4ed8]/20 border border-[#1d4ed8]/30 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>에디터에서 열기</span>
-              <ExternalLink className="w-3.5 h-3.5" />
+              <Icon name="External" className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onClose}
@@ -468,3 +458,4 @@ export const KnowledgeDetailModal: React.FC<KnowledgeDetailModalProps> = ({
     </div>
   );
 };
+
