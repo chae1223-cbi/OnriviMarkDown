@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-20** — [브레드크럼 아이콘 탐색기 통일] 파일경로 브레드크럼의 폴더/파일 아이콘을 탐색기와 동일한 text-current + strokeWidth 1.75 미니멀 라인 스타일로 통일 (주황색 fill 제거)
 // 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(PanelLeft, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2, ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2, Layers, X, Eraser, Sparkles, Loader2, Lock, HardDrive, Bot, Settings) 전체 제거, Icon 컴포넌트로 교체
 // 🚨 @PATCH : **2026-09-18** — [열린 문서의 상위 폴더명 변경 시 탭 경로·브레드크럼·활성 노드 실시간 동기화]:
 //             1) 탐색기에서 폴더 이름 변경 시 해당 폴더 하위에 열려 있는 모든 탭의 경로(t.path, t.node.path, t.id) 및 activeTabId, currentFileNode를 대소문자 무관 및 구분자 호환 방식으로 일괄 갱신
@@ -7382,7 +7383,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           {baseFolders.map((bFolder, idx) => (
                             <React.Fragment key={`base-${idx}`}>
                               <span className="flex items-center gap-1.5 shrink-0 text-slate-800 dark:text-zinc-200 font-bold">
-                                <Icon name="FolderOpen" size={13} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <Icon name="FolderOpen" size={13} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                 <span>{bFolder}</span>
                               </span>
                               <Icon name="ArrowRight" size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
@@ -7393,7 +7394,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           {rootName && (
                             <>
                               <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
-                                <Icon name="FolderOpen" size={14} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <Icon name="FolderOpen" size={14} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                 <span>{rootName}</span>
                               </span>
                               <Icon name="ArrowRight" size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
@@ -7404,7 +7405,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           {folders.map((folder, idx) => (
                             <React.Fragment key={`folder-${idx}`}>
                               <span className="flex items-center gap-1.5 shrink-0 text-slate-900 dark:text-white font-bold">
-                                <Icon name="FolderOpen" size={13} className="text-amber-500 shrink-0 fill-amber-400" />
+                                <Icon name="FolderOpen" size={13} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                                 <span>{folder}</span>
                               </span>
                               <Icon name="ArrowRight" size={12} className="text-slate-400 dark:text-zinc-500 shrink-0 stroke-[2.5]" />
@@ -7413,7 +7414,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                           {/* 현재 활성 파일명 */}
                           <span className="flex items-center gap-1.5 shrink-0 font-bold text-slate-950 dark:text-white bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 px-2 py-0.5 rounded-md shadow-xs">
-                            <Icon name="Document" size={13} className="text-[#1d4ed8] shrink-0 stroke-[2.5]" />
+                            <Icon name="Document" size={13} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
                             <span className="truncate max-w-[350px]">{fileName}</span>
                           </span>
                         </div>

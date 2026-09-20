@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { FileText, FileCode, FileJson, FileType, File, Folder, FolderOpen, FileImage } from 'lucide-react';
+import { Icon } from '@/components/icons/Icon';
 import { msg } from './systemMessages';
 
 // IndexedDB 헬퍼 (핸들 저장을 위해 필요)
@@ -9,7 +9,8 @@ import { msg } from './systemMessages';
 // 📊 [OMD-CORE-indexedDbHelper-0001 ✅ FIXED] indexedDbHelper.tsx ➔ idb
 // 🎯 @KICK  : IndexedDB 기반 key-value 저장 헬퍼 (get/set/del/clear)
 // 🛡️ @GUARD : onupgradeneeded 스토어 생성, objectStoreNames 존재 여부 체크
-// 🚨 @PATCH : **2026-09-05** — idb.del 및 idb.clear 메서드 구현 추가 (리소스 폴더 해제 시 IndexedDB의 resourceFolderHandle이 삭제되지 않아 브라우저 새로고침(F5) 시 이전 폴더로 재연결되던 결함 완벽 해결)
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import 제거, Icon 컴포넌트로 교체. getFileIcon 탐색기 아이콘 통일
+//             **2026-09-05** — idb.del 및 idb.clear 메서드 구현 추가
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const idb = {
@@ -163,33 +164,36 @@ export async function scanDirectoryDeep(dirHandle: any, parentPath: string = "",
 // 파일/폴더 확장자에 따른 아이콘 및 색상 반환 함수
 // ====================================================================
 // 📊 [OMD-CORE-indexedDbHelper-0003] indexedDbHelper.tsx ➔ getFileIcon
-// 🎯 @KICK  : 파일/폴더 확장자에 따른 Lucide 아이콘 및 세련된 미니멀리즘 렌더링 (폰트 색상과 일치)
+// 🎯 @KICK  : 파일/폴더 확장자에 따른 Icon 컴포넌트 렌더링 (폰트 색상과 일치)
 // 🛡️ @GUARD : directory/file 분기, isOpen 상태 지원, text-current 상속으로 주변 텍스트와 100% 색상 일치
-// 🚨 @PATCH : **2026-09-16** — [탐색기 아이콘 세련된 미니멀리즘 전면 개편]: 파일, 폴더(열림/닫힘), 루트 아이콘을 인접 텍스트와 완벽 일치하는 text-current 및 strokeWidth 1.75 미니멀 라인 아이콘으로 통일
+// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide 직접 JSX → Icon 컴포넌트로 전면 교체
+//             **2026-09-16** — [탐색기 아이콘 세련된 미니멀리즘 전면 개편]: 인접 텍스트와 완벽 일치하는 text-current 및 strokeWidth 1.75 미니멀 라인 아이콘으로 통일
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const getFileIcon = (node: FileNode, isSelected: boolean = false, isOpen: boolean = false) => {
   const baseClass = "shrink-0 text-current transition-colors";
-  
+
   if (node.kind === 'directory') {
     if (isOpen) {
-      return <FolderOpen size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
+      return <Icon name="FolderOpen" size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
     }
-    return <Folder size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
+    return <Icon name="Folder" size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
   }
 
   const fileName = node.name;
   const ext = fileName.split('.').pop()?.toLowerCase();
-  
+
   if (ext === 'md' || ext === 'markdown') {
-    return <FileText size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
+    return <Icon name="Document" size={14} strokeWidth={1.75} className={`${baseClass} opacity-80 group-hover:opacity-100`} />;
   }
   if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico'].includes(ext || '')) {
-    return <FileImage size={14} strokeWidth={1.75} className={`${baseClass} opacity-75 group-hover:opacity-100`} />;
+    return <Icon name="Image" size={14} strokeWidth={1.75} className={`${baseClass} opacity-75 group-hover:opacity-100`} />;
   }
   if (['js', 'jsx', 'ts', 'tsx', 'json', 'css', 'scss', 'html', 'py', 'sh', 'bib'].includes(ext || '')) {
-    return <FileCode size={14} strokeWidth={1.75} className={`${baseClass} opacity-75 group-hover:opacity-100`} />;
+    return <Icon name="FileCode" size={14} strokeWidth={1.75} className={`${baseClass} opacity-75 group-hover:opacity-100`} />;
   }
-  
-  return <File size={14} strokeWidth={1.75} className={`${baseClass} opacity-70 group-hover:opacity-100`} />;
+
+  return <Icon name="FileGeneric" size={14} strokeWidth={1.75} className={`${baseClass} opacity-70 group-hover:opacity-100`} />;
 };
+
+
