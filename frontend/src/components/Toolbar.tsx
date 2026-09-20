@@ -2,7 +2,8 @@
 // 📊 [OMD-EDIT-Toolbar-0003] Toolbar.tsx ➔ Toolbar
 // 🎯 @KICK  : 에디터 우측 사이드바 툴바 - 홈, 대시보드, 지식베이스, 서식, 참조, 환경설정 퀵 액션 제공
 // 🛡️ @GUARD : 라이선스 및 뷰포트 상태에 따른 프로덕티비티 도구 조건부 노출
-// 🚨 @PATCH : **2026-09-20** — [툴바 아이콘 색상 통일] 슬래시 빠른명령어(amber→zinc), 참조파일관리(amber→zinc) 색상을 나머지 툴바 아이콘과 동일하게 통일
+// 🚨 @PATCH : **2026-09-20** — [플로팅툴바 아이콘 교체] 플로팅 서식 툴바 켜기/끄기 버튼을 FloatingToolbar→CubeFocus(BoxSelect)로 교체
+//             **2026-09-20** — [툴바 아이콘 색상 통일] 슬래시 빠른명령어(amber→zinc), 참조파일관리(amber→zinc) 색상을 나머지 툴바 아이콘과 동일하게 통일
 //             **2026-09-20** — [툴바 아이콘 3종 교체] 슬래시 빠른명령어(SlashCommand→TerminalWindow), 참조파일관리(Book→NewspaperClipping), 지식베이스(Library→HeadCircuit)
 //             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Settings) 제거 및 이모지 버튼(🎈⚡🔠🏛️🎨📚🚪)을 Icon 컴포넌트로 교체. 홈 이미지 버튼(./icon.png)은 메인페이지 이동 버튼이므로 변경 제외.
 //             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 우측 툴바의 지식 베이스 전환 버튼(🏛️)을 isDesktop 전용으로 한정하여 웹 브라우저 UI 슬림화
@@ -42,7 +43,7 @@ export default function Toolbar() {
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
             title="플로팅 서식 툴바 켜기/끄기"
           >
-            <Icon name="FloatingToolbar" size={16} className="text-zinc-500 dark:text-zinc-400" />
+            <Icon name="CubeFocus" size={16} className="text-zinc-500 dark:text-zinc-400" />
           </button>
           
           <button
