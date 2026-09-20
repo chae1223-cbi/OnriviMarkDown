@@ -2,7 +2,8 @@
 // 📊 [OMD-EDIT-Toolbar-0003] Toolbar.tsx ➔ Toolbar
 // 🎯 @KICK  : 에디터 우측 사이드바 툴바 - 홈, 대시보드, 지식베이스, 서식, 참조, 환경설정 퀵 액션 제공
 // 🛡️ @GUARD : 라이선스 및 뷰포트 상태에 따른 프로덕티비티 도구 조건부 노출
-// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Settings) 제거 및 이모지 버튼(🎈⚡🔠🏛️🎨📚🚪)을 Icon 컴포넌트로 교체. 홈 이미지 버튼(./icon.png)은 메인페이지 이동 버튼이므로 변경 제외.
+// 🚨 @PATCH : **2026-09-20** — [툴바 아이콘 3종 교체] 슬래시 빠른명령어(SlashCommand→TerminalWindow), 참조파일관리(Book→NewspaperClipping), 지식베이스(Library→HeadCircuit)
+//             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Settings) 제거 및 이모지 버튼(🎈⚡🔠🏛️🎨📚🚪)을 Icon 컴포넌트로 교체. 홈 이미지 버튼(./icon.png)은 메인페이지 이동 버튼이므로 변경 제외.
 //             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 우측 툴바의 지식 베이스 전환 버튼(🏛️)을 isDesktop 전용으로 한정하여 웹 브라우저 UI 슬림화
 //             **2026-09-05** — 제한모드(isRestrictedUser) 시 우측 툴바의 지식 베이스 전환 버튼(🏛️) 비활성화(disabled, opacity-30, grayscale, 안내 툴팁 및 토스트) 적용
 //             **2026-09-05** — AI 미연결(!geminiApiKey) 시 우측 툴바의 지식 베이스 전환 버튼(🏛️) 비활성화(disabled, 흐린 흑백 스타일, 연동 안내 툴팁/토스트) 적용
@@ -48,7 +49,7 @@ export default function Toolbar() {
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
             title="슬래시(/) 빠른 명령어 호출"
           >
-            <Icon name="SlashCommand" size={16} className="text-amber-500 dark:text-amber-400" />
+            <Icon name="TerminalWindow" size={16} className="text-amber-500 dark:text-amber-400" />
           </button>
         </>
       )}
@@ -130,7 +131,7 @@ export default function Toolbar() {
             }`}
             title={disabledReasonTitle}
           >
-            <Icon name="Library" size={16} className="text-teal-600 dark:text-teal-400" />
+            <Icon name="HeadCircuit" size={16} className="text-teal-600 dark:text-teal-400" />
           </button>
         );
       })()}
@@ -148,7 +149,7 @@ export default function Toolbar() {
         className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
         title="참조 파일 관리"
       >
-        <Icon name="Book" size={16} className="text-amber-600 dark:text-amber-500" />
+        <Icon name="NewspaperClipping" size={16} className="text-amber-600 dark:text-amber-500" />
       </button>
 
       <button 

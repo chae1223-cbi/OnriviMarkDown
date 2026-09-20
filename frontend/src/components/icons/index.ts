@@ -2,6 +2,7 @@
 // 📊 [OMD-CORE-Icons-0001] icons/index.ts ➔ Icons Registry
 // 🎯 @KICK  : Onrivi Author 전체 애플리케이션의 아이콘을 중앙 집중식으로 관리하는 통합 레지스트리
 // 🛡️ @GUARD : Lucide React 기반의 벡터 일관성, strokeWidth 일원화, 트리 셰이킹 지원
+// 🚨 @PATCH : **2026-09-20** — [툴바 아이콘 3종 교체] TerminalWindow(TerminalSquare), NewspaperClipping(Newspaper), HeadCircuit(BrainCircuit) 레지스트리 추가
 // 🚨 @PATCH : **2026-09-20** — [에디터/지식문서 전체 컴포넌트 아이콘 통합] lucide-react 직접 import를 제거하고 33개 누락 아이콘을 레지스트리에 일괄 추가 (Loading/CheckCircle/Lock/HardDrive/Bot/UploadCloud/GridView/SortUpDown/Hash/Cut/FolderTree/ClipboardPaste/RotateCw/FolderInput/Undo2/Pencil/FolderSync/Command/KeyRound/TypeIcon/Braces/RotateCcw/User/Mail/Shield/Paperclip/Plus/SidebarToggle/FileJson/FileType/FileGeneric/CheckSuccess)
 // 🚨 @PATCH : 2026-09-12 — [3D 입체 컬러 아이콘 시스템 구축] 툴바 및 플로팅 툴바 전용 입체감(Depth)과 테마 컬러 매핑(ICON_THEMES) 및 Footnote(Superscript) 탑재
 // 🚨 @PATCH : 2026-09-12 — [통합 아이콘 시스템 구축] 이모지 및 개별 icon 분산을 해소하고 의미론적(Semantic) 아이콘 레지스트리 신규 탑재
@@ -154,6 +155,10 @@ import {
   Mail,
   Shield,
   Paperclip,
+  // 7. 신규 추가 — 2026-09-20 (툴바 아이콘 3종)
+  TerminalSquare,
+  Newspaper,
+  BrainCircuit,
 } from 'lucide-react';
 
 
@@ -310,6 +315,11 @@ export const Icons = {
   Mail: Mail,                  // 이메일
   Shield: Shield,              // 보안/방패
   Paperclip: Paperclip,        // 파일 첨부 (AI 초안 모달)
+
+  // [7. 신규 등록 — 2026-09-20 툴바 아이콘 3종]
+  TerminalWindow: TerminalSquare, // 슬래시(/) 빠른 명령어 (터미널 창 모양)
+  NewspaperClipping: Newspaper,   // 참조 파일 관리 (신문 클리핑)
+  HeadCircuit: BrainCircuit,      // 지식 베이스 화면 전환 (뇌 회로)
 } as const;
 
 export type IconName = keyof typeof Icons;
