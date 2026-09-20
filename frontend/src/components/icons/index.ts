@@ -161,7 +161,7 @@ import {
   Newspaper,
   BrainCircuit,
   // 8. 신규 추가 — 2026-09-20 (CubeFocus)
-  BoxSelect,
+  PackageSearch,
 } from 'lucide-react';
 
 
@@ -325,7 +325,7 @@ export const Icons = {
   HeadCircuit: BrainCircuit,      // 지식 베이스 화면 전환 (뇌 회로)
 
   // [8. 신규 등록 — 2026-09-20 CubeFocus]
-  CubeFocus: BoxSelect,           // 플로팅 툴바 켜기/끄기 (큐브 포커스 프레임)
+  CubeFocus: PackageSearch,       // 플로팅 툴바 켜기/끄기 (큐브+포커스 프레임)
 } as const;
 
 export type IconName = keyof typeof Icons;
