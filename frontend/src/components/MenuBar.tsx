@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
-// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, FolderSync) 제거, Icon 컴포넌트(ArrowRight, FolderSync) 로 교체
+// 🚨 @PATCH : **2026-09-20** — [편집 메뉴 인용구 항목 제거] 편집(Edit) 메뉴의 '인용구 스타일 (Alert)' 서브메뉴 전체 삭제
+//             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, FolderSync) 제거, Icon 컴포넌트(ArrowRight, FolderSync) 로 교체
 // 🚨 @PATCH : **2026-09-18** — [타문서 변환 명칭 및 단축키(Ctrl+Alt+O) 표준화]: 상단 파일 메뉴의 '문서 가져오기'를 '타문서 변환'으로 변경하고 바로가기 단축키(Ctrl+Alt+O) 라벨 동기화
 //             **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: 도구(Tools) 메뉴의 '지식 보관함 관리자' 항목을 isDesktop 전용으로 한정하여 웹 브라우저 메뉴 간결화
 //             **2026-09-12** — 메뉴바 전체 드롭다운 메뉴 아이템의 이모지를 통합 Icon 컴포넌트로 일원화 교체 (Modern Technical Editorial 벡터 스타일 통일)
@@ -289,21 +290,6 @@ export default function MenuBar() {
           { divider: true },
           { label: t('find'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
           { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE'), disabled: previewMode === 'preview' },
-          { divider: true },
-          { 
-            label: "인용구 스타일 (Alert)", 
-            icon: <Icon name="Quote" size={15} />, 
-            disabled: previewMode === 'preview',
-            subItems: [
-              { label: "일반 인용구", icon: <Icon name="Quote" size={14} />, shortcut: 'Ctrl+Q', onClick: () => dispatch('QUOTE') },
-              { divider: true },
-              { label: "참고 (Note)", icon: <Icon name="AlertInfo" size={14} className="text-[#0969da] dark:text-[#2f81f7]" />, onClick: () => dispatch('QUOTE_NOTE') },
-              { label: "팁 (Tip)", icon: <Icon name="AlertTip" size={14} className="text-[#1a7f37] dark:text-[#3fb950]" />, onClick: () => dispatch('QUOTE_TIP') },
-              { label: "중요 (Important)", icon: <Icon name="AlertImportant" size={14} className="text-[#8250df] dark:text-[#a371f7]" />, onClick: () => dispatch('QUOTE_IMPORTANT') },
-              { label: "주의 (Warning)", icon: <Icon name="AlertWarning" size={14} className="text-[#9a6700] dark:text-[#d29922]" />, onClick: () => dispatch('QUOTE_WARNING') },
-              { label: "경고 (Caution)", icon: <Icon name="AlertCaution" size={14} className="text-[#d1242f] dark:text-[#f85149]" />, onClick: () => dispatch('QUOTE_CAUTION') },
-            ]
-          },
           { divider: true },
           { label: t('zoomIn'), icon: <Icon name="ZoomIn" size={15} />, onClick: () => dispatch('ZOOM_IN') },
           { label: t('zoomOut'), icon: <Icon name="ZoomOut" size={15} />, onClick: () => dispatch('ZOOM_OUT') },
