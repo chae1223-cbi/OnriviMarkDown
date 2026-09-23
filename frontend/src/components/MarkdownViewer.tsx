@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-23** — [숫자 리스트 에디터 원본 번호 1:1 일치 렌더링] 에디터에 사용자가 직접 기입한 번호(예: 1., 2., 3. 또는 2., 3., 4. 등)를 원본 라인에서 추출하여 li 태그의 value 속성에 바인딩함으로써, 브라우저의 임의 자동 계산 카운터 대신 에디터에 적힌 번호 그대로 1:1 일치하게 미리보기에 렌더링되도록 개선
 // 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) data-line 명시적 바인딩 및 커서 위치 동기화] li, ol, ul 컴포넌트에 data-line 속성을 명시적으로 바인딩하여 중첩 멀티리스트에서도 에디터 커서와 1:1로 정확하게 일치하도록 보장
 // 🚨 @PATCH : **2026-09-23** — [한글 Alert 인용구 태그 지원] blockquote 렌더러에 한글 Alert 태그([!참고], [!팁], [!중요], [!주의], [!경고] 등) 파싱 엔진을 탑재하여 영문([!NOTE])과 한글 태그 모두 동일한 Alert 스타일로 완벽 렌더링되도록 구현
 // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: 어두운 배경의 코드블록 내부 활성 줄 하이라이트 시 코발트 블루 및 1px 인셋 아웃라인 스타일 연동으로 시인성 극대화
@@ -1714,7 +1715,23 @@ function MarkdownViewer({
 
           let line = node.position?.start?.line || parentLine;
           if (line) {
-            node.properties['data-line'] = mapLine(line);
+            const mapped = mapLine(line);
+            node.properties['data-line'] = mapped;
+
+            // 💡 [에디터-미리보기 숫자 리스트 번호 1:1 일치 연동]
+            // 마크다운 파서가 <ol> 내부 번호를 자동 계산하여 에디터 번호와 불일치하는 현상을 방지하기 위해,
+            // 에디터 원본 텍스트의 해당 줄 번호('1.', '2.' 등)를 직접 추출하여 li value 속성으로 주입합니다.
+            if (node.tagName === 'li' && mapped) {
+              const rawContent = originalContentRef.current || contentRef.current || '';
+              if (rawContent) {
+                const lines = rawContent.split(/\r?\n/);
+                const lineText = lines[mapped - 1] || '';
+                const match = lineText.match(/^[ \t]*(\d+)\.(?:\s+|$)/);
+                if (match) {
+                  node.properties.value = parseInt(match[1], 10);
+                }
+              }
+            }
           }
         }
 
@@ -2841,6 +2858,22 @@ function MarkdownViewer({
               const currentLineMap = dynamicPropsRef.current.lineMap || [];
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
               const dataLineVal = extractDataLine(props, node) || origLine;
+
+              // 💡 [에디터-미리보기 숫자 리스트 번호 1:1 일치 연동]
+              // props.value 또는 node.properties.value, 또는 원본 라인에서 직접 추출하여 에디터 번호 그대로 li에 바인딩
+              let explicitValue = props.value ?? (node?.properties?.value ? Number(node.properties.value) : undefined);
+              if (explicitValue === undefined && dataLineVal) {
+                const targetContent = originalContentRef.current || contentRef.current;
+                if (targetContent && typeof targetContent === 'string') {
+                  const lines = targetContent.split(/\r?\n/);
+                  const lineText = lines[dataLineVal - 1] || '';
+                  const match = lineText.match(/^[ \t]*(\d+)\.(?:\s+|$)/);
+                  if (match) {
+                    explicitValue = parseInt(match[1], 10);
+                  }
+                }
+              }
+
               const modifiedChildren = React.Children.map(children, (child) => {
                 if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
                   return React.cloneElement(child as React.ReactElement<any>, {
@@ -2856,7 +2889,8 @@ function MarkdownViewer({
                 return child;
               });
 
-              return <li data-line={dataLineVal} style={style} className={props.className} {...props}>{modifiedChildren}</li>;
+              const { value: _discardedValue, ...restProps } = props;
+              return <li data-line={dataLineVal} value={explicitValue} style={style} className={props.className} {...restProps}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
               // GitHub style Alerts 파싱: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION] + 한글 지원 ([!참고], [!팁], [!중요], [!주의], [!경고] 등)
