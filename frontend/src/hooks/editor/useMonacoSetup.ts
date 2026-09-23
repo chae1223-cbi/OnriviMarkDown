@@ -4,6 +4,8 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
+// 🚨 @PATCH : **2026-09-23** — [긴 문구 줄바꿈 시 글자 잘림 및 중간 건너뛰기 버그 완전 해결] border-right: 120px CSS 강제 주입 제거 및 Monaco 공식 padding.right(32px) 적용으로 줄 끝 텍스트 누락 원천 방어
+// 🚨 @PATCH : **2026-09-23** — [좌측 에디터 D2Coding 스타일 명세 반영] D2CodingLigature 폰트, 15px, lineHeight 1.75(26px), 리가처 활성화, 스카이블루(#38bdf8) 커서, 다크 테마(#0f172a/#e2e8f0), 마크다운 기호(#60a5fa) 등 통합 반영
 // 🚨 @PATCH : **2026-09-23** — [플로팅 툴바 위치 계산 가드 개선] 툴바 너비 하드코딩(880px) 클램핑 제거하고 실제 커서 x좌표를 전달하여 MainEditorApp 뷰포트 클램퍼에서 화면 우측 잘림 방지 처리되도록 정규화
 //             2026-09-11 - [코드블록 슬래시 커맨드/단축키 언어 자동 선택 연동] trigger-custom-action 비동기 타이밍 보정(10ms)으로 슬래시 커맨드(/code) 입력 후 코드블록 삽입 시 언어명(javascript) 자동 선택 정상 발화 보장
 //             2026-09-11 - [찾기/바꾸기(Ctrl+F, Ctrl+H) 활성 시 ESC 클릭으로 위젯 닫기 및 포커스 복원] findInput/replaceInput 및 에디터 키바인딩에서 ESC 입력 시 찾기/바꾸기 위젯을 즉시 닫고 에디터로 포커스 복귀 연동
@@ -386,15 +388,19 @@ export function useMonacoSetup(deps: any) {
                     }
                   });
 
-                  // 💡 [에디터 스크롤 및 우측 여백 최적화]
+                  // 💡 [에디터 스크롤 및 D2Coding 타이포그래피 최적화]
                   editor.updateOptions({
                     scrollBeyondLastLine: false,   // 마지막 줄 도달 시 즉시 자동 스크롤
-                    // JSX 초기 옵션과 동일하게 유지합니다. 서로 다른 하단 패딩은
-                    // 에디터와 미리보기의 최하단 기준점을 달라지게 만들었습니다.
-                    padding: { top: 20, bottom: 0 },
+                    fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
+                    fontLigatures: true,
+                    lineHeight: 26, // 15px 기준 1.75 비율
+                    letterSpacing: 0,
+                    cursorWidth: 2,
+                    padding: { top: 20, bottom: 24, left: 16, right: 32 }, // 우측 여백 32px로 스크롤바 글자 가림 방지
                     lineDecorationsWidth: 26,
                     lineNumbersMinChars: 4,
                     automaticLayout: true,
+                    wordWrap: 'on',
                     wrappingStrategy: 'advanced',
 
                     // 🔒 [하단 클릭 시 에디터 붕 뜸 및 상단 유실 방어 3대 마스터 가드]
@@ -405,24 +411,13 @@ export function useMonacoSetup(deps: any) {
                     scrollbar: {
                       vertical: 'visible',
                       horizontal: 'auto',
+                      verticalScrollbarSize: 10,
+                      horizontalScrollbarSize: 10,
                       useShadows: false,
                       verticalHasArrows: false,
                       horizontalHasArrows: false
                     }
                   });
-
-                  // 🛡️ [스크롤바 글자 가림 방지] .monaco-editor에 border-right + box-sizing: border-box로
-                  // Monaco가 인식하는 content width를 강제로 줄여 줄바꿈 시 마지막 글자가
-                  // 스크롤바 뒤에 숨지 않도록 방어합니다.
-                  const scrollStyle = document.createElement('style');
-                  scrollStyle.textContent = `
-                    .monaco-editor {
-                      border-right: 120px solid transparent !important;
-                      box-sizing: border-box !important;
-                    }
-                  `;
-                  document.head.appendChild(scrollStyle);
-                  setTimeout(() => editor.layout(), 0);
 
                   // 💡 [테마 연동 가드] 비동기 세션 복원(restoreSettings)과 에디터 마운트 시차로 인한 테마 미적용 레이스 컨디션 방지
                   if (themePalette) {
@@ -1537,15 +1532,22 @@ export function useMonacoSetup(deps: any) {
                     monaco.editor.defineTheme(t.id, {
                       base: t.base,
                       inherit: true,
-                      rules: t.rules,
+                      rules: [
+                        ...(t.rules || []),
+                        { token: 'punctuation', foreground: isDark ? 'e2e8f0' : '1e293b' },
+                        { token: 'delimiter.markdown', foreground: '60a5fa', fontStyle: 'bold' },
+                        { token: 'string.link.markdown', foreground: '94a3b8' },
+                        { token: 'variable.md', foreground: 'f59e0b' }
+                      ],
                       colors: {
                         ...t.colors,
-                        'editor.background': isDark ? '#1e1e1e' : '#ffffff',
-                        'editorGutter.background': isDark ? '#1e1e1e' : '#ffffff',
-                        'editorLineNumber.foreground': isDark ? '#52525B' : '#94A3B8',
+                        'editor.background': isDark ? '#0f172a' : '#ffffff',
+                        'editorGutter.background': isDark ? '#0f172a' : '#ffffff',
+                        'editor.foreground': isDark ? '#e2e8f0' : '#1e293b',
+                        'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8',
                         'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB',
-                        'editorCursor.foreground': isDark ? '#60a5fa' : '#2563eb',
-                        'editor.lineHighlightBackground': '#88888810',
+                        'editorCursor.foreground': '#38bdf8', // 🎯 사용자 명세: 밝은 스카이블루 (#38bdf8)
+                        'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#88888810',
                         'editorIndentGuide.background': '#88888815',
                         'editorIndentGuide.activeBackground': '#88888830',
                       }

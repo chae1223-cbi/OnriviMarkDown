@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [좌측 에디터 D2Coding 스타일 명세 반영] D2CodingLigature 폰트, 15px, lineHeight 1.75(26px), 리가처 활성화, 스카이블루(#38bdf8) 커서, 다크 테마(#0f172a/#e2e8f0), padding.right 32px 안전 여백 적용
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 화면/우측 툴바 잘림 방지 클램핑 개선] 에디터 분할 모드 시 툴바 너비(약 1200px)보다 좁은 에디터 폭으로 인해 우측 끝(수식 아이콘 등)이 화면/우측 툴바 밖으로 짤리던 결함 해결: 뷰포트 전체 우측 마진(winWidth - 68px) 기준 자동 클램핑 및 동적 너비 측정(floatingToolbarRef), max-w-[calc(100vw-80px)] 가로 스크롤 안전망 적용
 // 🚨 @PATCH : **2026-09-23** — [참조 파일 관리 모달 미오픈 결함 해결] ModalManager modals props에 isReferenceModalOpen, setIsReferenceModalOpen 전달 누락을 복원하여 우측 툴바 참조 파일 관리(NewspaperClipping) 클릭 시 ReferenceManagerModal이 정상 오픈되도록 수정
 // 🚨 @PATCH : **2026-09-23** — [인라인코드 및 인용(참조문헌) 아이콘 지정] 인라인 코드를 Password.png로, 인용(참조문헌)을 오른쪽 툴바 참조파일관리(NewspaperClipping) 아이콘으로 교체
@@ -7538,16 +7539,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                             monaco.editor.defineTheme(t.id, {
                               base: t.base,
                               inherit: true,
-                              rules: t.rules,
+                              rules: [
+                                ...(t.rules || []),
+                                { token: 'punctuation', foreground: isDark ? 'e2e8f0' : '1e293b' },
+                                { token: 'delimiter.markdown', foreground: '60a5fa', fontStyle: 'bold' },
+                                { token: 'string.link.markdown', foreground: '94a3b8' },
+                                { token: 'variable.md', foreground: 'f59e0b' }
+                              ],
                               colors: {
                                 ...t.colors,
-                                'editor.background': isDark ? '#1e1e1e' : '#ffffff', // 🎯 순수 화이트 배경
-                                'editorGutter.background': isDark ? '#1e1e1e' : '#ffffff', // 🎯 순수 화이트 일체화
-                                'editorLineNumber.foreground': isDark ? '#52525B' : '#94A3B8', // 선명한 줄번호
+                                'editor.background': isDark ? '#0f172a' : '#ffffff', // 🎯 사용자 명세: 다크 #0f172a / 라이트 #ffffff
+                                'editorGutter.background': isDark ? '#0f172a' : '#ffffff',
+                                'editor.foreground': isDark ? '#e2e8f0' : '#1e293b', // 🎯 사용자 명세: 다크 #e2e8f0
+                                'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8', // 선명한 줄번호
                                 'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB', // 활성 행 줄번호 강조
-                                'editorCursor.foreground': isDark ? '#60a5fa' : '#2563eb', // 🎯 뚜렷한 파란색 커서 보장
-                                'editor.lineHighlightBackground': '#88888810', // 연한 하이라이트
-                                'editorIndentGuide.background': '#88888815', // 은은한 들여쓰기 가이드
+                                'editorCursor.foreground': '#38bdf8', // 🎯 사용자 명세: 밝은 스카이블루 (#38bdf8)
+                                'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#88888810',
+                                'editorIndentGuide.background': '#88888815',
                                 'editorIndentGuide.activeBackground': '#88888830',
                               }
                             });
@@ -7557,17 +7565,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         options={{
                           readOnly: tabs.length === 0 || isRestrictedUser,
                           domReadOnly: tabs.length === 0 || isRestrictedUser,
-                          padding: { top: 16, bottom: 24, left: 0, right: 16 }, // 상하/우측 슬림 여백
+                          padding: { top: 20, bottom: 24, left: 16, right: 32 }, // 상하/좌우 여백 (우측 32px 안전 여백으로 스크롤바 겹침 방지)
                           scrollBeyondLastLine: false, // 마지막 줄 아래 과도한 여백 제거
                           glyphMargin: false, // 글리프 좌측 여백 제거
                           folding: false, // 폴딩 화살표 여백 제거
                           lineNumbersMinChars: 4, // 💡 줄 번호 영역 폭을 4자릿수로 넓혀 여유 공간 확보
                           lineDecorationsWidth: 10, // 💡 줄 번호와 본문 사이 여유 간격 확보
                           automaticLayout: true,
-                          fontSize,
-                          lineHeight: 1.7, // 시원한 줄간격 유지 (세련됨)
-                          fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif",
-                          fontLigatures: false, // 글자 폭 계산 오차를 유발할 수 있는 합자(Ligature) 기능 해제
+                          fontSize: fontSize || 15,
+                          lineHeight: 26, // 15px 기준 1.75 비율
+                          fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
+                          fontLigatures: true, // 기호 연산자 리가처(->, != 등) 활성화
                           letterSpacing: 0,
                           // 🎯 커서 항상 가시성 보장 (단독/분할 모드 공통)
                           cursorBlinking: 'blink',
@@ -7575,11 +7583,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           cursorStyle: 'line',
                           cursorWidth: 2,
                           'semanticHighlighting.enabled': true,
-                          wordWrap,
+                          wordWrap: wordWrap || 'on',
+                          wrappingStrategy: 'advanced',
                           lineNumbers: 'on',
                           minimap: { enabled: false },
                           autoClosingBrackets: autoClosingBrackets ? 'languageDefined' : 'never',
-                          scrollbar: { vertical: 'visible', horizontal: 'visible' },
+                          scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
                           // 슬래시(/) 입력 시에만 자동완성 트리거 (일반 타이핑 시 팝업 방지)
                           quickSuggestions: false,
                           suggestOnTriggerCharacters: true,

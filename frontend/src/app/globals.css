@@ -1,3 +1,5 @@
+@import url('https://cdn.jsdelivr.net/gh/joungkyun/font-d2coding/d2coding.css');
+
 /* ===================================================================
  * 번들 임베드 웹폰트 모음
  * public/fonts/ 에 직접 포함된 무료 배포 폰트들
@@ -901,32 +903,32 @@ mark.onrivi-search-text-highlight {
 .monaco-editor textarea.inputarea {
   color: transparent !important;
   background: transparent !important;
-  font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Nanum Gothic Coding', 'D2Coding', Consolas, 'Malgun Gothic', '맑은 고딕', sans-serif !important;
+  font-family: 'D2CodingLigature', 'D2Coding', Consolas, monospace !important;
   /*
    * Monaco는 한글 IME 조합 중 자체 커서 레이어를 잠시 숨기고 inputarea의
    * 네이티브 커서를 사용합니다. 이를 투명하게 만들면 첫 글자 조합 뒤 커서가
    * 사라져 보이므로, 입력 텍스트만 숨기고 커서는 항상 보이게 둡니다.
    */
-  caret-color: #2563eb !important;
+  caret-color: #38bdf8 !important; /* 🎯 사용자 명세: 밝은 스카이블루 */
 }
 
 .dark .monaco-editor textarea.inputarea,
 .vs-dark .monaco-editor textarea.inputarea {
-  caret-color: #60a5fa !important;
+  caret-color: #38bdf8 !important; /* 🎯 사용자 명세: 밝은 스카이블루 */
 }
 
 .monaco-h1-text { color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; }
 .monaco-h2-text { color: #059669 !important; }
 .monaco-h3-text { color: #34d399 !important; }
 /* 에디터 라이트 테마 (vs) 적용 시 강조 스타일 */
-.vs .monaco-bold-text { color: #1d4ed8 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
+.vs .monaco-bold-text { color: #1e293b !important; font-weight: 600 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
 .vs .monaco-italic-text { text-decoration: underline dotted !important; color: #7c3aed !important; }
-.vs .monaco-md-syntax { color: #3b82f6 !important; opacity: 0.8 !important; }
+.vs .monaco-md-syntax { color: #60a5fa !important; font-weight: 600 !important; opacity: 1 !important; }
 
-/* 에디터 다크 테마 (vs-dark) 적용 시 강조 스타일 (형광 연두 / 회색 조합) */
-.vs-dark .monaco-bold-text { color: #ffffff !important; font-weight: bold !important; }
+/* 에디터 다크 테마 (vs-dark) 적용 시 강조 스타일 */
+.vs-dark .monaco-bold-text { color: #ffffff !important; font-weight: 600 !important; }
 .vs-dark .monaco-italic-text { color: #ffffff !important; font-style: italic !important; }
-.vs-dark .monaco-md-syntax { color: #ffffff !important; }
+.vs-dark .monaco-md-syntax { color: #60a5fa !important; font-weight: 600 !important; opacity: 1 !important; }
 
 .monaco-strikethrough-text { text-decoration: line-through !important; }
 
@@ -1023,18 +1025,19 @@ div.monaco-table-line {
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* Monaco 폰트 렌더링 가드 — Bold/Italic 자간 충돌 방지 */
+/* Monaco 폰트 렌더링 — D2CodingLigature 리가처 지원 및 자간 오차 방지 */
 .monaco-editor, .monaco-editor .view-lines, .monaco-editor .mtk {
-  font-variant-ligatures: none !important;
+  font-variant-ligatures: normal !important;
   letter-spacing: 0px !important;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased !important;
 }
 
 /* 볼드 텍스트 자간 고정 */
 .monaco-editor .mtkb,
 .monaco-editor .strong {
-  font-weight: bold !important;
-  font-variant-ligatures: none !important;
+  font-weight: 600 !important;
+  font-variant-ligatures: normal !important;
 }
 
 /* 이탤릭 텍스트 자간 고정 */
