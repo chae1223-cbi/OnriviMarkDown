@@ -1,4 +1,4 @@
-// 🚨 @PATCH : **2026-09-24** — [인용구(blockquote) 상하 여백 정밀 제어 및 마진 겹침 방어]: 인접 블록 요소 마진 간섭을 0으로 통제하여 미리보기 상하 여백 0~80px 1:1 정밀 동기화
+// 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote/Alert my-4 기본 마진 클래스 제거, *:has(+ blockquote) 및 blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
 // 🚨 @PATCH : **2026-09-23** — [리스트 빈 행 판별 가드 고도화 및 부모 블록 실종 방어] li 컴포넌트에서 isEmptyRow 검사 시 하위 서브리스트(ul/ol) 보유 여부를 엄격히 확인하여, 서브리스트 내부에 빈 행이 있을 때 부모 li(떡볶이, 고추장 등)가 빈 행으로 오탐되어 통째로 증발하던 결함 완벽 해결
 // 🚨 @PATCH : **2026-09-23** — [숫자 리스트 에디터 원본 번호 1:1 일치 렌더링] 에디터에 사용자가 직접 기입한 번호(예: 1., 2., 3. 또는 2., 3., 4. 등)를 원본 라인에서 추출하여 li 태그의 value 속성에 바인딩함으로써, 브라우저의 임의 자동 계산 카운터 대신 에디터에 적힌 번호 그대로 1:1 일치하게 미리보기에 렌더링되도록 개선
 // 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) data-line 명시적 바인딩 및 커서 위치 동기화] li, ol, ul 컴포넌트에 data-line 속성을 명시적으로 바인딩하여 중첩 멀티리스트에서도 에디터 커서와 1:1로 정확하게 일치하도록 보장
@@ -2034,13 +2034,27 @@ function MarkdownViewer({
         .onrivi-content-root :is(p, h1, h2, h3, h4, h5, h6, strong):has(+ .table-wrapper-area) {
           margin-bottom: 6px !important;
         }
-        /* 💬 인용구(blockquote) 여백 정밀 제어 및 마진 겹침 방어 */
-        .markdown-viewer-root :not(blockquote):has(+ blockquote),
-        .onrivi-content-root :not(blockquote):has(+ blockquote) {
+        /* 💬 인용구(blockquote) 여백 정밀 제어 및 마진 겹침 방어 (0~15px 데드존 완전 소멸) */
+        .markdown-viewer-root blockquote,
+        .onrivi-content-root blockquote {
+          display: flow-root !important;
+        }
+        .markdown-viewer-root *:has(+ blockquote),
+        .onrivi-content-root *:has(+ blockquote),
+        .markdown-viewer-root .table-wrapper-area:has(+ blockquote),
+        .onrivi-content-root .table-wrapper-area:has(+ blockquote),
+        .markdown-viewer-root p:has(+ blockquote),
+        .onrivi-content-root p:has(+ blockquote) {
           margin-bottom: 0 !important;
         }
-        .markdown-viewer-root blockquote + :not(blockquote),
-        .onrivi-content-root blockquote + :not(blockquote) {
+        .markdown-viewer-root blockquote + *,
+        .onrivi-content-root blockquote + *,
+        .markdown-viewer-root blockquote + * .codeblock-area,
+        .onrivi-content-root blockquote + * .codeblock-area,
+        .markdown-viewer-root blockquote + .not-prose > .codeblock-area,
+        .onrivi-content-root blockquote + .not-prose > .codeblock-area,
+        .markdown-viewer-root blockquote + p,
+        .onrivi-content-root blockquote + p {
           margin-top: 0 !important;
         }
       `}</style>
@@ -3001,7 +3015,7 @@ function MarkdownViewer({
                 }[alertType];
 
                 return (
-                  <div style={{ ...style, ...getIndentStyle(node) }} className={`my-4 border-l-4 rounded-r-lg ${alertStyles.border} ${alertStyles.bg} p-4 shadow-xs`} {...(props as any)}>
+                  <div style={{ ...style, ...getIndentStyle(node) }} className={`border-l-4 rounded-r-lg ${alertStyles.border} ${alertStyles.bg} p-4 shadow-xs`} {...(props as any)}>
                     <div className={`flex items-center gap-2 font-bold mb-2 text-sm tracking-wide uppercase ${alertStyles.text}`}>
                       <span className="text-base">{alertStyles.icon}</span>
                       <span>{alertStyles.title}</span>
@@ -3016,7 +3030,7 @@ function MarkdownViewer({
               return (
                 <blockquote
                   style={{ ...style, ...getIndentStyle(node) }}
-                  className="my-4 p-4 rounded-r-lg border-l-4 border-zinc-500 dark:border-zinc-600 bg-zinc-100/90 dark:bg-zinc-800/80 text-zinc-800 dark:text-zinc-200 font-normal not-italic"
+                  className="p-4 rounded-r-lg border-l-4 border-zinc-500 dark:border-zinc-600 bg-zinc-100/90 dark:bg-zinc-800/80 text-zinc-800 dark:text-zinc-200 font-normal not-italic"
                   {...props}
                 >
                   {children}

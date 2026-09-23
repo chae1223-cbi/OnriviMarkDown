@@ -1,4 +1,4 @@
-// 🚨 @PATCH : **2026-09-24** — [인용구(blockquote) 상하 여백 마진 겹침 방어 CSS 동기화]: PDF/HTML 내보내기 시 인용구 인접 블록 요소 마진 간섭 차단
+// 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote display:flow-root 적용 및 *:has(+ blockquote), blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
 // 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 내보내기 규격 동기화]: generateExportCss 내 hr border:none/height:0/transparent 리셋 및 .onrivi-content-root hr 선택자 추가
 // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: generateExportCss 내 codeBlock 배경색 명도 판별 및 다크 계열 고대비 코발트 블루 하이라이트 동적 CSS 일원화
 // 🚨 @PATCH : **2026-09-11** — generateExportCss에 profile.customCss 사용자 정의 CSS 주입 연동
@@ -251,13 +251,27 @@ function generateExportCss(profile: any): string {
   word-break: keep-all !important;
 }
 
-/* 💬 인용구(blockquote) 여백 정밀 제어 및 마진 겹침 방어 */
-.custom-preview-container :not(blockquote):has(+ blockquote),
-.onrivi-content-root :not(blockquote):has(+ blockquote) {
+/* 💬 인용구(blockquote) 여백 정밀 제어 및 마진 겹침 방어 (0~15px 데드존 완전 소멸) */
+.custom-preview-container blockquote,
+.onrivi-content-root blockquote {
+  display: flow-root !important;
+}
+.custom-preview-container *:has(+ blockquote),
+.onrivi-content-root *:has(+ blockquote),
+.custom-preview-container .table-wrapper-area:has(+ blockquote),
+.onrivi-content-root .table-wrapper-area:has(+ blockquote),
+.custom-preview-container p:has(+ blockquote),
+.onrivi-content-root p:has(+ blockquote) {
   margin-bottom: 0 !important;
 }
-.custom-preview-container blockquote + :not(blockquote),
-.onrivi-content-root blockquote + :not(blockquote) {
+.custom-preview-container blockquote + *,
+.onrivi-content-root blockquote + *,
+.custom-preview-container blockquote + * .codeblock-area,
+.onrivi-content-root blockquote + * .codeblock-area,
+.custom-preview-container blockquote + .not-prose > .codeblock-area,
+.onrivi-content-root blockquote + .not-prose > .codeblock-area,
+.custom-preview-container blockquote + p,
+.onrivi-content-root blockquote + p {
   margin-top: 0 !important;
 }
 `;
