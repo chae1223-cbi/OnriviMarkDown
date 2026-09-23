@@ -4,6 +4,7 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
+// 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) 빈 행·구분선 분리 및 번호 재시작] autoRenumberList에서 수평선(---) 리스트 오탐 방지, 빈 행(trim()==='')이나 구분선/헤딩 조우 시 즉시 블록 탐색 중단(break), 연속 번호 강제 병합 차단 및 새 블록 1번 시작 보장
 // 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 연동] useMonacoSetup 마운트 시점에 deps.editorFontWeight(400/500/700) 옵션 반영
 // 🚨 @PATCH : **2026-09-23** — [긴 영문 단어 줄바꿈 개선] editor.updateOptions에 wordWrapBreakAfterCharacters(영문/숫자/기호 확장) 및 wordWrapBreakBeforeCharacters 지정하여 긴 영문 문장도 한글처럼 줄 끝에서 글자 단위(break-all)로 자연스럽게 분절되도록 개선
 // 🚨 @PATCH : **2026-09-23** — [긴 문구 줄바꿈 시 글자 잘림 및 중간 건너뛰기 버그 완전 해결] border-right: 120px CSS 강제 주입 제거 및 Monaco 공식 padding.right(32px) 적용으로 줄 끝 텍스트 누락 원천 방어
@@ -1131,26 +1132,24 @@ export function useMonacoSetup(deps: any) {
     let blockStart = position;
     let blockEnd = position;
     
-    // Use standard space and tab to avoid encoding issues
-    const isListLine = (lineStr: string) => /^[ \t]*(?:[-*+]|\d+\.)/.test(lineStr);
+    // 🛡️ [리스트 줄 판별 가드] 수평선(---, ***, ___) 오탐을 철저히 차단하고 실제 숫자/글머리/체크박스 목록만 판별
+    const isDividerLine = (lineStr: string) => /^[ \t]*(?:---|\*\*\*|___)[ \t]*$/.test(lineStr);
+    const isHeadingLine = (lineStr: string) => /^[ \t]*#{1,6}\s/.test(lineStr);
+    const isQuoteLine = (lineStr: string) => /^[ \t]*>/.test(lineStr);
+    const isCodeFenceLine = (lineStr: string) => /^[ \t]*(?:```|~~~)/.test(lineStr);
+    const isNumberedLine = (lineStr: string) => /^[ \t]*\d+\.(?:\s+|$)/.test(lineStr);
+    const isTaskLine = (lineStr: string) => /^[ \t]*[-*+]\s+\[[ xX]?\](?:\s+|$)/.test(lineStr);
+    const isBulletLine = (lineStr: string) => !isDividerLine(lineStr) && !isTaskLine(lineStr) && /^[ \t]*[-*+](?:\s+|$)/.test(lineStr);
+    const isListLine = (lineStr: string) => !isDividerLine(lineStr) && (isNumberedLine(lineStr) || isBulletLine(lineStr) || isTaskLine(lineStr));
     
+    // 💡 [블록 경계 탐색] 빈 행이나 구분선, 헤딩, 인용문, 코드블록 조우 시 즉시 중단(break)하여 독립 블록 보장
     while (blockStart > 1) {
       const prevContent = model.getLineContent(blockStart - 1);
+      if (prevContent.trim() === '' || isDividerLine(prevContent) || isHeadingLine(prevContent) || isQuoteLine(prevContent) || isCodeFenceLine(prevContent)) {
+        break;
+      }
       if (isListLine(prevContent)) {
         blockStart--;
-      } else if (prevContent.trim() === '') {
-        let foundList = false;
-        for (let j = blockStart - 2; j >= 1; j--) {
-          const upContent = model.getLineContent(j);
-          if (isListLine(upContent)) {
-            foundList = true;
-            blockStart = j;
-            break;
-          } else if (upContent.trim() !== '') {
-            break;
-          }
-        }
-        if (!foundList) break;
       } else {
         break;
       }
@@ -1159,37 +1158,38 @@ export function useMonacoSetup(deps: any) {
     const lineCount = model.getLineCount();
     while (blockEnd < lineCount) {
       const nextContent = model.getLineContent(blockEnd + 1);
+      if (nextContent.trim() === '' || isDividerLine(nextContent) || isHeadingLine(nextContent) || isQuoteLine(nextContent) || isCodeFenceLine(nextContent)) {
+        break;
+      }
       if (isListLine(nextContent)) {
         blockEnd++;
-      } else if (nextContent.trim() === '') {
-        let foundList = false;
-        for (let j = blockEnd + 2; j <= lineCount; j++) {
-          const downContent = model.getLineContent(j);
-          if (isListLine(downContent)) {
-            foundList = true;
-            blockEnd = j;
-            break;
-          } else if (downContent.trim() !== '') {
-            break;
-          }
-        }
-        if (!foundList) break;
       } else {
         break;
       }
     }
     
     const edits: any[] = [];
-    const indentStack: { indent: string, count: number }[] = [];
+    const indentStack: { indent: string, count: number, type: 'number' | 'bullet' | 'task' }[] = [];
     
     for (let i = blockStart; i <= blockEnd; i++) {
       const lineContent = model.getLineContent(i);
+      if (lineContent.trim() === '' || isDividerLine(lineContent) || isHeadingLine(lineContent)) {
+        indentStack.length = 0;
+        continue;
+      }
+
       const match = lineContent.match(/^([ \t]*)([-*+]|\d+\.)([ \t]+)(.*)/);
-      if (!match) continue;
+      if (!match) {
+        indentStack.length = 0;
+        continue;
+      }
       
       const currentIndent = match[1];
       const marker = match[2];
+      const rest = match[4];
+      const isTask = /^\[[ xX]?\](?:\s+|$)/.test(rest);
       const isNumbered = /^\d+\.$/.test(marker);
+      const itemType: 'number' | 'bullet' | 'task' = isTask ? 'task' : (isNumbered ? 'number' : 'bullet');
       
       let stackIndex = -1;
       for (let s = 0; s < indentStack.length; s++) {
@@ -1201,12 +1201,16 @@ export function useMonacoSetup(deps: any) {
       
       if (stackIndex !== -1) {
         indentStack.splice(stackIndex + 1);
+        if (indentStack[stackIndex].type !== itemType) {
+          indentStack[stackIndex].type = itemType;
+          indentStack[stackIndex].count = 1;
+        }
       } else {
         while (indentStack.length > 0 && indentStack[indentStack.length - 1].indent.length > currentIndent.length) {
           indentStack.pop();
         }
         if (indentStack.length === 0 || indentStack[indentStack.length - 1].indent !== currentIndent) {
-          indentStack.push({ indent: currentIndent, count: 1 });
+          indentStack.push({ indent: currentIndent, count: 1, type: itemType });
         }
         stackIndex = indentStack.length - 1;
       }

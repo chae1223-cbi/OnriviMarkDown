@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) data-line 명시적 바인딩 및 커서 위치 동기화] li, ol, ul 컴포넌트에 data-line 속성을 명시적으로 바인딩하여 중첩 멀티리스트에서도 에디터 커서와 1:1로 정확하게 일치하도록 보장
 // 🚨 @PATCH : **2026-09-23** — [한글 Alert 인용구 태그 지원] blockquote 렌더러에 한글 Alert 태그([!참고], [!팁], [!중요], [!주의], [!경고] 등) 파싱 엔진을 탑재하여 영문([!NOTE])과 한글 태그 모두 동일한 Alert 스타일로 완벽 렌더링되도록 구현
 // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: 어두운 배경의 코드블록 내부 활성 줄 하이라이트 시 코발트 블루 및 1px 인셋 아웃라인 스타일 연동으로 시인성 극대화
 // 🚨 @PATCH : **2026-09-17** — [코드블록 내부 에디터-미리보기 커서 위치 불일치 및 솟구침 결함 완벽 해결]: 코드블록 내부를 splitChildrenIntoLines로 분할하여 각 행마다 <span class="onrivi-line" data-line="...">를 1:1로 부여, 에디터 커서 이동 시 코드블록 내부 활성 줄 단독 하이라이트 및 Safe Zone 정밀 추종 연동
@@ -2806,11 +2807,15 @@ function MarkdownViewer({
               }
               return <p style={style} {...props}>{children}</p>;
             },
-            ul: ({ node, children, style, ...props }) => <ul style={style} {...props}>{children}</ul>,
-            ol: ({ node, children, style, start, ...props }) => {
-              return <ol start={start} style={style} {...props}>{children}</ol>;
+            ul: ({ node, children, style, ...props }: any) => {
+              const line = extractDataLine(props, node);
+              return <ul data-line={line} style={style} {...props}>{children}</ul>;
             },
-            li: ({ node, children, style, ...props }) => {
+            ol: ({ node, children, style, start, ...props }: any) => {
+              const line = extractDataLine(props, node);
+              return <ol start={start} data-line={line} style={style} {...props}>{children}</ol>;
+            },
+            li: ({ node, children, style, ...props }: any) => {
               const textContent = getTextFromChildren(children).trim();
               const isEmptyRow = textContent.includes("onrivi-empty-row");
 
@@ -2835,14 +2840,15 @@ function MarkdownViewer({
               const line = (node as any).position?.start?.line;
               const currentLineMap = dynamicPropsRef.current.lineMap || [];
               const origLine = line ? (currentLineMap[line - 1] || line) : undefined;
+              const dataLineVal = extractDataLine(props, node) || origLine;
               const modifiedChildren = React.Children.map(children, (child) => {
                 if (React.isValidElement(child) && child.type === 'input' && (child.props as any).type === 'checkbox') {
                   return React.cloneElement(child as React.ReactElement<any>, {
                     disabled: false,
                     className: "w-4 h-4 rounded border-emerald-500/20 text-emerald-600 focus:ring-emerald-500 cursor-pointer mr-2 align-middle",
                     onChange: (e: any) => {
-                      if (origLine && dynamicPropsRef.current.onCheckboxToggle) {
-                        dynamicPropsRef.current.onCheckboxToggle(origLine, e.target.checked);
+                      if (dataLineVal && dynamicPropsRef.current.onCheckboxToggle) {
+                        dynamicPropsRef.current.onCheckboxToggle(dataLineVal, e.target.checked);
                       }
                     }
                   });
@@ -2850,7 +2856,7 @@ function MarkdownViewer({
                 return child;
               });
 
-              return <li style={style} className={props.className} {...props}>{modifiedChildren}</li>;
+              return <li data-line={dataLineVal} style={style} className={props.className} {...props}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
               // GitHub style Alerts 파싱: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION] + 한글 지원 ([!참고], [!팁], [!중요], [!주의], [!경고] 등)

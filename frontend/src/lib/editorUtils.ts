@@ -97,6 +97,7 @@ export interface ProcessedMarkdown {
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
 // 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, ordered/unordered list indent
+// 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) 빈 행 분리 및 중첩 들여쓰기 보존] 빈 줄 발생 시 앞뒤 리스트를 - onrivi-empty-row 로 인위 결합하던 로직을 제거하여 빈 행 뒤 새 리스트가 1번부터 독립 블록으로 시작되도록 보장, 상대 들여쓰기 2칸/4칸 모두 마크다운 중첩 서브리스트로 완벽 파싱되도록 개선
 // 🚨 @PATCH : **2026-09-11** — 괄호 숫자 넘버링(1), 2) 등) 마크다운 강제 ordered list 변환 및 마침표(1., 2.) 변질 방지 (닫는 괄호 자동 이스케이프 보존)
 //             **2026-09-06** — [표(Table) 파이프 생략 문법 지원 및 표 내부 빈 줄 주입 차단] isTableLine 헬퍼를 신설하여 선행/후행 파이프가 생략된 GFM 표 문법에서도 표 행 사이에 완충 개행이 주입되어 lineMap 및 뒤따르는 본문 줄 번호가 밀리는 현상을 원천 방지
 //             **2026-09-05** — [미디어(이미지/동영상/지도)와 인접 문단 개행 분리] 이미지(![), 동영상/지도(iframe, video) 블록 직후 연속 텍스트가 올 때 하나의 문단으로 뭉쳐 줄 번호(data-line)가 실종되던 결함을 해결하기 위해 Step 3 완충 개행 분기 정규식에 미디어 패턴을 편입하여 독립 문단 및 고유 줄 번호 매핑 보장
@@ -239,6 +240,9 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
           if (relativeIndent >= 4) {
             const steps = Math.floor(relativeIndent / 4);
             normalizedIndent = "    ".repeat(steps);
+          } else if (relativeIndent >= 2) {
+            // 💡 [2~3칸 들여쓰기 서브리스트 정규화] 2칸/3칸 들여쓰기도 1단계(4칸) 서브리스트로 보정
+            normalizedIndent = "    ";
           }
           processedLine = prefix + normalizedIndent + remainingText.trim();
         } else {
@@ -308,41 +312,11 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       return line;
     }
 
-    // 🛡️ 빈 줄 지능형 분기 처리:
-    // ReactMarkdown(및 rehypeRaw)은 HTML 표준 스펙을 강하게 준수하므로, 리스트(ul/ol) 구조 중간에 
-    // 직계 자식으로 <div> 태그가 강제 주입되면 파서가 이를 오류로 판단하여 날려버리고 리스트를 하나로 이어붙입니다.
-    // 따라서 빈 줄 기준 가장 가까운 상하단 라인을 탐색하여, 들여쓰기가 일치하는 리스트 구조 내부라면 
-    // 합법적 리스트 요소인 `<li class="onrivi-empty-list-row"></li>`를 주입하고, 그 외에는 `<div class="onrivi-list-spacer"></div>`를 주입합니다.
+    // 🛡️ [빈 줄 리스트 분리 보장]:
+    // 빈 줄이 있을 때 앞뒤 리스트를 - onrivi-empty-row 로 인위 결합하면
+    // 번호 리스트나 글머리/체크박스가 분리되지 않고 하나로 이어지는 결함이 발생합니다.
+    // 따라서 빈 줄을 원형 그대로 보존하여 리스트 블록이 자연스럽게 분리(새로 1번 시작)되도록 유지합니다.
     if (trimmed === "" || trimmed === "\u00A0") {
-      let prevNonEmptyLine = "";
-      let pIdx = index - 1;
-      while (pIdx >= 0) {
-        if (correctedLines[pIdx].trim() !== "") {
-          prevNonEmptyLine = correctedLines[pIdx];
-          break;
-        }
-        pIdx--;
-      }
-
-      let nextNonEmptyLine = "";
-      let nIdx = index + 1;
-      while (nIdx < correctedLines.length) {
-        if (correctedLines[nIdx].trim() !== "") {
-          nextNonEmptyLine = correctedLines[nIdx];
-          break;
-        }
-        nIdx++;
-      }
-
-      if (prevNonEmptyLine && nextNonEmptyLine && isAnyListLine(prevNonEmptyLine) && isAnyListLine(nextNonEmptyLine)) {
-        const prevIndent = getIndentLevel(prevNonEmptyLine);
-        const nextIndent = getIndentLevel(nextNonEmptyLine);
-        if (prevIndent === nextIndent) {
-          const indentSpaces = " ".repeat(prevIndent);
-          // 💡 순서없는/체크리스트 계층 내부의 빈 행은 - onrivi-empty-row 로 채워 들여쓰기 꼬임을 방지합니다.
-          return `${indentSpaces}- onrivi-empty-row`;
-        }
-      }
       return line;
     }
 

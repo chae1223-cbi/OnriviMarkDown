@@ -42,6 +42,7 @@
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 절대경로(file:///) 파일 readFileText 로컬 서버 API 폴백 연동]: 브라우저 핸들이 없는 작업장 외부 절대경로 파일에 대해 /api/file-content를 호출하여 로컬 디스크 원문을 100% 정상 수급하도록 보강
 // 🚨 @PATCH : **2026-09-12** — [웹(Web) 환경 전용 문서 링크(DocLinkPicker) 검색 및 연결 완벽 지원]: 브라우저 FileSystemHandle 하위 미확장 폴더 scanDirectoryDeep 심층 재귀 스캔, Web WASM SQLite 지식 보관함(knowledgeClient.listDocuments) 실시간 문서 병합, 유니코드 NFC 및 제목(title) 3중 필터 매칭, 웹 readFileText 및 handleFileOpenByPath 지식 DB/상대경로 추적 지원으로 웹 환경 문서 연결 실패 결함 원천 해결
 // 🚨 @PATCH : **2026-09-12** — [AI 모달 호출 시 현재 편집 문서(fullText/selectedText) 100% 인식 보장]: 메뉴바, 단축키, 플로팅 툴바 등 모든 진입점에서 현재 에디터 문서 내용을 aiEditorContext로 완벽 추출·주입하여 문서 전체 작업 시 기존 내용이 누락되는 결함 원천 해결
+// 🚨 @PATCH : **2026-09-23** — [중첩 멀티리스트 미리보기 하이라이트 최심층 자식 요소 우선 매칭] previewHighlightLine에서 중첩 리스트(ol>li>ol>li) 구조 시 부모 승격을 차단하고 현재 커서가 위치한 최심층 자식(innermost leaf element)을 최우선 선택하여 멀티리스트 커서-미리보기 1:1 위치 동기화 완성
 // 🚨 @PATCH : **2026-09-12** — [Google AI Studio 공식 모델 한정 및 Gemini 3.1 이하 전면 제거, 동적 모델 연동]: 하단 플로팅 AI 모델 팝오버를 getCachedAIModels()와 연동하고 구버전 Gemini(<= 3.1) 및 구형 Gemma 완전 배제, Google AI Studio 최신 모델(Gemini 3.8/3.7/3.6/3.5, Gemma 4 31B/26B) 동적 노출
 //             **2026-09-12** — [AI 모델 단일 소스(SSOT) 표준화]: 하단 플로팅 AI 모델 팝오버 및 2행 상태 표시줄을 ONRIVI_AI_MODELS 중앙 정의와 100% 동기화
 //             **2026-09-12** — AIDraftModal에 onModelChange prop 전달하여 모달 내부 모델 선택과 에디터 상태 실시간 양방향 동기화; 하단 플로팅 AI 모델 목록에 공인 안정 모델(Gemini 2.5 Flash, Gemini 2.0 Flash) 추가 연동
@@ -5534,26 +5535,40 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (lineMatch) {
         targetEl = lineMatch;
       } else {
-        const candidate = exactMatches.find(el => el.matches(blockSelectors)) || exactMatches[0];
-        targetEl = (candidate.closest(blockSelectors) as HTMLElement) || candidate;
+        // 💡 [중첩 리스트 최심층 자식 요소 우선 선택]
+        // exactMatches 중에 부모 요소(ol, ul, 부모 li)와 자식 요소(자식 li)가 공존할 경우,
+        // 다른 일치 요소를 자식으로 포함하지 않는 가장 깊은 자식 엘리먼트를 선택합니다.
+        const leafMatches = exactMatches.filter(el => !exactMatches.some(other => other !== el && el.contains(other)));
+        const candidate = leafMatches.find(el => el.matches(blockSelectors)) || leafMatches[0] || exactMatches[0];
+        targetEl = candidate.matches(blockSelectors) ? candidate : ((candidate.closest(blockSelectors) as HTMLElement) || candidate);
       }
     } else {
       // 2. exact match가 없으면 activeLine 이하 중 가장 가까운(최대값) 요소를 탐색
       let maxLine = -1;
-      let closestCandidate: HTMLElement | null = null;
+      let closestCandidates: HTMLElement[] = [];
       elements.forEach(element => {
         const lineStr = element.getAttribute('data-line');
         if (lineStr) {
           const line = parseInt(lineStr, 10);
-          if (line <= activeLine && line > maxLine) {
-            maxLine = line;
-            closestCandidate = element;
+          if (line <= activeLine) {
+            if (line > maxLine) {
+              maxLine = line;
+              closestCandidates = [element];
+            } else if (line === maxLine) {
+              closestCandidates.push(element);
+            }
           }
         }
       });
-      if (closestCandidate) {
-        const lineMatch = (closestCandidate as HTMLElement).closest('.onrivi-line') as HTMLElement;
-        targetEl = lineMatch || ((closestCandidate as HTMLElement).closest(blockSelectors) as HTMLElement) || closestCandidate;
+      if (closestCandidates.length > 0) {
+        const lineMatch = closestCandidates.find(el => el.classList.contains('onrivi-line'));
+        if (lineMatch) {
+          targetEl = lineMatch;
+        } else {
+          const leafCandidates = closestCandidates.filter(el => !closestCandidates.some(other => other !== el && el.contains(other)));
+          const candidate = leafCandidates.find(el => el.matches(blockSelectors)) || leafCandidates[0] || closestCandidates[0];
+          targetEl = candidate.matches(blockSelectors) ? candidate : ((candidate.closest(blockSelectors) as HTMLElement) || candidate);
+        }
       }
     }
 
