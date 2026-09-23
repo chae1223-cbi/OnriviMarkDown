@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [참조 파일 관리 모달 미오픈 결함 해결] ModalManager modals props에 isReferenceModalOpen, setIsReferenceModalOpen 전달 누락을 복원하여 우측 툴바 참조 파일 관리(NewspaperClipping) 클릭 시 ReferenceManagerModal이 정상 오픈되도록 수정
 // 🚨 @PATCH : **2026-09-23** — [인라인코드 및 인용(참조문헌) 아이콘 지정] 인라인 코드를 Password.png로, 인용(참조문헌)을 오른쪽 툴바 참조파일관리(NewspaperClipping) 아이콘으로 교체
 // 🚨 @PATCH : **2026-09-23** — [인라인 인용(CITE) 아이콘 교체] 플로팅 서식 툴바의 인라인 인용(참조문헌) 아이콘을 frontend/public/icons/Password.png 이미지로 교체
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 인용구 아이콘 교체] 플로팅 툴바 인용구(QUOTE) 아이콘을 텍스트(❝)에서 frontend/public/icons/WechatLogo.png 이미지로 교체
@@ -8519,6 +8520,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               isLicenseModalOpen, setIsLicenseModalOpen,
               isHelpModalOpen, setIsHelpModalOpen,
               isFormulaModalOpen, setIsFormulaModalOpen,
+              isReferenceModalOpen, setIsReferenceModalOpen,
               promptConfig, setPromptConfig,
               confirmConfig, setConfirmConfig,
               isMapModalOpen, setIsMapModalOpen,
