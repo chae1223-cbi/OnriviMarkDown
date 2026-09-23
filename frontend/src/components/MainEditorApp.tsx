@@ -47,6 +47,7 @@
 //             **2026-09-12** — [AI 모델 단일 소스(SSOT) 표준화]: 하단 플로팅 AI 모델 팝오버 및 2행 상태 표시줄을 ONRIVI_AI_MODELS 중앙 정의와 100% 동기화
 //             **2026-09-12** — AIDraftModal에 onModelChange prop 전달하여 모달 내부 모델 선택과 에디터 상태 실시간 양방향 동기화; 하단 플로팅 AI 모델 목록에 공인 안정 모델(Gemini 2.5 Flash, Gemini 2.0 Flash) 추가 연동
 //             **2026-09-12** — [플로팅 툴바 이모지 서식 원복 유지] 사용자 피드백을 반영하여 플로팅 서식 툴바의 친숙한 컬러 이모지(🔢, ☰, ❝, ☑️, 🧹, 🔗, 🔖, 📝, 🖼️, 🎞️, 📅, 🌏, 📶, ⇤, ↔, ⇥, ⌨️, 🧮) 인터페이스를 원래대로 완벽 복원 및 유지
+//             **2026-09-24** — [수평 구분선(HR) 서식 실시간 반영 및 CSS 무결성 보장]: dynamicCssString 내 tag === 'hr' 독립 처리 및 rules.hr 레거시 margin/border 오버라이드 원천 차단, hrStructure 기반 border-top/margin/width/color 완벽 동기화 및 .custom-preview-container hr, .onrivi-content-root hr 다중 선택자 지원
 //             **2026-09-24** — [서식 기본 줄 간격(lineHeight) 실시간 반영 보장]: dynamicCssString 내 p, li, blockquote에 line-height: ${ps.lineHeight} 직접 주입 및 rules.p의 구버전 고정 line-height 오버라이드 차단
 //             **2026-09-11** — [에디터 Pretendard 웹폰트 1순위 적용] 모나코 에디터 fontFamily를 Pretendard/Pretendard Variable 최우선으로 변경하여 원번호(①, ②, ③) 크기 불일치 해소 및 무설치 고품질 한글 렌더링 보장
 //             **2026-09-11** — [코드블록 퀵래핑 언어 지원] quickWrap('code') 실행 시 insertBlockTag('```markdown', '```', '코드')로 연동하여 기본 언어를 markdown으로 지정하고 언어 자동 선택 보장
@@ -5634,6 +5635,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}px !important;\n}\n`;
     }
     Object.entries(prof.rules).forEach(([tag, ruleObj]) => {
+      /* hr(구분선)은 전용 인젝션 블록에서 완전하게 통합 제어하므로 건너뜀 */
+      if (tag === 'hr') return;
       /* h2~h6의 font-size는 headingSizeOffset 자동 계산으로 대체 */
       const skipFontSize = ['h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
       const entries = Object.entries(ruleObj).map(([prop, v]) => {
@@ -5865,18 +5868,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 `;
 
     // 🧰 구조제어: 구분선 규칙 (HR) 동적 인젝션
-    if (prof.hrStructure) {
-      const hrRules = prof.rules.hr || {};
-      const hrStyle = hrRules['border-top-style'] || hrRules['border-style'] || prof.hrStructure.borderTopStyle || 'solid';
-      const hrWidth = hrRules['border-top-width'] || hrRules['border-width'] || prof.hrStructure.borderTopWidth || '1px';
-      const hrMargin = hrRules['margin-top'] || hrRules['margin-bottom'] || hrRules['margin'] || prof.hrStructure.marginTopBottom || '32px';
-      const hrLen = hrRules['width'] || prof.hrStructure.lineWidth || '100%';
-      const hrColor = hrRules['border-top-color'] || hrRules['border-color'] || hrRules['color'] || '#e5e7eb';
-      css += `
-.custom-preview-container hr {
-  border-left: none !important;
-  border-right: none !important;
-  border-bottom: none !important;
+    const hrStruct = prof.hrStructure || DEFAULT_PROFILE.hrStructure || {
+      borderTopStyle: 'solid',
+      borderTopWidth: '1px',
+      marginTopBottom: '32px',
+      lineWidth: '100%'
+    };
+    const hrRules = prof.rules.hr || {};
+    const hrStyle = hrStruct.borderTopStyle || 'solid';
+    const hrWidth = hrStruct.borderTopWidth || '1px';
+    const hrMargin = hrStruct.marginTopBottom || '32px';
+    const hrLen = hrStruct.lineWidth || '100%';
+    const hrColor = hrRules['border-top-color'] || hrRules['border-color'] || hrRules['color'] || '#e5e7eb';
+    css += `
+.custom-preview-container hr,
+.onrivi-content-root hr {
+  border: none !important;
+  height: 0 !important;
+  background: transparent !important;
   border-top-width: ${hrWidth} !important;
   border-top-style: ${hrStyle} !important;
   border-top-color: ${hrColor} !important;
@@ -5886,7 +5895,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   ${hrLen !== '100%' ? 'margin-left: auto !important;\n  margin-right: auto !important;' : ''}
 }
 `;
-    }
 
     // 🧰 구조제어: 체크박스 규칙 (Task List) 동적 인젝션
     if (prof.checkboxStructure) {

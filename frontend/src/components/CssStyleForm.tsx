@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [수평 구분선(HR) 실시간 동기화 및 충돌 방어]: updateHrStructure에 rules.hr 동기화 및 triggerUpdate('hr') 연동, 구분선 스타일/두께/여백/너비 변경 시 우측 미리보기 즉시 갱신 및 펄스 피드백 지원
  *   2026-09-24 — [제목 위계 H1~H6 왼쪽 여백(padding-left) 조절 슬라이더 위젯 신설]: H1 마스터 및 H2~H6 세부 설정에 왼쪽 여백 슬라이더 추가하여 제목 수직 정렬 정밀 조작 지원
  *   2026-09-24 — [서식 관리 우측 서식별 모듈 1:1 실시간 동기화 연동]: 아코디언 토글 시 onActiveSectionChange, 각 서식 속성 변경 시 onActiveTagChange 콜백 연동
  *   2026-09-12 — [모든 AI 질의 표준 재시도 적용]: 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 에러 표출 규칙 및 기본 모델 gemini-3.8-flash 통일 적용
@@ -834,18 +835,39 @@ ${guideContent}
 
   // ====================================================================
   // 📊 [OMD-CORE-CssStyleForm-0020] CssStyleForm ➔ updateHrStructure
-  // 🎯 @KICK  : 수평 구분선(HR) 스타일(선 스타일, 두께, 여백, 너비) 업데이트
+  // 🎯 @KICK  : 수평 구분선(HR) 스타일(선 스타일, 두께, 여백, 너비) 업데이트 및 rules.hr 실시간 동기화
   // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : 없음
+  // 🚨 @PATCH : **2026-09-24** — rules.hr 레거시 margin/border 정제 및 hrStructure 속성 1:1 동기화, triggerUpdate('hr') 펄스 연동
   // 🔗 @CALLS : triggerUpdate
   // ====================================================================
-  const updateHrStructure = (key: string, value: string) => {
+  const updateHrStructure = (key: string, value: string, label?: string) => {
     if (isSystemProfile) return;
+    const nextHrStructure = { ...hrStructure, [key]: value };
+
+    // rules.hr 동기화: legacy 속성(margin, border, height, background-color) 정제 및 hrStructure 규격 1:1 동기화
+    const currentHrRules = { ...(currentProfile.rules.hr || {}) };
+    delete (currentHrRules as any)['margin'];
+    delete (currentHrRules as any)['border'];
+    delete (currentHrRules as any)['height'];
+    delete (currentHrRules as any)['background-color'];
+
+    if (key === 'borderTopStyle') currentHrRules['border-top-style'] = value;
+    if (key === 'borderTopWidth') currentHrRules['border-top-width'] = value;
+    if (key === 'marginTopBottom') {
+      currentHrRules['margin-top'] = value;
+      currentHrRules['margin-bottom'] = value;
+    }
+    if (key === 'lineWidth') currentHrRules['width'] = value;
+
     const updated = {
       ...currentProfile,
-      hrStructure: { ...hrStructure, [key]: value }
+      hrStructure: nextHrStructure,
+      rules: {
+        ...currentProfile.rules,
+        hr: currentHrRules,
+      }
     };
-    triggerUpdate(updated);
+    triggerUpdate(updated, 'hr', label || '구분선(HR)');
   };
 
   // ====================================================================
@@ -1888,7 +1910,7 @@ ${guideContent}
               <select
                 value={hrStructure.borderTopStyle}
                 disabled={isSystemProfile}
-                onChange={(e) => updateHrStructure('borderTopStyle', e.target.value)}
+                onChange={(e) => updateHrStructure('borderTopStyle', e.target.value, `구분선 스타일(${e.target.options[e.target.selectedIndex].text})`)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
                 <option value="solid">실선</option>
@@ -1906,7 +1928,7 @@ ${guideContent}
               value={parseInt(hrStructure.borderTopWidth) || 1}
               unit="px"
               disabled={isSystemProfile}
-              onChange={(v) => updateHrStructure('borderTopWidth', v + 'px')}
+              onChange={(v) => updateHrStructure('borderTopWidth', v + 'px', `구분선 두께(${v}px)`)}
             />
 
             {/* 위아래 여백 슬라이더 */}
@@ -1917,7 +1939,7 @@ ${guideContent}
               value={parseInt(hrStructure.marginTopBottom) || 32}
               unit="px"
               disabled={isSystemProfile}
-              onChange={(v) => updateHrStructure('marginTopBottom', v + 'px')}
+              onChange={(v) => updateHrStructure('marginTopBottom', v + 'px', `구분선 상하 여백(${v}px)`)}
             />
 
             {/* 가로 길이 비율 */}
@@ -1926,7 +1948,7 @@ ${guideContent}
               <select
                 value={hrStructure.lineWidth}
                 disabled={isSystemProfile}
-                onChange={(e) => updateHrStructure('lineWidth', e.target.value)}
+                onChange={(e) => updateHrStructure('lineWidth', e.target.value, `구분선 너비(${e.target.value})`)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
               >
                 <option value="100%">100% (전체)</option>

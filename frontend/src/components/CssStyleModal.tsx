@@ -4,7 +4,8 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-09-24** — [서식 관리 우측 5대 서식별 모듈 뭉침 뷰 및 1:1 실시간 동기화 펄스 연동]:
+ * 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 타겟 자동 스크롤 및 속성 변경 시 요소 뷰포트 자동 정렬]: HR 아코디언 토글 시 Card 5 내부 hr 요소로 직행 스크롤하고, 속성 변경 시 뷰포트 밖 요소를 화면 중앙으로 자동 정렬하여 실시간 반응성 보장
+ *             **2026-09-24** — [서식 관리 우측 5대 서식별 모듈 뭉침 뷰 및 1:1 실시간 동기화 펄스 연동]:
  *             1) 우측 뷰어를 좌측 설정과 1:1 대응되는 5대 서식 뭉침 카드(Grouped Showcase Cards)로 개편
  *             2) [🎴 서식별 모아보기] ↔ [📝 현재 편집 문서] 듀얼 뷰 모드 스위처 신설
  *             3) 좌측 아코디언 토글 시 해당 모듈 카드로 스무스 자동 스크롤 및 테두리 포커스 조명
@@ -106,6 +107,14 @@ export default function CssStyleModal({
 
     // 모듈 모드일 때 해당 카드로 부드럽게 스크롤 이동
     if (previewViewMode === 'modules') {
+      // 💡 수평 구분선(HR) 선택 시 Card 5 내부의 hr 위치로 직행 스크롤
+      if (sectionId === 'hr') {
+        const targetHr = document.querySelector('#omd-showcase-module-media hr');
+        if (targetHr) {
+          targetHr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
       const targetCard = document.getElementById('omd-showcase-module-' + targetModule);
       if (targetCard) {
         targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -138,6 +147,16 @@ export default function CssStyleModal({
           el.classList.remove('onrivi-sync-pulse');
         }, 1400);
       });
+
+      // 💡 편집 중인 대상 요소가 현재 뷰포트 시야 밖에 있으면 중앙으로 부드럽게 스크롤 정렬
+      if (targetElements.length > 0) {
+        const firstEl = targetElements[0] as HTMLElement;
+        const rect = firstEl.getBoundingClientRect();
+        const isInViewport = rect.top >= 80 && rect.bottom <= (window.innerHeight - 80);
+        if (!isInViewport) {
+          firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
     }
   };
 

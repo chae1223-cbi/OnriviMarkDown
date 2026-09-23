@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 내보내기 규격 동기화]: generateExportCss 내 hr border:none/height:0/transparent 리셋 및 .onrivi-content-root hr 선택자 추가
 // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: generateExportCss 내 codeBlock 배경색 명도 판별 및 다크 계열 고대비 코발트 블루 하이라이트 동적 CSS 일원화
 // 🚨 @PATCH : **2026-09-11** — generateExportCss에 profile.customCss 사용자 정의 CSS 주입 연동
 //             **2026-08-16** — PDF 페이지 나누기: CSS page-break 선택자 방식의 한계(h3·h4 레벨에서 섹션 내부 이중 break 발생)를 해결하기 위해 DOM 직접 삽입 방식의 injectPageBreakMarkers() 유틸 함수 신규 구현. 버퍼 알고리즘으로 섹션 경계를 찾아 해당 요소 앞에 break-before:page 마커 div를 삽입함.
@@ -258,8 +259,11 @@ function generateExportCss(profile: any): string {
     const hrColor = (profile.rules.hr && profile.rules.hr['border-top-color']) || '#d1d5db';
 
     css += `
-.custom-preview-container hr {
+.custom-preview-container hr,
+.onrivi-content-root hr {
   border: none !important;
+  height: 0 !important;
+  background: transparent !important;
   border-top: ${hrWidth} ${hrStyle} ${hrColor} !important;
   margin-top: ${hrMargin} !important;
   margin-bottom: ${hrMargin} !important;
