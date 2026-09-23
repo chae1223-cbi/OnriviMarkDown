@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 화면/우측 툴바 잘림 방지 클램핑 개선] 에디터 분할 모드 시 툴바 너비(약 1200px)보다 좁은 에디터 폭으로 인해 우측 끝(수식 아이콘 등)이 화면/우측 툴바 밖으로 짤리던 결함 해결: 뷰포트 전체 우측 마진(winWidth - 68px) 기준 자동 클램핑 및 동적 너비 측정(floatingToolbarRef), max-w-[calc(100vw-80px)] 가로 스크롤 안전망 적용
 // 🚨 @PATCH : **2026-09-23** — [참조 파일 관리 모달 미오픈 결함 해결] ModalManager modals props에 isReferenceModalOpen, setIsReferenceModalOpen 전달 누락을 복원하여 우측 툴바 참조 파일 관리(NewspaperClipping) 클릭 시 ReferenceManagerModal이 정상 오픈되도록 수정
 // 🚨 @PATCH : **2026-09-23** — [인라인코드 및 인용(참조문헌) 아이콘 지정] 인라인 코드를 Password.png로, 인용(참조문헌)을 오른쪽 툴바 참조파일관리(NewspaperClipping) 아이콘으로 교체
 // 🚨 @PATCH : **2026-09-23** — [인라인 인용(CITE) 아이콘 교체] 플로팅 서식 툴바의 인라인 인용(참조문헌) 아이콘을 frontend/public/icons/Password.png 이미지로 교체
@@ -3561,6 +3562,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const wikilinkProviderRef = useRef<any>(null);
   const docLinkFilesRef = useRef<FileNode[]>([]);
   const [floatingToolbar, setFloatingToolbar] = useState<{ visible: boolean, top: number, left: number }>({ visible: false, top: 0, left: 0 });
+  const floatingToolbarRef = useRef<HTMLDivElement>(null);
   const aiDecorationsRef = useRef<string[]>([]);
   const generationIdRef = useRef<number>(0);
   const readFileTextRef = useRef<(node: FileNode) => Promise<string>>(null!);
@@ -7783,11 +7785,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           fixedLeft += rect.left;
 
                           // 💡 [플로팅 툴바 우측/상단 화면 이탈 방지 클램핑]
-                          const TOOLBAR_ESTIMATED_WIDTH = 1080;
                           const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-                          const maxRight = Math.min(winWidth - 16, rect.right - 16);
-                          if (fixedLeft + TOOLBAR_ESTIMATED_WIDTH > maxRight) {
-                            fixedLeft = Math.max(rect.left + 16, maxRight - TOOLBAR_ESTIMATED_WIDTH);
+                          const maxRight = winWidth - 68; // 우측 고정 사이드바 툴바(약 56px) 및 여백 고려
+                          const toolbarWidth = floatingToolbarRef.current?.offsetWidth || 1200;
+                          if (fixedLeft + toolbarWidth > maxRight) {
+                            fixedLeft = maxRight - toolbarWidth;
                           }
                           fixedLeft = Math.max(16, fixedLeft);
                           fixedTop = Math.max(65, fixedTop);
@@ -7829,6 +7831,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                         return (
                           <div
+                            ref={floatingToolbarRef}
                             id="floating-toolbar"
                             tabIndex={-1}
                             onKeyDown={(e) => {
@@ -7850,7 +7853,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 editorRef.current?.focus();
                               }
                             }}
-                            className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl shadow-black/20 rounded-2xl border border-black/10 dark:border-white/10 px-3.5 py-1.5 gap-1.5 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
+                            className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl shadow-black/20 rounded-2xl border border-black/10 dark:border-white/10 px-3.5 py-1.5 gap-1.5 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none max-w-[calc(100vw-80px)] overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
                             style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
                             onMouseDown={handleDragStart}
                           >

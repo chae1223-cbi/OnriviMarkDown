@@ -4,7 +4,8 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
-// 🚨 @PATCH : 2026-09-11 - [코드블록 슬래시 커맨드/단축키 언어 자동 선택 연동] trigger-custom-action 비동기 타이밍 보정(10ms)으로 슬래시 커맨드(/code) 입력 후 코드블록 삽입 시 언어명(javascript) 자동 선택 정상 발화 보장
+// 🚨 @PATCH : **2026-09-23** — [플로팅 툴바 위치 계산 가드 개선] 툴바 너비 하드코딩(880px) 클램핑 제거하고 실제 커서 x좌표를 전달하여 MainEditorApp 뷰포트 클램퍼에서 화면 우측 잘림 방지 처리되도록 정규화
+//             2026-09-11 - [코드블록 슬래시 커맨드/단축키 언어 자동 선택 연동] trigger-custom-action 비동기 타이밍 보정(10ms)으로 슬래시 커맨드(/code) 입력 후 코드블록 삽입 시 언어명(javascript) 자동 선택 정상 발화 보장
 //             2026-09-11 - [찾기/바꾸기(Ctrl+F, Ctrl+H) 활성 시 ESC 클릭으로 위젯 닫기 및 포커스 복원] findInput/replaceInput 및 에디터 키바인딩에서 ESC 입력 시 찾기/바꾸기 위젯을 즉시 닫고 에디터로 포커스 복귀 연동
 //             2026-09-11 - [찾기/바꾸기(Ctrl+F, Ctrl+H) 실행 시 즉시 위젯 입력창 포커스 및 엔터 다음 찾기 보장] custom-enter-list-auto precondition 격리 및 openAndFocusFindWidget 연동으로 검색어 입력 후 Enter 입력 시 즉시 '다음 찾기' 작동
 //             2026-09-11 - [리스트(숫자/글머리/체크/인용) 본문 중간 Tab/Shift+Tab 커서 위치 분기 정밀 보정] 리스트 항목 본문 텍스트 중간에서 Tab 입력 시 해당 행 전체가 들여쓰기되던 버그를 해결하여, 커서가 리스트 마커 접두사(prefix) 구간 내에 있을 때만 행 전체 들여쓰기/내어쓰기가 동작하고 본문 텍스트 중간에서는 들여쓰기가 아닌 일반 탭 공백(tabSize 스페이스)이 커서 위치에 자연스럽게 삽입되도록 개편
@@ -1516,9 +1517,7 @@ export function useMonacoSetup(deps: any) {
                       if (!targetPosition) return prev;
                       const visiblePos = editor.getScrolledVisiblePosition(targetPosition);
                       if (!visiblePos) return prev;
-                      const layout = editor.getLayoutInfo?.();
-                      const editorWidth = layout ? layout.width : 1000;
-                      const safeLeft = Math.max(10, Math.min(visiblePos.left, editorWidth - 880));
+                      const safeLeft = Math.max(10, visiblePos.left);
                       return { visible: true, top: Math.max(0, visiblePos.top - 10), left: safeLeft };
                     });
                   });
