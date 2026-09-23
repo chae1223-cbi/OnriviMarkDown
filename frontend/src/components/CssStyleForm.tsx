@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [서식 관리 우측 서식별 모듈 1:1 실시간 동기화 연동]: 아코디언 토글 시 onActiveSectionChange, 각 서식 속성 변경 시 onActiveTagChange 콜백 연동
  *   2026-09-12 — [모든 AI 질의 표준 재시도 적용]: 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 에러 표출 규칙 및 기본 모델 gemini-3.8-flash 통일 적용
  *   2026-09-11 — Modern Technical Editorial 표준 적용 및 미리보기 영역 사용자 정의 CSS (Custom CSS 직접 입력) 편집 아코디언 신설
  *   2026-09-05 — 표 상단 여백 (제목 문구와의 간격, margin-top) 및 하단 여백(margin-bottom) 정밀 조절 슬라이더 위젯 추가
@@ -53,6 +54,8 @@ interface CssStyleFormProps {
   isDarkMode?: boolean;
   geminiApiKey?: string;
   aiModelName?: string;
+  onActiveSectionChange?: (sectionId: string) => void;
+  onActiveTagChange?: (tag: string, label?: string) => void;
 }
 
 // ====================================================================
@@ -275,13 +278,22 @@ function TagRuleEditor({ tag, label, rules, isSystemProfile, onUpdateRule, onRem
 // CssStyleForm 컴포넌트 구현 
 // ===================================================================
 export default function CssStyleForm({
-  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, onOpenStyleManager, isDarkMode, geminiApiKey, aiModelName
+  profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, onOpenStyleManager, isDarkMode, geminiApiKey, aiModelName,
+  onActiveSectionChange, onActiveTagChange
 }: CssStyleFormProps) {
   const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE; // 현재 프로파일 
   const isSystemProfile = false;
 
   /* ─── 아코디언 상태 관리 ─── */
   const [openAccordion, setOpenAccordion] = useState<string | null>('typography');
+
+  const handleAccordionToggle = (id: string) => {
+    const next = openAccordion === id ? null : id;
+    setOpenAccordion(next);
+    if (next) {
+      onActiveSectionChange?.(next);
+    }
+  };
 
   /* ─── 폰트 선택 및 위계 탭 관리 ─── */
   const [isFontModalOpen, setIsFontModalOpen] = useState(false); // 폰트 선택 모달 상태 
@@ -448,8 +460,11 @@ ${guideContent}
   // 🚨 @PATCH : 없음
   // 🔗 @CALLS : onUpdateProfile
   // ====================================================================
-  const triggerUpdate = (updated: CssProfile) => {
+  const triggerUpdate = (updated: CssProfile, tag?: string, label?: string) => {
     pendingProfileRef.current = updated;
+    if (tag) {
+      onActiveTagChange?.(tag, label);
+    }
     if (!rafIdRef.current) {
       rafIdRef.current = requestAnimationFrame(() => {
         if (pendingProfileRef.current) {
@@ -633,7 +648,7 @@ ${guideContent}
         [tagKey]: { ...currentTagRules, [property]: value },
       },
     };
-    triggerUpdate(updated);
+    triggerUpdate(updated, tag, `${tag.toUpperCase()} (${property})`);
   };
 
   // ====================================================================
@@ -677,7 +692,7 @@ ${guideContent}
         td: { ...tdRules, [property]: value },
       }
     };
-    triggerUpdate(updated);
+    triggerUpdate(updated, 'table', '표(Table) 테두리');
   };
 
   /* ─── 표 셀 여백 묶음 업데이트 ─── */
@@ -700,7 +715,7 @@ ${guideContent}
         td: { ...tdRules, 'padding': value },
       }
     };
-    triggerUpdate(updated);
+    triggerUpdate(updated, 'table', '표(Table) 셀 여백');
   };
 
   /* ─── 표 글자 크기 묶음 업데이트 ─── */
@@ -733,7 +748,7 @@ ${guideContent}
       ...currentProfile,
       rules: updatedRules
     };
-    triggerUpdate(updated);
+    triggerUpdate(updated, 'table', '표(Table) 글자 크기');
   };
 
   // ====================================================================
@@ -749,7 +764,7 @@ ${guideContent}
       ...currentProfile,
       pageStyle: { ...currentProfile.pageStyle, [key]: value },
     };
-    triggerUpdate(updated);
+    triggerUpdate(updated, 'p', `본문 타이포그래피 (${String(key)})`);
   };
 
   const handleNameChange = (name: string) => {
@@ -1003,7 +1018,10 @@ ${guideContent}
       <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
 
         {/* 2단계: 필수 스무스 슬라이더 컨트롤 패널 */}
-        <div className="space-y-4.5 bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+        <div 
+          onClick={() => onActiveSectionChange?.('typography')}
+          className="space-y-4.5 bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-blue-400/50 transition-colors"
+        >
           <div className="flex items-center justify-between">
             <span className="font-bold text-zinc-700 dark:text-zinc-300">✍️ 기본 타이포그래피</span>
           </div>
@@ -1056,7 +1074,7 @@ ${guideContent}
           id="advanced"
           title="⚙️ 고급 레이아웃 및 본문 문단"
           isOpen={openAccordion === 'advanced'}
-          onToggle={() => setOpenAccordion(openAccordion === 'advanced' ? null : 'advanced')}
+          onToggle={() => handleAccordionToggle('advanced')}
         >
           <div className="space-y-4.5">
 
@@ -1321,7 +1339,7 @@ ${guideContent}
           id="headings"
           title="👑 제목 위계 스타일 (H1 ~ H6)"
           isOpen={openAccordion === 'headings'}
-          onToggle={() => setOpenAccordion(openAccordion === 'headings' ? null : 'headings')}
+          onToggle={() => handleAccordionToggle('headings')}
         >
           <div className="space-y-4">
             <div className="bg-zinc-100 dark:bg-zinc-800/40 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3.5">
@@ -1677,7 +1695,7 @@ ${guideContent}
           id="lists"
           title="📋 목록 및 태스크 체크박스"
           isOpen={openAccordion === 'lists'}
-          onToggle={() => setOpenAccordion(openAccordion === 'lists' ? null : 'lists')}
+          onToggle={() => handleAccordionToggle('lists')}
         >
           <div className="space-y-3.5">
             <div className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">글머리 & 숫자 목록 설정</div>
@@ -1831,7 +1849,7 @@ ${guideContent}
           id="hr"
           title="➖ 수평 구분선 (HR) 규격"
           isOpen={openAccordion === 'hr'}
-          onToggle={() => setOpenAccordion(openAccordion === 'hr' ? null : 'hr')}
+          onToggle={() => handleAccordionToggle('hr')}
         >
           <div className="space-y-3.5">
             {/* 선 모양 종류 */}
@@ -1903,7 +1921,7 @@ ${guideContent}
           id="others"
           title="🏺 표, 하이퍼링크, 소스코드, 인용구"
           isOpen={openAccordion === 'others'}
-          onToggle={() => setOpenAccordion(openAccordion === 'others' ? null : 'others')}
+          onToggle={() => handleAccordionToggle('others')}
         >
           {/* 인용구 (Blockquote) 설정 */}
           <div className="space-y-3.5">
@@ -2578,7 +2596,7 @@ ${guideContent}
           id="media"
           title="🎬 미디어 (이미지, 동영상, 지도, 수식)"
           isOpen={openAccordion === 'media'}
-          onToggle={() => setOpenAccordion(openAccordion === 'media' ? null : 'media')}
+          onToggle={() => handleAccordionToggle('media')}
         >
           {/* 이미지 객체 (Image) 설정 */}
           <div className="space-y-3.5">
@@ -2927,7 +2945,7 @@ ${guideContent}
           id="customCss"
           title="🎨 사용자 정의 CSS (Custom CSS 직접 입력)"
           isOpen={openAccordion === 'customCss'}
-          onToggle={() => setOpenAccordion(openAccordion === 'customCss' ? null : 'customCss')}
+          onToggle={() => handleAccordionToggle('customCss')}
         >
           <div className="space-y-3">
             <div className="flex items-center justify-between">

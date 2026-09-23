@@ -4,6 +4,7 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-09-24** — [서식 관리 모달 실제 편집 문서 연동]: CssStyleModal에 currentDocContent={content} 주입하여 현재 작성 중인 실제 원고로 서식 미리보기 지원
  * 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기 및 고대비 설정 모달 연동]: SettingsModal에 editorFontWeight, setEditorFontWeight, editorHighContrast, setEditorHighContrast props 전달 연동
  * 🚨 @PATCH : **2026-09-17** — [지식 문서 등록 실시간 진행 모달 연동]: KnowledgeIndexProgressModal 임포트 및 knowledge:open-index-progress 글로벌 이벤트 리스너 통합으로 문서 등록 4단계 및 AI 분석 실시간 시각화 지원
  * 🚨 @PATCH : **2026-09-06** — [미디어 삽입 후 2행 자동 추가 및 커서 이동] YoutubeModal·MapModal·ImageModal 삽입 시 insertMediaAtCursor 사용으로 교체: 삽입 후 빈 줄 2행 자동 추가 및 커서 마지막 빈 행 이동
@@ -483,6 +484,7 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         dynamicCssString={dynamicCssString}
         geminiApiKey={geminiApiKey}
         aiModelName={aiModelName}
+        currentDocContent={content}
         onSelectProfile={setActiveProfileId}
         onUpdateProfile={(updated: any) => setProfiles((prev: any) =>
           prev.map((p: any) => p.id === updated.id ? updated : p)

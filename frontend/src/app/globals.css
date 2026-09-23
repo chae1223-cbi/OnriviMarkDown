@@ -1941,3 +1941,43 @@ input::-ms-clear {
   -webkit-font-smoothing: antialiased !important;
   -moz-osx-font-smoothing: grayscale !important;
 }
+
+/* ===================================================================
+ * 🎨 서식 관리(CssStyleModal) 실시간 동기화 펄스 및 모듈 카드 포커스 스타일
+ * 🚨 @PATCH : **2026-09-24** — 실시간 서식 변경 요소 시각적 피드백 펄스(@keyframes onriviSyncPulse) 및 서식 카드 포커스 스타일 신설
+ * =================================================================== */
+@keyframes onriviSyncPulse {
+  0% {
+    outline: 2.5px solid rgba(29, 78, 216, 0.95);
+    outline-offset: 4px;
+    box-shadow: 0 0 18px rgba(29, 78, 216, 0.5);
+    background-color: rgba(29, 78, 216, 0.08);
+  }
+  50% {
+    outline: 2px solid rgba(29, 78, 216, 0.6);
+    outline-offset: 3px;
+    box-shadow: 0 0 12px rgba(29, 78, 216, 0.3);
+    background-color: rgba(29, 78, 216, 0.04);
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 0;
+    box-shadow: none;
+    background-color: transparent;
+  }
+}
+
+.onrivi-sync-pulse {
+  animation: onriviSyncPulse 1.4s ease-out forwards !important;
+  border-radius: 4px;
+}
+
+.onrivi-showcase-card {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onrivi-showcase-card-active {
+  border-color: rgba(29, 78, 216, 0.8) !important;
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.25), 0 10px 28px -4px rgba(29, 78, 216, 0.18) !important;
+}
+
