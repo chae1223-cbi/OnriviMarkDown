@@ -1,5 +1,6 @@
-﻿// ====================================================================
+// ====================================================================
 // 📊 [OMD-EDIT-SettingsModal-0006 ✅ FIXED] SettingsModal.tsx ➔ SettingsModal
+// 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 및 고대비 텍스트(High Contrast) 설정 UI 탑재]: 난반사 및 어두운 환경에서 텍스트 흐림 방지를 위한 획 굵기(보통/선명하게/굵게) 조절 선택 및 고대비 모드 토글 연동
 // 🚨 @PATCH : **2026-09-17** — [AI 모델 직접 입력 필드 전면 제거 및 공인 리스트박스 선택 강제]: 사용자 요구 반영에 따라 모델명 직접 입력란 및 Custom 옵션을 완전히 제거하고 오직 공인 모델 목록 리스트박스에서만 선택되도록 단일화하여 오입력 및 키 뒤바뀜 결함 원천 차단
 // 🚨 @PATCH : **2026-09-17** — [AES 암호화 키/모델명 평문 누출 원천 차단 및 양방향 자동 복호화 연동]: 스토리지 내 U2FsdGVkX1... 암호문 유입 시 loadSecureData를 통한 즉시 복호화 보장, aiModelName 불필요한 암호화 제거 및 기본 플래그십 자동 무해 전환
 // 🚨 @PATCH : **2026-09-17** — [환경설정 Gemini API 키 및 모델 암호화 보존 강화]: saveSecureData 연동으로 API 키 및 AI 모델명 다중 백업 보존 및 삭제 시 안전 동기화
@@ -44,6 +45,10 @@ interface SettingsModalProps {
   setAutoSave: (v: number) => void;
   autoClosingBrackets: boolean;
   setAutoClosingBrackets: (v: boolean) => void;
+  editorFontWeight?: 'normal' | 'medium' | 'bold';
+  setEditorFontWeight?: (v: 'normal' | 'medium' | 'bold') => void;
+  editorHighContrast?: boolean;
+  setEditorHighContrast?: (v: boolean) => void;
   rootFolder: { name: string, handle?: any } | null;
   onSelectRootFolder: (type: 'local' | 'cloud' | 'browser', provider: string | null) => void;
   driveLetter: string;
@@ -88,6 +93,8 @@ export default function SettingsModal({
   onThemeChange,
   isActivated, isExpired,
   autoClosingBrackets, setAutoClosingBrackets,
+  editorFontWeight = 'medium', setEditorFontWeight,
+  editorHighContrast = false, setEditorHighContrast,
   geminiApiKey, setGeminiApiKey,
   aiModelName, setAiModelName,
   resourceFolder, onSelectResourceFolder, onClearResourceFolder,
@@ -597,6 +604,37 @@ export default function SettingsModal({
                       <option value={30}>30초</option>
                       <option value={60}>1분</option>
                     </select>
+                  }
+                />
+
+                <SettingRow 
+                  icon={<Icon name="Bold" size={18} />}
+                  title="에디터 글꼴 굵기 (Font Weight)"
+                  description="모니터 난반사나 어두운 환경에서 텍스트가 흐릿하게 보이지 않도록 획 굵기를 조절합니다."
+                  control={
+                    <select
+                      value={editorFontWeight}
+                      onChange={(e) => setEditorFontWeight?.(e.target.value as 'normal' | 'medium' | 'bold')}
+                      className={`px-4 py-2 rounded-lg text-[13px] font-medium outline-none cursor-pointer border transition-colors ${
+                        isDarkMode ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-surface-container-low border-outline-variant/30 text-on-surface'
+                      }`}
+                    >
+                      <option value="normal">보통 (400 - Regular)</option>
+                      <option value="medium">선명하게 (500 - Medium) ★ 권장</option>
+                      <option value="bold">굵게 (700 - Bold)</option>
+                    </select>
+                  }
+                />
+
+                <SettingRow 
+                  icon={<Icon name="ThemeLight" size={18} />}
+                  title="고대비 텍스트 (High Contrast)"
+                  description="빛 난반사 방지를 위해 에디터 글씨 색상을 순수 흑백(최대 명암비)으로 또렷하게 표시합니다."
+                  control={
+                    <ToggleSwitch 
+                      active={!!editorHighContrast} 
+                      onChange={() => setEditorHighContrast?.(!editorHighContrast)} 
+                    />
                   }
                 />
               </div>

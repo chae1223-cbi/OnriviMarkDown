@@ -1807,8 +1807,9 @@ input::-ms-clear {
 }
 
 /* ===================================================================
- * 💡 [ONRIVI-EDITOR-WRAP-001] Monaco Editor 긴 영문 단어 줄바꿈 최적화
- * 단어가 길어도 단어 전체가 통째로 떨어지지 않고 한글처럼 글자 단위로 끝까지 채우고 다음 줄로 넘어가도록 보장
+ * 💡 [ONRIVI-EDITOR-WRAP-001] Monaco Editor 긴 영문 단어 줄바꿈 최적화 및 텍스트 렌더링 선명화
+ * 1) 단어가 길어도 단어 전체가 통째로 떨어지지 않고 한글처럼 글자 단위로 끝까지 채우고 다음 줄로 넘어가도록 보장
+ * 2) text-rendering: geometricPrecision 및 앤티앨리어싱으로 난반사/어두운 환경에서 글자 흐림 방지
  * =================================================================== */
 .monaco-editor,
 .monaco-editor .view-line,
@@ -1816,4 +1817,7 @@ input::-ms-clear {
 .monaco-editor .monaco-scrollable-element {
   word-break: break-all !important;
   overflow-wrap: anywhere !important;
+  text-rendering: geometricPrecision !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
 }

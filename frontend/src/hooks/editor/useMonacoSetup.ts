@@ -4,6 +4,7 @@
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
 //             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
+// 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 연동] useMonacoSetup 마운트 시점에 deps.editorFontWeight(400/500/700) 옵션 반영
 // 🚨 @PATCH : **2026-09-23** — [긴 영문 단어 줄바꿈 개선] editor.updateOptions에 wordWrapBreakAfterCharacters(영문/숫자/기호 확장) 및 wordWrapBreakBeforeCharacters 지정하여 긴 영문 문장도 한글처럼 줄 끝에서 글자 단위(break-all)로 자연스럽게 분절되도록 개선
 // 🚨 @PATCH : **2026-09-23** — [긴 문구 줄바꿈 시 글자 잘림 및 중간 건너뛰기 버그 완전 해결] border-right: 120px CSS 강제 주입 제거 및 Monaco 공식 padding.right(32px) 적용으로 줄 끝 텍스트 누락 원천 방어
 // 🚨 @PATCH : **2026-09-23** — [좌측 에디터 D2Coding 스타일 명세 반영] D2CodingLigature 폰트, 15px, lineHeight 1.75(26px), 리가처 활성화, 스카이블루(#38bdf8) 커서, 다크 테마(#0f172a/#e2e8f0), 마크다운 기호(#60a5fa) 등 통합 반영
@@ -394,6 +395,7 @@ export function useMonacoSetup(deps: any) {
                     scrollBeyondLastLine: false,   // 마지막 줄 도달 시 즉시 자동 스크롤
                     fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
                     fontLigatures: true,
+                    fontWeight: deps.editorFontWeight === 'bold' ? '700' : deps.editorFontWeight === 'medium' ? '500' : '400',
                     lineHeight: 26, // 15px 기준 1.75 비율
                     letterSpacing: 0,
                     cursorWidth: 2,

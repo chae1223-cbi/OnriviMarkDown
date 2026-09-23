@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 및 고대비(High Contrast) 실시간 반영]: useEditorSettings에서 editorFontWeight, editorHighContrast 연동, Monaco editor updateOptions(fontWeight 400/500/700) 및 defineTheme 고대비(최대 명암비 순수 흑백) 동적 재적용
 // 🚨 @PATCH : **2026-09-23** — [인용구 한글/영문 Alert 태그 동시 지원] applyLinePrefix 및 플로팅 서식 툴바 인용구 드롭다운에 한글/영문 Alert 태그([!참고] / [!NOTE], [!팁] / [!TIP] 등) 치환 및 듀얼 표기 연동
 // 🚨 @PATCH : **2026-09-23** — [긴 영문 단어 줄바꿈 개선] Monaco 에디터 옵션에 wordWrapBreakAfterCharacters/wordWrapBreakBeforeCharacters 확장 및 break-all 연동으로 영문 단어가 통째로 다음 줄로 떨어지지 않고 한글처럼 줄 끝에서 글자 단위로 자연스럽게 줄바꿈되도록 개선
 // 🚨 @PATCH : **2026-09-23** — [좌측 에디터 D2Coding 스타일 명세 반영] D2CodingLigature 폰트, 15px, lineHeight 1.75(26px), 리가처 활성화, 스카이블루(#38bdf8) 커서, 다크 테마(#0f172a/#e2e8f0), padding.right 32px 안전 여백 적용
@@ -3312,6 +3313,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     handleThemeChange,
     autoClosingBrackets,
     setAutoClosingBrackets,
+    editorFontWeight,
+    setEditorFontWeight,
+    editorHighContrast,
+    setEditorHighContrast,
     geminiApiKey,
     setGeminiApiKey,
     aiModelName,
@@ -3639,14 +3644,46 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     if (mounted && isEditorReady && editorRef.current) {
-      // 1. 테마 강제 적용
+      // 1. 테마 및 고대비(High Contrast) 모드 강제 적용
       if ((window as any).monaco) {
         const monaco = (window as any).monaco;
+        EDITOR_THEMES.forEach(t => {
+          const isDark = t.base === 'vs-dark';
+          const defaultFg = isDark ? '#e2e8f0' : '#1e293b';
+          const defaultPunctuation = isDark ? 'e2e8f0' : '1e293b';
+          const activeFg = editorHighContrast ? (isDark ? '#ffffff' : '#000000') : defaultFg;
+          const activePunctuation = editorHighContrast ? (isDark ? 'ffffff' : '000000') : defaultPunctuation;
+
+          monaco.editor.defineTheme(t.id, {
+            base: t.base,
+            inherit: true,
+            rules: [
+              ...(t.rules || []),
+              { token: 'punctuation', foreground: activePunctuation },
+              { token: 'delimiter.markdown', foreground: editorHighContrast ? (isDark ? '38bdf8' : '1d4ed8') : '60a5fa', fontStyle: 'bold' },
+              { token: 'string.link.markdown', foreground: isDark ? '94a3b8' : '64748b' },
+              { token: 'variable.md', foreground: 'f59e0b' }
+            ],
+            colors: {
+              ...t.colors,
+              'editor.background': isDark ? '#0f172a' : '#ffffff',
+              'editorGutter.background': isDark ? '#0f172a' : '#ffffff',
+              'editor.foreground': activeFg,
+              'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8',
+              'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB',
+              'editorCursor.foreground': '#38bdf8',
+              'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#88888810',
+              'editorIndentGuide.background': '#88888815',
+              'editorIndentGuide.activeBackground': '#88888830',
+            }
+          });
+        });
         monaco.editor.setTheme(themePalette);
       }
-      // 2. 에디터 옵션(폰트 크기, 줄 바꿈, 읽기 전용 여부) 강제 동기화
+      // 2. 에디터 옵션(폰트 크기, 글꼴 굵기, 줄 바꿈, 읽기 전용 여부) 강제 동기화
       editorRef.current.updateOptions({
         fontSize: fontSize,
+        fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'medium' ? '500' : '400',
         wordWrap: wordWrap,
         wrappingStrategy: 'advanced',
         wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/\\:?#@!$%^&*+=~|*',
@@ -3664,7 +3701,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       });
     }
-  }, [themePalette, fontSize, wordWrap, mounted, isEditorReady, isRestrictedUser, previewMode, tabs.length]);
+  }, [themePalette, fontSize, wordWrap, editorFontWeight, editorHighContrast, mounted, isEditorReady, isRestrictedUser, previewMode, tabs.length]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0034] MainEditorApp.tsx ➔ darkModePaletteSync
@@ -6884,7 +6921,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     completionProviderRef, getSlashCommands, customSlashCommandsRef,
     handleEditorPaste, handlePasteImageFile,
     wikilinkProviderRef, docLinkFilesRef, readFileTextRef, extractHeadings, getRelativePath,
-    isEditorMountedRef, updateContent
+    isEditorMountedRef, updateContent, editorFontWeight
   });
 
   // Get docLinkPicker absolute screen coordinates based on cursor position
@@ -7540,21 +7577,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         beforeMount={(monaco) => {
                           EDITOR_THEMES.forEach(t => {
                             const isDark = t.base === 'vs-dark';
+                            const defaultFg = isDark ? '#e2e8f0' : '#1e293b';
+                            const defaultPunctuation = isDark ? 'e2e8f0' : '1e293b';
+                            const activeFg = editorHighContrast ? (isDark ? '#ffffff' : '#000000') : defaultFg;
+                            const activePunctuation = editorHighContrast ? (isDark ? 'ffffff' : '000000') : defaultPunctuation;
+
                             monaco.editor.defineTheme(t.id, {
                               base: t.base,
                               inherit: true,
                               rules: [
                                 ...(t.rules || []),
-                                { token: 'punctuation', foreground: isDark ? 'e2e8f0' : '1e293b' },
-                                { token: 'delimiter.markdown', foreground: '60a5fa', fontStyle: 'bold' },
-                                { token: 'string.link.markdown', foreground: '94a3b8' },
+                                { token: 'punctuation', foreground: activePunctuation },
+                                { token: 'delimiter.markdown', foreground: editorHighContrast ? (isDark ? '38bdf8' : '1d4ed8') : '60a5fa', fontStyle: 'bold' },
+                                { token: 'string.link.markdown', foreground: isDark ? '94a3b8' : '64748b' },
                                 { token: 'variable.md', foreground: 'f59e0b' }
                               ],
                               colors: {
                                 ...t.colors,
                                 'editor.background': isDark ? '#0f172a' : '#ffffff', // 🎯 사용자 명세: 다크 #0f172a / 라이트 #ffffff
                                 'editorGutter.background': isDark ? '#0f172a' : '#ffffff',
-                                'editor.foreground': isDark ? '#e2e8f0' : '#1e293b', // 🎯 사용자 명세: 다크 #e2e8f0
+                                'editor.foreground': activeFg, // 🎯 사용자 명세: 다크 #e2e8f0 (고대비 모드 시 순수 흑백)
                                 'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8', // 선명한 줄번호
                                 'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB', // 활성 행 줄번호 강조
                                 'editorCursor.foreground': '#38bdf8', // 🎯 사용자 명세: 밝은 스카이블루 (#38bdf8)
@@ -7577,6 +7619,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           lineDecorationsWidth: 10, // 💡 줄 번호와 본문 사이 여유 간격 확보
                           automaticLayout: true,
                           fontSize: fontSize || 15,
+                          fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'medium' ? '500' : '400',
                           lineHeight: 26, // 15px 기준 1.75 비율
                           fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
                           fontLigatures: true, // 기호 연산자 리가처(->, != 등) 활성화
@@ -8557,8 +8600,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               autoSave, setAutoSave, rootFolder, selectRootFolder, driveLetter, setDriveLetter,
               workspaceType, setWorkspaceType, previewMode, setPreviewMode, customHotkeys, setCustomHotkeys,
               customSlashCommands, setCustomSlashCommands, licenseKey, setLicenseKey, themePalette, handleThemeChange,
-              isActivated, autoClosingBrackets, setAutoClosingBrackets, geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
-              isActivated, licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
+              isActivated, autoClosingBrackets, setAutoClosingBrackets,
+              editorFontWeight, setEditorFontWeight, editorHighContrast, setEditorHighContrast,
+              geminiApiKey, setGeminiApiKey, aiModelName, setAiModelName,
+              licenseStatus, deviceId, handleSuccessActivation, handlers, content, currentFileNodeRef,
               setCurrentFileName, setCurrentFileNode, lastSavedContentRef, setSaveStatus, refreshFileList,
               showToast, editorRef, insertAtCursor, lastSelectionRef, setIsMergeMode, selectedMergeNodes, setSelectedMergeNodes,
               handleFileClick, profiles, activeProfileId, dynamicCssString, setActiveProfileId: handleProfileChange, setProfiles,
