@@ -4,7 +4,7 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
- * <2026.05.31> 최초작성
+ * 🚨 @PATCH : **2026-09-23** — [서식 툴바 인용구 한글/영문 Alert 태그 듀얼 지원] 인용구 선택 드롭다운에 한글/영문 태그([!참고] · [!NOTE] 등) 듀얼 표기 및 너비 확장
  * 🚨 @PATCH : **2026-09-23** — [인라인코드 및 인용(참조문헌) 아이콘 지정] 인라인 코드를 Password.png로, 인용(참조문헌)을 오른쪽 툴바 참조파일관리(NewspaperClipping) 아이콘으로 교체
  * 🚨 @PATCH : **2026-09-23** — [인라인 인용(CITE) 아이콘 교체] 인라인 인용(참조문헌) 아이콘을 frontend/public/icons/Password.png 이미지로 교체
  * 🚨 @PATCH : **2026-09-23** — [서식 툴바 인용구 아이콘 교체] 인용구(QUOTE) 아이콘을 텍스트(❝)에서 frontend/public/icons/WechatLogo.png 이미지로 교체
@@ -167,11 +167,11 @@ function Divider() {
 
 const ALERT_OPTIONS = [
   { id: 'QUOTE', label: '일반 인용구', icon: '❝', tag: '> ' },
-  { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️', tag: '[!NOTE]', color: 'text-[#0969da] dark:text-[#2f81f7]' },
-  { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡', tag: '[!TIP]', color: 'text-[#1a7f37] dark:text-[#3fb950]' },
-  { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢', tag: '[!IMPORTANT]', color: 'text-[#8250df] dark:text-[#a371f7]' },
-  { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️', tag: '[!WARNING]', color: 'text-[#9a6700] dark:text-[#d29922]' },
-  { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🚨', tag: '[!CAUTION]', color: 'text-[#d1242f] dark:text-[#f85149]' },
+  { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️', tag: '[!참고] · [!NOTE]', color: 'text-[#0969da] dark:text-[#2f81f7]' },
+  { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡', tag: '[!팁] · [!TIP]', color: 'text-[#1a7f37] dark:text-[#3fb950]' },
+  { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢', tag: '[!중요] · [!IMPORTANT]', color: 'text-[#8250df] dark:text-[#a371f7]' },
+  { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️', tag: '[!주의] · [!WARNING]', color: 'text-[#9a6700] dark:text-[#d29922]' },
+  { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🚨', tag: '[!경고] · [!CAUTION]', color: 'text-[#d1242f] dark:text-[#f85149]' },
 ];
 
 function QuoteDropdownBtn({ dispatch }: { dispatch: (cmd: any) => void }) {
@@ -214,7 +214,7 @@ function QuoteDropdownBtn({ dispatch }: { dispatch: (cmd: any) => void }) {
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
           <div className="px-3 py-1 text-[11px] font-bold text-zinc-400 dark:text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 mb-1 select-none">
             인용구 스타일 선택
           </div>

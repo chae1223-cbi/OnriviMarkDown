@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-23** — [한글 Alert 인용구 태그 지원] blockquote 렌더러에 한글 Alert 태그([!참고], [!팁], [!중요], [!주의], [!경고] 등) 파싱 엔진을 탑재하여 영문([!NOTE])과 한글 태그 모두 동일한 Alert 스타일로 완벽 렌더링되도록 구현
 // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: 어두운 배경의 코드블록 내부 활성 줄 하이라이트 시 코발트 블루 및 1px 인셋 아웃라인 스타일 연동으로 시인성 극대화
 // 🚨 @PATCH : **2026-09-17** — [코드블록 내부 에디터-미리보기 커서 위치 불일치 및 솟구침 결함 완벽 해결]: 코드블록 내부를 splitChildrenIntoLines로 분할하여 각 행마다 <span class="onrivi-line" data-line="...">를 1:1로 부여, 에디터 커서 이동 시 코드블록 내부 활성 줄 단독 하이라이트 및 Safe Zone 정밀 추종 연동
 // 🚨 @PATCH : **2026-09-16** — [데스크톱 미리보기 외부 링크 클릭 시 기본 웹브라우저 오픈 연동]: <a> 태그 렌더러에 handleExternalLinkClick 탑재하여 데스크톱(Electron) 환경에서 외부 웹 링크(http/https/mailto/tel) 및 www 링크 클릭 시 electronAPI.openExternal을 통해 시스템 기본 웹브라우저 새 창이 즉시 실행되도록 개선, 로컬 파일(file:///) 링크 openPath 연동
@@ -2852,13 +2853,26 @@ function MarkdownViewer({
               return <li style={style} className={props.className} {...props}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
-              // GitHub style Alerts 파싱: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]
+              // GitHub style Alerts 파싱: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION] + 한글 지원 ([!참고], [!팁], [!중요], [!주의], [!경고] 등)
               let alertType: 'NOTE' | 'TIP' | 'IMPORTANT' | 'WARNING' | 'CAUTION' | null = null;
+              let rawTagString = '';
               let processedChildren = children;
+
+              const KOREAN_ALERT_MAP: Record<string, 'NOTE' | 'TIP' | 'IMPORTANT' | 'WARNING' | 'CAUTION'> = {
+                'NOTE': 'NOTE', '참고': 'NOTE', '참조': 'NOTE', '메모': 'NOTE', '알림': 'NOTE',
+                'TIP': 'TIP', '팁': 'TIP', '도움말': 'TIP',
+                'IMPORTANT': 'IMPORTANT', '중요': 'IMPORTANT', '필독': 'IMPORTANT',
+                'WARNING': 'WARNING', '주의': 'WARNING',
+                'CAUTION': 'CAUTION', '경고': 'CAUTION', '위험': 'CAUTION',
+              };
+
+              const ALERT_TAG_PATTERN = '(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION|참고|참조|메모|알림|팁|도움말|중요|필독|주의|경고|위험)';
+              const alertRegex = new RegExp(`^\\[!(${ALERT_TAG_PATTERN})\\]`, 'i');
+              const removeRegex = new RegExp(`\\[!(${ALERT_TAG_PATTERN})\\]`, 'i');
 
               // 💡 [Alert 인용구 재귀 텍스트 탐색 및 태그 분리 엔진]
               // children이 배열이든, React 엘리먼트이든, rehypeSourceLinesPlugin의 <span className="onrivi-line">이든
-              // 깊이와 구조에 무관하게 트리의 가장 첫 번째 의미 있는 텍스트 노드를 찾아 Alert 태그([!NOTE] 등)를 정확히 판별합니다.
+              // 깊이와 구조에 무관하게 트리의 가장 첫 번째 의미 있는 텍스트 노드를 찾아 Alert 태그([!NOTE], [!참고] 등)를 정확히 판별합니다.
               const findFirstText = (n: any): string | null => {
                 if (!n) return null;
                 if (typeof n === 'string') {
@@ -2880,16 +2894,18 @@ function MarkdownViewer({
 
               const firstText = findFirstText(children);
               if (firstText) {
-                const match = firstText.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+                const match = firstText.match(alertRegex);
                 if (match) {
-                  alertType = match[1].toUpperCase() as any;
+                  rawTagString = match[1];
+                  const upperKey = rawTagString.toUpperCase();
+                  alertType = KOREAN_ALERT_MAP[upperKey] || KOREAN_ALERT_MAP[rawTagString] || null;
 
                   // 매칭된 [!TYPE] 태그를 첫 번째 텍스트 노드에서 안전하게 소거
                   let tagRemoved = false;
                   const removeTag = (n: any): any => {
                     if (tagRemoved || !n) return n;
                     if (typeof n === 'string') {
-                      const tagMatch = n.match(/\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+                      const tagMatch = n.match(removeRegex);
                       if (tagMatch) {
                         tagRemoved = true;
                         const idx = n.indexOf(tagMatch[0]);
@@ -2916,12 +2932,20 @@ function MarkdownViewer({
               }
 
               if (alertType) {
+                const isKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(rawTagString);
+                const titleMap: Record<'NOTE' | 'TIP' | 'IMPORTANT' | 'WARNING' | 'CAUTION', string> = {
+                  NOTE: isKorean ? rawTagString : 'Note',
+                  TIP: isKorean ? rawTagString : 'Tip',
+                  IMPORTANT: isKorean ? rawTagString : 'Important',
+                  WARNING: isKorean ? rawTagString : 'Warning',
+                  CAUTION: isKorean ? rawTagString : 'Caution',
+                };
                 const alertStyles = {
-                  NOTE: { border: 'border-blue-500 dark:border-blue-400', bg: 'bg-blue-50/90 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-300', icon: 'ℹ️', title: 'Note' },
-                  TIP: { border: 'border-emerald-500 dark:border-emerald-400', bg: 'bg-emerald-50/90 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', icon: '💡', title: 'Tip' },
-                  IMPORTANT: { border: 'border-purple-500 dark:border-purple-400', bg: 'bg-purple-50/90 dark:bg-purple-950/40', text: 'text-purple-700 dark:text-purple-300', icon: '📢', title: 'Important' },
-                  WARNING: { border: 'border-amber-500 dark:border-amber-400', bg: 'bg-amber-50/90 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', icon: '⚠️', title: 'Warning' },
-                  CAUTION: { border: 'border-rose-500 dark:border-rose-400', bg: 'bg-rose-50/90 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-300', icon: '🛑', title: 'Caution' },
+                  NOTE: { border: 'border-blue-500 dark:border-blue-400', bg: 'bg-blue-50/90 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-300', icon: 'ℹ️', title: titleMap.NOTE },
+                  TIP: { border: 'border-emerald-500 dark:border-emerald-400', bg: 'bg-emerald-50/90 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', icon: '💡', title: titleMap.TIP },
+                  IMPORTANT: { border: 'border-purple-500 dark:border-purple-400', bg: 'bg-purple-50/90 dark:bg-purple-950/40', text: 'text-purple-700 dark:text-purple-300', icon: '📢', title: titleMap.IMPORTANT },
+                  WARNING: { border: 'border-amber-500 dark:border-amber-400', bg: 'bg-amber-50/90 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', icon: '⚠️', title: titleMap.WARNING },
+                  CAUTION: { border: 'border-rose-500 dark:border-rose-400', bg: 'bg-rose-50/90 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-300', icon: '🛑', title: titleMap.CAUTION },
                 }[alertType];
 
                 return (

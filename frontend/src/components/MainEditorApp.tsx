@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [인용구 한글/영문 Alert 태그 동시 지원] applyLinePrefix 및 플로팅 서식 툴바 인용구 드롭다운에 한글/영문 Alert 태그([!참고] / [!NOTE], [!팁] / [!TIP] 등) 치환 및 듀얼 표기 연동
 // 🚨 @PATCH : **2026-09-23** — [긴 영문 단어 줄바꿈 개선] Monaco 에디터 옵션에 wordWrapBreakAfterCharacters/wordWrapBreakBeforeCharacters 확장 및 break-all 연동으로 영문 단어가 통째로 다음 줄로 떨어지지 않고 한글처럼 줄 끝에서 글자 단위로 자연스럽게 줄바꿈되도록 개선
 // 🚨 @PATCH : **2026-09-23** — [좌측 에디터 D2Coding 스타일 명세 반영] D2CodingLigature 폰트, 15px, lineHeight 1.75(26px), 리가처 활성화, 스카이블루(#38bdf8) 커서, 다크 테마(#0f172a/#e2e8f0), padding.right 32px 안전 여백 적용
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 화면/우측 툴바 잘림 방지 클램핑 개선] 에디터 분할 모드 시 툴바 너비(약 1200px)보다 좁은 에디터 폭으로 인해 우측 끝(수식 아이콘 등)이 화면/우측 툴바 밖으로 짤리던 결함 해결: 뷰포트 전체 우측 마진(winWidth - 68px) 기준 자동 클램핑 및 동적 너비 측정(floatingToolbarRef), max-w-[calc(100vw-80px)] 가로 스크롤 안전망 적용
@@ -5188,8 +5189,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (prefixType === 'quote' && alertType) {
       for (let i = startLine; i <= endLine; i++) {
         const lineContent = model.getLineContent(i);
-        // 기존 Alert 태그가 이미 있는 경우 태그 치환
-        const existingAlertMatch = lineContent.match(/^(\s*>+\s*)\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](.*)/i);
+        // 기존 Alert 태그(영문/한글)가 이미 있는 경우 태그 치환
+        const existingAlertMatch = lineContent.match(/^(\s*>+\s*)\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION|참고|참조|메모|알림|팁|도움말|중요|필독|주의|경고|위험)\](.*)/i);
         if (existingAlertMatch) {
           const prefix = existingAlertMatch[1];
           const rest = existingAlertMatch[2];
@@ -8664,17 +8665,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 ...(floatingQuoteDropdown.dropUp
                   ? { bottom: window.innerHeight - floatingQuoteDropdown.y + 4 }
                   : { top: floatingQuoteDropdown.y + 4 }),
-                minWidth: '176px',
+                minWidth: '230px',
               }}
               className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl py-1 flex flex-col overflow-y-auto"
             >
               {[
-                { id: 'QUOTE', label: '일반 인용구', icon: '❝' },
-                { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️' },
-                { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡' },
-                { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢' },
-                { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️' },
-                { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🚨' },
+                { id: 'QUOTE', label: '일반 인용구', icon: '❝', tag: '> ' },
+                { id: 'QUOTE_NOTE', label: '참고 (Note)', icon: 'ℹ️', tag: '[!참고] · [!NOTE]' },
+                { id: 'QUOTE_TIP', label: '팁 (Tip)', icon: '💡', tag: '[!팁] · [!TIP]' },
+                { id: 'QUOTE_IMPORTANT', label: '중요 (Important)', icon: '📢', tag: '[!중요] · [!IMPORTANT]' },
+                { id: 'QUOTE_WARNING', label: '주의 (Warning)', icon: '⚠️', tag: '[!주의] · [!WARNING]' },
+                { id: 'QUOTE_CAUTION', label: '경고 (Caution)', icon: '🚨', tag: '[!경고] · [!CAUTION]' },
               ].map((opt) => (
                 <button
                   key={opt.id}
@@ -8684,10 +8685,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     setFloatingQuoteDropdown(prev => ({ ...prev, open: false }));
                     setFloatingToolbar(prev => ({ ...prev, visible: false }));
                   }}
-                  className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 transition-colors cursor-pointer"
+                  className="w-full px-3 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center justify-between gap-3 transition-colors cursor-pointer"
                 >
-                  <span className="text-[14px]">{opt.icon}</span>
-                  <span className="font-semibold text-zinc-800 dark:text-zinc-200">{opt.label}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px]">{opt.icon}</span>
+                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">{opt.label}</span>
+                  </div>
+                  {opt.tag && (
+                    <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 font-bold">
+                      {opt.tag}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
