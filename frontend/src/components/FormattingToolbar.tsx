@@ -5,6 +5,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
+ * 🚨 @PATCH : **2026-09-23** — [서식 툴바 인용구 아이콘 교체] 인용구(QUOTE) 아이콘을 텍스트(❝)에서 frontend/public/icons/WechatLogo.png 이미지로 교체
  * 🚨 @PATCH : **2026-09-23** — [서식 툴바 아이콘 고대비 선명화] 반투명(opacity-75) 제거하여 100% 완전 불투명 및 고대비 적용
  * 🚨 @PATCH : **2026-09-23** — [서식 툴바 커스텀 아이콘 PNG 연동] 플로팅/상단 서식 툴바 15개 액션 아이콘을 frontend/public/icons PNG 및 NewspaperClipping으로 일원화
  * 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Eraser, Sparkles) 제거, Icon 컴포넌트로 교체. 나머지 이모지 버튼은 사용자 요청에 따라 유지.
@@ -193,10 +194,10 @@ function QuoteDropdownBtn({ dispatch }: { dispatch: (cmd: any) => void }) {
           e.preventDefault();
           dispatch('QUOTE');
         }}
-        className="h-8 px-1.5 rounded-l-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center justify-center text-[16px] cursor-pointer"
+        className="h-8 px-1.5 rounded-l-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center justify-center cursor-pointer"
         title="인용구 (Ctrl+Q)"
       >
-        ❝
+        <img src="./icons/WechatLogo.png" alt="인용구" className="w-5 h-5 object-contain dark:invert" />
       </button>
 
       <button

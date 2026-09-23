@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 인용구 아이콘 교체] 플로팅 툴바 인용구(QUOTE) 아이콘을 텍스트(❝)에서 frontend/public/icons/WechatLogo.png 이미지로 교체
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 아이콘 고대비 선명화] 플로팅 툴바 내부 모든 이미지 아이콘의 반투명(opacity-75) 제거 및 100% 완전 불투명·고대비 적용, 텍스트 및 참조문헌 아이콘 색상을 진하고 선명한 톤으로 개선
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 크기 및 아이콘 시인성 확대] 플로팅 툴바 버튼을 w-7→w-9, 아이콘 이미지를 w-4→w-5(20px), 텍스트/인용구/제목 컨트롤 크기를 확대하여 가독성 및 조작성 대폭 개선
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 커스텀 아이콘 PNG 연동] 플로팅 툴바 15개 서식 액션 아이콘을 frontend/public/icons PNG(ListNumbers, ListBullets, ListChecks, Eraser, MagicWand, Link, BookBookmark, Farm, FilmReel, Calendar, MapTrifold, Table, FileCode, PlusMinus) 및 오른쪽 툴바 참조문헌 아이콘(NewspaperClipping)으로 전면 교체
@@ -7886,7 +7887,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       <img src="./icons/ListBullets.png" alt="글머리 기호" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                       <div id="floating-quote-dropdown-container" className="relative inline-flex items-center rounded-lg border border-zinc-400 dark:border-zinc-600 bg-white/70 dark:bg-zinc-800/70">
-                                        <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-l-lg transition-all flex items-center justify-center text-[14px] font-bold" title="인용구 (기본)">❝</button>
+                                        <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-8 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-l-lg transition-all flex items-center justify-center" title="인용구 (기본)">
+                                          <img src="./icons/WechatLogo.png" alt="인용구" className="w-5 h-5 object-contain dark:invert" />
+                                        </button>
                                         <button
                                           onMouseDown={(e) => {
                                             e.preventDefault();
