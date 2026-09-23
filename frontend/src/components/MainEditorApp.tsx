@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [긴 영문 단어 줄바꿈 개선] Monaco 에디터 옵션에 wordWrapBreakAfterCharacters/wordWrapBreakBeforeCharacters 확장 및 break-all 연동으로 영문 단어가 통째로 다음 줄로 떨어지지 않고 한글처럼 줄 끝에서 글자 단위로 자연스럽게 줄바꿈되도록 개선
 // 🚨 @PATCH : **2026-09-23** — [좌측 에디터 D2Coding 스타일 명세 반영] D2CodingLigature 폰트, 15px, lineHeight 1.75(26px), 리가처 활성화, 스카이블루(#38bdf8) 커서, 다크 테마(#0f172a/#e2e8f0), padding.right 32px 안전 여백 적용
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 화면/우측 툴바 잘림 방지 클램핑 개선] 에디터 분할 모드 시 툴바 너비(약 1200px)보다 좁은 에디터 폭으로 인해 우측 끝(수식 아이콘 등)이 화면/우측 툴바 밖으로 짤리던 결함 해결: 뷰포트 전체 우측 마진(winWidth - 68px) 기준 자동 클램핑 및 동적 너비 측정(floatingToolbarRef), max-w-[calc(100vw-80px)] 가로 스크롤 안전망 적용
 // 🚨 @PATCH : **2026-09-23** — [참조 파일 관리 모달 미오픈 결함 해결] ModalManager modals props에 isReferenceModalOpen, setIsReferenceModalOpen 전달 누락을 복원하여 우측 툴바 참조 파일 관리(NewspaperClipping) 클릭 시 ReferenceManagerModal이 정상 오픈되도록 수정
@@ -3646,7 +3647,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       editorRef.current.updateOptions({
         fontSize: fontSize,
         wordWrap: wordWrap,
-        wordBreak: 'normal',
+        wrappingStrategy: 'advanced',
+        wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/\\:?#@!$%^&*+=~|*',
+        wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
         readOnly: tabs.length === 0 || isRestrictedUser,
         domReadOnly: tabs.length === 0 || isRestrictedUser,
       });
@@ -7585,6 +7588,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           'semanticHighlighting.enabled': true,
                           wordWrap: wordWrap || 'on',
                           wrappingStrategy: 'advanced',
+                          wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/\\:?#@!$%^&*+=~|*',
+                          wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
                           lineNumbers: 'on',
                           minimap: { enabled: false },
                           autoClosingBrackets: autoClosingBrackets ? 'languageDefined' : 'never',

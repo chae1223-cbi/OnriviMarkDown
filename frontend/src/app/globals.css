@@ -206,6 +206,7 @@ html, body {
   text-rendering: optimizeLegibility;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   letter-spacing: -0.012em;
+  word-break: break-all;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -1803,4 +1804,16 @@ input::-ms-clear {
 .dark .codeblock-area code,
 .dark .codeblock-area code * {
   color: #ffffff !important;
+}
+
+/* ===================================================================
+ * 💡 [ONRIVI-EDITOR-WRAP-001] Monaco Editor 긴 영문 단어 줄바꿈 최적화
+ * 단어가 길어도 단어 전체가 통째로 떨어지지 않고 한글처럼 글자 단위로 끝까지 채우고 다음 줄로 넘어가도록 보장
+ * =================================================================== */
+.monaco-editor,
+.monaco-editor .view-line,
+.monaco-editor .view-lines,
+.monaco-editor .monaco-scrollable-element {
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
 }
