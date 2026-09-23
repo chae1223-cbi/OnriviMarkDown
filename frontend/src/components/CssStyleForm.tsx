@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [제목 위계 H1~H6 왼쪽 여백(padding-left) 조절 슬라이더 위젯 신설]: H1 마스터 및 H2~H6 세부 설정에 왼쪽 여백 슬라이더 추가하여 제목 수직 정렬 정밀 조작 지원
  *   2026-09-24 — [서식 관리 우측 서식별 모듈 1:1 실시간 동기화 연동]: 아코디언 토글 시 onActiveSectionChange, 각 서식 속성 변경 시 onActiveTagChange 콜백 연동
  *   2026-09-12 — [모든 AI 질의 표준 재시도 적용]: 1회 실패 후 3초 대기 -> 2회 시도 후 3초 대기 -> 3회 시도 후 최종 실패 에러 표출 규칙 및 기본 모델 gemini-3.8-flash 통일 적용
  *   2026-09-11 — Modern Technical Editorial 표준 적용 및 미리보기 영역 사용자 정의 CSS (Custom CSS 직접 입력) 편집 아코디언 신설
@@ -1443,6 +1444,17 @@ ${guideContent}
                 onChange={(v) => updateCssRule('h1', 'margin-bottom', v + 'px')}
               />
 
+              {/* 왼쪽 여백 */}
+              <SliderWidget
+                label="H1 왼쪽 여백"
+                min={0}
+                max={60}
+                value={parseInt(h1Rules['padding-left']) || 0}
+                unit="px"
+                disabled={isSystemProfile}
+                onChange={(v) => updateCssRule('h1', 'padding-left', v + 'px')}
+              />
+
               {/* H1 글자 색상 (컬러 피커 연동) */}
               <ColorPickerWidget
                 label="H1 글자 색상"
@@ -1573,6 +1585,17 @@ ${guideContent}
                       unit="px"
                       disabled={isSystemProfile}
                       onChange={(v) => updateCssRule(tag, 'margin-bottom', v + 'px')}
+                    />
+
+                    {/* 왼쪽 여백 */}
+                    <SliderWidget
+                      label="왼쪽 여백"
+                      min={0}
+                      max={60}
+                      value={parseInt(tagRules['padding-left']) || 0}
+                      unit="px"
+                      disabled={isSystemProfile}
+                      onChange={(v) => updateCssRule(tag, 'padding-left', v + 'px')}
                     />
 
                     {/* 글자 색상 (컬러 피커 연동) */}

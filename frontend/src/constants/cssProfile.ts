@@ -4,7 +4,7 @@ import { CssProfile } from '../types/cssProfile';
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
 // 🛡️ @GUARD : 이 ID를 가진 프로필은 수정/삭제 불가
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-24** — [표준 서식 H1 왼쪽 여백 정렬]: system-1 H1의 padding-left 15px를 0px로 초기화하여 H2~H6와 시작선 완벽 일치
 // 🔗 @CALLS : isSystemProfileId
 // ====================================================================
 /**
@@ -94,7 +94,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "font-size": "28px",
         "font-weight": "bold",
         "color": "#0d0d0d",
-        "padding-left": "15px",
+        "padding-left": "0px",
         "margin-bottom": "20px",
         "border-bottom": "",
         "margin-top": "36px",
