@@ -5,6 +5,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
+ * 🚨 @PATCH : **2026-09-23** — [서식 툴바 아이콘 고대비 선명화] 반투명(opacity-75) 제거하여 100% 완전 불투명 및 고대비 적용
  * 🚨 @PATCH : **2026-09-23** — [서식 툴바 커스텀 아이콘 PNG 연동] 플로팅/상단 서식 툴바 15개 액션 아이콘을 frontend/public/icons PNG 및 NewspaperClipping으로 일원화
  * 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Eraser, Sparkles) 제거, Icon 컴포넌트로 교체. 나머지 이모지 버튼은 사용자 요청에 따라 유지.
  * 🚨 @PATCH : **2026-09-12** — AI 버튼 툴팁을 'AI 프롬프트'로 명칭 일원화 및 툴바 원래 이모지 서식 원복 유지
@@ -102,32 +103,32 @@ export default function FormattingToolbar() {
 
       {/* 문서/구분선 */}
       <FormatBtn label="—" title={tooltip('구분선', SHORTCUTS.hr)} onAction={() => dispatch('HR')} />
-      <FormatBtn label={<img src="./icons/ListNumbers.png" alt="숫자 목록" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('숫자 목록', SHORTCUTS.orderedList)} onAction={() => dispatch('ORDERED_LIST')} />
-      <FormatBtn label={<img src="./icons/ListBullets.png" alt="글머리 기호" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('글머리 기호', SHORTCUTS.list)} onAction={() => dispatch('LIST')} />
+      <FormatBtn label={<img src="./icons/ListNumbers.png" alt="숫자 목록" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('숫자 목록', SHORTCUTS.orderedList)} onAction={() => dispatch('ORDERED_LIST')} />
+      <FormatBtn label={<img src="./icons/ListBullets.png" alt="글머리 기호" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('글머리 기호', SHORTCUTS.list)} onAction={() => dispatch('LIST')} />
       <QuoteDropdownBtn dispatch={dispatch} />
-      <FormatBtn label={<img src="./icons/ListChecks.png" alt="체크리스트" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('체크리스트', SHORTCUTS.check)} onAction={() => dispatch('CHECK')} />
-      <FormatBtn label={<img src="./icons/Eraser.png" alt="태그 취소" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('태그 취소', SHORTCUTS.eraser)} onAction={() => dispatch('REMOVE_PREFIX')} />
-      <FormatBtn label={<img src="./icons/MagicWand.png" alt="문서 서식 일괄 정리" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('문서 서식 일괄 정리', SHORTCUTS.cleanDoc)} onAction={() => dispatch('CLEAN_DOC')} />
+      <FormatBtn label={<img src="./icons/ListChecks.png" alt="체크리스트" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('체크리스트', SHORTCUTS.check)} onAction={() => dispatch('CHECK')} />
+      <FormatBtn label={<img src="./icons/Eraser.png" alt="태그 취소" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('태그 취소', SHORTCUTS.eraser)} onAction={() => dispatch('REMOVE_PREFIX')} />
+      <FormatBtn label={<img src="./icons/MagicWand.png" alt="문서 서식 일괄 정리" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('문서 서식 일괄 정리', SHORTCUTS.cleanDoc)} onAction={() => dispatch('CLEAN_DOC')} />
 
       <Divider />
 
       {/* 링크/미디어 */}
-      <FormatBtn label={<img src="./icons/Link.png" alt="링크" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('링크', SHORTCUTS.link)} onAction={() => dispatch('LINK')} />
-      <FormatBtn label={<img src="./icons/BookBookmark.png" alt="문서 연결" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title="문서 연결" onAction={() => dispatch('DOCLINK')} />
-      <FormatBtn label={<Icon name="NewspaperClipping" size={15} className="text-zinc-600 dark:text-zinc-300 opacity-80" />} title={tooltip('인용(참조문헌)', 'Ctrl+Alt+C')} onAction={() => dispatch('CITE')} />
+      <FormatBtn label={<img src="./icons/Link.png" alt="링크" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('링크', SHORTCUTS.link)} onAction={() => dispatch('LINK')} />
+      <FormatBtn label={<img src="./icons/BookBookmark.png" alt="문서 연결" className="w-5 h-5 object-contain dark:invert" />} title="문서 연결" onAction={() => dispatch('DOCLINK')} />
+      <FormatBtn label={<Icon name="NewspaperClipping" size={18} className="text-zinc-800 dark:text-zinc-100" />} title={tooltip('인용(참조문헌)', 'Ctrl+Alt+C')} onAction={() => dispatch('CITE')} />
       <FormatBtn label="fn" title={tooltip('각주', SHORTCUTS.footnote)} onAction={() => dispatch('FOOTNOTE')} />
       <Divider />
-      <FormatBtn label={<img src="./icons/Farm.png" alt="이미지" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title="이미지" onAction={() => dispatch('IMAGE')} />
-      <FormatBtn label={<img src="./icons/FilmReel.png" alt="동영상삽입" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title="동영상삽입" onAction={() => dispatch('YOUTUBE')} />
-      <FormatBtn label={<img src="./icons/Calendar.png" alt="현재 날짜/시간" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title="현재 날짜/시간" onAction={() => dispatch('NOW')} />
+      <FormatBtn label={<img src="./icons/Farm.png" alt="이미지" className="w-5 h-5 object-contain dark:invert" />} title="이미지" onAction={() => dispatch('IMAGE')} />
+      <FormatBtn label={<img src="./icons/FilmReel.png" alt="동영상삽입" className="w-5 h-5 object-contain dark:invert" />} title="동영상삽입" onAction={() => dispatch('YOUTUBE')} />
+      <FormatBtn label={<img src="./icons/Calendar.png" alt="현재 날짜/시간" className="w-5 h-5 object-contain dark:invert" />} title="현재 날짜/시간" onAction={() => dispatch('NOW')} />
 
       <Divider />
 
       {/* 고급/코드 */}
-      <FormatBtn label={<img src="./icons/MapTrifold.png" alt="지도 삽입" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title="지도 삽입" onAction={() => dispatch('MAP')} />
-      <FormatBtn label={<img src="./icons/Table.png" alt="표 생성" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('표 생성', SHORTCUTS.table)} onAction={() => dispatch('TABLE')} />
-      <FormatBtn label={<img src="./icons/FileCode.png" alt="코드 블록" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('코드 블록', SHORTCUTS.code)} onAction={() => dispatch('CODE')} />
-      <FormatBtn label={<img src="./icons/PlusMinus.png" alt="수식(LaTeX)" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />} title={tooltip('수식(LaTeX)', SHORTCUTS.math)} onAction={() => dispatch('LATEX')} />
+      <FormatBtn label={<img src="./icons/MapTrifold.png" alt="지도 삽입" className="w-5 h-5 object-contain dark:invert" />} title="지도 삽입" onAction={() => dispatch('MAP')} />
+      <FormatBtn label={<img src="./icons/Table.png" alt="표 생성" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('표 생성', SHORTCUTS.table)} onAction={() => dispatch('TABLE')} />
+      <FormatBtn label={<img src="./icons/FileCode.png" alt="코드 블록" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('코드 블록', SHORTCUTS.code)} onAction={() => dispatch('CODE')} />
+      <FormatBtn label={<img src="./icons/PlusMinus.png" alt="수식(LaTeX)" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('수식(LaTeX)', SHORTCUTS.math)} onAction={() => dispatch('LATEX')} />
     </div>
   );
 }

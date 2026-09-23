@@ -4,6 +4,8 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 아이콘 고대비 선명화] 플로팅 툴바 내부 모든 이미지 아이콘의 반투명(opacity-75) 제거 및 100% 완전 불투명·고대비 적용, 텍스트 및 참조문헌 아이콘 색상을 진하고 선명한 톤으로 개선
+// 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 크기 및 아이콘 시인성 확대] 플로팅 툴바 버튼을 w-7→w-9, 아이콘 이미지를 w-4→w-5(20px), 텍스트/인용구/제목 컨트롤 크기를 확대하여 가독성 및 조작성 대폭 개선
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 커스텀 아이콘 PNG 연동] 플로팅 툴바 15개 서식 액션 아이콘을 frontend/public/icons PNG(ListNumbers, ListBullets, ListChecks, Eraser, MagicWand, Link, BookBookmark, Farm, FilmReel, Calendar, MapTrifold, Table, FileCode, PlusMinus) 및 오른쪽 툴바 참조문헌 아이콘(NewspaperClipping)으로 전면 교체
 // 🚨 @PATCH : **2026-09-20** — [브레드크럼 아이콘 탐색기 통일] 파일경로 브레드크럼의 폴더/파일 아이콘을 탐색기와 동일한 text-current + strokeWidth 1.75 미니멀 라인 스타일로 통일 (주황색 fill 제거)
 // 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(PanelLeft, FileText, Copy, Check, Folder, Plus, FolderPlus, Edit2, ChevronRight, ChevronDown, FileJson, FileCode, FileType, File, Trash2, Layers, X, Eraser, Sparkles, Loader2, Lock, HardDrive, Bot, Settings) 전체 제거, Icon 컴포넌트로 교체
@@ -7777,7 +7779,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           fixedLeft += rect.left;
 
                           // 💡 [플로팅 툴바 우측/상단 화면 이탈 방지 클램핑]
-                          const TOOLBAR_ESTIMATED_WIDTH = 880;
+                          const TOOLBAR_ESTIMATED_WIDTH = 1080;
                           const winWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
                           const maxRight = Math.min(winWidth - 16, rect.right - 16);
                           if (fixedLeft + TOOLBAR_ESTIMATED_WIDTH > maxRight) {
@@ -7844,7 +7846,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 editorRef.current?.focus();
                               }
                             }}
-                            className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl shadow-black/15 rounded-xl border border-black/5 dark:border-white/10 px-3 py-1.5 gap-1 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
+                            className="fixed z-[99999] flex items-center bg-white dark:bg-zinc-800 shadow-2xl shadow-black/20 rounded-2xl border border-black/10 dark:border-white/10 px-3.5 py-1.5 gap-1.5 animate-in fade-in zoom-in-95 duration-100 focus:outline-none cursor-move select-none"
                             style={{ top: Math.max(fixedTop, 60), left: fixedLeft, transform: 'translateY(-100%)' }}
                             onMouseDown={handleDragStart}
                           >
@@ -7855,36 +7857,36 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                               const isInTable = curLine.trim().startsWith('|') && (curLine.match(/\|/g) || []).length >= 2;
 
                               return (
-                                <div className="flex flex-row items-center gap-3 min-w-max">
+                                <div className="flex flex-row items-center gap-3.5 min-w-max">
                                   {/* 서식 */}
-                                  <div className="flex flex-row items-center gap-0.5">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('BOLD'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-black" title="굵게">B</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ITALIC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] italic font-serif" title="기울임">I</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('INLINE_CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="인라인 코드">{'</>'}</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('UNDERLINE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] underline" title="밑줄">U</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="취소선"><span className="line-through">S</span></button>
+                                  <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('BOLD'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-black" title="굵게">B</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ITALIC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] italic font-serif" title="기울임">I</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('INLINE_CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold" title="인라인 코드">{'</>'}</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('UNDERLINE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] underline font-bold" title="밑줄">U</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('STRIKETHROUGH'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold" title="취소선"><span className="line-through">S</span></button>
                                   </div>
-                                  <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
+                                  <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 제목 */}
-                                  <div className="flex flex-row items-center gap-0.5">
-                                    <div className="flex items-center border border-emerald-500/20 dark:border-emerald-500/30 rounded bg-emerald-500/5 dark:bg-emerald-500/10 py-0.5 px-1.5 gap-1.5">
-                                      <button onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.max(1, floatingHeadingLevel - 1)); }} disabled={floatingHeadingLevel === 1} className="w-5 h-6 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[9px]" title="제목 크기 키우기 (H1 방향)">▲</button>
-                                      <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand(`H${floatingHeadingLevel}`); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-6 flex items-center justify-center font-bold text-[11px] hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0" title={`제목 ${floatingHeadingLevel} 적용`}>H{floatingHeadingLevel}</button>
-                                      <button onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.min(6, floatingHeadingLevel + 1)); }} disabled={floatingHeadingLevel === 6} className="w-5 h-6 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[9px]" title="제목 크기 줄이기 (H6 방향)">▼</button>
+                                  <div className="flex flex-row items-center gap-1">
+                                    <div className="flex items-center border border-emerald-600/30 dark:border-emerald-500/40 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 py-0.5 px-1.5 gap-1.5 text-emerald-800 dark:text-emerald-300">
+                                      <button onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.max(1, floatingHeadingLevel - 1)); }} disabled={floatingHeadingLevel === 1} className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[10px] font-bold" title="제목 크기 키우기 (H1 방향)">▲</button>
+                                      <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand(`H${floatingHeadingLevel}`); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-8 h-7 flex items-center justify-center font-extrabold text-[13px] hover:bg-black/10 dark:hover:bg-white/10 rounded shrink-0" title={`제목 ${floatingHeadingLevel} 적용`}>H{floatingHeadingLevel}</button>
+                                      <button onMouseDown={(e) => { e.preventDefault(); setFloatingHeadingLevel(Math.min(6, floatingHeadingLevel + 1)); }} disabled={floatingHeadingLevel === 6} className="w-6 h-7 flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 text-[10px] font-bold" title="제목 크기 줄이기 (H6 방향)">▼</button>
                                     </div>
                                   </div>
-                                  <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
+                                  <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 문단 */}
-                                  <div className="flex flex-row items-center gap-0.5">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('HR'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px]" title="구분선">—</button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ORDERED_LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="숫자 목록">
-                                      <img src="./icons/ListNumbers.png" alt="숫자 목록" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                  <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('HR'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold" title="구분선">—</button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('ORDERED_LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="숫자 목록">
+                                      <img src="./icons/ListNumbers.png" alt="숫자 목록" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="글머리 기호">
-                                      <img src="./icons/ListBullets.png" alt="글머리 기호" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LIST'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="글머리 기호">
+                                      <img src="./icons/ListBullets.png" alt="글머리 기호" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                      <div id="floating-quote-dropdown-container" className="relative inline-flex items-center rounded border border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-800/50">
-                                        <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-6 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded-l transition-all flex items-center justify-center text-[12px]" title="인용구 (기본)">❝</button>
+                                      <div id="floating-quote-dropdown-container" className="relative inline-flex items-center rounded-lg border border-zinc-400 dark:border-zinc-600 bg-white/70 dark:bg-zinc-800/70">
+                                        <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('QUOTE'); setFloatingQuoteDropdown(prev => ({ ...prev, open: false })); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-l-lg transition-all flex items-center justify-center text-[14px] font-bold" title="인용구 (기본)">❝</button>
                                         <button
                                           onMouseDown={(e) => {
                                             e.preventDefault();
@@ -7901,52 +7903,52 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                               dropUp,
                                             }));
                                           }}
-                                          className="w-3.5 h-7 hover:bg-black/10 dark:hover:bg-white/10 rounded-r transition-all flex items-center justify-center text-[7px] text-zinc-500 dark:text-zinc-400"
+                                          className="w-4 h-9 hover:bg-black/10 dark:hover:bg-white/10 rounded-r-lg transition-all flex items-center justify-center text-[8px] text-zinc-700 dark:text-zinc-200 font-bold"
                                           title="인용구 스타일/Alert 태그 선택"
                                         >▼</button>
                                       </div>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CHECK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="체크리스트">
-                                      <img src="./icons/ListChecks.png" alt="체크리스트" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CHECK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="체크리스트">
+                                      <img src="./icons/ListChecks.png" alt="체크리스트" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="태그 취소">
-                                      <img src="./icons/Eraser.png" alt="태그 취소" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('REMOVE_PREFIX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="태그 취소">
+                                      <img src="./icons/Eraser.png" alt="태그 취소" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="문서 서식 일괄 정리">
-                                      <img src="./icons/MagicWand.png" alt="문서 서식 일괄 정리" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CLEAN_DOC'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="문서 서식 일괄 정리">
+                                      <img src="./icons/MagicWand.png" alt="문서 서식 일괄 정리" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                   </div>
-                                  <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
+                                  <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 삽입 */}
-                                  <div className="flex flex-row items-center gap-0.5">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LINK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="링크">
-                                      <img src="./icons/Link.png" alt="링크" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                  <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LINK'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="링크">
+                                      <img src="./icons/Link.png" alt="링크" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('DOCLINK'); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="문서 연결">
-                                      <img src="./icons/BookBookmark.png" alt="문서 연결" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('DOCLINK'); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="문서 연결">
+                                      <img src="./icons/BookBookmark.png" alt="문서 연결" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CITE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="인용(참조문헌)">
-                                      <Icon name="NewspaperClipping" size={15} className="text-zinc-600 dark:text-zinc-300 opacity-80" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CITE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="인용(참조문헌)">
+                                      <Icon name="NewspaperClipping" size={20} className="text-zinc-800 dark:text-zinc-100" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('FOOTNOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[13px] font-bold font-serif" title="각주">fn</button>
-                                    <div className="w-px h-5 mx-0.5 bg-black/10 dark:bg-white/10 shrink-0" />
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('IMAGE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="이미지">
-                                      <img src="./icons/Farm.png" alt="이미지" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('FOOTNOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[14px] font-black font-serif" title="각주">fn</button>
+                                    <div className="w-px h-5 mx-0.5 bg-black/15 dark:bg-white/15 shrink-0" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('IMAGE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="이미지">
+                                      <img src="./icons/Farm.png" alt="이미지" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('YOUTUBE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="동영상삽입">
-                                      <img src="./icons/FilmReel.png" alt="동영상삽입" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('YOUTUBE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="동영상삽입">
+                                      <img src="./icons/FilmReel.png" alt="동영상삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('NOW'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="현재 날짜/시간">
-                                      <img src="./icons/Calendar.png" alt="현재 날짜/시간" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('NOW'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="현재 날짜/시간">
+                                      <img src="./icons/Calendar.png" alt="현재 날짜/시간" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                   </div>
-                                  <div className="w-px h-8 bg-black/10 dark:bg-white/10" />
+                                  <div className="w-px h-7 bg-black/15 dark:bg-white/15" />
                                   {/* 고급 및 표 열 정렬 */}
-                                  <div className="flex flex-row items-center gap-0.5">
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('MAP'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="지도 삽입">
-                                      <img src="./icons/MapTrifold.png" alt="지도 삽입" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                  <div className="flex flex-row items-center gap-1 text-zinc-800 dark:text-zinc-100">
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('MAP'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="지도 삽입">
+                                      <img src="./icons/MapTrifold.png" alt="지도 삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('TABLE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="표 생성">
-                                      <img src="./icons/Table.png" alt="표 생성" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('TABLE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="표 생성">
+                                      <img src="./icons/Table.png" alt="표 생성" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     {isInTable && (
                                       <>
@@ -7958,7 +7960,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                             }
                                             setFloatingToolbar(prev => ({ ...prev, visible: false }));
                                           }}
-                                          className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[12px] font-bold text-blue-600 dark:text-blue-400"
+                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
                                           title="현재 열 왼쪽 정렬 (Alt+Shift+L)"
                                         >
                                           ⇤
@@ -7971,7 +7973,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                             }
                                             setFloatingToolbar(prev => ({ ...prev, visible: false }));
                                           }}
-                                          className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[12px] font-bold text-blue-600 dark:text-blue-400"
+                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
                                           title="현재 열 가운데 정렬 (Alt+Shift+C)"
                                         >
                                           ↔
@@ -7984,18 +7986,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                             }
                                             setFloatingToolbar(prev => ({ ...prev, visible: false }));
                                           }}
-                                          className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center text-[12px] font-bold text-blue-600 dark:text-blue-400"
+                                          className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[15px] font-bold text-blue-600 dark:text-blue-400"
                                           title="현재 열 오른쪽 정렬 (Alt+Shift+R)"
                                         >
                                           ⇥
                                         </button>
                                       </>
                                     )}
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="코드 블록">
-                                      <img src="./icons/FileCode.png" alt="코드 블록" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CODE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="코드 블록">
+                                      <img src="./icons/FileCode.png" alt="코드 블록" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LATEX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-7 h-7 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-all flex items-center justify-center" title="수식(LaTeX)">
-                                      <img src="./icons/PlusMinus.png" alt="수식(LaTeX)" className="w-4 h-4 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" />
+                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('LATEX'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="수식(LaTeX)">
+                                      <img src="./icons/PlusMinus.png" alt="수식(LaTeX)" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                   </div>
                                 </div>
