@@ -8,7 +8,7 @@ import { ToastProvider } from "@/components/ToastProvider";
 // 📊 [OMD-CORE-layout-0002] layout ➔ metadata
 // 🎯 @KICK  : Next.js Metadata 객체 - 페이지 제목, 설명, 아이콘 경로 설정
 // 🛡️ @GUARD : 없음
-// 🚨 @PATCH : 없음
+// 🚨 @PATCH : **2026-09-23** — [네이버 서치어드바이저 소유확인 메타태그 연동]: naver-site-verification(08215f3797f7f99a9dfe413b0ac38d58) 헤드 메타태그 추가 및 HTML 인증 파일 탑재
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const metadata: Metadata = {
@@ -75,6 +75,7 @@ export default function RootLayout({
           content="default-src 'self' app: media: media-local:; script-src 'self' app: 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://maps.gstatic.com https://maps.googleapis.com https://static.cloudflareinsights.com https://translate.googleapis.com; style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://translate.googleapis.com https://www.gstatic.com; font-src 'self' app: https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' app: data: blob: http: https: file: media: media-local: https://www.gstatic.com; connect-src 'self' app: data: blob: ws: wss: https: http: extension: edge-extension: chrome-extension: webpack: http://localhost:* http://127.0.0.1:* http://localhost:3100 http://localhost:3000 http://localhost:4000 http://localhost:5000 http://localhost:11434 http://127.0.0.1:3100 http://127.0.0.1:3000 http://127.0.0.1:4000 http://127.0.0.1:5000 media: media-local: https://onrivi.com https://*.onrivi.com https://fonts.googleapis.com https://fonts.gstatic.com https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://translate.googleapis.com https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com; child-src 'self' app: blob: media: media-local: https: https://maps.google.com https://www.google.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com; media-src 'self' app: media: media-local: blob: https:;"
         />
         <meta name="color-scheme" content="light" />
+        <meta name="naver-site-verification" content="08215f3797f7f99a9dfe413b0ac38d58" />
         <link rel="icon" href="/icon_onriveauther.png?v=1" type="image/png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
