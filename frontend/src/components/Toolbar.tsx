@@ -2,7 +2,8 @@
 // 📊 [OMD-EDIT-Toolbar-0003] Toolbar.tsx ➔ Toolbar
 // 🎯 @KICK  : 에디터 우측 사이드바 툴바 - 홈, 대시보드, 지식베이스, 서식, 참조, 환경설정 퀵 액션 제공
 // 🛡️ @GUARD : 라이선스 및 뷰포트 상태에 따른 프로덕티비티 도구 조건부 노출
-// 🚨 @PATCH : **2026-09-20** — [툴바 크기 확대 + CubeFocus 재교체] 전체 버튼 w-8→w-10, icon 16→20px 확대. CubeFocus를 BoxSelect(점선)에서 PackageSearch(큐브+돋보기)로 재교체
+// 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 아이콘 커스텀 PNG 연동] CubeFocus 아이콘을 frontend/public/icons/CubeFocus.png 원본 이미지로 연동 (dark:invert 적용)
+//             **2026-09-20** — [툴바 크기 확대 + CubeFocus 재교체] 전체 버튼 w-8→w-10, icon 16→20px 확대. CubeFocus를 BoxSelect(점선)에서 PackageSearch(큐브+돋보기)로 재교체
 //             **2026-09-20** — [플로팅툴바 아이콘 교체] 플로팅 서식 툴바 켜기/끄기 버튼을 FloatingToolbar→CubeFocus(BoxSelect)로 교체
 //             **2026-09-20** — [툴바 아이콘 색상 통일] 슬래시 빠른명령어(amber→zinc), 참조파일관리(amber→zinc) 색상을 나머지 툴바 아이콘과 동일하게 통일
 //             **2026-09-20** — [툴바 아이콘 3종 교체] 슬래시 빠른명령어(SlashCommand→TerminalWindow), 참조파일관리(Book→NewspaperClipping), 지식베이스(Library→HeadCircuit)
@@ -44,7 +45,11 @@ export default function Toolbar() {
             className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
             title="플로팅 서식 툴바 켜기/끄기"
           >
-            <Icon name="CubeFocus" size={20} className="text-zinc-500 dark:text-zinc-400" />
+            <img 
+              src="./icons/CubeFocus.png" 
+              alt="플로팅 서식 툴바" 
+              className="w-5 h-5 object-contain opacity-75 hover:opacity-100 dark:invert transition-opacity" 
+            />
           </button>
           
           <button
