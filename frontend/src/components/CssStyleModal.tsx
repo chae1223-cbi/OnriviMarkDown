@@ -299,6 +299,7 @@ export default function CssStyleModal({
                           <MarkdownViewer
                             content={mod.markdown}
                             originalContent={mod.markdown}
+                            customCss={dynamicCssString}
                           />
                         </div>
                       </div>
@@ -314,6 +315,7 @@ export default function CssStyleModal({
                   <MarkdownViewer
                     content={documentDisplayContent}
                     originalContent={documentDisplayContent}
+                    customCss={dynamicCssString}
                   />
                 </div>
               )}

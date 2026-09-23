@@ -47,6 +47,7 @@
 //             **2026-09-12** — [AI 모델 단일 소스(SSOT) 표준화]: 하단 플로팅 AI 모델 팝오버 및 2행 상태 표시줄을 ONRIVI_AI_MODELS 중앙 정의와 100% 동기화
 //             **2026-09-12** — AIDraftModal에 onModelChange prop 전달하여 모달 내부 모델 선택과 에디터 상태 실시간 양방향 동기화; 하단 플로팅 AI 모델 목록에 공인 안정 모델(Gemini 2.5 Flash, Gemini 2.0 Flash) 추가 연동
 //             **2026-09-12** — [플로팅 툴바 이모지 서식 원복 유지] 사용자 피드백을 반영하여 플로팅 서식 툴바의 친숙한 컬러 이모지(🔢, ☰, ❝, ☑️, 🧹, 🔗, 🔖, 📝, 🖼️, 🎞️, 📅, 🌏, 📶, ⇤, ↔, ⇥, ⌨️, 🧮) 인터페이스를 원래대로 완벽 복원 및 유지
+//             **2026-09-24** — [서식 기본 줄 간격(lineHeight) 실시간 반영 보장]: dynamicCssString 내 p, li, blockquote에 line-height: ${ps.lineHeight} 직접 주입 및 rules.p의 구버전 고정 line-height 오버라이드 차단
 //             **2026-09-11** — [에디터 Pretendard 웹폰트 1순위 적용] 모나코 에디터 fontFamily를 Pretendard/Pretendard Variable 최우선으로 변경하여 원번호(①, ②, ③) 크기 불일치 해소 및 무설치 고품질 한글 렌더링 보장
 //             **2026-09-11** — [코드블록 퀵래핑 언어 지원] quickWrap('code') 실행 시 insertBlockTag('```markdown', '```', '코드')로 연동하여 기본 언어를 markdown으로 지정하고 언어 자동 선택 보장
 //             **2026-09-11** — [인용구 Alert 태그 선택 커맨드 및 핸들러 연동] applyLinePrefix에 alertType 지원 및 Alert 태그 치환 로직 추가, QUOTE_NOTE ~ QUOTE_CAUTION 5종 커맨드 디스패치 연동
@@ -5609,9 +5610,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   text-rendering: optimizeLegibility !important;
 }
 .custom-preview-container p,
+.custom-preview-container .onrivi-content-root p,
 .custom-preview-container li,
-.custom-preview-container blockquote {
+.custom-preview-container .onrivi-content-root li,
+.custom-preview-container blockquote,
+.custom-preview-container .onrivi-content-root blockquote {
   font-size: inherit !important;
+  line-height: ${ps.lineHeight} !important;
 }
 /* 탭 간격 (Tab Size) — pre/code에서 탭 문자가 표시될 폭 */
 .custom-preview-container pre,
@@ -5639,6 +5644,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (v === '') return false;
         if (skipFontSize && prop === 'font-size') return false;
         if (prop === 'sentence-gap') return false;
+        // 💡 tag가 'p'이고 prop이 'line-height'일 경우, pageStyle.lineHeight가 마스터이므로 덮어쓰기 방지
+        if (tag === 'p' && prop === 'line-height') return false;
         return true;
       }).sort((a, b) => a[0].localeCompare(b[0]));
 

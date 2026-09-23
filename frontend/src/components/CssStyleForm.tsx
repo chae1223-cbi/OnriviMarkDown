@@ -764,7 +764,14 @@ ${guideContent}
       ...currentProfile,
       pageStyle: { ...currentProfile.pageStyle, [key]: value },
     };
-    triggerUpdate(updated, 'p', `본문 타이포그래피 (${String(key)})`);
+    if (key === 'lineHeight') {
+      const pRules = updated.rules.p || {};
+      updated.rules = {
+        ...updated.rules,
+        p: { ...pRules, 'line-height': value }
+      };
+    }
+    triggerUpdate(updated, 'p', `본문 줄 간격 (${value}배)`);
   };
 
   const handleNameChange = (name: string) => {
