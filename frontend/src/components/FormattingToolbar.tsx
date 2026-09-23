@@ -5,6 +5,7 @@
  * 변경내역
  * -----------------------------------------------------------------------
  * <2026.05.31> 최초작성
+ * 🚨 @PATCH : **2026-09-23** — [인라인 인용(CITE) 아이콘 교체] 인라인 인용(참조문헌) 아이콘을 frontend/public/icons/Password.png 이미지로 교체
  * 🚨 @PATCH : **2026-09-23** — [서식 툴바 인용구 아이콘 교체] 인용구(QUOTE) 아이콘을 텍스트(❝)에서 frontend/public/icons/WechatLogo.png 이미지로 교체
  * 🚨 @PATCH : **2026-09-23** — [서식 툴바 아이콘 고대비 선명화] 반투명(opacity-75) 제거하여 100% 완전 불투명 및 고대비 적용
  * 🚨 @PATCH : **2026-09-23** — [서식 툴바 커스텀 아이콘 PNG 연동] 플로팅/상단 서식 툴바 15개 액션 아이콘을 frontend/public/icons PNG 및 NewspaperClipping으로 일원화
@@ -116,7 +117,7 @@ export default function FormattingToolbar() {
       {/* 링크/미디어 */}
       <FormatBtn label={<img src="./icons/Link.png" alt="링크" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('링크', SHORTCUTS.link)} onAction={() => dispatch('LINK')} />
       <FormatBtn label={<img src="./icons/BookBookmark.png" alt="문서 연결" className="w-5 h-5 object-contain dark:invert" />} title="문서 연결" onAction={() => dispatch('DOCLINK')} />
-      <FormatBtn label={<Icon name="NewspaperClipping" size={18} className="text-zinc-800 dark:text-zinc-100" />} title={tooltip('인용(참조문헌)', 'Ctrl+Alt+C')} onAction={() => dispatch('CITE')} />
+      <FormatBtn label={<img src="./icons/Password.png" alt="인라인 인용" className="w-5 h-5 object-contain dark:invert" />} title={tooltip('인용(참조문헌)', 'Ctrl+Alt+C')} onAction={() => dispatch('CITE')} />
       <FormatBtn label="fn" title={tooltip('각주', SHORTCUTS.footnote)} onAction={() => dispatch('FOOTNOTE')} />
       <Divider />
       <FormatBtn label={<img src="./icons/Farm.png" alt="이미지" className="w-5 h-5 object-contain dark:invert" />} title="이미지" onAction={() => dispatch('IMAGE')} />

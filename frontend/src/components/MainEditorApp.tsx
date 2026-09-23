@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [인라인 인용(CITE) 아이콘 교체] 플로팅 서식 툴바의 인라인 인용(참조문헌) 아이콘을 frontend/public/icons/Password.png 이미지로 교체
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 인용구 아이콘 교체] 플로팅 툴바 인용구(QUOTE) 아이콘을 텍스트(❝)에서 frontend/public/icons/WechatLogo.png 이미지로 교체
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 아이콘 고대비 선명화] 플로팅 툴바 내부 모든 이미지 아이콘의 반투명(opacity-75) 제거 및 100% 완전 불투명·고대비 적용, 텍스트 및 참조문헌 아이콘 색상을 진하고 선명한 톤으로 개선
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 크기 및 아이콘 시인성 확대] 플로팅 툴바 버튼을 w-7→w-9, 아이콘 이미지를 w-4→w-5(20px), 텍스트/인용구/제목 컨트롤 크기를 확대하여 가독성 및 조작성 대폭 개선
@@ -7930,7 +7931,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       <img src="./icons/BookBookmark.png" alt="문서 연결" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('CITE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="인용(참조문헌)">
-                                      <Icon name="NewspaperClipping" size={20} className="text-zinc-800 dark:text-zinc-100" />
+                                      <img src="./icons/Password.png" alt="인라인 인용" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('FOOTNOTE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-[14px] font-black font-serif" title="각주">fn</button>
                                     <div className="w-px h-5 mx-0.5 bg-black/15 dark:bg-white/15 shrink-0" />
