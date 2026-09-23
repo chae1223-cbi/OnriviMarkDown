@@ -15,8 +15,8 @@
 function isAnyListLine(line: string): boolean {
   if (!line) return false;
   const trimmed = line.trim();
-  const isOrdered = /^\d+[\.\)]\s/.test(trimmed);
-  const isUnordered = /^(?:[-*+]\s|\[[ xX]?\])/.test(trimmed);
+  const isOrdered = /^(?:\d+[\.\)]|[①-⑩❶-❿\u2460-\u2469])\s/.test(trimmed);
+  const isUnordered = /^(?:[-*+]\s|\[[ xX]?\]|[\u2756-\u2767]\s)/.test(trimmed);
   return isOrdered || isUnordered;
 }
 
@@ -96,7 +96,7 @@ export interface ProcessedMarkdown {
 // ====================================================================
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
-// 🛡️ @GUARD : 빈 content, 코드 블록 내부/외부 분기, ordered/unordered list indent
+// 🚨 @PATCH : **2026-09-23** — [리스트 중간 빈 행/개행 시 독립 블록 분리 및 빈 행 렌더링] 리스트 항목 직후에 빈 행이나 <br> 태그가 나타났을 때 마크다운 파서의 단일 loose list 뭉침 현상을 방어하기 위해 onrivi-list-spacer 블록 및 완충 개행을 주입하여 에디터와 1:1로 동일한 빈 행 공간 렌더링 및 새 리스트 독립 분리 보장
 // 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) 빈 행 분리 및 중첩 들여쓰기 보존] 빈 줄 발생 시 앞뒤 리스트를 - onrivi-empty-row 로 인위 결합하던 로직을 제거하여 빈 행 뒤 새 리스트가 1번부터 독립 블록으로 시작되도록 보장, 상대 들여쓰기 2칸/4칸 모두 마크다운 중첩 서브리스트로 완벽 파싱되도록 개선
 // 🚨 @PATCH : **2026-09-11** — 괄호 숫자 넘버링(1), 2) 등) 마크다운 강제 ordered list 변환 및 마침표(1., 2.) 변질 방지 (닫는 괄호 자동 이스케이프 보존)
 //             **2026-09-06** — [표(Table) 파이프 생략 문법 지원 및 표 내부 빈 줄 주입 차단] isTableLine 헬퍼를 신설하여 선행/후행 파이프가 생략된 GFM 표 문법에서도 표 행 사이에 완충 개행이 주입되어 lineMap 및 뒤따르는 본문 줄 번호가 밀리는 현상을 원천 방지
@@ -312,11 +312,22 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       return line;
     }
 
-    // 🛡️ [빈 줄 리스트 분리 보장]:
-    // 빈 줄이 있을 때 앞뒤 리스트를 - onrivi-empty-row 로 인위 결합하면
-    // 번호 리스트나 글머리/체크박스가 분리되지 않고 하나로 이어지는 결함이 발생합니다.
-    // 따라서 빈 줄을 원형 그대로 보존하여 리스트 블록이 자연스럽게 분리(새로 1번 시작)되도록 유지합니다.
-    if (trimmed === "" || trimmed === "\u00A0") {
+    // 🛡️ [리스트 간 빈 행 분리 및 독립 블록 보장]:
+    // 리스트(숫자/글머리/체크박스) 직후에 빈 행이나 <br>이 오면, CommonMark 파서가 뒤따르는 리스트를
+    // 동일한 loose list로 결합해버리는 현상을 원천 방지하기 위해 <div class="onrivi-list-spacer">&nbsp;</div>로 변환합니다.
+    const isBlank = trimmed === "" || trimmed === "\u00A0" || /^(?:<br\s*\/?>)$/i.test(trimmed);
+    if (isBlank) {
+      let prevNonEmpty = "";
+      for (let p = index - 1; p >= 0; p--) {
+        if (correctedLines[p].trim() !== "") {
+          prevNonEmpty = correctedLines[p];
+          break;
+        }
+      }
+
+      if (prevNonEmpty && isAnyListLine(prevNonEmpty)) {
+        return '<div class="onrivi-list-spacer">&nbsp;</div>';
+      }
       return line;
     }
 
@@ -334,8 +345,8 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     finalLines.push(curr);
     finalLineMap.push(origLineNum);
 
-    if (i < correctedLines.length - 1) {
-      const next = correctedLines[i + 1];
+    if (i < deorderedLines.length - 1) {
+      const next = deorderedLines[i + 1];
       
       const isCurrSpecial = /^(?:\s*[-*+]\s|\s*\d+\.\s|\s*#+\s|---|\s*\||\s*\$\$|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767]|!\[|<(?:iframe|video)|\[(?:iframe|video|map):)/.test(curr.trim());
       const isNextSpecial = /^(?:\s*[-*+]\s|\s*\d+\.\s|\s*#+\s|---|\s*\||\s*\$\$|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767]|!\[|<(?:iframe|video)|\[(?:iframe|video|map):)/.test(next.trim());
@@ -348,14 +359,14 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       
       const isListLine = (line: string): boolean => {
         const trimmed = line.trim();
-        return /^(?:[-*+]\s|\d+\.\s|\[[ xX]?\]|[①-⑩❶-❿\u2460-\u2469\u2756-\u2767])/.test(trimmed);
+        return isAnyListLine(trimmed);
       };
       
       const currIndent = getLineIndent(curr);
       const nextIndent = getLineIndent(next);
       
-      const isCurrEmpty = curr === "" || curr === "\u00A0" || curr.includes("onrivi-list-spacer");
-      const isNextEmpty = next === "" || next === "\u00A0" || next.includes("onrivi-list-spacer");
+      const isCurrEmpty = curr === "" || curr === "\u00A0";
+      const isNextEmpty = next === "" || next === "\u00A0";
       const isCurrSpacer = curr === "\u00A0" || curr.includes("onrivi-list-spacer");
       const isNextSpacer = next === "\u00A0" || next.includes("onrivi-list-spacer");
       
@@ -369,7 +380,10 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       const isCurrListRow = curr.includes('onrivi-empty-list-row');
       const isNextListRow = next.includes('onrivi-empty-list-row');
 
-      if (!isTableToTable && !isQuoteToQuote && !isListToList && !isCurrEmpty && !isNextEmpty && !isCurrListRow && !isNextListRow && (isCurrSpecial || isNextSpecial || isNextNewIndent || isCurrSpacer || isNextSpacer)) {
+      // 💡 리스트와 spacer 사이, 또는 spacer와 리스트 사이는 마크다운 독립 블록 분리를 위해 빈 줄 주입
+      const isListToSpacer = (isListLine(curr) && isNextSpacer) || (isCurrSpacer && isListLine(next)) || (isCurrSpacer && isNextSpacer);
+
+      if (isListToSpacer || (!isTableToTable && !isQuoteToQuote && !isListToList && !isCurrEmpty && !isNextEmpty && !isCurrListRow && !isNextListRow && (isCurrSpecial || isNextSpecial || isNextNewIndent || isCurrSpacer || isNextSpacer))) {
         finalLines.push("");
         finalLineMap.push(origLineNum); // 추가된 빈 줄도 직전 원본 라인 번호에 매핑
       }
