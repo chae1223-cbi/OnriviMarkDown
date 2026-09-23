@@ -3,9 +3,11 @@
  * 데스크탑(Electron) 빌드 시 개발 전용 Next.js API 라우트를 빌드 대상에서 제외합니다.
  * 
  * 동작 순서:
- * 1. /api/view, /api/upload-pasted-image 폴더를 임시 이동 (_dev_backup/)
+ * 1. 웹 전용 라우트 임시 이동 (_dev_backup/)
  * 2. next build 실행
  * 3. 임시 이동한 폴더 원위치 복원
+ * 
+ * 🚨 @PATCH : **2026-09-23** — [데스크톱 빌드 실패 해결] DEV_ONLY_ROUTES에 /knowledge 웹 리다이렉트 라우트 추가 및 빌드 후 public/icons 정적 에셋 동기화 보강
  */
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -24,6 +26,7 @@ const DEV_ONLY_ROUTES = [
   { parent: APP_DIR, route: 'dashboard' },
   { parent: APP_DIR, route: 'docs' },
   { parent: APP_DIR, route: 'forgot-password' },
+  { parent: APP_DIR, route: 'knowledge' },
   { parent: APP_DIR, route: 'login' },
   { parent: APP_DIR, route: 'privacy' },
   { parent: APP_DIR, route: 'reset-password' },
@@ -76,6 +79,22 @@ try {
   // 백업 디렉토리 정리
   if (fs.existsSync(BACKUP_DIR)) {
     fs.rmSync(BACKUP_DIR, { recursive: true, force: true });
+  }
+}
+
+if (buildSuccess) {
+  try {
+    const publicIconsDir = path.join(__dirname, 'public', 'icons');
+    const outIconsDir = path.join(__dirname, 'out', 'icons');
+    if (fs.existsSync(publicIconsDir) && fs.existsSync(path.join(__dirname, 'out'))) {
+      if (!fs.existsSync(outIconsDir)) {
+        fs.mkdirSync(outIconsDir, { recursive: true });
+      }
+      fs.cpSync(publicIconsDir, outIconsDir, { recursive: true });
+      console.log('[desktop-build] public/icons -> out/icons 동기화 완료');
+    }
+  } catch (copyErr) {
+    console.warn('[desktop-build] out/icons 동기화 경고:', copyErr.message);
   }
 }
 

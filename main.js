@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-23** — [데스크톱 앱 최신 툴바 아이콘 및 에셋 서빙 보장] app:// 커스텀 프로토콜 핸들러에 frontend/out 부재 시 frontend/public 폴백 탐색 엔진을 탑재하여 데스크톱 앱에서 최신 툴바 아이콘(WechatLogo, Password, CubeFocus, NewspaperClipping 등) 100% 정상 노출 보장
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) IPC 지원 및 파일/폴더 조작 안정성 고도화]: 1) file:backupFolderForUndo 및 file:restoreFolderFromUndo 핸들러 신설하여 폴더 삭제 전 임시 디렉토리 백업 및 Ctrl+Z 복원 완벽 지원 2) file:rename, file:move, file:delete에서 Windows 파일 잠금 및 백신 프로세스 점유로 인한 EPERM/EBUSY 예외를 방어하기 위해 fs.rmSync에 maxRetries: 5, retryDelay: 100 옵션 탑재
 // 🚨 @PATCH : **2026-09-17** — [이전 작업(식품위생법/인디공연) 하드코딩 폴백 및 프롬프트 예시 전면 제거, 문서 기반 동적 태그/요약 추출 엔진 탑재]: 1) 해시태그 부재 시 문서 제목, 볼드 메타데이터(**문서명**, **프로젝트명** 등), 헤딩으로부터 실질 도메인 키워드를 동적 추출하여 타 문서 태그 오염 100% 원천 방어 2) AI 프롬프트 예시를 도메인 중립 템플릿으로 치환하여 소형 모델(Gemma)의 프롬프트 예시 베끼기 방지 3) 기본 요약/단락 정규식에서 이전 작업 하드코딩 제거 4) validChunks ReferenceError 및 LLM JSON 5단계 초정밀 복원 엔진 연동
 // 🚨 @PATCH : **2026-09-17** — [지식 문서 색인/상세조회 메타 청크 반환 0건 무결성 보장]: chunkMarkdownByHeadingsHelper 내부에서 isMetaOrAuxiliaryChunk 사전 필터링 적용, index 및 detail 반환 시 validChunks(7건)를 엄격히 매핑하여 UI 상에 서두/메타영역(#서식설정) 노출 원천 차단
@@ -2532,6 +2533,14 @@ app.on('ready', async () => {
          } else if (fs.existsSync(path.join(targetPath, 'index.html'))) {
              targetPath = path.join(targetPath, 'index.html');
          }
+      }
+
+      // 🛡️ [에셋 폴백] frontend/out에 파일이 없으면 frontend/public 탐색하여 아이콘/에셋 누락 방어
+      if (!fs.existsSync(targetPath)) {
+        const publicFallback = path.join(__dirname, 'frontend/public', pathname);
+        if (fs.existsSync(publicFallback)) {
+          targetPath = publicFallback;
+        }
       }
 
       const ext = path.extname(targetPath).toLowerCase();
