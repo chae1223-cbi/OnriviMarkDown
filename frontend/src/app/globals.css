@@ -888,13 +888,15 @@ mark.onrivi-search-text-highlight {
 .monaco-h1-text,
 .monaco-h2-text,
 .monaco-h3-text,
+.monaco-h4-text,
+.monaco-h5-text,
+.monaco-h6-text,
 .monaco-bold-text,
 .monaco-italic-text,
 .monaco-strikethrough-text,
 .monaco-md-syntax {
   display: inline !important;
   font-size: inherit !important;
-  font-weight: inherit !important;
 }
 
 /* 모나코 에디터 내부의 폰트는 MainEditorApp.tsx의 JS option(fontFamily)에서 전적으로 제어하도록 위임. 
@@ -918,18 +920,136 @@ mark.onrivi-search-text-highlight {
   caret-color: #38bdf8 !important; /* 🎯 사용자 명세: 밝은 스카이블루 */
 }
 
-.monaco-h1-text { color: #10b981 !important; text-decoration: underline !important; text-underline-offset: 4px; }
-.monaco-h2-text { color: #059669 !important; }
-.monaco-h3-text { color: #34d399 !important; }
-/* 에디터 라이트 테마 (vs) 적용 시 강조 스타일 */
-.vs .monaco-bold-text { color: #1e293b !important; font-weight: 600 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
-.vs .monaco-italic-text { text-decoration: underline dotted !important; color: #7c3aed !important; }
-.vs .monaco-md-syntax { color: #60a5fa !important; font-weight: 600 !important; opacity: 1 !important; }
+/* ===================================================================
+ * 🏷️ [ONRIVI-HEADING-CONTRAST-001] 제목 태그(#) 및 제목 텍스트 고대비·선명화 스타일
+ * 모니터 난반사/어두운 조명에서도 흐릿하지 않고 즉각 식별되도록 획 굵기(Bold) 및 깊은 명도 보장
+ * =================================================================== */
 
-/* 에디터 다크 테마 (vs-dark) 적용 시 강조 스타일 */
-.vs-dark .monaco-bold-text { color: #ffffff !important; font-weight: 600 !important; }
-.vs-dark .monaco-italic-text { color: #ffffff !important; font-style: italic !important; }
-.vs-dark .monaco-md-syntax { color: #60a5fa !important; font-weight: 600 !important; opacity: 1 !important; }
+/* 1. 기본 및 라이트 테마 (vs / onrivi-light) */
+.monaco-md-syntax,
+.vs .monaco-md-syntax {
+  color: #1d4ed8 !important; /* 선명하고 깊이감 있는 코발트 블루 (기존 흐릿한 #60a5fa 대체) */
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+.monaco-h1-text,
+.vs .monaco-h1-text {
+  color: #065f46 !important; /* 짙은 포레스트 에메랄드 */
+  font-weight: 700 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 4px;
+}
+
+.monaco-h2-text,
+.vs .monaco-h2-text {
+  color: #047857 !important; /* 진하고 또렷한 딥 에메랄드 */
+  font-weight: 700 !important;
+}
+
+.monaco-h3-text,
+.vs .monaco-h3-text {
+  color: #0f766e !important; /* 기존 흐릿한 연두색(#34d399)을 완벽 퇴출한 짙고 선명한 딥 틸 */
+  font-weight: 700 !important;
+}
+
+.monaco-h4-text,
+.monaco-h5-text,
+.monaco-h6-text,
+.vs .monaco-h4-text,
+.vs .monaco-h5-text,
+.vs .monaco-h6-text {
+  color: #1e3a8a !important; /* 선명한 네이비 블루 */
+  font-weight: 600 !important;
+}
+
+.vs .monaco-bold-text { color: #1e293b !important; font-weight: 700 !important; background-color: rgba(59, 130, 246, 0.08) !important; }
+.vs .monaco-italic-text { text-decoration: underline dotted !important; color: #7c3aed !important; }
+
+/* 2. 다크 테마 (vs-dark / onrivi-dark / dark) */
+.vs-dark .monaco-md-syntax,
+.dark .monaco-md-syntax {
+  color: #38bdf8 !important; /* 어두운 배경에 최적화된 밝은 스카이블루 */
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+.vs-dark .monaco-h1-text,
+.dark .monaco-h1-text {
+  color: #34d399 !important; /* 다크 배경에서 선명한 에메랄드 */
+  font-weight: 700 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 4px;
+}
+
+.vs-dark .monaco-h2-text,
+.dark .monaco-h2-text {
+  color: #2dd4bf !important; /* 밝고 또렷한 틸 */
+  font-weight: 700 !important;
+}
+
+.vs-dark .monaco-h3-text,
+.dark .monaco-h3-text {
+  color: #67e8f9 !important; /* 밝은 시안 */
+  font-weight: 600 !important;
+}
+
+.vs-dark .monaco-h4-text,
+.vs-dark .monaco-h5-text,
+.vs-dark .monaco-h6-text,
+.dark .monaco-h4-text,
+.dark .monaco-h5-text,
+.dark .monaco-h6-text {
+  color: #93c5fd !important;
+  font-weight: 600 !important;
+}
+
+.vs-dark .monaco-bold-text,
+.dark .monaco-bold-text { color: #ffffff !important; font-weight: 700 !important; }
+.vs-dark .monaco-italic-text,
+.dark .monaco-italic-text { color: #ffffff !important; font-style: italic !important; }
+
+/* 3. 고대비 모드 (High Contrast Mode 활성화 시 순수 흑백/최대 명암비) */
+.editor-high-contrast .monaco-md-syntax {
+  color: #1d4ed8 !important;
+  font-weight: 800 !important;
+}
+.editor-high-contrast.vs .monaco-h1-text,
+.editor-high-contrast.vs .monaco-h2-text,
+.editor-high-contrast.vs .monaco-h3-text,
+.editor-high-contrast.vs .monaco-h4-text,
+.editor-high-contrast.vs .monaco-h5-text,
+.editor-high-contrast.vs .monaco-h6-text,
+.editor-high-contrast:not(.vs-dark) .monaco-h1-text,
+.editor-high-contrast:not(.vs-dark) .monaco-h2-text,
+.editor-high-contrast:not(.vs-dark) .monaco-h3-text,
+.editor-high-contrast:not(.vs-dark) .monaco-h4-text,
+.editor-high-contrast:not(.vs-dark) .monaco-h5-text,
+.editor-high-contrast:not(.vs-dark) .monaco-h6-text {
+  color: #000000 !important; /* 완전 흑색 */
+  font-weight: 800 !important;
+}
+
+.editor-high-contrast.vs-dark .monaco-md-syntax,
+.dark .editor-high-contrast .monaco-md-syntax {
+  color: #38bdf8 !important;
+  font-weight: 800 !important;
+}
+.editor-high-contrast.vs-dark .monaco-h1-text,
+.editor-high-contrast.vs-dark .monaco-h2-text,
+.editor-high-contrast.vs-dark .monaco-h3-text,
+.editor-high-contrast.vs-dark .monaco-h4-text,
+.editor-high-contrast.vs-dark .monaco-h5-text,
+.editor-high-contrast.vs-dark .monaco-h6-text,
+.dark .editor-high-contrast .monaco-h1-text,
+.dark .editor-high-contrast .monaco-h2-text,
+.dark .editor-high-contrast .monaco-h3-text,
+.dark .editor-high-contrast .monaco-h4-text,
+.dark .editor-high-contrast .monaco-h5-text,
+.dark .editor-high-contrast .monaco-h6-text {
+  color: #ffffff !important; /* 완전 백색 */
+  font-weight: 800 !important;
+}
 
 .monaco-strikethrough-text { text-decoration: line-through !important; }
 

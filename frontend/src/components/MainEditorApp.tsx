@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-23** — [제목 태그(#) 및 헤딩 텍스트 고대비 선명화]: H1~H6 마크다운 접두사 태그(#)를 코발트 블루(#1d4ed8, 볼드)로 고대비 선명화, 제목 본문 흐릿한 연두색(#34d399)을 딥 틸/에메랄드(#0f766e, #047857)로 교체 및 에디터 컨테이너 editor-high-contrast 연동
 // 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 및 고대비(High Contrast) 실시간 반영]: useEditorSettings에서 editorFontWeight, editorHighContrast 연동, Monaco editor updateOptions(fontWeight 400/500/700) 및 defineTheme 고대비(최대 명암비 순수 흑백) 동적 재적용
 // 🚨 @PATCH : **2026-09-23** — [인용구 한글/영문 Alert 태그 동시 지원] applyLinePrefix 및 플로팅 서식 툴바 인용구 드롭다운에 한글/영문 Alert 태그([!참고] / [!NOTE], [!팁] / [!TIP] 등) 치환 및 듀얼 표기 연동
 // 🚨 @PATCH : **2026-09-23** — [긴 영문 단어 줄바꿈 개선] Monaco 에디터 옵션에 wordWrapBreakAfterCharacters/wordWrapBreakBeforeCharacters 확장 및 break-all 연동으로 영문 단어가 통째로 다음 줄로 떨어지지 않고 한글처럼 줄 끝에서 글자 단위로 자연스럽게 줄바꿈되도록 개선
@@ -3487,9 +3488,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const prefixLen = level + 1;
         newDecorations.push({
           range: new Range(lineNumber, 1, lineNumber, prefixLen + 1),
-          options: { inlineClassName: 'monaco-md-syntax' }
+          options: { inlineClassName: `monaco-md-syntax monaco-heading-syntax monaco-h${level}-syntax` }
         });
-        const cName = level === 1 ? 'monaco-h1-text' : level === 2 ? 'monaco-h2-text' : 'monaco-h3-text';
+        const cName = `monaco-h${level}-text`;
         newDecorations.push({
           range: new Range(lineNumber, prefixLen + 1, lineNumber, line.length + 1),
           options: { inlineClassName: cName }
@@ -7561,7 +7562,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     <div
                       className={`flex-1 min-w-0 relative transition-colors duration-300 no-print bg-white dark:bg-[#1e1e1e] ${
                         previewMode === 'both' ? 'border-r border-slate-300 dark:border-zinc-700 shadow-xs' : ''
-                      }`}
+                      } ${editorHighContrast ? 'editor-high-contrast' : ''}`}
                       style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
                     >
                       <Editor
