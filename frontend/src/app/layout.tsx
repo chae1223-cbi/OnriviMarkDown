@@ -8,21 +8,22 @@ import { ToastProvider } from "@/components/ToastProvider";
 // 📊 [OMD-CORE-layout-0002] layout ➔ metadata
 // 🎯 @KICK  : Next.js Metadata 객체 - 페이지 제목, 설명, 아이콘 경로 설정
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-09-23** — [네이버 서치어드바이저 SEO 메타데이터 규격 최적화]: 네이버 권장 글자수(제목 40자 이내, 설명 80자 이내, OG제목 40자 이내)에 맞춰 title(38자), description(76자), openGraph/twitter title(33자) 정밀 최적화
 // 🚨 @PATCH : **2026-09-23** — [네이버 서치어드바이저 소유확인 메타태그 연동]: naver-site-verification(08215f3797f7f99a9dfe413b0ac38d58) 헤드 메타태그 추가 및 HTML 인증 파일 탑재
 // 🔗 @CALLS : 없음
 // ====================================================================
 export const metadata: Metadata = {
   metadataBase: new URL('https://onrivi.com'),
-  title: "Onrivi Author - 마크다운 뷰어 & 마크다운 에디터 (Markdown Viewer & Edit) | 온리비 어서",
-  description: "AI는 마크다운으로, 사람은 문서로. 한글 입력 결함(Input Glitch) 없는 무결점 마크다운 뷰어 및 마크다운 에디터. KaTeX 수식, Mermaid 다이어그램, JSON 서식 프로필을 통한 원클릭 PDF/EPUB 출판 및 로컬 우선(Local-First) 보안 환경을 제공합니다.",
+  title: "Onrivi Author - 마크다운 뷰어 & 에디터 | 온리비 어서",
+  description: "한글 입력 오류 없는 마크다운 뷰어 & 에디터. 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 로컬 우선 보안을 제공합니다.",
   keywords: ["마크다운", "마크다운 에디터", "마크다운 뷰어", "마크다운viewer", "마크다운edit", "마크다운문서viwer", "Markdown Viewer", "Markdown Edit", "Markdown Editor", "Onrivi Author", "온리비어서", "Local-First", "로컬우선", "KaTeX", "Mermaid", "RAG전처리", "PDF변환", "EPUB출판", "1인개발"],
   authors: [{ name: "Onrivi (온리비) 채병익" }],
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: "Onrivi Author - 완벽한 마크다운 뷰어 & 마크다운 에디터 플랫폼",
-    description: "한글 입력 오류 제로, 인쇄소 품질의 PDF/EPUB 변환, 로컬 우선 보안 마크다운 뷰어 및 에디터 Onrivi Author를 만나보세요.",
+    title: "Onrivi Author - 완벽한 마크다운 뷰어 & 에디터",
+    description: "한글 입력 오류 없는 마크다운 뷰어 & 에디터. 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 로컬 우선 보안을 제공합니다.",
     url: 'https://onrivi.com',
     siteName: 'Onrivi Author',
     images: [
@@ -38,8 +39,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Onrivi Author - 완벽한 마크다운 뷰어 & 마크다운 에디터 플랫폼",
-    description: "한글 입력 오류 제로, 인쇄소 품질의 PDF/EPUB 변환, 로컬 우선 보안 마크다운 뷰어 및 에디터 Onrivi Author를 만나보세요.",
+    title: "Onrivi Author - 완벽한 마크다운 뷰어 & 에디터",
+    description: "한글 입력 오류 없는 마크다운 뷰어 & 에디터. 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 로컬 우선 보안을 제공합니다.",
     images: ['https://onrivi.com/og-image.png'],
   },
   icons: {
