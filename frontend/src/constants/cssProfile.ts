@@ -4,6 +4,7 @@ import { CssProfile } from '../types/cssProfile';
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
 // 🛡️ @GUARD : 이 ID를 가진 프로필은 수정/삭제 불가
+// 🚨 @PATCH : **2026-09-24** — [시스템 프로필 blockquote 기본 상하 마진(16px) 통일]: system-1/2/3의 blockquote margin-top/bottom을 16px로 일원화하여 초기 슬라이더 1:1 반응 보장
 // 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 시스템 서식 규격 표준화]: system-2 및 system-3에 hrStructure 기본 규격 추가 및 rules.hr 레거시 border:0 속성 정제
 // 🚨 @PATCH : **2026-09-24** — [표준 서식 H1 왼쪽 여백 정렬]: system-1 H1의 padding-left 15px를 0px로 초기화하여 H2~H6와 시작선 완벽 일치
 // 🔗 @CALLS : isSystemProfileId
@@ -217,8 +218,8 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "color": "#374151",
         "background-color": "#e8f2fd",
         "border-radius": "0 8px 8px 0",
-        "margin-top": "0px",
-        "margin-bottom": "0px",
+        "margin-top": "16px",
+        "margin-bottom": "16px",
         "font-weight": "bold",
         "border-left": "5px solid #2563eb"
       },
@@ -404,7 +405,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "padding": "0 1em",
       "color": "#57606a",
       "border-left": "0.25em solid #d0d7de",
-      "margin-top": "0",
+      "margin-top": "16px",
       "margin-bottom": "16px"
     },
     "table": {
@@ -591,7 +592,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "color": "#333333",
       "background-color": "#f9f9f9",
       "border-left": "4px solid #cccccc",
-      "margin-top": "0",
+      "margin-top": "16px",
       "margin-bottom": "16px"
     },
     "table": {

@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [인용구(blockquote) 상하 여백 및 형태 프리셋 triggerUpdate 연동]: 슬라이더 및 프리셋 클릭 시 triggerUpdate로 실시간 펄스 하이라이트 및 HUD 배지 동기화
  *   2026-09-24 — [수평 구분선(HR) 실시간 동기화 및 충돌 방어]: updateHrStructure에 rules.hr 동기화 및 triggerUpdate('hr') 연동, 구분선 스타일/두께/여백/너비 변경 시 우측 미리보기 즉시 갱신 및 펄스 피드백 지원
  *   2026-09-24 — [제목 위계 H1~H6 왼쪽 여백(padding-left) 조절 슬라이더 위젯 신설]: H1 마스터 및 H2~H6 세부 설정에 왼쪽 여백 슬라이더 추가하여 제목 수직 정렬 정밀 조작 지원
  *   2026-09-24 — [서식 관리 우측 서식별 모듈 1:1 실시간 동기화 연동]: 아코디언 토글 시 onActiveSectionChange, 각 서식 속성 변경 시 onActiveTagChange 콜백 연동
@@ -2008,7 +2009,7 @@ ${guideContent}
                       newBq['box-shadow'] = 'none';
                       newBq['border-radius'] = '0 8px 8px 0';
                       newBq['padding'] = '14px 20px';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }}, 'blockquote', '인용구 형태 (왼쪽 띠형)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isLeftLine ? activeClass : inactiveClass}`}
                   >
@@ -2025,7 +2026,7 @@ ${guideContent}
                       newBq['box-shadow'] = 'none';
                       newBq['border-radius'] = '8px';
                       newBq['padding'] = '16px';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }}, 'blockquote', '인용구 형태 (전체 박스형)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isFullBox ? activeClass : inactiveClass}`}
                   >
@@ -2045,7 +2046,7 @@ ${guideContent}
                       newBq['box-shadow'] = '0 8px 24px rgba(0,0,0,0.15)';
                       newBq['border-radius'] = '8px';
                       newBq['padding'] = '16px';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }}, 'blockquote', '인용구 형태 (그림자 박스형)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isShadowBox ? activeClass : inactiveClass}`}
                   >
@@ -2095,7 +2096,7 @@ ${guideContent}
                   newBq['border-left-width'] = v + 'px';
                   delete newBq['border-width'];
                 }
-                onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }});
+                triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, blockquote: newBq }}, 'blockquote', `인용 테두리 두께 (${v}px)`);
               }}
             />
 
@@ -2120,7 +2121,7 @@ ${guideContent}
               disabled={isSystemProfile}
               onChange={(v) => {
                 const pxVal = v + 'px';
-                onUpdateProfile({
+                const updated = {
                   ...currentProfile,
                   rules: {
                     ...currentProfile.rules,
@@ -2130,7 +2131,8 @@ ${guideContent}
                       'margin-bottom': pxVal
                     }
                   }
-                });
+                };
+                triggerUpdate(updated, 'blockquote', `인용 상하 여백 (${v}px)`);
               }}
             />
 
