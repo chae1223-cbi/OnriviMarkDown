@@ -96,6 +96,7 @@ export interface ProcessedMarkdown {
 // ====================================================================
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
+// 🚨 @PATCH : **2026-09-23** — [서브리스트 들여쓰기 보존 및 최상위 리스트 분리 정밀화] 빈 줄 직후 다음 줄의 들여쓰기(Indent > 0) 존재 시 리스트를 닫지 않고 해당 들여쓰기 깊이의 onrivi-empty-row를 주입하여 하위 계층 들여쓰기를 100% 보존하고, 들여쓰기 0칸인 최상위 리스트/문단 조우 시에만 onrivi-list-spacer로 독립 블록 분리하도록 정밀 개편
 // 🚨 @PATCH : **2026-09-23** — [리스트 중간 빈 행/개행 시 독립 블록 분리 및 빈 행 렌더링] 리스트 항목 직후에 빈 행이나 <br> 태그가 나타났을 때 마크다운 파서의 단일 loose list 뭉침 현상을 방어하기 위해 onrivi-list-spacer 블록 및 완충 개행을 주입하여 에디터와 1:1로 동일한 빈 행 공간 렌더링 및 새 리스트 독립 분리 보장
 // 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) 빈 행 분리 및 중첩 들여쓰기 보존] 빈 줄 발생 시 앞뒤 리스트를 - onrivi-empty-row 로 인위 결합하던 로직을 제거하여 빈 행 뒤 새 리스트가 1번부터 독립 블록으로 시작되도록 보장, 상대 들여쓰기 2칸/4칸 모두 마크다운 중첩 서브리스트로 완벽 파싱되도록 개선
 // 🚨 @PATCH : **2026-09-11** — 괄호 숫자 넘버링(1), 2) 등) 마크다운 강제 ordered list 변환 및 마침표(1., 2.) 변질 방지 (닫는 괄호 자동 이스케이프 보존)
@@ -237,12 +238,20 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
           
           const relativeIndent = Math.max(0, indentLength - listBlockBaseIndent);
           let normalizedIndent = "";
-          if (relativeIndent >= 4) {
-            const steps = Math.floor(relativeIndent / 4);
+          if (relativeIndent >= 2) {
+            // 💡 [지능형 다중 계층 들여쓰기 정규화] 2~4칸(1단계), 5~8칸(2단계), 9~12칸(3단계) 등
+            // 2칸/3칸/4칸 단위 작성자 모두 에디터의 서브리스트 계층이 축소/왜곡 없이 1:1로 정확하게 유지되도록 정규화
+            let steps = 1;
+            if (relativeIndent <= 4) {
+              steps = 1;
+            } else if (relativeIndent <= 8) {
+              steps = 2;
+            } else if (relativeIndent <= 12) {
+              steps = 3;
+            } else {
+              steps = Math.floor((relativeIndent + 1) / 4);
+            }
             normalizedIndent = "    ".repeat(steps);
-          } else if (relativeIndent >= 2) {
-            // 💡 [2~3칸 들여쓰기 서브리스트 정규화] 2칸/3칸 들여쓰기도 1단계(4칸) 서브리스트로 보정
-            normalizedIndent = "    ";
           }
           processedLine = prefix + normalizedIndent + remainingText.trim();
         } else {
@@ -312,9 +321,12 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
       return line;
     }
 
-    // 🛡️ [리스트 간 빈 행 분리 및 독립 블록 보장]:
-    // 리스트(숫자/글머리/체크박스) 직후에 빈 행이나 <br>이 오면, CommonMark 파서가 뒤따르는 리스트를
-    // 동일한 loose list로 결합해버리는 현상을 원천 방지하기 위해 <div class="onrivi-list-spacer">&nbsp;</div>로 변환합니다.
+    // 🛡️ [리스트 간 빈 행 분리 및 서브리스트 들여쓰기 보존]:
+    // 빈 줄이나 <br>이 나타났을 때:
+    // 1) 다음 줄이 들여쓰기(Indent > 0)가 적용된 하위 서브리스트인 경우:
+    //    리스트 블록을 닫지 않고 해당 들여쓰기 계층의 onrivi-empty-row 로 빈 행을 렌더링하여 들여쓰기 트리 구조를 100% 보존합니다.
+    // 2) 다음 줄이 최상위(들여쓰기 0칸) 리스트이거나 일반 문단인 경우:
+    //    앞선 리스트를 닫고 onrivi-list-spacer 로 분리하여 새 리스트가 독립 블록으로 시작되도록 보장합니다.
     const isBlank = trimmed === "" || trimmed === "\u00A0" || /^(?:<br\s*\/?>)$/i.test(trimmed);
     if (isBlank) {
       let prevNonEmpty = "";
@@ -325,7 +337,24 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
         }
       }
 
+      let nextNonEmpty = "";
+      for (let n = index + 1; n < correctedLines.length; n++) {
+        if (correctedLines[n].trim() !== "") {
+          nextNonEmpty = correctedLines[n];
+          break;
+        }
+      }
+
       if (prevNonEmpty && isAnyListLine(prevNonEmpty)) {
+        const nextIndent = nextNonEmpty ? getIndentLevel(nextNonEmpty) : 0;
+
+        // 다음 줄이 들여쓰기가 있는 서브리스트인 경우 들여쓰기 계층 보존
+        if (nextNonEmpty && isAnyListLine(nextNonEmpty) && nextIndent > 0) {
+          const indentSpaces = " ".repeat(nextIndent);
+          return `${indentSpaces}- onrivi-empty-row`;
+        }
+
+        // 최상위 리스트 분리 및 독립 블록 보장
         return '<div class="onrivi-list-spacer">&nbsp;</div>';
       }
       return line;
