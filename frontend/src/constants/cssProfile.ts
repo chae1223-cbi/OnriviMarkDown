@@ -4,6 +4,8 @@ import { CssProfile } from '../types/cssProfile';
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
 // 🛡️ @GUARD : 이 ID를 가진 프로필은 수정/삭제 불가
+// 🚨 @PATCH : **2026-09-24** — [수식(MATH) 시스템 서식 기본 상하 마진(16px) 및 정렬 표준화]: DEFAULT_PROFILE 및 system-3의 math margin 단축 속성 잔재를 margin-top/bottom: 16px 및 text-align: center로 일원화하여 슬라이더 충돌 방어
+// 🚨 @PATCH : **2026-09-24** — [미디어(이미지·비디오·지도) 기본 규격 및 상하/좌우 정렬 마진 표준화]: DEFAULT_PROFILE 및 SYSTEM_PROFILES(system-2, system-3)의 img, video, map 규칙에 기본 너비(width: 480px/560px/600px), 높이(height), 상하 마진(16px), 좌우 마진(auto)을 명시 부여하여 서식 제어 슬라이더 및 좌/중/우 정렬 변경 즉시 시각적 변화 보장
 // 🚨 @PATCH : **2026-09-24** — [표준 서식 표(Table) 기본 글자 크기 상속]: system-1의 table, th, td에서 고정 font-size(13px)를 제거하여 문서 기본 글자 크기(pageStyle.fontSize)를 기본 상속하도록 최적화
 // 🚨 @PATCH : **2026-09-24** — [시스템 프로필 blockquote 기본 상하 마진(16px) 통일]: system-1/2/3의 blockquote margin-top/bottom을 16px로 일원화하여 초기 슬라이더 1:1 반응 보장
 // 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 시스템 서식 규격 표준화]: system-2 및 system-3에 hrStructure 기본 규격 추가 및 rules.hr 레거시 border:0 속성 정제
@@ -240,7 +242,10 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "font-weight": "bold"
       },
       "img": {
+        "width": "480px",
         "border-radius": "16px",
+        "margin-top": "16px",
+        "margin-bottom": "16px",
         "margin-left": "auto",
         "margin-right": "auto",
         "background-color": "white",
@@ -255,8 +260,12 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "font-weight": "bold"
       },
       "video": {
+        "width": "560px",
+        "height": "315px",
         "border-radius": "8px",
         "box-shadow": "0 8px 16px rgba(0,0,0,0.08)",
+        "margin-top": "16px",
+        "margin-bottom": "16px",
         "margin-left": "auto",
         "margin-right": "auto",
         "display": "block",
@@ -270,8 +279,12 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "margin-bottom": "20px"
       },
       "map": {
+        "width": "600px",
+        "height": "350px",
         "border-radius": "8px",
         "box-shadow": "0 8px 16px rgba(0,0,0,0.08)",
+        "margin-top": "16px",
+        "margin-bottom": "16px",
         "margin-left": "auto",
         "margin-right": "auto"
       },
@@ -452,20 +465,37 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "background-color": "transparent"
     },
     "img": {
+      "width": "480px",
       "max-width": "100%",
       "box-sizing": "content-box",
-      "background-color": "#ffffff"
+      "background-color": "#ffffff",
+      "margin-top": "16px",
+      "margin-bottom": "16px",
+      "margin-left": "auto",
+      "margin-right": "auto"
     },
     "video": {
-      "max-width": "100%"
+      "width": "560px",
+      "height": "315px",
+      "max-width": "100%",
+      "margin-top": "16px",
+      "margin-bottom": "16px",
+      "margin-left": "auto",
+      "margin-right": "auto"
     },
     "math": {
       "display": "block",
-      "margin": "1em 0"
+      "text-align": "center",
+      "margin-top": "16px",
+      "margin-bottom": "16px"
     },
     "map": {
-      "width": "100%",
-      "height": "400px"
+      "width": "600px",
+      "height": "350px",
+      "margin-top": "16px",
+      "margin-bottom": "16px",
+      "margin-left": "auto",
+      "margin-right": "auto"
     },
     "footnote": {
       "font-size": "12px",
@@ -638,24 +668,38 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "text-decoration": "underline"
     },
     "img": {
+      "width": "480px",
       "max-width": "100%",
       "box-sizing": "content-box",
       "display": "block",
-      "margin": "0 auto"
+      "margin-top": "16px",
+      "margin-bottom": "16px",
+      "margin-left": "auto",
+      "margin-right": "auto"
     },
     "video": {
+      "width": "560px",
+      "height": "315px",
       "max-width": "100%",
       "display": "block",
-      "margin": "0 auto"
+      "margin-top": "16px",
+      "margin-bottom": "16px",
+      "margin-left": "auto",
+      "margin-right": "auto"
     },
     "math": {
       "display": "block",
-      "margin": "1em 0",
-      "text-align": "center"
+      "text-align": "center",
+      "margin-top": "16px",
+      "margin-bottom": "16px"
     },
     "map": {
-      "width": "100%",
-      "height": "400px"
+      "width": "600px",
+      "height": "350px",
+      "margin-top": "16px",
+      "margin-bottom": "16px",
+      "margin-left": "auto",
+      "margin-right": "auto"
     },
     "footnote": {
       "font-size": "13px",

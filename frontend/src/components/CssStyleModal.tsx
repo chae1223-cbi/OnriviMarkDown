@@ -3,8 +3,12 @@
  * 파일명 : CssStyleModal.tsx
  * -----------------------------------------------------------------------
  * 변경내역
- * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-09-24** — [표 래퍼(.table-wrapper-area) 펄스 및 여백 동기화 지원]: table 태그 조작 시 table 및 .table-wrapper-area 동시 타겟팅하여 펄스 애니메이션 및 정렬 뷰포트 추종
+ * 🚨 @PATCH : **2026-09-24** — [본문 문단(P/BR) 펄스 및 뷰포트 추종 시 활성 모듈 카드 스코핑 보장]: 모듈 모드에서 p 또는 br 조작 시 activeModuleId 카드의 문단을 우선 타겟팅하여 Card 1로의 엉뚱한 뷰포트 점프 버그 원천 차단
+ * 🚨 @PATCH : **2026-09-24** — [수식(MATH) 펄스 연동 및 고급 레이아웃·본문 문단 Card 6 스크롤 매핑 신설]:
+ *             1) advanced 아코디언 토글 시 Card 6(고급 레이아웃 및 본문 문단)으로의 부드러운 자동 스크롤 매핑 신설
+ *             2) math 태그 조작 시 .katex-display, .katex 요소를 찾아 실시간 펄스 하이라이트 및 뷰포트 추종 스크롤 연동
+ *             **2026-09-24** — [동영상(VIDEO) 및 지도(MAP) 요소 펄스 애니메이션 및 뷰포트 추종 지원]: video, youtube, map iframe 태그 조작 시 대상 요소를 정확히 찾아 펄스 하이라이트 및 화면 중앙 정렬
+ *             **2026-09-24** — [표 래퍼(.table-wrapper-area) 펄스 및 여백 동기화 지원]: table 태그 조작 시 table 및 .table-wrapper-area 동시 타겟팅하여 펄스 애니메이션 및 정렬 뷰포트 추종
  *             **2026-09-24** — [수평 구분선(HR) 타겟 자동 스크롤 및 속성 변경 시 요소 뷰포트 자동 정렬]: HR 아코디언 토글 시 Card 5 내부 hr 요소로 직행 스크롤하고, 속성 변경 시 뷰포트 밖 요소를 화면 중앙으로 자동 정렬하여 실시간 반응성 보장
  *             **2026-09-24** — [서식 관리 우측 5대 서식별 모듈 뭉침 뷰 및 1:1 실시간 동기화 펄스 연동]:
  *             1) 우측 뷰어를 좌측 설정과 1:1 대응되는 5대 서식 뭉침 카드(Grouped Showcase Cards)로 개편
@@ -67,7 +71,7 @@ export default function CssStyleModal({
   /* ─── 뷰 모드: 'modules' (서식별 뭉침 모아보기) vs 'document' (실제 내 문서 전체보기) ─── */
   const [previewViewMode, setPreviewViewMode] = useState<'modules' | 'document'>('modules');
   
-  /* ─── 현재 포커스된 서식 모듈 ID ('typography' | 'headings' | 'lists' | 'boxes' | 'media') ─── */
+  /* ─── 현재 포커스된 서식 모듈 ID ('typography' | 'headings' | 'lists' | 'boxes' | 'media' | 'advanced') ─── */
   const [activeModuleId, setActiveModuleId] = useState<string>('typography');
   
   /* ─── 실시간 동기화 상태 텍스트 ─── */
@@ -102,7 +106,8 @@ export default function CssStyleModal({
     else if (sectionId === 'lists') targetModule = 'lists';
     else if (sectionId === 'others') targetModule = 'boxes';
     else if (sectionId === 'media' || sectionId === 'hr') targetModule = 'media';
-    else if (sectionId === 'advanced' || sectionId === 'typography') targetModule = 'typography';
+    else if (sectionId === 'advanced') targetModule = 'advanced';
+    else if (sectionId === 'typography') targetModule = 'typography';
 
     setActiveModuleId(targetModule);
 
@@ -139,7 +144,14 @@ export default function CssStyleModal({
     // 우측 뷰어 컨테이너 내부의 해당 태그 요소에 펄스 애니메이션 부여
     const container = document.getElementById('omd-modal-preview-container');
     if (container) {
-      const selector = tag === 'table' ? 'table, .table-wrapper-area' : tag;
+      let selector = tag === 'table' ? 'table, .table-wrapper-area' : tag;
+      if (tag === 'video') selector = 'video, iframe[src*="youtube"], iframe[src*="vimeo"]';
+      else if (tag === 'map') selector = 'iframe[src*="map"], iframe[src*="google.com/maps"]';
+      else if (tag === 'img') selector = 'img, figure:has(img)';
+      else if (tag === 'math') selector = '.katex-display, .katex';
+      else if (tag === 'p' || tag === 'br') {
+        selector = previewViewMode === 'modules' ? `#omd-showcase-module-${activeModuleId} p` : 'p';
+      }
       const targetElements = container.querySelectorAll(selector);
       targetElements.forEach((el) => {
         el.classList.remove('onrivi-sync-pulse');
@@ -208,7 +220,7 @@ export default function CssStyleModal({
                     ? 'bg-white dark:bg-zinc-700 text-[#1d4ed8] dark:text-blue-400 shadow-sm'
                     : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'
                 }`}
-                title="5대 핵심 서식을 그룹별로 모아 한자리에서 정밀 비교"
+                title="6대 핵심 서식을 그룹별로 모아 한자리에서 정밀 비교"
               >
                 <Layers className="w-3.5 h-3.5" />
                 <span>서식별 모아보기</span>

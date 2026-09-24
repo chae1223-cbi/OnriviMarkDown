@@ -1,3 +1,5 @@
+// 🚨 @PATCH : **2026-09-24** — [미디어(이미지·비디오·지도) 렌더러 정렬 아키텍처 완성]: iframe 커스텀 렌더러 신설(.onrivi-map-wrapper), AsyncVideo 래퍼(.onrivi-video-wrapper) 탑재, figure img의 margin:0 !important 강제 초기화 제거, AsyncImage 하드코딩 width:100% 해제(maxWidth:100%/height:auto), 래퍼의 fit-content/align-self 인라인 연동 및 캡션 동기화로 서식 프로필 및 쿼리스트링 정렬 100% 실시간 반영 보장
+// 🚨 @PATCH : **2026-09-24** — [미디어(이미지/비디오/지도) 서식 스타일 100% 실시간 연동 및 flex 정렬 최적화]: imgStyle 하드코딩 maxWidth(600px) 및 figure 인라인 마진/중앙정렬 강제를 해제하고, AsyncImage 래퍼(.onrivi-image-wrapper) 및 video/iframe 정렬을 CSS 프로필 align-self/align-items와 1:1 완전 동기화
 // 🚨 @PATCH : **2026-09-24** — [표 둥근 모서리·그림자·지브라 오염 완전 소멸 및 기본 표 리셋]: MarkdownViewer 내장 스타일에 table border-spacing:0, border-radius:0, box-shadow:none 및 overflow:visible을 명시하여 전역 CSS 간섭 방어
 // 🚨 @PATCH : **2026-09-24** — [표 하단 여백 및 인용구 마진 상쇄 차단]: .table-wrapper-area 및 blockquote에 display:inline-block width:100%를 적용하여 마진 상쇄 원천 차단 및 *:has(+ blockquote) margin-bottom:0 강제 소거
 // 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 렌더링 지원]: MarkdownViewer 인라인 스타일에 th/td border-bottom-style inherit 및 border-collapse: collapse 보강
@@ -313,8 +315,8 @@ const AsyncImage = ({ src, alt, absolutePath, rootFolder, resourceFolderHandle, 
     };
 
     return (
-      <div data-line={extractDataLine(props)} className="relative group inline-block" style={style}>
-        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} onLoad={handleImgLoad} {...props} data-line={undefined} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      <div data-line={extractDataLine(props)} className={`relative group inline-flex flex-col onrivi-image-wrapper ${className || ''}`} style={style}>
+        <img ref={imgRef} src={imgSrc} alt={alt} className={className} onError={onImgError} onLoad={handleImgLoad} {...props} data-line={undefined} style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain' }} />
         <button
             onClick={handleCopy}
             className="copy-button-hook absolute top-2 right-2 px-2.5 py-1.5 bg-black/60 dark:bg-white/20 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity text-xs flex items-center gap-1.5 z-10 hover:bg-black/80 font-medium no-print"
@@ -485,7 +487,7 @@ const AsyncVideo = ({ src, absolutePath, rootFolder, resourceFolderHandle, works
   }
   if (!videoSrc) return <div className="animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded w-full h-48 flex items-center justify-center my-2 text-zinc-500 text-sm">비디오 불러오는 중...</div>;
   return (
-    <video controls src={videoSrc} style={style} className={`rounded-lg shadow-sm border border-zinc-200/30 w-full max-w-full outline-none bg-black ${className || ''}`} preload="metadata" {...props} />
+    <video controls src={videoSrc} style={style} className={`rounded-lg shadow-sm border border-zinc-200/30 max-w-full outline-none bg-black ${className || ''}`} preload="metadata" {...props} />
   );
 };
 
@@ -2006,9 +2008,6 @@ function MarkdownViewer({
         }
         .markdown-viewer-root figure {
             counter-increment: onrivi-figure;
-          }
-          .markdown-viewer-root figure img,
-          .markdown-viewer-root figure video {
             margin: 0 !important;
           }
           .markdown-viewer-root figure figcaption {
@@ -2161,16 +2160,18 @@ function MarkdownViewer({
               }
 
               return (
-                <figure data-line={extractDataLine(props, node)} style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '1.5rem', marginBottom: '1.5rem', clear: 'both', alignItems: 'center' }}>
-                  <AsyncVideo
-                    src={finalSrc}
-                    absolutePath={absolutePath}
-                    rootFolder={dynamicPropsRef.current.rootFolder}
-                    resourceFolderHandle={dynamicPropsRef.current.resourceFolderHandle}
-                    workspaceType={dynamicPropsRef.current.workspaceType}
-                    api={api}
-                    {...props}
-                  />
+                <figure data-line={extractDataLine(props, node)} className="onrivi-video-figure" style={{ display: 'flex', flexDirection: 'column', width: '100%', clear: 'both' }}>
+                  <div className="relative inline-flex flex-col onrivi-video-wrapper" style={{ display: 'inline-flex', flexDirection: 'column', width: 'fit-content', maxWidth: '100%' }}>
+                    <AsyncVideo
+                      src={finalSrc}
+                      absolutePath={absolutePath}
+                      rootFolder={dynamicPropsRef.current.rootFolder}
+                      resourceFolderHandle={dynamicPropsRef.current.resourceFolderHandle}
+                      workspaceType={dynamicPropsRef.current.workspaceType}
+                      api={api}
+                      {...props}
+                    />
+                  </div>
                 </figure>
               );
             },
@@ -2378,32 +2379,40 @@ function MarkdownViewer({
               if (height && /^\d+$/.test(height)) height = `${height}px`;
 
               const imgStyle: React.CSSProperties = {
-                ...style, maxWidth: '100%', height: height || 'auto',
+                ...style, maxWidth: '100%',
               };
-              imgStyle.width = width || undefined;
-              if (!width) imgStyle.maxWidth = 'min(100%, 600px)';
+              if (width) imgStyle.width = width;
+              if (height) imgStyle.height = height;
               
               let figureStyle: React.CSSProperties = {
                 display: 'flex',
                 flexDirection: 'column',
                 width: '100%',
-                marginTop: '0.75rem',
-                marginBottom: '1.25rem',
                 clear: 'both',
               };
 
-              let forceAlignClass = 'force-align-center';
+              let forceAlignClass = '';
               if (align === 'left') {
                 figureStyle.alignItems = 'flex-start';
                 figureStyle.textAlign = 'left';
+                imgStyle.alignSelf = 'flex-start';
+                imgStyle.marginLeft = '0px';
+                imgStyle.marginRight = 'auto';
                 forceAlignClass = 'force-align-left';
               } else if (align === 'right') {
                 figureStyle.alignItems = 'flex-end';
                 figureStyle.textAlign = 'right';
+                imgStyle.alignSelf = 'flex-end';
+                imgStyle.marginLeft = 'auto';
+                imgStyle.marginRight = '0px';
                 forceAlignClass = 'force-align-right';
-              } else {
+              } else if (align === 'center') {
                 figureStyle.alignItems = 'center';
                 figureStyle.textAlign = 'center';
+                imgStyle.alignSelf = 'center';
+                imgStyle.marginLeft = 'auto';
+                imgStyle.marginRight = 'auto';
+                forceAlignClass = 'force-align-center';
               }
               
               const imgElement = (
@@ -2426,16 +2435,16 @@ function MarkdownViewer({
               const line = extractDataLine(props, node);
               if (alt && alt.trim() !== '') {
                 return (
-                  <figure data-line={line} style={figureStyle}>
+                  <figure data-line={line} className="onrivi-image-figure" style={figureStyle}>
                     {imgElement}
-                    <figcaption className="text-[0.9em] text-zinc-500 mt-1 font-medium">
+                    <figcaption className="text-[0.9em] text-zinc-500 mt-1 font-medium" style={align ? { textAlign: align as any, alignSelf: figureStyle.alignItems } : undefined}>
                       {alt}
                     </figcaption>
                   </figure>
                 );
               }
               return (
-                <div data-line={line} style={figureStyle}>
+                <div data-line={line} className="onrivi-image-figure" style={figureStyle}>
                   {imgElement}
                 </div>
               );
@@ -2673,7 +2682,7 @@ function MarkdownViewer({
                 }
 
                 return (
-                  <figure data-line={videoDataLine} style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '0.75rem', marginBottom: '1.25rem', clear: 'both', alignItems: 'center' }}>
+                  <figure data-line={videoDataLine} className="onrivi-video-figure" style={{ display: 'flex', flexDirection: 'column', width: '100%', clear: 'both' }}>
                     <AsyncVideo
                       src={finalSrc}
                       absolutePath={absolutePath}
@@ -2796,31 +2805,36 @@ function MarkdownViewer({
             },
             iframe: ({ node, style, className, ...props }: any) => {
               const line = extractDataLine(props, node);
-              const align = props['data-align'] || (node?.properties && (node.properties['data-align'] || node.properties['dataAlign'])) || 'center';
+              const align = props['data-align'] || (node?.properties && (node.properties['data-align'] || node.properties['dataAlign']));
               let alignStyle: React.CSSProperties = {
                 display: 'flex',
                 flexDirection: 'column',
                 width: '100%',
-                marginTop: '0.75rem',
-                marginBottom: '1.25rem',
                 clear: 'both',
               };
               if (align === 'left') {
                 alignStyle.alignItems = 'flex-start';
               } else if (align === 'right') {
                 alignStyle.alignItems = 'flex-end';
-              } else {
+              } else if (align === 'center') {
                 alignStyle.alignItems = 'center';
               }
+              const src = props.src || (node?.properties && node.properties.src) || '';
+              const isMap = typeof src === 'string' && (src.includes('map') || src.includes('google.com/maps'));
+              const wrapperClass = isMap ? 'onrivi-map-wrapper map-embed-wrapper' : 'onrivi-iframe-wrapper';
+              const figureClass = isMap ? 'onrivi-map-figure' : 'onrivi-iframe-figure';
 
               return (
-                <div data-line={line} style={alignStyle} className="map-embed-wrapper my-2">
-                  <iframe
-                    {...props}
-                    className={`rounded-xl shadow-md border border-zinc-200 dark:border-zinc-800 max-w-full ${className || ''}`}
-                    style={{ ...style, maxWidth: '100%' }}
-                  />
-                </div>
+                <figure data-line={line} style={alignStyle} className={figureClass}>
+                  <div className={`relative inline-flex flex-col ${wrapperClass}`} style={{ display: 'inline-flex', flexDirection: 'column', width: 'fit-content', maxWidth: '100%' }}>
+                    <iframe
+                      {...props}
+                      className={`rounded-xl shadow-md border border-zinc-200 dark:border-zinc-800 max-w-full ${className || ''}`}
+                      style={{ ...style, maxWidth: '100%' }}
+                      loading="lazy"
+                    />
+                  </div>
+                </figure>
               );
             },
             input: ({ node, ...props }: any) => <input {...props} />,

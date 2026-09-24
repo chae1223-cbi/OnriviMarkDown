@@ -9,6 +9,20 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [사용자 정의 CSS(Custom CSS) 아코디언 완전 삭제]: 사용자 요청에 따라 불필요해진 커스텀 CSS 편집기 UI 소거
+ *   2026-09-24 — [본문 문단(P) 위/아래 여백, 문장 사이 간격, 줄간격 실시간 동기화 완벽 정상화]:
+ *     1) 문단 위/아래 여백, 문장 사이 간격, 들여쓰기 슬라이더 0px 설정 시 폴백 버그 해결 (0px 즉각 반응 보장) 및 triggerUpdate 연동
+ *     2) 문단 줄간격 슬라이더 조작 시 pageStyle.lineHeight 및 rules.p['line-height'] 동시 갱신으로 100% 실시간 연동
+ *   2026-09-24 — [수식(math) 기본 글자 크기 유지 및 상하여백 0px 데드존/단축속성 충돌 해결]:
+ *     1) 수식 글자 크기 기본설정 유지 클릭 시 currentProfile.rules.math에서 font-size를 정확히 제거하고 raw 프로필 기준으로 inherit 모드 정상 활성화
+ *     2) 상하 여백 슬라이더 0px 설정 시 || 16 폴백으로 인한 0px 무반응 버그 해결 (0px 즉각 반응 보장)
+ *     3) 단축 margin 잔재를 완전 소거하여 margin-top/margin-bottom 1:1 독립 제어 보장
+ *   2026-09-24 — [미디어(이미지·동영상·지도) 규격·상하여백·정렬 실시간 동기화 정상화]:
+ *     1) updateMediaAlign 및 상하 바깥 여백 슬라이더에 triggerUpdate 연동 및 HUD/펄스 피드백 활성화
+ *     2) 상하 바깥 여백 변경 시 기존 정렬(margin-left/right) 값이 중앙으로 강제 초기화되던 결함 원천 해결
+ *     3) updateMediaAlign 시 단축 margin 잔재 삭제 및 width 미지정 시 기본 너비 자동 보정으로 좌/우 정렬 시각적 식별성 확보
+ *     4) getMediaAlign에서 '0' 및 '0px' 양쪽 모두 정합 지원
+ *     5) 이미지 형태 프리셋 변경 시 triggerUpdate 연동
  *   2026-09-24 — [표 형태(가로선 강조/미니멀) 프리셋 잔재 속성 제거]: 프리셋 전환 시 border-style, border-width 등 단축 속성 잔재를 완전 소거하여 방향별 border: none 설정과의 CSS 충돌 원천 차단
  *   2026-09-24 — [브라우저 자동번역기 DOM 충돌 방어 및 FontSizeControl 안정화]: FontSizeControl에 notranslate/translate="no" 및 조건부 렌더링 key 부여, 텍스트 노드 단일 템플릿화로 크롬 번역기 removeChild NotFoundError 에러 원천 차단
  *   2026-09-24 — [문서 서식 기본 글자 크기 유지(상속) 및 직접 설정 듀얼 모드 위젯(FontSizeControl) 도입]: 표(Table), 인용구(Blockquote), 코드블록(CodeBlock), 각주(Footnote), 수식(Math)에 대해 '기본설정 유지' vs '직접 설정' 세그먼트 위젯을 제공하여 페이지 기본 글자 크기(pageStyle.fontSize) 실시간 동기화 지원
@@ -702,8 +716,10 @@ ${guideContent}
 
   const getMediaAlign = (tag: string): string => {
     const rules = getTagRules(tag);
-    if (rules['margin-left'] === '0px' && rules['margin-right'] === 'auto') return 'left';
-    if (rules['margin-left'] === 'auto' && rules['margin-right'] === '0px') return 'right';
+    const ml = rules['margin-left'];
+    const mr = rules['margin-right'];
+    if ((ml === '0px' || ml === '0') && mr === 'auto') return 'left';
+    if (ml === 'auto' && (mr === '0px' || mr === '0')) return 'right';
     return 'center';
   };
 
@@ -711,7 +727,7 @@ ${guideContent}
   // 📊 [OMD-CORE-CssStyleForm-0012] CssStyleForm ➔ updateMediaAlign
   // 🎯 @KICK  : 이미지/동영상/지도 미디어 객체의 정렬 방식(좌/중/우) 업데이트
   // 🛡️ @GUARD : isSystemProfile true면 실행 차단
-  // 🚨 @PATCH : 없음
+  // 🚨 @PATCH : 2026-09-24 — 단축 margin 잔재 삭제, width 미정의 시 기본 너비 자동 보정으로 정렬 시각적 식별 보장
   // 🔗 @CALLS : triggerUpdate, getTagRules, getMediaAlign
   // ====================================================================
   const updateMediaAlign = (tag: string, align: string) => {
@@ -719,6 +735,12 @@ ${guideContent}
     const tagKey = tag as keyof CssProfile['rules'];
     const baseRule = currentProfile.rules[tagKey] || {};
     let newRules: CssRuleSet = { ...baseRule, 'display': 'block', 'float': 'none' };
+    delete newRules['margin'];
+
+    if (!newRules['width']) {
+      const fallbackW = tag === 'img' ? '480px' : tag === 'video' ? '560px' : '600px';
+      newRules['width'] = getTagRules(tag)['width'] || fallbackW;
+    }
 
     if (align === 'left') {
       newRules['margin-left'] = '0px';
@@ -739,7 +761,9 @@ ${guideContent}
         [tagKey]: newRules
       }
     };
-    triggerUpdate(updated);
+    const tagLabel = tag === 'img' ? '이미지' : tag === 'video' ? '동영상' : '지도';
+    const alignLabel = align === 'left' ? '왼쪽' : align === 'right' ? '오른쪽' : '중앙';
+    triggerUpdate(updated, tag, `${tagLabel} 정렬 (${alignLabel})`);
   };
 
   // ====================================================================
@@ -1459,10 +1483,23 @@ ${guideContent}
                   label="문단 위 여백"
                   min={0}
                   max={48}
-                  value={parseInt((currentProfile.rules.p || {})['margin-top'] || '0') || 0}
+                  value={(() => {
+                    const raw = (currentProfile.rules.p || {})['margin-top'];
+                    return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 0;
+                  })()}
                   unit="px"
                   disabled={isSystemProfile}
-                  onChange={(v) => updateCssRule('p', 'margin-top', v + 'px')}
+                  onChange={(v) => {
+                    const px = v + 'px';
+                    const updated = {
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        p: { ...(currentProfile.rules.p || {}), 'margin-top': px }
+                      }
+                    };
+                    triggerUpdate(updated, 'p', `문단 위 여백 (${v}px)`);
+                  }}
                 />
 
                 {/* 3. 하단 여백 */}
@@ -1470,10 +1507,23 @@ ${guideContent}
                   label="문단 아래 여백"
                   min={0}
                   max={48}
-                  value={parseInt((currentProfile.rules.p || {})['margin-bottom'] || '16') || 16}
+                  value={(() => {
+                    const raw = (currentProfile.rules.p || {})['margin-bottom'];
+                    return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 16;
+                  })()}
                   unit="px"
                   disabled={isSystemProfile}
-                  onChange={(v) => updateCssRule('p', 'margin-bottom', v + 'px')}
+                  onChange={(v) => {
+                    const px = v + 'px';
+                    const updated = {
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        p: { ...(currentProfile.rules.p || {}), 'margin-bottom': px }
+                      }
+                    };
+                    triggerUpdate(updated, 'p', `문단 아래 여백 (${v}px)`);
+                  }}
                 />
 
                 {/* 3-1. 문장 사이 간격 */}
@@ -1481,10 +1531,23 @@ ${guideContent}
                   label="문장 사이 간격 (문단 내 줄바꿈 간격)"
                   min={0}
                   max={32}
-                  value={parseInt((currentProfile.rules.p || {})['sentence-gap'] || '0') || 0}
+                  value={(() => {
+                    const raw = (currentProfile.rules.p || {})['sentence-gap'];
+                    return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 0;
+                  })()}
                   unit="px"
                   disabled={isSystemProfile}
-                  onChange={(v) => updateCssRule('p', 'sentence-gap', v + 'px')}
+                  onChange={(v) => {
+                    const px = v + 'px';
+                    const updated = {
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        p: { ...(currentProfile.rules.p || {}), 'sentence-gap': px }
+                      }
+                    };
+                    triggerUpdate(updated, 'p', `문장 사이 간격 (${v}px)`);
+                  }}
                 />
 
                 {/* 4. 들여쓰기 */}
@@ -1492,10 +1555,23 @@ ${guideContent}
                   label="첫 줄 들여쓰기 (Text Indent)"
                   min={0}
                   max={48}
-                  value={parseInt((currentProfile.rules.p || {})['text-indent'] || '0') || 0}
+                  value={(() => {
+                    const raw = (currentProfile.rules.p || {})['text-indent'];
+                    return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 0;
+                  })()}
                   unit="px"
                   disabled={isSystemProfile}
-                  onChange={(v) => updateCssRule('p', 'text-indent', v + 'px')}
+                  onChange={(v) => {
+                    const px = v + 'px';
+                    const updated = {
+                      ...currentProfile,
+                      rules: {
+                        ...currentProfile.rules,
+                        p: { ...(currentProfile.rules.p || {}), 'text-indent': px }
+                      }
+                    };
+                    triggerUpdate(updated, 'p', `첫 줄 들여쓰기 (${v}px)`);
+                  }}
                 />
 
                 {/* 5. 줄간격 */}
@@ -1504,10 +1580,20 @@ ${guideContent}
                   min={1.0}
                   max={3.0}
                   step={0.1}
-                  value={parseFloat((currentProfile.rules.p || {})['line-height'] || '1.8') || 1.8}
+                  value={parseFloat((currentProfile.rules.p || {})['line-height'] || currentProfile.pageStyle.lineHeight || '1.8') || 1.8}
                   unit="배"
                   disabled={isSystemProfile}
-                  onChange={(v) => updateCssRule('p', 'line-height', v)}
+                  onChange={(v) => {
+                    const updated = {
+                      ...currentProfile,
+                      pageStyle: { ...currentProfile.pageStyle, lineHeight: String(v) },
+                      rules: {
+                        ...currentProfile.rules,
+                        p: { ...(currentProfile.rules.p || {}), 'line-height': String(v) }
+                      }
+                    };
+                    triggerUpdate(updated, 'p', `문단 줄 간격 (${v}배)`);
+                  }}
                 />
 
                 {/* 6. 글자 색상 (컬러 피커 연동) */}
@@ -2905,7 +2991,7 @@ ${guideContent}
                       img['border-radius'] = '4px';
                       img['padding'] = '0px';
                       img['background-color'] = 'transparent';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, img }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, img }}, 'img', '이미지 형태 (기본형)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isBasic ? activeClass : inactiveClass}`}
                   >
@@ -2920,7 +3006,7 @@ ${guideContent}
                       img['box-shadow'] = '0 8px 16px rgba(0,0,0,0.15)';
                       img['border-radius'] = '2px';
                       img['background-color'] = 'white';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, img }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, img }}, 'img', '이미지 형태 (폴라로이드형)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isPolaroid ? activeClass : inactiveClass}`}
                   >
@@ -2935,7 +3021,7 @@ ${guideContent}
                       img['box-shadow'] = '0 4px 12px rgba(0,0,0,0.1)';
                       img['border-radius'] = '16px';
                       img['padding'] = '0px';
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, img }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, img }}, 'img', '이미지 형태 (둥근 썸네일형)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isThumbnail ? activeClass : inactiveClass}`}
                   >
@@ -3002,20 +3088,22 @@ ${guideContent}
               onChange={(v) => {
                 const px = v + 'px';
                 if (!isSystemProfile) {
-                  onUpdateProfile({
+                  const cur = currentProfile.rules.img || {};
+                  const updated = {
                     ...currentProfile,
                     rules: {
                       ...currentProfile.rules,
                       img: {
-                        ...(currentProfile.rules.img || {}),
+                        ...cur,
                         'margin-top': px,
                         'margin-bottom': px,
                         'display': 'block',
-                        'margin-left': 'auto',
-                        'margin-right': 'auto'
+                        'margin-left': cur['margin-left'] || 'auto',
+                        'margin-right': cur['margin-right'] || 'auto'
                       }
                     }
-                  });
+                  };
+                  triggerUpdate(updated, 'img', `이미지 상하 바깥 여백 (${v}px)`);
                 }
               }}
             />
@@ -3065,20 +3153,22 @@ ${guideContent}
               onChange={(v) => {
                 const px = v + 'px';
                 if (!isSystemProfile) {
-                  onUpdateProfile({
+                  const cur = currentProfile.rules.video || {};
+                  const updated = {
                     ...currentProfile,
                     rules: {
                       ...currentProfile.rules,
                       video: {
-                        ...(currentProfile.rules.video || {}),
+                        ...cur,
                         'margin-top': px,
                         'margin-bottom': px,
                         'display': 'block',
-                        'margin-left': 'auto',
-                        'margin-right': 'auto'
+                        'margin-left': cur['margin-left'] || 'auto',
+                        'margin-right': cur['margin-right'] || 'auto'
                       }
                     }
-                  });
+                  };
+                  triggerUpdate(updated, 'video', `동영상 상하 바깥 여백 (${v}px)`);
                 }
               }}
             />
@@ -3128,20 +3218,22 @@ ${guideContent}
               onChange={(v) => {
                 const px = v + 'px';
                 if (!isSystemProfile) {
-                  onUpdateProfile({
+                  const cur = currentProfile.rules.map || {};
+                  const updated = {
                     ...currentProfile,
                     rules: {
                       ...currentProfile.rules,
                       map: {
-                        ...(currentProfile.rules.map || {}),
+                        ...cur,
                         'margin-top': px,
                         'margin-bottom': px,
                         'display': 'block',
-                        'margin-left': 'auto',
-                        'margin-right': 'auto'
+                        'margin-left': cur['margin-left'] || 'auto',
+                        'margin-right': cur['margin-right'] || 'auto'
                       }
                     }
-                  });
+                  };
+                  triggerUpdate(updated, 'map', `지도 상하 바깥 여백 (${v}px)`);
                 }
               }}
             />
@@ -3173,12 +3265,13 @@ ${guideContent}
               label="수식 글자 크기"
               min={10}
               max={32}
-              value={getTagRules('math')['font-size']}
+              value={(currentProfile.rules.math || {})['font-size']}
               baseFontSize={baseFontSize}
               disabled={isSystemProfile}
               onChange={(v) => {
+                const currentMath = currentProfile.rules.math || {};
                 if (!v) {
-                  const { 'font-size': _, ...rest } = getTagRules('math');
+                  const { 'font-size': _, ...rest } = currentMath;
                   triggerUpdate({
                     ...currentProfile,
                     rules: { ...currentProfile.rules, math: rest }
@@ -3192,23 +3285,28 @@ ${guideContent}
               label="수식 상하 바깥 여백"
               min={0}
               max={80}
-              value={parseInt(getTagRules('math')['margin-top']) || 16}
+              value={(() => {
+                const raw = (currentProfile.rules.math || {})['margin-top'];
+                return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 16;
+              })()}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
                 const px = v + 'px';
                 if (!isSystemProfile) {
-                  onUpdateProfile({
+                  const { margin: _, ...currentMath } = (currentProfile.rules.math || {});
+                  const updated = {
                     ...currentProfile,
                     rules: {
                       ...currentProfile.rules,
                       math: {
-                        ...(currentProfile.rules.math || {}),
+                        ...currentMath,
                         'margin-top': px,
                         'margin-bottom': px
                       }
                     }
-                  });
+                  };
+                  triggerUpdate(updated, 'math', `수식 상하 바깥 여백 (${v}px)`);
                 }
               }}
             />
@@ -3225,40 +3323,6 @@ ${guideContent}
                 <option value="right">오른쪽 정렬</option>
               </select>
             </div>
-          </div>
-        </AccordionSection>
-
-        {/* 🎨 아코디언 [7]: 사용자 정의 CSS (Custom CSS 직접 입력) */}
-        <AccordionSection
-          id="customCss"
-          title="🎨 사용자 정의 CSS (Custom CSS 직접 입력)"
-          isOpen={openAccordion === 'customCss'}
-          onToggle={() => handleAccordionToggle('customCss')}
-        >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[13.5px] font-bold text-zinc-700 dark:text-zinc-300">
-                추가 CSS 코드 직접 작성
-              </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                실시간 반영
-              </span>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              미리보기 영역에 적용할 사용자 정의 CSS 규칙을 직접 작성할 수 있습니다.
-              (예: <code className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">.custom-preview-container h1 &#123; letter-spacing: -0.02em; &#125;</code>)
-            </p>
-            <textarea
-              value={currentProfile.customCss || ''}
-              onChange={(e) => {
-                onUpdateProfile({ ...currentProfile, customCss: e.target.value });
-              }}
-              disabled={isSystemProfile}
-              placeholder={`/* 사용자 정의 CSS를 여기에 작성하세요 */\n.custom-preview-container {\n  /* 기본 미리보기 컨테이너 커스텀 스타일 */\n}\n\n.onrivi-content-root h1 {\n  /* 제목 서식 커스텀 */\n}`}
-              rows={8}
-              className={`w-full p-3 font-mono text-xs rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all resize-y ${isSystemProfile ? 'opacity-50 cursor-not-allowed' : ''}`}
-              spellCheck={false}
-            />
           </div>
         </AccordionSection>
 

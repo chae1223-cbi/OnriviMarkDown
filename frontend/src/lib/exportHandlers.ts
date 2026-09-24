@@ -1,3 +1,12 @@
+// 🚨 @PATCH : **2026-09-24** — [본문 문단(P) 문장 사이 간격(sentence-gap) 내보내기 지원]: generateExportCss에 p .onrivi-line + .onrivi-line 및 br 가상 블록 선택자를 동시 주입하여 문단 내 줄바꿈 문장 간격 내보내기 동기화
+// 🚨 @PATCH : **2026-09-24** — [KaTeX 수식(MATH) 기본 글자 크기(inherit) 및 상하 여백 100% 내보내기 정상화]:
+//             1) 수식 글자 크기 미지정('기본설정 유지') 시 font-size: inherit !important 주입으로 KaTeX 1.21em 자체 스타일 오버라이드 및 본문 기본 글자 크기 실시간 동기화 실현
+//             2) 단축 margin 잔재를 소거하고 margin-top/margin-bottom에 !important 명시 주입으로 globals.css 오버라이드 승리 및 슬라이더 1px 단위 즉각 반응 보장
+// 🚨 @PATCH : **2026-09-24** — [미디어(이미지·동영상·지도) 가로/세로 규격·상하여백·정렬(좌/중/우) 내보내기 완벽 반영]:
+//             1) generateExportCss 내 미디어 태그(img, video, map)의 width/height/max-width에 !important를 정상 부여하여 내보내기 문서에서도 규격 일치성 100% 보장
+//             2) map 셀렉터에 iframe[src*="google.com/maps"], iframe[src*="maps.google.com"] 포괄 확장 및 iframe 래퍼(.onrivi-map-wrapper) 연동
+//             3) 미디어 래퍼(.onrivi-image-wrapper, .onrivi-video-wrapper, .onrivi-map-wrapper)에 display:inline-flex, width:fit-content, max-width:100%, align-self: flex-start / center / flex-end 및 figcaption 정렬 자동 주입으로 flex 컨테이너 내부 100% 정렬 보장
+//             4) ml/mr '0' 및 '0px' 동등 지원으로 정렬 오판정 원천 방어
 // 🚨 @PATCH : **2026-09-24** — [표 테두리·모서리·세로선 및 모든 태그 서식 내보내기 완벽 동기화]:
 //             1) generateExportCss 내 sortCssProps 정렬기 도입으로 방향별 속성(border-left/right 등)이 단축 속성에 덮어써지지 않도록 방어
 //             2) .prose table 둥근 모서리/그림자/마지막 줄 하단선 소실/지브라 배경색 완전 리셋
@@ -103,8 +112,51 @@ function generateExportCss(profile: any): string {
     }).filter(([prop, v]) => {
       if (v === '') return false;
       if (skipFontSize && prop === 'font-size') return false;
+      if (prop === 'sentence-gap') return false;
       return true;
     }).sort((a, b) => sortCssProps(a[0] as string, b[0] as string));
+
+    if (tag === 'p') {
+      const sGap = ruleObj['sentence-gap'];
+      const sGapNum = parseInt(sGap || '0', 10) || 0;
+      if (sGapNum > 0) {
+        css += `
+.custom-preview-container .onrivi-sentence-br,
+.onrivi-content-root .onrivi-sentence-br,
+.custom-preview-container p br,
+.onrivi-content-root p br,
+p br {
+  display: block !important;
+  content: "" !important;
+  margin-top: ${sGap} !important;
+  height: 0 !important;
+}
+.custom-preview-container p .onrivi-line + .onrivi-line,
+.onrivi-content-root p .onrivi-line + .onrivi-line,
+p .onrivi-line + .onrivi-line {
+  margin-top: ${sGap} !important;
+}
+`;
+      } else {
+        css += `
+.custom-preview-container .onrivi-sentence-br,
+.onrivi-content-root .onrivi-sentence-br,
+.custom-preview-container p br,
+.onrivi-content-root p br,
+p br {
+  display: inline !important;
+  margin: 0 !important;
+  content: normal !important;
+}
+.custom-preview-container p .onrivi-line + .onrivi-line,
+.onrivi-content-root p .onrivi-line + .onrivi-line,
+p .onrivi-line + .onrivi-line {
+  margin-top: 0 !important;
+}
+`;
+      }
+    }
+
     if (entries.length === 0) return;
     
     if (tag === 'codeBlockTitle') {
@@ -176,48 +228,46 @@ function generateExportCss(profile: any): string {
     }
 
     if (tag === 'math') {
-      const layoutProps = ['text-align', 'margin-top', 'margin-bottom'];
-      
-      // 1. 블록 레이아웃(디스플레이 수식) 속성
-      css += `.custom-preview-container .katex-display {\n`;
-      entries.forEach(([prop, val]) => {
-        if (layoutProps.includes(prop as string)) {
-          css += `  ${prop}: ${val} !important;\n`;
-        }
-      });
-      css += `}\n`;
-      
-      // 1-1. 수식이 <p>로 감싸져 있는 경우 <p>의 마진을 강제 소거
-      css += `.custom-preview-container p:has(> .katex-display) {\n`;
-      css += `  margin: 0 !important;\n`;
-      css += `}\n`;
+      const marginTop = ruleObj['margin-top'] || '16px';
+      const marginBottom = ruleObj['margin-bottom'] || '16px';
+      const textAlign = ruleObj['text-align'] || 'center';
+      const color = ruleObj['color'];
+      const fontSize = ruleObj['font-size'];
 
-      // 1-2. 내부 .katex 요소 정렬 방식 강제 주입
-      if (entries.some(([prop]) => prop === 'text-align')) {
-        const alignVal = entries.find(([prop]) => prop === 'text-align')![1];
-        css += `.custom-preview-container .katex-display {\n`;
-        css += `  display: flex !important;\n`;
-        if (alignVal === 'center') {
-          css += `  justify-content: center !important;\n`;
-        } else if (alignVal === 'right') {
-          css += `  justify-content: flex-end !important;\n`;
-        } else {
-          css += `  justify-content: flex-start !important;\n`;
-        }
-        css += `}\n`;
-        css += `.custom-preview-container .katex-display > .katex {\n`;
-        css += `  text-align: ${alignVal} !important;\n`;
-        css += `}\n`;
-      }
-      
-      // 2. 인라인 및 텍스트 속성
-      css += `.custom-preview-container .katex-display .katex, .custom-preview-container :not(.katex-display) > .katex {\n`;
-      entries.forEach(([prop, val]) => {
-        if (!layoutProps.includes(prop as string)) {
-          css += `  ${prop}: ${val} !important;\n`;
-        }
-      });
-      css += `}\n`;
+      // 1. 디스플레이 수식 블록 컨테이너 (.katex-display)
+      css += `
+.custom-preview-container .katex-display,
+.onrivi-content-root .katex-display {
+  display: flex !important;
+  ${textAlign === 'center' ? 'justify-content: center !important;' : textAlign === 'right' ? 'justify-content: flex-end !important;' : 'justify-content: flex-start !important;'}
+  text-align: ${textAlign} !important;
+  margin-top: ${marginTop} !important;
+  margin-bottom: ${marginBottom} !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 0 !important;
+}
+.custom-preview-container p:has(> .katex-display),
+.onrivi-content-root p:has(> .katex-display) {
+  margin: 0 !important;
+}
+.custom-preview-container .katex-display > .katex,
+.onrivi-content-root .katex-display > .katex {
+  text-align: ${textAlign} !important;
+}
+`;
+
+      // 2. 수식 글자 크기 및 색상 (.katex)
+      // 💡 font-size 미지정('기본설정 유지') 시 inherit !important를 강제 주입하여 문서 기본 글자 크기 실시간 동기화
+      css += `
+.custom-preview-container .katex-display .katex,
+.custom-preview-container :not(.katex-display) > .katex,
+.onrivi-content-root .katex-display .katex,
+.onrivi-content-root :not(.katex-display) > .katex {
+  ${fontSize ? `font-size: ${fontSize} !important;` : `font-size: inherit !important;`}
+  ${color ? `color: ${color} !important;` : ''}
+}
+`;
       return;
     }
 
@@ -250,10 +300,9 @@ function generateExportCss(profile: any): string {
 
     const selector = tag === 'taskList' ? '.task-list-item' :
       tag === 'code' ? ':not(pre) > code' :
-      tag === 'map' ? 'iframe[src*="map"]' :
+      tag === 'map' ? 'iframe[src*="map"], iframe[src*="google.com/maps"], iframe[src*="maps.google.com"]' :
       tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' : tag;
     const isMediaTag = tag === 'img' || tag === 'video' || tag === 'map';
-    const sizeProps = ['width', 'height', 'max-width', 'max-height'];
     const isTableTag = ['table', 'th', 'td'].includes(tag);
     // 📊 Tailwind Typography 및 다크모드(.dark .prose)를 완벽히 압도하도록 모든 태그의 선택자 구체성을 일원화
     const selectorStr = `
@@ -276,9 +325,23 @@ function generateExportCss(profile: any): string {
         const wNum = parseInt(val as string, 10) || 1;
         if (wNum < 3) finalVal = '3px';
       }
-      const skipImportant = isMediaTag && sizeProps.includes(prop as string);
-      css += `  ${prop}: ${finalVal}${skipImportant ? '' : ' !important'};\n`;
+      css += `  ${prop}: ${finalVal} !important;\n`;
     });
+
+    // 💡 미디어 객체(이미지, 비디오, 지도)의 좌/중/우 정렬을 flex 래퍼 컨테이너 내부에서도 완벽 보장하기 위한 align-self 자동 주입
+    if (isMediaTag) {
+      const ml = (ruleObj as any)['margin-left'];
+      const mr = (ruleObj as any)['margin-right'];
+      let alignSelf = 'center';
+      if (ml === '0px' && mr === 'auto') {
+        alignSelf = 'flex-start';
+      } else if (ml === 'auto' && mr === '0px') {
+        alignSelf = 'flex-end';
+      } else if (ml === 'auto' && mr === 'auto') {
+        alignSelf = 'center';
+      }
+      css += `  align-self: ${alignSelf} !important;\n`;
+    }
 
     if ((tag === 'th' || tag === 'td') && bStyle) {
       css += `  border-bottom-style: ${bStyle} !important;\n`;
@@ -288,6 +351,108 @@ function generateExportCss(profile: any): string {
       }
     }
     css += `}\n`;
+
+    if (tag === 'img') {
+      const ml = (ruleObj as any)['margin-left'] || 'auto';
+      const mr = (ruleObj as any)['margin-right'] || 'auto';
+      let alignSelf = 'center';
+      let textAlign = 'center';
+      if ((ml === '0px' || ml === '0') && mr === 'auto') {
+        alignSelf = 'flex-start';
+        textAlign = 'left';
+      } else if (ml === 'auto' && (mr === '0px' || mr === '0')) {
+        alignSelf = 'flex-end';
+        textAlign = 'right';
+      }
+      css += `
+.custom-preview-container .onrivi-image-wrapper,
+.onrivi-content-root .onrivi-image-wrapper {
+  align-self: ${alignSelf} !important;
+  margin-left: ${ml} !important;
+  margin-right: ${mr} !important;
+  display: inline-flex !important;
+  flex-direction: column !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+}
+.custom-preview-container figure:has(img),
+.custom-preview-container .onrivi-image-figure,
+.onrivi-content-root figure:has(img),
+.onrivi-content-root .onrivi-image-figure {
+  align-items: ${alignSelf} !important;
+  text-align: ${textAlign} !important;
+}
+.custom-preview-container .onrivi-image-figure figcaption,
+.onrivi-content-root .onrivi-image-figure figcaption {
+  text-align: ${textAlign} !important;
+  align-self: ${alignSelf} !important;
+}
+`;
+    } else if (tag === 'video') {
+      const ml = (ruleObj as any)['margin-left'] || 'auto';
+      const mr = (ruleObj as any)['margin-right'] || 'auto';
+      let alignSelf = 'center';
+      let textAlign = 'center';
+      if ((ml === '0px' || ml === '0') && mr === 'auto') {
+        alignSelf = 'flex-start';
+        textAlign = 'left';
+      } else if (ml === 'auto' && (mr === '0px' || mr === '0')) {
+        alignSelf = 'flex-end';
+        textAlign = 'right';
+      }
+      css += `
+.custom-preview-container .onrivi-video-wrapper,
+.onrivi-content-root .onrivi-video-wrapper {
+  align-self: ${alignSelf} !important;
+  margin-left: ${ml} !important;
+  margin-right: ${mr} !important;
+  display: inline-flex !important;
+  flex-direction: column !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+}
+.custom-preview-container figure:has(video),
+.custom-preview-container .onrivi-video-figure,
+.onrivi-content-root figure:has(video),
+.onrivi-content-root .onrivi-video-figure {
+  align-items: ${alignSelf} !important;
+  text-align: ${textAlign} !important;
+}
+`;
+    } else if (tag === 'map') {
+      const ml = (ruleObj as any)['margin-left'] || 'auto';
+      const mr = (ruleObj as any)['margin-right'] || 'auto';
+      let alignSelf = 'center';
+      let textAlign = 'center';
+      if ((ml === '0px' || ml === '0') && mr === 'auto') {
+        alignSelf = 'flex-start';
+        textAlign = 'left';
+      } else if (ml === 'auto' && (mr === '0px' || mr === '0')) {
+        alignSelf = 'flex-end';
+        textAlign = 'right';
+      }
+      css += `
+.custom-preview-container .map-embed-wrapper,
+.custom-preview-container .onrivi-map-wrapper,
+.onrivi-content-root .map-embed-wrapper,
+.onrivi-content-root .onrivi-map-wrapper {
+  align-self: ${alignSelf} !important;
+  margin-left: ${ml} !important;
+  margin-right: ${mr} !important;
+  display: inline-flex !important;
+  flex-direction: column !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+}
+.custom-preview-container figure:has(iframe),
+.custom-preview-container .onrivi-map-figure,
+.onrivi-content-root figure:has(iframe),
+.onrivi-content-root .onrivi-map-figure {
+  align-items: ${alignSelf} !important;
+  text-align: ${textAlign} !important;
+}
+`;
+    }
   });
 
   const tableHasFontSize = profile.rules.table && profile.rules.table['font-size'];
