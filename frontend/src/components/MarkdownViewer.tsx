@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 렌더링 지원]: MarkdownViewer 인라인 스타일에 th/td border-bottom-style inherit 및 border-collapse: collapse 보강
 // 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote/Alert my-4 기본 마진 클래스 제거, *:has(+ blockquote) 및 blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
 // 🚨 @PATCH : **2026-09-23** — [리스트 빈 행 판별 가드 고도화 및 부모 블록 실종 방어] li 컴포넌트에서 isEmptyRow 검사 시 하위 서브리스트(ul/ol) 보유 여부를 엄격히 확인하여, 서브리스트 내부에 빈 행이 있을 때 부모 li(떡볶이, 고추장 등)가 빈 행으로 오탐되어 통째로 증발하던 결함 완벽 해결
 // 🚨 @PATCH : **2026-09-23** — [숫자 리스트 에디터 원본 번호 1:1 일치 렌더링] 에디터에 사용자가 직접 기입한 번호(예: 1., 2., 3. 또는 2., 3., 4. 등)를 원본 라인에서 추출하여 li 태그의 value 속성에 바인딩함으로써, 브라우저의 임의 자동 계산 카운터 대신 에디터에 적힌 번호 그대로 1:1 일치하게 미리보기에 렌더링되도록 개선
@@ -2029,6 +2030,13 @@ function MarkdownViewer({
         .onrivi-content-root table {
           margin-top: 0 !important;
           margin-bottom: 0 !important;
+          border-collapse: collapse !important;
+        }
+        .markdown-viewer-root th,
+        .onrivi-content-root th,
+        .markdown-viewer-root td,
+        .onrivi-content-root td {
+          border-bottom-style: inherit !important;
         }
         .markdown-viewer-root :is(p, h1, h2, h3, h4, h5, h6, strong):has(+ .table-wrapper-area),
         .onrivi-content-root :is(p, h1, h2, h3, h4, h5, h6, strong):has(+ .table-wrapper-area) {

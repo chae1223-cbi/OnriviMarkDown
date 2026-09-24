@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [표 테두리 이중선(double) 렌더링 정상화 및 단축 속성 충돌 해결]: updateTableBorder 실행 시 shorthand border 잔재 삭제, double 선택 시 브라우저 물리 렌더링 한계(최소 3px) 돌파를 위한 두께 자동 보정 및 th/td border-style 일원화
  *   2026-09-24 — [인용구 상하 여백 0~15px 데드존 완전 소멸]: 슬라이더 0px 설정 시 인접 블록 마진 0 강제와 연동되어 완전 밀착 및 1px 단위 즉각 반응 보장
  *   2026-09-24 — [인용구(blockquote) 상하 여백 및 형태 프리셋 triggerUpdate 연동]: 슬라이더 및 프리셋 클릭 시 triggerUpdate로 실시간 펄스 하이라이트 및 HUD 배지 동기화
  *   2026-09-24 — [수평 구분선(HR) 실시간 동기화 및 충돌 방어]: updateHrStructure에 rules.hr 동기화 및 triggerUpdate('hr') 연동, 구분선 스타일/두께/여백/너비 변경 시 우측 미리보기 즉시 갱신 및 펄스 피드백 지원
@@ -684,19 +685,67 @@ ${guideContent}
   // ====================================================================
   const updateTableBorder = (property: string, value: string) => {
     if (isSystemProfile) return;
-    const tableRules = getTagRules('table');
-    const thRules = getTagRules('th');
-    const tdRules = getTagRules('td');
+    const tableRules = { ...getTagRules('table') };
+    const thRules = { ...getTagRules('th') };
+    const tdRules = { ...getTagRules('td') };
+
+    if (property === 'border-style') {
+      // 1. 단축 속성(border, border-top 등)에 포함된 이전 스타일(solid 등) 충돌 원천 제거
+      const shorthandKeys = ['border', 'border-top', 'border-bottom', 'border-left', 'border-right'];
+      shorthandKeys.forEach(k => {
+        delete (tableRules as any)[k];
+        delete (thRules as any)[k];
+        delete (tdRules as any)[k];
+      });
+
+      // 2. 이중선(double)인 경우, CSS 물리적 최소 두께(3px 이상이어야 두 줄이 그려짐) 자동 보정
+      if (value === 'double') {
+        const curWidth = parseInt(tableRules['border-width'] || '1', 10);
+        if (curWidth < 3) {
+          tableRules['border-width'] = '3px';
+          thRules['border-width'] = '3px';
+          tdRules['border-width'] = '3px';
+        }
+      }
+
+      tableRules['border-style'] = value;
+      thRules['border-style'] = value;
+      tdRules['border-style'] = value;
+    } else if (property === 'border-width') {
+      tableRules['border-width'] = value;
+      thRules['border-width'] = value;
+      tdRules['border-width'] = value;
+      delete (tableRules as any)['border'];
+      delete (thRules as any)['border'];
+      delete (tdRules as any)['border'];
+    } else if (property === 'border-color') {
+      tableRules['border-color'] = value;
+      thRules['border-color'] = value;
+      tdRules['border-color'] = value;
+      delete (tableRules as any)['border'];
+      delete (thRules as any)['border'];
+      delete (tdRules as any)['border'];
+    } else {
+      (tableRules as any)[property] = value;
+      (thRules as any)[property] = value;
+      (tdRules as any)[property] = value;
+    }
+
     const updated = {
       ...currentProfile,
       rules: {
         ...currentProfile.rules,
-        table: { ...tableRules, [property]: value },
-        th: { ...thRules, [property]: value },
-        td: { ...tdRules, [property]: value },
+        table: tableRules,
+        th: thRules,
+        td: tdRules,
       }
     };
-    triggerUpdate(updated, 'table', '표(Table) 테두리');
+    const label = property === 'border-style' 
+      ? `표 테두리 모양 (${value === 'double' ? '이중선' : value === 'dotted' ? '점선' : value === 'dashed' ? '대시선' : value === 'solid' ? '실선' : value})` 
+      : property === 'border-width' 
+        ? `표 테두리 두께 (${value})` 
+        : '표(Table) 테두리';
+    triggerUpdate(updated, 'table', label);
   };
 
   /* ─── 표 셀 여백 묶음 업데이트 ─── */
@@ -2187,15 +2236,16 @@ ${guideContent}
                       const newTh = { ...(currentProfile.rules.th || {}) };
                       const newTd = { ...(currentProfile.rules.td || {}) };
                       const color = newT['border-color'] || '#cbd5e1';
-                      // 모든 테두리
-                      newT['border'] = `1px solid ${color}`;
-                      newTh['border'] = `1px solid ${color}`;
-                      newTd['border'] = `1px solid ${color}`;
-                      // 기존 가로선 설정 제거
+                      // 모든 테두리 (개별 속성으로 표준화)
+                      newT['border-style'] = 'solid'; newT['border-width'] = '1px'; newT['border-color'] = color;
+                      newTh['border-style'] = 'solid'; newTh['border-width'] = '1px'; newTh['border-color'] = color;
+                      newTd['border-style'] = 'solid'; newTd['border-width'] = '1px'; newTd['border-color'] = color;
+                      // 기존 shorthand 및 방향별 설정 제거
+                      delete newT['border']; delete newTh['border']; delete newTd['border'];
                       delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
                       delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
                       delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (모든 테두리)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isGrid ? activeClass : inactiveClass}`}
                   >
@@ -2221,7 +2271,7 @@ ${guideContent}
                       newTd['border-right'] = 'none';
                       // 기존 전체 테두리 제거
                       delete newT['border']; delete newTh['border']; delete newTd['border'];
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (가로선 강조)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isHorizontal ? activeClass : inactiveClass}`}
                   >
@@ -2242,7 +2292,7 @@ ${guideContent}
                       delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
                       delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
                       delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
-                      onUpdateProfile({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }});
+                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (미니멀)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isMinimal ? activeClass : inactiveClass}`}
                   >

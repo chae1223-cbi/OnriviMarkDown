@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 내보내기 동기화]: generateExportCss 내 table/th/td 선택자 구체성 상향 및 double 시 3px 보정, th/td border-bottom-style 동기화
 // 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote display:flow-root 적용 및 *:has(+ blockquote), blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
 // 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 내보내기 규격 동기화]: generateExportCss 내 hr border:none/height:0/transparent 리셋 및 .onrivi-content-root hr 선택자 추가
 // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: generateExportCss 내 codeBlock 배경색 명도 판별 및 다크 계열 고대비 코발트 블루 하이라이트 동적 CSS 일원화
@@ -226,11 +227,33 @@ function generateExportCss(profile: any): string {
       tag === 'video' ? 'video, iframe[src*="youtube"], iframe[src*="vimeo"], a[href*="youtube.com"] img, a[href*="youtu.be"] img' : tag;
     const isMediaTag = tag === 'img' || tag === 'video' || tag === 'map';
     const sizeProps = ['width', 'height', 'max-width', 'max-height'];
-    css += `.custom-preview-container .markdown-viewer-root ${selector},\n.custom-preview-container ${selector} {\n`;
+    const isTableTag = ['table', 'th', 'td'].includes(tag);
+    let selectorStr = `.custom-preview-container .markdown-viewer-root ${selector},\n.custom-preview-container ${selector}`;
+    if (isTableTag) {
+      selectorStr += `,\n.custom-preview-container .prose ${selector},\n.dark .custom-preview-container .prose ${selector}`;
+    }
+    css += `${selectorStr} {\n`;
+
+    const bStyle = (ruleObj as any)['border-style'];
+    const isDouble = bStyle === 'double';
+
     entries.forEach(([prop, val]) => {
+      let finalVal = val;
+      if (isTableTag && isDouble && prop === 'border-width') {
+        const wNum = parseInt(val as string, 10) || 1;
+        if (wNum < 3) finalVal = '3px';
+      }
       const skipImportant = isMediaTag && sizeProps.includes(prop as string);
-      css += `  ${prop}: ${val}${skipImportant ? '' : ' !important'};\n`;
+      css += `  ${prop}: ${finalVal}${skipImportant ? '' : ' !important'};\n`;
     });
+
+    if ((tag === 'th' || tag === 'td') && bStyle) {
+      css += `  border-bottom-style: ${bStyle} !important;\n`;
+      if (isDouble) {
+        const curW = parseInt((ruleObj as any)['border-width'] || '1', 10);
+        css += `  border-bottom-width: ${curW < 3 ? '3px' : curW + 'px'} !important;\n`;
+      }
+    }
     css += `}\n`;
   });
 
@@ -245,6 +268,11 @@ function generateExportCss(profile: any): string {
   }
 
   css += `
+.custom-preview-container table,
+.onrivi-content-root table,
+.custom-preview-container .prose table {
+  border-collapse: collapse !important;
+}
 .custom-preview-container th,
 .custom-preview-container td {
   vertical-align: middle !important;
