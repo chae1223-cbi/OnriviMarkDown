@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [브라우저 자동번역기 DOM 충돌 방어 및 FontSizeControl 안정화]: FontSizeControl에 notranslate/translate="no" 및 조건부 렌더링 key 부여, 텍스트 노드 단일 템플릿화로 크롬 번역기 removeChild NotFoundError 에러 원천 차단
  *   2026-09-24 — [문서 서식 기본 글자 크기 유지(상속) 및 직접 설정 듀얼 모드 위젯(FontSizeControl) 도입]: 표(Table), 인용구(Blockquote), 코드블록(CodeBlock), 각주(Footnote), 수식(Math)에 대해 '기본설정 유지' vs '직접 설정' 세그먼트 위젯을 제공하여 페이지 기본 글자 크기(pageStyle.fontSize) 실시간 동기화 지원
  *   2026-09-24 — [표 하단 여백 렌더링 정상화 및 실시간 HUD/펄스 동기화]: 표 상하 여백 슬라이더 조작 시 triggerUpdate에 한국어 명칭 및 수치 전달, table-wrapper-area 1:1 반응 보장
  *   2026-09-24 — [표 테두리 이중선(double) 렌더링 정상화 및 단축 속성 충돌 해결]: updateTableBorder 실행 시 shorthand border 잔재 삭제, double 선택 시 브라우저 물리 렌더링 한계(최소 3px) 돌파를 위한 두께 자동 보정 및 th/td border-style 일원화
@@ -191,17 +192,17 @@ function FontSizeControl({
   const currentNumVal = parseInt(value || '', 10) || parsedBase || defaultCustomValue || 14;
 
   return (
-    <div className="space-y-2.5 bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 transition-all">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px]">{label}</span>
+    <div className="space-y-2.5 bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 transition-all notranslate" translate="no">
+      <div className="flex items-center justify-between gap-2 notranslate">
+        <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px] notranslate">{label}</span>
         
         {/* 모드 선택 세그먼트 버튼 */}
-        <div className="inline-flex rounded-lg p-0.5 bg-zinc-200/80 dark:bg-zinc-800 border border-zinc-300/80 dark:border-zinc-700/80 text-xs font-semibold shrink-0">
+        <div className="inline-flex rounded-lg p-0.5 bg-zinc-200/80 dark:bg-zinc-800 border border-zinc-300/80 dark:border-zinc-700/80 text-xs font-semibold shrink-0 notranslate">
           <button
             type="button"
             disabled={disabled}
             onClick={() => onChange('')}
-            className={`px-2.5 py-1 rounded-md transition-all ${
+            className={`px-2.5 py-1 rounded-md transition-all notranslate ${
               isInherited
                 ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -214,7 +215,7 @@ function FontSizeControl({
             type="button"
             disabled={disabled}
             onClick={() => onChange(`${currentNumVal}px`)}
-            className={`px-2.5 py-1 rounded-md transition-all ${
+            className={`px-2.5 py-1 rounded-md transition-all notranslate ${
               !isInherited
                 ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -227,21 +228,21 @@ function FontSizeControl({
       </div>
 
       {isInherited ? (
-        <div className="flex items-center justify-between py-2 px-3 bg-blue-50/70 dark:bg-blue-950/30 rounded-md border border-blue-100 dark:border-blue-900/40 text-xs text-blue-800 dark:text-blue-300">
-          <div className="flex items-center gap-1.5 font-medium">
-            <span>🔗</span>
-            <span>문서 기본 글자 크기를 따릅니다</span>
+        <div key="fc-inherited-view" className="flex items-center justify-between py-2 px-3 bg-blue-50/70 dark:bg-blue-950/30 rounded-md border border-blue-100 dark:border-blue-900/40 text-xs text-blue-800 dark:text-blue-300 notranslate">
+          <div className="flex items-center gap-1.5 font-medium notranslate">
+            <span className="notranslate">🔗</span>
+            <span className="notranslate">문서 기본 글자 크기를 따릅니다</span>
           </div>
-          <span className="font-mono font-bold px-2 py-0.5 bg-white dark:bg-blue-900/60 rounded border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 shrink-0">
-            현재: {baseFontSize || '14px'}
+          <span className="font-mono font-bold px-2 py-0.5 bg-white dark:bg-blue-900/60 rounded border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 shrink-0 notranslate">
+            {`현재: ${baseFontSize || '14px'}`}
           </span>
         </div>
       ) : (
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">개별 지정 크기</span>
-            <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">
-              {currentNumVal}px
+        <div key="fc-custom-view" className="space-y-1.5 pt-1 notranslate">
+          <div className="flex items-center justify-between notranslate">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium notranslate">개별 지정 크기</span>
+            <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400 notranslate">
+              {`${currentNumVal}px`}
             </span>
           </div>
           <input
@@ -252,7 +253,7 @@ function FontSizeControl({
             value={currentNumVal}
             disabled={disabled}
             onChange={(e) => onChange(e.target.value + 'px')}
-            className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-650 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-650 disabled:opacity-50 disabled:cursor-not-allowed notranslate"
           />
         </div>
       )}

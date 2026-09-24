@@ -8,6 +8,7 @@ import { ToastProvider } from "@/components/ToastProvider";
 // 📊 [OMD-CORE-layout-0002] layout ➔ metadata
 // 🎯 @KICK  : Next.js Metadata 객체 - 페이지 제목, 설명, 아이콘 경로 설정
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-09-24** — [브라우저 자동번역기(Google Translate) React DOM 충돌(removeChild/insertBefore) 원천 방어 패치 탑재]: Node.prototype.removeChild 및 insertBefore 안전 가드 주입, html/meta notranslate 지정 및 NotFoundError 크래시 필터링 적용
 // 🚨 @PATCH : **2026-09-23** — [네이버 서치어드바이저 SEO 메타데이터 규격 최적화]: 네이버 권장 글자수(제목 40자 이내, 설명 80자 이내, OG제목 40자 이내)에 맞춰 title(38자), description(76자), openGraph/twitter title(33자) 정밀 최적화
 // 🚨 @PATCH : **2026-09-23** — [네이버 서치어드바이저 소유확인 메타태그 연동]: naver-site-verification(08215f3797f7f99a9dfe413b0ac38d58) 헤드 메타태그 추가 및 HTML 인증 파일 탑재
 // 🔗 @CALLS : 없음
@@ -69,8 +70,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="light" suppressHydrationWarning>
+    <html lang="ko" className="light notranslate" translate="no" suppressHydrationWarning>
       <head>
+        <meta name="google" content="notranslate" />
         <meta
           httpEquiv="Content-Security-Policy"
           content="default-src 'self' app: media: media-local:; script-src 'self' app: 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://maps.gstatic.com https://maps.googleapis.com https://static.cloudflareinsights.com https://translate.googleapis.com; style-src 'self' app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://translate.googleapis.com https://www.gstatic.com; font-src 'self' app: https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' app: data: blob: http: https: file: media: media-local: https://www.gstatic.com; connect-src 'self' app: data: blob: ws: wss: https: http: extension: edge-extension: chrome-extension: webpack: http://localhost:* http://127.0.0.1:* http://localhost:3100 http://localhost:3000 http://localhost:4000 http://localhost:5000 http://localhost:11434 http://127.0.0.1:3100 http://127.0.0.1:3000 http://127.0.0.1:4000 http://127.0.0.1:5000 media: media-local: https://onrivi.com https://*.onrivi.com https://fonts.googleapis.com https://fonts.gstatic.com https://maps.googleapis.com https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://translate.googleapis.com https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com; child-src 'self' app: blob: media: media-local: https: https://maps.google.com https://www.google.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://maps.google.com https://www.google.com; media-src 'self' app: media: media-local: blob: https:;"
@@ -106,16 +108,45 @@ export default function RootLayout({
             })
           }}
         />
-        {/* 크롬 확장 프로그램(Chrome Extension) 무해한 비동기 메시지 채널 조기 종료 및 서드파티 VM 에러 콘솔 오염 억제 */}
+        {/* 브라우저 번역기(Google Translate) DOM 조작 충돌 방어 및 확장프로그램 에러 필터링 */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               if (typeof window !== 'undefined') {
+                /* 1. Google Translate 등 외부 DOM 조작 시 React removeChild/insertBefore 크래시 방어 */
+                if (typeof Node === 'function' && Node.prototype) {
+                  var origRemoveChild = Node.prototype.removeChild;
+                  Node.prototype.removeChild = function(child) {
+                    if (child && child.parentNode !== this) {
+                      if (child.parentNode && typeof child.parentNode.removeChild === 'function') {
+                        return child.parentNode.removeChild(child);
+                      }
+                      return child;
+                    }
+                    return origRemoveChild.apply(this, arguments);
+                  };
+
+                  var origInsertBefore = Node.prototype.insertBefore;
+                  Node.prototype.insertBefore = function(newNode, referenceNode) {
+                    if (referenceNode && referenceNode.parentNode !== this) {
+                      if (referenceNode.parentNode && typeof referenceNode.parentNode.insertBefore === 'function') {
+                        return referenceNode.parentNode.insertBefore(newNode, referenceNode);
+                      }
+                      return newNode;
+                    }
+                    return origInsertBefore.apply(this, arguments);
+                  };
+                }
+
+                /* 2. 무해한 크롬 확장프로그램 및 removeChild/NotFoundError 콘솔 오염 및 에러 바운더리 억제 */
                 var filterMsg = function(msg) {
                   if (!msg || typeof msg !== 'string') return false;
                   return msg.indexOf('A listener indicated an asynchronous response') !== -1 ||
                          msg.indexOf('message channel closed before a response was received') !== -1 ||
-                         msg.indexOf('startTime') !== -1;
+                         msg.indexOf('startTime') !== -1 ||
+                         msg.indexOf('removeChild') !== -1 ||
+                         msg.indexOf('NotFoundError') !== -1 ||
+                         msg.indexOf('The node to be removed is not a child of this node') !== -1;
                 };
                 window.addEventListener('unhandledrejection', function(e) {
                   var m = (e && e.reason && (e.reason.message || e.reason)) ? String(e.reason.message || e.reason) : '';
