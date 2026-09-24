@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [표 형태(가로선 강조/미니멀) 프리셋 잔재 속성 제거]: 프리셋 전환 시 border-style, border-width 등 단축 속성 잔재를 완전 소거하여 방향별 border: none 설정과의 CSS 충돌 원천 차단
  *   2026-09-24 — [브라우저 자동번역기 DOM 충돌 방어 및 FontSizeControl 안정화]: FontSizeControl에 notranslate/translate="no" 및 조건부 렌더링 key 부여, 텍스트 노드 단일 템플릿화로 크롬 번역기 removeChild NotFoundError 에러 원천 차단
  *   2026-09-24 — [문서 서식 기본 글자 크기 유지(상속) 및 직접 설정 듀얼 모드 위젯(FontSizeControl) 도입]: 표(Table), 인용구(Blockquote), 코드블록(CodeBlock), 각주(Footnote), 수식(Math)에 대해 '기본설정 유지' vs '직접 설정' 세그먼트 위젯을 제공하여 페이지 기본 글자 크기(pageStyle.fontSize) 실시간 동기화 지원
  *   2026-09-24 — [표 하단 여백 렌더링 정상화 및 실시간 HUD/펄스 동기화]: 표 상하 여백 슬라이더 조작 시 triggerUpdate에 한국어 명칭 및 수치 전달, table-wrapper-area 1:1 반응 보장
@@ -2388,14 +2389,26 @@ ${guideContent}
                       newT['border-bottom'] = `2px solid ${color}`;
                       newT['border-left'] = 'none';
                       newT['border-right'] = 'none';
+                      delete newT['border'];
+                      delete newT['border-style'];
+                      delete newT['border-width'];
+
                       newTh['border-bottom'] = `1px solid ${color}`;
+                      newTh['border-top'] = 'none';
                       newTh['border-left'] = 'none';
                       newTh['border-right'] = 'none';
+                      delete newTh['border'];
+                      delete newTh['border-style'];
+                      delete newTh['border-width'];
+
                       newTd['border-bottom'] = `1px solid ${color}`;
+                      newTd['border-top'] = 'none';
                       newTd['border-left'] = 'none';
                       newTd['border-right'] = 'none';
-                      // 기존 전체 테두리 제거
-                      delete newT['border']; delete newTh['border']; delete newTd['border'];
+                      delete newTd['border'];
+                      delete newTd['border-style'];
+                      delete newTd['border-width'];
+
                       triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (가로선 강조)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isHorizontal ? activeClass : inactiveClass}`}
@@ -2415,8 +2428,11 @@ ${guideContent}
                       newTh['background-color'] = '#f8fafc';
                       // 기존 테두리 설정 모두 제거
                       delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
+                      delete newT['border-style']; delete newT['border-width'];
                       delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
+                      delete newTh['border-style']; delete newTh['border-width'];
                       delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
+                      delete newTd['border-style']; delete newTd['border-width'];
                       triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (미니멀)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isMinimal ? activeClass : inactiveClass}`}

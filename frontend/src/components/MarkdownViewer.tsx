@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-24** — [표 둥근 모서리·그림자·지브라 오염 완전 소멸 및 기본 표 리셋]: MarkdownViewer 내장 스타일에 table border-spacing:0, border-radius:0, box-shadow:none 및 overflow:visible을 명시하여 전역 CSS 간섭 방어
 // 🚨 @PATCH : **2026-09-24** — [표 하단 여백 및 인용구 마진 상쇄 차단]: .table-wrapper-area 및 blockquote에 display:inline-block width:100%를 적용하여 마진 상쇄 원천 차단 및 *:has(+ blockquote) margin-bottom:0 강제 소거
 // 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 렌더링 지원]: MarkdownViewer 인라인 스타일에 th/td border-bottom-style inherit 및 border-collapse: collapse 보강
 // 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote/Alert my-4 기본 마진 클래스 제거, *:has(+ blockquote) 및 blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
@@ -2035,6 +2036,10 @@ function MarkdownViewer({
           margin-top: 0 !important;
           margin-bottom: 0 !important;
           border-collapse: collapse !important;
+          border-spacing: 0 !important;
+          border-radius: 0 !important;
+          overflow: visible !important;
+          box-shadow: none !important;
         }
         .markdown-viewer-root th,
         .onrivi-content-root th,

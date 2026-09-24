@@ -4,6 +4,10 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-24** — [표 테두리·모서리·세로선 및 모든 태그 서식 미리보기 완벽 동기화]:
+//             1) dynamicCssString 내 방향별 CSS 속성(border-left/right/top/bottom 등)이 단축 속성(border-style/width)보다 후순위로 배치되도록 sortCssProps 정렬기 도입 (가로선 강조 시 세로선 잔재 버그 원천 해결)
+//             2) .prose table의 강제 둥근 모서리(border-radius:8px), 그림자(box-shadow), 마지막 줄 하단선 소실, 지브라 배경색 오염을 완전 리셋
+//             3) 미리보기 내부 모든 태그(p, h1~h6, blockquote, ul, ol, li, a, img, table 등)의 선택자 구체성을 .custom-preview-container .prose ${selector} 및 .dark 계열까지 전면 확장하여 전역/다크모드 CSS에 의한 서식 미반영 현상 완전 소멸
 // 🚨 @PATCH : **2026-09-23** — [제목 태그(#) 및 헤딩 텍스트 고대비 선명화]: H1~H6 마크다운 접두사 태그(#)를 코발트 블루(#1d4ed8, 볼드)로 고대비 선명화, 제목 본문 흐릿한 연두색(#34d399)을 딥 틸/에메랄드(#0f766e, #047857)로 교체 및 에디터 컨테이너 editor-high-contrast 연동
 // 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 및 고대비(High Contrast) 실시간 반영]: useEditorSettings에서 editorFontWeight, editorHighContrast 연동, Monaco editor updateOptions(fontWeight 400/500/700) 및 defineTheme 고대비(최대 명암비 순수 흑백) 동적 재적용
 // 🚨 @PATCH : **2026-09-23** — [인용구 한글/영문 Alert 태그 동시 지원] applyLinePrefix 및 플로팅 서식 툴바 인용구 드롭다운에 한글/영문 Alert 태그([!참고] / [!NOTE], [!팁] / [!TIP] 등) 치환 및 듀얼 표기 연동
@@ -5638,6 +5642,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const calcSize = Math.max(10, h1Size - (level - 1) * offset);
       css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}px !important;\n}\n`;
     }
+
+    // 💡 CSS 속성 우선순위 정렬기: 단축 속성(border-style/width 등)이 방향별 속성(border-left/right 등)보다 항상 먼저 선언되도록 보장
+    const DIRECTIONAL_PROPS = new Set([
+      'border-top', 'border-bottom', 'border-left', 'border-right',
+      'border-top-width', 'border-bottom-width', 'border-left-width', 'border-right-width',
+      'border-top-style', 'border-bottom-style', 'border-left-style', 'border-right-style',
+      'border-top-color', 'border-bottom-color', 'border-left-color', 'border-right-color',
+      'padding-top', 'padding-bottom', 'padding-left', 'padding-right',
+      'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
+    ]);
+    const sortCssProps = (a: string, b: string): number => {
+      const isADir = DIRECTIONAL_PROPS.has(a);
+      const isBDir = DIRECTIONAL_PROPS.has(b);
+      if (isADir && !isBDir) return 1;
+      if (!isADir && isBDir) return -1;
+      return a.localeCompare(b);
+    };
+
     Object.entries(prof.rules).forEach(([tag, ruleObj]) => {
       /* hr(구분선)은 전용 인젝션 블록에서 완전하게 통합 제어하므로 건너뜀 */
       if (tag === 'hr') return;
@@ -5654,7 +5676,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         // 💡 tag가 'p'이고 prop이 'line-height'일 경우, pageStyle.lineHeight가 마스터이므로 덮어쓰기 방지
         if (tag === 'p' && prop === 'line-height') return false;
         return true;
-      }).sort((a, b) => a[0].localeCompare(b[0]));
+      }).sort((a, b) => sortCssProps(a[0], b[0]));
 
       if (tag === 'p' && ruleObj['sentence-gap']) {
         const sGap = ruleObj['sentence-gap'];
@@ -5829,11 +5851,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const isTableTag = ['table', 'th', 'td'].includes(tag);
       const sizeProps = ['width', 'height', 'max-width', 'max-height'];
 
-      // 📊 표 태그인 경우 globals.css의 다크모드(.dark .prose th/td/table)를 완벽히 오버라이드하도록 구체성 상향
-      let selectorStr = `.custom-preview-container ${selector}, .onrivi-content-root ${selector}`;
-      if (isTableTag) {
-        selectorStr += `, .custom-preview-container .prose ${selector}, .dark .custom-preview-container .prose ${selector}, .onrivi-content-root .prose ${selector}, .dark .onrivi-content-root .prose ${selector}`;
-      }
+      // 📊 Tailwind Typography 및 다크모드(.dark .prose)를 완벽히 압도하도록 모든 태그의 선택자 구체성을 일원화
+      const selectorStr = `
+        .custom-preview-container ${selector},
+        .onrivi-content-root ${selector},
+        .custom-preview-container .prose ${selector},
+        .dark .custom-preview-container .prose ${selector},
+        .onrivi-content-root .prose ${selector},
+        .dark .onrivi-content-root .prose ${selector}
+      `.replace(/\s+/g, ' ').trim();
       css += `${selectorStr} {\n`;
 
       const bStyle = ruleObj['border-style'];
@@ -5876,22 +5902,40 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 `;
     }
 
-    // 📊 표 정교화 보정: 세로 중앙 정렬 및 단어 단위 줄바꿈(keep-all), border-collapse 통합
+    // 📊 표 정교화 보정: 세로 중앙 정렬 및 단어 단위 줄바꿈(keep-all), border-collapse 통합, 원치 않는 외곽 둥근 모서리/그림자/지브라 패턴 완전 소멸
     css += `
 .custom-preview-container table,
 .onrivi-content-root table,
 .custom-preview-container .prose table,
-.dark .custom-preview-container .prose table {
+.dark .custom-preview-container .prose table,
+.onrivi-content-root .prose table,
+.dark .onrivi-content-root .prose table {
   border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  box-shadow: none !important;
 }
 .custom-preview-container th,
 .custom-preview-container td,
 .onrivi-content-root th,
 .onrivi-content-root td,
 .custom-preview-container .prose th,
-.custom-preview-container .prose td {
+.custom-preview-container .prose td,
+.onrivi-content-root .prose th,
+.onrivi-content-root .prose td {
   vertical-align: middle !important;
   word-break: keep-all !important;
+}
+.custom-preview-container .prose tr:last-child td,
+.onrivi-content-root .prose tr:last-child td {
+  border-bottom-style: inherit !important;
+}
+.custom-preview-container .prose tbody tr:nth-child(even),
+.dark .custom-preview-container .prose tbody tr:nth-child(even),
+.onrivi-content-root .prose tbody tr:nth-child(even),
+.dark .onrivi-content-root .prose tbody tr:nth-child(even) {
+  background-color: transparent !important;
 }
 `;
 

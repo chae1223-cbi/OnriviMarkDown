@@ -532,6 +532,7 @@ option {
 /* 📊 [OMD-STYLE-globals-0001] globals.css ➔ @media print
    🎯 @KICK  : OS 인쇄 모달(window.print()) 실행 시 전체 스크롤 전체 높이 출력 보장
    🛡️ @GUARD : html, body, #__next 높이 및 overflow 강제 해제
+   🚨 @PATCH : **2026-09-24** — [표(Table) 서식 격리 및 미리보기 오염 원천 차단]: .prose table/th/td의 강제 둥근 모서리(8px), 외곽 테두리, 그림자(box-shadow), 마지막 행 하단선 제거 및 지브라 배경색이 미리보기 컨테이너(.custom-preview-container, .onrivi-content-root)를 침범하지 못하도록 격리
    🚨 @PATCH : **2026-06-19** — OS 인쇄창에서 1페이지 잘림 버그 해결을 위해 html, body, #__next에 overflow:visible 및 height:auto 강제 적용; 미리보기 화면의 좌우 여백이 과도하게 벌어지는 문제를 막기 위해 .prose의 기본 max-width: 65ch 제한을 전역적으로 해제 */
 @media print {
   html, body, #__next {
@@ -1168,25 +1169,25 @@ div.monaco-table-line {
   font-variant-ligatures: none !important;
 }
 
-/* 📊 마크다운 표(Table) 현대적 디자인 시스템 - 가독성 극대화 */
-.prose table {
-  width: 100% !important;
-  border-collapse: separate !important; /* 둥근 모서리 적용을 위해 collapse 분리 */
-  border-spacing: 0 !important;
-  border: 1px solid rgba(0, 0, 0, 0.15) !important;
-  border-radius: 8px !important;
-  overflow: hidden !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02) !important;
+/* 📊 마크다운 표(Table) 현대적 디자인 시스템 (미리보기 컨테이너 외부 웹 뷰어 기본값) */
+.prose:not(.custom-preview-container *):not(.onrivi-content-root *) table {
+  width: 100%;
+  border-collapse: separate; /* 둥근 모서리 적용을 위해 collapse 분리 */
+  border-spacing: 0;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
 }
 /* 래퍼 없는 단독 table인 경우에만 1.5rem 마진 적용, table-wrapper-area 내부에서는 래퍼가 마진을 전담 */
-.prose:not(:has(.table-wrapper-area)) table {
-  margin: 1.5rem 0 !important;
+.prose:not(:has(.table-wrapper-area)):not(.custom-preview-container *):not(.onrivi-content-root *) table {
+  margin: 1.5rem 0;
 }
 .table-wrapper-area > table {
-  margin: 0 !important;
+  margin: 0;
 }
-.dark .prose table {
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+.dark .prose:not(.custom-preview-container *):not(.onrivi-content-root *) table {
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 /* 💡 긴 영문 텍스트가 강제 개행되도록 하여 양쪽 정렬 시 발생하는 거대 공백 방지 */
@@ -1199,54 +1200,54 @@ div.monaco-table-line {
   word-break: break-all !important;
 }
 
-/* 표 헤더 스타일 */
-.prose th {
-  background-color: rgba(229, 231, 235, 0.95) !important;
-  color: #111827 !important;
-  font-weight: 600 !important;
-  font-size: 0.875rem !important;
-  padding: 10px 14px !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.15) !important;
+/* 표 헤더 스타일 (미리보기 컨테이너 외부 기본값) */
+.prose:not(.custom-preview-container *):not(.onrivi-content-root *) th {
+  background-color: rgba(229, 231, 235, 0.95);
+  color: #111827;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
   text-align: left;
-  vertical-align: middle !important; /* 세로 정렬 보정 (가운데 정렬) */
-  word-break: keep-all !important; /* 단어 단위 줄바꿈으로 가독성 보정 */
+  vertical-align: middle;
+  word-break: keep-all;
 }
-.dark .prose th {
-  background-color: rgba(31, 41, 55, 0.95) !important;
-  color: #f3f4f6 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
+.dark .prose:not(.custom-preview-container *):not(.onrivi-content-root *) th {
+  background-color: rgba(31, 41, 55, 0.95);
+  color: #f3f4f6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
 }
 
-/* 표 바디 셀 스타일 */
-.prose td {
-  padding: 12px 14px !important;
-  font-size: 0.875rem !important;
-  color: #4b5563 !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+/* 표 바디 셀 스타일 (미리보기 컨테이너 외부 기본값) */
+.prose:not(.custom-preview-container *):not(.onrivi-content-root *) td {
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  color: #4b5563;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   transition: background-color 0.15s ease;
-  vertical-align: middle !important; /* 세로 정렬 보정 (가운데 정렬) */
-  word-break: keep-all !important; /* 단어 단위 줄바꿈으로 가독성 보정 */
+  vertical-align: middle;
+  word-break: keep-all;
 }
 
-/* 마지막 행은 하단 선을 제거하여 둥근 모서리가 잘리지 않도록 보호 */
-.prose tr:last-child td {
-  border-bottom: none !important;
+/* 마지막 행 하단선 (미리보기 외부 기본값) */
+.prose:not(.custom-preview-container *):not(.onrivi-content-root *) tr:last-child td {
+  border-bottom: none;
 }
 
-/* 얼룩무늬 행 (Zebra striping)으로 가독성 향상 */
-.prose tbody tr:nth-child(even) {
-  background-color: rgba(243, 244, 246, 0.6) !important;
+/* 얼룩무늬 행 (미리보기 외부 기본값) */
+.prose:not(.custom-preview-container *):not(.onrivi-content-root *) tbody tr:nth-child(even) {
+  background-color: rgba(243, 244, 246, 0.6);
 }
-.dark .prose tbody tr:nth-child(even) {
-  background-color: rgba(255, 255, 255, 0.03) !important;
+.dark .prose:not(.custom-preview-container *):not(.onrivi-content-root *) tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
-/* 마우스 호버 시 행 은은한 하이라이트 효과 */
-.prose tbody tr:hover {
-  background-color: rgba(59, 130, 246, 0.04) !important;
+/* 마우스 호버 시 행 하이라이트 (미리보기 외부 기본값) */
+.prose:not(.custom-preview-container *):not(.onrivi-content-root *) tbody tr:hover {
+  background-color: rgba(59, 130, 246, 0.04);
 }
-.dark .prose tbody tr:hover {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+.dark .prose:not(.custom-preview-container *):not(.onrivi-content-root *) tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 /* 🔒 하단 클릭 시 에디터 내부의 뷰포트 컨테이너가 transform이나 margin으로 위로 밀려 올라가는 오작동 제어 */
 .monaco-editor .view-lines {

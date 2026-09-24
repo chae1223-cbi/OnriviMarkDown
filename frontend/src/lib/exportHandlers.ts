@@ -1,3 +1,7 @@
+// 🚨 @PATCH : **2026-09-24** — [표 테두리·모서리·세로선 및 모든 태그 서식 내보내기 완벽 동기화]:
+//             1) generateExportCss 내 sortCssProps 정렬기 도입으로 방향별 속성(border-left/right 등)이 단축 속성에 덮어써지지 않도록 방어
+//             2) .prose table 둥근 모서리/그림자/마지막 줄 하단선 소실/지브라 배경색 완전 리셋
+//             3) 미리보기 내부 모든 태그 선택자 구체성을 .prose 및 .dark 계열까지 전면 확장하여 서식 일치성 100% 보장
 // 🚨 @PATCH : **2026-09-24** — [문서 서식 기본 글자 크기(inherit) 상속 내보내기 동기화]: generateExportCss 내 codeBlock, footnote에 font-size 미지정 시 inherit !important 주입 및 표(table/th/td) font-size 없을 시 inherit 셀렉터 확장
 // 🚨 @PATCH : **2026-09-24** — [표 하단 여백 및 인용구 마진 상쇄 차단 내보내기 동기화]: generateExportCss에 .table-wrapper-area 상하 여백 주입 및 blockquote display:inline-block width:100% 적용, destructive margin-bottom:0 강제 제거
 // 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 내보내기 동기화]: generateExportCss 내 table/th/td 선택자 구체성 상향 및 double 시 3px 보정, th/td border-bottom-style 동기화
@@ -74,6 +78,23 @@ function generateExportCss(profile: any): string {
     css += `.custom-preview-container h${level} {\n  font-size: ${calcSize}px !important;\n}\n`;
   }
 
+  // 💡 CSS 속성 우선순위 정렬기: 단축 속성(border-style/width 등)이 방향별 속성(border-left/right 등)보다 항상 먼저 선언되도록 보장
+  const DIRECTIONAL_PROPS = new Set([
+    'border-top', 'border-bottom', 'border-left', 'border-right',
+    'border-top-width', 'border-bottom-width', 'border-left-width', 'border-right-width',
+    'border-top-style', 'border-bottom-style', 'border-left-style', 'border-right-style',
+    'border-top-color', 'border-bottom-color', 'border-left-color', 'border-right-color',
+    'padding-top', 'padding-bottom', 'padding-left', 'padding-right',
+    'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
+  ]);
+  const sortCssProps = (a: string, b: string): number => {
+    const isADir = DIRECTIONAL_PROPS.has(a);
+    const isBDir = DIRECTIONAL_PROPS.has(b);
+    if (isADir && !isBDir) return 1;
+    if (!isADir && isBDir) return -1;
+    return a.localeCompare(b);
+  };
+
   Object.entries(profile.rules || {}).forEach(([tag, ruleObj]: [string, any]) => {
     const skipFontSize = ['h2','h3','h4','h5','h6'].includes(tag);
     const entries = Object.entries(ruleObj).map(([prop, v]) => {
@@ -83,7 +104,7 @@ function generateExportCss(profile: any): string {
       if (v === '') return false;
       if (skipFontSize && prop === 'font-size') return false;
       return true;
-    }).sort((a, b) => (a[0] as string).localeCompare(b[0] as string));
+    }).sort((a, b) => sortCssProps(a[0] as string, b[0] as string));
     if (entries.length === 0) return;
     
     if (tag === 'codeBlockTitle') {
@@ -234,10 +255,16 @@ function generateExportCss(profile: any): string {
     const isMediaTag = tag === 'img' || tag === 'video' || tag === 'map';
     const sizeProps = ['width', 'height', 'max-width', 'max-height'];
     const isTableTag = ['table', 'th', 'td'].includes(tag);
-    let selectorStr = `.custom-preview-container .markdown-viewer-root ${selector},\n.custom-preview-container ${selector}`;
-    if (isTableTag) {
-      selectorStr += `,\n.custom-preview-container .prose ${selector},\n.dark .custom-preview-container .prose ${selector}`;
-    }
+    // 📊 Tailwind Typography 및 다크모드(.dark .prose)를 완벽히 압도하도록 모든 태그의 선택자 구체성을 일원화
+    const selectorStr = `
+      .custom-preview-container .markdown-viewer-root ${selector},
+      .custom-preview-container ${selector},
+      .onrivi-content-root ${selector},
+      .custom-preview-container .prose ${selector},
+      .dark .custom-preview-container .prose ${selector},
+      .onrivi-content-root .prose ${selector},
+      .dark .onrivi-content-root .prose ${selector}
+    `.replace(/\s+/g, ' ').trim();
     css += `${selectorStr} {\n`;
 
     const bStyle = (ruleObj as any)['border-style'];
@@ -290,15 +317,38 @@ function generateExportCss(profile: any): string {
 }
 .custom-preview-container table,
 .onrivi-content-root table,
-.custom-preview-container .prose table {
+.custom-preview-container .prose table,
+.dark .custom-preview-container .prose table,
+.onrivi-content-root .prose table,
+.dark .onrivi-content-root .prose table {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  box-shadow: none !important;
 }
 .custom-preview-container th,
-.custom-preview-container td {
+.custom-preview-container td,
+.onrivi-content-root th,
+.onrivi-content-root td,
+.custom-preview-container .prose th,
+.custom-preview-container .prose td,
+.onrivi-content-root .prose th,
+.onrivi-content-root .prose td {
   vertical-align: middle !important;
   word-break: keep-all !important;
+}
+.custom-preview-container .prose tr:last-child td,
+.onrivi-content-root .prose tr:last-child td {
+  border-bottom-style: inherit !important;
+}
+.custom-preview-container .prose tbody tr:nth-child(even),
+.dark .custom-preview-container .prose tbody tr:nth-child(even),
+.onrivi-content-root .prose tbody tr:nth-child(even),
+.dark .onrivi-content-root .prose tbody tr:nth-child(even) {
+  background-color: transparent !important;
 }
 .custom-preview-container p:has(+ .table-wrapper-area),
 .onrivi-content-root p:has(+ .table-wrapper-area) {
