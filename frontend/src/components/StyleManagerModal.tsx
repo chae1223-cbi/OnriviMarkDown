@@ -2,6 +2,7 @@
  * 프로그램명 : OnriviAuthor
  * 파일명 : StyleManagerModal.tsx
  * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-09-25** — [고급 레이아웃 표준 여백(상하 18mm, 좌우 12mm) AI 프롬프트 지시문 일원화]: AI 서식 생성 지시문의 pageStyle 여백을 상하 18mm, 좌우 12mm(marginTop/marginBottom: 18mm, marginLeft/marginRight: 12mm)로 전면 일원화
  * 🚨 @PATCH : **2026-09-25** — [시스템 제공 서식 개편 동기화]: 구버전 서식 2종 삭제 및 신규 시스템 제공 서식 5종(Onrivi 기술 표준 서식, Onrivi 법률·계약서 A4 공식 문서, Onrivi 네이버 블로그 감성 서식, Onrivi 일반 기술서적 표준 서식, Onrivi 공식 행사 및 가정통신문 안내장 서식) 🏛️ 시스템 제공 서식 탭 연동
  * 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 기본색(#2f2f2f) AI 프롬프트 지시]: AI 서식 생성 지시문에 체크박스 및 글자색을 본문과 동일한 #2f2f2f로 일치시키도록 명시
  * 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' AI 프롬프트 강제 지시]: AI 서식 생성 지시문 및 checkboxStructure에 checkedEffect 'none'을 강제 지시하여 취소선/반투명 오염 방지
@@ -338,14 +339,14 @@ export default function StyleManagerModal({
 
 [필수 요구사항]:
 1. 7대 서식 쇼케이스(본문, 제목 h1~h6, 목록 및 체크박스, 표, 인용구, 코드블록, 미디어/수식/각주)를 빠짐없이 조화롭게 구성하세요.
-2. 용지 규격 및 표준 여백(pageStyle)을 반드시 A4 규격(세로)과 상하 22mm, 좌 19mm, 우 20mm로 지정하세요:
+2. 용지 규격 및 표준 여백(pageStyle)을 반드시 A4 규격(세로)과 상하 18mm, 좌우 12mm로 지정하세요:
    "pageStyle": {
      "paperSize": "a4",
      "orientation": "portrait",
-     "marginTop": "22mm",
-     "marginBottom": "22mm",
-     "marginLeft": "19mm",
-     "marginRight": "20mm",
+     "marginTop": "18mm",
+     "marginBottom": "18mm",
+     "marginLeft": "12mm",
+     "marginRight": "12mm",
      "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', 'Noto Sans', Arial, sans-serif",
      "fontSize": "16px",
      "lineHeight": "1.75",

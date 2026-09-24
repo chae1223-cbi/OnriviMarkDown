@@ -25,10 +25,10 @@
     "letterSpacing": "-0.01em",
     "backgroundColor": "#ffffff",
     "paperSize": "a4",
-    "marginTop": "22mm",
-    "marginBottom": "22mm",
-    "marginLeft": "19mm",
-    "marginRight": "20mm",
+    "marginTop": "18mm",
+    "marginBottom": "18mm",
+    "marginLeft": "12mm",
+    "marginRight": "12mm",
     "orientation": "portrait",
     "headingSizeOffset": "0px",
     "tabSize": "2",
@@ -318,7 +318,7 @@
 - **pageStyle.paperSize**: 인쇄/출판 표준 용지 규격 (\`"a4"\`, \`"a3"\`, \`"b4"\`, \`"b5"\`, \`"letter"\`)
 - **pageStyle.orientation**: 용지 방향 (\`"portrait"\`: 세로형, \`"landscape"\`: 가로형)
 - **pageStyle.backgroundColor**: 문서 배경색 (\`"#ffffff"\`, 미색 \`"#fcfbf9"\`, 다크 \`"#0f172a"\` 등)
-- **pageStyle.margins**: 상/하/좌/우 인쇄 안전 여백 (\`marginTop\`, \`marginBottom\`: 기본값 \`"22mm"\`, \`marginLeft\`: 기본값 \`"19mm"\`, \`marginRight\`: 기본값 \`"20mm"\`)
+- **pageStyle.margins**: 상/하/좌/우 인쇄 안전 여백 (\`marginTop\`, \`marginBottom\`: 기본값 \`"18mm"\`, \`marginLeft\`, \`marginRight\`: 기본값 \`"12mm"\`)
 - **인라인 스타일**:
   - \`strong\`: 굵게 (\`font-weight\`, \`color\`)
   - \`em\`: 기울임 (\`font-style: italic\`, \`color\`)

@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-25** — [고급 레이아웃 및 본문 문단 용지 표준 여백(상하 18mm, 좌우 12mm) 내보내기 일원화]: PDF, HTML, 인쇄(@page), 이미지 캡처 시 기본 마진 폴백을 상하 18mm, 좌우 12mm(marginTop/marginBottom: 18mm, marginLeft/marginRight: 12mm)로 전면 일원화
 // 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 내보내기 동기화]: .task-list-item 및 checkboxStructure color를 본문(p) 글씨색(기본 #2f2f2f)으로 일치시켜 PDF/HTML/인쇄 내보내기 시 별도 색상 튐 원천 배제
 // 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 내보내기 기본값 동기화]: profile.checkboxStructure.checkedEffect 기본값을 'none'으로 확정하여 PDF/인쇄/HTML 내보내기 시 기본 취소선·반투명 오염 원천 방지
 // 🚨 @PATCH : **2026-09-24** — [동영상 및 지도 래퍼 폭 수축(300px) 버그 해결 내보내기 동기화]: generateExportCss 내 .onrivi-video-wrapper 및 .onrivi-map-wrapper에 고정되었던 width: fit-content를 ruleObj.width(기본 100%) 기반 동적 확장(display: flex, width: 100%)으로 보정하여 내보내기 시 300px 찌그러짐 현상 원천 차단
@@ -1492,10 +1493,10 @@ export async function exportPDF({
   <style>
     @page {
       size: ${cssPageSize};
-      margin-top: ${marginTop || '22mm'} !important;
-      margin-bottom: ${marginBottom || '22mm'} !important;
-      margin-left: ${marginLeft || '19mm'} !important;
-      margin-right: ${marginRight || '20mm'} !important;
+      margin-top: ${marginTop || '18mm'} !important;
+      margin-bottom: ${marginBottom || '18mm'} !important;
+      margin-left: ${marginLeft || '12mm'} !important;
+      margin-right: ${marginRight || '12mm'} !important;
       background-color: ${pageBg} !important;
     }
     
@@ -1829,10 +1830,10 @@ export async function exportHTML({
     const minHeightStr = `${pageHeight}mm`;
     const cssPageSize = `${pageWidth}mm ${pageHeight}mm`;
     
-    const pTop = marginTop || '22mm';
-    const pBottom = marginBottom || '22mm';
-    const pLeft = marginLeft || '19mm';
-    const pRight = marginRight || '20mm';
+    const pTop = marginTop || '18mm';
+    const pBottom = marginBottom || '18mm';
+    const pLeft = marginLeft || '12mm';
+    const pRight = marginRight || '12mm';
     
     const pageBg = backgroundColor || '#ffffff';
     // 💡 activeProfile이 있으면 무조건 라이트모드 기준 export용 CSS를 다시 생성하여 dynamicCssString을 대체
@@ -1885,10 +1886,10 @@ export async function exportHTML({
     }
     @page {
       size: ${cssPageSize};
-      margin-top: ${marginTop || '22mm'} !important;
-      margin-bottom: ${marginBottom || '22mm'} !important;
-      margin-left: ${marginLeft || '19mm'} !important;
-      margin-right: ${marginRight || '20mm'} !important;
+      margin-top: ${marginTop || '18mm'} !important;
+      margin-bottom: ${marginBottom || '18mm'} !important;
+      margin-left: ${marginLeft || '12mm'} !important;
+      margin-right: ${marginRight || '12mm'} !important;
       background-color: ${pageBg} !important;
     }
     @media print {
@@ -2142,15 +2143,15 @@ export async function exportPNG({
     const widthPx = Math.round(pageWidthMm * 96 / 25.4);
     const minHeightPx = Math.round(pageHeightMm * 96 / 25.4);
     
-    const mmToPx = (mmStr?: string, defaultVal = 22) => {
+    const mmToPx = (mmStr?: string, defaultVal = 18) => {
       const mm = parseFloat(mmStr || `${defaultVal}`);
       return Math.round(mm * 96 / 25.4);
     };
     
-    const pTop = mmToPx(marginTop, 22);
-    const pBottom = mmToPx(marginBottom, 22);
-    const pLeft = mmToPx(marginLeft, 19);
-    const pRight = mmToPx(marginRight, 20);
+    const pTop = mmToPx(marginTop, 18);
+    const pBottom = mmToPx(marginBottom, 18);
+    const pLeft = mmToPx(marginLeft, 12);
+    const pRight = mmToPx(marginRight, 12);
 
     const wrapper = document.createElement('div');
     

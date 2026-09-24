@@ -1,6 +1,7 @@
 /**
  * cssProfileGuide.ts
  * 온리비 어서(Onrivi Author) 서식 프로필 명세서 및 작성 가이드 마크다운 정의
+ * 🚨 @PATCH : **2026-09-25** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 가이드 명세 일원화]: 대표 서식 JSON, 고급 레이아웃 Card 6 명세, AI 프롬프트 지시문의 pageStyle 여백을 상하 18mm, 좌우 12mm(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm)로 전면 일원화
  * 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 기본색(#2f2f2f) 가이드 동기화]: 예시 JSON(rules.taskList, checkboxStructure) 및 명세의 color를 본문 글자색(#2f2f2f)으로 일원화하여 별도 색상 분리 방지
  * 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 가이드/명세 기본값 통일]: 예시 JSON(rules.taskList, checkboxStructure) 및 7대 쇼케이스 명세, AI 프롬프트 지시문에서 체크박스 완료 효과 기본값을 무조건 'none'(효과 없음)으로 일원화
  * 🚨 @PATCH : **2026-09-24** — [서식 설정 가이드 'Onrivi 기본서식' 100% 완전 동기화 및 누락 태그 상속 규칙 명시]: 가이드 내 JSON 스펙, 7대 쇼케이스 기본값(체크리스트, 미디어 100%, 각주, 수식 등) 및 AI 프롬프트를 'Onrivi 기본서식' 기준으로 전면 통일하고 누락 태그의 Onrivi 기본서식 자동 상속 정책 안내 수록
@@ -47,10 +48,10 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
     "letterSpacing": "-0.01em",
     "backgroundColor": "#ffffff",
     "paperSize": "a4",
-    "marginTop": "22mm",
-    "marginBottom": "22mm",
-    "marginLeft": "19mm",
-    "marginRight": "20mm",
+    "marginTop": "18mm",
+    "marginBottom": "18mm",
+    "marginLeft": "12mm",
+    "marginRight": "12mm",
     "orientation": "portrait",
     "headingSizeOffset": "0px",
     "tabSize": "2",
@@ -340,7 +341,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
 - **pageStyle.paperSize**: 인쇄/출판 표준 용지 규격 (\`"a4"\`, \`"a3"\`, \`"b4"\`, \`"b5"\`, \`"letter"\`)
 - **pageStyle.orientation**: 용지 방향 (\`"portrait"\`: 세로형, \`"landscape"\`: 가로형)
 - **pageStyle.backgroundColor**: 문서 배경색 (\`"#ffffff"\`, 미색 \`"#fcfbf9"\`, 다크 \`"#0f172a"\` 등)
-- **pageStyle.margins**: 상/하/좌/우 인쇄 안전 여백 (\`marginTop\`, \`marginBottom\`: 기본값 \`"22mm"\`, \`marginLeft\`: 기본값 \`"19mm"\`, \`marginRight\`: 기본값 \`"20mm"\`)
+- **pageStyle.margins**: 상/하/좌/우 인쇄 안전 여백 (\`marginTop\`, \`marginBottom\`: 기본값 \`"18mm"\`, \`marginLeft\`: 기본값 \`"12mm"\`, \`marginRight\`: 기본값 \`"12mm"\`)
 - **인라인 스타일**:
   - \`strong\`: 굵게 (\`font-weight\`, \`color\`)
   - \`em\`: 기울임 (\`font-style: italic\`, \`color\`)
@@ -412,6 +413,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
   - 상하 여백: \`margin-top: "28px"\`, \`margin-bottom: "28px"\`
 
 ### 🎴 Card 6. 고급 레이아웃 및 본문 문단 (\`p\`)
+- **용지 마진 여백(\`pageStyle.marginTop\`, \`marginBottom\`, \`marginLeft\`, \`marginRight\`)**: 위/아래 \`"18mm"\`, 왼/오른쪽 \`"12mm"\` (표준 규격)
 - **본문 정렬(\`text-align\`)**: \`"left"\` (기본 정렬), \`"justify"\` (출판물 스타일 양끝 정렬)
 - **첫 줄 들여쓰기(\`text-indent\`)**: 기본 \`"0px"\` (출판 서식의 경우 \`"16px"\`)
 - **문단 상하 여백(\`margin-top\`, \`margin-bottom\`)**: 상단 \`"0px"\`, 하단 \`"16px"\`
@@ -438,7 +440,7 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
 > "제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, **[원하는 테마 명칭: 예 - 에디토리얼 테크니컬 서식]** 서식 프로필 JSON 1개를 생성해 줘.
 > 
 > [요구 조건]
-> 1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 22mm, 좌 19mm, 우 20mm 여백, 기본 글꼴은 시스템 고딕, 글자 크기 16px, 줄 간격 1.75 적용.
+> 1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 18mm, 좌우 12mm 여백(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm), 기본 글꼴은 시스템 고딕, 글자 크기 16px, 줄 간격 1.75 적용.
 > 2. 제목(h1~h6)은 32px부터 15px까지 단계별 위계와 정갈한 상하 여백으로 구성.
 > 3. 본문 문단(p)은 줄 간격 1.75, 문단 아래 여백 16px, 문장 사이 간격(sentence-gap) 4px 적용.
 > 4. 표(tableStructure)는 outerBorderWidth: 1px, rowBorderWidth: 1px, colBorderWidth: 1px의 정갈한 격자 스타일로 구성.

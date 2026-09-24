@@ -144,7 +144,7 @@ describe('서식 데이터 정제 및 정규화 엔진 검증', () => {
     expect(jsonStr).toContain('"math"');
   });
 
-  it('여백이 누락되거나 빈 문자열인 경우 표준 여백(상하 22mm, 좌 19mm, 우 20mm, A4 세로)으로 자동 복원되어야 한다', () => {
+  it('여백이 누락되거나 빈 문자열인 경우 표준 여백(상하 18mm, 좌우 12mm, A4 세로)으로 자동 복원되어야 한다', () => {
     const profileWithMissingMargins = {
       name: '여백 누락 서식',
       pageStyle: {
@@ -158,10 +158,10 @@ describe('서식 데이터 정제 및 정규화 엔진 검증', () => {
     const normalized = normalizeCssProfile(profileWithMissingMargins);
     expect(normalized.pageStyle.paperSize).toBe('a4');
     expect(normalized.pageStyle.orientation).toBe('portrait');
-    expect(normalized.pageStyle.marginTop).toBe('22mm');
-    expect(normalized.pageStyle.marginBottom).toBe('22mm');
-    expect(normalized.pageStyle.marginLeft).toBe('19mm');
-    expect(normalized.pageStyle.marginRight).toBe('20mm');
+    expect(normalized.pageStyle.marginTop).toBe('18mm');
+    expect(normalized.pageStyle.marginBottom).toBe('18mm');
+    expect(normalized.pageStyle.marginLeft).toBe('12mm');
+    expect(normalized.pageStyle.marginRight).toBe('12mm');
     expect(normalized.tableStructure?.outerBorderWidth).toBe('1px');
     expect(normalized.tableStructure?.rowBorderWidth).toBe('1px');
     expect(normalized.tableStructure?.colBorderWidth).toBe('1px');
