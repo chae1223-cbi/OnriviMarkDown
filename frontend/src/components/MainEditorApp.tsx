@@ -47,6 +47,7 @@
 //             **2026-09-12** — [AI 모델 단일 소스(SSOT) 표준화]: 하단 플로팅 AI 모델 팝오버 및 2행 상태 표시줄을 ONRIVI_AI_MODELS 중앙 정의와 100% 동기화
 //             **2026-09-12** — AIDraftModal에 onModelChange prop 전달하여 모달 내부 모델 선택과 에디터 상태 실시간 양방향 동기화; 하단 플로팅 AI 모델 목록에 공인 안정 모델(Gemini 2.5 Flash, Gemini 2.0 Flash) 추가 연동
 //             **2026-09-12** — [플로팅 툴바 이모지 서식 원복 유지] 사용자 피드백을 반영하여 플로팅 서식 툴바의 친숙한 컬러 이모지(🔢, ☰, ❝, ☑️, 🧹, 🔗, 🔖, 📝, 🖼️, 🎞️, 📅, 🌏, 📶, ⇤, ↔, ⇥, ⌨️, 🧮) 인터페이스를 원래대로 완벽 복원 및 유지
+// 🚨 @PATCH : **2026-09-24** — [문서 서식 기본 글자 크기(inherit) 상속 체계 강화]: dynamicCssString 내 codeBlock, footnote에 font-size 미지정 시 inherit !important 주입 및 표(table/th/td) font-size 없을 시 inherit 셀렉터 범위 확장
 //             **2026-09-24** — [표 하단 여백 반영 정상화 및 인접 블록 마진 간섭 해소]: .table-wrapper-area 및 blockquote에 display:inline-block width:100%를 적용하여 마진 상쇄(Margin Collapse)를 원천 차단하고, *:has(+ blockquote) margin-bottom:0 강제 규칙을 소거하여 표 하단 여백 및 인용구 상하 여백이 1px 단위로 100% 정직하게 상호 독립 동작하도록 해결
 //             **2026-09-24** — [표 테두리 이중선(double) 고대비 렌더링 및 CSS 구체성 강화]: dynamicCssString 내 table/th/td 선택자 구체성을 .custom-preview-container .prose table, .dark 등으로 대폭 상향하여 globals.css 오버라이드 승리 보장, border-style:double 시 최소 3px 두께 자동 보장 및 th/td border-bottom-style 통일
 //             **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote display:flow-root 적용 및 *:has(+ blockquote), blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
@@ -5724,6 +5725,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
         if (fontSize) {
           css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code {\n  font-size: ${fontSize} !important;\n}\n`;
+        } else {
+          css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code {\n  font-size: inherit !important;\n}\n`;
         }
         if (padding) {
           css += `.custom-preview-container .codeblock-area pre {\n  padding: ${padding} !important;\n}\n`;
@@ -5805,6 +5808,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
         if (fontSize) {
           css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
+        } else {
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: inherit !important;\n}\n`;
         }
         if (lineHeight) {
           css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
@@ -5860,8 +5865,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const tableHasFontSize = prof.rules.table && prof.rules.table['font-size'];
     if (!tableHasFontSize) {
       css += `
+.custom-preview-container table,
 .custom-preview-container th,
-.custom-preview-container td {
+.custom-preview-container td,
+.onrivi-content-root table,
+.onrivi-content-root th,
+.onrivi-content-root td {
   font-size: inherit !important;
 }
 `;

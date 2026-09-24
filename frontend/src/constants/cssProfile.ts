@@ -4,6 +4,7 @@ import { CssProfile } from '../types/cssProfile';
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
 // 🛡️ @GUARD : 이 ID를 가진 프로필은 수정/삭제 불가
+// 🚨 @PATCH : **2026-09-24** — [표준 서식 표(Table) 기본 글자 크기 상속]: system-1의 table, th, td에서 고정 font-size(13px)를 제거하여 문서 기본 글자 크기(pageStyle.fontSize)를 기본 상속하도록 최적화
 // 🚨 @PATCH : **2026-09-24** — [시스템 프로필 blockquote 기본 상하 마진(16px) 통일]: system-1/2/3의 blockquote margin-top/bottom을 16px로 일원화하여 초기 슬라이더 1:1 반응 보장
 // 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 시스템 서식 규격 표준화]: system-2 및 system-3에 hrStructure 기본 규격 추가 및 rules.hr 레거시 border:0 속성 정제
 // 🚨 @PATCH : **2026-09-24** — [표준 서식 H1 왼쪽 여백 정렬]: system-1 H1의 padding-left 15px를 0px로 초기화하여 H2~H6와 시작선 완벽 일치
@@ -194,8 +195,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "border-collapse": "collapse",
         "border-style": "solid",
         "border-width": "1px",
-        "border-color": "#9ca3af",
-        "font-size": "13px"
+        "border-color": "#9ca3af"
       },
       "th": {
         "background-color": "#f8fafc",
@@ -203,15 +203,13 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "border-style": "solid",
         "border-width": "1px",
         "border-color": "#9ca3af",
-        "font-weight": "bold",
-        "font-size": "13px"
+        "font-weight": "bold"
       },
       "td": {
         "padding": "7px",
         "border-style": "solid",
         "border-width": "1px",
-        "border-color": "#9ca3af",
-        "font-size": "13px"
+        "border-color": "#9ca3af"
       },
       "blockquote": {
         "padding": "14px 20px",

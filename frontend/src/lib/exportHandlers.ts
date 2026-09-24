@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-24** — [문서 서식 기본 글자 크기(inherit) 상속 내보내기 동기화]: generateExportCss 내 codeBlock, footnote에 font-size 미지정 시 inherit !important 주입 및 표(table/th/td) font-size 없을 시 inherit 셀렉터 확장
 // 🚨 @PATCH : **2026-09-24** — [표 하단 여백 및 인용구 마진 상쇄 차단 내보내기 동기화]: generateExportCss에 .table-wrapper-area 상하 여백 주입 및 blockquote display:inline-block width:100% 적용, destructive margin-bottom:0 강제 제거
 // 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 내보내기 동기화]: generateExportCss 내 table/th/td 선택자 구체성 상향 및 double 시 3px 보정, th/td border-bottom-style 동기화
 // 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote display:flow-root 적용 및 *:has(+ blockquote), blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
@@ -143,6 +144,8 @@ function generateExportCss(profile: any): string {
       }
       if (fontSize) {
         css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code {\n  font-size: ${fontSize} !important;\n}\n`;
+      } else {
+        css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code {\n  font-size: inherit !important;\n}\n`;
       }
       if (padding) {
         css += `.custom-preview-container .codeblock-area pre {\n  padding: ${padding} !important;\n}\n`;
@@ -212,6 +215,8 @@ function generateExportCss(profile: any): string {
       }
       if (fontSize) {
         css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
+      } else {
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: inherit !important;\n}\n`;
       }
       if (lineHeight) {
         css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
@@ -261,8 +266,12 @@ function generateExportCss(profile: any): string {
   const tableHasFontSize = profile.rules.table && profile.rules.table['font-size'];
   if (!tableHasFontSize) {
     css += `
+.custom-preview-container table,
 .custom-preview-container th,
-.custom-preview-container td {
+.custom-preview-container td,
+.onrivi-content-root table,
+.onrivi-content-root th,
+.onrivi-content-root td {
   font-size: inherit !important;
 }
 `;

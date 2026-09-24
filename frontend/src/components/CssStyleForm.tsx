@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [문서 서식 기본 글자 크기 유지(상속) 및 직접 설정 듀얼 모드 위젯(FontSizeControl) 도입]: 표(Table), 인용구(Blockquote), 코드블록(CodeBlock), 각주(Footnote), 수식(Math)에 대해 '기본설정 유지' vs '직접 설정' 세그먼트 위젯을 제공하여 페이지 기본 글자 크기(pageStyle.fontSize) 실시간 동기화 지원
  *   2026-09-24 — [표 하단 여백 렌더링 정상화 및 실시간 HUD/펄스 동기화]: 표 상하 여백 슬라이더 조작 시 triggerUpdate에 한국어 명칭 및 수치 전달, table-wrapper-area 1:1 반응 보장
  *   2026-09-24 — [표 테두리 이중선(double) 렌더링 정상화 및 단축 속성 충돌 해결]: updateTableBorder 실행 시 shorthand border 잔재 삭제, double 선택 시 브라우저 물리 렌더링 한계(최소 3px) 돌파를 위한 두께 자동 보정 및 th/td border-style 일원화
  *   2026-09-24 — [인용구 상하 여백 0~15px 데드존 완전 소멸]: 슬라이더 0px 설정 시 인접 블록 마진 0 강제와 연동되어 완전 밀착 및 1px 단위 즉각 반응 보장
@@ -158,6 +159,108 @@ function SliderWidget({ label, min, max, step = 1, value, unit, disabled, onChan
 }
 
 // ====================================================================
+// 📊 [OMD-CORE-CssStyleForm-0002B] CssStyleForm ➔ FontSizeControl
+// 🎯 @KICK  : 기본 글자 크기 유지(상속) vs 개별 직접 설정 듀얼 모드 글자 크기 제어 위젯
+// 🛡️ @GUARD : disabled 처리 및 빈 문자열('') 전달로 inherit 보장
+// 🚨 @PATCH : **2026-09-24** — [글자 크기 듀얼 모드 위젯 신설] 기본설정 유지 및 슬라이더 전환 지원
+// 🔗 @CALLS : 없음
+// ====================================================================
+interface FontSizeControlProps {
+  label: string;
+  value: string | undefined;
+  baseFontSize: string;
+  disabled: boolean;
+  onChange: (val: string) => void;
+  min?: number;
+  max?: number;
+  defaultCustomValue?: number;
+}
+
+function FontSizeControl({
+  label,
+  value,
+  baseFontSize,
+  disabled,
+  onChange,
+  min = 10,
+  max = 36,
+  defaultCustomValue,
+}: FontSizeControlProps) {
+  const isInherited = !value || value === '' || value === 'inherit' || value === '0' || value === '0px';
+  const parsedBase = parseInt(baseFontSize, 10) || 14;
+  const currentNumVal = parseInt(value || '', 10) || parsedBase || defaultCustomValue || 14;
+
+  return (
+    <div className="space-y-2.5 bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 transition-all">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px]">{label}</span>
+        
+        {/* 모드 선택 세그먼트 버튼 */}
+        <div className="inline-flex rounded-lg p-0.5 bg-zinc-200/80 dark:bg-zinc-800 border border-zinc-300/80 dark:border-zinc-700/80 text-xs font-semibold shrink-0">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange('')}
+            className={`px-2.5 py-1 rounded-md transition-all ${
+              isInherited
+                ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+            title="문서 전체 기본 글자 크기를 그대로 상속받습니다"
+          >
+            기본설정 유지
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(`${currentNumVal}px`)}
+            className={`px-2.5 py-1 rounded-md transition-all ${
+              !isInherited
+                ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+            } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+            title="이 태그에만 적용될 글자 크기를 직접 지정합니다"
+          >
+            직접 설정
+          </button>
+        </div>
+      </div>
+
+      {isInherited ? (
+        <div className="flex items-center justify-between py-2 px-3 bg-blue-50/70 dark:bg-blue-950/30 rounded-md border border-blue-100 dark:border-blue-900/40 text-xs text-blue-800 dark:text-blue-300">
+          <div className="flex items-center gap-1.5 font-medium">
+            <span>🔗</span>
+            <span>문서 기본 글자 크기를 따릅니다</span>
+          </div>
+          <span className="font-mono font-bold px-2 py-0.5 bg-white dark:bg-blue-900/60 rounded border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 shrink-0">
+            현재: {baseFontSize || '14px'}
+          </span>
+        </div>
+      ) : (
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">개별 지정 크기</span>
+            <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">
+              {currentNumVal}px
+            </span>
+          </div>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={1}
+            value={currentNumVal}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value + 'px')}
+            className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-650 disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ====================================================================
 // 📊 [OMD-CORE-CssStyleForm-0003] CssStyleForm ➔ ColorPickerWidget
 // 🎯 @KICK  : 브라우저 내장 컬러 피커와 텍스트 입력을 연동한 색상 선택 위젯
 // 🛡️ @GUARD : value가 #으로 시작하지 않으면 #000000 기본값 사용
@@ -289,6 +392,7 @@ export default function CssStyleForm({
 }: CssStyleFormProps) {
   const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE; // 현재 프로파일 
   const isSystemProfile = false;
+  const baseFontSize = currentProfile?.pageStyle?.fontSize || '14px';
 
   /* ─── 아코디언 상태 관리 ─── */
   const [openAccordion, setOpenAccordion] = useState<string | null>('typography');
@@ -2198,6 +2302,25 @@ ${guideContent}
               onChange={(v) => updateCssRule('blockquote', 'padding', v + 'px')}
             />
 
+            {/* 인용구 글자 크기 */}
+            <FontSizeControl
+              label="인용구 글자 크기"
+              value={getTagRules('blockquote')['font-size']}
+              baseFontSize={baseFontSize}
+              disabled={isSystemProfile}
+              onChange={(v) => {
+                if (!v) {
+                  const { 'font-size': _, ...rest } = getTagRules('blockquote');
+                  triggerUpdate({
+                    ...currentProfile,
+                    rules: { ...currentProfile.rules, blockquote: rest }
+                  }, 'blockquote', '인용구 기본 글자 크기 유지');
+                } else {
+                  updateCssRule('blockquote', 'font-size', v);
+                }
+              }}
+            />
+
             {/* 인용구 글자 굵기 설정 */}
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">인용 글자 굵기</span>
@@ -2382,20 +2505,12 @@ ${guideContent}
             />
 
             {/* 표 글자 크기 */}
-            <SliderWidget
-              label="표 글자 크기 (0인 경우 페이지 기본 크기 사용)"
-              min={0}
-              max={36}
-              value={parseInt(getTagRules('table')['font-size']) || 0}
-              unit={parseInt(getTagRules('table')['font-size']) === 0 || !getTagRules('table')['font-size'] ? "기본값" : "px"}
+            <FontSizeControl
+              label="표 글자 크기"
+              value={getTagRules('table')['font-size']}
+              baseFontSize={baseFontSize}
               disabled={isSystemProfile}
-              onChange={(v) => {
-                if (v === '0') {
-                  updateTableFontSize('');
-                } else {
-                  updateTableFontSize(v + 'px');
-                }
-              }}
+              onChange={(v) => updateTableFontSize(v)}
             />
 
             {/* 표 상단 여백 (제목 문구와의 간격) */}
@@ -2578,14 +2693,24 @@ ${guideContent}
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'color', v)}
             />
-            <SliderWidget
+            <FontSizeControl
               label="코드 글자 크기"
               min={10}
               max={24}
-              value={parseInt(getTagRules('codeBlock')['font-size']) || 13}
-              unit="px"
+              value={getTagRules('codeBlock')['font-size']}
+              baseFontSize={baseFontSize}
               disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('codeBlock', 'font-size', v + 'px')}
+              onChange={(v) => {
+                if (!v) {
+                  const { 'font-size': _, ...rest } = getTagRules('codeBlock');
+                  triggerUpdate({
+                    ...currentProfile,
+                    rules: { ...currentProfile.rules, codeBlock: rest }
+                  }, 'codeBlock', '코드 블록 기본 글자 크기 유지');
+                } else {
+                  updateCssRule('codeBlock', 'font-size', v);
+                }
+              }}
             />
 
             <SliderWidget
@@ -2671,14 +2796,24 @@ ${guideContent}
                 <option value="bold">굵게</option>
               </select>
             </div>
-            <SliderWidget
+            <FontSizeControl
               label="각주 글자 크기"
               min={10}
               max={20}
-              value={parseInt(getTagRules('footnote')['font-size']) || 12}
-              unit="px"
+              value={getTagRules('footnote')['font-size']}
+              baseFontSize={baseFontSize}
               disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('footnote', 'font-size', v + 'px')}
+              onChange={(v) => {
+                if (!v) {
+                  const { 'font-size': _, ...rest } = getTagRules('footnote');
+                  triggerUpdate({
+                    ...currentProfile,
+                    rules: { ...currentProfile.rules, footnote: rest }
+                  }, 'footnote', '각주 기본 글자 크기 유지');
+                } else {
+                  updateCssRule('footnote', 'font-size', v);
+                }
+              }}
             />
             <SliderWidget
               label="각주 줄 간격"
@@ -3017,14 +3152,24 @@ ${guideContent}
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('math', 'color', v)}
             />
-            <SliderWidget
+            <FontSizeControl
               label="수식 글자 크기"
               min={10}
               max={32}
-              value={parseInt(getTagRules('math')['font-size']) || 16}
-              unit="px"
+              value={getTagRules('math')['font-size']}
+              baseFontSize={baseFontSize}
               disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('math', 'font-size', v + 'px')}
+              onChange={(v) => {
+                if (!v) {
+                  const { 'font-size': _, ...rest } = getTagRules('math');
+                  triggerUpdate({
+                    ...currentProfile,
+                    rules: { ...currentProfile.rules, math: rest }
+                  }, 'math', '수식 기본 글자 크기 유지');
+                } else {
+                  updateCssRule('math', 'font-size', v);
+                }
+              }}
             />
             <SliderWidget
               label="수식 상하 바깥 여백"
