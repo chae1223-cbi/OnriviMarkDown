@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-24** — [표 하단 여백 및 인용구 마진 상쇄 차단 내보내기 동기화]: generateExportCss에 .table-wrapper-area 상하 여백 주입 및 blockquote display:inline-block width:100% 적용, destructive margin-bottom:0 강제 제거
 // 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 내보내기 동기화]: generateExportCss 내 table/th/td 선택자 구체성 상향 및 double 시 3px 보정, th/td border-bottom-style 동기화
 // 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote display:flow-root 적용 및 *:has(+ blockquote), blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
 // 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 내보내기 규격 동기화]: generateExportCss 내 hr border:none/height:0/transparent 리셋 및 .onrivi-content-root hr 선택자 추가
@@ -267,10 +268,22 @@ function generateExportCss(profile: any): string {
 `;
   }
 
+  const tableMarginTop = profile.rules.table?.['margin-top'] || '4px';
+  const tableMarginBottom = profile.rules.table?.['margin-bottom'] || '16px';
   css += `
+.custom-preview-container .table-wrapper-area,
+.onrivi-content-root .table-wrapper-area {
+  display: inline-block !important;
+  width: 100% !important;
+  vertical-align: top !important;
+  margin-top: ${tableMarginTop} !important;
+  margin-bottom: ${tableMarginBottom} !important;
+}
 .custom-preview-container table,
 .onrivi-content-root table,
 .custom-preview-container .prose table {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
   border-collapse: collapse !important;
 }
 .custom-preview-container th,
@@ -278,29 +291,17 @@ function generateExportCss(profile: any): string {
   vertical-align: middle !important;
   word-break: keep-all !important;
 }
+.custom-preview-container p:has(+ .table-wrapper-area),
+.onrivi-content-root p:has(+ .table-wrapper-area) {
+  margin-bottom: 6px !important;
+}
 
-/* 💬 인용구(blockquote) 여백 정밀 제어 및 마진 겹침 방어 (0~15px 데드존 완전 소멸) */
+/* 💬 인용구(blockquote) 여백 정밀 제어: BFC 및 인라인 블록 격리로 마진 상쇄 원천 차단 */
 .custom-preview-container blockquote,
 .onrivi-content-root blockquote {
-  display: flow-root !important;
-}
-.custom-preview-container *:has(+ blockquote),
-.onrivi-content-root *:has(+ blockquote),
-.custom-preview-container .table-wrapper-area:has(+ blockquote),
-.onrivi-content-root .table-wrapper-area:has(+ blockquote),
-.custom-preview-container p:has(+ blockquote),
-.onrivi-content-root p:has(+ blockquote) {
-  margin-bottom: 0 !important;
-}
-.custom-preview-container blockquote + *,
-.onrivi-content-root blockquote + *,
-.custom-preview-container blockquote + * .codeblock-area,
-.onrivi-content-root blockquote + * .codeblock-area,
-.custom-preview-container blockquote + .not-prose > .codeblock-area,
-.onrivi-content-root blockquote + .not-prose > .codeblock-area,
-.custom-preview-container blockquote + p,
-.onrivi-content-root blockquote + p {
-  margin-top: 0 !important;
+  display: inline-block !important;
+  width: 100% !important;
+  vertical-align: top !important;
 }
 `;
 

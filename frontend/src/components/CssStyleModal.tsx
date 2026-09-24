@@ -4,7 +4,8 @@
  * -----------------------------------------------------------------------
  * 변경내역
  * -----------------------------------------------------------------------
- * 🚨 @PATCH : **2026-09-24** — [수평 구분선(HR) 타겟 자동 스크롤 및 속성 변경 시 요소 뷰포트 자동 정렬]: HR 아코디언 토글 시 Card 5 내부 hr 요소로 직행 스크롤하고, 속성 변경 시 뷰포트 밖 요소를 화면 중앙으로 자동 정렬하여 실시간 반응성 보장
+ * 🚨 @PATCH : **2026-09-24** — [표 래퍼(.table-wrapper-area) 펄스 및 여백 동기화 지원]: table 태그 조작 시 table 및 .table-wrapper-area 동시 타겟팅하여 펄스 애니메이션 및 정렬 뷰포트 추종
+ *             **2026-09-24** — [수평 구분선(HR) 타겟 자동 스크롤 및 속성 변경 시 요소 뷰포트 자동 정렬]: HR 아코디언 토글 시 Card 5 내부 hr 요소로 직행 스크롤하고, 속성 변경 시 뷰포트 밖 요소를 화면 중앙으로 자동 정렬하여 실시간 반응성 보장
  *             **2026-09-24** — [서식 관리 우측 5대 서식별 모듈 뭉침 뷰 및 1:1 실시간 동기화 펄스 연동]:
  *             1) 우측 뷰어를 좌측 설정과 1:1 대응되는 5대 서식 뭉침 카드(Grouped Showcase Cards)로 개편
  *             2) [🎴 서식별 모아보기] ↔ [📝 현재 편집 문서] 듀얼 뷰 모드 스위처 신설
@@ -138,7 +139,8 @@ export default function CssStyleModal({
     // 우측 뷰어 컨테이너 내부의 해당 태그 요소에 펄스 애니메이션 부여
     const container = document.getElementById('omd-modal-preview-container');
     if (container) {
-      const targetElements = container.querySelectorAll(tag);
+      const selector = tag === 'table' ? 'table, .table-wrapper-area' : tag;
+      const targetElements = container.querySelectorAll(selector);
       targetElements.forEach((el) => {
         el.classList.remove('onrivi-sync-pulse');
         void (el as HTMLElement).offsetWidth; // 강제 reflow

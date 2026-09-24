@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-24 — [표 하단 여백 렌더링 정상화 및 실시간 HUD/펄스 동기화]: 표 상하 여백 슬라이더 조작 시 triggerUpdate에 한국어 명칭 및 수치 전달, table-wrapper-area 1:1 반응 보장
  *   2026-09-24 — [표 테두리 이중선(double) 렌더링 정상화 및 단축 속성 충돌 해결]: updateTableBorder 실행 시 shorthand border 잔재 삭제, double 선택 시 브라우저 물리 렌더링 한계(최소 3px) 돌파를 위한 두께 자동 보정 및 th/td border-style 일원화
  *   2026-09-24 — [인용구 상하 여백 0~15px 데드존 완전 소멸]: 슬라이더 0px 설정 시 인접 블록 마진 0 강제와 연동되어 완전 밀착 및 1px 단위 즉각 반응 보장
  *   2026-09-24 — [인용구(blockquote) 상하 여백 및 형태 프리셋 triggerUpdate 연동]: 슬라이더 및 프리셋 클릭 시 triggerUpdate로 실시간 펄스 하이라이트 및 HUD 배지 동기화
@@ -2405,7 +2406,17 @@ ${guideContent}
               value={isNaN(parseInt(getTagRules('table')['margin-top'])) ? 4 : parseInt(getTagRules('table')['margin-top'])}
               unit="px"
               disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('table', 'margin-top', v + 'px')}
+              onChange={(v) => {
+                const currentTagRules = currentProfile.rules['table'] || {};
+                const updated = {
+                  ...currentProfile,
+                  rules: {
+                    ...currentProfile.rules,
+                    table: { ...currentTagRules, 'margin-top': v + 'px' },
+                  },
+                };
+                triggerUpdate(updated, 'table', `표 상단 여백 (${v}px)`);
+              }}
             />
 
             {/* 표 하단 여백 */}
@@ -2416,7 +2427,17 @@ ${guideContent}
               value={isNaN(parseInt(getTagRules('table')['margin-bottom'])) ? 16 : parseInt(getTagRules('table')['margin-bottom'])}
               unit="px"
               disabled={isSystemProfile}
-              onChange={(v) => updateCssRule('table', 'margin-bottom', v + 'px')}
+              onChange={(v) => {
+                const currentTagRules = currentProfile.rules['table'] || {};
+                const updated = {
+                  ...currentProfile,
+                  rules: {
+                    ...currentProfile.rules,
+                    table: { ...currentTagRules, 'margin-bottom': v + 'px' },
+                  },
+                };
+                triggerUpdate(updated, 'table', `표 하단 여백 (${v}px)`);
+              }}
             />
           </div>
 

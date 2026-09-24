@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-24** — [표 하단 여백 및 인용구 마진 상쇄 차단]: .table-wrapper-area 및 blockquote에 display:inline-block width:100%를 적용하여 마진 상쇄 원천 차단 및 *:has(+ blockquote) margin-bottom:0 강제 소거
 // 🚨 @PATCH : **2026-09-24** — [표 테두리 이중선(double) 렌더링 지원]: MarkdownViewer 인라인 스타일에 th/td border-bottom-style inherit 및 border-collapse: collapse 보강
 // 🚨 @PATCH : **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote/Alert my-4 기본 마진 클래스 제거, *:has(+ blockquote) 및 blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
 // 🚨 @PATCH : **2026-09-23** — [리스트 빈 행 판별 가드 고도화 및 부모 블록 실종 방어] li 컴포넌트에서 isEmptyRow 검사 시 하위 서브리스트(ul/ol) 보유 여부를 엄격히 확인하여, 서브리스트 내부에 빈 행이 있을 때 부모 li(떡볶이, 고추장 등)가 빈 행으로 오탐되어 통째로 증발하던 결함 완벽 해결
@@ -2023,6 +2024,9 @@ function MarkdownViewer({
         }
         .markdown-viewer-root .table-wrapper-area,
         .onrivi-content-root .table-wrapper-area {
+          display: inline-block !important;
+          width: 100% !important;
+          vertical-align: top !important;
           margin-top: 4px !important;
           margin-bottom: 16px !important;
         }
@@ -2042,28 +2046,12 @@ function MarkdownViewer({
         .onrivi-content-root :is(p, h1, h2, h3, h4, h5, h6, strong):has(+ .table-wrapper-area) {
           margin-bottom: 6px !important;
         }
-        /* 💬 인용구(blockquote) 여백 정밀 제어 및 마진 겹침 방어 (0~15px 데드존 완전 소멸) */
+        /* 💬 인용구(blockquote) 여백 정밀 제어: BFC 및 인라인 블록 격리로 마진 상쇄 원천 차단 */
         .markdown-viewer-root blockquote,
         .onrivi-content-root blockquote {
-          display: flow-root !important;
-        }
-        .markdown-viewer-root *:has(+ blockquote),
-        .onrivi-content-root *:has(+ blockquote),
-        .markdown-viewer-root .table-wrapper-area:has(+ blockquote),
-        .onrivi-content-root .table-wrapper-area:has(+ blockquote),
-        .markdown-viewer-root p:has(+ blockquote),
-        .onrivi-content-root p:has(+ blockquote) {
-          margin-bottom: 0 !important;
-        }
-        .markdown-viewer-root blockquote + *,
-        .onrivi-content-root blockquote + *,
-        .markdown-viewer-root blockquote + * .codeblock-area,
-        .onrivi-content-root blockquote + * .codeblock-area,
-        .markdown-viewer-root blockquote + .not-prose > .codeblock-area,
-        .onrivi-content-root blockquote + .not-prose > .codeblock-area,
-        .markdown-viewer-root blockquote + p,
-        .onrivi-content-root blockquote + p {
-          margin-top: 0 !important;
+          display: inline-block !important;
+          width: 100% !important;
+          vertical-align: top !important;
         }
       `}</style>
       {(customCss || frontmatterCustomCss) && (

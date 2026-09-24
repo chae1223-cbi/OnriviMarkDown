@@ -47,6 +47,7 @@
 //             **2026-09-12** — [AI 모델 단일 소스(SSOT) 표준화]: 하단 플로팅 AI 모델 팝오버 및 2행 상태 표시줄을 ONRIVI_AI_MODELS 중앙 정의와 100% 동기화
 //             **2026-09-12** — AIDraftModal에 onModelChange prop 전달하여 모달 내부 모델 선택과 에디터 상태 실시간 양방향 동기화; 하단 플로팅 AI 모델 목록에 공인 안정 모델(Gemini 2.5 Flash, Gemini 2.0 Flash) 추가 연동
 //             **2026-09-12** — [플로팅 툴바 이모지 서식 원복 유지] 사용자 피드백을 반영하여 플로팅 서식 툴바의 친숙한 컬러 이모지(🔢, ☰, ❝, ☑️, 🧹, 🔗, 🔖, 📝, 🖼️, 🎞️, 📅, 🌏, 📶, ⇤, ↔, ⇥, ⌨️, 🧮) 인터페이스를 원래대로 완벽 복원 및 유지
+//             **2026-09-24** — [표 하단 여백 반영 정상화 및 인접 블록 마진 간섭 해소]: .table-wrapper-area 및 blockquote에 display:inline-block width:100%를 적용하여 마진 상쇄(Margin Collapse)를 원천 차단하고, *:has(+ blockquote) margin-bottom:0 강제 규칙을 소거하여 표 하단 여백 및 인용구 상하 여백이 1px 단위로 100% 정직하게 상호 독립 동작하도록 해결
 //             **2026-09-24** — [표 테두리 이중선(double) 고대비 렌더링 및 CSS 구체성 강화]: dynamicCssString 내 table/th/td 선택자 구체성을 .custom-preview-container .prose table, .dark 등으로 대폭 상향하여 globals.css 오버라이드 승리 보장, border-style:double 시 최소 3px 두께 자동 보장 및 th/td border-bottom-style 통일
 //             **2026-09-24** — [인용구 상하 여백 0~15px 데드존 완전 소멸 및 선/후행 블록(표/코드블록) 마진 간섭 0 강제]: blockquote display:flow-root 적용 및 *:has(+ blockquote), blockquote + .not-prose .codeblock-area 마진 0 강제 처리로 슬라이더 0px 밀착 및 1px 단위 즉각 반응 실현
 //             **2026-09-24** — [수평 구분선(HR) 서식 실시간 반영 및 CSS 무결성 보장]: dynamicCssString 내 tag === 'hr' 독립 처리 및 rules.hr 레거시 margin/border 오버라이드 원천 차단, hrStructure 기반 border-top/margin/width/color 완벽 동기화 및 .custom-preview-container hr, .onrivi-content-root hr 다중 선택자 지원
@@ -5891,6 +5892,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     css += `
 .custom-preview-container .table-wrapper-area,
 .onrivi-content-root .table-wrapper-area {
+  display: inline-block !important;
+  width: 100% !important;
+  vertical-align: top !important;
   margin-top: ${tableMarginTop} !important;
   margin-bottom: ${tableMarginBottom} !important;
 }
@@ -5904,28 +5908,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   margin-bottom: 6px !important;
 }
 
-/* 💬 인용구(blockquote) 여백 정밀 제어 및 마진 겹침 방어 (0~15px 데드존 완전 소멸) */
+/* 💬 인용구(blockquote) 여백 정밀 제어: BFC 및 인라인 블록 격리로 마진 상쇄 원천 차단 */
 .custom-preview-container blockquote,
 .onrivi-content-root blockquote {
-  display: flow-root !important;
-}
-.custom-preview-container *:has(+ blockquote),
-.onrivi-content-root *:has(+ blockquote),
-.custom-preview-container .table-wrapper-area:has(+ blockquote),
-.onrivi-content-root .table-wrapper-area:has(+ blockquote),
-.custom-preview-container p:has(+ blockquote),
-.onrivi-content-root p:has(+ blockquote) {
-  margin-bottom: 0 !important;
-}
-.custom-preview-container blockquote + *,
-.onrivi-content-root blockquote + *,
-.custom-preview-container blockquote + * .codeblock-area,
-.onrivi-content-root blockquote + * .codeblock-area,
-.custom-preview-container blockquote + .not-prose > .codeblock-area,
-.onrivi-content-root blockquote + .not-prose > .codeblock-area,
-.custom-preview-container blockquote + p,
-.onrivi-content-root blockquote + p {
-  margin-top: 0 !important;
+  display: inline-block !important;
+  width: 100% !important;
+  vertical-align: top !important;
 }
 `;
 
