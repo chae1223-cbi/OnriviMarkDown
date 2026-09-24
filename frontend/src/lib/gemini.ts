@@ -3,6 +3,9 @@ import { loadSecureData } from '@/lib/secureStorage';
 
 /**
  * [ONR-AI-001] Gemini API 헬퍼 유틸리티
+ * 🚨 @PATCH : **2026-09-24** — [Google 폐기/할당량 고갈 레거시 모델(gemini-pro-latest, gemini-pro 등) 플래그십 자동 정규화]:
+ *             1) normalizeAIModelName에 gemini-pro, gemini-pro-latest, gemini-1.0 계열 정규화 필터를 추가하여 429 Resource Exhausted 오류 원천 방어
+ *             2) 구버전 저장 모델 유입 시 공식 플래그십(gemini-3.8-flash)으로 즉시 무해 전환
  * 🚨 @PATCH : **2026-09-17** — [AES 암호화 키/모델명 유입 방어 및 복호화 자동화]:
  *             1) ensureDecryptedApiKey 도입으로 U2FsdGVkX1... 암호문이 전달되어도 loadSecureData로 실시간 자동 복호화하여 400 Bad Request 원천 방어
  *             2) normalizeAIModelName에서 암호문(U2FsdGVkX1...) 유입 시 기본 플래그십(gemini-3.8-flash)으로 즉시 무해 전환
@@ -88,6 +91,17 @@ export function normalizeAIModelName(rawModel?: string): string {
     } else {
       return DEFAULT_AI_MODEL;
     }
+  }
+  // 구글에서 폐기/한도 소진된 레거시 모델(gemini-pro, gemini-pro-latest, gemini-1.0-pro 등)을 기본 플래그십으로 정규화
+  const lower = model.toLowerCase();
+  if (
+    lower === 'gemini-pro' ||
+    lower === 'gemini-pro-latest' ||
+    lower.includes('pro-latest') ||
+    lower.includes('gemini-1.0') ||
+    lower === 'gemini-1.5-pro-latest'
+  ) {
+    return DEFAULT_AI_MODEL;
   }
   if (model.startsWith('gemini-')) {
     const match = model.match(/^gemini-(\d+(?:\.\d+)?)/);

@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-24** — [동영상 및 지도 래퍼 폭 수축(300px) 버그 해결]: .onrivi-video-wrapper 및 .onrivi-map-wrapper 인라인 스타일의 width: fit-content를 width: 100%로 보정하여 HTML5 replaced element 기본 300px 축소 현상을 방지하고 서식 너비를 온전히 전개
 // 🚨 @PATCH : **2026-09-24** — [미디어(이미지·비디오·지도) 렌더러 정렬 아키텍처 완성]: iframe 커스텀 렌더러 신설(.onrivi-map-wrapper), AsyncVideo 래퍼(.onrivi-video-wrapper) 탑재, figure img의 margin:0 !important 강제 초기화 제거, AsyncImage 하드코딩 width:100% 해제(maxWidth:100%/height:auto), 래퍼의 fit-content/align-self 인라인 연동 및 캡션 동기화로 서식 프로필 및 쿼리스트링 정렬 100% 실시간 반영 보장
 // 🚨 @PATCH : **2026-09-24** — [미디어(이미지/비디오/지도) 서식 스타일 100% 실시간 연동 및 flex 정렬 최적화]: imgStyle 하드코딩 maxWidth(600px) 및 figure 인라인 마진/중앙정렬 강제를 해제하고, AsyncImage 래퍼(.onrivi-image-wrapper) 및 video/iframe 정렬을 CSS 프로필 align-self/align-items와 1:1 완전 동기화
 // 🚨 @PATCH : **2026-09-24** — [표 둥근 모서리·그림자·지브라 오염 완전 소멸 및 기본 표 리셋]: MarkdownViewer 내장 스타일에 table border-spacing:0, border-radius:0, box-shadow:none 및 overflow:visible을 명시하여 전역 CSS 간섭 방어
@@ -2161,7 +2162,7 @@ function MarkdownViewer({
 
               return (
                 <figure data-line={extractDataLine(props, node)} className="onrivi-video-figure" style={{ display: 'flex', flexDirection: 'column', width: '100%', clear: 'both' }}>
-                  <div className="relative inline-flex flex-col onrivi-video-wrapper" style={{ display: 'inline-flex', flexDirection: 'column', width: 'fit-content', maxWidth: '100%' }}>
+                  <div className="relative flex flex-col onrivi-video-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '100%' }}>
                     <AsyncVideo
                       src={finalSrc}
                       absolutePath={absolutePath}
@@ -2826,7 +2827,7 @@ function MarkdownViewer({
 
               return (
                 <figure data-line={line} style={alignStyle} className={figureClass}>
-                  <div className={`relative inline-flex flex-col ${wrapperClass}`} style={{ display: 'inline-flex', flexDirection: 'column', width: 'fit-content', maxWidth: '100%' }}>
+                  <div className={`relative flex flex-col ${wrapperClass}`} style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '100%' }}>
                     <iframe
                       {...props}
                       className={`rounded-xl shadow-md border border-zinc-200 dark:border-zinc-800 max-w-full ${className || ''}`}

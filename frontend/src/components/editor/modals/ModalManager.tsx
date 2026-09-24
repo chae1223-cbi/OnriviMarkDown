@@ -3,7 +3,9 @@
  * 프로그램 ID : oaar-modal-manager
  * -----------------------------------------------------------------------
  * 변경내역
- * -----------------------------------------------------------------------
+ * 🚨 @PATCH : **2026-09-24** — [새 서식 생성 시 Onrivi 기본서식 100% 완전체 정규화(normalizeCssProfile) 연동]: onAddProfile 호출 시 DEFAULT_PROFILE의 모든 7대 쇼케이스 태그 및 구조체를 100% 하이드레이션하여 누락 없는 완전체로 신규 서식 생성
+ * 🚨 @PATCH : **2026-09-24** — [외부 서식 가져오기 표준 정규화(normalizeCssProfile) 연동]: ID 중복 방지 및 7대 쇼케이스·구조체 100% 자동 하이드레이션, 신규 서식 ID 반환 보장
+ * 🚨 @PATCH : **2026-09-24** — [서식 관리 새 서식 추가 기본 이름 '새 서식 N' 표준화]: onAddProfile 생성 시 기본 이름을 '새 서식 N'으로 일원화
  * 🚨 @PATCH : **2026-09-24** — [서식 관리 모달 실제 편집 문서 연동]: CssStyleModal에 currentDocContent={content} 주입하여 현재 작성 중인 실제 원고로 서식 미리보기 지원
  * 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기 및 고대비 설정 모달 연동]: SettingsModal에 editorFontWeight, setEditorFontWeight, editorHighContrast, setEditorHighContrast props 전달 연동
  * 🚨 @PATCH : **2026-09-17** — [지식 문서 등록 실시간 진행 모달 연동]: KnowledgeIndexProgressModal 임포트 및 knowledge:open-index-progress 글로벌 이벤트 리스너 통합으로 문서 등록 4단계 및 AI 분석 실시간 시각화 지원
@@ -40,6 +42,7 @@ import { KnowledgeIndexProgressModal, type KnowledgeIndexProgressParams } from '
 import { useEditorModals } from '@/hooks/editor/useEditorModals';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage'; // 모달 관련 상태와 함수들을 hook으로 관리하는 hooks
 import { insertMediaAtCursor } from '@/utils/editorActions'; // 미디어 삽입 후 2행 추가 및 커서 이동 유틸
+import { normalizeCssProfile } from '@/constants/cssProfile'; // 서식 프로필 정규화 및 살균 엔진
 
 /**
  * props들의 타입을 선언
@@ -492,12 +495,12 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         onAddProfile={() => {
           const newId = 'profile-' + Date.now();
           const count = profiles.filter((p: any) => !isSystemProfileId(p.id)).length + 1;
-          setProfiles((prev: any) => [...prev, {
+          const created = normalizeCssProfile({
             ...DEFAULT_PROFILE,
             id: newId,
-            name: `나만의 서식 ${count}`,
-            rules: structuredClone(DEFAULT_PROFILE.rules || {}),
-          }]);
+            name: `새 서식 ${count}`,
+          }, profiles);
+          setProfiles((prev: any) => [...prev, created]);
           setActiveProfileId(newId);
         }}
         onDeleteProfile={(id: string) => {
@@ -508,71 +511,12 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           }
         }}
         onImportProfile={(imported: any) => {
-          // 공유 받은 서식을 임포트할 때 기존 마크다운 파일과의 연결을 유지하기 위해 기존 ID를 보존
-          const newId = imported.id || ('profile-' + Date.now());
-          // null/undefined 필드를 필터링하여 DEFAULT_PROFILE 기본값이 보존되도록 보장 (AI 응답에 포함된 null 값 방어)
-          const cleanPageStyle = Object.fromEntries(
-            Object.entries(imported.pageStyle || {}).filter(([, v]) => v !== undefined && v !== null)
-          );
-          // 💡 [OMD-PATCH] 구버전 프로필 호환성을 위한 데이터 마이그레이션 및 살균 (Sanitization)
-          if (imported.rules) {
-            // 1. 거대 공백 버그를 유발하는 keep-all 속성을 break-all로 일괄 강제 변환
-            Object.keys(imported.rules).forEach(tag => {
-              if (imported.rules[tag] && imported.rules[tag]['word-break'] === 'keep-all') {
-                imported.rules[tag]['word-break'] = 'break-all';
-              }
-            });
-            // 2. 인용구(blockquote) 테두리 중복 속성 정리 (왼쪽 띠형과 전체 박스형 전환 시 발생했던 버그 찌꺼기 제거)
-            if (imported.rules.blockquote) {
-              if (imported.rules.blockquote['border-left'] === 'none') {
-                delete imported.rules.blockquote['border-left'];
-              }
-              // 만약 border-left가 있는데 border-width가 있다면 충돌 방지를 위해 border-width 삭제
-              if (imported.rules.blockquote['border-left'] && imported.rules.blockquote['border-left'] !== 'none' && imported.rules.blockquote['border-width']) {
-                delete imported.rules.blockquote['border-width'];
-              }
-              // 반대로 border가 있는데 border-left-width가 있다면 삭제
-              if (imported.rules.blockquote['border'] && imported.rules.blockquote['border'] !== 'none' && imported.rules.blockquote['border-left-width']) {
-                delete imported.rules.blockquote['border-left-width'];
-              }
-            }
-            // 3. 인라인 코드(code) 폰트 크기 조절 기능 제거에 따른 찌꺼기 속성 제거
-            if (imported.rules.code && imported.rules.code['font-size']) {
-              delete imported.rules.code['font-size'];
-            }
-            // 4. 표(table) 단축 속성과 개별 속성 중복 제거
-            ['table', 'th', 'td'].forEach(tag => {
-              if (imported.rules[tag] && imported.rules[tag]['border-width'] && imported.rules[tag]['border']) {
-                delete imported.rules[tag]['border'];
-              }
-            });
-          }
-
-          const cleanRules = Object.fromEntries(
-            Object.entries(imported.rules || {}).filter(([, v]) => v !== undefined && v !== null)
-          );
-          
-          // 💡 [OMD-PATCH] 각 태그별(h1, p, blockquote 등) 속성을 2-Depth 딥머지(Deep Merge)하여 
-          // 가져온 서식에서 누락된 속성은 시스템 기본 서식(DEFAULT_PROFILE)의 값으로 자동 대처(Fallback)되게 합니다.
-          const deeplyMergedRules: any = { ...(DEFAULT_PROFILE.rules || {}) };
-          Object.keys(cleanRules).forEach(tag => {
-            deeplyMergedRules[tag] = {
-              ...(deeplyMergedRules[tag] || {}),
-              ...(cleanRules[tag] || {})
-            };
-          });
-
-          const merged: any = {
-            ...DEFAULT_PROFILE,
-            ...imported,
-            id: newId,
-            name: imported.name || '가져온 서식',
-            pageStyle: { ...DEFAULT_PROFILE.pageStyle, ...cleanPageStyle },
-            rules: deeplyMergedRules,
-          };
+          // 💡 [OMD-PATCH] 표준 정규화 엔진을 통해 ID 중복 방지, 7대 쇼케이스 태그 하이드레이션, 살균, 2-Depth 딥머지 일괄 수행
+          const merged = normalizeCssProfile(imported, profiles);
           setProfiles((prev: any) => [...prev, merged]);
-          setActiveProfileId(newId);
+          setActiveProfileId(merged.id);
           showToast(`서식 '${merged.name}'이(가) 추가되었습니다.`, 'success');
+          return merged.id;
         }}
         isDarkMode={isDarkMode}
       />

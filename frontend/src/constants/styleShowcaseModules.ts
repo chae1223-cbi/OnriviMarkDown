@@ -1,6 +1,7 @@
 /**
  * styleShowcaseModules.ts
- * 서식 관리(CssStyleModal) 전용 6대 서식 모듈 뭉침 쇼케이스 정의
+ * 서식 관리(CssStyleModal) 전용 7대 서식 모듈 뭉침 쇼케이스 정의
+ * 🚨 @PATCH : **2026-09-24** — [각주(Footnotes) 전용 쇼케이스 Card 7 신설]: 본문 인라인 각주 링크 및 하단 주석 설명 구역(section.footnotes)을 실시간 검증할 수 있는 Card 7 신설 및 각주 태그 연동 완성
  * 🚨 @PATCH : **2026-09-24** — [문장 사이 간격(sentence-gap) 실시간 동기화 지원]: Card 6에 문단 내 줄바꿈 마크다운 샘플을 탑재하여 문장 사이 간격 슬라이더 조작 시 1:1 실시간 시각적 확장 검증 지원
  * 🚨 @PATCH : **2026-09-24** — [수식(MATH) remark-math 멀티라인 블록 구문 정규화]: $$ 앞뒤 개행 및 독립 블록 구문을 적용하여 rehype-katex의 .katex-display 블록 요소 변환 및 서식 동기화 정상 작동 보장
  * 🚨 @PATCH : **2026-09-24** — [수식(MATH) 쇼케이스 탑재 및 고급 레이아웃·본문 문단 Card 6 신설]: Card 5에 KaTeX display math 샘플 및 math 태그 연동을 추가하고, 좌측 패널의 '⚙️ 고급 레이아웃 및 본문 문단'과 1:1 대응되는 Card 6(본문 양끝 정렬, 첫 줄 들여쓰기, 문단 상하여백, 문장 사이 간격 <br>)을 신설하여 실시간 검증 환경 완성
@@ -10,7 +11,7 @@
  */
 
 export interface ShowcaseModule {
-  id: 'typography' | 'headings' | 'lists' | 'boxes' | 'media' | 'advanced';
+  id: 'typography' | 'headings' | 'lists' | 'boxes' | 'media' | 'advanced' | 'footnotes';
   title: string;
   badge: string;
   description: string;
@@ -125,5 +126,19 @@ $$
     markdown: `지식의 기록과 전달은 정교한 조판 시스템을 통해 완성됩니다. 독자가 글에 깊이 몰입할 수 있도록 본문의 양끝 정렬(Justify)과 첫 줄 들여쓰기(Indent), 그리고 문단 간의 호흡을 제어하는 상하 여백을 자유롭게 조절할 수 있습니다.<br class="onrivi-sentence-br" />문장과 문장 사이에 강제 줄바꿈(Shift+Enter 또는 br)이 삽입된 경우에도, '문장 사이 간격(sentence-gap)' 설정을 통해 단락의 리듬감을 잃지 않고 유려하게 이어지도록 미세 간격을 실시간으로 조율합니다.
 
 두 번째 문단에서는 첫 줄 들여쓰기(Text Indent)와 문단 위/아래 여백(Margin)의 상호작용을 확인할 수 있습니다. 인쇄 출판물의 문헌적 품격을 온리비 어서의 디지털 에디토리얼 환경에서 그대로 재현합니다.<br class="onrivi-sentence-br" />다양한 행간(Line Height)과 자간(Letter Spacing)을 조합하여, 당신의 글에 가장 적합한 활자 호흡을 완성해 보세요.`,
+  },
+  {
+    id: 'footnotes',
+    title: '각주 (Footnotes) 및 주석',
+    badge: 'Card 7',
+    description: '문서 하단 각주 영역, 번호 앵커 링크, 주석 글자색·굵기·크기·행간 및 상하 여백',
+    associatedTags: ['footnote', 'a', 'p', 'ol', 'li'],
+    markdown: `온리비 어서는 정밀한 에디토리얼 조판을 위해 표준 마크다운 각주(Footnotes)[^1] 문법을 완벽히 지원합니다. 본문 내의 각주 번호 링크를 클릭하면 문서 하단의 주석 설명 구역으로 즉각 이동하며, 역참조 링크[^2]를 통해 본래 읽던 문맥 위치로 손쉽게 되돌아갈 수 있습니다.
+
+본문 문맥 속에서 보충 설명이 필요하거나 출처 인용이 요구될 때, 각주 서식 설정을 통해 글자 색상, 굵기, 폰트 크기, 행간 및 상하 여백을 자유롭게 조율하여 본문과의 시각적 위계를 품격 있게 완성하세요.
+
+[^1]: **각주(Footnote)**: 본문 하단에 배치되어 전문 용어 해설, 추가 참고자료, 전거(典據) 및 인용 출처를 밝히는 조판 양식입니다.
+[^2]: **상호 참조(Backreference)**: 각주 설명 끝의 리턴 화살표(↩)를 클릭하면 본문의 해당 각주 번호 앵커 위치로 부드럽게 복귀합니다.`,
   }
 ];
+

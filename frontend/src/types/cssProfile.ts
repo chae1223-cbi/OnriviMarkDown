@@ -29,13 +29,13 @@ export interface CssProfile {
     backgroundColor: string;
     /** 용지 크기 (예: 'a4', 'a3', 'letter' 등) */
     paperSize: string;
-    /** 위쪽 여백 (예: '20mm') */
+    /** 위쪽 여백 (예: '18mm') */
     marginTop: string;
-    /** 아래쪽 여백 (예: '20mm') */
+    /** 아래쪽 여백 (예: '18mm') */
     marginBottom: string;
-    /** 왼쪽 여백 (예: '20mm') */
+    /** 왼쪽 여백 (예: '12mm') */
     marginLeft: string;
-    /** 오른쪽 여백 (예: '20mm') */
+    /** 오른쪽 여백 (예: '12mm') */
     marginRight: string;
     /** 용지 방향: 'portrait' | 'landscape' */
     orientation: string;
@@ -89,5 +89,10 @@ export interface CssProfile {
     checkedEffect: string;
     textGap: string;
     color?: string;
+  };
+  tableStructure?: {
+    outerBorderWidth: string; // 표 외곽 테두리 두께 (예: '1px')
+    rowBorderWidth: string;   // 행(가로선) 두께 (예: '1px')
+    colBorderWidth: string;   // 열(세로선) 두께 (예: '1px')
   };
 }

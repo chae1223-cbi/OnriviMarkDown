@@ -9,6 +9,14 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-25 — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 기본값 동기화]: checkboxStructure.color 기본 폴백을 본문 글자색(#2f2f2f)으로 맞추어 체크박스 및 체크리스트 글자가 본문 기본색과 일원화되도록 보장
+ *   2026-09-24 — [체크리스트 글자 색상(taskList.color) 제어 컬러피커 신설]: 목록 및 태스크 체크박스 섹션에 체크리스트 글자 색상(ColorPickerWidget)을 추가하여 체크박스 항목 텍스트 색상을 자유롭게 변경 및 상속(inherit) 제어 가능하도록 구현
+ *   2026-09-24 — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 최적화 및 슬라이더 연동]: pageStyle 여백 기본값을 상하 18mm, 좌우 12mm로 일원화하고 슬라이더 위젯 폴백 동기화
+ *   2026-09-24 — [표 외곽 테두리·행(가로선)·열(세로선) 두께 개별 선언(tableStructure) 및 제어 슬라이더 3종 신설]: 단일 표 테두리 슬라이더를 외곽 테두리 두께, 행(가로선) 두께, 열(세로선) 두께로 3분할 독립 선언 및 프리셋(Grid/가로선강조/미니멀) 연동
+ *   2026-09-24 — [서식 내보내기/복사 7대 쇼케이스 완전체 정규화(normalizeCssProfile) 및 Blob 다운로드 전환]: exportCurrentProfile 및 copyProfileToClipboard 시 최신 규격으로 완전 정규화하여 내보내고 data: URI 대신 표준 Blob 객체 다운로드로 대용량/유니코드 안정성 확보
+ *   2026-09-24 — [외부 서식 가져오기/붙여넣기/업로드 정제 및 자동 선택 동기화]: sanitizeAndParseCssProfileJson 연동으로 마크다운 코드블록/설명문/주석 포함 텍스트 관대 파싱, 가져온 서식 즉시 활성화(onSelectProfile) 보장
+ *   2026-09-24 — [각주(Footnote) 글자 크기 직접설정 슬라이더 단일화]: 사용자 요청에 따라 기본설정 유지 토글을 제거하고 직접 설정 전용 단일 슬라이더(SliderWidget)로 간소화하여 즉각적인 크기 조절 제공
+ *   2026-09-24 — [각주(Footnote) 상하 바깥 여백 실시간 동기화 및 0px 슬라이더 버그 해결]: 각주 상하 여백 슬라이더에 triggerUpdate 연동 및 0px 설정 시 단락평가 폴백 버그 방어로 즉각 반응 보장
  *   2026-09-24 — [사용자 정의 CSS(Custom CSS) 아코디언 완전 삭제]: 사용자 요청에 따라 불필요해진 커스텀 CSS 편집기 UI 소거
  *   2026-09-24 — [본문 문단(P) 위/아래 여백, 문장 사이 간격, 줄간격 실시간 동기화 완벽 정상화]:
  *     1) 문단 위/아래 여백, 문장 사이 간격, 들여쓰기 슬라이더 0px 설정 시 폴백 버그 해결 (0px 즉각 반응 보장) 및 triggerUpdate 연동
@@ -48,7 +56,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'; // useState : 상태 관리, useEffect : 컴포넌트 생명주기 관리, useRef : 참조 관리
 import { CssProfile, CssRuleSet } from '@/types/cssProfile'; // CssProfile : 서식 프로필 타입, CssRuleSet : 서식 규칙 타입
-import { DEFAULT_PROFILE, isSystemProfileId } from '@/constants/cssProfile'; // DEFAULT_PROFILE : 기본 프로필, isSystemProfileId : 시스템 프로필인지 확인
+import { DEFAULT_PROFILE, isSystemProfileId, sanitizeAndParseCssProfileJson, normalizeCssProfile } from '@/constants/cssProfile'; // DEFAULT_PROFILE : 기본 프로필, isSystemProfileId : 시스템 프로필인지 확인, 정규화 엔진
 import { PAPER_SIZES } from '@/constants/paperSizes'; // PAPER_SIZES : 종이 크기
 import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide'; // CSS_PROFILE_GUIDE_MD : CSS 프로필 가이드
 import FontSelectorModal from './FontSelectorModal'; // FontSelectorModal : 폰트 선택 모달
@@ -631,14 +639,20 @@ ${guideContent}
 
   const exportCurrentProfile = () => {
     try {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentProfile, null, 2));
+      // 💡 최신 Onrivi 서식 기준(7대 쇼케이스 태그, hrStructure, checkboxStructure 등)으로 완벽 정규화하여 내보내기
+      const exportData = normalizeCssProfile(currentProfile, profiles);
+      const json = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
       const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `${currentProfile.name || 'onrivi_style'}.json`);
+      downloadAnchor.href = url;
+      const safeName = (exportData.name || 'onrivi_style').trim().replace(/[/\\?%*:|"<>]/g, '_');
+      downloadAnchor.download = `${safeName}.json`;
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
-      showToast("서식 파일(.json)이 다운로드되었습니다.");
+      URL.revokeObjectURL(url);
+      showToast(`서식 파일('${exportData.name}')이 다운로드되었습니다.`);
     } catch (e) {
       showToast("서식 내보내기 실패!");
     }
@@ -646,15 +660,16 @@ ${guideContent}
 
   // ====================================================================
   // 📊 [OMD-CORE-CssStyleForm-0009] CssStyleForm ➔ copyProfileToClipboard
-  // 🎯 @KICK  : 현재 서식 프로필을 JSON 문자열로 클립보드에 복사
+  // 🎯 @KICK  : 현재 서식 프로필을 Onrivi 최신 기준 정규화 후 JSON 문자열로 클립보드에 복사
   // 🛡️ @GUARD : clipboard.writeText 실패 시 catch로 안전 처리
-  // 🚨 @PATCH : 없음
+  // 🚨 @PATCH : **2026-09-24** — [서식 복사 7대 쇼케이스 완전체 정규화(normalizeCssProfile) 동기화]
   // 🔗 @CALLS : showToast
   // ====================================================================
   const copyProfileToClipboard = () => {
     try {
-      navigator.clipboard.writeText(JSON.stringify(currentProfile, null, 2));
-      showToast("서식이 클립보드에 복사되었습니다.");
+      const exportData = normalizeCssProfile(currentProfile, profiles);
+      navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
+      showToast(`'${exportData.name}' 서식이 클립보드에 복사되었습니다.`);
     } catch (e) {
       showToast("클립보드 복사 실패!");
     }
@@ -664,23 +679,27 @@ ${guideContent}
   // 📊 [OMD-CORE-CssStyleForm-0010] CssStyleForm ➔ importProfileString
   // 🎯 @KICK  : JSON 문자열을 파싱하여 유효성 검증 후 서식 프로필 가져오기
   // 🛡️ @GUARD : name/pageStyle/rules 필수 속성 검증, JSON 파싱 실패 시 alert
-  // 🚨 @PATCH : 없음
-  // 🔗 @CALLS : onImportProfile, showToast
+  // 🚨 @PATCH : **2026-09-24** — [외부 서식 가져오기/붙여넣기 관대 파싱 및 자동 선택 동기화]: sanitizeAndParseCssProfileJson 연동 및 가져온 서식 즉시 활성화(onSelectProfile)
+  // 🔗 @CALLS : onImportProfile, onSelectProfile, showToast
   // ====================================================================
   const importProfileString = (jsonStr: string): boolean => {
     try {
-      const parsed = JSON.parse(jsonStr);
-      if (!parsed.name || !parsed.pageStyle || !parsed.rules) {
+      const parsed = sanitizeAndParseCssProfileJson(jsonStr);
+      if (!parsed || !parsed.name || !parsed.pageStyle || !parsed.rules) {
         showToast("올바른 Onrivi 서식 양식이 아닙니다. name, pageStyle, rules 속성이 필수입니다.");
         return false;
       }
+      const normalized = normalizeCssProfile(parsed, profiles);
       if (onImportProfile) {
-        onImportProfile(parsed);
-        showToast("서식이 성공적으로 추가되었습니다.");
-        setShowImportModal(false);
-        setImportJsonText('');
-        return true;
+        onImportProfile(normalized);
       }
+      if (onSelectProfile) {
+        onSelectProfile(normalized.id);
+      }
+      showToast(`서식 '${normalized.name}'이(가) 성공적으로 추가되었습니다.`);
+      setShowImportModal(false);
+      setImportJsonText('');
+      return true;
     } catch (e) {
       showToast("JSON 문법 에러! 형식을 확인해 주세요.");
     }
@@ -862,8 +881,18 @@ ${guideContent}
       (tdRules as any)[property] = value;
     }
 
+    const nextTableStructure = currentProfile.tableStructure ? {
+      ...currentProfile.tableStructure,
+      ...(property === 'border-width' ? {
+        outerBorderWidth: value,
+        rowBorderWidth: value,
+        colBorderWidth: value,
+      } : {})
+    } : undefined;
+
     const updated = {
       ...currentProfile,
+      ...(nextTableStructure ? { tableStructure: nextTableStructure } : {}),
       rules: {
         ...currentProfile.rules,
         table: tableRules,
@@ -1012,7 +1041,7 @@ ${guideContent}
     checkedEffect: currentProfile.checkboxStructure?.checkedEffect || DEFAULT_PROFILE.checkboxStructure?.checkedEffect || 'none',
     boxSize: currentProfile.checkboxStructure?.boxSize || DEFAULT_PROFILE.checkboxStructure?.boxSize || '16px',
     textGap: currentProfile.checkboxStructure?.textGap || DEFAULT_PROFILE.checkboxStructure?.textGap || '10px',
-    color: currentProfile.checkboxStructure?.color || DEFAULT_PROFILE.checkboxStructure?.color || '#333333'
+    color: currentProfile.checkboxStructure?.color || DEFAULT_PROFILE.checkboxStructure?.color || '#2f2f2f'
   };
 
   // ====================================================================
@@ -1066,6 +1095,49 @@ ${guideContent}
       checkboxStructure: { ...checkboxStructure, [key]: value }
     };
     triggerUpdate(updated);
+  };
+
+  /* ─── 표 구조(외곽선/행/열 두께) 데이터 및 업데이트 ─── */
+  const tableStructure = currentProfile.tableStructure || {
+    outerBorderWidth: (currentProfile.rules.table && currentProfile.rules.table['border-width']) || '1px',
+    rowBorderWidth: (currentProfile.rules.th && currentProfile.rules.th['border-width']) || '1px',
+    colBorderWidth: (currentProfile.rules.td && currentProfile.rules.td['border-width']) || '1px',
+  };
+
+  // ====================================================================
+  // 📊 [OMD-CORE-CssStyleForm-0021-1] CssStyleForm ➔ updateTableStructure
+  // 🎯 @KICK  : 표 외곽 테두리 두께, 행(가로선) 두께, 열(세로선) 두께 개별 업데이트
+  // 🛡️ @GUARD : isSystemProfile true면 실행 차단
+  // 🚨 @PATCH : **2026-09-24** — 외곽/행/열 개별 두께 선언 및 실시간 펄스 연동
+  // 🔗 @CALLS : triggerUpdate
+  // ====================================================================
+  const updateTableStructure = (
+    key: 'outerBorderWidth' | 'rowBorderWidth' | 'colBorderWidth',
+    value: string
+  ) => {
+    if (isSystemProfile) return;
+    const nextTableStructure = { ...tableStructure, [key]: value };
+    const tableRules = { ...(currentProfile.rules.table || {}) };
+    const thRules = { ...(currentProfile.rules.th || {}) };
+    const tdRules = { ...(currentProfile.rules.td || {}) };
+
+    if (key === 'outerBorderWidth') {
+      tableRules['border-width'] = value;
+      delete (tableRules as any)['border'];
+    }
+
+    const updated = {
+      ...currentProfile,
+      tableStructure: nextTableStructure,
+      rules: {
+        ...currentProfile.rules,
+        table: tableRules,
+        th: thRules,
+        td: tdRules,
+      },
+    };
+    const labelName = key === 'outerBorderWidth' ? '외곽 테두리' : key === 'rowBorderWidth' ? '행(가로선)' : '열(세로선)';
+    triggerUpdate(updated, 'table', `표 ${labelName} 두께 (${value})`);
   };
 
   /* ─── 공장 초기 설정 복구 ─── */
@@ -1382,7 +1454,7 @@ ${guideContent}
                   label="위 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginTop) || 10}
+                  value={parseInt(currentProfile.pageStyle.marginTop) || 18}
                   unit="mm"
                   disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginTop', v + 'mm')}
@@ -1391,7 +1463,7 @@ ${guideContent}
                   label="아래 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginBottom) || 10}
+                  value={parseInt(currentProfile.pageStyle.marginBottom) || 18}
                   unit="mm"
                   disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginBottom', v + 'mm')}
@@ -1400,7 +1472,7 @@ ${guideContent}
                   label="왼쪽 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginLeft) || 10}
+                  value={parseInt(currentProfile.pageStyle.marginLeft) || 12}
                   unit="mm"
                   disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginLeft', v + 'mm')}
@@ -1409,7 +1481,7 @@ ${guideContent}
                   label="오른쪽 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginRight) || 10}
+                  value={parseInt(currentProfile.pageStyle.marginRight) || 12}
                   unit="mm"
                   disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginRight', v + 'mm')}
@@ -2115,6 +2187,14 @@ ${guideContent}
                 onChange={(v) => updateCheckboxStructure('color', v)}
               />
 
+              {/* 체크리스트 글자 색상 */}
+              <ColorPickerWidget
+                label="체크리스트 글자 색상"
+                value={(currentProfile.rules.taskList || {})['color'] || ''}
+                disabled={isSystemProfile}
+                onChange={(v) => updateCssRule('taskList', 'color', v)}
+              />
+
               {/* 박스 크기 슬라이더 */}
               <SliderWidget
                 label="체크박스 물리 크기"
@@ -2457,7 +2537,8 @@ ${guideContent}
                       delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
                       delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
                       delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (모든 테두리)');
+                      const nextTableStructure = { outerBorderWidth: '1px', rowBorderWidth: '1px', colBorderWidth: '1px' };
+                      triggerUpdate({ ...currentProfile, tableStructure: nextTableStructure, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (모든 테두리)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isGrid ? activeClass : inactiveClass}`}
                   >
@@ -2495,7 +2576,8 @@ ${guideContent}
                       delete newTd['border-style'];
                       delete newTd['border-width'];
 
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (가로선 강조)');
+                      const nextTableStructure = { outerBorderWidth: '2px', rowBorderWidth: '1px', colBorderWidth: '0px' };
+                      triggerUpdate({ ...currentProfile, tableStructure: nextTableStructure, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (가로선 강조)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isHorizontal ? activeClass : inactiveClass}`}
                   >
@@ -2519,7 +2601,8 @@ ${guideContent}
                       delete newTh['border-style']; delete newTh['border-width'];
                       delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
                       delete newTd['border-style']; delete newTd['border-width'];
-                      triggerUpdate({ ...currentProfile, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (미니멀)');
+                      const nextTableStructure = { outerBorderWidth: '0px', rowBorderWidth: '0px', colBorderWidth: '0px' };
+                      triggerUpdate({ ...currentProfile, tableStructure: nextTableStructure, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (미니멀)');
                     }}
                     className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${isSystemProfile ? 'opacity-50 cursor-not-allowed border-zinc-200' : isMinimal ? activeClass : inactiveClass}`}
                   >
@@ -2561,15 +2644,37 @@ ${guideContent}
               </select>
             </div>
 
-            {/* 표 테두리 두께 */}
+            {/* 표 외곽 테두리 두께 */}
             <SliderWidget
-              label="표 테두리 두께"
+              label="표 외곽 테두리 두께"
               min={0}
               max={8}
-              value={parseInt(getTagRules('table')['border-width']) || 1}
+              value={parseInt(tableStructure.outerBorderWidth) || 0}
               unit="px"
               disabled={isSystemProfile}
-              onChange={(v) => updateTableBorder('border-width', v + 'px')}
+              onChange={(v) => updateTableStructure('outerBorderWidth', v + 'px')}
+            />
+
+            {/* 표 행(가로선) 두께 */}
+            <SliderWidget
+              label="표 행(가로선) 두께"
+              min={0}
+              max={8}
+              value={parseInt(tableStructure.rowBorderWidth) || 0}
+              unit="px"
+              disabled={isSystemProfile}
+              onChange={(v) => updateTableStructure('rowBorderWidth', v + 'px')}
+            />
+
+            {/* 표 열(세로선) 두께 */}
+            <SliderWidget
+              label="표 열(세로선) 두께"
+              min={0}
+              max={8}
+              value={parseInt(tableStructure.colBorderWidth) || 0}
+              unit="px"
+              disabled={isSystemProfile}
+              onChange={(v) => updateTableStructure('colBorderWidth', v + 'px')}
             />
 
             {/* 표 테두리 색상 */}
@@ -2899,24 +3004,17 @@ ${guideContent}
                 <option value="bold">굵게</option>
               </select>
             </div>
-            <FontSizeControl
+            <SliderWidget
               label="각주 글자 크기"
-              min={10}
-              max={20}
-              value={getTagRules('footnote')['font-size']}
-              baseFontSize={baseFontSize}
+              min={9}
+              max={24}
+              value={(() => {
+                const raw = getTagRules('footnote')['font-size'];
+                return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 12) : 12;
+              })()}
+              unit="px"
               disabled={isSystemProfile}
-              onChange={(v) => {
-                if (!v) {
-                  const { 'font-size': _, ...rest } = getTagRules('footnote');
-                  triggerUpdate({
-                    ...currentProfile,
-                    rules: { ...currentProfile.rules, footnote: rest }
-                  }, 'footnote', '각주 기본 글자 크기 유지');
-                } else {
-                  updateCssRule('footnote', 'font-size', v);
-                }
-              }}
+              onChange={(v) => updateCssRule('footnote', 'font-size', `${v}px`)}
             />
             <SliderWidget
               label="각주 줄 간격"
@@ -2932,13 +3030,16 @@ ${guideContent}
               label="각주 상하 바깥 여백"
               min={0}
               max={60}
-              value={parseInt(getTagRules('footnote')['margin-top']) || 8}
+              value={(() => {
+                const raw = getTagRules('footnote')['margin-top'];
+                return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 8;
+              })()}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
                 const px = v + 'px';
                 if (!isSystemProfile) {
-                  onUpdateProfile({
+                  const updated = {
                     ...currentProfile,
                     rules: {
                       ...currentProfile.rules,
@@ -2948,7 +3049,8 @@ ${guideContent}
                         'margin-bottom': px
                       }
                     }
-                  });
+                  };
+                  triggerUpdate(updated, 'footnote', `각주 상하 바깥 여백: ${px}`);
                 }
               }}
             />

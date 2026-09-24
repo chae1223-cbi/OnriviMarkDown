@@ -3,6 +3,7 @@
  * 파일명 : CssStyleModal.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-09-24** — [각주(Footnote) 펄스 연동 및 Card 7 스크롤 연동 신설]: footnote 태그 조작 시 .footnotes, section[data-footnotes] 요소를 찾아 실시간 펄스 하이라이트 및 Card 7 활성화/뷰포트 추종 연동
  * 🚨 @PATCH : **2026-09-24** — [본문 문단(P/BR) 펄스 및 뷰포트 추종 시 활성 모듈 카드 스코핑 보장]: 모듈 모드에서 p 또는 br 조작 시 activeModuleId 카드의 문단을 우선 타겟팅하여 Card 1로의 엉뚱한 뷰포트 점프 버그 원천 차단
  * 🚨 @PATCH : **2026-09-24** — [수식(MATH) 펄스 연동 및 고급 레이아웃·본문 문단 Card 6 스크롤 매핑 신설]:
  *             1) advanced 아코디언 토글 시 Card 6(고급 레이아웃 및 본문 문단)으로의 부드러운 자동 스크롤 매핑 신설
@@ -149,6 +150,10 @@ export default function CssStyleModal({
       else if (tag === 'map') selector = 'iframe[src*="map"], iframe[src*="google.com/maps"]';
       else if (tag === 'img') selector = 'img, figure:has(img)';
       else if (tag === 'math') selector = '.katex-display, .katex';
+      else if (tag === 'footnote') {
+        selector = '.footnotes, section[data-footnotes], [data-footnote-ref]';
+        setActiveModuleId('footnotes');
+      }
       else if (tag === 'p' || tag === 'br') {
         selector = previewViewMode === 'modules' ? `#omd-showcase-module-${activeModuleId} p` : 'p';
       }

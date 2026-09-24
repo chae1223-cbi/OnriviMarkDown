@@ -1,113 +1,448 @@
-export const CSS_PROFILE_GUIDE_MD = `# 🎨 Onrivi Author 서식 프로필 CSS 작성 가이드
+/**
+ * cssProfileGuide.ts
+ * 온리비 어서(Onrivi Author) 서식 프로필 명세서 및 작성 가이드 마크다운 정의
+ * 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 기본색(#2f2f2f) 가이드 동기화]: 예시 JSON(rules.taskList, checkboxStructure) 및 명세의 color를 본문 글자색(#2f2f2f)으로 일원화하여 별도 색상 분리 방지
+ * 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 가이드/명세 기본값 통일]: 예시 JSON(rules.taskList, checkboxStructure) 및 7대 쇼케이스 명세, AI 프롬프트 지시문에서 체크박스 완료 효과 기본값을 무조건 'none'(효과 없음)으로 일원화
+ * 🚨 @PATCH : **2026-09-24** — [서식 설정 가이드 'Onrivi 기본서식' 100% 완전 동기화 및 누락 태그 상속 규칙 명시]: 가이드 내 JSON 스펙, 7대 쇼케이스 기본값(체크리스트, 미디어 100%, 각주, 수식 등) 및 AI 프롬프트를 'Onrivi 기본서식' 기준으로 전면 통일하고 누락 태그의 Onrivi 기본서식 자동 상속 정책 안내 수록
+ * 🚨 @PATCH : **2026-09-24** — [기본 서식 명칭 'Onrivi 기본서식' 표준화]: 가이드 명세서 및 대표 서식 예시 JSON의 이름을 'Onrivi 기본서식'으로 일원화
+ * 🚨 @PATCH : **2026-09-24** — [기본 서식 'ChatGPT 스타일 콘텐츠' 전환 가이드 명세 최신화]: 기본 대표 서식 예시 JSON 및 용지 여백(상하 22mm, 좌 19mm, 우 20mm) 전면 동기화
+ * 🚨 @PATCH : **2026-09-24** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 가이드 명세 반영]: pageStyle JSON 예시 및 설명에 상하 18mm, 좌우 12mm 기본 규격 반영
+ * 🚨 @PATCH : **2026-09-24** — [표 외곽 테두리·행·열 두께 개별 선언(tableStructure) 명세 반영]: tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 스키마 및 표 형태 프리셋 가이드 최신화
+ * 🚨 @PATCH : **2026-09-24** — [서식 명세서 예시 안내 강화]: AI 프롬프트 및 JSON 수치가 고정값이 아닌 자유롭게 변경 가능한 예시(Sample)임을 명확히 강조 표기
+ * 🚨 @PATCH : **2026-09-24** — [서식 프로필 명세서 최신 전면 재작성]:
+ *             1) 7대 서식 쇼케이스(타이포그래피, 제목, 목록, 표/인용구/코드, 미디어/수식/구분선, 고급 레이아웃, 각주) 규격 완벽 반영
+ *             2) 본문 문단 양끝 정렬, 첫 줄 들여쓰기, 문단 상하여백, 문장 사이 간격(sentence-gap) 명세 추가
+ *             3) 미디어(이미지·비디오·지도) 좌/중/우 정렬 및 규격 명세 추가
+ *             4) KaTeX 수식(math) 및 각주(footnote) 단일 슬라이더 규격 반영
+ *             5) 인용구·표 형태별 프리셋 JSON 예시 및 AI 생성 프롬프트 고도화
+ */
 
-이 문서는 외부에서 Onrivi 전용 테마를 직접 작성하거나 AI 프롬프트에 제공하기 위한 표준 명세서입니다. 이 가이드라인을 참조하여 JSON 형태로 서식을 작성한 후, 에디터의 서식 갤러리 모달에서 **[📥 테마 가져오기]** 를 통해 즉시 적용할 수 있습니다.
+export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드
+
+이 문서는 외부에서 온리비 어서 전용 서식 테마(CSS Profile)를 직접 설계하거나, AI(ChatGPT, Claude 등)에게 서식 생성을 요청할 때 사용하는 **표준 명세서(Specification)**입니다.  
+이 가이드라인을 참조하여 JSON 형태로 서식을 작성한 후, 에디터 상단 **[🎨 서식 테마 설정]** ➔ **[서식 관리]** 모달에서 **[📥 테마 가져오기]**를 통해 즉시 등록하고 적용할 수 있습니다.
+
+> 💡 **사용자 필수 안내**:  
+> 본 문서에 기재된 모든 속성값(글자 크기, 줄 간격, 여백, 색상 등)은 이해를 돕기 위한 **'예시(Sample)'**입니다.  
+> 사용자가 직접 코드를 작성하실 필요가 없으며, 에디터 화면의 **슬라이더와 버튼만 마우스로 조작**하셔도 모든 서식을 자유자재로 설정하실 수 있습니다.  
+> 
+> 🛡️ **누락 태그 자동 상속 규칙**:  
+> 서식 프로필에 특정 태그(예: \`video\`, \`map\`, \`footnote\`, \`taskList\` 등)나 구조체가 생략되어 있거나 정의되지 않은 경우, 온리비 어서 렌더러와 내보내기 엔진은 자동으로 **'Onrivi 기본서식'의 표준 규칙을 100% 기준으로 보완(하이드레이션)**하여 안전하게 적용합니다.
 
 ---
 
-## 📌 1. 서식 프로필(JSON) 기본 구조
+## 📌 1. 서식 프로필(JSON) 기본 구조 (작성 예시)
+
+> 💡 **참고**: 아래 JSON은 온리비 어서의 공식 기본 서식인 **'Onrivi 기본서식'** 대표 명세입니다. 각 수치는 사용자가 원하는 값으로 얼마든지 자유롭게 변경할 수 있습니다.
 
 \`\`\`json
 {
-  "id": "고유ID (예: my-custom-theme-01)",
-  "name": "테마 이름 (예: 모던 논문 양식)",
-  "description": "설명 (예: 깔끔한 논문용 기본 템플릿)",
+  "id": "profile-1790253429429",
+  "name": "Onrivi 기본서식",
+  "description": "온리비 어서(Onrivi Author)의 공식 기본 서식 테마입니다. 정갈한 텍스트 배치와 최적화된 용지 규격을 제공합니다.",
   "pageStyle": {
-    "fontFamily": "글꼴 (예: 'KoPubBatang', 'Noto Sans KR')",
-    "fontSize": "기본 글자 크기 (예: 15px)",
-    "lineHeight": "기본 줄 간격 (예: 1.8)",
-    "letterSpacing": "기본 자간 (예: 0em)",
-    "paperSize": "a4, a3, b4, b5 등 (옵션)",
-    "orientation": "portrait 또는 landscape (옵션)",
-    "backgroundColor": "배경색 (예: #ffffff)",
-    "exportPageBreakLevel": "PDF/EPUB 내보내기 페이지 분할 기준 (예: 'none', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6')",
-    "margins": {
-      "top": "여백(상)", "bottom": "여백(하)", "left": "여백(좌)", "right": "여백(우)"
-    }
+    "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', 'Noto Sans', Arial, sans-serif",
+    "fontSize": "16px",
+    "lineHeight": "1.75",
+    "letterSpacing": "-0.01em",
+    "backgroundColor": "#ffffff",
+    "paperSize": "a4",
+    "marginTop": "22mm",
+    "marginBottom": "22mm",
+    "marginLeft": "19mm",
+    "marginRight": "20mm",
+    "orientation": "portrait",
+    "headingSizeOffset": "0px",
+    "tabSize": "2",
+    "exportPageBreakLevel": "h1"
   },
   "rules": {
-    "h1": { "font-size": "32px", "font-weight": "900", "color": "#111111", "margin-bottom": "20px" },
-    "h2": { "font-size": "26px", "font-weight": "800", "color": "#222222", "border-bottom": "2px solid #eeeeee" },
-    "h3": { "font-size": "22px", "color": "#333333" },
-    "h4": { "color": "#444444" },
-    "h5": { "color": "#555555" },
-    "h6": { "color": "#666666" },
-    "p": { "margin-bottom": "15px" },
-    "a": { "color": "#2563eb", "text-decoration": "underline" },
-    "strong": { "font-weight": "bold", "color": "#111111" },
-    "em": { "font-style": "italic", "color": "#333333" },
-    "del": { "text-decoration": "line-through", "color": "#999999" },
-    "ul": { "padding-left": "24px", "color": "#333333", "list-style-type": "disc" },
-    "ol": { "padding-left": "24px", "color": "#333333", "list-style-type": "decimal" },
-    "li": { "margin-bottom": "4px" },
-    "blockquote": { "border-left": "4px solid #0058bc", "padding-left": "16px", "color": "#555555", "background-color": "#f8f9fa" },
-    "table": { "border-collapse": "collapse", "width": "100%" },
-    "th": { "background-color": "#f8f9fa", "font-weight": "bold", "border": "1px solid #dee2e6", "padding": "12px" },
-    "td": { "border": "1px solid #dee2e6", "padding": "12px" },
-    "code": { "background-color": "#f1f5f9", "color": "#2563eb", "padding": "2px 4px", "border-radius": "2px" },
-    "codeBlock": { "background-color": "#282c34", "color": "#abb2bf", "padding": "16px", "border-radius": "8px", "font-size": "14px" },
-    "codeBlockTitle": { "background-color": "#1e2227", "color": "#ffffff" },
-    "math": { "color": "#1e3a8a", "font-size": "16px", "text-align": "center", "margin-top": "16px", "margin-bottom": "16px" },
-    "hr": { "border-top-width": "1px", "border-top-style": "solid", "border-top-color": "#d1d5db", "margin-top": "32px", "margin-bottom": "32px", "width": "100%" },
-    "img": { "border-radius": "8px", "box-shadow": "0 4px 6px rgba(0,0,0,0.1)", "margin-left": "auto", "margin-right": "auto" },
-    "video": { "border-radius": "12px", "box-shadow": "0 10px 15px rgba(0,0,0,0.1)", "margin-left": "auto", "margin-right": "auto" },
-    "map": { "border-radius": "12px", "box-shadow": "0 10px 15px rgba(0,0,0,0.1)", "margin-left": "auto", "margin-right": "auto" },
-    "footnote": { "font-size": "12px", "color": "#666666", "line-height": "1.4", "margin-top": "8px" }
+    "h1": {
+      "font-size": "32px",
+      "font-weight": "700",
+      "color": "#202123",
+      "padding-left": "0px",
+      "margin-bottom": "18px",
+      "border-bottom": "",
+      "margin-top": "32px",
+      "text-align": "left",
+      "text-decoration": "none",
+      "font-style": "normal",
+      "line-height": "1.25",
+      "letter-spacing": "-0.025em"
+    },
+    "h2": {
+      "font-size": "24px",
+      "font-weight": "700",
+      "color": "#202123",
+      "border-bottom": "",
+      "padding-bottom": "8px",
+      "margin-top": "28px",
+      "text-decoration": "none",
+      "font-style": "normal",
+      "margin-bottom": "14px",
+      "text-align": "left",
+      "line-height": "1.35",
+      "letter-spacing": "-0.02em"
+    },
+    "h3": {
+      "text-align": "left",
+      "font-weight": "650",
+      "font-size": "20px",
+      "margin-top": "24px",
+      "margin-bottom": "12px",
+      "color": "#202123",
+      "border-bottom": "",
+      "line-height": "1.4"
+    },
+    "h4": {
+      "text-align": "left",
+      "font-weight": "650",
+      "font-size": "18px",
+      "margin-top": "20px",
+      "margin-bottom": "10px",
+      "color": "#202123",
+      "border-bottom": "",
+      "line-height": "1.5"
+    },
+    "h5": {
+      "text-align": "left",
+      "font-weight": "650",
+      "font-size": "16px",
+      "margin-top": "18px",
+      "margin-bottom": "8px",
+      "color": "#202123",
+      "border-bottom": "",
+      "line-height": "1.55"
+    },
+    "h6": {
+      "text-align": "left",
+      "font-weight": "650",
+      "font-size": "15px",
+      "margin-top": "16px",
+      "margin-bottom": "8px",
+      "color": "#6b6b6b",
+      "border-bottom": "",
+      "line-height": "1.55"
+    },
+    "p": {
+      "margin-bottom": "16px",
+      "margin-top": "0px",
+      "line-height": "1.75",
+      "color": "#2f2f2f",
+      "text-align": "left",
+      "text-indent": "0px",
+      "letter-spacing": "-0.01em",
+      "sentence-gap": "4px"
+    },
+    "strong": {
+      "font-weight": "700",
+      "color": "#202123"
+    },
+    "em": {
+      "font-style": "italic",
+      "color": "#2f2f2f"
+    },
+    "u": {
+      "text-decoration-color": "#0d0d0d",
+      "text-decoration-style": "solid",
+      "text-underline-offset": "3px",
+      "text-decoration": "underline"
+    },
+    "del": {
+      "text-decoration": "line-through",
+      "color": "#6b6b6b"
+    },
+    "ul": {
+      "padding-left": "28px",
+      "list-style-type": "disc",
+      "color": "#2f2f2f"
+    },
+    "ol": {
+      "padding-left": "28px",
+      "color": "#2f2f2f",
+      "list-style-type": "decimal"
+    },
+    "li": {
+      "margin-bottom": "5px",
+      "padding-inline-start": "3px",
+      "line-height": "1.7"
+    },
+    "taskList": {
+      "boxSize": "16px",
+      "checkedEffect": "none",
+      "textGap": "9px",
+      "color": "#2f2f2f"
+    },
+    "hr": {
+      "border-top-color": "#e5e5e5",
+      "border-top-width": "1px",
+      "border-top-style": "solid",
+      "margin-top": "28px",
+      "margin-bottom": "28px",
+      "width": "100%"
+    },
+    "table": {
+      "width": "100%",
+      "border-collapse": "collapse",
+      "border-style": "solid",
+      "border-width": "1px",
+      "border-color": "#9ca3af",
+      "margin-top": "22px",
+      "margin-bottom": "22px",
+      "font-size": "15px",
+      "border-radius": "8px",
+      "overflow": "hidden"
+    },
+    "th": {
+      "background-color": "#f7f7f8",
+      "padding": "10px 12px",
+      "border-style": "solid",
+      "border-width": "1px",
+      "border-color": "#9ca3af",
+      "font-weight": "650",
+      "border-bottom": "1px solid #e5e5e5",
+      "border-left": "none",
+      "border-right": "none",
+      "text-align": "left",
+      "color": "#202123"
+    },
+    "td": {
+      "padding": "10px 12px",
+      "border-style": "solid",
+      "border-width": "1px",
+      "border-color": "#9ca3af",
+      "border-bottom": "1px solid #e5e5e5",
+      "border-left": "none",
+      "border-right": "none",
+      "color": "#2f2f2f"
+    },
+    "blockquote": {
+      "padding": "2px 0 2px 18px",
+      "color": "#6b6b6b",
+      "background-color": "transparent",
+      "border-radius": "0",
+      "margin-top": "20px",
+      "margin-bottom": "20px",
+      "font-weight": "normal",
+      "border-left": "3px solid #d9d9d9",
+      "font-size": "16px"
+    },
+    "codeBlock": {
+      "background-color": "#f7f7f8",
+      "color": "#242424",
+      "padding": "16px",
+      "border-radius": "8px",
+      "font-size": "13.5px",
+      "border": "1px solid #e5e5e5"
+    },
+    "codeBlockTitle": {
+      "background-color": "#ececec",
+      "color": "#5f5f5f",
+      "padding": "8px 12px",
+      "border-radius": "8px 8px 0 0",
+      "border": "1px solid #e5e5e5"
+    },
+    "a": {
+      "color": "#2563eb",
+      "text-decoration": "underline",
+      "font-weight": "bold"
+    },
+    "img": {
+      "width": "100%",
+      "border-radius": "8px",
+      "margin-top": "20px",
+      "margin-bottom": "20px",
+      "margin-left": "auto",
+      "margin-right": "auto",
+      "background-color": "white",
+      "padding": "0px",
+      "box-shadow": "none"
+    },
+    "code": {
+      "background-color": "#f7f7f8",
+      "color": "#242424",
+      "padding": "2px 6px",
+      "border-radius": "5px",
+      "font-weight": "normal",
+      "border": "1px solid #e5e5e5"
+    },
+    "video": {
+      "width": "100%",
+      "height": "315px",
+      "border-radius": "8px",
+      "box-shadow": "none",
+      "margin-top": "20px",
+      "margin-bottom": "20px",
+      "margin-left": "auto",
+      "margin-right": "auto",
+      "display": "block",
+      "float": "none"
+    },
+    "math": {
+      "color": "#2f2f2f",
+      "font-size": "16px",
+      "text-align": "center",
+      "margin-top": "20px",
+      "margin-bottom": "20px"
+    },
+    "map": {
+      "width": "100%",
+      "height": "400px",
+      "border-radius": "8px",
+      "box-shadow": "none",
+      "margin-top": "20px",
+      "margin-bottom": "20px",
+      "margin-left": "auto",
+      "margin-right": "auto"
+    },
+    "footnote": {
+      "font-size": "13px",
+      "color": "#6b6b6b",
+      "line-height": "1.5",
+      "margin-top": "12px",
+      "margin-bottom": "12px",
+      "font-weight": "normal"
+    }
   },
   "hrStructure": {
     "borderTopStyle": "solid",
     "borderTopWidth": "1px",
-    "marginTopBottom": "32px",
+    "marginTopBottom": "28px",
     "lineWidth": "100%"
   },
   "checkboxStructure": {
     "boxSize": "16px",
     "checkedEffect": "none",
-    "textGap": "10px",
-    "color": "#333333"
-  }
+    "textGap": "9px",
+    "color": "#2f2f2f"
+  },
+  "tableStructure": {
+    "outerBorderWidth": "1px",
+    "rowBorderWidth": "1px",
+    "colBorderWidth": "1px"
+  },
+  "customCss": ""
 }
 \`\`\`
 
 ---
 
-## 📌 2. 주요 태그 규칙 및 추가 속성
+## 📌 2. 7대 서식 쇼케이스 영역별 상세 명세
 
-\`rules\` 안에 다음과 같은 HTML 태그를 키로 정의하여 CSS 속성들을 맵핑할 수 있습니다.
+온리비 어서는 서식 관리 모달 우측의 **7대 쇼케이스 모듈(Showcase Cards)**과 1:1로 정확히 동기화됩니다.
 
-- **h1 ~ h6**: 제목. (h2~h6의 경우 시스템이 \`headingSizeOffset\`을 기반으로 글자 크기를 자동 연산하기도 하지만 명시할 수 있습니다.)
-- **p**: 일반 문단. 글꼴과 줄 간격은 기본적으로 \`pageStyle\`을 상속받으므로 색상이나 마진 정도만 정의합니다.
-- **a**: 하이퍼링크. 색상(\`color\`) 및 밑줄(\`text-decoration\`) 처리 등을 정의합니다.
-- **strong, em, del**: 텍스트 강조(굵게, 기울임, 취소선). 글자색이나 폰트 웨이트, 데코레이션 스타일을 지정합니다.
-- **ul, ol, li**: 목록. 들여쓰기(\`padding-left\`), 텍스트 색상(\`color\`), 그리고 마커 스타일(\`list-style-type\`)을 정의합니다. \`ul\`은 기본적으로 \`"list-style-type": "disc"\`, \`ol\`은 \`"list-style-type": "decimal"\`을 권장합니다. \`li\`는 항목 간 간격 조절용으로 씁니다.
-- **blockquote**: 인용구. 주로 왼쪽 테두리(\`border-left\`)나 배경색(\`background-color\`)을 정의합니다.
-- **hr**: 구분선. 굵기와 선 스타일(\`border-top-width\`, \`border-top-style\`, \`border-top-color\`), 폭(\`width\`), 상하여백을 정의합니다.
-- **table, th, td**: 표. 표의 테두리와 셀 간격(\`padding\`) 등을 정의합니다.
-- **code**: 인라인 코드 블록. 텍스트 색상은 기본 \`#2563eb\`(파란색)으로 지정되어 있습니다.
-- **codeBlock, codeBlockTitle**: 다중행 소스코드 블록 및 상단 타이틀 바. 배경색(\`background-color\`), 패딩, 둥근 모서리, 텍스트 색상 등을 지정합니다.
-- **img, video, map**: 미디어 및 지도 삽입. 주로 라운딩 처리(\`border-radius\`), 중앙 정렬 마진(\`margin-left: auto\`), 그림자 효과(\`box-shadow\`) 등을 지정합니다.
-- **math**: 수학 수식(KaTeX). 디스플레이 수식의 정렬(\`text-align\`), 상하 여백(\`margin-top\`, \`margin-bottom\`), 그리고 수식 글자 색상(\`color\`)과 크기(\`font-size\`)를 지정합니다.
-- **footnote**: 각주 텍스트. 문서 하단의 각주 디자인(색상, 크기, 마진)을 정의합니다.
+### 🎴 Card 1. 본문 및 기본 타이포그래피 (\`pageStyle\`, \`p\`, \`strong\`, \`em\`, \`u\`, \`del\`, \`code\`, \`a\`)
+- **pageStyle.fontFamily**: 문서 기본 폰트 패밀리 (\`'KoPubBatang'\`, \`'KoPubDotum'\`, \`'Pretendard'\`, \`'Noto Sans KR'\`, \`'D2Coding'\` 등)
+- **pageStyle.fontSize**: 본문 기준 글자 크기 (기본값: \`"16px"\`)
+- **pageStyle.lineHeight**: 본문 기준 줄 간격 (배율 단위, 기본값: \`"1.75"\`)
+- **pageStyle.letterSpacing**: 본문 기준 자간 (기본값: \`"-0.01em"\`)
+- **pageStyle.paperSize**: 인쇄/출판 표준 용지 규격 (\`"a4"\`, \`"a3"\`, \`"b4"\`, \`"b5"\`, \`"letter"\`)
+- **pageStyle.orientation**: 용지 방향 (\`"portrait"\`: 세로형, \`"landscape"\`: 가로형)
+- **pageStyle.backgroundColor**: 문서 배경색 (\`"#ffffff"\`, 미색 \`"#fcfbf9"\`, 다크 \`"#0f172a"\` 등)
+- **pageStyle.margins**: 상/하/좌/우 인쇄 안전 여백 (\`marginTop\`, \`marginBottom\`: 기본값 \`"22mm"\`, \`marginLeft\`: 기본값 \`"19mm"\`, \`marginRight\`: 기본값 \`"20mm"\`)
+- **인라인 스타일**:
+  - \`strong\`: 굵게 (\`font-weight\`, \`color\`)
+  - \`em\`: 기울임 (\`font-style: italic\`, \`color\`)
+  - \`u\`: 밑줄 (\`text-decoration: underline\`)
+  - \`del\`: 취소선 (\`text-decoration: line-through\`, \`color\`)
+  - \`code\`: 인라인 코드 (\`background-color\`, \`color\`, \`border-radius\`, \`font-weight\`)
+  - \`a\`: 하이퍼링크 (\`color\`, \`text-decoration\`)
 
-### 체크박스 세부 설정 (\`checkboxStructure\`)
-체크박스 목록의 렌더링 스타일을 설정합니다.
-- \`checkedEffect\`: 항목 완료 시 적용할 시각적 효과 (\`"none"\`: 효과 없음 기본값, \`"line-through-and-dim"\`: 취소선+반투명, \`"dim-only"\`: 반투명만)
-- \`boxSize\`: 체크박스 크기 (예: \`"16px"\`)
-- \`textGap\`: 체크박스와 텍스트 사이 간격 (예: \`"10px"\`)
-- \`color\`: 체크박스 테두리 및 체크 마크 색상. 주로 리스트(ul/ol)의 글자 색상과 통일되도록 설정합니다. (예: \`"#333333"\`)
+### 🎴 Card 2. 제목 위계 스타일 (\`h1\` ~ \`h6\`)
+- **글자 크기 배율(\`font-size\`)**: H1(대분류)부터 H6(최소단위)까지 위계 질서에 맞는 크기 지정
+- **굵기(\`font-weight\`)**: \`"700"\`, \`"800"\`, \`"900"\`, \`"bold"\`
+- **정렬(\`text-align\`)**: \`"left"\`, \`"center"\`, \`"right"\`
+- **구분선(\`border-bottom\`)**: 대제목 및 중제목 하단 장식선 (예: \`"2px solid #1d4ed8"\`, \`"1px solid #e2e8f0"\`)
+- **여백(\`margin-top\`, \`margin-bottom\`)**: 상하 간격을 통해 문단과의 호흡 조절
+
+### 🎴 Card 3. 목록 및 체크리스트 (\`ul\`, \`ol\`, \`li\`, \`taskList\`)
+- **순서 없는 목록(\`ul\`)**: \`"list-style-type": "disc"\` (원형), \`"circle"\` (속 빈 원), \`"square"\` (사각형)
+- **순서 있는 목록(\`ol\`)**: \`"list-style-type": "decimal"\` (1, 2, 3), \`"upper-roman"\` (I, II, III), \`"lower-alpha"\` (a, b, c)
+- **항목 여백(\`li\`)**: \`"margin-bottom": "5px"\`, \`"line-height": "1.7"\`
+- **체크리스트(\`taskList\`, \`checkboxStructure\`)**:
+  - \`boxSize\`: 체크박스 크기 (\`"16px"\`)
+  - \`textGap\`: 체크박스와 텍스트 사이 간격 (\`"9px"\`)
+  - \`color\`: 체크박스 테두리, 체크 마크 및 텍스트 기본 색상 (본문 글자색과 동일한 \`"#2f2f2f"\`)
+  - \`checkedEffect\`: 완료 항목 스타일 (**기본값: \`"none"\` - 효과 없음**, \`"line-through-and-dim"\`: 취소선+반투명, \`"dim-only"\`: 반투명만)
+
+### 🎴 Card 4. 표(Table) · 인용구 · 소스코드 블록
+- **인용구(\`blockquote\`) 형태 프리셋**:
+  1. **왼쪽 띠형 (Left Stripe)**: \`"border-left": "3px solid #d9d9d9"\`, \`"border-radius": "0"\`
+  2. **전체 박스형 (Full Box)**: \`"border": "1px solid #cbd5e1"\`, \`"border-radius": "8px"\`
+  3. **그림자 박스형 (Shadow Box)**: \`"border": "none"\`, \`"box-shadow": "0 8px 24px rgba(0,0,0,0.12)"\`, \`"border-radius": "8px"\`
+  - 공통 속성: \`background-color\`, \`padding\`, \`margin-top\`, \`margin-bottom\`, \`font-size\`, \`font-weight\`
+- **표(\`table\`, \`th\`, \`td\`, \`tableStructure\`) 형태 프리셋 및 개별 두께**:
+  - **\`tableStructure\` 구조체 (외곽/행/열 두께 독립 제어)**:
+    - \`outerBorderWidth\`: 표 외곽 테두리 두께 (기본값: \`"1px"\`)
+    - \`rowBorderWidth\`: 표 행(가로선) 구분선 두께 (기본값: \`"1px"\`)
+    - \`colBorderWidth\`: 표 열(세로선) 구분선 두께 (기본값: \`"1px"\`)
+  - **프리셋별 기본값**:
+    1. **엑셀 격자(Grid)**: 사방 실선 (\`outerBorderWidth: "1px"\`, \`rowBorderWidth: "1px"\`, \`colBorderWidth: "1px"\`)
+    2. **논문/관보 가로선 강조(Horizontal)**: 세로선 제거 (\`colBorderWidth: "0px"\`), 상하 외곽 굵은선 강조 (\`outerBorderWidth: "2px"\`, \`rowBorderWidth: "1px"\`)
+    3. **미니멀(Minimal)**: 모든 테두리 제거 (\`outerBorderWidth: "0px"\`, \`rowBorderWidth: "0px"\`, \`colBorderWidth: "0px"\`), 헤더 배경색만 유지
+  - 셀 패딩(\`padding\`), 글자 크기(\`font-size\`), 상하 바깥 여백(\`margin-top\`, \`margin-bottom\`)
+- **코드 블록(\`codeBlock\`, \`codeBlockTitle\`)**:
+  - \`background-color: "#f7f7f8"\`, \`color: "#242424"\`, \`padding: "16px"\`, \`border-radius: "8px"\`, \`font-size: "13.5px"\`
+
+### 🎴 Card 5. 미디어(이미지·비디오·지도) & 수식(MATH) · 구분선
+- **미디어 객체 공통 (\`img\`, \`video\`, \`map\`)**:
+  - **너비 및 높이**:
+    - 본문 전체 폭에 맞춰 시원하게 전개되도록 **\`width: "100%"\`**를 표준으로 고정 적용합니다.
+    - \`video\`: \`"width": "100%"\`, \`"height": "315px"\` (16:9 와이드 가로형 표준)
+    - \`map\`: \`"width": "100%"\`, \`"height": "400px"\` (대화형 지도 표준)
+    - \`img\`: \`"width": "100%"\`, \`"border-radius": "8px"\`
+  - **정렬 마진**:
+    - 좌측 정렬: \`"margin-left": "0px"\`, \`"margin-right": "auto"\`
+    - 중앙 정렬: \`"margin-left": "auto"\`, \`"margin-right": "auto"\`
+    - 우측 정렬: \`"margin-left": "auto"\`, \`"margin-right": "0px"\`
+  - **테두리 및 효과**: \`border-radius\` (라운딩, 기본 \`"8px"\`), \`box-shadow\`
+  - **상하 여백**: \`margin-top: "20px"\`, \`margin-bottom: "20px"\`
+- **수학 수식 (\`math\`)**:
+  - KaTeX Display 블록 렌더링
+  - \`color\`: \`"#2f2f2f"\` (고대비 텍스트)
+  - \`font-size\`: \`"16px"\` (생략 시 본문 기본 크기 자동 상속)
+  - \`text-align\`: \`"center"\` (중앙 정렬)
+  - \`margin-top: "20px"\`, \`margin-bottom: "20px"\`
+- **수평 구분선 (\`hr\`, \`hrStructure\`)**:
+  - 선 종류: \`border-top-style\` (\`"solid"\`, \`"dashed"\`, \`"dotted"\`, \`"double"\`)
+  - 선 두께: \`border-top-width\` (\`"1px"\`)
+  - 선 색상: \`border-top-color\` (\`"#e5e5e5"\`)
+  - 폭: \`width\` (\`"100%"\`)
+  - 상하 여백: \`margin-top: "28px"\`, \`margin-bottom: "28px"\`
+
+### 🎴 Card 6. 고급 레이아웃 및 본문 문단 (\`p\`)
+- **본문 정렬(\`text-align\`)**: \`"left"\` (기본 정렬), \`"justify"\` (출판물 스타일 양끝 정렬)
+- **첫 줄 들여쓰기(\`text-indent\`)**: 기본 \`"0px"\` (출판 서식의 경우 \`"16px"\`)
+- **문단 상하 여백(\`margin-top\`, \`margin-bottom\`)**: 상단 \`"0px"\`, 하단 \`"16px"\`
+- **문장 사이 간격(\`sentence-gap\`)**: 문단 내에서 \`<br />\` 또는 Shift+Enter로 개행된 문장 간 미세 간격 (기본 \`"4px"\`)
+
+### 🎴 Card 7. 각주 및 주석 (\`footnote\`)
+- **글자 크기(\`font-size\`)**: 기본 \`"13px"\`
+- **글자 굵기(\`font-weight\`)**: \`"normal"\`
+- **글자 색상(\`color\`)**: \`"#6b6b6b"\`
+- **줄 간격(\`line-height\`)**: \`"1.5"\`
+- **상하 바깥 여백(\`margin-top\`, \`margin-bottom\`)**: 상단 \`"12px"\`, 하단 \`"12px"\`
 
 ---
 
-## 📌 3. AI에게 새 테마 작성을 지시할 때 (프롬프트 예시)
+## 📌 3. AI에게 서식 프로필 생성을 지시할 때 (프롬프트 작성 예시)
 
-이 문서를 AI 채팅창에 제공하고 아래와 같이 요청하세요.
+> 💡 **안내 (필독)**:  
+> 아래 프롬프트는 **Onrivi 기본서식**을 기준으로 한 모범적인 작성 예시입니다.  
+> 사용자가 원하는 스타일에 맞추어 **글꼴, 글자 크기, 색상, 여백 등의 수치를 자유롭게 바꾸어 지시**하실 수 있습니다.  
+> 또한, AI가 만들어준 서식 JSON에 특정 태그가 생략되어 있더라도 **온리비 어서가 Onrivi 기본서식 규격을 자동으로 상속**하므로 안심하고 사용하실 수 있습니다.
 
-> **AI 프롬프트 예시:**
-> "제공된 'Onrivi Author 서식 프로필 CSS 작성 가이드'를 기반으로, **[공공기관 보고서]** 형태의 테마 JSON 객체 1개를 생성해 줘.
-> - 글꼴은 'KoPubDotum'
-> - 제목(h1)은 파란색 계열, 왼쪽 굵은 테두리(border-left) 적용
-> - 인용구, 소스코드 블록, 이미지 및 동영상 등 미디어 태그도 디자인 컨셉에 맞게 모두 CSS 규칙을 추가해
-> - 줄 간격은 1.6, 글자 크기는 14px
-> - 글머리 기호(ul)는 채워진 원(disc), 숫자 목록(ol)은 1,2,3(decimal) 기본 적용
-> - 체크박스 색상은 본문 리스트 색상과 동일하게 맞춤
-> 위 JSON 결과물만 코드블록으로 출력해."
+> **🤖 AI 프롬프트 작성 예시:**
+> 
+> "제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, **[원하는 테마 명칭: 예 - 에디토리얼 테크니컬 서식]** 서식 프로필 JSON 1개를 생성해 줘.
+> 
+> [요구 조건]
+> 1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 22mm, 좌 19mm, 우 20mm 여백, 기본 글꼴은 시스템 고딕, 글자 크기 16px, 줄 간격 1.75 적용.
+> 2. 제목(h1~h6)은 32px부터 15px까지 단계별 위계와 정갈한 상하 여백으로 구성.
+> 3. 본문 문단(p)은 줄 간격 1.75, 문단 아래 여백 16px, 문장 사이 간격(sentence-gap) 4px 적용.
+> 4. 표(tableStructure)는 outerBorderWidth: 1px, rowBorderWidth: 1px, colBorderWidth: 1px의 정갈한 격자 스타일로 구성.
+> 5. 미디어(img, video, map)는 가로 너비를 100%(\"width\": \"100%\")로 설정하고, video는 \"height\": \"315px\", map은 \"height\": \"400px\"으로 16:9 와이드 비율 적용.
+> 6. 구분선(hrStructure: 28px/1px/solid/100%) 및 체크박스(checkboxStructure: 16px/none/9px/#2f2f2f - 체크박스 및 글자색은 본문과 동일한 #2f2f2f, 완료 효과 checkedEffect는 무조건 "none") 구조체를 완벽히 포함.
+> 7. 설명이나 인사말 없이 오직 유효한 단일 JSON 객체({ ... })만 출력해."
 `;

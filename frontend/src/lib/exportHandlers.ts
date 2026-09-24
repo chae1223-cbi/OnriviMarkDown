@@ -1,3 +1,12 @@
+// 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 내보내기 동기화]: .task-list-item 및 checkboxStructure color를 본문(p) 글씨색(기본 #2f2f2f)으로 일치시켜 PDF/HTML/인쇄 내보내기 시 별도 색상 튐 원천 배제
+// 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 내보내기 기본값 동기화]: profile.checkboxStructure.checkedEffect 기본값을 'none'으로 확정하여 PDF/인쇄/HTML 내보내기 시 기본 취소선·반투명 오염 원천 방지
+// 🚨 @PATCH : **2026-09-24** — [동영상 및 지도 래퍼 폭 수축(300px) 버그 해결 내보내기 동기화]: generateExportCss 내 .onrivi-video-wrapper 및 .onrivi-map-wrapper에 고정되었던 width: fit-content를 ruleObj.width(기본 100%) 기반 동적 확장(display: flex, width: 100%)으로 보정하여 내보내기 시 300px 찌그러짐 현상 원천 차단
+// 🚨 @PATCH : **2026-09-24** — [기본 서식 명칭 'Onrivi 기본서식' 표준화에 따른 내보내기 기본 여백(상하 22mm, 좌 19mm, 우 20mm) 및 폴백 동기화]: 인쇄(@page), PDF, HTML, PNG 내보내기 시 기본 마진을 marginTop: 22mm, marginBottom: 22mm, marginLeft: 19mm, marginRight: 20mm로 일원화
+// 🚨 @PATCH : **2026-09-24** — [체크리스트(task-list-item) 중복 불릿 기호 제거 및 여백 정렬 내보내기 동기화]: li.task-list-item::marker 및 ::before 소거와 list-style: none 적용으로 PDF/HTML/인쇄 내보내기 시 체크박스 앞 불릿 중복 노출 차단
+// 🚨 @PATCH : **2026-09-24** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 내보내기 동기화]: 인쇄(@page), PDF, HTML, PNG 내보내기 시 기본 마진을 marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm로 일원화 (화면 및 출력 균형 최적화)
+// 🚨 @PATCH : **2026-09-24** — [표 외곽 테두리·행(가로선)·열(세로선) 두께 개별 내보내기 동기화(tableStructure)]: generateExportCss에 profile.tableStructure를 연동하여 table(외곽선) 및 th/td(행·열 구분선) 두께를 독립 적용하여 인쇄/PDF/EPUB/HTML 내보내기 일치성 보장
+// 🚨 @PATCH : **2026-09-24** — [문서 내보내기 서식 프로필 7대 쇼케이스 완전체 정규화(normalizeCssProfile) 연동]: HTML/PDF/EPUB/PNG 내보내기 시 전달된 프로필의 누락된 최신 태그 및 구조체를 100% 자동 하이드레이션하여 서식 일치성 완벽 보장
+// 🚨 @PATCH : **2026-09-24** — [각주(Footnote) 상하 여백 및 선택자(.onrivi-content-root .footnotes) 내보내기 동기화 보강]: margin-bottom 및 .onrivi-content-root 계열 선택자를 추가하여 HTML/PDF/EPUB 내보내기 시 각주 서식 100% 일치 보장
 // 🚨 @PATCH : **2026-09-24** — [본문 문단(P) 문장 사이 간격(sentence-gap) 내보내기 지원]: generateExportCss에 p .onrivi-line + .onrivi-line 및 br 가상 블록 선택자를 동시 주입하여 문단 내 줄바꿈 문장 간격 내보내기 동기화
 // 🚨 @PATCH : **2026-09-24** — [KaTeX 수식(MATH) 기본 글자 크기(inherit) 및 상하 여백 100% 내보내기 정상화]:
 //             1) 수식 글자 크기 미지정('기본설정 유지') 시 font-size: inherit !important 주입으로 KaTeX 1.21em 자체 스타일 오버라이드 및 본문 기본 글자 크기 실시간 동기화 실현
@@ -26,6 +35,7 @@
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { msg } from '@/lib/systemMessages';
 import { PAPER_SIZES } from '@/constants/paperSizes';
+import { DEFAULT_PROFILE, normalizeCssProfile } from '@/constants/cssProfile';
 
 interface ExportOptions {
   previewEl: HTMLElement;
@@ -46,10 +56,12 @@ interface ExportOptions {
 }
 
 /** 항상 라이트모드 기준으로 서식 프로필의 dynamic CSS를 재생성하는 헬퍼 함수 */
-function generateExportCss(profile: any): string {
-  if (!profile || profile.id === 'default') {
-    return (profile?.customCss && profile.customCss.trim()) ? `\n/* === [User Custom CSS] === */\n${profile.customCss}\n` : '';
+export function generateExportCss(rawProfile: any): string {
+  if (!rawProfile || rawProfile.id === 'default') {
+    return (rawProfile?.customCss && rawProfile.customCss.trim()) ? `\n/* === [User Custom CSS] === */\n${rawProfile.customCss}\n` : '';
   }
+  // 💡 [OMD-PATCH] 전달된 프로필을 Onrivi 최신 7대 쇼케이스 태그 및 구조체 기준으로 완벽 정규화(하이드레이션)
+  const profile = normalizeCssProfile(rawProfile);
   const ps = profile.pageStyle;
   
   // 내보내기 결과물은 항상 라이트모드 기준 바탕색과 기본 텍스트 색상 적용
@@ -276,24 +288,28 @@ p .onrivi-line + .onrivi-line {
       const fontSize = ruleObj['font-size'];
       const lineHeight = ruleObj['line-height'];
       const marginTop = ruleObj['margin-top'];
+      const marginBottom = ruleObj['margin-bottom'];
       const fontWeight = ruleObj['font-weight'];
 
       if (marginTop) {
-        css += `.custom-preview-container .footnotes {\n  margin-top: ${marginTop} !important;\n}\n`;
+        css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes {\n  margin-top: ${marginTop} !important;\n}\n`;
+      }
+      if (marginBottom) {
+        css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes {\n  margin-bottom: ${marginBottom} !important;\n}\n`;
       }
       if (color) {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  color: ${color} !important;\n}\n`;
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  color: ${color} !important;\n}\n`;
       }
       if (fontSize) {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
       } else {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: inherit !important;\n}\n`;
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-size: inherit !important;\n}\n`;
       }
       if (lineHeight) {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
       }
       if (fontWeight) {
-        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-weight: ${fontWeight} !important;\n}\n`;
+        css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-weight: ${fontWeight} !important;\n}\n`;
       }
       return;
     }
@@ -391,6 +407,7 @@ p .onrivi-line + .onrivi-line {
     } else if (tag === 'video') {
       const ml = (ruleObj as any)['margin-left'] || 'auto';
       const mr = (ruleObj as any)['margin-right'] || 'auto';
+      const targetWidth = (ruleObj as any)['width'] || '100%';
       let alignSelf = 'center';
       let textAlign = 'center';
       if ((ml === '0px' || ml === '0') && mr === 'auto') {
@@ -406,9 +423,9 @@ p .onrivi-line + .onrivi-line {
   align-self: ${alignSelf} !important;
   margin-left: ${ml} !important;
   margin-right: ${mr} !important;
-  display: inline-flex !important;
+  display: ${targetWidth === '100%' ? 'flex' : 'inline-flex'} !important;
   flex-direction: column !important;
-  width: fit-content !important;
+  width: ${targetWidth} !important;
   max-width: 100% !important;
 }
 .custom-preview-container figure:has(video),
@@ -417,11 +434,13 @@ p .onrivi-line + .onrivi-line {
 .onrivi-content-root .onrivi-video-figure {
   align-items: ${alignSelf} !important;
   text-align: ${textAlign} !important;
+  width: 100% !important;
 }
 `;
     } else if (tag === 'map') {
       const ml = (ruleObj as any)['margin-left'] || 'auto';
       const mr = (ruleObj as any)['margin-right'] || 'auto';
+      const targetWidth = (ruleObj as any)['width'] || '100%';
       let alignSelf = 'center';
       let textAlign = 'center';
       if ((ml === '0px' || ml === '0') && mr === 'auto') {
@@ -439,9 +458,9 @@ p .onrivi-line + .onrivi-line {
   align-self: ${alignSelf} !important;
   margin-left: ${ml} !important;
   margin-right: ${mr} !important;
-  display: inline-flex !important;
+  display: ${targetWidth === '100%' ? 'flex' : 'inline-flex'} !important;
   flex-direction: column !important;
-  width: fit-content !important;
+  width: ${targetWidth} !important;
   max-width: 100% !important;
 }
 .custom-preview-container figure:has(iframe),
@@ -450,6 +469,7 @@ p .onrivi-line + .onrivi-line {
 .onrivi-content-root .onrivi-map-figure {
   align-items: ${alignSelf} !important;
   text-align: ${textAlign} !important;
+  width: 100% !important;
 }
 `;
     }
@@ -515,6 +535,49 @@ p .onrivi-line + .onrivi-line {
 .dark .onrivi-content-root .prose tbody tr:nth-child(even) {
   background-color: transparent !important;
 }
+`;
+
+  // 🧰 구조제어: 표 외곽 테두리, 행(가로선), 열(세로선) 두께 개별 동적 인젝션
+  const tableStruct = profile.tableStructure || DEFAULT_PROFILE.tableStructure;
+  if (tableStruct) {
+    const outerWidth = tableStruct.outerBorderWidth || '1px';
+    const rowWidth = tableStruct.rowBorderWidth || '1px';
+    const colWidth = tableStruct.colBorderWidth || '1px';
+
+    // 1. 표 외곽 테두리 (table)
+    css += `
+.custom-preview-container table,
+.onrivi-content-root table,
+.custom-preview-container .prose table,
+.dark .custom-preview-container .prose table,
+.onrivi-content-root .prose table,
+.dark .onrivi-content-root .prose table {
+  border-width: ${outerWidth} !important;
+  ${outerWidth === '0px' || outerWidth === '0' ? 'border-style: none !important;' : ''}
+}
+`;
+
+    // 2. 표 내부 행(가로선) 및 열(세로선) 구분선 (th, td)
+    css += `
+.custom-preview-container th,
+.custom-preview-container td,
+.onrivi-content-root th,
+.onrivi-content-root td,
+.custom-preview-container .prose th,
+.custom-preview-container .prose td,
+.onrivi-content-root .prose th,
+.onrivi-content-root .prose td {
+  border-top-width: ${rowWidth} !important;
+  border-bottom-width: ${rowWidth} !important;
+  border-left-width: ${colWidth} !important;
+  border-right-width: ${colWidth} !important;
+  ${rowWidth === '0px' || rowWidth === '0' ? 'border-top-style: none !important; border-bottom-style: none !important;' : ''}
+  ${colWidth === '0px' || colWidth === '0' ? 'border-left-style: none !important; border-right-style: none !important;' : ''}
+}
+`;
+  }
+
+  css += `
 .custom-preview-container p:has(+ .table-wrapper-area),
 .onrivi-content-root p:has(+ .table-wrapper-area) {
   margin-bottom: 6px !important;
@@ -594,15 +657,44 @@ p .onrivi-line + .onrivi-line {
 }
 `;
 
+  const bodyTextColor = (profile.rules?.p && (profile.rules.p as any)['color']) || '#2f2f2f';
+  const taskListColor = (profile.rules?.taskList && (profile.rules.taskList as any)['color']) || bodyTextColor;
+
+  // 💡 체크리스트(task-list-item): 중복 불릿(•) 기호 완전 소거 및 본문 텍스트 색상과 100% 일치
+  css += `
+.custom-preview-container li.task-list-item,
+.onrivi-content-root li.task-list-item {
+  list-style: none !important;
+  list-style-type: none !important;
+  list-style-image: none !important;
+  color: ${taskListColor} !important;
+}
+.custom-preview-container li.task-list-item::marker,
+.onrivi-content-root li.task-list-item::marker,
+.custom-preview-container li.task-list-item::before,
+.onrivi-content-root li.task-list-item::before {
+  content: "" !important;
+  display: none !important;
+}
+.custom-preview-container ul.contains-task-list,
+.onrivi-content-root ul.contains-task-list {
+  list-style: none !important;
+  list-style-type: none !important;
+  padding-left: 0 !important;
+}
+`;
+
   if (profile.checkboxStructure) {
     const boxSize = profile.checkboxStructure.boxSize || '16px';
     const checkedEffect = profile.checkboxStructure.checkedEffect || 'none';
     const textGap = profile.checkboxStructure.textGap || '10px';
+    const cbColor = profile.checkboxStructure.color || bodyTextColor;
 
     css += `
 .custom-preview-container li.task-list-item {
   position: relative !important;
   padding-left: calc(${boxSize} + ${textGap}) !important;
+  list-style: none !important;
   list-style-type: none !important;
 }
 .custom-preview-container li.task-list-item input[type="checkbox"] {
@@ -612,6 +704,8 @@ p .onrivi-line + .onrivi-line {
   width: ${boxSize} !important;
   height: ${boxSize} !important;
   margin: 0 !important;
+  accent-color: ${cbColor} !important;
+  border-color: ${cbColor} !important;
 }
 `;
     if (checkedEffect === 'line-through-and-dim') {
@@ -625,6 +719,13 @@ p .onrivi-line + .onrivi-line {
       css += `
 .custom-preview-container .task-list-item-checked {
   opacity: 0.5 !important;
+}
+`;
+    } else {
+      css += `
+.custom-preview-container .task-list-item-checked {
+  text-decoration: none !important;
+  opacity: 1 !important;
 }
 `;
     }
@@ -1391,9 +1492,9 @@ export async function exportPDF({
   <style>
     @page {
       size: ${cssPageSize};
-      margin-top: ${marginTop || '20mm'} !important;
-      margin-bottom: ${marginBottom || '20mm'} !important;
-      margin-left: ${marginLeft || '20mm'} !important;
+      margin-top: ${marginTop || '22mm'} !important;
+      margin-bottom: ${marginBottom || '22mm'} !important;
+      margin-left: ${marginLeft || '19mm'} !important;
       margin-right: ${marginRight || '20mm'} !important;
       background-color: ${pageBg} !important;
     }
@@ -1728,9 +1829,9 @@ export async function exportHTML({
     const minHeightStr = `${pageHeight}mm`;
     const cssPageSize = `${pageWidth}mm ${pageHeight}mm`;
     
-    const pTop = marginTop || '20mm';
-    const pBottom = marginBottom || '20mm';
-    const pLeft = marginLeft || '20mm';
+    const pTop = marginTop || '22mm';
+    const pBottom = marginBottom || '22mm';
+    const pLeft = marginLeft || '19mm';
     const pRight = marginRight || '20mm';
     
     const pageBg = backgroundColor || '#ffffff';
@@ -1784,9 +1885,9 @@ export async function exportHTML({
     }
     @page {
       size: ${cssPageSize};
-      margin-top: ${marginTop || '20mm'} !important;
-      margin-bottom: ${marginBottom || '20mm'} !important;
-      margin-left: ${marginLeft || '20mm'} !important;
+      margin-top: ${marginTop || '22mm'} !important;
+      margin-bottom: ${marginBottom || '22mm'} !important;
+      margin-left: ${marginLeft || '19mm'} !important;
       margin-right: ${marginRight || '20mm'} !important;
       background-color: ${pageBg} !important;
     }
@@ -2041,14 +2142,14 @@ export async function exportPNG({
     const widthPx = Math.round(pageWidthMm * 96 / 25.4);
     const minHeightPx = Math.round(pageHeightMm * 96 / 25.4);
     
-    const mmToPx = (mmStr?: string, defaultVal = 20) => {
+    const mmToPx = (mmStr?: string, defaultVal = 22) => {
       const mm = parseFloat(mmStr || `${defaultVal}`);
       return Math.round(mm * 96 / 25.4);
     };
     
-    const pTop = mmToPx(marginTop, 20);
-    const pBottom = mmToPx(marginBottom, 20);
-    const pLeft = mmToPx(marginLeft, 20);
+    const pTop = mmToPx(marginTop, 22);
+    const pBottom = mmToPx(marginBottom, 22);
+    const pLeft = mmToPx(marginLeft, 19);
     const pRight = mmToPx(marginRight, 20);
 
     const wrapper = document.createElement('div');

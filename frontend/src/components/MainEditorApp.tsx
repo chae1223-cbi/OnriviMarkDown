@@ -4,6 +4,18 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-25** — [시스템 제공 서식 개편 동기화]: 구버전 서식('GitHub 기술 블로그/명세서', '공공기관 보고서 양식')을 삭제하고, 신규 시스템 제공 서식 5종('Onrivi 기술 표준 서식', 'Onrivi 법률·계약서 A4 공식 문서', 'Onrivi 네이버 블로그 감성 서식', 'Onrivi 일반 기술서적 표준 서식', 'Onrivi 공식 행사 및 가정통신문 안내장 서식')을 시스템 서식으로 공식 인식 및 로드
+// 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 일치화]: .task-list-item 및 checkboxStructure color를 본문(p) 글씨색(기본 #2f2f2f)으로 일치시켜 별도 색상 튐 현상 원천 배제
+// 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 기본값 통일]: prof.checkboxStructure.checkedEffect 기본값을 무조건 'none'으로 처리하여 기본 체크박스 완료 시 취소선 및 반투명 효과를 원천 배제
+// 🚨 @PATCH : **2026-09-24** — [누락 태그 'Onrivi 기본서식' 자동 상속 및 렌더링 동기화]: loadUserProfiles 및 dynamicCssString에서 normalizeCssProfile을 연동하여, 프로필에 누락된 태그(동영상, 지도, 체크박스, 각주 등)가 있을 때 무조건 Onrivi 기본서식(DEFAULT_PROFILE)의 태그 규칙을 기준으로 100% 자동 채워져 렌더링되도록 보장
+// 🚨 @PATCH : **2026-09-24** — [동영상 및 지도 래퍼 폭 수축(300px) 버그 해결]: dynamicCssString 내 .onrivi-video-wrapper 및 .onrivi-map-wrapper에 고정되었던 width: fit-content를 ruleObj.width(기본 100%) 기반 동적 확장(display: flex, width: 100%)으로 전면 보정하여 300px 찌그러짐 현상 원천 차단
+// 🚨 @PATCH : **2026-09-24** — [기본 서식 명칭 'Onrivi 기본서식' 표준화]: 문서 오픈 시 서식 부재 또는 미존재 시 'Onrivi 기본서식'(SYSTEM_PROFILES[0].id)을 강제 적용하고 구버전 서식명('ChatGPT 스타일 콘텐츠', '온리비어서 표준 서식') 매핑 보장
+// 🚨 @PATCH : **2026-09-24** — [기본 서식 'ChatGPT 스타일 콘텐츠' 전환]: SYSTEM_PROFILES[0]을 ChatGPT 스타일 콘텐츠로 변경하여 새 문서 및 서식 부재 시 기본 적용
+// 🚨 @PATCH : **2026-09-24** — [체크리스트(task-list-item) 중복 불릿 기호 제거 및 여백 정렬]: ul li::marker 간섭으로 체크박스 앞에 중복 렌더링되던 불릿(•) 기호를 list-style-type: none !important 및 ::marker content: none으로 완전 소거
+// 🚨 @PATCH : **2026-09-24** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 최적화]: activeProfile.pageStyle 기본 마진을 marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm로 일원화 (화면 가독성 및 A4 인쇄 균형 최적화)
+// 🚨 @PATCH : **2026-09-24** — [표 외곽 테두리·행(가로선)·열(세로선) 두께 개별 동적 인젝션(tableStructure)]: dynamicCssString 내 prof.tableStructure를 기반으로 table(외곽 두께)과 th/td(행 border-top/bottom 및 열 border-left/right)의 두께를 각각 독립 제어 및 실시간 렌더링 반영
+// 🚨 @PATCH : **2026-09-24** — [각주(Footnote) 상하 여백 및 선택자(.onrivi-content-root .footnotes) 실시간 동기화 보강]: margin-bottom 및 .onrivi-content-root 계열 선택자를 추가하여 에디터 미리보기 및 서식 관리 모달에서 각주 서식 100% 실시간 적용 보장
+// 🚨 @PATCH : **2026-09-24** — [문서 오픈 시 서식 부재 또는 미존재 시 온리비어서 표준서식 무조건 강제 적용]: 문서의 Frontmatter에 css_profile이 없거나 해당 프로필이 존재하지 않을 때, 직전 탭 서식 잔재를 상속하지 않고 무조건 온리비어서 표준서식(SYSTEM_PROFILES[0].id)으로 일원화
 // 🚨 @PATCH : **2026-09-24** — [본문 문단(P) 줄간격(line-height) 및 문장 사이 간격(sentence-gap) 실시간 동기화 완벽 보장]:
 //             1) rules.p['line-height'] 차단 필터를 해제하고 effectiveLineHeight 기반 전역/개별 p 줄간격 100% 실시간 연동
 //             2) sentence-gap에 p .onrivi-line + .onrivi-line 및 br 가상 블록 선택자를 동시 주입하여 문단 내 줄바꿈 문장 간격 1px 단위 즉각 반응 실현, 0px 설정 시 리셋
@@ -199,7 +211,7 @@ import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from "@/lib/sync
 import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig"; // 툴바 설정
 import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes"; // 에디터 테마
 import { CssProfile } from "@/types/cssProfile"; // css 프로필 타입
-import { DEFAULT_PROFILE, SYSTEM_PROFILES, isSystemProfileId } from "@/constants/cssProfile"; // 기본 프로필
+import { DEFAULT_PROFILE, SYSTEM_PROFILES, isSystemProfileId, normalizeCssProfile } from "@/constants/cssProfile"; // 기본 프로필
 import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
@@ -1191,7 +1203,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
       setProfiles(prev => {
         const systemPart = prev.filter(p => isSystemProfileId(p.id));
-        return [...systemPart, ...userProfiles];
+        const filteredUsers = userProfiles.filter(p =>
+          !isSystemProfileId(p.id) &&
+          p.id !== 'default' &&
+          p.id !== 'system-2' &&
+          p.id !== 'system-3' &&
+          p.name !== 'GitHub 기술 블로그/명세서' &&
+          p.name !== '공공기관 보고서 양식'
+        );
+        const normalizedUsers = filteredUsers.map(p => normalizeCssProfile(p, systemPart));
+        return [...systemPart, ...normalizedUsers];
       });
       setIsProfilesLoaded(true);
     };
@@ -3797,17 +3818,40 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0000] MainEditorApp.tsx ➔ Sync Frontmatter Profile
-  // 🎯 @KICK  : 에디터 본문(content)이 변경될 때 Frontmatter에서 css_profile을 추출하여 현재 서식(activeProfileId)을 동기화
-  // 🛡️ @GUARD : 기존 activeProfileId와 다를 때만 업데이트하여 무한루프 방지
-  // 🚨 @PATCH : 2026-07-30 (Frontmatter 서식 개별 지정 지원)
+  // 🎯 @KICK  : 에디터 본문(content) 또는 탭 전환 시 Frontmatter에서 css_profile을 추출하여 현재 서식(activeProfileId)을 동기화
+  // 🛡️ @GUARD : 서식 모달 오픈 중에는 사용자 서식 탐색을 방해하지 않으며, 서식이 없거나 지정된 서식 파일이 없으면 무조건 공식 기본 서식(Onrivi 기본서식: SYSTEM_PROFILES[0].id)으로 일원화
+  // 🚨 @PATCH : **2026-09-24** — [문서 오픈 시 서식 부재 또는 미존재 시 공식 기본 서식(Onrivi 기본서식) 강제 적용]:
+  //             1) Frontmatter에 css_profile이 지정되어 있으나 해당 프로필이 존재하지 않을 때 공식 기본 서식(system-1)으로 자동 전환
+  //             2) 문서에 css_profile 지정 자체가 없을 때 직전 탭 서식을 상속하지 않고 무조건 공식 기본 서식(system-1)으로 일원화
   // 🔗 @CALLS : extractFrontmatter, setActiveProfileId
   // ====================================================================
   useEffect(() => {
+    if (isStyleModalOpen) return;
     const { data } = extractFrontmatter(content);
-    if (data.css_profile && data.css_profile !== activeProfileId) {
-      setActiveProfileId(data.css_profile);
+    if (data.css_profile) {
+      const targetProfile = profiles.find(p => 
+        p.id === data.css_profile || 
+        p.name === data.css_profile ||
+        ((data.css_profile === 'ChatGPT 스타일 콘텐츠' || data.css_profile === '온리비어서 표준 서식' || data.css_profile === 'Onrivi 기본서식') && p.id === SYSTEM_PROFILES[0].id) ||
+        ((data.css_profile === 'GitHub 기술 블로그/명세서' || data.css_profile === 'system-2') && p.id === 'github-readme-style')
+      );
+      if (targetProfile) {
+        if (targetProfile.id !== activeProfileId) {
+          setActiveProfileId(targetProfile.id);
+        }
+      } else {
+        // 🚨 지정된 서식 프로필이 존재하지 않는 경우 (해당 서식 파일 부재): 무조건 공식 기본 서식으로 적용
+        if (activeProfileId !== SYSTEM_PROFILES[0].id) {
+          setActiveProfileId(SYSTEM_PROFILES[0].id);
+        }
+      }
+    } else {
+      // 🚨 해당 파일에 서식 지정이 없는 경우: 무조건 공식 기본 서식(SYSTEM_PROFILES[0].id)으로 강제 적용
+      if (activeProfileId !== SYSTEM_PROFILES[0].id) {
+        setActiveProfileId(SYSTEM_PROFILES[0].id);
+      }
     }
-  }, [content, activeProfileId]);
+  }, [content, activeProfileId, profiles, isStyleModalOpen]);
 
   // ====================================================================
   // 📊 [OMD-IO-MainEditorApp-0037] MainEditorApp.tsx ➔ electronAPI_listeners
@@ -5606,10 +5650,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : None
   // ====================================================================
   const dynamicCssString = useMemo(() => {
-    const prof = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+    const rawProf = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
     if (activeProfileId === 'default') {
-      return (prof.customCss && prof.customCss.trim()) ? `\n/* === [User Custom CSS] === */\n${prof.customCss}\n` : '';
+      return (rawProf.customCss && rawProf.customCss.trim()) ? `\n/* === [User Custom CSS] === */\n${rawProf.customCss}\n` : '';
     }
+    const prof = normalizeCssProfile(rawProf, profiles);
     const ps = prof.pageStyle;
 
     const profileBg = ps.backgroundColor || '#ffffff';
@@ -5856,24 +5901,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         const fontSize = ruleObj['font-size'];
         const lineHeight = ruleObj['line-height'];
         const marginTop = ruleObj['margin-top'];
+        const marginBottom = ruleObj['margin-bottom'];
         const fontWeight = ruleObj['font-weight'];
 
         if (marginTop) {
-          css += `.custom-preview-container .footnotes {\n  margin-top: ${marginTop} !important;\n}\n`;
+          css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes {\n  margin-top: ${marginTop} !important;\n}\n`;
+        }
+        if (marginBottom) {
+          css += `.custom-preview-container .footnotes, .onrivi-content-root .footnotes {\n  margin-bottom: ${marginBottom} !important;\n}\n`;
         }
         if (color) {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  color: ${color} !important;\n}\n`;
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  color: ${color} !important;\n}\n`;
         }
         if (fontSize) {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-size: ${fontSize} !important;\n}\n`;
         } else {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-size: inherit !important;\n}\n`;
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-size: inherit !important;\n}\n`;
         }
         if (lineHeight) {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  line-height: ${lineHeight} !important;\n}\n`;
         }
         if (fontWeight) {
-          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a {\n  font-weight: ${fontWeight} !important;\n}\n`;
+          css += `.custom-preview-container .footnotes, .custom-preview-container .footnotes p, .custom-preview-container .footnotes li, .custom-preview-container .footnotes a, .onrivi-content-root .footnotes, .onrivi-content-root .footnotes p, .onrivi-content-root .footnotes li, .onrivi-content-root .footnotes a {\n  font-weight: ${fontWeight} !important;\n}\n`;
         }
         return;
       }
@@ -5974,6 +6023,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       } else if (tag === 'video') {
         const ml = ruleObj['margin-left'] || 'auto';
         const mr = ruleObj['margin-right'] || 'auto';
+        const targetWidth = ruleObj['width'] || '100%';
         let alignSelf = 'center';
         let textAlign = 'center';
         if ((ml === '0px' || ml === '0') && mr === 'auto') {
@@ -5989,9 +6039,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   align-self: ${alignSelf} !important;
   margin-left: ${ml} !important;
   margin-right: ${mr} !important;
-  display: inline-flex !important;
+  display: ${targetWidth === '100%' ? 'flex' : 'inline-flex'} !important;
   flex-direction: column !important;
-  width: fit-content !important;
+  width: ${targetWidth} !important;
   max-width: 100% !important;
 }
 .custom-preview-container figure:has(video),
@@ -6000,11 +6050,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .onrivi-content-root .onrivi-video-figure {
   align-items: ${alignSelf} !important;
   text-align: ${textAlign} !important;
+  width: 100% !important;
 }
 `;
       } else if (tag === 'map') {
         const ml = ruleObj['margin-left'] || 'auto';
         const mr = ruleObj['margin-right'] || 'auto';
+        const targetWidth = ruleObj['width'] || '100%';
         let alignSelf = 'center';
         let textAlign = 'center';
         if ((ml === '0px' || ml === '0') && mr === 'auto') {
@@ -6022,9 +6074,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   align-self: ${alignSelf} !important;
   margin-left: ${ml} !important;
   margin-right: ${mr} !important;
-  display: inline-flex !important;
+  display: ${targetWidth === '100%' ? 'flex' : 'inline-flex'} !important;
   flex-direction: column !important;
-  width: fit-content !important;
+  width: ${targetWidth} !important;
   max-width: 100% !important;
 }
 .custom-preview-container figure:has(iframe),
@@ -6033,6 +6085,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .onrivi-content-root .onrivi-map-figure {
   align-items: ${alignSelf} !important;
   text-align: ${textAlign} !important;
+  width: 100% !important;
 }
 `;
       }
@@ -6089,6 +6142,46 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   background-color: transparent !important;
 }
 `;
+
+    // 🧰 구조제어: 표 외곽 테두리, 행(가로선), 열(세로선) 두께 개별 동적 인젝션
+    const tableStruct = prof.tableStructure || DEFAULT_PROFILE.tableStructure;
+    if (tableStruct) {
+      const outerWidth = tableStruct.outerBorderWidth || '1px';
+      const rowWidth = tableStruct.rowBorderWidth || '1px';
+      const colWidth = tableStruct.colBorderWidth || '1px';
+
+      // 1. 표 외곽 테두리 (table)
+      css += `
+.custom-preview-container table,
+.onrivi-content-root table,
+.custom-preview-container .prose table,
+.dark .custom-preview-container .prose table,
+.onrivi-content-root .prose table,
+.dark .onrivi-content-root .prose table {
+  border-width: ${outerWidth} !important;
+  ${outerWidth === '0px' || outerWidth === '0' ? 'border-style: none !important;' : ''}
+}
+`;
+
+      // 2. 표 내부 행(가로선) 및 열(세로선) 구분선 (th, td)
+      css += `
+.custom-preview-container th,
+.custom-preview-container td,
+.onrivi-content-root th,
+.onrivi-content-root td,
+.custom-preview-container .prose th,
+.custom-preview-container .prose td,
+.onrivi-content-root .prose th,
+.onrivi-content-root .prose td {
+  border-top-width: ${rowWidth} !important;
+  border-bottom-width: ${rowWidth} !important;
+  border-left-width: ${colWidth} !important;
+  border-right-width: ${colWidth} !important;
+  ${rowWidth === '0px' || rowWidth === '0' ? 'border-top-style: none !important; border-bottom-style: none !important;' : ''}
+  ${colWidth === '0px' || colWidth === '0' ? 'border-left-style: none !important; border-right-style: none !important;' : ''}
+}
+`;
+    }
 
     // 📊 표 여백 및 래퍼 정교화: 표 자체는 0마진으로 밀착하고, 래퍼(.table-wrapper-area)에 상하 여백 적용 및 직전 캡션 문구(p) 밀착
     const tableMarginTop = prof.rules.table?.['margin-top'] || '4px';
@@ -6150,12 +6243,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 }
 `;
 
+    const bodyTextColor = (prof.rules.p && prof.rules.p['color']) || '#2f2f2f';
+
     // 🧰 구조제어: 체크박스 규칙 (Task List) 동적 인젝션
     if (prof.checkboxStructure) {
       const cbSize = prof.checkboxStructure.boxSize || '16px';
-      const cbGap = prof.checkboxStructure.textGap || '10px';
+      const cbGap = prof.checkboxStructure.textGap || '9px';
       const cbEffect = prof.checkboxStructure.checkedEffect || 'none';
-      const cbColor = prof.checkboxStructure.color || 'currentColor';
+      const cbColor = prof.checkboxStructure.color || bodyTextColor;
       css += `
 .custom-preview-container input[type="checkbox"] {
   appearance: none !important;
@@ -6196,16 +6291,44 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   opacity: 0.5 !important;
 }
 `;
+      } else {
+        css += `
+.custom-preview-container .task-list-item:has(input:checked) {
+  text-decoration: none !important;
+  opacity: 1 !important;
+}
+`;
       }
     }
 
 
 
     // 💡 마커 색상: ul/ol 텍스트 색상을 상속받도록 강제 (Tailwind 기본색상 무시)
+    // 💡 체크리스트(task-list-item): 중복 불릿(•) 기호 완전 소거 및 본문 텍스트 색상과 100% 일치
     css += `
 .custom-preview-container ul li::marker,
 .custom-preview-container ol li::marker {
   color: inherit !important;
+}
+.custom-preview-container li.task-list-item,
+.onrivi-content-root li.task-list-item {
+  list-style: none !important;
+  list-style-type: none !important;
+  list-style-image: none !important;
+  color: ${(prof.rules.taskList && prof.rules.taskList['color']) || bodyTextColor} !important;
+}
+.custom-preview-container li.task-list-item::marker,
+.onrivi-content-root li.task-list-item::marker,
+.custom-preview-container li.task-list-item::before,
+.onrivi-content-root li.task-list-item::before {
+  content: "" !important;
+  display: none !important;
+}
+.custom-preview-container ul.contains-task-list,
+.onrivi-content-root ul.contains-task-list {
+  list-style: none !important;
+  list-style-type: none !important;
+  padding-left: 0 !important;
 }
 .custom-preview-container li,
 .custom-preview-container li > p,
@@ -8660,10 +8783,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           const paperWidth = isLandscape ? `${ps.height}mm` : `${ps.width}mm`;
                           const minHeight = isLandscape ? `${ps.width}mm` : `${ps.height}mm`;
 
-                          const pTop = activeProfile.pageStyle.marginTop || '20mm';
-                          const pBottom = activeProfile.pageStyle.marginBottom || '20mm';
-                          const pLeft = activeProfile.pageStyle.marginLeft || '20mm';
-                          const pRight = activeProfile.pageStyle.marginRight || '20mm';
+                          const pTop = activeProfile.pageStyle.marginTop || '18mm';
+                          const pBottom = activeProfile.pageStyle.marginBottom || '18mm';
+                          const pLeft = activeProfile.pageStyle.marginLeft || '12mm';
+                          const pRight = activeProfile.pageStyle.marginRight || '12mm';
 
                           const pageStyle: React.CSSProperties = {
                             boxSizing: 'border-box' as const,
