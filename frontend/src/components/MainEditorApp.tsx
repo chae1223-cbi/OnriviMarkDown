@@ -27,6 +27,12 @@
 //             2) map 셀렉터에 iframe[src*="google.com/maps"], iframe[src*="maps.google.com"] 포괄 확장 및 iframe 래퍼(.onrivi-map-wrapper) 연동
 //             3) 미디어 래퍼(.onrivi-image-wrapper, .onrivi-video-wrapper, .onrivi-map-wrapper)에 display:inline-flex, width:fit-content, max-width:100%, align-self: flex-start / center / flex-end 및 figcaption 정렬 자동 주입으로 flex 컨테이너 내부 100% 정렬 보장
 //             4) ml/mr '0' 및 '0px' 동등 지원으로 정렬 오판정 원천 방어
+// 🚨 @PATCH : **2026-09-25** — [스크롤바 슬라이더 겹침 방지 verticalScrollbarSize 24px 확대]: 모나코 줄바꿈 contentWidth 계산 시 스크롤바 여백을 10px->24px로 확대하여 줄 끝 글자(r, ;, l, y)가 스크롤바에 닿거나 가려지는 현상 완전 해결
+// 🚨 @PATCH : **2026-09-25** — [에디터 고정폭(D2Coding) 전면 복원 및 강조태그 긴문장 우측 글자 잘림·누락 완전 해결]: 에디터에 가변폭 세리프(Times New Roman) 적용 시 볼드(**) 토큰에서 글자 폭이 30% 급증하여 모나코 줄바꿈 계산을 초과해 우측 글자가 잘려 숨겨지던 결함을 에디터 fontFamily를 고정폭 D2Coding(D2CodingLigature, D2Coding, Consolas)으로 100% 복원하여 글자 폭 일치 및 무결점 줄바꿈 실현
+// 🚨 @PATCH : **2026-09-25** — [영문 마크다운 태그 단어 쪼개짐 방지 및 에디터 우측 패딩 48px 확대]: 미리보기 dynamicCssString에 .custom-preview-container 하위 요소들의 word-break: normal !important 및 overflow-wrap: break-word !important를 명시하고, 모나코 에디터 우측 패딩을 48px로 확대하여 볼드 태그 등 굵은 글꼴에서 스크롤바 겹침 및 글자 잘림 완전 해결
+// 🚨 @PATCH : **2026-09-25** — [한글 폰트 원상 복원(D2Coding) 및 영문 세리프 유지, 기본 폰트 크기 16px 상향]: 한글을 원래의 D2Coding으로 100% 복원하고 영문은 Times New Roman/Georgia를 적용, 기본 폰트 크기를 14px->16px(lineHeight 28)로 상향하여 가독성 대폭 강화
+// 🚨 @PATCH : **2026-09-25** — [에디터 및 서식 영문 세리프 폰트(Times New Roman/Georgia) 적용 및 영문 단어 쪼개짐 방지]: 에디터 폰트에 'Times New Roman', 'Georgia' 우선 탑재로 출판형 영문 세리프 구현 및 wordWrapBreakAfterCharacters에서 영문 알파벳/숫자 강제 분절을 제거하여 단어 단위의 자연스러운 줄바꿈 보장
+// 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 굵기 SemiBold(600) 연동 및 D2Coding 중간 굵기 시각적 보정]: updateOptions 및 options에 600 웨이트 연동, 에디터 컨테이너에 editor-weight-${editorFontWeight} 클래스 부여하여 D2Coding의 400/500/600 시각적 굵기 차이 완벽 실현
 // 🚨 @PATCH : **2026-09-24** — [표 테두리·모서리·세로선 및 모든 태그 서식 미리보기 완벽 동기화]:
 //             1) dynamicCssString 내 방향별 CSS 속성(border-left/right/top/bottom 등)이 단축 속성(border-style/width)보다 후순위로 배치되도록 sortCssProps 정렬기 도입 (가로선 강조 시 세로선 잔재 버그 원천 해결)
 //             2) .prose table의 강제 둥근 모서리(border-radius:8px), 그림자(box-shadow), 마지막 줄 하단선 소실, 지브라 배경색 오염을 완전 리셋
@@ -3726,14 +3732,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
       // 2. 에디터 옵션(폰트 크기, 글꼴 굵기, 줄 바꿈, 읽기 전용 여부) 강제 동기화
       editorRef.current.updateOptions({
-        fontSize: fontSize,
-        fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'medium' ? '500' : '400',
+        fontSize: fontSize || 16,
+        lineHeight: 28, // 16px 기준 1.75 비율
+        fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'semibold' ? '600' : editorFontWeight === 'medium' ? '500' : '400',
+        fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
+        padding: { top: 20, bottom: 24, left: 16, right: 48 }, // 우측 48px 안전 여백으로 볼드 등 굵은 폰트에서도 스크롤바 겹침 방지
         wordWrap: wordWrap,
         wrappingStrategy: 'advanced',
-        wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/\\:?#@!$%^&*+=~|*',
+        wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
         wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
         readOnly: tabs.length === 0 || isRestrictedUser,
         domReadOnly: tabs.length === 0 || isRestrictedUser,
+        scrollbar: { verticalScrollbarSize: 24 },
       });
       // 3. 레이아웃 리플로우 강제 트리거 및 비동기 웹폰트 로딩 후 글자 폭 재계산 (핵심 버그 수정)
       requestAnimationFrame(() => {
@@ -5670,11 +5680,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   font-size: ${ps.fontSize} !important;
   line-height: ${ps.lineHeight} !important;
   letter-spacing: ${ps.letterSpacing} !important;
+  overflow-wrap: break-word !important;
+  word-break: normal !important;
   -webkit-font-smoothing: subpixel-antialiased !important;
   -moz-osx-font-smoothing: auto !important;
   text-rendering: optimizeLegibility !important;
 }
 .custom-preview-container p,
+.custom-preview-container strong,
+.custom-preview-container b,
+.custom-preview-container em,
+.custom-preview-container span,
+.custom-preview-container a,
 .custom-preview-container .onrivi-content-root p,
 .custom-preview-container li,
 .custom-preview-container .onrivi-content-root li,
@@ -5682,6 +5699,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .custom-preview-container .onrivi-content-root blockquote {
   font-size: inherit !important;
   line-height: ${(prof.rules.p && prof.rules.p['line-height']) || ps.lineHeight || '1.8'} !important;
+  overflow-wrap: break-word !important;
+  word-break: normal !important;
 }
 /* 탭 간격 (Tab Size) — pre/code에서 탭 문자가 표시될 폭 */
 .custom-preview-container pre,
@@ -7969,7 +7988,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     <div
                       className={`flex-1 min-w-0 relative transition-colors duration-300 no-print bg-white dark:bg-[#1e1e1e] ${
                         previewMode === 'both' ? 'border-r border-slate-300 dark:border-zinc-700 shadow-xs' : ''
-                      } ${editorHighContrast ? 'editor-high-contrast' : ''}`}
+                      } ${editorHighContrast ? 'editor-high-contrast' : ''} editor-weight-${editorFontWeight}`}
                       style={{ display: (previewMode === 'preview' || activeTab?.isStyleTab === true) ? 'none' : 'block' }}
                     >
                       <Editor
@@ -8019,16 +8038,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         options={{
                           readOnly: tabs.length === 0 || isRestrictedUser,
                           domReadOnly: tabs.length === 0 || isRestrictedUser,
-                          padding: { top: 20, bottom: 24, left: 16, right: 32 }, // 상하/좌우 여백 (우측 32px 안전 여백으로 스크롤바 겹침 방지)
+                          padding: { top: 20, bottom: 24, left: 16, right: 48 }, // 상하/좌우 여백 (우측 48px 안전 여백으로 볼드 등 굵은 폰트에서도 스크롤바 겹침 방지)
                           scrollBeyondLastLine: false, // 마지막 줄 아래 과도한 여백 제거
                           glyphMargin: false, // 글리프 좌측 여백 제거
                           folding: false, // 폴딩 화살표 여백 제거
                           lineNumbersMinChars: 4, // 💡 줄 번호 영역 폭을 4자릿수로 넓혀 여유 공간 확보
                           lineDecorationsWidth: 10, // 💡 줄 번호와 본문 사이 여유 간격 확보
                           automaticLayout: true,
-                          fontSize: fontSize || 15,
-                          fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'medium' ? '500' : '400',
-                          lineHeight: 26, // 15px 기준 1.75 비율
+                          fontSize: fontSize || 16,
+                          fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'semibold' ? '600' : editorFontWeight === 'medium' ? '500' : '400',
+                          lineHeight: 28, // 16px 기준 1.75 비율
                           fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
                           fontLigatures: true, // 기호 연산자 리가처(->, != 등) 활성화
                           letterSpacing: 0,
@@ -8040,12 +8059,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           'semanticHighlighting.enabled': true,
                           wordWrap: wordWrap || 'on',
                           wrappingStrategy: 'advanced',
-                          wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/\\:?#@!$%^&*+=~|*',
+                          wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
                           wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
                           lineNumbers: 'on',
                           minimap: { enabled: false },
                           autoClosingBrackets: autoClosingBrackets ? 'languageDefined' : 'never',
-                          scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+                          scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 24, horizontalScrollbarSize: 10 },
                           // 슬래시(/) 입력 시에만 자동완성 트리거 (일반 타이핑 시 팝업 방지)
                           quickSuggestions: false,
                           suggestOnTriggerCharacters: true,

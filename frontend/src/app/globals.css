@@ -1,6 +1,11 @@
 @import url('https://cdn.jsdelivr.net/gh/joungkyun/font-d2coding/d2coding.css');
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-09-25** — [영문 마크다운 태그 단어 쪼개짐 및 우측 잘림 방지]: .prose 및 .monaco-editor의 word-break: break-all을 word-break: normal 및 overflow-wrap: break-word로 수정하여 영문 단어 중간 분절 버그 원천 차단
+ * 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 굵기(400/500/600/700) 정밀 시각화 보정]: D2Coding 폰트에 500/600 웨이트 파일이 없어 400과 동일하게 렌더링되던 W3C 매칭 결함을 .editor-weight-medium(0.22px) 및 .editor-weight-semibold(0.42px) 미세 획 보정으로 완벽 해결
+ * =================================================================== */
+
+/* ===================================================================
  * 번들 임베드 웹폰트 모음
  * public/fonts/ 에 직접 포함된 무료 배포 폰트들
  * =================================================================== */
@@ -206,7 +211,8 @@ html, body {
   text-rendering: optimizeLegibility;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   letter-spacing: -0.012em;
-  word-break: break-all;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -1054,6 +1060,33 @@ mark.onrivi-search-text-highlight {
 
 .monaco-strikethrough-text { text-decoration: line-through !important; }
 
+/* ===================================================================
+ * 🔤 [ONRIVI-FONT-WEIGHT-001] 에디터 글꼴 굵기(400/500/600/700) 정밀 시각화 보정
+ * D2Coding 등 400(Regular)과 700(Bold) 글리프만 존재하는 환경에서 500(Medium)과 600(SemiBold)이
+ * 400과 동일하게 렌더링되던 W3C 매칭 결함을 해결하기 위해 단계별 미세 획 두께 보정 적용
+ * =================================================================== */
+.editor-weight-normal .monaco-editor .view-line span {
+  -webkit-text-stroke: 0 !important;
+}
+
+/* 500 Medium: 400 글리프에 0.22px의 미세 스트로크를 부여하여 400보다 확실히 구분되는 선명한 Medium 실현 */
+.editor-weight-medium .monaco-editor .view-line span {
+  -webkit-text-stroke: 0.22px currentColor;
+  text-rendering: geometricPrecision;
+}
+
+/* 600 SemiBold: 700(Bold)의 과도한 뭉침 없이 500보다 한 단계 더 또렷하고 묵직한 최적의 세미볼드 구현 */
+.editor-weight-semibold .monaco-editor .view-line span {
+  -webkit-text-stroke: 0.42px currentColor;
+  text-rendering: geometricPrecision;
+}
+
+/* 700 Bold: D2Coding Bold 네이티브 글리프의 명확한 두께 유지 */
+.editor-weight-bold .monaco-editor .view-line span {
+  -webkit-text-stroke: 0.15px currentColor;
+  text-rendering: geometricPrecision;
+}
+
 /* ✏️ 모나코 에디터 코드 블록 및 인용구 라인 배경 스타일 */
 div.monaco-codeblock-line {
   background-color: rgba(0, 0, 0, 0.04) !important;
@@ -1190,14 +1223,16 @@ div.monaco-table-line {
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
-/* 💡 긴 영문 텍스트가 강제 개행되도록 하여 양쪽 정렬 시 발생하는 거대 공백 방지 */
-.prose {
-  overflow-wrap: anywhere !important;
-  word-break: break-all !important;
-}
-.prose p {
-  overflow-wrap: anywhere !important;
-  word-break: break-all !important;
+/* 💡 긴 영문 텍스트 단어 쪼개짐 방지 및 정상적인 단어 단위 줄바꿈 보장 */
+.prose,
+.prose p,
+.prose strong,
+.prose em,
+.prose span,
+.prose li,
+.prose a {
+  overflow-wrap: break-word !important;
+  word-break: normal !important;
 }
 
 /* 표 헤더 스타일 (미리보기 컨테이너 외부 기본값) */
@@ -1936,8 +1971,8 @@ input::-ms-clear {
 .monaco-editor .view-line,
 .monaco-editor .view-lines,
 .monaco-editor .monaco-scrollable-element {
-  word-break: break-all !important;
-  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
   text-rendering: geometricPrecision !important;
   -webkit-font-smoothing: antialiased !important;
   -moz-osx-font-smoothing: grayscale !important;

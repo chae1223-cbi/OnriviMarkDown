@@ -3,7 +3,12 @@
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
-//             타이핑(onDidChangeModelContent) 시 스크롤 연산 완전 격리(0회), 커서 항상 가시화 동기화
+// 🚨 @PATCH : **2026-09-25** — [스크롤바 슬라이더 겹침 방지 verticalScrollbarSize 24px 확대]: 모나코 줄바꿈 contentWidth 계산 시 스크롤바 여백을 10px->24px로 확대하여 줄 끝 글자(r, ;, l, y)가 스크롤바에 닿거나 가려지는 현상 완전 해결
+// 🚨 @PATCH : **2026-09-25** — [에디터 고정폭(D2Coding) 전면 복원 및 강조태그 긴문장 우측 글자 잘림·누락 완전 해결]: 에디터에 가변폭 세리프(Times New Roman) 적용 시 볼드(**) 토큰에서 글자 폭이 30% 급증하여 모나코 줄바꿈 계산을 초과해 우측 글자가 잘려 숨겨지던 결함을 에디터 fontFamily를 고정폭 D2Coding(D2CodingLigature, D2Coding, Consolas)으로 100% 복원하여 글자 폭 일치 및 무결점 줄바꿈 실현
+// 🚨 @PATCH : **2026-09-25** — [영문 마크다운 태그 단어 쪼개짐 방지 및 우측 패딩 48px 확대]: 볼드(**) 태그 등 굵은 글꼴 적용 시 우측 스크롤바와 겹쳐 글씨가 잘리는 현상을 방지하기 위해 우측 패딩을 48px로 확대하고 영문 단어 단위 자연스러운 줄바꿈 보장
+// 🚨 @PATCH : **2026-09-25** — [한글 폰트 원상 복원(D2Coding) 및 영문 세리프 유지, 기본 16px lineHeight(28) 최적화]: 한글을 원래의 D2Coding으로 100% 복원하고 영문은 Times New Roman/Georgia를 적용, 16px 기준 lineHeight 28로 쾌적한 줄간격 확보
+// 🚨 @PATCH : **2026-09-25** — [에디터 및 서식 영문 세리프 폰트(Times New Roman/Georgia) 적용 및 영문 단어 쪼개짐 방지]: 에디터 폰트에 'Times New Roman', 'Georgia' 우선 탑재로 출판형 영문 세리프 구현 및 wordWrapBreakAfterCharacters에서 영문 알파벳/숫자 강제 분절을 제거하여 단어 단위의 자연스러운 줄바꿈 보장
+// 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 굵기 SemiBold(600) 연동]: deps.editorFontWeight 'semibold' 분기 추가(600)로 모나코 에디터 마운트 시 600 웨이트 반영
 // 🚨 @PATCH : **2026-09-23** — [숫자 리스트 시작 번호 보존 및 연속 번호 자동 완성] autoRenumberList에서 숫자 리스트 블록의 첫 번째 시작 번호(예: 7. 등)를 initialCount로 보존하여, 엔터 입력 시 사용자가 의도한 시작 번호(7, 8, 9 -> 10)가 1, 2, 3으로 초기화되는 결함 원천 해결 및 <br> 경계 태그 탐색 가드 추가
 // 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) 빈 행·구분선 분리 및 번호 재시작] autoRenumberList에서 수평선(---) 리스트 오탐 방지, 빈 행(trim()==='')이나 구분선/헤딩 조우 시 즉시 블록 탐색 중단(break), 연속 번호 강제 병합 차단 및 새 블록 1번 시작 보장
 // 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 연동] useMonacoSetup 마운트 시점에 deps.editorFontWeight(400/500/700) 옵션 반영
@@ -397,17 +402,17 @@ export function useMonacoSetup(deps: any) {
                     scrollBeyondLastLine: false,   // 마지막 줄 도달 시 즉시 자동 스크롤
                     fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
                     fontLigatures: true,
-                    fontWeight: deps.editorFontWeight === 'bold' ? '700' : deps.editorFontWeight === 'medium' ? '500' : '400',
-                    lineHeight: 26, // 15px 기준 1.75 비율
+                    fontWeight: deps.editorFontWeight === 'bold' ? '700' : deps.editorFontWeight === 'semibold' ? '600' : deps.editorFontWeight === 'medium' ? '500' : '400',
+                    lineHeight: 28, // 16px 기준 1.75 비율
                     letterSpacing: 0,
                     cursorWidth: 2,
-                    padding: { top: 20, bottom: 24, left: 16, right: 32 }, // 우측 여백 32px로 스크롤바 글자 가림 방지
+                    padding: { top: 20, bottom: 24, left: 16, right: 48 }, // 우측 여백 48px로 볼드 등 굵은 폰트에서도 스크롤바 글자 가림 완벽 방지
                     lineDecorationsWidth: 26,
                     lineNumbersMinChars: 4,
                     automaticLayout: true,
                     wordWrap: 'on',
                     wrappingStrategy: 'advanced',
-                    wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/\\:?#@!$%^&*+=~|*',
+                    wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
                     wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
 
                     // 🔒 [하단 클릭 시 에디터 붕 뜸 및 상단 유실 방어 3대 마스터 가드]
@@ -418,7 +423,7 @@ export function useMonacoSetup(deps: any) {
                     scrollbar: {
                       vertical: 'visible',
                       horizontal: 'auto',
-                      verticalScrollbarSize: 10,
+                      verticalScrollbarSize: 24, // 💡 24px로 확대하여 줄바꿈 텍스트와 스크롤바 슬라이더 사이 14px 이상의 안전 여백 확보
                       horizontalScrollbarSize: 10,
                       useShadows: false,
                       verticalHasArrows: false,
