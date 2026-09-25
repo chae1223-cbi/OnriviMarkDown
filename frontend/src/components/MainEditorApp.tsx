@@ -27,6 +27,7 @@
 //             2) map 셀렉터에 iframe[src*="google.com/maps"], iframe[src*="maps.google.com"] 포괄 확장 및 iframe 래퍼(.onrivi-map-wrapper) 연동
 //             3) 미디어 래퍼(.onrivi-image-wrapper, .onrivi-video-wrapper, .onrivi-map-wrapper)에 display:inline-flex, width:fit-content, max-width:100%, align-self: flex-start / center / flex-end 및 figcaption 정렬 자동 주입으로 flex 컨테이너 내부 100% 정렬 보장
 //             4) ml/mr '0' 및 '0px' 동등 지원으로 정렬 오판정 원천 방어
+// 🚨 @PATCH : **2026-09-25** — [에디터 Pretendard 폰트 전면 적용 및 줄바꿈 단어 잘림 방지 32px 안전 여백 확보]: 에디터 글꼴을 가독성·원문자 1위인 Pretendard Variable로 변경하고, verticalScrollbarSize를 32px로 확장하여 가변폭/볼드 환경에서도 줄 끝 단어가 스크롤바에 가려지거나 잘리지 않도록 안전 여백 완벽 보장
 // 🚨 @PATCH : **2026-09-25** — [스크롤바 슬라이더 겹침 방지 verticalScrollbarSize 24px 확대]: 모나코 줄바꿈 contentWidth 계산 시 스크롤바 여백을 10px->24px로 확대하여 줄 끝 글자(r, ;, l, y)가 스크롤바에 닿거나 가려지는 현상 완전 해결
 // 🚨 @PATCH : **2026-09-25** — [에디터 고정폭(D2Coding) 전면 복원 및 강조태그 긴문장 우측 글자 잘림·누락 완전 해결]: 에디터에 가변폭 세리프(Times New Roman) 적용 시 볼드(**) 토큰에서 글자 폭이 30% 급증하여 모나코 줄바꿈 계산을 초과해 우측 글자가 잘려 숨겨지던 결함을 에디터 fontFamily를 고정폭 D2Coding(D2CodingLigature, D2Coding, Consolas)으로 100% 복원하여 글자 폭 일치 및 무결점 줄바꿈 실현
 // 🚨 @PATCH : **2026-09-25** — [영문 마크다운 태그 단어 쪼개짐 방지 및 에디터 우측 패딩 48px 확대]: 미리보기 dynamicCssString에 .custom-preview-container 하위 요소들의 word-break: normal !important 및 overflow-wrap: break-word !important를 명시하고, 모나코 에디터 우측 패딩을 48px로 확대하여 볼드 태그 등 굵은 글꼴에서 스크롤바 겹침 및 글자 잘림 완전 해결
@@ -3735,15 +3736,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         fontSize: fontSize || 16,
         lineHeight: 28, // 16px 기준 1.75 비율
         fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'semibold' ? '600' : editorFontWeight === 'medium' ? '500' : '400',
-        fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
-        padding: { top: 20, bottom: 24, left: 16, right: 48 }, // 우측 48px 안전 여백으로 볼드 등 굵은 폰트에서도 스크롤바 겹침 방지
+        fontFamily: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif",
+        padding: { top: 20, bottom: 24, left: 16, right: 32 },
         wordWrap: wordWrap,
         wrappingStrategy: 'advanced',
         wordWrapBreakAfterCharacters: ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ㇻｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
         wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
         readOnly: tabs.length === 0 || isRestrictedUser,
         domReadOnly: tabs.length === 0 || isRestrictedUser,
-        scrollbar: { verticalScrollbarSize: 24 },
+        scrollbar: { verticalScrollbarSize: 32 },
       });
       // 3. 레이아웃 리플로우 강제 트리거 및 비동기 웹폰트 로딩 후 글자 폭 재계산 (핵심 버그 수정)
       requestAnimationFrame(() => {
@@ -8038,7 +8039,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         options={{
                           readOnly: tabs.length === 0 || isRestrictedUser,
                           domReadOnly: tabs.length === 0 || isRestrictedUser,
-                          padding: { top: 20, bottom: 24, left: 16, right: 48 }, // 상하/좌우 여백 (우측 48px 안전 여백으로 볼드 등 굵은 폰트에서도 스크롤바 겹침 방지)
+                          padding: { top: 20, bottom: 24, left: 16, right: 32 },
                           scrollBeyondLastLine: false, // 마지막 줄 아래 과도한 여백 제거
                           glyphMargin: false, // 글리프 좌측 여백 제거
                           folding: false, // 폴딩 화살표 여백 제거
@@ -8048,7 +8049,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           fontSize: fontSize || 16,
                           fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'semibold' ? '600' : editorFontWeight === 'medium' ? '500' : '400',
                           lineHeight: 28, // 16px 기준 1.75 비율
-                          fontFamily: "'D2CodingLigature', 'D2Coding', Consolas, monospace",
+                          fontFamily: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif",
                           fontLigatures: true, // 기호 연산자 리가처(->, != 등) 활성화
                           letterSpacing: 0,
                           // 🎯 커서 항상 가시성 보장 (단독/분할 모드 공통)
@@ -8064,7 +8065,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           lineNumbers: 'on',
                           minimap: { enabled: false },
                           autoClosingBrackets: autoClosingBrackets ? 'languageDefined' : 'never',
-                          scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 24, horizontalScrollbarSize: 10 },
+                          scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 32, horizontalScrollbarSize: 10 },
                           // 슬래시(/) 입력 시에만 자동완성 트리거 (일반 타이핑 시 팝업 방지)
                           quickSuggestions: false,
                           suggestOnTriggerCharacters: true,
