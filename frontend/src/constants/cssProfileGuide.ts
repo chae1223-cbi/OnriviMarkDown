@@ -1,6 +1,7 @@
 /**
  * cssProfileGuide.ts
  * 온리비 어서(Onrivi Author) 서식 프로필 명세서 및 작성 가이드 마크다운 정의
+ * 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 분석 및 가이드 명세 추가]: 이미지(한컴 공식 블로그) 기반 서식 분석을 통해 H2 오렌지 하단선, H3 오렌지 좌측 버티컬 바, 1.8배 본문 줄간격 및 8px 문장 사이 간격(sentence-gap), 가로선 중심 비교표, 와이드 라운드 미디어 규격을 가이드라인에 공식 추가
  * 🚨 @PATCH : **2026-09-25** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 가이드 명세 일원화]: 대표 서식 JSON, 고급 레이아웃 Card 6 명세, AI 프롬프트 지시문의 pageStyle 여백을 상하 18mm, 좌우 12mm(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm)로 전면 일원화
  * 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 기본색(#2f2f2f) 가이드 동기화]: 예시 JSON(rules.taskList, checkboxStructure) 및 명세의 color를 본문 글자색(#2f2f2f)으로 일원화하여 별도 색상 분리 방지
  * 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 가이드/명세 기본값 통일]: 예시 JSON(rules.taskList, checkboxStructure) 및 7대 쇼케이스 명세, AI 프롬프트 지시문에서 체크박스 완료 효과 기본값을 무조건 'none'(효과 없음)으로 일원화
@@ -354,8 +355,14 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
 - **글자 크기 배율(\`font-size\`)**: H1(대분류)부터 H6(최소단위)까지 위계 질서에 맞는 크기 지정
 - **굵기(\`font-weight\`)**: \`"700"\`, \`"800"\`, \`"900"\`, \`"bold"\`
 - **정렬(\`text-align\`)**: \`"left"\`, \`"center"\`, \`"right"\`
-- **구분선(\`border-bottom\`)**: 대제목 및 중제목 하단 장식선 (예: \`"2px solid #1d4ed8"\`, \`"1px solid #e2e8f0"\`)
+- **구분선(\`border-bottom\`)**: 대제목 및 중제목 하단 장식선 (예: \`"2px solid #ff5a00"\`, \`"1px solid #e2e8f0"\`)
+- **세로 바(\`border-left\`)**: 중제목 및 소제목 좌측 포인트 바 (예: \`"4px solid #ff5a00"\`, \`padding-left: "12px"\`)
 - **여백(\`margin-top\`, \`margin-bottom\`)**: 상하 간격을 통해 문단과의 호흡 조절
+- **🌟 모던 테크 블로그 시그니처 위계 (한컴 테크 블로그 표준 규격)**:
+  - **H1 (아티클 메인 타이틀)**: \`32px\`, \`font-weight: 800\`, \`margin-top: 36px\`, \`margin-bottom: 24px\`, \`line-height: 1.35\`
+  - **H2 (대섹션 제목)**: \`23px\`, \`font-weight: 700\`, **하단 오렌지 포인트 라인(\`border-bottom: "2px solid #ff5a00"\`)**, 패딩 \`padding-bottom: "10px"\`, 넉넉한 섹션 분리 여백(\`margin-top: "52px"\`, \`margin-bottom: "20px"\`)
+  - **H3 (중섹션 소제목)**: \`18.5px\`, \`font-weight: 700\`, **좌측 오렌지 버티컬 바(\`border-left: "4px solid #ff5a00"\`)**, 좌측 여백 \`padding-left: "12px"\`, 상하 여백(\`margin-top: "34px"\`, \`margin-bottom: "14px"\`)
+  - **H4 (세부 항목)**: \`16px\`, \`font-weight: 700\`, \`margin-top: 24px\`, \`margin-bottom: 10px\`
 
 ### 🎴 Card 3. 목록 및 체크리스트 (\`ul\`, \`ol\`, \`li\`, \`taskList\`)
 - **순서 없는 목록(\`ul\`)**: \`"list-style-type": "disc"\` (원형), \`"circle"\` (속 빈 원), \`"square"\` (사각형)
@@ -418,6 +425,13 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
 - **첫 줄 들여쓰기(\`text-indent\`)**: 기본 \`"0px"\` (출판 서식의 경우 \`"16px"\`)
 - **문단 상하 여백(\`margin-top\`, \`margin-bottom\`)**: 상단 \`"0px"\`, 하단 \`"16px"\`
 - **문장 사이 간격(\`sentence-gap\`)**: 문단 내에서 \`<br />\` 또는 Shift+Enter로 개행된 문장 간 미세 간격 (기본 \`"4px"\`)
+- **줄 간격(\`line-height\`)**: 기본 \`"1.75"\`
+- **본문 글자색(\`color\`)**: 부드럽고 가독성 높은 차콜 그레이 (\`"#2f2f2f"\` 또는 \`"#374151"\`)
+- **🌟 모던 테크 블로그(한컴 테크 블로그) 본문 문단 표준 규격**:
+  - \`font-size\`: \`"16px"\`, \`color\`: \`"#374151"\` (부드러운 고대비)
+  - \`line-height\`: \`"1.8"\` (시원하고 편안한 줄간격)
+  - \`margin-top\`: \`"0px"\`, \`margin-bottom\`: \`"20px"\` (명확한 단락 분리)
+  - \`sentence-gap\`: \`"8px"\` (단락 내 문장 간 여유 있는 호흡 확보)
 
 ### 🎴 Card 7. 각주 및 주석 (\`footnote\`)
 - **글자 크기(\`font-size\`)**: 기본 \`"13px"\`
@@ -431,20 +445,39 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
 ## 📌 3. AI에게 서식 프로필 생성을 지시할 때 (프롬프트 작성 예시)
 
 > 💡 **안내 (필독)**:  
-> 아래 프롬프트는 **Onrivi 기본서식**을 기준으로 한 모범적인 작성 예시입니다.  
+> 아래 프롬프트는 **Onrivi 기본서식** 및 **한컴 테크 블로그 프리미엄 서식**을 기준으로 한 모범적인 작성 예시입니다.  
 > 사용자가 원하는 스타일에 맞추어 **글꼴, 글자 크기, 색상, 여백 등의 수치를 자유롭게 바꾸어 지시**하실 수 있습니다.  
 > 또한, AI가 만들어준 서식 JSON에 특정 태그가 생략되어 있더라도 **온리비 어서가 Onrivi 기본서식 규격을 자동으로 상속**하므로 안심하고 사용하실 수 있습니다.
 
-> **🤖 AI 프롬프트 작성 예시:**
-> 
-> "제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, **[원하는 테마 명칭: 예 - 에디토리얼 테크니컬 서식]** 서식 프로필 JSON 1개를 생성해 줘.
-> 
-> [요구 조건]
-> 1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 18mm, 좌우 12mm 여백(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm), 기본 글꼴은 시스템 고딕, 글자 크기 16px, 줄 간격 1.75 적용.
-> 2. 제목(h1~h6)은 32px부터 15px까지 단계별 위계와 정갈한 상하 여백으로 구성.
-> 3. 본문 문단(p)은 줄 간격 1.75, 문단 아래 여백 16px, 문장 사이 간격(sentence-gap) 4px 적용.
-> 4. 표(tableStructure)는 outerBorderWidth: 1px, rowBorderWidth: 1px, colBorderWidth: 1px의 정갈한 격자 스타일로 구성.
-> 5. 미디어(img, video, map)는 가로 너비를 100%(\"width\": \"100%\")로 설정하고, video는 \"height\": \"315px\", map은 \"height\": \"400px\"으로 16:9 와이드 비율 적용.
-> 6. 구분선(hrStructure: 28px/1px/solid/100%) 및 체크박스(checkboxStructure: 16px/none/9px/#2f2f2f - 체크박스 및 글자색은 본문과 동일한 #2f2f2f, 완료 효과 checkedEffect는 무조건 "none") 구조체를 완벽히 포함.
-> 7. 설명이나 인사말 없이 오직 유효한 단일 JSON 객체({ ... })만 출력해."
+### 🤖 AI 프롬프트 예시 1: Onrivi 기본 표준 서식
+\`\`\`text
+제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, "에디토리얼 테크니컬 서식" 프로필 JSON 1개를 생성해 줘.
+
+[요구 조건]
+1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 18mm, 좌우 12mm 여백(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm), 기본 글꼴은 시스템 고딕, 글자 크기 16px, 줄 간격 1.75 적용.
+2. 제목(h1~h6)은 32px부터 15px까지 단계별 위계와 정갈한 상하 여백으로 구성.
+3. 본문 문단(p)은 줄 간격 1.75, 문단 아래 여백 16px, 문장 사이 간격(sentence-gap) 4px 적용.
+4. 표(tableStructure)는 outerBorderWidth: 1px, rowBorderWidth: 1px, colBorderWidth: 1px의 정갈한 격자 스타일로 구성.
+5. 미디어(img, video, map)는 가로 너비를 100%("width": "100%")로 설정하고, video는 "height": "315px", map은 "height": "400px"으로 16:9 와이드 비율 적용.
+6. 구분선(hrStructure: 28px/1px/solid/100%) 및 체크박스(checkboxStructure: 16px/none/9px/#2f2f2f - 체크박스 및 글자색은 본문과 동일한 #2f2f2f, 완료 효과 checkedEffect는 무조건 "none") 구조체를 완벽히 포함.
+7. 설명이나 인사말 없이 오직 유효한 단일 JSON 객체({ ... })만 출력해.
+\`\`\`
+
+### 🤖 AI 프롬프트 예시 2: 한컴 테크 블로그 프리미엄 서식 (오렌지 포인트 테마)
+\`\`\`text
+제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, 한컴 테크 블로그 스타일의 "모던 테크 블로그 서식" 프로필 JSON 1개를 생성해 줘.
+
+[요구 조건]
+1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 18mm, 좌우 12mm 여백, 글자 크기 16px, 줄 간격 1.8 적용.
+2. 제목 위계:
+   - H1: 32px, 굵기 800, margin-top 36px, margin-bottom 24px, color: #111827
+   - H2: 23px, 굵기 700, 하단 오렌지선("border-bottom": "2px solid #ff5a00"), padding-bottom: 10px, margin-top 52px, margin-bottom 20px
+   - H3: 18.5px, 굵기 700, 좌측 오렌지바("border-left": "4px solid #ff5a00"), padding-left: 12px, margin-top 34px, margin-bottom 14px
+3. 본문 문단(p): 글자색 #374151, 줄 간격 1.8, 문단 하단 여백 20px("margin-bottom": "20px"), 문장 간격 8px("sentence-gap": "8px") 적용.
+4. 인용구(blockquote): 배경색 #f8fafc, 좌측선 "border-left": "4px solid #ff5a00", 패딩 16px 20px, 둥근 모서리 6px.
+5. 표(tableStructure): colBorderWidth: 0px(세로선 없음), outerBorderWidth: 1px, rowBorderWidth: 1px의 가로선 강조형, th 배경색 #f8fafc.
+6. 링크(a): color: "#0284c7", 밑줄("text-decoration": "underline"), text-underline-offset: 3px.
+7. 이미지(img): width: "100%", border-radius: "10px", margin-top: "28px", margin-bottom: "28px".
+8. 설명이나 인사말 없이 오직 유효한 단일 JSON 객체({ ... })만 출력해.
+\`\`\`
 `;

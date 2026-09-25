@@ -1,11 +1,14 @@
-# 🎨 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드
+`# 🎨 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드
 
 이 문서는 외부에서 온리비 어서 전용 서식 테마(CSS Profile)를 직접 설계하거나, AI(ChatGPT, Claude 등)에게 서식 생성을 요청할 때 사용하는 **표준 명세서(Specification)**입니다.  
 이 가이드라인을 참조하여 JSON 형태로 서식을 작성한 후, 에디터 상단 **[🎨 서식 테마 설정]** ➔ **[서식 관리]** 모달에서 **[📥 테마 가져오기]**를 통해 즉시 등록하고 적용할 수 있습니다.
 
 > 💡 **사용자 필수 안내**:  
 > 본 문서에 기재된 모든 속성값(글자 크기, 줄 간격, 여백, 색상 등)은 이해를 돕기 위한 **'예시(Sample)'**입니다.  
-> 사용자가 직접 코드를 작성하실 필요가 없으며, 에디터 화면의 **슬라이더와 버튼만 마우스로 조작**하셔도 모든 서식을 자유자재로 설정하실 수 있습니다.
+> 사용자가 직접 코드를 작성하실 필요가 없으며, 에디터 화면의 **슬라이더와 버튼만 마우스로 조작**하셔도 모든 서식을 자유자재로 설정하실 수 있습니다.  
+> 
+> 🛡️ **누락 태그 자동 상속 규칙**:  
+> 서식 프로필에 특정 태그(예: \`video\`, \`map\`, \`footnote\`, \`taskList\` 등)나 구조체가 생략되어 있거나 정의되지 않은 경우, 온리비 어서 렌더러와 내보내기 엔진은 자동으로 **'Onrivi 기본서식'의 표준 규칙을 100% 기준으로 보완(하이드레이션)**하여 안전하게 적용합니다.
 
 ---
 
@@ -148,9 +151,9 @@
     },
     "taskList": {
       "boxSize": "16px",
-      "checkedEffect": "line-through-and-dim",
+      "checkedEffect": "none",
       "textGap": "9px",
-      "color": "#0d0d0d"
+      "color": "#2f2f2f"
     },
     "hr": {
       "border-top-color": "#e5e5e5",
@@ -293,7 +296,7 @@
     "boxSize": "16px",
     "checkedEffect": "none",
     "textGap": "9px",
-    "color": "#0d0d0d"
+    "color": "#2f2f2f"
   },
   "tableStructure": {
     "outerBorderWidth": "1px",
@@ -318,7 +321,7 @@
 - **pageStyle.paperSize**: 인쇄/출판 표준 용지 규격 (\`"a4"\`, \`"a3"\`, \`"b4"\`, \`"b5"\`, \`"letter"\`)
 - **pageStyle.orientation**: 용지 방향 (\`"portrait"\`: 세로형, \`"landscape"\`: 가로형)
 - **pageStyle.backgroundColor**: 문서 배경색 (\`"#ffffff"\`, 미색 \`"#fcfbf9"\`, 다크 \`"#0f172a"\` 등)
-- **pageStyle.margins**: 상/하/좌/우 인쇄 안전 여백 (\`marginTop\`, \`marginBottom\`: 기본값 \`"18mm"\`, \`marginLeft\`, \`marginRight\`: 기본값 \`"12mm"\`)
+- **pageStyle.margins**: 상/하/좌/우 인쇄 안전 여백 (\`marginTop\`, \`marginBottom\`: 기본값 \`"18mm"\`, \`marginLeft\`: 기본값 \`"12mm"\`, \`marginRight\`: 기본값 \`"12mm"\`)
 - **인라인 스타일**:
   - \`strong\`: 굵게 (\`font-weight\`, \`color\`)
   - \`em\`: 기울임 (\`font-style: italic\`, \`color\`)
@@ -331,91 +334,129 @@
 - **글자 크기 배율(\`font-size\`)**: H1(대분류)부터 H6(최소단위)까지 위계 질서에 맞는 크기 지정
 - **굵기(\`font-weight\`)**: \`"700"\`, \`"800"\`, \`"900"\`, \`"bold"\`
 - **정렬(\`text-align\`)**: \`"left"\`, \`"center"\`, \`"right"\`
-- **구분선(\`border-bottom\`)**: 대제목 및 중제목 하단 장식선 (예: \`"2px solid #1d4ed8"\`, \`"1px solid #e2e8f0"\`)
+- **구분선(\`border-bottom\`)**: 대제목 및 중제목 하단 장식선 (예: \`"2px solid #ff5a00"\`, \`"1px solid #e2e8f0"\`)
+- **세로 바(\`border-left\`)**: 중제목 및 소제목 좌측 포인트 바 (예: \`"4px solid #ff5a00"\`, \`padding-left: "12px"\`)
 - **여백(\`margin-top\`, \`margin-bottom\`)**: 상하 간격을 통해 문단과의 호흡 조절
+- **🌟 모던 테크 블로그 시그니처 위계 (한컴 테크 블로그 표준 규격)**:
+  - **H1 (아티클 메인 타이틀)**: \`32px\`, \`font-weight: 800\`, \`margin-top: 36px\`, \`margin-bottom: 24px\`, \`line-height: 1.35\`
+  - **H2 (대섹션 제목)**: \`23px\`, \`font-weight: 700\`, **하단 오렌지 포인트 라인(\`border-bottom: "2px solid #ff5a00"\`)**, 패딩 \`padding-bottom: "10px"\`, 넉넉한 섹션 분리 여백(\`margin-top: "52px"\`, \`margin-bottom: "20px"\`)
+  - **H3 (중섹션 소제목)**: \`18.5px\`, \`font-weight: 700\`, **좌측 오렌지 버티컬 바(\`border-left: "4px solid #ff5a00"\`)**, 좌측 여백 \`padding-left: "12px"\`, 상하 여백(\`margin-top: "34px"\`, \`margin-bottom: "14px"\`)
+  - **H4 (세부 항목)**: \`16px\`, \`font-weight: 700\`, \`margin-top: 24px\`, \`margin-bottom: 10px\`
 
 ### 🎴 Card 3. 목록 및 체크리스트 (\`ul\`, \`ol\`, \`li\`, \`taskList\`)
 - **순서 없는 목록(\`ul\`)**: \`"list-style-type": "disc"\` (원형), \`"circle"\` (속 빈 원), \`"square"\` (사각형)
 - **순서 있는 목록(\`ol\`)**: \`"list-style-type": "decimal"\` (1, 2, 3), \`"upper-roman"\` (I, II, III), \`"lower-alpha"\` (a, b, c)
-- **항목 여백(\`li\`)**: \`"margin-bottom": "6px"\`
+- **항목 여백(\`li\`)**: \`"margin-bottom": "5px"\`, \`"line-height": "1.7"\`
 - **체크리스트(\`taskList\`, \`checkboxStructure\`)**:
   - \`boxSize\`: 체크박스 크기 (\`"16px"\`)
-  - \`textGap\`: 체크박스와 텍스트 사이 간격 (\`"10px"\`)
-  - \`color\`: 체크박스 테두리 및 체크 마크 테마 색상 (예: \`"#1d4ed8"\`)
-  - \`checkedEffect\`: 완료 시 효과 (\`"none"\`: 효과 없음, \`"line-through-and-dim"\`: 취소선+반투명, \`"dim-only"\`: 반투명만)
+  - \`textGap\`: 체크박스와 텍스트 사이 간격 (\`"9px"\`)
+  - \`color\`: 체크박스 테두리, 체크 마크 및 텍스트 기본 색상 (본문 글자색과 동일한 \`"#2f2f2f"\`)
+  - \`checkedEffect\`: 완료 항목 스타일 (**기본값: \`"none"\` - 효과 없음**, \`"line-through-and-dim"\`: 취소선+반투명, \`"dim-only"\`: 반투명만)
 
 ### 🎴 Card 4. 표(Table) · 인용구 · 소스코드 블록
 - **인용구(\`blockquote\`) 형태 프리셋**:
-  1. **왼쪽 띠형 (Left Stripe)**: \`"border-left": "4px solid #1d4ed8"\`, \`"border-radius": "0 8px 8px 0"\`
+  1. **왼쪽 띠형 (Left Stripe)**: \`"border-left": "3px solid #d9d9d9"\`, \`"border-radius": "0"\`
   2. **전체 박스형 (Full Box)**: \`"border": "1px solid #cbd5e1"\`, \`"border-radius": "8px"\`
   3. **그림자 박스형 (Shadow Box)**: \`"border": "none"\`, \`"box-shadow": "0 8px 24px rgba(0,0,0,0.12)"\`, \`"border-radius": "8px"\`
   - 공통 속성: \`background-color\`, \`padding\`, \`margin-top\`, \`margin-bottom\`, \`font-size\`, \`font-weight\`
 - **표(\`table\`, \`th\`, \`td\`, \`tableStructure\`) 형태 프리셋 및 개별 두께**:
   - **\`tableStructure\` 구조체 (외곽/행/열 두께 독립 제어)**:
-    - \`outerBorderWidth\`: 표 외곽 테두리 두께 (예: \`"1px"\`, \`"2px"\`, \`"0px"\`)
-    - \`rowBorderWidth\`: 표 행(가로선) 구분선 두께 (예: \`"1px"\`, \`"2px"\`, \`"0px"\`)
-    - \`colBorderWidth\`: 표 열(세로선) 구분선 두께 (예: \`"1px"\`, \`"0px"\`)
+    - \`outerBorderWidth\`: 표 외곽 테두리 두께 (기본값: \`"1px"\`)
+    - \`rowBorderWidth\`: 표 행(가로선) 구분선 두께 (기본값: \`"1px"\`)
+    - \`colBorderWidth\`: 표 열(세로선) 구분선 두께 (기본값: \`"1px"\`)
   - **프리셋별 기본값**:
     1. **엑셀 격자(Grid)**: 사방 실선 (\`outerBorderWidth: "1px"\`, \`rowBorderWidth: "1px"\`, \`colBorderWidth: "1px"\`)
     2. **논문/관보 가로선 강조(Horizontal)**: 세로선 제거 (\`colBorderWidth: "0px"\`), 상하 외곽 굵은선 강조 (\`outerBorderWidth: "2px"\`, \`rowBorderWidth: "1px"\`)
     3. **미니멀(Minimal)**: 모든 테두리 제거 (\`outerBorderWidth: "0px"\`, \`rowBorderWidth: "0px"\`, \`colBorderWidth: "0px"\`), 헤더 배경색만 유지
   - 셀 패딩(\`padding\`), 글자 크기(\`font-size\`), 상하 바깥 여백(\`margin-top\`, \`margin-bottom\`)
 - **코드 블록(\`codeBlock\`, \`codeBlockTitle\`)**:
-  - \`background-color\`, \`color\`, \`padding\`, \`border-radius\`, \`font-size\`
+  - \`background-color: "#f7f7f8"\`, \`color: "#242424"\`, \`padding: "16px"\`, \`border-radius: "8px"\`, \`font-size: "13.5px"\`
 
 ### 🎴 Card 5. 미디어(이미지·비디오·지도) & 수식(MATH) · 구분선
 - **미디어 객체 공통 (\`img\`, \`video\`, \`map\`)**:
-  - **너비 및 높이**: \`width\` (\`"100%"\`, \`"480px"\`, \`"560px"\` 등), \`height\` (\`"auto"\`, \`"400px"\`)
+  - **너비 및 높이**:
+    - 본문 전체 폭에 맞춰 시원하게 전개되도록 **\`width: "100%"\`**를 표준으로 고정 적용합니다.
+    - \`video\`: \`"width": "100%"\`, \`"height": "315px"\` (16:9 와이드 가로형 표준)
+    - \`map\`: \`"width": "100%"\`, \`"height": "400px"\` (대화형 지도 표준)
+    - \`img\`: \`"width": "100%"\`, \`"border-radius": "8px"\`
   - **정렬 마진**:
     - 좌측 정렬: \`"margin-left": "0px"\`, \`"margin-right": "auto"\`
     - 중앙 정렬: \`"margin-left": "auto"\`, \`"margin-right": "auto"\`
     - 우측 정렬: \`"margin-left": "auto"\`, \`"margin-right": "0px"\`
-  - **테두리 및 효과**: \`border-radius\` (라운딩), \`box-shadow\` (입체 그림자)
-  - **상하 여백**: \`margin-top\`, \`margin-bottom\`
+  - **테두리 및 효과**: \`border-radius\` (라운딩, 기본 \`"8px"\`), \`box-shadow\`
+  - **상하 여백**: \`margin-top: "20px"\`, \`margin-bottom: "20px"\`
 - **수학 수식 (\`math\`)**:
   - KaTeX Display 블록 렌더링
-  - \`color\`: 수식 글자 테마 색상 (예: \`"#1d4ed8"\`)
-  - \`font-size\`: 수식 크기 (\`"16px"\`, \`"18px"\` 또는 생략 시 본문 크기 상속)
-  - \`text-align\`: 정렬 (\`"center"\`, \`"left"\`, \`"right"\`)
-  - \`margin-top\`, \`margin-bottom\`: 상하 여백
+  - \`color\`: \`"#2f2f2f"\` (고대비 텍스트)
+  - \`font-size\`: \`"16px"\` (생략 시 본문 기본 크기 자동 상속)
+  - \`text-align\`: \`"center"\` (중앙 정렬)
+  - \`margin-top: "20px"\`, \`margin-bottom: "20px"\`
 - **수평 구분선 (\`hr\`, \`hrStructure\`)**:
   - 선 종류: \`border-top-style\` (\`"solid"\`, \`"dashed"\`, \`"dotted"\`, \`"double"\`)
-  - 선 두께: \`border-top-width\` (\`"1px"\`, \`"2px"\`, \`"3px"\`)
-  - 선 색상: \`border-top-color\` (\`"#e2e8f0"\`)
-  - 폭: \`width\` (\`"100%"\`, \`"70%"\`, \`"50%"\`, \`"30%"\`)
-  - 상하 여백: \`margin-top\`, \`margin-bottom\`
+  - 선 두께: \`border-top-width\` (\`"1px"\`)
+  - 선 색상: \`border-top-color\` (\`"#e5e5e5"\`)
+  - 폭: \`width\` (\`"100%"\`)
+  - 상하 여백: \`margin-top: "28px"\`, \`margin-bottom: "28px"\`
 
 ### 🎴 Card 6. 고급 레이아웃 및 본문 문단 (\`p\`)
-- **본문 정렬(\`text-align\`)**: \`"justify"\` (출판물 스타일 양끝 정렬), \`"left"\` (좌측 정렬)
-- **첫 줄 들여쓰기(\`text-indent\`)**: 문단 첫머리 들여쓰기 (예: \`"16px"\`, \`"0px"\`)
-- **문단 상하 여백(\`margin-top\`, \`margin-bottom\`)**: 문단과 문단 사이의 호흡 간격
-- **문장 사이 간격(\`sentence-gap\`)**: 문단 내에서 \`<br />\` 또는 Shift+Enter로 개행된 문장 간 미세 간격 (예: \`"4px"\`, \`"6px"\`)
+- **용지 마진 여백(\`pageStyle.marginTop\`, \`marginBottom\`, \`marginLeft\`, \`marginRight\`)**: 위/아래 \`"18mm"\`, 왼/오른쪽 \`"12mm"\` (표준 규격)
+- **본문 정렬(\`text-align\`)**: \`"left"\` (기본 정렬), \`"justify"\` (출판물 스타일 양끝 정렬)
+- **첫 줄 들여쓰기(\`text-indent\`)**: 기본 \`"0px"\` (출판 서식의 경우 \`"16px"\`)
+- **문단 상하 여백(\`margin-top\`, \`margin-bottom\`)**: 상단 \`"0px"\`, 하단 \`"16px"\`
+- **문장 사이 간격(\`sentence-gap\`)**: 문단 내에서 \`<br />\` 또는 Shift+Enter로 개행된 문장 간 미세 간격 (기본 \`"4px"\`)
+- **줄 간격(\`line-height\`)**: 기본 \`"1.75"\`
+- **본문 글자색(\`color\`)**: 부드럽고 가독성 높은 차콜 그레이 (\`"#2f2f2f"\` 또는 \`"#374151"\`)
+- **🌟 모던 테크 블로그(한컴 테크 블로그) 본문 문단 표준 규격**:
+  - \`font-size\`: \`"16px"\`, \`color\`: \`"#374151"\` (부드러운 고대비)
+  - \`line-height\`: \`"1.8"\` (시원하고 편안한 줄간격)
+  - \`margin-top\`: \`"0px"\`, \`margin-bottom\`: \`"20px"\` (명확한 단락 분리)
+  - \`sentence-gap\`: \`"8px"\` (단락 내 문장 간 여유 있는 호흡 확보)
 
 ### 🎴 Card 7. 각주 및 주석 (\`footnote\`)
-- **글자 크기(\`font-size\`)**: 주석 글자 크기 (슬라이더 조작, 예: \`"12px"\`)
-- **글자 굵기(\`font-weight\`)**: \`"normal"\` 또는 \`"bold"\`
-- **글자 색상(\`color\`)**: 본문보다 차분한 서브 톤 (예: \`"#64748b"\`)
-- **줄 간격(\`line-height\`)**: 각주 전용 행간 (예: \`"1.4"\`)
-- **상하 바깥 여백(\`margin-top\`, \`margin-bottom\`)**: 본문 및 각주 항목 간 상하 간격 (예: \`"8px"\`, \`"12px"\`)
+- **글자 크기(\`font-size\`)**: 기본 \`"13px"\`
+- **글자 굵기(\`font-weight\`)**: \`"normal"\`
+- **글자 색상(\`color\`)**: \`"#6b6b6b"\`
+- **줄 간격(\`line-height\`)**: \`"1.5"\`
+- **상하 바깥 여백(\`margin-top\`, \`margin-bottom\`)**: 상단 \`"12px"\`, 하단 \`"12px"\`
 
 ---
 
 ## 📌 3. AI에게 서식 프로필 생성을 지시할 때 (프롬프트 작성 예시)
 
 > 💡 **안내 (필독)**:  
-> 아래 프롬프트에 기재된 수치(글자 크기 14.5px, 네이비 색상, 들여쓰기 14px 등)는 **사용자가 쉽게 응용할 수 있도록 제공하는 "하나의 작성 예시"**입니다!  
-> 사용자가 원하는 스타일에 맞추어 **글꼴, 글자 크기, 색상, 여백 등의 수치를 자유롭게 바꾸어 지시**하시면 됩니다.  
-> 또한, AI가 만들어준 서식 JSON을 온리비 어서로 가져온 후에도 **에디터 제어판의 슬라이더를 통해 언제든지 자유롭게 수정**할 수 있으므로 어떤 값도 고정되지 않습니다.
+> 아래 프롬프트는 **Onrivi 기본서식** 및 **한컴 테크 블로그 프리미엄 서식**을 기준으로 한 모범적인 작성 예시입니다.  
+> 사용자가 원하는 스타일에 맞추어 **글꼴, 글자 크기, 색상, 여백 등의 수치를 자유롭게 바꾸어 지시**하실 수 있습니다.  
+> 또한, AI가 만들어준 서식 JSON에 특정 태그가 생략되어 있더라도 **온리비 어서가 Onrivi 기본서식 규격을 자동으로 상속**하므로 안심하고 사용하실 수 있습니다.
 
-> **🤖 AI 프롬프트 작성 예시 (수치를 원하는 대로 바꾸어 사용하세요):**
-> 
-> "제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, **[예시: 대한민국 공공기관 정기간행물 양식]** 서식 프로필 JSON 1개를 생성해 줘.
-> 
-> [요구 조건 (예시 - 사용자가 원하는 수치로 얼마든지 변경 가능)]
-> 1. 글꼴(fontFamily)은 'KoPubDotum' 또는 'Pretendard', 기본 글자 크기는 14.5px, 줄 간격은 1.7. (※ 예시 수치이며 원하는 크기나 폰트로 변경 가능)
-> 2. 제목(h1~h6)은 세련된 네이비(#1e3a8a) 및 슬레이트(#334155) 톤으로 위계감 있게 차등 지정하고, h1에는 하단 강조선 적용. (※ 예시 색상이며 원하는 색상으로 변경 가능)
-> 3. 본문 문단(p)은 양끝 정렬(justify), 첫 줄 들여쓰기 14px, 문단 아래 여백 12px, 문장 사이 간격(sentence-gap) 4px 적용. (※ 예시 설정이며 들여쓰기 0px 등 자유롭게 변경 가능)
-> 4. 표(table)는 논문/보고서형 가로선 강조 스타일(상단 2px 굵은선, 좌우 선 없음)로 설정. (※ 격자형 또는 미니멀형으로 변경 가능)
-> 5. 인용구(blockquote)는 왼쪽 네이비 띠형(border-left) 및 연한 회색 배경(#f8fafc) 적용. (※ 전체 박스형이나 그림자형으로 변경 가능)
-> 6. 미디어(img, video, map), 수식(math), 구분선(hr), 각주(footnote), 체크박스(taskList)까지 모든 7대 쇼케이스 태그 규칙을 빠짐없이 포함.
-> 7. 설명이나 인사말 없이 오직 유효한 JSON 코드블록(\`\`\`json ... \`\`\`) 하나만 출력해."
+### 🤖 AI 프롬프트 예시 1: Onrivi 기본 표준 서식
+\`\`\`text
+제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, "에디토리얼 테크니컬 서식" 프로필 JSON 1개를 생성해 줘.
+
+[요구 조건]
+1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 18mm, 좌우 12mm 여백(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm), 기본 글꼴은 시스템 고딕, 글자 크기 16px, 줄 간격 1.75 적용.
+2. 제목(h1~h6)은 32px부터 15px까지 단계별 위계와 정갈한 상하 여백으로 구성.
+3. 본문 문단(p)은 줄 간격 1.75, 문단 아래 여백 16px, 문장 사이 간격(sentence-gap) 4px 적용.
+4. 표(tableStructure)는 outerBorderWidth: 1px, rowBorderWidth: 1px, colBorderWidth: 1px의 정갈한 격자 스타일로 구성.
+5. 미디어(img, video, map)는 가로 너비를 100%("width": "100%")로 설정하고, video는 "height": "315px", map은 "height": "400px"으로 16:9 와이드 비율 적용.
+6. 구분선(hrStructure: 28px/1px/solid/100%) 및 체크박스(checkboxStructure: 16px/none/9px/#2f2f2f - 체크박스 및 글자색은 본문과 동일한 #2f2f2f, 완료 효과 checkedEffect는 무조건 "none") 구조체를 완벽히 포함.
+7. 설명이나 인사말 없이 오직 유효한 단일 JSON 객체({ ... })만 출력해.
+\`\`\`
+
+### 🤖 AI 프롬프트 예시 2: 한컴 테크 블로그 프리미엄 서식 (오렌지 포인트 테마)
+\`\`\`text
+제공된 온리비 어서(Onrivi Author) 서식 프로필 CSS 작성 가이드를 기반으로, 한컴 테크 블로그 스타일의 "모던 테크 블로그 서식" 프로필 JSON 1개를 생성해 줘.
+
+[요구 조건]
+1. 용지 규격(pageStyle)은 A4 세로(portrait), 상하 18mm, 좌우 12mm 여백, 글자 크기 16px, 줄 간격 1.8 적용.
+2. 제목 위계:
+   - H1: 32px, 굵기 800, margin-top 36px, margin-bottom 24px, color: #111827
+   - H2: 23px, 굵기 700, 하단 오렌지선("border-bottom": "2px solid #ff5a00"), padding-bottom: 10px, margin-top 52px, margin-bottom 20px
+   - H3: 18.5px, 굵기 700, 좌측 오렌지바("border-left": "4px solid #ff5a00"), padding-left: 12px, margin-top 34px, margin-bottom 14px
+3. 본문 문단(p): 글자색 #374151, 줄 간격 1.8, 문단 하단 여백 20px("margin-bottom": "20px"), 문장 간격 8px("sentence-gap": "8px") 적용.
+4. 인용구(blockquote): 배경색 #f8fafc, 좌측선 "border-left": "4px solid #ff5a00", 패딩 16px 20px, 둥근 모서리 6px.
+5. 표(tableStructure): colBorderWidth: 0px(세로선 없음), outerBorderWidth: 1px, rowBorderWidth: 1px의 가로선 강조형, th 배경색 #f8fafc.
+6. 링크(a): color: "#0284c7", 밑줄("text-decoration": "underline"), text-underline-offset: 3px.
+7. 이미지(img): width: "100%", border-radius: "10px", margin-top: "28px", margin-bottom: "28px".
+8. 설명이나 인사말 없이 오직 유효한 단일 JSON 객체({ ... })만 출력해.
+\`\`\`
+`

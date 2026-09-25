@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-25 — [서식 설정 슬라이더 0px/최솟값 튕김 버그 완전 해결]: 모든 SliderWidget의 value 전달 시 Falsy 단락 평가(||)로 인해 0px 또는 최소 경계값 도달 시 기본값으로 강제 튕겨 나오던 버그를 getNumValue 안전 파서로 전면 교체하여 0px 및 양 끝까지 부드럽게 이동·유지되도록 보장
  *   2026-09-25 — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 기본값 동기화]: checkboxStructure.color 기본 폴백을 본문 글자색(#2f2f2f)으로 맞추어 체크박스 및 체크리스트 글자가 본문 기본색과 일원화되도록 보장
  *   2026-09-24 — [체크리스트 글자 색상(taskList.color) 제어 컬러피커 신설]: 목록 및 태스크 체크박스 섹션에 체크리스트 글자 색상(ColorPickerWidget)을 추가하여 체크박스 항목 텍스트 색상을 자유롭게 변경 및 상속(inherit) 제어 가능하도록 구현
  *   2026-09-24 — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 최적화 및 슬라이더 연동]: pageStyle 여백 기본값을 상하 18mm, 좌우 12mm로 일원화하고 슬라이더 위젯 폴백 동기화
@@ -159,13 +160,15 @@ interface SliderWidgetProps { // SliderWidget 컴포넌트가 받을 속성(prop
 // SliderWidget 컴포넌트 구현
 // ==================================================================== 
 function SliderWidget({ label, min, max, step = 1, value, unit, disabled, onChange }: SliderWidgetProps) {
-  const numVal = getNumValue(value, min);
+  const parsedVal = getNumValue(value, min);
+  const clampedVal = Math.min(Math.max(parsedVal, min), max);
+  const displayVal = step < 1 ? Number(clampedVal.toFixed(step < 0.1 ? 2 : 1)) : clampedVal;
   return (
     <div className="space-y-2.5 bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
       <div className="flex items-center justify-between">
         <span className="text-zinc-700 dark:text-zinc-300 font-semibold text-[13.5px]">{label}</span>
         <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400">
-          {numVal}{unit}
+          {displayVal}{unit}
         </span>
       </div>
       <input
@@ -173,7 +176,7 @@ function SliderWidget({ label, min, max, step = 1, value, unit, disabled, onChan
         min={min}
         max={max}
         step={step}
-        value={numVal}
+        value={clampedVal}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-650 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -213,6 +216,7 @@ function FontSizeControl({
   const isInherited = !value || value === '' || value === 'inherit' || value === '0' || value === '0px';
   const parsedBase = parseInt(baseFontSize, 10) || 14;
   const currentNumVal = parseInt(value || '', 10) || parsedBase || defaultCustomValue || 14;
+  const clampedNumVal = Math.min(Math.max(currentNumVal, min), max);
 
   return (
     <div className="space-y-2.5 bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 transition-all notranslate" translate="no">
@@ -237,7 +241,7 @@ function FontSizeControl({
           <button
             type="button"
             disabled={disabled}
-            onClick={() => onChange(`${currentNumVal}px`)}
+            onClick={() => onChange(`${clampedNumVal}px`)}
             className={`px-2.5 py-1 rounded-md transition-all notranslate ${
               !isInherited
                 ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
@@ -265,7 +269,7 @@ function FontSizeControl({
           <div className="flex items-center justify-between notranslate">
             <span className="text-xs text-zinc-500 dark:text-zinc-400 font-medium notranslate">개별 지정 크기</span>
             <span className="font-mono text-sm font-bold text-blue-600 dark:text-blue-400 notranslate">
-              {`${currentNumVal}px`}
+              {`${clampedNumVal}px`}
             </span>
           </div>
           <input
@@ -273,7 +277,7 @@ function FontSizeControl({
             min={min}
             max={max}
             step={1}
-            value={currentNumVal}
+            value={clampedNumVal}
             disabled={disabled}
             onChange={(e) => onChange(e.target.value + 'px')}
             className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-650 disabled:opacity-50 disabled:cursor-not-allowed notranslate"
@@ -1336,7 +1340,7 @@ ${guideContent}
             label="기본 글자 크기"
             min={10}
             max={36}
-            value={parseInt(currentProfile.pageStyle.fontSize) || 15}
+            value={getNumValue(currentProfile.pageStyle.fontSize, 15)}
             unit="px"
             disabled={isSystemProfile}
             onChange={(v) => handlePageStyleChange('fontSize', v + 'px')}
@@ -1346,7 +1350,7 @@ ${guideContent}
             min={1.0}
             max={3.0}
             step={0.1}
-            value={parseFloat(currentProfile.pageStyle.lineHeight) || 1.8}
+            value={getNumValue(currentProfile.pageStyle.lineHeight, 1.8)}
             unit="배"
             disabled={isSystemProfile}
             onChange={(v) => handlePageStyleChange('lineHeight', v)}
@@ -1368,7 +1372,7 @@ ${guideContent}
               min={-0.05}
               max={0.05}
               step={0.01}
-              value={parseFloat(currentProfile.pageStyle.letterSpacing) || 0}
+              value={getNumValue(currentProfile.pageStyle.letterSpacing, 0)}
               unit="em"
               disabled={isSystemProfile}
               onChange={(v) => handlePageStyleChange('letterSpacing', v + 'em')}
@@ -1454,7 +1458,7 @@ ${guideContent}
                   label="위 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginTop) || 18}
+                  value={getNumValue(currentProfile.pageStyle.marginTop, 18)}
                   unit="mm"
                   disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginTop', v + 'mm')}
@@ -1463,7 +1467,7 @@ ${guideContent}
                   label="아래 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginBottom) || 18}
+                  value={getNumValue(currentProfile.pageStyle.marginBottom, 18)}
                   unit="mm"
                   disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginBottom', v + 'mm')}
@@ -1472,7 +1476,7 @@ ${guideContent}
                   label="왼쪽 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginLeft) || 12}
+                  value={getNumValue(currentProfile.pageStyle.marginLeft, 12)}
                   unit="mm"
                   disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginLeft', v + 'mm')}
@@ -1481,7 +1485,7 @@ ${guideContent}
                   label="오른쪽 여백"
                   min={5}
                   max={50}
-                  value={parseInt(currentProfile.pageStyle.marginRight) || 12}
+                  value={getNumValue(currentProfile.pageStyle.marginRight, 12)}
                   unit="mm"
                   disabled={isSystemProfile}
                   onChange={(v) => handlePageStyleChange('marginRight', v + 'mm')}
@@ -1496,7 +1500,7 @@ ${guideContent}
                 min={1}
                 max={10}
                 step={1}
-                value={parseInt(currentProfile.pageStyle.tabSize) || 4}
+                value={getNumValue(currentProfile.pageStyle.tabSize, 4)}
                 unit="칸"
                 disabled={isSystemProfile}
                 onChange={(v) => handlePageStyleChange('tabSize', String(v))}
@@ -1555,10 +1559,7 @@ ${guideContent}
                   label="문단 위 여백"
                   min={0}
                   max={48}
-                  value={(() => {
-                    const raw = (currentProfile.rules.p || {})['margin-top'];
-                    return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 0;
-                  })()}
+                  value={getNumValue((currentProfile.rules.p || {})['margin-top'], 0)}
                   unit="px"
                   disabled={isSystemProfile}
                   onChange={(v) => {
@@ -1579,10 +1580,7 @@ ${guideContent}
                   label="문단 아래 여백"
                   min={0}
                   max={48}
-                  value={(() => {
-                    const raw = (currentProfile.rules.p || {})['margin-bottom'];
-                    return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 16;
-                  })()}
+                  value={getNumValue((currentProfile.rules.p || {})['margin-bottom'], 16)}
                   unit="px"
                   disabled={isSystemProfile}
                   onChange={(v) => {
@@ -1603,10 +1601,7 @@ ${guideContent}
                   label="문장 사이 간격 (문단 내 줄바꿈 간격)"
                   min={0}
                   max={32}
-                  value={(() => {
-                    const raw = (currentProfile.rules.p || {})['sentence-gap'];
-                    return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 0;
-                  })()}
+                  value={getNumValue((currentProfile.rules.p || {})['sentence-gap'], 0)}
                   unit="px"
                   disabled={isSystemProfile}
                   onChange={(v) => {
@@ -1627,10 +1622,7 @@ ${guideContent}
                   label="첫 줄 들여쓰기 (Text Indent)"
                   min={0}
                   max={48}
-                  value={(() => {
-                    const raw = (currentProfile.rules.p || {})['text-indent'];
-                    return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 0;
-                  })()}
+                  value={getNumValue((currentProfile.rules.p || {})['text-indent'], 0)}
                   unit="px"
                   disabled={isSystemProfile}
                   onChange={(v) => {
@@ -1652,7 +1644,7 @@ ${guideContent}
                   min={1.0}
                   max={3.0}
                   step={0.1}
-                  value={parseFloat((currentProfile.rules.p || {})['line-height'] || currentProfile.pageStyle.lineHeight || '1.8') || 1.8}
+                  value={getNumValue((currentProfile.rules.p || {})['line-height'] || currentProfile.pageStyle.lineHeight, 1.8)}
                   unit="배"
                   disabled={isSystemProfile}
                   onChange={(v) => {
@@ -1713,7 +1705,7 @@ ${guideContent}
                 label="H1 기준 글자 크기"
                 min={16}
                 max={48}
-                value={parseInt(h1Rules['font-size']) || 28}
+                value={getNumValue(h1Rules['font-size'], 28)}
                 unit="px"
                 disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'font-size', v + 'px')}
@@ -1724,7 +1716,7 @@ ${guideContent}
                 label="단계별 크기 감소폭"
                 min={0}
                 max={10}
-                value={parseInt(currentProfile.pageStyle.headingSizeOffset) || 4}
+                value={getNumValue(currentProfile.pageStyle.headingSizeOffset, 4)}
                 unit="px"
                 disabled={isSystemProfile}
                 onChange={(v) => handlePageStyleChange('headingSizeOffset', v)}
@@ -1754,7 +1746,7 @@ ${guideContent}
                 min={-0.05}
                 max={0.05}
                 step={0.01}
-                value={parseFloat(h1Rules['letter-spacing']) || 0}
+                value={getNumValue(h1Rules['letter-spacing'], 0)}
                 unit="em"
                 disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'letter-spacing', v + 'em')}
@@ -1765,7 +1757,7 @@ ${guideContent}
                 label="H1 위 여백"
                 min={0}
                 max={80}
-                value={parseInt(h1Rules['margin-top']) || 24}
+                value={getNumValue(h1Rules['margin-top'], 24)}
                 unit="px"
                 disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'margin-top', v + 'px')}
@@ -1776,7 +1768,7 @@ ${guideContent}
                 label="H1 아래 여백"
                 min={0}
                 max={80}
-                value={parseInt(h1Rules['margin-bottom']) || 16}
+                value={getNumValue(h1Rules['margin-bottom'], 16)}
                 unit="px"
                 disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'margin-bottom', v + 'px')}
@@ -1787,7 +1779,7 @@ ${guideContent}
                 label="H1 왼쪽 여백"
                 min={0}
                 max={60}
-                value={parseInt(h1Rules['padding-left']) || 0}
+                value={getNumValue(h1Rules['padding-left'], 0)}
                 unit="px"
                 disabled={isSystemProfile}
                 onChange={(v) => updateCssRule('h1', 'padding-left', v + 'px')}
@@ -1908,7 +1900,7 @@ ${guideContent}
                       label="위 여백"
                       min={0}
                       max={80}
-                      value={parseInt(tagRules['margin-top']) || 16}
+                      value={getNumValue(tagRules['margin-top'], 16)}
                       unit="px"
                       disabled={isSystemProfile}
                       onChange={(v) => updateCssRule(tag, 'margin-top', v + 'px')}
@@ -1919,7 +1911,7 @@ ${guideContent}
                       label="아래 여백"
                       min={0}
                       max={80}
-                      value={parseInt(tagRules['margin-bottom']) || 8}
+                      value={getNumValue(tagRules['margin-bottom'], 8)}
                       unit="px"
                       disabled={isSystemProfile}
                       onChange={(v) => updateCssRule(tag, 'margin-bottom', v + 'px')}
@@ -1930,7 +1922,7 @@ ${guideContent}
                       label="왼쪽 여백"
                       min={0}
                       max={60}
-                      value={parseInt(tagRules['padding-left']) || 0}
+                      value={getNumValue(tagRules['padding-left'], 0)}
                       unit="px"
                       disabled={isSystemProfile}
                       onChange={(v) => updateCssRule(tag, 'padding-left', v + 'px')}
@@ -2039,15 +2031,15 @@ ${guideContent}
                           </select>
                         </div>
                         <ColorPickerWidget label="밑줄 색상" value={tagRules['text-decoration-color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('u', 'text-decoration-color', v)} />
-                        <SliderWidget label="밑줄 간격" min={0} max={12} value={parseInt(tagRules['text-underline-offset']) || 2} unit="px" disabled={isSystemProfile} onChange={(v) => updateCssRule('u', 'text-underline-offset', v + 'px')} />
+                        <SliderWidget label="밑줄 간격" min={0} max={12} value={getNumValue(tagRules['text-underline-offset'], 2)} unit="px" disabled={isSystemProfile} onChange={(v) => updateCssRule('u', 'text-underline-offset', v + 'px')} />
                       </>
                     );
                   case 'del':
                     return (
                       <>
                         <ColorPickerWidget label="취소선 색상" value={tagRules['text-decoration-color'] || ''} disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'text-decoration-color', v)} />
-                        <SliderWidget label="취소선 굵기" min={1} max={8} value={parseInt(tagRules['text-decoration-thickness']) || 1} unit="px" disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'text-decoration-thickness', v + 'px')} />
-                        <SliderWidget label="투명도" min={10} max={100} step={5} value={parseFloat(tagRules['opacity']) * 100 || 60} unit="%" disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'opacity', (parseFloat(v) / 100).toString())} />
+                        <SliderWidget label="취소선 굵기" min={1} max={8} value={getNumValue(tagRules['text-decoration-thickness'], 1)} unit="px" disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'text-decoration-thickness', v + 'px')} />
+                        <SliderWidget label="투명도" min={10} max={100} step={5} value={getNumValue(tagRules['opacity'] !== undefined && tagRules['opacity'] !== '' ? parseFloat(tagRules['opacity']) * 100 : undefined, 60)} unit="%" disabled={isSystemProfile} onChange={(v) => updateCssRule('del', 'opacity', (parseFloat(v) / 100).toString())} />
                       </>
                     );
                   default:
@@ -2249,7 +2241,7 @@ ${guideContent}
               label="구분선 선 두께"
               min={1}
               max={10}
-              value={parseInt(hrStructure.borderTopWidth) || 1}
+              value={getNumValue(hrStructure.borderTopWidth, 1)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateHrStructure('borderTopWidth', v + 'px', `구분선 두께(${v}px)`)}
@@ -2260,7 +2252,7 @@ ${guideContent}
               label="구분선 상하 여백 너비"
               min={0}
               max={100}
-              value={parseInt(hrStructure.marginTopBottom) || 32}
+              value={getNumValue(hrStructure.marginTopBottom, 32)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateHrStructure('marginTopBottom', v + 'px', `구분선 상하 여백(${v}px)`)}
@@ -2407,7 +2399,7 @@ ${guideContent}
               label="테두리/선 두께"
               min={0}
               max={20}
-              value={getNumValue((currentProfile.rules.blockquote || {})['border-width'] || (currentProfile.rules.blockquote || {})['border-left-width'], 4)}
+              value={getNumValue((currentProfile.rules.blockquote || {})['border-width'] ?? (currentProfile.rules.blockquote || {})['border-left-width'], 4)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
@@ -2649,7 +2641,7 @@ ${guideContent}
               label="표 외곽 테두리 두께"
               min={0}
               max={8}
-              value={parseInt(tableStructure.outerBorderWidth) || 0}
+              value={getNumValue(tableStructure.outerBorderWidth, 1)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateTableStructure('outerBorderWidth', v + 'px')}
@@ -2660,7 +2652,7 @@ ${guideContent}
               label="표 행(가로선) 두께"
               min={0}
               max={8}
-              value={parseInt(tableStructure.rowBorderWidth) || 0}
+              value={getNumValue(tableStructure.rowBorderWidth, 1)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateTableStructure('rowBorderWidth', v + 'px')}
@@ -2671,7 +2663,7 @@ ${guideContent}
               label="표 열(세로선) 두께"
               min={0}
               max={8}
-              value={parseInt(tableStructure.colBorderWidth) || 0}
+              value={getNumValue(tableStructure.colBorderWidth, 1)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateTableStructure('colBorderWidth', v + 'px')}
@@ -2706,7 +2698,7 @@ ${guideContent}
               label="표 셀 내부 여백 (Padding)"
               min={0}
               max={24}
-              value={parseInt(getTagRules('th')['padding']) || 8}
+              value={getNumValue(getTagRules('th')['padding'], 8)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCellPadding(v + 'px')}
@@ -2726,7 +2718,7 @@ ${guideContent}
               label="표 상단 여백 (제목 문구와의 간격)"
               min={0}
               max={48}
-              value={isNaN(parseInt(getTagRules('table')['margin-top'])) ? 4 : parseInt(getTagRules('table')['margin-top'])}
+              value={getNumValue(getTagRules('table')['margin-top'], 4)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
@@ -2747,7 +2739,7 @@ ${guideContent}
               label="표 하단 여백"
               min={0}
               max={48}
-              value={isNaN(parseInt(getTagRules('table')['margin-bottom'])) ? 16 : parseInt(getTagRules('table')['margin-bottom'])}
+              value={getNumValue(getTagRules('table')['margin-bottom'], 16)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
@@ -2925,7 +2917,7 @@ ${guideContent}
               label="코드 블록 내부 패딩"
               min={0}
               max={32}
-              value={parseInt(getTagRules('codeBlock')['padding']) || 12}
+              value={getNumValue(getTagRules('codeBlock')['padding'], 12)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'padding', v + 'px')}
@@ -2935,7 +2927,7 @@ ${guideContent}
               label="코드 블록 테두리 둥글기"
               min={0}
               max={16}
-              value={parseInt(getTagRules('codeBlock')['border-radius']) || 6}
+              value={getNumValue(getTagRules('codeBlock')['border-radius'], 6)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('codeBlock', 'border-radius', v + 'px')}
@@ -2962,7 +2954,7 @@ ${guideContent}
               label="코드 테두리 둥글기"
               min={0}
               max={16}
-              value={parseInt(getTagRules('code')['border-radius']) || 4}
+              value={getNumValue(getTagRules('code')['border-radius'], 4)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('code', 'border-radius', v + 'px')}
@@ -3008,10 +3000,7 @@ ${guideContent}
               label="각주 글자 크기"
               min={9}
               max={24}
-              value={(() => {
-                const raw = getTagRules('footnote')['font-size'];
-                return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 12) : 12;
-              })()}
+              value={getNumValue(getTagRules('footnote')['font-size'], 12)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('footnote', 'font-size', `${v}px`)}
@@ -3021,7 +3010,7 @@ ${guideContent}
               min={1.0}
               max={2.5}
               step={0.1}
-              value={parseFloat(getTagRules('footnote')['line-height']) || 1.4}
+              value={getNumValue(getTagRules('footnote')['line-height'], 1.4)}
               unit="배"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('footnote', 'line-height', v)}
@@ -3030,10 +3019,7 @@ ${guideContent}
               label="각주 상하 바깥 여백"
               min={0}
               max={60}
-              value={(() => {
-                const raw = getTagRules('footnote')['margin-top'];
-                return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 8;
-              })()}
+              value={getNumValue(getTagRules('footnote')['margin-top'], 8)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
@@ -3149,11 +3135,11 @@ ${guideContent}
               label="그림자 강도 (Shadow Blur)"
               min={0}
               max={40}
-              value={
-                (currentProfile.rules.img || {})['box-shadow'] 
-                  ? parseInt(((currentProfile.rules.img || {})['box-shadow'] || '').match(/0 \d+px (\d+)px/) ? ((currentProfile.rules.img || {})['box-shadow'] || '').match(/0 \d+px (\d+)px/)![1] : '0') 
-                  : 0
-              }
+              value={(() => {
+                const shadow = (currentProfile.rules.img || {})['box-shadow'] || '';
+                const match = shadow.match(/0 \d+px (\d+)px/);
+                return match ? parseInt(match[1], 10) : 0;
+              })()}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
@@ -3166,7 +3152,7 @@ ${guideContent}
               label="이미지 가로 너비"
               min={50}
               max={800}
-              value={parseInt(getTagRules('img')['width']) || 400}
+              value={getNumValue(getTagRules('img')['width'], 400)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('img', 'width', v + 'px')}
@@ -3175,7 +3161,7 @@ ${guideContent}
               label="이미지 세로 높이"
               min={50}
               max={600}
-              value={parseInt(getTagRules('img')['height']) || 300}
+              value={getNumValue(getTagRules('img')['height'], 300)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('img', 'height', v + 'px')}
@@ -3184,7 +3170,7 @@ ${guideContent}
               label="이미지 상하 바깥 여백"
               min={0}
               max={80}
-              value={parseInt(getTagRules('img')['margin-top']) || 16}
+              value={getNumValue(getTagRules('img')['margin-top'], 16)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
@@ -3231,7 +3217,7 @@ ${guideContent}
               label="동영상 가로 너비"
               min={100}
               max={800}
-              value={parseInt(getTagRules('video')['width']) || 560}
+              value={getNumValue(getTagRules('video')['width'], 560)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('video', 'width', v + 'px')}
@@ -3240,7 +3226,7 @@ ${guideContent}
               label="동영상 세로 높이"
               min={100}
               max={600}
-              value={parseInt(getTagRules('video')['height']) || 315}
+              value={getNumValue(getTagRules('video')['height'], 315)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('video', 'height', v + 'px')}
@@ -3249,7 +3235,7 @@ ${guideContent}
               label="동영상 상하 바깥 여백"
               min={0}
               max={80}
-              value={parseInt(getTagRules('video')['margin-top']) || 16}
+              value={getNumValue(getTagRules('video')['margin-top'], 16)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
@@ -3296,7 +3282,7 @@ ${guideContent}
               label="지도 가로 너비"
               min={100}
               max={800}
-              value={parseInt(getTagRules('map')['width']) || 600}
+              value={getNumValue(getTagRules('map')['width'], 600)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('map', 'width', v + 'px')}
@@ -3305,7 +3291,7 @@ ${guideContent}
               label="지도 세로 높이"
               min={100}
               max={600}
-              value={parseInt(getTagRules('map')['height']) || 450}
+              value={getNumValue(getTagRules('map')['height'], 450)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => updateCssRule('map', 'height', v + 'px')}
@@ -3314,7 +3300,7 @@ ${guideContent}
               label="지도 상하 바깥 여백"
               min={0}
               max={80}
-              value={parseInt(getTagRules('map')['margin-top']) || 16}
+              value={getNumValue(getTagRules('map')['margin-top'], 16)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {
@@ -3387,10 +3373,7 @@ ${guideContent}
               label="수식 상하 바깥 여백"
               min={0}
               max={80}
-              value={(() => {
-                const raw = (currentProfile.rules.math || {})['margin-top'];
-                return raw !== undefined && raw !== '' ? (parseInt(raw, 10) || 0) : 16;
-              })()}
+              value={getNumValue((currentProfile.rules.math || {})['margin-top'], 16)}
               unit="px"
               disabled={isSystemProfile}
               onChange={(v) => {

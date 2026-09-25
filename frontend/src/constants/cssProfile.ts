@@ -3,6 +3,7 @@ import { CssProfile } from '../types/cssProfile';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 신규 탑재]: 한컴(HANCOM) 공식 블로그의 모던 테크니컬 디자인을 완벽 재현한 'Onrivi 한컴 테크 블로그 서식(hancom-tech-blog)'을 시스템 프로필로 공식 등록 (H2 오렌지 하단선, H3 오렌지 좌측바, 1.8배 본문 줄간격, 8px 문장 사이 간격, 가로선 중심 비교표, 와이드 라운드 미디어 등 반영)
 // 🚨 @PATCH : **2026-09-25** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 전 서식 일원화]: 모든 시스템 서식(SYSTEM_PROFILES), 빈 서식(createEmptyProfile), 정규화(normalizeCssProfile)의 pageStyle 여백을 marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm로 일원화
 // 🚨 @PATCH : **2026-09-25** — [시스템 제공 서식 개편]: 구버전 서식('GitHub 기술 블로그/명세서', '공공기관 보고서 양식')을 삭제하고, 신규 시스템 제공 서식 5종('Onrivi 기술 표준 서식', 'Onrivi 법률·계약서 A4 공식 문서', 'Onrivi 네이버 블로그 감성 서식', 'Onrivi 일반 기술서적 표준 서식', 'Onrivi 공식 행사 및 가정통신문 안내장 서식')을 SYSTEM_PROFILES 및 SYSTEM_PROFILE_IDS에 공식 등록
 // 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 기본색(#2f2f2f) 일치화]: DEFAULT_PROFILE의 taskList 및 checkboxStructure color를 본문 글자색(#2f2f2f)으로 일원화하여 별도 색상 분리 방지
@@ -29,7 +30,8 @@ export const SYSTEM_PROFILE_IDS = [
   'legal-contract-a4',
   'naver-blog-style',
   'profile-tech-book-2026',
-  'profile-official-notice-letter'
+  'profile-official-notice-letter',
+  'hancom-tech-blog'
 ] as const;
 export type SystemProfileId = typeof SYSTEM_PROFILE_IDS[number];
 
@@ -1828,8 +1830,282 @@ export const SYSTEM_PROFILES: CssProfile[] = [
       "colBorderWidth": "1px"
     },
     "customCss": ""
+  },
+  {
+    "id": "hancom-tech-blog",
+    "name": "Onrivi 한컴 테크 블로그 서식",
+    "description": "한컴(HANCOM) 공식 기술 블로그의 모던 테크니컬 디자인을 완벽 구현한 서식입니다. H2 오렌지 하단선과 H3 오렌지 버티컬 바, 1.8배 본문 줄간격과 8px 문장 사이 간격, 가로선 중심의 비교표와 100% 와이드 라운드 미디어로 전문적인 IT 기술 아티클과 리포트를 완성합니다.",
+    "pageStyle": {
+      "fontFamily": "Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', Arial, sans-serif",
+      "fontSize": "16px",
+      "lineHeight": "1.8",
+      "letterSpacing": "-0.02em",
+      "backgroundColor": "#ffffff",
+      "paperSize": "a4",
+      "marginTop": "18mm",
+      "marginBottom": "18mm",
+      "marginLeft": "12mm",
+      "marginRight": "12mm",
+      "orientation": "portrait",
+      "headingSizeOffset": "0px",
+      "tabSize": "4",
+      "exportPageBreakLevel": "h1"
+    },
+    "rules": {
+      "h1": {
+        "font-size": "32px",
+        "font-weight": "800",
+        "color": "#111827",
+        "line-height": "1.35",
+        "letter-spacing": "-0.03em",
+        "margin-top": "36px",
+        "margin-bottom": "24px",
+        "text-align": "left",
+        "padding-left": "0px"
+      },
+      "h2": {
+        "font-size": "23px",
+        "font-weight": "700",
+        "color": "#111827",
+        "line-height": "1.4",
+        "letter-spacing": "-0.02em",
+        "border-bottom": "2px solid #ff5a00",
+        "padding-bottom": "10px",
+        "margin-top": "52px",
+        "margin-bottom": "20px",
+        "text-align": "left",
+        "padding-left": "0px"
+      },
+      "h3": {
+        "font-size": "18.5px",
+        "font-weight": "700",
+        "color": "#1f2937",
+        "line-height": "1.5",
+        "letter-spacing": "-0.015em",
+        "border-left": "4px solid #ff5a00",
+        "padding-left": "12px",
+        "margin-top": "34px",
+        "margin-bottom": "14px",
+        "text-align": "left"
+      },
+      "h4": {
+        "font-size": "16px",
+        "font-weight": "700",
+        "color": "#374151",
+        "line-height": "1.5",
+        "letter-spacing": "-0.01em",
+        "margin-top": "24px",
+        "margin-bottom": "10px",
+        "text-align": "left",
+        "padding-left": "0px"
+      },
+      "h5": {
+        "font-size": "15px",
+        "font-weight": "700",
+        "color": "#4b5563",
+        "line-height": "1.5",
+        "margin-top": "20px",
+        "margin-bottom": "8px",
+        "text-align": "left",
+        "padding-left": "0px"
+      },
+      "h6": {
+        "font-size": "14px",
+        "font-weight": "700",
+        "color": "#64748b",
+        "line-height": "1.5",
+        "margin-top": "16px",
+        "margin-bottom": "6px",
+        "text-align": "left",
+        "padding-left": "0px"
+      },
+      "p": {
+        "font-size": "16px",
+        "font-weight": "400",
+        "line-height": "1.8",
+        "letter-spacing": "-0.02em",
+        "color": "#374151",
+        "margin-top": "0px",
+        "margin-bottom": "20px",
+        "sentence-gap": "8px",
+        "text-align": "left",
+        "text-indent": "0px"
+      },
+      "strong": {
+        "font-weight": "700",
+        "color": "#111827"
+      },
+      "em": {
+        "font-style": "italic",
+        "color": "#374151"
+      },
+      "u": {
+        "text-decoration": "underline",
+        "text-decoration-color": "#ff5a00",
+        "text-underline-offset": "3px"
+      },
+      "del": {
+        "text-decoration": "line-through",
+        "color": "#94a3b8"
+      },
+      "a": {
+        "color": "#0284c7",
+        "text-decoration": "underline",
+        "text-underline-offset": "3px",
+        "font-weight": "600"
+      },
+      "blockquote": {
+        "background-color": "#f8fafc",
+        "border-left": "4px solid #ff5a00",
+        "border-radius": "6px",
+        "padding": "16px 20px",
+        "margin-top": "24px",
+        "margin-bottom": "24px",
+        "color": "#475569",
+        "font-size": "15px",
+        "line-height": "1.7"
+      },
+      "table": {
+        "width": "100%",
+        "border-collapse": "collapse",
+        "margin-top": "24px",
+        "margin-bottom": "32px",
+        "border-top": "2px solid #111827",
+        "border-bottom": "1px solid #e2e8f0"
+      },
+      "th": {
+        "background-color": "#f8fafc",
+        "color": "#111827",
+        "font-weight": "700",
+        "padding": "12px 16px",
+        "text-align": "center",
+        "border-bottom": "1.5px solid #cbd5e1"
+      },
+      "td": {
+        "padding": "12px 16px",
+        "color": "#334155",
+        "border-bottom": "1px solid #f1f5f9",
+        "font-size": "14.5px",
+        "line-height": "1.6"
+      },
+      "ul": {
+        "padding-left": "22px",
+        "list-style-type": "disc",
+        "color": "#374151",
+        "margin-bottom": "20px"
+      },
+      "ol": {
+        "padding-left": "22px",
+        "list-style-type": "decimal",
+        "color": "#374151",
+        "margin-bottom": "20px"
+      },
+      "li": {
+        "margin-bottom": "8px",
+        "line-height": "1.75",
+        "padding-inline-start": "6px"
+      },
+      "taskList": {
+        "boxSize": "16px",
+        "checkedEffect": "none",
+        "textGap": "10px",
+        "color": "#ff5a00"
+      },
+      "hr": {
+        "border-top": "1px solid #e2e8f0",
+        "margin-top": "40px",
+        "margin-bottom": "40px",
+        "width": "100%"
+      },
+      "codeBlock": {
+        "background-color": "#0f172a",
+        "color": "#f8fafc",
+        "border-radius": "8px",
+        "padding": "16px 20px",
+        "margin-top": "20px",
+        "margin-bottom": "24px",
+        "font-family": "JetBrains Mono, D2Coding, Consolas, monospace",
+        "font-size": "14px",
+        "line-height": "1.6"
+      },
+      "codeBlockTitle": {
+        "background-color": "#1e293b",
+        "color": "#94a3b8",
+        "padding": "8px 16px",
+        "border-radius": "8px 8px 0 0",
+        "font-size": "13px"
+      },
+      "code": {
+        "background-color": "#f1f5f9",
+        "color": "#ea580c",
+        "border-radius": "4px",
+        "padding": "2px 6px",
+        "font-weight": "600"
+      },
+      "img": {
+        "width": "100%",
+        "height": "auto",
+        "border-radius": "10px",
+        "box-shadow": "0 4px 16px -2px rgba(0, 0, 0, 0.08)",
+        "margin-top": "28px",
+        "margin-bottom": "28px",
+        "display": "block",
+        "margin-left": "auto",
+        "margin-right": "auto"
+      },
+      "video": {
+        "width": "100%",
+        "height": "315px",
+        "border-radius": "10px",
+        "margin-top": "28px",
+        "margin-bottom": "28px",
+        "display": "block",
+        "margin-left": "auto",
+        "margin-right": "auto"
+      },
+      "map": {
+        "width": "100%",
+        "height": "400px",
+        "border-radius": "10px",
+        "margin-top": "28px",
+        "margin-bottom": "28px",
+        "display": "block",
+        "margin-left": "auto",
+        "margin-right": "auto"
+      },
+      "math": {
+        "color": "#111827",
+        "margin-top": "20px",
+        "margin-bottom": "20px",
+        "text-align": "center"
+      },
+      "footnote": {
+        "font-size": "13px",
+        "color": "#64748b",
+        "line-height": "1.6",
+        "margin-top": "32px",
+        "margin-bottom": "16px"
+      }
+    },
+    "tableStructure": {
+      "outerBorderWidth": "1px",
+      "rowBorderWidth": "1px",
+      "colBorderWidth": "0px"
+    },
+    "hrStructure": {
+      "borderTopWidth": "1px",
+      "borderTopStyle": "solid",
+      "lineWidth": "100%",
+      "marginTopBottom": "40px"
+    },
+    "checkboxStructure": {
+      "boxSize": "16px",
+      "checkedEffect": "none",
+      "textGap": "10px",
+      "color": "#ff5a00"
+    },
+    "customCss": ""
   }
-
 ];
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0002] cssProfile ➔ DEFAULT_PROFILE
