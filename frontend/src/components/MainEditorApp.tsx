@@ -3553,20 +3553,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0031] MainEditorApp.tsx ➔ previewWheelSync
-  // 🎯 @KICK  : 분할 모드에서는 미리보기 휠을 막고 에디터 스크롤만 동기화의 기준으로 사용
+  // 🎯 @KICK  : 분할 모드의 미리보기 휠 입력을 에디터에 전달하고 에디터 스크롤만 동기화의 기준으로 사용
   // 🛡️ @GUARD : 문서를 연 뒤 미리보기 DOM이 생성되는 데스크톱에서도 리스너가 반드시 연결되도록 callback ref 사용
-  // 🚨 @PATCH : 2026-09-28 — 웹과 데스크톱의 분할 모드 휠 차단을 같은 DOM 연결 시점에 등록
-  // 🔗 @CALLS : WheelEvent.preventDefault, addEventListener
+  // 🚨 @PATCH : 2026-09-28 — 미리보기 자체 스크롤 대신 에디터 스크롤로 휠 입력 전달
+  // 🔗 @CALLS : WheelEvent.preventDefault, editor.setScrollTop
   // ====================================================================
-  const stopSplitPreviewWheel = useCallback((event: WheelEvent) => {
-    if (previewModeRef.current === 'both') event.preventDefault();
+  const redirectSplitPreviewWheel = useCallback((event: WheelEvent) => {
+    if (previewModeRef.current !== 'both') return;
+    event.preventDefault();
+
+    const editor = editorRef.current;
+    if (!editor) return;
+    const lineHeight = 28;
+    const pageHeight = editor.getLayoutInfo?.().height || 800;
+    const deltaPixels = event.deltaY * (event.deltaMode === 1 ? lineHeight : event.deltaMode === 2 ? pageHeight : 1);
+    editor.setScrollTop(editor.getScrollTop() + deltaPixels);
   }, []);
 
   const bindPreviewScrollContainer = useCallback((node: HTMLDivElement | null) => {
-    previewRef.current?.removeEventListener('wheel', stopSplitPreviewWheel, true);
+    previewRef.current?.removeEventListener('wheel', redirectSplitPreviewWheel, true);
     previewRef.current = node;
-    node?.addEventListener('wheel', stopSplitPreviewWheel, { passive: false, capture: true });
-  }, [stopSplitPreviewWheel]);
+    node?.addEventListener('wheel', redirectSplitPreviewWheel, { passive: false, capture: true });
+  }, [redirectSplitPreviewWheel]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0032] MainEditorApp.tsx ➔ darkModeDOMClass
