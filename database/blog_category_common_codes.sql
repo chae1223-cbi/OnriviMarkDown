@@ -17,16 +17,6 @@ ON CONFLICT (group_code, code_value) DO UPDATE SET
   code_name = EXCLUDED.code_name, description = EXCLUDED.description,
   sort_order = EXCLUDED.sort_order, is_use = true;
 
--- 새 웹 코드가 배포되기 전의 화면도 초안 저장을 계속할 수 있게 이전 값은 비활성 호환 코드로 둔다.
--- 새 메뉴/등록 폼은 is_use=false인 코드를 표시하지 않는다.
-INSERT INTO public.common_codes
-  (group_code, code_value, code_name, description, sort_order, is_use)
-VALUES
-  ('BLOG_CATEGORY', '마크다운 가이드', '마크다운 가이드', '이전 버전 호환', 101, false),
-  ('BLOG_CATEGORY', '기술 인사이트', '기술 인사이트', '이전 버전 호환', 102, false),
-  ('BLOG_CATEGORY', '사용자 활용', '사용자 활용', '이전 버전 호환', 103, false)
-ON CONFLICT (group_code, code_value) DO NOTHING;
-
 -- 기존 문서가 고정된 한글 분류를 저장했으므로 안정적인 코드값으로 변환한다.
 ALTER TABLE public.blog_posts DROP CONSTRAINT IF EXISTS blog_posts_category_check;
 UPDATE public.blog_posts SET category = CASE category
