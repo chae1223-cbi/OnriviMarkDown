@@ -5,7 +5,7 @@
 // 🚨 @PATCH : **2026-09-26** — [본문 첫 이미지 썸네일 자동 감지]: 마크다운 본문 내 첫 이미지 자동 추출 및 커버 이미지 기본값 설정 연동
 // 🚨 @PATCH : **2026-09-26** — [에디터 블로그 초안 저장 기능 표준화]: 일반 사용자의 임의 직발행을 방지하고 관리자 승인 대기 초안(draft)으로 안전하게 저장되도록 버튼 텍스트 및 안내 개선
 // 🚨 @PATCH : **2026-09-26** — [에디터 블로그 미리보기 및 발행 모달 신설]: 실시간 블로그 카드 미리보기 탭, 메타데이터 자동 추출 및 원클릭 로컬스토리지 블로그 발행 지원
-// 🔗 @CALLS : createPortal, saveBlogPost, extractPostFromMarkdown, BlogCard
+// 🔗 @CALLS : createPortal, saveBlogDraft, extractPostFromMarkdown, BlogCard
 // ====================================================================
 "use client";
 
@@ -13,11 +13,11 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   BlogPost,
-  saveBlogPost,
   extractPostFromMarkdown,
   BLOG_CATEGORIES,
   BlogCategory,
 } from "@/lib/blogData";
+import { saveBlogDraft } from "@/lib/blogApi";
 import { BlogCard } from "@/components/blog/BlogCard";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -104,14 +104,14 @@ export default function BlogPostModal({
     tags,
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!title.trim()) {
       alert("포스트 제목을 입력해주세요.");
       return;
     }
 
     try {
-      const saved = saveBlogPost({
+      const saved = await saveBlogDraft({
         slug: slug.trim() || `post-${Date.now()}`,
         title: title.trim(),
         excerpt: excerpt.trim(),
@@ -127,7 +127,7 @@ export default function BlogPostModal({
       setIsPublished(true);
       setPublishedSlug(saved.slug);
     } catch (err) {
-      alert("블로그 초안 저장 중 오류가 발생했습니다.");
+      alert(err instanceof Error ? err.message : "블로그 초안 저장 중 오류가 발생했습니다.");
     }
   };
 

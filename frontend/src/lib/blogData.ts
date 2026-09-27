@@ -7,8 +7,10 @@
 // 🚨 @PATCH : **2026-09-26** — [블로그 카테고리 개편]: 사용자 요청에 따라 '제품 소식' 카테고리 삭제 및 '사용자 팁' ➔ '사용자 활용'으로 명칭 변경
 // 🚨 @PATCH : **2026-09-26** — [블로그 초안 및 관리자 선택 발행 파이프라인 신설]: BlogPost에 status('published' | 'draft') 필드 추가, getBlogDrafts, publishPosts, unpublishPosts 관리 함수 구축
 // 🚨 @PATCH : **2026-09-26** — [카드형 기술 블로그 시스템 신설]: 한컴 블로그 스타일 레이아웃, 초기 고품질 가이드 포스트 및 에디터 연동 로컬스토리지 동기화 엔진 구축
-// 🔗 @CALLS : localStorage
+// 🔗 @CALLS : blogSnapshot
 // ====================================================================
+
+import blogSnapshot from '@/generated/blogSnapshot.json';
 
 export interface BlogPost {
   id: string;
@@ -25,6 +27,7 @@ export interface BlogPost {
   tags: string[];
   isFeatured?: boolean;
   status?: "published" | "draft"; // 게시 상태
+  deploymentStatus?: "draft" | "pending" | "live" | "failed";
 }
 
 export const BLOG_CATEGORIES = [
@@ -211,28 +214,7 @@ const LOCAL_STORAGE_POSTS_KEY = "onrivi_blog_posts";
  * 공개 발행된 모든 블로그 포스트를 조회합니다. (초안 draft 제외)
  */
 export function getAllBlogPosts(): BlogPost[] {
-  if (typeof window === "undefined") {
-    return INITIAL_BLOG_POSTS;
-  }
-
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_POSTS_KEY);
-    if (!raw) {
-      return INITIAL_BLOG_POSTS;
-    }
-    const userPosts: BlogPost[] = JSON.parse(raw);
-    const existingIds = new Set(userPosts.map((p) => p.id));
-    const defaults = INITIAL_BLOG_POSTS.filter((p) => !existingIds.has(p.id));
-
-    // draft(초안) 상태인 글은 공개 블로그에서 제외하고 published 글만 정렬 반환
-    const all = [...userPosts, ...defaults];
-    return all
-      .filter((p) => p.status !== "draft")
-      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-  } catch (err) {
-    console.error("블로그 포스트 로컬스토리지 로드 실패:", err);
-    return INITIAL_BLOG_POSTS;
-  }
+  return (blogSnapshot as BlogPost[]).filter(post => post.status !== 'draft');
 }
 
 /**
@@ -258,17 +240,7 @@ export function getAllBlogDrafts(): BlogPost[] {
  * 슬러그(slug)로 단일 블로그 포스트를 조회합니다. (공개 글 우선, 없으면 초안도 조회)
  */
 export function getBlogPostBySlug(slug: string): BlogPost | undefined {
-  if (typeof window === "undefined") {
-    return INITIAL_BLOG_POSTS.find((p) => p.slug === slug || p.id === slug);
-  }
-
-  const raw = localStorage.getItem(LOCAL_STORAGE_POSTS_KEY);
-  const userPosts: BlogPost[] = raw ? JSON.parse(raw) : [];
-  const existingIds = new Set(userPosts.map((p) => p.id));
-  const defaults = INITIAL_BLOG_POSTS.filter((p) => !existingIds.has(p.id));
-  const all = [...userPosts, ...defaults];
-
-  return all.find((p) => p.slug === slug || p.id === slug);
+  return getAllBlogPosts().find(post => post.slug === slug);
 }
 
 /**

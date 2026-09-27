@@ -6,6 +6,8 @@ const isDesktopBuild = process.env.NEXT_BUILD_TARGET === 'desktop';
 const isDev = process.env.NODE_ENV === 'development';
 
 const nextConfig = {
+  // 웹 배포 빌드와 실행 중인 개발 서버가 같은 .next 파일을 덮어쓰지 않도록 분리한다.
+  distDir: process.env.NEXT_BUILD_DIR || '.next',
   ...(isDev && !isDesktopBuild ? {} : { output: 'export' }), // 개발 환경에서는 API 라우트 활성화를 위해 export 제외
   productionBrowserSourceMaps: true, // 🔍 [임시] TDZ 에러 추적용 소스맵 활성화
   assetPrefix: process.env.ASSET_PREFIX !== undefined ? process.env.ASSET_PREFIX : '', // cloudflare/web: (기본) '', desktop: ASSET_PREFIX=./

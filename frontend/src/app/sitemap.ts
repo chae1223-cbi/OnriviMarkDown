@@ -5,6 +5,7 @@
 // 🚨 @PATCH : **2026-09-23** — [공개 서비스 페이지 사이트맵 일괄 등록]: 메인 랜딩 외 가이드 문서(/docs), 문의하기(/contact), 이용약관(/terms), 개인정보처리방침(/privacy)을 사이트맵에 추가하여 검색 색인 범위 및 SEO 노출 확대
 // ====================================================================
 import { MetadataRoute } from 'next';
+import { getAllBlogPosts } from '@/lib/blogData';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://onrivi.com';
@@ -41,5 +42,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'yearly',
       priority: 0.3,
     },
+    {
+      url: `${baseUrl}/blog`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    ...getAllBlogPosts().map(post => ({
+      url: `${baseUrl}/blog/${post.slug}`,
+      lastModified: new Date(post.publishedAt.replace(/\./g, '-')),
+      changeFrequency: 'monthly' as const,
+      priority: 0.7,
+    })),
   ];
 }

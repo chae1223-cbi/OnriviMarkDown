@@ -4,19 +4,13 @@
 // 🛡️ @GUARD : 비인가 임의 발행 차단, 체크박스 다중 일괄 처리, 실시간 미리보기 모달, 고대비 UI 시인성 보장
 // 🚨 @PATCH : **2026-09-26** — [미리보기 모달 마크다운 소스 뷰어 지원]: 관리자 미리보기 모달 내 '문서 뷰' ↔ '마크다운으로 보기' 전환 탭 추가
 // 🚨 @PATCH : **2026-09-26** — [기술 블로그 관리 탭 신설]: 초안 목록 선택 일괄 발행(Publish), 공개 글 비공개(초안) 전환, 카드 및 본문 실시간 모달 뷰어 제공
-// 🔗 @CALLS : getAllBlogDrafts, getAllBlogPosts, publishPosts, unpublishPosts, deleteBlogPost, BlogCard
+// 🔗 @CALLS : getAdminBlogPosts, changeBlogPublication, BlogCard
 // ====================================================================
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  BlogPost,
-  getAllBlogDrafts,
-  getAllBlogPosts,
-  publishPosts,
-  unpublishPosts,
-  deleteBlogPost,
-} from "@/lib/blogData";
+import { BlogPost } from "@/lib/blogData";
+import { getAdminBlogPosts, changeBlogPublication, retryBlogDeployment } from "@/lib/blogApi";
 import { BlogCard } from "@/components/blog/BlogCard";
 import { showToast } from "@/utils/toast";
 import ReactMarkdown from "react-markdown";
@@ -45,6 +39,7 @@ export default function BlogTab() {
   const [published, setPublished] = useState<BlogPost[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<"drafts" | "published">("drafts");
   const [searchQuery, setSearchQuery] = useState("");
+  const [hasPendingDeployment, setHasPendingDeployment] = useState(false);
 
   // Selection states
   const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
@@ -60,13 +55,17 @@ export default function BlogTab() {
     title: string;
   } | null>(null);
 
-  const loadData = useCallback(() => {
-    const draftList = getAllBlogDrafts();
-    const pubList = getAllBlogPosts();
-    setDrafts(draftList);
-    setPublished(pubList);
-    setSelectedDraftIds([]);
-    setSelectedPublishedIds([]);
+  const loadData = useCallback(async () => {
+    try {
+      const posts = await getAdminBlogPosts();
+      setHasPendingDeployment(posts.some(post => post.deploymentStatus === 'pending' || post.deploymentStatus === 'failed'));
+      setDrafts(posts.filter(post => post.status === 'draft'));
+      setPublished(posts.filter(post => post.status === 'published'));
+      setSelectedDraftIds([]);
+      setSelectedPublishedIds([]);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '블로그 목록 조회 실패', 'error');
+    }
   }, []);
 
   useEffect(() => {
@@ -77,6 +76,15 @@ export default function BlogTab() {
       window.removeEventListener("onrivi:blog-posts-updated", handleUpdate);
     };
   }, [loadData]);
+
+  const handleRetryDeployment = async () => {
+    try {
+      await retryBlogDeployment();
+      showToast('블로그 배포를 다시 요청했습니다.', 'info');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '배포 재요청 실패', 'error');
+    }
+  };
 
   // Drafts selection helpers
   const handleToggleDraft = (id: string) => {
@@ -109,54 +117,68 @@ export default function BlogTab() {
   };
 
   // Publish Selected Drafts
-  const handlePublishSelected = () => {
+  const handlePublishSelected = async () => {
     if (selectedDraftIds.length === 0) {
       showToast("발행할 초안을 선택해주세요.", "warning");
       return;
     }
 
-    const success = publishPosts(selectedDraftIds);
-    if (success) {
-      showToast(
-        `선택한 ${selectedDraftIds.length}개의 글이 공식 기술 블로그에 성공적으로 발행되었습니다!`,
-        "success"
-      );
-      loadData();
+    try {
+      const result = await changeBlogPublication('publish', selectedDraftIds);
+      showToast(result.deployment === 'requested'
+        ? `${selectedDraftIds.length}개 글의 공개 배포를 요청했습니다.`
+        : '글은 저장됐지만 배포 요청이 필요합니다. 배포 설정을 확인해 주세요.', 'info');
+      await loadData();
       setActiveSubTab("published");
-    } else {
-      showToast("발행 처리 중 오류가 발생했습니다.", "error");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '발행 처리 실패', 'error');
     }
   };
 
   // Unpublish Selected
-  const handleUnpublishSelected = () => {
+  const handleUnpublishSelected = async () => {
     if (selectedPublishedIds.length === 0) {
       showToast("비공개(초안)로 전환할 글을 선택해주세요.", "warning");
       return;
     }
 
-    const success = unpublishPosts(selectedPublishedIds);
-    if (success) {
-      showToast(
-        `선택한 ${selectedPublishedIds.length}개의 글이 비공개(초안)로 안전하게 전환되었습니다.`,
-        "info"
-      );
-      loadData();
+    try {
+      const result = await changeBlogPublication('unpublish', selectedPublishedIds);
+      showToast(result.deployment === 'requested'
+        ? `${selectedPublishedIds.length}개 글의 비공개 배포를 요청했습니다.`
+        : '비공개 상태는 저장됐지만 배포 요청이 필요합니다.', 'info');
+      await loadData();
       setActiveSubTab("drafts");
-    } else {
-      showToast("비공개 전환 처리 중 오류가 발생했습니다.", "error");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '비공개 처리 실패', 'error');
+    }
+  };
+
+  const handleSingleAction = async (action: 'publish' | 'unpublish', post: BlogPost) => {
+    try {
+      const result = await changeBlogPublication(action, [post.id]);
+      showToast(result.deployment === 'requested'
+        ? `'${post.title}' 글의 ${action === 'publish' ? '공개' : '비공개'} 배포를 요청했습니다.`
+        : '변경은 저장됐지만 배포 요청이 필요합니다.', 'info');
+      setPreviewPost(null);
+      await loadData();
+      setActiveSubTab(action === 'publish' ? 'published' : 'drafts');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '게시글 상태 변경 실패', 'error');
     }
   };
 
   // Single Delete
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteConfirmTarget) return;
-    const success = deleteBlogPost(deleteConfirmTarget.id);
-    if (success) {
-      showToast(`'${deleteConfirmTarget.title}' 포스트가 삭제되었습니다.`, "info");
-      loadData();
-    } else {
-      showToast("포스트 삭제 중 오류가 발생했습니다.", "error");
+    try {
+      const result = await changeBlogPublication('delete', [deleteConfirmTarget.id]);
+      showToast(result.deployment === 'requested'
+        ? `'${deleteConfirmTarget.title}' 글의 삭제 배포를 요청했습니다.`
+        : '삭제 상태는 저장됐지만 배포 요청이 필요합니다.', 'info');
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '삭제 처리 실패', 'error');
     }
     setDeleteConfirmTarget(null);
   };
@@ -195,6 +217,12 @@ export default function BlogTab() {
         </div>
 
         <div className="flex items-center gap-3">
+          {hasPendingDeployment && (
+            <button onClick={() => { void handleRetryDeployment(); }}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 hover:bg-amber-200">
+              배포 다시 요청
+            </button>
+          )}
           <a
             href="/blog"
             target="_blank"
@@ -246,7 +274,7 @@ export default function BlogTab() {
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider">
-              공개 발행 글 (Published)
+              공개 설정 글 (배포 대기 포함)
             </span>
             <span className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-[#1d4ed8] dark:text-blue-400">
               <CheckCircle2 size={16} />
@@ -257,7 +285,7 @@ export default function BlogTab() {
             <span className="text-xs font-normal text-zinc-500 ml-1">건</span>
           </p>
           <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mt-2">
-            onrivi.com/blog 에 라이브 노출 중
+            최종 공개 여부는 Cloudflare 배포 완료 후 확인
           </p>
         </div>
 
@@ -483,12 +511,7 @@ export default function BlogTab() {
                             </button>
 
                             <button
-                              onClick={() => {
-                                publishPosts([draft.id]);
-                                showToast(`'${draft.title}' 글이 공식 블로그에 발행되었습니다!`, "success");
-                                loadData();
-                                setActiveSubTab("published");
-                              }}
+                              onClick={() => { void handleSingleAction('publish', draft); }}
                               className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 dark:bg-blue-950/70 text-[#1d4ed8] dark:text-blue-400 hover:bg-blue-100 transition-colors"
                               title="지금 단건 발행"
                             >
@@ -533,7 +556,7 @@ export default function BlogTab() {
                       )}
                     </button>
                   </th>
-                  <th className="p-4">발행된 글 정보 (제목 / 슬러그 / 요약)</th>
+                  <th className="p-4">공개 설정 글 정보 (제목 / 슬러그 / 요약)</th>
                   <th className="p-4 w-32">카테고리</th>
                   <th className="p-4 w-28">작성자</th>
                   <th className="p-4 w-28">발행일</th>
@@ -587,7 +610,7 @@ export default function BlogTab() {
                                 {post.title}
                               </span>
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 dark:bg-blue-950 text-[#1d4ed8] dark:text-blue-400">
-                                공식 발행
+                                {post.deploymentStatus === 'live' ? '배포 완료' : '배포 대기'}
                               </span>
                               {post.isFeatured && (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400">
@@ -630,7 +653,7 @@ export default function BlogTab() {
 
                         <td className="p-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">
-                            <a
+                            {post.deploymentStatus === 'live' && <a
                               href={`/blog/${post.slug}`}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -638,7 +661,7 @@ export default function BlogTab() {
                               title="공식 블로그에서 열기"
                             >
                               <ExternalLink size={15} />
-                            </a>
+                            </a>}
 
                             <button
                               onClick={() => setPreviewPost(post)}
@@ -649,12 +672,7 @@ export default function BlogTab() {
                             </button>
 
                             <button
-                              onClick={() => {
-                                unpublishPosts([post.id]);
-                                showToast(`'${post.title}' 포스트가 비공개(초안)로 전환되었습니다.`, "info");
-                                loadData();
-                                setActiveSubTab("drafts");
-                              }}
+                              onClick={() => { void handleSingleAction('unpublish', post); }}
                               className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400 hover:bg-amber-100 transition-colors"
                               title="비공개(초안)로 전환"
                             >
@@ -802,17 +820,11 @@ export default function BlogTab() {
                 </button>
                 {previewPost.status === "draft" && (
                   <button
-                    onClick={() => {
-                      publishPosts([previewPost.id]);
-                      showToast(`'${previewPost.title}' 글이 공식 블로그에 발행되었습니다!`, "success");
-                      setPreviewPost(null);
-                      loadData();
-                      setActiveSubTab("published");
-                    }}
+                    onClick={() => { void handleSingleAction('publish', previewPost); }}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1d4ed8] text-white hover:bg-blue-700 shadow-xs"
                   >
                     <Send size={13} />
-                    <span>지금 공식 발행하기</span>
+                    <span>공개 배포 요청</span>
                   </button>
                 )}
               </div>

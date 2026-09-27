@@ -72,13 +72,33 @@ for (const item of DEV_ONLY_ROUTES) {
 }
 
 let buildSuccess = false;
+const BLOG_SNAPSHOT_PATH = path.join(__dirname, 'src', 'generated', 'blogSnapshot.json');
+const originalBlogSnapshot = fs.existsSync(BLOG_SNAPSHOT_PATH)
+  ? fs.readFileSync(BLOG_SNAPSHOT_PATH)
+  : null;
 try {
+  execSync('node blog-build-snapshot.js', { stdio: 'inherit', env: process.env });
   console.log('[web-build] next build 시작...');
-  execSync('npx next build', { stdio: 'inherit', env: { ...process.env, ASSET_PREFIX: '' } });
+  execSync('npx next build', {
+    stdio: 'inherit',
+    env: { ...process.env, ASSET_PREFIX: '', NEXT_BUILD_DIR: '.next-web-build' },
+  });
+  // Next.js의 output:export는 별도 distDir에 정적 결과물을 둔다.
+  // Cloudflare Pages가 사용하는 기존 out/ 경로로 성공한 빌드만 복사한다.
+  const exportedDir = path.join(__dirname, '.next-web-build');
+  const outputDir = path.join(__dirname, 'out');
+  if (!fs.existsSync(path.join(exportedDir, 'index.html'))) {
+    throw new Error('정적 빌드 결과(index.html)를 찾을 수 없습니다.');
+  }
+  if (fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
+  fs.cpSync(exportedDir, outputDir, { recursive: true });
   buildSuccess = true;
 } catch (err) {
   console.error('[web-build] 빌드 실패:', err.message);
 } finally {
+  // 빌드 결과물에는 DB 스냅샷을 사용하되 작업 트리의 시드 데이터는 복원한다.
+  if (originalBlogSnapshot) fs.writeFileSync(BLOG_SNAPSHOT_PATH, originalBlogSnapshot);
+  else if (fs.existsSync(BLOG_SNAPSHOT_PATH)) fs.rmSync(BLOG_SNAPSHOT_PATH);
   console.log('[web-build] 제외된 라우트들을 원본 위치로 복원합니다...');
   for (const item of DEV_ONLY_ROUTES) {
     const src = path.join(BACKUP_DIR, item.route);

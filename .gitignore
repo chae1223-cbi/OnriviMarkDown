@@ -10,6 +10,7 @@ build/
 .next/
 **/out/
 **/.next/
+**/.next-web-build/
 
 # TypeScript incremental build info (typecheck 시마다 재생성)
 **/tsconfig.tsbuildinfo
@@ -45,4 +46,3 @@ db/onrivi_knowledge.db
 # 임시 스크립트 및 스크래치 폴더
 scratch/
 scripts/patches/
-
