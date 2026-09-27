@@ -5,13 +5,14 @@
 // 🚨 @PATCH : **2026-09-26** — [헤더 전체 메뉴 복원 동기화]: 헤더 카테고리 네비게이션에 '전체' 탭 복원 및 메인 검색창과의 연동 동기화
 // 🚨 @PATCH : **2026-09-26** — [본문 검색바 탑재 및 카테고리/버튼 정리]: 본문 카테고리 필 및 '직접 글 써보고 게시하기' 버튼 제거, 헤더의 검색을 본문 중앙 검색바로 이전
 // 🚨 @PATCH : **2026-09-26** — [블로그 헤더/푸터 블로그 메뉴 재구성 및 랜딩페이지 색상 적용]: BlogHeader 및 BlogFooter 랜딩페이지 색상(#0B0F19) 일원화 반영
-// 🔗 @CALLS : BlogHeader, BlogFooter, BlogFeaturedCard, BlogCard, getAllBlogPosts, BLOG_CATEGORIES
+// 🔗 @CALLS : BlogHeader, BlogFooter, BlogFeaturedCard, BlogCard, getAllBlogPosts, useBlogCategories
 // ====================================================================
 "use client";
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { BlogCategory, getAllBlogPosts, BLOG_CATEGORIES } from "@/lib/blogData";
+import { BlogCategory, getAllBlogPosts } from "@/lib/blogData";
+import { categoryName, useBlogCategories } from "@/lib/blogCategories";
 import { BlogHeader } from "@/components/blog/BlogHeader";
 import { BlogFooter } from "@/components/blog/BlogFooter";
 import { BlogFeaturedCard } from "@/components/blog/BlogFeaturedCard";
@@ -25,18 +26,18 @@ function BlogPageContent() {
   const queryParam = searchParams.get("search");
 
   const posts = getAllBlogPosts();
+  const categories = useBlogCategories();
   const [selectedCategory, setSelectedCategory] = useState<BlogCategory>("전체");
   const [searchQuery, setSearchQuery] = useState("");
 
   // URL 파라미터 초기 동기화
   useEffect(() => {
-    if (categoryParam && BLOG_CATEGORIES.includes(categoryParam as any)) {
-      setSelectedCategory(categoryParam as BlogCategory);
-    }
+    const matchedCategory = categories.find(category => category.value === categoryParam || category.name === categoryParam);
+    setSelectedCategory(matchedCategory?.value || '전체');
     if (queryParam) {
       setSearchQuery(queryParam);
     }
-  }, [categoryParam, queryParam]);
+  }, [categoryParam, queryParam, categories]);
 
   // 검색 및 카테고리 필터링
   const filteredPosts = useMemo(() => {
@@ -88,10 +89,10 @@ function BlogPageContent() {
             ONRIVI TECH BLOG & INSIGHTS
           </div>
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-950 dark:text-white">
-            마크다운 작성 노하우와 기술 인사이트
+            온리비 어서의 이야기와 기술
           </h1>
           <p className="mt-2 text-sm sm:text-base text-slate-600 dark:text-zinc-400 max-w-2xl leading-relaxed">
-            온리비 어서(Onrivi Author)로 마크다운을 200% 활용하는 실무 가이드부터 최신 기술 개발기까지 한눈에 확인하세요.
+            온리비 어서의 소개부터 문서 활용법과 기술 이야기까지 한눈에 확인하세요.
           </p>
         </div>
 
@@ -125,7 +126,7 @@ function BlogPageContent() {
             <div className="flex items-center gap-2 mt-3 text-xs text-slate-600 dark:text-zinc-400 font-medium">
               <span>카테고리 필터:</span>
               <span className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 text-[#1d4ed8] dark:text-blue-400 font-extrabold border border-blue-200 dark:border-blue-900">
-                {selectedCategory}
+                {categoryName(selectedCategory, categories)}
               </span>
               <button
                 onClick={() => setSelectedCategory("전체")}

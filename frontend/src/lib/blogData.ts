@@ -17,7 +17,7 @@ export interface BlogPost {
   title: string;
   excerpt: string;
   content: string;
-  category: "마크다운 가이드" | "기술 인사이트" | "사용자 활용";
+  category: string; // BLOG_CATEGORY 공통코드의 code_value
   author: string;
   publishedAt: string; // YYYY.MM.DD
   readingTime: string; // 예: "3분"
@@ -29,14 +29,7 @@ export interface BlogPost {
   deploymentStatus?: "draft" | "pending" | "live" | "failed";
 }
 
-export const BLOG_CATEGORIES = [
-  "전체",
-  "마크다운 가이드",
-  "기술 인사이트",
-  "사용자 활용",
-] as const;
-
-export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
+export type BlogCategory = string;
 
 /**
  * 공개 발행된 모든 블로그 포스트를 조회합니다. (초안 draft 제외)

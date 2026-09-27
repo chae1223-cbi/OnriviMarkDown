@@ -10,6 +10,7 @@
 import React from "react";
 import Link from "next/link";
 import { BlogPost, getPostThumbnail, DEFAULT_BLOG_COVER } from "@/lib/blogData";
+import { categoryName, useBlogCategories } from "@/lib/blogCategories";
 import { Calendar, Clock, ArrowRight, Sparkles } from "lucide-react";
 
 interface BlogFeaturedCardProps {
@@ -18,6 +19,7 @@ interface BlogFeaturedCardProps {
 
 export function BlogFeaturedCard({ post }: BlogFeaturedCardProps) {
   const thumbnailSrc = getPostThumbnail(post);
+  const categoryLabel = categoryName(post.category, useBlogCategories());
 
   return (
     <section className="mb-14 sm:mb-16">
@@ -49,7 +51,7 @@ export function BlogFeaturedCard({ post }: BlogFeaturedCardProps) {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-extrabold bg-blue-50 dark:bg-blue-950/60 text-[#1d4ed8] dark:text-blue-400">
-                  {post.category}
+                  {categoryLabel}
                 </span>
                 <span className="text-xs font-semibold text-slate-400">FEATURED ARTICLE</span>
               </div>

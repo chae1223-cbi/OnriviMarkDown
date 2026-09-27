@@ -10,9 +10,11 @@
 import React from "react";
 import Link from "next/link";
 import { COMPANY_INFO, SITE_NAME } from "@/lib/constants";
+import { useBlogCategories } from "@/lib/blogCategories";
 
 export function BlogFooter() {
   const currentYear = new Date().getFullYear();
+  const categories = useBlogCategories().filter(category => category.active);
 
   return (
     <footer
@@ -74,30 +76,14 @@ export function BlogFooter() {
                   전체 글 보기
                 </Link>
               </li>
-              <li>
-                <Link
-                  href="/blog?category=마크다운 가이드"
-                  className="text-zinc-300 hover:text-[#60a5fa] transition-colors"
-                >
-                  마크다운 가이드
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/blog?category=기술 인사이트"
-                  className="text-zinc-300 hover:text-[#60a5fa] transition-colors"
-                >
-                  기술 인사이트
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/blog?category=사용자 활용"
-                  className="text-zinc-300 hover:text-[#60a5fa] transition-colors"
-                >
-                  사용자 활용
-                </Link>
-              </li>
+              {categories.map(category => (
+                <li key={category.value}>
+                  <Link href={`/blog?category=${encodeURIComponent(category.value)}`}
+                    className="text-zinc-300 hover:text-[#60a5fa] transition-colors">
+                    {category.name}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 

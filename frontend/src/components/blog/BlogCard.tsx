@@ -10,6 +10,7 @@
 import React from "react";
 import Link from "next/link";
 import { BlogPost, getPostThumbnail, DEFAULT_BLOG_COVER } from "@/lib/blogData";
+import { categoryName, useBlogCategories } from "@/lib/blogCategories";
 import { Clock, Calendar } from "lucide-react";
 
 interface BlogCardProps {
@@ -18,6 +19,7 @@ interface BlogCardProps {
 
 export function BlogCard({ post }: BlogCardProps) {
   const thumbnailSrc = getPostThumbnail(post);
+  const categoryLabel = categoryName(post.category, useBlogCategories());
 
   return (
     <article className="group relative flex flex-col bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden border border-slate-200/80 dark:border-zinc-800 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-blue-400 dark:hover:border-blue-500">
@@ -34,7 +36,7 @@ export function BlogCard({ post }: BlogCardProps) {
           />
           <div className="absolute top-3 left-3">
             <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#0B0F19]/80 backdrop-blur-md text-white border border-white/10 shadow-xs">
-              {post.category}
+              {categoryLabel}
             </span>
           </div>
         </div>
@@ -45,7 +47,7 @@ export function BlogCard({ post }: BlogCardProps) {
             {/* Category */}
             <div className="flex items-center gap-2 mb-2.5">
               <span className="text-xs font-bold text-[#1d4ed8] dark:text-blue-400 uppercase tracking-wide">
-                {post.category}
+                {categoryLabel}
               </span>
             </div>
 

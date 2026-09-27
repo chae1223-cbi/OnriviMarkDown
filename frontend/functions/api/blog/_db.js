@@ -36,6 +36,25 @@ export async function withBlogTransaction(env, work) {
   }
 }
 
+// 글에 저장하는 분류 코드는 활성 BLOG_CATEGORY 공통코드여야 한다.
+export async function requireBlogCategory(db, category) {
+  if (!/^[A-Z][A-Z0-9_]{1,63}$/.test(category)) {
+    const error = new Error('유효한 블로그 분류를 선택해 주세요.');
+    error.status = 400;
+    throw error;
+  }
+  const result = await db.query(`
+    SELECT 1 FROM public.common_codes c
+    JOIN public.common_code_groups g ON g.group_code = c.group_code
+    WHERE c.group_code = 'BLOG_CATEGORY' AND c.code_value = $1
+      AND c.is_use = true AND g.is_use = true`, [category]);
+  if (!result.rows.length) {
+    const error = new Error('사용할 수 없는 블로그 분류입니다. 공통코드를 확인해 주세요.');
+    error.status = 400;
+    throw error;
+  }
+}
+
 export async function getBlogUser(request, env) {
   const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
   if (!token || !env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return null;

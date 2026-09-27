@@ -13,6 +13,7 @@ import { BlogPost } from "@/lib/blogData";
 import { getAdminBlogPosts, changeBlogPublication, retryBlogDeployment } from "@/lib/blogApi";
 import { BlogCard } from "@/components/blog/BlogCard";
 import BlogDocumentImport from "./BlogDocumentImport";
+import { categoryName, useBlogCategories } from "@/lib/blogCategories";
 import { showToast } from "@/utils/toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -36,6 +37,7 @@ import {
 } from "lucide-react";
 
 export default function BlogTab() {
+  const categories = useBlogCategories();
   const [drafts, setDrafts] = useState<BlogPost[]>([]);
   const [published, setPublished] = useState<BlogPost[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<"drafts" | "published">("drafts");
@@ -175,27 +177,27 @@ export default function BlogTab() {
     try {
       const result = await changeBlogPublication('delete', [deleteConfirmTarget.id]);
       showToast(result.deployment === 'requested'
-        ? `'${deleteConfirmTarget.title}' 글의 삭제 배포를 요청했습니다.`
-        : '삭제 상태는 저장됐지만 배포 요청이 필요합니다.', 'info');
+        ? `'${deleteConfirmTarget.title}' 글과 개정 이력을 DB에서 삭제하고 공개 페이지 재배포를 요청했습니다.`
+        : '글과 개정 이력은 DB에서 삭제됐습니다. 공개 페이지는 배포를 다시 요청해 주세요.', 'info');
       await loadData();
+      setDeleteConfirmTarget(null);
     } catch (error) {
       showToast(error instanceof Error ? error.message : '삭제 처리 실패', 'error');
     }
-    setDeleteConfirmTarget(null);
   };
 
   // Filtered lists based on search
   const filteredDrafts = drafts.filter(
     (d) =>
       d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      categoryName(d.category, categories).toLowerCase().includes(searchQuery.toLowerCase()) ||
       d.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const filteredPublished = published.filter(
     (p) =>
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      categoryName(p.category, categories).toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
@@ -491,7 +493,7 @@ export default function BlogTab() {
 
                         <td className="p-4">
                           <span className="inline-block px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700">
-                            {draft.category}
+                            {categoryName(draft.category, categories)}
                           </span>
                         </td>
 
@@ -642,7 +644,7 @@ export default function BlogTab() {
 
                         <td className="p-4">
                           <span className="inline-block px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 dark:bg-blue-950 text-[#1d4ed8] dark:text-blue-400">
-                            {post.category}
+                            {categoryName(post.category, categories)}
                           </span>
                         </td>
 
@@ -776,7 +778,7 @@ export default function BlogTab() {
                 {previewMode === "rendered" ? (
                   <div className="p-6 bg-white dark:bg-zinc-900 rounded-3xl border border-slate-200 dark:border-zinc-800 shadow-2xs">
                     <span className="inline-block px-3 py-1 rounded-md text-xs font-extrabold bg-blue-50 dark:bg-blue-950 text-[#1d4ed8] mb-3">
-                      {previewPost.category}
+                      {categoryName(previewPost.category, categories)}
                     </span>
                     <h2 className="text-xl sm:text-2xl font-black text-zinc-950 dark:text-white mb-2">
                       {previewPost.title}
@@ -851,7 +853,7 @@ export default function BlogTab() {
               <strong className="text-zinc-900 dark:text-white">
                 &quot;{deleteConfirmTarget.title}&quot;
               </strong>
-              (이)가 로컬 목록에서 완전히 삭제되며 복구할 수 없습니다.
+              (이)가 DB에서 개정 이력과 함께 영구 삭제되며 복구할 수 없습니다.
             </p>
             <div className="flex justify-end gap-2.5">
               <button

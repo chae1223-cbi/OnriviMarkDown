@@ -1,5 +1,5 @@
 import { checkAdminAuth } from './_shared.js';
-import { withBlogTransaction, blogJson } from '../blog/_db.js';
+import { withBlogTransaction, requireBlogCategory, blogJson } from '../blog/_db.js';
 
 function verifiedAdminToken(request) {
   const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
@@ -58,7 +58,7 @@ export async function onRequestGet({ request, env }) {
 
 // ====================================================================
 // 📊 [OMD-IO-0043] frontend/functions/api/admin/blog.js ➔ onRequestPost
-// 🎯 @KICK  : 여러 글의 발행·비공개·삭제 의도를 단일 DB 트랜잭션으로 적용한다.
+// 🎯 @KICK  : 여러 글의 발행·비공개·영구 삭제를 단일 DB 트랜잭션으로 적용한다.
 // 🛡️ @GUARD : 모든 ID를 잠근 뒤 일치 여부를 검사하여 일부만 변경되는 상태를 막는다.
 // 🔗 @CALLS : requireAdmin(), withBlogTransaction(), Client.query(), fetch(), blogJson()
 // ====================================================================
@@ -79,11 +79,12 @@ export async function onRequestPost({ request, env }) {
       const tags = Array.isArray(post.tags) ? post.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 20) : [];
       if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 120 ||
           !title || title.length > 200 || !content.trim() || content.length > 300000 ||
-          excerpt.length > 600 || !['마크다운 가이드', '기술 인사이트', '사용자 활용'].includes(category) ||
+          excerpt.length > 600 ||
           (coverImage && coverImage.length > 2048)) {
         return blogJson({ error: '문서 제목, 주소, 분류 또는 본문을 확인해 주세요.' }, 400);
       }
       const created = await withBlogTransaction(env, async db => {
+        await requireBlogCategory(db, category);
         const inserted = await db.query(
           'INSERT INTO public.blog_posts (slug, author_id, category) VALUES ($1, $2, $3) RETURNING id',
           [slug, auth.user.id, category],
@@ -131,9 +132,17 @@ export async function onRequestPost({ request, env }) {
           deployment_status = CASE WHEN live_revision_id IS NULL THEN 'draft' ELSE 'pending' END,
           updated_at = now() WHERE id = ANY($1::uuid[])`, [ids]);
       } else {
-        await db.query(`UPDATE public.blog_posts SET desired_public = false,
-          deployment_status = CASE WHEN live_revision_id IS NULL THEN 'draft' ELSE 'pending' END,
-          deleted_at = now(), updated_at = now() WHERE id = ANY($1::uuid[])`, [ids]);
+        // 개정 이력과 글을 같은 트랜잭션에서 명시적으로 삭제한다.
+        // 기존 슬러그도 즉시 해제하며, 실패하면 withBlogTransaction이 전체 삭제를 롤백한다.
+        await db.query('DELETE FROM public.blog_post_revisions WHERE post_id = ANY($1::uuid[])', [ids]);
+        const deleted = await db.query(
+          'DELETE FROM public.blog_posts WHERE id = ANY($1::uuid[]) RETURNING id', [ids],
+        );
+        if (deleted.rows.length !== ids.length) {
+          const error = new Error('일부 게시글을 삭제하지 못했습니다.');
+          error.status = 409;
+          throw error;
+        }
       }
     });
 

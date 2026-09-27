@@ -16,6 +16,8 @@ import { BlogHeader } from "@/components/blog/BlogHeader";
 import { BlogFooter } from "@/components/blog/BlogFooter";
 import { BlogCard } from "@/components/blog/BlogCard";
 import { extractFrontmatter } from "@/lib/frontmatter";
+import { categoryName, useBlogCategories } from "@/lib/blogCategories";
+import { getBlogProfileClass, hancomBlogCss } from "@/lib/blogProfileStyle";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -41,6 +43,7 @@ export default function BlogDetailPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const categories = useBlogCategories();
 
   useEffect(() => {
     setMounted(true);
@@ -111,7 +114,8 @@ export default function BlogDetailPage() {
 
   const thumbnailSrc = getPostThumbnail(post);
   // 문서 뷰에서는 서식 프로필 등 원고 메타정보를 숨기고, 원본 보기에는 그대로 보존한다.
-  const renderedContent = extractFrontmatter(post.content).content;
+  const { content: renderedContent, data: frontmatter } = extractFrontmatter(post.content);
+  const blogProfileClass = getBlogProfileClass(frontmatter);
 
   return (
     <div
@@ -192,7 +196,7 @@ export default function BlogDetailPage() {
               블로그
             </Link>
             <span>/</span>
-            <span className="text-[#1d4ed8] dark:text-blue-400 font-extrabold">{post.category}</span>
+            <span className="text-[#1d4ed8] dark:text-blue-400 font-extrabold">{categoryName(post.category, categories)}</span>
           </div>
 
           {/* Title */}
@@ -240,7 +244,8 @@ export default function BlogDetailPage() {
         {/* Content Viewer: [문서 뷰] vs [마크다운으로 보기] */}
         {viewMode === "rendered" ? (
           /* 1. 일반 리치 문서 렌더링 뷰 */
-          <article className="prose prose-slate lg:prose-lg dark:prose-invert max-w-none mb-12 sm:mb-16 leading-relaxed">
+          <article className={`${blogProfileClass || 'prose prose-slate lg:prose-lg dark:prose-invert'} max-w-none mb-12 sm:mb-16 leading-relaxed`}>
+            {blogProfileClass && <style>{hancomBlogCss}</style>}
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {renderedContent}
             </ReactMarkdown>

@@ -1,12 +1,13 @@
 -- 온리비 블로그 원본 저장소. Supabase SQL Editor에서 전체를 한 번 실행한다.
 -- 함수, 트리거, 저장 프로시저를 만들지 않는다. 스키마 변경은 한 트랜잭션으로 적용된다.
+-- common_codes 생성 후 blog_category_common_codes.sql을 실행해 BLOG_CATEGORY FK를 연결한다.
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.blog_posts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   slug text NOT NULL UNIQUE CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   author_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  category text NOT NULL CHECK (category IN ('마크다운 가이드', '기술 인사이트', '사용자 활용')),
+  category text NOT NULL, -- BLOG_CATEGORY의 code_value
   is_featured boolean NOT NULL DEFAULT false,
   desired_public boolean NOT NULL DEFAULT false,
   deployment_status text NOT NULL DEFAULT 'draft' CHECK (deployment_status IN ('draft', 'pending', 'live', 'failed')),

@@ -9,14 +9,14 @@
 // ====================================================================
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   BlogPost,
   extractPostFromMarkdown,
-  BLOG_CATEGORIES,
   BlogCategory,
 } from "@/lib/blogData";
+import { useBlogCategories } from "@/lib/blogCategories";
 import { saveBlogDraft } from "@/lib/blogApi";
 import { BlogCard } from "@/components/blog/BlogCard";
 import ReactMarkdown from "react-markdown";
@@ -56,7 +56,9 @@ export default function BlogPostModal({
   // Form states
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
-  const [category, setCategory] = useState<BlogCategory>("마크다운 가이드");
+  const [category, setCategory] = useState<BlogCategory>("");
+  const allCategories = useBlogCategories();
+  const categories = useMemo(() => allCategories.filter(item => item.active), [allCategories]);
   const [excerpt, setExcerpt] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [tagsInput, setTagsInput] = useState("마크다운, 팁");
@@ -66,6 +68,12 @@ export default function BlogPostModal({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (categories.length) {
+      setCategory(current => categories.some(item => item.value === current) ? current : categories[0].value);
+    }
+  }, [categories]);
 
   // 모달이 열릴 때 현재 마크다운 본문에서 메타데이터 자동 추출
   useEffect(() => {
@@ -95,7 +103,7 @@ export default function BlogPostModal({
     title: title || "제목을 입력해주세요",
     excerpt: excerpt || "본문 첫 문단이 여기에 요약문으로 표시됩니다.",
     content: markdownContent,
-    category: (category === "전체" ? "마크다운 가이드" : category) as any,
+    category,
     author: "Onrivi Author",
     publishedAt: new Date().toISOString().slice(0, 10).replace(/-/g, "."),
     readingTime: `${Math.max(1, Math.ceil(markdownContent.length / 400))}분`,
@@ -105,6 +113,10 @@ export default function BlogPostModal({
   };
 
   const handlePublish = async () => {
+    if (!categories.some(item => item.value === category)) {
+      alert('블로그 분류를 불러온 뒤 선택해 주세요.');
+      return;
+    }
     if (!title.trim()) {
       alert("포스트 제목을 입력해주세요.");
       return;
@@ -116,7 +128,7 @@ export default function BlogPostModal({
         title: title.trim(),
         excerpt: excerpt.trim(),
         content: markdownContent,
-        category: (category === "전체" ? "마크다운 가이드" : category) as any,
+        category,
         author: "Onrivi Author",
         coverImage: coverImage.trim() || undefined,
         gradientBg: "from-blue-700 via-indigo-700 to-slate-900",
@@ -296,9 +308,10 @@ export default function BlogPostModal({
                     onChange={(e) => setCategory(e.target.value as any)}
                     className="w-full px-3 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 focus:outline-hidden focus:border-[#1d4ed8] text-slate-900 dark:text-white"
                   >
-                    {BLOG_CATEGORIES.filter((c) => c !== "전체").map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
+                    <option value="" disabled>분류를 선택해 주세요</option>
+                    {categories.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.name}
                       </option>
                     ))}
                   </select>

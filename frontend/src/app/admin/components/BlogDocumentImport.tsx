@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { FileUp } from 'lucide-react';
 import type { BlogPost } from '@/lib/blogData';
 import { createAdminBlogDraft } from '@/lib/blogApi';
+import { useBlogCategories } from '@/lib/blogCategories';
 import { showToast } from '@/utils/toast';
 
 type Category = BlogPost['category'];
@@ -43,6 +44,7 @@ export default function BlogDocumentImport({ onSaved }: { onSaved: () => Promise
   const fileInput = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<DraftForm | null>(null);
   const [saving, setSaving] = useState(false);
+  const categories = useBlogCategories().filter(category => category.active);
 
   const selectFile = async (file?: File) => {
     if (!file) return;
@@ -60,13 +62,14 @@ export default function BlogDocumentImport({ onSaved }: { onSaved: () => Promise
       filename: file.name, content,
       title: heading || file.name.replace(/\.(md|markdown)$/i, ''),
       slug: suggestSlug(file.name), excerpt: suggestExcerpt(content),
-      category: '마크다운 가이드', tags: '',
+      category: categories[0]?.value || '', tags: '',
     });
   };
 
   const save = async () => {
     if (!form) return;
-    if (!form.title.trim() || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.slug) || !form.excerpt.trim()) {
+    if (!form.title.trim() || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.slug) || !form.excerpt.trim() ||
+        !categories.some(category => category.value === form.category)) {
       showToast('제목·요약과 영문 소문자/숫자/하이픈 형식의 글 주소를 확인해 주세요.', 'error');
       return;
     }
@@ -116,7 +119,8 @@ export default function BlogDocumentImport({ onSaved }: { onSaved: () => Promise
           <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">분류
             <select value={form.category} onChange={event => setForm({ ...form, category: event.target.value as Category })}
               className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
-              <option>마크다운 가이드</option><option>기술 인사이트</option><option>사용자 활용</option>
+              <option value="" disabled>분류를 선택해 주세요</option>
+              {categories.map(category => <option key={category.value} value={category.value}>{category.name}</option>)}
             </select>
           </label>
           <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">태그 (쉼표로 구분)

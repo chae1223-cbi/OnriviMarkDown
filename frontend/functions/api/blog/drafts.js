@@ -1,6 +1,4 @@
-import { withBlogTransaction, getBlogUser, blogJson } from './_db.js';
-
-const CATEGORIES = new Set(['마크다운 가이드', '기술 인사이트', '사용자 활용']);
+import { withBlogTransaction, requireBlogCategory, getBlogUser, blogJson } from './_db.js';
 
 // ====================================================================
 // 📊 [OMD-IO-0041] frontend/functions/api/blog/drafts.js ➔ onRequestPost
@@ -22,11 +20,12 @@ export async function onRequestPost({ request, env }) {
     const tags = Array.isArray(body.tags) ? body.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 20) : [];
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 120 ||
         !title || title.length > 200 || excerpt.length > 600 || content.length > 300000 ||
-        !CATEGORIES.has(category) || (coverImage && coverImage.length > 2048)) {
+        (coverImage && coverImage.length > 2048)) {
       return blogJson({ error: '제목, 주소 또는 본문 입력값을 확인해 주세요.' }, 400);
     }
 
     const saved = await withBlogTransaction(env, async db => {
+      await requireBlogCategory(db, category);
       const existing = await db.query(
         'SELECT id, author_id, desired_public FROM public.blog_posts WHERE slug = $1 AND deleted_at IS NULL FOR UPDATE',
         [slug],
