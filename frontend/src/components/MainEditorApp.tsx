@@ -3553,28 +3553,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0031] MainEditorApp.tsx ➔ previewWheelSync
-  // 🎯 @KICK  : 분할 모드에서 미리보기 영역의 마우스 휠 이벤트를 에디터 스크롤로 전달
-  // 🛡️ @GUARD : 기본 스크롤 중지를 위해 passive:false로 e.preventDefault
-  // 🚨 @PATCH : None
-  // 🔗 @CALLS : editor.setScrollTop
+  // 🎯 @KICK  : 분할 모드에서는 미리보기 휠을 막고 에디터 스크롤만 동기화의 기준으로 사용
+  // 🛡️ @GUARD : 브라우저의 passive 휠 기본값을 피하기 위해 native listener를 passive:false로 등록
+  // 🚨 @PATCH : 2026-09-27 — 미리보기 휠을 에디터로 전달하던 동작 제거
+  // 🔗 @CALLS : WheelEvent.preventDefault
   // ====================================================================
   useEffect(() => {
     const previewEl = previewRef.current;
     if (!previewEl) return;
 
     const handleWheel = (e: WheelEvent) => {
-      if (previewModeRef.current === 'both' && editorRef.current) {
+      if (previewModeRef.current === 'both') {
         e.preventDefault();
-        const editor = editorRef.current;
-        const currentScrollTop = editor.getScrollTop();
-        editor.setScrollTop(currentScrollTop + e.deltaY);
       }
     };
 
-    previewEl.addEventListener('wheel', handleWheel, { passive: false });
+    previewEl.addEventListener('wheel', handleWheel, { passive: false, capture: true });
 
     return () => {
-      previewEl.removeEventListener('wheel', handleWheel);
+      previewEl.removeEventListener('wheel', handleWheel, true);
     };
   }, [previewMode]);
 
@@ -8693,6 +8690,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
                         onScroll={(e) => {
+                          // 분할 모드에서는 에디터 → 미리보기 단방향 동기화만 허용한다.
+                          if (previewModeRef.current === 'both') return;
                           const target = e.target as HTMLElement;
 
                           // 💡 [요구사항 3 / SYNC-03] 미리보기 최상단(0점) 복귀 시 스크롤 락에 관계없이 에디터를 자석처럼 최상단 영점으로 복구
