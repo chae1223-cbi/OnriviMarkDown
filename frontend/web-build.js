@@ -73,11 +73,22 @@ for (const item of DEV_ONLY_ROUTES) {
 
 let buildSuccess = false;
 const BLOG_SNAPSHOT_PATH = path.join(__dirname, 'src', 'generated', 'blogSnapshot.json');
+const BLOG_DETAIL_ROUTE = path.join(APP_DIR, 'blog', '[slug]');
+const BLOG_DETAIL_BACKUP = path.join(BACKUP_DIR, 'blog-detail');
+let blogDetailRouteExcluded = false;
 const originalBlogSnapshot = fs.existsSync(BLOG_SNAPSHOT_PATH)
   ? fs.readFileSync(BLOG_SNAPSHOT_PATH)
   : null;
 try {
   execSync('node blog-build-snapshot.js', { stdio: 'inherit', env: process.env });
+  // 공개 글이 없으면 정적 생성할 slug도 없다. Next.js는 빈 generateStaticParams를
+  // 동적 경로 누락으로 판단하므로 이번 빌드에서만 상세 경로를 제외한다.
+  if (JSON.parse(fs.readFileSync(BLOG_SNAPSHOT_PATH, 'utf8')).length === 0) {
+    fs.cpSync(BLOG_DETAIL_ROUTE, BLOG_DETAIL_BACKUP, { recursive: true });
+    fs.rmSync(BLOG_DETAIL_ROUTE, { recursive: true, force: true });
+    blogDetailRouteExcluded = true;
+    console.log('[web-build] 공개 글 0개: 블로그 상세 경로 생성을 건너뜁니다.');
+  }
   console.log('[web-build] next build 시작...');
   execSync('npx next build', {
     stdio: 'inherit',
@@ -99,6 +110,10 @@ try {
   // 빌드 결과물에는 DB 스냅샷을 사용하되 작업 트리의 시드 데이터는 복원한다.
   if (originalBlogSnapshot) fs.writeFileSync(BLOG_SNAPSHOT_PATH, originalBlogSnapshot);
   else if (fs.existsSync(BLOG_SNAPSHOT_PATH)) fs.rmSync(BLOG_SNAPSHOT_PATH);
+  if (blogDetailRouteExcluded) {
+    fs.cpSync(BLOG_DETAIL_BACKUP, BLOG_DETAIL_ROUTE, { recursive: true });
+    console.log('[web-build] 블로그 상세 경로를 복원했습니다.');
+  }
   console.log('[web-build] 제외된 라우트들을 원본 위치로 복원합니다...');
   for (const item of DEV_ONLY_ROUTES) {
     const src = path.join(BACKUP_DIR, item.route);
