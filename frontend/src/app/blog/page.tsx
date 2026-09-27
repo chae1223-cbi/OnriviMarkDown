@@ -60,9 +60,10 @@ function BlogPageContent() {
     return posts.find((p) => p.isFeatured) || posts[0] || null;
   }, [posts, selectedCategory, searchQuery]);
 
-  // 그리드에 표시할 최신글 목록 (Featured 글은 중복 방지를 위해 전체 탭일 때 분리)
+  // 추천 글만 발행된 경우에도 최신글을 0개로 표시하지 않도록 목록에 남긴다.
+  // 다른 글이 있을 때만 추천 글을 그리드에서 분리해 중복 노출을 줄인다.
   const gridPosts = useMemo(() => {
-    if (featuredPost && selectedCategory === "전체" && !searchQuery) {
+    if (featuredPost && filteredPosts.length > 1 && selectedCategory === "전체" && !searchQuery) {
       return filteredPosts.filter((p) => p.id !== featuredPost.id);
     }
     return filteredPosts;
