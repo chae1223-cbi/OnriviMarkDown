@@ -1,4 +1,14 @@
 @import url('https://cdn.jsdelivr.net/gh/joungkyun/font-d2coding/d2coding.css');
+@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&display=swap');
+
+/* 웹과 설치형 앱이 같은 글꼴 파일을 사용하도록 Pretendard를 로컬 정적 자산으로 제공한다. */
+@font-face {
+  font-family: 'Pretendard Variable';
+  src: url('/fonts/pretendard/PretendardVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 45 920;
+  font-display: swap;
+}
 
 /* ===================================================================
  * 🚨 @PATCH : **2026-09-26** — [인용구(blockquote) 내부 중첩 리스트 들여쓰기 여백 보장]: 인용구 내부 중첩 리스트(ul ul, ol ol)가 상위 blockquote ul 패딩(2.25rem)에 묶여 일렬 정렬되던 문제를 차단하고 계층별 padding-left(1.5rem)를 보장하여 들여쓰기 위계 복원
@@ -196,9 +206,6 @@
   font-style: normal;
   font-display: swap;
 }
-
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
-@import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;

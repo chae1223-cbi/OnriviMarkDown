@@ -433,6 +433,15 @@ export function useMonacoSetup(deps: any) {
                     }
                   });
 
+                  // 데스크톱의 로컬 글꼴이 처음 로드된 뒤 Monaco의 글자 폭을 다시 계산한다.
+                  // 초기 대체 글꼴 기준으로 잡힌 줄바꿈·스크롤 길이가 웹과 달라지는 일을 막는다.
+                  document.fonts.load("500 16px 'Pretendard Variable'").then(() => {
+                    if (editorRef.current === editor) {
+                      monaco.editor.remeasureFonts();
+                      editor.layout();
+                    }
+                  }).catch(() => undefined);
+
                   // 💡 [테마 연동 가드] 비동기 세션 복원(restoreSettings)과 에디터 마운트 시차로 인한 테마 미적용 레이스 컨디션 방지
                   if (themePalette) {
                     monaco.editor.setTheme(themePalette);
