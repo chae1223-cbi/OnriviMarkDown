@@ -70,24 +70,22 @@ export async function onRequestPost({ request, env }) {
     const action = String(body.action || '');
     if (action === 'create-draft') {
       const post = body.post || {};
-      const slug = String(post.slug || '').trim().toLowerCase();
       const title = String(post.title || '').trim();
       const excerpt = String(post.excerpt || '').trim();
       const content = String(post.content || '');
       const category = String(post.category || '');
       const coverImage = String(post.coverImage || '').trim() || null;
       const tags = Array.isArray(post.tags) ? post.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 20) : [];
-      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 120 ||
-          !title || title.length > 200 || !content.trim() || content.length > 300000 ||
+      if (!title || title.length > 200 || !content.trim() || content.length > 300000 ||
           excerpt.length > 600 ||
           (coverImage && coverImage.length > 2048)) {
-        return blogJson({ error: '문서 제목, 주소, 분류 또는 본문을 확인해 주세요.' }, 400);
+        return blogJson({ error: '문서 제목, 분류 또는 본문을 확인해 주세요.' }, 400);
       }
       const created = await withBlogTransaction(env, async db => {
         await requireBlogCategory(db, category);
         const inserted = await db.query(
-          'INSERT INTO public.blog_posts (slug, author_id, category) VALUES ($1, $2, $3) RETURNING id',
-          [slug, auth.user.id, category],
+          'INSERT INTO public.blog_posts (author_id, category) VALUES ($1, $2) RETURNING id, slug',
+          [auth.user.id, category],
         );
         const postId = inserted.rows[0].id;
         const revision = await db.query(
@@ -98,7 +96,7 @@ export async function onRequestPost({ request, env }) {
         );
         await db.query('UPDATE public.blog_posts SET target_revision_id = $2 WHERE id = $1',
           [postId, revision.rows[0].id]);
-        return { id: postId, slug };
+        return { id: postId, slug: inserted.rows[0].slug };
       });
       return blogJson({ post: created }, 201);
     }

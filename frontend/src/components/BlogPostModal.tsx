@@ -1,7 +1,7 @@
 // ====================================================================
 // 📊 [OMD-UI-BlogPostModal-0001] BlogPostModal ➔ 에디터 마크다운 블로그 미리보기 및 즉시 발행 모달
 // 🎯 @KICK  : 온리비 어서에서 작성 중인 마크다운을 분석하여 한컴 블로그 스타일 카드 및 아티클로 실시간 미리보고 즉시 블로그에 게시하는 통합 관리 모달
-// 🛡️ @GUARD : 포털 렌더링, 키다운 전파 차단(Monaco 충돌 방지), 제목/슬러그 필수 입력 유효성 검증
+// 🛡️ @GUARD : 포털 렌더링, 키다운 전파 차단(Monaco 충돌 방지), 제목 필수 입력 유효성 검증
 // 🚨 @PATCH : **2026-09-26** — [본문 첫 이미지 썸네일 자동 감지]: 마크다운 본문 내 첫 이미지 자동 추출 및 커버 이미지 기본값 설정 연동
 // 🚨 @PATCH : **2026-09-26** — [에디터 블로그 초안 저장 기능 표준화]: 일반 사용자의 임의 직발행을 방지하고 관리자 승인 대기 초안(draft)으로 안전하게 저장되도록 버튼 텍스트 및 안내 개선
 // 🚨 @PATCH : **2026-09-26** — [에디터 블로그 미리보기 및 발행 모달 신설]: 실시간 블로그 카드 미리보기 탭, 메타데이터 자동 추출 및 원클릭 로컬스토리지 블로그 발행 지원
@@ -55,13 +55,13 @@ export default function BlogPostModal({
 
   // Form states
   const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
   const [category, setCategory] = useState<BlogCategory>("");
   const allCategories = useBlogCategories();
   const categories = useMemo(() => allCategories.filter(item => item.active), [allCategories]);
   const [excerpt, setExcerpt] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [tagsInput, setTagsInput] = useState("마크다운, 팁");
+  const [isSaving, setIsSaving] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
   const [publishedSlug, setPublishedSlug] = useState("");
 
@@ -80,9 +80,9 @@ export default function BlogPostModal({
     if (isOpen) {
       const extracted = extractPostFromMarkdown(markdownContent, currentFileName);
       setTitle(extracted.title);
-      setSlug(extracted.slug);
       setExcerpt(extracted.excerpt);
       setCoverImage(extracted.coverImage || "");
+      setIsSaving(false);
       setIsPublished(false);
       setPublishedSlug("");
     }
@@ -98,8 +98,8 @@ export default function BlogPostModal({
 
   // 미리보기용 임시 포스트 객체
   const previewPost: BlogPost = {
-    id: `preview-${slug}`,
-    slug: slug || "preview-slug",
+    id: "preview",
+    slug: publishedSlug || "preview-slug",
     title: title || "제목을 입력해주세요",
     excerpt: excerpt || "본문 첫 문단이 여기에 요약문으로 표시됩니다.",
     content: markdownContent,
@@ -113,6 +113,7 @@ export default function BlogPostModal({
   };
 
   const handlePublish = async () => {
+    if (isSaving || isPublished) return;
     if (!categories.some(item => item.value === category)) {
       alert('블로그 분류를 불러온 뒤 선택해 주세요.');
       return;
@@ -122,9 +123,9 @@ export default function BlogPostModal({
       return;
     }
 
+    setIsSaving(true);
     try {
       const saved = await saveBlogDraft({
-        slug: slug.trim() || `post-${Date.now()}`,
         title: title.trim(),
         excerpt: excerpt.trim(),
         content: markdownContent,
@@ -140,6 +141,8 @@ export default function BlogPostModal({
       setPublishedSlug(saved.slug);
     } catch (err) {
       alert(err instanceof Error ? err.message : "블로그 초안 저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -217,7 +220,7 @@ export default function BlogPostModal({
                     블로그 초안(Draft)으로 안전하게 저장되었습니다!
                   </p>
                   <p className="text-[11px] text-blue-600 dark:text-blue-300">
-                    관리자 페이지(/admin?tab=blog)에서 초안을 검토하고 선택하여 정식 발행할 수 있습니다.
+                    주소 {publishedSlug} · 관리자 페이지(/admin?tab=blog)에서 초안을 검토하고 선택하여 정식 발행할 수 있습니다.
                   </p>
                 </div>
               </div>
@@ -297,7 +300,7 @@ export default function BlogPostModal({
                 />
               </div>
 
-              {/* Category & Slug */}
+              {/* 분류를 선택하고 주소는 저장 시 DB에서 자동 발급한다. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 mb-1.5">
@@ -319,15 +322,11 @@ export default function BlogPostModal({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-zinc-300 mb-1.5">
-                    URL 슬러그 (영문/숫자/하이픈)
+                    글 주소
                   </label>
-                  <input
-                    type="text"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    placeholder="my-first-post"
-                    className="w-full px-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 focus:outline-hidden focus:border-[#1d4ed8] text-slate-900 dark:text-white"
-                  />
+                  <p className="w-full px-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300">
+                    {publishedSlug || "저장할 때 자동 발급됩니다. 예: post-000001"}
+                  </p>
                 </div>
               </div>
 
@@ -393,10 +392,11 @@ export default function BlogPostModal({
 
             <button
               onClick={handlePublish}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1d4ed8] hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all active:scale-95"
+              disabled={isSaving || isPublished}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#1d4ed8] hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Send size={15} />
-              <span>블로그 초안으로 저장하기</span>
+              <span>{isPublished ? "초안 저장 완료" : isSaving ? "저장 중..." : "블로그 초안으로 저장하기"}</span>
             </button>
           </div>
         </div>

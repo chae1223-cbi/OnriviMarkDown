@@ -10,20 +10,12 @@ import { showToast } from '@/utils/toast';
 type Category = BlogPost['category'];
 type DraftForm = {
   title: string;
-  slug: string;
   excerpt: string;
   category: Category;
   tags: string;
   content: string;
   filename: string;
 };
-
-// 영문 파일명은 읽기 쉬운 주소로, 한글 파일명은 유효한 고유 후보 주소로 바꾼다.
-function suggestSlug(filename: string): string {
-  const stem = filename.replace(/\.(md|markdown)$/i, '').toLowerCase();
-  const latin = stem.normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return latin || `post-${Date.now()}`;
-}
 
 // 첫 제목과 YAML 머리말을 제외한 첫 문단을 요약 후보로 제안한다.
 function suggestExcerpt(markdown: string): string {
@@ -61,29 +53,29 @@ export default function BlogDocumentImport({ onSaved }: { onSaved: () => Promise
     setForm({
       filename: file.name, content,
       title: heading || file.name.replace(/\.(md|markdown)$/i, ''),
-      slug: suggestSlug(file.name), excerpt: suggestExcerpt(content),
+      excerpt: suggestExcerpt(content),
       category: categories[0]?.value || '', tags: '',
     });
   };
 
   const save = async () => {
     if (!form) return;
-    if (!form.title.trim() || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.slug) || !form.excerpt.trim() ||
+    if (!form.title.trim() || !form.excerpt.trim() ||
         !categories.some(category => category.value === form.category)) {
-      showToast('제목·요약과 영문 소문자/숫자/하이픈 형식의 글 주소를 확인해 주세요.', 'error');
+      showToast('제목·요약·분류를 확인해 주세요.', 'error');
       return;
     }
     setSaving(true);
     try {
-      await createAdminBlogDraft({
-        title: form.title.trim(), slug: form.slug.trim(), excerpt: form.excerpt.trim(),
+      const saved = await createAdminBlogDraft({
+        title: form.title.trim(), excerpt: form.excerpt.trim(),
         category: form.category, content: form.content,
         tags: form.tags.split(',').map(tag => tag.trim()).filter(Boolean),
       });
       setForm(null);
       if (fileInput.current) fileInput.current.value = '';
       await onSaved();
-      showToast('문서를 초안으로 저장했습니다. 목록에서 선택해 공개 배포를 요청할 수 있습니다.', 'success');
+      showToast(`초안을 저장했습니다. 글 주소: ${saved.post.slug}`, 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : '문서 초안 저장 실패', 'error');
     } finally {
@@ -112,10 +104,11 @@ export default function BlogDocumentImport({ onSaved }: { onSaved: () => Promise
             <input value={form.title} maxLength={200} onChange={event => setForm({ ...form, title: event.target.value })}
               className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
           </label>
-          <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">글 주소 (영문 소문자·숫자·하이픈)
-            <input value={form.slug} maxLength={120} onChange={event => setForm({ ...form, slug: event.target.value.toLowerCase() })}
-              className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" />
-          </label>
+          <div className="text-xs font-bold text-zinc-700 dark:text-zinc-300">글 주소
+            <p className="mt-1 rounded-lg border border-slate-200 bg-slate-50 p-2 font-normal text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              저장할 때 자동 발급됩니다. 예: post-000001
+            </p>
+          </div>
           <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">분류
             <select value={form.category} onChange={event => setForm({ ...form, category: event.target.value as Category })}
               className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">

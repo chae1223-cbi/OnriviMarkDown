@@ -2,8 +2,8 @@ import { withBlogTransaction, requireBlogCategory, getBlogUser, blogJson } from 
 
 // ====================================================================
 // 📊 [OMD-IO-0041] frontend/functions/api/blog/drafts.js ➔ onRequestPost
-// 🎯 @KICK  : 로그인 사용자의 블로그 초안을 게시글·리비전 한 트랜잭션으로 저장한다.
-// 🛡️ @GUARD : 소유자와 공개 상태를 확인하고 슬러그 중복·입력 길이를 검증한다.
+// 🎯 @KICK  : 로그인 사용자의 블로그 초안을 DB 자동번호 주소와 함께 한 트랜잭션으로 저장한다.
+// 🛡️ @GUARD : 분류와 입력 길이를 검증하고 주소는 클라이언트 값 대신 DB 기본값으로 발급한다.
 // 🔗 @CALLS : getBlogUser(), withBlogTransaction(), Client.query(), blogJson()
 // ====================================================================
 export async function onRequestPost({ request, env }) {
@@ -11,41 +11,24 @@ export async function onRequestPost({ request, env }) {
     const user = await getBlogUser(request, env);
     if (!user?.id) return blogJson({ error: '로그인이 필요합니다.' }, 401);
     const body = await request.json();
-    const slug = String(body.slug || '').trim().toLowerCase();
     const title = String(body.title || '').trim();
     const excerpt = String(body.excerpt || '').trim();
     const content = String(body.content || '');
     const category = String(body.category || '');
     const coverImage = String(body.coverImage || '').trim() || null;
     const tags = Array.isArray(body.tags) ? body.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 20) : [];
-    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 120 ||
-        !title || title.length > 200 || excerpt.length > 600 || content.length > 300000 ||
+    if (!title || title.length > 200 || excerpt.length > 600 || content.length > 300000 ||
         (coverImage && coverImage.length > 2048)) {
-      return blogJson({ error: '제목, 주소 또는 본문 입력값을 확인해 주세요.' }, 400);
+      return blogJson({ error: '제목 또는 본문 입력값을 확인해 주세요.' }, 400);
     }
 
     const saved = await withBlogTransaction(env, async db => {
       await requireBlogCategory(db, category);
-      const existing = await db.query(
-        'SELECT id, author_id, desired_public FROM public.blog_posts WHERE slug = $1 AND deleted_at IS NULL FOR UPDATE',
-        [slug],
+      const inserted = await db.query(
+        'INSERT INTO public.blog_posts (author_id, category) VALUES ($1, $2) RETURNING id, slug',
+        [user.id, category],
       );
-      let postId;
-      if (existing.rows.length) {
-        const post = existing.rows[0];
-        if (post.author_id !== user.id || post.desired_public) {
-          const error = new Error('이미 사용 중인 주소입니다.');
-          error.status = 409;
-          throw error;
-        }
-        postId = post.id;
-      } else {
-        const inserted = await db.query(
-          'INSERT INTO public.blog_posts (slug, author_id, category) VALUES ($1, $2, $3) RETURNING id',
-          [slug, user.id, category],
-        );
-        postId = inserted.rows[0].id;
-      }
+      const postId = inserted.rows[0].id;
       const revision = await db.query(
         `INSERT INTO public.blog_post_revisions
           (post_id, title, excerpt, content, cover_image, tags, author_name)
@@ -57,7 +40,7 @@ export async function onRequestPost({ request, env }) {
           deployment_status = 'draft', updated_at = now() WHERE id = $1`,
         [postId, category, revision.rows[0].id],
       );
-      return { id: postId, slug, revisionId: revision.rows[0].id, status: 'draft' };
+      return { id: postId, slug: inserted.rows[0].slug, revisionId: revision.rows[0].id, status: 'draft' };
     });
     return blogJson(saved, 201);
   } catch (error) {

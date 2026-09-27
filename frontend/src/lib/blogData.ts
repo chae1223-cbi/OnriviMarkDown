@@ -116,18 +116,10 @@ export function extractPostFromMarkdown(markdown: string, fallbackTitle: string 
     excerpt = "온리비 어서(Onrivi Author)로 작성된 마크다운 포스트입니다.";
   }
 
-  // 3. 슬러그 자동 생성 (영문/숫자/하이픈 정규화 또는 타임스탬프)
-  const slug =
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9가-힣\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .slice(0, 50) || `post-${Date.now()}`;
-
-  // 4. 본문 내 첫 번째 이미지 자동 추출 (없으면 디폴트 커버)
+  // 3. 본문 내 첫 번째 이미지 자동 추출 (없으면 디폴트 커버)
   const mdImgMatch = markdown.match(/!\[.*?\]\((https?:\/\/[^\s\)]+|\/[^\s\)]+)\)/);
   const htmlImgMatch = markdown.match(/<img[^>]+src=["'](https?:\/\/[^"']+|\/[^"']+)["']/i);
   const coverImage = mdImgMatch ? mdImgMatch[1].trim() : htmlImgMatch ? htmlImgMatch[1].trim() : DEFAULT_BLOG_COVER;
 
-  return { title, excerpt, slug, coverImage };
+  return { title, excerpt, coverImage };
 }

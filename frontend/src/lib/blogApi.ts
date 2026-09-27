@@ -38,5 +38,5 @@ export const retryBlogDeployment = () =>
   blogRequest<{ deployment: 'requested' }>('/api/admin/blog', { action: 'retry-deploy' });
 
 export const createAdminBlogDraft = (post: Pick<BlogPost,
-  'slug' | 'title' | 'excerpt' | 'content' | 'category' | 'tags'>) =>
+  'title' | 'excerpt' | 'content' | 'category' | 'tags'>) =>
   blogRequest<{ post: { id: string; slug: string } }>('/api/admin/blog', { action: 'create-draft', post });

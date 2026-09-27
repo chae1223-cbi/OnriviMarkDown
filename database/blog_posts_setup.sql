@@ -3,9 +3,12 @@
 -- common_codes 생성 후 blog_category_common_codes.sql을 실행해 BLOG_CATEGORY FK를 연결한다.
 BEGIN;
 
+CREATE SEQUENCE IF NOT EXISTS public.blog_post_slug_seq AS bigint START WITH 1 MAXVALUE 999999;
+
 CREATE TABLE IF NOT EXISTS public.blog_posts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug text NOT NULL UNIQUE CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  slug text NOT NULL DEFAULT ('post-' || to_char(nextval('public.blog_post_slug_seq'), 'FM000000'))
+    UNIQUE CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   author_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   category text NOT NULL, -- BLOG_CATEGORY의 code_value
   is_featured boolean NOT NULL DEFAULT false,
