@@ -15,6 +15,7 @@ import { BlogPost, getBlogPostBySlug, getAllBlogPosts, getPostThumbnail, DEFAULT
 import { BlogHeader } from "@/components/blog/BlogHeader";
 import { BlogFooter } from "@/components/blog/BlogFooter";
 import { BlogCard } from "@/components/blog/BlogCard";
+import { extractFrontmatter } from "@/lib/frontmatter";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -109,6 +110,8 @@ export default function BlogDetailPage() {
   }
 
   const thumbnailSrc = getPostThumbnail(post);
+  // 문서 뷰에서는 서식 프로필 등 원고 메타정보를 숨기고, 원본 보기에는 그대로 보존한다.
+  const renderedContent = extractFrontmatter(post.content).content;
 
   return (
     <div
@@ -239,7 +242,7 @@ export default function BlogDetailPage() {
           /* 1. 일반 리치 문서 렌더링 뷰 */
           <article className="prose prose-slate lg:prose-lg dark:prose-invert max-w-none mb-12 sm:mb-16 leading-relaxed">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {post.content}
+              {renderedContent}
             </ReactMarkdown>
           </article>
         ) : (
@@ -307,20 +310,14 @@ export default function BlogDetailPage() {
             <h4 className="text-base font-bold text-slate-900 dark:text-white mb-1">
               온리비 어서(Onrivi Author) 에디토리얼 팀
             </h4>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-zinc-400 leading-relaxed mb-3">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-zinc-400 leading-relaxed">
               한글 타이핑과 마크다운 저작 환경의 불편함을 해소하고, 생각의 본질에 집중할 수 있는 차세대 로컬 우선 저작 도구를 연구하고 개발합니다.
             </p>
-            <Link
-              href="/"
-              className="text-xs font-bold text-[#1d4ed8] dark:text-blue-400 hover:underline"
-            >
-              온리비 어서 제품 자세히 알아보기 →
-            </Link>
           </div>
         </div>
 
         {/* Bottom Banner (온리비 소개) */}
-        <section className="bg-linear-to-r from-blue-700 via-indigo-700 to-slate-900 rounded-3xl p-8 sm:p-10 text-white shadow-xl mb-16 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
+        <section className="bg-blue-800 bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 rounded-3xl p-8 sm:p-10 text-white shadow-xl mb-16 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
           <div>
             <h3 className="text-xl sm:text-2xl font-black mb-2">
               이 글처럼 깔끔한 마크다운을 직접 작성해 보세요.
