@@ -699,7 +699,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-EDIT-MainEditorApp-0006] MainEditorApp.tsx ➔ contentRef_sync
   // 🎯 @KICK  : 클로저에서 사용하기 위해 contentRef.current를 content 상태와 동기화
   // 🛡️ @GUARD : 스테일 클로저가 ref에서 이전 콘텐츠를 읽는 것을 방지
-  // 🚨 @PATCH : None
+  // 🚨 @PATCH : 2026-09-27 — 코드블록 전체 행과 왼쪽 표시선에 같은 마스크를 적용해 원문 편집 영역에서도 범위를 구분한다.
   // 🔗 @CALLS : None
   // ====================================================================
   useEffect(() => {
@@ -3407,7 +3407,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           range: new Range(lineNumber, 1, lineNumber, Math.max(2, line.length + 1)),
           options: {
             isWholeLine: true,
-            className: 'monaco-codeblock-line'
+            className: 'monaco-codeblock-line',
+            linesDecorationsClassName: 'monaco-codeblock-gutter'
           }
         });
         return;
