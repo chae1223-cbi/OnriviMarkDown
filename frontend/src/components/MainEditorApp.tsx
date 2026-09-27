@@ -3554,26 +3554,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0031] MainEditorApp.tsx ➔ previewWheelSync
   // 🎯 @KICK  : 분할 모드에서는 미리보기 휠을 막고 에디터 스크롤만 동기화의 기준으로 사용
-  // 🛡️ @GUARD : 브라우저의 passive 휠 기본값을 피하기 위해 native listener를 passive:false로 등록
-  // 🚨 @PATCH : 2026-09-27 — 미리보기 휠을 에디터로 전달하던 동작 제거
-  // 🔗 @CALLS : WheelEvent.preventDefault
+  // 🛡️ @GUARD : 문서를 연 뒤 미리보기 DOM이 생성되는 데스크톱에서도 리스너가 반드시 연결되도록 callback ref 사용
+  // 🚨 @PATCH : 2026-09-28 — 웹과 데스크톱의 분할 모드 휠 차단을 같은 DOM 연결 시점에 등록
+  // 🔗 @CALLS : WheelEvent.preventDefault, addEventListener
   // ====================================================================
-  useEffect(() => {
-    const previewEl = previewRef.current;
-    if (!previewEl) return;
+  const stopSplitPreviewWheel = useCallback((event: WheelEvent) => {
+    if (previewModeRef.current === 'both') event.preventDefault();
+  }, []);
 
-    const handleWheel = (e: WheelEvent) => {
-      if (previewModeRef.current === 'both') {
-        e.preventDefault();
-      }
-    };
-
-    previewEl.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-
-    return () => {
-      previewEl.removeEventListener('wheel', handleWheel, true);
-    };
-  }, [previewMode]);
+  const bindPreviewScrollContainer = useCallback((node: HTMLDivElement | null) => {
+    previewRef.current?.removeEventListener('wheel', stopSplitPreviewWheel, true);
+    previewRef.current = node;
+    node?.addEventListener('wheel', stopSplitPreviewWheel, { passive: false, capture: true });
+  }, [stopSplitPreviewWheel]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0032] MainEditorApp.tsx ➔ darkModeDOMClass
@@ -8681,7 +8674,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
                       {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
                       <div
-                        ref={previewRef}
+                        ref={bindPreviewScrollContainer}
                         className={`flex-1 print:h-auto print:overflow-visible prose prose-sm md:prose-base max-w-none break-words custom-preview-container onrivi-preview-container text-on-surface ${
                           previewMode === 'preview'
                             ? 'bg-surface-container-high p-4 pb-48 overflow-y-auto'

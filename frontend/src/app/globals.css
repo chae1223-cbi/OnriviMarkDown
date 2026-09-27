@@ -1119,10 +1119,10 @@ mark.onrivi-search-text-highlight {
   text-rendering: geometricPrecision;
 }
 
-/* ✏️ 코드펜스 내부는 미리보기와 별개로 원문 편집 영역에서도 범위를 분명히 표시한다. */
+/* 웹 편집기의 중립적인 회색 코드블록 표시를 데스크톱에도 동일하게 적용한다. */
 .monaco-editor .monaco-codeblock-line {
-  background-color: #e8f1ff !important;
-  box-shadow: inset 3px 0 #3b82f6 !important;
+  background-color: #f4f4f5 !important;
+  box-shadow: none !important;
   width: 100% !important;
   left: 0 !important;
 }
@@ -1130,17 +1130,12 @@ mark.onrivi-search-text-highlight {
 .vs-dark .monaco-editor .monaco-codeblock-line,
 .dark .monaco-editor .monaco-codeblock-line,
 .onrivi-dark .monaco-editor .monaco-codeblock-line {
-  background-color: #1d314f !important;
-  box-shadow: inset 3px 0 #60a5fa !important;
+  background-color: #27272a !important;
+  box-shadow: none !important;
 }
 .monaco-editor .monaco-codeblock-gutter {
-  border-left: 3px solid #3b82f6 !important;
+  border-left: 0 !important;
   box-sizing: border-box;
-}
-.monaco-editor.vs-dark .monaco-codeblock-gutter,
-.dark .monaco-editor .monaco-codeblock-gutter,
-.onrivi-dark .monaco-editor .monaco-codeblock-gutter {
-  border-left-color: #60a5fa !important;
 }
 
 div.monaco-quote-line {
