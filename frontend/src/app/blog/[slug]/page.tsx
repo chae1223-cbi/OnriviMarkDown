@@ -15,6 +15,7 @@ import { BlogPost, getBlogPostBySlug, getAllBlogPosts, getPostThumbnail, DEFAULT
 import { BlogHeader } from "@/components/blog/BlogHeader";
 import { BlogFooter } from "@/components/blog/BlogFooter";
 import { BlogCard } from "@/components/blog/BlogCard";
+import { BlogQuote } from "@/components/blog/BlogQuote";
 import { extractFrontmatter } from "@/lib/frontmatter";
 import { categoryName, useBlogCategories } from "@/lib/blogCategories";
 import { getBlogProfileClass, hancomBlogCss } from "@/lib/blogProfileStyle";
@@ -116,6 +117,10 @@ export default function BlogDetailPage() {
   // 문서 뷰에서는 서식 프로필 등 원고 메타정보를 숨기고, 원본 보기에는 그대로 보존한다.
   const { content: renderedContent, data: frontmatter } = extractFrontmatter(post.content);
   const blogProfileClass = getBlogProfileClass(frontmatter);
+  // 페이지 머리말이 문서의 첫 H1을 대신한다. 원본 마크다운은 그대로 보존한다.
+  const articleContent = renderedContent.replace(/^\s*#\s+[^\r\n]+(?:\r?\n|$)/, '').trimStart();
+  // 첫 본문 이미지가 이미 대표 이미지라면 상세 화면에서 별도 배너를 반복하지 않는다.
+  const showCoverBanner = !renderedContent.includes(thumbnailSrc);
 
   return (
     <div
@@ -230,7 +235,7 @@ export default function BlogDetailPage() {
         </div>
 
         {/* Featured Visual Banner (첫 번째 이미지 or 디폴트 커버) */}
-        <div className="mb-10 rounded-2xl overflow-hidden aspect-16/9 bg-slate-900 shadow-md">
+        {showCoverBanner && <div className="mb-10 rounded-2xl overflow-hidden aspect-16/9 bg-slate-900 shadow-md">
           <img
             src={thumbnailSrc}
             alt={post.title}
@@ -239,15 +244,15 @@ export default function BlogDetailPage() {
             }}
             className="w-full h-full object-cover"
           />
-        </div>
+        </div>}
 
         {/* Content Viewer: [문서 뷰] vs [마크다운으로 보기] */}
         {viewMode === "rendered" ? (
           /* 1. 일반 리치 문서 렌더링 뷰 */
           <article className={`${blogProfileClass || 'prose prose-slate lg:prose-lg dark:prose-invert'} max-w-none mb-12 sm:mb-16 leading-relaxed`}>
             {blogProfileClass && <style>{hancomBlogCss}</style>}
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {renderedContent}
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ blockquote: ({ children }) => <BlogQuote>{children}</BlogQuote> }}>
+              {articleContent}
             </ReactMarkdown>
           </article>
         ) : (
