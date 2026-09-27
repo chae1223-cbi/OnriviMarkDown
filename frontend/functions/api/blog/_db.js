@@ -7,15 +7,18 @@ import { Client } from 'pg';
 // 🔗 @CALLS : Client.connect(), Client.query(), Client.end()
 // ====================================================================
 export async function withBlogTransaction(env, work) {
-  const databaseUrl = env.BLOG_DATABASE_URL || env.DATABASE_URL;
-  if (!databaseUrl) throw new Error('BLOG_DATABASE_URL or DATABASE_URL is not configured');
+  const hyperdriveUrl = env.HYPERDRIVE?.connectionString;
+  const databaseUrl = hyperdriveUrl || env.BLOG_DATABASE_URL || env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('HYPERDRIVE, BLOG_DATABASE_URL or DATABASE_URL is not configured');
   const client = new Client({
     connectionString: databaseUrl,
-    // Supabase pooler의 기본 인증서 체인은 로컬 신뢰 저장소에 없을 수 있다.
-    // CA를 제공하면 인증서 검증을 켜고, 그렇지 않으면 SSL 암호화만 강제한다.
-    ssl: env.BLOG_DATABASE_CA_CERT
-      ? { ca: env.BLOG_DATABASE_CA_CERT.replace(/\\n/g, '\n'), rejectUnauthorized: true }
-      : { rejectUnauthorized: false },
+    // Hyperdrive 바인딩은 자체 연결을 제공하므로 Supabase 풀러용 SSL 옵션을 전달하지 않는다.
+    // 로컬 직접 연결에만 기존 인증서 설정을 적용한다.
+    ...(hyperdriveUrl ? {} : {
+      ssl: env.BLOG_DATABASE_CA_CERT
+        ? { ca: env.BLOG_DATABASE_CA_CERT.replace(/\\n/g, '\n'), rejectUnauthorized: true }
+        : { rejectUnauthorized: false },
+    }),
     connectionTimeoutMillis: 10000,
   });
   await client.connect();
