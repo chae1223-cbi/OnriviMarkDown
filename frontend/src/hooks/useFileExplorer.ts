@@ -19,6 +19,7 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-09-26** — [동일 파일 중복 탭 생성 원천 차단 가드]: handleFileClick 내 setTabs 호출 시 prev 배열을 기준으로 정규화된 경로(NFC/소문자/슬래시) 및 ID 중복 여부를 원자적으로 검사하여, 비동기 파일 읽기 지연 중 동일 파일 탭이 2개 중복 생성되던 결함 완전 해결
 // 🚨 @PATCH : **2026-09-18** — [타문서 변환 후 탐색기 전역 새로고침 force 플래그 지원]: file:refresh-all-directories 이벤트로부터 force 플래그를 전달받아 250ms 쿨다운 락에 막히지 않고 즉시 refreshFileList(true)를 수행하도록 보강
 // 🚨 @PATCH : **2026-09-17** — [탐색기 변동 시 중복 2중 새로고침 결함 완벽 해결]: refreshFileList에 250ms 쿨다운 락을 부여하고 전역 리프레시 및 Electron 워처 이벤트 수신 시 단일 디바운스를 적용하여, 파일 조작 후 탐색기가 2회 반복 새로고침되던 현상을 1회로 깔끔하게 단일화
 // 🚨 @PATCH : **2026-09-17** — [웹 브라우저 파일 목록 새로고침 404 오류 원천 차단 및 VFS/핸들 스캔 정상화]: refreshFileList에서 electronAPI 부재 시(/api/files 404 호출 방지) File System Access API 핸들 스캔 또는 VFS(Virtual File System) 목록을 즉시 갱신하도록 분기 처리
@@ -1288,7 +1289,27 @@ export const useFileExplorer = ({
         previewMode: isRestrictedUser ? 'preview' : (node.name === '도움말.md' ? 'preview' : previewModeRef.current)
       };
 
-      setTabs(prev => [...prev, newTab]);
+      setTabs(prev => {
+        const normNewPath = (node.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
+        const exists = prev.some(t => {
+          if (t.id === newTabId) return true;
+          if (node.path && t.path) {
+            const normTabPath = t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+            return normTabPath === normNewPath;
+          }
+          return !node.path && !t.path && t.name === node.name;
+        });
+        if (exists) {
+          return prev.map(t => {
+            const normTabPath = (t.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
+            if (t.id === newTabId || (normNewPath && normTabPath === normNewPath)) {
+              return { ...t, content: fileContent, model: model || t.model, node: node || t.node };
+            }
+            return t;
+          });
+        }
+        return [...prev, newTab];
+      });
       setActiveTabId(newTabId);
 
       setContent(fileContent);

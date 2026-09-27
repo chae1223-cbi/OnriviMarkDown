@@ -16,6 +16,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 // 📊 [OMD-HOOK-0003] useEditorTabs.ts ➔ useEditorTabs
 // 🎯 @KICK  : Monaco 에디터 가상 모델 다중 탭 관리 — 탭 전환·생성·콘텐츠 동기화
 // 🛡️ @GUARD : tabs/setTabs/activeTabId/setActiveTabId 외부 주입으로 TDZ 원천 차단
+// 🚨 @PATCH : **2026-09-26** — [경로 기준 중복 탭 생성 방어 가드]: createNewTab 호출 시 전달된 path를 기준으로 prev 배열에 동일 파일 탭이 이미 존재하는 경우 새 탭을 추가하지 않고 기존 탭 모델/내용을 갱신하도록 보강
 // 🚨 @PATCH : **2026-07-04** — 서식설정(isStyleTab) 탭 전환 시 에디터 뷰캐시(viewState) 저장/복원 로직 탑재 및 모델 바인딩 예외 처리 패치 | 2026-06-15 — 내부 useState 제거 → 외부 주입 방식으로 전환 | MainEditorApp L526 tabMetadata_sync가 useEditorTabs 선언 전에 setTabs/activeTabId 참조하여 rS TDZ 에러 발생
 //              **2026-07-07** — [BUG#1] activeTabIdRef 초기값 null → activeTabId 수정 (useEffect 비동기 갱신 지연으로 early return 미작동 원인 제거)
 //              **2026-07-07** — [BUG#2] 동일 탭 재클릭 시 완전 early return; 가상 탭(path=null+model=null) Monaco 작업 건너뜀
@@ -239,7 +240,16 @@ export const useEditorTabs = (
       }
     }
 
-    setTabs(prev => [...prev, newTab]);
+    setTabs(prev => {
+      if (path) {
+        const normNew = path.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+        const existing = prev.find(t => (t.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC') === normNew);
+        if (existing) {
+          return prev.map(t => t.id === existing.id ? { ...t, content: contentVal, model: model || t.model } : t);
+        }
+      }
+      return [...prev, newTab];
+    });
     setActiveTabId(tabId);
 
     setContent(contentVal);

@@ -1,6 +1,7 @@
 /**
  * cssProfileGuide.ts
  * 온리비 어서(Onrivi Author) 서식 프로필 명세서 및 작성 가이드 마크다운 정의
+ * 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 프리셋 가이드·프롬프트 동기화]: th/td 레거시 border-left/right: none 소거, tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 격자/가로선/미니멀 프리셋 명세 및 AI 생성 프롬프트 정합화
  * 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 분석 및 가이드 명세 추가]: 이미지(한컴 공식 블로그) 기반 서식 분석을 통해 H2 오렌지 하단선, H3 오렌지 좌측 버티컬 바, 1.8배 본문 줄간격 및 8px 문장 사이 간격(sentence-gap), 가로선 중심 비교표, 와이드 라운드 미디어 규격을 가이드라인에 공식 추가
  * 🚨 @PATCH : **2026-09-25** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 가이드 명세 일원화]: 대표 서식 JSON, 고급 레이아웃 Card 6 명세, AI 프롬프트 지시문의 pageStyle 여백을 상하 18mm, 좌우 12mm(marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm)로 전면 일원화
  * 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 기본색(#2f2f2f) 가이드 동기화]: 예시 JSON(rules.taskList, checkboxStructure) 및 명세의 color를 본문 글자색(#2f2f2f)으로 일원화하여 별도 색상 분리 방지
@@ -203,9 +204,6 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
       "border-width": "1px",
       "border-color": "#9ca3af",
       "font-weight": "650",
-      "border-bottom": "1px solid #e5e5e5",
-      "border-left": "none",
-      "border-right": "none",
       "text-align": "left",
       "color": "#202123"
     },
@@ -214,9 +212,6 @@ export const CSS_PROFILE_GUIDE_MD = `# 🎨 온리비 어서(Onrivi Author) 서�
       "border-style": "solid",
       "border-width": "1px",
       "border-color": "#9ca3af",
-      "border-bottom": "1px solid #e5e5e5",
-      "border-left": "none",
-      "border-right": "none",
       "color": "#2f2f2f"
     },
     "blockquote": {

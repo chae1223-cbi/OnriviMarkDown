@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
 // 🚨 @PATCH : **2026-09-23** — [데스크톱 앱 최신 툴바 아이콘 및 에셋 서빙 보장] app:// 커스텀 프로토콜 핸들러에 frontend/out 부재 시 frontend/public 폴백 탐색 엔진을 탑재하여 데스크톱 앱에서 최신 툴바 아이콘(WechatLogo, Password, CubeFocus, NewspaperClipping 등) 100% 정상 노출 보장
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) IPC 지원 및 파일/폴더 조작 안정성 고도화]: 1) file:backupFolderForUndo 및 file:restoreFolderFromUndo 핸들러 신설하여 폴더 삭제 전 임시 디렉토리 백업 및 Ctrl+Z 복원 완벽 지원 2) file:rename, file:move, file:delete에서 Windows 파일 잠금 및 백신 프로세스 점유로 인한 EPERM/EBUSY 예외를 방어하기 위해 fs.rmSync에 maxRetries: 5, retryDelay: 100 옵션 탑재
 // 🚨 @PATCH : **2026-09-17** — [이전 작업(식품위생법/인디공연) 하드코딩 폴백 및 프롬프트 예시 전면 제거, 문서 기반 동적 태그/요약 추출 엔진 탑재]: 1) 해시태그 부재 시 문서 제목, 볼드 메타데이터(**문서명**, **프로젝트명** 등), 헤딩으로부터 실질 도메인 키워드를 동적 추출하여 타 문서 태그 오염 100% 원천 방어 2) AI 프롬프트 예시를 도메인 중립 템플릿으로 치환하여 소형 모델(Gemma)의 프롬프트 예시 베끼기 방지 3) 기본 요약/단락 정규식에서 이전 작업 하드코딩 제거 4) validChunks ReferenceError 및 LLM JSON 5단계 초정밀 복원 엔진 연동
@@ -3815,63 +3816,30 @@ ipcMain.handle('file:readImageAsBase64', async (event, filePath) => {
 // ──────────────────────────────────────────────
 // 사용자 서식 프로필 저장소 (Desktop 환경)
 // ──────────────────────────────────────────────
-ipcMain.handle('file:readProfiles', async (event, resourceFolder) => {
-  try {
-    let profilePath;
-    if (resourceFolder && fs.existsSync(resourceFolder)) {
-      profilePath = path.join(resourceFolder, 'profiles', 'userCssProfiles.json');
-      const fallbackPath1 = path.join(resourceFolder, 'user_profiles.json');
-      const fallbackPath2 = path.join(resourceFolder, 'userCssProfiles.json');
-      
-      let useFallback = false;
-      if (!fs.existsSync(profilePath)) {
-        useFallback = true;
-      } else {
-        try {
-          const raw = fs.readFileSync(profilePath, 'utf-8');
-          if (raw.trim() === '[]' || raw.trim() === '') {
-            useFallback = true;
-          }
-        } catch(e) {}
-      }
-
-      if (useFallback) {
-        if (fs.existsSync(fallbackPath1)) {
-          profilePath = fallbackPath1;
-        } else if (fs.existsSync(fallbackPath2)) {
-          profilePath = fallbackPath2;
-        }
-      }
-    } else {
-      profilePath = path.join(app.getPath('userData'), 'user_profiles.json');
-      // 이전 버전 호환성 체크 (userCssProfiles.json이 있으면 마이그레이션)
-      const oldProfilePath = path.join(app.getPath('userData'), 'userCssProfiles.json');
-      if (!fs.existsSync(profilePath) && fs.existsSync(oldProfilePath)) {
-        profilePath = oldProfilePath;
-      }
-    }
-    
-    if (!fs.existsSync(profilePath)) return [];
-    const raw = fs.readFileSync(profilePath, 'utf-8');
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('프로필 읽기 실패:', e);
-    return [];
+// 사용자 지정 리소스 폴더만 허용한다. 다른 드라이브나 userData로 우회하지 않는다.
+function resolveUserProfilesPath(resourceFolder) {
+  const folder = typeof resourceFolder === 'string' ? resourceFolder.trim() : '';
+  if (!folder || !path.isAbsolute(folder) || !fs.statSync(folder).isDirectory()) {
+    throw new Error('RESOURCE_FOLDER_NOT_SET: 리소스 폴더를 다시 연결해 주세요.');
   }
+  return path.join(folder, 'profiles', 'userCssProfiles.json');
+}
+
+ipcMain.handle('file:readProfiles', async (event, resourceFolder) => {
+  const profilePath = resolveUserProfilesPath(resourceFolder);
+  if (!fs.existsSync(profilePath)) return [];
+  const profiles = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+  if (!Array.isArray(profiles)) throw new Error('INVALID_PROFILES_ARRAY');
+  return profiles;
 });
 
 ipcMain.handle('file:saveProfiles', async (event, profiles, resourceFolder) => {
   try {
-    let dataPath = path.join(app.getPath('userData'), 'user_profiles.json');
-    if (resourceFolder && fs.existsSync(resourceFolder)) {
-      const profilesDir = path.join(resourceFolder, 'profiles');
-      if (!fs.existsSync(profilesDir)) {
-        fs.mkdirSync(profilesDir, { recursive: true });
-      }
-      dataPath = path.join(profilesDir, 'userCssProfiles.json');
-    }
+    if (!Array.isArray(profiles)) throw new Error('INVALID_PROFILES_ARRAY');
+    const dataPath = resolveUserProfilesPath(resourceFolder);
+    fs.mkdirSync(path.dirname(dataPath), { recursive: true });
     fs.writeFileSync(dataPath, JSON.stringify(profiles, null, 2), 'utf-8');
-    return { success: true };
+    return { success: true, savedPath: dataPath };
   } catch (error) {
     console.error('Failed to save profiles:', error);
     return { success: false, error: error.message };

@@ -3,7 +3,8 @@
  * 파일명 : app/admin/layout.tsx
  * -----------------------------------------------------------------------
  * 변경내역
- * ----------------------------------------------------------------------- * 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
+ * ----------------------------------------------------------------------- * 🚨 @PATCH : **2026-09-26** — [기술 블로그 관리 네비게이션 추가]: 관리자 사이드바에 기술 블로그 관리(id: 'blog', BookOpen) 메뉴 신설
+ *             2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
  *             2026-09-02** — 어드민 사이드바를 에디터 좌측 사이드바 디자인 시스템(경계선 border-slate-300, 폰트 패밀리, bg-sidebar-luxury, 선명한 하이라이트/호버)과 100% 일치화
  * *2026-09-02** — 좌측 상단 헤더 로고(/icon.png) 및 'Onrivi Admin' 타이포그래피를 랜딩페이지 브랜드 디자인 시스템 규격과 100% 일치화
  * *2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: 사이드바 .bg-sidebar-luxury 럭셔리 그라데이션 적용 및 LDSG Green(#1d4ed8)/Blue(#4D73FF) 컬러 시스템 통일
@@ -14,7 +15,7 @@
 import React, { useState, Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, CreditCard, MonitorPlay, Settings, LogOut, Menu, X, MessageSquare, ShieldAlert, Ticket, Files, FileDown, Server, ShieldCheck, Tags } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, MonitorPlay, Settings, LogOut, Menu, X, MessageSquare, ShieldAlert, Ticket, Files, FileDown, Server, ShieldCheck, Tags, BookOpen } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { showToast } from '@/utils/toast';
 
@@ -118,6 +119,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     { name: '공통 코드 관리', href: '/admin?tab=codes', id: 'codes', icon: Settings },
     { name: '감사 로그', href: '/admin?tab=audit', id: 'audit', icon: ShieldAlert },
     { name: '프로모션 관리', href: '/admin?tab=promotions', id: 'promotions', icon: Ticket },
+    { name: '기술 블로그 관리', href: '/admin?tab=blog', id: 'blog', icon: BookOpen },
     { name: '콘텐츠 관리', href: '/admin?tab=contents', id: 'contents', icon: Files },
     { name: '리포트 추출', href: '/admin?tab=reports', id: 'reports', icon: FileDown },
     { name: '시스템 현황', href: '/admin?tab=system', id: 'system', icon: Server },

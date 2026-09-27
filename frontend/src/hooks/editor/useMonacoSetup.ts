@@ -3,6 +3,7 @@
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
 // 🛡️ @GUARD : hasLineChanged 검사로 동일 행 좌우 이동 시 스크롤 스킵, isWheelScrolling 가드로 휠 중복 연동 방어,
+// 🚨 @PATCH : **2026-09-26** — [에디터 수직 스크롤바 너비 슬림화(32px -> 16px)]: 과도하게 두꺼워진 모나코 에디터 verticalScrollbarSize를 기존 32px에서 절반인 16px로 축소하여 슬림하고 미려한 에디터 디자인 복원
 // 🚨 @PATCH : **2026-09-25** — [에디터 Pretendard 폰트 전면 적용 및 줄바꿈 단어 잘림 방지 32px 안전 여백 확보]: 에디터 글꼴을 가독성·원문자 1위인 Pretendard Variable로 변경하고, verticalScrollbarSize를 32px로 확장하여 가변폭/볼드 환경에서도 줄 끝 단어가 스크롤바에 가려지거나 잘리지 않도록 안전 여백 완벽 보장
 // 🚨 @PATCH : **2026-09-25** — [스크롤바 슬라이더 겹침 방지 verticalScrollbarSize 24px 확대]: 모나코 줄바꿈 contentWidth 계산 시 스크롤바 여백을 10px->24px로 확대하여 줄 끝 글자(r, ;, l, y)가 스크롤바에 닿거나 가려지는 현상 완전 해결
 // 🚨 @PATCH : **2026-09-25** — [에디터 고정폭(D2Coding) 전면 복원 및 강조태그 긴문장 우측 글자 잘림·누락 완전 해결]: 에디터에 가변폭 세리프(Times New Roman) 적용 시 볼드(**) 토큰에서 글자 폭이 30% 급증하여 모나코 줄바꿈 계산을 초과해 우측 글자가 잘려 숨겨지던 결함을 에디터 fontFamily를 고정폭 D2Coding(D2CodingLigature, D2Coding, Consolas)으로 100% 복원하여 글자 폭 일치 및 무결점 줄바꿈 실현
@@ -424,7 +425,7 @@ export function useMonacoSetup(deps: any) {
                     scrollbar: {
                       vertical: 'visible',
                       horizontal: 'auto',
-                      verticalScrollbarSize: 32, // 💡 32px로 확대하여 가변폭/볼드 줄바꿈 텍스트와 스크롤바 슬라이더 사이 20px 이상의 안전 여백 확보
+                      verticalScrollbarSize: 16, // 💡 기존 32px에서 절반인 16px로 축소하여 슬림하고 미려한 스크롤바 규격화
                       horizontalScrollbarSize: 10,
                       useShadows: false,
                       verticalHasArrows: false,

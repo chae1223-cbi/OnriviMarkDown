@@ -8,6 +8,7 @@ import { ToastProvider } from "@/components/ToastProvider";
 // 📊 [OMD-CORE-layout-0002] layout ➔ metadata
 // 🎯 @KICK  : Next.js Metadata 객체 - 페이지 제목, 설명, 아이콘 경로 설정
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-09-26** — [SEO 메타데이터 외부 노트 내보내기 서식 복원 키워드 보강]: description 및 keywords에 마크다운 서식 깨짐 복원, 마크다운 표 복원, 외부 노트 내보내기 호환 키워드 반영 (네이버 권장 80자 이내 78자 최적화)
 // 🚨 @PATCH : **2026-09-24** — [브라우저 자동번역기(Google Translate) React DOM 충돌(removeChild/insertBefore) 원천 방어 패치 탑재]: Node.prototype.removeChild 및 insertBefore 안전 가드 주입, html/meta notranslate 지정 및 NotFoundError 크래시 필터링 적용
 // 🚨 @PATCH : **2026-09-23** — [네이버 서치어드바이저 SEO 메타데이터 규격 최적화]: 네이버 권장 글자수(제목 40자 이내, 설명 80자 이내, OG제목 40자 이내)에 맞춰 title(38자), description(76자), openGraph/twitter title(33자) 정밀 최적화
 // 🚨 @PATCH : **2026-09-23** — [네이버 서치어드바이저 소유확인 메타태그 연동]: naver-site-verification(08215f3797f7f99a9dfe413b0ac38d58) 헤드 메타태그 추가 및 HTML 인증 파일 탑재
@@ -16,15 +17,15 @@ import { ToastProvider } from "@/components/ToastProvider";
 export const metadata: Metadata = {
   metadataBase: new URL('https://onrivi.com'),
   title: "Onrivi Author - 마크다운 뷰어 & 에디터 | 온리비 어서",
-  description: "한글 입력 오류 없는 마크다운 뷰어 & 에디터. 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 로컬 우선 보안을 제공합니다.",
-  keywords: ["마크다운", "마크다운 에디터", "마크다운 뷰어", "마크다운viewer", "마크다운edit", "마크다운문서viwer", "Markdown Viewer", "Markdown Edit", "Markdown Editor", "Onrivi Author", "온리비어서", "Local-First", "로컬우선", "KaTeX", "Mermaid", "RAG전처리", "PDF변환", "EPUB출판", "1인개발"],
+  description: "한글 오류와 서식 깨짐 없는 마크다운 에디터. 외부 노트 내보내기 완벽 호환, 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 보안 제공.",
+  keywords: ["마크다운", "마크다운 에디터", "마크다운 뷰어", "마크다운 서식 깨짐 복원", "마크다운 표 복원", "마크다운 내보내기 호환", "마크다운viewer", "마크다운edit", "마크다운문서viwer", "Markdown Viewer", "Markdown Edit", "Markdown Editor", "Onrivi Author", "온리비어서", "Local-First", "로컬우선", "KaTeX", "Mermaid", "RAG전처리", "PDF변환", "EPUB출판", "1인개발"],
   authors: [{ name: "Onrivi (온리비) 채병익" }],
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: "Onrivi Author - 완벽한 마크다운 뷰어 & 에디터",
-    description: "한글 입력 오류 없는 마크다운 뷰어 & 에디터. 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 로컬 우선 보안을 제공합니다.",
+    description: "한글 오류와 서식 깨짐 없는 마크다운 에디터. 외부 노트 내보내기 완벽 호환, 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 보안 제공.",
     url: 'https://onrivi.com',
     siteName: 'Onrivi Author',
     images: [
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: "Onrivi Author - 완벽한 마크다운 뷰어 & 에디터",
-    description: "한글 입력 오류 없는 마크다운 뷰어 & 에디터. 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 로컬 우선 보안을 제공합니다.",
+    description: "한글 오류와 서식 깨짐 없는 마크다운 에디터. 외부 노트 내보내기 완벽 호환, 수식·다이어그램 지원, 맞춤 서식 PDF/EPUB 출판 및 보안 제공.",
     images: ['https://onrivi.com/og-image.png'],
   },
   icons: {

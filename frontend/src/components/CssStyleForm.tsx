@@ -9,6 +9,12 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-09-26 — [서식 설정 전체 프리셋 및 굵기 선택 활성화 상태 전수 점검 및 일괄 개선]: 1) 코드블록(라이트/다크 배경색 감지), 2) 이미지(썸네일/폴라로이드/기본형), 3) 인용구(왼쪽띠/전체박스/그림자 복합 border 우선순위), 4) 표(가로선전용 td border-left:none 정밀 감지), 5) 인용구/링크/각주 글자굵기 select에 isFontWeightBold 연동으로 숫자 font-weight 공백 현상 방지, 6) hrStructure 개별 속성 폴백 안전화로 모든 서식의 설정 상태가 UI에 100% 명확히 표시되도록 개선
+ *   2026-09-26 — [제목 하단 밑줄(border-bottom) 선 스타일 키워드 기반 활성 판별 및 색상 보존 개선]: '2px solid #ff5a00' 등 다양한 두께/색상의 border-bottom 설정 시 startsWith('1px') 실패로 인해 [실선] 버튼이 미선택으로 보이던 결함을 solid/double 키워드 기반 판별(isBorderMatch)로 전면 개선하여 H1~H6의 하단 밑줄 설정 상태를 정확하게 표시하고 변경 시 기존 색상 보존 연동
+ *   2026-09-26 — [서식설정 버튼 활성 표시 정확도 개선]: font-weight('700'/'bold'/>=700 모두 굵게 활성), border-bottom(''/'none'/undefined → 선없음 활성), text-decoration(includes 매칭), text-align(미지정 시 왼쪽 활성) 등 isStyleOptionActive·isBorderMatch·isAlignActive 헬퍼 도입으로 H1~H6 모든 스타일 버튼 정확히 하이라이트
+ *   2026-09-26 — [기본 타이포그래피 패널을 아코디언으로 전환]: 고정 패널에서 AccordionSection으로 전환하여 전체 7개 섹션 아코디언 통일
+ *   2026-09-26 — [표 형태 프리셋(Grid/가로선강조/미니멀) 선택 활성 표시(activeClass) 및 세로선 동기화]: tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 기준으로 프리셋 활성 상태(isGrid, isHorizontal, isMinimal) 판별 로직을 일원화하여 선택 표시를 즉각 하이라이트하고 세로선 잔여 legacy 스타일 자동 정제 연동
+ *   2026-09-26 — [코드 블록 줄 간격(행간) 제어 슬라이더 신설]: codeBlock 섹션에 줄 간격(1.0~2.0배, 기본 1.35배) 조절 슬라이더(SliderWidget)를 탑재하여 코드블록 내부 줄간격 컴팩트 제어 지원
  *   2026-09-25 — [서식 설정 슬라이더 0px/최솟값 튕김 버그 완전 해결]: 모든 SliderWidget의 value 전달 시 Falsy 단락 평가(||)로 인해 0px 또는 최소 경계값 도달 시 기본값으로 강제 튕겨 나오던 버그를 getNumValue 안전 파서로 전면 교체하여 0px 및 양 끝까지 부드럽게 이동·유지되도록 보장
  *   2026-09-25 — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 기본값 동기화]: checkboxStructure.color 기본 폴백을 본문 글자색(#2f2f2f)으로 맞추어 체크박스 및 체크리스트 글자가 본문 기본색과 일원화되도록 보장
  *   2026-09-24 — [체크리스트 글자 색상(taskList.color) 제어 컬러피커 신설]: 목록 및 태스크 체크박스 섹션에 체크리스트 글자 색상(ColorPickerWidget)을 추가하여 체크박스 항목 텍스트 색상을 자유롭게 변경 및 상속(inherit) 제어 가능하도록 구현
@@ -55,9 +61,9 @@
  *             — window.confirm → ConfirmModal 공통 모달로 전환 (handleDeleteClick, resetToDefault)
  */
 
-import React, { useState, useEffect, useRef } from 'react'; // useState : 상태 관리, useEffect : 컴포넌트 생명주기 관리, useRef : 참조 관리
+import React, { useState, useEffect, useRef, useMemo } from 'react'; // useState : 상태 관리, useEffect : 컴포넌트 생명주기 관리, useRef : 참조 관리
 import { CssProfile, CssRuleSet } from '@/types/cssProfile'; // CssProfile : 서식 프로필 타입, CssRuleSet : 서식 규칙 타입
-import { DEFAULT_PROFILE, isSystemProfileId, sanitizeAndParseCssProfileJson, normalizeCssProfile } from '@/constants/cssProfile'; // DEFAULT_PROFILE : 기본 프로필, isSystemProfileId : 시스템 프로필인지 확인, 정규화 엔진
+import { DEFAULT_PROFILE, isSystemProfileId, sanitizeAndParseCssProfileJson, normalizeCssProfile, resolveCssProfile } from '@/constants/cssProfile'; // DEFAULT_PROFILE : 기본 프로필, isSystemProfileId : 시스템 프로필인지 확인, 정규화 엔진
 import { PAPER_SIZES } from '@/constants/paperSizes'; // PAPER_SIZES : 종이 크기
 import { CSS_PROFILE_GUIDE_MD } from '@/constants/cssProfileGuide'; // CSS_PROFILE_GUIDE_MD : CSS 프로필 가이드
 import FontSelectorModal from './FontSelectorModal'; // FontSelectorModal : 폰트 선택 모달
@@ -102,14 +108,15 @@ interface AccordionSectionProps { // AccordionSection 컴포넌트가 받을 속
   isOpen: boolean; // isOpen : 아코디언 섹션 열림 여부 
   onToggle: () => void; // onToggle : 아코디언 섹션 토글 콜백 함수 
   children: React.ReactNode; // children : 아코디언 섹션 자식 컴포넌트
+  sectionRef?: (el: HTMLDivElement | null) => void; // sectionRef : 스크롤 이동용 섹션 루트 DOM callback ref
 }
 
 // ====================================================================
 // AccordionSection 컴포넌트 구현
 // ==================================================================== 
-function AccordionSection({ title, isOpen, onToggle, children }: AccordionSectionProps) {
+function AccordionSection({ title, isOpen, onToggle, children, sectionRef }: AccordionSectionProps) {
   return (
-    <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-950 shadow-sm transition-all duration-200">
+    <div ref={sectionRef} className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-950 shadow-sm transition-all duration-200">
       <button
         type="button"
         onClick={onToggle}
@@ -128,6 +135,7 @@ function AccordionSection({ title, isOpen, onToggle, children }: AccordionSectio
     </div>
   );
 }
+
 
 
 // 0 또는 '0' 값(Falsy)을 누락시키지 않고 기본값을 안전하게 처리하는 헬퍼 함수
@@ -418,20 +426,38 @@ export default function CssStyleForm({
   profiles, activeProfileId, onSelectProfile, onUpdateProfile, onAddProfile, onDeleteProfile, onImportProfile, onClose, onOpenStyleManager, isDarkMode, geminiApiKey, aiModelName,
   onActiveSectionChange, onActiveTagChange
 }: CssStyleFormProps) {
-  const currentProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE; // 현재 프로파일 
-  const isSystemProfile = false;
+  const rawProfile = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
+  const currentProfile = useMemo(() => resolveCssProfile(rawProfile), [rawProfile]);
+  const isSystemProfile = isSystemProfileId(rawProfile.id) || rawProfile.id === 'default';
   const baseFontSize = currentProfile?.pageStyle?.fontSize || '14px';
 
   /* ─── 아코디언 상태 관리 ─── */
   const [openAccordion, setOpenAccordion] = useState<string | null>('typography');
+
+  // 스크롤 컨테이너 ref (overflow-y-auto 패널)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // 각 아코디언 섹션 DOM ref (id → ref 맵)
+  const accordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const handleAccordionToggle = (id: string) => {
     const next = openAccordion === id ? null : id;
     setOpenAccordion(next);
     if (next) {
       onActiveSectionChange?.(next);
+      // 펼친 섹션 헤더를 스크롤 컨테이너 최상단으로 이동
+      requestAnimationFrame(() => {
+        const container = scrollContainerRef.current;
+        const section = accordionRefs.current[next];
+        if (container && section) {
+          const containerTop = container.getBoundingClientRect().top;
+          const sectionTop = section.getBoundingClientRect().top;
+          const offset = sectionTop - containerTop + container.scrollTop - 8; // 8px 여유
+          container.scrollTo({ top: offset, behavior: 'smooth' });
+        }
+      });
     }
   };
+
 
   /* ─── 폰트 선택 및 위계 탭 관리 ─── */
   const [isFontModalOpen, setIsFontModalOpen] = useState(false); // 폰트 선택 모달 상태 
@@ -599,6 +625,7 @@ ${guideContent}
   // 🔗 @CALLS : onUpdateProfile
   // ====================================================================
   const triggerUpdate = (updated: CssProfile, tag?: string, label?: string) => {
+    if (isSystemProfile || isSystemProfileId(updated.id)) return;
     pendingProfileRef.current = updated;
     if (tag) {
       onActiveTagChange?.(tag, label);
@@ -1034,11 +1061,11 @@ ${guideContent}
 
 
   /* ─── 구조제어 데이터 ─── */
-  const hrStructure = currentProfile.hrStructure || {
-    borderTopStyle: 'solid',
-    borderTopWidth: '1px',
-    marginTopBottom: '32px',
-    lineWidth: '100%'
+  const hrStructure = {
+    borderTopStyle: currentProfile.hrStructure?.borderTopStyle || 'solid',
+    borderTopWidth: currentProfile.hrStructure?.borderTopWidth || '1px',
+    marginTopBottom: currentProfile.hrStructure?.marginTopBottom || '32px',
+    lineWidth: currentProfile.hrStructure?.lineWidth || '100%'
   };
 
   const checkboxStructure = {
@@ -1129,6 +1156,18 @@ ${guideContent}
       tableRules['border-width'] = value;
       delete (tableRules as any)['border'];
     }
+    if (key === 'colBorderWidth') {
+      delete (thRules as any)['border-left'];
+      delete (thRules as any)['border-right'];
+      delete (tdRules as any)['border-left'];
+      delete (tdRules as any)['border-right'];
+    }
+    if (key === 'rowBorderWidth') {
+      delete (thRules as any)['border-top'];
+      delete (thRules as any)['border-bottom'];
+      delete (tdRules as any)['border-top'];
+      delete (tdRules as any)['border-bottom'];
+    }
 
     const updated = {
       ...currentProfile,
@@ -1188,6 +1227,63 @@ ${guideContent}
     { label: '실선', value: '1px solid' },
     { label: '관보선', value: '3px double' },
   ] as const;
+
+  // ── active 판별 헬퍼 ──────────────────────────────────────────
+  // 600~900 및 bold 계열은 쇼케이스에서 굵게 보이므로 버튼도 활성화한다.
+  const isFontWeightBold = (v: string | undefined): boolean => {
+    if (!v) return false;
+    if (v === 'bold' || v === 'bolder') return true;
+    const n = parseInt(v, 10);
+    return !isNaN(n) && n >= 600;
+  };
+  // font-style 활성 판별
+  const isFontStyleActive = (v: string | undefined, onVal: string): boolean => v === onVal;
+  // text-decoration 활성 판별 (underline / line-through 포함 여부)
+  const isTextDecorationActive = (v: string | undefined, onVal: string): boolean =>
+    !!v && v !== 'none' && v.includes(onVal);
+  // border-bottom: '' / undefined / 'none' → "선 없음" 활성
+  const isBorderNone = (v: string | undefined): boolean => !v || v.trim() === '' || v === 'none' || v.trim().startsWith('0');
+  // border-bottom 특정 값과 매칭 (두께나 색상에 구애받지 않고 solid/double 키워드로 실선/관보선 정확 판별)
+  const isBorderMatch = (v: string | undefined, target: string): boolean => {
+    if (target === '') return isBorderNone(v);
+    if (isBorderNone(v)) return false;
+    const lower = v!.toLowerCase();
+    if (target.includes('double')) {
+      return lower.includes('double');
+    }
+    if (target.includes('solid')) {
+      return lower.includes('solid') && !lower.includes('double');
+    }
+    return lower.includes(target.toLowerCase());
+  };
+  // 하단 밑줄 변경 시 기존 색상 보존 핸들러
+  const handleBorderBottomClick = (tag: string, targetValue: string, currentVal: string | undefined, tagColor?: string) => {
+    if (targetValue === '') {
+      updateCssRule(tag, 'border-bottom', 'none');
+      return;
+    }
+    // 기존 border-bottom에 지정된 색상이 있다면 유지, 없으면 태그 글자색 또는 기본 회색 적용
+    const colorMatch = currentVal?.match(/(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))/);
+    const colorToUse = colorMatch ? colorMatch[1] : (tagColor || '#e5e5e5');
+    updateCssRule(tag, 'border-bottom', `${targetValue} ${colorToUse}`.trim());
+  };
+  // text-align: 미지정 시 기본 'left' 활성 처리
+  const isAlignActive = (v: string | undefined, target: string): boolean =>
+    target === 'left' ? (!v || v === 'left') : v === target;
+
+  // styleOptions 개별 active 판별 (font-weight 특별 처리)
+  const isStyleOptionActive = (
+    rules: Record<string, string>,
+    property: string,
+    onVal: string
+  ): boolean => {
+    const v = rules[property];
+    if (property === 'font-weight') return isFontWeightBold(v);
+    if (property === 'font-style') return isFontStyleActive(v, onVal);
+    if (property === 'text-decoration') return isTextDecorationActive(v, onVal);
+    return v === onVal;
+  };
+  // ─────────────────────────────────────────────────────────────
 
   const marginOptions = [
     { label: '여백 없음', value: '0px' },
@@ -1303,59 +1399,60 @@ ${guideContent}
       )}
 
       {/* 2단계: 스크롤 가능한 본문 영역 (슬라이더 패널) */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
 
-        {/* 2단계: 필수 스무스 슬라이더 컨트롤 패널 */}
-        <div 
-          onClick={() => onActiveSectionChange?.('typography')}
-          className="space-y-4.5 bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm cursor-pointer hover:border-blue-400/50 transition-colors"
+        {/* 2단계: 기본 타이포그래피 아코디언 */}
+        <AccordionSection
+          id="typography"
+          title="✍️ 기본 타이포그래피"
+          isOpen={openAccordion === 'typography'}
+          onToggle={() => handleAccordionToggle('typography')}
+          sectionRef={(el) => { accordionRefs.current['typography'] = el; }}
         >
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-zinc-700 dark:text-zinc-300">✍️ 기본 타이포그래피</span>
-          </div>
-
-          {/* 글꼴 선택 */}
-          <div className="flex gap-2.5 items-end">
-            <div className="flex-1">
-              <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold block mb-1">문서 전체 글꼴</span>
-              <input
-                type="text"
-                value={isFontModalOpen ? '선택 중...' : (currentProfile.pageStyle.fontFamily || '')}
-                readOnly
-                className="w-full p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-900 font-mono text-sm text-zinc-800 dark:text-zinc-200 cursor-not-allowed"
-              />
+          <div className="space-y-4">
+            {/* 글꼴 선택 */}
+            <div className="flex gap-2.5 items-end">
+              <div className="flex-1">
+                <span className="text-zinc-500 dark:text-zinc-400 text-xs font-semibold block mb-1">문서 전체 글꼴</span>
+                <input
+                  type="text"
+                  value={isFontModalOpen ? '선택 중...' : (currentProfile.pageStyle.fontFamily || '')}
+                  readOnly
+                  className="w-full p-2 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-900 font-mono text-sm text-zinc-800 dark:text-zinc-200 cursor-not-allowed"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => { if (!isSystemProfile) setIsFontModalOpen(true); }}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-sm font-bold rounded-lg transition-colors shrink-0 disabled:opacity-50"
+                disabled={isSystemProfile}
+              >
+                변경
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => { if (!isSystemProfile) setIsFontModalOpen(true); }}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-sm font-bold rounded-lg transition-colors shrink-0 disabled:opacity-50"
-              disabled={isSystemProfile}
-            >
-              변경
-            </button>
-          </div>
 
-          {/* 스무스 슬라이더들 */}
-          <SliderWidget
-            label="기본 글자 크기"
-            min={10}
-            max={36}
-            value={getNumValue(currentProfile.pageStyle.fontSize, 15)}
-            unit="px"
-            disabled={isSystemProfile}
-            onChange={(v) => handlePageStyleChange('fontSize', v + 'px')}
-          />
-          <SliderWidget
-            label="기본 줄 간격"
-            min={1.0}
-            max={3.0}
-            step={0.1}
-            value={getNumValue(currentProfile.pageStyle.lineHeight, 1.8)}
-            unit="배"
-            disabled={isSystemProfile}
-            onChange={(v) => handlePageStyleChange('lineHeight', v)}
-          />
-        </div>
+            {/* 스무스 슬라이더들 */}
+            <SliderWidget
+              label="기본 글자 크기"
+              min={10}
+              max={36}
+              value={getNumValue(currentProfile.pageStyle.fontSize, 15)}
+              unit="px"
+              disabled={isSystemProfile}
+              onChange={(v) => handlePageStyleChange('fontSize', v + 'px')}
+            />
+            <SliderWidget
+              label="기본 줄 간격"
+              min={1.0}
+              max={3.0}
+              step={0.1}
+              value={getNumValue(currentProfile.pageStyle.lineHeight, 1.8)}
+              unit="배"
+              disabled={isSystemProfile}
+              onChange={(v) => handlePageStyleChange('lineHeight', v)}
+            />
+          </div>
+        </AccordionSection>
 
         {/* 3단계: 고급 레이아웃 아코디언 설정들 */}
         <AccordionSection
@@ -1363,6 +1460,7 @@ ${guideContent}
           title="⚙️ 고급 레이아웃 및 본문 문단"
           isOpen={openAccordion === 'advanced'}
           onToggle={() => handleAccordionToggle('advanced')}
+          sectionRef={(el) => { accordionRefs.current['advanced'] = el; }}
         >
           <div className="space-y-4.5">
 
@@ -1403,7 +1501,7 @@ ${guideContent}
                   type="button"
                   disabled={isSystemProfile}
                   onClick={() => handlePageStyleChange('orientation', 'portrait')}
-                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${currentProfile.pageStyle.orientation === 'portrait'
+                  className={`px-4 py-2 rounded text-sm font-bold border transition-all ${(currentProfile.pageStyle.orientation || 'portrait') === 'portrait'
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                     : 'border-zinc-200 dark:border-zinc-700 text-zinc-500'
                     }`}
@@ -1678,6 +1776,7 @@ ${guideContent}
           title="👑 제목 위계 스타일 (H1 ~ H6)"
           isOpen={openAccordion === 'headings'}
           onToggle={() => handleAccordionToggle('headings')}
+          sectionRef={(el) => { accordionRefs.current['headings'] = el; }}
         >
           <div className="space-y-4">
             <div className="bg-zinc-100 dark:bg-zinc-800/40 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3.5">
@@ -1692,7 +1791,7 @@ ${guideContent}
                   {alignOptions.map(({ label, value }) => (
                     <button key={value} type="button" disabled={isSystemProfile}
                       onClick={() => updateCssRule('h1', 'text-align', value)}
-                      className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (h1Rules['text-align'] === value
+                      className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isAlignActive(h1Rules['text-align'], value)
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                     >{label}</button>
@@ -1727,7 +1826,7 @@ ${guideContent}
                 <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">기본 스타일 효과</span>
                 <div className="flex gap-1.5 flex-wrap">
                   {styleOptions.map(({ label, property, onVal, offVal }) => {
-                    const isActive = h1Rules[property] === onVal;
+                    const isActive = isStyleOptionActive(h1Rules, property, onVal);
                     return (
                       <button key={property} type="button" disabled={isSystemProfile}
                         onClick={() => updateCssRule('h1', property, isActive ? offVal : onVal)}
@@ -1799,8 +1898,8 @@ ${guideContent}
                 <div className="flex gap-1.5 flex-wrap">
                   {borderOptions.map(({ label, value }) => (
                     <button key={label} type="button" disabled={isSystemProfile}
-                      onClick={() => updateCssRule('h1', 'border-bottom', value)}
-                      className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (h1Rules['border-bottom'] === value
+                      onClick={() => handleBorderBottomClick('h1', value, h1Rules['border-bottom'], h1Rules['color'])}
+                      className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isBorderMatch(h1Rules['border-bottom'], value)
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                     >{label}</button>
@@ -1867,7 +1966,7 @@ ${guideContent}
                       <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block">효과</span>
                       <div className="flex gap-1.5 flex-wrap">
                         {styleOptions.map(({ label, property, onVal, offVal }) => {
-                          const isActive = tagRules[property] === onVal;
+                          const isActive = isStyleOptionActive(tagRules, property, onVal);
                           return (
                             <button key={property} type="button" disabled={isSystemProfile}
                               onClick={() => updateCssRule(tag, property, isActive ? offVal : onVal)}
@@ -1886,8 +1985,8 @@ ${guideContent}
                       <div className="flex gap-1.5 flex-wrap">
                         {borderOptions.map(({ label, value }) => (
                           <button key={label} type="button" disabled={isSystemProfile}
-                            onClick={() => updateCssRule(tag, 'border-bottom', value)}
-                            className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (tagRules['border-bottom'] === value
+                            onClick={() => handleBorderBottomClick(tag, value, tagRules['border-bottom'], tagRules['color'])}
+                            className={'px-3 py-1.5 rounded text-sm font-semibold border transition-all ' + (isBorderMatch(tagRules['border-bottom'], value)
                               ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                               : 'border-zinc-200 dark:border-zinc-700 text-zinc-500')}
                           >{label}</button>
@@ -2056,6 +2155,7 @@ ${guideContent}
           title="📋 목록 및 태스크 체크박스"
           isOpen={openAccordion === 'lists'}
           onToggle={() => handleAccordionToggle('lists')}
+          sectionRef={(el) => { accordionRefs.current['lists'] = el; }}
         >
           <div className="space-y-3.5">
             <div className="text-sm font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">글머리 & 숫자 목록 설정</div>
@@ -2218,6 +2318,7 @@ ${guideContent}
           title="➖ 수평 구분선 (HR) 규격"
           isOpen={openAccordion === 'hr'}
           onToggle={() => handleAccordionToggle('hr')}
+          sectionRef={(el) => { accordionRefs.current['hr'] = el; }}
         >
           <div className="space-y-3.5">
             {/* 선 모양 종류 */}
@@ -2290,6 +2391,7 @@ ${guideContent}
           title="🏺 표, 하이퍼링크, 소스코드, 인용구"
           isOpen={openAccordion === 'others'}
           onToggle={() => handleAccordionToggle('others')}
+          sectionRef={(el) => { accordionRefs.current['others'] = el; }}
         >
           {/* 인용구 (Blockquote) 설정 */}
           <div className="space-y-3.5">
@@ -2304,9 +2406,9 @@ ${guideContent}
               const hasBorder = !!rawBq['border'] && rawBq['border'] !== 'none';
               const hasBoxShadow = !!rawBq['box-shadow'] && rawBq['box-shadow'] !== 'none';
 
-              const isLeftLine = hasBorderLeft && !hasBorder && !hasBoxShadow;
-              const isFullBox = hasBorder && !hasBorderLeft && !hasBoxShadow;
               const isShadowBox = hasBoxShadow && !hasBorder && !hasBorderLeft;
+              const isLeftLine = hasBorderLeft;
+              const isFullBox = !hasBorderLeft && hasBorder;
               
               const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
               const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
@@ -2485,7 +2587,7 @@ ${guideContent}
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">인용 글자 굵기</span>
               <select
-                value={getTagRules('blockquote')['font-weight'] || 'normal'}
+                value={isFontWeightBold(getTagRules('blockquote')['font-weight']) ? 'bold' : 'normal'}
                 disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('blockquote', 'font-weight', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
@@ -2502,13 +2604,23 @@ ${guideContent}
 
             {/* 표 형태 프리셋 버튼 */}
             {(() => {
-              const t = currentProfile.rules.table || {};
-              const th = currentProfile.rules.th || {};
-              const isGrid = !!t['border'] && t['border'] !== 'none' && !t['border-top'];
-              const isHorizontal = t['border-left'] === 'none' && !!t['border-top'];
-              const isMinimal = t['border'] === 'none' && !t['border-top'];
+              const rawT = currentProfile.rules.table || {};
+              const rawTh = currentProfile.rules.th || {};
+              const rawTd = currentProfile.rules.td || {};
+              const ts = currentProfile.tableStructure || {
+                outerBorderWidth: rawT['border-width'] || (rawT['border'] ? '1px' : (rawT['border-top'] ? '1px' : '0px')),
+                rowBorderWidth: rawTh['border-width'] || (rawTh['border-bottom'] ? '1px' : '1px'),
+                colBorderWidth: rawTd['border-left'] === 'none' ? '0px' : (rawTd['border-left'] ? '1px' : (rawTd['border-width'] || '0px')),
+              };
+              const outerW = parseInt(ts.outerBorderWidth || '0', 10) || 0;
+              const rowW = parseInt(ts.rowBorderWidth || '0', 10) || 0;
+              const colW = parseInt(ts.colBorderWidth || '0', 10) || 0;
+
+              const isMinimal = outerW === 0 && rowW === 0 && colW === 0;
+              const isGrid = !isMinimal && colW > 0;
+              const isHorizontal = !isMinimal && colW === 0;
               
-              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
+              const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/40 border-blue-400 dark:border-blue-500 text-blue-700 dark:text-blue-300 font-bold shadow-xs';
               const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
 
               return (
@@ -2520,11 +2632,12 @@ ${guideContent}
                       const newTh = { ...(currentProfile.rules.th || {}) };
                       const newTd = { ...(currentProfile.rules.td || {}) };
                       const color = newT['border-color'] || '#cbd5e1';
-                      // 모든 테두리 (개별 속성으로 표준화)
-                      newT['border-style'] = 'solid'; newT['border-width'] = '1px'; newT['border-color'] = color;
-                      newTh['border-style'] = 'solid'; newTh['border-width'] = '1px'; newTh['border-color'] = color;
-                      newTd['border-style'] = 'solid'; newTd['border-width'] = '1px'; newTd['border-color'] = color;
-                      // 기존 shorthand 및 방향별 설정 제거
+                      const bStyle = newT['border-style'] || 'solid';
+                      // 모든 테두리 (Grid): 1px 사방 테두리
+                      newT['border-style'] = bStyle; newT['border-width'] = '1px'; newT['border-color'] = color;
+                      newTh['border-style'] = bStyle; newTh['border-width'] = '1px'; newTh['border-color'] = color;
+                      newTd['border-style'] = bStyle; newTd['border-width'] = '1px'; newTd['border-color'] = color;
+                      // 기존 shorthand 및 방향별 설정 완전 제거
                       delete newT['border']; delete newTh['border']; delete newTd['border'];
                       delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
                       delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
@@ -2543,31 +2656,15 @@ ${guideContent}
                       const newTh = { ...(currentProfile.rules.th || {}) };
                       const newTd = { ...(currentProfile.rules.td || {}) };
                       const color = newT['border-color'] || '#cbd5e1';
-                      // 가로선 강조
-                      newT['border-top'] = `2px solid ${color}`;
-                      newT['border-bottom'] = `2px solid ${color}`;
-                      newT['border-left'] = 'none';
-                      newT['border-right'] = 'none';
-                      delete newT['border'];
-                      delete newT['border-style'];
-                      delete newT['border-width'];
-
-                      newTh['border-bottom'] = `1px solid ${color}`;
-                      newTh['border-top'] = 'none';
-                      newTh['border-left'] = 'none';
-                      newTh['border-right'] = 'none';
-                      delete newTh['border'];
-                      delete newTh['border-style'];
-                      delete newTh['border-width'];
-
-                      newTd['border-bottom'] = `1px solid ${color}`;
-                      newTd['border-top'] = 'none';
-                      newTd['border-left'] = 'none';
-                      newTd['border-right'] = 'none';
-                      delete newTd['border'];
-                      delete newTd['border-style'];
-                      delete newTd['border-width'];
-
+                      const bStyle = newT['border-style'] || 'solid';
+                      // 가로선 강조: 외곽 2px, 행 1px, 열 0px(세로선 없음)
+                      newT['border-style'] = bStyle; newT['border-width'] = '2px'; newT['border-color'] = color;
+                      newTh['border-style'] = bStyle; newTh['border-width'] = '1px'; newTh['border-color'] = color;
+                      newTd['border-style'] = bStyle; newTd['border-width'] = '1px'; newTd['border-color'] = color;
+                      delete newT['border']; delete newTh['border']; delete newTd['border'];
+                      delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
+                      delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
+                      delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
                       const nextTableStructure = { outerBorderWidth: '2px', rowBorderWidth: '1px', colBorderWidth: '0px' };
                       triggerUpdate({ ...currentProfile, tableStructure: nextTableStructure, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (가로선 강조)');
                     }}
@@ -2581,18 +2678,17 @@ ${guideContent}
                       const newT = { ...(currentProfile.rules.table || {}) };
                       const newTh = { ...(currentProfile.rules.th || {}) };
                       const newTd = { ...(currentProfile.rules.td || {}) };
-                      // 미니멀 (테두리 없음)
+                      // 미니멀: 외곽 0px, 행 0px, 열 0px (테두리 완전 소멸)
                       newT['border'] = 'none';
                       newTh['border'] = 'none';
                       newTd['border'] = 'none';
-                      newTh['background-color'] = '#f8fafc';
-                      // 기존 테두리 설정 모두 제거
+                      newT['border-style'] = 'none'; newT['border-width'] = '0px';
+                      newTh['border-style'] = 'none'; newTh['border-width'] = '0px';
+                      newTd['border-style'] = 'none'; newTd['border-width'] = '0px';
+                      newTh['background-color'] = newTh['background-color'] || '#f8fafc';
                       delete newT['border-top']; delete newT['border-bottom']; delete newT['border-left']; delete newT['border-right'];
-                      delete newT['border-style']; delete newT['border-width'];
                       delete newTh['border-bottom']; delete newTh['border-top']; delete newTh['border-left']; delete newTh['border-right'];
-                      delete newTh['border-style']; delete newTh['border-width'];
                       delete newTd['border-bottom']; delete newTd['border-top']; delete newTd['border-left']; delete newTd['border-right'];
-                      delete newTd['border-style']; delete newTd['border-width'];
                       const nextTableStructure = { outerBorderWidth: '0px', rowBorderWidth: '0px', colBorderWidth: '0px' };
                       triggerUpdate({ ...currentProfile, tableStructure: nextTableStructure, rules: { ...currentProfile.rules, table: newT, th: newTh, td: newTd }}, 'table', '표 형태 (미니멀)');
                     }}
@@ -2783,7 +2879,7 @@ ${guideContent}
             <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
               <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">링크 글자 굵기</span>
               <select
-                value={getTagRules('a')['font-weight'] || 'normal'}
+                value={isFontWeightBold(getTagRules('a')['font-weight']) ? 'bold' : 'normal'}
                 disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('a', 'font-weight', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
@@ -2801,9 +2897,10 @@ ${guideContent}
             {/* 코드 블록 형태 프리셋 버튼 */}
             {(() => {
               const cb = getTagRules('codeBlock');
-              const isBasic = cb['background-color'] === '#f1f5f9';
-              const isMac = cb['background-color'] === '#282c34';
-              const isDark = cb['background-color'] === '#0f172a';
+              const bg = (cb['background-color'] || '').toLowerCase();
+              const isMac = bg === '#282c34';
+              const isDark = !isMac && (bg === '#0f172a' || bg === '#1e293b' || bg === '#111827' || bg === '#18181b' || (cb['color'] && cb['color'].toLowerCase().startsWith('#f')));
+              const isBasic = !isMac && !isDark;
               
               const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
               const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
@@ -2913,6 +3010,18 @@ ${guideContent}
               }}
             />
 
+            {/* 코드 블록 줄 간격(행간) 슬라이더 */}
+            <SliderWidget
+              label="코드 블록 줄 간격 (행간)"
+              min={1.0}
+              max={2.0}
+              step={0.05}
+              value={parseFloat((getTagRules('codeBlock')['line-height']) || '1.35')}
+              unit="배"
+              disabled={isSystemProfile}
+              onChange={(v) => updateCssRule('codeBlock', 'line-height', String(v))}
+            />
+
             <SliderWidget
               label="코드 블록 내부 패딩"
               min={0}
@@ -2987,7 +3096,7 @@ ${guideContent}
             <div className="flex items-center justify-between p-3 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
               <span className="text-[13.5px] font-bold text-zinc-700 dark:text-zinc-300">각주 굵기 (Font Weight)</span>
               <select
-                value={getTagRules('footnote')['font-weight'] || 'normal'}
+                value={isFontWeightBold(getTagRules('footnote')['font-weight']) ? 'bold' : 'normal'}
                 disabled={isSystemProfile}
                 onChange={(e) => updateCssRule('footnote', 'font-weight', e.target.value)}
                 className="bg-transparent border-none outline-none text-sm text-blue-600 dark:text-blue-400 font-bold cursor-pointer text-right"
@@ -3049,6 +3158,7 @@ ${guideContent}
           title="🎬 미디어 (이미지, 동영상, 지도, 수식)"
           isOpen={openAccordion === 'media'}
           onToggle={() => handleAccordionToggle('media')}
+          sectionRef={(el) => { accordionRefs.current['media'] = el; }}
         >
           {/* 이미지 객체 (Image) 설정 */}
           <div className="space-y-3.5">
@@ -3060,9 +3170,9 @@ ${guideContent}
               const hasImgBorderBottom = !!imgRules['border-bottom-width'] && imgRules['border-bottom-width'] !== 'none';
               const hasImgBoxShadow = !!imgRules['box-shadow'] && imgRules['box-shadow'] !== 'none';
               
-              const isBasic = imgRules['border-radius'] === '4px' && !hasImgBorderBottom && !hasImgBoxShadow;
-              const isPolaroid = imgRules['border-bottom-width'] === '32px';
-              const isThumbnail = imgRules['border-radius'] === '16px' && hasImgBoxShadow && !hasImgBorderBottom;
+              const isPolaroid = imgRules['border-bottom-width'] === '32px' || hasImgBorderBottom;
+              const isThumbnail = !isPolaroid && hasImgBoxShadow;
+              const isBasic = !isPolaroid && !isThumbnail;
               
               const activeClass = 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
               const inactiveClass = 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300';
@@ -3408,6 +3518,42 @@ ${guideContent}
                 <option value="right">오른쪽 정렬</option>
               </select>
             </div>
+          </div>
+        </AccordionSection>
+
+        <AccordionSection
+          id="effective-rules"
+          title="🧩 쇼케이스에 적용되는 전체 태그 규칙"
+          isOpen={openAccordion === 'effective-rules'}
+          onToggle={() => handleAccordionToggle('effective-rules')}
+          sectionRef={(el) => { accordionRefs.current['effective-rules'] = el; }}
+        >
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            기본값을 포함해 현재 쇼케이스에 적용되는 태그별 설정입니다. 값 변경은 위의 서식 컨트롤에서 할 수 있습니다.
+          </p>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {Object.entries(currentProfile.rules).map(([tag, rule]) => {
+              if (!rule) return null;
+              const shownRules = /^h[1-6]$/.test(tag) && !rule['border-bottom']
+                ? { ...rule, 'border-bottom': 'none' }
+                : rule;
+              return <TagRuleEditor key={tag} tag={tag} label={tag.toUpperCase()}
+                rules={shownRules} isSystemProfile={true}
+                onUpdateRule={updateCssRule} onRemoveRule={removeCssRule} />;
+            })}
+          </div>
+          <div className="space-y-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+            <label htmlFor="profile-custom-css" className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+              추가 CSS {currentProfile.customCss?.trim() ? '(적용 중)' : '(없음)'}
+            </label>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              가져오거나 AI로 만든 서식의 추가 규칙도 쇼케이스에 적용됩니다. 같은 속성이 겹치면 위의 서식 컨트롤 값이 우선합니다.
+            </p>
+            <textarea id="profile-custom-css" value={currentProfile.customCss || ''}
+              disabled={isSystemProfile}
+              onChange={(event) => onUpdateProfile({ ...currentProfile, customCss: event.target.value })}
+              className="w-full min-h-36 p-3 font-mono text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 disabled:opacity-60"
+            />
           </div>
         </AccordionSection>
 

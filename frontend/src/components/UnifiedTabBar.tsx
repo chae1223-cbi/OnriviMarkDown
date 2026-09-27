@@ -7,6 +7,7 @@ import { useEditorContext } from '@/context/EditorContext';
 // 📊 [OMD-EDIT-UnifiedTabBar-0002] UnifiedTabBar ➔ EditorTab
 // 🎯 @KICK  : 에디터 탭 인터페이스 - id, name, path, content, isModified 등 탭 상태 정의
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-09-26** — [상단 탭 바 중복 탭 렌더링 원천 차단 가드]: visibleTabs에서 seenTabIds 필터링을 도입하여 동일한 탭 ID/경로가 2개 이상 렌더링되어 파란색 활성 탭이 중복 노출되던 결함 완전 방어
 // 🚨 @PATCH : **2026-09-11** — 에디터 문서 탭바 폰트를 Pretendard 최우선으로 일원화 적용
 //             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-02** — [ONRIVI-DS-SYSTEM-002 v5.0] 좌측 사이드바 탭과 100% 동일한 폰트(LineSeed/D2Coding/Pretendard 12px bold), 캡슐형 형태(rounded-md), LDSG 그린 그라데이션(bg-gradient-to-r from-[#1d4ed8] to-[#1e40af])으로 상단 탭 스타일 통일
@@ -124,11 +125,18 @@ export default function UnifiedTabBar() {
         className="flex items-center w-full border-b border-[#E2E8F0] dark:border-white/[0.08] px-2 gap-1.5 overflow-x-auto select-none no-scrollbar h-10 bg-white/75 dark:bg-black/30 backdrop-blur-md text-on-surface"
       >
         <div className="flex items-center gap-1.5 flex-1 overflow-x-auto no-scrollbar relative">
-          {tabs.map((tab: EditorTab) => {
-            const isActive = activeTabId === tab.id;
-            return (
-              <div
-                key={tab.id}
+          {(() => {
+            const seenTabIds = new Set<string>();
+            const visibleTabs = tabs.filter((tab: EditorTab) => {
+              if (seenTabIds.has(tab.id)) return false;
+              seenTabIds.add(tab.id);
+              return true;
+            });
+            return visibleTabs.map((tab: EditorTab) => {
+              const isActive = activeTabId === tab.id;
+              return (
+                <div
+                  key={tab.id}
                 draggable={true}
                 onDragStart={(e) => handleDragStart(e, tab.id)}
                 onDragOver={handleDragOver}
@@ -168,7 +176,8 @@ export default function UnifiedTabBar() {
                 </button>
               </div>
             );
-          })}
+          });
+        })()}
         </div>
       </div>
 

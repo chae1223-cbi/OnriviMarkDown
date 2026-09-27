@@ -182,9 +182,6 @@
       "border-width": "1px",
       "border-color": "#9ca3af",
       "font-weight": "650",
-      "border-bottom": "1px solid #e5e5e5",
-      "border-left": "none",
-      "border-right": "none",
       "text-align": "left",
       "color": "#202123"
     },
@@ -193,9 +190,6 @@
       "border-style": "solid",
       "border-width": "1px",
       "border-color": "#9ca3af",
-      "border-bottom": "1px solid #e5e5e5",
-      "border-left": "none",
-      "border-right": "none",
       "color": "#2f2f2f"
     },
     "blockquote": {

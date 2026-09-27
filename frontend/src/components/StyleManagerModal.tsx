@@ -1,6 +1,8 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 파일명 : StyleManagerModal.tsx
+ * 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
+ * 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 프리셋 가이드·AI 프롬프트 동기화]: tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 세로선(Grid: 1px, Horizontal: 0px) 명세 보강 및 th/td 레거시 border-left/right: none 주입 방지 지시 탑재
  * 🚨 @PATCH : **2026-09-25** — [Onrivi 한컴 테크 블로그 서식 시스템 제공 서식 탭 연동 및 조판 동기화]: 한컴 테크 블로그 프리미엄 서식(오렌지 포인트 H2 하단선, H3 좌측바, 1.8배 본문 줄간격 및 8px 문장 간격, 가로선 중심 비교표) 시스템 서식 목록 노출 및 조판 연동
  * 🚨 @PATCH : **2026-09-25** — [고급 레이아웃 표준 여백(상하 18mm, 좌우 12mm) AI 프롬프트 지시문 일원화]: AI 서식 생성 지시문의 pageStyle 여백을 상하 18mm, 좌우 12mm(marginTop/marginBottom: 18mm, marginLeft/marginRight: 12mm)로 전면 일원화
  * 🚨 @PATCH : **2026-09-25** — [시스템 제공 서식 개편 동기화]: 구버전 서식 2종 삭제 및 신규 시스템 제공 서식 5종(Onrivi 기술 표준 서식, Onrivi 법률·계약서 A4 공식 문서, Onrivi 네이버 블로그 감성 서식, Onrivi 일반 기술서적 표준 서식, Onrivi 공식 행사 및 가정통신문 안내장 서식) 🏛️ 시스템 제공 서식 탭 연동
@@ -360,8 +362,9 @@ export default function StyleManagerModal({
    "tableStructure": {
      "outerBorderWidth": "1px",  // 표 외곽 테두리 두께 (예: "1px", "2px", "0px")
      "rowBorderWidth": "1px",    // 표 행(가로선) 구분선 두께 (예: "1px", "2px", "0px")
-     "colBorderWidth": "1px"     // 표 열(세로선) 구분선 두께 (예: "1px", "0px" - 가로선 강조형은 "0px")
+     "colBorderWidth": "1px"     // 표 열(세로선) 구분선 두께 (예: 모든 테두리(Grid)는 "1px", 가로선 강조형은 "0px", 미니멀은 "0px")
    }
+   표 셀(th, td)에 'border-left: none' 또는 'border-right: none' 같은 불필요한 레거시 방향별 테두리를 절대 개별 선언하지 마세요. 테두리는 tableStructure 수치로 일원화 제어됩니다.
 4. 구분선(hrStructure - 28px/1px/solid/100%) 및 체크박스(checkboxStructure - boxSize: "16px", checkedEffect: "none", textGap: "9px", color: "#2f2f2f", 체크박스 및 체크리스트 글자색은 별도의 다른 색으로 하지 말고 본문 글자색과 동일한 #2f2f2f, 완료 효과 checkedEffect는 무조건 "none" 효과없음) 구조체도 완벽히 포함하세요.
 5. 미디어 객체(rules.img, rules.video, rules.map)는 본문 폭에 맞춰 자연스럽게 전개되도록 너비를 100%("width": "100%")로 설정하고, video는 "height": "315px", map은 "height": "400px"으로 안정적인 16:9 와이드 가로형 비율을 유지하세요.
 6. 설명이나 마크다운 코드블록(\`\`\`) 없이 오직 유효한 단일 JSON 객체({ ... })만 출력하세요.

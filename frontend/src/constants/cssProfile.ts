@@ -3,6 +3,7 @@ import { CssProfile } from '../types/cssProfile';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 행/열 테두리 기본값 정합화]: DEFAULT_PROFILE의 th/td에서 잔여 레거시 'border-left': 'none' / 'border-right': 'none'을 소거하고 tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth)와 100% 동기화
 // 🚨 @PATCH : **2026-09-25** — [한글 폰트 원래 시스템 폰트 복원 및 영문 세리프 적용]: Onrivi 기본서식(system-1 및 DEFAULT_PROFILE)의 pageStyle.fontFamily에서 영문은 Times New Roman/Georgia를 적용하고, 한글은 원래의 Noto Sans KR/시스템 고딕으로 복원
 // 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 신규 탑재]: 한컴(HANCOM) 공식 블로그의 모던 테크니컬 디자인을 완벽 재현한 'Onrivi 한컴 테크 블로그 서식(hancom-tech-blog)'을 시스템 프로필로 공식 등록 (H2 오렌지 하단선, H3 오렌지 좌측바, 1.8배 본문 줄간격, 8px 문장 사이 간격, 가로선 중심 비교표, 와이드 라운드 미디어 등 반영)
 // 🚨 @PATCH : **2026-09-25** — [문서 표준 용지 여백(상하 18mm, 좌우 12mm) 전 서식 일원화]: 모든 시스템 서식(SYSTEM_PROFILES), 빈 서식(createEmptyProfile), 정규화(normalizeCssProfile)의 pageStyle 여백을 marginTop: 18mm, marginBottom: 18mm, marginLeft: 12mm, marginRight: 12mm로 일원화
@@ -45,6 +46,11 @@ export type SystemProfileId = typeof SYSTEM_PROFILE_IDS[number];
 // ====================================================================
 export function isSystemProfileId(id: string): boolean {
   return (SYSTEM_PROFILE_IDS as readonly string[]).includes(id);
+}
+
+/** 편집·미리보기에서 같은 기본값을 사용하면서 원본 서식 ID를 유지한다. */
+export function resolveCssProfile(profile: CssProfile): CssProfile {
+  return { ...normalizeCssProfile(profile), id: profile.id };
 }
 
 // ====================================================================
@@ -254,11 +260,8 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "padding": "10px 12px",
         "border-style": "solid",
         "border-width": "1px",
-        "border-color": "#9ca3af",
+        "border-color": "#cbd5e1",
         "font-weight": "650",
-        "border-bottom": "1px solid #e5e5e5",
-        "border-left": "none",
-        "border-right": "none",
         "text-align": "left",
         "color": "#202123"
       },
@@ -266,10 +269,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
         "padding": "10px 12px",
         "border-style": "solid",
         "border-width": "1px",
-        "border-color": "#9ca3af",
-        "border-bottom": "1px solid #e5e5e5",
-        "border-left": "none",
-        "border-right": "none",
+        "border-color": "#cbd5e1",
         "color": "#2f2f2f"
       },
       "blockquote": {
@@ -2288,10 +2288,20 @@ export function normalizeCssProfile(
     delete incomingRules.code['font-size'];
   }
 
-  // 3-4. 표(table, th, td) 단축 속성과 개별 속성 중복 제거
+  // 3-4. 표(table, th, td) 단축 속성과 개별 속성 중복 제거 및 세로선 방해 레거시 방향별 테두리 살균
   ['table', 'th', 'td'].forEach(tag => {
     if (incomingRules[tag] && incomingRules[tag]['border-width'] && incomingRules[tag]['border']) {
       delete incomingRules[tag]['border'];
+    }
+  });
+  ['th', 'td'].forEach(tag => {
+    if (incomingRules[tag]) {
+      if (incomingRules[tag]['border-left'] === 'none' || incomingRules[tag]['border-left'] === '0' || incomingRules[tag]['border-left'] === '0px') {
+        delete incomingRules[tag]['border-left'];
+      }
+      if (incomingRules[tag]['border-right'] === 'none' || incomingRules[tag]['border-right'] === '0' || incomingRules[tag]['border-right'] === '0px') {
+        delete incomingRules[tag]['border-right'];
+      }
     }
   });
 
@@ -2353,4 +2363,3 @@ export function normalizeCssProfile(
     tableStructure: mergedTableStructure,
   };
 }
-

@@ -3,6 +3,7 @@
  * 파일명 : CssStyleModal.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-09-27** — [웹 서식 주제 펼침 시 쇼케이스 첫 태그 이동]: 카드 일부가 보이면 이동하지 않던 nearest 스크롤을 우측 패널 기준 좌표 스크롤로 교체하고 동일 주제 재선택도 처리
  * 🚨 @PATCH : **2026-09-24** — [각주(Footnote) 펄스 연동 및 Card 7 스크롤 연동 신설]: footnote 태그 조작 시 .footnotes, section[data-footnotes] 요소를 찾아 실시간 펄스 하이라이트 및 Card 7 활성화/뷰포트 추종 연동
  * 🚨 @PATCH : **2026-09-24** — [본문 문단(P/BR) 펄스 및 뷰포트 추종 시 활성 모듈 카드 스코핑 보장]: 모듈 모드에서 p 또는 br 조작 시 activeModuleId 카드의 문단을 우선 타겟팅하여 Card 1로의 엉뚱한 뷰포트 점프 버그 원천 차단
  * 🚨 @PATCH : **2026-09-24** — [수식(MATH) 펄스 연동 및 고급 레이아웃·본문 문단 Card 6 스크롤 매핑 신설]:
@@ -74,6 +75,10 @@ export default function CssStyleModal({
   
   /* ─── 현재 포커스된 서식 모듈 ID ('typography' | 'headings' | 'lists' | 'boxes' | 'media' | 'advanced') ─── */
   const [activeModuleId, setActiveModuleId] = useState<string>('typography');
+  // 같은 주제를 다시 펼쳐도 스크롤 효과가 실행되도록 요청 순번을 함께 저장한다.
+  const [scrollRequest, setScrollRequest] = useState<{ sectionId: string; sequence: number } | null>(null);
+  // 전체 창이 아닌 우측 쇼케이스의 실제 스크롤 컨테이너를 가리킨다.
+  const previewScrollRef = useRef<HTMLDivElement>(null);
   
   /* ─── 실시간 동기화 상태 텍스트 ─── */
   const [syncStatusText, setSyncStatusText] = useState<string>('실시간 미리보기');
@@ -100,7 +105,12 @@ export default function CssStyleModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, isStyleManagerOpen]);
 
-  /* ─── 좌측 아코디언 토글 시 우측 해당 모듈 카드로 자동 스크롤 & 활성화 ─── */
+  // ====================================================================
+  // 📊 [OMD-EDIT-0038] frontend/src/components/CssStyleModal.tsx ➔ handleActiveSectionChange
+  // 🎯 @KICK  : 펼친 서식 주제에 대응하는 쇼케이스 카드를 활성화하고 첫 태그 이동을 예약한다.
+  // 🛡️ @GUARD : 문서 보기 상태에서도 모듈 보기로 전환하고 동일 주제 재선택을 놓치지 않는다.
+  // 🔗 @CALLS : setActiveModuleId(), setPreviewViewMode(), setScrollRequest()
+  // ====================================================================
   const handleActiveSectionChange = (sectionId: string) => {
     let targetModule = 'typography';
     if (sectionId === 'headings') targetModule = 'headings';
@@ -111,23 +121,39 @@ export default function CssStyleModal({
     else if (sectionId === 'typography') targetModule = 'typography';
 
     setActiveModuleId(targetModule);
-
-    // 모듈 모드일 때 해당 카드로 부드럽게 스크롤 이동
-    if (previewViewMode === 'modules') {
-      // 💡 수평 구분선(HR) 선택 시 Card 5 내부의 hr 위치로 직행 스크롤
-      if (sectionId === 'hr') {
-        const targetHr = document.querySelector('#omd-showcase-module-media hr');
-        if (targetHr) {
-          targetHr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          return;
-        }
-      }
-      const targetCard = document.getElementById('omd-showcase-module-' + targetModule);
-      if (targetCard) {
-        targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }
+    setPreviewViewMode('modules');
+    setScrollRequest(previous => ({ sectionId, sequence: (previous?.sequence || 0) + 1 }));
   };
+
+  // ====================================================================
+  // 📊 [OMD-EDIT-0039] frontend/src/components/CssStyleModal.tsx ➔ 서식 주제 쇼케이스 스크롤 효과
+  // 🎯 @KICK  : 펼친 주제의 첫 태그를 우측 쇼케이스 패널의 보이는 영역으로 이동한다.
+  // 🛡️ @GUARD : 렌더 완료 후 대상 DOM을 찾고, 대상이 없으면 카드로 대체하며 음수 스크롤을 막는다.
+  // 🚨 @PATCH : scrollIntoView(nearest)는 카드 일부가 보일 때 이동하지 않아 패널 좌표로 직접 스크롤한다.
+  // 🔗 @CALLS : requestAnimationFrame(), document.getElementById(), querySelector(), getBoundingClientRect(), pane.scrollTo(), cancelAnimationFrame()
+  // ====================================================================
+  useEffect(() => {
+    if (!isOpen || previewViewMode !== 'modules' || !scrollRequest) return;
+    const firstTag: Record<string, string> = {
+      typography: 'p', advanced: 'p', headings: 'h1', lists: 'ol',
+      others: 'table', media: 'img, figure', hr: 'hr',
+      'effective-rules': 'p',
+    };
+    const moduleId = scrollRequest.sectionId === 'hr' ? 'media'
+      : scrollRequest.sectionId === 'others' ? 'boxes'
+      : scrollRequest.sectionId === 'effective-rules' ? 'typography'
+      : scrollRequest.sectionId;
+    const frame = requestAnimationFrame(() => {
+      const pane = previewScrollRef.current;
+      const card = document.getElementById(`omd-showcase-module-${moduleId}`);
+      if (!pane || !card) return;
+      const firstElement = card.querySelector(firstTag[scrollRequest.sectionId] || 'p') || card;
+      const targetTop = pane.scrollTop + firstElement.getBoundingClientRect().top
+        - pane.getBoundingClientRect().top - 20;
+      pane.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, previewViewMode, scrollRequest]);
 
   /* ─── 속성 변경 시 해당 대상 태그 요소 펄스(Pulse) 하이라이트 & 헤더 HUD 갱신 ─── */
   const handleActiveTagChange = (tag: string, label?: string) => {
@@ -284,7 +310,7 @@ export default function CssStyleModal({
 
           {/* 우측: 듀얼 모드 프리뷰 뷰어 */}
           <div 
-            ref={syncTimerRef as any}
+            ref={previewScrollRef}
             className={`flex-1 h-full overflow-y-auto p-6 lg:p-10 ${isDarkMode ? 'bg-[#0E0E10]' : 'bg-slate-100'}`}
           >
             <div
@@ -333,7 +359,7 @@ export default function CssStyleModal({
                         </div>
 
                         {/* 마크다운 렌더링 바디 */}
-                        <div className="p-6 lg:p-8">
+                        <div className={mod.id === 'headings' ? 'py-6 lg:py-8' : 'p-6 lg:p-8'}>
                           <MarkdownViewer
                             content={mod.markdown}
                             originalContent={mod.markdown}

@@ -4,6 +4,13 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
+// 🚨 @PATCH : **2026-09-26** — [에디터 이중 중첩 코드블록 배경 데코레이션 끊김 결함 완벽 해결]: updateDecorations의 단순 startsWith('```') 토글을 getCodeBlockLineMask 정밀 마스크로 전환하여 이중 코드블록 내부(```python, def, print 등) 전체 라인에 monaco-codeblock-line 데코레이션이 100% 매끄럽게 연결되도록 개선
+// 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 렌더링 누락 및 스타일·색상 상속 결함 해결]: tableStructure.colBorderWidth/rowBorderWidth/outerBorderWidth가 0보다 클 때 th/td의 border-left/right/top/bottom에 width뿐 아니라 border-style 및 border-color를 !important로 명시 주입하여 세로선(열 구분선)이 화면에 100% 렌더링되도록 개선
+// 🚨 @PATCH : **2026-09-26** — [코드블록 내부 행간 줄간격 콤팩트 규격화(1.35배) 및 서식 연동]: codeBlock line-height(기본 1.35배) 동적 인젝션으로 본문 1.8배 줄간격 오염 차단 및 빈 행 1칸 높이 정밀 유지
+// 🚨 @PATCH : **2026-09-26** — [Alert 인용구 태그와 본문 간격 최소화 서식 동기화]: .onrivi-alert-title(하단 마진 축소 및 --onrivi-alert-gap 연동)과 .onrivi-alert-content(첫 문단 margin-top 0 강제) dynamicCssString 인젝션
+// 🚨 @PATCH : **2026-09-27** — [서식 컨트롤 우선순위 고정]: 설정창 규칙과 추가 CSS를 계층으로 분리해 동일 속성 충돌 시 설정창의 !important 선언이 우선하도록 보장
+// 🚨 @PATCH : **2026-09-26** — [에디터 기술 블로그 미리보기 및 발행 모달 연동]: BlogPostModal 임포트, onrivi:open-blog-modal 이벤트 수신 및 Ctrl+Alt+B 연동
 // 🚨 @PATCH : **2026-09-25** — [시스템 제공 서식 개편 동기화]: 구버전 서식('GitHub 기술 블로그/명세서', '공공기관 보고서 양식')을 삭제하고, 신규 시스템 제공 서식 5종('Onrivi 기술 표준 서식', 'Onrivi 법률·계약서 A4 공식 문서', 'Onrivi 네이버 블로그 감성 서식', 'Onrivi 일반 기술서적 표준 서식', 'Onrivi 공식 행사 및 가정통신문 안내장 서식')을 시스템 서식으로 공식 인식 및 로드
 // 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 일치화]: .task-list-item 및 checkboxStructure color를 본문(p) 글씨색(기본 #2f2f2f)으로 일치시켜 별도 색상 튐 현상 원천 배제
 // 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 기본값 통일]: prof.checkboxStructure.checkedEffect 기본값을 무조건 'none'으로 처리하여 기본 체크박스 완료 시 취소선 및 반투명 효과를 원천 배제
@@ -27,6 +34,7 @@
 //             2) map 셀렉터에 iframe[src*="google.com/maps"], iframe[src*="maps.google.com"] 포괄 확장 및 iframe 래퍼(.onrivi-map-wrapper) 연동
 //             3) 미디어 래퍼(.onrivi-image-wrapper, .onrivi-video-wrapper, .onrivi-map-wrapper)에 display:inline-flex, width:fit-content, max-width:100%, align-self: flex-start / center / flex-end 및 figcaption 정렬 자동 주입으로 flex 컨테이너 내부 100% 정렬 보장
 //             4) ml/mr '0' 및 '0px' 동등 지원으로 정렬 오판정 원천 방어
+// 🚨 @PATCH : **2026-09-26** — [에디터 수직 스크롤바 너비 슬림화(32px -> 16px)]: 과도하게 두꺼워진 모나코 에디터 verticalScrollbarSize를 기존 32px에서 절반인 16px로 축소하여 슬림하고 미려한 에디터 디자인 복원
 // 🚨 @PATCH : **2026-09-25** — [에디터 Pretendard 폰트 전면 적용 및 줄바꿈 단어 잘림 방지 32px 안전 여백 확보]: 에디터 글꼴을 가독성·원문자 1위인 Pretendard Variable로 변경하고, verticalScrollbarSize를 32px로 확장하여 가변폭/볼드 환경에서도 줄 끝 단어가 스크롤바에 가려지거나 잘리지 않도록 안전 여백 완벽 보장
 // 🚨 @PATCH : **2026-09-25** — [스크롤바 슬라이더 겹침 방지 verticalScrollbarSize 24px 확대]: 모나코 줄바꿈 contentWidth 계산 시 스크롤바 여백을 10px->24px로 확대하여 줄 끝 글자(r, ;, l, y)가 스크롤바에 닿거나 가려지는 현상 완전 해결
 // 🚨 @PATCH : **2026-09-25** — [에디터 고정폭(D2Coding) 전면 복원 및 강조태그 긴문장 우측 글자 잘림·누락 완전 해결]: 에디터에 가변폭 세리프(Times New Roman) 적용 시 볼드(**) 토큰에서 글자 폭이 30% 급증하여 모나코 줄바꿈 계산을 초과해 우측 글자가 잘려 숨겨지던 결함을 에디터 fontFamily를 고정폭 D2Coding(D2CodingLigature, D2Coding, Consolas)으로 100% 복원하여 글자 폭 일치 및 무결점 줄바꿈 실현
@@ -41,6 +49,7 @@
 // 🚨 @PATCH : **2026-09-23** — [제목 태그(#) 및 헤딩 텍스트 고대비 선명화]: H1~H6 마크다운 접두사 태그(#)를 코발트 블루(#1d4ed8, 볼드)로 고대비 선명화, 제목 본문 흐릿한 연두색(#34d399)을 딥 틸/에메랄드(#0f766e, #047857)로 교체 및 에디터 컨테이너 editor-high-contrast 연동
 // 🚨 @PATCH : **2026-09-23** — [에디터 글꼴 굵기(Font Weight) 및 고대비(High Contrast) 실시간 반영]: useEditorSettings에서 editorFontWeight, editorHighContrast 연동, Monaco editor updateOptions(fontWeight 400/500/700) 및 defineTheme 고대비(최대 명암비 순수 흑백) 동적 재적용
 // 🚨 @PATCH : **2026-09-23** — [인용구 한글/영문 Alert 태그 동시 지원] applyLinePrefix 및 플로팅 서식 툴바 인용구 드롭다운에 한글/영문 Alert 태그([!참고] / [!NOTE], [!팁] / [!TIP] 등) 치환 및 듀얼 표기 연동
+// 🚨 @PATCH : **2026-09-26** — [동일 파일 중복 탭(2개) 생성 버그 완전 박멸]: 1) restoreSessionTabs에서 openFilePaths 사전 중복 제거 및 activeFilePath에 대한 2중 파일 오픈 대신 switchTab 호출, 2) openExternalFile에서 경로 정규화(NFC/소문자/슬래시) 비교 및 setTabs 원자적 중복 검사 가드 도입으로 동일 파일이 상단 탭에 2개 중복 노출되던 결함 영구 차단
 // 🚨 @PATCH : **2026-09-23** — [긴 영문 단어 줄바꿈 개선] Monaco 에디터 옵션에 wordWrapBreakAfterCharacters/wordWrapBreakBeforeCharacters 확장 및 break-all 연동으로 영문 단어가 통째로 다음 줄로 떨어지지 않고 한글처럼 줄 끝에서 글자 단위로 자연스럽게 줄바꿈되도록 개선
 // 🚨 @PATCH : **2026-09-23** — [좌측 에디터 D2Coding 스타일 명세 반영] D2CodingLigature 폰트, 15px, lineHeight 1.75(26px), 리가처 활성화, 스카이블루(#38bdf8) 커서, 다크 테마(#0f172a/#e2e8f0), padding.right 32px 안전 여백 적용
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 화면/우측 툴바 잘림 방지 클램핑 개선] 에디터 분할 모드 시 툴바 너비(약 1200px)보다 좁은 에디터 폭으로 인해 우측 끝(수식 아이콘 등)이 화면/우측 툴바 밖으로 짤리던 결함 해결: 뷰포트 전체 우측 마진(winWidth - 68px) 기준 자동 클램핑 및 동적 너비 측정(floatingToolbarRef), max-w-[calc(100vw-80px)] 가로 스크롤 안전망 적용
@@ -213,12 +222,12 @@ import { exportPDF, exportHTML, exportEPUB, exportPNG } from '@/lib/exportHandle
 import { configureMonacoEnvironment } from '@/lib/monacoEnv'; // Monaco 환경 설정
 import { idb, FileNode, scanDirectory, scanDirectoryDeep, getFileIcon } from '@/lib/indexedDbHelper'; // indexedDB 헬퍼
 import { knowledgeClient } from '@/lib/knowledge/knowledgeClient'; // 지식 베이스 클라이언트
-import { preprocessMarkdownForPreview, stripFrontmatter } from "@/lib/editorUtils"; // 마크다운 프리뷰
+import { preprocessMarkdownForPreview, stripFrontmatter, getCodeBlockLineMask } from "@/lib/editorUtils"; // 마크다운 프리뷰
 import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from "@/lib/syncEngine"; // 동기화 엔진
 import { getSlashCommands, getDefaultHotkeys, getDefaultCommands, TOOLBAR_ITEMS } from "@/lib/toolbarConfig"; // 툴바 설정
 import { EDITOR_THEMES, THEME_MAP } from "@/lib/editorThemes"; // 에디터 테마
 import { CssProfile } from "@/types/cssProfile"; // css 프로필 타입
-import { DEFAULT_PROFILE, SYSTEM_PROFILES, isSystemProfileId, normalizeCssProfile } from "@/constants/cssProfile"; // 기본 프로필
+import { DEFAULT_PROFILE, SYSTEM_PROFILES, isSystemProfileId, normalizeCssProfile, resolveCssProfile } from "@/constants/cssProfile"; // 기본 프로필
 import { WELCOME_CONTENT } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
 import { PAPER_SIZES } from "@/constants/paperSizes";
 import { getWelcomeContent, saveWelcomeContent } from "@/constants/welcomeContent"; // 웰컴 컨텐츠
@@ -271,6 +280,8 @@ import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontma
 import { KnowledgeHubView } from '@/components/knowledge/KnowledgeHubView';
 import { useSingleTabGuard } from '@/lib/singleTabGuard';
 import { saveExternalFileHandle } from '@/lib/storage/externalFileStore';
+import BlogPostModal from '@/components/BlogPostModal';
+import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder } from '@/lib/profileStorage';
 
 
 /**
@@ -981,6 +992,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [isResourceGuideModalOpen, setIsResourceGuideModalOpen] = useState(false);
   const [isDismissedGuide, setIsDismissedGuide] = useState(false);
 
+  // 📰 [기술 블로그 미리보기 및 발행 모달 상태 및 이벤트/단축키(Ctrl+Alt+B) 리스너]
+  const [isBlogModalOpen, setIsBlogModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenBlog = () => setIsBlogModalOpen(true);
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.altKey && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        setIsBlogModalOpen(true);
+      }
+    };
+    window.addEventListener('onrivi:open-blog-modal', handleOpenBlog);
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('onrivi:open-blog-modal', handleOpenBlog);
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, []);
+
   // ====================================================================
   // 📊 [OMD-EDIT-0004 TDZ-GUARD] MainEditorApp.tsx ➔ tabs/activeTabId 선행 선언
   // 🎯 @KICK  : tabMetadata_sync(L526)가 useEditorTabs 훅 호출(L935) 이전에 setTabs/activeTabId를
@@ -1144,87 +1174,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   });
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0007] MainEditorApp.tsx ➔ loadUserProfiles
-  // 🎯 @KICK  : 마운트 시 플랫폼 저장소(electronAPI 또는 localStorage)에서 사용자 CSS 프로필 로드
+  // 🎯 @KICK  : 연결된 리소스 폴더의 profiles/userCssProfiles.json에서 사용자 서식 로드
   // 🛡️ @GUARD : 사용자 저장 데이터에서 시스템 프로필 필터링, 레거시 형식 마이그레이션 병합
-  // 🚨 @PATCH : 2026-08-05 — 웹과 데스크탑 환경 모두 무조건 `profiles/userCssProfiles.json` 경로를 통합하여 서식 로드/저장하도록 표준화.
-  // 🔗 @CALLS : api.readProfiles, localStorage.getItem, JSON.parse, setProfiles
+  // 🚨 @PATCH : **2026-09-26** — [사용자 서식 리소스 폴더 저장 및 데스크탑/웹 일원화]: fetchUserProfiles(profileStorage 파사드) 연동으로 데스크탑·웹 모두 리소스 폴더(profiles/userCssProfiles.json) 단일 진입점으로 100% 통합
+  //             2026-08-05 — 웹과 데스크탑 환경 모두 무조건 `profiles/userCssProfiles.json` 경로를 통합하여 서식 로드/저장하도록 표준화.
+  // 🔗 @CALLS : fetchUserProfiles, normalizeCssProfile, setProfiles
   // ====================================================================
-  useEffect(() => {
-    if (!mounted) return;
-    const api = (window as any).electronAPI;
-    const loadUserProfiles = async () => {
-      let userProfiles: CssProfile[] = [];
-      if (api) {
-        // Desktop: electronAPI
-        const savedResourceFolder = loadSecureData('resourceFolder') || null;
-        userProfiles = await api.readProfiles(savedResourceFolder);
-      } else {
-        // Addon/Browser: localStorage & File System Access API
-        try {
-          const handle = await idb.get('resourceFolderHandle');
-          if (handle) {
-            setResourceFolderHandle(handle);
-            (window as any).__resourceFolderHandle = handle;
-            setResourceFolder(handle.name);
-            try {
-              // 권한 확인 없이 읽기 시도 (크롬은 세션 내에서는 허용될 수 있음)
-              const profilesDir = await handle.getDirectoryHandle('profiles', { create: false });
-              const fileHandle = await profilesDir.getFileHandle('userCssProfiles.json', { create: false });
-              const file = await fileHandle.getFile();
-              const text = await file.text();
-              const parsed = JSON.parse(text);
-              if (Array.isArray(parsed)) userProfiles = parsed;
-              (window as any)._resourceFolderSynced = true; // 읽기 권한 획득 성공
-            } catch (err: any) {
-              if (err.name === 'NotFoundError') {
-                // 파일이나 폴더가 없을 뿐 권한은 있는 상태이므로 동기화 허용
-                (window as any)._resourceFolderSynced = true;
-              }
-              console.warn('[loadUserProfiles] Failed to read from resource folder handle, falling back to localStorage:', err);
-              // 권한이 없거나 파일이 없는 경우 아래 localStorage 로직으로 폴백
-            }
-          }
-        } catch (err) {
-          console.warn('[loadUserProfiles] Failed to get resourceFolderHandle from idb:', err);
-        }
-
-        if (userProfiles.length === 0) {
-          try {
-            const saved = localStorage.getItem('userCssProfiles');
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed)) userProfiles = parsed;
-            } else {
-              // 구버전 마이그레이션
-              const oldSaved = localStorage.getItem('cssProfiles');
-              if (oldSaved) {
-                const parsed = JSON.parse(oldSaved);
-                if (Array.isArray(parsed)) {
-                  userProfiles = (parsed as CssProfile[]).filter(p => !isSystemProfileId(p.id) && p.id !== 'default');
-                }
-                localStorage.removeItem('cssProfiles');
-              }
-            }
-          } catch { }
-        }
-      }
-      setProfiles(prev => {
-        const systemPart = prev.filter(p => isSystemProfileId(p.id));
-        const filteredUsers = userProfiles.filter(p =>
-          !isSystemProfileId(p.id) &&
-          p.id !== 'default' &&
-          p.id !== 'system-2' &&
-          p.id !== 'system-3' &&
-          p.name !== 'GitHub 기술 블로그/명세서' &&
-          p.name !== '공공기관 보고서 양식'
-        );
-        const normalizedUsers = filteredUsers.map(p => normalizeCssProfile(p, systemPart));
-        return [...systemPart, ...normalizedUsers];
-      });
-      setIsProfilesLoaded(true);
-    };
-    loadUserProfiles();
-  }, [mounted]);
   const [activeProfileId, setActiveProfileId] = useState<string>(
     () => SYSTEM_PROFILES[0].id
   );
@@ -1265,6 +1220,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return (saved && typeof saved === 'string' && saved.trim() !== '') ? saved.trim() : null;
   });
   const [resourceFolderHandle, setResourceFolderHandle] = useState<any>(null);
+  const [profileStorageRevision, setProfileStorageRevision] = useState(0);
+  const profileStorageRef = useRef<{ folder: string; handle: any; hash: string } | null>(null);
+  useEffect(() => {
+    if (!mounted) return;
+    let cancelled = false;
+    profileStorageRef.current = null;
+    setIsProfilesLoaded(false);
+    const folder = getEffectiveResourceFolder(resourceFolder);
+    const load = async () => {
+      try {
+        const users = await fetchUserProfiles(folder, resourceFolderHandle);
+        if (cancelled) return;
+        const normalized = users.filter(p => p && p.id !== 'default' && !isSystemProfileId(p.id))
+          .map(p => normalizeCssProfile(p, SYSTEM_PROFILES));
+        // 로드 자체는 저장하지 않는다. 빈 배열도 이 파일의 유효한 원본 상태이다.
+        profileStorageRef.current = { folder, handle: resourceFolderHandle, hash: JSON.stringify(normalized) };
+        setProfiles([...SYSTEM_PROFILES, ...normalized]);
+        setIsProfilesLoaded(true);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('[loadUserProfiles] userCssProfiles.json 읽기 실패:', error);
+        showToast('userCssProfiles.json을 읽지 못했습니다. 리소스 폴더 연결과 파일을 확인해 주세요.', 'error');
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, resourceFolder, resourceFolderHandle, profileStorageRevision]);
+
   const [fileList, setFileList] = useState<FileNode[]>([]);
   const [workspaceType, setWorkspaceType] = useState<'local' | 'cloud' | 'browser'>(() => {
     if (typeof window !== 'undefined' && !(window as any).electronAPI) {
@@ -3043,6 +3027,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const result = await api.selectFolder(resourceFolder || '');
       if (result && result.status !== 'canceled' && result.path) {
         setResourceFolder(result.path);
+        setProfileStorageRevision(value => value + 1);
         try { saveSecureData('resourceFolder', result.path); } catch { }
         
         // 🚀 [사용자 지시 완벽 반영] 5대 디렉토리(profiles, prompt, bible, media, db) 및 onrivi_knowledge.db 일괄 생성
@@ -3054,29 +3039,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           console.warn('[ResourceFolder Init Error]:', initErr);
         }
 
-        // 💡 새 폴더 연동 시 폴더 내 기존 서식이 있다면 로드
-        try {
-          const loadedProfiles = await api.readProfiles(result.path);
-          if (Array.isArray(loadedProfiles) && loadedProfiles.length > 0) {
-            setProfiles(prev => {
-              const systemPart = prev.filter(p => isSystemProfileId(p.id));
-              return [...systemPart, ...loadedProfiles];
-            });
-            showToast('공통 폴더가 설정되고 5대 디렉토리 및 DB가 초기화되었습니다.', 'success');
-          } else {
-             showToast('자원 관리 폴더가 설정되고 5대 디렉토리 및 DB가 초기화되었습니다.', 'success');
-             // 빈 폴더라면 현재 로컬 서식을 저장 유도
-             setProfiles(prev => {
-               if (prev.length > SYSTEM_PROFILES.length) {
-                 (window as any)._lastSavedProfilesHash = null;
-                 return [...prev];
-               }
-               return prev;
-             });
-          }
-        } catch (e) {
-          showToast('자원 관리 폴더가 설정되고 5대 디렉토리 및 DB가 초기화되었습니다.', 'success');
-        }
+        showToast('리소스 폴더가 설정되었습니다.', 'success');
       }
     } else if (typeof (window as any).showDirectoryPicker === 'function') {
       try {
@@ -3098,58 +3061,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           console.warn('[Browser ResourceFolder Dir Creation Error]:', dirErr);
         }
 
-        // 🚀 데스크톱(Electron) 또는 로컬 개발(localhost) 환경일 때 서버 측 5대 디렉토리 및 onrivi_knowledge.db 일괄 생성 트리거 (기존 DB는 안전 보존)
-        const isDesktopEnv = typeof window !== 'undefined' && !!(window as any).electronAPI;
-        const isLocalhost = typeof window !== 'undefined' && (
-          window.location.hostname === 'localhost' || 
-          window.location.hostname === '127.0.0.1' || 
-          window.location.hostname.startsWith('192.168.') || 
-          window.location.hostname.endsWith('.local')
-        );
-        if (isDesktopEnv || isLocalhost) {
-          try {
-            await fetch('/api/knowledge/init', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ resourceFolder: handle.name })
-            });
-          } catch (initErr) {
-            console.warn('[Server Knowledge Init Error]:', initErr);
-          }
-        }
-
-        // 💡 새 폴더 연동 시 폴더 내 기존 서식(profiles)이 있다면 로드하여 덮어쓰기 방지
-        try {
-          const profilesDir = await handle.getDirectoryHandle('profiles', { create: false });
-          const fileHandle = await profilesDir.getFileHandle('userCssProfiles.json', { create: false });
-          const file = await fileHandle.getFile();
-          const text = await file.text();
-          const parsed = JSON.parse(text);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setProfiles(prev => {
-              const systemPart = prev.filter(p => isSystemProfileId(p.id));
-              return [...systemPart, ...parsed];
-            });
-            showToast('공통 폴더에서 기존 서식을 불러왔습니다.', 'success');
-          } else {
-             showToast('자원 관리 폴더가 설정되었습니다.', 'success');
-          }
-          (window as any)._resourceFolderSynced = true;
-        } catch (err) {
-          // 파일이 없으면 기존 로컬/빈 상태 유지
-          showToast('자원 관리 폴더가 설정되었습니다.', 'success');
-          (window as any)._resourceFolderSynced = true; // 파일이 없는 신규 폴더라도 동기화 권한은 획득함
-          
-          // 기존에 로컬 스토리지에 들고 있던 서식들을 방금 연동한 폴더에 즉시 저장하도록 유도
-          setProfiles(prev => {
-            if (prev.length > SYSTEM_PROFILES.length) {
-               // 내용물의 변경 없이 참조만 갱신하여 profilesSave effect 트리거
-               (window as any)._lastSavedProfilesHash = null; // 강제 저장 유도
-               return [...prev];
-            }
-            return prev;
-          });
-        }
+        // 서식 로드는 공통 effect에서 처리한다. 폴더명으로 서버 저장소를 추측하지 않는다.
+        showToast('리소스 폴더가 설정되었습니다.', 'success');
       } catch (err: any) {
         if (err?.name !== 'AbortError') {
           showToast('폴더 선택 중 오류가 발생했습니다.', 'error');
@@ -3170,10 +3083,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const clearResourceFolder = async () => {
     setResourceFolder(null);
     setResourceFolderHandle(null);
+    (window as any).__resourceFolderHandle = null;
     setIsDismissedGuide(false);
     try { saveSecureData('resourceFolder', ''); } catch {}
     try { localStorage.removeItem('resourceFolder'); } catch {}
     try { localStorage.removeItem('onrivi_resource_folder'); } catch {}
+    try { localStorage.removeItem('onrivi_resource_folder_path'); } catch {}
     try { sessionStorage.removeItem('resourceFolder'); } catch {}
     try {
       const rawSettings = localStorage.getItem('onrivi_settings');
@@ -3480,25 +3395,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const newDecorations: any[] = [];
     const Range = (window as any).monaco.Range;
 
-    let inCodeBlock = false;
+    // ✏️ [Code Block] CommonMark 기반 코드블록 영역 마스크 생성 (이중 코드블록 전체 범위 100% 매핑)
+    const codeBlockMask = getCodeBlockLineMask(lines);
 
     lines.forEach((line: string, i: number) => {
       const lineNumber = i + 1;
 
-      // ✏️ [Code Block] 시작/종료 감지 및 라인 배경 데코레이션 주입
-      if (line.trim().startsWith('```')) {
-        inCodeBlock = !inCodeBlock;
-        newDecorations.push({
-          range: new Range(lineNumber, 1, lineNumber, Math.max(2, line.length + 1)),
-          options: {
-            isWholeLine: true,
-            className: 'monaco-codeblock-line'
-          }
-        });
-        return;
-      }
-
-      if (inCodeBlock) {
+      // ✏️ [Code Block] 라인 배경 데코레이션 주입 (이중 중첩 코드블록 내부 포함 전체 라인 연속 유지)
+      if (codeBlockMask[i]) {
         newDecorations.push({
           range: new Range(lineNumber, 1, lineNumber, Math.max(2, line.length + 1)),
           options: {
@@ -3744,7 +3648,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         wordWrapBreakBeforeCharacters: '([{\'"“‘«‹〈《「『【〔（［｛｢',
         readOnly: tabs.length === 0 || isRestrictedUser,
         domReadOnly: tabs.length === 0 || isRestrictedUser,
-        scrollbar: { verticalScrollbarSize: 32 },
+        scrollbar: { verticalScrollbarSize: 16 },
       });
       // 3. 레이아웃 리플로우 강제 트리거 및 비동기 웹폰트 로딩 후 글자 폭 재계산 (핵심 버그 수정)
       requestAnimationFrame(() => {
@@ -3773,45 +3677,37 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-CORE-MainEditorApp-0035] MainEditorApp.tsx ➔ profilesSave
   // 🎯 @KICK  : 변경 시마다 사용자 CSS 프로필을 플랫폼 저장소에 유지
   // 🛡️ @GUARD : 중복 방지를 위해 저장 전 시스템 프로필 필터링
-  // 🚨 @PATCH : 2026-08-05 — 웹 브라우저 로컬 권한 파일시스템(handle) 사용 시에도 `profiles/userCssProfiles.json` 로 통일 저장하도록 로직 변경.
-  //             2026-07-30 — resourceFolderHandle이 변경될 때 이전 빈 프로필(profiles) 상태로 덮어쓰는 버그 방지 (의존성 분리)
-  // 🔗 @CALLS : api.saveProfiles, localStorage.setItem
+  // 🚨 @PATCH : **2026-09-27** — [서식 설정 컨트롤 변경 시 1.5초 디바운스 저장]: 슬라이더·컨트롤 조작 시 RAF마다 과도한 파일 I/O 방지를 위해 debounce 타이머(1500ms) 적용. cleanup 시 타이머 취소로 메모리 누수 방지
+  //             2026-09-26 — [사용자 서식 리소스 폴더 저장 및 데스크탑/웹 일원화]: persistUserProfiles(profileStorage 파사드) 연동
+  //             2026-08-05 — 웹 브라우저 로컬 권한 파일시스템(handle) 사용 시에도 `profiles/userCssProfiles.json` 로 통일 저장
+  //             2026-07-30 — resourceFolderHandle이 변경될 때 이전 빈 프로필 상태로 덮어쓰는 버그 방지
+  // 🔗 @CALLS : persistUserProfiles
   // ====================================================================
   useEffect(() => {
     if (!mounted || !isProfilesLoaded) return;
-    const userProfiles = profiles.filter(p => !isSystemProfileId(p.id));
-    const api = (window as any).electronAPI;
-    
-    // Check if the profiles array actually changed to avoid redundant saves
-    const savedHash = JSON.stringify(userProfiles);
-    if ((window as any)._lastSavedProfilesHash === savedHash) return;
-    (window as any)._lastSavedProfilesHash = savedHash;
-
-    if (api) {
-      // Desktop: electronAPI 저장
-      api.saveProfiles(userProfiles, resourceFolder);
-    } else {
-      // Addon/Browser: localStorage
-      try { localStorage.setItem('userCssProfiles', JSON.stringify(userProfiles)); } catch { }
-      
-      // File System Access API를 통한 로컬 폴더 저장
-      const handle = resourceFolderHandleRef?.current || resourceFolderHandle;
-      if (handle && (window as any)._resourceFolderSynced) {
-        (async () => {
-          try {
-            const profilesDir = await (handle as any).getDirectoryHandle('profiles', { create: true });
-            const fileHandle = await profilesDir.getFileHandle('userCssProfiles.json', { create: true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(JSON.stringify(userProfiles, null, 2));
-            await writable.close();
-          } catch (err) {
-            console.warn('[profilesSave] Failed to save profiles to resource folder handle:', err);
-          }
-        })();
-      }
-    }
+    const folder = getEffectiveResourceFolder(resourceFolder);
+    const source = profileStorageRef.current;
+    if (!source || source.folder !== folder || source.handle !== resourceFolderHandle) return;
+    const userProfiles = profiles.filter(p => p.id !== 'default' && !isSystemProfileId(p.id));
+    const hash = JSON.stringify(userProfiles);
+    if (source.hash === hash) return;
+    const timerId = setTimeout(() => {
+      // 저장 중 이전 값으로 되돌리는 편집도 누락되지 않도록 캐시를 무효화한다.
+      source.hash = '';
+      void persistUserProfiles(userProfiles, folder, resourceFolderHandle).then(ok => {
+        if (profileStorageRef.current !== source) return;
+        if (ok) {
+          source.hash = hash;
+        } else {
+          showToast('userCssProfiles.json 저장에 실패했습니다. 리소스 폴더 연결과 쓰기 권한을 확인해 주세요.', 'error');
+        }
+      });
+    }, 500);
+    return () => clearTimeout(timerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profiles]);
+  }, [mounted, isProfilesLoaded, profiles, resourceFolder, resourceFolderHandle]);
+
+
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0036] MainEditorApp.tsx ➔ activeProfileSave
@@ -4128,19 +4024,35 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       
       sessionRestoredRef.current = true; // 복원 프로세스 시작과 동시에 true 설정하여 덮어쓰기 즉시 차단!
 
-      for (const filePath of openFilePaths) {
+      // 💡 [중복 경로 사전 필터링] 정규화 기준 중복 파일 배제
+      const seenPaths = new Set<string>();
+      const uniqueFilePaths = openFilePaths.filter(p => {
+        if (!p) return false;
+        const norm = p.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+        if (seenPaths.has(norm)) return false;
+        seenPaths.add(norm);
+        return true;
+      });
+
+      for (const filePath of uniqueFilePaths) {
         if (handleFileOpenByPath) {
           await handleFileOpenByPath(filePath);
           await new Promise(resolve => setTimeout(resolve, 150));
         }
       }
 
-      // 마지막에 원래 활성화 상태였던 탭으로 한 번 더 정식 포커스를 잡아줍니다.
-      if (activeFilePath && handleFileOpenByPath) {
-        await handleFileOpenByPath(activeFilePath);
+      // 마지막에 원래 활성화 상태였던 탭으로 이동 (이미 열린 탭이면 switchTab만 호출하여 2중 열림 원천 차단)
+      if (activeFilePath) {
+        const normActive = activeFilePath.replace(/\\/g, '/').toLowerCase().normalize('NFC');
+        const targetTab = tabsRef.current.find(t => (t.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC') === normActive);
+        if (targetTab) {
+          switchTab(targetTab.id);
+        } else if (handleFileOpenByPath) {
+          await handleFileOpenByPath(activeFilePath);
+        }
       }
       
-      showToast(`📂 이전 세션의 문서 ${openFilePaths.length}개가 온전히 복원되었습니다.`, "info");
+      showToast(`📂 이전 세션의 문서 ${uniqueFilePaths.length}개가 온전히 복원되었습니다.`, "info");
     } catch (err) {
       console.error("[restoreSessionTabs] 오류:", err);
     } finally {
@@ -4162,7 +4074,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (api?.readFromPath) {
         const file = await api.readFromPath(filePath);
         if (file) {
-          const existingTab = tabsRef.current.find(t => t.path === file.path);
+          const normFilePath = (file.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
+          const existingTab = tabsRef.current.find(t => {
+            if (!t.path) return false;
+            return t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC') === normFilePath;
+          });
 
           if (existingTab) {
             if (existingTab.model && existingTab.model.isDisposed()) {
@@ -4219,7 +4135,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             model: model
           };
 
-          setTabs(prev => [...prev, newTab]);
+          setTabs(prev => {
+            const exists = prev.some(t => {
+              if (t.id === newTabId) return true;
+              if (t.path) {
+                return t.path.replace(/\\/g, '/').toLowerCase().normalize('NFC') === normFilePath;
+              }
+              return false;
+            });
+            if (exists) {
+              return prev.map(t => {
+                const normTab = (t.path || '').replace(/\\/g, '/').toLowerCase().normalize('NFC');
+                if (t.id === newTabId || normTab === normFilePath) {
+                  return { ...t, content: file.content, model: model || t.model };
+                }
+                return t;
+              });
+            }
+            return [...prev, newTab];
+          });
           setActiveTabId(newTabId);
           setContent(file.content);
           setCurrentFileName(file.name);
@@ -5658,14 +5592,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🎯 @KICK  : 활성 CSS 프로필에서 타이포그래피, 코드 블록, 표, 체크박스, 구분선, 다크모드 재정의를 포함한 동적 CSS 생성
   // 🛡️ @GUARD : 기본 프로필은 빈 문자열 반환; blockquote, hr, color에 대한 다크모드 재정의; h2-h6 font-size 건너뜀(자동 계산)
   // 🚨 @PATCH : **2026-09-17** — [다크모드/어두운 배경 코드블록 내부 행 하이라이트 고대비 시인성 보장]: 코드블록 배경색(bgColor)의 명도를 판별하여 다크 계열일 경우 은은한 갈색 대신 고대비 코발트 블루(rgba(59,130,246,0.3)) 및 1px 인셋 아웃라인(rgba(96,165,250,0.65))을 동적 주입하여 어두운 배경에서도 활성 행이 즉각 식별되도록 개선; 박스 중첩 아티팩트 방지를 위한 codeBlock 중첩 border/background 투명 재정의
+  // 🚨 @PATCH : 추가 CSS가 !important를 쓰거나 MarkdownViewer에서 재주입돼도 설정창의 선언이 이기도록 캐스케이드 계층을 분리한다.
   // 🔗 @CALLS : None
   // ====================================================================
   const dynamicCssString = useMemo(() => {
     const rawProf = profiles.find(p => p.id === activeProfileId) || DEFAULT_PROFILE;
     if (activeProfileId === 'default') {
-      return (rawProf.customCss && rawProf.customCss.trim()) ? `\n/* === [User Custom CSS] === */\n${rawProf.customCss}\n` : '';
+      return (rawProf.customCss && rawProf.customCss.trim())
+        ? `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-extra {\n${rawProf.customCss}\n}`
+        : '';
     }
-    const prof = normalizeCssProfile(rawProf, profiles);
+    const prof = resolveCssProfile(rawProf);
     const ps = prof.pageStyle;
 
     const profileBg = ps.backgroundColor || '#ffffff';
@@ -5741,7 +5678,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       if (tag === 'hr') return;
       /* h2~h6의 font-size는 headingSizeOffset 자동 계산으로 대체 */
       const skipFontSize = ['h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
-      const entries = Object.entries(ruleObj).map(([prop, v]) => {
+      // 빈 값도 '선 없음'으로 출력해야 다른 서식의 제목 장식선이 남지 않는다.
+      const effectiveRules = /^h[1-6]$/.test(tag)
+        ? { ...ruleObj, 'border-bottom': ruleObj['border-bottom']?.trim() || 'none' }
+        : ruleObj;
+      const entries = Object.entries(effectiveRules).map(([prop, v]) => {
         // 💡 [OMD-PATCH] 구버전 유저 프로필에 저장된 keep-all이 불러와지면서 거대 공백 버그를 유발하는 것을 막기 위해 강제 마이그레이션
         if (prop === 'word-break' && v === 'keep-all') return [prop, 'break-all'];
         return [prop, v];
@@ -5856,6 +5797,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         if (padding) {
           css += `.custom-preview-container .codeblock-area pre {\n  padding: ${padding} !important;\n}\n`;
         }
+        const cbLineHeight = ruleObj['line-height'] || '1.35';
+        css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code, .custom-preview-container .codeblock-area .onrivi-line, .custom-preview-container .codeblock-area .onrivi-line * {\n  line-height: ${cbLineHeight} !important;\n  min-height: ${cbLineHeight}em !important;\n}\n`;
 
         // 💡 프리뷰 모드에서 중첩된 테두리와 배경색(박스 안의 박스 현상) 원천 차단
         css += `.custom-preview-container .codeblock-area pre, .custom-preview-container .codeblock-area pre code {\n  border: none !important;\n  background: transparent !important;\n}\n`;
@@ -6169,8 +6112,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const outerWidth = tableStruct.outerBorderWidth || '1px';
       const rowWidth = tableStruct.rowBorderWidth || '1px';
       const colWidth = tableStruct.colBorderWidth || '1px';
+      const tableBorderStyle = prof.rules.table?.['border-style'] || 'solid';
+      const tableBorderColor = prof.rules.table?.['border-color'] || prof.rules.th?.['border-color'] || prof.rules.td?.['border-color'] || '#cbd5e1';
 
       // 1. 표 외곽 테두리 (table)
+      const outerIsZero = outerWidth === '0px' || outerWidth === '0';
       css += `
 .custom-preview-container table,
 .onrivi-content-root table,
@@ -6179,11 +6125,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .onrivi-content-root .prose table,
 .dark .onrivi-content-root .prose table {
   border-width: ${outerWidth} !important;
-  ${outerWidth === '0px' || outerWidth === '0' ? 'border-style: none !important;' : ''}
+  border-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-color: ${tableBorderColor} !important;
 }
 `;
 
       // 2. 표 내부 행(가로선) 및 열(세로선) 구분선 (th, td)
+      const rowIsZero = rowWidth === '0px' || rowWidth === '0';
+      const colIsZero = colWidth === '0px' || colWidth === '0';
       css += `
 .custom-preview-container th,
 .custom-preview-container td,
@@ -6197,8 +6146,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   border-bottom-width: ${rowWidth} !important;
   border-left-width: ${colWidth} !important;
   border-right-width: ${colWidth} !important;
-  ${rowWidth === '0px' || rowWidth === '0' ? 'border-top-style: none !important; border-bottom-style: none !important;' : ''}
-  ${colWidth === '0px' || colWidth === '0' ? 'border-left-style: none !important; border-right-style: none !important;' : ''}
+  border-top-style: ${rowIsZero ? 'none' : tableBorderStyle} !important;
+  border-bottom-style: ${rowIsZero ? 'none' : tableBorderStyle} !important;
+  border-left-style: ${colIsZero ? 'none' : tableBorderStyle} !important;
+  border-right-style: ${colIsZero ? 'none' : tableBorderStyle} !important;
+  border-top-color: ${tableBorderColor} !important;
+  border-bottom-color: ${tableBorderColor} !important;
+  border-left-color: ${tableBorderColor} !important;
+  border-right-color: ${tableBorderColor} !important;
 }
 `;
     }
@@ -6231,6 +6186,33 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   display: inline-block !important;
   width: 100% !important;
   vertical-align: top !important;
+}
+
+/* 💬 Alert 인용구(콜아웃) 태그와 본문 간격 최소화 및 커스텀 제어 */
+.custom-preview-container .onrivi-alert-title,
+.onrivi-content-root .onrivi-alert-title {
+  margin-bottom: var(--onrivi-alert-gap, 6px) !important;
+}
+.custom-preview-container .onrivi-alert-content > p:first-child,
+.onrivi-content-root .onrivi-alert-content > p:first-child {
+  margin-top: 0 !important;
+}
+.custom-preview-container .onrivi-alert-content > p:last-child,
+.onrivi-content-root .onrivi-alert-content > p:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 💬 코드블록 내부 줄간격(행간) 콤팩트 규격화 (본문 1.8배 오염 원천 방어) */
+.custom-preview-container .codeblock-area pre,
+.custom-preview-container .codeblock-area pre code,
+.custom-preview-container .codeblock-area .onrivi-line,
+.custom-preview-container .codeblock-area .onrivi-line *,
+.onrivi-content-root .codeblock-area pre,
+.onrivi-content-root .codeblock-area pre code,
+.onrivi-content-root .codeblock-area .onrivi-line,
+.onrivi-content-root .codeblock-area .onrivi-line * {
+  line-height: ${(prof.rules.codeBlock && prof.rules.codeBlock['line-height']) || '1.35'} !important;
+  min-height: ${(prof.rules.codeBlock && prof.rules.codeBlock['line-height']) || '1.35'}em !important;
 }
 `;
 
@@ -6380,13 +6362,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 }
 `;
 
-    if (prof.customCss && prof.customCss.trim()) {
-      css += `\n/* === [User Custom CSS] === */\n${prof.customCss}\n`;
+    // 제목 컨트롤 값은 사용자 CSS의 h1 자동 중앙 배치보다 우선한다.
+    for (let level = 1; level <= 6; level++) {
+      const rule = prof.rules[`h${level}` as keyof typeof prof.rules];
+      if (!rule) continue;
+      const alignment = rule['text-align'] || 'left';
+      const leftMargin = alignment === 'left' ? '0' : 'auto';
+      const rightMargin = alignment === 'right' ? '0' : 'auto';
+      css += `.custom-preview-container h${level}, .onrivi-content-root h${level} {\n`;
+      css += `  margin-left: ${leftMargin} !important;\n  margin-right: ${rightMargin} !important;\n`;
+      css += `  padding-left: ${rule['padding-left'] || '0px'} !important;\n}\n`;
     }
 
     // Legacy CSS page-break logic removed in favor of injectPageBreakMarkers.
 
-    return css;
+    // important 선언은 먼저 선언한 계층이 우선한다. 중복 style 태그와 추가 CSS의 높은 선택자 구체성에도 설정값을 유지한다.
+    const extraCss = prof.customCss?.trim()
+      ? `\n@layer onrivi-extra {\n${prof.customCss}\n}`
+      : '';
+    return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n}${extraCss}`;
   }, [profiles, activeProfileId]);
 
   // ====================================================================
@@ -7252,14 +7246,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 윈도우 스타일의 개행(\r\n)과 일반 개행(\n) 모두를 안전하게 분리
     const lines = content.split(/\r?\n/);
     const items: { id: string, text: string, level: number, lineNumber: number }[] = [];
-    let isInCodeBlock = false;
+    const codeBlockMask = getCodeBlockLineMask(lines);
     lines.forEach((line, index) => {
+      if (codeBlockMask[index]) return;
       const trimmed = line.trim();
-      if (trimmed.startsWith('```')) {
-        isInCodeBlock = !isInCodeBlock;
-        return;
-      }
-      if (isInCodeBlock) return;
 
       // UTF-8 BOM(\ufeff)을 제거하고, 양쪽 공백이 정리된 깨끗한 텍스트로 헤더를 매칭
       const cleanLine = trimmed.replace(/^\ufeff/, '');
@@ -8065,7 +8055,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           lineNumbers: 'on',
                           minimap: { enabled: false },
                           autoClosingBrackets: autoClosingBrackets ? 'languageDefined' : 'never',
-                          scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 32, horizontalScrollbarSize: 10 },
+                          scrollbar: { vertical: 'visible', horizontal: 'visible', verticalScrollbarSize: 16, horizontalScrollbarSize: 10 },
                           // 슬래시(/) 입력 시에만 자동완성 트리거 (일반 타이핑 시 팝업 방지)
                           quickSuggestions: false,
                           suggestOnTriggerCharacters: true,
@@ -9047,6 +9037,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               userNickname, setUserNickname,
               updateContent
             }}
+          />
+
+          {/* 📰 온리비 기술 블로그 미리보기 및 발행 모달 */}
+          <BlogPostModal
+            isOpen={isBlogModalOpen}
+            onClose={() => setIsBlogModalOpen(false)}
+            markdownContent={content}
+            currentFileName={currentFileName}
+            isDarkMode={isDarkMode}
           />
 
 

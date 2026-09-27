@@ -490,7 +490,9 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
         currentDocContent={content}
         onSelectProfile={setActiveProfileId}
         onUpdateProfile={(updated: any) => setProfiles((prev: any) =>
-          prev.map((p: any) => p.id === updated.id ? updated : p)
+          isSystemProfileId(updated.id) || updated.id === 'default'
+            ? prev
+            : prev.map((p: any) => p.id === updated.id && !isSystemProfileId(p.id) ? updated : p)
         )}
         onAddProfile={() => {
           const newId = 'profile-' + Date.now();

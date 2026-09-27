@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-HeroSection-0022] HeroSection ➔ HeroSection
 // 🎯 @KICK  : Onrivi Author Premium V2의 타이포그래피 가치 제안 및 실제 라이프스타일/업무 씬을 2열 레이아웃과 무깜빡임(Cross-Fade) 3초 자동 롤링 이미지 슬라이더로 전달하는 히어로 영역
 // 🛡️ @GUARD : 슬라이더 타이머 메모리 릭 방지(clearInterval) 및 이미지 상시 DOM 적재 기반 깜빡임 원천 차단
-// 🚨 @PATCH : **2026-09-12** — 랜딩페이지 섹션 교차(#EFEFFF / #FFFFFF) 배경 순서 반전 적용 (HeroSection: #EFEFFF)
+// 🚨 @PATCH : **2026-09-26** — [외부 노트 내보내기 마크다운 호환 카피 강화]: 슬라이드 2번 비즈니스 기획 카피에 외부 노트 내보내기 파일의 깨진 표·서식 복원 가치 반영
+//             **2026-09-12** — 랜딩페이지 섹션 교차(#EFEFFF / #FFFFFF) 배경 순서 반전 적용 (HeroSection: #EFEFFF)
 //             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
 //             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
 //             **2026-09-11** — '제품 살펴보기' 버튼 제거 및 슬라이더 이미지 상시 렌더링(CSS Cross-Fade) 전환으로 깜빡임 현상 완벽 제거
@@ -41,7 +42,7 @@ const HERO_SLIDES: HeroSlide[] = [
     src: "/hero-slides/hero-slide-2.jpg",
     tag: "EXECUTIVE STRATEGY",
     title: "비즈니스 기획 및 보고서 집필",
-    subtitle: "표, 수식, 다이어그램을 갖춘 완성도 높은 문서를 즉시 PDF/HTML로 사출",
+    subtitle: "외부 노트 내보내기 파일의 깨진 표와 서식을 즉시 복원하고 고품질 PDF로 사출",
   },
   {
     id: 3,

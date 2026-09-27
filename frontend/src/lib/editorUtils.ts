@@ -77,6 +77,83 @@ function getIndentLevel(line: string): number {
   return count;
 }
 
+/**
+ * 💡 [CommonMark 규격 기반 줄 단위 코드블록 영역 마스크 생성 함수]
+ * 이중 코드블록(중첩 펜스: ```markdown 내부에 ```python ... ``` 등) 탐지 시
+ * 최외곽 코드블록이 완전히 닫힐 때까지 전체 범위를 true로 정확히 마스킹합니다.
+ */
+export function getCodeBlockLineMask(lines: string[]): boolean[] {
+  const mask = new Array(lines.length).fill(false);
+  const fenceRegex = /^([ \t]{0,3})(`{3,}|~{3,})(.*)$/;
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const match = line.match(fenceRegex);
+    if (!match) {
+      i++;
+      continue;
+    }
+
+    const fenceChar = match[2][0];
+    const fenceLen = match[2].length;
+    const info = match[3].trim();
+
+    if (fenceChar === '`' && info.includes('`')) {
+      i++;
+      continue;
+    }
+
+    let depth = 1;
+    let closingLineIdx = -1;
+
+    for (let j = i + 1; j < lines.length; j++) {
+      const curLine = lines[j];
+      const curMatch = curLine.match(fenceRegex);
+      if (!curMatch || curMatch[2][0] !== fenceChar) {
+        continue;
+      }
+
+      const curFenceLen = curMatch[2].length;
+      const curInfo = curMatch[3].trim();
+
+      // 4개 이상 펜스로 감싸진 경우 내부의 더 짧은 펜스는 depth를 건드리지 않음
+      if (fenceLen >= 4 && curFenceLen < fenceLen) {
+        continue;
+      }
+
+      if (curInfo.length > 0) {
+        depth++;
+        continue;
+      }
+
+      if (depth > 1) {
+        depth--;
+        continue;
+      }
+
+      if (curFenceLen >= fenceLen || depth === 1) {
+        closingLineIdx = j;
+        break;
+      }
+    }
+
+    if (closingLineIdx !== -1) {
+      for (let k = i; k <= closingLineIdx; k++) {
+        mask[k] = true;
+      }
+      i = closingLineIdx + 1;
+    } else {
+      for (let k = i; k < lines.length; k++) {
+        mask[k] = true;
+      }
+      break;
+    }
+  }
+
+  return mask;
+}
+
 export interface ProcessedMarkdown {
   text: string;
   lineMap: number[];
@@ -96,6 +173,7 @@ export interface ProcessedMarkdown {
 // ====================================================================
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
 // 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
+// 🚨 @PATCH : **2026-09-26** — [이중 중첩 코드블록 내부 &nbsp; 엔티티 오염 방어 및 코드블록 영역 마스크(getCodeBlockLineMask) 도입]: 단순 startsWith('```') 토글을 CommonMark 기반 코드블록 영역 정밀 마스크로 교체하여 이중 코드블록 내부의 들여쓰기 공백이 &nbsp;로 치환되는 버그 완벽 박멸
 // 🚨 @PATCH : **2026-09-23** — [서브리스트 들여쓰기 보존 및 최상위 리스트 분리 정밀화] 빈 줄 직후 다음 줄의 들여쓰기(Indent > 0) 존재 시 리스트를 닫지 않고 해당 들여쓰기 깊이의 onrivi-empty-row를 주입하여 하위 계층 들여쓰기를 100% 보존하고, 들여쓰기 0칸인 최상위 리스트/문단 조우 시에만 onrivi-list-spacer로 독립 블록 분리하도록 정밀 개편
 // 🚨 @PATCH : **2026-09-23** — [리스트 중간 빈 행/개행 시 독립 블록 분리 및 빈 행 렌더링] 리스트 항목 직후에 빈 행이나 <br> 태그가 나타났을 때 마크다운 파서의 단일 loose list 뭉침 현상을 방어하기 위해 onrivi-list-spacer 블록 및 완충 개행을 주입하여 에디터와 1:1로 동일한 빈 행 공간 렌더링 및 새 리스트 독립 분리 보장
 // 🚨 @PATCH : **2026-09-23** — [리스트(숫자/글머리/체크박스) 빈 행 분리 및 중첩 들여쓰기 보존] 빈 줄 발생 시 앞뒤 리스트를 - onrivi-empty-row 로 인위 결합하던 로직을 제거하여 빈 행 뒤 새 리스트가 1번부터 독립 블록으로 시작되도록 보장, 상대 들여쓰기 2칸/4칸 모두 마크다운 중첩 서브리스트로 완벽 파싱되도록 개선
@@ -142,32 +220,27 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
   });
 
   // Step 2: 탭 보정 및 들여쓰기 공백 정규화 (correctMarkdownIndents)
-  let insideCodeBlock = false;
+  const codeBlockMask = getCodeBlockLineMask(expandedLines);
   let insideParagraph = false;
   let paragraphBaseIndent = "";
   let listBlockBaseIndent = -1; // 💡 상대적 리스트 들여쓰기 기준선 트래킹용
   let listHasActiveDiv = false; // 💡 현재 div 태그가 열려 있는지 추적하는 플래그
 
   const correctedLines = expandedLines.map((line, index) => {
-    const trimmed = line.trim();
-    
-    if (trimmed.startsWith("```")) {
-      insideCodeBlock = !insideCodeBlock;
-      insideParagraph = false;
-      
+    // 🛡️ [코드블록 원본 무결성 보존] 이중/중첩 코드블록 내부를 포함하여 코드 영역은
+    // 들여쓰기 공백이나 탭이 &nbsp;로 치환되지 않고 100% 원본 그대로 유지되도록 즉시 반환
+    if (codeBlockMask[index]) {
       let suffix = "";
       if (listHasActiveDiv) {
         suffix = "\n\n</div>\n\n";
         listHasActiveDiv = false;
         listBlockBaseIndent = -1;
       }
+      insideParagraph = false;
       return suffix + line;
     }
-    
-    if (insideCodeBlock) {
-      return line;
-    }
-    
+
+    const trimmed = line.trim();
     if (trimmed === "") {
       insideParagraph = false;
       paragraphBaseIndent = "";
@@ -307,19 +380,11 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
   });
 
   // Step 2.5: 숫자 목록(Ordered List)의 촘촘한 리스트 간격 및 뭉침 현상 재현을 위해 순서 없는 목록 기호(- ) 강제 주입
-  let insideCodeBlockDeordered = false;
-
   const deorderedLines = correctedLines.map((line, index) => {
+    if (codeBlockMask[index]) {
+      return line;
+    }
     const trimmed = line.trim();
-
-    if (trimmed.startsWith("```")) {
-      insideCodeBlockDeordered = !insideCodeBlockDeordered;
-      return line;
-    }
-
-    if (insideCodeBlockDeordered) {
-      return line;
-    }
 
     // 🛡️ [리스트 간 빈 행 분리 및 서브리스트 들여쓰기 보존]:
     // 빈 줄이나 <br>이 나타났을 때:

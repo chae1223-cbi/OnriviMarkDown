@@ -1,3 +1,6 @@
+// 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 행/열 테두리 스타일·색상 내보내기 동기화]: generateExportCss 내 tableStructure 인젝션 시 th/td의 border-left/right/top/bottom에 width뿐 아니라 border-style 및 border-color를 !important로 주입하여 PDF/HTML/인쇄 내보내기 시 세로선 100% 반영
+// 🚨 @PATCH : **2026-09-26** — [코드블록 내부 행간 줄간격 콤팩트 규격화(1.35배) 내보내기 동기화]: generateExportCss에 codeblock-area line-height 및 min-height(1.35em)를 주입하여 출력/내보내기 시 행간 일치성 보장
+// 🚨 @PATCH : **2026-09-26** — [Alert 인용구 태그와 본문 간격 최소화 내보내기 동기화]: generateExportCss에 .onrivi-alert-title(margin-bottom 축소) 및 .onrivi-alert-content(첫 문단 margin-top 0) 주입
 // 🚨 @PATCH : **2026-09-25** — [고급 레이아웃 및 본문 문단 용지 표준 여백(상하 18mm, 좌우 12mm) 내보내기 일원화]: PDF, HTML, 인쇄(@page), 이미지 캡처 시 기본 마진 폴백을 상하 18mm, 좌우 12mm(marginTop/marginBottom: 18mm, marginLeft/marginRight: 12mm)로 전면 일원화
 // 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 내보내기 동기화]: .task-list-item 및 checkboxStructure color를 본문(p) 글씨색(기본 #2f2f2f)으로 일치시켜 PDF/HTML/인쇄 내보내기 시 별도 색상 튐 원천 배제
 // 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 내보내기 기본값 동기화]: profile.checkboxStructure.checkedEffect 기본값을 'none'으로 확정하여 PDF/인쇄/HTML 내보내기 시 기본 취소선·반투명 오염 원천 방지
@@ -8,6 +11,7 @@
 // 🚨 @PATCH : **2026-09-24** — [표 외곽 테두리·행(가로선)·열(세로선) 두께 개별 내보내기 동기화(tableStructure)]: generateExportCss에 profile.tableStructure를 연동하여 table(외곽선) 및 th/td(행·열 구분선) 두께를 독립 적용하여 인쇄/PDF/EPUB/HTML 내보내기 일치성 보장
 // 🚨 @PATCH : **2026-09-24** — [문서 내보내기 서식 프로필 7대 쇼케이스 완전체 정규화(normalizeCssProfile) 연동]: HTML/PDF/EPUB/PNG 내보내기 시 전달된 프로필의 누락된 최신 태그 및 구조체를 100% 자동 하이드레이션하여 서식 일치성 완벽 보장
 // 🚨 @PATCH : **2026-09-24** — [각주(Footnote) 상하 여백 및 선택자(.onrivi-content-root .footnotes) 내보내기 동기화 보강]: margin-bottom 및 .onrivi-content-root 계열 선택자를 추가하여 HTML/PDF/EPUB 내보내기 시 각주 서식 100% 일치 보장
+// 🚨 @PATCH : **2026-09-27** — [내보내기 서식 컨트롤 우선순위 고정]: 추가 CSS와 설정창 규칙을 계층으로 분리해 미리보기와 내보내기의 충돌 해석을 일치시킴
 // 🚨 @PATCH : **2026-09-24** — [본문 문단(P) 문장 사이 간격(sentence-gap) 내보내기 지원]: generateExportCss에 p .onrivi-line + .onrivi-line 및 br 가상 블록 선택자를 동시 주입하여 문단 내 줄바꿈 문장 간격 내보내기 동기화
 // 🚨 @PATCH : **2026-09-24** — [KaTeX 수식(MATH) 기본 글자 크기(inherit) 및 상하 여백 100% 내보내기 정상화]:
 //             1) 수식 글자 크기 미지정('기본설정 유지') 시 font-size: inherit !important 주입으로 KaTeX 1.21em 자체 스타일 오버라이드 및 본문 기본 글자 크기 실시간 동기화 실현
@@ -59,7 +63,9 @@ interface ExportOptions {
 /** 항상 라이트모드 기준으로 서식 프로필의 dynamic CSS를 재생성하는 헬퍼 함수 */
 export function generateExportCss(rawProfile: any): string {
   if (!rawProfile || rawProfile.id === 'default') {
-    return (rawProfile?.customCss && rawProfile.customCss.trim()) ? `\n/* === [User Custom CSS] === */\n${rawProfile.customCss}\n` : '';
+    return (rawProfile?.customCss && rawProfile.customCss.trim())
+      ? `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-extra {\n${rawProfile.customCss}\n}`
+      : '';
   }
   // 💡 [OMD-PATCH] 전달된 프로필을 Onrivi 최신 7대 쇼케이스 태그 및 구조체 기준으로 완벽 정규화(하이드레이션)
   const profile = normalizeCssProfile(rawProfile);
@@ -119,7 +125,11 @@ export function generateExportCss(rawProfile: any): string {
 
   Object.entries(profile.rules || {}).forEach(([tag, ruleObj]: [string, any]) => {
     const skipFontSize = ['h2','h3','h4','h5','h6'].includes(tag);
-    const entries = Object.entries(ruleObj).map(([prop, v]) => {
+    // 미리보기와 동일하게 기존 빈 제목 밑줄 설정도 명시적으로 제거한다.
+    const effectiveRules = /^h[1-6]$/.test(tag)
+      ? { ...ruleObj, 'border-bottom': ruleObj['border-bottom']?.trim() || 'none' }
+      : ruleObj;
+    const entries = Object.entries(effectiveRules).map(([prop, v]) => {
       if (prop === 'word-break' && v === 'keep-all') return [prop, 'break-all'];
       return [prop, v];
     }).filter(([prop, v]) => {
@@ -544,8 +554,11 @@ p .onrivi-line + .onrivi-line {
     const outerWidth = tableStruct.outerBorderWidth || '1px';
     const rowWidth = tableStruct.rowBorderWidth || '1px';
     const colWidth = tableStruct.colBorderWidth || '1px';
+    const tableBorderStyle = profile.rules?.table?.['border-style'] || 'solid';
+    const tableBorderColor = profile.rules?.table?.['border-color'] || profile.rules?.th?.['border-color'] || profile.rules?.td?.['border-color'] || '#cbd5e1';
 
     // 1. 표 외곽 테두리 (table)
+    const outerIsZero = outerWidth === '0px' || outerWidth === '0';
     css += `
 .custom-preview-container table,
 .onrivi-content-root table,
@@ -554,11 +567,14 @@ p .onrivi-line + .onrivi-line {
 .onrivi-content-root .prose table,
 .dark .onrivi-content-root .prose table {
   border-width: ${outerWidth} !important;
-  ${outerWidth === '0px' || outerWidth === '0' ? 'border-style: none !important;' : ''}
+  border-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-color: ${tableBorderColor} !important;
 }
 `;
 
     // 2. 표 내부 행(가로선) 및 열(세로선) 구분선 (th, td)
+    const rowIsZero = rowWidth === '0px' || rowWidth === '0';
+    const colIsZero = colWidth === '0px' || colWidth === '0';
     css += `
 .custom-preview-container th,
 .custom-preview-container td,
@@ -572,8 +588,14 @@ p .onrivi-line + .onrivi-line {
   border-bottom-width: ${rowWidth} !important;
   border-left-width: ${colWidth} !important;
   border-right-width: ${colWidth} !important;
-  ${rowWidth === '0px' || rowWidth === '0' ? 'border-top-style: none !important; border-bottom-style: none !important;' : ''}
-  ${colWidth === '0px' || colWidth === '0' ? 'border-left-style: none !important; border-right-style: none !important;' : ''}
+  border-top-style: ${rowIsZero ? 'none' : tableBorderStyle} !important;
+  border-bottom-style: ${rowIsZero ? 'none' : tableBorderStyle} !important;
+  border-left-style: ${colIsZero ? 'none' : tableBorderStyle} !important;
+  border-right-style: ${colIsZero ? 'none' : tableBorderStyle} !important;
+  border-top-color: ${tableBorderColor} !important;
+  border-bottom-color: ${tableBorderColor} !important;
+  border-left-color: ${tableBorderColor} !important;
+  border-right-color: ${tableBorderColor} !important;
 }
 `;
   }
@@ -590,6 +612,33 @@ p .onrivi-line + .onrivi-line {
   display: inline-block !important;
   width: 100% !important;
   vertical-align: top !important;
+}
+
+/* 💬 Alert 인용구(콜아웃) 태그와 본문 간격 최소화 및 커스텀 제어 */
+.custom-preview-container .onrivi-alert-title,
+.onrivi-content-root .onrivi-alert-title {
+  margin-bottom: var(--onrivi-alert-gap, 6px) !important;
+}
+.custom-preview-container .onrivi-alert-content > p:first-child,
+.onrivi-content-root .onrivi-alert-content > p:first-child {
+  margin-top: 0 !important;
+}
+.custom-preview-container .onrivi-alert-content > p:last-child,
+.onrivi-content-root .onrivi-alert-content > p:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 💬 코드블록 내부 줄간격(행간) 콤팩트 규격화 (본문 1.8배 오염 원천 방어) */
+.custom-preview-container .codeblock-area pre,
+.custom-preview-container .codeblock-area pre code,
+.custom-preview-container .codeblock-area .onrivi-line,
+.custom-preview-container .codeblock-area .onrivi-line *,
+.onrivi-content-root .codeblock-area pre,
+.onrivi-content-root .codeblock-area pre code,
+.onrivi-content-root .codeblock-area .onrivi-line,
+.onrivi-content-root .codeblock-area .onrivi-line * {
+  line-height: ${(profile.rules?.codeBlock && profile.rules.codeBlock['line-height']) || '1.35'} !important;
+  min-height: ${(profile.rules?.codeBlock && profile.rules.codeBlock['line-height']) || '1.35'}em !important;
 }
 `;
 
@@ -732,11 +781,23 @@ p .onrivi-line + .onrivi-line {
     }
   }
 
-  if (profile.customCss && profile.customCss.trim()) {
-    css += `\n/* === [User Custom CSS] === */\n${profile.customCss}\n`;
+  // 미리보기와 동일하게 제목 정렬·왼쪽 여백 컨트롤을 최종 적용한다.
+  for (let level = 1; level <= 6; level++) {
+    const rule = profile.rules[`h${level}` as keyof typeof profile.rules];
+    if (!rule) continue;
+    const alignment = rule['text-align'] || 'left';
+    const leftMargin = alignment === 'left' ? '0' : 'auto';
+    const rightMargin = alignment === 'right' ? '0' : 'auto';
+    css += `.custom-preview-container h${level}, .onrivi-content-root h${level} {\n`;
+    css += `  margin-left: ${leftMargin} !important;\n  margin-right: ${rightMargin} !important;\n`;
+    css += `  padding-left: ${rule['padding-left'] || '0px'} !important;\n}\n`;
   }
 
-  return css;
+  // 🚨 @PATCH : 내보내기에도 설정창 우선 계층을 적용해 미리보기와 같은 결과를 유지한다.
+  const extraCss = profile.customCss?.trim()
+    ? `\n@layer onrivi-extra {\n${profile.customCss}\n}`
+    : '';
+  return `@layer onrivi-settings, onrivi-extra;\n@layer onrivi-settings {\n${css}\n}${extraCss}`;
 }
 
 // ====================================================================

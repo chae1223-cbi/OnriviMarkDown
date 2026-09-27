@@ -1,3 +1,8 @@
+// 🚨 @PATCH : **2026-09-26** — [Alert 인용구 박스 상하 여백 대칭 적용(my-4)]: onrivi-alert-box에 my-4(상하 16px)를 추가하여 [예시] 단락 위·아래 여백과 callout 박스 아래 여백이 동일하게 맞춰져 일체감 있게 렌더링되도록 수정
+// 🚨 @PATCH : **2026-09-26** — [인용문(blockquote) 내부 리스트(글머리/숫자/체크박스) 들여쓰기 및 선행 공백 인용구 정규화 완전 해결]: 에디터에서 인용구 줄에 탭을 눌러 줄 시작에 공백이 붙은 경우("    > - 홍시") > 마커를 선두로 재배치하여 CommonMark가 하위 중첩 리스트로 100% 인식하도록 cleanContent 정규화 엔진을 신설하고, getIndentStyle에서 > 전/후 공백(outerIndent + innerIndent)을 모두 합산 추출하며, rehypeSourceLinesPlugin에서 listDepth를 추적하여 평탄화된 항목에는 물리 마진을, 중첩 항목(depth>=2)에는 CSS 패딩(1.5em)과 원형 불릿(circle)을 계층별로 완벽 적용
+// 🚨 @PATCH : **2026-09-26** — [중첩 이중 코드블록(Nested Codeblock) 파싱 및 문장 내 백틱 분할 결함 완전 해결]: cleanContent의 단순 정규식(split /(```[\s\S]*?```)/g)을 CommonMark 규격 기반 줄 단위 코드블록 분할 및 중첩 감지 엔진(partitionAndNormalizeCodeBlocks)으로 전면 교체하여, 문장 중간의 백틱 3개((```))로 인한 코드블록 오탐과 조기 분할을 원천 차단하고 내부 중첩 코드블록(```python 등) 보유 시 외부 코드블록을 4개 백틱(````)으로 자동 승격 정규화하여 뒷부분 본문(수평선, 표 등)이 거대 코드블록으로 삼켜지던 파싱 붕괴 버그 완벽 박멸
+// 🚨 @PATCH : **2026-09-26** — [코드블록 내부 행간 줄간격 콤팩트 규격화(1.35배) 및 빈 행 간격 최적화]: CodeBlock pre 및 .onrivi-line의 과도한 line-height/min-height(1.5em)를 1.35배로 콤팩트 단일화하여 빈 행과 텍스트 행간이 불필요하게 붕 뜨는 결함 해결
+// 🚨 @PATCH : **2026-09-26** — [Alert 인용구 태그 직후 강제 빈 줄 완전 소거 및 간격 최소화]: [!Tip], [!Note] 등 태그 문구 소거 후 잔존하던 빈 행(.onrivi-line min-height:1.5em) 및 빈 문단을 pruneLeadingEmptyNodes로 완전 정제하여 태그 직후 강제 개행 현상 박멸, 배지와 본문 사이 하단 마진 축소(mb-1.5) 및 첫 단락 margin-top 0 강제 적용
 // 🚨 @PATCH : **2026-09-24** — [동영상 및 지도 래퍼 폭 수축(300px) 버그 해결]: .onrivi-video-wrapper 및 .onrivi-map-wrapper 인라인 스타일의 width: fit-content를 width: 100%로 보정하여 HTML5 replaced element 기본 300px 축소 현상을 방지하고 서식 너비를 온전히 전개
 // 🚨 @PATCH : **2026-09-24** — [미디어(이미지·비디오·지도) 렌더러 정렬 아키텍처 완성]: iframe 커스텀 렌더러 신설(.onrivi-map-wrapper), AsyncVideo 래퍼(.onrivi-video-wrapper) 탑재, figure img의 margin:0 !important 강제 초기화 제거, AsyncImage 하드코딩 width:100% 해제(maxWidth:100%/height:auto), 래퍼의 fit-content/align-self 인라인 연동 및 캡션 동기화로 서식 프로필 및 쿼리스트링 정렬 100% 실시간 반영 보장
 // 🚨 @PATCH : **2026-09-24** — [미디어(이미지/비디오/지도) 서식 스타일 100% 실시간 연동 및 flex 정렬 최적화]: imgStyle 하드코딩 maxWidth(600px) 및 figure 인라인 마진/중앙정렬 강제를 해제하고, AsyncImage 래퍼(.onrivi-image-wrapper) 및 video/iframe 정렬을 CSS 프로필 align-self/align-items와 1:1 완전 동기화
@@ -659,6 +664,145 @@ function splitChildrenIntoLines(children: React.ReactNode): React.ReactNode[][] 
   return lines;
 }
 
+/**
+ * 💡 [CommonMark 규격 기반 줄 단위 코드블록 분할 및 중첩 감지 엔진]
+ * 1. 문장 중간의 백틱 3개((```) 등)를 코드블록으로 오탐하지 않도록 행 시작(0~3칸 공백 + 3개 이상 백틱/물결표)을 엄격히 판별
+ * 2. 중첩 코드블록(이중 코드블록: 예: ```markdown 내부에 ```python ... ``` 등) 탐지 시,
+ *    외부 코드블록을 4개 백틱(````) 이상으로 자동 승격 정규화하여 뒷부분 본문이 거대 코드블록으로 삼켜지는 파싱 붕괴 차단
+ * 3. 텍스트를 순수 코드블록(원본 100% 보존)과 본문(prose: 다중 공백/탭 &nbsp; 변환 대상) 세그먼트로 정확히 분할
+ */
+interface CodeSegment {
+  isCode: boolean;
+  text: string;
+}
+
+function partitionAndNormalizeCodeBlocks(markdown: string): CodeSegment[] {
+  const lines = markdown.split('\n');
+  const fenceRegex = /^([ \t]{0,3})(`{3,}|~{3,})(.*)$/;
+  const modifiedLines = [...lines];
+
+  let i = 0;
+  while (i < modifiedLines.length) {
+    const line = modifiedLines[i];
+    const match = line.match(fenceRegex);
+    if (!match) {
+      i++;
+      continue;
+    }
+
+    const indent = match[1];
+    const fenceChar = match[2][0];
+    const fenceLen = match[2].length;
+    const info = match[3].trim();
+
+    // 백틱 펜스의 경우 info 문자열 내부에 백틱이 포함되면 유효하지 않음(CommonMark 규격)
+    if (fenceChar === '`' && info.includes('`')) {
+      i++;
+      continue;
+    }
+
+    let depth = 1;
+    let closingLineIdx = -1;
+    let maxInnerLen = 0;
+    let hasInnerFences = false;
+
+    for (let j = i + 1; j < modifiedLines.length; j++) {
+      const curLine = modifiedLines[j];
+      const curMatch = curLine.match(fenceRegex);
+      if (!curMatch || curMatch[2][0] !== fenceChar) {
+        continue;
+      }
+
+      const curFenceLen = curMatch[2].length;
+      const curInfo = curMatch[3].trim();
+
+      // 💡 [CommonMark 표준 보호] 외부 펜스가 4개 이상(예: ````)이고 내부 펜스가 그보다 짧으면(예: ```)
+      // 내부 펜스는 info 유무와 관계없이 이미 완전한 텍스트 내용이므로 depth를 건드리지 않음
+      if (fenceLen >= 4 && curFenceLen < fenceLen) {
+        continue;
+      }
+
+      // 언어 태그(info)가 있는 경우(예: ```python) 명백한 내부 코드블록의 시작
+      if (curInfo.length > 0) {
+        depth++;
+        hasInnerFences = true;
+        if (curFenceLen > maxInnerLen) maxInnerLen = curFenceLen;
+        continue;
+      }
+
+      // info가 없는 펜스: inner block이 열려 있는 상태라면 inner block을 닫음
+      if (depth > 1) {
+        depth--;
+        if (curFenceLen > maxInnerLen) maxInnerLen = curFenceLen;
+        continue;
+      }
+
+      // depth === 1인 상태에서 만난 닫는 펜스
+      if (curFenceLen >= fenceLen || hasInnerFences) {
+        closingLineIdx = j;
+        break;
+      }
+    }
+
+    if (closingLineIdx !== -1) {
+      // 내부 중첩 코드블록이 존재하고 외부 펜스 길이가 내부 펜스 이하인 경우
+      // 외부 펜스를 4개 백틱(또는 maxInnerLen + 1)으로 승격하여 CommonMark 중첩 펜스 완성
+      if (hasInnerFences && fenceLen <= maxInnerLen) {
+        const newFenceLen = Math.max(fenceLen, maxInnerLen + 1, 4);
+        const newOpenFence = indent + fenceChar.repeat(newFenceLen) + (match[3] || '');
+        const closeMatch = modifiedLines[closingLineIdx].match(fenceRegex);
+        const closeIndent = closeMatch ? closeMatch[1] : '';
+        const newCloseFence = closeIndent + fenceChar.repeat(newFenceLen);
+
+        modifiedLines[i] = newOpenFence;
+        modifiedLines[closingLineIdx] = newCloseFence;
+      }
+      i = closingLineIdx + 1;
+    } else {
+      i++;
+    }
+  }
+
+  const segments: CodeSegment[] = [];
+  let currentSegment: string[] = [];
+  let inCode = false;
+  let activeFenceChar = '';
+  let activeFenceLen = 0;
+
+  for (let idx = 0; idx < modifiedLines.length; idx++) {
+    const line = modifiedLines[idx];
+    const match = line.match(fenceRegex);
+
+    if (!inCode) {
+      if (match && !(match[2][0] === '`' && match[3].includes('`'))) {
+        if (currentSegment.length > 0) {
+          segments.push({ isCode: false, text: currentSegment.join('\n') });
+          currentSegment = [];
+        }
+        inCode = true;
+        activeFenceChar = match[2][0];
+        activeFenceLen = match[2].length;
+        currentSegment.push(line);
+      } else {
+        currentSegment.push(line);
+      }
+    } else {
+      currentSegment.push(line);
+      if (match && match[2][0] === activeFenceChar && match[2].length >= activeFenceLen && match[3].trim() === '') {
+        segments.push({ isCode: true, text: currentSegment.join('\n') });
+        currentSegment = [];
+        inCode = false;
+      }
+    }
+  }
+
+  if (currentSegment.length > 0) {
+    segments.push({ isCode: inCode, text: currentSegment.join('\n') });
+  }
+
+  return segments;
+}
+
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0008] MarkdownViewer ➔ CodeBlock
 // 🎯 @KICK  : 코드블록을 언어명 헤더 + 복사 버튼 + 개별 행(.onrivi-line) 1:1 라인 매핑 및 모노스페이스 렌더링
@@ -716,7 +860,7 @@ function CodeBlock({ lang, code, className, node, lineMap, children, ...props }:
       </div>
       
       <div className="overflow-x-auto w-full custom-scrollbar">
-        <pre className="m-0 p-4 font-mono text-sm leading-normal bg-transparent w-max min-w-full text-zinc-800 dark:text-white">
+        <pre className="m-0 p-4 font-mono text-sm leading-[1.35] bg-transparent w-max min-w-full text-zinc-800 dark:text-white">
           <code className={`hljs ${className || ''}`} style={{ whiteSpace: 'pre' }} {...props}>
             {splitLines.length > 0 ? (
               splitLines.map((lineItems, idx) => {
@@ -734,7 +878,7 @@ function CodeBlock({ lang, code, className, node, lineMap, children, ...props }:
                   <span
                     key={idx}
                     data-line={lineNum}
-                    className="onrivi-line block w-full min-h-[1.5em]"
+                    className="onrivi-line block w-full min-h-[1.35em] leading-[1.35]"
                     style={{ whiteSpace: 'pre' }}
                   >
                     {lineItems.length > 0 ? lineItems : '\u200B'}
@@ -1539,15 +1683,19 @@ function MarkdownViewer({
       return `[${text}](<${url}>)`;
     });
 
-    // 💡 [연속 엔터 빈 줄 완벽 보존] 엔터 2회 이상의 다중 빈 행이 있을 때 빈 문단(&nbsp;)으로 보존
-    processed = processed.replace(/\n{3,}/g, (match) => '\n\n' + '&nbsp;\n\n'.repeat(match.length - 2));
+    // 💡 [코드블록과 본문 격리 및 중첩 이중 코드블록 정규화]
+    // CommonMark 규격에 맞추어 코드블록 내부(원본 100% 보존)와 본문(2칸 이상 공백/탭 1:1 보존)을 엄격히 분리
+    const segments = partitionAndNormalizeCodeBlocks(processed);
+    processed = segments.map((seg) => {
+      if (seg.isCode) {
+        return seg.text; // 코드블록 내부는 원본 및 서식 100% 보존 (중첩 백틱 승격 완료)
+      }
 
-    // 💡 [인라인 연속 스페이스 및 탭 1:1 보존]
-    // 코드블록(```) 영역을 제외하고 문장/리스트 중간의 2칸 이상 연속 공백을 &nbsp;로 변환하여 1:1 유지
-    const codeBlockSplits = processed.split(/(```[\s\S]*?```)/g);
-    processed = codeBlockSplits.map((block, idx) => {
-      if (idx % 2 === 1) return block; // 코드블록 내부는 원본 유지
-      return block.split('\n').map(line => {
+      let proseText = seg.text;
+      // 다중 빈 줄(&nbsp;) 보존은 본문(prose) 영역에만 적용하여 코드블록 내부 빈 줄 오염 차단
+      proseText = proseText.replace(/\n{3,}/g, (match) => '\n\n' + '&nbsp;\n\n'.repeat(match.length - 2));
+
+      return proseText.split('\n').map(line => {
         const isListItem = /^[ \t]*([*+-]|\d+\.)\s+/.test(line);
         if (isListItem) {
           // 리스트 항목: 마크다운 리스트 인덴트 문법 보존 + 내용 내 2칸 이상 공백 보존
@@ -1560,19 +1708,37 @@ function MarkdownViewer({
           }
           return line;
         }
+        // 💡 [선행 공백 인용구 정규화] 사용자가 에디터에서 인용구 라인을 들여쓰기하려고 줄 맨 앞에 탭이나 공백을 친 경우 (예: "    > - 홍시")
+        // 인용구 마커(>)를 맨 앞으로 이동시키고 공백을 > 뒤로 배치하여 CommonMark가 하위 중첩 리스트로 파싱할 수 있도록 정규화
+        const leadingSpaceQuoteMatch = line.match(/^([ \t]+)((?:>+[ \t]?)+)(.*)$/);
+        if (leadingSpaceQuoteMatch) {
+          const spaces = leadingSpaceQuoteMatch[1];
+          const quotes = leadingSpaceQuoteMatch[2].trim();
+          const rest = leadingSpaceQuoteMatch[3];
+          line = `${quotes} ${spaces}${rest}`;
+        }
+
         // 인용구: 마크다운 인용구 문법(> 기호 및 Alert 태그) 보존 + 본문 내 2칸 이상 공백 보존
         const isQuote = /^[ \t]*>/.test(line);
         if (isQuote) {
-          const quoteMatch = line.match(/^([ \t]*>+[ \t]*)(.*)$/);
+          const quoteMatch = line.match(/^([ \t]*>+[ \t]?)(.*)$/);
           if (quoteMatch) {
             const prefix = quoteMatch[1];
             let body = quoteMatch[2];
-            const alertTagMatch = body.match(/^(\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\])(.*)$/i);
+            const alertTagMatch = body.match(/^(\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION|참고|참조|메모|알림|팁|도움말|중요|필독|주의|경고|위험)\])(.*)$/i);
             if (alertTagMatch) {
               const tag = alertTagMatch[1];
               let tagBody = alertTagMatch[2];
               tagBody = tagBody.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
               return `${prefix}${tag}${tagBody}`;
+            }
+            // 💡 [인용구 내부 리스트 보존] 인용구 내부 리스트의 선행 공백과 불릿/숫자는 마크다운 규격대로 보존하고 내용물 공백만 치환
+            const innerListMatch = body.match(/^([ \t]*[*+-]|[ \t]*\d+\.)\s+(.*)$/);
+            if (innerListMatch) {
+              const listPrefix = innerListMatch[1];
+              let listBody = innerListMatch[2];
+              listBody = listBody.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
+              return `${prefix}${listPrefix} ${listBody}`;
             }
             body = body.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
             return `${prefix}${body}`;
@@ -1588,7 +1754,7 @@ function MarkdownViewer({
         rest = rest.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ {2,}/g, (spaces) => '&nbsp;'.repeat(spaces.length));
         return lead + rest;
       }).join('\n');
-    }).join('');
+    }).join('\n');
 
     return processed;
   }, [content]);
@@ -1604,8 +1770,23 @@ function MarkdownViewer({
     if (!targetContent || typeof targetContent !== 'string') return {};
     const lines = targetContent.split('\n');
     const lineText = lines[origLine - 1] || '';
-    const indentMatch = lineText.match(/^([ \t]*)/);
-    const indentStr = indentMatch ? indentMatch[1] : '';
+
+    // 💡 [인용구 투과 들여쓰기 공백 종합 추출]
+    // 1) ">   - 바나나" 처럼 > 뒤에 들여쓰기가 있는 경우 (innerIndent)
+    // 2) "    > - 홍시" 처럼 > 앞에 들여쓰기가 있는 경우 (outerIndent)
+    // 둘을 모두 합산하여 사용자가 에디터에 부여한 총 물리 들여쓰기를 정확히 복원
+    let indentStr = '';
+    const quoteLineMatch = lineText.match(/^([ \t]*)(?:>+[ \t]?)+(.*)$/);
+    if (quoteLineMatch) {
+      const outerIndent = quoteLineMatch[1] || '';
+      const innerContent = quoteLineMatch[2] || '';
+      const innerIndentMatch = innerContent.match(/^([ \t]*)/);
+      const innerIndent = innerIndentMatch ? innerIndentMatch[1] : '';
+      indentStr = outerIndent + innerIndent;
+    } else {
+      const indentMatch = lineText.match(/^([ \t]*)/);
+      indentStr = indentMatch ? indentMatch[1] : '';
+    }
 
     // 💡 [목록 들여쓰기 동적 연동]
     // listIndent prop이 전달되면 (예: '16px'), 그 값을 파싱하여 탭/공백당 들여쓰기 px 단위를 조정합니다.
@@ -1663,9 +1844,17 @@ function MarkdownViewer({
         return false;
       };
 
-      const visit = (node: any, parentLine?: number) => {
+      const visit = (node: any, parentLine?: number, listDepth: number = 0) => {
+        let currentListDepth = listDepth;
         if (node.type === 'element') {
           if (!node.properties) node.properties = {};
+
+          if (node.tagName === 'ul' || node.tagName === 'ol') {
+            currentListDepth = listDepth + 1;
+          }
+          if (node.tagName === 'li') {
+            node.properties['data-list-depth'] = listDepth;
+          }
 
           if (node.tagName === 'p') {
             if (isMediaParagraph(node)) {
@@ -1674,7 +1863,7 @@ function MarkdownViewer({
                 node.properties['data-line'] = mapLine(line);
               }
               if (node.children) {
-                node.children.forEach((child: any) => visit(child, line));
+                node.children.forEach((child: any) => visit(child, line, currentListDepth));
               }
               return;
             }
@@ -1710,7 +1899,7 @@ function MarkdownViewer({
                   if (child.position?.start?.line) {
                     pLine = child.position.start.line;
                   }
-                  visit(child, pLine);
+                  visit(child, pLine, currentListDepth);
                 }
                 currentLineChildren.push(child);
               }
@@ -1734,7 +1923,7 @@ function MarkdownViewer({
               if (rawContent) {
                 const lines = rawContent.split(/\r?\n/);
                 const lineText = lines[mapped - 1] || '';
-                const match = lineText.match(/^[ \t]*(\d+)\.(?:\s+|$)/);
+                const match = lineText.match(/^(?:[ \t]*>+[ \t]?)*[ \t]*(\d+)\.(?:\s+|$)/);
                 if (match) {
                   node.properties.value = parseInt(match[1], 10);
                 }
@@ -1745,7 +1934,7 @@ function MarkdownViewer({
 
         if (node.children) {
           node.children.forEach((child: any) =>
-            visit(child, node.type === 'element' && node.tagName === 'tr' ? node.position?.start?.line : undefined)
+            visit(child, node.type === 'element' && node.tagName === 'tr' ? node.position?.start?.line : undefined, currentListDepth)
           );
         }
       };
@@ -1972,6 +2161,36 @@ function MarkdownViewer({
           margin-bottom: 0.5em !important;
           padding-left: 1.5em !important;
         }
+        .onrivi-content-root ul ul {
+          list-style-type: circle !important;
+          margin-top: 0.25em !important;
+          margin-bottom: 0.25em !important;
+          padding-left: 1.5em !important;
+        }
+        .onrivi-content-root ul ul ul {
+          list-style-type: square !important;
+          margin-top: 0.25em !important;
+          margin-bottom: 0.25em !important;
+          padding-left: 1.5em !important;
+        }
+        .onrivi-content-root ol ol {
+          list-style-type: lower-alpha !important;
+          margin-top: 0.25em !important;
+          margin-bottom: 0.25em !important;
+          padding-left: 1.5em !important;
+        }
+        .onrivi-content-root ol ol ol {
+          list-style-type: lower-roman !important;
+          margin-top: 0.25em !important;
+          margin-bottom: 0.25em !important;
+          padding-left: 1.5em !important;
+        }
+        .onrivi-content-root blockquote ul ul,
+        .onrivi-content-root blockquote ol ol,
+        .onrivi-content-root blockquote ul ol,
+        .onrivi-content-root blockquote ol ul {
+          padding-left: 1.5em !important;
+        }
         .onrivi-content-root ul + p,
         .onrivi-content-root ol + p {
           margin-top: 1.5em !important;
@@ -2045,7 +2264,10 @@ function MarkdownViewer({
         .onrivi-content-root th,
         .markdown-viewer-root td,
         .onrivi-content-root td {
+          border-top-style: inherit !important;
           border-bottom-style: inherit !important;
+          border-left-style: inherit !important;
+          border-right-style: inherit !important;
         }
         .markdown-viewer-root :is(p, h1, h2, h3, h4, h5, h6, strong):has(+ .table-wrapper-area),
         .onrivi-content-root :is(p, h1, h2, h3, h4, h5, h6, strong):has(+ .table-wrapper-area) {
@@ -2909,7 +3131,7 @@ function MarkdownViewer({
                 if (targetContent && typeof targetContent === 'string') {
                   const lines = targetContent.split(/\r?\n/);
                   const lineText = lines[dataLineVal - 1] || '';
-                  const match = lineText.match(/^[ \t]*(\d+)\.(?:\s+|$)/);
+                  const match = lineText.match(/^(?:[ \t]*>+[ \t]?)*[ \t]*(\d+)\.(?:\s+|$)/);
                   if (match) {
                     explicitValue = parseInt(match[1], 10);
                   }
@@ -2932,7 +3154,10 @@ function MarkdownViewer({
               });
 
               const { value: _discardedValue, ...restProps } = props;
-              return <li data-line={dataLineVal} value={explicitValue} style={style} className={props.className} {...restProps}>{modifiedChildren}</li>;
+              const listDepth = Number(node?.properties?.['data-list-depth'] || (props as any)['data-list-depth'] || 1);
+              // 💡 만약 이미 2단계 이상 중첩된 리스트(listDepth >= 2)라면 브라우저/CSS(ul ul padding-left: 1.5em)가 이미 온전히 들여쓰기를 전개했으므로 중복 여백 방지
+              const indentStyle = listDepth >= 2 ? {} : getIndentStyle(node);
+              return <li data-line={dataLineVal} value={explicitValue} style={{ ...style, ...indentStyle }} className={props.className} {...restProps}>{modifiedChildren}</li>;
             },
             blockquote: ({ node, children, style, ...props }) => {
               // GitHub style Alerts 파싱: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION] + 한글 지원 ([!참고], [!팁], [!중요], [!주의], [!경고] 등)
@@ -3009,7 +3234,51 @@ function MarkdownViewer({
                     return n;
                   };
 
-                  processedChildren = removeTag(children);
+                  // 💡 [Alert 인용구 태그 직후 강제 빈 줄 및 빈 노드 완전 소거]
+                  // 태그([!Tip] 등)가 소거된 후 잔존하는 빈 줄(.onrivi-line)이나 빈 문단(<p></p>), 또는 선행 <br>을 완전히 제거하여
+                  // 태그 타이틀 바로 아래에 본문 텍스트가 강제 개행 없이 밀착되도록 정제합니다.
+                  const isNodeEmpty = (n: any): boolean => {
+                    if (n === null || n === undefined || n === false) return true;
+                    if (typeof n === 'string') {
+                      const cleaned = n.replace(/[\s\u00a0\u200b]+/g, '').replace(/^(?:&nbsp;)+/g, '');
+                      return cleaned.length === 0;
+                    }
+                    if (Array.isArray(n)) {
+                      return n.length === 0 || n.every(isNodeEmpty);
+                    }
+                    if (React.isValidElement(n)) {
+                      if (n.type === 'br' || (n.props as any)?.tagName === 'br') return true;
+                      return isNodeEmpty((n.props as any)?.children);
+                    }
+                    return false;
+                  };
+
+                  const pruneLeadingEmptyNodes = (n: any): any => {
+                    if (!n) return n;
+                    if (Array.isArray(n)) {
+                      let firstNonEmpty = -1;
+                      for (let i = 0; i < n.length; i++) {
+                        if (!isNodeEmpty(n[i])) {
+                          firstNonEmpty = i;
+                          break;
+                        }
+                      }
+                      if (firstNonEmpty === -1) return [];
+                      const prunedFirst = pruneLeadingEmptyNodes(n[firstNonEmpty]);
+                      const rest = n.slice(firstNonEmpty + 1);
+                      return [prunedFirst, ...rest];
+                    }
+                    if (React.isValidElement(n)) {
+                      const ch: any = (n.props as any)?.children;
+                      if (ch === undefined || ch === null) return n;
+                      const pruned = pruneLeadingEmptyNodes(ch);
+                      return React.cloneElement(n, {}, ...(Array.isArray(pruned) ? pruned : [pruned]));
+                    }
+                    return n;
+                  };
+
+                  const rawCleaned = removeTag(children);
+                  processedChildren = pruneLeadingEmptyNodes(rawCleaned);
                 }
               }
 
@@ -3031,12 +3300,16 @@ function MarkdownViewer({
                 }[alertType];
 
                 return (
-                  <div style={{ ...style, ...getIndentStyle(node) }} className={`border-l-4 rounded-r-lg ${alertStyles.border} ${alertStyles.bg} p-4 shadow-xs`} {...(props as any)}>
-                    <div className={`flex items-center gap-2 font-bold mb-2 text-sm tracking-wide uppercase ${alertStyles.text}`}>
+                  <div 
+                    style={{ ...style, ...getIndentStyle(node) }} 
+                    className={`onrivi-alert-box my-4 border-l-4 rounded-r-lg ${alertStyles.border} ${alertStyles.bg} p-4 shadow-xs`} 
+                    {...(props as any)}
+                  >
+                    <div className={`onrivi-alert-title flex items-center gap-2 font-bold mb-1.5 text-sm tracking-wide uppercase ${alertStyles.text}`}>
                       <span className="text-base">{alertStyles.icon}</span>
                       <span>{alertStyles.title}</span>
                     </div>
-                    <div className="text-zinc-800 dark:text-zinc-100 font-medium prose-p:my-1 prose-p:last:mb-0 text-[0.95em] leading-relaxed">
+                    <div className="onrivi-alert-content text-zinc-800 dark:text-zinc-100 font-medium text-[0.95em] leading-relaxed [&>p:first-child]:!mt-0 [&>p:last-child]:!mb-0">
                       {processedChildren}
                     </div>
                   </div>
