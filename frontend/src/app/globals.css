@@ -801,6 +801,10 @@ mark.onrivi-search-text-highlight {
   width: 8px;
   height: 8px;
 }
+/* 편집 보기와 분할 모드 Monaco 에디터의 세로 스크롤바(16px)에 미리보기 단독 화면을 맞춘다. */
+.custom-preview-container:not(.no-scrollbar)::-webkit-scrollbar {
+  width: 16px;
+}
 ::-webkit-scrollbar-track {
   background: rgb(247, 249, 255) !important;
   border-left: 1px solid rgba(0, 0, 0, 0.06);
