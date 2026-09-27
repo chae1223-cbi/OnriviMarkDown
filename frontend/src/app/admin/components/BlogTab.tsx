@@ -12,6 +12,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { BlogPost } from "@/lib/blogData";
 import { getAdminBlogPosts, changeBlogPublication, retryBlogDeployment } from "@/lib/blogApi";
 import { BlogCard } from "@/components/blog/BlogCard";
+import BlogDocumentImport from "./BlogDocumentImport";
 import { showToast } from "@/utils/toast";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -212,7 +213,7 @@ export default function BlogTab() {
             </h1>
           </div>
           <p className="text-zinc-700 dark:text-zinc-300 mt-1 text-sm font-medium">
-            에디터에서 작성된 초안(Draft)을 검토하고 선택하여 공식 기술 블로그에 선택 발행(Publish)합니다.
+            마크다운 문서를 초안으로 등록하거나 에디터 초안을 검토한 뒤 선택하여 공개 배포합니다.
           </p>
         </div>
 
@@ -234,6 +235,8 @@ export default function BlogTab() {
           </a>
         </div>
       </div>
+
+      <BlogDocumentImport onSaved={loadData} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">

@@ -68,6 +68,39 @@ export async function onRequestPost({ request, env }) {
     if (auth.error) return blogJson({ error: auth.error }, auth.status);
     const body = await request.json();
     const action = String(body.action || '');
+    if (action === 'create-draft') {
+      const post = body.post || {};
+      const slug = String(post.slug || '').trim().toLowerCase();
+      const title = String(post.title || '').trim();
+      const excerpt = String(post.excerpt || '').trim();
+      const content = String(post.content || '');
+      const category = String(post.category || '');
+      const coverImage = String(post.coverImage || '').trim() || null;
+      const tags = Array.isArray(post.tags) ? post.tags.map(tag => String(tag).trim()).filter(Boolean).slice(0, 20) : [];
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 120 ||
+          !title || title.length > 200 || !content.trim() || content.length > 300000 ||
+          excerpt.length > 600 || !['마크다운 가이드', '기술 인사이트', '사용자 활용'].includes(category) ||
+          (coverImage && coverImage.length > 2048)) {
+        return blogJson({ error: '문서 제목, 주소, 분류 또는 본문을 확인해 주세요.' }, 400);
+      }
+      const created = await withBlogTransaction(env, async db => {
+        const inserted = await db.query(
+          'INSERT INTO public.blog_posts (slug, author_id, category) VALUES ($1, $2, $3) RETURNING id',
+          [slug, auth.user.id, category],
+        );
+        const postId = inserted.rows[0].id;
+        const revision = await db.query(
+          `INSERT INTO public.blog_post_revisions
+            (post_id, title, excerpt, content, cover_image, tags, author_name)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+          [postId, title, excerpt, content, coverImage, tags, 'Onrivi Author'],
+        );
+        await db.query('UPDATE public.blog_posts SET target_revision_id = $2 WHERE id = $1',
+          [postId, revision.rows[0].id]);
+        return { id: postId, slug };
+      });
+      return blogJson({ post: created }, 201);
+    }
     if (action === 'retry-deploy') {
       if (!env.CLOUDFLARE_PAGES_DEPLOY_HOOK) return blogJson({ error: '배포 훅이 설정되지 않았습니다.' }, 503);
       const response = await fetch(env.CLOUDFLARE_PAGES_DEPLOY_HOOK, { method: 'POST' });
@@ -116,6 +149,7 @@ export async function onRequestPost({ request, env }) {
     }
   } catch (error) {
     console.error('[admin blog] change failed', error);
-    return blogJson({ error: error.message || '작업 실패' }, error.status || 500);
+    return blogJson({ error: error.code === '23505' ? '이미 사용 중인 글 주소입니다.' : error.message || '작업 실패' },
+      error.status || (error.code === '23505' ? 409 : 500));
   }
 }

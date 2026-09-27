@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { BlogCategory, BlogPost, getAllBlogPosts, BLOG_CATEGORIES } from "@/lib/blogData";
+import { BlogCategory, getAllBlogPosts, BLOG_CATEGORIES } from "@/lib/blogData";
 import { BlogHeader } from "@/components/blog/BlogHeader";
 import { BlogFooter } from "@/components/blog/BlogFooter";
 import { BlogFeaturedCard } from "@/components/blog/BlogFeaturedCard";
@@ -24,10 +24,9 @@ function BlogPageContent() {
   const categoryParam = searchParams.get("category");
   const queryParam = searchParams.get("search");
 
-  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const posts = getAllBlogPosts();
   const [selectedCategory, setSelectedCategory] = useState<BlogCategory>("전체");
   const [searchQuery, setSearchQuery] = useState("");
-  const [mounted, setMounted] = useState(false);
 
   // URL 파라미터 초기 동기화
   useEffect(() => {
@@ -38,22 +37,6 @@ function BlogPageContent() {
       setSearchQuery(queryParam);
     }
   }, [categoryParam, queryParam]);
-
-  useEffect(() => {
-    setPosts(getAllBlogPosts());
-    setMounted(true);
-
-    const handleUpdate = () => {
-      setPosts(getAllBlogPosts());
-    };
-
-    window.addEventListener("onrivi:blog-posts-updated", handleUpdate);
-    window.addEventListener("storage", handleUpdate);
-    return () => {
-      window.removeEventListener("onrivi:blog-posts-updated", handleUpdate);
-      window.removeEventListener("storage", handleUpdate);
-    };
-  }, []);
 
   // 검색 및 카테고리 필터링
   const filteredPosts = useMemo(() => {
@@ -184,12 +167,14 @@ function BlogPageContent() {
             <div className="py-20 text-center bg-white dark:bg-zinc-900 rounded-3xl border border-slate-200/80 dark:border-zinc-800 shadow-2xs">
               <SearchX size={44} className="mx-auto text-slate-300 dark:text-zinc-600 mb-4" />
               <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-200 mb-2">
-                일치하는 게시글을 찾을 수 없습니다.
+                {posts.length === 0 ? '아직 발행된 글이 없습니다.' : '일치하는 게시글을 찾을 수 없습니다.'}
               </h3>
               <p className="text-sm text-slate-500 dark:text-zinc-400 max-w-sm mx-auto mb-6">
-                검색어를 변경하거나 다른 카테고리를 선택해 보세요.
+                {posts.length === 0
+                  ? '새로운 문서가 발행되면 이곳에서 확인할 수 있습니다.'
+                  : '검색어를 변경하거나 다른 카테고리를 선택해 보세요.'}
               </p>
-              <button
+              {posts.length > 0 && <button
                 onClick={() => {
                   setSelectedCategory("전체");
                   setSearchQuery("");
@@ -197,7 +182,7 @@ function BlogPageContent() {
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-50 text-[#1d4ed8] hover:bg-blue-100 transition-colors"
               >
                 전체 글 목록으로 돌아가기
-              </button>
+              </button>}
             </div>
           )}
         </section>

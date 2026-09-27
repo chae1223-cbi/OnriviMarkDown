@@ -6,11 +6,11 @@ const { Client } = require('pg');
 async function main() {
   const databaseUrl = process.env.BLOG_DATABASE_URL || process.env.DATABASE_URL;
   if (!databaseUrl) {
-    if (process.env.BLOG_USE_SEED_DATA === '1') {
-      console.log('[blog-build] 명시적 시드 모드: 기존 스냅샷을 사용합니다.');
+    if (process.env.BLOG_USE_LOCAL_SNAPSHOT === '1') {
+      console.log('[blog-build] 로컬 스냅샷 모드: 기존 스냅샷을 사용합니다.');
       return;
     }
-    throw new Error('BLOG_DATABASE_URL 또는 DATABASE_URL이 필요합니다. 로컬 샘플 빌드는 BLOG_USE_SEED_DATA=1을 지정하세요.');
+    throw new Error('BLOG_DATABASE_URL 또는 DATABASE_URL이 필요합니다. 로컬 빈 목록 빌드는 BLOG_USE_LOCAL_SNAPSHOT=1을 지정하세요.');
   }
   const db = new Client({
     connectionString: databaseUrl,
