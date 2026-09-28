@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-09-28 — 관리자 문의 API 실패 시 응답 본문의 인증·권한 오류 사유를 화면에 표시 */
 /** 🚨 @PATCH : 2026-09-28 — 문의 답변 모달의 취소 버튼을 관리자 공통 보조 버튼으로 통일 */
 'use client';
 
@@ -106,7 +107,10 @@ export default function InquiriesTab() {
       const res = await adminFetch('/api/admin/inquiries', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('데이터를 불러오는데 실패했습니다.');
+      if (!res.ok) {
+        const failure = await res.json().catch(() => null);
+        throw new Error(failure?.error || `문의 목록을 불러오지 못했습니다. (HTTP ${res.status})`);
+      }
       const data = await res.json();
       setInquiries(data);
     } catch (err: any) {
