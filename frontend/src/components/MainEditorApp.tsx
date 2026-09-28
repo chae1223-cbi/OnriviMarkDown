@@ -2662,6 +2662,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | ''>('');
   const [floatingHeadingLevel, setFloatingHeadingLevel] = useState(3);
   const [floatingQuoteDropdown, setFloatingQuoteDropdown] = useState<{ open: boolean; x: number; y: number; dropUp: boolean }>({ open: false, x: 0, y: 0, dropUp: false });
+  const [dateTimeFormatDropdown, setDateTimeFormatDropdown] = useState<{ open: boolean; x: number; y: number; dropUp: boolean }>({ open: false, x: 0, y: 0, dropUp: false });
+  const [customDateTimeFormat, setCustomDateTimeFormat] = useState('YYYY-MM-DD HH:mm:ss');
 
   // ====================================================================
   // 📊 [OMD-FILE-MainEditorApp-0019] MainEditorApp.tsx ➔ toggleMergeNodeSelect
@@ -6747,7 +6749,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         handlers.video();
         break;
       }
-      case 'NOW': handlers.now(); break;
+      case 'NOW': {
+        // 툴바와 /now 명령은 먼저 같은 형식 선택기를 엽니다. 팝업에서
+        // 형식을 고른 뒤 전달되는 문자열 payload가 있을 때만 삽입합니다.
+        if (typeof payload !== 'string') {
+          const position = editor.getPosition();
+          const visiblePosition = position && editor.getScrolledVisiblePosition(position);
+          const editorRect = editor.getDomNode()?.getBoundingClientRect();
+          const x = editorRect && visiblePosition
+            ? Math.min(editorRect.left + visiblePosition.left, Math.max(8, window.innerWidth - 320))
+            : Math.max(8, (window.innerWidth - 312) / 2);
+          const y = editorRect && visiblePosition
+            ? editorRect.top + visiblePosition.top + visiblePosition.height
+            : Math.max(8, window.innerHeight / 2);
+          const dropUp = window.innerHeight - y < 330;
+          setDateTimeFormatDropdown({ open: true, x, y, dropUp });
+          return;
+        }
+        handlers.now(payload);
+        break;
+      }
       case 'MAP': handlers.map(); break;
       case 'TABLE': handlers.table(); break;
       case 'QUICK_TABLE': handlers.quickTable(); break;
@@ -7221,6 +7242,25 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     window.addEventListener('mousedown', handleOutsideClick, true);
     return () => window.removeEventListener('mousedown', handleOutsideClick, true);
   }, [floatingQuoteDropdown.open]);
+
+  // 날짜/시간 형식 팝업은 툴바 밖을 클릭하거나 Escape를 누르면 닫습니다.
+  useEffect(() => {
+    if (!dateTimeFormatDropdown.open) return;
+    const close = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return;
+      if (event instanceof MouseEvent) {
+        const target = event.target as HTMLElement;
+        if (target.closest('#datetime-format-trigger') || target.closest('#datetime-format-dropdown-fixed')) return;
+      }
+      setDateTimeFormatDropdown(prev => ({ ...prev, open: false }));
+    };
+    window.addEventListener('mousedown', close, true);
+    window.addEventListener('keydown', close, true);
+    return () => {
+      window.removeEventListener('mousedown', close, true);
+      window.removeEventListener('keydown', close, true);
+    };
+  }, [dateTimeFormatDropdown.open]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0074] MainEditorApp.tsx ➔ toc
@@ -8412,7 +8452,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('YOUTUBE'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="동영상삽입">
                                       <img src="./icons/FilmReel.png" alt="동영상삽입" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); dispatchCommand('NOW'); setFloatingToolbar(prev => ({ ...prev, visible: false })); }} className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center" title="현재 날짜/시간">
+                                    <button
+                                      id="datetime-format-trigger"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        dispatchCommand('NOW');
+                                      }}
+                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center"
+                                      title="날짜/시간 형식 선택 후 삽입"
+                                    >
                                       <img src="./icons/Calendar.png" alt="현재 날짜/시간" className="w-5 h-5 object-contain dark:invert" />
                                     </button>
                                   </div>
@@ -9147,6 +9195,82 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                   )}
                 </button>
               ))}
+            </div>
+          )}
+          {/* ── 날짜/시간 형식 선택 팝업 ── */}
+          {dateTimeFormatDropdown.open && (
+            <div
+              id="datetime-format-dropdown-fixed"
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{
+                position: 'fixed',
+                zIndex: 2147483647,
+                left: dateTimeFormatDropdown.x,
+                ...(dateTimeFormatDropdown.dropUp
+                  ? { bottom: window.innerHeight - dateTimeFormatDropdown.y + 4 }
+                  : { top: dateTimeFormatDropdown.y + 4 }),
+                width: '312px',
+              }}
+              className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl p-2.5 text-zinc-800 dark:text-zinc-100"
+            >
+              <div className="px-1 pb-2 text-xs font-bold">날짜/시간 삽입</div>
+              <div className="grid grid-cols-2 gap-1">
+                {[
+                  ['YYYY-MM-DD', '2026-09-29'],
+                  ['YYYY. MM. DD.', '2026. 09. 29.'],
+                  ['YYYY년 M월 D일', '2026년 9월 29일'],
+                  ['HH:mm', '14:30'],
+                  ['HH:mm:ss', '14:30:45'],
+                  ['YYYY-MM-DD HH:mm', '2026-09-29 14:30'],
+                  ['YYYY-MM-DD HH:mm:ss', '2026-09-29 14:30:45'],
+                  ['YYYY년 M월 D일 HH:mm', '2026년 9월 29일 14:30'],
+                ].map(([format, example]) => (
+                  <button
+                    key={format}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      dispatchCommand('NOW', format);
+                      setDateTimeFormatDropdown(prev => ({ ...prev, open: false }));
+                      setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                    }}
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-700 px-2 py-1.5 text-left hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                    title={`${format} 형식으로 삽입`}
+                  >
+                    <span className="block text-[11px] font-semibold">{format}</span>
+                    <span className="block mt-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">{example}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 border-t border-zinc-200 dark:border-zinc-700 pt-2">
+                <label className="block px-1 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">직접 형식</label>
+                <div className="mt-1 flex gap-1.5">
+                  <input
+                    value={customDateTimeFormat}
+                    onChange={(e) => setCustomDateTimeFormat(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customDateTimeFormat.trim()) {
+                        e.preventDefault();
+                        dispatchCommand('NOW', customDateTimeFormat.trim());
+                        setDateTimeFormatDropdown(prev => ({ ...prev, open: false }));
+                        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                      }
+                    }}
+                    placeholder="YYYY-MM-DD HH:mm:ss"
+                    className="min-w-0 flex-1 rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1.5 font-mono text-[11px] outline-none focus:border-blue-500"
+                  />
+                  <button
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      if (!customDateTimeFormat.trim()) return;
+                      dispatchCommand('NOW', customDateTimeFormat.trim());
+                      setDateTimeFormatDropdown(prev => ({ ...prev, open: false }));
+                      setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                    }}
+                    className="rounded-md bg-blue-600 px-2.5 text-[11px] font-bold text-white hover:bg-blue-700"
+                  >삽입</button>
+                </div>
+                <p className="mt-1 px-1 text-[10px] text-zinc-500 dark:text-zinc-400">토큰: YYYY, MM, DD, HH, mm, ss</p>
+              </div>
             </div>
           )}
         </div>

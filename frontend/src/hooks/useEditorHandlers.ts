@@ -91,6 +91,27 @@ export const useEditorHandlers = ({
     licenseStatusRef
 }: any) => {
 
+  // 날짜/시간 형식 토큰: YYYY(연), MM(월), DD(일), HH(24시), mm(분), ss(초)
+  const formatCurrentDateTime = (format = 'YYYY-MM-DD HH:mm:ss') => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const values: Record<string, string> = {
+      YYYY: String(now.getFullYear()),
+      YY: String(now.getFullYear()).slice(-2),
+      MM: pad(now.getMonth() + 1),
+      M: String(now.getMonth() + 1),
+      DD: pad(now.getDate()),
+      D: String(now.getDate()),
+      HH: pad(now.getHours()),
+      H: String(now.getHours()),
+      mm: pad(now.getMinutes()),
+      m: String(now.getMinutes()),
+      ss: pad(now.getSeconds()),
+      s: String(now.getSeconds()),
+    };
+    return format.replace(/YYYY|YY|MM|M|DD|D|HH|H|mm|m|ss|s/g, token => values[token]);
+  };
+
   // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003] 등록된 문서 저장 시 지식 베이스 로컬 비동기 자동 재색인 트리거
   const triggerKnowledgeAutoSync = (filePath: string, fileContent: string) => {
     if (typeof window === 'undefined' || !filePath || !fileContent) return;
@@ -981,7 +1002,7 @@ export const useEditorHandlers = ({
     video: () => setIsYoutubeModalOpen(true),
     vidio: () => setIsYoutubeModalOpen(true),
     youtube: () => setIsYoutubeModalOpen(true),
-    now: () => insertAtCursor(new Date().toLocaleString()),
+    now: (format?: string) => insertAtCursor(formatCurrentDateTime(format)),
     map: () => setIsMapModalOpen(true),
     table: () => {
       const editor = editorRef.current;
