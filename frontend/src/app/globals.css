@@ -11,6 +11,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-09-28** — [관리자 UI 디자인 시스템 통일]: DESIGN.md의 카드·버튼(Primary/Secondary/Danger)·입력·타이포그래피·상태 색상·모달 표면과 배경을 관리자 전용 범위에 적용
  * 🚨 @PATCH : **2026-09-26** — [인용구(blockquote) 내부 중첩 리스트 들여쓰기 여백 보장]: 인용구 내부 중첩 리스트(ul ul, ol ol)가 상위 blockquote ul 패딩(2.25rem)에 묶여 일렬 정렬되던 문제를 차단하고 계층별 padding-left(1.5rem)를 보장하여 들여쓰기 위계 복원
  * 🚨 @PATCH : **2026-09-25** — [영문 마크다운 태그 단어 쪼개짐 및 우측 잘림 방지]: .prose 및 .monaco-editor의 word-break: break-all을 word-break: normal 및 overflow-wrap: break-word로 수정하여 영문 단어 중간 분절 버그 원천 차단
  * 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 굵기(400/500/600/700) 정밀 시각화 보정]: D2Coding 폰트에 500/600 웨이트 파일이 없어 400과 동일하게 렌더링되던 W3C 매칭 결함을 .editor-weight-medium(0.22px) 및 .editor-weight-semibold(0.42px) 미세 획 보정으로 완벽 해결
@@ -1858,6 +1859,7 @@ input::-ms-clear {
    ============================================================ */
 .admin-theme {
   --admin-bg: #F8FAFC;
+  --admin-background: #F8FAFC;
   --admin-surface-bright: #F1F5F9;
   --admin-surface-low: #FFFFFF;
   --admin-surface: #FFFFFF;
@@ -1871,18 +1873,68 @@ input::-ms-clear {
   --admin-on-secondary: #FFFFFF;
   --admin-border: #E2E8F0;
   --admin-border-light: #CBD5E1;
-  --admin-error: #EF4444;
+  --admin-success: #059669;
+  --admin-warning: #d97706;
+  --admin-error: #dc2626;
   --admin-on-error: #FFFFFF;
 
   background-color: var(--admin-bg);
   color: var(--admin-text);
   color-scheme: light;
-  font-weight: 500;
+  font-family: "Inter", "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-weight: 400;
+}
+
+.admin-theme h1,
+.admin-theme h2,
+.admin-theme h3,
+.admin-theme .font-montserrat {
+  font-family: "Plus Jakarta Sans", "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+.admin-theme :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--admin-primary);
+  outline-offset: 2px;
+}
+
+.admin-theme :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+.admin-theme :is(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+}
+
+.admin-theme :is(table, .tabular-nums) {
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-theme select option {
   background-color: var(--admin-surface);
   color: var(--admin-text);
+}
+
+/* 관리자 팝업의 반투명 배경을 같은 농도로 유지한다. */
+.admin-theme .fixed.inset-0.z-50:has(> .rounded-2xl),
+.admin-theme .fixed.inset-0.z-50:has(> .rounded-3xl),
+.admin-theme .fixed.inset-0.z-\[60\]:has(> .rounded-2xl) {
+  background-color: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+/* 관리자 탭마다 중복된 모달 셸은 동일한 Tier 2 높이와 16px 기하학으로 표시한다. */
+.admin-theme .fixed.inset-0.z-50 > :is(.rounded-2xl, .rounded-3xl, .admin-glass-card),
+.admin-theme .fixed.inset-0.z-\[60\] > :is(.rounded-2xl, .rounded-3xl, .admin-glass-card) {
+  border-radius: 16px;
+  border: 1px solid var(--admin-border-light);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+}
+
+.admin-theme input[type="checkbox"],
+.admin-theme input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--admin-primary);
 }
 
 @layer components {
@@ -1895,15 +1947,15 @@ input::-ms-clear {
   .admin-glass-card {
     background: #FFFFFF;
     border: 1px solid var(--admin-border);
-    border-radius: 16px; /* rounded-2xl */
-    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
   }
 
   /* Ghost Inputs */
   .admin-ghost-input {
     background: #FFFFFF;
-    border: 1.5px solid #CBD5E1;
-    border-radius: 12px;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
     color: var(--admin-text);
     font-weight: 500;
     transition: all 0.2s;
@@ -1911,25 +1963,75 @@ input::-ms-clear {
   .admin-ghost-input:focus {
     outline: none;
     border-color: var(--admin-primary);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
   }
 
   /* Primary Button (Cobalt Authority) */
   .admin-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 16px;
     background: #1d4ed8;
     color: #FFFFFF;
     border: none;
-    border-radius: 12px;
+    border-radius: 8px;
+    font-size: 14px;
     font-weight: 700;
+    line-height: 20px;
     transition: all 0.15s ease-in-out;
   }
   .admin-btn-primary:hover {
     background: #1e40af;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
+    box-shadow: 0 4px 12px rgba(29, 78, 216, 0.2);
   }
-  .admin-btn-primary:active {
-    transform: scale(0.98);
+  .admin-btn-primary:disabled {
+    opacity: 0.5;
+    box-shadow: none;
+  }
+
+  .admin-btn-secondary,
+  .admin-btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .admin-btn-secondary {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+  }
+  .admin-btn-secondary:hover:not(:disabled) {
+    background: #f1f5f9;
+  }
+
+  .admin-btn-danger {
+    background: #fff;
+    border: 1px solid #dc2626;
+    color: #b91c1c;
+  }
+  .admin-btn-danger:hover:not(:disabled) {
+    background: #fef2f2;
+  }
+  :is(.admin-btn-secondary, .admin-btn-danger):disabled {
+    opacity: 0.5;
+  }
+
+  @media (max-width: 767px) {
+    :is(.admin-btn-primary, .admin-btn-secondary, .admin-btn-danger) {
+      min-height: 44px;
+    }
   }
 
   /* Status Chips */
@@ -1946,9 +2048,9 @@ input::-ms-clear {
     font-weight: 600;
   }
   .admin-chip-error {
-    background: rgba(239, 68, 68, 0.12);
+    background: rgba(220, 38, 38, 0.1);
     color: #DC2626;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    border: 1px solid rgba(220, 38, 38, 0.25);
     font-weight: 600;
   }
 }
@@ -1958,8 +2060,10 @@ input::-ms-clear {
 .admin-theme select,
 .admin-theme textarea {
   background-color: #FFFFFF !important;
-  border: 1.5px solid #CBD5E1 !important;
+  border: 1px solid #CBD5E1 !important;
+  border-radius: 8px;
   color: #0F172A !important;
+  font-size: 14px;
   font-weight: 500 !important;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
@@ -1969,7 +2073,7 @@ input::-ms-clear {
 .admin-theme select:focus,
 .admin-theme textarea:focus {
   border-color: #2563eb !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18), 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
   outline: none !important;
 }
 

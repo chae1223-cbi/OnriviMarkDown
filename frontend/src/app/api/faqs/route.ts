@@ -9,6 +9,10 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const adminMode = url.searchParams.get('admin') === 'true';
+    if (adminMode) {
+      const auth = await verifyAdmin(request);
+      if (!auth.user) return NextResponse.json({ error: auth.error }, { status: 403 });
+    }
 
     let query = supabaseAdmin.from('faqs').select('*').order('sort_order', { ascending: true });
     

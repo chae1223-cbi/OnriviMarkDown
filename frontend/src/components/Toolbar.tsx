@@ -2,7 +2,8 @@
 // 📊 [OMD-EDIT-Toolbar-0003] Toolbar.tsx ➔ Toolbar
 // 🎯 @KICK  : 에디터 우측 사이드바 툴바 - 홈, 대시보드, 지식베이스, 서식, 참조, 환경설정 퀵 액션 제공
 // 🛡️ @GUARD : 라이선스 및 뷰포트 상태에 따른 프로덕티비티 도구 조건부 노출
-// 🚨 @PATCH : **2026-09-23** — [툴바 CubeFocus 아이콘 고대비 선명화] 반투명(opacity-75) 제거하여 100% 완전 불투명하고 선명하게 표시
+// 🚨 @PATCH : **2026-09-28** — 제한사용자 툴바에서 서식관리·참조파일 조작을 비활성화하고 이동·설정·로그아웃 유지
+//             **2026-09-23** — [툴바 CubeFocus 아이콘 고대비 선명화] 반투명(opacity-75) 제거하여 100% 완전 불투명하고 선명하게 표시
 // 🚨 @PATCH : **2026-09-23** — [플로팅 서식 툴바 아이콘 커스텀 PNG 연동] CubeFocus 아이콘을 frontend/public/icons/CubeFocus.png 원본 이미지로 연동 (dark:invert 적용)
 //             **2026-09-20** — [툴바 크기 확대 + CubeFocus 재교체] 전체 버튼 w-8→w-10, icon 16→20px 확대. CubeFocus를 BoxSelect(점선)에서 PackageSearch(큐브+돋보기)로 재교체
 //             **2026-09-20** — [플로팅툴바 아이콘 교체] 플로팅 서식 툴바 켜기/끄기 버튼을 FloatingToolbar→CubeFocus(BoxSelect)로 교체
@@ -33,7 +34,7 @@ function openExternal(url: string) {
 export default function Toolbar() {
   const { dispatchCommand: dispatch, previewMode, isExpired, activeTabId, geminiApiKey, showToast, isRestrictedUser } = useEditorContext();
   const router = useRouter();
-  const showProductivity = previewMode !== 'preview' && !isExpired && activeTabId;
+  const showProductivity = previewMode !== 'preview' && !isExpired && !isRestrictedUser && activeTabId;
 
   return (
     <div className="flex flex-col items-center gap-2 pb-1 mt-auto">
@@ -146,17 +147,19 @@ export default function Toolbar() {
       })()}
 
       <button
+        disabled={isRestrictedUser}
         onMouseDown={(e) => { e.preventDefault(); dispatch('TOGGLE_CSS_STYLE'); }}
-        className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-        title="서식관리"
+        className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${isRestrictedUser ? 'opacity-40 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
+        title={isRestrictedUser ? '제한사용자는 서식관리를 사용할 수 없습니다.' : '서식관리'}
       >
         <Icon name="Palette" size={20} className="text-zinc-500 dark:text-zinc-400" />
       </button>
 
       <button
+        disabled={isRestrictedUser}
         onMouseDown={(e) => { e.preventDefault(); dispatch('ADD_REFERENCE'); }}
-        className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-        title="참조 파일 관리"
+        className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${isRestrictedUser ? 'opacity-40 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
+        title={isRestrictedUser ? '제한사용자는 참조 파일을 변경할 수 없습니다.' : '참조 파일 관리'}
       >
         <Icon name="NewspaperClipping" size={20} className="text-zinc-500 dark:text-zinc-400" />
       </button>

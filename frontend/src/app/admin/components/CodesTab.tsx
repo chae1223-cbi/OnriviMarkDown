@@ -1,8 +1,10 @@
+/** 🚨 @PATCH : 2026-09-28 — 공통 코드 편집 모달의 보조 버튼을 관리자 공통 디자인 토큰으로 통일 */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, CheckCircle2, XCircle, Search, Edit2, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { adminFetch } from '@/lib/adminFetch';
 import { showToast } from '@/utils/toast';
 
 interface CodeGroup {
@@ -44,7 +46,7 @@ export default function CodesTab() {
 
   const fetchGroups = useCallback(async (adminId: string | null = currentAdminId) => {
     try {
-      const res = await fetch(`/api/admin/common-codes/groups?adminId=${adminId}`);
+      const res = await adminFetch(`/api/admin/common-codes/groups?adminId=${adminId}`);
       const json = await res.json();
       if (json.success) {
         setGroups(json.data);
@@ -80,7 +82,7 @@ export default function CodesTab() {
   const fetchCodes = useCallback(async (group_code: string) => {
     setCodesLoading(true);
     try {
-      const res = await fetch(`/api/admin/common-codes?adminId=${currentAdminId}&group_code=${group_code}`);
+      const res = await adminFetch(`/api/admin/common-codes?adminId=${currentAdminId}&group_code=${group_code}`);
       const json = await res.json();
       if (json.success) {
         setCodes(json.data);
@@ -117,7 +119,7 @@ export default function CodesTab() {
     try {
       const url = '/api/admin/common-codes/groups';
       const method = editingGroup ? 'PATCH' : 'POST';
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId: currentAdminId, ...groupForm })
@@ -140,7 +142,7 @@ export default function CodesTab() {
     if (!confirm(`'${group_code}' 그룹을 정말 삭제하시겠습니까? (하위 코드도 함께 삭제됩니다)`)) return;
 
     try {
-      const res = await fetch(`/api/admin/common-codes/groups?adminId=${currentAdminId}&group_code=${group_code}`, {
+      const res = await adminFetch(`/api/admin/common-codes/groups?adminId=${currentAdminId}&group_code=${group_code}`, {
         method: 'DELETE'
       });
       const json = await res.json();
@@ -169,7 +171,7 @@ export default function CodesTab() {
     try {
       const url = '/api/admin/common-codes';
       const method = editingCode ? 'PATCH' : 'POST';
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -197,7 +199,7 @@ export default function CodesTab() {
     if (!confirm(`'${code_value}' 코드를 정말 삭제하시겠습니까?`)) return;
 
     try {
-      const res = await fetch(`/api/admin/common-codes?adminId=${currentAdminId}&id=${id}`, {
+      const res = await adminFetch(`/api/admin/common-codes?adminId=${currentAdminId}&id=${id}`, {
         method: 'DELETE'
       });
       const json = await res.json();
@@ -442,7 +444,7 @@ export default function CodesTab() {
               </div>
             </div>
             <div className="mt-6 pt-3 border-t border-[var(--admin-border)] flex justify-end gap-2 shrink-0">
-              <button onClick={() => setGroupModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-black/5 rounded-xl">취소</button>
+              <button onClick={() => setGroupModalOpen(false)} className="admin-btn-secondary">취소</button>
               <button onClick={handleSaveGroup} className="px-4 py-2 admin-btn-primary text-white text-sm font-medium rounded-xl">저장</button>
             </div>
           </div>
@@ -509,7 +511,7 @@ export default function CodesTab() {
               </div>
             </div>
             <div className="mt-6 pt-3 border-t border-[var(--admin-border)] flex justify-end gap-2 shrink-0">
-              <button onClick={() => setCodeModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-black/5 rounded-xl">취소</button>
+              <button onClick={() => setCodeModalOpen(false)} className="admin-btn-secondary">취소</button>
               <button onClick={handleSaveCode} className="px-4 py-2 admin-btn-primary text-white text-sm font-medium rounded-xl">저장</button>
             </div>
           </div>

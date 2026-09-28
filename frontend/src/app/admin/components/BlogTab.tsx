@@ -2,6 +2,7 @@
 // 📊 [OMD-ADMIN-BlogTab-0001] BlogTab ➔ 온리비 기술 블로그 관리 및 선택 발행 센터
 // 🎯 @KICK  : 에디터에서 작성된 초안(Draft)을 검토하고 체크박스로 선택하여 공식 블로그(onrivi.com/blog)에 선택 발행, 비공개 전환, 삭제하는 관리자 통제 센터
 // 🛡️ @GUARD : 비인가 임의 발행 차단, 체크박스 다중 일괄 처리, 실시간 미리보기 모달, 고대비 UI 시인성 보장
+// 🚨 @PATCH : **2026-09-28** — [관리자 모달 버튼 통일]: 블로그 미리보기·삭제 확인 모달의 기본/보조/위험 버튼을 공통 디자인 시스템으로 교체
 // 🚨 @PATCH : **2026-09-26** — [미리보기 모달 마크다운 소스 뷰어 지원]: 관리자 미리보기 모달 내 '문서 뷰' ↔ '마크다운으로 보기' 전환 탭 추가
 // 🚨 @PATCH : **2026-09-26** — [기술 블로그 관리 탭 신설]: 초안 목록 선택 일괄 발행(Publish), 공개 글 비공개(초안) 전환, 카드 및 본문 실시간 모달 뷰어 제공
 // 🔗 @CALLS : getAdminBlogPosts, changeBlogPublication, BlogCard
@@ -819,14 +820,14 @@ export default function BlogTab() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPreviewPost(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800"
+                  className="admin-btn-secondary"
                 >
                   닫기
                 </button>
                 {previewPost.status === "draft" && (
                   <button
                     onClick={() => { void handleSingleAction('publish', previewPost); }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#1d4ed8] text-white hover:bg-blue-700 shadow-xs"
+                    className="admin-btn-primary"
                   >
                     <Send size={13} />
                     <span>공개 배포 요청</span>
@@ -858,13 +859,13 @@ export default function BlogTab() {
             <div className="flex justify-end gap-2.5">
               <button
                 onClick={() => setDeleteConfirmTarget(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
+                className="admin-btn-secondary"
               >
                 취소
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-xs"
+                className="admin-btn-danger"
               >
                 영구 삭제
               </button>

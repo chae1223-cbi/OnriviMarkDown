@@ -1,3 +1,4 @@
+// 🚨 @PATCH : 2026-09-28 — 사용자별 요금제 변경 화면에 현재 주기와 관리자 수동 무료/유료 구분을 제공
 import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig, executeDeleteActivations, insertAuditLog } from './_shared.js';
 
 export const onRequestOptions = handleOptions;
@@ -106,6 +107,9 @@ export async function onRequestGet(context) {
           nick_name: u.nick_name || '-',
           plan: displayPlan,
           plan_code: rawPlan,
+          billing_cycle: sub?.billing_cycle || 'NONE',
+          admin_grant_type: String(sub?.payment_no || '').startsWith('ADMIN-FREE-') ? 'FREE' :
+            String(sub?.payment_no || '').startsWith('ADMIN-PAID-') ? 'PAID' : null,
           status: currentStatus,
           date: u.created_at ? new Date(u.created_at).toISOString().split('T')[0] : '-',
           last_login: authUser?.last_sign_in_at ? new Date(authUser.last_sign_in_at).toLocaleString('ko-KR') : '-',
@@ -177,7 +181,8 @@ export async function onRequestPatch(context) {
   try {
     const { request, env } = context;
     const body = await request.json();
-    const { action, userId, reason, adminId } = body;
+    const { action, userId, reason } = body;
+    const adminId = request.headers.get('x-verified-admin-id');
 
     if (!userId || !action) {
       return jsonResponse({ success: false, error: 'Missing parameters' }, 400);

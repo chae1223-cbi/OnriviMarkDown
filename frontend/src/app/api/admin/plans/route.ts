@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { verifyAdmin } from '@/lib/adminAuth';
 
 export async function GET(request: Request) {
   try {
+    const verified = await verifyAdmin(request);
+    if (!verified.user) return NextResponse.json({ error: verified.error }, { status: 403 });
     const authHeader = request.headers.get('Authorization');
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -57,6 +60,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const verified = await verifyAdmin(request, true);
+    if (!verified.user) return NextResponse.json({ error: verified.error }, { status: 403 });
     const authHeader = request.headers.get('Authorization');
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -104,6 +109,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const verified = await verifyAdmin(request, true);
+    if (!verified.user) return NextResponse.json({ error: verified.error }, { status: 403 });
     const authHeader = request.headers.get('Authorization');
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -154,6 +161,8 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const verified = await verifyAdmin(request, true);
+    if (!verified.user) return NextResponse.json({ error: verified.error }, { status: 403 });
     const authHeader = request.headers.get('Authorization');
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

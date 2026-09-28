@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { verifyAdmin } from '@/lib/adminAuth';
 
 export async function GET(req: Request) {
   try {
+    const auth = await verifyAdmin(req);
+    if (!auth.user) return NextResponse.json({ success: false, error: auth.error }, { status: 403 });
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
 

@@ -93,7 +93,8 @@ export async function checkAdminAuth(request, env, requiredRoles = ['SUPER', 'SU
   const authHeader = request.headers.get('Authorization');
   if (!authHeader) return { error: 'Unauthorized', status: 401 };
 
-  const token = authHeader.replace('Bearer ', '');
+  const token = authHeader.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!token) return { error: 'Unauthorized', status: 401 };
   const { supabaseUrl, headers: serviceHeaders } = getSupabaseConfig(env);
 
   // Get user via Auth REST API using the user's token
@@ -110,6 +111,15 @@ export async function checkAdminAuth(request, env, requiredRoles = ['SUPER', 'SU
   }
   
   const user = await userResp.json();
+  let payload;
+  try {
+    payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return { error: 'Unauthorized', status: 401 };
+  }
+  if (payload.sub !== user.id || payload.aal !== 'aal2') {
+    return { error: 'MFA authentication required', status: 403 };
+  }
 
   // Get admin role via Data REST API
   const adminResp = await fetch(`${supabaseUrl}/rest/v1/admins?user_id=eq.${user.id}&select=admin_role`, {
@@ -117,6 +127,7 @@ export async function checkAdminAuth(request, env, requiredRoles = ['SUPER', 'SU
     headers: serviceHeaders
   });
 
+  if (!adminResp.ok) return { error: 'Admin authentication unavailable', status: 503 };
   const adminRows = await adminResp.json();
   const adminData = adminRows && adminRows.length > 0 ? adminRows[0] : null;
 
@@ -126,4 +137,3 @@ export async function checkAdminAuth(request, env, requiredRoles = ['SUPER', 'SU
 
   return { user, adminData };
 }
-

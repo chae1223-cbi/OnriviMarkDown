@@ -7,6 +7,10 @@ export async function onRequestGet(context) {
     const { request, env } = context;
     const url = new URL(request.url);
     const isAdmin = url.searchParams.get('admin') === 'true';
+    if (isAdmin) {
+      const auth = await checkAdminAuth(request, env, ['SUPER', 'SUPPORT']);
+      if (auth.error) return jsonResponse({ error: auth.error }, auth.status);
+    }
 
     const { supabaseUrl, headers } = getSupabaseConfig(env);
 

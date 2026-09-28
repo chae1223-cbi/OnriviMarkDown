@@ -1,8 +1,10 @@
+/** 🚨 @PATCH : 2026-09-28 — 관리자 초대·확인 모달 버튼을 공통 보조/위험 작업 디자인 토큰으로 통일 */
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Plus, Search, MoreVertical, ShieldAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { adminFetch } from '@/lib/adminFetch';
 import { showToast } from '@/utils/toast';
 
 interface AdminUser {
@@ -43,7 +45,7 @@ export default function AdminsTab() {
       const { data: { session } } = await supabase.auth.getSession();
       setCurrentAdminId(session?.user?.id || null);
 
-      const res = await fetch('/api/admin/admins', {
+      const res = await adminFetch('/api/admin/admins', {
         headers: { 'Authorization': `Bearer ${session?.access_token || ''}` }
       });
       const text = await res.text();
@@ -77,7 +79,7 @@ export default function AdminsTab() {
     }
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/admin/admins', {
+      const res = await adminFetch('/api/admin/admins', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -106,7 +108,7 @@ export default function AdminsTab() {
       onConfirm: async () => {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          const res = await fetch('/api/admin/admins', {
+          const res = await adminFetch('/api/admin/admins', {
             method: 'PATCH',
             headers: { 
               'Content-Type': 'application/json',
@@ -138,7 +140,7 @@ export default function AdminsTab() {
       onConfirm: async () => {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          const res = await fetch(`/api/admin/admins?adminTargetId=${admin.id}&targetEmail=${admin.email}&adminId=${currentAdminId}`, {
+          const res = await adminFetch(`/api/admin/admins?adminTargetId=${admin.id}&targetEmail=${admin.email}&adminId=${currentAdminId}`, {
             method: 'DELETE',
             headers: { 
               'Authorization': `Bearer ${session?.access_token || ''}`
@@ -302,7 +304,7 @@ export default function AdminsTab() {
             <div className="p-4 bg-[var(--admin-background)] flex justify-end gap-3 border-t border-[var(--admin-border)] shrink-0">
               <button 
                 onClick={() => { setInviteModalOpen(false); setInviteEmail(''); }}
-                className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-black/5 rounded-xl transition-colors"
+                className="admin-btn-secondary"
               >
                 취소
               </button>
@@ -338,15 +340,15 @@ export default function AdminsTab() {
             <div className="p-4 bg-[var(--admin-background)] flex justify-end gap-3 border-t border-[var(--admin-border)] shrink-0">
               <button 
                 onClick={() => setConfirmConfig(null)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-[var(--admin-text)] bg-[var(--admin-surface)] hover:bg-black/5 border border-[var(--admin-border)] rounded-xl transition-colors"
+                className="admin-btn-secondary flex-1"
               >
                 취소
               </button>
               <button 
                 onClick={confirmConfig.onConfirm}
-                className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors ${
+                className={`flex-1 px-4 py-2 text-sm font-medium ${
                   confirmConfig.isDanger 
-                    ? 'bg-[var(--admin-error)] hover:bg-red-600' 
+                    ? 'admin-btn-danger'
                     : 'admin-btn-primary'
                 }`}
               >

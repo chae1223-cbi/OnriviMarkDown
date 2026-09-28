@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-09-28 — OTP 초기화 모달의 취소·위험 작업 버튼을 공통 디자인 토큰으로 통일 */
 'use client';
 
 import React, { useState } from 'react';
@@ -56,14 +57,14 @@ export default function OTPResetModal({ email, onClose, onConfirm }: OTPResetMod
           <button 
             onClick={onClose}
             disabled={isResetting}
-            className="px-5 py-2.5 text-sm font-medium text-[var(--admin-text)] bg-[var(--admin-surface)] hover:bg-[var(--admin-border)] border border-[var(--admin-border)] rounded-lg transition-colors disabled:opacity-50"
+            className="admin-btn-secondary"
           >
             취소
           </button>
           <button 
             onClick={handleConfirm}
             disabled={isResetting}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-[var(--admin-error)] hover:bg-red-600 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+            className="admin-btn-danger"
           >
             {isResetting ? (
               <>

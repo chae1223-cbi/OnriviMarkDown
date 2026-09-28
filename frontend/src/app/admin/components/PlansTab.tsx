@@ -1,8 +1,10 @@
+/** 🚨 @PATCH : 2026-09-28 — 요금제 편집 모달의 보조 버튼을 관리자 공통 디자인 토큰으로 통일 */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, Check, X, GripVertical, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { adminFetch } from '@/lib/adminFetch';
 import { showToast } from '@/utils/toast';
 
 interface PricingPlan {
@@ -67,7 +69,7 @@ export default function PlansTab() {
 
   const fetchPlans = useCallback(async (token: string) => {
     try {
-      const res = await fetch('/api/admin/plans', {
+      const res = await adminFetch('/api/admin/plans', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
@@ -83,7 +85,7 @@ export default function PlansTab() {
 
   const fetchDropdownCodes = useCallback(async (adminId: string) => {
     try {
-      const res = await fetch(`/api/admin/common-codes?adminId=${adminId}`);
+      const res = await adminFetch(`/api/admin/common-codes?adminId=${adminId}`);
       const json = await res.json();
       
       if (json.success && json.data) {
@@ -138,7 +140,7 @@ export default function PlansTab() {
         features: form.features.filter(f => f.trim() !== '')
       };
 
-      const res = await fetch('/api/admin/plans', {
+      const res = await adminFetch('/api/admin/plans', {
         method: editingPlan ? 'PATCH' : 'POST',
         headers: { 
           'Authorization': `Bearer ${sessionToken}`,
@@ -161,7 +163,7 @@ export default function PlansTab() {
   const handleDelete = async (id: string) => {
     if (!confirm('정말로 이 요금제를 삭제하시겠습니까?')) return;
     try {
-      const res = await fetch(`/api/admin/plans?id=${id}`, {
+      const res = await adminFetch(`/api/admin/plans?id=${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${sessionToken}` }
       });
@@ -472,7 +474,7 @@ export default function PlansTab() {
             </fieldset>
 
             <div className="mt-6 pt-4 border-t border-[var(--admin-border)] flex justify-end gap-3 shrink-0">
-              <button onClick={() => setModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]">
+              <button onClick={() => setModalOpen(false)} className="admin-btn-secondary">
                 {isAdminSuper ? '취소' : '닫기'}
               </button>
               {isAdminSuper && (

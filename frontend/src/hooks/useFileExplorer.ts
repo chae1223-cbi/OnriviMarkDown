@@ -19,6 +19,7 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-09-28** — [워크스페이스 변경 시 사이드바 자동 표시]: selectRootFolder의 Desktop(Electron)/Browser(showDirectoryPicker)/localStorage 3개 성공 경로 모두에 setIsSidebarOpen(true) 추가 — 사이드바 숨김 상태에서 워크스페이스를 변경해도 변경 내용이 시각적으로 즉시 인식되도록 보장
 // 🚨 @PATCH : **2026-09-26** — [동일 파일 중복 탭 생성 원천 차단 가드]: handleFileClick 내 setTabs 호출 시 prev 배열을 기준으로 정규화된 경로(NFC/소문자/슬래시) 및 ID 중복 여부를 원자적으로 검사하여, 비동기 파일 읽기 지연 중 동일 파일 탭이 2개 중복 생성되던 결함 완전 해결
 // 🚨 @PATCH : **2026-09-18** — [타문서 변환 후 탐색기 전역 새로고침 force 플래그 지원]: file:refresh-all-directories 이벤트로부터 force 플래그를 전달받아 250ms 쿨다운 락에 막히지 않고 즉시 refreshFileList(true)를 수행하도록 보강
 // 🚨 @PATCH : **2026-09-17** — [탐색기 변동 시 중복 2중 새로고침 결함 완벽 해결]: refreshFileList에 250ms 쿨다운 락을 부여하고 전역 리프레시 및 Electron 워처 이벤트 수신 시 단일 디바운스를 적용하여, 파일 조작 후 탐색기가 2회 반복 새로고침되던 현상을 1회로 깔끔하게 단일화
@@ -217,6 +218,8 @@ export const useFileExplorer = ({
             setContent('');
             setCurrentFileNode(null);
             setCurrentFileName('');
+            // 🔑 워크스페이스 변경 시 사이드바가 숨겨져 있으면 자동 표시 (변경 내용 시각적 인식 보장)
+            setIsSidebarOpen(true);
             showToast(`워크스페이스가 ${finalRoot}(으)로 변경되었습니다.`, 'success');
           } else if (result.status === 'canceled') {
             showToast("폴더 선택이 취소되었습니다.", "info");
@@ -267,6 +270,8 @@ export const useFileExplorer = ({
           setContent('');
           setCurrentFileNode(null);
           setCurrentFileName('');
+          // 🔑 워크스페이스 변경 시 사이드바가 숨겨져 있으면 자동 표시 (변경 내용 시각적 인식 보장)
+          setIsSidebarOpen(true);
           showToast(`워크스페이스 연결 완료 (${handle.name})`, "success");
         } catch (err) {
           if ((err as any)?.name !== 'AbortError' && (err as any)?.name !== 'SecurityError') {
@@ -286,6 +291,8 @@ export const useFileExplorer = ({
         setContent('');
         setCurrentFileNode(null);
         setCurrentFileName('');
+        // 🔑 워크스페이스 변경 시 사이드바가 숨겨져 있으면 자동 표시 (변경 내용 시각적 인식 보장)
+        setIsSidebarOpen(true);
         showToast("로컬 스토리지 워크스페이스가 연결되었습니다.", "success");
       }
     }

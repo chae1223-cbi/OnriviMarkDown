@@ -19,7 +19,7 @@ export async function onRequestGet(context) {
     const { request, env } = context;
 
     const url = new URL(request.url);
-    const adminId = url.searchParams.get('adminId');
+    const adminId = request.headers.get('x-verified-admin-id');
 
     if (!adminId) {
       return jsonResponse({ success: false, error: '관리자 ID(adminId)가 필요합니다.' }, 400);
@@ -48,7 +48,8 @@ export async function onRequestPost(context) {
     const { request, env } = context;
 
     const body = await request.json();
-    const { adminId, group_code, group_name, description, sort_order, is_use } = body;
+    const { group_code, group_name, description, sort_order, is_use } = body;
+    const adminId = request.headers.get('x-verified-admin-id');
 
     if (!adminId || !group_code || !group_name) {
       return jsonResponse({ success: false, error: '필수 파라미터 누락' }, 400);
@@ -98,7 +99,8 @@ export async function onRequestPatch(context) {
     const { request, env } = context;
 
     const body = await request.json();
-    const { adminId, group_code, group_name, description, sort_order, is_use } = body;
+    const { group_code, group_name, description, sort_order, is_use } = body;
+    const adminId = request.headers.get('x-verified-admin-id');
 
     if (!adminId || !group_code) {
       return jsonResponse({ success: false, error: '필수 파라미터 누락' }, 400);
@@ -136,7 +138,7 @@ export async function onRequestDelete(context) {
     const { request, env } = context;
 
     const url = new URL(request.url);
-    const adminId = url.searchParams.get('adminId');
+    const adminId = request.headers.get('x-verified-admin-id');
     const group_code = url.searchParams.get('group_code');
 
     if (!adminId || !group_code) {

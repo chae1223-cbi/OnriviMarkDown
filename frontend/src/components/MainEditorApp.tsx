@@ -76,7 +76,10 @@
 // 🚨 @PATCH : **2026-09-16** — [삭제된 폴더 스캔 시 ENOENT/EPERM 콘솔 에러 가드]: fetchAllMdFiles 데스크톱 스캔 시 삭제/이동 직후의 ENOENT/EPERM 예외 콘솔 경고를 안전하게 억제하고 스킵 처리
 // 🚨 @PATCH : **2026-09-28** — 세션 활성화 실패 또는 통신 오류 시 편집 권한을 열지 않고 읽기 전용으로 유지한다.
 // 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 인용구 Alert 드롭다운 fixed 최상위 포털 전환]: Windows 작업표시줄 뒤로 드롭다운 항목이 숨는 문제 완전 해결 — absolute→fixed 포지셔닝 전환, getBoundingClientRect() 기반 실제 화면 좌표 측정, zIndex 2147483647(max) 적용, 하단 여유 부족 시 DropUp 자동 반전, floatingQuoteDropdown 상태(open/x/y/dropUp) 통합 관리, 바깥클릭/Escape 닫힘 안전 가드 유지
-// 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 검증 이메일 식별자 보존 및 제한사용자 오강등 영구 차단]: loadAndVerifyLicense에서 session.user.id(UUID)로 이메일이 덮어써져 NOT_FOUND가 발생하던 결함을 session.user.email 및 desktop fullData.userId 우선 채택으로 해결하고, 서버 일시 오류 시 로컬 라이선스 파기 방지 및 오프라인 유예기간 보호 강화
+// 🚨 @PATCH : **2026-09-28** — 빈 문서 화면의 권한 오인 문구를 제거하고 권한 확인 중 제한 경고 토스트 억제
+//             **2026-09-28** — 데스크톱 세션 확인에 웹 세션 ID가 아닌 등록 기기 ID를 사용하여 제한사용자 오판 방지
+//             **2026-09-28** — 제한사용자 명령 허용 목록을 공통 디스패처에 적용하여 메뉴·툴바·단축키의 저장/편집/변환 우회 차단
+//             **2026-09-13** — [데스크톱 라이선스 검증 이메일 식별자 보존 및 제한사용자 오강등 영구 차단]: loadAndVerifyLicense에서 session.user.id(UUID)로 이메일이 덮어써져 NOT_FOUND가 발생하던 결함을 session.user.email 및 desktop fullData.userId 우선 채택으로 해결하고, 서버 일시 오류 시 로컬 라이선스 파기 방지 및 오프라인 유예기간 보호 강화
 // 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: handleOpenKnowledge 및 Ctrl+Shift+K 단축키에 isDesktop 가드를 적용하여 웹 브라우저 환경에서 데스크톱 전용 안내 토스트 출력 및 불필요한 화면 전환 차단
 // 🚨 @PATCH : **2026-09-17** — [fileList 상태 보존 및 웹 브라우저 환경 워크스페이스 타입 초기화 정상화]: fileList 선언 누락으로 인한 ReferenceError 차단 및 electronAPI가 없는 웹 브라우저 환경에서 workspaceType 초기 상태를 'browser'로 자동 지정하여 데스크톱 Electron 전용 코드 오작동 및 404 API 호출 원천 차단
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 문서 온디맨드 권한 획득 및 스마트 캐싱 연동]: useFileExplorer에 setConfirmConfig 전달 및 OPEN_FILE/외부 문서 오픈 시 externalFileStore 연동으로 웹 SaaS 환경에서 작업장 외 문서라도 사용자 승인 후 즉시 열람/편집/디스크 저장 완벽 지원
@@ -2248,7 +2251,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       try {
         const isDesktopEnv = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
         // 🚨 @PATCH : 2026-09-16 웹 환경에서는 탭 격리 세션 ID를 우선 전송하여 타 기기/탭의 세션 변경을 정밀 감지
-        const currentSessionId = (!isDesktopEnv && typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || deviceId;
+        const currentSessionId = isDesktopEnv ? deviceId :
+          (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || deviceId;
         const chkRes = await fetch(getApiUrl('/api/license/check-session'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2263,7 +2267,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               showToast("🛑 다른 화면 또는 대시보드에서 세션이 해제되었습니다. 자동으로 로그아웃됩니다.", "error");
               setTimeout(async () => {
                 const pNo = localStorage.getItem('onrivi_payment_no');
-                const sId = (!isDesktopEnv && typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || deviceId;
+                const sId = isDesktopEnv ? deviceId :
+                  (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || deviceId;
                 if (pNo && sId) {
                   await fetch(getApiUrl('/api/device/deactivate'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: pNo, p_device_uuid: sId }) });
                 }
@@ -3107,7 +3112,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const next = typeof modeOrFn === 'function' ? modeOrFn(prev) : modeOrFn;
 
       if (isRestrictedUser) {
-        if (next !== 'preview') {
+        if (next !== 'preview' && !isLicenseChecking) {
           if (isDuplicateInstance) {
             showToast("다른 탭에서 이미 편집 중입니다. 상단 '이 화면에서 편집 시작하기'를 눌러 편집 제어권을 가져올 수 있습니다.", "warning");
           } else if (licenseStatus.isConcurrentLimited) {
@@ -3145,7 +3150,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setContent, createNewTab, setTabs, licenseStatus, showToast]);
+  }, [setContent, createNewTab, setTabs, licenseStatus, showToast, isRestrictedUser, isDuplicateInstance, isLicenseChecking]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0027 ✅ FIXED] MainEditorApp.tsx ➔ closeTab
@@ -6455,6 +6460,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : handlers.newFile/save/saveAs/exit/print/exportHTML/exportEPUB/exportPNG/openExport, handlers.zoomIn/zoomOut/undo/redo/find/replace/globalSearch/settings/about/help/license, handlers.toggleFloatingToolbar/cleanDoc/copyAll, handlers.bold/italic/inlineCode/underline/strikethrough/h1-h6/hr/orderedList/list/quote/check/removePrefix, handlers.link/doclink/image/video/now/map/table/quickTable/insertTableRow/deleteTableRow/code/chart/math, handlers.quickWrap, selectRootFolder, setPreviewMode, setIsToolbarOpen, setIsSidebarOpen, setThemePalette, setIsDarkMode
   // ====================================================================
   const dispatchCommand = useCallback((type: EditorCommandType, payload?: any) => {
+    const restrictedCommands = [
+      'OPEN_FILE', 'OPEN_WORKSPACE', 'EXIT', 'GLOBAL_SEARCH', 'COPY_ALL',
+      'TOGGLE_SIDEBAR', 'TOGGLE_TOOLBAR', 'TOGGLE_MODE',
+      'SETTINGS', 'SETTINGS_SHORTCUTS', 'SETTINGS_ACCOUNT', 'HELP', 'LICENSE'
+    ];
+    if (isRestrictedUser && !restrictedCommands.includes(type)) return;
+
     // [WBS SYNC-01] 명령어 실행 초입 단계에 반드시 editor.focus()를 강제 격발하여 브라우저 포커스 뺏김 방지 및 포지션 최우선 확보
     let editorPosition = null;
     if (editorRef.current) {
@@ -6462,8 +6474,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       editor.focus();
       editorPosition = editor.getPosition();
     }
-
-    // 🔒 [제한 사용자 쓰기 방어 가드] 기능 제거됨
 
     // 1. 에디터 텍스트 비조작 명령어 (상태 제어 및 파일 입출력 위임)
     switch (type) {
@@ -6645,6 +6655,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'TOGGLE_TOOLBAR': setIsToolbarOpen(prev => !prev); return;
       case 'TOGGLE_SIDEBAR': setIsSidebarOpen(prev => !prev); return;
       case 'TOGGLE_MODE':
+        if (isRestrictedUser) {
+          setPreviewMode('preview');
+          return;
+        }
         setPreviewMode(prev => {
           if (prev === 'css-style') return prev;
           if (prev === 'edit') return 'both';
@@ -6780,7 +6794,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       } catch (_) { }
     }, 50);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handlers]);
+  }, [handlers, isRestrictedUser]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0071] MainEditorApp.tsx ➔ mapIdToCommandType
@@ -7062,6 +7076,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const isShift = e.shiftKey;
       const isAlt = e.altKey;
 
+      // 제한사용자에서는 Monaco/브라우저 기본 단축키로 편집 메뉴 제한을 우회하지 못하게 한다.
+      if (isRestrictedUser && isCtrl) {
+        const key = e.key.toUpperCase();
+        if ((key === 'F' && !isShift) || ['H', 'Z', 'Y', '+', '=', '-'].includes(key) || (isAlt && key === 'O')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+
       // 💡 [IME-02] 브라우저 환경에서 Ctrl+S 저장 시 웹페이지 저장(HTML) 다이얼로그가 강제 노출되는 이벤트를 차단하고 
       // 우리 에디터 고유의 저장 커맨드를 실행하도록 원천 차단합니다. (에디터 포커스 여부와 관계없이 전역 방어)
       if (isCtrl) {
@@ -7080,15 +7104,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
 
-      // 💡 [Ctrl+O 차단] 파일 열기 기능이 제거되었으므로, 브라우저 기본 파일 열기 다이얼로그(Ctrl+O)가 나타나지 않도록 원천 차단합니다.
-      if (isCtrl && !isAlt && !isShift) {
+      // 파일 열기와 작업장 폴더 열기는 제한사용자도 사용할 수 있다.
+      if (isCtrl && !isAlt) {
         const keyUpper = e.key.toUpperCase();
         if (keyUpper === 'O') {
           e.preventDefault();
           e.stopPropagation();
+          dispatchCommand(isShift ? 'OPEN_WORKSPACE' : 'OPEN_FILE');
           return;
         }
-        if (e.key === ',') {
+        if (!isShift && e.key === ',') {
           e.preventDefault();
           e.stopPropagation();
           dispatchCommand('SETTINGS');
@@ -7182,7 +7207,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 캡처(true) 모드로 등록하여 최우선순위로 가로챕니다.
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
-  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open]);
+  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open, isRestrictedUser]);
 
   // 💡 플로팅 툴바 인용구 Alert 드롭다운 외부 클릭 시 자동 닫힘 감지기
   useEffect(() => {
@@ -7925,10 +7950,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     </div>
                     <div className="flex flex-col gap-2">
                       <h3 className="text-sm font-black text-zinc-700 dark:text-zinc-200">
-                        활성화된 문서가 없습니다 (편집 및 조작 불가)
+                        열린 문서가 없습니다
                       </h3>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 font-bold max-w-sm leading-relaxed">
-                        현재 아무런 작업도 수행할 수 없는 빈 상태입니다.
+                        현재 열린 마크다운 문서가 없습니다.
                         <br />
                         좌측 파일 탐색기에서 마크다운(.md) 파일을 선택하여 문서를 열어주세요.
                       </p>

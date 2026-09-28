@@ -2,7 +2,8 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
-// 🚨 @PATCH : **2026-09-28** — 에디터의 블로그 게시 버튼과 파일 메뉴 항목 제거
+// 🚨 @PATCH : **2026-09-28** — 제한사용자 메뉴에서 읽기·이동·설정 명령만 활성화하고 저장·편집·변환·병합 명령 비활성화
+//             **2026-09-28** — 에디터의 블로그 게시 버튼과 파일 메뉴 항목 제거
 // 🚨 @PATCH : **2026-09-20** — [편집 메뉴 인용구 항목 제거] 편집(Edit) 메뉴의 '인용구 스타일 (Alert)' 서브메뉴 전체 삭제
 //             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, FolderSync) 제거, Icon 컴포넌트(ArrowRight, FolderSync) 로 교체
 // 🚨 @PATCH : **2026-09-18** — [타문서 변환 명칭 및 단축키(Ctrl+Alt+O) 표준화]: 상단 파일 메뉴의 '문서 가져오기'를 '타문서 변환'으로 변경하고 바로가기 단축키(Ctrl+Alt+O) 라벨 동기화
@@ -236,14 +237,14 @@ export default function MenuBar() {
     { label: t('openFolder'), icon: <Icon name="FolderOpen" size={15} />, shortcut: 'Ctrl+O', onClick: () => dispatch('OPEN_FILE') },
     { label: t('openWorkspace'), icon: <Icon name="Folder" size={15} />, shortcut: 'Ctrl+Shift+O', onClick: () => dispatch('OPEN_WORKSPACE') },
     { divider: true },
-    { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', onClick: () => dispatch('SAVE') },
-    { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
+    { label: t('saveFile'), icon: <Icon name="Save" size={15} />, shortcut: 'Ctrl+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE') },
+    { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', disabled: isRestrictedUser, onClick: () => dispatch('SAVE_AS') },
     { divider: true },
-    { label: "타문서 변환", icon: <Icon name="Import" size={15} />, shortcut: 'Ctrl+Alt+O', onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
+    { label: "타문서 변환", icon: <Icon name="Import" size={15} />, shortcut: 'Ctrl+Alt+O', disabled: isRestrictedUser, onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
       icon: <Icon name="Export" size={15} />,
-      disabled: previewMode !== 'preview',
+      disabled: isRestrictedUser || previewMode !== 'preview',
       subItems: [
         { label: t('print'), icon: <Icon name="Print" size={14} />, onClick: () => dispatch('PRINT') },
         { label: t('html'), icon: <Icon name="FileCode" size={14} />, onClick: () => dispatch('EXPORT_HTML') },
@@ -264,6 +265,7 @@ export default function MenuBar() {
     { label: "블로그 가기", icon: <Icon name="Book" size={15} />, onClick: () => router.push('/blog') },
     { label: "대시보드", icon: <Icon name="Dashboard" size={15} />, onClick: () => router.push('/dashboard') },
   ];
+
 
   /* [ONR-UI-003] 상단 메뉴바 이벤트 연동: 테마 스위칭, 내보내기 대화상자 등 전역 레이아웃 제어를 메뉴 트리거와 연결합니다. */
   return (
@@ -287,14 +289,14 @@ export default function MenuBar() {
         onClose={() => setActiveMenu(null)}
         isDarkMode={isDarkMode}
         items={[
-          { label: t('undo'), icon: <Icon name="Undo" size={15} />, shortcut: 'Ctrl+Z', onClick: () => dispatch('UNDO'), disabled: previewMode === 'preview' },
-          { label: t('redo'), icon: <Icon name="Redo" size={15} />, shortcut: 'Ctrl+Y', onClick: () => dispatch('REDO'), disabled: previewMode === 'preview' },
+          { label: t('undo'), icon: <Icon name="Undo" size={15} />, shortcut: 'Ctrl+Z', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('UNDO') },
+          { label: t('redo'), icon: <Icon name="Redo" size={15} />, shortcut: 'Ctrl+Y', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('REDO') },
           { divider: true },
-          { label: t('find'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+F', onClick: () => dispatch('FIND') },
-          { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', onClick: () => dispatch('REPLACE'), disabled: previewMode === 'preview' },
+          { label: t('find'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+F', disabled: isRestrictedUser, onClick: () => dispatch('FIND') },
+          { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('REPLACE') },
           { divider: true },
-          { label: t('zoomIn'), icon: <Icon name="ZoomIn" size={15} />, onClick: () => dispatch('ZOOM_IN') },
-          { label: t('zoomOut'), icon: <Icon name="ZoomOut" size={15} />, onClick: () => dispatch('ZOOM_OUT') },
+          { label: t('zoomIn'), icon: <Icon name="ZoomIn" size={15} />, disabled: isRestrictedUser, onClick: () => dispatch('ZOOM_IN') },
+          { label: t('zoomOut'), icon: <Icon name="ZoomOut" size={15} />, disabled: isRestrictedUser, onClick: () => dispatch('ZOOM_OUT') },
         ]}
       />
       <MenuDropdown 
@@ -349,12 +351,12 @@ export default function MenuBar() {
             }
           ] : []),
           { divider: true },
-          { label: "서식 정의 (갤러리)", icon: <Icon name="Palette" size={15} />, onClick: () => setPreviewMode('css-style') },
+          { label: "서식 정의 (갤러리)", icon: <Icon name="Palette" size={15} />, disabled: isRestrictedUser, onClick: () => setPreviewMode('css-style') },
           { divider: true },
           { label: t('globalSearch'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <Icon name="Copy" size={15} />, onClick: () => dispatch('COPY_ALL') },
-          { label: "문서 병합", icon: <Icon name="Layers" size={15} />, onClick: () => dispatch('MERGE') },
-          { label: "각주 정리", icon: <Icon name="Document" size={15} />, onClick: () => dispatch('ORGANIZE_FOOTNOTES') },
+          { label: "문서 병합", icon: <Icon name="Layers" size={15} />, disabled: isRestrictedUser, onClick: () => dispatch('MERGE') },
+          { label: "각주 정리", icon: <Icon name="Document" size={15} />, disabled: isRestrictedUser, onClick: () => dispatch('ORGANIZE_FOOTNOTES') },
           { label: "환경 설정", icon: <Icon name="Settings" size={15} />, onClick: () => dispatch('SETTINGS') },
         ]}
       />
@@ -460,7 +462,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
                 </button>
 
                 {/* Submenu — CSS group-hover로 제어 (mouse leave 문제 해결) */}
-                {item.subItems && (
+                {item.subItems && !item.disabled && (
                   <div 
                     className="absolute top-0 left-full w-48 border border-outline/10 rounded-md py-1 invisible group-hover:visible ml-px text-on-surface bg-surface-high shadow-xl"
                     style={{ 

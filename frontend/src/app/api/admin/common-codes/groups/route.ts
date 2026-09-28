@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAdmin } from '@/lib/adminAuth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -12,6 +13,11 @@ const supabaseAdmin = supabaseUrl && supabaseServiceKey
       }
     })
   : null;
+
+async function getVerifiedAdminId(request: Request, requireSuper: boolean): Promise<string | null> {
+  const { user } = await verifyAdmin(request, requireSuper);
+  return user?.id || null;
+}
 
 async function checkAdmin(adminId: string, requiredRole: 'SUPER' | 'SUPPORT' = 'SUPPORT') {
   if (!supabaseAdmin || !adminId) return false;
@@ -26,10 +32,10 @@ export async function GET(req: Request) {
     if (!supabaseAdmin) throw new Error('Supabase Admin is not configured.');
 
     const { searchParams } = new URL(req.url);
-    const adminId = searchParams.get('adminId');
+    const adminId = await getVerifiedAdminId(req, false);
 
     if (!adminId) {
-      return NextResponse.json({ success: false, error: '관리자 ID(adminId)가 필요합니다.' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '관리자 인증이 필요합니다.' }, { status: 403 });
     }
 
     // SUPPORT 이상이면 조회 가능
@@ -58,9 +64,11 @@ export async function POST(req: Request) {
     if (!supabaseAdmin) throw new Error('Supabase Admin is not configured.');
 
     const body = await req.json();
-    const { adminId, group_code, group_name, description, sort_order, is_use } = body;
+    const { group_code, group_name, description, sort_order, is_use } = body;
+    const adminId = await getVerifiedAdminId(req, true);
 
-    if (!adminId || !group_code || !group_name) {
+    if (!adminId) return NextResponse.json({ success: false, error: '관리자 인증이 필요합니다.' }, { status: 403 });
+    if (!group_code || !group_name) {
       return NextResponse.json({ success: false, error: '필수 파라미터 누락' }, { status: 400 });
     }
 
@@ -99,9 +107,11 @@ export async function PATCH(req: Request) {
     if (!supabaseAdmin) throw new Error('Supabase Admin is not configured.');
 
     const body = await req.json();
-    const { adminId, group_code, group_name, description, sort_order, is_use } = body;
+    const { group_code, group_name, description, sort_order, is_use } = body;
+    const adminId = await getVerifiedAdminId(req, true);
 
-    if (!adminId || !group_code) {
+    if (!adminId) return NextResponse.json({ success: false, error: '관리자 인증이 필요합니다.' }, { status: 403 });
+    if (!group_code) {
       return NextResponse.json({ success: false, error: '필수 파라미터 누락' }, { status: 400 });
     }
 
@@ -136,10 +146,11 @@ export async function DELETE(req: Request) {
     if (!supabaseAdmin) throw new Error('Supabase Admin is not configured.');
 
     const { searchParams } = new URL(req.url);
-    const adminId = searchParams.get('adminId');
+    const adminId = await getVerifiedAdminId(req, true);
     const group_code = searchParams.get('group_code');
 
-    if (!adminId || !group_code) {
+    if (!adminId) return NextResponse.json({ success: false, error: '관리자 인증이 필요합니다.' }, { status: 403 });
+    if (!group_code) {
       return NextResponse.json({ success: false, error: '필수 파라미터 누락' }, { status: 400 });
     }
 

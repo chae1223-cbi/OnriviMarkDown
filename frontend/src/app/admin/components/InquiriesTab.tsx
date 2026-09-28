@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-09-28 — 문의 답변 모달의 취소 버튼을 관리자 공통 보조 버튼으로 통일 */
 'use client';
 
 /**
@@ -14,6 +15,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { adminFetch } from '@/lib/adminFetch';
 import { showToast } from '@/utils/toast';
 import { Eye, Mail, CheckCircle2, MessageSquare, Clock, X, Paperclip, Trash2, Download } from 'lucide-react';
 
@@ -101,7 +103,7 @@ export default function InquiriesTab() {
   const fetchInquiries = async (token: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/inquiries', {
+      const res = await adminFetch('/api/admin/inquiries', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('데이터를 불러오는데 실패했습니다.');
@@ -175,7 +177,7 @@ export default function InquiriesTab() {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`;
 
-        const resp = await fetch('/api/upload-image', {
+        const resp = await adminFetch('/api/upload-image', {
           method: 'POST',
           headers,
           body: JSON.stringify({ base64Data, fileName: file.name, targetFolder: 'inquiry_reply' }),
@@ -213,7 +215,7 @@ export default function InquiriesTab() {
         ...uploadedUrls
       ];
 
-      const res = await fetch('/api/admin/inquiries', {
+      const res = await adminFetch('/api/admin/inquiries', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -519,7 +521,7 @@ export default function InquiriesTab() {
             </div>
 
             <div className="mt-6 pt-4 border-t border-[var(--admin-border)] flex justify-end gap-3 shrink-0">
-              <button onClick={() => setModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]">
+              <button onClick={() => setModalOpen(false)} className="admin-btn-secondary">
                 취소
               </button>
               {(isAdminSuper || isAdminSupport) && (

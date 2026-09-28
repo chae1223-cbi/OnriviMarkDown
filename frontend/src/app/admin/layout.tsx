@@ -3,6 +3,7 @@
  * 파일명 : app/admin/layout.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-09-28** — [관리자 레이아웃 디자인 통일]: DESIGN.md 기준 캔버스·260px 사이드바·활성 메뉴·경계·반응형 여백 및 세션 모달 버튼 적용
  * ----------------------------------------------------------------------- * 🚨 @PATCH : **2026-09-26** — [기술 블로그 관리 네비게이션 추가]: 관리자 사이드바에 기술 블로그 관리(id: 'blog', BookOpen) 메뉴 신설
  *             2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
  *             2026-09-02** — 어드민 사이드바를 에디터 좌측 사이드바 디자인 시스템(경계선 border-slate-300, 폰트 패밀리, bg-sidebar-luxury, 선명한 하이라이트/호버)과 100% 일치화
@@ -26,35 +27,51 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [adminRole, setAdminRole] = useState<string>('');
   const [adminEmail, setAdminEmail] = useState<string>('');
+  const [authReady, setAuthReady] = useState(false);
   const currentTab = searchParams.get('tab') || 'dashboard';
 
   useEffect(() => {
     if (pathname === '/admin/login') return;
+    let cancelled = false;
+    setAuthReady(false);
     
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
       if (!session) {
         router.replace('/admin/login');
         return;
       }
 
-      const { data: adminData } = await supabase.from('admins').select('admin_role').eq('user_id', session.user.id).single();
-      if (!adminData) {
+      const { data: adminData, error: adminError } = await supabase.from('admins').select('admin_role').eq('user_id', session.user.id).single();
+      if (adminError && adminError.code !== 'PGRST116') throw adminError;
+      if (!adminData || !['SUPER', 'SUPPORT'].includes(adminData.admin_role)) {
         // admins 테이블에서 해당 유저 레코드가 없으면 권한 없음 → 즉시 로그아웃 후 로그인 화면으로
         await supabase.auth.signOut();
         router.replace('/admin/login');
         return;
       }
-      setAdminRole(adminData.admin_role);
-      setAdminEmail(session.user.email || '');
-      
-      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aalError) throw aalError;
       if (aal?.currentLevel !== 'aal2') {
+        router.replace('/admin/login');
+        return;
+      }
+      if (!cancelled) {
+        setAdminRole(adminData.admin_role);
+        setAdminEmail(session.user.email || '');
+        setAuthReady(true);
+      }
+      } catch (error) {
+        console.error('Admin layout authentication failed:', error);
+        showToast('관리자 로그인 상태를 확인하지 못했습니다.', 'error');
         router.replace('/admin/login');
       }
     };
     
     checkAuth();
+    return () => { cancelled = true; };
   }, [pathname, router]);
 
   // --- Session Extension ---
@@ -126,22 +143,23 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   ];
 
   if (pathname === '/admin/login') {
-    return <div className="admin-theme min-h-screen font-sans">{children}</div>;
+    return <div className="admin-theme min-h-screen">{children}</div>;
+  }
+
+  if (!authReady) {
+    return <div className="admin-theme min-h-screen flex items-center justify-center text-sm text-zinc-500">관리자 권한 확인 중…</div>;
   }
 
   return (
-    <div className="admin-theme flex h-screen overflow-hidden font-sans bg-[#F8F9FA]">
+    <div className="admin-theme flex h-screen overflow-hidden bg-[var(--admin-bg)]">
       {/* Sidebar for Desktop (.bg-sidebar-luxury 및 에디터 사이드바 기준 일치) */}
       <aside 
-        style={{
-          fontFamily: "'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', '맑은 고딕', sans-serif",
-        }}
-        className="hidden w-[280px] bg-sidebar-luxury border-r border-slate-300 dark:border-zinc-700 select-none md:flex md:flex-col z-10 transition-all shadow-sm"
+        className="hidden w-[260px] bg-sidebar-luxury border-r border-[#e2e8f0] select-none md:flex md:flex-col z-10"
       >
-        <div className="flex items-center justify-start gap-3 h-16 border-b border-slate-300 dark:border-zinc-700 px-6 shrink-0 bg-white/75 dark:bg-black/30 backdrop-blur-md">
+        <div className="flex items-center justify-start gap-3 h-16 border-b border-[#e2e8f0] px-6 shrink-0 bg-white/75 backdrop-blur-md">
           <Link href="/admin" className="flex items-center gap-2.5">
             <img src="/icon.png" alt="Onrivi" className="w-8 h-8 rounded-lg shadow-2xs" />
-            <span className="font-extrabold text-lg text-zinc-950 dark:text-white tracking-tight">
+            <span className="font-extrabold text-lg text-zinc-950 tracking-tight">
               Onrivi Admin
             </span>
           </Link>
@@ -155,25 +173,25 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 relative group overflow-hidden ${
                   isActive
-                    ? 'text-zinc-950 dark:text-white font-extrabold bg-[#1d4ed8]/15 dark:bg-[#1d4ed8]/25 shadow-xs'
-                    : 'text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white hover:bg-zinc-200/80 dark:hover:bg-zinc-700/60 font-bold'
+                    ? 'text-blue-700 font-extrabold bg-[#1d4ed8]/10 shadow-xs'
+                    : 'text-zinc-700 hover:text-black hover:bg-zinc-200/70 font-bold'
                 }`}
               >
-                <item.icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-[#1d4ed8]' : 'text-zinc-600 dark:text-zinc-400'}`} />
+                <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#1d4ed8]' : 'text-zinc-600'}`} />
                 <span className="text-[13px] tracking-tight">{item.name}</span>
               </Link>
             );
           })}
         </div>
-        <div className="p-3.5 border-t border-slate-300 dark:border-zinc-700 shrink-0 space-y-2.5 bg-white/40 dark:bg-black/20">
+        <div className="p-3.5 border-t border-[#e2e8f0] shrink-0 space-y-2.5 bg-white/40">
           {/* Admin Info Card */}
           {adminEmail && (
-            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white dark:bg-zinc-800/90 border border-slate-300 dark:border-zinc-700 shadow-xs">
+            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white border border-[#e2e8f0] shadow-xs">
               <div className="w-8 h-8 rounded-full bg-[#1d4ed8] flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-2xs">
                 {adminEmail.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate" title={adminEmail}>
+                <p className="text-xs font-bold text-zinc-900 truncate" title={adminEmail}>
                   {adminEmail}
                 </p>
                 <span className={`inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold tracking-wider ${
@@ -188,7 +206,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
           )}
           <button 
             onClick={handleLogout}
-            className="flex items-center justify-center gap-2 px-3 py-2 w-full rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors font-bold text-xs"
+            className="flex items-center justify-center gap-2 px-3 py-2 w-full rounded-lg text-zinc-700 hover:bg-red-50 hover:text-red-600 transition-colors font-bold text-xs"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>로그아웃</span>
@@ -199,7 +217,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Session Extension Modal */}
       {showExtensionPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="admin-glass-card p-8 max-w-md w-full mx-4 animate-in zoom-in-95 duration-300 border-[#EFEFEF] bg-white shadow-xl">
+          <div className="admin-glass-card p-8 max-w-md w-full mx-4 animate-in zoom-in-95 duration-300 shadow-xl">
             <h2 className="text-2xl font-bold text-zinc-900 mb-4">로그인 연장 안내</h2>
             <p className="text-zinc-600 mb-6 leading-relaxed text-sm">
               보안을 위해 1시간마다 로그인 상태를 확인합니다.<br/>
@@ -213,7 +231,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="flex gap-3">
               <button 
                 onClick={handleLogout}
-                className="flex-1 py-3 px-4 rounded-xl font-semibold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-colors text-sm"
+                className="admin-btn-secondary flex-1"
               >
                 로그아웃
               </button>
@@ -231,7 +249,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Mobile Header */}
-        <header className="md:hidden flex items-center justify-between h-16 px-6 bg-white border-b border-[#EFEFEF] z-20 shrink-0">
+        <header className="md:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-[#e2e8f0] z-20 shrink-0">
           <Link href="/admin" className="flex items-center gap-2.5">
             <img src="/icon.png" alt="Onrivi" className="w-7 h-7 rounded-lg" />
             <span className="font-bold text-base text-zinc-900 tracking-tight">
@@ -250,7 +268,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
         {isMobileMenuOpen && (
           <div className="md:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}>
             <aside
-              className="absolute top-16 left-0 bottom-0 w-[280px] bg-sidebar-luxury border-r border-[#EFEFEF] flex flex-col shadow-2xl animate-in slide-in-from-left-4"
+              className="absolute top-16 left-0 bottom-0 w-[260px] bg-sidebar-luxury border-r border-[#e2e8f0] flex flex-col shadow-2xl animate-in slide-in-from-left-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-col flex-1 overflow-y-auto px-4 py-6 space-y-1.5 custom-scrollbar">
@@ -261,15 +279,12 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                     key={item.name}
                     href={item.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 relative overflow-hidden ${
+                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all duration-200 ${
                       isActive
-                        ? 'text-[#1d4ed8] font-bold bg-[#1d4ed8]/10 shadow-sm'
-                        : 'text-zinc-700 hover:text-zinc-950 hover:bg-black/5 font-bold'
+                        ? 'text-blue-700 font-extrabold bg-[#1d4ed8]/10 shadow-xs'
+                        : 'text-zinc-700 hover:text-black hover:bg-zinc-200/70 font-bold'
                     }`}
                   >
-                    {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-[#1d4ed8] rounded-r-full shadow-[0_0_8px_#1d4ed8]" />
-                    )}
                     <item.icon className={`w-4 h-4 ${isActive ? 'text-[#1d4ed8]' : 'text-zinc-600'}`} />
                     <span className="text-[13.5px] tracking-tight">{item.name}</span>
                   </Link>
@@ -280,7 +295,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Page Content */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-12 scroll-smooth">
+        <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-6 lg:py-8 scroll-smooth">
           {children}
         </div>
       </main>

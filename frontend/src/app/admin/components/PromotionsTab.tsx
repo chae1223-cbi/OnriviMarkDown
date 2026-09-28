@@ -5,6 +5,7 @@
 // 🚨 @PATCH : **2026-08-10** — 초기 생성: 동적 프로모션 관리 시스템 구축
 // 🔗 @CALLS : supabase (promotions, promotion_subscribers), showToast
 // ====================================================================
+/** 🚨 @PATCH : 2026-09-28 — 프로모션 모달의 닫기 버튼을 관리자 공통 보조 버튼으로 통일 */
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -510,7 +511,7 @@ export default function PromotionsTab() {
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--admin-border)] shrink-0">
               <button
                 onClick={() => setModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface)] rounded-lg transition-colors"
+                className="admin-btn-secondary"
               >
                 닫기
               </button>

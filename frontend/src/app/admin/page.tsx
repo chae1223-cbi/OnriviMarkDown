@@ -3,6 +3,7 @@
  * 파일명 : app/admin/page.tsx
  * -----------------------------------------------------------------------
  * 변경내역
+ * 🚨 @PATCH : **2026-09-28** — [사용자별 요금제 변경]: SUPER 관리자만 상세 화면에서 활성 DB 요금제를 수동 부여하고 목록을 새로고침; 캔버스·모달 버튼 디자인 시스템 통일
  * ----------------------------------------------------------------------- * 🚨 @PATCH : **2026-09-26** — [기술 블로그 관리 탭 연동]: tab === 'blog' 시 BlogTab 컴포넌트 렌더링 및 초안 선택 발행 관리 연동
  *             2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
  *             2026-09-02** — LINE Design System (LDSG v5.0) 표준 적용: .admin-theme, 대시보드 통계 카드 및 관리자 탭 LDSG Green(#1d4ed8)/Blue(#4D73FF) 토큰 통일
@@ -15,7 +16,9 @@ import { useSearchParams } from 'next/navigation';
 import { Users, TrendingUp, CreditCard, Activity, Search, MoreVertical, Plus, ShieldOff, MessageSquare, CheckCircle2, Construction, X } from 'lucide-react';
 import { showToast } from '@/utils/toast';
 import { supabase } from '@/lib/supabaseClient';
+import { adminFetch } from '@/lib/adminFetch';
 import UserDetailModal from './components/UserDetailModal';
+import UserPlanChangeModal from './components/UserPlanChangeModal';
 import AdminsTab from './components/AdminsTab';
 import CodesTab from './components/CodesTab';
 import PlansTab from './components/PlansTab';
@@ -30,7 +33,7 @@ function AdminPageContent() {
   const tab = searchParams.get('tab') || 'dashboard';
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="w-full max-w-[1280px] mx-auto space-y-8 animate-in fade-in duration-500">
       {tab === 'dashboard' && <DashboardTab />}
       {tab === 'users' && <UsersTab />}
       {tab === 'admins' && <AdminsTab />}
@@ -136,6 +139,8 @@ function UsersTab() {
   const [suspendTarget, setSuspendTarget] = useState<any | null>(null);
   const [suspendReason, setSuspendReason] = useState('');
   const [detailTarget, setDetailTarget] = useState<any | null>(null);
+  const [planTarget, setPlanTarget] = useState<any | null>(null);
+  const [canChangeUserPlan, setCanChangeUserPlan] = useState(false);
   const [paymentHistoryTarget, setPaymentHistoryTarget] = useState<any | null>(null);
   const [auditTarget, setAuditTarget] = useState<any | null>(null);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -153,10 +158,21 @@ function UsersTab() {
   const [total, setTotal] = useState(0);
 
   useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data } = await supabase.from('admins').select('admin_role').eq('user_id', session.user.id).maybeSingle();
+      if (active) setCanChangeUserPlan(data?.admin_role === 'SUPER');
+    })();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/admin/users?type=${userType}&page=${page}&limit=10&status=${filterStatus}&plan=${filterPlan}`);
+        const res = await adminFetch(`/api/admin/users?type=${userType}&page=${page}&limit=10&status=${filterStatus}&plan=${filterPlan}`);
         const json = await res.json();
         if (json.success) {
           setUsers(json.data);
@@ -180,7 +196,7 @@ function UsersTab() {
   const confirmOTPReset = async () => {
     if (!resettingEmail) return;
     try {
-      const response = await fetch('/api/admin/mfa/reset', {
+      const response = await adminFetch('/api/admin/mfa/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resettingEmail })
@@ -209,7 +225,7 @@ function UsersTab() {
           const { data: { session } } = await supabase.auth.getSession();
           const adminId = session?.user?.id;
 
-          const res = await fetch('/api/admin/users', {
+          const res = await adminFetch('/api/admin/users', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'kill_session', userId: user.id, adminId })
@@ -240,7 +256,7 @@ function UsersTab() {
           const { data: { session } } = await supabase.auth.getSession();
           const adminId = session?.user?.id;
 
-          const res = await fetch('/api/admin/users', {
+          const res = await adminFetch('/api/admin/users', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'kill_single_session', userId: user.id, adminId, deviceId })
@@ -272,7 +288,7 @@ function UsersTab() {
       const { data: { session } } = await supabase.auth.getSession();
       const adminId = session?.user?.id;
 
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'suspend', userId: suspendTarget.id, reason: suspendReason, adminId })
@@ -301,7 +317,7 @@ function UsersTab() {
           const { data: { session } } = await supabase.auth.getSession();
           const adminId = session?.user?.id;
 
-          const res = await fetch('/api/admin/users', {
+          const res = await adminFetch('/api/admin/users', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'unban', userId: user.id, adminId })
@@ -331,7 +347,7 @@ function UsersTab() {
       // 🚨 @PATCH 2026-08-07: checkAdminAuth 보호 엔드포인트에 Authorization 헤더 추가
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
-      const res = await fetch(`/api/admin/audit-logs?userId=${user.id}`, {
+      const res = await adminFetch(`/api/admin/audit-logs?userId=${user.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
@@ -590,13 +606,13 @@ function UsersTab() {
             <div className="flex gap-3 mt-6 pt-4 border-t border-[var(--admin-border)] shrink-0">
               <button 
                 onClick={() => { setSuspendTarget(null); setSuspendReason(''); }}
-                className="flex-1 py-2.5 px-4 rounded-xl font-semibold text-[var(--admin-text-muted)] bg-[var(--admin-surface)] hover:bg-black/5 transition-colors text-sm"
+                className="admin-btn-secondary flex-1"
               >
                 취소
               </button>
               <button 
                 onClick={submitSuspend}
-                className="flex-1 py-2.5 px-4 rounded-xl font-semibold bg-[var(--admin-error)] text-white hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20 text-sm"
+                className="admin-btn-danger flex-1"
               >
                 정지 확정
               </button>
@@ -609,6 +625,10 @@ function UsersTab() {
       <UserDetailModal 
         user={detailTarget} 
         onClose={() => setDetailTarget(null)} 
+        onChangePlan={canChangeUserPlan && detailTarget ? () => {
+          setPlanTarget(detailTarget);
+          setDetailTarget(null);
+        } : undefined}
         onKillSession={() => {
           handleKillSession(detailTarget);
           setDetailTarget(null);
@@ -617,6 +637,11 @@ function UsersTab() {
           handleKillSingleSession(detailTarget, deviceId);
           setDetailTarget(null);
         }}
+      />
+      <UserPlanChangeModal
+        user={planTarget}
+        onClose={() => setPlanTarget(null)}
+        onChanged={() => { setPlanTarget(null); setRefreshKey(key => key + 1); }}
       />
       {/* Payment History Modal */}
       {paymentHistoryTarget && (
@@ -651,7 +676,7 @@ function UsersTab() {
               </div>
             </div>
             <div className="p-4 border-t border-[var(--admin-border)] bg-[var(--admin-surface)] flex justify-end shrink-0">
-              <button onClick={() => setPaymentHistoryTarget(null)} className="px-5 py-2 text-sm font-medium border border-[var(--admin-border)] rounded-xl text-[var(--admin-text)] bg-[var(--admin-surface)] hover:bg-black/5 transition-colors">
+              <button onClick={() => setPaymentHistoryTarget(null)} className="admin-btn-secondary">
                 닫기
               </button>
             </div>
@@ -669,7 +694,7 @@ function UsersTab() {
             <div className="flex justify-end gap-3 mt-6 pt-3 border-t border-[var(--admin-border)] shrink-0">
               <button
                 onClick={() => setConfirmConfig(null)}
-                className="flex-1 px-4 py-2 bg-transparent border border-[var(--admin-border)] text-[var(--admin-text)] hover:bg-black/5 rounded-xl transition-colors text-sm font-medium"
+                className="admin-btn-secondary flex-1"
               >
                 취소
               </button>
@@ -733,7 +758,7 @@ function UsersTab() {
             <div className="px-6 py-4 border-t border-[var(--admin-border)] bg-[var(--admin-background)] flex justify-end">
               <button 
                 onClick={() => setAuditTarget(null)}
-                className="px-4 py-2 bg-[var(--admin-border)] hover:brightness-95 text-[var(--admin-text)] rounded-md font-medium"
+                className="admin-btn-secondary"
               >
                 닫기
               </button>
@@ -757,16 +782,14 @@ function UsersTab() {
 function SubscriptionsTab() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center animate-in zoom-in-95 duration-500">
-      <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-blue-100 dark:border-blue-800/50">
+      <div className="w-20 h-20 bg-blue-50 text-[#1d4ed8] rounded-2xl flex items-center justify-center mb-6 border border-blue-100">
         <CreditCard className="w-10 h-10" />
       </div>
       <h2 className="text-[32px] font-bold font-montserrat text-[var(--admin-text)] mb-2">구독 및 라이선스 관리</h2>
       <p className="text-[var(--admin-text-muted)] max-w-md mx-auto mb-8">
         결제 내역, 요금제 변경 이력, 그리고 발급된 라이선스 키 현황을 한눈에 관리할 수 있는 페이지가 곧 제공됩니다.
       </p>
-      <button className="px-6 py-2.5 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-medium rounded-xl hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors shadow-sm">
-        준비 중 (Next Week)
-      </button>
+      <span className="admin-chip-emerald inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold">준비 중</span>
     </div>
   );
 }

@@ -2,7 +2,9 @@
 // 📊 [OMD-UI-LeftSidebar-0001] LeftSidebar.tsx ➔ 에디터 좌측 탐색기 사이드바
 // 🎯 @KICK  : 파일 트리 탐색기, TOC, 북마크, 전역 검색 탭 제공. 폴더 CRUD/드래그앤드롭/컨텍스트메뉴 지원
 // 🛡️ @GUARD : FSA API(웹), IPC(데스크톱) 이중 운영, 드래그 덜렁거림(anti-rattle) 방지 적용
-// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Plus, Scissors, FolderOpen, FolderTree, FilePlus, FolderPlus, Copy, ClipboardPaste, RotateCw, FolderInput, Undo2) 제거, Icon 컴포넌트로 교체
+// 🚨 @PATCH : **2026-09-28** — macOS 작업장 전체 경로는 내부 파일 처리에 유지하고 탐색기 선택 바·루트에는 폴더 이름만 표시
+//             **2026-09-28** — 제한사용자 루트 컨텍스트 메뉴 전체 표시, 새로고침 외 항목 비활성화 및 변환 이벤트 차단
+//             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(Plus, Scissors, FolderOpen, FolderTree, FilePlus, FolderPlus, Copy, ClipboardPaste, RotateCw, FolderInput, Undo2) 제거, Icon 컴포넌트로 교체
 //             **2026-09-20** — [eslint exhaustive-deps 경고 해소] moveHistoryRef alias 제거 및 deps 배열 정리
 //             **2026-09-20** — [폴더 삭제 되돌리기] 데스크탑/웹 폴더 삭제 시 스냅샷 기반 되돌리기 지원 추가
 // 🔗 @CALLS : FileTreeItem, GlobalSearch, PromptModal, virtualFileSystem, indexedDbHelper
@@ -362,6 +364,9 @@ export default function LeftSidebar() {
     licenseStatus?.planName?.includes('제한') ||
     licenseStatus?.planName?.includes('만료')
   );
+  const rootFolderDisplayName = rootFolder?.name
+    ? (rootFolder.handle?.name || rootFolder.name.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || rootFolder.name)
+    : '';
   const onCancelMerge = () => {
     if (setIsMergeMode) setIsMergeMode(false);
     if (setSelectedMergeNodes) setSelectedMergeNodes([]);
@@ -1704,13 +1709,14 @@ export default function LeftSidebar() {
 
   useEffect(() => {
     const handleTriggerImport = (e?: any) => {
+      if (isRestrictedUser) return;
       targetImportNodeRef.current = e?.detail?.node || null;
       targetImportParentHandleRef.current = e?.detail?.parentHandle || null;
       importFileInputRef.current?.click();
     };
     window.addEventListener('TRIGGER_IMPORT', handleTriggerImport);
     return () => window.removeEventListener('TRIGGER_IMPORT', handleTriggerImport);
-  }, []);
+  }, [isRestrictedUser]);
 
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0006] LeftSidebar ➔ onPromptConfirm
@@ -2245,7 +2251,7 @@ export default function LeftSidebar() {
               className="shrink-0 text-current opacity-75" 
             />
             <span className="truncate font-bold">
-              {rootFolder?.name ? rootFolder.name : '폴더를 선택하세요'}
+              {rootFolderDisplayName || '폴더를 선택하세요'}
             </span>
           </button>
         </div>
@@ -2255,7 +2261,6 @@ export default function LeftSidebar() {
         <div 
           className={`flex-1 overflow-y-auto [scrollbar-gutter:stable] p-2 ${sidebarTab !== 'explorer' ? 'hidden' : ''}`}
           onContextMenu={(e) => {
-            if (isRestrictedUser) return;
             const target = e.target as HTMLElement;
             if (!target.closest('[role="treeitem"]')) {
               e.preventDefault();
@@ -2298,7 +2303,6 @@ export default function LeftSidebar() {
                 aria-selected={false}
                 className="group relative flex items-center justify-between px-1.5 py-1 text-[12px] font-bold text-on-surface border-b border-outline-variant/20 mb-1 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer rounded-t transition-colors focus:outline-none focus:ring-1 focus:ring-[#1d4ed8]/40"
                 onKeyDown={(e) => {
-                  if (isRestrictedUser) return;
                   const target = e.target as HTMLElement;
                   if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
 
@@ -2311,6 +2315,7 @@ export default function LeftSidebar() {
                     triggerRefreshRoot();
                     return;
                   }
+                  if (isRestrictedUser) return;
                   if (isCtrl && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O')) {
                     e.preventDefault();
                     e.stopPropagation();
@@ -2363,7 +2368,7 @@ export default function LeftSidebar() {
               >
                 <div className="flex items-center gap-1.5 truncate flex-1 font-bold">
                   <Icon name="FolderTree" size={14} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                  <span className="truncate">{rootFolder.name}</span>
+                  <span className="truncate">{rootFolderDisplayName}</span>
                 </div>
 
                 {/* Context Menu Portal */}
@@ -2407,8 +2412,7 @@ export default function LeftSidebar() {
 
                       return (
                         <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium py-0.5">
-                          {!isRestrictedUser && (
-                            <>
+                          <fieldset disabled={isRestrictedUser} className="flex flex-col [&_button:disabled]:pointer-events-none [&_button:disabled]:opacity-40 [&_button:disabled]:cursor-not-allowed">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2503,8 +2507,7 @@ export default function LeftSidebar() {
                                   <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘Z' : 'Ctrl+Z'}</kbd>
                                 </button>
                               )}
-                            </>
-                          )}
+                          </fieldset>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -2518,7 +2521,7 @@ export default function LeftSidebar() {
                             </div>
                             <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌘F5' : 'Ctrl+F5'}</kbd>
                           </button>
-                          {!isRestrictedUser && (
+                          <fieldset disabled={isRestrictedUser} className="flex flex-col [&_button:disabled]:pointer-events-none [&_button:disabled]:opacity-40 [&_button:disabled]:cursor-not-allowed">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -2532,7 +2535,6 @@ export default function LeftSidebar() {
                               </div>
                               <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMacPlatform ? '⌥⌘O' : 'Ctrl+Alt+O'}</kbd>
                             </button>
-                          )}
                           {(() => {
                             const isDesktopApp = typeof window !== 'undefined' && !!(window as any).electronAPI;
                             if (!isDesktopApp) return null;
@@ -2553,6 +2555,7 @@ export default function LeftSidebar() {
                               </button>
                             );
                           })()}
+                          </fieldset>
                         </div>
                       );
                     })()}

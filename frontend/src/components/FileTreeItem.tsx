@@ -4,7 +4,8 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
-// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2, FileText) 전체 제거, Icon 컴포넌트로 교체
+// 🚨 @PATCH : **2026-09-28** — 제한사용자 파일·폴더 컨텍스트 메뉴 항목을 모두 표시하되 실행 불가 상태로 렌더링
+//             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2, FileText) 전체 제거, Icon 컴포넌트로 교체
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
 //             1) 폴더 삭제 되돌리기: 데스크톱 api.backupFolderForUndo, 웹 브라우저 snapshotFsaDirectory/VFS 스냅샷으로 하위 구조 100% 보존 및 Ctrl+Z 복원 완비
 //             2) 탐색기 덜렁거림 제거: dragleave 자식 요소 진입 방어, scale-[1.01] 제거(ring-1 교체), transition-all을 transition-colors로 최적화, React Key 고유 경로화로 깜빡임 원천 차단
@@ -1580,7 +1581,7 @@ const FileTreeItem = ({
         }}
         onClick={handleClick}
         onContextMenu={(e) => {
-          if (isMergeMode || isRestrictedUser) return;
+          if (isMergeMode) return;
           e.preventDefault();
           e.stopPropagation();
           window.dispatchEvent(new CustomEvent('close-context-menus'));
@@ -1614,7 +1615,7 @@ const FileTreeItem = ({
           )}
         </span>
 
-        {contextMenu && !isMergeMode && !isRestrictedUser && createPortal(
+        {contextMenu && !isMergeMode && createPortal(
           <div
             ref={(el) => {
               if (el && typeof window !== 'undefined') {
@@ -1639,7 +1640,7 @@ const FileTreeItem = ({
             onMouseEnter={handleMenuMouseEnter}
             onMouseLeave={handleMenuMouseLeave}
           >
-            <div className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium">
+            <fieldset disabled={isRestrictedUser} className="flex flex-col text-[12px] text-gray-700 dark:text-gray-300 font-medium [&_button:disabled]:pointer-events-none [&_button:disabled]:opacity-40 [&_button:disabled]:cursor-not-allowed">
               {node.kind === 'directory' && (
                 <>
                   <button
@@ -2015,7 +2016,7 @@ const FileTreeItem = ({
                       </>
                     );
                   })()}
-                </div>
+            </fieldset>
           </div>,
           document.body
         )}

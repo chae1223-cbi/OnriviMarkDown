@@ -29,7 +29,8 @@ export async function onRequestPost(context) {
     const { supabaseUrl, headers } = getSupabaseConfig(env);
     
     const body = await request.json();
-    const { email, role, adminId } = body;
+    const { email, role } = body;
+    const adminId = request.headers.get('x-verified-admin-id');
 
     if (!email || !role) {
       return jsonResponse({ success: false, error: '이메일과 권한(Role)은 필수입니다.' }, 400);
@@ -109,7 +110,8 @@ export async function onRequestPatch(context) {
     const { supabaseUrl, headers } = getSupabaseConfig(env);
 
     const body = await request.json();
-    const { adminTargetId, targetEmail, newRole, adminId } = body;
+    const { adminTargetId, targetEmail, newRole } = body;
+    const adminId = request.headers.get('x-verified-admin-id');
 
     if (!adminTargetId || !newRole || !targetEmail) {
       return jsonResponse({ success: false, error: '필수 파라미터가 누락되었습니다.' }, 400);
@@ -153,7 +155,7 @@ export async function onRequestDelete(context) {
     const url = new URL(request.url);
     const adminTargetId = url.searchParams.get('adminTargetId');
     const targetEmail = url.searchParams.get('targetEmail');
-    const adminId = url.searchParams.get('adminId');
+    const adminId = request.headers.get('x-verified-admin-id');
 
     if (!adminTargetId || !targetEmail) {
       return jsonResponse({ success: false, error: '필수 파라미터가 누락되었습니다.' }, 400);

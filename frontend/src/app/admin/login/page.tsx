@@ -1,3 +1,4 @@
+/** 🚨 @PATCH : 2026-09-28 — 관리자 로그인 화면의 배경·카드·버튼을 DESIGN.md의 앱 UI 토큰으로 통일 */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { showToast } from '@/utils/toast';
 
-type LoginStep = 'GOOGLE_OAUTH' | 'OTP_ENROLL' | 'OTP_VERIFY' | 'LOADING';
+type LoginStep = 'GOOGLE_OAUTH' | 'OTP_ENROLL' | 'OTP_VERIFY' | 'LOADING' | 'AUTH_ERROR';
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
   const [timeLeft, setTimeLeft] = useState(120);
+  const [retryKey, setRetryKey] = useState(0);
   
   // Supabase MFA States
   const [factorId, setFactorId] = useState('');
@@ -24,30 +26,33 @@ export default function AdminLogin() {
     let mounted = true;
 
     async function checkAuthState() {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
       if (!session) {
         if (mounted) setStep('GOOGLE_OAUTH');
         return;
       }
 
       // 1. 관리자 권한 확인 (admins 테이블)
-      const { data: adminData } = await supabase
+      const { data: adminData, error: adminError } = await supabase
         .from('admins')
-        .select('id')
+        .select('admin_role')
         .eq('user_id', session.user.id)
         .maybeSingle();
+      if (adminError) throw adminError;
 
-      if (!adminData) {
+      if (!adminData || !['SUPER', 'SUPPORT'].includes(adminData.admin_role)) {
         await supabase.auth.signOut();
-        showToast('최고 관리자 권한이 없습니다.', 'error');
+        showToast('관리자 권한이 없습니다.', 'error');
         if (mounted) setStep('GOOGLE_OAUTH');
         return;
       }
 
       // 2. MFA 인증 레벨 확인
-      const { data: authLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const { data: authLevel, error: authLevelError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (authLevelError) throw authLevelError;
       const currentLevel = authLevel?.currentLevel;
-      const nextLevel = authLevel?.nextLevel;
       
       if (currentLevel === 'aal2') {
         // 이미 2단계 인증을 완료한 경우
@@ -56,7 +61,8 @@ export default function AdminLogin() {
       }
 
       // 3. 2단계 인증(MFA) 정보 불러오기
-      const { data: factorsData } = await supabase.auth.mfa.listFactors();
+      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+      if (factorsError) throw factorsError;
       const totpFactor = factorsData?.totp[0];
 
       if (!totpFactor || totpFactor.status !== 'verified') {
@@ -77,6 +83,7 @@ export default function AdminLogin() {
         if (enrollError) {
           console.error('Enroll Error:', enrollError);
           showToast('OTP 등록 중 오류가 발생했습니다.', 'error');
+          if (mounted) setStep('AUTH_ERROR');
           return;
         }
         if (mounted) {
@@ -90,6 +97,7 @@ export default function AdminLogin() {
         if (challengeError) {
           console.error('Challenge Error:', challengeError);
           showToast('인증 정보를 불러오는 중 오류가 발생했습니다.', 'error');
+          if (mounted) setStep('AUTH_ERROR');
           return;
         }
         if (mounted) {
@@ -98,12 +106,17 @@ export default function AdminLogin() {
           setStep('OTP_VERIFY');
         }
       }
+      } catch (error) {
+        console.error('Admin authentication check failed:', error);
+        showToast('로그인 상태를 확인하지 못했습니다. 다시 시도해주세요.', 'error');
+        if (mounted) setStep('AUTH_ERROR');
+      }
     }
 
     checkAuthState();
 
     return () => { mounted = false; };
-  }, [router]);
+  }, [router, retryKey]);
 
   // OTP 시간 제한 (2분)
   useEffect(() => {
@@ -190,8 +203,19 @@ export default function AdminLogin() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    setIsLoading(true);
+    const { error } = await supabase.auth.signOut();
+    setIsLoading(false);
+    if (error) {
+      showToast('인증을 취소하지 못했습니다. 다시 시도해주세요.', 'error');
+      return;
+    }
+    setOtpCode(['', '', '', '', '', '']);
+    setFactorId('');
+    setChallengeId('');
+    setQrCodeSvg('');
     setStep('GOOGLE_OAUTH');
+    router.replace('/admin/login');
   };
 
   const handleOtpChange = (index: number, value: string) => {
@@ -222,52 +246,10 @@ export default function AdminLogin() {
   }
 
   return (
-    <div 
-      className="relative min-h-screen w-full overflow-hidden flex items-center justify-center p-6 bg-[#F8F9FA]" 
-      style={{
-        background: `radial-gradient(circle at 20% 30%, rgba(29, 78, 216, 0.08) 0%, transparent 40%),
-                     radial-gradient(circle at 80% 20%, rgba(77, 115, 255, 0.08) 0%, transparent 40%),
-                     radial-gradient(circle at 50% 80%, rgba(29, 78, 216, 0.05) 0%, transparent 50%),
-                     linear-gradient(135deg, #F8F9FA 0%, #EFF2F5 100%)`,
-        fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif"
-      }}
-    >
-      <style dangerouslySetInnerHTML={{__html: `
-        .admin-glass-card {
-          background: #FFFFFF;
-          border: 1px solid #EFEFEF;
-          box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
-          border-radius: 32px;
-        }
-        .google-btn {
-          background: #1d4ed8;
-          color: #FFFFFF;
-          transition: all 0.2s ease;
-        }
-        .google-btn:hover:not(:disabled) {
-          background: #05B34C;
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(29, 78, 216, 0.3);
-        }
-        .google-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .otp-input {
-          background: #F8F9FA;
-          border: 1px solid #E5E7EB;
-          color: #111827;
-        }
-        .otp-input:focus {
-          background: #FFFFFF;
-          border-color: #1d4ed8;
-          box-shadow: 0 0 0 1px #1d4ed8;
-          outline: none;
-        }
-      `}} />
+    <div className="relative min-h-screen w-full overflow-hidden flex items-center justify-center bg-[var(--admin-bg)] px-4 py-8">
 
-      <main className="w-full max-w-[1336px] h-full flex items-center justify-center p-6 relative z-10">
-        <section className="admin-glass-card w-full max-w-[620px] flex flex-col items-center justify-center p-12 text-zinc-900 animate-in zoom-in-95 duration-500">
+      <main className="w-full h-full flex items-center justify-center relative z-10">
+        <section className="admin-glass-card w-full max-w-[520px] flex flex-col items-center justify-center px-6 py-10 sm:p-10 text-zinc-900 animate-in zoom-in-95 duration-500">
           
           <div className="mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-[#1d4ed8]/15 text-[#1d4ed8]">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -277,12 +259,12 @@ export default function AdminLogin() {
           
           <div className="text-center mb-10">
             <h1 className="text-4xl font-bold mb-3 tracking-tight text-zinc-900">
-              {step === 'GOOGLE_OAUTH' ? '온리비 어드민' : '2단계 인증'}
+              {step === 'GOOGLE_OAUTH' ? '온리비 어드민' : step === 'AUTH_ERROR' ? '로그인 확인 오류' : '2단계 인증'}
             </h1>
             <p className="text-base text-zinc-500 font-normal">
-              {step === 'GOOGLE_OAUTH' ? '관리자 전용 대시보드에 접속하세요' : '스마트폰 OTP 앱의 6자리 코드를 입력하세요'}
+              {step === 'GOOGLE_OAUTH' ? '관리자 전용 대시보드에 접속하세요' : step === 'AUTH_ERROR' ? '일시적인 오류가 발생했습니다. 로그인 상태를 다시 확인해 주세요.' : '스마트폰 OTP 앱의 6자리 코드를 입력하세요'}
             </p>
-            {step !== 'GOOGLE_OAUTH' && (
+            {(step === 'OTP_ENROLL' || step === 'OTP_VERIFY') && (
               <p className="mt-3 text-sm font-semibold text-red-600 animate-pulse">
                 남은 시간: {formatTime(timeLeft)}
               </p>
@@ -293,7 +275,7 @@ export default function AdminLogin() {
             <button 
               onClick={handleGoogleLogin} 
               disabled={isLoading}
-              className="google-btn w-full max-w-[450px] h-[72px] rounded-full flex items-center px-2 py-2 mb-16 shadow-lg group relative overflow-hidden animate-in slide-in-from-bottom-4 duration-500"
+              className="admin-btn-primary w-full max-w-[450px] min-h-14 rounded-lg flex items-center px-2 py-2 mb-8 group relative overflow-hidden animate-in slide-in-from-bottom-4 duration-500"
             >
               <div className="bg-white rounded-full w-[56px] h-[56px] flex items-center justify-center flex-shrink-0">
                 {isLoading ? (
@@ -307,12 +289,18 @@ export default function AdminLogin() {
                   </svg>
                 )}
               </div>
-              <span className="flex-grow text-center text-2xl font-medium pr-14">Google 계정으로 계속하기</span>
+              <span className="flex-grow text-center text-base font-semibold pr-14">Google 계정으로 계속하기</span>
             </button>
           )}
 
-          {step !== 'GOOGLE_OAUTH' && (
-            <div className="w-full max-w-[450px] mb-12 flex flex-col items-center animate-in slide-in-from-bottom-4 duration-500">
+          {step === 'AUTH_ERROR' && (
+            <button type="button" onClick={() => { setStep('LOADING'); setRetryKey(key => key + 1); }} className="admin-btn-primary w-full max-w-[450px] py-3 font-semibold mb-8">
+              로그인 상태 다시 확인
+            </button>
+          )}
+
+          {(step === 'OTP_ENROLL' || step === 'OTP_VERIFY') && (
+            <div className="w-full max-w-[450px] mb-8 flex flex-col items-center animate-in slide-in-from-bottom-4 duration-500">
               
               {step === 'OTP_ENROLL' && (
                 <div className="bg-white rounded-xl flex items-center justify-center mb-8 shadow-lg p-4">
@@ -336,7 +324,7 @@ export default function AdminLogin() {
                       value={digit}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className="otp-input w-12 h-16 sm:w-14 sm:h-16 text-center text-3xl font-bold rounded-2xl transition-all shadow-inner"
+                      className="w-12 h-16 sm:w-14 sm:h-16 text-center text-3xl font-bold rounded-lg transition-all"
                     />
                   ))}
                 </div>
@@ -345,7 +333,7 @@ export default function AdminLogin() {
                   <button
                     type="submit"
                     disabled={isLoading || otpCode.join('').length < 6}
-                    className="google-btn w-full h-[64px] rounded-full flex items-center justify-center px-6 py-2 shadow-lg group disabled:opacity-50"
+                    className="admin-btn-primary w-full min-h-12 flex items-center justify-center px-6 py-2 group disabled:opacity-50"
                   >
                     <span className="text-xl font-medium flex items-center gap-2">
                       {isLoading ? (
@@ -362,7 +350,7 @@ export default function AdminLogin() {
                     type="button"
                     onClick={handleEnrollDone}
                     disabled={isLoading}
-                    className="google-btn w-full h-[64px] rounded-full flex items-center justify-center px-6 py-2 shadow-lg group disabled:opacity-50"
+                    className="admin-btn-primary w-full min-h-12 flex items-center justify-center px-6 py-2 group disabled:opacity-50"
                   >
                     <span className="text-xl font-medium flex items-center gap-2">
                       {isLoading ? (
@@ -378,17 +366,18 @@ export default function AdminLogin() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="mt-6 text-sm text-white/50 hover:text-white/80 transition-colors"
+                disabled={isLoading}
+                className="mt-6 rounded-full px-6 py-3 text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 transition-colors"
               >
-                다른 계정으로 로그인하기 (로그아웃)
+                인증 취소 · 로그인 화면으로 돌아가기
               </button>
             </div>
           )}
           
-          <footer className="flex items-center gap-4 text-sm text-white/60 font-normal mt-auto">
-            <a className="hover:text-white transition-colors" href="#">개인정보처리방침</a>
-            <span className="opacity-30">|</span>
-            <a className="hover:text-white transition-colors" href="#">이용약관</a>
+          <footer className="flex items-center gap-4 text-sm text-slate-600 font-normal mt-auto">
+            <a className="hover:text-[#1d4ed8] transition-colors" href="#">개인정보처리방침</a>
+            <span className="text-slate-300">|</span>
+            <a className="hover:text-[#1d4ed8] transition-colors" href="#">이용약관</a>
           </footer>
         </section>
       </main>

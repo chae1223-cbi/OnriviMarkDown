@@ -1,6 +1,8 @@
+/** 🚨 @PATCH : 2026-09-28 — 사용자별 요금제 변경 화면에 현재 주기와 관리자 수동 무료/유료 구분을 제공 */
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sql } from '@/lib/db';
+import { verifyAdmin } from '@/lib/adminAuth';
 
 // Supabase Service Role Key is required to manage users globally
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
@@ -18,6 +20,8 @@ const supabaseAdmin = supabaseUrl && supabaseServiceKey
 
 export async function GET(req: Request) {
   try {
+    const auth = await verifyAdmin(req);
+    if (!auth.user) return NextResponse.json({ success: false, error: auth.error }, { status: 403 });
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
@@ -137,6 +141,9 @@ export async function GET(req: Request) {
           nick_name: u.nick_name || '-',
           plan: displayPlan,
           plan_code: rawPlan, // Keep original for filtering
+          billing_cycle: sub?.billing_cycle || 'NONE',
+          admin_grant_type: String(sub?.payment_no || '').startsWith('ADMIN-FREE-') ? 'FREE' :
+            String(sub?.payment_no || '').startsWith('ADMIN-PAID-') ? 'PAID' : null,
           status: currentStatus,
           date: u.created_at ? new Date(u.created_at).toISOString().split('T')[0] : '-',
           last_login: authUser?.last_sign_in_at ? new Date(authUser.last_sign_in_at).toLocaleString('ko-KR') : '-',
@@ -211,8 +218,11 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const auth = await verifyAdmin(req);
+    if (!auth.user) return NextResponse.json({ success: false, error: auth.error }, { status: 403 });
     const body = await req.json();
-    const { action, userId, reason, adminId } = body;
+    const { action, userId, reason } = body;
+    const adminId = auth.user.id;
 
     if (!userId || !action) {
       return NextResponse.json({ success: false, error: 'Missing parameters' }, { status: 400 });

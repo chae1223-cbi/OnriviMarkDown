@@ -1,8 +1,10 @@
+/** 🚨 @PATCH : 2026-09-28 — FAQ 편집 모달의 보조 버튼을 관리자 공통 디자인 토큰으로 통일 */
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import { adminFetch } from '@/lib/adminFetch';
 import { showToast } from '@/utils/toast';
 
 interface FAQ {
@@ -45,7 +47,7 @@ export default function FaqsTab() {
 
   const fetchFaqs = async () => {
     try {
-      const res = await fetch('/api/faqs?admin=true');
+      const res = await adminFetch('/api/faqs?admin=true');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setFaqs(data);
@@ -70,13 +72,13 @@ export default function FaqsTab() {
 
       let res;
       if (editingFaq) {
-        res = await fetch(`/api/faqs/${editingFaq.id}`, {
+        res = await adminFetch(`/api/faqs/${editingFaq.id}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify(form)
         });
       } else {
-        res = await fetch('/api/faqs', {
+        res = await adminFetch('/api/faqs', {
           method: 'POST',
           headers,
           body: JSON.stringify(form)
@@ -102,7 +104,7 @@ export default function FaqsTab() {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`/api/faqs/${id}`, {
+      const res = await adminFetch(`/api/faqs/${id}`, {
         method: 'DELETE',
         headers
       });
@@ -151,12 +153,12 @@ export default function FaqsTab() {
 
   const swapSortOrders = async (faq1: FAQ, faq2: FAQ) => {
     try {
-      await fetch(`/api/faqs/${faq1.id}`, {
+      await adminFetch(`/api/faqs/${faq1.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...faq1, sort_order: faq2.sort_order })
       });
-      await fetch(`/api/faqs/${faq2.id}`, {
+      await adminFetch(`/api/faqs/${faq2.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...faq2, sort_order: faq1.sort_order })
@@ -306,7 +308,7 @@ export default function FaqsTab() {
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--admin-border)] shrink-0">
               <button
                 onClick={() => setModalOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface)] rounded-lg transition-colors"
+                className="admin-btn-secondary"
               >
                 닫기
               </button>
