@@ -43,10 +43,10 @@ export function WebSessionRevocationGuard() {
           hadSession = true;
         } else if (data.exists === false && hadSession) {
           signingOut = true;
-          clearAuthSessionStorage();
           try {
             await supabase.auth.signOut({ scope: 'local' });
           } finally {
+            clearAuthSessionStorage();
             window.location.replace('/login?session=revoked');
           }
         }

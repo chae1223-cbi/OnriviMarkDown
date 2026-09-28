@@ -6,6 +6,7 @@ import { X, Image as ImageIcon, Upload, Link as LinkIcon, Eye } from 'lucide-rea
 import { supabase } from '@/lib/supabaseClient';
 import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { loadSecureData } from '@/lib/secureStorage';
+import { MediaAlignmentControl, MediaSizeInputs, type MediaAlign } from '@/components/MediaLayoutFields';
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -56,7 +57,7 @@ export default function ImageModal({
   const [imageAlt, setImageAlt] = useState("이미지 설명");
   const [imageWidth, setImageWidth] = useState("");
   const [imageHeight, setImageHeight] = useState("");
-  const [imageAlign, setImageAlign] = useState("center");
+  const [imageAlign, setImageAlign] = useState<MediaAlign>('center');
   const [localBlobUrl, setLocalBlobUrl] = useState("");
   const [tempPreviewUrl, setTempPreviewUrl] = useState("");
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -84,7 +85,7 @@ export default function ImageModal({
         setImageAlt(initialData.alt);
         setImageWidth(initialData.width);
         setImageHeight(initialData.height || "");
-        setImageAlign(initialData.align || "center");
+        setImageAlign((['left', 'center', 'right'].includes(initialData.align) ? initialData.align : 'center') as MediaAlign);
       } else {
         setImagePath("");
         setImageAlt("이미지 설명");
@@ -675,64 +676,12 @@ export default function ImageModal({
                     }`}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">가로 (PX)</label>
-                    <input
-                      type="text"
-                      value={imageWidth}
-                      onChange={(e) => setImageWidth(e.target.value)}
-                      placeholder="600px 또는 100%"
-                      className={`w-full font-mono text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
-                        isDarkMode
-                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/30'
-                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/20'
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 mb-1 block">세로 (PX)</label>
-                    <input
-                      type="text"
-                      value={imageHeight}
-                      onChange={(e) => setImageHeight(e.target.value)}
-                      placeholder="auto 또는 400px"
-                      className={`w-full font-mono text-xs border rounded px-3 py-2.5 outline-none focus:ring-1 transition-all ${
-                        isDarkMode
-                          ? 'bg-zinc-800 border-zinc-700 text-white placeholder-zinc-600 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/30'
-                          : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#1d4ed8] focus:ring-[#1d4ed8]/20'
-                      }`}
-                    />
-                  </div>
-                </div>
+                <MediaSizeInputs width={imageWidth} height={imageHeight} onWidthChange={setImageWidth} onHeightChange={setImageHeight} isDarkMode={isDarkMode} />
               </div>
             </div>
 
             {/* 정렬 */}
-            <div className={`rounded-lg p-4 border ${
-              isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
-            }`}>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 mb-3 block">
-                정렬
-              </label>
-              <div className="flex gap-2">
-                {(['left', 'center', 'right'] as const).map((align) => (
-                  <button
-                    key={align}
-                    onClick={() => setImageAlign(align)}
-                    className={`flex-1 py-2.5 rounded text-xs font-bold transition-all border ${
-                      imageAlign === align
-                        ? 'bg-[#1d4ed8] text-white border-[#1d4ed8] shadow-sm'
-                        : isDarkMode
-                          ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
-                          : 'border-slate-300 bg-slate-50 text-slate-500 hover:text-slate-700 hover:border-slate-400'
-                    }`}
-                  >
-                    {align === 'left' ? '⬅ 왼쪽' : align === 'center' ? '↔ 가운데' : '오른쪽 ➡'}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <MediaAlignmentControl align={imageAlign} onChange={setImageAlign} isDarkMode={isDarkMode} />
           </div>
 
           {/* ─── RIGHT PANEL: Preview ─── */}

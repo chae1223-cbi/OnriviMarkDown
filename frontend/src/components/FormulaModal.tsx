@@ -173,7 +173,7 @@ export default function FormulaModal({ isOpen, onClose, onInsert, isDarkMode }: 
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" style={{ overflowY: "auto" }}>
-      <div className="absolute inset-0 bg-black/80 dark:bg-black/80 backdrop-blur-md" onClick={onClose} />
+      <div className="absolute inset-0 bg-transparent" onClick={onClose} />
       
       <div className={`relative w-full max-w-[800px] shadow-2xl rounded-2xl flex flex-col animate-in zoom-in-95 duration-200 border ${
         isDarkMode ? 'bg-[#1e2022] border-[#44474e] text-white' : 'bg-white border-[#c1c6d7] text-zinc-900'

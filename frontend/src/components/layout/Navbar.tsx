@@ -23,6 +23,8 @@ import Link from "next/link"; // next/link : 페이지 이동
 import { useRouter } from "next/navigation"; // useRouter : 페이지 이동
 import { supabase } from "@/lib/supabaseClient"; // supabase : 데이터베이스 연동
 import { clearAuthSessionStorage } from "@/lib/authSessionHelper";
+import { logoutCurrentWebSession } from "@/lib/logoutWebSession";
+import toast from 'react-hot-toast';
 
 // =====================================================================
 // 인터페이스 선언 
@@ -118,24 +120,19 @@ export function Navbar({ content }: { content?: NavbarContent }) {
   // =====================================================================
   const handleLogout = async () => {
     try { // try : 예외 처리를 위한 블록 
-      const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'); // sessionId : 세션 ID
-      const paymentNo = localStorage.getItem('onrivi_payment_no'); // paymentNo : 결제 번호 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (sessionId && paymentNo) { // 세션 ID와 결제 번호가 모두 있는 경우
-        await fetch('/api/device/deactivate', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId, p_user_id: session?.user?.id }) 
-        }); // API 호출로 세션 비활성화 
-      }
+      await logoutCurrentWebSession();
       // 🚨 @PATCH : 2026-09-17 환경설정(Gemini API 키 등)을 안전하게 보존하고 인증 세션만 선별 삭제
-      clearAuthSessionStorage();
-      await supabase.auth.signOut(); // 로그아웃 
+      try {
+        await supabase.auth.signOut({ scope: 'local' }); // 인증 토큰을 지우기 전에 로그아웃
+      } finally {
+        clearAuthSessionStorage();
+      }
       setUserEmail(null); // 사용자 이메일을 null로 설정 
       setIsLoggedIn(false); // 로그인 상태를 false로 설정 
       router.push("/"); // 메인 페이지로 이동
     } catch (e) { // catch : 예외 처리를 위한 블록 
       console.error("[Navbar] 로그아웃 에러:", e); // 에러 로그 출력
+      toast.error(e instanceof Error ? e.message : '로그아웃 중 문제가 발생했습니다.');
     }
   };
 

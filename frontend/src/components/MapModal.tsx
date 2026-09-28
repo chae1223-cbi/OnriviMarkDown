@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Plus, Minus, MapPin, Copy, Check, Map } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
+import { MediaAlignmentControl, MediaSizeInputs, normalizeMediaDimension, type MediaAlign } from '@/components/MediaLayoutFields';
 
 interface MapModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   const [zoom, setZoom] = useState(15);
   const [mapWidth, setMapWidth] = useState("600");
   const [mapHeight, setMapHeight] = useState("350");
-  const [mapAlign, setMapAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [mapAlign, setMapAlign] = useState<MediaAlign>('center');
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -90,7 +91,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   }, [cleanCoords, zoom, isDarkMode]);
 
   const [latVal, lngVal] = cleanCoords.split(',').map(s => s.trim());
-  const mapCode = `<iframe src="https://maps.google.com/maps?q=${latVal},${lngVal}&z=${zoom}&output=embed" style="width:${mapWidth}px; height:${mapHeight}px; border:0;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
+  const mapCode = `<iframe src="https://maps.google.com/maps?q=${latVal},${lngVal}&z=${zoom}&output=embed" style="width:${normalizeMediaDimension(mapWidth, '600px')}; height:${normalizeMediaDimension(mapHeight, '350px')}; border:0;" allowfullscreen loading="lazy" data-align="${mapAlign}"></iframe>`;
 
   const handleInsert = () => {
     onInsert(`\n${mapCode}\n`);
@@ -223,48 +224,8 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1 shrink-0">
               {/* Dimensions and Alignment */}
               <div className="space-y-4">
-                <div className="flex items-center space-x-4">
-                  <div className="flex-1 space-y-1">
-                    <label className="text-[9px] font-black text-slate-500 dark:text-zinc-400 tracking-wider uppercase">너비 (PX)</label>
-                    <input 
-                      type="number" 
-                      value={mapWidth} 
-                      onChange={(e) => setMapWidth(e.target.value)}
-                      className={`w-full border-transparent focus:border-indigo-500/20 focus:ring-0 rounded-lg p-2.5 text-xs font-bold ${
-                        isDarkMode ? 'bg-zinc-900' : 'bg-slate-50'
-                      }`} 
-                    />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <label className="text-[9px] font-black text-slate-500 dark:text-zinc-400 tracking-wider uppercase">높이 (PX)</label>
-                    <input 
-                      type="number" 
-                      value={mapHeight} 
-                      onChange={(e) => setMapHeight(e.target.value)}
-                      className={`w-full border-transparent focus:border-indigo-500/20 focus:ring-0 rounded-lg p-2.5 text-xs font-bold ${
-                        isDarkMode ? 'bg-zinc-900' : 'bg-slate-50'
-                      }`} 
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-500 dark:text-zinc-400 tracking-wider uppercase">정렬</label>
-                  <div className={`flex p-1 rounded-lg ${isDarkMode ? 'bg-zinc-900' : 'bg-slate-50'}`}>
-                    {(['left', 'center', 'right'] as const).map((align) => (
-                      <button 
-                        key={align}
-                        onClick={() => setMapAlign(align)}
-                        className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all ${
-                          mapAlign === align
-                            ? 'bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm ring-1 ring-slate-200/40 dark:ring-zinc-700/40'
-                            : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
-                        }`}
-                      >
-                        {align === 'left' ? '왼쪽' : align === 'center' ? '가운데' : '오른쪽'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <MediaSizeInputs width={mapWidth} height={mapHeight} onWidthChange={setMapWidth} onHeightChange={setMapHeight} isDarkMode={isDarkMode} />
+                <MediaAlignmentControl align={mapAlign} onChange={setMapAlign} isDarkMode={isDarkMode} />
               </div>
 
               {/* Code Block Area */}

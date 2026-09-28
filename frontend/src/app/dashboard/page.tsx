@@ -12,6 +12,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'; // 🔗
 import { useRouter } from 'next/navigation'; // 🔗 Next.js 라우터 — 페이지 이동(router.push) 및 쿼리 파라미터 접근
 import { supabase } from '@/lib/supabaseClient'; // 🔗 Supabase 클라이언트 — Auth 세션 관리, DB 쿼리(from), RPC 호출
 import { clearAuthSessionStorage } from '@/lib/authSessionHelper';
+import { logoutCurrentWebSession } from '@/lib/logoutWebSession';
 import {
   Laptop, Power, RefreshCw, Key, ShieldCheck, AlertCircle,
   LogOut, ArrowRight, User, Calendar, CreditCard,
@@ -252,18 +253,18 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   // 🚨 @PATCH : 2026-09-05 — 로그아웃 시 온리비 관련 모든 로컬스토리지 키 완전 파기 (계정 간 오염 차단)
   //             2026-06-22 — 로그아웃 시 접속 세션 자동 제거 (Navbar와 동일 로직)
   const handleLogout = async () => { // 🚪 수동 로그아웃 — 세션 제거 + DB 정리 + signOut
-    const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'); // 💻 현재 브라우저 세션 ID
-    const paymentNo = localStorage.getItem('onrivi_payment_no'); // 🔑 현재 결제번호
-    if (sessionId && paymentNo) { // 🔑 세션/결제번호 모두 있을 때만 DB 세션 제거
-      await fetch('/api/device/deactivate', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId, p_user_id: user?.id }) 
-      }); // 🔗 API 호출 — license_activations에서 해당 세션 삭제
+    try {
+      await logoutCurrentWebSession();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '웹 세션 해제에 실패했습니다.', 'error');
+      return;
     }
     // 🚨 @PATCH : 2026-09-17 환경설정(Gemini API 키 등)을 안전하게 보존하고 인증 세션만 선별 삭제
-    clearAuthSessionStorage();
-    await supabase.auth.signOut({ scope: 'local' }); // 🚪 Supabase Auth 로컬 로그아웃
+    try {
+      await supabase.auth.signOut({ scope: 'local' }); // 🚪 토큰이 남아 있을 때 로그아웃
+    } finally {
+      clearAuthSessionStorage();
+    }
     router.push('/'); // 🏠 루트 페이지로 이동
   };
 
@@ -460,6 +461,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   // -------------------------------------------------------------------------------------
   const handleSelectPlan = async (plan: any) => { // 🎯 요금제 선택
     if (!user) return; // 🛡️ 유저 정보가 없을 때
+    if (['REGULAR', 'ELITEPRO'].includes(String(plan.plan_code).toUpperCase())) return;
     setActionLoading('plan_' + plan.id); // ⏳ 로딩 상태 설정
 
     try {
@@ -933,6 +935,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
               const planInterval = plan.is_free ? 'trial' : (plan.price_monthly > 0 && plan.price_yearly > 0 ? billingInterval : plan.price_yearly > 0 ? 'year' : 'month');
               const isSameInterval = plan.is_free ? true : subscription?.billing_cycle === (planInterval === 'year' ? 'YEARLY' : 'MONTHLY');
               const planCode = plan.plan_code;
+              const isComingSoon = ['REGULAR', 'ELITEPRO'].includes(String(planCode).toUpperCase());
               const isCurrentPlan = (subscription?.plan_name === planCode) && (subscription?.plan_status === 'ACTIVE' || subscription?.plan_status === 'FREE') && isSameInterval;
 
               const priceVal = plan.is_free ? 0
@@ -969,6 +972,11 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                       현재 플랜
                     </div>
                   )}
+                  {isComingSoon && (
+                    <div style={{ alignSelf: 'flex-start', marginBottom: 10, padding: '3px 9px', borderRadius: 9999, background: 'rgba(148,163,184,0.14)', color: T.muted, fontSize: 11, fontWeight: 700 }}>
+                      공사중 · 결제 서비스 준비 중
+                    </div>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                     <span style={{ fontSize: 18 }}>{plan.tier_emoji}</span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: T.onSurface }}>{plan.name}</span>
@@ -987,24 +995,26 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                     <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
                       <button
                         onClick={() => setBillingInterval('month')}
+                        disabled={isComingSoon}
                         style={{
                           flex: 1, padding: "4px 0", fontSize: 11, fontWeight: 600, borderRadius: "0.5rem",
                           border: `1px solid ${billingInterval === 'month' ? T.primary : T.border}`,
                           background: billingInterval === 'month' ? T.primary : "transparent",
                           color: billingInterval === 'month' ? "#fff" : T.subtle,
-                          cursor: "pointer", transition: "all 0.15s",
+                          cursor: isComingSoon ? "not-allowed" : "pointer", opacity: isComingSoon ? 0.6 : 1, transition: "all 0.15s",
                         }}
                       >
                         월간 {plan.price_monthly?.toLocaleString()}원
                       </button>
                       <button
                         onClick={() => setBillingInterval('year')}
+                        disabled={isComingSoon}
                         style={{
                           flex: 1, padding: "4px 0", fontSize: 11, fontWeight: 600, borderRadius: "0.5rem",
                           border: `1px solid ${billingInterval === 'year' ? T.primary : T.border}`,
                           background: billingInterval === 'year' ? T.primary : "transparent",
                           color: billingInterval === 'year' ? "#fff" : T.subtle,
-                          cursor: "pointer", transition: "all 0.15s",
+                          cursor: isComingSoon ? "not-allowed" : "pointer", opacity: isComingSoon ? 0.6 : 1, transition: "all 0.15s",
                         }}
                       >
                         연간 {plan.price_yearly?.toLocaleString()}원
@@ -1022,7 +1032,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                   </ul>
                   
                   {(() => {
-                    const unavailable = isCurrentPlan || freeAlreadyUsed || invalidPrice || actionLoading === 'plan_' + plan.id;
+                    const unavailable = isComingSoon || isCurrentPlan || freeAlreadyUsed || invalidPrice || actionLoading === 'plan_' + plan.id;
                     return (
                       <button
                         onClick={() => handleSelectPlan(plan)}
@@ -1045,7 +1055,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                           opacity: unavailable ? 0.6 : 1,
                         }}
                       >
-                        {actionLoading === 'plan_' + plan.id ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : freeAlreadyUsed ? '무료 재신청 불가' : invalidPrice ? '가격 설정 필요' : plan.cta || '요금제 선택'}
+                        {isComingSoon ? '공사중' : actionLoading === 'plan_' + plan.id ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : freeAlreadyUsed ? '무료 재신청 불가' : invalidPrice ? '가격 설정 필요' : plan.cta || '요금제 선택'}
                       </button>
                     );
                   })()}
@@ -1054,7 +1064,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             })}
           </div>
            <div style={{ marginTop: 16, padding: "10px 14px", background: "rgba(99,102,241,0.04)", border: `1px solid rgba(99,102,241,0.10)`, borderRadius: "0.75rem", fontSize: 12, color: T.subtle, lineHeight: "18px" }}>
-             <strong style={{ color: T.primary }}>이용 안내:</strong> 요금제 선택 시 권한이 즉시 변경됩니다. 결제 연동은 추후 제공될 예정입니다.
+             <strong style={{ color: T.primary }}>이용 안내:</strong> Regular와 Elite Pro는 결제 서비스 연결 후 신청할 수 있습니다. 무료 플랜은 기존 조건에 따라 이용할 수 있습니다.
            </div>
         </div>
 

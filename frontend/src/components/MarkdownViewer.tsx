@@ -2382,9 +2382,11 @@ function MarkdownViewer({
                 finalSrc = `media://?url=${encodeURIComponent(actualSrc)}`;
               }
 
+              const videoAlign = props['data-align'] || node?.properties?.dataAlign || 'center';
+              const alignItems = videoAlign === 'left' ? 'flex-start' : videoAlign === 'right' ? 'flex-end' : 'center';
               return (
-                <figure data-line={extractDataLine(props, node)} className="onrivi-video-figure" style={{ display: 'flex', flexDirection: 'column', width: '100%', clear: 'both' }}>
-                  <div className="relative flex flex-col onrivi-video-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '100%' }}>
+                <figure data-line={extractDataLine(props, node)} className="onrivi-video-figure" style={{ display: 'flex', flexDirection: 'column', alignItems, width: '100%', clear: 'both' }}>
+                  <div className="relative flex flex-col onrivi-video-wrapper" style={{ display: 'flex', flexDirection: 'column', alignItems, width: '100%', maxWidth: '100%' }}>
                     <AsyncVideo
                       src={finalSrc}
                       absolutePath={absolutePath}
@@ -3049,7 +3051,7 @@ function MarkdownViewer({
 
               return (
                 <figure data-line={line} style={alignStyle} className={figureClass}>
-                  <div className={`relative flex flex-col ${wrapperClass}`} style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '100%' }}>
+                  <div className={`relative flex flex-col ${wrapperClass}`} style={{ display: 'flex', flexDirection: 'column', alignItems: alignStyle.alignItems, width: '100%', maxWidth: '100%' }}>
                     <iframe
                       {...props}
                       className={`rounded-xl shadow-md border border-zinc-200 dark:border-zinc-800 max-w-full ${className || ''}`}

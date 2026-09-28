@@ -7,6 +7,8 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { stripFrontmatter } from "@/lib/editorUtils";
 import { updateCssProfileInFrontmatter } from '@/lib/frontmatter';
 import { supabase } from '@/lib/supabaseClient';
+import { clearAuthSessionStorage } from '@/lib/authSessionHelper';
+import { logoutCurrentWebSession } from '@/lib/logoutWebSession';
 import { BROWSER_STORAGE_NAME } from '@/constants/storage';
 import { triggerKnowledgeAutoSyncOnSave } from '@/lib/knowledge/knowledgeAutoSync';
 import { cleanMarkdownDocument } from '@/utils/markdownCleaner';
@@ -871,14 +873,17 @@ export const useEditorHandlers = ({
         window.location.href = '/';
         return;
       }
-      const sessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
-      const paymentNo = localStorage.getItem('onrivi_payment_no');
-      if (sessionId && paymentNo) {
-        await fetch('/api/device/deactivate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: paymentNo, p_device_uuid: sessionId }) });
+      try {
+        await logoutCurrentWebSession();
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : '웹 세션 해제에 실패했습니다.', 'error');
+        return;
       }
-      localStorage.removeItem('onrivi_session_id');
-      Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
-      await supabase.auth.signOut({ scope: 'local' });
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } finally {
+        clearAuthSessionStorage();
+      }
       window.location.href = '/';
     },
     undo: () => editorRef.current?.trigger('keyboard', 'undo', null),

@@ -129,7 +129,7 @@ function StatusBar() {
     themePalette, handleThemeChange: onThemeChange,
     isActivated,
     isExpired,
-    activeProfileId, profiles, DEFAULT_PROFILE,
+    activeProfileId, profiles, DEFAULT_PROFILE, onSelectProfile, onOpenStyleSettings,
     editorRef,
     geminiApiKey,
     showToast,
@@ -146,6 +146,27 @@ function StatusBar() {
     lastActiveProfileNameRef.current = activeProfileName;
   }
   const displayProfileName = activeProfileName || lastActiveProfileNameRef.current || '기본 서식';
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) setIsProfileMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [isProfileMenuOpen]);
 
   const [localCursor, setLocalCursor] = useState({ line: cursorLine || 1, column: cursorColumn || 1 });
 
@@ -387,9 +408,39 @@ function StatusBar() {
       <div className="flex items-center gap-2 shrink-0">
         {displayProfileName && (
           <>
-            <span className="hidden md:inline-block max-w-[140px] xl:max-w-[240px] truncate text-blue-600 dark:text-blue-400 font-semibold align-middle" title={`현재 서식: ${displayProfileName}`}>
-              서식: {displayProfileName}
-            </span>
+            <div ref={profileMenuRef} className="hidden md:block relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsProfileMenuOpen(open => !open)}
+                aria-haspopup="listbox"
+                aria-expanded={isProfileMenuOpen}
+                className="flex items-center gap-1 max-w-[170px] xl:max-w-[265px] text-blue-600 dark:text-blue-400 font-semibold hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 rounded"
+                title={`서식 선택: ${displayProfileName}`}
+              >
+                <span className="truncate">서식: {displayProfileName}</span>
+                <span aria-hidden="true">▾</span>
+              </button>
+              {isProfileMenuOpen && (
+                <div role="listbox" aria-label="서식 선택" className="absolute bottom-full right-0 mb-2 w-64 max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1 z-50 whitespace-normal">
+                  {(profiles || []).map((profile: any) => (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      role="option"
+                      aria-selected={profile.id === activeProfileId}
+                      onClick={() => { onSelectProfile?.(profile.id); setIsProfileMenuOpen(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-blue-50 dark:hover:bg-zinc-800 ${profile.id === activeProfileId ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-700 dark:text-zinc-200'}`}
+                    >
+                      <span className="truncate">{profile.name}</span>
+                      {profile.id === activeProfileId && <span aria-hidden="true">✓</span>}
+                    </button>
+                  ))}
+                  <div className="border-t border-slate-200 dark:border-zinc-700 mt-1 pt-1">
+                    <button type="button" onClick={() => { setIsProfileMenuOpen(false); onOpenStyleSettings?.(); }} className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-300 hover:bg-blue-50 dark:hover:bg-zinc-800">서식 관리…</button>
+                  </div>
+                </div>
+              )}
+            </div>
             <span className="hidden md:inline shrink-0 text-black/20 dark:text-white/20">|</span>
           </>
         )}

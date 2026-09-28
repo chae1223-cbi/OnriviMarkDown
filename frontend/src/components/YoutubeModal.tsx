@@ -6,6 +6,7 @@ import { X, Check, Video, Upload, ExternalLink, Play, Link as LinkIcon } from 'l
 import { useToast } from '@/components/ToastProvider';
 import { loadSecureData } from '@/lib/secureStorage';
 import { supabase } from '@/lib/supabaseClient';
+import { MediaAlignmentControl, MediaSizeInputs, normalizeMediaDimension, type MediaAlign } from '@/components/MediaLayoutFields';
 
 interface YoutubeModalProps {
   isOpen: boolean;
@@ -54,6 +55,9 @@ export default function YoutubeModal({
   const [sourceUrl, setSourceUrl] = useState("");
   const [appliedPath, setAppliedPath] = useState("");
   const [customDisplayName, setCustomDisplayName] = useState("");
+  const [videoWidth, setVideoWidth] = useState('600');
+  const [videoHeight, setVideoHeight] = useState('340');
+  const [videoAlign, setVideoAlign] = useState<MediaAlign>('center');
 
   useEffect(() => {
     setMounted(true);
@@ -211,6 +215,21 @@ export default function YoutubeModal({
     return null;
   }, [appliedPath]);
   const displayName = isYoutube ? 'YouTube 동영상' : (originalFileName || cleanPath.split('/').pop()?.split('?')[0] || '동영상');
+  const escapeAttribute = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const insertCode = useMemo(() => {
+    const url = appliedPath || cleanPath;
+    if (!url) return '';
+    const width = normalizeMediaDimension(videoWidth, '600px');
+    const height = normalizeMediaDimension(videoHeight, '340px');
+    const title = escapeAttribute(customDisplayName.trim() || displayName);
+    if (isYoutube) {
+      return `<iframe src="https://www.youtube.com/embed/${detectedVideoId}" title="${title}" style="width:${width}; height:${height}; border:0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy" data-align="${videoAlign}"></iframe>`;
+    }
+    if (/\.(mp4|webm|ogg|mov)(?:[?#]|$)/i.test(url) || /^(\/media\/|\.\/media\/|\/assets\/|\.\/assets\/|media:|blob:|data:video\/)/i.test(url)) {
+      return `<video src="${escapeAttribute(url)}" title="${title}" controls style="width:${width}; height:${height};" data-align="${videoAlign}"></video>`;
+    }
+    return `[${customDisplayName.trim() || displayName}](${url})`;
+  }, [appliedPath, cleanPath, videoWidth, videoHeight, customDisplayName, displayName, isYoutube, detectedVideoId, videoAlign]);
 
   const previewSrc = useMemo(() => {
     let raw = sourceUrl;
@@ -265,14 +284,12 @@ export default function YoutubeModal({
       showToast('동영상 URL을 입력하거나 파일을 선택해주세요.', 'warning');
       return;
     }
-    const finalDisplayName = customDisplayName.trim() || displayName;
-    const linkUrl = isYoutube ? `https://www.youtube.com/watch?v=${detectedVideoId}` : url;
-    onInsert(`\n[${finalDisplayName}](${linkUrl})\n`);
+    onInsert(`\n${insertCode}\n`);
     setSourceUrl("");
     setAppliedPath("");
     setCustomDisplayName("");
     onClose();
-    showToast("동영상 링크가 본문에 삽입되었습니다.", "success");
+    showToast("동영상이 본문에 삽입되었습니다.", "success");
   };
 
   if (!isOpen) return null;
@@ -399,15 +416,21 @@ export default function YoutubeModal({
               />
             </div>
 
+            <div className={`rounded-lg p-4 border ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'}`}>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 mb-3 block">동영상 속성</label>
+              <MediaSizeInputs width={videoWidth} height={videoHeight} onWidthChange={setVideoWidth} onHeightChange={setVideoHeight} isDarkMode={isDarkMode} />
+            </div>
+            <MediaAlignmentControl align={videoAlign} onChange={setVideoAlign} isDarkMode={isDarkMode} />
+
             {/* 삽입 방식 안내 */}
             <div className={`rounded-lg p-4 border flex gap-3 ${
               isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200'
             }`}>
               <ExternalLink size={14} className="text-slate-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-bold text-slate-700 dark:text-zinc-200 leading-none mb-1">새 창 열기 링크로 삽입됩니다</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-zinc-200 leading-none mb-1">동영상을 본문에 삽입합니다</p>
                 <p className="text-[10px] text-slate-400 dark:text-zinc-500 leading-normal">
-                  동영상 링크를 클릭하면 새 브라우저 창에서 재생됩니다.
+                  YouTube와 동영상 파일은 본문에서 재생됩니다. 그 외 URL은 링크로 삽입됩니다.
                 </p>
               </div>
             </div>
@@ -514,7 +537,7 @@ export default function YoutubeModal({
                   <div className={`mt-1.5 font-mono text-[10px] truncate ${
                     isDarkMode ? 'text-[#1d4ed8]' : 'text-[#1d4ed8]'
                   }`}>
-                    [{customDisplayName.trim() || displayName}]({isYoutube ? `https://www.youtube.com/watch?v=${detectedVideoId}` : (appliedPath || cleanPath)})
+                    {insertCode}
                   </div>
                 </div>
               )}

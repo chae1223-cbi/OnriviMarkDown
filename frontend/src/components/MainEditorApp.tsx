@@ -2267,10 +2267,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 if (pNo && sId) {
                   await fetch(getApiUrl('/api/device/deactivate'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payment_no: pNo, p_device_uuid: sId }) });
                 }
-                if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('onrivi_tab_session_id');
-                localStorage.removeItem('onrivi_session_id');
-                Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
-                await supabase.auth.signOut({ scope: 'local' });
+                try {
+                  await supabase.auth.signOut({ scope: 'local' });
+                } finally {
+                  clearAuthSessionStorage();
+                }
                 if (!isDesktopEnv) {
                   window.location.href = '/login';
                 }
@@ -2536,7 +2537,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           // 오직 현재 브라우저의 세션(activation_id 또는 sessionId/deviceId)이 삭제되었을 때만 강제 로그아웃
           if (payload.eventType === 'DELETE') {
             const currentActId = localStorage.getItem('onrivi_activation_id');
-            const currentSessionId = localStorage.getItem('onrivi_session_id') || deviceId;
+            const currentSessionId = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('onrivi_tab_session_id') : null) || localStorage.getItem('onrivi_session_id') || deviceId;
             const deletedId = payload.old?.id;
             const deletedUuid = payload.old?.device_uuid;
 
@@ -2552,8 +2553,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
             showToast("🛑 동시접속 관리에 의해 현재 기기의 세션이 강제 해제되었습니다. 보호를 위해 로그아웃됩니다.", "error");
             setTimeout(async () => {
               // 🚨 @PATCH : 2026-09-17 환경설정(Gemini API 키 등)을 안전하게 보존하고 인증 세션만 선별 삭제
-              clearAuthSessionStorage();
-              await supabase.auth.signOut({ scope: 'local' });
+              try {
+                await supabase.auth.signOut({ scope: 'local' });
+              } finally {
+                clearAuthSessionStorage();
+              }
               const isDesktop = typeof window !== 'undefined' && (!!(window as any).electronAPI || new URLSearchParams(window.location.search).get('env') === 'desktop');
               if (!isDesktop) {
                 window.location.href = '/login';
@@ -3932,18 +3936,19 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const selectedProfile = profiles.find(p => p.id === newProfileId);
     const profileName = selectedProfile ? selectedProfile.name : undefined;
     
-    if (editorRef.current) {
-      const currentModel = editorRef.current.getModel();
+    const currentModel = editorRef.current?.getModel();
+    const currentContent = currentModel?.getValue() ?? content;
+    const newContent = updateCssProfileInFrontmatter(currentContent, newProfileId, profileName);
+    if (currentContent !== newContent) {
       if (currentModel) {
-        const currentContent = currentModel.getValue();
-        const newContent = updateCssProfileInFrontmatter(currentContent, newProfileId, profileName);
-        if (currentContent !== newContent) {
-          currentModel.setValue(newContent);
-          // Monaco onDidChangeContent 이벤트가 발생하여 탭과 content 상태가 자동으로 갱신됨
-        }
+        currentModel.setValue(newContent);
+        // Monaco onDidChangeContent 이벤트가 발생하여 탭과 content 상태가 자동으로 갱신됨
+      } else {
+        // 미리보기 전용 화면에서도 현재 문서에 선택한 서식을 저장한다.
+        updateContent(newContent);
       }
     }
-  }, [setActiveProfileId, editorRef, profiles]);
+  }, [setActiveProfileId, editorRef, profiles, content, updateContent]);
 
   // 🟢 [권한 기반 초기 화면 제어: 웰컴 탭 영구 잠금 및 강제 노출 로직 2026-07-05]
   const prevRestrictedRef = useRef<boolean | null>(null);
@@ -7263,7 +7268,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     themePalette, handleThemeChange,
     licenseStatus: effectiveLicenseStatus, isExpired: effectiveLicenseStatus.isExpired,
     isAddonEnv, editorRef, previewRef, showToast, openTabPaths, refreshFileList,
-    driveLetter, profiles, activeProfileId, DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
+    driveLetter, profiles, activeProfileId, onSelectProfile: handleProfileChange, onOpenStyleSettings: () => setIsStyleModalOpen(true), DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
     saveStatus, isToolbarOpen, setIsToolbarOpen, isSidebarOpen, setIsSidebarOpen, isActivated: (!isDuplicateInstance && effectiveLicenseStatus.isActivated), THEME_MAP,
     isDuplicateInstance, takeOverControl, isEditorPlan,
     cursorLine,

@@ -38,6 +38,8 @@ export async function onRequestPost({ request, env }) {
         FROM public.pricing_plans WHERE plan_code = $1 AND is_active = true FOR SHARE`, [planCode]);
       const plan = selected.rows[0];
       if (!plan) return { code: 'PLAN_NOT_AVAILABLE', message: '선택할 수 없는 요금제입니다.', status: 400 };
+      // TODO(payment): 결제 승인 검증이 연결되기 전에는 유료 구독을 생성하지 않는다.
+      if (plan.is_free !== true) return { code: 'PAYMENT_NOT_READY', message: '유료 요금제는 결제 서비스 준비 중입니다.', status: 503 };
       if (!['WEB', 'DESKTOP'].includes(String(plan.sys_type).toUpperCase())) {
         return { code: 'PLAN_NOT_AVAILABLE', message: '지원하지 않는 요금제 유형입니다.', status: 400 };
       }
@@ -67,7 +69,7 @@ export async function onRequestPost({ request, env }) {
       const subId = crypto.randomUUID();
       const licenseKey = randomHex(8);
       const verifyKey = randomHex(8);
-      // TODO(payment): 실제 결제 승인과 금액 검증은 추후 개발. 현재는 선택 즉시 권한을 활성화한다.
+      // TODO(payment): 결제 승인과 금액 검증이 연결되면 유료 신청 경로를 별도로 개방한다.
       const paymentNo = `SUB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomHex(4)}`;
       const period = isFree ? '7 days' : cycle === 'YEARLY' ? '1 year' : '1 month';
 

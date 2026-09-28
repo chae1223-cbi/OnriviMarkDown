@@ -98,6 +98,45 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
 
   const [knowledgeDetailData, setKnowledgeDetailData] = React.useState<any | null>(null);
   const [indexProgressParams, setIndexProgressParams] = React.useState<KnowledgeIndexProgressParams | null>(null);
+  const openModalStack = React.useRef<string[]>([]);
+
+  React.useEffect(() => {
+    const entries = [
+      ['settings', isSettingsModalOpen, () => setIsSettingsModalOpen(false)],
+      ['resource', Boolean((modals as any).isResourceGuideModalOpen), () => (modals as any).setIsResourceGuideModalOpen?.(false)],
+      ['export', isExportModalOpen, () => setIsExportModalOpen(false)],
+      ['prompt', promptConfig.isOpen, () => setPromptConfig((prev: any) => ({ ...prev, isOpen: false, error: '' }))],
+      ['confirm', confirmConfig.isOpen, () => { confirmConfig.onCancel?.(); setConfirmConfig((prev: any) => ({ ...prev, isOpen: false })); }],
+      ['formula', isFormulaModalOpen, () => setIsFormulaModalOpen(false)],
+      ['merge', isMergeModalOpen, () => { setIsMergeModalOpen(false); setIsMergeMode(false); setSelectedMergeNodes([]); }],
+      ['license', isLicenseModalOpen, () => setIsLicenseModalOpen(false)],
+      ['image', isImageModalOpen, () => { setIsImageModalOpen(false); setEditingImageInfo(null); }],
+      ['video', isYoutubeModalOpen, () => { setIsYoutubeModalOpen(false); setYoutubeInitialUrl(null); }],
+      ['map', isMapModalOpen, () => setIsMapModalOpen(false)],
+      ['table', isTableModalOpen, () => setIsTableModalOpen(false)],
+      ['style', isStyleModalOpen, () => setIsStyleModalOpen(false)],
+      ['help', isHelpModalOpen, () => { setIsHelpModalOpen(false); setHelpContent(''); }],
+      ['reference', isReferenceModalOpen, () => setIsReferenceModalOpen(false)],
+      ['citation', isCitationModalOpen, () => setIsCitationModalOpen(false)],
+      ['knowledge-detail', Boolean(knowledgeDetailData), () => setKnowledgeDetailData(null)],
+      ['knowledge-progress', Boolean(indexProgressParams), () => setIndexProgressParams(null)],
+    ] as Array<[string, boolean, () => void]>;
+    const active = entries.filter(([, open]) => open).map(([key]) => key);
+    openModalStack.current = openModalStack.current.filter(key => active.includes(key));
+    active.forEach(key => { if (!openModalStack.current.includes(key)) openModalStack.current.push(key); });
+    if (!active.length) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const top = openModalStack.current[openModalStack.current.length - 1];
+      const entry = entries.find(([key]) => key === top);
+      if (!entry) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      entry[2]();
+    };
+    window.addEventListener('keydown', onEscape, true);
+    return () => window.removeEventListener('keydown', onEscape, true);
+  });
 
   React.useEffect(() => {
     const handleShowDetail = (e: any) => {
