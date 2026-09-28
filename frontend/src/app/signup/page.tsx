@@ -111,9 +111,9 @@ export default function SignupPage() {
       // 2. users 동기화
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const regRes = await fetch("/api/rpc/user/upsert", {
+        const regRes = await fetch("/api/user/upsert", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({
             p_id: userId,
             p_email: email.trim(),

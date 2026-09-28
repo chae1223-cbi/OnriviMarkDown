@@ -356,32 +356,8 @@ export function syncPreviewToTargetLine(
     }
   }
 
-  // 💡 [실시간 타이핑 및 긴 문단 가로 줄바꿈 사전 높이 예측]
-  // React preview DOM이 100ms 디바운스로 아직 갱신되지 않았더라도,
-  // 에디터 실제 라인 텍스트 길이 및 컬럼을 기반으로 예상 높이를 즉각 반영하여
-  // 타이핑 중에도 미리보기가 멈추지 않고 즉시 상향 추종하도록 보장
-  if (content && targetLine > 0) {
-    const lines = content.split('\n');
-    const targetLineText = lines[targetLine - 1] || '';
-    const charLen = targetLineText.length;
-    if (charLen > 0) {
-      const estimatedRows = Math.max(1, Math.ceil(charLen / 36));
-      const estimatedHeight = estimatedRows * 26 + 16;
-      const currentHeight = maxBottom - minTop;
-      if (estimatedHeight > currentHeight) {
-        maxBottom = minTop + estimatedHeight;
-      }
-    }
-  }
-
-  if (options?.column && options.column > 1) {
-    const colRows = Math.max(1, Math.ceil(options.column / 36));
-    const colHeight = colRows * 26 + 16;
-    const currentHeight = maxBottom - minTop;
-    if (colHeight > currentHeight) {
-      maxBottom = minTop + colHeight;
-    }
-  }
+  // 실제 미리보기 DOM 높이를 사용한다. 글자 수/커서 열로 높이를 추정하면
+  // 렌더 전후 값이 달라져 입력할 때마다 스크롤이 왕복한다.
 
   const elementTop = minTop - containerRect.top;
   const elementBottom = maxBottom - containerRect.top;
@@ -436,4 +412,3 @@ export function syncPreviewInterpolated(
 ): void {
   syncPreviewToTargetLine(previewContainer, targetLine, content);
 }
-

@@ -52,11 +52,20 @@ interface DeviceActivation {
   device_uuid: string;
   device_name: string;
   activated_at: string;
+  updated_at?: string;
   license_id?: string;
   payment_no?: string;
   is_active_license?: boolean;
   is_active?: boolean;
+  is_current_placeholder?: boolean;
 }
+
+// DB에 저장되는 웹 기기명만 대시보드에서 해제 대상으로 취급한다.
+const isWebDevice = (device: DeviceActivation) => ['web saas', 'web browser'].includes((device.device_name || '').trim().toLowerCase());
+const isDesktopDevice = (device: DeviceActivation) => (device.device_name || '').toLowerCase().includes('desktop');
+// 하트비트가 끊긴 과거 기록은 현재 웹 사용 건수로 세지 않는다.
+const isLiveWebDevice = (device: DeviceActivation) => isWebDevice(device) && device.is_active === true &&
+  Date.now() - new Date(device.updated_at || device.activated_at).getTime() < 2 * 60 * 1000;
 
 // ── 공통 스타일 토큰 ──────────────────────────────────────
 const T = {
@@ -92,8 +101,10 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);     // 📋 현재 활성 구독 정보 (plan_name/plan_status/period_end 등)
   const [license, setLicense] = useState<LicenseInfo | null>(null);                    // 🔑 현재 활성 라이선스 (license_key/payment_no)
   const [devices, setDevices] = useState<DeviceActivation[]>([]);                    // 💻 접속 기기 세션 목록 (device_uuid/device_name)
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);       // 현재 브라우저 기기는 일괄 해제에서 제외한다.
   const [userMeta, setUserMeta] = useState<any>(null);                                   // 👤 users 테이블 메타데이터 (email/provider)
   const [isLoading, setIsLoading] = useState(true);                                        // ⏳ 최초 데이터 로딩 상태
+  const [dashboardError, setDashboardError] = useState<string | null>(null);              // 조회 실패와 실제 빈 데이터를 구분한다.
   const [actionLoading, setActionLoading] = useState<string | null>(null);               // 🔄 개별 액션(기기해제 등) 로딩 중인 항목 ID
 
   const [historyList, setHistoryList] = useState<any[]>([]);                           // 📜 과거 구독 이력 목록 (재가입 방지 검증용)
@@ -105,6 +116,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   const [desktopSubscription, setDesktopSubscription] = useState<SubscriptionInfo | null>(null);
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month');
   const [dbPlans, setDbPlans] = useState<any[]>([]); // DB에서 가져온 요금제 정보
+  const [plansError, setPlansError] = useState(false); // 요금제 로드 실패를 목록 없음과 구분한다.
 
   useEffect(() => {
     // Read URL params
@@ -130,18 +142,27 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
 
   const loadDashboardData = async () => {                                                  // 🚨 최초 데이터 로딩 함수 (Supabase Auth, 구독/라이선스/기기목록 병렬 Fetch)
     setIsLoading(true);                                                                    // ⏳ 최초 로딩 플래그
+    setDashboardError(null);
+    // 탭마다 별도 ID를 유지한다. 공유 localStorage 값은 다른 탭의 ID일 수 있으므로 현재 탭 판정에 쓰지 않는다.
+    let tabSessionId = sessionStorage.getItem('onrivi_tab_session_id');
+    if (!tabSessionId) {
+      tabSessionId = crypto.randomUUID();
+      sessionStorage.setItem('onrivi_tab_session_id', tabSessionId);
+    }
+    setCurrentSessionId(tabSessionId);
     try {
       const { data: { user: currentUser }, error: authErr } = await supabase.auth.getUser(); // 🔗 Supabase Auth 세션 조회
       if (authErr || !currentUser) { router.push(`/login${window.location.search}`); return; }                      // 🚫 인증 실패 시 로그인 페이지로 리다이렉트
       setUser(currentUser);                                                                // 🧑 로그인 유저 정보 저장
 
       // 👤 users / users 테이블 존재 확인 (API 호출)
-      const checkRes = await fetch('/api/rpc/user/check', {
+      const checkRes = await fetch('/api/user/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_email: currentUser.email })
       });
-      const userCheck = checkRes.ok ? await checkRes.json() : null;
+      if (!checkRes.ok) throw new Error('계정 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.');
+      const userCheck = await checkRes.json();
 
       if (!userCheck?.exists || userCheck.is_deleted) {
         showToast(!userCheck?.exists ? '회원가입이 필요한 계정입니다.' : '탈퇴한 계정입니다. 회원가입을 진행해주세요.', 'warning');
@@ -168,16 +189,17 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       }
 
       // 🛒 요금제 정보 패치
+      setPlansError(false);
       try {
         const plansRes = await fetch('/api/plans');
-        if (plansRes.ok) {
-          const plansData = await plansRes.json();
-          if (Array.isArray(plansData)) {
-            setDbPlans(plansData);
-          }
-        }
+        if (!plansRes.ok) throw new Error(`요금제 조회 실패 (${plansRes.status})`);
+        const plansData = await plansRes.json();
+        if (!Array.isArray(plansData)) throw new Error('요금제 응답 형식이 올바르지 않습니다.');
+        setDbPlans(plansData);
       } catch (err) {
         console.error("Failed to fetch plans", err);
+        setDbPlans([]);
+        setPlansError(true);
       }      // RLS 우회를 위해 서버사이드 API 라우트(/api/subscription/get) 호출
       const dashRes = await fetch(`/api/subscription/get`, {
         method: 'POST',
@@ -185,19 +207,18 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
         body: JSON.stringify({ user_id: targetUserId })
       });
       
-      const dashData = dashRes.ok ? await dashRes.json() : null;
-
-      if (!dashRes.ok) {
-        showToast(`서버 에러 (${dashRes.status}): 구독 정보를 불러올 수 없습니다.`, 'error');
-      } else if (dashData && !dashData.success) {
-        showToast(`API 오류: ${dashData.message || '알 수 없는 오류'}`, 'error');
-      }
+      if (!dashRes.ok) throw new Error(`구독 정보를 불러올 수 없습니다. (${dashRes.status})`);
+      const dashData = await dashRes.json();
+      if (!dashData?.success) throw new Error(dashData?.message || '구독 정보를 불러올 수 없습니다.');
 
       if (dashData && dashData.success) {
         const sub = dashData.subscription || null;
         setSubscription(sub);
         setHistoryList(dashData.historyList || []);
         setLicense(dashData.license || null);
+        const activeDesktop = sub?.plan_name === 'ELITEPRO' && sub?.is_active && sub?.plan_status === 'ACTIVE';
+        setDesktopSubscription(activeDesktop ? sub : null);
+        setDesktopLicense(activeDesktop ? dashData.license || null : null);
 
         // 🚨 새로 자동 생성된 요금제(READER 등)가 있을 경우, 
         // 에디터(MainEditorApp)가 인식할 수 있도록 즉시 localStorage 에 동기화
@@ -212,16 +233,11 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
 
         const fetchedDevices: DeviceActivation[] = dashData.devices || [];
         setDevices(fetchedDevices);
-      } else {
-        setSubscription(null);
-        setHistoryList([]);
-        setLicense(null);
-        setDevices([]);
       }
 
     } catch (err: any) { // ❌ 에러 핸들링
       console.error('대시보드 로드 실패:', err);
-      showToast('데이터를 불러오는 중 문제가 발생했습니다.', 'error');
+      setDashboardError(err?.message || '데이터를 불러오는 중 문제가 발생했습니다.');
     } finally { // ⏳ 로딩 플래그 해제
       setIsLoading(false);
     }
@@ -296,9 +312,10 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     const c2 = await showConfirm('최종 확인', '되돌릴 수 없습니다. 정말 탈퇴하시겠습니까?', { confirmText: '탈퇴', isDanger: true }); // ⚠️ 2차 최종 확인
     if (!c2) return;
     try {
-      const res = await fetch('/api/rpc/user/delete', {
+      const accessToken = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch('/api/user/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
         body: JSON.stringify({ p_user_id: user.id })
       });
       const result = await res.json();
@@ -311,46 +328,50 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     }
   };
 
-  // -------------------------------------------------------------------------------------
-  // 🚨 @PATCH : 2026-06-26 — 기기 해제(접속 해제) 시 결제번호로 라이선스 조회 후 device_uuid로 삭제
-  // (이전: activation_id로 직접 삭제 → payment_no 매핑 누락으로 DB에 레코드가 남을 수 있었음)
-  // -------------------------------------------------------------------------------------  
-  const handleDeactivateDevice = async (activationId: string) => { // 🚪 기기 해제 함수
-    const confirmed = await showConfirm('기기 해제', '정말로 이 접속 세션의 연동을 해제하시겠습니까?', { confirmText: '해제', isDanger: true }); // ⚠️ 해지 확인 컨펌
+  // 대시보드 해제 API는 검증된 사용자 소유의 웹 세션만 삭제한다. 데스크톱은 이 경로에서 삭제할 수 없다.
+  const deleteDashboardWebSessions = async (targetDeviceUuid?: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token || !currentSessionId) throw new Error('현재 브라우저 정보를 확인할 수 없습니다. 다시 로그인해 주세요.');
+    const response = await fetch('/api/device/dashboard-sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ target_device_uuid: targetDeviceUuid || null, current_device_uuid: currentSessionId }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.message || '웹 세션 해제에 실패했습니다.');
+    return result.deleted as number;
+  };
+
+  const handleDeactivateDevice = async (activationId: string) => {
+    const target = devices.find(device => device.id === activationId);
+    if (!target || !isWebDevice(target) || target.device_uuid === currentSessionId) return;
+    const confirmed = await showConfirm('웹 세션 해제', '선택한 웹 브라우저의 접속을 해제하시겠습니까?', { confirmText: '해제', isDanger: true });
     if (!confirmed) return;
-    setActionLoading(activationId); // ⏳ 로딩 상태 설정
+    setActionLoading(activationId);
     try {
-      const res = await fetch('/api/device/deactivate', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ p_activation_id: activationId, p_user_id: user?.id }) 
-      });
-      const result = await res.json();
-      const error = !result.success ? new Error(result.message) : null;
+      await deleteDashboardWebSessions(target.device_uuid);
+      showToast('웹 세션을 해제했습니다.', 'success');
+      await loadDashboardData();
+    } catch (err: any) {
+      showToast(`웹 세션 해제 실패: ${err.message}`, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
-      if (error) throw new Error(error.message); // ❌ API 에러
-
-      if (!result || !result.success) throw new Error(result?.message || '기기 해제에 실패했습니다.'); // ❌ API 실패 응답
-
-      showToast('접속 연동이 성공적으로 해제되었습니다.', 'success'); // ✅ 성공 토스트
-
-      // 🚨 @PATCH : 해제한 기기가 '현재 접속 중인 브라우저 세션'과 동일하다면 즉시 로그아웃 처리 (단, 이미 제한된 세션은 예외)
-      const currentSessionId = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
-      const deactivatedDevice = devices.find(d => d.id === activationId);
-      if (deactivatedDevice && deactivatedDevice.device_uuid === currentSessionId && deactivatedDevice.is_active !== false) {
-        showToast('현재 기기의 세션이 해제되어 로그아웃됩니다.', 'error');
-        clearAuthSessionStorage();
-        try { await supabase.auth.signOut({ scope: 'local' }); } catch (_) { }
-        window.location.href = '/login';
-        return;
-      }
-
-      await loadDashboardData(); // 🔄 대시보드 데이터 새로고침
-    } catch (err: any) { // ❌ 에러
-      showToast(`접속 연동 해제 실패: ${err.message}`, 'error'); // ❌ 에러 토스트
-
-    } finally { // ⏳ 로딩 상태 해제
-      setActionLoading(null); // ⏳ 로딩 상태 해제
+  const handleDeactivateOtherWebSessions = async () => {
+    if (!currentSessionId) return;
+    const confirmed = await showConfirm('다른 웹 세션 모두 해제', '현재 브라우저와 데스크톱은 유지하고, 이 계정의 다른 웹 세션과 과거 웹 기록을 모두 해제하시겠습니까?', { confirmText: '모두 해제', isDanger: true });
+    if (!confirmed) return;
+    setActionLoading('web_bulk');
+    try {
+      const deleted = await deleteDashboardWebSessions();
+      showToast(`${deleted}개의 다른 웹 세션을 해제했습니다.`, 'success');
+      await loadDashboardData();
+    } catch (err: any) {
+      showToast(`웹 세션 일괄 해제 실패: ${err.message}`, 'error');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -363,47 +384,12 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     let currentLicenseKey = desktopLicense?.license_key;
 
     if (!currentDesktopPaymentNo) {
-      if (!desktopDevice || !desktopEmail) {
-        showToast('데스크탑에서 올바른 기기 정보가 전달되지 않았습니다.', 'warning');
-        return;
-      }
-      
-      // 이메일 검증
-      if (user?.email !== desktopEmail) {
-        showToast('현재 로그인된 웹 계정과 데스크탑 가입 이메일이 다릅니다. 확인해주세요.', 'error');
-        return;
-      }
-
-      // 결제 이력이 없으므로 결제 진행 (목업)
-      setActionLoading('desktop_activate');
-      try {
-        const res = await fetch('/api/subscription/subscribe-desktop', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            p_user_id: user.id,
-            p_device_uuid: desktopDevice,
-            p_device_name: 'Desktop App'
-          })
-        });
-        const data = res.ok ? await res.json() : null;
-        const error = !res.ok ? new Error('서버 오류') : null;
-
-        if (error) throw new Error(error.message);
-        if (!data || !data.success) throw new Error(data?.message || '결제 처리에 실패했습니다.');
-
-        currentDesktopPaymentNo = data.payment_no;
-        currentVerifyKey = data.verify_key;
-        currentLicenseKey = data.license_key;
-
-        showToast('데스크탑 결제 및 활성화가 완료되었습니다.', 'success');
-        await loadDashboardData(); // 데이터 새로고침
-      } catch (err: any) {
-        showToast(`결제 실패: ${err.message}`, 'error');
-        setActionLoading(null);
-        return;
-      }
-      setActionLoading(null);
+      showToast('먼저 Elite Pro 요금제를 선택해 주세요.', 'warning');
+      return;
+    }
+    if (desktopEmail && user?.email !== desktopEmail) {
+      showToast('로그인 계정과 데스크톱 가입 이메일이 다릅니다.', 'error');
+      return;
     }
 
     // 딥링크 호출
@@ -420,6 +406,9 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     if (!d) return 0; // 🛡️ 종료일이 없을 때
     return Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)); // ⏱️ 남은 일수 계산
   };
+  const isReaderPlan = (subscription?.plan_name || '').toUpperCase() === 'READER';
+  const periodEnd = subscription?.trial_end_at || subscription?.current_period_end;
+  const hasUnlimitedPeriod = isReaderPlan || !!periodEnd?.startsWith('9999-12-31');
 
   // -------------------------------------------------------------------------------------
   // 🚨 @PATCH : 2026-06-26 — 무료 체험 만료 여부
@@ -430,23 +419,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   // 🚨 @PATCH : 2026-06-26 — 라이선스 유효 여부
   // -------------------------------------------------------------------------------------
   const upperPlanStatus = (subscription?.plan_status || '').toUpperCase();
-  const isLicenseValid = !!subscription && (subscription.is_active ?? true) && upperPlanStatus !== 'EXPIRED' && upperPlanStatus !== 'CANCELED' && (upperPlanStatus === 'ACTIVE' || getRemainingDays() >= 0); // 🛡️ 라이선스 유효 여부
-
-  // -------------------------------------------------------------------------------------
-  // 🚨 @PATCH : 2026-06-26 — 안전 UUID 사출 유틸리티
-  // -------------------------------------------------------------------------------------
-  function generateSafeFallbackUUID(): string { // 🔐 안전 UUID 생성
-    if (typeof window === 'undefined') return 'SERVER'; // 🛡️ 서버 환경일 때
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') { // 🔐 crypto.randomUUID() 사용 가능할 때
-      return crypto.randomUUID(); // 🔐 crypto.randomUUID() 사용
-    }
-    // 🛡️ crypto.randomUUID() 사용 불가능할 때 대체
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  }
+  const isLicenseValid = !!subscription && (subscription.is_active ?? true) && upperPlanStatus !== 'EXPIRED' && upperPlanStatus !== 'CANCELED' && (hasUnlimitedPeriod || (periodEnd ? new Date(periodEnd).getTime() > Date.now() : upperPlanStatus === 'ACTIVE')); // 🛡️ 상태와 실제 종료일 모두 확인한다.
 
   // ------------------------------------------------------------------------------------------------  
   // 상태 배지 컴포넌트
@@ -454,7 +427,9 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
   const getStatusBadge = () => {
     if (!subscription) return { label: '라이선스 미인증', color: T.danger, bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.20)', icon: <XCircle size={13} /> };
     const upperPlanName = (subscription.plan_name || '').toUpperCase();
-    const isFreeOrTrial = upperPlanName === 'APPRENTICE' || upperPlanName === 'FREE' || upperPlanName === 'READER';
+    if (isLicenseValid && isReaderPlan)
+      return { label: '무료 읽기 플랜 이용 중', color: T.primary, bg: 'rgba(14,165,233,0.10)', border: 'rgba(14,165,233,0.25)', icon: <CheckCircle size={13} /> };
+    const isFreeOrTrial = upperPlanName === 'APPRENTICE' || upperPlanName === 'FREE';
     if (isLicenseValid && isFreeOrTrial)
       return { label: `무료 체험 중 (${getRemainingDays()}일 남음)`, color: T.primary, bg: 'rgba(14,165,233,0.10)', border: 'rgba(14,165,233,0.25)', icon: <Zap size={13} /> };
     if (isLicenseValid)
@@ -462,6 +437,23 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
     return { label: '라이선스 만료 / 미인증', color: T.danger, bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.20)', icon: <XCircle size={13} /> };
   };
   const badge = getStatusBadge();
+  // 구독 이력의 비활성 레코드와 데스크톱 기기는 웹 동시접속 수에 포함하지 않는다.
+  const activeWebSessions = devices.filter(isLiveWebDevice);
+  // 제한된 현재 탭도 보여 줘야 다른 브라우저의 활성 세션과 구분할 수 있다.
+  const currentWebSession = devices
+    .filter(device => isWebDevice(device) && device.device_uuid === currentSessionId)
+    .sort((a, b) => new Date(b.updated_at || b.activated_at).getTime() - new Date(a.updated_at || a.activated_at).getTime())[0];
+  const currentPlaceholder: DeviceActivation | null = currentSessionId && !currentWebSession ? {
+    id: 'current-browser-no-session', device_uuid: currentSessionId, device_name: 'Web Browser',
+    activated_at: '', is_active: false, is_current_placeholder: true,
+  } : null;
+  // 데스크톱 지정 장치는 참고용으로만 표시하고 웹 편집 좌석에는 포함하지 않는다.
+  const visibleSessions = [
+    ...activeWebSessions,
+    ...(currentWebSession && !activeWebSessions.some(device => device.id === currentWebSession.id) ? [currentWebSession] : []),
+    ...(currentPlaceholder ? [currentPlaceholder] : []),
+    ...devices.filter(device => isDesktopDevice(device) && device.is_active === true),
+  ];
 
   // -------------------------------------------------------------------------------------
   // 🚨 @PATCH : 2026-06-26 — 요금제 선택
@@ -476,55 +468,23 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       if (plan.is_free && hasAnyHistory && plan.plan_code !== 'READER') {
         throw new Error("이미 유료/무료(Apprentice) 구독 이용 이력이 존재하는 계정이므로 무료 요금제 재가입이 불가능합니다. 유료 플랜을 선택해 주세요.");
       }
-      const maxDevices = plan.plan_code === 'ELITEPRO' ? 1 : (plan.is_free ? 1 : 3); // 🔒 최대 기기 수
-      const isYearly = billingInterval === 'year' || plan.plan_code === 'ELITEPRO';
-      const trialDays = plan.is_free ? (plan.plan_code === 'READER' ? 36500 : 7) : (isYearly ? 365 : 30); // Reader=100년, Apprentice=7일
-      const interval = plan.plan_code === 'READER' ? 'free' : (plan.is_free ? 'trial' : (isYearly ? 'year' : 'month'));
-      const periodEnd = plan.plan_code === 'READER'
-        ? new Date(Date.now() + 36500 * 86400000).toISOString()
-        : new Date(Date.now() + trialDays * 86400000).toISOString();
-
-      // ⏳ 한국 시간대 기준 오늘 날짜 계산 (YYYYMMDD 규격 완벽 고수)
-      const kstOffset = 9 * 60 * 60 * 1000; // ⏰ 9시간 오프셋
-      const todayKst = new Date(Date.now() + kstOffset); // ⏰ 한국 시간대 오늘 날짜
-      const yyyy = todayKst.getUTCFullYear ? todayKst.getUTCFullYear() : todayKst.getFullYear(); // ⏰ 연도 추출
-      const mm = String(todayKst.getMonth ? todayKst.getMonth() + 1 : todayKst.getUTCMonth() + 1).padStart(2, '0'); // ⏰ 월 추출
-      const dd = String(todayKst.getDate ? todayKst.getDate() : todayKst.getUTCDate()).padStart(2, '0'); // ⏰ 일 추출
-      const todayStr = `${yyyy}${mm}${dd}`; // ⏰ YYYYMMDD 형식
-
-      // 기기 디바이스 UUID 획득
-      let deviceUuid = localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id');
-      if (!deviceUuid) { // 🛡️ 디바이스 UUID가 없을 때
-        deviceUuid = generateSafeFallbackUUID(); // 🔐 안전 UUID 생성
-        localStorage.setItem('onrivi_device_id', deviceUuid); // 🔒 디바이스 UUID 저장
-      }
-      localStorage.setItem('onrivi_session_id', deviceUuid); // 🔒 세션 ID 저장
-
-      const deviceName = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron') ? 'Desktop App' : 'Web Browser'; // 🛡️ 디바이스 이름 설정
-      const calculatedStatus = 'ACTIVE'; // 🛡️ DB common_codes PLAN_STATUS: ACTIVE (구독중/활성)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token || !currentSessionId) throw new Error('로그인 또는 현재 브라우저 정보를 확인할 수 없습니다.');
+      const interval = plan.is_free ? 'trial' : (plan.price_monthly > 0 && plan.price_yearly > 0 ? billingInterval : plan.price_yearly > 0 ? 'year' : 'month');
 
       // 📢 API 라우트 호출 (subscriptions, software_licenses, license_activations 업데이트/생성 단일 트랜잭션 처리)
       const res = await fetch('/api/subscription/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          p_user_id: user.id, // 🔑 사용자 ID
-          p_plan_name: plan.plan_code, // 🎯 요금제 코드값 (e.g. FREE, APPRENTICE, REGULAR, ELITEPRO)
-          p_plan_status: calculatedStatus, // 🛡️ 상태
-          p_billing_interval: interval, // 🛡️ 구독 간격
-          p_max_devices: maxDevices, // 🔒 최대 기기 수
-          p_period_end: periodEnd, // 🛡️ 기간 종료일
-          p_plan_end_date: '99991231', // 🛡️ 최대 종료일
-          p_today_str: todayStr, // ⏰ 오늘 날짜
-          p_device_uuid: deviceUuid, // 🔐 디바이스 UUID
-          p_device_name: deviceName // 🛡️ 디바이스 이름
+          p_user_id: user.id,
+          p_plan_name: plan.plan_code,
+          p_billing_interval: interval,
+          p_device_uuid: currentSessionId,
         })
       });
       const result = await res.json();
-      const rpcErr = !result.success ? new Error(result.message) : null;
-
-      if (rpcErr) throw new Error(rpcErr.message); // ❌ API 오류
-      if (!result || !result.success) throw new Error(result.message || '플랜 활성화 실패'); // ❌ 결과 오류
+      if (!res.ok || !result?.success) throw new Error(result?.message || '플랜 활성화 실패');
 
       // -------------------------------------------------------------------------------------------
       // 로컬 스토리지 정보 동기화
@@ -533,6 +493,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       localStorage.setItem('onrivi_verify_key', result.verify_key || ''); // 🔒 인증 키 저장
       localStorage.setItem('onrivi_user_id', user.email || user.id); // 🔒 사용자 ID 저장
       localStorage.setItem('onrivi_payment_no', result.payment_no || ''); // 🔒 결제 번호 저장
+      localStorage.setItem('onrivi_license_id', result.subscription_id || '');
       localStorage.setItem('onrivi_last_run_time', Date.now().toString()); // 🔒 마지막 실행 시간 저장
       // -------------------------------------------------------------------------------------------
 
@@ -559,6 +520,18 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
       </div>
     );
   }
+  if (dashboardError) {
+    return (
+      <main style={{ minHeight: '100vh', background: T.bg, display: 'grid', placeItems: 'center', padding: 24, fontFamily: T.font }}>
+        <div role="alert" style={{ ...glassCard, width: '100%', maxWidth: 480, padding: 32, textAlign: 'center' }}>
+          <AlertCircle size={30} style={{ color: T.danger, margin: '0 auto 14px' }} />
+          <h1 style={{ color: T.onSurface, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>대시보드를 불러오지 못했습니다</h1>
+          <p style={{ color: T.muted, fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>{dashboardError}</p>
+          <button type="button" onClick={() => void loadDashboardData()} className="btn-primary" style={{ padding: '10px 20px' }}>다시 시도</button>
+        </div>
+      </main>
+    );
+  }
 
   // ── 메인 레이아웃 ──────────────────────────────────────────
   return (
@@ -581,9 +554,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 13, color: T.muted, fontWeight: 500 }} className="hidden sm:block">{user?.email} 님</span>
-            <Link href="/editor">
-              <button className="btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>에디터 열기</button>
-            </Link>
+            <Link href="/editor" className="btn-primary" style={{ fontSize: 12, padding: "6px 14px", textDecoration: 'none' }}>에디터 열기</Link>
             <button
               onClick={handleLogout}
               style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.muted, fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: "6px 10px", borderRadius: 8, transition: "background 0.15s" }}
@@ -598,27 +569,39 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
 
       {/* ── 본문 ── */}
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px 80px" }}>
+        <div style={{ marginBottom: 24 }}>
+          <p style={{ color: T.primaryDark, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>내 계정</p>
+          <h1 style={{ color: T.onSurface, fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', marginBottom: 8 }}>대시보드</h1>
+          <p style={{ color: T.muted, fontSize: 14, lineHeight: 1.6 }}>현재 이용 상태를 확인하고, 기기와 멤버십을 관리하세요.</p>
+          <nav aria-label="대시보드 섹션" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 18 }}>
+            {[
+              ['#account', '계정·구독'],
+              ['#devices', '기기 관리'],
+              ['#plans', '멤버십'],
+              ['#history', '이용 내역'],
+            ].map(([href, label]) => (
+              <a key={href} href={href} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${T.borderSolid}`, background: '#fff', color: T.muted, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>{label}</a>
+            ))}
+          </nav>
+        </div>
 
         {/* 환영 카드 */}
-        <div style={{ ...glassCard, padding: "24px 28px", marginBottom: 24, display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+        <div id="account" style={{ ...glassCard, padding: "24px 28px", marginBottom: 24, display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16, scrollMarginTop: 76 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ width: 52, height: 52, borderRadius: "1rem", background: "linear-gradient(135deg, #006591 0%, #0ea5e9 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#fff", fontWeight: 700, boxShadow: "0 4px 14px rgba(14,165,233,0.25)", flexShrink: 0 }}>
               {user?.email?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div>
-              <h1 style={{ fontSize: 18, fontWeight: 700, color: T.onSurface, marginBottom: 4, letterSpacing: "-0.01em" }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: T.onSurface, marginBottom: 4, letterSpacing: "-0.01em" }}>
                 {user?.email?.split('@')[0]}님, 환영합니다!
-              </h1>
+              </h2>
               <p style={{ fontSize: 12, color: T.subtle }}>
                 {user?.email} · 가입일: {user?.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
               </p>
+              <p style={{ fontSize: 13, color: badge.color, fontWeight: 700, marginTop: 8 }}>{badge.label}</p>
             </div>
           </div>
-          <Link href="/editor">
-            <button className="btn-primary" style={{ fontSize: 13, padding: "10px 20px", display: "flex", alignItems: "center", gap: 6 }}>
-              웹 에디터 열기 <ArrowRight size={14} />
-            </button>
-          </Link>
+          <a href="#devices" style={{ fontSize: 13, color: T.primaryDark, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>내 기기 확인 <ArrowRight size={14} /></a>
         </div>
 
         {/* 정보 카드 3열 */}
@@ -663,12 +646,12 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             </div>
             {[
               ["현재 플랜", (subscription ? (subscription.plan_name_kr || commonCodes['PLAN_NAME']?.[subscription.plan_name] || subscription.plan_name) : '없음')],
-              ["동시 접속자", subscription ? `${devices.length || subscription?.active_device_count || 1}명 / 최대 ${subscription?.max_devices || 1}명` : '0명 / 최대 0명'],
-              ["결제번호", (license?.payment_no) ? license.payment_no.replace(/(?<=.{7})./g, '*') : '-'],
+              ["웹 에디터 사용", `${activeWebSessions.length}명`],
+              ["구독 식별번호", (license?.payment_no) ? license.payment_no.replace(/(?<=.{7})./g, '*') : '-'],
             ].map(([label, value]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12 }}>
                 <span style={{ color: T.subtle }}>{label}</span>
-                <span style={{ color: label === "동시 접속자" ? T.primary : T.onSurface, fontWeight: label === "동시 접속자" ? 700 : 500 }}>{value}</span>
+                <span style={{ color: label === "웹 에디터 사용" ? T.primary : T.onSurface, fontWeight: label === "웹 에디터 사용" ? 700 : 500 }}>{value}</span>
               </div>
             ))}
           </div>
@@ -684,10 +667,10 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
               ["만료일", (() => {
                 const end = subscription?.trial_end_at || subscription?.current_period_end;
                 if (!end) return '-';
-                if (end.startsWith('9999-12-31')) return '9999. 12. 31.';
+                if (hasUnlimitedPeriod) return '기한 없음';
                 return new Date(end).toLocaleDateString();
               })()],
-              ["남은 기간", subscription ? `${getRemainingDays()}일` : '-'],
+              ["남은 기간", subscription ? (hasUnlimitedPeriod ? '기한 없음' : `${getRemainingDays()}일`) : '-'],
               ["청구 주기", (subscription ? (subscription.billing_cycle_kr || (subscription.billing_cycle ? commonCodes['BILLING_CYCLE']?.[subscription.billing_cycle] : undefined) || subscription.billing_cycle || subscription.billing_interval || '-') : '-')],
             ].map(([label, value]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12 }}>
@@ -711,7 +694,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
         </div>
 
         {/* 원클릭 연동 + 세션 관리 */}
-        <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <div id="devices" className="grid md:grid-cols-2 gap-6 mb-6" style={{ scrollMarginTop: 76 }}>
           {/* Desktop Connector */}
           <div style={{ ...glassCard, padding: "24px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -731,7 +714,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                   </div>
                   {desktopLicense?.payment_no && (
                     <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ color: T.subtle }}>정품결제번호</span>
+                      <span style={{ color: T.subtle }}>구독 식별번호</span>
                       <span style={{ color: T.onSurface, fontWeight: 600, fontFamily: "monospace" }}>{desktopLicense.payment_no.replace(/(?<=.{7})./g, '*')}</span>
                     </div>
                   )}
@@ -753,7 +736,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
               ) : desktopSubscription && desktopLicense ? (
                 <div style={{ padding: "12px 14px", background: "rgba(14,165,233,0.05)", border: `1px solid rgba(14,165,233,0.15)`, borderRadius: "0.75rem", marginBottom: 16, fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: T.subtle }}>정품결제번호</span>
+                    <span style={{ color: T.subtle }}>구독 식별번호</span>
                     <span style={{ color: T.onSurface, fontWeight: 600, fontFamily: "monospace" }}>{desktopLicense.payment_no.replace(/(?<=.{7})./g, '*')}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -772,7 +755,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
               ) : license ? (
                 <div style={{ padding: "12px 14px", background: "rgba(14,165,233,0.05)", border: `1px solid rgba(14,165,233,0.15)`, borderRadius: "0.75rem", marginBottom: 16, fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: T.subtle }}>정품결제번호</span>
+                    <span style={{ color: T.subtle }}>구독 식별번호</span>
                     <span style={{ color: T.onSurface, fontWeight: 600, fontFamily: "monospace" }}>{license.payment_no.replace(/(?<=.{7})./g, '*')}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -794,38 +777,42 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
             )}
             <button
               onClick={handleDesktopActivate}
-              disabled={!desktopLicense?.payment_no && !desktopDevice}
+              disabled={!desktopLicense?.payment_no}
               style={{
                 width: "100%", padding: "10px", borderRadius: "0.75rem",
-                background: (!desktopLicense?.payment_no && !desktopDevice) ? "rgba(14,165,233,0.05)" : T.primary,
-                color: (!desktopLicense?.payment_no && !desktopDevice) ? T.subtle : "#fff",
-                border: `1px solid ${(!desktopLicense?.payment_no && !desktopDevice) ? T.border : "transparent"}`,
-                fontSize: 13, fontWeight: 600, cursor: (!desktopLicense?.payment_no && !desktopDevice) ? "not-allowed" : "pointer",
+                background: !desktopLicense?.payment_no ? "rgba(14,165,233,0.05)" : T.primary,
+                color: !desktopLicense?.payment_no ? T.subtle : "#fff",
+                border: `1px solid ${!desktopLicense?.payment_no ? T.border : "transparent"}`,
+                fontSize: 13, fontWeight: 600, cursor: !desktopLicense?.payment_no ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                transition: "all 0.15s", opacity: (!desktopLicense?.payment_no && !desktopDevice) ? 0.6 : 1,
+                transition: "all 0.15s", opacity: !desktopLicense?.payment_no ? 0.6 : 1,
               }}
             >
               <ShieldCheck size={15} /> 
-              {desktopLicense?.payment_no ? "프로그램 실행하기 ↗" : "결제하고 실행하기 (연 45,000원) ↗"}
+              {desktopLicense?.payment_no ? "프로그램 실행하기 ↗" : "Elite Pro 선택 후 실행"}
             </button>
           </div>
 
           {/* 세션 관리 */}
           <div style={{ ...glassCard, padding: "24px", display: "flex", flexDirection: "column" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12, flexShrink: 0, flexWrap: 'wrap' }}>
               <div>
                 <h2 style={{ fontSize: 15, fontWeight: 700, color: T.onSurface }}>
-                  동시접속 세션 관리 ({subscription ? devices.length : 0} / {subscription ? (subscription?.max_devices || 1) : 0})
+                  기기 현황 · 웹 에디터 사용 중 ({activeWebSessions.length})
                 </h2>
-                <p style={{ fontSize: 12, color: T.subtle, marginTop: 2 }}>한도 초과 시 기존 세션을 해제해 주세요.</p>
+                <p style={{ fontSize: 12, color: T.subtle, marginTop: 2 }}>현재 브라우저와 다른 활성 웹 세션을 구분해 표시합니다. 괄호 안 숫자는 편집 중인 웹 세션 수이며 데스크톱은 포함하지 않습니다.</p>
               </div>
-              <Laptop size={18} style={{ color: T.subtle, flexShrink: 0 }} />
+              <button type="button" onClick={handleDeactivateOtherWebSessions}
+                disabled={!currentSessionId || actionLoading !== null}
+                style={{ border: `1px solid ${T.borderSolid}`, background: '#fff', color: T.danger, borderRadius: 8, padding: '7px 10px', fontSize: 11, fontWeight: 700, cursor: (!currentSessionId || actionLoading !== null) ? 'not-allowed' : 'pointer', opacity: (!currentSessionId || actionLoading !== null) ? 0.5 : 1 }}>
+                {actionLoading === 'web_bulk' ? '해제 중...' : '다른 웹 세션 모두 해제'}
+              </button>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", maxHeight: 180, border: "1px solid rgba(14,165,233,0.1)", borderRadius: "0.5rem" }} className="custom-scrollbar">
-              {(!subscription || devices.length === 0) ? (
+              {(!subscription || visibleSessions.length === 0) ? (
                 <div style={{ padding: "28px 0", textAlign: "center", fontSize: 13, color: T.subtle }}>
-                  현재 활성화된 접속 세션이 없습니다.
+                  표시할 웹 세션이나 데스크톱 지정 장치가 없습니다.
                 </div>
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
@@ -838,21 +825,19 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                   </thead>
                   <tbody>
                     {(() => {
-                      const currentSessionId = typeof window !== 'undefined'
-                        ? (localStorage.getItem('onrivi_session_id') || localStorage.getItem('onrivi_device_id'))
-                        : null;
-                      const sortedDevices = [...devices].sort((a, b) => {
-                        const aIsCurrent = a.device_uuid === currentSessionId;
-                        const bIsCurrent = b.device_uuid === currentSessionId;
+                       const sortedDevices = [...visibleSessions].sort((a, b) => {
+                        const aIsCurrent = isWebDevice(a) && a.device_uuid === currentSessionId;
+                        const bIsCurrent = isWebDevice(b) && b.device_uuid === currentSessionId;
                         if (aIsCurrent && !bIsCurrent) return -1;
                         if (!aIsCurrent && bIsCurrent) return 1;
                         return 0;
                       });
                       return sortedDevices.map((device) => {
                         // 현재 브라우저 세션과 동일하면 보호 (상태 무관)
-                        const isCurrent = currentSessionId === device.device_uuid;
-                        const isDesktop = device.device_name?.toLowerCase().includes('desktop');
-                        const cannotDeactivate = isCurrent;
+                         const isCurrent = isWebDevice(device) && currentSessionId === device.device_uuid;
+                         const isDesktop = isDesktopDevice(device);
+                         const isWeb = isWebDevice(device);
+                         const cannotDeactivate = isCurrent || !isWeb || !currentSessionId;
                         return (
                           <tr
                             key={device.id}
@@ -866,27 +851,27 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                                 <Laptop size={14} style={{ color: isCurrent ? T.success : isDesktop ? "#4D73FF" : T.primary, flexShrink: 0 }} />
                                 <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                                   <span style={{ fontWeight: 700, color: T.onSurface, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: 140 }} title={device.device_name}>
-                                    {isDesktop ? '🖥️ 데스크탑 프로그램' : (device.device_name || 'Web SaaS')}
+                                     {isDesktop ? '🖥️ 데스크탑 프로그램' : isWeb ? (device.device_name || 'Web SaaS') : (device.device_name || '기타 기기')}
                                   </span>
                                   <span style={{ fontSize: 9, color: T.subtle, fontFamily: "monospace", marginTop: 1 }}>
                                     {device.device_uuid}
                                   </span>
                                   {isCurrent && (
-                                    <span style={{ fontSize: 9, fontWeight: 700, color: T.success, alignSelf: "flex-start", marginTop: 2 }}>
-                                      [현재 접속 브라우저]
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: device.is_active ? T.success : T.muted, alignSelf: "flex-start", marginTop: 2 }}>
+                                      {device.is_current_placeholder ? '[현재 브라우저 · 편집 세션 없음]' : isLiveWebDevice(device) ? '[현재 브라우저 · 편집 중]' : '[현재 브라우저 · 읽기 전용]'}
                                     </span>
                                   )}
                                   {isDesktop && (
                                     <span style={{ fontSize: 9, fontWeight: 700, color: device.is_active !== false ? "#4D73FF" : T.danger, alignSelf: "flex-start", marginTop: 2 }}>
-                                      {device.is_active !== false ? '[데스크탑 정품 사용중]' : '[데스크탑 제한됨]'}
+                                      [데스크톱 지정 장치 · 웹 편집 건수 제외]
                                     </span>
                                   )}
-                                  {!isDesktop && !isCurrent && device.is_active !== false && (
+                                   {isWeb && !isCurrent && (
                                     <span style={{ fontSize: 9, fontWeight: 700, color: T.primary, alignSelf: "flex-start", marginTop: 2 }}>
-                                      [웹 브라우저 접속중]
+                                      [다른 브라우저/탭 · 편집 중]
                                     </span>
                                   )}
-                                  {device.is_active === false && !isDesktop && (
+                                  {device.is_active === false && !isDesktop && !isCurrent && (
                                     <span style={{ fontSize: 9, fontWeight: 700, color: T.danger, alignSelf: "flex-start", marginTop: 2 }}>
                                       [제한됨 (읽기전용)]
                                     </span>
@@ -895,11 +880,13 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                               </div>
                             </td>
                             <td style={{ padding: "10px 12px", color: T.subtle, fontFamily: "monospace", verticalAlign: "middle" }}>
-                              {new Date(device.activated_at).toLocaleDateString()}<br />
-                              {new Date(device.activated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                               {device.is_current_placeholder ? '편집 접속 기록 없음' : <>{new Date(device.updated_at || device.activated_at).toLocaleDateString()}<br />
+                               {new Date(device.updated_at || device.activated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
                             </td>
                             <td style={{ padding: "10px 12px", textAlign: "right", verticalAlign: "middle" }}>
-                              <button
+                              {isDesktop ? (
+                                <span style={{ color: T.subtle, fontSize: 11, fontWeight: 600 }}>해제 불가</span>
+                              ) : <button
                                 onClick={() => handleDeactivateDevice(device.id)}
                                 disabled={actionLoading === device.id || cannotDeactivate}
                                 style={{
@@ -912,8 +899,9 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                                   transition: "all 0.15s",
                                 }}
                               >
-                                {actionLoading === device.id ? '...' : isCurrent ? '보안' : '해제'}
+                                 {actionLoading === device.id ? '...' : isCurrent ? '현재 기기' : isWeb ? '해제' : '해제 불가'}
                               </button>
+                              }
                             </td>
                           </tr>
                         );
@@ -926,22 +914,24 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
           </div>
         </div>
         {/* 멤버십 선택 */}
-        <div style={{ ...glassCard, padding: "28px", marginBottom: 24 }}>
+        <div id="plans" style={{ ...glassCard, padding: "28px", marginBottom: 24, scrollMarginTop: 76 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.border}`, flexWrap: "wrap", gap: 12 }}>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: T.onSurface, display: "flex", alignItems: "center", gap: 8 }}>
-                <CreditCard size={17} style={{ color: T.primary }} /> 멤버십 선택 / 결제
+                <CreditCard size={17} style={{ color: T.primary }} /> 멤버십 살펴보기
               </h2>
               <p style={{ fontSize: 12, color: T.subtle, marginTop: 4 }}>
-                원하는 멤버십을 선택하여 결제를 진행하세요. 현재 플랜:{" "}
+                이용 가능한 멤버십을 확인하세요. 현재 플랜:{" "}
                 <span style={{ color: T.primary, fontWeight: 600 }}>{subscription?.plan_name || '없음'}</span>
               </p>
             </div>
           </div>
+          {plansError && <p role="status" style={{ padding: '14px 16px', marginBottom: 16, color: T.danger, background: 'rgba(239,68,68,0.06)', borderRadius: 12, fontSize: 13 }}>요금제 정보를 불러오지 못했습니다. 새로고침 후 다시 확인해 주세요.</p>}
+          {!plansError && dbPlans.filter(plan => plan.plan_code !== 'READER').length === 0 && <p role="status" style={{ padding: '14px 16px', marginBottom: 16, color: T.muted, background: '#fff', borderRadius: 12, fontSize: 13 }}>현재 선택할 수 있는 멤버십이 없습니다.</p>}
           <div className="grid md:grid-cols-3 gap-4">
             {dbPlans.filter(p => p.plan_code !== 'READER').map((plan) => {
-              const planInterval = plan.plan_code === 'ELITEPRO' ? 'year' : (plan.plan_code === 'REGULAR' ? billingInterval : 'month');
-              const isSameInterval = plan.is_free ? true : subscription?.billing_interval === planInterval;
+              const planInterval = plan.is_free ? 'trial' : (plan.price_monthly > 0 && plan.price_yearly > 0 ? billingInterval : plan.price_yearly > 0 ? 'year' : 'month');
+              const isSameInterval = plan.is_free ? true : subscription?.billing_cycle === (planInterval === 'year' ? 'YEARLY' : 'MONTHLY');
               const planCode = plan.plan_code;
               const isCurrentPlan = (subscription?.plan_name === planCode) && (subscription?.plan_status === 'ACTIVE' || subscription?.plan_status === 'FREE') && isSameInterval;
 
@@ -949,7 +939,8 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                 : (planInterval === 'year' ? (plan.price_yearly || 0) : (plan.price_monthly || 0));
               const suffix = plan.is_free ? "" : (planInterval === 'year' ? "/년" : "/월");
 
-              const isPaidEnabled = plan.plan_code === 'REGULAR' || plan.plan_code === 'ELITEPRO';
+              const freeAlreadyUsed = plan.is_free && historyList.some(h => String(h.plan_name).toUpperCase() !== 'READER');
+              const invalidPrice = !plan.is_free && !(planInterval === 'year' ? plan.price_yearly > 0 : plan.price_monthly > 0);
 
               return (
                 <div
@@ -992,7 +983,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                   <p style={{ fontSize: 11, color: T.subtle, marginBottom: 14 }}>{plan.tagline}</p>
 
                   {/* Billing interval toggle for Regular */}
-                  {plan.plan_code === 'REGULAR' && (
+                  {!plan.is_free && plan.price_monthly > 0 && plan.price_yearly > 0 && (
                     <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
                       <button
                         onClick={() => setBillingInterval('month')}
@@ -1030,17 +1021,16 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                     ))}
                   </ul>
                   
-                  {/* 공사중 가드 (Regular, Elite Pro) */}
                   {(() => {
-                    const isUnderConstruction = plan.plan_code === 'REGULAR' || plan.plan_code === 'ELITEPRO';
+                    const unavailable = isCurrentPlan || freeAlreadyUsed || invalidPrice || actionLoading === 'plan_' + plan.id;
                     return (
                       <button
                         onClick={() => handleSelectPlan(plan)}
-                        disabled={isCurrentPlan || isUnderConstruction || actionLoading === 'plan_' + plan.id}
+                        disabled={unavailable}
                         style={{
                           width: "100%", padding: "9px 0", borderRadius: "0.75rem",
                           fontSize: 12, fontWeight: 700,
-                          cursor: (isCurrentPlan || isUnderConstruction || actionLoading === 'plan_' + plan.id) ? "not-allowed" : "pointer",
+                          cursor: unavailable ? "not-allowed" : "pointer",
                           transition: "all 0.15s",
                           background: isCurrentPlan
                             ? "rgba(16,185,129,0.1)"
@@ -1052,10 +1042,10 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                             isCurrentPlan ? "rgba(16,185,129,0.3)" :
                             plan.is_highlighted ? "transparent" : "rgba(99,102,241,0.25)"
                           }`,
-                          opacity: (isCurrentPlan || isUnderConstruction || actionLoading === 'plan_' + plan.id) ? 0.6 : 1,
+                          opacity: unavailable ? 0.6 : 1,
                         }}
                       >
-                        {isUnderConstruction ? '🚧 공사중' : actionLoading === 'plan_' + plan.id ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : plan.cta}
+                        {actionLoading === 'plan_' + plan.id ? '처리 중...' : isCurrentPlan ? '✓ 현재 플랜' : freeAlreadyUsed ? '무료 재신청 불가' : invalidPrice ? '가격 설정 필요' : plan.cta || '요금제 선택'}
                       </button>
                     );
                   })()}
@@ -1063,13 +1053,13 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
               );
             })}
           </div>
-          <div style={{ marginTop: 16, padding: "10px 14px", background: "rgba(99,102,241,0.04)", border: `1px solid rgba(99,102,241,0.10)`, borderRadius: "0.75rem", fontSize: 12, color: T.subtle, lineHeight: "18px" }}>
-            <strong style={{ color: T.primary }}>💳 결제 안내:</strong> 현재 결제 데모 모드입니다. 실제 결제 시 PG사(토스페이먼츠, 아임포트 등) 결제창으로 연결됩니다. 요금제 업그레이드는 즉시 반영되며, 다운그레이드는 다음 결제일부터 적용됩니다.
-          </div>
+           <div style={{ marginTop: 16, padding: "10px 14px", background: "rgba(99,102,241,0.04)", border: `1px solid rgba(99,102,241,0.10)`, borderRadius: "0.75rem", fontSize: 12, color: T.subtle, lineHeight: "18px" }}>
+             <strong style={{ color: T.primary }}>이용 안내:</strong> 요금제 선택 시 권한이 즉시 변경됩니다. 결제 연동은 추후 제공될 예정입니다.
+           </div>
         </div>
 
         {/* 요금제 변동 히스토리 테이블 */}
-        <div style={{ ...glassCard, padding: "28px" }}>
+        <div id="history" style={{ ...glassCard, padding: "28px", scrollMarginTop: 76 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: T.onSurface, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
             <Calendar size={17} style={{ color: T.primary }} /> 사용자 요금제 변동내역
           </h2>
@@ -1128,7 +1118,7 @@ export default function DashboardPage() { // 🎯 @KICK : 로그인 유저 구�
                     // 날짜 표시 포맷터 (current_period_start / current_period_end 기준)
                     const formatDateVal = (dateVal?: string) => {
                       if (!dateVal) return '-';
-                      if (dateVal.startsWith('9999-12-31')) return '9999. 12. 31.';
+                      if (dateVal.startsWith('9999-12-31')) return '기한 없음';
                       try {
                         const d = new Date(dateVal);
                         if (isNaN(d.getTime())) return dateVal;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Plus, Minus, MapPin, Copy, Check, Map } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
@@ -32,10 +32,17 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const addressInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !mounted) return;
+    const frame = requestAnimationFrame(() => addressInputRef.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, mounted]);
 
   // 지도 검색 함수 - Nominatim(OpenStreetMap) 기반 주소/장소명 검색
   const handleSearch = async (e?: React.FormEvent) => {
@@ -150,6 +157,7 @@ export default function MapModal({ isOpen, onClose, onInsert, isDarkMode }: MapM
                     <Search size={16} />
                   </span>
                   <input 
+                    ref={addressInputRef}
                     type="text"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}

@@ -161,7 +161,7 @@ export default function LicenseModal({
           setMessage({ text: '등록되지 않은 이메일이거나 활성화된 구독이 없습니다. 회원가입 및 결제를 진행해주세요.', type: 'error' });
         }
       } else {
-        const chkRes = await fetch('/api/rpc/user/check', {
+        const chkRes = await fetch('/api/user/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ p_email: inputUserId.trim() })

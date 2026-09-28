@@ -178,9 +178,9 @@ export default function SettingsModal({
         setSessionUser(targetUser);
       }
 
-      // 2. /api/rpc/user/check API를 통해 RLS를 우회하고 실제 DB(users) 원장의 최신 nick_name 및 필드 조회
+      // 2. /api/user/check API를 통해 RLS를 우회하고 실제 DB(users) 원장의 최신 nick_name 및 필드 조회
       if (targetId || targetEmail) {
-        const res = await fetch('/api/rpc/user/check', {
+        const res = await fetch('/api/user/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ p_id: targetId, p_email: targetEmail })
@@ -264,10 +264,11 @@ export default function SettingsModal({
       const provider = dbUser?.provider || sessionUser?.app_metadata?.provider || 'EMAIL';
 
       if (targetId && targetEmail) {
-        // 1차: /api/rpc/user/upsert 시도
-        const res = await fetch('/api/rpc/user/upsert', {
+        // 서버 API만 사용해 사용자 원장을 갱신한다.
+        const accessToken = (await supabase.auth.getSession()).data.session?.access_token;
+        const res = await fetch('/api/user/upsert', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
           body: JSON.stringify({
             p_id: targetId,
             p_email: targetEmail,
@@ -276,20 +277,15 @@ export default function SettingsModal({
           })
         });
 
-        if (res.ok) {
-          showToast(`별명이 '${cleanNick || '기본값'}'(으)로 저장되었습니다. (에디터 즉시 반영)`, 'success');
-        } else {
-          // 2차: Supabase Client 직접 업데이트 fallback
-          await supabase.from('users').update({ nick_name: cleanNick }).eq('id', targetId);
-          showToast(`별명이 '${cleanNick || '기본값'}'(으)로 저장되었습니다.`, 'success');
-        }
+        if (!res.ok) throw new Error('사용자 정보 저장 API 오류');
+        showToast(`별명이 '${cleanNick || '기본값'}'(으)로 저장되었습니다. (에디터 즉시 반영)`, 'success');
       } else {
         // 비로그인/오프라인 환경이라도 로컬 반영 성공 알림
         showToast(`별명이 '${cleanNick || '기본값'}'(으)로 에디터에 반영되었습니다.`, 'success');
       }
     } catch (err: any) {
-      console.warn('별명 DB 저장 경미한 오류 (로컬은 반영 완료):', err);
-      showToast(`별명이 '${cleanNick || '기본값'}'(으)로 반영되었습니다.`, 'success');
+      console.warn('별명 DB 저장 오류 (로컬 표시만 반영):', err);
+      showToast('별명을 서버에 저장하지 못했습니다. 다시 시도해 주세요.', 'error');
     } finally {
       setIsSavingNick(false);
     }

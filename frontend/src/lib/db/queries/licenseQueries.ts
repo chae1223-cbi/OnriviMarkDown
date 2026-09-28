@@ -1,8 +1,8 @@
 // ====================================================================
 // 📊 [OMD-DB-licenseQueries-0001 ✅ FIXED] src/lib/db/queries/licenseQueries.ts
 // 🎯 @KICK  : Postgres 트랜잭션 기반 라이선스 기기 세션 활성화 및 원자적 제한 판정
-// 🛡️ @GUARD : Rule 1, Rule 2, Rule 7 (원트랜잭션 무결성), 데스크탑 1대 / 웹 1대 독립 엄격 제한
-// 🚨 @PATCH : **2026-09-16** — [데스크탑 1대 / 웹 1대 독립 엄격 제한 및 타 웹 세션 접속 시 제한 사용자 격리]: 타 활성 웹 세션 존재 시 신규/재접속 웹 세션을 원자적으로 is_active=false (제한 사용자)로 격리
+// 🛡️ @GUARD : Rule 1, Rule 2, Rule 7 (원트랜잭션 무결성), 사용자당 웹 편집 세션 1개
+// 웹 세션만 계정당 1개로 제한하고 데스크톱 지정 장치는 별도 검증 경로에 맡긴다.
 // ====================================================================
 export const insertLicenseActivationQuery = async (
   db: any, 
@@ -16,7 +16,7 @@ export const insertLicenseActivationQuery = async (
   return db.begin(async (tx: any) => {
     // 1. 해당 구독(subscriptions) 정보 조회
     const licenseInfo = await tx`
-      SELECT max_devices, plan_name, user_id
+      SELECT plan_name, plan_status, is_active, current_period_end, user_id
       FROM subscriptions
       WHERE id = ${licenseId}
     `;
@@ -25,83 +25,51 @@ export const insertLicenseActivationQuery = async (
       throw new Error('구독/라이선스 정보를 찾을 수 없습니다.');
     }
 
-    const { max_devices, plan_name, user_id: subOwnerId } = licenseInfo[0];
-    const isValidUUID = (id: any) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    const effectiveUserId = (userId && isValidUUID(userId)) ? userId : (subOwnerId && isValidUUID(subOwnerId) ? subOwnerId : null);
+    const { plan_name, plan_status, is_active, current_period_end, user_id: subOwnerId } = licenseInfo[0];
+    // 같은 사용자의 두 등록 요청이 동시에 한 자리를 차지하지 못하게 잠근다.
+    const owner = await tx`SELECT id FROM users WHERE id = ${subOwnerId} FOR UPDATE`;
+    if (!owner.length) throw new Error('사용자를 찾을 수 없습니다.');
+    const effectiveUserId = subOwnerId; // 감사 주체는 요청 본문이 아닌 구독 소유자를 사용한다.
 
-    const isElitePro = plan_name?.toUpperCase().replace(/\s/g, '').includes('ELITE');
     const isDesktopReq = deviceName?.toLowerCase().includes('desktop');
+    const status = String(plan_status).toUpperCase();
+    const canEdit = !isExpired && plan_name?.toUpperCase() !== 'READER' &&
+      (isDesktopReq || String(plan_name).toUpperCase() !== 'DESKTOP_ONLY') &&
+      ['ACTIVE', 'FREE'].includes(status) && (is_active === true || status === 'FREE') &&
+      (!current_period_end || new Date(current_period_end).getTime() > Date.now());
 
     // 🧹 [좀비 세션 자동 정리 가드]: 2분 이상 활동(Heartbeat)이 중단된 웹 세션은 자동 비활성화하여 오탐지 방지
     await tx`
       UPDATE license_activations
       SET is_active = false, updated_at = now()
-      WHERE subscription_id = ${licenseId}
+      WHERE subscription_id IN (SELECT id FROM subscriptions WHERE user_id = ${subOwnerId})
         AND is_active = true
-        AND LOWER(device_name) NOT LIKE '%desktop%'
-        AND updated_at < (now() - interval '2 minutes')
+        AND lower(trim(coalesce(device_name, ''))) IN ('web saas', 'web browser')
+        AND coalesce(updated_at, activated_at) < (now() - interval '2 minutes')
     `;
 
-    // ⚡ 제어권 강제 인수(forceTakeover) 요청 시: 동일 플랜 내 다른 활성 세션을 비활성화하여 현재 기기 승격
-    if (forceTakeover && !isExpired && plan_name?.toUpperCase() !== 'READER') {
-      if (isElitePro) {
-        if (isDesktopReq) {
-          await tx`
-            UPDATE license_activations
-            SET is_active = false, updated_at = now()
-            WHERE subscription_id = ${licenseId}
-              AND device_uuid != ${deviceUuid}
-              AND LOWER(device_name) LIKE '%desktop%'
-              AND is_active = true
-          `;
-        } else {
-          await tx`
-            UPDATE license_activations
-            SET is_active = false, updated_at = now()
-            WHERE subscription_id = ${licenseId}
-              AND device_uuid != ${deviceUuid}
-              AND LOWER(device_name) NOT LIKE '%desktop%'
-              AND is_active = true
-          `;
-        }
-      } else {
-        await tx`
-          UPDATE license_activations
-          SET is_active = false, updated_at = now()
-          WHERE subscription_id = ${licenseId}
-            AND device_uuid != ${deviceUuid}
-            AND is_active = true
-        `;
-      }
+    // 웹 제어권 인수는 같은 사용자에게 속한 다른 웹 세션을 삭제해 해당 브라우저를 로그아웃시킨다.
+    if (forceTakeover && canEdit && !isDesktopReq) {
+      await tx`
+        DELETE FROM license_activations
+        WHERE subscription_id IN (SELECT id FROM subscriptions WHERE user_id = ${subOwnerId})
+          AND NOT (subscription_id = ${licenseId} AND device_uuid = ${deviceUuid})
+          AND lower(trim(coalesce(device_name, ''))) IN ('web saas', 'web browser')
+      `;
     }
 
     const checkLimits = async () => {
-      if (max_devices !== null && max_devices > 0) {
-        const activeSessions = await tx`
-          SELECT id, device_name, activated_at
-          FROM license_activations
-          WHERE subscription_id = ${licenseId} 
-            AND is_active = true
-            AND device_uuid != ${deviceUuid} -- 💡 본인 기기 세션은 카운트에서 제외하여 오판 방지
-          ORDER BY activated_at ASC
-        `;
-
-        if (isElitePro) {
-          const desktopSessions = activeSessions.filter((s: any) => s.device_name?.toLowerCase().includes('desktop'));
-          const webSessions = activeSessions.filter((s: any) => !s.device_name?.toLowerCase().includes('desktop'));
-          
-          if (isDesktopReq && desktopSessions.length >= 1) {
-            return false;
-          } else if (!isDesktopReq && webSessions.length >= 1) {
-            return false;
-          }
-        } else {
-          if (activeSessions.length >= max_devices) {
-            return false;
-          }
-        }
-      }
-      return true;
+      if (isDesktopReq) return true; // 데스크톱은 지정 장치 검증 경로에서 따로 보호한다.
+      const activeSessions = await tx`
+        SELECT activation.id
+        FROM license_activations AS activation
+        JOIN subscriptions AS subscription ON subscription.id = activation.subscription_id
+        WHERE subscription.user_id = ${subOwnerId}
+          AND activation.is_active = true
+          AND lower(trim(coalesce(activation.device_name, ''))) IN ('web saas', 'web browser')
+          AND NOT (activation.subscription_id = ${licenseId} AND activation.device_uuid = ${deviceUuid})
+      `;
+      return activeSessions.length < 1;
     };
 
     // 2. 기존 동일 기기 세션 확인
@@ -111,24 +79,21 @@ export const insertLicenseActivationQuery = async (
       WHERE subscription_id = ${licenseId} AND device_uuid = ${deviceUuid}
     `;
     
-    let isCurrentlyActive = false;
     let newIsActive = true;
     let activationId: string | null = null;
 
     // 1차 필터: READER 요금제이거나 명시적 만료 상태면 무조건 제한 사용자(is_active = false)
-    if (isExpired || plan_name?.toUpperCase() === 'READER') {
+    if (!canEdit) {
       newIsActive = false;
     }
 
     if (currentDeviceRes.length > 0) {
       activationId = currentDeviceRes[0].id;
-      isCurrentlyActive = currentDeviceRes[0].is_active;
       
-      // 3. max_devices 제한 검사 (1차 필터 통과 시 isCurrentlyActive 상태에 관계없이 무조건 항상 검사)
+      // 웹 좌석 1개 제한은 기존 세션에도 동일하게 적용한다.
       if (newIsActive) {
         newIsActive = await checkLimits();
       }
-      // 이미 활성이면서 1차 필터 통과(newIsActive===true)면 계속 true 유지 (checkLimits 생략)
 
       // 기존 기록 UPDATE (DELETE 후 INSERT 하면 Supabase Realtime DELETE 이벤트가 발생해 다른 탭이 강제 로그아웃됨)
       if (effectiveUserId) {
@@ -145,7 +110,7 @@ export const insertLicenseActivationQuery = async (
         `;
       }
     } else {
-      // 3. max_devices 제한 검사 (완전 신규 기기, 1차 필터 통과시에만)
+      // 신규 웹 세션에도 같은 좌석 제한을 적용한다.
       if (newIsActive) {
         newIsActive = await checkLimits();
       }
@@ -169,9 +134,9 @@ export const insertLicenseActivationQuery = async (
     }
 
     if (!newIsActive) {
-      return { success: false, code: 'EXCEED_MAX_DEVICES', message: '동시접속 기기 수를 초과하거나 만료(READER)되어 제한 모드로 연결됩니다.', max_devices: 1, activation_id: activationId };
+      return { success: false, code: canEdit ? 'EXCEED_MAX_DEVICES' : 'RESTRICTED_PLAN', message: canEdit ? '다른 웹 브라우저에서 이미 편집 중입니다.' : '현재 요금제는 웹 편집을 사용할 수 없습니다.', max_devices: canEdit ? 1 : 0, activation_id: activationId };
     }
 
-    return { success: true, code: 'SUCCESS', message: '기기가 활성화되었습니다.', activation_id: activationId };
+    return { success: true, code: 'SUCCESS', message: '기기가 활성화되었습니다.', max_devices: 1, activation_id: activationId };
   });
 };

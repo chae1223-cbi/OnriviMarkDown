@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     // 1. payment_no -> subscriptions -> license_id 조회
     // 🚨 @PATCH : plan_status가 EXPIRED 인 경우도 우선 검색하여 제한사용자 여부를 판단할 수 있도록 쿼리 완화
     const subRows = await sql`
-      SELECT id, max_devices, plan_status
+      SELECT id, user_id, is_active, plan_name, plan_status, current_period_end
       FROM subscriptions
       WHERE payment_no = ${p_payment_no}
       LIMIT 1
@@ -29,12 +29,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, has_session: false, is_restricted: true, is_terminated: true, max_devices: 0 });
     }
 
-    const { id: licenseId, max_devices, plan_status } = subRows[0];
-    const isExpiredPlan = plan_status === 'EXPIRED';
+    const sub = subRows[0];
+    const licenseId = sub.id;
+    const planStatus = String(sub.plan_status).toUpperCase();
+    const eligible = String(sub.plan_name).toUpperCase() !== 'READER' &&
+      ['ACTIVE', 'FREE'].includes(planStatus) &&
+      (sub.is_active === true || planStatus === 'FREE') &&
+      (!sub.current_period_end || new Date(sub.current_period_end).getTime() > Date.now());
 
     // 2. license_activations에서 해당 device_uuid 세션 존재 여부 확인 (활성 및 제한 모두 조회)
     const actRows = await sql`
-      SELECT id, is_active
+      SELECT id, is_active, device_name
       FROM license_activations
       WHERE subscription_id = ${licenseId}
         AND device_uuid = ${p_device_uuid}
@@ -44,13 +49,15 @@ export async function POST(request: Request) {
     const sessionExists = actRows && actRows.length > 0;
     
     // 강제 만료된 플랜이면 무조건 활성화 안된 세션으로 취급
-    const isActiveSession = isExpiredPlan ? false : (sessionExists && actRows[0].is_active);
+    const isWebSession = sessionExists && ['web saas', 'web browser'].includes(String(actRows[0].device_name || '').trim().toLowerCase());
+    const isActiveSession = eligible && sessionExists && actRows[0].is_active === true &&
+      (!isWebSession || String(sub.plan_name).toUpperCase() !== 'DESKTOP_ONLY');
 
     // 3. updated_at 갱신 (세션이 존재할 때만 생존 신호 갱신)
     if (sessionExists) {
       await sql`
         UPDATE license_activations
-        SET updated_at = now()
+        SET updated_at = now(), is_active = ${isActiveSession}, updated_by = ${sub.user_id}
         WHERE subscription_id = ${licenseId}
           AND device_uuid = ${p_device_uuid}
       `;
@@ -59,13 +66,12 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       has_session: isActiveSession, // 제한 사용자에게는 false를 반환하여 프론트가 계속 제한 상태로 두도록 함
-      is_restricted: isExpiredPlan ? true : (sessionExists && !isActiveSession),
+      is_restricted: sessionExists && !isActiveSession,
       is_terminated: !sessionExists,
-      max_devices: max_devices || 1
+      max_devices: eligible ? 1 : 0
     });
   } catch (error: any) {
     console.error('[/api/license/check-session] Error:', error);
     return NextResponse.json({ success: false, has_session: false, message: error.message }, { status: 500 });
   }
 }
-

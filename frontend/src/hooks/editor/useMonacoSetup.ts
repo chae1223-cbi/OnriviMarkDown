@@ -499,8 +499,6 @@ export function useMonacoSetup(deps: any) {
                   // 💡 [SPEC-SYNC-001 v3.0] 에디터 ➔ 미리보기 단일 동기화 함수
                   let isTyping = false;
                   let typingTimeout: any = null;
-                  let typingSyncRaf: number | null = null;
-                  let typingSyncTimer: any = null;
                   let rafSyncId: number | null = null;
                   let rafCursorSyncId: number | null = null;
                   let prevCursorCol = 1;
@@ -549,34 +547,8 @@ export function useMonacoSetup(deps: any) {
                       isTyping = false;
                     }, 300);
 
-                    // 💡 [타이핑 시 Safe Zone 실시간 추종: RAF 스케줄링으로 타이핑 중단 없이 즉시 하단 노출]
-                    const pos = editor.getPosition();
-                    if (pos && previewRef.current && previewModeRef.current === 'both' && isScrollingRef.current !== 'preview') {
-                      if (!typingSyncRaf) {
-                        typingSyncRaf = requestAnimationFrame(() => {
-                          typingSyncRaf = null;
-                          if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
-                            const p = editorRef.current.getPosition();
-                            if (p) {
-                              const content = editorRef.current.getValue();
-                              syncPreviewToTargetLine(previewRef.current, p.lineNumber, content, { column: p.column, isTyping: true });
-                            }
-                          }
-                        });
-                      }
-
-                      if (typingSyncTimer) clearTimeout(typingSyncTimer);
-                      typingSyncTimer = setTimeout(() => {
-                        typingSyncTimer = null;
-                        if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
-                          const p = editorRef.current.getPosition();
-                          if (p) {
-                            const c = editorRef.current.getValue();
-                            syncPreviewToTargetLine(previewRef.current, p.lineNumber, c, { column: p.column, isTyping: true });
-                          }
-                        }
-                      }, 80);
-                    }
+                    // 미리보기 DOM 갱신 전의 스크롤 보정은 렌더 후 보정과 충돌한다.
+                    // 입력에 따른 위치 조정은 MainEditorApp의 processedContent 레이아웃 효과가 전담한다.
 
                     requestAnimationFrame(() => {
                       const hadTextFocus = editor.hasTextFocus?.();
@@ -1687,7 +1659,7 @@ export function useMonacoSetup(deps: any) {
                     });
 
                     // 💡 [방향키(↑, ↓) / 마우스 클릭 / 커서 행 / 가로 줄바꿈 컬럼 / 마지막 줄 부근 감지 시 Safe Zone 추종]
-                    if (hasLineChanged || e.reason === 3 || hasWrappedRowChanged || isNearEnd) {
+                    if ((!isTyping || e.reason === 3) && (hasLineChanged || e.reason === 3 || hasWrappedRowChanged || isNearEnd)) {
                       syncPreviewFromCursor(currentLine, currentCol);
                     }
 

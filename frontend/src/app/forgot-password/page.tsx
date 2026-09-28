@@ -1,12 +1,12 @@
-﻿// ====================================================================
+// ====================================================================
 // 📊 [OMD-AUTH-forgot-password-0001] page ➔ ForgotPasswordPage
 // 🎯 @KICK  : Supabase Auth 기반 비밀번호 재설정 보안 링크 메일 발송 기능 제공 비밀번호 찾기 화면
 // 🛡️ @GUARD : 이메일 빈 값 및 오작동 가드, redirectUrl 분기 처리
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#1d4ed8) 버튼 및 Lucide React 아이콘 교체
-//             **2026-07-22** — /api/rpc/password/request 원트랜잭션 API 연동: users 존재확인 + password_resets INSERT + Supabase 메일발송을 단일 흐름으로 처리
+//             **2026-09-28** — DB 기록은 트랜잭션으로 처리하고, Supabase 메일 발송은 별도 외부 작업으로 처리
 //             **2026-06-23** — 공통 토스트 알람(showToast) 일괄 연동 개편 패치
-// 🔗 @CALLS : /api/rpc/password/request, Navbar, Footer, Link, useToast, Lucide Icons
+// 🔗 @CALLS : /api/password/request, Navbar, Footer, Link, useToast, Lucide Icons
 // ====================================================================
 "use client";
 
@@ -38,7 +38,7 @@ export default function ForgotPasswordPage() {
         ? `${window.location.origin}/reset-password`
         : "http://localhost:3100/reset-password";
 
-      const res = await fetch("/api/rpc/password/request", {
+      const res = await fetch("/api/password/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

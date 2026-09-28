@@ -281,8 +281,9 @@ describe('syncEngine Scroll Dedicated Tests', () => {
       expect(mockContainer.scrollTop).toBe(1690);
     });
 
-    it('긴 문단 내부 가로 줄바꿈(column > 50) 타이핑 시 options.column 높이 예측을 통한 즉시 Safe Zone 추종', () => {
-      // 1줄로 아직 리플로우되지 않은 초기 상태 P105(height 24px, bottom 380px)
+    it('미리보기 렌더 전에는 긴 커서 열만으로 스크롤하지 않는다', () => {
+      // DOM의 실제 문단은 Safe Zone 안에 있다. 글자 수 추정으로 먼저 스크롤하면
+      // 렌더 후 측정값으로 되돌아오며 타이핑할 때 화면이 흔들린다.
       const mockP105 = {
         tagName: 'P',
         getAttribute: (attr: string) => (attr === 'data-line' ? '105' : null),
@@ -302,13 +303,8 @@ describe('syncEngine Scroll Dedicated Tests', () => {
         querySelectorAll: (sel: string) => [mockP105],
       } as unknown as HTMLElement;
 
-      // column = 131 (wrappedRows = Math.floor(130 / 45) = 2, expectedHeight = 3 * 24 = 72px)
-      // minTop = 356, maxBottom = 356 + 72 = 428
-      // BOTTOM_SAFE = 390
-      // delta = 428 - 390 = 38
-      // targetScrollTop = 1500 + 38 = 1538
       syncPreviewToTargetLine(mockContainer, 105, '', { column: 131 });
-      expect(mockContainer.scrollTop).toBe(1538);
+      expect(mockContainer.scrollTop).toBe(1500);
     });
 
     it('코드 블록 내부 행 타깃팅 시 다중행 컨테이너 밖으로 치솟지 않고 Safe Zone 내부로 정확히 정렬 동기화', () => {

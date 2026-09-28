@@ -139,8 +139,8 @@ export function Navbar({ content }: { content?: NavbarContent }) {
     }
   };
 
-  // 데스크톱 앱(Electron) 내부에서 작동 중일 때는 웹 상단 헤더가 레이아웃을 해치지 않도록 아예 렌더링하지 않습니다.
-  const isDesktop = typeof window !== "undefined" && (
+  // 서버와 브라우저의 첫 렌더는 같아야 한다. 마운트 후에만 Electron 환경을 판정해 헤더를 숨긴다.
+  const isDesktop = mounted && typeof window !== "undefined" && (
     !!(window as any).electronAPI ||
     navigator.userAgent.toLowerCase().includes('electron') ||
     new URLSearchParams(window.location.search).get('env') === 'desktop'

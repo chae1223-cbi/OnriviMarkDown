@@ -47,10 +47,14 @@ if (fs.existsSync(FRONTEND_FUNCS_SRC)) {
 // profiles는 로컬 파일 시스템을 읽는 동적 Next API라 정적 웹 내보내기 대상에서 제외한다.
 const DEV_ONLY_ROUTES = [
   { parent: API_DIR, route: 'admin' },
+  { parent: API_DIR, route: 'blog' },
+  { parent: API_DIR, route: 'device' },
   { parent: API_DIR, route: 'cron' },
   { parent: API_DIR, route: 'faqs' },
   { parent: API_DIR, route: 'plans' },
   { parent: API_DIR, route: 'license' },
+  { parent: API_DIR, route: 'user' },
+  { parent: API_DIR, route: 'password' },
   { parent: API_DIR, route: 'knowledge' },
   { parent: API_DIR, route: 'file-content' },
   { parent: API_DIR, route: 'profiles' }

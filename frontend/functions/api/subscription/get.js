@@ -142,7 +142,8 @@ export async function onRequestPost(context) {
       success: true,
       subscription: latestSub ? {
         ...latestSub,
-        active_device_count: mappedDevices.length || 1
+        // 사용자에게 반환한 모든 활성 구독의 웹 편집 세션만 집계한다.
+        active_device_count: mappedDevices.filter(device => device.is_active === true && ['web saas', 'web browser'].includes((device.device_name || '').trim().toLowerCase()) && Date.now() - new Date(device.updated_at || device.activated_at).getTime() < 2 * 60 * 1000).length
       } : null,
       historyList: allSubs,
       license: latestSub ? {

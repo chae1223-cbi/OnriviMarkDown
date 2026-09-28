@@ -46,7 +46,7 @@ export async function POST(request: Request) {
           current_period_start, current_period_end, is_active, created_at, updated_at
         ) VALUES (
           ${subId}, ${p_user_id}, ${p_user_id}, ${p_user_id}, 'ELITEPRO', 'ACTIVE', 'YEARLY',
-          ${licenseKey}, ${verifyKey}, ${paymentNo}, 2,
+          ${licenseKey}, ${verifyKey}, ${paymentNo}, 1,
           now(), ${periodEndTs}::timestamptz, true, now(), now()
         )
       `;

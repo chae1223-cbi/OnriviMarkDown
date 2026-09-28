@@ -37,60 +37,50 @@ export async function onRequestPost(context) {
 
     // 1. payment_no -> subscriptions -> license_id 조회
     // 🚨 @PATCH: FREE 요금제는 DB 비즈니스 로직상 is_active=false 로 저장되므로 URL 쿼리에서 is_active=eq.true 조건을 제거하고 JS에서 검증합니다.
-    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?payment_no=eq.${encodeURIComponent(p_payment_no)}&plan_status=in.(ACTIVE,FREE,active,free)&select=id,max_devices,user_id,is_active,plan_status&limit=1`, { headers });
+    const subRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?payment_no=eq.${encodeURIComponent(p_payment_no)}&select=id,user_id,is_active,plan_name,plan_status,current_period_end&limit=1`, { headers });
+    if (!subRes.ok) throw new Error('구독 조회에 실패했습니다.');
     const subRows = await subRes.json();
 
     if (!subRows || subRows.length === 0) {
-      return new Response(JSON.stringify({ success: true, has_session: false, max_devices: 0 }), { status: 200, headers: corsHeaders });
+      return new Response(JSON.stringify({ success: true, has_session: false, is_terminated: true, max_devices: 0 }), { status: 200, headers: corsHeaders });
     }
 
     const sub = subRows[0];
-    const isFreePlan = sub.plan_status && sub.plan_status.toUpperCase() === 'FREE';
-    
-    // 활성 라이선스 조건: is_active가 true이거나 FREE 플랜인 경우
-    if (!sub.is_active && !isFreePlan) {
-      return new Response(JSON.stringify({ success: true, has_session: false, max_devices: 0 }), { status: 200, headers: corsHeaders });
-    }
-
     const licenseId = sub.id;
-    const max_devices = sub.max_devices;
     const userId = sub.user_id;
+    const eligible = String(sub.plan_name).toUpperCase() !== 'READER' &&
+      ['ACTIVE', 'FREE'].includes(String(sub.plan_status).toUpperCase()) &&
+      (sub.is_active === true || String(sub.plan_status).toUpperCase() === 'FREE') &&
+      (!sub.current_period_end || new Date(sub.current_period_end).getTime() > Date.now());
 
     // 2. license_activations에서 해당 device_uuid 세션 존재 여부 확인
-    const actRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&device_uuid=eq.${p_device_uuid}&select=id,is_active&limit=1`, { headers });
+    const actRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&device_uuid=eq.${p_device_uuid}&select=id,is_active,device_name&limit=1`, { headers });
     const actRows = await actRes.json();
 
-    const sessionExists = actRows && actRows.length > 0;
-    let isActiveSession = sessionExists && actRows[0].is_active;
-    let promoted = false;
+    if (!actRes.ok) throw new Error('세션 조회에 실패했습니다.');
+    const sessionExists = Array.isArray(actRows) && actRows.length > 0;
+    const isWebSession = sessionExists && ['web saas', 'web browser'].includes(String(actRows[0].device_name || '').trim().toLowerCase());
+    const isActiveSession = eligible && sessionExists && actRows[0].is_active === true &&
+      (!isWebSession || String(sub.plan_name).toUpperCase() !== 'DESKTOP_ONLY');
 
-    // 3. Auto-promote if restricted but capacity available
-    if (sessionExists && !isActiveSession && max_devices > 0) {
-      const countRes = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&is_active=eq.true&select=id`, { headers });
-      const activeRows = await countRes.json();
-      if (activeRows && activeRows.length < max_devices) {
-        isActiveSession = true;
-        promoted = true;
-      }
-    }
-
-    // 4. updated_at 갱신 (하트비트) 및 필요시 is_active 승급
+    // 하트비트는 제한 세션을 자동 승격하지 않는다. 등록 API만 편집 좌석을 판정한다.
     if (sessionExists) {
       const patchBody = { updated_at: new Date().toISOString(), updated_by: userId };
-      if (promoted) patchBody.is_active = true;
-      
-      await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&device_uuid=eq.${p_device_uuid}`, {
+      if (!eligible || (isWebSession && String(sub.plan_name).toUpperCase() === 'DESKTOP_ONLY')) patchBody.is_active = false;
+      const heartbeat = await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${licenseId}&device_uuid=eq.${p_device_uuid}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify(patchBody)
       });
+      if (!heartbeat.ok) throw new Error('세션 갱신에 실패했습니다.');
     }
 
     return new Response(JSON.stringify({
       success: true,
       has_session: isActiveSession,
       is_restricted: sessionExists && !isActiveSession,
-      max_devices: max_devices || 1
+      is_terminated: !sessionExists,
+      max_devices: eligible ? 1 : 0
     }), { status: 200, headers: corsHeaders });
 
   } catch (err) {

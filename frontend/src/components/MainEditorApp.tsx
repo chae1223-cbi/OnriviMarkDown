@@ -10,7 +10,7 @@
 // 🚨 @PATCH : **2026-09-26** — [코드블록 내부 행간 줄간격 콤팩트 규격화(1.35배) 및 서식 연동]: codeBlock line-height(기본 1.35배) 동적 인젝션으로 본문 1.8배 줄간격 오염 차단 및 빈 행 1칸 높이 정밀 유지
 // 🚨 @PATCH : **2026-09-26** — [Alert 인용구 태그와 본문 간격 최소화 서식 동기화]: .onrivi-alert-title(하단 마진 축소 및 --onrivi-alert-gap 연동)과 .onrivi-alert-content(첫 문단 margin-top 0 강제) dynamicCssString 인젝션
 // 🚨 @PATCH : **2026-09-27** — [서식 컨트롤 우선순위 고정]: 설정창 규칙과 추가 CSS를 계층으로 분리해 동일 속성 충돌 시 설정창의 !important 선언이 우선하도록 보장
-// 🚨 @PATCH : **2026-09-26** — [에디터 기술 블로그 미리보기 및 발행 모달 연동]: BlogPostModal 임포트, onrivi:open-blog-modal 이벤트 수신 및 Ctrl+Alt+B 연동
+// 🚨 @PATCH : **2026-09-28** — 에디터의 블로그 발행 모달 연결과 단축키 제거
 // 🚨 @PATCH : **2026-09-25** — [시스템 제공 서식 개편 동기화]: 구버전 서식('GitHub 기술 블로그/명세서', '공공기관 보고서 양식')을 삭제하고, 신규 시스템 제공 서식 5종('Onrivi 기술 표준 서식', 'Onrivi 법률·계약서 A4 공식 문서', 'Onrivi 네이버 블로그 감성 서식', 'Onrivi 일반 기술서적 표준 서식', 'Onrivi 공식 행사 및 가정통신문 안내장 서식')을 시스템 서식으로 공식 인식 및 로드
 // 🚨 @PATCH : **2026-09-25** — [체크박스 및 체크리스트 글자색 본문 글씨색(#2f2f2f) 일치화]: .task-list-item 및 checkboxStructure color를 본문(p) 글씨색(기본 #2f2f2f)으로 일치시켜 별도 색상 튐 현상 원천 배제
 // 🚨 @PATCH : **2026-09-25** — [체크리스트 완료 항목 스타일 '효과없음(none)' 기본값 통일]: prof.checkboxStructure.checkedEffect 기본값을 무조건 'none'으로 처리하여 기본 체크박스 완료 시 취소선 및 반투명 효과를 원천 배제
@@ -74,7 +74,7 @@
 // 🚨 @PATCH : **2026-09-17** — [지식 베이스 상세 모달/출처 링크 '에디터에서 열기' 파일 로드 및 라인 점프 연동]: app:open-file-at-line 이벤트 리스너가 filePath를 무시하고 활성 문서 스크롤만 수행하던 결함을 해결하여, handleFileOpenByPath와 결합하여 비활성/미오픈 파일 로드, 탭 전환, Monaco 커서 포커스 및 라인 센터 스크롤, 프리뷰 data-line 동시 하이라이트 완벽 지원
 // 🚨 @PATCH : **2026-09-16** — [라이선스 세션 등록 UUID 식별자 우선 전송 및 500 오류 방어]: loadAndVerifyLicense 및 handleCrossDeviceTakeover에서 p_user_id로 이메일 대신 subscription.user_id(UUID) 또는 auth session UUID를 우선 전송하여 Postgres 22P02 오류 원천 차단
 // 🚨 @PATCH : **2026-09-16** — [삭제된 폴더 스캔 시 ENOENT/EPERM 콘솔 에러 가드]: fetchAllMdFiles 데스크톱 스캔 시 삭제/이동 직후의 ENOENT/EPERM 예외 콘솔 경고를 안전하게 억제하고 스킵 처리
-// 🚨 @PATCH : **2026-09-13** — [세션 등록 insert API 500 에러 시 제한사용자 잠금 방지]: /api/rpc/license/insert가 500(서버 내부 오류)을 반환할 때 구독 자체가 유효하면 제한사용자로 처리하지 않고 경고 토스트 후 정상 접근 허용; SERVER_ERROR 코드 및 fetch 예외도 동일하게 처리; insert.js catch 블록 500→200 반환 개선으로 클라이언트 JSON 파싱 안전성 확보
+// 🚨 @PATCH : **2026-09-28** — 세션 활성화 실패 또는 통신 오류 시 편집 권한을 열지 않고 읽기 전용으로 유지한다.
 // 🚨 @PATCH : **2026-09-13** — [플로팅 서식 툴바 인용구 Alert 드롭다운 fixed 최상위 포털 전환]: Windows 작업표시줄 뒤로 드롭다운 항목이 숨는 문제 완전 해결 — absolute→fixed 포지셔닝 전환, getBoundingClientRect() 기반 실제 화면 좌표 측정, zIndex 2147483647(max) 적용, 하단 여유 부족 시 DropUp 자동 반전, floatingQuoteDropdown 상태(open/x/y/dropUp) 통합 관리, 바깥클릭/Escape 닫힘 안전 가드 유지
 // 🚨 @PATCH : **2026-09-13** — [데스크톱 라이선스 검증 이메일 식별자 보존 및 제한사용자 오강등 영구 차단]: loadAndVerifyLicense에서 session.user.id(UUID)로 이메일이 덮어써져 NOT_FOUND가 발생하던 결함을 session.user.email 및 desktop fullData.userId 우선 채택으로 해결하고, 서버 일시 오류 시 로컬 라이선스 파기 방지 및 오프라인 유예기간 보호 강화
 // 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: handleOpenKnowledge 및 Ctrl+Shift+K 단축키에 isDesktop 가드를 적용하여 웹 브라우저 환경에서 데스크톱 전용 안내 토스트 출력 및 불필요한 화면 전환 차단
@@ -160,7 +160,7 @@
 //             **2026-08-13** — 스크롤 요동 및 튕김 현상의 근본적 해결을 위해 MainEditorApp 내의 모든 이중/중복 스크롤 보정 훅(postContentScrollCorrection) 및 휠/터치 강제 차단 훅을 완전히 삭제하고, Monaco Setup의 단일 스크롤 리스너로 동기화 구조를 전량 이관 및 정밀 간소화함
 //             **2026-08-12** — 에디터를 열거나 탭을 닫고 전환할 때 제한사용자(만료, 동시접속 제한, 미인증 등)의 권한 가드가 누락되어 편집 가능해지던 버그 해결을 위해 isRestrictedUser 검사 통합 적용 및 Monaco readOnly/domReadOnly 옵션 동기화 보완; 최초 검증 시 동시접속 실패 시 이중 검증 복구 우회로를 차단하고 isRestricted 필드를 로컬 보안 캐시와 setLicenseStatus에 밀봉 연동하여 캐시 뚫림 현상 원천 해결
 //             **2026-08-12** — 에디터 마지막 2줄 이내에서 타이핑 시 미리보기 영역이 위로 튀어서 입력 내용이 가려지던 버그 해결을 위해 postContentScrollCorrection 훅에 setTimeout(50ms) 기반 지연 최하단 밀착 스크롤 보강 적용
-//             **2026-07-22** — 클라이언트 직접 supabase.rpc() 호출 전량 서버단 API Route fetch()로 이전: insert_license_activation→/api/rpc/license/insert, check_license_session(×2)→/api/license/check-session, verify_desktop_license→/api/license/verify-desktop; Realtime 구독 테이블명 license_activations→license_activations 전환
+//             **2026-07-22** — 클라이언트 직접 supabase.rpc() 호출 전량 서버단 API Route fetch()로 이전: insert_license_activation→/api/license/activate, check_license_session(×2)→/api/license/check-session, verify_desktop_license→/api/license/verify-desktop; Realtime 구독 테이블명 license_activations→license_activations 전환
 //             **2026-07-22** — subscriptions 단일 통합 테이블 개편에 맞춰 software_licenses 및 users 레거시 쿼리 참조를 subscriptions 단일 쿼리로 일괄 마이그레이션 적용
 //             **2026-07-20** — 플로팅 툴바의 단독 AI Sparkles(✨) 아이콘 클릭 시 기존의 미작동하던 인라인 미리보기(setAiPreviewState)를 제거하고, 정상적인 AI 에디토리얼 어시스턴트 모달(AiDraftModal)이 열리도록 OPEN_AI_WRITER 커맨드 디스패치로 수정. 또한 텍스트/마크다운 조작 그룹에 중복으로 존재하던 텍스트 이모지(✨) 버튼을 제거하여 툴바 장황성 개선 및 기능 단일화 패치 적용 | **2026-07-18** — 라이선스 만료 및 미승인 상태(isExpired)일 때 Monaco 에디터가 편집 불가(readOnly, domReadOnly) 상태로 전환되도록 강제화 보강, 웰컴페이지 유예 시간 빨간색 경고 메시지 배너 UI 제거
  * *2026-07-15** — ModalManager deps 객체에서 window.SYSTEM_PROFILES/DEFAULT_PROFILE/isSystemProfileId를 window 전역에서 읽던 잘못된 코드를 모듈 import 상수 직접 참조로 수정 (window에 주입되지 않아 항상 빈 배열/객체로 폴백 → 서식 삭제 시 SYSTEM_PROFILES[0] undefined TypeError 버그 수정) | AI 재생성 및 모달 닫기/취소 시 백그라운드 스트리밍을 무효화하는 generationIdRef 가드 추가(동일 모달 재진입 또는 재생성 시 이전 버퍼가 오버랩되는 현상 완벽 조치), 에디터 마지막 행 타이핑 시 화면이 위아래로 흔들리는(jitter) 현상 해결을 위해 scrollBeyondLastLine: false와 충돌하는 bottom 패딩을 0으로 조정, AI 결과 반영 시(본문 대체 삽입 및 하단 추가) 에디터 포커스를 획득하고 커서의 위치를 반영된 텍스트 블록의 처음 시작 지점으로 자동 스위칭(setPosition/revealPositionInCenter)하도록 개선, AI 에디토리얼 어시스턴트에 컨텍스트 없음(일반 질문) 선택 옵션(targetScope: none)을 기본값으로 추가 제공하여 불필요한 본문 참조 현상 해결 및 본문 삽입/추가 로직 커서 위치 연동 보강, AI 에디토리얼 어시스턴트 모달 오픈 시 명령 입력창(textarea)에 자동으로 포커스(autoFocus)가 가도록 기능 보완, 문서 연결(문서링크) 픽커 모달의 노출 위치를 기존 floatingToolbar 기준에서 현재 Monaco 에디터의 커서(Cursor) 좌표 위치로 실시간 계산하여 출력되도록 스페이스 보정 및 화면 이탈 방지 가드 추가 | **2026-07-14** — AI 글쓰기 어시스턴트 적용 범위(선택 영역 vs 전체 문서) 스위칭 토글 옵션 및 지능형 문맥 자동 결합 옵션 탑재, 툴바 장황성 극복을 위한 상단 및 플로팅 툴바 단독 AI Sparkles(✨) 아이콘 주입, 맞춤법/오탈자 등 일반 지시 사항에 반응하도록 action 하드코딩 교정 및 [출력결과] 개행 앵커 정규식 필터 보정 | **2026-07-04** — 서식설정(CSS 프로필) 진입 방식을 기존 가상 탭바 기반 통합 개편에서 **전체화면 모달 팝업 갤러리(CssStyleModal)** 방식으로 재차 전면 개편. 탭 충돌 버그 및 데스크탑 렌더링 에러를 원천 차단하고 직관적인 샘플 문서 기반 프리뷰 환경 제공 | **2026-07-04** — 탭을 모두 닫거나 파일 전환 시 제한(만료) 사용자는 항상 미리보기 전용('preview') 모드로 강제 고정하고, 전체(일반) 사용자는 하단 상태바 등에서 활성화된 직전의 에디터 뷰잉 모드를 그대로 상속 및 유지하여 탭과 유기적으로 동기화하는 UI 보정 패치
@@ -280,7 +280,6 @@ import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontma
 import { KnowledgeHubView } from '@/components/knowledge/KnowledgeHubView';
 import { useSingleTabGuard } from '@/lib/singleTabGuard';
 import { saveExternalFileHandle } from '@/lib/storage/externalFileStore';
-import BlogPostModal from '@/components/BlogPostModal';
 import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder } from '@/lib/profileStorage';
 
 
@@ -859,14 +858,15 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // 💡 [권한 기반 제한사용자 판별 플래그] 다중 탭 중복 실행, 기간 만료, 동시 접속 초과, 혹은 미인증/제한 플랜 사용 여부를 판별
   const isRestrictedUser = useMemo(() => {
-    return (isDuplicateInstance && isEditorPlan) ||
+    return isLicenseChecking || !effectiveLicenseStatus.isActivated ||
+      (isDuplicateInstance && isEditorPlan) ||
       effectiveLicenseStatus.isConcurrentLimited ||
       effectiveLicenseStatus.isExpired ||
       effectiveLicenseStatus.isRestricted ||
       effectiveLicenseStatus.planName?.includes('미인증') ||
       effectiveLicenseStatus.planName?.includes('제한사용자') ||
       effectiveLicenseStatus.planName?.includes('동시 접속 초과');
-  }, [isDuplicateInstance, isEditorPlan, effectiveLicenseStatus.isConcurrentLimited, effectiveLicenseStatus.isExpired, effectiveLicenseStatus.isRestricted, effectiveLicenseStatus.planName]);
+  }, [isLicenseChecking, isDuplicateInstance, isEditorPlan, effectiveLicenseStatus.isActivated, effectiveLicenseStatus.isConcurrentLimited, effectiveLicenseStatus.isExpired, effectiveLicenseStatus.isRestricted, effectiveLicenseStatus.planName]);
 
   // 💡 [사용자 별명(활동명) 상태] AI 버튼 표기용 ({별명} AI, 예: '탕수육 AI')
   const [userNickname, setUserNickname] = useState<string>(() => {
@@ -991,25 +991,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🌟 [전체사용자 공통 리소스 폴더 필수 안내 모달 상태]
   const [isResourceGuideModalOpen, setIsResourceGuideModalOpen] = useState(false);
   const [isDismissedGuide, setIsDismissedGuide] = useState(false);
-
-  // 📰 [기술 블로그 미리보기 및 발행 모달 상태 및 이벤트/단축키(Ctrl+Alt+B) 리스너]
-  const [isBlogModalOpen, setIsBlogModalOpen] = useState(false);
-
-  useEffect(() => {
-    const handleOpenBlog = () => setIsBlogModalOpen(true);
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.altKey && (e.key === 'b' || e.key === 'B')) {
-        e.preventDefault();
-        setIsBlogModalOpen(true);
-      }
-    };
-    window.addEventListener('onrivi:open-blog-modal', handleOpenBlog);
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => {
-      window.removeEventListener('onrivi:open-blog-modal', handleOpenBlog);
-      window.removeEventListener('keydown', handleGlobalKeyDown);
-    };
-  }, []);
 
   // ====================================================================
   // 📊 [OMD-EDIT-0004 TDZ-GUARD] MainEditorApp.tsx ➔ tabs/activeTabId 선행 선언
@@ -1551,7 +1532,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   //              2026-06-23 — payment_no 미존재 시의 subscriptions 폴백 쿼리에 다중구독 cardinality violation 방지용 활성 구독 필터(is_expired/plan_end_date/plan_status 등) 추가 개편;
   //              2026-06-22 — payment_no 미존재 시 supabase Auth 세션 → subscriptions → software_licenses fallback;
   //              웹 SaaS: count 조회만 수행, upsert/device UUID 완전 제거 (auth callback에서 insert 담당)
-  // 🔗 @CALLS : api.loadLicenseFull, fetch(/api/rpc/license/insert, /api/license/check-session), crypto.subtle.digest, saveSecureData, loadSecureData, setLicenseStatus, setLicenseKey
+  // 🔗 @CALLS : api.loadLicenseFull, fetch(/api/license/activate, /api/license/check-session), crypto.subtle.digest, saveSecureData, loadSecureData, setLicenseStatus, setLicenseKey
   // ====================================================================
   const loadAndVerifyLicense = useCallback(async () => {
     if (typeof window === 'undefined' || !deviceId) return;
@@ -2030,9 +2011,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             let activationFailed = false;
             let activationError = '';
-            // 🚨 @PATCH : 2026-09-13 — insert API 500(서버 내부 오류) 시 구독 자체가 유효하면 제한사용자로 처리하지 않고 경고 토스트 후 정상 접근 허용
-            // (세션 등록 서버 장애와 비즈니스 로직 실패(기기 초과)를 구분하여 서버 오류로 인한 불필요한 잠금 원천 차단)
-            let isInsertServerError = false; // insert API 500 여부 (비즈니스 실패 아닌 순수 서버 오류)
             let isDeviceLimitHit = false; // 기기 초과 여부 (try 블록 바깥에서도 참조)
 
             const currentDeviceName = isDesktop ? 'Desktop App' : 'Web SaaS';
@@ -2043,17 +2021,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
             console.log('[loadAndVerifyLicense] insert: user=', reqUserId, 'session=', sessionId, 'device=', currentDeviceName, 'licenseId=', currentLicenseId, 'isREADER=', sub?.plan_name === 'READER');
             try {
-              const actRes = await fetch(getApiUrl('/api/rpc/license/insert'), {
+              const activationToken = !isDesktop ? (await supabase.auth.getSession()).data.session?.access_token : null;
+              const actRes = await fetch(getApiUrl('/api/license/activate'), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...(activationToken ? { Authorization: `Bearer ${activationToken}` } : {}) },
                 body: JSON.stringify({ p_license_id: currentLicenseId, p_device_uuid: sessionId, p_device_name: currentDeviceName, p_user_id: reqUserId, p_is_expired: sub?.plan_name === 'READER' })
               });
 
               if (!actRes.ok) {
-                // 500 등 서버 내부 오류 → 구독이 유효하면 접근 허용 (세션 등록만 실패한 것이므로 제한사용자로 잠그지 않음)
-                isInsertServerError = true;
-                console.warn('[loadAndVerifyLicense] insert API server error status=%o — allowing access based on valid subscription', actRes.status);
-                showToast('세션 등록 서버에 일시적 오류가 발생했습니다. 잠시 후 자동 복구됩니다.', 'warning');
+                activationFailed = true;
+                activationError = '세션 확인 오류 - 읽기 전용';
+                console.warn('[loadAndVerifyLicense] activation API error status=%o', actRes.status);
+                showToast('편집 권한을 확인할 수 없어 읽기 전용으로 열었습니다.', 'warning');
               } else {
                 const actResult = await actRes.json();
                 if (actResult?.activation_id) {
@@ -2063,31 +2042,23 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 const isDeviceLimitHitLocal = actResult?.code === 'ERR_MAX_DEVICES_EXCEEDED' || actResult?.code === 'EXCEED_MAX_DEVICES';
                 isDeviceLimitHit = isDeviceLimitHitLocal;
                 if (!actResult?.success) {
-                  if (actResult?.code === 'SERVER_ERROR') {
-                    // 서버 내부 오류(DB 장애 등) → 구독 유효 시 접근 허용 (제한사용자 처리 금지)
-                    isInsertServerError = true;
-                    console.warn('[loadAndVerifyLicense] insert SERVER_ERROR — allowing access based on valid subscription');
-                    showToast('세션 등록 서버에 일시적 오류가 발생했습니다. 잠시 후 자동 복구됩니다.', 'warning');
-                  } else {
-                    activationFailed = true;
-                    activationError = isDeviceLimitHit
-                      ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자`
-                      : `라이선스 오류: ${actResult?.message || '알 수 없는 오류'}`;
-                  }
+                  activationFailed = true;
+                  activationError = isDeviceLimitHit
+                    ? `동시 접속 초과 (${actResult?.max_devices || '?'}대) - 제한 사용자`
+                    : `라이선스 오류: ${actResult?.message || '알 수 없는 오류'}`;
                 }
                 console.log('[loadAndVerifyLicense] insert result: success=%o code=%o', actResult?.success, actResult?.code);
               }
             } catch (insertFetchErr) {
-              // 네트워크 단절 등 fetch 자체 실패 → 서버 오류와 동일하게 취급, 구독 유효 시 접근 허용
-              isInsertServerError = true;
+              activationFailed = true;
+              activationError = '세션 확인 오류 - 읽기 전용';
               console.warn('[loadAndVerifyLicense] insert API fetch failed (network?):', insertFetchErr);
-              showToast('세션 등록 네트워크 오류가 발생했습니다. 구독은 유효하므로 계속 이용 가능합니다.', 'warning');
+              showToast('편집 권한을 확인할 수 없어 읽기 전용으로 열었습니다.', 'warning');
             }
 
-            // 비즈니스 실패(기기 초과 등)만 isRestricted 처리; 순수 서버/네트워크 오류는 구독 유효성으로 판단
-            const isRestricted = (activationFailed && !isInsertServerError) || sub?.plan_name === 'READER';
+            const isRestricted = activationFailed || sub?.plan_name === 'READER';
 
-            if (activationFailed && !isInsertServerError) {
+            if (activationFailed) {
               isExpired = true;
               planName = activationError;
             }
@@ -2208,9 +2179,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           return;
         }
 
-        const res = await fetch(getApiUrl('/api/rpc/license/insert'), {
+        const res = await fetch(getApiUrl('/api/license/activate'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authSessionData?.session?.access_token || ''}` },
           body: JSON.stringify({
             p_license_id: licenseId,
             p_device_uuid: sessionId,
@@ -5482,18 +5453,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (currentPos && currentPos.lineNumber) {
       const currentContent = editorRef.current.getValue?.() || contentRef.current;
       syncPreviewToTargetLine(previewRef.current, currentPos.lineNumber, currentContent, { column: currentPos.column });
-
-      // 💡 [새 미디어/이미지 렌더링 레이아웃 보정] DOM 삽입 직후 이미지 크기 결정 후 2차 안전 동기화
-      const timer = setTimeout(() => {
-        if (previewRef.current && editorRef.current && isScrollingRef.current !== 'preview') {
-          const p = editorRef.current.getPosition?.();
-          if (p && p.lineNumber) {
-            const c = editorRef.current.getValue?.() || contentRef.current;
-            syncPreviewToTargetLine(previewRef.current, p.lineNumber, c, { column: p.column });
-          }
-        }
-      }, 120);
-      return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [processedContent, previewMode]);
@@ -9039,19 +8998,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               updateContent
             }}
           />
-
-          {/* 📰 온리비 기술 블로그 미리보기 및 발행 모달 */}
-          <BlogPostModal
-            isOpen={isBlogModalOpen}
-            onClose={() => setIsBlogModalOpen(false)}
-            markdownContent={content}
-            currentFileName={currentFileName}
-            isDarkMode={isDarkMode}
-          />
-
-
-
-
 
           {/* 🎙️ 모바일 플로팅 음성 비서 (STT) */}
           {mounted && isMobile && (() => {

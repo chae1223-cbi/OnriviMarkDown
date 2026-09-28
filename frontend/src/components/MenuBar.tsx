@@ -2,7 +2,7 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
-// 🚨 @PATCH : **2026-09-26** — [블로그 미리보기 및 발행 메뉴 연동]: 파일(File) 메뉴 및 상단 바에 '블로그 미리보기 / 발행(Ctrl+Alt+B)' 및 블로그 이동 네비게이션 연동
+// 🚨 @PATCH : **2026-09-28** — 에디터의 블로그 게시 버튼과 파일 메뉴 항목 제거
 // 🚨 @PATCH : **2026-09-20** — [편집 메뉴 인용구 항목 제거] 편집(Edit) 메뉴의 '인용구 스타일 (Alert)' 서브메뉴 전체 삭제
 //             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, FolderSync) 제거, Icon 컴포넌트(ArrowRight, FolderSync) 로 교체
 // 🚨 @PATCH : **2026-09-18** — [타문서 변환 명칭 및 단축키(Ctrl+Alt+O) 표준화]: 상단 파일 메뉴의 '문서 가져오기'를 '타문서 변환'으로 변경하고 바로가기 단축키(Ctrl+Alt+O) 라벨 동기화
@@ -180,7 +180,7 @@ export default function MenuBar() {
         }
 
         // DB 원장의 최신 별명 조회
-        fetch('/api/rpc/user/check', {
+        fetch('/api/user/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ p_id: session.user.id, p_email: session.user.email })
@@ -240,12 +240,6 @@ export default function MenuBar() {
     { label: t('saveFileAs'), icon: <Icon name="Export" size={15} />, shortcut: 'Ctrl+Shift+S', onClick: () => dispatch('SAVE_AS') },
     { divider: true },
     { label: "타문서 변환", icon: <Icon name="Import" size={15} />, shortcut: 'Ctrl+Alt+O', onClick: () => window.dispatchEvent(new CustomEvent('TRIGGER_IMPORT')) },
-    { 
-      label: "블로그 미리보기 / 발행", 
-      icon: <Icon name="Book" size={15} />, 
-      shortcut: 'Ctrl+Alt+B', 
-      onClick: () => window.dispatchEvent(new CustomEvent('onrivi:open-blog-modal')) 
-    },
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
       icon: <Icon name="Export" size={15} />,
@@ -378,17 +372,6 @@ export default function MenuBar() {
       
       {/* 📊 [OMD-EDIT-MenuBar-USER] 우측 끝 로그인 사용자 별명 표시 및 클릭 시 계정 관리 탭 이동 */}
       <div className="ml-auto flex items-center pr-4 gap-2">
-        {/* 📰 블로그 미리보기 및 발행 퀵 액션 버튼 */}
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('onrivi:open-blog-modal'))}
-          title="작성 중인 마크다운 문서를 블로그 스타일로 미리보고 웹에 바로 게시합니다 (Ctrl+Alt+B)"
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 text-[#1d4ed8] dark:text-blue-400 rounded-lg border border-blue-200/80 dark:border-blue-800/80 text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
-        >
-          <Icon name="Book" size={13} />
-          <span>블로그 게시</span>
-        </button>
-
         {/* 🌟 전체사용자 대상 리소스 폴더 미설정 퀵 알림 칩 */}
         {isResourceFolderMissing && isFullUser && (
           <button

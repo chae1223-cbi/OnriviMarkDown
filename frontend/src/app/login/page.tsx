@@ -5,7 +5,7 @@
 // 🚨 @PATCH : **2026-09-16** — [로그인 시 세션 등록 기기 한도 초과 안내 콘솔 warn 전환]: 로그인 시 기기 한도 초과(EXCEED_MAX_DEVICES) 응답을 console.error 대신 console.warn으로 처리하여 정상 비즈니스 분기 시 콘솔 에러 오염 방지
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#1d4ed8) 버튼 및 Lucide React 아이콘 교체
-//             **2026-07-22** — 로그인 시 users 존재 확인 API(/api/rpc/user/check) 1차 연동 및 subscriptions 이중 유효성 검증 폴백 구조 적용 패치
+//             **2026-07-22** — 로그인 시 users 존재 확인 API(/api/user/check) 1차 연동 및 subscriptions 이중 유효성 검증 폴백 구조 적용 패치
 //             **2026-06-23** — 공통 토스트 알람(showToast) 일괄 연동 개편 패치
 // 🔗 @CALLS : supabase.auth, Navbar, Footer, useRouter, useToast, Lucide Icons
 // ====================================================================
@@ -48,7 +48,7 @@ export default function LoginPage() {
 
     try {
       // 0. users 상용 계정 사전 차단 검증
-      const preUserRes = await fetch("/api/rpc/user/check", {
+      const preUserRes = await fetch("/api/user/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ p_email: email.trim() }),
@@ -75,7 +75,7 @@ export default function LoginPage() {
       // ==================================================================
       const { data: { user: loggedInUser } } = await supabase.auth.getUser();
       if (loggedInUser) {
-        const userCheckRes = await fetch("/api/rpc/user/check", {
+        const userCheckRes = await fetch("/api/user/check", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ p_email: loggedInUser.email }),
@@ -116,9 +116,10 @@ export default function LoginPage() {
           localStorage.setItem("onrivi_license_key", subData.license_key || "");
 
           try {
-            const actRes = await fetch("/api/rpc/license/insert", {
+            const activationToken = (await supabase.auth.getSession()).data.session?.access_token;
+            const actRes = await fetch("/api/license/activate", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...(activationToken ? { Authorization: `Bearer ${activationToken}` } : {}) },
               body: JSON.stringify({ p_license_id: subData.id, p_device_uuid: sessionId, p_device_name: "Web SaaS", p_user_id: loggedInUser.id }),
             });
             const actResult = await actRes.json();

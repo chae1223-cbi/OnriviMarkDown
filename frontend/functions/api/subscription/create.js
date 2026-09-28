@@ -1,184 +1,106 @@
+import { getBlogUser, withBlogTransaction, blogJson } from '../blog/_db.js';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PLAN_CODE = /^[A-Z][A-Z0-9_]{1,49}$/;
+
 export async function onRequestOptions() {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  return new Response(null, { headers: {
+    'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
-  };
-  return new Response(null, { headers: corsHeaders });
+  } });
 }
 
-function generateHex(size) {
-  const bytes = new Uint8Array(size);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-}
+const failure = (code, message, status) => blogJson({ success: false, code, message }, status);
+const randomHex = size => Array.from(crypto.getRandomValues(new Uint8Array(size)), byte => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
 
-export async function onRequestPost(context) {
-  const { request, env } = context;
-  
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
-    'Content-Type': 'application/json'
-  };
-
+export async function onRequestPost({ request, env }) {
   try {
+    const user = await getBlogUser(request, env);
+    if (!user?.id || !UUID.test(user.id)) return failure('UNAUTHORIZED', '다시 로그인해 주세요.', 401);
+
     const body = await request.json();
-    let { p_user_id } = body;
-    const {
-      p_plan_name,
-      p_plan_status,
-      p_billing_interval,
-      p_max_devices,
-      p_period_end,
-      p_device_uuid,
-      p_device_name,
-    } = body;
-
-    if (!p_user_id || !p_plan_name || !p_device_uuid) {
-      return new Response(JSON.stringify({ success: false, code: 'INVALID_PARAMS', message: '필수 파라미터가 누락되었습니다.' }), { status: 400, headers: corsHeaders });
+    const planCode = String(body.p_plan_name || '').trim().toUpperCase();
+    const billingInterval = String(body.p_billing_interval || '').trim().toLowerCase();
+    const deviceUuid = body.p_device_uuid;
+    if (!PLAN_CODE.test(planCode) || planCode === 'READER' || !['trial', 'month', 'year'].includes(billingInterval) ||
+        typeof deviceUuid !== 'string' || !deviceUuid.trim() || deviceUuid.length > 200 ||
+        (body.p_user_id && body.p_user_id !== user.id)) {
+      return failure('INVALID_PARAMS', '요금제 또는 기기 정보가 올바르지 않습니다.', 400);
     }
 
-    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL || 'https://niyvcgvayofdqbebmche.supabase.co';
-    const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const outcome = await withBlogTransaction(env, async db => {
+      // 사용자 행 잠금으로 같은 계정의 동시 신청과 무료 재신청 검사를 직렬화한다.
+      const owner = await db.query('SELECT id FROM public.users WHERE id = $1 FOR UPDATE', [user.id]);
+      if (!owner.rows.length) return { code: 'USER_NOT_FOUND', message: '사용자를 찾을 수 없습니다.', status: 404 };
 
-    const headers = {
-      'apikey': supabaseKey,
-      'Authorization': `Bearer ${supabaseKey}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Prefer': 'return=representation'
-    };
-
-    // 0. UUID 검증 및 Email -> UUID 변환
-    const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (!isValidUUID(p_user_id)) {
-      const uRes = await fetch(`${supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(p_user_id)}&select=id&limit=1`, { headers });
-      const uData = await uRes.json();
-      if (uRes.ok && uData && uData.length > 0) {
-        p_user_id = uData[0].id;
-      } else {
-        return new Response(JSON.stringify({ success: false, code: 'INVALID_USER', message: '해당 이메일의 사용자를 찾을 수 없습니다.' }), { status: 404, headers: corsHeaders });
+      const selected = await db.query(`
+        SELECT plan_code, sys_type, is_free, price_monthly, price_yearly
+        FROM public.pricing_plans WHERE plan_code = $1 AND is_active = true FOR SHARE`, [planCode]);
+      const plan = selected.rows[0];
+      if (!plan) return { code: 'PLAN_NOT_AVAILABLE', message: '선택할 수 없는 요금제입니다.', status: 400 };
+      if (!['WEB', 'DESKTOP'].includes(String(plan.sys_type).toUpperCase())) {
+        return { code: 'PLAN_NOT_AVAILABLE', message: '지원하지 않는 요금제 유형입니다.', status: 400 };
       }
-    }
 
-    // 1. 무료 요금제 재가입 방지
-    if (p_plan_name === 'APPRENTICE' || p_plan_name === 'FREE') {
-      const pastRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${p_user_id}&plan_name=neq.READER&select=id&limit=1`, { headers });
-      const pastSubs = await pastRes.json();
-      if (pastSubs && pastSubs.length > 0) {
-        return new Response(JSON.stringify({ success: false, code: 'ERROR', message: '이미 구독 신청 및 이용 이력이 존재하는 계정이므로 무료 체험 재가입이 불가능합니다. 유료 요금제를 선택해 주세요.' }), { status: 500, headers: corsHeaders });
+      const isFree = plan.is_free === true;
+      const cycle = isFree ? 'TRIAL' : billingInterval === 'year' ? 'YEARLY' : 'MONTHLY';
+      const amount = isFree ? 0 : Number(billingInterval === 'year' ? plan.price_yearly : plan.price_monthly);
+      if ((isFree && billingInterval !== 'trial') || (!isFree && (billingInterval === 'trial' || !Number.isFinite(amount) || amount <= 0))) {
+        return { code: 'INVALID_CYCLE', message: '이 요금제에서 선택할 수 없는 결제 주기입니다.', status: 400 };
       }
-    }
 
-    const now = new Date().toISOString();
-    const subId = crypto.randomUUID();
-    let periodEndTs;
-    if (p_period_end && p_period_end.includes('-')) {
-      periodEndTs = new Date(p_period_end).toISOString();
-    } else if (p_period_end && p_period_end.length >= 8) {
-      periodEndTs = `${p_period_end.substring(0, 4)}-${p_period_end.substring(4, 6)}-${p_period_end.substring(6, 8)}T23:59:59Z`;
-    } else {
-      periodEndTs = new Date(Date.now() + 30 * 86400000).toISOString();
-    }
+      const previous = await db.query(`
+        SELECT plan_name FROM public.subscriptions
+        WHERE user_id = $1 AND plan_name <> 'READER' ORDER BY created_at DESC LIMIT 1`, [user.id]);
+      if (isFree && previous.rows.length) {
+        return { code: 'FREE_ALREADY_USED', message: '무료 이상 요금제 신청 이력이 있어 무료 요금제를 다시 신청할 수 없습니다.', status: 409 };
+      }
 
-    const licenseKey = generateHex(8);
-    const verifyKey = generateHex(8);
-    const paymentNo = `PAY-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${generateHex(4)}`;
-    
-    const isActive = p_plan_status === 'ACTIVE' || p_plan_status === 'FREE';
-    
-    // billing_cycle 매핑 (year -> YEARLY, month -> MONTHLY)
-    let billingCycle = 'MONTHLY';
-    if (p_billing_interval) {
-      const upperInterval = p_billing_interval.toUpperCase();
-      if (upperInterval === 'YEAR' || upperInterval === 'YEARLY') billingCycle = 'YEARLY';
-      else if (upperInterval === 'MONTH' || upperInterval === 'MONTHLY') billingCycle = 'MONTHLY';
-      else billingCycle = upperInterval;
-    }
+      const current = await db.query(`
+        SELECT plan_name, billing_cycle FROM public.subscriptions
+        WHERE user_id = $1 AND is_active = true AND plan_status IN ('ACTIVE', 'FREE')
+        ORDER BY created_at DESC LIMIT 1`, [user.id]);
+      if (current.rows[0]?.plan_name === planCode && current.rows[0]?.billing_cycle === cycle) {
+        return { code: 'ALREADY_CURRENT', message: '이미 이용 중인 요금제입니다.', status: 409 };
+      }
 
-    // ==========================================
-    // 💡 소프트 롤백 (Saga 패턴) 기반 API 호출
-    // ==========================================
+      const subId = crypto.randomUUID();
+      const licenseKey = randomHex(8);
+      const verifyKey = randomHex(8);
+      // TODO(payment): 실제 결제 승인과 금액 검증은 추후 개발. 현재는 선택 즉시 권한을 활성화한다.
+      const paymentNo = `SUB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomHex(4)}`;
+      const period = isFree ? '7 days' : cycle === 'YEARLY' ? '1 year' : '1 month';
 
-    // [STEP 1] 신규 구독 생성
-    const insertSubRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        id: subId,
-        created_by: p_user_id,
-        updated_by: p_user_id,
-        user_id: p_user_id,
-        plan_name: p_plan_name,
-        plan_status: p_plan_status,
-        billing_cycle: billingCycle,
-        license_key: licenseKey,
-        verify_key: verifyKey,
-        payment_no: paymentNo,
-        max_devices: p_max_devices,
-        current_period_start: now,
-        current_period_end: periodEndTs,
-        is_active: isActive,
-        created_at: now,
-        updated_at: now
-      })
+      await db.query(`
+        UPDATE public.subscriptions SET plan_status = 'EXPIRED', is_active = false, updated_at = now(), updated_by = $1
+        WHERE user_id = $1 AND is_active = true`, [user.id]);
+      await db.query(`
+        UPDATE public.license_activations AS activation SET is_active = false, updated_at = now(), updated_by = $1
+        FROM public.subscriptions AS subscription
+        WHERE activation.subscription_id = subscription.id AND subscription.user_id = $1 AND activation.is_active = true`, [user.id]);
+      await db.query(`
+        INSERT INTO public.subscriptions
+          (id, user_id, created_by, updated_by, plan_name, plan_status, billing_cycle,
+           license_key, verify_key, payment_no, max_devices, price_amount,
+           current_period_start, current_period_end, is_active, created_at, updated_at)
+        VALUES ($1, $2, $2, $2, $3, 'ACTIVE', $4, $5, $6, $7, 1, $8,
+                now(), now() + $9::interval, true, now(), now())`,
+        [subId, user.id, planCode, cycle, licenseKey, verifyKey, paymentNo, amount, period]);
+
+      // 웹 플랜은 현재 탭만 등록한다. 데스크톱은 실제 설치 기기에서 별도로 활성화한다.
+      if (String(plan.sys_type).toUpperCase() === 'WEB') {
+        await db.query(`
+          INSERT INTO public.license_activations
+            (subscription_id, device_uuid, device_name, activated_at, updated_at, is_active, created_by, updated_by)
+          VALUES ($1, $2, 'Web SaaS', now(), now(), true, $3, $3)`, [subId, deviceUuid, user.id]);
+      }
+      return { success: true, code: 'SUCCESS', message: '요금제가 활성화되었습니다.',
+        subscription_id: subId, license_id: subId, license_key: licenseKey, verify_key: verifyKey, payment_no: paymentNo };
     });
-
-    if (!insertSubRes.ok) {
-      const err = await insertSubRes.json();
-      return new Response(JSON.stringify({ success: false, code: 'ERROR', message: err.message || '구독 생성 실패' }), { status: 500, headers: corsHeaders });
-    }
-
-    // [STEP 2] 기기 활성화
-    const insertDeviceRes = await fetch(`${supabaseUrl}/rest/v1/license_activations`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        subscription_id: subId,
-        device_uuid: p_device_uuid,
-        device_name: p_device_name,
-        activated_at: now
-      })
-    });
-
-    if (!insertDeviceRes.ok) {
-      // 🚨 기기 등록 실패 시: [STEP 1]에서 만든 구독을 수동 롤백(DELETE)
-      await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${subId}`, { method: 'DELETE', headers });
-      const err = await insertDeviceRes.json();
-      return new Response(JSON.stringify({ success: false, code: 'ERROR', message: '기기 등록 실패로 구독이 롤백되었습니다. ' + (err.message || '') }), { status: 500, headers: corsHeaders });
-    }
-
-    // [STEP 3] 기존 구독 만료 처리 (방금 만든 subId는 제외)
-    const expireRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${p_user_id}&id=neq.${subId}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({
-        plan_status: 'EXPIRED',
-        is_active: false,
-        updated_at: now
-      })
-    });
-
-    if (!expireRes.ok) {
-      // 🚨 기존 구독 만료 실패 시: [STEP 1, 2] 모두 수동 롤백
-      await fetch(`${supabaseUrl}/rest/v1/license_activations?subscription_id=eq.${subId}`, { method: 'DELETE', headers });
-      await fetch(`${supabaseUrl}/rest/v1/subscriptions?id=eq.${subId}`, { method: 'DELETE', headers });
-      return new Response(JSON.stringify({ success: false, code: 'ERROR', message: '이전 구독 만료 처리 중 오류가 발생하여 롤백되었습니다.' }), { status: 500, headers: corsHeaders });
-    }
-
-    return new Response(JSON.stringify({
-      success: true,
-      code: 'SUCCESS',
-      message: '플랜이 활성화되었습니다.',
-      license_key: licenseKey,
-      verify_key: verifyKey,
-      payment_no: paymentNo,
-      subscription_id: subId,
-      license_id: subId,
-    }), { status: 200, headers: corsHeaders });
+    if (!outcome.success) return failure(outcome.code, outcome.message, outcome.status);
+    return blogJson(outcome);
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, code: 'ERROR', message: error.message }), { status: 500, headers: corsHeaders });
+    console.error('[subscription/create] transaction failed', error);
+    return failure('SERVER_ERROR', '요금제 변경에 실패했습니다.', 500);
   }
 }

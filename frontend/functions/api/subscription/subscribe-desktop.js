@@ -69,7 +69,7 @@ export async function onRequestPost(context) {
         license_key: licenseKey,
         verify_key: verifyKey,
         payment_no: paymentNo,
-        max_devices: 2,
+        max_devices: 1,
         current_period_start: now,
         current_period_end: periodEndTs,
         is_active: true,

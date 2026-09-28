@@ -1,13 +1,13 @@
-﻿// ====================================================================
+// ====================================================================
 // 📊 [OMD-AUTH-reset-password-0001] page ➔ ResetPasswordPage
 // 🎯 @KICK  : Supabase Auth 기반 새로운 비밀번호 변경 입력창 및 패스워드 재설정 화면
 // 🛡️ @GUARD : 비밀번호 영문소문자/숫자/특수문자 조합 8~20자 유효성, 비밀번호 확인 일치성 검증 가드
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-09-03** — LDSG v5.0 디자인 시스템 및 웜 페이퍼 크림(#F9F8F6) 팔레트 전면 적용: 구형 인디고 룩/Material Symbols 제거, LINE Green(#1d4ed8) 버튼, 실시간 유효성 체크 뱃지 및 Lucide React 아이콘 교체
-//             **2026-07-22** — /api/rpc/password/confirm 원트랜잭션 API 연동: password_resets 토큰검증 + used=true 선소비 + Supabase 비밀번호변경 단일 흐름 처리
+//             **2026-09-28** — password_resets 기록은 DB 트랜잭션으로 처리하고, Supabase Auth 비밀번호 변경은 별도 외부 작업으로 처리
 //             **2026-06-28** — 비밀번호 변경 성공 시 즉시 signOut() 호출하여 메일 복구 링크 일회성 파괴
 //             **2026-06-23** — 공통 토스트 알람(showToast) 일괄 연동 개편 패치
-// 🔗 @CALLS : /api/rpc/password/confirm, supabase.auth, Navbar, Footer, useRouter, useToast, Lucide Icons
+// 🔗 @CALLS : /api/password/confirm, supabase.auth, Navbar, Footer, useRouter, useToast, Lucide Icons
 // ====================================================================
 "use client";
 
@@ -112,7 +112,7 @@ export default function ResetPasswordPage() {
         email = user?.email || null;
       }
 
-      const res = await fetch("/api/rpc/password/confirm", {
+      const res = await fetch("/api/password/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

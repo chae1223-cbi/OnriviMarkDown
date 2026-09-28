@@ -2,7 +2,7 @@
 // 📊 [OMD-AUTH-callback-0001] page ➔ AuthCallbackPage
 // 🎯 @KICK  : 구글 OAuth 콜백 처리. 웹 SaaS 로그인 시 license_activations에 세션 등록(접속자수+1)
 // 🛡️ @GUARD : 비인증 진입 가드, 소프트웨어 라이선스 없으면 세션 생성 스킵
-// 🚨 @PATCH : **2026-07-22** — supabase.rpc('insert_license_activation') 클라이언트 직접 호출을 fetch('/api/rpc/license/insert') 서버단 API Route 호출로 전환; license_activations 테이블명 전환 대응
+// 🚨 @PATCH : **2026-07-22** — supabase.rpc('insert_license_activation') 클라이언트 직접 호출을 fetch('/api/license/activate') 서버단 API Route 호출로 전환; license_activations 테이블명 전환 대응
 //             **2026-06-21** — OAuth 콜백 경로 신설; **2026-06-22** — 로그인 시 session UUID 생성, localStorage 저장, license_activations.insert로 접속자수 증가 (장비 미체크, 순수 접속자수 기반)
 // 🔗 @CALLS : supabase.auth, supabase.from, useRouter, crypto.randomUUID, fetch
 // ====================================================================
@@ -42,7 +42,7 @@ export default function AuthCallbackPage() {
         const mode = params.get('mode') || 'login';
 
         // 2. users / users 존재 조회 및 회원가입 동기화
-        const checkRes = await fetch('/api/rpc/user/check', {
+        const checkRes = await fetch('/api/user/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ p_email: session.user.email })
@@ -80,9 +80,9 @@ export default function AuthCallbackPage() {
               }
             }
 
-            const upsertRes = await fetch('/api/rpc/user/upsert', {
+            const upsertRes = await fetch('/api/user/upsert', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
               body: JSON.stringify({
                 p_id: userId,
                 p_email: session.user.email,
@@ -130,9 +130,9 @@ export default function AuthCallbackPage() {
             localStorage.setItem('onrivi_user_id', session.user.email || userId);
             localStorage.setItem('onrivi_payment_no', subData.payment_no || '');
             localStorage.setItem('onrivi_license_key', subData.license_key || '');
-            await fetch('/api/rpc/license/insert', {
+            await fetch('/api/license/activate', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
               body: JSON.stringify({ p_license_id: subData.id, p_device_uuid: sessionId, p_device_name: 'Web SaaS', p_user_id: userId })
             });
           }

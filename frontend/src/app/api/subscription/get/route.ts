@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     let activations: any[] = [];
     if (validSubIds.length > 0) {
       const { data: actData } = await supabaseAdmin.from('license_activations')
-        .select('id, subscription_id, device_uuid, device_name, activated_at, is_active')
+        .select('id, subscription_id, device_uuid, device_name, activated_at, updated_at, is_active')
         .in('subscription_id', validSubIds)
         .order('activated_at', { ascending: false });
       
@@ -111,7 +111,8 @@ export async function POST(request: Request) {
       success: true,
       subscription: latestSub ? {
         ...latestSub,
-        active_device_count: mappedDevices.length || 1
+        // 사용자에게 반환한 모든 활성 구독의 웹 편집 세션만 집계한다.
+        active_device_count: mappedDevices.filter((device: any) => device.is_active === true && ['web saas', 'web browser'].includes((device.device_name || '').trim().toLowerCase()) && Date.now() - new Date(device.updated_at || device.activated_at).getTime() < 2 * 60 * 1000).length
       } : null,
       devices: mappedDevices,
       historyList: allSubs,
@@ -127,4 +128,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
-

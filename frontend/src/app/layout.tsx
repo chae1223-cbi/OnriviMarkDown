@@ -3,6 +3,7 @@ import "./globals.css";
 import 'katex/dist/katex.min.css';
 
 import { ToastProvider } from "@/components/ToastProvider";
+import { WebSessionRevocationGuard } from "@/components/WebSessionRevocationGuard";
 
 // ====================================================================
 // 📊 [OMD-CORE-layout-0002] layout ➔ metadata
@@ -170,6 +171,7 @@ export default function RootLayout({
       </head>
       <body suppressHydrationWarning>
         <ToastProvider>
+          <WebSessionRevocationGuard />
           {children}
         </ToastProvider>
       </body>
