@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-09-30** — [미리보기 모드 시 문서 병합 및 각주 정리 비활성화]: previewMode가 'preview'일 때 도구 메뉴의 '문서 병합' 및 '각주 정리' 버튼을 disabled 처리하고 비활성화 툴팁 및 클릭 가드 적용
 // 🚨 @PATCH : **2026-09-28** — 제한사용자 메뉴에서 읽기·이동·설정 명령만 활성화하고 저장·편집·변환·병합 명령 비활성화
 //             **2026-09-28** — 에디터의 블로그 게시 버튼과 파일 메뉴 항목 제거
 // 🚨 @PATCH : **2026-09-20** — [편집 메뉴 인용구 항목 제거] 편집(Edit) 메뉴의 '인용구 스타일 (Alert)' 서브메뉴 전체 삭제
@@ -355,8 +356,24 @@ export default function MenuBar() {
           { divider: true },
           { label: t('globalSearch'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+Shift+F', onClick: () => dispatch('GLOBAL_SEARCH') },
           { label: t('copyPreview'), icon: <Icon name="Copy" size={15} />, onClick: () => dispatch('COPY_ALL') },
-          { label: "문서 병합", icon: <Icon name="Layers" size={15} />, disabled: isRestrictedUser, onClick: () => dispatch('MERGE') },
-          { label: "각주 정리", icon: <Icon name="Document" size={15} />, disabled: isRestrictedUser, onClick: () => dispatch('ORGANIZE_FOOTNOTES') },
+          { 
+            label: "문서 병합", 
+            icon: <Icon name="Layers" size={15} />, 
+            disabled: isRestrictedUser || previewMode === 'preview', 
+            title: previewMode === 'preview' 
+              ? "미리보기 모드에서는 사용할 수 없습니다." 
+              : (isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined),
+            onClick: () => !isRestrictedUser && previewMode !== 'preview' && dispatch('MERGE') 
+          },
+          { 
+            label: "각주 정리", 
+            icon: <Icon name="Document" size={15} />, 
+            disabled: isRestrictedUser || previewMode === 'preview', 
+            title: previewMode === 'preview' 
+              ? "미리보기 모드에서는 사용할 수 없습니다." 
+              : (isRestrictedUser ? "읽기 전용(제한사용자) 모드에서는 사용할 수 없습니다." : undefined),
+            onClick: () => !isRestrictedUser && previewMode !== 'preview' && dispatch('ORGANIZE_FOOTNOTES') 
+          },
           { label: "환경 설정", icon: <Icon name="Settings" size={15} />, onClick: () => dispatch('SETTINGS') },
         ]}
       />
@@ -441,6 +458,7 @@ function MenuDropdown({ label, isOpen, onClick, onClose, items, isDarkMode }: { 
               <div key={i} className="relative group">
                 <button 
                   disabled={item.disabled}
+                  title={item.title}
                   onClick={() => { 
                     if (item.disabled) return;
                     if (!item.subItems) { 

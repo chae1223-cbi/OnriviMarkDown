@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-30** — [미리보기 모드 시 문서 병합(MERGE) 및 각주 정리(ORGANIZE_FOOTNOTES) 실행 차단 방어]: previewMode가 'preview'일 때 명령 실행을 차단하고 경고 토스트 안내
 // 🚨 @PATCH : **2026-09-30** — [에디터 vs 미리보기 단축키 및 제어 충돌 완벽 격리·스마트 라우팅]:
 //             1. 찾기(Find): 에디터 포커스 시 에디터 찾기(Ctrl+F) 및 바꾸기(Ctrl+H), 전체 검색(Ctrl+Shift+F) 100% 보존. 미리보기 전용 찾기는 Ctrl+Alt+F 및 비포커스 시 Ctrl+F로 완벽 격리.
 //             2. 확대·축소(Zoom): 에디터 포커스 시 에디터 폰트 크기(12~32px, 16px 리셋), 비포커스 시 미리보기 배율(50%~200%, 100% 리셋). Ctrl+Alt+=/-/0으로 미리보기 직접 제어 지원.
@@ -6769,6 +6770,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
        */
       // TOGGLE_CSS_STYLE is merged above with SETTINGS
       case 'MERGE':
+        if (previewModeRef.current === 'preview') {
+          showToast("미리보기 모드에서는 문서 병합을 사용할 수 없습니다.", 'warning');
+          return;
+        }
         setIsMergeMode(true);
         return;
     }
@@ -6793,7 +6798,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 서식 관련
       case 'BOLD': handlers.bold(); break;
       case 'FOOTNOTE': handlers.footnote(); break;
-      case 'ORGANIZE_FOOTNOTES': handlers.organizeFootnotes(); break;
+      case 'ORGANIZE_FOOTNOTES':
+        if (previewModeRef.current === 'preview') {
+          showToast("미리보기 모드에서는 각주 정리를 사용할 수 없습니다.", 'warning');
+          break;
+        }
+        handlers.organizeFootnotes();
+        break;
       case 'ITALIC': handlers.italic(); break;
       case 'INLINE_CODE': handlers.inlineCode(); break;
       case 'UNDERLINE': handlers.underline(); break;
