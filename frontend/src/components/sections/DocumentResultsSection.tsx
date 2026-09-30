@@ -1,19 +1,20 @@
 // ====================================================================
 // 📊 [OMD-UI-DocumentResultsSection-0001] DocumentResultsSection ➔ DocumentResultsSection
 // 🎯 @KICK  : 하나의 구조화된 콘텐츠에서 다양한 전문 문서(리포트, 기술 문서, 애널리틱스, 전자책, 인쇄물)를 사출하는 결과 다양성 섹션
-// 🛡️ @GUARD : 실제 지원되는 포맷(PDF, EPUB, HTML, 인쇄)에 한정하여 정직하게 표기
+// 🛡️ @GUARD : 실제 지원되는 포맷(PDF, EPUB, HTML, 이미지 출력)에 한정하여 정직하게 표기
+// 🚨 @PATCH : **2026-09-30** — ['A4 규격 학술 및 계약 문서' 카드를 '이미지 출력(PNG)'으로 교체]: 사용자 요청에 따라 인쇄 카드 대신 SNS/노션/슬랙 공유용 고해상도 PNG 이미지 출력 카드로 개편
 // 🚨 @PATCH : **2026-09-30** — [랜딩 개편 Document Results 섹션 신규 구현]:
 //             1. 제목: "하나의 콘텐츠, 다양한 문서로."
 //             2. Supporting: "하나의 구조화된 콘텐츠에서 다양한 형태의 전문 문서를 완성하세요."
-//             3. 다층 레이어 문서(REPORT, TECH SPEC, ANALYTICS, EBOOK, PRINTABLE) 시각화
-//             4. 지원 출력 규격(PDF, EPUB, HTML, A4 Print) 정돈 표기
-// 🔗 @CALLS : motion.div, FileText, Book, Code, Printer, Download
+//             3. 다층 레이어 문서(REPORT, TECH SPEC, ANALYTICS, EBOOK, IMAGE) 시각화
+//             4. 지원 출력 규격(PDF, EPUB, HTML, PNG Image) 정돈 표기
+// 🔗 @CALLS : motion.div, FileText, Book, Code, ImageIcon, Download
 // ====================================================================
 "use client";
 
 import React from "react";
 import { motion } from "framer-motion";
-import { FileText, Book, Code, Printer, Download, Check } from "lucide-react";
+import { FileText, Book, Code, ImageIcon, Download, Check } from "lucide-react";
 
 interface DocType {
   title: string;
@@ -54,13 +55,13 @@ const DOC_TYPES: DocType[] = [
     badgeBg: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300",
   },
   {
-    title: "Printable Standard Document",
-    tag: "A4 규격 학술 및 계약 문서",
-    format: "OS 인쇄 직결",
-    desc: "여백 20mm 황금 비율과 수식(LaTeX)이 정확하게 인쇄되는 A4 표준 조판물",
-    icon: Printer,
-    color: "text-emerald-600 dark:text-emerald-400",
-    badgeBg: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
+    title: "High-Resolution Image Export",
+    tag: "웹 공유 & 카드뉴스 제작",
+    format: "이미지 출력 (PNG)",
+    desc: "SNS, 블로그, 노션 및 슬랙에 서식 깨짐 없이 원클릭으로 공유하는 무손실 고해상도 이미지",
+    icon: ImageIcon,
+    color: "text-purple-600 dark:text-purple-400",
+    badgeBg: "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300",
   },
 ];
 
@@ -148,7 +149,7 @@ export function DocumentResultsSection() {
           </div>
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-[#1d4ed8]" />
-            <span>A4 규격 OS 인쇄</span>
+            <span>고해상도 PNG 이미지 출력</span>
           </div>
         </div>
       </div>
