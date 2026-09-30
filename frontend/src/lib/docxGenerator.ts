@@ -344,7 +344,7 @@ function buildDocumentXml(
 
     // 🌟 [핵심] 이미지 또는 다이어그램 개체 렌더링 (<w:drawing>)
     const targetImgEl = el.hasAttribute('data-export-img-id') ? el : el.querySelector('[data-export-img-id]');
-    if (targetImgEl && (tag === 'figure' || tag === 'img' || el.classList.contains('mermaid-svg-container') || el.classList.contains('mermaid-block-container') || el.classList.contains('onrivi-image-wrapper'))) {
+    if (targetImgEl && (el.hasAttribute('data-export-img-id') || tag === 'figure' || tag === 'img' || el.classList.contains('mermaid-svg-container') || el.classList.contains('mermaid-block-container') || el.classList.contains('onrivi-image-wrapper'))) {
       const imgIdStr = targetImgEl.getAttribute('data-export-img-id');
       const imgId = parseInt(imgIdStr || '0', 10);
       const imgData = imageMap.get(imgId);
