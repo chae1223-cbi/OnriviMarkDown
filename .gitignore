@@ -8,6 +8,7 @@ dist*/
 dist-electron/
 dist-win/
 dist1/
+release/
 out/
 build/
 .next/
