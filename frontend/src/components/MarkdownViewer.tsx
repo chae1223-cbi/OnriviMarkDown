@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-30** — [작업장 실폴더 외부 링크 연결 차단 가드 및 경고 안내]: 마크다운 미리보기 내 폴더 링크(handleFolderClick) 및 문서/파일 링크(handleClick) 클릭 시 대상 경로가 작업장 실폴더(Workspace Root) 외부인지 판별하는 isPathInsideWorkspace 안전 가드를 신설하여 상위 이탈(../../)이나 다른 드라이브/폴더 절대경로 링크의 연결을 원천 차단하고 '⚠️ 작업장 실폴더 외부에 있는 경로는 연결할 수 없습니다. 작업장 내부의 폴더 및 문서만 연결 가능합니다.' 경고 토스트를 띄우도록 보강
 // 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 온리비 표준 UX 구현]: <a> 태그 렌더러에서 상대/절대 폴더 링크(./folder/, /folder 등) 클릭 시 기본 동작으로 좌측 탐색기(LeftSidebar) 자동 펼침·스크롤·코발트 블루 펄스 하이라이트를 발송하고, 데스크톱 Ctrl+클릭 시 시스템 탐색기(openPath) 창을 병행 지원하며 📁 인라인 아이콘 뱃지 및 가이드 툴팁 탑재
 // 🚨 @PATCH : **2026-09-26** — [Alert 인용구 박스 상하 여백 대칭 적용(my-4)]: onrivi-alert-box에 my-4(상하 16px)를 추가하여 [예시] 단락 위·아래 여백과 callout 박스 아래 여백이 동일하게 맞춰져 일체감 있게 렌더링되도록 수정
 // 🚨 @PATCH : **2026-09-26** — [인용문(blockquote) 내부 리스트(글머리/숫자/체크박스) 들여쓰기 및 선행 공백 인용구 정규화 완전 해결]: 에디터에서 인용구 줄에 탭을 눌러 줄 시작에 공백이 붙은 경우("    > - 홍시") > 마커를 선두로 재배치하여 CommonMark가 하위 중첩 리스트로 100% 인식하도록 cleanContent 정규화 엔진을 신설하고, getIndentStyle에서 > 전/후 공백(outerIndent + innerIndent)을 모두 합산 추출하며, rehypeSourceLinesPlugin에서 listDepth를 추적하여 평탄화된 항목에는 물리 마진을, 중첩 항목(depth>=2)에는 CSS 패딩(1.5em)과 원형 불릿(circle)을 계층별로 완벽 적용
@@ -567,6 +568,165 @@ const resolveRelativeImagePath = (srcPath: string, currentFileNodePath: string |
 
   return stack.join('/');
 };
+
+// ====================================================================
+// 📊 [OMD-CORE-MarkdownViewer-0008-GUARD] isPathInsideWorkspace
+// 🎯 @KICK  : 마크다운 링크(폴더/문서) 클릭 시 대상 경로가 작업장 실폴더 내부인지 엄격히 검증
+// 🛡️ @GUARD : 작업장 상위 이탈(../../) 및 작업장 외부 절대경로(다른 드라이브/폴더) 원천 차단
+// 🚨 @PATCH : **2026-09-30** — 작업장 실폴더 외부 이탈 링크 연결 차단 및 경고 토스트 가드 신설
+// 🔗 @CALLS : handleFolderClick, handleClick
+// ====================================================================
+export interface WorkspaceGuardResult {
+  isInside: boolean;
+  reason?: string;
+  resolvedPath?: string;
+}
+
+export function isPathInsideWorkspace(
+  targetHref: string,
+  currentFilePath?: string,
+  rootFolderPath?: string,
+  rootFolderName?: string
+): WorkspaceGuardResult {
+  if (!targetHref) {
+    return { isInside: false, reason: '경로가 비어 있습니다.' };
+  }
+
+  // 1) 프로토콜 및 특수 기호, 따옴표, 꺾쇠 정제
+  let clean = targetHref.trim();
+  if (clean.startsWith('<') && clean.endsWith('>')) {
+    clean = clean.slice(1, -1).trim();
+  }
+  clean = clean.replace(/^[<"']|[>"']$/g, '').trim();
+  try { clean = decodeURIComponent(clean); } catch {}
+
+  // 앵커(#) 분리 (앵커만 있는 경우는 현재 문서 내부이므로 항상 허용)
+  clean = clean.split('#')[0].trim();
+  if (!clean) {
+    return { isInside: true };
+  }
+
+  // file:/// 접두어 제거
+  if (clean.startsWith('file:///')) {
+    clean = clean.replace(/^file:\/\/\//, '');
+  }
+
+  const isWindowsAbsolute = /^[a-zA-Z]:[/\\]/.test(clean);
+  const isPosixAbsolute = clean.startsWith('/') && !clean.startsWith('//');
+
+  // 작업장 루트 경로 추출
+  let wsRoot = (rootFolderPath || '').trim();
+  if (wsRoot === 'BROWSER_STORAGE' || wsRoot === 'BROWSER_STORAGE_NAME') {
+    wsRoot = '';
+  }
+  // localStorage 폴백 확인 (데스크톱 환경)
+  if (!wsRoot && typeof window !== 'undefined') {
+    try {
+      const lsWs = localStorage.getItem('onrivi_workspace_path');
+      if (lsWs && lsWs !== 'BROWSER_STORAGE') {
+        wsRoot = lsWs;
+      }
+    } catch {}
+  }
+
+  const normTarget = clean.replace(/\\/g, '/');
+  const normWsRoot = wsRoot ? wsRoot.replace(/\\/g, '/').replace(/\/+$/, '') : '';
+  const normCurrentFile = (currentFilePath || '').replace(/\\/g, '/');
+
+  const outsideReason = '작업장 실폴더 외부에 있는 경로는 연결할 수 없습니다. 작업장 내부의 폴더 및 문서만 연결 가능합니다.';
+
+  // 🛑 Case A: 윈도우 드라이브 절대경로 (예: D:/..., C:\...)
+  if (isWindowsAbsolute) {
+    if (!normWsRoot) {
+      return { isInside: false, reason: outsideReason };
+    }
+
+    const lowerTarget = normTarget.toLowerCase();
+    const lowerRoot = normWsRoot.toLowerCase();
+
+    const isMatch = lowerTarget === lowerRoot || lowerTarget.startsWith(lowerRoot + '/');
+    if (!isMatch) {
+      return { isInside: false, reason: outsideReason };
+    }
+
+    return { isInside: true, resolvedPath: normTarget };
+  }
+
+  // 🛑 Case B: POSIX 루트 절대경로 (예: /folder/sub)
+  if (isPosixAbsolute) {
+    const parts = normTarget.split('/').filter(Boolean);
+    let depth = 0;
+    for (const p of parts) {
+      if (p === '..') {
+        depth--;
+        if (depth < 0) {
+          return { isInside: false, reason: outsideReason };
+        }
+      } else if (p !== '.') {
+        depth++;
+      }
+    }
+    return { isInside: true };
+  }
+
+  // 🛑 Case C: 상대경로 (./, ../, folder/ 등)
+  // 1) 데스크톱에서 currentFilePath와 normWsRoot가 모두 존재하는 경우: 물리적 완전 해석(resolve) 후 검증
+  if (normWsRoot && normCurrentFile && normCurrentFile.toLowerCase().startsWith(normWsRoot.toLowerCase())) {
+    const currentDir = normCurrentFile.substring(0, normCurrentFile.lastIndexOf('/'));
+    const combined = currentDir ? (currentDir + '/' + normTarget) : normTarget;
+
+    const segments = combined.split('/');
+    const stack: string[] = [];
+    for (const seg of segments) {
+      if (seg === '.' || seg === '') continue;
+      if (seg === '..') {
+        stack.pop();
+      } else {
+        stack.push(seg);
+      }
+    }
+    const resolved = stack.join('/');
+    const lowerResolved = resolved.toLowerCase();
+    const lowerRoot = normWsRoot.toLowerCase();
+
+    if (lowerResolved !== lowerRoot && !lowerResolved.startsWith(lowerRoot + '/')) {
+      return { isInside: false, reason: outsideReason };
+    }
+    return { isInside: true, resolvedPath: resolved };
+  }
+
+  // 2) 웹 브라우저 환경 또는 currentFilePath가 상대 경로인 경우: 디렉토리 깊이(depth) 계산
+  if (normCurrentFile) {
+    let cleanCurrent = normCurrentFile;
+    if (rootFolderName && cleanCurrent.startsWith(rootFolderName + '/')) {
+      cleanCurrent = cleanCurrent.substring(rootFolderName.length + 1);
+    }
+
+    const currentParts = cleanCurrent.split('/').filter(Boolean);
+    currentParts.pop(); // 파일명 제외
+    let targetDepth = currentParts.length;
+
+    const targetParts = normTarget.split('/').filter(Boolean);
+    for (const p of targetParts) {
+      if (p === '..') {
+        targetDepth--;
+        if (targetDepth < 0) {
+          return { isInside: false, reason: outsideReason };
+        }
+      } else if (p !== '.') {
+        targetDepth++;
+      }
+    }
+    return { isInside: true };
+  }
+
+  // currentFilePath 정보가 없는 상태에서 ..로 시작하는 상대경로인 경우
+  if (normTarget.startsWith('..')) {
+    return { isInside: false, reason: outsideReason };
+  }
+
+  return { isInside: true };
+}
 
 // ====================================================================
 // 📊 [OMD-CORE-MarkdownViewer-0009] MarkdownViewer ➔ remarkDisableIndentedCode
@@ -2722,7 +2882,7 @@ function MarkdownViewer({
               const isKnowledgeLink = rawHref && rawHref.startsWith('knowledge://');
               const isFileLink = rawHref && (rawHref.startsWith('file:///') || /^[a-zA-Z]:[/\\]/.test(rawHref));
               const isMdFile = rawHref && (rawHref.endsWith('.md') || rawHref.endsWith('.markdown') || rawHref.includes('.md#') || rawHref.includes('.markdown#'));
-              const isFolderLink = rawHref && !isWebLink && !isKnowledgeLink && !isFileLink && !isMdFile && (
+              const isFolderLink = rawHref && !isWebLink && !isKnowledgeLink && !isMdFile && (
                 rawHref.startsWith('./') || rawHref.startsWith('../') || rawHref.startsWith('/') || rawHref.endsWith('/') || !rawHref.split(/[#?]/)[0].split(/[/\\]/).pop()?.includes('.')
               );
 
@@ -2742,6 +2902,21 @@ function MarkdownViewer({
                 const handleFolderClick = (e: React.MouseEvent) => {
                   e.preventDefault();
                   e.stopPropagation();
+
+                  // 🛡️ [작업장 실폴더 외부 이탈 차단 가드]
+                  const guard = isPathInsideWorkspace(
+                    cleanHref,
+                    dynamicPropsRef.current.currentFilePath,
+                    dynamicPropsRef.current.rootFolderPath || dynamicPropsRef.current.rootFolder?.path,
+                    dynamicPropsRef.current.rootFolder?.name
+                  );
+                  if (!guard.isInside) {
+                    dynamicPropsRef.current.showToast?.(
+                      `⚠️ ${guard.reason || '작업장 실폴더 외부에 있는 폴더는 연결할 수 없습니다.'}`,
+                      'warning'
+                    );
+                    return;
+                  }
 
                   const isCmdOrCtrl = e.ctrlKey || e.metaKey;
 
@@ -2801,6 +2976,21 @@ function MarkdownViewer({
 
                     const cleanHref = unbracketed.split('#')[0].replace(/^[<"']|[>"']$/g, '').trim();
                     const hashPart = unbracketed.includes('#') ? unbracketed.split('#')[1].replace(/^[<"']|[>"']$/g, '').trim() : undefined;
+
+                    // 🛡️ [작업장 실폴더 외부 이탈 차단 가드]
+                    const guard = isPathInsideWorkspace(
+                      cleanHref,
+                      dynamicPropsRef.current.currentFilePath,
+                      dynamicPropsRef.current.rootFolderPath || dynamicPropsRef.current.rootFolder?.path,
+                      dynamicPropsRef.current.rootFolder?.name
+                    );
+                    if (!guard.isInside) {
+                      dynamicPropsRef.current.showToast?.(
+                        `⚠️ ${guard.reason || '작업장 실폴더 외부에 있는 문서는 연결할 수 없습니다.'}`,
+                        'warning'
+                      );
+                      return;
+                    }
 
                     // file:/// URI 디코딩 또는 상대 경로 resolve
                     let resolved = cleanHref;
