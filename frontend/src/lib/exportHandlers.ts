@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [DOCX 및 HWPX 이미지·Mermaid 다이어그램 자동 추출 및 임베딩 연동]: extractMediaFromElements 엔진을 호출하여 라이브 미리보기 DOM 내 모든 이미지 및 다이어그램 바이너리를 추출하고, Word(.docx) 및 한글(.hwpx) 내보내기 시 미디어 파일 및 캡션을 100% 온전히 임베딩 사출하도록 개선
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 파이프라인 신설]: 미리보기 DOM을 파싱하여 MS Word(Office Open XML) 및 한글(OWPML) 표준 문서로 변환 사출하는 exportDOCX, exportHWPX 함수 구현 및 데스크톱/브라우저 연동
 // 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 행/열 테두리 스타일·색상 내보내기 동기화]: generateExportCss 내 tableStructure 인젝션 시 th/td의 border-left/right/top/bottom에 width뿐 아니라 border-style 및 border-color를 !important로 주입하여 PDF/HTML/인쇄 내보내기 시 세로선 100% 반영
 // 🚨 @PATCH : **2026-09-26** — [코드블록 내부 행간 줄간격 콤팩트 규격화(1.35배) 내보내기 동기화]: generateExportCss에 codeblock-area line-height 및 min-height(1.35em)를 주입하여 출력/내보내기 시 행간 일치성 보장
@@ -2417,11 +2418,15 @@ export async function exportDOCX({ previewEl, currentFileName, showToast }: Expo
     const targetEl = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
     const clone = clonePreview(targetEl);
 
+    // 🖼️ 라이브 DOM과 클론 DOM으로부터 이미지 및 Mermaid 다이어그램 추출 및 래스터라이즈
+    const { extractMediaFromElements } = await import('@/lib/exportMediaHelper');
+    const images = await extractMediaFromElements(targetEl, clone);
+
     const docTitle = currentFileName.replace(/\.[^/.]+$/, '') || 'document';
     const filename = `${docTitle}.docx`;
 
     const { generateDocx, downloadBlob } = await import('@/lib/docxGenerator');
-    const docxBlob = await generateDocx(clone, { title: docTitle });
+    const docxBlob = await generateDocx(clone, { title: docTitle, images });
 
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const arrayBuffer = await docxBlob.arrayBuffer();
@@ -2464,12 +2469,16 @@ export async function exportHWPX({ previewEl, currentFileName, showToast }: Expo
     const targetEl = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
     const clone = clonePreview(targetEl);
 
+    // 🖼️ 라이브 DOM과 클론 DOM으로부터 이미지 및 Mermaid 다이어그램 추출 및 래스터라이즈
+    const { extractMediaFromElements } = await import('@/lib/exportMediaHelper');
+    const images = await extractMediaFromElements(targetEl, clone);
+
     const docTitle = currentFileName.replace(/\.[^/.]+$/, '') || 'document';
     const filename = `${docTitle}.hwpx`;
 
     const { generateHwpx } = await import('@/lib/hwpxGenerator');
     const { downloadBlob } = await import('@/lib/docxGenerator');
-    const hwpxBlob = await generateHwpx(clone, { title: docTitle });
+    const hwpxBlob = await generateHwpx(clone, { title: docTitle, images });
 
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const arrayBuffer = await hwpxBlob.arrayBuffer();

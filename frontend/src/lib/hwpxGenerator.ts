@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-IO-hwpxGenerator-0001] hwpxGenerator.ts ➔ generateHwpx
 // 🎯 @KICK  : HTML/미리보기 DOM을 한글 표준 OWPML(.hwpx) 파일로 조판 및 변환 사출
-// 🛡️ @GUARD : KS X 6101 OWPML 표준 엄격 준수 — version.xml, settings.xml, container.rdf, canonical header.xml, cellAddr/cellSpan 분리 자식 노드로 한글 C++ 레이아웃 엔진 crash 원천 차단
+// 🛡️ @GUARD : KS X 6101 OWPML 표준 엄격 준수 — <hp:pic> 이미지/다이어그램 임베딩, BinData STORE 패키징, 헤딩/표/코드블록 무결성 보장
+// 🚨 @PATCH : **2026-10-01** — [한글 HWPX 이미지 및 Mermaid 다이어그램 임베딩·조판 강화]: OWPML 정규 <hp:pic> + <hc:img> 바이너리 적재, <hh:binDataList> 헤더 연동, 헤딩 코발트 바 & 다크 코드블록 조판 보강
 // 🚨 @PATCH : **2026-10-01** — [한글 프로그램 크래시(Crash) 8대 근본 원인 완전 해결]:
 //             1. 필수 루트 패키지 version.xml, settings.xml, META-INF/container.rdf, Preview/PrvText.txt 완비
 //             2. container.xml 네임스페이스 및 media-type (application/hwpml-package+xml) 정규화
@@ -11,11 +12,12 @@
 //             6. 표(hp:tbl) 구조에서 hp:ctrl 불필요 래핑 제거 및 hp:run > hp:tbl 직결
 //             7. 표 셀(hp:tc) 속성 오류 교정: colAddr, rowAddr, colSpan, rowSpan을 hp:tc 속성이 아닌 정규 자식 요소(hp:cellAddr, hp:cellSpan, hp:cellSz, hp:cellMargin)로 완전 분리
 //             8. 모든 문단(hp:p)에 merged="0" 및 고유 증분 id 부여
-// 🔗 @CALLS : JSZip, BASE_HEADER_XML (hwpxHeaderTemplate.ts)
+// 🔗 @CALLS : JSZip, BASE_HEADER_XML (hwpxHeaderTemplate.ts), ExtractedImage (exportMediaHelper.ts)
 // ====================================================================
 
 import JSZip from 'jszip';
 import { BASE_HEADER_XML } from './hwpxHeaderTemplate';
+import { ExtractedImage } from './exportMediaHelper';
 
 function escapeXml(text: string): string {
   return (text || '')
@@ -29,6 +31,7 @@ function escapeXml(text: string): string {
 export interface HwpxOptions {
   title?: string;
   creator?: string;
+  images?: ExtractedImage[];
 }
 
 /**
@@ -36,6 +39,7 @@ export interface HwpxOptions {
  */
 export async function generateHwpx(containerEl: HTMLElement, options: HwpxOptions = {}): Promise<Blob> {
   const docTitle = options.title || '문서';
+  const images = options.images || [];
   const zip = new JSZip();
 
   // 1. mimetype (OWPML 규격: 압축 없이 STORE 모드로 패키징)
@@ -71,17 +75,38 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
     '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/header.xml"/></rdf:Description><rdf:Description rdf:about="Contents/header.xml"><rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#HeaderFile"/></rdf:Description><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="http://www.hancom.co.kr/hwpml/2016/meta/pkg#" rdf:resource="Contents/section0.xml"/></rdf:Description><rdf:Description rdf:about="Contents/section0.xml"><rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#SectionFile"/></rdf:Description><rdf:Description rdf:about=""><rdf:type rdf:resource="http://www.hancom.co.kr/hwpml/2016/meta/pkg#Document"/></rdf:Description></rdf:RDF>'
   );
 
-  // 7. Contents/content.hpf
+  // 7. Contents/content.hpf (매니페스트에 이미지 리소스 등록)
+  let manifestItems = `
+    <opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>
+    <opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/>
+    <opf:item id="settings" href="settings.xml" media-type="application/xml"/>
+  `;
+
+  images.forEach((img) => {
+    manifestItems += `<opf:item id="BIN${img.id}" href="BinData/BIN${img.id}.png" media-type="image/png" isEmbeded="1"/>\n`;
+    // 한컴오피스는 BinData 바이너리를 STORE(무압축)로 읽는 것을 가장 신뢰함
+    zip.file(`BinData/BIN${img.id}.png`, img.buffer, { compression: 'STORE' });
+  });
+
   zip.file(
     'Contents/content.hpf',
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><opf:package xmlns:opf="http://www.idpf.org/2007/opf/" version="2.0" unique-identifier="BookId"><opf:metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><opf:title>${escapeXml(docTitle)}</opf:title><opf:language>ko</opf:language><opf:meta name="creator" content="text">Onrivi Author</opf:meta></opf:metadata><opf:manifest><opf:item id="header" href="Contents/header.xml" media-type="application/xml"/><opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/><opf:item id="settings" href="settings.xml" media-type="application/xml"/></opf:manifest><opf:spine><opf:itemref idref="header" linear="yes"/><opf:itemref idref="section0" linear="yes"/></opf:spine></opf:package>`
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><opf:package xmlns:opf="http://www.idpf.org/2007/opf/" version="2.0" unique-identifier="BookId"><opf:metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><opf:title>${escapeXml(docTitle)}</opf:title><opf:language>ko</opf:language><opf:meta name="creator" content="text">Onrivi Author</opf:meta></opf:metadata><opf:manifest>${manifestItems}</opf:manifest><opf:spine><opf:itemref idref="header" linear="yes"/><opf:itemref idref="section0" linear="yes"/></opf:spine></opf:package>`
   );
 
-  // 8. Contents/header.xml (한컴 표준 헤더 템플릿 사용)
-  zip.file('Contents/header.xml', BASE_HEADER_XML);
+  // 8. Contents/header.xml (binDataList 주입)
+  let headerXml = BASE_HEADER_XML;
+  if (images.length > 0) {
+    const binListXml = `
+      <hh:binDataList itemCnt="${images.length}">
+        ${images.map((img) => `<hh:binItem id="${img.id}" Type="Embedding" BinData="BIN${img.id}.png" Format="png"/>`).join('')}
+      </hh:binDataList>
+    `;
+    headerXml = headerXml.replace('</hh:refList>', `${binListXml}</hh:refList>`);
+  }
+  zip.file('Contents/header.xml', headerXml);
 
   // 9. Contents/section0.xml 본문 빌드
-  const { sectionXml, plainText } = buildSectionXml(containerEl);
+  const { sectionXml, plainText } = buildSectionXml(containerEl, images);
   zip.file('Contents/section0.xml', sectionXml);
 
   // 10. Preview/PrvText.txt (한컴 뷰어/검색용 텍스트 프리뷰)
@@ -93,11 +118,14 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
 /**
  * HTML DOM 구조를 순회하여 한글 OWPML 본문 section0.xml 및 평문 텍스트 생성
  */
-function buildSectionXml(containerEl: HTMLElement): { sectionXml: string; plainText: string } {
+function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { sectionXml: string; plainText: string } {
   const pListXml: string[] = [];
   const textLines: string[] = [];
   let pCounter = 0;
   let tblCounter = 10;
+  let picCounter = 10;
+
+  const imageMap = new Map<number, ExtractedImage>(images.map((img) => [img.id, img]));
 
   // 🌟 [핵심 안정성 가드] 첫 번째 문단에 반드시 필요한 A4 용지설정(secPr) 및 colPr, linesegarray 주입
   // A4 크기: 59528 x 84186 (1/7200 inch 단위 = 210mm x 297mm)
@@ -148,14 +176,14 @@ function buildSectionXml(containerEl: HTMLElement): { sectionXml: string; plainT
   </hp:p>`);
 
   // 인라인 노드들을 <hp:run> 조각들로 분할 변환
-  function parseInlines(element: Node, defaultCharPr = 0): string {
+  function parseInlines(element: Node, baseCharPrId: number = 0): string {
     let result = '';
 
     element.childNodes.forEach((node) => {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || '';
         if (text) {
-          result += `<hp:run charPrIDRef="${defaultCharPr}"><hp:t>${escapeXml(text)}</hp:t></hp:run>`;
+          result += `<hp:run charPrIDRef="${baseCharPrId}"><hp:t>${escapeXml(text)}</hp:t></hp:run>`;
         }
         return;
       }
@@ -164,14 +192,19 @@ function buildSectionXml(containerEl: HTMLElement): { sectionXml: string; plainT
         const el = node as HTMLElement;
         const tag = el.tagName.toLowerCase();
 
-        let charPrId = defaultCharPr;
-        if (tag === 'strong' || tag === 'b') charPrId = 10;
-        else if (tag === 'em' || tag === 'i') charPrId = 11;
-        else if (tag === 'code') charPrId = 12;
-        else if (tag === 'a') charPrId = 13;
+        let charPrId = baseCharPrId;
+        const isBold = tag === 'strong' || tag === 'b' || el.style.fontWeight === 'bold' || parseInt(el.style.fontWeight) >= 600;
+        const isItalic = tag === 'em' || tag === 'i' || el.style.fontStyle === 'italic';
+        const isCode = tag === 'code';
+        const isLink = tag === 'a';
+
+        if (isLink) charPrId = 13; // 파란색 밑줄
+        else if (isCode) charPrId = 12; // 인라인 코드
+        else if (isBold) charPrId = 10; // 볼드체
+        else if (isItalic) charPrId = 11; // 이탤릭체
 
         if (tag === 'br') {
-          result += `<hp:run charPrIDRef="${defaultCharPr}"><hp:t>&#10;</hp:t></hp:run>`;
+          result += `<hp:run charPrIDRef="${charPrId}"><hp:linesegarray><hp:lineseg/></hp:linesegarray></hp:run>`;
           return;
         }
 
@@ -182,31 +215,100 @@ function buildSectionXml(containerEl: HTMLElement): { sectionXml: string; plainT
     return result;
   }
 
-  // 블록 요소들을 순회하며 한글 문단(<hp:p>) 및 표(<hp:tbl>) 생성
+  // 블록 요소를 순회하며 OWPML 단락, 표, 이미지 배치
   function processBlockNode(node: Node) {
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const el = node as HTMLElement;
     const tag = el.tagName.toLowerCase();
 
-    if (tag === 'script' || tag === 'style' || el.classList.contains('no-export') || el.classList.contains('preview-toolbar-root')) {
+    // 불필요한 위젯, 스크립트, 병합된 캡션 p 태그 제외
+    if (
+      tag === 'script' ||
+      tag === 'style' ||
+      el.classList.contains('no-export') ||
+      el.classList.contains('preview-toolbar-root') ||
+      el.getAttribute('data-export-caption-merged') === 'true'
+    ) {
       return;
     }
 
-    // 1. 헤딩 (H1 ~ H6)
+    // 🌟 [핵심] 이미지 또는 Mermaid 다이어그램 개체 렌더링 (<hp:pic>)
+    const targetImgEl = el.hasAttribute('data-export-img-id') ? el : el.querySelector('[data-export-img-id]');
+    if (targetImgEl && (tag === 'figure' || tag === 'img' || el.classList.contains('mermaid-svg-container') || el.classList.contains('mermaid-block-container') || el.classList.contains('onrivi-image-wrapper'))) {
+      const imgIdStr = targetImgEl.getAttribute('data-export-img-id');
+      const imgId = parseInt(imgIdStr || '0', 10);
+      const imgData = imageMap.get(imgId);
+
+      if (imgData) {
+        const caption = targetImgEl.getAttribute('data-export-caption') || imgData.caption || '';
+        // A4 본문 기본 너비: 42520 HWP단위 (150mm), 1px = 75 HWP단위
+        const maxW_hwp = 42520;
+        const origW_hwp = Math.max(100, imgData.width) * 75;
+        const origH_hwp = Math.max(100, imgData.height) * 75;
+        const scale = Math.min(1, maxW_hwp / origW_hwp);
+        const w_hwp = Math.round(origW_hwp * scale);
+        const h_hwp = Math.round(origH_hwp * scale);
+        const w_px = Math.round(w_hwp / 75);
+        const h_px = Math.round(h_hwp / 75);
+
+        const currentPicId = picCounter++;
+
+        pListXml.push(`
+          <hp:p id="${pCounter++}" paraPrIDRef="11" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+            <hp:run charPrIDRef="0">
+              <hp:pic id="${currentPicId}" zOrder="0" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None">
+                <hp:offset x="0" y="0"/>
+                <hp:orgSz width="${w_hwp}" height="${h_hwp}"/>
+                <hp:curSz width="${w_hwp}" height="${h_hwp}"/>
+                <hp:flip x="0" y="0"/>
+                <hp:rotationInfo angle="0" centerX="${Math.round(w_hwp / 2)}" centerY="${Math.round(h_hwp / 2)}"/>
+                <hp:renderingInfo>
+                  <hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>
+                  <hc:scaMatrix e1="1" e2="0" e3="0" e4="1"/>
+                  <hc:rotMatrix e1="1" e2="0" e3="0" e4="1"/>
+                </hp:renderingInfo>
+                <hp:imgRect pt0X="0" pt0Y="0" pt1X="${w_hwp}" pt1Y="0" pt2X="${w_hwp}" pt2Y="${h_hwp}" pt3X="0" pt3Y="${h_hwp}"/>
+                <hp:imgClip left="0" right="${w_hwp}" top="0" bottom="${h_hwp}"/>
+                <hp:inMargin left="0" right="0" top="0" bottom="0"/>
+                <hp:outMargin left="0" right="0" top="0" bottom="0"/>
+                <hp:imgDim dimwidth="${w_px}" dimheight="${h_px}"/>
+                <hc:img binaryItemIDRef="BIN${imgId}"/>
+                <hp:sz width="${w_hwp}" widthRelTo="ABSOLUTE" height="${h_hwp}" heightRelTo="ABSOLUTE" protect="0"/>
+                <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="CENTER" vertOffset="0" horzOffset="0"/>
+              </hp:pic>
+            </hp:run>
+          </hp:p>
+        `);
+
+        if (caption) {
+          textLines.push(caption);
+          pListXml.push(`
+            <hp:p id="${pCounter++}" paraPrIDRef="11" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+              <hp:run charPrIDRef="11"><hp:t>${escapeXml(caption)}</hp:t></hp:run>
+            </hp:p>
+          `);
+        }
+        return;
+      }
+    }
+
+    // 1. 헤딩 (H1 ~ H6) — 원본 스타일을 반영한 코발트 블루 및 바(|) 조판
     if (/^h[1-6]$/.test(tag)) {
       const level = parseInt(tag.substring(1), 10);
-      let charPrId = 14;
-      let paraPrId = 2;
-      let styleId = 2;
-
-      if (level === 2) { charPrId = 15; paraPrId = 3; styleId = 3; }
-      else if (level === 3) { charPrId = 16; paraPrId = 4; styleId = 4; }
-      else if (level >= 4) { charPrId = 16; paraPrId = 5; styleId = 5; }
+      let charPrId = 14; // H1
+      if (level === 2) charPrId = 15;
+      else if (level === 3) charPrId = 16;
+      else if (level >= 4) charPrId = 17;
 
       const inlines = parseInlines(el, charPrId);
       textLines.push(el.textContent || '');
+
+      // 원본의 좌측 코발트 세로바(|) 느낌을 HWPX에도 적용
+      const accentPrefix = level <= 2 ? `<hp:run charPrIDRef="14"><hp:t>| </hp:t></hp:run>` : '';
+
       pListXml.push(`
-        <hp:p id="${pCounter++}" paraPrIDRef="${paraPrId}" styleIDRef="${styleId}" pageBreak="0" columnBreak="0" merged="0">
+        <hp:p id="${pCounter++}" paraPrIDRef="0" styleIDRef="${level}" pageBreak="0" columnBreak="0" merged="0">
+          ${accentPrefix}
           ${inlines}
         </hp:p>
       `);
@@ -216,8 +318,9 @@ function buildSectionXml(containerEl: HTMLElement): { sectionXml: string; plainT
     // 2. 단락 (P)
     if (tag === 'p') {
       const inlines = parseInlines(el, 0);
-      if (inlines.trim()) {
-        textLines.push(el.textContent || '');
+      const text = el.textContent || '';
+      if (text.trim()) {
+        textLines.push(text);
         pListXml.push(`
           <hp:p id="${pCounter++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
             ${inlines}
@@ -233,20 +336,20 @@ function buildSectionXml(containerEl: HTMLElement): { sectionXml: string; plainT
       if (pElements.length > 0) {
         pElements.forEach((p) => {
           const inlines = parseInlines(p, 11);
-          textLines.push(`| ${p.textContent || ''}`);
+          textLines.push(p.textContent || '');
           pListXml.push(`
-            <hp:p id="${pCounter++}" paraPrIDRef="9" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
-              <hp:run charPrIDRef="14"><hp:t>┃ </hp:t></hp:run>
+            <hp:p id="${pCounter++}" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+              <hp:run charPrIDRef="14"><hp:t>▎ </hp:t></hp:run>
               ${inlines}
             </hp:p>
           `);
         });
       } else {
         const inlines = parseInlines(el, 11);
-        textLines.push(`| ${el.textContent || ''}`);
+        textLines.push(el.textContent || '');
         pListXml.push(`
-          <hp:p id="${pCounter++}" paraPrIDRef="9" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
-            <hp:run charPrIDRef="14"><hp:t>┃ </hp:t></hp:run>
+          <hp:p id="${pCounter++}" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+            <hp:run charPrIDRef="14"><hp:t>▎ </hp:t></hp:run>
             ${inlines}
           </hp:p>
         `);
@@ -272,11 +375,25 @@ function buildSectionXml(containerEl: HTMLElement): { sectionXml: string; plainT
       return;
     }
 
-    // 5. 코드 블록 (PRE)
+    // 5. 코드 블록 (PRE) — 상단 배지 라인 및 다크 모노스페이스 단락 조판
     if (tag === 'pre') {
       const codeEl = el.querySelector('code') || el;
       const text = codeEl.textContent || '';
       const lines = text.split('\n');
+
+      let langBadge = 'TEXT';
+      const classAttr = (codeEl.className || el.className || '');
+      const langMatch = classAttr.match(/language-([a-zA-Z0-9_-]+)/);
+      if (langMatch && langMatch[1]) {
+        langBadge = langMatch[1].toUpperCase();
+      }
+
+      // 배지 헤더 줄
+      pListXml.push(`
+        <hp:p id="${pCounter++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+          <hp:run charPrIDRef="10"><hp:t>[${langBadge}]</hp:t></hp:run>
+        </hp:p>
+      `);
 
       lines.forEach((line) => {
         textLines.push(line);
@@ -300,9 +417,6 @@ function buildSectionXml(containerEl: HTMLElement): { sectionXml: string; plainT
     }
 
     // 7. 표 (TABLE) — 🌟 [OWPML KS X 6101 정규 표준 표 구조]
-    // 1) hp:run 직하에 hp:tbl 위치 (hp:ctrl 포장 금지)
-    // 2) hp:tc 직하에 hp:subList 위치
-    // 3) colAddr, rowAddr, colSpan, rowSpan은 hp:tc 속성이 아닌 hp:cellAddr, hp:cellSpan 하위 요소로 배치
     if (tag === 'table') {
       const trs = Array.from(el.querySelectorAll('tr'));
       if (trs.length === 0) return;
