@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-LocalFirstSection-0001] LocalFirstSection ➔ LocalFirstSection
 // 🎯 @KICK  : Onrivi Author의 핵심 철학인 Local First 원칙 — 내 문서는 내 컴퓨터에 안전하게 저장·관리
 // 🛡️ @GUARD : 과장된 보안 주장 대신 실제 로컬 저장 및 오프라인 구동 구조를 정직하게 시각화
+// 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: LocalFirstSection 배경색을 흰색(#FFFFFF)으로 적용하여 상하 #F9FAFC 섹션과 완벽한 1:1 교차 대비 완성
 // 🚨 @PATCH : **2026-09-30** — [우측 모의 UI를 실제 Windows 탐색기 & Onrivi 연동 이미지(/onrivi_local_workspace.png)로 교체]: 로컬 1:1 실시간 직결 및 프라이버시 가치 시각적 극대화
 // 🚨 @PATCH : **2026-09-30** — [랜딩 개편 Local First 섹션 신규 구현]:
 //             1. Heading: "내 문서는, 내 컴퓨터에."
@@ -19,7 +20,7 @@ export function LocalFirstSection() {
   return (
     <section
       id="local-first"
-      className="py-24 sm:py-32 bg-[#F8FAFC] dark:bg-[#0E131F] text-[#0F172A] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5 relative"
+      className="py-24 sm:py-32 bg-[#FFFFFF] dark:bg-[#0E131F] text-[#0F172A] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5 relative"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">

@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-UI-PricingSection-0023 ✅ FIXED] PricingSection ➔ PricingSection
 // 🎯 @KICK  : Onrivi Author 서비스 멤버십 가격표 출력
+// 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: PricingSection 배경색을 #F9FAFC로 적용하여 상하 화이트 섹션(LocalFirst, CTA)과 1:1 교차 대비 완성
 // 🚨 @PATCH : **2026-09-11** — 플랜 카드 배경색을 #EEF0FF(소프트 페리윙클)으로 변경 및 섹션 배경 #FFFFFF 동기화
 //             **2026-09-11** — 요금표 카드 배경색을 #B3FFF3(민트/아쿠아마린)으로 변경 및 고대비(Rule 8) 가독성 강화
 //             **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(Pricing: #EFEFFF)
@@ -54,7 +55,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
 
   if (loading) {
     return (
-      <section id="pricing" className="py-24 bg-surface text-on-surface" style={{ fontFamily: "Pretendard, sans-serif" }}>
+      <section id="pricing" className="py-24 bg-[#F9FAFC] dark:bg-[#121417] text-on-surface" style={{ fontFamily: "Pretendard, sans-serif" }}>
         <div className="text-center text-text-secondary">요금제를 불러오는 중입니다...</div>
       </section>
     );
@@ -70,7 +71,7 @@ export function PricingSection() {   // PricingSection : Onrivi Author 서비스
   return (
     <section
       id="pricing"
-      className="py-24 sm:py-32 bg-[#FFFFFF] dark:bg-[#121417] border-y border-[#E2E4F6] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="py-24 sm:py-32 bg-[#F9FAFC] dark:bg-[#121417] border-y border-[#E2E4F6] dark:border-white/5 text-[#1A1A18] dark:text-[#E8ECE9]"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1240px] mx-auto px-6 lg:px-10">

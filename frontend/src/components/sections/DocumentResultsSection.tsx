@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-DocumentResultsSection-0001] DocumentResultsSection ➔ DocumentResultsSection
 // 🎯 @KICK  : 하나의 구조화된 콘텐츠에서 다양한 전문 문서(리포트, 기술 문서, 애널리틱스, 전자책, 인쇄물)를 사출하는 결과 다양성 섹션
 // 🛡️ @GUARD : 실제 지원되는 포맷(PDF, EPUB, HTML, 이미지 출력)에 한정하여 정직하게 표기
+// 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: DocumentResultsSection 배경색을 흰색(#FFFFFF)으로 적용하여 상하 #F9FAFC 섹션과 완벽한 1:1 교차 대비 완성
 // 🚨 @PATCH : **2026-09-30** — ['A4 규격 학술 및 계약 문서' 카드를 '이미지 출력(PNG)'으로 교체]: 사용자 요청에 따라 인쇄 카드 대신 SNS/노션/슬랙 공유용 고해상도 PNG 이미지 출력 카드로 개편
 // 🚨 @PATCH : **2026-09-30** — [랜딩 개편 Document Results 섹션 신규 구현]:
 //             1. 제목: "하나의 콘텐츠, 다양한 문서로."
@@ -69,7 +70,7 @@ export function DocumentResultsSection() {
   return (
     <section
       id="document-results"
-      className="py-24 sm:py-32 bg-[#F8FAFC] dark:bg-[#0E131F] text-[#0F172A] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5 relative"
+      className="py-24 sm:py-32 bg-[#FFFFFF] dark:bg-[#0E131F] text-[#0F172A] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5 relative"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">

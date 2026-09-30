@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-WorkflowSection-0001] WorkflowSection ➔ WorkflowSection
 // 🎯 @KICK  : Onrivi Author 5단계 Workflow 인포그래픽 — INPUT SOURCE → AI PROCESSING → STRUCTURED CONTENT → ONRIVI AUTHOR → DOCUMENT
 // 🛡️ @GUARD : 반응형 스크롤/그리드 지원 및 절차명과 매체명 동시 표기
+// 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: WorkflowSection부터 흰색(#FFFFFF)과 첨부 연회색(#F9FAFC) 1:1 교차 시스템 적용 (Workflow: #FFFFFF 시작)
 // 🚨 @PATCH : **2026-09-30** — [Workflow 파이프라인 보라-연두 2색 교차 테마 및 세부내역 시작 높이 통일]:
 //             1. 1~5단계 카드를 '보라 ➔ 연두 ➔ 보라 ➔ 연두 ➔ 보라' 2색 교차 테마로 개편
 //             2. 상단 헤더 영역 최소 높이(min-h-[84px]) 고정으로 모든 카드의 세부내역 시작선을 STEP 01과 동일하게 수평 정렬

@@ -2,6 +2,7 @@
 // 📊 [OMD-PAGE-Home-0025] app/page.tsx ➔ HomePage
 // 🎯 @KICK  : Onrivi Author 공식 랜딩페이지 — AI가 만든 글, 바로 문서로 완성하세요 (전체 12개 섹션 구성)
 // 🛡️ @GUARD : 헤더(Navbar) 및 풋터(Footer), 기존 요금제(PricingSection) 100% 보존
+// 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: WorkflowSection부터 흰색(#FFFFFF)과 첨부 이미지 색상(#F9FAFC) 1:1 교차 시스템 적용 (Workflow: #FFFFFF, Experience: #F9FAFC, Results: #FFFFFF, Features: #F9FAFC, LocalFirst: #FFFFFF, Pricing: #F9FAFC, CTA: #FFFFFF)
 // 🚨 @PATCH : **2026-09-30** — [TransformationSection 제거]: 사용자 요청에 따라 인위적인 Before/After 섹션을 제거하고, 실제 사출 결과물(DocumentResultsSection) 중심의 전문 문서 쇼케이스로 정돈
 // 🚨 @PATCH : **2026-09-30** — [랜딩페이지 전체 개선 구현계획서 전면 반영]:
 //             01. Navigation (기존 Navbar 유지)

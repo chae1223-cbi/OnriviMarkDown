@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-CtaSection-0026] CtaSection ➔ CtaSection
 // 🎯 @KICK  : Onrivi Author 랜딩페이지 Final CTA 섹션 — AI가 만든 콘텐츠를 당신의 문서로 완성하세요.
 // 🛡️ @GUARD : viewport once 옵션 및 간결한 전환 유도
+// 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: CtaSection 배경색을 흰색(#FFFFFF)으로 유지하여 상단 Pricing(#F9FAFC)과 1:1 교차 대비 완성
 // 🚨 @PATCH : **2026-09-30** — [랜딩 개편 Final CTA 섹션 구현]:
 //             1. Heading: "AI가 만든 콘텐츠를 당신의 문서로 완성하세요."
 //             2. Supporting: "작성부터 미리보기, 완성된 문서까지 하나의 작업 흐름으로 연결하세요."

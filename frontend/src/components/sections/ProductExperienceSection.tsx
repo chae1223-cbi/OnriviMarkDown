@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-ProductExperienceSection-0003] ProductExperienceSection ➔ ProductExperienceSection
 // 🎯 @KICK  : Onrivi Author 실제 UI 쇼케이스 — SPLIT VIEW(`onrivi/onrivi_randing_spilit.png`), PREVIEW(`onrivi/onrivi_randing_preview.png`), '구현'(실제 시연 비디오 randing_hero.mp4) 3대 모드
 // 🛡️ @GUARD : Default 모드는 SPLIT VIEW, 200 OK 정규 이미지 URL 연동 및 비디오 스트리밍 최적화
+// 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: ProductExperienceSection 배경색을 사용자 지정 #F9FAFC(연회색)로 적용하여 Workflow(화이트)와 1:1 교차 대비 완성
 // 🚨 @PATCH : **2026-09-30** — [비디오 초기 검은 화면(Black Screen) 방지 패치]:
 //             1. poster="onrivi_randing_spilit.png" 속성 지정으로 버퍼링 중 검은 화면 대신 UI 썸네일 즉시 노출
 //             2. 비디오 DOM 상시 마운트(Pre-mount) 및 백그라운드 preload="auto"로 탭 전환 즉시 0초 재생
@@ -40,7 +41,7 @@ export function ProductExperienceSection() {
   return (
     <section
       id="product-experience"
-      className="py-24 sm:py-32 bg-[#F8FAFC] dark:bg-[#0E131F] text-[#0F172A] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5 relative overflow-hidden"
+      className="py-24 sm:py-32 bg-[#F9FAFC] dark:bg-[#0E131F] text-[#0F172A] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5 relative overflow-hidden"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
