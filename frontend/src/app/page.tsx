@@ -2,19 +2,19 @@
 // 📊 [OMD-PAGE-Home-0025] app/page.tsx ➔ HomePage
 // 🎯 @KICK  : Onrivi Author 공식 랜딩페이지 — AI가 만든 글, 바로 문서로 완성하세요 (전체 12개 섹션 구성)
 // 🛡️ @GUARD : 헤더(Navbar) 및 풋터(Footer), 기존 요금제(PricingSection) 100% 보존
+// 🚨 @PATCH : **2026-09-30** — [TransformationSection 제거]: 사용자 요청에 따라 인위적인 Before/After 섹션을 제거하고, 실제 사출 결과물(DocumentResultsSection) 중심의 전문 문서 쇼케이스로 정돈
 // 🚨 @PATCH : **2026-09-30** — [랜딩페이지 전체 개선 구현계획서 전면 반영]:
 //             01. Navigation (기존 Navbar 유지)
 //             02. HERO (AI가 만든 글, 바로 문서로 완성하세요 + 실제 영상 randing_hero.mp4)
 //             03. Positioning (AI는 콘텐츠를 만들고, Onrivi는 문서를 완성합니다)
 //             04. Workflow (INPUT -> AI -> MARKDOWN -> ONRIVI -> DOCUMENT 5단계)
 //             05. Core Product Experience (작성하면서 결과를 바로 확인하세요 + 강릉 여행 문서 + SPLIT VIEW 인터랙티브)
-//             06. Transformation Showcase (단순한 콘텐츠를 전문 문서로 Before & After)
-//             07. Document Results (하나의 콘텐츠, 다양한 문서로 — PDF, EPUB, HTML, Print)
-//             08. Core Features (6대 핵심 기능 2x3 Grid)
-//             09. Local First (내 문서는, 내 컴퓨터에)
-//             10. Pricing (현행 요금제 유지)
-//             11. Final CTA (AI가 만든 콘텐츠를 당신의 문서로 완성하세요)
-//             12. Footer (기존 Footer 유지)
+//             06. Document Results (하나의 콘텐츠, 다양한 문서로 — PDF, EPUB, HTML, Print)
+//             07. Core Features (6대 핵심 기능 2x3 Grid)
+//             08. Local First (내 문서는, 내 컴퓨터에)
+//             09. Pricing (현행 요금제 유지)
+//             10. Final CTA (AI가 만든 콘텐츠를 당신의 문서로 완성하세요)
+//             11. Footer (기존 Footer 유지)
 // ====================================================================
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -22,7 +22,6 @@ import { HeroSection } from "@/components/sections/HeroSection";
 import { PositioningSection } from "@/components/sections/PositioningSection";
 import { WorkflowSection } from "@/components/sections/WorkflowSection";
 import { ProductExperienceSection } from "@/components/sections/ProductExperienceSection";
-import { TransformationSection } from "@/components/sections/TransformationSection";
 import { DocumentResultsSection } from "@/components/sections/DocumentResultsSection";
 import { FeaturesSection } from "@/components/sections/FeaturesSection";
 import { LocalFirstSection } from "@/components/sections/LocalFirstSection";
@@ -71,10 +70,7 @@ export default function HomePage() {
         {/* 05. Core Product Experience */}
         <ProductExperienceSection />
 
-        {/* 06. Transformation Showcase */}
-        <TransformationSection />
-
-        {/* 07. Document Results */}
+        {/* 06. Document Results */}
         <DocumentResultsSection />
 
         {/* 08. Core Features */}
