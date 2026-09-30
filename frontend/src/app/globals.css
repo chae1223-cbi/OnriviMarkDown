@@ -11,6 +11,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 긴 Mermaid 다이어그램 앞 빈 페이지(백지) 발생 방지]: .not-prose 강제 break-inside 해제 및 Mermaid SVG max-height(230mm) 제어로 인쇄 시 A4 1페이지 내 온전한 안착 보장
  * 🚨 @PATCH : **2026-09-30** — [미리보기 내부 텍스트 검색 하이라이트 스타일 추가]: CSS.highlights(::highlight) 및 .preview-find-match 고대비 시인성 스타일 탑재
  * 🚨 @PATCH : **2026-09-28** — [관리자 UI 디자인 시스템 통일]: DESIGN.md의 카드·버튼(Primary/Secondary/Danger)·입력·타이포그래피·상태 색상·모달 표면과 배경을 관리자 전용 범위에 적용
  * 🚨 @PATCH : **2026-09-26** — [인용구(blockquote) 내부 중첩 리스트 들여쓰기 여백 보장]: 인용구 내부 중첩 리스트(ul ul, ol ol)가 상위 blockquote ul 패딩(2.25rem)에 묶여 일렬 정렬되던 문제를 차단하고 계층별 padding-left(1.5rem)를 보장하여 들여쓰기 위계 복원
@@ -1668,6 +1669,26 @@ div.onrivi-list-spacer {
   }
   pre, code, .code-block, pre > div, .not-prose, .not-prose > div {
     overflow: visible !important;
+  }
+  .not-prose,
+  .mermaid-svg-container,
+  .mermaid-block-container {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    overflow: visible !important;
+  }
+  .mermaid-svg-container svg,
+  .mermaid-block-container svg,
+  .not-prose svg {
+    max-height: 230mm !important;
+    max-width: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
   .not-prose > div > div:first-child {
     break-after: avoid !important;

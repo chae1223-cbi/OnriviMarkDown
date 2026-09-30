@@ -2,6 +2,7 @@
 // 📊 [OMD-IO-docxGenerator-0001] docxGenerator.ts ➔ generateDocx
 // 🎯 @KICK  : HTML/미리보기 DOM을 표준 Office Open XML(.docx) 파일로 조판 및 변환 사출
 // 🛡️ @GUARD : JSZip 기반 100% 클라이언트/오프라인 구동, DrawingML 이미지/다이어그램 임베딩, 헤딩 코발트 바 & 다크 코드블록 완벽 조판
+// 🚨 @PATCH : **2026-10-01** — [DOCX 파일 오픈 오류 긴급 해결 및 MS Word 완벽 호환]: w:document 루트에 필수 DrawingML(wp, a, pic) 네임스페이스 선언 완비, docProps/core.xml·app.xml 패키징, Relationship Id 정규 순차 번호(rId2~) 매핑 및 wp:docPr/pic:cNvPr 고유 ID 분리로 Word 유효성 검사 에러 완전 차단
 // 🚨 @PATCH : **2026-10-01** — [DOCX 이미지·Mermaid 다이어그램 임베딩 및 원본 1:1 고품질 조판 보강]: DrawingML <w:drawing> 미디어 패키징, 헤딩 좌측 액센트 바, 다크 코드블록 및 캡션([그림 N]) 완전 연동
 // 🚨 @PATCH : **2026-09-30** — MS Word (.docx) 내보내기 생성기 신규 구현 (구글 Docs 및 Word 완벽 호환)
 // 🔗 @CALLS : JSZip, ExtractedImage (exportMediaHelper.ts)
@@ -36,7 +37,7 @@ export async function generateDocx(containerEl: HTMLElement, options: DocxOption
 
   const zip = new JSZip();
 
-  // 1. [Content_Types].xml (이미지 포맷 Default 선언 포함)
+  // 1. [Content_Types].xml (이미지 포맷 Default 및 docProps Override 선언 완비)
   zip.file(
     '[Content_Types].xml',
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -49,6 +50,8 @@ export async function generateDocx(containerEl: HTMLElement, options: DocxOption
   <Default Extension="gif" ContentType="image/gif"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 </Types>`
   );
 
@@ -58,17 +61,51 @@ export async function generateDocx(containerEl: HTMLElement, options: DocxOption
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
 </Relationships>`
   );
 
-  // 3. word/_rels/document.xml.rels (스타일 및 이미지 Relationships 등록)
+  // 3. docProps/core.xml & docProps/app.xml (Word 신뢰성 보장)
+  zip.file(
+    'docProps/core.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:title>${escapeXml(docTitle)}</dc:title>
+  <dc:creator>Onrivi Author</dc:creator>
+  <cp:lastModifiedBy>Onrivi Author</cp:lastModifiedBy>
+  <dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:modified>
+</cp:coreProperties>`
+  );
+
+  zip.file(
+    'docProps/app.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Application>Onrivi Author</Application>
+  <DocSecurity>0</DocSecurity>
+  <ScaleCrop>false</ScaleCrop>
+  <Company>Onrivi</Company>
+  <LinksUpToDate>false</LinksUpToDate>
+  <SharedDoc>false</SharedDoc>
+  <HyperlinksChanged>false</HyperlinksChanged>
+  <AppVersion>16.0000</AppVersion>
+</Properties>`
+  );
+
+  // 4. word/_rels/document.xml.rels (스타일 및 이미지 Relationships 등록 - 정규 순차 rId 할당)
   let relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 `;
 
-  images.forEach((img) => {
-    relsXml += `  <Relationship Id="rIdImg${img.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${img.id}.png"/>\n`;
+  // 이미지 ID -> 순차 rId 매핑
+  const imageRelIdMap = new Map<number, string>();
+  images.forEach((img, idx) => {
+    const relId = `rId${idx + 2}`;
+    imageRelIdMap.set(img.id, relId);
+    relsXml += `  <Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${img.id}.png"/>\n`;
     // 바이너리 데이터 ZIP에 패키징
     zip.file(`word/media/image${img.id}.png`, img.buffer);
   });
@@ -210,7 +247,7 @@ export async function generateDocx(containerEl: HTMLElement, options: DocxOption
   );
 
   // 5. word/document.xml 본문 빌드
-  const documentXml = buildDocumentXml(containerEl, docTitle, defaultFont, images);
+  const documentXml = buildDocumentXml(containerEl, docTitle, defaultFont, images, imageRelIdMap);
   zip.file('word/document.xml', documentXml);
 
   return await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
@@ -219,7 +256,13 @@ export async function generateDocx(containerEl: HTMLElement, options: DocxOption
 /**
  * HTML DOM 구조를 순회하여 WordprocessingML 본문 문자열을 생성
  */
-function buildDocumentXml(containerEl: HTMLElement, title: string, defaultFont: string, images: ExtractedImage[]): string {
+function buildDocumentXml(
+  containerEl: HTMLElement,
+  title: string,
+  defaultFont: string,
+  images: ExtractedImage[],
+  imageRelIdMap: Map<number, string>
+): string {
   const bodyXmls: string[] = [];
   const imageMap = new Map<number, ExtractedImage>(images.map((img) => [img.id, img]));
 
@@ -316,6 +359,9 @@ function buildDocumentXml(containerEl: HTMLElement, title: string, defaultFont: 
         const cx = Math.round(origW_emu * scale);
         const cy = Math.round(origH_emu * scale);
 
+        const relId = imageRelIdMap.get(imgId) || `rId2`;
+        const imgSeq = (Array.from(imageRelIdMap.keys()).indexOf(imgId) >= 0 ? Array.from(imageRelIdMap.keys()).indexOf(imgId) : 0) + 1;
+
         bodyXmls.push(`
           <w:p>
             <w:pPr>
@@ -327,7 +373,7 @@ function buildDocumentXml(containerEl: HTMLElement, title: string, defaultFont: 
                 <wp:inline distT="0" distB="0" distL="0" distR="0">
                   <wp:extent cx="${cx}" cy="${cy}"/>
                   <wp:effectExtent l="0" t="0" r="0" b="0"/>
-                  <wp:docPr id="${imgId}" name="Picture ${imgId}"/>
+                  <wp:docPr id="${imgSeq}" name="Picture ${imgSeq}"/>
                   <wp:cNvGraphicFramePr>
                     <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
                   </wp:cNvGraphicFramePr>
@@ -335,11 +381,11 @@ function buildDocumentXml(containerEl: HTMLElement, title: string, defaultFont: 
                     <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
                       <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
                         <pic:nvPicPr>
-                          <pic:cNvPr id="${imgId}" name="image${imgId}.png"/>
+                          <pic:cNvPr id="0" name="Picture ${imgSeq}"/>
                           <pic:cNvPicPr/>
                         </pic:nvPicPr>
                         <pic:blipFill>
-                          <a:blip r:embed="rIdImg${imgId}"/>
+                          <a:blip r:embed="${relId}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
                           <a:stretch><a:fillRect/></a:stretch>
                         </pic:blipFill>
                         <pic:spPr>
@@ -620,7 +666,13 @@ function buildDocumentXml(containerEl: HTMLElement, title: string, defaultFont: 
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+            xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:w10="urn:schemas-microsoft-com:office:word"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     ${bodyXmls.join('\n')}
     <w:sectPr>

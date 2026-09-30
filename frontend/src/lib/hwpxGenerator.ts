@@ -2,6 +2,7 @@
 // 📊 [OMD-IO-hwpxGenerator-0001] hwpxGenerator.ts ➔ generateHwpx
 // 🎯 @KICK  : HTML/미리보기 DOM을 한글 표준 OWPML(.hwpx) 파일로 조판 및 변환 사출
 // 🛡️ @GUARD : KS X 6101 OWPML 표준 엄격 준수 — <hp:pic> 이미지/다이어그램 임베딩, BinData STORE 패키징, 헤딩/표/코드블록 무결성 보장
+// 🚨 @PATCH : **2026-10-01** — [한글 HWPX 이미지 렌더링 무결성 보강]: KS X 6101 OWPML 스키마 XSD 시퀀스에 맞춰 <hp:pic> 자식 태그 순서(hp:sz, hp:pos, hp:outMargin 선행 ➔ hp:imgRect, hp:imgDim, hc:img 후행)를 정규화하여 한컴오피스 뷰어 및 한글 프로그램에서 이미지가 완벽히 보이도록 보정
 // 🚨 @PATCH : **2026-10-01** — [한글 HWPX 이미지 및 Mermaid 다이어그램 임베딩·조판 강화]: OWPML 정규 <hp:pic> + <hc:img> 바이너리 적재, <hh:binDataList> 헤더 연동, 헤딩 코발트 바 & 다크 코드블록 조판 보강
 // 🚨 @PATCH : **2026-10-01** — [한글 프로그램 크래시(Crash) 8대 근본 원인 완전 해결]:
 //             1. 필수 루트 패키지 version.xml, settings.xml, META-INF/container.rdf, Preview/PrvText.txt 완비
@@ -267,14 +268,14 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
                   <hc:scaMatrix e1="1" e2="0" e3="0" e4="1"/>
                   <hc:rotMatrix e1="1" e2="0" e3="0" e4="1"/>
                 </hp:renderingInfo>
+                <hp:sz width="${w_hwp}" widthRelTo="ABSOLUTE" height="${h_hwp}" heightRelTo="ABSOLUTE" protect="0"/>
+                <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="CENTER" vertOffset="0" horzOffset="0"/>
+                <hp:outMargin left="0" right="0" top="0" bottom="0"/>
                 <hp:imgRect pt0X="0" pt0Y="0" pt1X="${w_hwp}" pt1Y="0" pt2X="${w_hwp}" pt2Y="${h_hwp}" pt3X="0" pt3Y="${h_hwp}"/>
                 <hp:imgClip left="0" right="${w_hwp}" top="0" bottom="${h_hwp}"/>
                 <hp:inMargin left="0" right="0" top="0" bottom="0"/>
-                <hp:outMargin left="0" right="0" top="0" bottom="0"/>
                 <hp:imgDim dimwidth="${w_px}" dimheight="${h_px}"/>
                 <hc:img binaryItemIDRef="BIN${imgId}"/>
-                <hp:sz width="${w_hwp}" widthRelTo="ABSOLUTE" height="${h_hwp}" heightRelTo="ABSOLUTE" protect="0"/>
-                <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="CENTER" vertOffset="0" horzOffset="0"/>
               </hp:pic>
             </hp:run>
           </hp:p>

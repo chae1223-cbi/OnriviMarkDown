@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 긴 Mermaid 다이어그램 앞 빈 페이지(백지) 발생 원천 차단]: .not-prose의 강제 break-inside: avoid로 인한 브라우저 페이지 밀림 버그를 해소하고, Mermaid SVG에 max-height: 230mm 및 auto-scale을 적용하여 긴 다이어그램도 A4 1페이지 내에 깔끔하게 쏙 들어가도록 조판 최적화
 // 🚨 @PATCH : **2026-10-01** — [DOCX 및 HWPX 이미지·Mermaid 다이어그램 자동 추출 및 임베딩 연동]: extractMediaFromElements 엔진을 호출하여 라이브 미리보기 DOM 내 모든 이미지 및 다이어그램 바이너리를 추출하고, Word(.docx) 및 한글(.hwpx) 내보내기 시 미디어 파일 및 캡션을 100% 온전히 임베딩 사출하도록 개선
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 파이프라인 신설]: 미리보기 DOM을 파싱하여 MS Word(Office Open XML) 및 한글(OWPML) 표준 문서로 변환 사출하는 exportDOCX, exportHWPX 함수 구현 및 데스크톱/브라우저 연동
 // 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 행/열 테두리 스타일·색상 내보내기 동기화]: generateExportCss 내 tableStructure 인젝션 시 th/td의 border-left/right/top/bottom에 width뿐 아니라 border-style 및 border-color를 !important로 주입하여 PDF/HTML/인쇄 내보내기 시 세로선 100% 반영
@@ -1649,13 +1650,34 @@ export async function exportPDF({
       height: auto !important;
       overflow: visible !important;
     }
-    /* 🛡️ Mermaid SVG 페이지 잘림 방지 (자리가 모자라면 다음 장으로 통째로 넘김) */
+    /* 🛡️ Mermaid SVG 긴 다이어그램 인쇄/PDF 최적화 (A4 1장 내 안전 스케일 및 빈 페이지 원천 방어) */
     .not-prose {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
+      page-break-inside: auto !important;
+      break-inside: auto !important;
     }
     .not-prose > div {
       overflow: visible !important;
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+    }
+    .mermaid-svg-container,
+    .mermaid-block-container {
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+      overflow: visible !important;
+    }
+    .mermaid-svg-container svg,
+    .mermaid-block-container svg,
+    .not-prose svg {
+      max-height: 230mm !important;
+      max-width: 100% !important;
+      width: auto !important;
+      height: auto !important;
+      display: block !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
     /* 🛡️ 각주 타이틀 및 영어 라벨 원천 차단 */
     .footnotes h2,
