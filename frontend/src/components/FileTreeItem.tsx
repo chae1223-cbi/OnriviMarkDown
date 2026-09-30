@@ -3,7 +3,7 @@
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
-// 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-30** — [탐색기 복원 폴더 지연 로딩 누락 및 빈 폴더 오표시 결함 수정]: onrivi_expanded_paths로 복원된 폴더의 localChildren이 빈 배열([])이거나 부모로부터 깡통 노드가 유입되었을 때 !localChildren 가드로 인해 onLazyLoad가 차단되어 파일이 있음에도 '빈 폴더'로 표시되던 결함을 (!localChildren || localChildren.length === 0) 검사 및 초기 덮어쓰기 방어로 완벽 해결
 // 🚨 @PATCH : **2026-09-30** — [탐색기 폴더 마크다운 링크 복사 기능 탑재]: 폴더 우클릭 컨텍스트 메뉴에 '폴더 링크 복사' 메뉴 추가, 클릭 시 [폴더명](<./경로/>) 형식으로 클립보드에 자동 복사
 // 🚨 @PATCH : **2026-09-28** — 제한사용자 파일·폴더 컨텍스트 메뉴 항목을 모두 표시하되 실행 불가 상태로 렌더링
 //             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2, FileText) 전체 제거, Icon 컴포넌트로 교체
@@ -248,9 +248,9 @@ const FileTreeItem = ({
     }
   }, [isOpen, node.path, node.kind]);
 
-  // 📌 폴더가 열려있는(isOpen) 상태로 복구되었는데 자식 데이터가 없는 경우 자동으로 비동기 지연 로드 복원
+  // 📌 폴더가 열려있는(isOpen) 상태로 복구되었는데 자식 데이터가 없거나 비어있는 경우 자동으로 비동기 지연 로드 복원
   useEffect(() => {
-    if (isOpen && node.kind === 'directory' && !localChildren && onLazyLoad) {
+    if (isOpen && node.kind === 'directory' && (!localChildren || localChildren.length === 0) && onLazyLoad) {
       setIsLoading(true);
       onLazyLoad(node)
         .then((children) => {
@@ -271,7 +271,7 @@ const FileTreeItem = ({
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, node, localChildren, onLazyLoad]);
+  }, [isOpen, node.path, node.kind, onLazyLoad]);
 
   useEffect(() => {
     const handleClose = () => setContextMenu(null);
@@ -289,7 +289,7 @@ const FileTreeItem = ({
   // 📊 [OMD-FILE-FileTreeItem-0002] FileTreeItem ➔ useEffect (syncChildren)
   // 🎯 @KICK  : node.children 변경 시 localChildren 상태 동기화
   // 🛡️ @GUARD : undefined인 경우 동기화 생략
-  // 🚨 @PATCH : 없음
+  // 🚨 @PATCH : **2026-09-30** — 부모로부터 유입된 깡통 빈 배열([])이 localChildren=null인 초기 지연 로딩 대기 상태를 덮어써서 빈 폴더로 고착되는 버그 방어
   // 🔗 @CALLS : 없음
   // ====================================================================
   React.useEffect(() => {
@@ -299,9 +299,14 @@ const FileTreeItem = ({
       if (node.children.length === 0 && localChildren && localChildren.length > 0) {
         return;
       }
+      // 🛡️ [지연 로드 대기 방어 가드] 폴더가 열려 있는데 부모로부터 빈 깡통 목록([])이 전달된 경우,
+      // localChildren을 []로 덮어쓰지 않고 onLazyLoad가 실행될 수 있도록 보존
+      if (node.children.length === 0 && isOpen) {
+        return;
+      }
       setLocalChildren(node.children);
     }
-  }, [node.children, localChildren]);
+  }, [node.children, localChildren, isOpen]);
   // ====================================================================
   // 📊 [OMD-FILE-FileTreeItem-0003] FileTreeItem ➔ refreshThisDirectory
   // 🎯 @KICK  : 현재 디렉토리 노드의 자식 목록을 지연 로딩(onLazyLoad)으로 갱신
