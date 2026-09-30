@@ -3,6 +3,7 @@
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
+// 🚨 @PATCH : **2026-09-30** — [탐색기 폴더 우클릭 '폴더 연결' 커서 위치 즉시 기입 연동]: 컨텍스트 메뉴의 '폴더 링크 복사'를 '폴더 연결'로 개편하여 클릭 시 현재 열린 문서의 커서 위치에 [폴더명](<./상대경로/>)을 즉시 삽입(app:insert-folder-link)하고 클립보드에도 자동 복사
 // 🚨 @PATCH : **2026-09-30** — [탐색기 복원 폴더 지연 로딩 누락 및 빈 폴더 오표시 결함 수정]: onrivi_expanded_paths로 복원된 폴더의 localChildren이 빈 배열([])이거나 부모로부터 깡통 노드가 유입되었을 때 !localChildren 가드로 인해 onLazyLoad가 차단되어 파일이 있음에도 '빈 폴더'로 표시되던 결함을 (!localChildren || localChildren.length === 0) 검사 및 초기 덮어쓰기 방어로 완벽 해결
 // 🚨 @PATCH : **2026-09-30** — [탐색기 폴더 마크다운 링크 복사 기능 탑재]: 폴더 우클릭 컨텍스트 메뉴에 '폴더 링크 복사' 메뉴 추가, 클릭 시 [폴더명](<./경로/>) 형식으로 클립보드에 자동 복사
 // 🚨 @PATCH : **2026-09-28** — 제한사용자 파일·폴더 컨텍스트 메뉴 항목을 모두 표시하되 실행 불가 상태로 렌더링
@@ -71,7 +72,7 @@ import { useToast } from '@/components/ToastProvider';
 import { checkKnowledgeGuard } from '@/lib/knowledge/knowledgeGuard';
 import { loadSecureData } from '@/lib/secureStorage';
 import { knowledgeClient, canAccessKnowledgeDb } from '@/lib/knowledge/knowledgeClient';
-import { buildDirectWorkspacePath } from '@/lib/knowledge/pathResolver';
+import { buildDirectWorkspacePath, computeRelativeFolderPath } from '@/lib/knowledge/pathResolver';
 
 // 📂 브라우저 File System Access API 폴더 재귀 스냅샷 추출기 (되돌리기 지원용)
 export const snapshotFsaDirectory = async (dirHandle: any, prefix = ''): Promise<{ relativePath: string; kind: 'file' | 'directory'; content?: string }[]> => {
@@ -1686,18 +1687,21 @@ const FileTreeItem = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setContextMenu(null);
-                      const cleanPath = (node.path || node.name).replace(/\\/g, '/');
-                      const relPath = cleanPath.startsWith('./') ? cleanPath : `./${cleanPath}`;
-                      const normalizedPath = relPath.endsWith('/') ? relPath : `${relPath}/`;
-                      const folderLink = `[${node.name}](<${normalizedPath}>)`;
-                      navigator.clipboard.writeText(folderLink);
-                      showToast(`'${node.name}' 폴더 마크다운 링크가 복사되었습니다.`, 'success');
+                      const targetPath = node.path || node.name;
+                      const relPath = computeRelativeFolderPath(currentFilePath, targetPath);
+                      const folderLink = `[${node.name}](<${relPath}>)`;
+                      try {
+                        navigator.clipboard.writeText(folderLink);
+                      } catch {}
+                      window.dispatchEvent(new CustomEvent('app:insert-folder-link', {
+                        detail: { link: folderLink, folderName: node.name }
+                      }));
                     }}
-                    className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-blue-600 dark:text-blue-400 font-medium"
+                    className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-blue-600 dark:text-blue-400 font-medium cursor-pointer"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Icon name="Link" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
-                      <span className="truncate">폴더 링크 복사</span>
+                      <span className="truncate">폴더 연결</span>
                     </div>
                   </button>
                 </>

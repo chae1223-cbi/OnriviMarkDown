@@ -344,4 +344,24 @@ describe('Web DocLinkPicker & Deep Scan Unit Tests', () => {
     const folderMarkdown = `[${targetDir.name}](<${normalizedRelPath}>)`;
     assert.equal(folderMarkdown, '[iosApp](<./iosApp/>)');
   });
+
+  // 8. computeRelativeFolderPath 탐색기 폴더 연결 상대경로 정밀 계산 테스트
+  it('computeRelativeFolderPath should accurately compute relative folder paths and format links', async () => {
+    const { computeRelativeFolderPath } = await import('../../../lib/knowledge/pathResolver');
+
+    // 1) 같은 디렉토리 내 폴더
+    const rel1 = computeRelativeFolderPath('E:/ZZ 개인자료/블러그/00_PRD.md', 'E:/ZZ 개인자료/블러그/02_치과_홈페이지');
+    assert.equal(rel1, './02_치과_홈페이지/');
+    assert.equal(`[02_치과_홈페이지](<${rel1}>)`, '[02_치과_홈페이지](<./02_치과_홈페이지/>)');
+
+    // 2) 하위 폴더에서 다른 형제 폴더로의 상대경로
+    const rel2 = computeRelativeFolderPath('E:/ZZ 개인자료/블러그/01_투자자산_운용사/문서.md', 'E:/ZZ 개인자료/블러그/02_치과_홈페이지');
+    assert.equal(rel2, '../02_치과_홈페이지/');
+    assert.equal(`[02_치과_홈페이지](<${rel2}>)`, '[02_치과_홈페이지](<../02_치과_홈페이지/>)');
+
+    // 3) 현재 파일이 없는 경우 기본 상대경로
+    const rel3 = computeRelativeFolderPath(null, '도움말');
+    assert.equal(rel3, './도움말/');
+    assert.equal(`[도움말](<${rel3}>)`, '[도움말](<./도움말/>)');
+  });
 });

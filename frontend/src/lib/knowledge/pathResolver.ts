@@ -2,6 +2,7 @@
 // 📊 [OMD-CORE-pathResolver-0001] pathResolver.ts ➔ Knowledge Absolute Path Resolver
 // 🎯 @KICK  : 웹 브라우저 및 로컬/서버 전 환경에서 유입된 상대경로를 실제 로컬 디스크 절대경로(Win: E:/... | Mac/Linux: /Users/...)로 탐색, 정규화, 승격 (Cross-Platform)
 // 🛡️ @GUARD : Rule 1(문서/주석 동기화), Rule 2(대문자 코드값), 단계 탐색 배제(로컬스토리지 작업장 절대경로 다이렉트 직결)
+// 🚨 @PATCH : **2026-09-30** — [탐색기 폴더 연결 상대경로 계산 헬퍼(computeRelativeFolderPath) 신설]: 현재 편집 중인 문서 경로(fromPath)와 탐색기 폴더 경로(toFolderPath) 간 표준 마크다운 상대경로(./folder/ 또는 ../folder/)를 자동 계산하여 커서 위치 삽입 지원
 // 🚨 @PATCH : **2026-09-14** — [Mac/Linux POSIX 경로 크로스플랫폼 지원 전체 개선 (Cross-Platform Path Support)]:
 //             1) isWinAbsPath / isMacPosixPath / isAbsolutePath 헬퍼 3종 신설하여 OS 무관 절대경로 판별 통합
 //             2) 기존 /^[a-zA-Z]:\// 윈도우 전용 정규식을 isAbsolutePath()로 전면 교체
@@ -374,5 +375,56 @@ export async function resolveClientAbsolutePath(rawPath: string, resourceFolder?
   // 로컬스토리지 작업장 절대경로와 다이렉트 연결 (스캔/단계 탐색 없이 0ms 즉시 반환)
   return buildDirectWorkspacePath(clean, resourceFolder);
 }
+
+/**
+  * 현재 열린 파일 경로(fromFilePath)를 기준으로 대상 폴더(toFolderPath)의 마크다운용 상대경로를 계산하는 헬퍼
+  * @returns 예: './도움말/', '../02_치과_홈페이지/'
+  */
+export function computeRelativeFolderPath(fromFilePath: string | null | undefined, toFolderPath: string): string {
+  if (!toFolderPath) return './';
+  const normTo = toFolderPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  const toParts = normTo.split('/').filter(Boolean);
+  const targetFolderBaseName = toParts[toParts.length - 1] || 'folder';
+
+  if (!fromFilePath) {
+    return `./${targetFolderBaseName}/`;
+  }
+
+  const normFrom = fromFilePath.replace(/\\/g, '/');
+
+  // 서로 다른 윈도우 드라이브 간에는 상대경로 불가
+  const fromDrive = normFrom.match(/^[a-zA-Z]:/)?.[0]?.toUpperCase();
+  const toDrive = normTo.match(/^[a-zA-Z]:/)?.[0]?.toUpperCase();
+  if (fromDrive && toDrive && fromDrive !== toDrive) {
+    return `${normTo}/`;
+  }
+
+  const fromParts = normFrom.split('/').filter(Boolean);
+  // 현재 파일명 제거
+  fromParts.pop();
+
+  let commonIndex = 0;
+  while (commonIndex < fromParts.length && commonIndex < toParts.length && fromParts[commonIndex].toLowerCase() === toParts[commonIndex].toLowerCase()) {
+    commonIndex++;
+  }
+
+  const upCount = fromParts.length - commonIndex;
+  const upParts = Array(upCount).fill('..');
+  const downParts = toParts.slice(commonIndex);
+
+  const relParts = [...upParts, ...downParts];
+  if (relParts.length === 0) {
+    return './';
+  }
+  let relPath = relParts.join('/');
+  if (!relPath.startsWith('.') && !relPath.startsWith('/')) {
+    relPath = `./${relPath}`;
+  }
+  if (!relPath.endsWith('/')) {
+    relPath = `${relPath}/`;
+  }
+  return relPath;
+}
+
 
 

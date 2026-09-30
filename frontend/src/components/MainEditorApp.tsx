@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-30** — [문서 연결(DocLinkPicker) 폴더 수집 원복 & 탐색기 폴더 연결 커서 위치 즉시 기입 연동]: 웹/데스크톱 공통으로 문서 연결(DocLinkPicker) 및 [[ 자동완성에서는 폴더 노드를 제외하여 순수 마크다운 문서 연결로 원복하고, 탐색기 폴더 우클릭 '폴더 연결' 클릭 시 app:insert-folder-link 이벤트를 수신하여 현재 열린 문서의 에디터 커서 위치에 [폴더명](<./상대경로/>)을 원자적으로 즉시 삽입
 // 🚨 @PATCH : **2026-09-30** — [미리보기 모드 시 문서 병합(MERGE) 및 각주 정리(ORGANIZE_FOOTNOTES) 실행 차단 방어]: previewMode가 'preview'일 때 명령 실행을 차단하고 경고 토스트 안내
 // 🚨 @PATCH : **2026-09-30** — [에디터 vs 미리보기 단축키 및 제어 충돌 완벽 격리·스마트 라우팅]:
 //             1. 찾기(Find): 에디터 포커스 시 에디터 찾기(Ctrl+F) 및 바꾸기(Ctrl+H), 전체 검색(Ctrl+Shift+F) 100% 보존. 미리보기 전용 찾기는 Ctrl+Alt+F 및 비포커스 시 Ctrl+F로 완벽 격리.
@@ -440,8 +441,6 @@ const fetchAllMdFiles = async (
     if (node.kind === 'file') {
       const ext = node.name.split('.').pop()?.toLowerCase();
       if (ext !== 'md' && ext !== 'markdown') return;
-    } else if (node.kind === 'directory') {
-      if (node.name.startsWith('.') || node.name === 'node_modules') return;
     } else {
       return;
     }
@@ -457,8 +456,9 @@ const fetchAllMdFiles = async (
   const addTreeNodes = (nodes: FileNode[]) => {
     if (!Array.isArray(nodes)) return;
     for (const node of nodes) {
-      addToFileMap(node);
-      if (node.kind === 'directory' && Array.isArray(node.children)) {
+      if (node.kind === 'file') {
+        addToFileMap(node);
+      } else if (node.kind === 'directory' && Array.isArray(node.children)) {
         addTreeNodes(node.children);
       }
     }
@@ -468,7 +468,7 @@ const fetchAllMdFiles = async (
   if (workspaceType === 'browser') {
     if (rootFolder?.handle) {
       try {
-        const deepFiles = await scanDirectoryDeep(rootFolder.handle, "", new Set(), true);
+        const deepFiles = await scanDirectoryDeep(rootFolder.handle, "", new Set(), false);
         deepFiles.forEach(f => addToFileMap(f));
       } catch (e) {
         console.warn('[fetchAllMdFiles] scanDirectoryDeep failed:', e);
@@ -502,7 +502,6 @@ const fetchAllMdFiles = async (
                 addToFileMap(item);
               }
             } else if (item.kind === 'directory' && item.path) {
-              addToFileMap(item);
               await scan(item.path);
             }
           }
@@ -4485,9 +4484,27 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         insertAtCursor(text);
       }
     };
+
+    // 📁 [탐색기 폴더 연결 커서 위치 삽입 리스너]
+    const handleInsertFolderLink = (e: CustomEvent) => {
+      const { link, folderName } = e.detail || {};
+      if (!link) return;
+      const editor = editorRef.current;
+      if (editor && activeTabIdRef.current && previewModeRef.current !== 'preview') {
+        insertAtCursor(link);
+        showToast(`'${folderName || '폴더'}' 폴더 연결이 커서 위치에 삽입되었습니다.`, 'success');
+      } else {
+        showToast(`'${folderName || '폴더'}' 폴더 연결 링크가 클립보드에 복사되었습니다.`, 'info');
+      }
+    };
+
     window.addEventListener('app:insert-at-cursor', handleInsert as any);
-    return () => window.removeEventListener('app:insert-at-cursor', handleInsert as any);
-  }, []);
+    window.addEventListener('app:insert-folder-link', handleInsertFolderLink as any);
+    return () => {
+      window.removeEventListener('app:insert-at-cursor', handleInsert as any);
+      window.removeEventListener('app:insert-folder-link', handleInsertFolderLink as any);
+    };
+  }, [showToast]);
 
   // ====================================================================
   // 📊 [OMD-CORE-MainEditorApp-0049] MainEditorApp.tsx ➔ findLineNumberByHeading
@@ -4771,11 +4788,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : readFileText, extractHeadings, setDocHeadings, setIsHeadingLoading
   // ====================================================================
   const handleDocFileClick = async (targetNode: FileNode) => {
-    if (targetNode.kind === 'directory') {
-      // 💡 [폴더 링크 즉시 삽입] 폴더는 헤딩 선택 단계 없이 즉시 에디터에 폴더 링크 삽입
-      handleDocLinkSelect(targetNode);
-      return;
-    }
     setSelectedDocNode(targetNode);
     setIsHeadingLoading(true);
     try {
@@ -4792,9 +4804,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0060] MainEditorApp.tsx ➔ handleDocLinkSelect
-  // 🎯 @KICK  : 커서에 [[relativePath#heading|text]] 문서 간 링크 및 폴더 링크 삽입
-  // 🛡️ @GUARD : 완료 시 모든 선택기 상태 초기화; lastSelectionRef로 폴백, 폴더 상대경로 슬래시 보장
-  // 🚨 @PATCH : **2026-09-30** — [문서 연결 폴더 링크 삽입 지원]: targetNode.kind가 directory인 경우 슬래시 접미사(./폴더/) 및 폴더명 표준 마크다운 링크 삽입
+  // 🎯 @KICK  : 커서에 [[relativePath#heading|text]] 마크다운 문서 간 링크 삽입
+  // 🛡️ @GUARD : 완료 시 모든 선택기 상태 초기화; lastSelectionRef로 폴백
+  // 🚨 @PATCH : **2026-09-30** — 문서 연결(DocLinkPicker)은 순수 마크다운 문서만 연결하도록 원복
   // 🔗 @CALLS : getRelativePath, editor.focus, editor.getSelection, editor.executeEdits
   // ====================================================================
   const handleDocLinkSelect = (targetNode: FileNode, heading?: string) => {
@@ -4841,26 +4853,21 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       relativePath = './' + relativePath;
     }
 
-    const isDir = targetNode.kind === 'directory';
-    if (isDir && !relativePath.endsWith('/')) {
-      relativePath = relativePath + '/';
-    }
-
     // 💡 [웹/데스크톱 공통 표준 상대경로 링크 생성]
-    // 표시 이름: 선택된 텍스트 > 헤딩 제목 > 순수 문서명(확장자 제거) / 폴더명
+    // 표시 이름: 선택된 텍스트 > 헤딩 제목 > 순수 문서명(확장자 제거)
     let displayTitle = '';
     if (selectedText && selectedText.trim()) {
       displayTitle = selectedText.trim();
     } else if (heading && heading.trim()) {
       displayTitle = heading.trim();
     } else {
-      const rawName = targetNode.name || targetNode.path.split(/[/\\]/).filter(Boolean).pop() || (isDir ? '폴더' : '문서');
-      displayTitle = isDir ? rawName : rawName.replace(/\.(md|markdown)$/i, '');
+      const rawName = targetNode.name || targetNode.path.split(/[/\\]/).filter(Boolean).pop() || '문서';
+      displayTitle = rawName.replace(/\.(md|markdown)$/i, '');
     }
 
     const headingSuffix = heading ? `#${heading.trim()}` : '';
     const targetUrl = `${relativePath}${headingSuffix}`;
-    // 일반 링크 [네이버](url) 처럼 [개요명](<./상대경로.md#헤딩>) 형식으로 안전하게 삽입
+    // 일반 링크 [네이버](url) 처럼 [문서명](<./상대경로.md#헤딩>) 형식으로 안전하게 삽입
     const textToInsert = `[${displayTitle}](<${targetUrl}>)`;
 
     const range = {
@@ -8771,12 +8778,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           {!selectedDocNode ? (
                             <>
                               <div className="px-2 py-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 border-b border-slate-200 dark:border-zinc-700 mb-2">
-                                다른 문서 또는 폴더 연결
+                                다른 문서 연결
                               </div>
                               <div className="px-2 mb-2">
                                 <input
                                   type="text"
-                                  placeholder="파일 또는 폴더 검색..."
+                                  placeholder="파일 검색..."
                                   value={docLinkSearchText}
                                   onChange={(e) => setDocLinkSearchText(e.target.value)}
                                   className="w-full px-2.5 py-1.5 text-[12.5px] border border-slate-200 dark:border-zinc-700 rounded-lg bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-blue-500"
@@ -8786,7 +8793,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                               <div className="flex-1 overflow-y-auto min-h-0 pr-1">
                                 {isDocLinkLoading ? (
                                   <div className="px-2 py-3 text-center text-[12px] text-slate-400 dark:text-zinc-500">
-                                    목록 로딩 중...
+                                    문서 목록 로딩 중...
                                   </div>
                                 ) : (() => {
                                   const registeredDocs = (() => {
@@ -8808,9 +8815,6 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     const bKnow = (b as any).isKnowledge || registeredDocs.includes(b.path) || registeredDocs.includes(b.name);
                                     if (aKnow && !bKnow) return -1;
                                     if (!aKnow && bKnow) return 1;
-                                    if (a.kind !== b.kind) {
-                                      return a.kind === 'directory' ? -1 : 1;
-                                    }
                                     return (a.name || '').localeCompare(b.name || '');
                                   });
 
@@ -8822,14 +8826,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                     );
                                   }
                                   return filtered.map((node) => {
-                                    const isDirectory = node.kind === 'directory';
-                                    const isKnowledge = !isDirectory && ((node as any).isKnowledge || registeredDocs.includes(node.path) || registeredDocs.includes(node.name));
+                                    const isKnowledge = (node as any).isKnowledge || registeredDocs.includes(node.path) || registeredDocs.includes(node.name);
                                     const displayTitle = (node as any).title && (node as any).title !== node.name
                                       ? `${(node as any).title} (${node.name})`
                                       : node.name;
                                     return (
                                       <button
-                                        key={(isDirectory ? 'dir:' : 'file:') + (node.path || node.name)}
+                                        key={node.path || node.name}
                                         onMouseDown={(e) => {
                                           e.preventDefault();
                                           handleDocFileClick(node);
@@ -8838,30 +8841,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                         className={`w-full text-left px-2.5 py-2 text-[12.5px] rounded-lg flex flex-col transition-colors mb-1 cursor-pointer ${
                                           isKnowledge
                                             ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 dark:border-emerald-500/30'
-                                            : isDirectory
-                                              ? 'hover:bg-amber-500/10 dark:hover:bg-amber-500/15 border border-transparent hover:border-amber-400/30'
-                                              : 'hover:bg-slate-100 dark:hover:bg-zinc-700'
+                                            : 'hover:bg-slate-100 dark:hover:bg-zinc-700'
                                         }`}
                                       >
                                         <div className="flex items-center justify-between gap-1.5">
-                                          <div className="flex items-center gap-1.5 min-w-0">
-                                            {isDirectory ? (
-                                              <Icon name="Folder" size={14} className="text-amber-500 shrink-0" />
-                                            ) : (
-                                              <Icon name="Document" size={14} className="text-blue-500 shrink-0" />
-                                            )}
-                                            <span className="font-semibold text-slate-800 dark:text-zinc-100 break-all whitespace-normal leading-snug">
-                                              {displayTitle}
-                                            </span>
-                                          </div>
+                                          <span className="font-semibold text-slate-800 dark:text-zinc-100 break-all whitespace-normal leading-snug">
+                                            {displayTitle}
+                                          </span>
                                           {isKnowledge && (
                                             <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-[#1d4ed8] text-white font-bold shrink-0">
                                               📗 지식 문서
-                                            </span>
-                                          )}
-                                          {isDirectory && (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold shrink-0">
-                                              📁 폴더
                                             </span>
                                           )}
                                         </div>

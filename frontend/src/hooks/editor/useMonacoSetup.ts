@@ -2,7 +2,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
-// 🚨 @PATCH : **2026-09-30** — [문서 연결 [[ 자동완성 폴더 링크 지원]: [[ 입력 시 파일뿐만 아니라 폴더(📁 Folder)도 추천하고 선택 시 [폴더명](<./경로/>) 표준 마크다운 링크 자동 완성
+// 🚨 @PATCH : **2026-09-30** — [[[ 위키링크 자동완성 마크다운 문서 전용 원복]: [[ 입력 시 폴더 노드를 배제하고 마크다운 문서(.md)만 추천하여 [문서명](<./경로.md>) 표준 마크다운 링크 자동 완성
 // 🚨 @PATCH : **2026-09-26** — [에디터 수직 스크롤바 너비 슬림화(32px -> 16px)]: 과도하게 두꺼워진 모나코 에디터 verticalScrollbarSize를 기존 32px에서 절반인 16px로 축소하여 슬림하고 미려한 에디터 디자인 복원
 // 🚨 @PATCH : **2026-09-25** — [에디터 Pretendard 폰트 전면 적용 및 줄바꿈 단어 잘림 방지 32px 안전 여백 확보]: 에디터 글꼴을 가독성·원문자 1위인 Pretendard Variable로 변경하고, verticalScrollbarSize를 32px로 확장하여 가변폭/볼드 환경에서도 줄 끝 단어가 스크롤바에 가려지거나 잘리지 않도록 안전 여백 완벽 보장
 // 🚨 @PATCH : **2026-09-25** — [스크롤바 슬라이더 겹침 방지 verticalScrollbarSize 24px 확대]: 모나코 줄바꿈 contentWidth 계산 시 스크롤바 여백을 10px->24px로 확대하여 줄 끝 글자(r, ;, l, y)가 스크롤바에 닿거나 가려지는 현상 완전 해결
@@ -1872,6 +1872,7 @@ export function useMonacoSetup(deps: any) {
                       }
                       const fileFilter = inside.toLowerCase();
                       const filteredFiles = files.filter(f => {
+                        if (f.kind === 'directory') return false;
                         const name = f.name || ''; const path = f.path || '';
                         return !fileFilter || name.toLowerCase().includes(fileFilter) || path.toLowerCase().includes(fileFilter);
                       });
@@ -1879,13 +1880,11 @@ export function useMonacoSetup(deps: any) {
                       return {
                         suggestions: filteredFiles.map(f => {
                           const relPath = getRelativePath(curPath, f.path || '');
-                          const isDir = f.kind === 'directory';
-                          const cleanName = isDir ? (f.name || f.path || '') : (f.name || f.path || '').replace(/\.(md|markdown)$/i, '');
-                          const finalRelPath = isDir && !relPath.endsWith('/') ? `${relPath}/` : relPath;
+                          const cleanName = (f.name || f.path || '').replace(/\.(md|markdown)$/i, '');
                           return {
-                            label: isDir ? `📁 ${f.name || f.path}` : (f.name || f.path || ''),
-                            kind: isDir ? monaco.languages.CompletionItemKind.Folder : monaco.languages.CompletionItemKind.File,
-                            insertText: `[${cleanName}](<${finalRelPath}>)`,
+                            label: f.name || f.path || '',
+                            kind: monaco.languages.CompletionItemKind.File,
+                            insertText: `[${cleanName}](<${relPath}>)`,
                             range: { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column - matchLen, endColumn: position.column }
                           };
                         })
