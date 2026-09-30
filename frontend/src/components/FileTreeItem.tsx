@@ -4,6 +4,7 @@
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
 // 🛡️ @GUARD : 파일/폴더 안전 조작, 드래그앤드롭 보호, LDSG v5.0 (#1d4ed8), Rule 7 원트랜잭션 무결성
+// 🚨 @PATCH : **2026-09-30** — [탐색기 폴더 마크다운 링크 복사 기능 탑재]: 폴더 우클릭 컨텍스트 메뉴에 '폴더 링크 복사' 메뉴 추가, 클릭 시 [폴더명](<./경로/>) 형식으로 클립보드에 자동 복사
 // 🚨 @PATCH : **2026-09-28** — 제한사용자 파일·폴더 컨텍스트 메뉴 항목을 모두 표시하되 실행 불가 상태로 렌더링
 //             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import(ChevronRight, ChevronDown, FilePlus, FolderPlus, Pencil, Trash2, Scissors, FolderOpen, Copy, ClipboardPaste, Undo2, FileText) 전체 제거, Icon 컴포넌트로 교체
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
@@ -1675,6 +1676,24 @@ const FileTreeItem = ({
                       <span className="truncate">타문서 변환</span>
                     </div>
                     <kbd className="ml-auto pl-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-medium font-mono tracking-tight shrink-0">{isMac ? '⌥⌘O' : 'Ctrl+Alt+O'}</kbd>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setContextMenu(null);
+                      const cleanPath = (node.path || node.name).replace(/\\/g, '/');
+                      const relPath = cleanPath.startsWith('./') ? cleanPath : `./${cleanPath}`;
+                      const normalizedPath = relPath.endsWith('/') ? relPath : `${relPath}/`;
+                      const folderLink = `[${node.name}](<${normalizedPath}>)`;
+                      navigator.clipboard.writeText(folderLink);
+                      showToast(`'${node.name}' 폴더 마크다운 링크가 복사되었습니다.`, 'success');
+                    }}
+                    className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white w-full text-left transition-colors text-blue-600 dark:text-blue-400 font-medium"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon name="Link" size={15} strokeWidth={1.75} className="shrink-0 text-current opacity-80" />
+                      <span className="truncate">폴더 링크 복사</span>
+                    </div>
                   </button>
                 </>
               )}

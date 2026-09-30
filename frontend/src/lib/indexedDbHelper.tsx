@@ -9,7 +9,8 @@ import { msg } from './systemMessages';
 // 📊 [OMD-CORE-indexedDbHelper-0001 ✅ FIXED] indexedDbHelper.tsx ➔ idb
 // 🎯 @KICK  : IndexedDB 기반 key-value 저장 헬퍼 (get/set/del/clear)
 // 🛡️ @GUARD : onupgradeneeded 스토어 생성, objectStoreNames 존재 여부 체크
-// 🚨 @PATCH : **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import 제거, Icon 컴포넌트로 교체. getFileIcon 탐색기 아이콘 통일
+// 🚨 @PATCH : **2026-09-30** — [문서 연결 내 폴더 링크 지원]: scanDirectoryDeep에 includeDirectories 옵션 추가하여 폴더 링크 생성을 위한 디렉토리 노드 수집 지원
+//             **2026-09-20** — [아이콘 디자인시스템 통합] lucide-react 직접 import 제거, Icon 컴포넌트로 교체. getFileIcon 탐색기 아이콘 통일
 //             **2026-09-05** — idb.del 및 idb.clear 메서드 구현 추가
 // 🔗 @CALLS : 없음
 // ====================================================================
@@ -122,11 +123,12 @@ export async function scanDirectory(dirHandle: any, parentPath: string = ""): Pr
 // 📊 [OMD-CORE-indexedDbHelper-0004] indexedDbHelper.tsx ➔ scanDirectoryDeep
 // 🎯 @KICK  : 웹 환경 문서 링크 검색을 위해 하위 모든 폴더를 지연 로딩 없이 끝까지 재귀 탐색하여 .md/.markdown/.bib FileNode 배열 수집
 // 🛡️ @GUARD : visited Set으로 순환 참조 방지, .git 및 node_modules 제외 필터링, 예외 시 안전 빈 배열
+// 🚨 @PATCH : **2026-09-30** — [문서 연결 내 폴더 링크 지원]: includeDirectories 플래그 추가하여 파일뿐만 아니라 폴더(directory) 노드도 안전하게 수집
 // 🚨 @PATCH : **2026-09-16** — [삭제된 폴더 탐색 시 NotFoundError 콘솔 노이즈 방어]: 폴더 삭제 직후 재귀 스캔 시 이미 삭제된 디렉토리 핸들에 대한 NotFoundError 에러 경고 억제 및 안전 건너뛰기
 // 🚨 @PATCH : **2026-09-12** — [웹 환경 문서 연결 검색 완벽 지원] 브라우저 FileSystemDirectoryHandle 하위 모든 디렉토리를 깊숙이 재귀 탐색하여 모든 .md 파일을 100% 수집하는 scanDirectoryDeep 신설
 // 🔗 @CALLS : msg.error
 // ====================================================================
-export async function scanDirectoryDeep(dirHandle: any, parentPath: string = "", visited: Set<any> = new Set()): Promise<FileNode[]> {
+export async function scanDirectoryDeep(dirHandle: any, parentPath: string = "", visited: Set<any> = new Set(), includeDirectories: boolean = false): Promise<FileNode[]> {
   if (!dirHandle) return [];
   if (visited.has(dirHandle)) return [];
   visited.add(dirHandle);
@@ -144,8 +146,11 @@ export async function scanDirectoryDeep(dirHandle: any, parentPath: string = "",
           files.push({ name, kind: 'file', handle, path: currentPath });
         }
       } else if (handle.kind === 'directory') {
+        if (includeDirectories) {
+          files.push({ name, kind: 'directory', handle, path: currentPath });
+        }
         try {
-          const subFiles = await scanDirectoryDeep(handle, currentPath, visited);
+          const subFiles = await scanDirectoryDeep(handle, currentPath, visited, includeDirectories);
           files.push(...subFiles);
         } catch {
           // 이미 삭제되었거나 일시적으로 접근 불가능한 하위 디렉토리는 안전하게 스킵

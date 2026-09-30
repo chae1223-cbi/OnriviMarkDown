@@ -35,7 +35,7 @@ import { loadSecureData } from '@/lib/secureStorage';
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
-// 🛡️ @GUARD : isSidebarOpen false 시 null 반환; 파일 리스트 필터링으로 .md 확장자만 표시
+// 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 시 사이드바 트리 자동 펼침 및 포커스]: app:focus-tree-folder 수신 시 사이드바가 닫혀있으면 열고(isSidebarOpen), onrivi_expanded_paths에 상위 경로를 등록한 후 트리를 자동 새로고침하여 해당 폴더를 화면에 시각적으로 표시
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
 //             1) 폴더 삭제 되돌리기: handleUndoMove에서 kind === 'directory' 지원(데스크톱 api.restoreFolderFromUndo, 웹 FSA restoreFsaDirectory, VFS 복원 및 onrivi_expanded_paths 자동 전개)
 //             2) 탐색기 덜렁거림 제거: 120ms 중복 재새로고침 제거(단일 갱신 일원화), aside 너비 고정(shrink-0 min-w/max-w), [scrollbar-gutter:stable], handleDragLeaveRoot 자식 진입 방어
@@ -495,6 +495,42 @@ export default function LeftSidebar() {
       window.removeEventListener('file:refresh-all-directories', syncKnowledgeDocs);
     };
   }, [resourceFolder, geminiApiKey, isDesktop]);
+
+  // 📂 [미리보기/외부 폴더 링크 클릭 시 사이드바 트리 자동 펼침 및 새로고침]
+  useEffect(() => {
+    const handleFocusTreeFolder = async (e: any) => {
+      const { folderPath, folderName } = e.detail || {};
+      if (!folderPath) return;
+      try {
+        if (!isSidebarOpen) setIsSidebarOpen(true);
+        if (sidebarTab !== 'files') setSidebarTab('files');
+        const saved = localStorage.getItem('onrivi_expanded_paths');
+        let paths: string[] = saved ? JSON.parse(saved) : [];
+        const norm = folderPath.replace(/\\/g, '/');
+        const parts = norm.split('/');
+        let cur = '';
+        for (const part of parts) {
+          cur = cur ? `${cur}/${part}` : part;
+          if (!paths.some(p => p.replace(/\\/g, '/') === cur)) {
+            paths.push(cur);
+          }
+        }
+        localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
+        await refreshFileList(true);
+        window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
+          detail: { force: true, targetDir: norm }
+        }));
+        showToast(`'📁 ${folderName || '폴더'}' 탐색기 경로를 열었습니다.`, 'info');
+      } catch (err) {
+        console.warn('[handleFocusTreeFolder] error:', err);
+      }
+    };
+
+    window.addEventListener('app:focus-tree-folder', handleFocusTreeFolder);
+    return () => {
+      window.removeEventListener('app:focus-tree-folder', handleFocusTreeFolder);
+    };
+  }, [isSidebarOpen, setIsSidebarOpen, sidebarTab, setSidebarTab, refreshFileList, showToast]);
 
   // 📋 파일/폴더 복사 및 붙여넣기/잘라내기 클립보드 상태
   const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any; op?: 'copy' | 'cut' } | null>(null);

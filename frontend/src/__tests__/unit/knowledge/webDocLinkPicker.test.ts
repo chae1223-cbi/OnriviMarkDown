@@ -300,4 +300,48 @@ describe('Web DocLinkPicker & Deep Scan Unit Tests', () => {
     assert.equal(matched.length, 1);
     assert.equal(matched[0].name, '추석 연휴 관련 여행지.md');
   });
+
+  // 7. scanDirectoryDeep includeDirectories 옵션 및 폴더 마크다운 링크 서식 테스트
+  it('scanDirectoryDeep should collect directories when includeDirectories is true, and format folder link properly', async () => {
+    const mockRootHandle = {
+      name: 'workspace',
+      kind: 'directory',
+      async *entries() {
+        yield [
+          'iosApp',
+          {
+            name: 'iosApp',
+            kind: 'directory',
+            async *entries() {
+              yield [
+                'subApp',
+                {
+                  name: 'subApp',
+                  kind: 'directory',
+                  async *entries() {
+                    yield ['App.md', { name: 'App.md', kind: 'file' }];
+                  }
+                }
+              ];
+            }
+          }
+        ];
+      }
+    };
+
+    const entries = await scanDirectoryDeep(mockRootHandle, "", new Set(), true);
+    const dirs = entries.filter(e => e.kind === 'directory');
+    const files = entries.filter(e => e.kind === 'file');
+
+    assert.equal(dirs.length, 2, 'Should collect 2 directories');
+    assert.equal(files.length, 1, 'Should collect 1 file');
+
+    // 폴더 링크 생성 검증
+    const targetDir = dirs.find(d => d.name === 'iosApp');
+    assert.ok(targetDir);
+    const relPath = './' + targetDir.path;
+    const normalizedRelPath = relPath.endsWith('/') ? relPath : `${relPath}/`;
+    const folderMarkdown = `[${targetDir.name}](<${normalizedRelPath}>)`;
+    assert.equal(folderMarkdown, '[iosApp](<./iosApp/>)');
+  });
 });
