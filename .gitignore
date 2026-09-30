@@ -15,6 +15,7 @@ build/
 **/out/
 **/.next/
 **/.next-web-build/
+**/.next-desktop/
 
 # TypeScript incremental build info (typecheck 시마다 재생성)
 **/tsconfig.tsbuildinfo
