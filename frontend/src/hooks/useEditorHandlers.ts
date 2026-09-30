@@ -22,6 +22,7 @@ import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
 // 🛡️ @GUARD : 각 핸들러별 editorRef/selection/model 방어 로직; previewRef 누락 시 export early return
+// 🚨 @PATCH : **2026-10-01** — [DOCX 및 HWPX 내보내기 시 원본 마크다운(markdownContent) 직접 연동]: DOM 스크랩 대신 에디터의 원본 마크다운 텍스트를 전달하여 marked AST 기반 직결 사출 지원
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 핸들러 연동]: handlers.exportDOCX 및 handlers.exportHWPX 액션 등록
 // 🚨 @PATCH : **2026-09-30** — [에디터 종료 로그아웃 방어 로직 강화]: 서버 세션 해제 실패 시에도 로컬 인증 세션이 정상 정리되도록 보강
 // 🚨 @PATCH : **2026-09-23** — [플로팅 툴바 toggleFloatingToolbar safeLeft 정규화] 880px 하드코딩 클램프 제거 및 커서 x좌표 기반 전달로 뷰포트 클램퍼 연동
@@ -871,11 +872,13 @@ export const useEditorHandlers = ({
     },
     exportDOCX: async () => {
       if (!previewRef.current) return;
-      await exportDOCX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast });
+      const markdown = contentRef?.current || editorRef?.current?.getValue() || '';
+      await exportDOCX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, markdownContent: markdown });
     },
     exportHWPX: async () => {
       if (!previewRef.current) return;
-      await exportHWPX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast });
+      const markdown = contentRef?.current || editorRef?.current?.getValue() || '';
+      await exportHWPX({ previewEl: previewRef.current, currentFileName: currentFileNameRef.current, isDarkMode, showToast, markdownContent: markdown });
     },
     exportPNG: async () => {
       if (!previewRef.current) return;

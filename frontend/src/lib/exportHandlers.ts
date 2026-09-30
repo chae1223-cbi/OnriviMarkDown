@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [DOCX 및 HWPX 원본 마크다운 직접 파싱 사출 파이프라인 연동]: DOM 스크랩 대신 원본 마크다운(markdownContent) 텍스트를 전달받아 marked AST 기반으로 Word 및 한글 문서를 직접 조판 사출하도록 연동
 // 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 긴 Mermaid 다이어그램 앞 빈 페이지(백지) 발생 원천 차단]: .not-prose의 강제 break-inside: avoid로 인한 브라우저 페이지 밀림 버그를 해소하고, Mermaid SVG에 max-height: 230mm 및 auto-scale을 적용하여 긴 다이어그램도 A4 1페이지 내에 깔끔하게 쏙 들어가도록 조판 최적화
 // 🚨 @PATCH : **2026-10-01** — [DOCX 및 HWPX 이미지·Mermaid 다이어그램 자동 추출 및 임베딩 연동]: extractMediaFromElements 엔진을 호출하여 라이브 미리보기 DOM 내 모든 이미지 및 다이어그램 바이너리를 추출하고, Word(.docx) 및 한글(.hwpx) 내보내기 시 미디어 파일 및 캡션을 100% 온전히 임베딩 사출하도록 개선
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 파이프라인 신설]: 미리보기 DOM을 파싱하여 MS Word(Office Open XML) 및 한글(OWPML) 표준 문서로 변환 사출하는 exportDOCX, exportHWPX 함수 구현 및 데스크톱/브라우저 연동
@@ -60,7 +61,7 @@ interface ExportOptions {
   marginRight?: string;
   backgroundColor?: string;
   activeProfile?: any; // 서식 프로필 객체 추가
-
+  markdownContent?: string; // 💡 원본 마크다운 텍스트 직접 조판용
 }
 
 /** 항상 라이트모드 기준으로 서식 프로필의 dynamic CSS를 재생성하는 헬퍼 함수 */
@@ -2433,7 +2434,14 @@ export async function exportPNG({
 // 🚨 @PATCH : **2026-09-30** — MS Word (.docx) 내보내기 파이프라인 신설
 // 🔗 @CALLS : clonePreview, generateDocx, downloadBlob, saveToDownloads
 // ====================================================================
-export async function exportDOCX({ previewEl, currentFileName, showToast }: ExportOptions) {
+// 📊 [OMD-IO-exportHandlers-0014] exportHandlers.ts ➔ exportDOCX
+// 🎯 @KICK  : 원본 마크다운 또는 미리보기 DOM을 MS Word(.docx) 문서로 변환하여 내보내기
+// 🛡️ @GUARD : Electron saveFileAs 및 브라우저 다운로드 분기 지원
+// 🚨 @PATCH : **2026-10-01** — 원본 마크다운(markdownContent) 직접 전달 및 marked AST 기반 고정밀 Word 변환 연동
+// 🚨 @PATCH : **2026-09-30** — MS Word (.docx) 내보내기 파이프라인 신설
+// 🔗 @CALLS : clonePreview, generateDocx, downloadBlob, saveToDownloads
+// ====================================================================
+export async function exportDOCX({ previewEl, currentFileName, showToast, markdownContent }: ExportOptions) {
   try {
     showToast('Word 문서 (.docx) 생성 중...', 'info');
 
@@ -2448,7 +2456,7 @@ export async function exportDOCX({ previewEl, currentFileName, showToast }: Expo
     const filename = `${docTitle}.docx`;
 
     const { generateDocx, downloadBlob } = await import('@/lib/docxGenerator');
-    const docxBlob = await generateDocx(clone, { title: docTitle, images });
+    const docxBlob = await generateDocx(clone, { title: docTitle, images, markdown: markdownContent });
 
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const arrayBuffer = await docxBlob.arrayBuffer();
@@ -2479,12 +2487,13 @@ export async function exportDOCX({ previewEl, currentFileName, showToast }: Expo
 
 // ====================================================================
 // 📊 [OMD-IO-exportHandlers-0015] exportHandlers.ts ➔ exportHWPX
-// 🎯 @KICK  : 미리보기 DOM을 한글 표준 OWPML(.hwpx) 문서로 변환하여 내보내기
+// 🎯 @KICK  : 원본 마크다운 또는 미리보기 DOM을 한글 표준 OWPML(.hwpx) 문서로 변환하여 내보내기
 // 🛡️ @GUARD : Electron saveFileAs 및 브라우저 다운로드 분기 지원
+// 🚨 @PATCH : **2026-10-01** — 원본 마크다운(markdownContent) 직접 전달 및 marked AST 기반 고정밀 한글 변환 연동
 // 🚨 @PATCH : **2026-09-30** — 한글 문서 (.hwpx) 내보내기 파이프라인 신설
 // 🔗 @CALLS : clonePreview, generateHwpx, downloadBlob, saveToDownloads
 // ====================================================================
-export async function exportHWPX({ previewEl, currentFileName, showToast }: ExportOptions) {
+export async function exportHWPX({ previewEl, currentFileName, showToast, markdownContent }: ExportOptions) {
   try {
     showToast('한글 문서 (.hwpx) 생성 중...', 'info');
 
@@ -2500,7 +2509,7 @@ export async function exportHWPX({ previewEl, currentFileName, showToast }: Expo
 
     const { generateHwpx } = await import('@/lib/hwpxGenerator');
     const { downloadBlob } = await import('@/lib/docxGenerator');
-    const hwpxBlob = await generateHwpx(clone, { title: docTitle, images });
+    const hwpxBlob = await generateHwpx(clone, { title: docTitle, images, markdown: markdownContent });
 
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const arrayBuffer = await hwpxBlob.arrayBuffer();

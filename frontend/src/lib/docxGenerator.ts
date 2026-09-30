@@ -1,14 +1,16 @@
 // ====================================================================
 // 📊 [OMD-IO-docxGenerator-0001] docxGenerator.ts ➔ generateDocx
-// 🎯 @KICK  : HTML/미리보기 DOM을 표준 Office Open XML(.docx) 파일로 조판 및 변환 사출
-// 🛡️ @GUARD : JSZip 기반 100% 클라이언트/오프라인 구동, DrawingML 이미지/다이어그램 임베딩, 헤딩 코발트 바 & 다크 코드블록 완벽 조판
+// 🎯 @KICK  : 마크다운(.md) 직접 토큰 파싱 또는 DOM을 표준 Office Open XML(.docx) 파일로 조판 및 변환 사출
+// 🛡️ @GUARD : JSZip 기반 100% 클라이언트/오프라인 구동, marked 직접 파싱 1:1 무결성, DrawingML 이미지/다이어그램 임베딩, 헤딩 코발트 바 & 다크 코드블록 완벽 조판
+// 🚨 @PATCH : **2026-10-01** — [마크다운 직접 파싱 기반 DOCX 사출 파이프라인 완비]: DOM 스크랩 대신 원본 마크다운(marked lexer)을 직접 파싱하여 H1 제목 누락 및 [TEXT] 코드블록 깨짐을 원천 차단하고, 표·목록·인용구 서식과 Mermaid/이미지 종횡비(가로 150mm x 세로 190mm) 듀얼 클램프 임베딩 실현
 // 🚨 @PATCH : **2026-10-01** — [DOCX 파일 오픈 오류 긴급 해결 및 MS Word 완벽 호환]: w:document 루트에 필수 DrawingML(wp, a, pic) 네임스페이스 선언 완비, docProps/core.xml·app.xml 패키징, Relationship Id 정규 순차 번호(rId2~) 매핑 및 wp:docPr/pic:cNvPr 고유 ID 분리로 Word 유효성 검사 에러 완전 차단
 // 🚨 @PATCH : **2026-10-01** — [DOCX 이미지·Mermaid 다이어그램 임베딩 및 원본 1:1 고품질 조판 보강]: DrawingML <w:drawing> 미디어 패키징, 헤딩 좌측 액센트 바, 다크 코드블록 및 캡션([그림 N]) 완전 연동
 // 🚨 @PATCH : **2026-09-30** — MS Word (.docx) 내보내기 생성기 신규 구현 (구글 Docs 및 Word 완벽 호환)
-// 🔗 @CALLS : JSZip, ExtractedImage (exportMediaHelper.ts)
+// 🔗 @CALLS : JSZip, marked, ExtractedImage (exportMediaHelper.ts)
 // ====================================================================
 
 import JSZip from 'jszip';
+import { marked } from 'marked';
 import { ExtractedImage } from './exportMediaHelper';
 
 function escapeXml(text: string): string {
@@ -25,6 +27,7 @@ export interface DocxOptions {
   creator?: string;
   defaultFont?: string;
   images?: ExtractedImage[];
+  markdown?: string;
 }
 
 /**
@@ -247,10 +250,372 @@ export async function generateDocx(containerEl: HTMLElement, options: DocxOption
   );
 
   // 5. word/document.xml 본문 빌드
-  const documentXml = buildDocumentXml(containerEl, docTitle, defaultFont, images, imageRelIdMap);
+  const documentXml = options.markdown && options.markdown.trim()
+    ? buildDocumentXmlFromMarkdown(options.markdown, docTitle, defaultFont, images, imageRelIdMap)
+    : buildDocumentXml(containerEl, docTitle, defaultFont, images, imageRelIdMap);
   zip.file('word/document.xml', documentXml);
 
   return await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+/**
+ * 마크다운 인라인 토큰을 WordprocessingML <w:r> 런 조각들로 변환
+ */
+function renderInlineTokensDocx(tokens: any[]): string {
+  if (!tokens || !Array.isArray(tokens)) return '';
+  let result = '';
+  tokens.forEach((t) => {
+    if (t.type === 'text') {
+      result += `<w:r><w:t xml:space="preserve">${escapeXml(t.text)}</w:t></w:r>`;
+    } else if (t.type === 'strong') {
+      const inner = renderInlineTokensDocx(t.tokens || [{ type: 'text', text: t.text }]);
+      result += inner.replace(/<w:r>/g, '<w:r><w:rPr><w:b/></w:rPr>').replace(/<w:rPr>/g, '<w:rPr><w:b/>');
+    } else if (t.type === 'em') {
+      const inner = renderInlineTokensDocx(t.tokens || [{ type: 'text', text: t.text }]);
+      result += inner.replace(/<w:r>/g, '<w:r><w:rPr><w:i/></w:rPr>').replace(/<w:rPr>/g, '<w:rPr><w:i/>');
+    } else if (t.type === 'codespan') {
+      result += `<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/><w:color w:val="BE185D"/></w:rPr><w:t xml:space="preserve">${escapeXml(t.text)}</w:t></w:r>`;
+    } else if (t.type === 'link') {
+      const inner = renderInlineTokensDocx(t.tokens || [{ type: 'text', text: t.text }]);
+      result += inner.replace(/<w:r>/g, '<w:r><w:rPr><w:u w:val="single"/><w:color w:val="1D4ED8"/></w:rPr>').replace(/<w:rPr>/g, '<w:rPr><w:u w:val="single"/><w:color w:val="1D4ED8"/>');
+    } else if (t.type === 'del') {
+      const inner = renderInlineTokensDocx(t.tokens || [{ type: 'text', text: t.text }]);
+      result += inner.replace(/<w:r>/g, '<w:r><w:rPr><w:strike/></w:rPr>').replace(/<w:rPr>/g, '<w:rPr><w:strike/>');
+    } else if (t.type === 'br') {
+      result += `<w:r><w:br/></w:r>`;
+    }
+  });
+  return result;
+}
+
+/**
+ * 원본 마크다운 텍스트를 marked lexer로 직접 파싱하여 100% 무결한 WordprocessingML 본문 생성
+ */
+function buildDocumentXmlFromMarkdown(
+  markdown: string,
+  title: string,
+  defaultFont: string,
+  images: ExtractedImage[],
+  imageRelIdMap: Map<number, string>
+): string {
+  const bodyXmls: string[] = [];
+  const tokens = marked.lexer(markdown);
+
+  const mermaidQueue = images.filter((img) => img.isMermaid);
+  const standardQueue = images.filter((img) => !img.isMermaid);
+
+  function renderDrawingML(imgData: ExtractedImage, caption: string = ''): string {
+    const maxW_emu = 5400000; // ~150mm
+    const maxH_emu = 7200000; // ~190mm
+    const origW_emu = Math.max(100, imgData.width) * 9525;
+    const origH_emu = Math.max(100, imgData.height) * 9525;
+    const scale = Math.min(1, maxW_emu / origW_emu, maxH_emu / origH_emu);
+    const cx = Math.round(origW_emu * scale);
+    const cy = Math.round(origH_emu * scale);
+
+    const relId = imageRelIdMap.get(imgData.id) || `rId2`;
+    const imgSeq = (Array.from(imageRelIdMap.keys()).indexOf(imgData.id) >= 0 ? Array.from(imageRelIdMap.keys()).indexOf(imgData.id) : 0) + 1;
+
+    let xml = `
+      <w:p>
+        <w:pPr>
+          <w:jc w:val="center"/>
+          <w:spacing w:before="240" w:after="${caption ? 60 : 200}"/>
+        </w:pPr>
+        <w:r>
+          <w:drawing>
+            <wp:inline distT="0" distB="0" distL="0" distR="0">
+              <wp:extent cx="${cx}" cy="${cy}"/>
+              <wp:effectExtent l="0" t="0" r="0" b="0"/>
+              <wp:docPr id="${imgSeq}" name="Picture ${imgSeq}"/>
+              <wp:cNvGraphicFramePr>
+                <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
+              </wp:cNvGraphicFramePr>
+              <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                    <pic:nvPicPr>
+                      <pic:cNvPr id="0" name="Picture ${imgSeq}"/>
+                      <pic:cNvPicPr/>
+                    </pic:nvPicPr>
+                    <pic:blipFill>
+                      <a:blip r:embed="${relId}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+                      <a:stretch><a:fillRect/></a:stretch>
+                    </pic:blipFill>
+                    <pic:spPr>
+                      <a:xfrm>
+                        <a:off x="0" y="0"/>
+                        <a:ext cx="${cx}" cy="${cy}"/>
+                      </a:xfrm>
+                      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                    </pic:spPr>
+                  </pic:pic>
+                </a:graphicData>
+              </a:graphic>
+            </wp:inline>
+          </w:drawing>
+        </w:r>
+      </w:p>
+    `;
+
+    if (caption) {
+      xml += `
+        <w:p>
+          <w:pPr>
+            <w:jc w:val="center"/>
+            <w:spacing w:before="60" w:after="240"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr>
+              <w:rFonts w:ascii="${defaultFont}" w:eastAsia="${defaultFont}"/>
+              <w:sz w:val="18"/>
+              <w:szCs w:val="18"/>
+              <w:color w:val="475569"/>
+              <w:i/>
+            </w:rPr>
+            <w:t xml:space="preserve">${escapeXml(caption)}</w:t>
+          </w:r>
+        </w:p>
+      `;
+    }
+    return xml;
+  }
+
+  tokens.forEach((token) => {
+    // 1. 헤딩 (H1 ~ H6)
+    if (token.type === 'heading') {
+      const inlines = renderInlineTokensDocx(token.tokens || [{ type: 'text', text: token.text }]);
+      bodyXmls.push(`
+        <w:p>
+          <w:pPr>
+            <w:pStyle w:val="Heading${token.depth}"/>
+          </w:pPr>
+          ${inlines}
+        </w:p>
+      `);
+      return;
+    }
+
+    // 2. 코드 블록 (Mermaid vs 일반 코드)
+    if (token.type === 'code') {
+      if (token.lang === 'mermaid') {
+        const mermaidImg = mermaidQueue.shift() || images.find((img) => img.isMermaid);
+        if (mermaidImg) {
+          bodyXmls.push(renderDrawingML(mermaidImg, mermaidImg.caption || '다이어그램'));
+        }
+        return;
+      }
+
+      // 일반 코드 블록 (깔끔한 음영 박스 및 모노스페이스 서식)
+      const lines = token.text.split('\n');
+      const runs = lines.map((l: string, i: number) => `<w:t xml:space="preserve">${escapeXml(l)}</w:t>${i < lines.length - 1 ? '<w:br/>' : ''}`).join('');
+      bodyXmls.push(`
+        <w:p>
+          <w:pPr>
+            <w:pBdr>
+              <w:left w:val="single" w:sz="24" w:space="10" w:color="1D4ED8"/>
+              <w:top w:val="single" w:sz="6" w:space="6" w:color="E2E8F0"/>
+              <w:right w:val="single" w:sz="6" w:space="6" w:color="E2E8F0"/>
+              <w:bottom w:val="single" w:sz="6" w:space="6" w:color="E2E8F0"/>
+            </w:pBdr>
+            <w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/>
+            <w:spacing w:before="160" w:after="160" w:line="240" w:lineRule="auto"/>
+            <w:ind w:left="240" w:right="240"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr>
+              <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
+              <w:sz w:val="18"/>
+              <w:szCs w:val="18"/>
+              <w:color w:val="1E293B"/>
+            </w:rPr>
+            ${runs}
+          </w:r>
+        </w:p>
+      `);
+      return;
+    }
+
+    // 3. 표 (TABLE)
+    if (token.type === 'table') {
+      let tblXml = `
+        <w:tbl>
+          <w:tblPr>
+            <w:tblW w:w="5000" w:type="pct"/>
+            <w:jc w:val="center"/>
+            <w:tblBorders>
+              <w:top w:val="single" w:sz="8" w:space="0" w:color="CBD5E1"/>
+              <w:bottom w:val="single" w:sz="8" w:space="0" w:color="CBD5E1"/>
+              <w:left w:val="none"/>
+              <w:right w:val="none"/>
+              <w:insideH w:val="single" w:sz="4" w:space="0" w:color="E2E8F0"/>
+              <w:insideV w:val="none"/>
+            </w:tblBorders>
+            <w:tblCellMar>
+              <w:top w:w="120" w:type="dxa"/>
+              <w:left w:w="160" w:type="dxa"/>
+              <w:bottom w:w="120" w:type="dxa"/>
+              <w:right w:w="160" w:type="dxa"/>
+            </w:tblCellMar>
+          </w:tblPr>
+      `;
+
+      // Header row
+      tblXml += `<w:tr><w:trPr><w:tblHeader/></w:trPr>`;
+      token.header.forEach((cell: any, cIdx: number) => {
+        const align = token.align[cIdx] || 'left';
+        const jcVal = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
+        const inlines = renderInlineTokensDocx(cell.tokens || [{ type: 'text', text: cell.text }]);
+        tblXml += `
+          <w:tc>
+            <w:tcPr>
+              <w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>
+            </w:tcPr>
+            <w:p>
+              <w:pPr><w:jc w:val="${jcVal}"/><w:spacing w:before="60" w:after="60"/></w:pPr>
+              <w:r><w:rPr><w:b/></w:rPr></w:r>
+              ${inlines}
+            </w:p>
+          </w:tc>
+        `;
+      });
+      tblXml += `</w:tr>`;
+
+      // Body rows
+      token.rows.forEach((row: any) => {
+        tblXml += `<w:tr>`;
+        row.forEach((cell: any, cIdx: number) => {
+          const align = token.align[cIdx] || 'left';
+          const jcVal = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
+          const inlines = renderInlineTokensDocx(cell.tokens || [{ type: 'text', text: cell.text }]);
+          tblXml += `
+            <w:tc>
+              <w:p>
+                <w:pPr><w:jc w:val="${jcVal}"/><w:spacing w:before="60" w:after="60"/></w:pPr>
+                ${inlines}
+              </w:p>
+            </w:tc>
+          `;
+        });
+        tblXml += `</w:tr>`;
+      });
+
+      tblXml += `</w:tbl>`;
+      bodyXmls.push(tblXml);
+      bodyXmls.push(`<w:p><w:pPr><w:spacing w:after="160"/></w:pPr></w:p>`);
+      return;
+    }
+
+    // 4. 인용구 (BLOCKQUOTE)
+    if (token.type === 'blockquote') {
+      const inlines = renderInlineTokensDocx(token.tokens || [{ type: 'text', text: token.text }]);
+      bodyXmls.push(`
+        <w:p>
+          <w:pPr>
+            <w:pBdr>
+              <w:left w:val="single" w:sz="24" w:space="12" w:color="1D4ED8"/>
+            </w:pBdr>
+            <w:ind w:left="400"/>
+            <w:spacing w:after="120"/>
+          </w:pPr>
+          <w:r><w:rPr><w:color w:val="475569"/><w:i/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>
+          ${inlines}
+        </w:p>
+      `);
+      return;
+    }
+
+    // 5. 목록 (LIST)
+    if (token.type === 'list') {
+      token.items.forEach((item: any, idx: number) => {
+        const prefix = token.ordered ? `${(token.start || 1) + idx}. ` : '• ';
+        const inlines = renderInlineTokensDocx(item.tokens || [{ type: 'text', text: item.text }]);
+        bodyXmls.push(`
+          <w:p>
+            <w:pPr>
+              <w:ind w:left="480" w:hanging="240"/>
+              <w:spacing w:after="80" w:line="260" w:lineRule="auto"/>
+            </w:pPr>
+            <w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${prefix}</w:t></w:r>
+            ${inlines}
+          </w:p>
+        `);
+      });
+      return;
+    }
+
+    // 6. 구분선 (HR)
+    if (token.type === 'hr') {
+      bodyXmls.push(`
+        <w:p>
+          <w:pPr>
+            <w:pBdr>
+              <w:bottom w:val="single" w:sz="6" w:space="1" w:color="E2E8F0"/>
+            </w:pBdr>
+            <w:spacing w:before="240" w:after="240"/>
+          </w:pPr>
+        </w:p>
+      `);
+      return;
+    }
+
+    // 7. 단락 (PARAGRAPH)
+    if (token.type === 'paragraph') {
+      const imgToken = token.tokens?.find((t: any) => t.type === 'image') as any;
+      if (imgToken) {
+        const hrefFname = (imgToken.href || '').split(/[/\\]/).pop()?.split('?')[0]?.toLowerCase();
+        const matched = standardQueue.find((img) => img.filename && img.filename.toLowerCase() === hrefFname)
+          || standardQueue.find((img) => img.src && img.src.toLowerCase().includes(hrefFname))
+          || standardQueue.shift()
+          || images.find((img) => !img.isMermaid);
+
+        let caption = '';
+        const emToken = token.tokens?.find((t: any) => t.type === 'em') as any;
+        if (emToken && emToken.text) {
+          caption = emToken.text.trim();
+        } else if (imgToken.text && !imgToken.text.startsWith('image') && imgToken.text.length > 2) {
+          caption = imgToken.text.trim();
+        }
+
+        if (matched) {
+          bodyXmls.push(renderDrawingML(matched, caption || matched.caption || ''));
+        }
+        return;
+      }
+
+      // 일반 텍스트 단락
+      const inlines = renderInlineTokensDocx(token.tokens || [{ type: 'text', text: token.text }]);
+      if (inlines.trim()) {
+        bodyXmls.push(`
+          <w:p>
+            <w:pPr>
+              <w:spacing w:after="160" w:line="276" w:lineRule="auto"/>
+            </w:pPr>
+            ${inlines}
+          </w:p>
+        `);
+      }
+      return;
+    }
+  });
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+            xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:w10="urn:schemas-microsoft-com:office:word"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    ${bodyXmls.join('\n')}
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
 }
 
 /**
@@ -351,11 +716,12 @@ function buildDocumentXml(
 
       if (imgData) {
         const caption = targetImgEl.getAttribute('data-export-caption') || imgData.caption || '';
-        // A4 페이지 본문 여백 제외 가용 최대 너비: 약 5,400,000 EMU (약 567px)
+        // A4 페이지 본문 여백 제외 가용 최대 너비/높이
         const maxW_emu = 5400000;
+        const maxH_emu = 7200000;
         const origW_emu = Math.max(100, imgData.width) * 9525;
         const origH_emu = Math.max(100, imgData.height) * 9525;
-        const scale = Math.min(1, maxW_emu / origW_emu);
+        const scale = Math.min(1, maxW_emu / origW_emu, maxH_emu / origH_emu);
         const cx = Math.round(origW_emu * scale);
         const cy = Math.round(origH_emu * scale);
 

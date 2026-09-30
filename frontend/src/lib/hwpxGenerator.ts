@@ -1,7 +1,8 @@
 // ====================================================================
 // 📊 [OMD-IO-hwpxGenerator-0001] hwpxGenerator.ts ➔ generateHwpx
-// 🎯 @KICK  : HTML/미리보기 DOM을 한글 표준 OWPML(.hwpx) 파일로 조판 및 변환 사출
-// 🛡️ @GUARD : KS X 6101 OWPML 표준 엄격 준수 — <hp:pic> 이미지/다이어그램 임베딩, BinData STORE 패키징, 헤딩/표/코드블록 무결성 보장
+// 🎯 @KICK  : 마크다운(.md) 직접 토큰 파싱 또는 DOM을 한글 표준 OWPML(.hwpx) 파일로 조판 및 변환 사출
+// 🛡️ @GUARD : KS X 6101 OWPML 표준 엄격 준수 — marked 직접 파싱 무결성, <hp:pic> 이미지/다이어그램 임베딩, BinData STORE 패키징, 헤딩/표/코드블록 무결성 보장
+// 🚨 @PATCH : **2026-10-01** — [마크다운 직접 파싱 기반 HWPX 사출 파이프라인 완비]: DOM 스크랩 대신 원본 마크다운(marked lexer)을 직접 파싱하여 H1 제목 누락 및 [TEXT] 코드블록 깨짐을 원천 차단하고, BinData ID(BIN1~) 정합성 복원 및 이미지/Mermaid 종횡비(가로 150mm x 세로 200mm) 듀얼 클램프로 잘림 방어
 // 🚨 @PATCH : **2026-10-01** — [한글 HWPX 이미지 렌더링 무결성 보강]: KS X 6101 OWPML 스키마 XSD 시퀀스에 맞춰 <hp:pic> 자식 태그 순서(hp:sz, hp:pos, hp:outMargin 선행 ➔ hp:imgRect, hp:imgDim, hc:img 후행)를 정규화하여 한컴오피스 뷰어 및 한글 프로그램에서 이미지가 완벽히 보이도록 보정
 // 🚨 @PATCH : **2026-10-01** — [한글 HWPX 이미지 및 Mermaid 다이어그램 임베딩·조판 강화]: OWPML 정규 <hp:pic> + <hc:img> 바이너리 적재, <hh:binDataList> 헤더 연동, 헤딩 코발트 바 & 다크 코드블록 조판 보강
 // 🚨 @PATCH : **2026-10-01** — [한글 프로그램 크래시(Crash) 8대 근본 원인 완전 해결]:
@@ -13,10 +14,11 @@
 //             6. 표(hp:tbl) 구조에서 hp:ctrl 불필요 래핑 제거 및 hp:run > hp:tbl 직결
 //             7. 표 셀(hp:tc) 속성 오류 교정: colAddr, rowAddr, colSpan, rowSpan을 hp:tc 속성이 아닌 정규 자식 요소(hp:cellAddr, hp:cellSpan, hp:cellSz, hp:cellMargin)로 완전 분리
 //             8. 모든 문단(hp:p)에 merged="0" 및 고유 증분 id 부여
-// 🔗 @CALLS : JSZip, BASE_HEADER_XML (hwpxHeaderTemplate.ts), ExtractedImage (exportMediaHelper.ts)
+// 🔗 @CALLS : JSZip, marked, BASE_HEADER_XML (hwpxHeaderTemplate.ts), ExtractedImage (exportMediaHelper.ts)
 // ====================================================================
 
 import JSZip from 'jszip';
+import { marked } from 'marked';
 import { BASE_HEADER_XML } from './hwpxHeaderTemplate';
 import { ExtractedImage } from './exportMediaHelper';
 
@@ -33,6 +35,7 @@ export interface HwpxOptions {
   title?: string;
   creator?: string;
   images?: ExtractedImage[];
+  markdown?: string;
 }
 
 /**
@@ -99,15 +102,17 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
   if (images.length > 0) {
     const binListXml = `
       <hh:binDataList itemCnt="${images.length}">
-        ${images.map((img) => `<hh:binItem id="${img.id}" Type="Embedding" BinData="BIN${img.id}.png" Format="png"/>`).join('')}
+        ${images.map((img) => `<hh:binItem id="BIN${img.id}" Type="Embedding" BinData="BIN${img.id}.png" Format="png"/>`).join('')}
       </hh:binDataList>
     `;
     headerXml = headerXml.replace('</hh:refList>', `${binListXml}</hh:refList>`);
   }
   zip.file('Contents/header.xml', headerXml);
 
-  // 9. Contents/section0.xml 본문 빌드
-  const { sectionXml, plainText } = buildSectionXml(containerEl, images);
+  // 9. Contents/section0.xml 본문 빌드 (마크다운 직접 파싱 우선)
+  const { sectionXml, plainText } = options.markdown && options.markdown.trim()
+    ? buildSectionXmlFromMarkdown(options.markdown, images)
+    : buildSectionXml(containerEl, images);
   zip.file('Contents/section0.xml', sectionXml);
 
   // 10. Preview/PrvText.txt (한컴 뷰어/검색용 텍스트 프리뷰)
@@ -242,11 +247,12 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
 
       if (imgData) {
         const caption = targetImgEl.getAttribute('data-export-caption') || imgData.caption || '';
-        // A4 본문 기본 너비: 42520 HWP단위 (150mm), 1px = 75 HWP단위
+        // A4 본문 기본 너비: 42520 HWP단위 (150mm), 기본 높이: 56690 HWP단위 (200mm), 1px = 75 HWP단위
         const maxW_hwp = 42520;
+        const maxH_hwp = 56690;
         const origW_hwp = Math.max(100, imgData.width) * 75;
         const origH_hwp = Math.max(100, imgData.height) * 75;
-        const scale = Math.min(1, maxW_hwp / origW_hwp);
+        const scale = Math.min(1, maxW_hwp / origW_hwp, maxH_hwp / origH_hwp);
         const w_hwp = Math.round(origW_hwp * scale);
         const h_hwp = Math.round(origH_hwp * scale);
         const w_px = Math.round(w_hwp / 75);
@@ -489,6 +495,371 @@ function buildSectionXml(containerEl: HTMLElement, images: ExtractedImage[]): { 
   }
 
   Array.from(containerEl.childNodes).forEach(processBlockNode);
+
+  const sectionXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<hs:sec xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+        xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph"
+        xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"
+        xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"
+        xmlns:hhs="http://www.hancom.co.kr/hwpml/2011/history"
+        xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page"
+        xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf"
+        xmlns:dc="http://purl.org/dc/elements/1.1/"
+        xmlns:opf="http://www.idpf.org/2007/opf/"
+        xmlns:ooxmlchart="http://www.hancom.co.kr/hwpml/2016/ooxmlchart"
+        xmlns:hwpunitchar="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar"
+        xmlns:epub="http://www.idpf.org/2007/ops"
+        xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  ${pListXml.join('\n')}
+</hs:sec>`;
+
+  return { sectionXml, plainText: textLines.join('\n') };
+}
+
+/**
+ * marked 인라인 토큰 배열을 OWPML <hp:run> 스트림으로 직렬화
+ */
+function renderInlineTokensHwpx(tokens: any[], baseCharPrId: number = 0): string {
+  if (!tokens || tokens.length === 0) return '';
+  let result = '';
+
+  tokens.forEach((t) => {
+    if (t.type === 'text') {
+      result += `<hp:run charPrIDRef="${baseCharPrId}"><hp:t>${escapeXml(t.text)}</hp:t></hp:run>`;
+    } else if (t.type === 'strong') {
+      result += renderInlineTokensHwpx(t.tokens || [{ type: 'text', text: t.text }], 10);
+    } else if (t.type === 'em') {
+      result += renderInlineTokensHwpx(t.tokens || [{ type: 'text', text: t.text }], 11);
+    } else if (t.type === 'codespan') {
+      result += `<hp:run charPrIDRef="12"><hp:t>${escapeXml(t.text)}</hp:t></hp:run>`;
+    } else if (t.type === 'link') {
+      result += renderInlineTokensHwpx(t.tokens || [{ type: 'text', text: t.text }], 13);
+    } else if (t.type === 'br') {
+      result += `<hp:run charPrIDRef="${baseCharPrId}"><hp:t> </hp:t></hp:run>`;
+    } else if (t.type === 'del') {
+      result += `<hp:run charPrIDRef="${baseCharPrId}"><hp:t>${escapeXml(t.text)}</hp:t></hp:run>`;
+    } else if (t.type === 'escape') {
+      result += `<hp:run charPrIDRef="${baseCharPrId}"><hp:t>${escapeXml(t.text)}</hp:t></hp:run>`;
+    } else if (t.text) {
+      result += `<hp:run charPrIDRef="${baseCharPrId}"><hp:t>${escapeXml(t.text)}</hp:t></hp:run>`;
+    }
+  });
+
+  return result;
+}
+
+/**
+ * 이미지 및 다이어그램 개체를 OWPML <hp:pic> 요소로 빌드 (가로 150mm x 세로 200mm 듀얼 클램프)
+ */
+function renderPicHwpx(
+  imgData: ExtractedImage,
+  caption: string,
+  pCounter: { val: number },
+  picCounter: { val: number },
+  textLines: string[]
+): string {
+  const maxW_hwp = 42520;
+  const maxH_hwp = 56690;
+  const origW_hwp = Math.max(100, imgData.width) * 75;
+  const origH_hwp = Math.max(100, imgData.height) * 75;
+  const scale = Math.min(1, maxW_hwp / origW_hwp, maxH_hwp / origH_hwp);
+  const w_hwp = Math.round(origW_hwp * scale);
+  const h_hwp = Math.round(origH_hwp * scale);
+  const w_px = Math.round(w_hwp / 75);
+  const h_px = Math.round(h_hwp / 75);
+
+  const currentPicId = picCounter.val++;
+  let xml = `
+    <hp:p id="${pCounter.val++}" paraPrIDRef="11" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+      <hp:run charPrIDRef="0">
+        <hp:pic id="${currentPicId}" zOrder="0" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None">
+          <hp:offset x="0" y="0"/>
+          <hp:orgSz width="${w_hwp}" height="${h_hwp}"/>
+          <hp:curSz width="${w_hwp}" height="${h_hwp}"/>
+          <hp:flip x="0" y="0"/>
+          <hp:rotationInfo angle="0" centerX="${Math.round(w_hwp / 2)}" centerY="${Math.round(h_hwp / 2)}"/>
+          <hp:renderingInfo>
+            <hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>
+            <hc:scaMatrix e1="1" e2="0" e3="0" e4="1"/>
+            <hc:rotMatrix e1="1" e2="0" e3="0" e4="1"/>
+          </hp:renderingInfo>
+          <hp:sz width="${w_hwp}" widthRelTo="ABSOLUTE" height="${h_hwp}" heightRelTo="ABSOLUTE" protect="0"/>
+          <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="CENTER" vertOffset="0" horzOffset="0"/>
+          <hp:outMargin left="0" right="0" top="0" bottom="0"/>
+          <hp:imgRect pt0X="0" pt0Y="0" pt1X="${w_hwp}" pt1Y="0" pt2X="${w_hwp}" pt2Y="${h_hwp}" pt3X="0" pt3Y="${h_hwp}"/>
+          <hp:imgClip left="0" right="${w_hwp}" top="0" bottom="${h_hwp}"/>
+          <hp:inMargin left="0" right="0" top="0" bottom="0"/>
+          <hp:imgDim dimwidth="${w_px}" dimheight="${h_px}"/>
+          <hc:img binaryItemIDRef="BIN${imgData.id}"/>
+        </hp:pic>
+      </hp:run>
+    </hp:p>
+  `;
+
+  if (caption) {
+    textLines.push(caption);
+    xml += `
+      <hp:p id="${pCounter.val++}" paraPrIDRef="11" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+        <hp:run charPrIDRef="11"><hp:t>${escapeXml(caption)}</hp:t></hp:run>
+      </hp:p>
+    `;
+  }
+
+  return xml;
+}
+
+/**
+ * 원본 마크다운 AST 토큰을 직접 순회하여 KS X 6101 OWPML section0.xml 및 평문 텍스트 생성
+ */
+function buildSectionXmlFromMarkdown(markdown: string, images: ExtractedImage[]): { sectionXml: string; plainText: string } {
+  const pListXml: string[] = [];
+  const textLines: string[] = [];
+  const pCounter = { val: 0 };
+  const tblCounter = { val: 10 };
+  const picCounter = { val: 10 };
+
+  const mermaidQueue = images.filter((img) => img.isMermaid);
+  const standardQueue = images.filter((img) => !img.isMermaid);
+
+  // 🌟 [필수] 첫 번째 문단: A4 용지설정(secPr) 및 colPr, linesegarray 주입
+  pListXml.push(`
+  <hp:p id="${pCounter.val++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+    <hp:run charPrIDRef="0">
+      <hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0">
+        <hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/>
+        <hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/>
+        <hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/>
+        <hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/>
+        <hp:pagePr landscape="WIDELY" width="59528" height="84186" gutterType="LEFT_ONLY">
+          <hp:margin header="4252" footer="4252" gutter="0" left="8504" right="8504" top="5668" bottom="4252"/>
+        </hp:pagePr>
+        <hp:footNotePr>
+          <hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>
+          <hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/>
+          <hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/>
+          <hp:numbering type="CONTINUOUS" newNum="1"/>
+          <hp:placement place="EACH_COLUMN" beneathText="0"/>
+        </hp:footNotePr>
+        <hp:endNotePr>
+          <hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>
+          <hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/>
+          <hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/>
+          <hp:numbering type="CONTINUOUS" newNum="1"/>
+          <hp:placement place="END_OF_DOCUMENT" beneathText="0"/>
+        </hp:endNotePr>
+        <hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">
+          <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>
+        </hp:pageBorderFill>
+        <hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">
+          <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>
+        </hp:pageBorderFill>
+        <hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER">
+          <hp:offset left="1417" right="1417" top="1417" bottom="1417"/>
+        </hp:pageBorderFill>
+      </hp:secPr>
+      <hp:ctrl>
+        <hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/>
+      </hp:ctrl>
+    </hp:run>
+    <hp:run charPrIDRef="0"><hp:t/></hp:run>
+    <hp:linesegarray>
+      <hp:lineseg textpos="0" vertpos="0" vertsize="1000" textheight="1000" baseline="850" spacing="600" horzpos="0" horzsize="42520" flags="393216"/>
+    </hp:linesegarray>
+  </hp:p>`);
+
+  const tokens = marked.lexer(markdown);
+
+  tokens.forEach((token) => {
+    // 1. 헤딩 (H1 ~ H6)
+    if (token.type === 'heading') {
+      const depth = token.depth || 1;
+      let charPrId = 14; // H1
+      if (depth === 2) charPrId = 15;
+      else if (depth === 3) charPrId = 16;
+      else if (depth >= 4) charPrId = 17;
+
+      const inlines = renderInlineTokensHwpx(token.tokens || [{ type: 'text', text: token.text }], charPrId);
+      textLines.push(token.text);
+
+      const accentPrefix = depth <= 2 ? `<hp:run charPrIDRef="14"><hp:t>| </hp:t></hp:run>` : '';
+
+      pListXml.push(`
+        <hp:p id="${pCounter.val++}" paraPrIDRef="0" styleIDRef="${depth}" pageBreak="0" columnBreak="0" merged="0">
+          ${accentPrefix}
+          ${inlines}
+        </hp:p>
+      `);
+      return;
+    }
+
+    // 2. 코드 블록 (Mermaid vs 일반 코드)
+    if (token.type === 'code') {
+      if (token.lang === 'mermaid') {
+        const mermaidImg = mermaidQueue.shift() || images.find((img) => img.isMermaid);
+        if (mermaidImg) {
+          pListXml.push(renderPicHwpx(mermaidImg, mermaidImg.caption || '다이어그램', pCounter, picCounter, textLines));
+        }
+        return;
+      }
+
+      // 일반 코드 블록 (모노스페이스 서식과 들여쓰기 단락 조판, [TEXT] 배지 배제)
+      const lines = token.text.split('\n');
+      lines.forEach((line: string) => {
+        textLines.push(line);
+        pListXml.push(`
+          <hp:p id="${pCounter.val++}" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+            <hp:run charPrIDRef="12"><hp:t>${escapeXml(line || ' ')}</hp:t></hp:run>
+          </hp:p>
+        `);
+      });
+      return;
+    }
+
+    // 3. 표 (TABLE)
+    if (token.type === 'table') {
+      const colCnt = token.header.length || 1;
+      const rowCnt = token.rows.length + 1;
+      const totalWidth = 42520;
+      const colWidth = Math.floor(totalWidth / colCnt);
+      const rowHeight = 400;
+
+      let tblRowsXml = '<hp:tr>';
+      token.header.forEach((cell: any, cIdx: number) => {
+        const inlines = renderInlineTokensHwpx(cell.tokens || [{ type: 'text', text: cell.text }], 17);
+        textLines.push(cell.text || '');
+        tblRowsXml += `
+          <hp:tc name="" header="1" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="2">
+            <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">
+              <hp:p paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="${pCounter.val++}">
+                ${inlines}
+              </hp:p>
+            </hp:subList>
+            <hp:cellAddr colAddr="${cIdx}" rowAddr="0"/>
+            <hp:cellSpan colSpan="1" rowSpan="1"/>
+            <hp:cellSz width="${colWidth}" height="${rowHeight}"/>
+            <hp:cellMargin left="510" right="510" top="141" bottom="141"/>
+          </hp:tc>
+        `;
+      });
+      tblRowsXml += '</hp:tr>';
+
+      token.rows.forEach((row: any[], rIdx: number) => {
+        tblRowsXml += '<hp:tr>';
+        row.forEach((cell: any, cIdx: number) => {
+          const inlines = renderInlineTokensHwpx(cell.tokens || [{ type: 'text', text: cell.text }], 0);
+          textLines.push(cell.text || '');
+          tblRowsXml += `
+            <hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="2">
+              <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">
+                <hp:p paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="${pCounter.val++}">
+                  ${inlines}
+                </hp:p>
+              </hp:subList>
+              <hp:cellAddr colAddr="${cIdx}" rowAddr="${rIdx + 1}"/>
+              <hp:cellSpan colSpan="1" rowSpan="1"/>
+              <hp:cellSz width="${colWidth}" height="${rowHeight}"/>
+              <hp:cellMargin left="510" right="510" top="141" bottom="141"/>
+            </hp:tc>
+          `;
+        });
+        tblRowsXml += '</hp:tr>';
+      });
+
+      const currentTblId = tblCounter.val++;
+      pListXml.push(`
+        <hp:p id="${pCounter.val++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+          <hp:run charPrIDRef="0">
+            <hp:tbl id="${currentTblId}" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rowCnt}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="2" noAdjust="0">
+              <hp:sz width="${totalWidth}" widthRelTo="ABSOLUTE" height="${rowHeight * rowCnt}" heightRelTo="ABSOLUTE" protect="0"/>
+              <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>
+              <hp:outMargin left="0" right="0" top="0" bottom="0"/>
+              <hp:inMargin left="510" right="510" top="141" bottom="141"/>
+              ${tblRowsXml}
+            </hp:tbl>
+          </hp:run>
+        </hp:p>
+      `);
+      return;
+    }
+
+    // 4. 인용구 (BLOCKQUOTE)
+    if (token.type === 'blockquote') {
+      const inlines = renderInlineTokensHwpx(token.tokens || [{ type: 'text', text: token.text }], 11);
+      textLines.push(token.text || '');
+      pListXml.push(`
+        <hp:p id="${pCounter.val++}" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+          <hp:run charPrIDRef="14"><hp:t>▎ </hp:t></hp:run>
+          ${inlines}
+        </hp:p>
+      `);
+      return;
+    }
+
+    // 5. 리스트 (LIST)
+    if (token.type === 'list') {
+      token.items.forEach((item: any, idx: number) => {
+        const prefix = token.ordered ? `${(token.start || 1) + idx}. ` : '• ';
+        const inlines = renderInlineTokensHwpx(item.tokens || [{ type: 'text', text: item.text }], 0);
+        textLines.push(`${prefix}${item.text || ''}`);
+        pListXml.push(`
+          <hp:p id="${pCounter.val++}" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+            <hp:run charPrIDRef="10"><hp:t>${prefix}</hp:t></hp:run>
+            ${inlines}
+          </hp:p>
+        `);
+      });
+      return;
+    }
+
+    // 6. 구분선 (HR)
+    if (token.type === 'hr') {
+      pListXml.push(`
+        <hp:p id="${pCounter.val++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+          <hp:run charPrIDRef="0"><hp:t>────────────────────────────────────────────</hp:t></hp:run>
+        </hp:p>
+      `);
+      return;
+    }
+
+    // 7. 단락 (PARAGRAPH) 및 단락 내 이미지
+    if (token.type === 'paragraph') {
+      const imgToken = token.tokens?.find((t: any) => t.type === 'image') as any;
+      if (imgToken) {
+        const hrefFname = (imgToken.href || '').split(/[/\\]/).pop()?.split('?')[0]?.toLowerCase();
+        const matched = standardQueue.find((img) => img.filename && img.filename.toLowerCase() === hrefFname)
+          || standardQueue.find((img) => img.src && img.src.toLowerCase().includes(hrefFname))
+          || standardQueue.shift()
+          || images.find((img) => !img.isMermaid);
+
+        let caption = '';
+        const emToken = token.tokens?.find((t: any) => t.type === 'em') as any;
+        if (emToken && emToken.text) {
+          caption = emToken.text.trim();
+        } else if (imgToken.text && !imgToken.text.startsWith('image') && imgToken.text.length > 2) {
+          caption = imgToken.text.trim();
+        }
+
+        if (matched) {
+          pListXml.push(renderPicHwpx(matched, caption, pCounter, picCounter, textLines));
+          return;
+        }
+      }
+
+      const inlines = renderInlineTokensHwpx(token.tokens || [{ type: 'text', text: token.text }], 0);
+      const text = token.text || '';
+      if (text.trim()) {
+        textLines.push(text);
+        pListXml.push(`
+          <hp:p id="${pCounter.val++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+            ${inlines}
+          </hp:p>
+        `);
+      }
+      return;
+    }
+  });
 
   const sectionXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <hs:sec xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app"

@@ -14,6 +14,9 @@ export interface ExtractedImage {
   height: number;
   caption?: string;
   alt?: string;
+  src?: string;
+  filename?: string;
+  isMermaid?: boolean;
 }
 
 /**
@@ -225,6 +228,9 @@ export async function extractMediaFromElements(
         height: res.height,
         caption: caption || undefined,
         alt: caption || '다이어그램',
+        src: 'mermaid',
+        filename: 'mermaid',
+        isMermaid: true,
       });
 
       // 클론 DOM에서 부모 블록 전체를 깨끗한 figure 엘리먼트로 치환하여 툴바/버튼 텍스트 제거 및 이미지 블록화
@@ -285,6 +291,9 @@ export async function extractMediaFromElements(
         }
       }
 
+      const rawSrc = liveImg.getAttribute('src') || liveImg.src || '';
+      const fname = decodeURIComponent(rawSrc.split(/[/\\]/).pop()?.split('?')[0] || '');
+
       images.push({
         id,
         buffer: res.buffer,
@@ -292,6 +301,9 @@ export async function extractMediaFromElements(
         height: res.height,
         caption: caption || undefined,
         alt: cloneImg.alt || '이미지',
+        src: rawSrc,
+        filename: fname,
+        isMermaid: false,
       });
 
       const targetEl = parentFigure || cloneImg;
