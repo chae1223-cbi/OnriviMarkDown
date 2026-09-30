@@ -35,7 +35,7 @@ import { loadSecureData } from '@/lib/secureStorage';
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
-// 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 시 사이드바 트리 자동 펼침 및 코발트 블루 펄스 포커스]: app:focus-tree-folder 수신 시 사이드바가 닫혀있으면 열고(isSidebarOpen), onrivi_expanded_paths에 상위 경로를 등록한 후 트리를 자동 새로고침하며 data-path 기반으로 해당 폴더 노드로 부드럽게 스크롤 및 2.5초 코발트 블루 링 하이라이트 표시
+// 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 시 탐색기 증발 결함 수정 및 트리 자동 전개 완비]: handleFocusTreeFolder에서 탐색기 탭 ID('explorer') 오기입('files' -> 'explorer')으로 인해 트리 영역이 hidden 처리되던 결함을 수정하고, 웹 환경에서 루트 폴더명이 접두어로 붙은 상대 경로(relativeToRoot)를 자동 분리하여 onrivi_expanded_paths에 동시 등록함으로써 하위/상위 폴더가 즉시 펼쳐지고 부드러운 스크롤 및 코발트 블루 링 하이라이트가 100% 완벽 연동되도록 조치
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
 //             1) 폴더 삭제 되돌리기: handleUndoMove에서 kind === 'directory' 지원(데스크톱 api.restoreFolderFromUndo, 웹 FSA restoreFsaDirectory, VFS 복원 및 onrivi_expanded_paths 자동 전개)
 //             2) 탐색기 덜렁거림 제거: 120ms 중복 재새로고침 제거(단일 갱신 일원화), aside 너비 고정(shrink-0 min-w/max-w), [scrollbar-gutter:stable], handleDragLeaveRoot 자식 진입 방어
@@ -503,25 +503,40 @@ export default function LeftSidebar() {
       if (!folderPath) return;
       try {
         if (!isSidebarOpen) setIsSidebarOpen(true);
-        if (sidebarTab !== 'files') setSidebarTab('files');
+        // 🚨 [핵심 수정] 탭 이름은 'files'가 아닌 'explorer'입니다 ('files' 설정 시 hidden 클래스로 트리 증발 방지)
+        if (sidebarTab !== 'explorer') setSidebarTab('explorer');
+
         const saved = localStorage.getItem('onrivi_expanded_paths');
         let paths: string[] = saved ? JSON.parse(saved) : [];
         const norm = folderPath.replace(/\\/g, '/').replace(/\/+$/, '');
-        const parts = norm.split('/').filter(Boolean);
-        let cur = '';
-        for (const part of parts) {
-          cur = cur ? `${cur}/${part}` : (norm.startsWith('/') ? `/${part}` : part);
-          if (!paths.some(p => p.replace(/\\/g, '/').replace(/\/+$/, '') === cur)) {
-            paths.push(cur);
+        const rootName = (rootFolder?.name || '').replace(/\\/g, '/').replace(/\/+$/, '');
+
+        // 웹 FSA 트리 호환: 루트 폴더명이 앞에 붙어있는 경우 루트 폴더명을 제거한 상대 경로도 동시 계산
+        let relativeToRoot = norm;
+        if (rootName && (norm === rootName || norm.startsWith(rootName + '/'))) {
+          relativeToRoot = norm.slice(rootName.length).replace(/^\/+/, '');
+        }
+
+        const candidatePaths = [norm, relativeToRoot].filter(Boolean);
+        for (const candidate of candidatePaths) {
+          const parts = candidate.split('/').filter(Boolean);
+          let cur = '';
+          for (const part of parts) {
+            cur = cur ? `${cur}/${part}` : (candidate.startsWith('/') ? `/${part}` : part);
+            if (!paths.some(p => p.replace(/\\/g, '/').replace(/\/+$/, '') === cur)) {
+              paths.push(cur);
+            }
           }
         }
+
         localStorage.setItem('onrivi_expanded_paths', JSON.stringify(paths));
         await refreshFileList(true);
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
-          detail: { force: true, targetDir: norm }
+          detail: { force: true, targetDir: relativeToRoot || norm }
         }));
 
-        const displayName = folderName || parts[parts.length - 1] || '폴더';
+        const normParts = norm.split('/').filter(Boolean);
+        const displayName = folderName || normParts[normParts.length - 1] || '폴더';
         showToast(`'📁 ${displayName}' 폴더를 탐색기에서 열었습니다.`, 'info');
 
         // 🎯 트리 렌더링 완료 후 해당 폴더 노드로 부드럽게 스크롤 및 코발트 블루 펄스 하이라이트
@@ -529,11 +544,12 @@ export default function LeftSidebar() {
           try {
             const allItems = Array.from(document.querySelectorAll('[data-path]')) as HTMLElement[];
             const normTarget = norm.toLowerCase();
-            const targetBase = (parts[parts.length - 1] || '').toLowerCase();
+            const relTarget = relativeToRoot.toLowerCase();
+            const targetBase = (normParts[normParts.length - 1] || '').toLowerCase();
 
             let targetEl = allItems.find(el => {
               const p = (el.getAttribute('data-path') || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-              return p === normTarget || (targetBase && p.endsWith('/' + targetBase));
+              return p === normTarget || p === relTarget || (targetBase && p.endsWith('/' + targetBase)) || p === targetBase;
             });
 
             if (targetEl) {
@@ -557,7 +573,7 @@ export default function LeftSidebar() {
     return () => {
       window.removeEventListener('app:focus-tree-folder', handleFocusTreeFolder);
     };
-  }, [isSidebarOpen, setIsSidebarOpen, sidebarTab, setSidebarTab, refreshFileList, showToast]);
+  }, [isSidebarOpen, setIsSidebarOpen, sidebarTab, setSidebarTab, refreshFileList, showToast, rootFolder?.name]);
 
   // 📋 파일/폴더 복사 및 붙여넣기/잘라내기 클립보드 상태
   const [clipboardNode, setClipboardNode] = useState<{ node: FileNode; parentHandle?: any; op?: 'copy' | 'cut' } | null>(null);
