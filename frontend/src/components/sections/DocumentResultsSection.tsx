@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-DocumentResultsSection-0001] DocumentResultsSection ➔ DocumentResultsSection
 // 🎯 @KICK  : 하나의 구조화된 콘텐츠에서 다양한 전문 문서(리포트, 기술 문서, 애널리틱스, 전자책, 인쇄물)를 사출하는 결과 다양성 섹션
 // 🛡️ @GUARD : 실제 지원되는 포맷(PDF, EPUB, HTML, 이미지 출력)에 한정하여 정직하게 표기
+// 🚨 @PATCH : **2026-09-30** — [DocumentResults 카드 및 스트립 배경색을 #F9FAFC로 변경]: 흰색 섹션 배경 위에서 4개 카드와 하단 출력 규격 스트립이 선명하게 부각되도록 'CORE CAPABILITIES' 섹션 배경색(#F9FAFC)과 동일하게 동기화
 // 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: DocumentResultsSection 배경색을 흰색(#FFFFFF)으로 적용하여 상하 #F9FAFC 섹션과 완벽한 1:1 교차 대비 완성
 // 🚨 @PATCH : **2026-09-30** — ['A4 규격 학술 및 계약 문서' 카드를 '이미지 출력(PNG)'으로 교체]: 사용자 요청에 따라 인쇄 카드 대신 SNS/노션/슬랙 공유용 고해상도 PNG 이미지 출력 카드로 개편
 // 🚨 @PATCH : **2026-09-30** — [랜딩 개편 Document Results 섹션 신규 구현]:
@@ -99,11 +100,11 @@ export function DocumentResultsSection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: idx * 0.08 }}
-                className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#16181D] p-6 flex flex-col justify-between shadow-xs hover:border-[#1d4ed8]/50 hover:shadow-md transition-all text-left group"
+                className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-[#F9FAFC] dark:bg-[#16181D] p-6 flex flex-col justify-between shadow-xs hover:border-[#1d4ed8]/50 hover:shadow-md transition-all text-left group"
               >
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700 flex items-center justify-center shadow-2xs">
                       <IconComp className={`w-5 h-5 ${doc.color}`} />
                     </div>
                     <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${doc.badgeBg}`}>
@@ -125,7 +126,7 @@ export function DocumentResultsSection() {
                   </p>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                <div className="mt-6 pt-4 border-t border-zinc-200/70 dark:border-zinc-800 text-[11px] font-bold text-[#1d4ed8] dark:text-blue-400 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                   <span>규격 사출 지원</span>
                   <span>→</span>
                 </div>
@@ -135,7 +136,7 @@ export function DocumentResultsSection() {
         </div>
 
         {/* Output Formats Strip */}
-        <div className="mt-14 p-5 rounded-2xl bg-white dark:bg-[#16181D] border border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+        <div className="mt-14 p-5 rounded-2xl bg-[#F9FAFC] dark:bg-[#16181D] border border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-[#1d4ed8]" />
             <span>출판급 PDF 사출</span>
