@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-PreviewFindWidget-0001] PreviewFindWidget ➔ PreviewFindWidget
 // 🎯 @KICK  : 미리보기(Preview) 렌더링 영역 내 실시간 텍스트 검색 및 탐색 위젯
 // 🛡️ @GUARD : CSS.highlights 지원 시 비침습 고속 하이라이트, 미지원 시 Range/Mark 안전 폴백; 언마운트 시 하이라이트 완전 제거
+// 🚨 @PATCH : **2026-09-30** — [useCallback 의존성 최적화]: performSearch의 하위 종속 함수 highlightMatches를 상단으로 재배치하고 의존성 배열에 명시하여 ESLint missing dependency 경고 완전 소거
 // 🚨 @PATCH : **2026-09-30** — [미리보기 전용 찾기 위젯 신규 개발]:
 //             1. 검색어 실시간 매칭 및 이전/다음(↑/↓, Enter/Shift+Enter) 순회 탐색
 //             2. 활성 매치 위치로 미리보기 스크롤 자동 이동 (scrollIntoView smooth/center)
@@ -60,6 +61,45 @@ export function PreviewFindWidget({
     setTotalMatches(0);
     setCurrentIndex(0);
   }, [previewContainerRef]);
+
+  // 하이라이트 렌더링 및 현재 매치 스크롤
+  const highlightMatches = useCallback(
+    (ranges: Range[], activeIdx: number) => {
+      if (ranges.length === 0) return;
+
+      const activeRange = ranges[activeIdx];
+
+      // 1. CSS.highlights 표준 API 지원 시
+      if (typeof CSS !== "undefined" && "highlights" in CSS && (window as any).Highlight) {
+        try {
+          const HighlightConstructor = (window as any).Highlight;
+          const allHighlight = new HighlightConstructor(...ranges);
+          const activeHighlight = new HighlightConstructor(activeRange);
+
+          (CSS as any).highlights.set("preview-search", allHighlight);
+          (CSS as any).highlights.set("preview-search-active", activeHighlight);
+        } catch (e) {
+          console.warn("CSS.highlights failed, using fallback:", e);
+        }
+      }
+
+      // 2. 활성 매치 위치로 스크롤
+      if (activeRange) {
+        const targetElement =
+          activeRange.startContainer instanceof HTMLElement
+            ? activeRange.startContainer
+            : activeRange.startContainer.parentElement;
+
+        if (targetElement) {
+          targetElement.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }
+      }
+    },
+    []
+  );
 
   // 검색어에 따른 매치 스캔 및 하이라이트 적용
   const performSearch = useCallback(
@@ -123,46 +163,7 @@ export function PreviewFindWidget({
         highlightMatches(ranges, 0);
       }
     },
-    [clearHighlights, previewContainerRef]
-  );
-
-  // 하이라이트 렌더링 및 현재 매치 스크롤
-  const highlightMatches = useCallback(
-    (ranges: Range[], activeIdx: number) => {
-      if (ranges.length === 0) return;
-
-      const activeRange = ranges[activeIdx];
-
-      // 1. CSS.highlights 표준 API 지원 시
-      if (typeof CSS !== "undefined" && "highlights" in CSS && (window as any).Highlight) {
-        try {
-          const HighlightConstructor = (window as any).Highlight;
-          const allHighlight = new HighlightConstructor(...ranges);
-          const activeHighlight = new HighlightConstructor(activeRange);
-
-          (CSS as any).highlights.set("preview-search", allHighlight);
-          (CSS as any).highlights.set("preview-search-active", activeHighlight);
-        } catch (e) {
-          console.warn("CSS.highlights failed, using fallback:", e);
-        }
-      }
-
-      // 2. 활성 매치 위치로 스크롤
-      if (activeRange) {
-        const targetElement =
-          activeRange.startContainer instanceof HTMLElement
-            ? activeRange.startContainer
-            : activeRange.startContainer.parentElement;
-
-        if (targetElement) {
-          targetElement.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }
-      }
-    },
-    []
+    [clearHighlights, previewContainerRef, highlightMatches]
   );
 
   // 다음 매치 이동

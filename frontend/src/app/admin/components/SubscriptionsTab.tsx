@@ -2,7 +2,7 @@
  * 프로그램명 : OnriviAuthor
  * 파일명 : app/admin/components/SubscriptionsTab.tsx
  * -----------------------------------------------------------------------
- * 변경내역
+ * 🚨 @PATCH : **2026-09-30** — [useCallback 의존성 최적화]: load 콜백의 불필요한 refresh 의존성을 load 호출 useEffect로 이전하여 ESLint unnecessary dependency 경고 완전 소거
  * 🚨 @PATCH : **2026-09-30** — [구독 및 라이선스 관리 고도화]: 
  *             1. Modern Technical Editorial 디자인 시스템(Cobalt #1d4ed8) 및 고대비(High-Contrast) 시인성 표준 전면 적용
  *             2. 6대 핵심 지표 통계 카드(활성 구독, 7일/30일 내 만료, 만료 처리 필요, 활성 기기, 기기 초과) 아이콘 및 상태별 컬러 토큰 적용
@@ -191,11 +191,11 @@ export default function SubscriptionsTab() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, status, plan, grantFilter, attention, refresh]);
+  }, [page, search, status, plan, grantFilter, attention]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refresh]);
 
   // 상세 모달 데이터 로드
   useEffect(() => {
