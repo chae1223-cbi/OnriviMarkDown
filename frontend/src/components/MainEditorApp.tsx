@@ -92,6 +92,7 @@
 // 🚨 @PATCH : **2026-09-13** — [지식관리 기능 데스크톱 전용 전환]: handleOpenKnowledge 및 Ctrl+Shift+K 단축키에 isDesktop 가드를 적용하여 웹 브라우저 환경에서 데스크톱 전용 안내 토스트 출력 및 불필요한 화면 전환 차단
 // 🚨 @PATCH : **2026-09-17** — [fileList 상태 보존 및 웹 브라우저 환경 워크스페이스 타입 초기화 정상화]: fileList 선언 누락으로 인한 ReferenceError 차단 및 electronAPI가 없는 웹 브라우저 환경에서 workspaceType 초기 상태를 'browser'로 자동 지정하여 데스크톱 Electron 전용 코드 오작동 및 404 API 호출 원천 차단
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 문서 온디맨드 권한 획득 및 스마트 캐싱 연동]: useFileExplorer에 setConfirmConfig 전달 및 OPEN_FILE/외부 문서 오픈 시 externalFileStore 연동으로 웹 SaaS 환경에서 작업장 외 문서라도 사용자 승인 후 즉시 열람/편집/디스크 저장 완벽 지원
+// 🚨 @PATCH : **2026-10-01** — [공통 리소스 폴더 동기화 및 브라우저 Handle 자동 복원]: getEffectiveResourceFolder 기반 경로 초기화, 앱 마운트 시 IndexedDB resourceFolderHandle 복원, selectResourceFolder 시 로컬스토리지 다중 키(onrivi_resource_folder_path, onrivi_resource_folder, resourceFolder) 및 secureStorage 동시 동기화로 브라우저 새로고침/재방문 시 리소스 폴더 미지정 오류 원천 방어
 // 🚨 @PATCH : **2026-09-13** — [WASM 지식 DB 청크 본문 추출 정상화]: readFileText에서 getDocumentDetail의 docObj(detail.chunks/chunkText) 연동으로 브라우저 핸들이 없는 지식 문서의 원본 본문 100% 정상 수급
 // 🚨 @PATCH : **2026-09-13** — [ESLint 경고 제거 및 클라우드 빌드 안정화]: hotkeyRegistration useEffect 내 content 직접 참조를 contentRef.current로 전환하여 react-hooks/exhaustive-deps 경고 해소
 // 🚨 @PATCH : **2026-09-13** — [작업장 외부 절대경로(file:///) 파일 readFileText 로컬 서버 API 폴백 연동]: 브라우저 핸들이 없는 작업장 외부 절대경로 파일에 대해 /api/file-content를 호출하여 로컬 디스크 원문을 100% 정상 수급하도록 보강
@@ -1230,10 +1231,43 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
   const [rootFolder, setRootFolder] = useState<{ name: string, handle?: any } | null>(null);
   const [resourceFolder, setResourceFolder] = useState<string | null>(() => {
-    const saved = loadSecureData<string>('resourceFolder');
-    return (saved && typeof saved === 'string' && saved.trim() !== '') ? saved.trim() : null;
+    const effective = getEffectiveResourceFolder();
+    return (effective && typeof effective === 'string' && effective.trim() !== '') ? effective.trim() : null;
   });
-  const [resourceFolderHandle, setResourceFolderHandle] = useState<any>(null);
+  const [resourceFolderHandle, setResourceFolderHandle] = useState<any>(() => {
+    if (typeof window !== 'undefined' && (window as any).__resourceFolderHandle) {
+      return (window as any).__resourceFolderHandle;
+    }
+    return null;
+  });
+
+  // 🌟 [공통 리소스 폴더 Handle 및 경로 자동 복원 엔진]
+  useEffect(() => {
+    if (!mounted) return;
+    const restoreRF = async () => {
+      // 1. IndexedDB에서 웹 브라우저용 Handle 복원
+      if (!resourceFolderHandle && typeof window !== 'undefined') {
+        try {
+          const savedHandle = await idb.get('resourceFolderHandle');
+          if (savedHandle) {
+            setResourceFolderHandle(savedHandle);
+            (window as any).__resourceFolderHandle = savedHandle;
+            if (!resourceFolder) {
+              setResourceFolder(savedHandle.name);
+            }
+          }
+        } catch (e) {
+          console.warn('[ResourceFolder] IndexedDB handle 복원 실패:', e);
+        }
+      }
+      // 2. localStorage 및 secureStorage 기반 경로 복원 동기화
+      const effective = getEffectiveResourceFolder();
+      if (effective && (!resourceFolder || resourceFolder !== effective)) {
+        setResourceFolder(effective);
+      }
+    };
+    void restoreRF();
+  }, [mounted, resourceFolderHandle, resourceFolder]);
   const [profileStorageRevision, setProfileStorageRevision] = useState(0);
   const profileStorageRef = useRef<{ folder: string; handle: any; hash: string } | null>(null);
   useEffect(() => {
@@ -3041,6 +3075,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setResourceFolder(result.path);
         setProfileStorageRevision(value => value + 1);
         try { saveSecureData('resourceFolder', result.path); } catch { }
+        try { localStorage.setItem('onrivi_resource_folder_path', result.path); } catch { }
+        try { localStorage.setItem('onrivi_resource_folder', result.path); } catch { }
+        try { localStorage.setItem('resourceFolder', result.path); } catch { }
         
         // 🚀 [사용자 지시 완벽 반영] 5대 디렉토리(profiles, prompt, bible, media, db) 및 onrivi_knowledge.db 일괄 생성
         try {
@@ -3061,6 +3098,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         setResourceFolder(handle.name);
         await idb.set('resourceFolderHandle', handle);
         try { saveSecureData('resourceFolder', handle.name); } catch { }
+        try { localStorage.setItem('onrivi_resource_folder_path', handle.name); } catch { }
+        try { localStorage.setItem('onrivi_resource_folder', handle.name); } catch { }
+        try { localStorage.setItem('resourceFolder', handle.name); } catch { }
         
         // 🚀 [사용자 지시 완벽 반영] 웹 브라우저 환경 5대 디렉토리 일괄 생성
         try {

@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-01** — [데스크톱 로컬 이미지 읽기 지능형 하위 media 폴백 탐색]: file:readImageAsBase64 핸들러에서 전달된 파일 경로가 존재하지 않는 경우, 리소스 폴더 하위 media 폴더 또는 상위 경로를 교차 탐색하여 사용자 마크다운 경로(단순 파일명 또는 서브폴더)의 이미지를 100% 정상 로드하도록 보강
 // 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
 // 🚨 @PATCH : **2026-09-23** — [데스크톱 앱 최신 툴바 아이콘 및 에셋 서빙 보장] app:// 커스텀 프로토콜 핸들러에 frontend/out 부재 시 frontend/public 폴백 탐색 엔진을 탑재하여 데스크톱 앱에서 최신 툴바 아이콘(WechatLogo, Password, CubeFocus, NewspaperClipping 등) 100% 정상 노출 보장
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) IPC 지원 및 파일/폴더 조작 안정성 고도화]: 1) file:backupFolderForUndo 및 file:restoreFolderFromUndo 핸들러 신설하여 폴더 삭제 전 임시 디렉토리 백업 및 Ctrl+Z 복원 완벽 지원 2) file:rename, file:move, file:delete에서 Windows 파일 잠금 및 백신 프로세스 점유로 인한 EPERM/EBUSY 예외를 방어하기 위해 fs.rmSync에 maxRetries: 5, retryDelay: 100 옵션 탑재
@@ -3782,16 +3783,26 @@ ipcMain.handle('file:readImageAsBase64', async (event, filePath) => {
     let targetPath = cleanPath;
     
     if (!fs.existsSync(cleanPath)) {
-      // 🛡️ [에셋 폴백 탐색] 로컬 절대 경로 파일이 존재하지 않는 경우
-      const fileNameOnly = path.basename(cleanPath);
-      const fallbackOutPath = path.join(__dirname, 'frontend/out', fileNameOnly);
-      const fallbackPublicPath = path.join(__dirname, 'frontend/public', fileNameOnly);
-      if (fs.existsSync(fallbackOutPath)) {
-        targetPath = fallbackOutPath;
-      } else if (fs.existsSync(fallbackPublicPath)) {
-        targetPath = fallbackPublicPath;
+      // 🛡️ [지능형 리소스 경로 폴백]
+      const dir = path.dirname(cleanPath);
+      const base = path.basename(cleanPath);
+      const inMedia = path.join(dir, 'media', base);
+      const outMedia = cleanPath.replace(/[/\\]media[/\\]/, path.sep);
+      if (fs.existsSync(inMedia)) {
+        targetPath = inMedia;
+      } else if (fs.existsSync(outMedia)) {
+        targetPath = outMedia;
       } else {
-        throw new Error(`File not found: ${cleanPath}`);
+        const fileNameOnly = path.basename(cleanPath);
+        const fallbackOutPath = path.join(__dirname, 'frontend/out', fileNameOnly);
+        const fallbackPublicPath = path.join(__dirname, 'frontend/public', fileNameOnly);
+        if (fs.existsSync(fallbackOutPath)) {
+          targetPath = fallbackOutPath;
+        } else if (fs.existsSync(fallbackPublicPath)) {
+          targetPath = fallbackPublicPath;
+        } else {
+          throw new Error(`File not found: ${cleanPath}`);
+        }
       }
     }
     
