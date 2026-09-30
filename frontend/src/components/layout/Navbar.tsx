@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
+// 🚨 @PATCH : **2026-09-30** — [로그아웃 방어 로직 강화]: 서버 세션 해제 실패나 세션 ID 누락 시에도 로컬 인증 세션(Supabase Auth & Session Storage)이 무조건 정상 정리되도록 2중 안전 가드 적용
 // 🚨 @PATCH : **2026-09-30** — [TransformationSection 제거에 따른 네비게이션 메뉴 현행화]: '활용 사례(#transformation)'를 '문서 결과(#document-results)'로 갱신
 // 🚨 @PATCH : **2026-09-30** — [랜딩페이지 네비게이션 메뉴 현행화]: 구현계획서 3번 항목에 맞추어 헤더 메뉴를 '제품 소개(#product-experience)', '주요 기능(#features)', '활용 사례(#transformation)', '요금 안내(#pricing)'로 최신화
 // 🚨 @PATCH : **2026-09-26** — [상단 헤더(Navbar) 블로그 링크 제거]: 사용자 요청에 따라 랜딩페이지 네비게이션 바에서 블로그 링크 제거 및 깔끔한 원본 유지
@@ -121,8 +122,12 @@ export function Navbar({ content }: { content?: NavbarContent }) {
   // 로그아웃 처리
   // =====================================================================
   const handleLogout = async () => {
-    try { // try : 예외 처리를 위한 블록 
-      await logoutCurrentWebSession();
+    try {
+      try {
+        await logoutCurrentWebSession();
+      } catch (sessionErr) {
+        console.warn("[Navbar] 웹 세션 서버 해제 건너뜀:", sessionErr);
+      }
       // 🚨 @PATCH : 2026-09-17 환경설정(Gemini API 키 등)을 안전하게 보존하고 인증 세션만 선별 삭제
       try {
         await supabase.auth.signOut({ scope: 'local' }); // 인증 토큰을 지우기 전에 로그아웃

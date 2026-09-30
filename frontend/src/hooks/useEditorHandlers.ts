@@ -22,6 +22,7 @@ import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
 // 🛡️ @GUARD : 각 핸들러별 editorRef/selection/model 방어 로직; previewRef 누락 시 export early return
+// 🚨 @PATCH : **2026-09-30** — [에디터 종료 로그아웃 방어 로직 강화]: 서버 세션 해제 실패 시에도 로컬 인증 세션이 정상 정리되도록 보강
 // 🚨 @PATCH : **2026-09-23** — [플로팅 툴바 toggleFloatingToolbar safeLeft 정규화] 880px 하드코딩 클램프 제거 및 커서 x좌표 기반 전달로 뷰포트 클램퍼 연동
 // 🚨 @PATCH : **2026-09-11** — 코드 블록(code) 삽입 시 기본 언어를 markdown(```markdown)으로 변경 연동
 //             **2026-09-11** — 찾기/바꾸기(find/replace) 실행 시 openAndFocusFindWidget 연동(다중 타이머 강제 포커스 및 Enter 키 다음 찾기 100% 보장), 인용구(quote) 핸들러에 alertType 매개변수 연동
@@ -897,8 +898,7 @@ export const useEditorHandlers = ({
       try {
         await logoutCurrentWebSession();
       } catch (error) {
-        showToast(error instanceof Error ? error.message : '웹 세션 해제에 실패했습니다.', 'error');
-        return;
+        console.warn('[useEditorHandlers] 웹 세션 서버 해제 건너뜀:', error);
       }
       try {
         await supabase.auth.signOut({ scope: 'local' });
