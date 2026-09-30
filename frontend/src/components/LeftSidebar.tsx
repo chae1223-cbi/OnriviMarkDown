@@ -35,7 +35,7 @@ import { loadSecureData } from '@/lib/secureStorage';
 // ====================================================================
 // 📊 [OMD-FILE-LeftSidebar-0007] LeftSidebar ➔ LeftSidebar
 // 🎯 @KICK  : 좌측 사이드바 - 탐색기(파일트리), 개요(TOC), 검색 탭 제공
-// 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 시 사이드바 트리 자동 펼침 및 포커스]: app:focus-tree-folder 수신 시 사이드바가 닫혀있으면 열고(isSidebarOpen), onrivi_expanded_paths에 상위 경로를 등록한 후 트리를 자동 새로고침하여 해당 폴더를 화면에 시각적으로 표시
+// 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 시 사이드바 트리 자동 펼침 및 코발트 블루 펄스 포커스]: app:focus-tree-folder 수신 시 사이드바가 닫혀있으면 열고(isSidebarOpen), onrivi_expanded_paths에 상위 경로를 등록한 후 트리를 자동 새로고침하며 data-path 기반으로 해당 폴더 노드로 부드럽게 스크롤 및 2.5초 코발트 블루 링 하이라이트 표시
 // 🚨 @PATCH : **2026-09-18** — [폴더 삭제 되돌리기(Undo) 전면 지원 및 탐색기 덜렁거림·깜빡임 완전 해소]:
 //             1) 폴더 삭제 되돌리기: handleUndoMove에서 kind === 'directory' 지원(데스크톱 api.restoreFolderFromUndo, 웹 FSA restoreFsaDirectory, VFS 복원 및 onrivi_expanded_paths 자동 전개)
 //             2) 탐색기 덜렁거림 제거: 120ms 중복 재새로고침 제거(단일 갱신 일원화), aside 너비 고정(shrink-0 min-w/max-w), [scrollbar-gutter:stable], handleDragLeaveRoot 자식 진입 방어
@@ -496,7 +496,7 @@ export default function LeftSidebar() {
     };
   }, [resourceFolder, geminiApiKey, isDesktop]);
 
-  // 📂 [미리보기/외부 폴더 링크 클릭 시 사이드바 트리 자동 펼침 및 새로고침]
+  // 📂 [미리보기/외부 폴더 링크 클릭 시 사이드바 트리 자동 펼침 및 포커스 하이라이트]
   useEffect(() => {
     const handleFocusTreeFolder = async (e: any) => {
       const { folderPath, folderName } = e.detail || {};
@@ -506,12 +506,12 @@ export default function LeftSidebar() {
         if (sidebarTab !== 'files') setSidebarTab('files');
         const saved = localStorage.getItem('onrivi_expanded_paths');
         let paths: string[] = saved ? JSON.parse(saved) : [];
-        const norm = folderPath.replace(/\\/g, '/');
-        const parts = norm.split('/');
+        const norm = folderPath.replace(/\\/g, '/').replace(/\/+$/, '');
+        const parts = norm.split('/').filter(Boolean);
         let cur = '';
         for (const part of parts) {
-          cur = cur ? `${cur}/${part}` : part;
-          if (!paths.some(p => p.replace(/\\/g, '/') === cur)) {
+          cur = cur ? `${cur}/${part}` : (norm.startsWith('/') ? `/${part}` : part);
+          if (!paths.some(p => p.replace(/\\/g, '/').replace(/\/+$/, '') === cur)) {
             paths.push(cur);
           }
         }
@@ -520,7 +520,34 @@ export default function LeftSidebar() {
         window.dispatchEvent(new CustomEvent('file:refresh-all-directories', {
           detail: { force: true, targetDir: norm }
         }));
-        showToast(`'📁 ${folderName || '폴더'}' 탐색기 경로를 열었습니다.`, 'info');
+
+        const displayName = folderName || parts[parts.length - 1] || '폴더';
+        showToast(`'📁 ${displayName}' 폴더를 탐색기에서 열었습니다.`, 'info');
+
+        // 🎯 트리 렌더링 완료 후 해당 폴더 노드로 부드럽게 스크롤 및 코발트 블루 펄스 하이라이트
+        setTimeout(() => {
+          try {
+            const allItems = Array.from(document.querySelectorAll('[data-path]')) as HTMLElement[];
+            const normTarget = norm.toLowerCase();
+            const targetBase = (parts[parts.length - 1] || '').toLowerCase();
+
+            let targetEl = allItems.find(el => {
+              const p = (el.getAttribute('data-path') || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+              return p === normTarget || (targetBase && p.endsWith('/' + targetBase));
+            });
+
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              targetEl.focus();
+              targetEl.classList.add('ring-2', 'ring-[#1d4ed8]', 'bg-[#1d4ed8]/15', 'rounded-lg', 'shadow-xs');
+              setTimeout(() => {
+                targetEl?.classList.remove('ring-2', 'ring-[#1d4ed8]', 'bg-[#1d4ed8]/15', 'rounded-lg', 'shadow-xs');
+              }, 2500);
+            }
+          } catch (domErr) {
+            console.warn('[handleFocusTreeFolder] DOM highlight error:', domErr);
+          }
+        }, 220);
       } catch (err) {
         console.warn('[handleFocusTreeFolder] error:', err);
       }

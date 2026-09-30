@@ -1,4 +1,4 @@
-// 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 클릭 처리 및 404 라우팅 차단]: <a> 태그 렌더러에서 상대/절대 폴더 링크(./folder/, /folder, 확장자 없는 디렉토리) 클릭 시 웹 404 라우팅을 원천 차단하고 데스크톱은 윈도우 탐색기(openPath), 웹은 사이드바 트리 확장(app:focus-tree-folder)으로 안전하게 연결
+// 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 온리비 표준 UX 구현]: <a> 태그 렌더러에서 상대/절대 폴더 링크(./folder/, /folder 등) 클릭 시 기본 동작으로 좌측 탐색기(LeftSidebar) 자동 펼침·스크롤·코발트 블루 펄스 하이라이트를 발송하고, 데스크톱 Ctrl+클릭 시 시스템 탐색기(openPath) 창을 병행 지원하며 📁 인라인 아이콘 뱃지 및 가이드 툴팁 탑재
 // 🚨 @PATCH : **2026-09-26** — [Alert 인용구 박스 상하 여백 대칭 적용(my-4)]: onrivi-alert-box에 my-4(상하 16px)를 추가하여 [예시] 단락 위·아래 여백과 callout 박스 아래 여백이 동일하게 맞춰져 일체감 있게 렌더링되도록 수정
 // 🚨 @PATCH : **2026-09-26** — [인용문(blockquote) 내부 리스트(글머리/숫자/체크박스) 들여쓰기 및 선행 공백 인용구 정규화 완전 해결]: 에디터에서 인용구 줄에 탭을 눌러 줄 시작에 공백이 붙은 경우("    > - 홍시") > 마커를 선두로 재배치하여 CommonMark가 하위 중첩 리스트로 100% 인식하도록 cleanContent 정규화 엔진을 신설하고, getIndentStyle에서 > 전/후 공백(outerIndent + innerIndent)을 모두 합산 추출하며, rehypeSourceLinesPlugin에서 listDepth를 추적하여 평탄화된 항목에는 물리 마진을, 중첩 항목(depth>=2)에는 CSS 패딩(1.5em)과 원형 불릿(circle)을 계층별로 완벽 적용
 // 🚨 @PATCH : **2026-09-26** — [중첩 이중 코드블록(Nested Codeblock) 파싱 및 문장 내 백틱 분할 결함 완전 해결]: cleanContent의 단순 정규식(split /(```[\s\S]*?```)/g)을 CommonMark 규격 기반 줄 단위 코드블록 분할 및 중첩 감지 엔진(partitionAndNormalizeCodeBlocks)으로 전면 교체하여, 문장 중간의 백틱 3개((```))로 인한 코드블록 오탐과 조기 분할을 원천 차단하고 내부 중첩 코드블록(```python 등) 보유 시 외부 코드블록을 4개 백틱(````)으로 자동 승격 정규화하여 뒷부분 본문(수평선, 표 등)이 거대 코드블록으로 삼켜지던 파싱 붕괴 버그 완벽 박멸
@@ -1605,11 +1605,12 @@ function MarkdownViewer({
   onImageLoaded, activeLine, customCss
 }: MarkdownViewerProps) {
 
+  const { showToast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef(content);
   const originalContentRef = useRef(originalContent);
-  const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType });
-  dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType };
+  const dynamicPropsRef = useRef({ lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, showToast });
+  dynamicPropsRef.current = { lineMap, onCheckboxToggle, currentFilePath, rootFolderPath, onFileOpen, rootFolder, resourceFolderHandle, resourceFolder, workspaceType, showToast };
 
   const frontmatterCustomCss = useMemo(() => {
     if (!content) return '';
@@ -2711,48 +2712,73 @@ function MarkdownViewer({
                 return <a href={href} onClick={handleClick} {...props}>{children}</a>;
               }
 
-              const isKnowledgeLink = href && href.startsWith('knowledge://');
-              const isFileLink = href && (href.startsWith('file:///') || /^[a-zA-Z]:[/\\]/.test(href));
-              const isMdFile = href && (href.endsWith('.md') || href.endsWith('.markdown') || href.includes('.md#') || href.includes('.markdown#'));
-              const isFolderLink = href && !isWebLink && !isKnowledgeLink && !isFileLink && !isMdFile && (
-                href.startsWith('./') || href.startsWith('../') || href.startsWith('/') || href.endsWith('/') || !href.split(/[#?]/)[0].split(/[/\\]/).pop()?.includes('.')
+              let rawHref = (href || '').trim();
+              if (rawHref.startsWith('<') && rawHref.endsWith('>')) {
+                rawHref = rawHref.slice(1, -1).trim();
+              }
+              rawHref = rawHref.replace(/^[<"']|[>"']$/g, '').trim();
+              try { rawHref = decodeURIComponent(rawHref); } catch {}
+
+              const isKnowledgeLink = rawHref && rawHref.startsWith('knowledge://');
+              const isFileLink = rawHref && (rawHref.startsWith('file:///') || /^[a-zA-Z]:[/\\]/.test(rawHref));
+              const isMdFile = rawHref && (rawHref.endsWith('.md') || rawHref.endsWith('.markdown') || rawHref.includes('.md#') || rawHref.includes('.markdown#'));
+              const isFolderLink = rawHref && !isWebLink && !isKnowledgeLink && !isFileLink && !isMdFile && (
+                rawHref.startsWith('./') || rawHref.startsWith('../') || rawHref.startsWith('/') || rawHref.endsWith('/') || !rawHref.split(/[#?]/)[0].split(/[/\\]/).pop()?.includes('.')
               );
 
-              if (href && !isWebLink && isFolderLink) {
+              if (rawHref && !isWebLink && isFolderLink) {
+                const cleanHref = rawHref.split('#')[0].replace(/^[<"']|[>"']$/g, '').trim();
+
+                let resolved = cleanHref;
+                if (cleanHref.startsWith('file:///')) {
+                  resolved = decodeURIComponent(cleanHref.replace(/^file:\/\/\//, ''));
+                } else {
+                  resolved = resolveRelativeImagePath(cleanHref, dynamicPropsRef.current.currentFilePath);
+                }
+
+                const folderName = cleanHref.replace(/\/+$/, '').split(/[/\\]/).filter(Boolean).pop() || '폴더';
+                const electronApi = typeof window !== 'undefined' ? ((window as any).electronAPI || (window as any).api) : null;
+
                 const handleFolderClick = (e: React.MouseEvent) => {
                   e.preventDefault();
-                  let unbracketed = (href || '').trim();
-                  if (unbracketed.startsWith('<') && unbracketed.endsWith('>')) {
-                    unbracketed = unbracketed.slice(1, -1).trim();
-                  }
-                  unbracketed = unbracketed.replace(/^[<"']|[>"']$/g, '').trim();
-                  try { unbracketed = decodeURIComponent(unbracketed); } catch {}
-                  const cleanHref = unbracketed.split('#')[0].replace(/^[<"']|[>"']$/g, '').trim();
+                  e.stopPropagation();
 
-                  let resolved = cleanHref;
-                  if (cleanHref.startsWith('file:///')) {
-                    resolved = decodeURIComponent(cleanHref.replace(/^file:\/\/\//, ''));
-                  } else {
-                    resolved = resolveRelativeImagePath(cleanHref, dynamicPropsRef.current.currentFilePath);
-                  }
+                  const isCmdOrCtrl = e.ctrlKey || e.metaKey;
 
-                  const folderName = cleanHref.replace(/\/+$/, '').split(/[/\\]/).filter(Boolean).pop() || '폴더';
-
-                  const electronApi = typeof window !== 'undefined' ? ((window as any).electronAPI || (window as any).api) : null;
-                  if (electronApi?.openPath) {
+                  // 🌟 데스크톱 환경에서 Ctrl+클릭 시: OS 시스템 탐색기(Windows 폴더 창) 열기
+                  if (isCmdOrCtrl && electronApi?.openPath) {
                     try {
                       electronApi.openPath(resolved);
+                      dynamicPropsRef.current.showToast?.(`'📁 ${folderName}' 시스템 폴더 창을 열었습니다.`, 'info');
                       return;
                     } catch {}
                   }
 
+                  // 🌟 기본 클릭 (웹 & 데스크톱 모두 온리비 표준 권장 방식):
+                  // 앱 내부 좌측 탐색기(LeftSidebar)에서 해당 폴더를 자동으로 펼치고 부드럽게 스크롤 & 코발트 펄스 하이라이트
                   if (typeof window !== 'undefined') {
                     window.dispatchEvent(new CustomEvent('app:focus-tree-folder', {
                       detail: { folderPath: resolved, folderName }
                     }));
                   }
                 };
-                return <a href={href} onClick={handleFolderClick} {...props}>{children}</a>;
+
+                const folderTitle = electronApi?.openPath
+                  ? `📁 탐색기에서 '${folderName}' 열기 (Ctrl+클릭 시 시스템 폴더 열기)`
+                  : `📁 탐색기에서 '${folderName}' 열기`;
+
+                return (
+                  <a 
+                    href={href} 
+                    onClick={handleFolderClick} 
+                    title={folderTitle}
+                    className="onrivi-folder-link inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold hover:underline hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                    {...props}
+                  >
+                    <span className="opacity-75 text-[0.9em] select-none">📁</span>
+                    {children}
+                  </a>
+                );
               }
 
               if (href && !isWebLink && (isMdFile || isKnowledgeLink || isFileLink)) {
