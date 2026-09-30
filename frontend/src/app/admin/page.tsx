@@ -27,6 +27,7 @@ import InquiriesTab from './components/InquiriesTab';
 import FaqsTab from './components/FaqsTab';
 import PromotionsTab from './components/PromotionsTab';
 import BlogTab from './components/BlogTab';
+import SubscriptionsTab from './components/SubscriptionsTab';
 
 function AdminPageContent() {
   const searchParams = useSearchParams();
@@ -63,8 +64,8 @@ export default function AdminPage() {
 function DashboardTab() {
   const stats = [
     { title: '총 가입자', value: '1,248', change: '+12%', icon: Users, color: 'text-[#4D73FF]', bg: 'bg-[#4D73FF]/15' },
-    { title: '활성 구독(MRR)', value: '₩4,250,000', change: '+8.2%', icon: TrendingUp, color: 'text-[#1d4ed8]', bg: 'bg-[#1d4ed8]/15' },
-    { title: '오늘의 신규 결제', value: '24건', change: '+4건', icon: CreditCard, color: 'text-[#1d4ed8]', bg: 'bg-[#1d4ed8]/15' },
+    { title: '활성 구독(MRR)', value: '준비 중', change: '결제 연동 필요', icon: TrendingUp, color: 'text-[#1d4ed8]', bg: 'bg-[#1d4ed8]/15' },
+    { title: '오늘의 신규 결제', value: '준비 중', change: '결제 연동 필요', icon: CreditCard, color: 'text-[#1d4ed8]', bg: 'bg-[#1d4ed8]/15' },
     { title: '동시 접속 세션', value: '342', change: '안정적', icon: Activity, color: 'text-[#4D73FF]', bg: 'bg-[#4D73FF]/15' },
   ];
 
@@ -133,6 +134,7 @@ function DashboardTab() {
 }
 
 function UsersTab() {
+  const requestedUserId = useSearchParams().get('userId');
   const [resettingEmail, setResettingEmail] = useState<string | null>(null);
   const [userType, setUserType] = useState<'general' | 'admin'>('general');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -172,11 +174,12 @@ function UsersTab() {
     const fetchUsers = async () => {
       setLoading(true);
       try {
-        const res = await adminFetch(`/api/admin/users?type=${userType}&page=${page}&limit=10&status=${filterStatus}&plan=${filterPlan}`);
+        const res = await adminFetch(`/api/admin/users?type=${userType}&page=${page}&limit=10&status=${filterStatus}&plan=${filterPlan}${requestedUserId ? `&userId=${encodeURIComponent(requestedUserId)}` : ''}`);
         const json = await res.json();
         if (json.success) {
           setUsers(json.data);
           setTotal(json.total);
+          if (requestedUserId && json.data.length) setDetailTarget(json.data[0]);
         } else {
           showToast('데이터를 불러오지 못했습니다.', 'error');
         }
@@ -187,7 +190,7 @@ function UsersTab() {
       }
     };
     fetchUsers();
-  }, [userType, page, filterStatus, filterPlan, refreshKey]);
+  }, [userType, page, filterStatus, filterPlan, refreshKey, requestedUserId]);
 
   const handleResetOTP = (email: string) => {
     setResettingEmail(email);
@@ -778,25 +781,6 @@ function UsersTab() {
     </div>
   );
 }
-
-function SubscriptionsTab() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center animate-in zoom-in-95 duration-500">
-      <div className="w-20 h-20 bg-blue-50 text-[#1d4ed8] rounded-2xl flex items-center justify-center mb-6 border border-blue-100">
-        <CreditCard className="w-10 h-10" />
-      </div>
-      <h2 className="text-[32px] font-bold font-montserrat text-[var(--admin-text)] mb-2">구독 및 라이선스 관리</h2>
-      <p className="text-[var(--admin-text-muted)] max-w-md mx-auto mb-8">
-        결제 내역, 요금제 변경 이력, 그리고 발급된 라이선스 키 현황을 한눈에 관리할 수 있는 페이지가 곧 제공됩니다.
-      </p>
-      <span className="admin-chip-emerald inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold">준비 중</span>
-    </div>
-  );
-}
-
-
-
-
 
 function FutureFeatureTab({ title, features }: { title: string, features: string[] }) {
   return (

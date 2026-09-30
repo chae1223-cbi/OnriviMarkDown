@@ -1,5 +1,6 @@
 // 🚨 @PATCH : 2026-09-28 — 사용자별 요금제 변경 화면에 현재 주기와 관리자 수동 무료/유료 구분을 제공
 import { corsHeaders, jsonResponse, handleOptions, getSupabaseConfig, executeDeleteActivations, insertAuditLog } from './_shared.js';
+import { withBlogTransaction } from '../blog/_db.js';
 
 export const onRequestOptions = handleOptions;
 
@@ -12,6 +13,7 @@ export async function onRequestGet(context) {
     const type = url.searchParams.get('type') || 'general'; // 'general' or 'admin'
     const filterStatus = url.searchParams.get('status') || 'ALL';
     const filterPlan = url.searchParams.get('plan') || 'ALL';
+    const requestedUserId = url.searchParams.get('userId');
 
     const { supabaseUrl, headers } = getSupabaseConfig(env);
 
@@ -119,6 +121,8 @@ export async function onRequestGet(context) {
         };
       });
 
+      if (requestedUserId) formattedData = formattedData.filter(u => u.id === requestedUserId);
+
       if (filterStatus !== 'ALL') {
         formattedData = formattedData.filter(u => u.status === filterStatus);
       }
@@ -212,25 +216,34 @@ export async function onRequestPatch(context) {
 
     if (action === 'kill_single_session') {
       const deviceId = body.deviceId;
-      if (!deviceId) throw new Error('Missing deviceId for kill_single_session');
-      
-      await executeDeleteActivations(env, null, null, deviceId);
-      await insertAuditLog(env, userId, adminId, 'KILL_SESSION', null);
-
-      return jsonResponse({ success: true, message: `Session ${deviceId} terminated.` });
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuid.test(userId) || !uuid.test(deviceId || '')) return jsonResponse({ success: false, error: 'Invalid user or device ID' }, 400);
+      const result = await withBlogTransaction(env, async db => {
+        const found = await db.query(`SELECT a.id FROM public.license_activations a JOIN public.subscriptions s ON s.id = a.subscription_id
+          WHERE a.id = $1 AND s.user_id = $2 FOR UPDATE OF a`, [deviceId, userId]);
+        if (!found.rows.length) return { found: false, changed: 0 };
+        const changed = await db.query(`UPDATE public.license_activations SET is_active = false, deactivated_at = now(), updated_at = now(), updated_by = $1
+          WHERE id = $2 AND is_active = true RETURNING id`, [adminId, deviceId]);
+        if (changed.rows.length) await db.query(`INSERT INTO public.user_audit_logs (target_user_id, admin_id, action_type, reason)
+          VALUES ($1, $2, 'KILL_SESSION', $3)`, [userId, adminId, `device=${deviceId}; 사용자 상세에서 기기 해제`]);
+        return { found: true, changed: changed.rows.length };
+      });
+      return result.found ? jsonResponse({ success: true, changed: result.changed }) : jsonResponse({ success: false, error: 'Device not found for user' }, 404);
     }
 
     if (action === 'kill_session') {
-      const subsRes = await fetch(`${supabaseUrl}/rest/v1/subscriptions?user_id=eq.${userId}&select=id`, { headers });
-      let subIds = [];
-      if (subsRes.ok) {
-        const subs = await subsRes.json();
-        subIds = subs.map(s => s.id);
-      }
-      await executeDeleteActivations(env, subIds, [userId], null);
-      await insertAuditLog(env, userId, adminId, 'KILL_SESSION', null);
-
-      return jsonResponse({ success: true, message: `User ${userId} sessions terminated.` });
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuid.test(userId)) return jsonResponse({ success: false, error: 'Invalid user ID' }, 400);
+      const result = await withBlogTransaction(env, async db => {
+        const found = await db.query('SELECT id FROM public.users WHERE id = $1 FOR UPDATE', [userId]);
+        if (!found.rows.length) return { found: false, changed: 0 };
+        const changed = await db.query(`UPDATE public.license_activations a SET is_active = false, deactivated_at = now(), updated_at = now(), updated_by = $1
+          FROM public.subscriptions s WHERE a.subscription_id = s.id AND s.user_id = $2 AND a.is_active = true RETURNING a.id`, [adminId, userId]);
+        if (changed.rows.length) await db.query(`INSERT INTO public.user_audit_logs (target_user_id, admin_id, action_type, reason)
+          VALUES ($1, $2, 'KILL_SESSION', $3)`, [userId, adminId, `count=${changed.rows.length}; 사용자 상세에서 전체 기기 해제`]);
+        return { found: true, changed: changed.rows.length };
+      });
+      return result.found ? jsonResponse({ success: true, changed: result.changed }) : jsonResponse({ success: false, error: 'User not found' }, 404);
     }
 
     if (action === 'unban') {

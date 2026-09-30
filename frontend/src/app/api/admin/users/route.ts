@@ -33,6 +33,7 @@ export async function GET(req: Request) {
 
     const filterStatus = searchParams.get('status') || 'ALL';
     const filterPlan = searchParams.get('plan') || 'ALL';
+    const requestedUserId = searchParams.get('userId');
 
     if (type === 'general') {
       // 1. Fetch all users and subscriptions (or with a large limit) to apply complex relational filtering in-memory
@@ -153,6 +154,8 @@ export async function GET(req: Request) {
         };
       });
 
+      if (requestedUserId) formattedData = formattedData.filter((u: any) => u.id === requestedUserId);
+
       // Apply Filters
       if (filterStatus !== 'ALL') {
         formattedData = formattedData.filter((u: any) => u.status === filterStatus);
@@ -251,32 +254,38 @@ export async function PATCH(req: Request) {
 
     if (action === 'kill_single_session') {
       const deviceId = body.deviceId;
-      if (!deviceId) throw new Error('Missing deviceId for kill_single_session');
-      
-      await sql`DELETE FROM license_activations WHERE id = ${deviceId}`;
-      
-      await sql`
-        INSERT INTO user_audit_logs (target_user_id, admin_id, action_type)
-        VALUES (${userId}, ${adminId || null}, 'KILL_SESSION')
-      `;
-
-      return NextResponse.json({ success: true, message: `Session ${deviceId} terminated.` });
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuid.test(userId) || !uuid.test(deviceId || '')) return NextResponse.json({ success: false, error: 'Invalid user or device ID' }, { status: 400 });
+      const result = await sql.begin(async tx => {
+        const found = await tx`SELECT a.id FROM public.license_activations a
+          JOIN public.subscriptions s ON s.id = a.subscription_id
+          WHERE a.id = ${deviceId}::uuid AND s.user_id = ${userId}::uuid FOR UPDATE OF a`;
+        if (!found.length) return { found: false, changed: 0 };
+        const changed = await tx`UPDATE public.license_activations SET is_active = false, deactivated_at = now(), updated_at = now(), updated_by = ${adminId}::uuid
+          WHERE id = ${deviceId}::uuid AND is_active = true RETURNING id`;
+        if (changed.length) await tx`INSERT INTO public.user_audit_logs (target_user_id, admin_id, action_type, reason)
+          VALUES (${userId}::uuid, ${adminId}::uuid, 'KILL_SESSION', ${`device=${deviceId}; 사용자 상세에서 기기 해제`})`;
+        return { found: true, changed: changed.length };
+      });
+      if (!result.found) return NextResponse.json({ success: false, error: 'Device not found for user' }, { status: 404 });
+      return NextResponse.json({ success: true, changed: result.changed });
     }
 
     if (action === 'kill_session') {
-      // 1. Delete all device activations (forcing logouts in the app logic)
-      await sql`DELETE FROM license_activations WHERE subscription_id IN (SELECT id FROM subscriptions WHERE user_id = ${userId}) OR created_by = ${userId}`;
-      
-      // 2. We can also reset their ban_duration briefly if we just want to force token refresh, 
-      // but deleting license_activations is enough to force them out in Onrivi architecture.
-
-      // 3. Audit Log
-      await sql`
-        INSERT INTO user_audit_logs (target_user_id, admin_id, action_type)
-        VALUES (${userId}, ${adminId || null}, 'KILL_SESSION')
-      `;
-
-      return NextResponse.json({ success: true, message: `User ${userId} sessions terminated.` });
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuid.test(userId)) return NextResponse.json({ success: false, error: 'Invalid user ID' }, { status: 400 });
+      const result = await sql.begin(async tx => {
+        const found = await tx`SELECT id FROM public.users WHERE id = ${userId}::uuid FOR UPDATE`;
+        if (!found.length) return { found: false, changed: 0 };
+        const changed = await tx`UPDATE public.license_activations a
+          SET is_active = false, deactivated_at = now(), updated_at = now(), updated_by = ${adminId}::uuid
+          FROM public.subscriptions s WHERE a.subscription_id = s.id AND s.user_id = ${userId}::uuid AND a.is_active = true RETURNING a.id`;
+        if (changed.length) await tx`INSERT INTO public.user_audit_logs (target_user_id, admin_id, action_type, reason)
+          VALUES (${userId}::uuid, ${adminId}::uuid, 'KILL_SESSION', ${`count=${changed.length}; 사용자 상세에서 전체 기기 해제`})`;
+        return { found: true, changed: changed.length };
+      });
+      if (!result.found) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+      return NextResponse.json({ success: true, changed: result.changed });
     }
 
     if (action === 'unban') {
