@@ -2,9 +2,9 @@
 // 📊 [OMD-UI-PreviewToolbar-0001] PreviewToolbar ➔ PreviewToolbar
 // 🎯 @KICK  : 미리보기(Preview) 전용 컨트롤러 — 텍스트 찾기, 배율 확대/축소(50%~200%), 100% 리셋 및 내용 복사 지원
 // 🛡️ @GUARD : 인쇄 시 no-print로 자동 숨김 처리, 문서 가독성을 해치지 않도록 미세 투명도 및 호버 시 완전 노출
-// 🚨 @PATCH : **2026-09-30** — [미리보기 전용 컨트롤 툴바 신규 개발]:
-//             1. 🔍 찾기 (Ctrl+Shift+F)
-//             2. ➖ 축소 (Ctrl+-), 🏷️ 배율 리셋 (Ctrl+0), ➕ 확대 (Ctrl+=)
+// 🚨 @PATCH : **2026-09-30** — [미리보기 전용 컨트롤 툴바 단축키 툴팁 최신화 및 충돌 방지]:
+//             1. 🔍 찾기: Ctrl+Alt+F (전역 직접 토글) / 미리보기 포커스 시 Ctrl+F
+//             2. ➖ 축소: Ctrl+- (Ctrl+Wheel), 🏷️ 배율 리셋: Ctrl+0, ➕ 확대: Ctrl+= (Ctrl+Wheel)
 //             3. 📋 클립보드 복사 원클릭 버튼 연동
 // 🔗 @CALLS : ZoomIn, ZoomOut, RotateCcw, Search, Copy, Check
 // ====================================================================
@@ -54,7 +54,7 @@ export function PreviewToolbar({
       <button
         type="button"
         onClick={onToggleFind}
-        title="미리보기에서 찾기 (단축키: Ctrl + Shift + F)"
+        title="미리보기에서 찾기 (단축키: Ctrl+Alt+F / 미리보기 포커스 시 Ctrl+F)"
         className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-all ${
           isFindOpen
             ? "bg-blue-600 text-white font-semibold shadow-xs"
@@ -72,7 +72,7 @@ export function PreviewToolbar({
         type="button"
         onClick={onZoomOut}
         disabled={zoomScale <= 0.5}
-        title="미리보기 축소 (단축키: Ctrl + -)"
+        title="미리보기 축소 (Ctrl + - / 미리보기 위 Ctrl + Wheel)"
         className="p-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none transition-colors"
       >
         <ZoomOut className="w-3.5 h-3.5" />
@@ -82,7 +82,7 @@ export function PreviewToolbar({
       <button
         type="button"
         onClick={onZoomReset}
-        title="원래 크기(100%)로 복귀 (단축키: Ctrl + 0)"
+        title="원래 크기(100%)로 복귀 (Ctrl + 0)"
         className="px-1.5 py-0.5 rounded-md text-[11px] font-mono font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
       >
         {percentage}%
@@ -93,7 +93,7 @@ export function PreviewToolbar({
         type="button"
         onClick={onZoomIn}
         disabled={zoomScale >= 2.0}
-        title="미리보기 확대 (단축키: Ctrl + =)"
+        title="미리보기 확대 (Ctrl + = / 미리보기 위 Ctrl + Wheel)"
         className="p-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none transition-colors"
       >
         <ZoomIn className="w-3.5 h-3.5" />

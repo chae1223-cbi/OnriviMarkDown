@@ -4,7 +4,10 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
-// 🚨 @PATCH : **2026-09-30** — [미리보기 전용 확대·축소(50%~200%), 100% 리셋, 텍스트 찾기 및 단축키 시스템 탑재]: PreviewToolbar 및 PreviewFindWidget 연동, Ctrl+=/Ctrl+-/Ctrl+0 줌 제어, Ctrl+Shift+F 및 미리보기 호버 시 Ctrl+F 찾기 단축키, Ctrl+Wheel 마우스 휠 줌 연동
+// 🚨 @PATCH : **2026-09-30** — [에디터 vs 미리보기 단축키 및 제어 충돌 완벽 격리·스마트 라우팅]:
+//             1. 찾기(Find): 에디터 포커스 시 에디터 찾기(Ctrl+F) 및 바꾸기(Ctrl+H), 전체 검색(Ctrl+Shift+F) 100% 보존. 미리보기 전용 찾기는 Ctrl+Alt+F 및 비포커스 시 Ctrl+F로 완벽 격리.
+//             2. 확대·축소(Zoom): 에디터 포커스 시 에디터 폰트 크기(12~32px, 16px 리셋), 비포커스 시 미리보기 배율(50%~200%, 100% 리셋). Ctrl+Alt+=/-/0으로 미리보기 직접 제어 지원.
+//             3. 휠 줌(Wheel): 에디터 mouseWheelZoom 활성화, 미리보기 위에서는 previewZoomScale 연동으로 호버 영역 기반 직관적 줌 분기.
 // 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
 // 🚨 @PATCH : **2026-09-26** — [에디터 이중 중첩 코드블록 배경 데코레이션 끊김 결함 완벽 해결]: updateDecorations의 단순 startsWith('```') 토글을 getCodeBlockLineMask 정밀 마스크로 전환하여 이중 코드블록 내부(```python, def, print 등) 전체 라인에 monaco-codeblock-line 데코레이션이 100% 매끄럽게 연결되도록 개선
 // 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 렌더링 누락 및 스타일·색상 상속 결함 해결]: tableStructure.colBorderWidth/rowBorderWidth/outerBorderWidth가 0보다 클 때 th/td의 border-left/right/top/bottom에 width뿐 아니라 border-style 및 border-color를 !important로 명시 주입하여 세로선(열 구분선)이 화면에 100% 렌더링되도록 개선
@@ -3639,6 +3642,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       // 2. 에디터 옵션(폰트 크기, 글꼴 굵기, 줄 바꿈, 읽기 전용 여부) 강제 동기화
       editorRef.current.updateOptions({
         fontSize: fontSize || 16,
+        mouseWheelZoom: true,
         lineHeight: 28, // 16px 기준 1.75 비율
         fontWeight: editorFontWeight === 'bold' ? '700' : editorFontWeight === 'semibold' ? '600' : editorFontWeight === 'medium' ? '500' : '400',
         fontFamily: "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif",
@@ -7261,53 +7265,103 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
       if (handledGlobal) return;
 
-      // 🔍 미리보기(Preview) 전용 확대, 축소, 100% 리셋, 텍스트 찾기 단축키 인터셉터
+      // 💡 에디터 텍스트 포커스 여부 판별
+      const editorHasFocus = Boolean(editorRef.current && editorRef.current.hasTextFocus());
+
+      // 🔍 [미리보기 vs 에디터 단축키 격리 라우터]
+      // 1. 미리보기 텍스트 찾기 전용 직접 단축키 (Ctrl + Alt + F)
+      //    - 에디터 포커스 여부와 무관하게 100% 미리보기 찾기 위젯 토글 (GlobalSearch Ctrl+Shift+F 및 에디터 Ctrl+F와 완전 분리)
       if (previewModeRef.current !== 'edit') {
-        // 1. Ctrl + Shift + F: 미리보기 텍스트 찾기 토글
-        if (isCtrl && isShift && (e.key === 'F' || e.key === 'f' || e.code === 'KeyF')) {
+        if (isCtrl && isAlt && !isShift && (e.key === 'F' || e.key === 'f' || e.code === 'KeyF')) {
           e.preventDefault();
           e.stopPropagation();
           setIsPreviewFindOpen(prev => !prev);
           return;
         }
 
-        // 2. Ctrl + F: 미리보기 전용 모드이거나 마우스가 미리보기 위에 있을 때
-        if (isCtrl && !isShift && !isAlt && (e.key === 'F' || e.key === 'f' || e.code === 'KeyF')) {
-          if (previewModeRef.current === 'preview' || isPreviewHovered.current || isPreviewFindOpenRef.current) {
+        // 2. 미리보기 직접 확대/축소/100% 리셋 (Ctrl + Alt + = / - / 0)
+        //    - 에디터를 편집 중인 상태에서도 키보드로 미리보기를 직접 줌 조절 가능
+        if (isCtrl && isAlt && !isShift) {
+          if (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd') {
+            e.preventDefault();
+            e.stopPropagation();
+            setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
+            return;
+          }
+          if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+            e.preventDefault();
+            e.stopPropagation();
+            setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10));
+            return;
+          }
+          if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') {
+            e.preventDefault();
+            e.stopPropagation();
+            setPreviewZoomScale(1.0);
+            return;
+          }
+        }
+
+        // 3. 에디터에 포커스가 없을 때 (미리보기 화면을 보고 있거나 클릭했을 때, 또는 미리보기 전용 모드)
+        if (!editorHasFocus || previewModeRef.current === 'preview' || isPreviewFindOpenRef.current) {
+          // (1) Ctrl + F: 미리보기 찾기 위젯 오픈
+          if (isCtrl && !isShift && !isAlt && (e.key === 'F' || e.key === 'f' || e.code === 'KeyF')) {
             e.preventDefault();
             e.stopPropagation();
             setIsPreviewFindOpen(true);
             return;
           }
-        }
 
-        // 3. Ctrl + = 또는 Ctrl + +: 미리보기 확대 (+10%)
-        if (isCtrl && (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd')) {
-          e.preventDefault();
-          e.stopPropagation();
-          setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
-          return;
-        }
+          // (2) Ctrl + = 또는 Ctrl + +: 미리보기 확대 (+10%)
+          if (isCtrl && !isShift && !isAlt && (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd')) {
+            e.preventDefault();
+            e.stopPropagation();
+            setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
+            return;
+          }
 
-        // 4. Ctrl + -: 미리보기 축소 (-10%)
-        if (isCtrl && (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
-          e.preventDefault();
-          e.stopPropagation();
-          setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10));
-          return;
-        }
+          // (3) Ctrl + -: 미리보기 축소 (-10%)
+          if (isCtrl && !isShift && !isAlt && (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
+            e.preventDefault();
+            e.stopPropagation();
+            setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10));
+            return;
+          }
 
-        // 5. Ctrl + 0: 미리보기 배율 100% 리셋
-        if (isCtrl && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
-          e.preventDefault();
-          e.stopPropagation();
-          setPreviewZoomScale(1.0);
-          return;
+          // (4) Ctrl + 0: 미리보기 배율 100% 리셋
+          if (isCtrl && !isShift && !isAlt && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
+            e.preventDefault();
+            e.stopPropagation();
+            setPreviewZoomScale(1.0);
+            return;
+          }
         }
       }
 
       // 에디터 포커스가 활성화되어 있을 때만 에디터 단축키 인터셉터 작동
-      if (!editorRef.current || !editorRef.current.hasTextFocus()) return;
+      // 4. 에디터 포커스가 활성화되어 있을 때의 Ctrl + = / Ctrl + - / Ctrl + 0 (에디터 글자 크기 조절)
+      if (editorHasFocus && isCtrl && !isShift && !isAlt) {
+        if (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd') {
+          e.preventDefault();
+          e.stopPropagation();
+          setFontSize(prev => Math.min(prev + 2, 32));
+          return;
+        }
+        if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+          e.preventDefault();
+          e.stopPropagation();
+          setFontSize(prev => Math.max(prev - 2, 12));
+          return;
+        }
+        if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') {
+          e.preventDefault();
+          e.stopPropagation();
+          setFontSize(16);
+          return;
+        }
+      }
+
+      if (!editorHasFocus) return;
 
       let key = e.key.toUpperCase();
 
