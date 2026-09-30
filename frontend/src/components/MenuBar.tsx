@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-09-30** — [내보내기 서브메뉴 Word(.docx) 및 한글(.hwpx) 항목 추가]: 파일 > 내보내기 메뉴에 Word 문서(.docx) 및 한글 문서(.hwpx) 사출 액션 등록
 // 🚨 @PATCH : **2026-09-30** — [미리보기 모드 시 문서 병합 및 각주 정리 비활성화]: previewMode가 'preview'일 때 도구 메뉴의 '문서 병합' 및 '각주 정리' 버튼을 disabled 처리하고 비활성화 툴팁 및 클릭 가드 적용
 // 🚨 @PATCH : **2026-09-28** — 제한사용자 메뉴에서 읽기·이동·설정 명령만 활성화하고 저장·편집·변환·병합 명령 비활성화
 //             **2026-09-28** — 에디터의 블로그 게시 버튼과 파일 메뉴 항목 제거
@@ -42,6 +43,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     saveFileAs: "다른 이름으로 저장",
     export: "내보내기",
     print: "인쇄/PDF",
+    docx: "Word 문서 (.docx)",
+    hwpx: "한글 문서 (.hwpx)",
     html: "HTML 파일 (.html)",
     epub: "EPUB 전자책 (.epub)",
     png: "PNG 이미지 (.png)",
@@ -82,6 +85,8 @@ const localTranslations: Record<string, Record<string, string>> = {
     saveFileAs: "Save File As",
     export: "Export",
     print: "Print/PDF",
+    docx: "Word Document (.docx)",
+    hwpx: "Hangul Document (.hwpx)",
     html: "HTML File (.html)",
     epub: "EPUB E-book (.epub)",
     png: "PNG Image (.png)",
@@ -248,8 +253,10 @@ export default function MenuBar() {
       disabled: isRestrictedUser || previewMode !== 'preview',
       subItems: [
         { label: t('print'), icon: <Icon name="Print" size={14} />, onClick: () => dispatch('PRINT') },
-        { label: t('html'), icon: <Icon name="FileCode" size={14} />, onClick: () => dispatch('EXPORT_HTML') },
+        { label: t('docx'), icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_DOCX') },
+        { label: t('hwpx'), icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_HWPX') },
         { divider: true },
+        { label: t('html'), icon: <Icon name="FileCode" size={14} />, onClick: () => dispatch('EXPORT_HTML') },
         { label: t('epub'), icon: <Icon name="Book" size={14} />, onClick: () => dispatch('EXPORT_EPUB') },
         { label: t('png'), icon: <Icon name="Image" size={14} />, onClick: () => dispatch('EXPORT_PNG') },
       ]

@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 명령 연동]: EditorCommandType 및 executeCommand에 EXPORT_DOCX, EXPORT_HWPX 액션 등록 및 핸들러 연결
 // 🚨 @PATCH : **2026-09-30** — [단축키 리스너 useEffect 의존성 최적화]: handleGlobalKeyDown 내부에서 사용되는 setFontSize를 의존성 배열에 명시하여 ESLint missing dependency 경고 완전 소거
 // 🚨 @PATCH : **2026-09-30** — [문서 연결(DocLinkPicker) 폴더 수집 원복 & 탐색기 폴더 연결 커서 위치 즉시 기입 연동]: 웹/데스크톱 공통으로 문서 연결(DocLinkPicker) 및 [[ 자동완성에서는 폴더 노드를 제외하여 순수 마크다운 문서 연결로 원복하고, 탐색기 폴더 우클릭 '폴더 연결' 클릭 시 app:insert-folder-link 이벤트를 수신하여 현재 열린 문서의 에디터 커서 위치에 [폴더명](<./상대경로/>)을 원자적으로 즉시 삽입
 // 🚨 @PATCH : **2026-09-30** — [미리보기 모드 시 문서 병합(MERGE) 및 각주 정리(ORGANIZE_FOOTNOTES) 실행 차단 방어]: previewMode가 'preview'일 때 명령 실행을 차단하고 경고 토스트 안내
@@ -314,7 +315,7 @@ import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder } fr
 
 export type EditorCommandType =
   | 'NEW_FILE' | 'OPEN_FILE' | 'SAVE' | 'SAVE_AS' | 'OPEN_WORKSPACE'                   //① 파일 시스템 및 입출력 제어 (OS I/O Message)
-  | 'PRINT' | 'EXPORT_HTML' | 'EXPORT_EPUB' | 'EXPORT_PNG' | 'EXIT'                    //② 출력(Export) 및 종료  
+  | 'PRINT' | 'EXPORT_HTML' | 'EXPORT_EPUB' | 'EXPORT_PNG' | 'EXPORT_DOCX' | 'EXPORT_HWPX' | 'EXIT'                    //② 출력(Export) 및 종료  
   | 'UNDO' | 'REDO' | 'FIND' | 'REPLACE' | 'ZOOM_IN' | 'ZOOM_OUT'                      //③ 편집 및 보기 제어
   | 'GLOBAL_SEARCH' | 'TOGGLE_HELP' | 'ERASER' | 'BOLD' | 'ITALIC'                       //④ 스타일 적용
   | 'STRIKETHROUGH' | 'INLINE_CODE' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5' | 'H6'                 //⑤ 스타일 적용
@@ -6645,6 +6646,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'EXPORT_HTML':
       case 'EXPORT_EPUB':
       case 'EXPORT_PNG':
+      case 'EXPORT_DOCX':
+      case 'EXPORT_HWPX':
       case 'OPEN_EXPORT': {
         // 🔒 [내보내기 방어 가드] 기능 제거됨
         if (previewMode !== 'preview') {
@@ -6655,6 +6658,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         else if (type === 'EXPORT_HTML') handlers.exportHTML();
         else if (type === 'EXPORT_EPUB') handlers.exportEPUB();
         else if (type === 'EXPORT_PNG') handlers.exportPNG();
+        else if (type === 'EXPORT_DOCX') handlers.exportDOCX();
+        else if (type === 'EXPORT_HWPX') handlers.exportHWPX();
         else if (type === 'OPEN_EXPORT') handlers.openExport();
         return;
       }

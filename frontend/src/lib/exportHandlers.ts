@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 파이프라인 신설]: 미리보기 DOM을 파싱하여 MS Word(Office Open XML) 및 한글(OWPML) 표준 문서로 변환 사출하는 exportDOCX, exportHWPX 함수 구현 및 데스크톱/브라우저 연동
 // 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 행/열 테두리 스타일·색상 내보내기 동기화]: generateExportCss 내 tableStructure 인젝션 시 th/td의 border-left/right/top/bottom에 width뿐 아니라 border-style 및 border-color를 !important로 주입하여 PDF/HTML/인쇄 내보내기 시 세로선 100% 반영
 // 🚨 @PATCH : **2026-09-26** — [코드블록 내부 행간 줄간격 콤팩트 규격화(1.35배) 내보내기 동기화]: generateExportCss에 codeblock-area line-height 및 min-height(1.35em)를 주입하여 출력/내보내기 시 행간 일치성 보장
 // 🚨 @PATCH : **2026-09-26** — [Alert 인용구 태그와 본문 간격 최소화 내보내기 동기화]: generateExportCss에 .onrivi-alert-title(margin-bottom 축소) 및 .onrivi-alert-content(첫 문단 margin-top 0) 주입
@@ -2401,3 +2402,99 @@ export async function exportPNG({
     showToast('PNG 내보내기 실패: ' + err.message, 'error');
   }
 }
+
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0014] exportHandlers.ts ➔ exportDOCX
+// 🎯 @KICK  : 미리보기 DOM을 MS Word(.docx) 문서로 변환하여 내보내기
+// 🛡️ @GUARD : Electron saveFileAs 및 브라우저 다운로드 분기 지원
+// 🚨 @PATCH : **2026-09-30** — MS Word (.docx) 내보내기 파이프라인 신설
+// 🔗 @CALLS : clonePreview, generateDocx, downloadBlob, saveToDownloads
+// ====================================================================
+export async function exportDOCX({ previewEl, currentFileName, showToast }: ExportOptions) {
+  try {
+    showToast('Word 문서 (.docx) 생성 중...', 'info');
+
+    const targetEl = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
+    const clone = clonePreview(targetEl);
+
+    const docTitle = currentFileName.replace(/\.[^/.]+$/, '') || 'document';
+    const filename = `${docTitle}.docx`;
+
+    const { generateDocx, downloadBlob } = await import('@/lib/docxGenerator');
+    const docxBlob = await generateDocx(clone, { title: docTitle });
+
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      const arrayBuffer = await docxBlob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      const dataUri = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${base64}`;
+      const result = await (window as any).electronAPI.saveFileAs(
+        dataUri,
+        filename,
+        '',
+        [{ name: 'Word Document', extensions: ['docx'] }]
+      );
+      if (result) {
+        showToast('Word 문서(.docx)가 성공적으로 저장되었습니다.', 'success');
+      } else {
+        showToast('내보내기가 취소되었습니다.', 'info');
+      }
+    } else {
+      downloadBlob(docxBlob, filename);
+      showToast('Word 문서(.docx) 내보내기가 완료되었습니다.', 'success');
+    }
+  } catch (err: any) {
+    msg.error('DOCX export error', err);
+    showToast('Word 내보내기 실패: ' + err.message, 'error');
+  }
+}
+
+// ====================================================================
+// 📊 [OMD-IO-exportHandlers-0015] exportHandlers.ts ➔ exportHWPX
+// 🎯 @KICK  : 미리보기 DOM을 한글 표준 OWPML(.hwpx) 문서로 변환하여 내보내기
+// 🛡️ @GUARD : Electron saveFileAs 및 브라우저 다운로드 분기 지원
+// 🚨 @PATCH : **2026-09-30** — 한글 문서 (.hwpx) 내보내기 파이프라인 신설
+// 🔗 @CALLS : clonePreview, generateHwpx, downloadBlob, saveToDownloads
+// ====================================================================
+export async function exportHWPX({ previewEl, currentFileName, showToast }: ExportOptions) {
+  try {
+    showToast('한글 문서 (.hwpx) 생성 중...', 'info');
+
+    const targetEl = (previewEl.querySelector('.markdown-viewer-root') as HTMLElement) || previewEl;
+    const clone = clonePreview(targetEl);
+
+    const docTitle = currentFileName.replace(/\.[^/.]+$/, '') || 'document';
+    const filename = `${docTitle}.hwpx`;
+
+    const { generateHwpx } = await import('@/lib/hwpxGenerator');
+    const { downloadBlob } = await import('@/lib/docxGenerator');
+    const hwpxBlob = await generateHwpx(clone, { title: docTitle });
+
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      const arrayBuffer = await hwpxBlob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      const dataUri = `data:application/hwp+zip;base64,${base64}`;
+      const result = await (window as any).electronAPI.saveFileAs(
+        dataUri,
+        filename,
+        '',
+        [{ name: '한글 문서', extensions: ['hwpx'] }]
+      );
+      if (result) {
+        showToast('한글 문서(.hwpx)가 성공적으로 저장되었습니다.', 'success');
+      } else {
+        showToast('내보내기가 취소되었습니다.', 'info');
+      }
+    } else {
+      downloadBlob(hwpxBlob, filename);
+      showToast('한글 문서(.hwpx) 내보내기가 완료되었습니다.', 'success');
+    }
+  } catch (err: any) {
+    msg.error('HWPX export error', err);
+    showToast('한글 내보내기 실패: ' + err.message, 'error');
+  }
+}
+
