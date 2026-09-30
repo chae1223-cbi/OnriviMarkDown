@@ -11,6 +11,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-09-30** — [미리보기 내부 텍스트 검색 하이라이트 스타일 추가]: CSS.highlights(::highlight) 및 .preview-find-match 고대비 시인성 스타일 탑재
  * 🚨 @PATCH : **2026-09-28** — [관리자 UI 디자인 시스템 통일]: DESIGN.md의 카드·버튼(Primary/Secondary/Danger)·입력·타이포그래피·상태 색상·모달 표면과 배경을 관리자 전용 범위에 적용
  * 🚨 @PATCH : **2026-09-26** — [인용구(blockquote) 내부 중첩 리스트 들여쓰기 여백 보장]: 인용구 내부 중첩 리스트(ul ul, ol ol)가 상위 blockquote ul 패딩(2.25rem)에 묶여 일렬 정렬되던 문제를 차단하고 계층별 padding-left(1.5rem)를 보장하여 들여쓰기 위계 복원
  * 🚨 @PATCH : **2026-09-25** — [영문 마크다운 태그 단어 쪼개짐 및 우측 잘림 방지]: .prose 및 .monaco-editor의 word-break: break-all을 word-break: normal 및 overflow-wrap: break-word로 수정하여 영문 단어 중간 분절 버그 원천 차단
@@ -2168,4 +2169,28 @@ input::-ms-clear {
 .onrivi-showcase-card-active {
   border-color: rgba(29, 78, 216, 0.8) !important;
   box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.25), 0 10px 28px -4px rgba(29, 78, 216, 0.18) !important;
+}
+
+/* 🔍 미리보기(Preview) 내부 텍스트 검색 하이라이트 스타일 */
+::highlight(preview-search) {
+  background-color: rgba(251, 191, 36, 0.45);
+  color: inherit;
+}
+
+::highlight(preview-search-active) {
+  background-color: rgba(245, 158, 11, 0.95);
+  color: #000000;
+  outline: 2px solid rgba(217, 119, 6, 0.9);
+}
+
+.preview-find-match {
+  background-color: rgba(251, 191, 36, 0.45);
+  border-radius: 2px;
+}
+
+.preview-find-match-active {
+  background-color: rgba(245, 158, 11, 0.95) !important;
+  color: #000000 !important;
+  outline: 2px solid rgba(217, 119, 6, 0.9);
+  border-radius: 2px;
 }

@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-09-30** — [미리보기 전용 확대·축소(50%~200%), 100% 리셋, 텍스트 찾기 및 단축키 시스템 탑재]: PreviewToolbar 및 PreviewFindWidget 연동, Ctrl+=/Ctrl+-/Ctrl+0 줌 제어, Ctrl+Shift+F 및 미리보기 호버 시 Ctrl+F 찾기 단축키, Ctrl+Wheel 마우스 휠 줌 연동
 // 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
 // 🚨 @PATCH : **2026-09-26** — [에디터 이중 중첩 코드블록 배경 데코레이션 끊김 결함 완벽 해결]: updateDecorations의 단순 startsWith('```') 토글을 getCodeBlockLineMask 정밀 마스크로 전환하여 이중 코드블록 내부(```python, def, print 등) 전체 라인에 monaco-codeblock-line 데코레이션이 100% 매끄럽게 연결되도록 개선
 // 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 렌더링 누락 및 스타일·색상 상속 결함 해결]: tableStructure.colBorderWidth/rowBorderWidth/outerBorderWidth가 0보다 클 때 th/td의 border-left/right/top/bottom에 width뿐 아니라 border-style 및 border-color를 !important로 명시 주입하여 세로선(열 구분선)이 화면에 100% 렌더링되도록 개선
@@ -283,6 +284,8 @@ import { extractFrontmatter, updateCssProfileInFrontmatter } from '@/lib/frontma
 import { KnowledgeHubView } from '@/components/knowledge/KnowledgeHubView';
 import { useSingleTabGuard } from '@/lib/singleTabGuard';
 import { saveExternalFileHandle } from '@/lib/storage/externalFileStore';
+import { PreviewToolbar } from '@/components/preview/PreviewToolbar';
+import { PreviewFindWidget } from '@/components/preview/PreviewFindWidget';
 import { fetchUserProfiles, persistUserProfiles, getEffectiveResourceFolder } from '@/lib/profileStorage';
 
 
@@ -722,6 +725,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return false;
   });
   const [previewZoomScale, setPreviewZoomScale] = useState<number>(1);
+  const [isPreviewFindOpen, setIsPreviewFindOpen] = useState<boolean>(false);
+  const isPreviewFindOpenRef = useRef(false);
+  useEffect(() => { isPreviewFindOpenRef.current = isPreviewFindOpen; }, [isPreviewFindOpen]);
+  const previewZoomScaleRef = useRef(1);
+  useEffect(() => { previewZoomScaleRef.current = previewZoomScale; }, [previewZoomScale]);
   const previewModeRef = useRef(previewMode);
   // 💡 서식설정(css-style)이나 도움말 진입 전의 일반 마크다운 모드를 격리 보관하여 복원하는 Ref
   const lastGeneralPreviewModeRef = useRef<'edit' | 'both' | 'preview'>('both');
@@ -3541,6 +3549,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 🔗 @CALLS : WheelEvent.preventDefault, editor.setScrollTop
   // ====================================================================
   const redirectSplitPreviewWheel = useCallback((event: WheelEvent) => {
+    // 💡 [Ctrl + Wheel]: 미리보기 화면 배율 확대/축소 (50% ~ 200%)
+    if (event.ctrlKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.deltaY < 0) {
+        setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
+      } else if (event.deltaY > 0) {
+        setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10));
+      }
+      return;
+    }
+
     if (previewModeRef.current !== 'both') return;
     event.preventDefault();
 
@@ -4833,6 +4853,73 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   const parseHtmlTableToMarkdown = (html: string) => {
     return utilsPasteHandlers.parseHtmlTableToMarkdown(html, showToast);
   };
+
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0063.1] MainEditorApp.tsx ➔ handleCopyPreviewContent
+  // 🎯 @KICK  : 미리보기 화면의 렌더링된 본문과 서식, 이미지를 클립보드에 안전하게 복사
+  // 🛡️ @GUARD : blob 이미지 URL base64 변환 및 불필요한 UI 훅 숨김 처리 후 복사
+  // 🚨 @PATCH : **2026-09-30** — [미리보기 클립보드 복사 핸들러 표준화]: PreviewToolbar 복사 버튼과 연동
+  // ====================================================================
+  const handleCopyPreviewContent = useCallback(() => {
+    if (!previewRef.current) return;
+    try {
+      const selection = window.getSelection();
+      const originalRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+
+      const range = document.createRange();
+      const targetEl = previewRef.current.querySelector('.markdown-viewer-root') || previewRef.current;
+
+      const imgs = Array.from(targetEl.querySelectorAll('img')) as HTMLImageElement[];
+      const restoredImgs: HTMLImageElement[] = [];
+      for (const img of imgs) {
+        const src = img.src;
+        if (src && src.startsWith('blob:')) {
+          try {
+            if (img.complete && img.naturalWidth > 0) {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                img.dataset.originalSrc = src;
+                img.src = canvas.toDataURL('image/png');
+                restoredImgs.push(img);
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+
+      const hooks = Array.from(targetEl.querySelectorAll('.copy-button-hook')) as HTMLElement[];
+      const hookDisplays = hooks.map(h => h.style.display);
+      hooks.forEach(h => { h.style.display = 'none'; });
+
+      range.selectNodeContents(targetEl);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      document.execCommand('copy');
+
+      selection?.removeAllRanges();
+      if (originalRange && selection) selection.addRange(originalRange);
+
+      hooks.forEach((h, i) => { h.style.display = hookDisplays[i]; });
+
+      for (const img of restoredImgs) {
+        if (img.dataset.originalSrc) {
+          img.src = img.dataset.originalSrc;
+          delete img.dataset.originalSrc;
+        }
+      }
+      showToast('미리보기 내용이 클립보드에 복사되었습니다.', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('클립보드 복사에 실패했습니다.', 'error');
+    }
+  }, [showToast]);
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0062] MainEditorApp.tsx ➔ sanitizePastedText
@@ -7174,6 +7261,51 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
       if (handledGlobal) return;
 
+      // 🔍 미리보기(Preview) 전용 확대, 축소, 100% 리셋, 텍스트 찾기 단축키 인터셉터
+      if (previewModeRef.current !== 'edit') {
+        // 1. Ctrl + Shift + F: 미리보기 텍스트 찾기 토글
+        if (isCtrl && isShift && (e.key === 'F' || e.key === 'f' || e.code === 'KeyF')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsPreviewFindOpen(prev => !prev);
+          return;
+        }
+
+        // 2. Ctrl + F: 미리보기 전용 모드이거나 마우스가 미리보기 위에 있을 때
+        if (isCtrl && !isShift && !isAlt && (e.key === 'F' || e.key === 'f' || e.code === 'KeyF')) {
+          if (previewModeRef.current === 'preview' || isPreviewHovered.current || isPreviewFindOpenRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsPreviewFindOpen(true);
+            return;
+          }
+        }
+
+        // 3. Ctrl + = 또는 Ctrl + +: 미리보기 확대 (+10%)
+        if (isCtrl && (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10));
+          return;
+        }
+
+        // 4. Ctrl + -: 미리보기 축소 (-10%)
+        if (isCtrl && (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10));
+          return;
+        }
+
+        // 5. Ctrl + 0: 미리보기 배율 100% 리셋
+        if (isCtrl && (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setPreviewZoomScale(1.0);
+          return;
+        }
+      }
+
       // 에디터 포커스가 활성화되어 있을 때만 에디터 단축키 인터셉터 작동
       if (!editorRef.current || !editorRef.current.hasTextFocus()) return;
 
@@ -8717,6 +8849,24 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                     >
 
 
+                      {/* 🛠️ 미리보기 전용 컨트롤 툴바 (찾기, 축소, 100% 리셋, 확대, 클립보드 복사) */}
+                      <PreviewToolbar
+                        zoomScale={previewZoomScale}
+                        onZoomIn={() => setPreviewZoomScale(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10))}
+                        onZoomOut={() => setPreviewZoomScale(prev => Math.max(0.5, Math.round((prev - 0.1) * 10) / 10))}
+                        onZoomReset={() => setPreviewZoomScale(1.0)}
+                        onToggleFind={() => setIsPreviewFindOpen(prev => !prev)}
+                        isFindOpen={isPreviewFindOpen}
+                        onCopyPreview={handleCopyPreviewContent}
+                      />
+
+                      {/* 🔍 미리보기 텍스트 검색 및 탐색 위젯 */}
+                      <PreviewFindWidget
+                        previewContainerRef={previewRef}
+                        isOpen={isPreviewFindOpen}
+                        onClose={() => setIsPreviewFindOpen(false)}
+                      />
+
                       {/* 🔍 스크롤 가능한 실제 본문 컨테이너 */}
                       <div
                         ref={bindPreviewScrollContainer}
@@ -8839,10 +8989,11 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           const pageStyle: React.CSSProperties = {
                             boxSizing: 'border-box' as const,
                             maxWidth: '100%',
+                            zoom: previewZoomScale,
                             ...(isPreviewOnly ? {
                               width: paperWidth,
                               minHeight: minHeight,
-                              zoom: isA4GuardEnabled ? previewZoomScale : undefined
+                              // zoom: previewZoomScale
                             } : {})
                           };
 
@@ -8855,7 +9006,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                               style={pageStyle}
                             >
                               {/* 미리보기 복사 버튼 */}
-                                <div className="absolute top-4 right-4 z-50 no-print opacity-30 hover:opacity-100 transition-opacity duration-200">
+                                <div className="hidden">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
