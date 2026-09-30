@@ -2,6 +2,7 @@
 // 📊 [OMD-IO-docxGenerator-0001] docxGenerator.ts ➔ generateDocx
 // 🎯 @KICK  : 마크다운(.md) 직접 토큰 파싱 또는 DOM을 표준 Office Open XML(.docx) 파일로 조판 및 변환 사출
 // 🛡️ @GUARD : JSZip 기반 100% 클라이언트/오프라인 구동, marked 직접 파싱 1:1 무결성, DrawingML 이미지/다이어그램 임베딩, 헤딩 코발트 바 & 다크 코드블록 완벽 조판
+// 🚨 @PATCH : **2026-10-01** — [DOCX 생성 시 메타영역(YAML Frontmatter / 주석) 완전 제외]: stripMarkdownMetadata 전처리기를 도입하여 YAML Frontmatter(--- ... ---) 및 JSDoc/HTML 메타 주석 블록을 사전에 완벽 소거하고 순수 본문 및 제목 헤딩부터 Word 문서로 사출되도록 구현
 // 🚨 @PATCH : **2026-10-01** — [마크다운 직접 파싱 기반 DOCX 사출 파이프라인 완비]: DOM 스크랩 대신 원본 마크다운(marked lexer)을 직접 파싱하여 H1 제목 누락 및 [TEXT] 코드블록 깨짐을 원천 차단하고, 표·목록·인용구 서식과 Mermaid/이미지 종횡비(가로 150mm x 세로 190mm) 듀얼 클램프 임베딩 실현
 // 🚨 @PATCH : **2026-10-01** — [DOCX 파일 오픈 오류 긴급 해결 및 MS Word 완벽 호환]: w:document 루트에 필수 DrawingML(wp, a, pic) 네임스페이스 선언 완비, docProps/core.xml·app.xml 패키징, Relationship Id 정규 순차 번호(rId2~) 매핑 및 wp:docPr/pic:cNvPr 고유 ID 분리로 Word 유효성 검사 에러 완전 차단
 // 🚨 @PATCH : **2026-10-01** — [DOCX 이미지·Mermaid 다이어그램 임베딩 및 원본 1:1 고품질 조판 보강]: DrawingML <w:drawing> 미디어 패키징, 헤딩 좌측 액센트 바, 다크 코드블록 및 캡션([그림 N]) 완전 연동
@@ -249,13 +250,53 @@ export async function generateDocx(containerEl: HTMLElement, options: DocxOption
 </w:styles>`
   );
 
-  // 5. word/document.xml 본문 빌드
-  const documentXml = options.markdown && options.markdown.trim()
-    ? buildDocumentXmlFromMarkdown(options.markdown, docTitle, defaultFont, images, imageRelIdMap)
+  // 5. word/document.xml 본문 빌드 (메타영역 완전 제외)
+  const cleanMarkdown = stripMarkdownMetadata(options.markdown || '');
+  const documentXml = cleanMarkdown && cleanMarkdown.trim()
+    ? buildDocumentXmlFromMarkdown(cleanMarkdown, docTitle, defaultFont, images, imageRelIdMap)
     : buildDocumentXml(containerEl, docTitle, defaultFont, images, imageRelIdMap);
   zip.file('word/document.xml', documentXml);
 
   return await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+/**
+ * 마크다운 문서 최상단의 메타 영역(YAML Frontmatter, JSDoc 파일 주석, HTML 주석)을 완전 제거하여 순수 본문만 추출
+ */
+export function stripMarkdownMetadata(markdown: string): string {
+  if (!markdown) return '';
+  let clean = markdown.replace(/^\uFEFF/, '').trimStart(); // BOM 및 선행 공백/줄바꿈 제거
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    // 1. YAML Frontmatter (--- ... ---)
+    if (clean.startsWith('---')) {
+      const match = clean.match(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/);
+      if (match) {
+        clean = clean.substring(match[0].length).trimStart();
+        changed = true;
+      }
+    }
+    // 2. JSDoc 파일 주석 (/** ... */)
+    if (clean.startsWith('/**')) {
+      const match = clean.match(/^\/\*\*[\s\S]*?\*\/(?:\r?\n|$)/);
+      if (match) {
+        clean = clean.substring(match[0].length).trimStart();
+        changed = true;
+      }
+    }
+    // 3. HTML 주석 (<!-- ... -->)
+    if (clean.startsWith('<!--')) {
+      const match = clean.match(/^<!--[\s\S]*?-->(?:\r?\n|$)/);
+      if (match) {
+        clean = clean.substring(match[0].length).trimStart();
+        changed = true;
+      }
+    }
+  }
+
+  return clean;
 }
 
 /**
@@ -299,7 +340,8 @@ function buildDocumentXmlFromMarkdown(
   imageRelIdMap: Map<number, string>
 ): string {
   const bodyXmls: string[] = [];
-  const tokens = marked.lexer(markdown);
+  const cleanMarkdown = stripMarkdownMetadata(markdown);
+  const tokens = marked.lexer(cleanMarkdown);
 
   const mermaidQueue = images.filter((img) => img.isMermaid);
   const standardQueue = images.filter((img) => !img.isMermaid);
@@ -696,12 +738,14 @@ function buildDocumentXml(
     const el = node as HTMLElement;
     const tag = el.tagName.toLowerCase();
 
-    // 불필요한 위젯, 스크립트, 병합된 캡션 p 태그 제외
+    // 불필요한 위젯, 스크립트, 메타 블록, 병합된 캡션 p 태그 제외
     if (
       tag === 'script' ||
       tag === 'style' ||
       el.classList.contains('no-export') ||
       el.classList.contains('preview-toolbar-root') ||
+      el.classList.contains('frontmatter-block') ||
+      el.classList.contains('metadata-block') ||
       el.getAttribute('data-export-caption-merged') === 'true'
     ) {
       return;
