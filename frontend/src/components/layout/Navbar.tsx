@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
+// 🚨 @PATCH : **2026-09-30** — [헤더 네비게이션 메뉴 명칭 및 순서 갱신]: 사용자 요청에 따라 '문서 결과'를 '문서작성Flow(#document-results)'로 변경하고 섹션 위치 스왑에 맞추어 메뉴 순서를 '문서작성Flow' ➔ '제품 소개'로 정돈
 // 🚨 @PATCH : **2026-09-30** — [로그아웃 방어 로직 강화]: 서버 세션 해제 실패나 세션 ID 누락 시에도 로컬 인증 세션(Supabase Auth & Session Storage)이 무조건 정상 정리되도록 2중 안전 가드 적용
 // 🚨 @PATCH : **2026-09-30** — [TransformationSection 제거에 따른 네비게이션 메뉴 현행화]: '활용 사례(#transformation)'를 '문서 결과(#document-results)'로 갱신
 // 🚨 @PATCH : **2026-09-30** — [랜딩페이지 네비게이션 메뉴 현행화]: 구현계획서 3번 항목에 맞추어 헤더 메뉴를 '제품 소개(#product-experience)', '주요 기능(#features)', '활용 사례(#transformation)', '요금 안내(#pricing)'로 최신화

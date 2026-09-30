@@ -2,6 +2,7 @@
 // 📊 [OMD-CORE-constants-0001] constants.tsx ➔ constants
 // 🎯 @KICK  : 랜딩페이지 및 요금제 뷰어에 활용되는 전역 정적 데이터 정의
 // 🛡️ @GUARD : 무료 7일 1대, 3대 $3, 6대 $5, 9대 $7 요금 스펙 일치화
+// 🚨 @PATCH : **2026-09-30** — [전역 상수 NAV_LINKS 네비게이션 명칭 및 순서 갱신]: '문서 결과'를 '문서작성Flow(#document-results)'로 변경하고 섹션 위치 변경에 맞추어 '문서작성Flow' ➔ '제품 소개' 순으로 정돈
 // 🚨 @PATCH : **2026-09-30** — [TransformationSection 제거에 따른 NAV_LINKS 현행화]: '활용 사례(#transformation)'를 '문서 결과(#document-results)'로 갱신
 // 🚨 @PATCH : **2026-09-30** — [전역 상수 NAV_LINKS 현행화]: 랜딩 개편에 맞추어 '제품 소개(#product-experience)', '주요 기능(#features)', '활용 사례(#transformation)', '요금 안내(#pricing)'로 갱신
 // 🚨 @PATCH : **2026-09-26** — [전역 상수 NAV_LINKS 블로그 링크 제거]: 사용자 요청에 따라 랜딩페이지 네비게이션에서 블로그 링크 롤백
@@ -109,8 +110,8 @@ export const faqs: FAQ[] = [
 
 
 export const NAV_LINKS = [
+  { label: "문서작성Flow", href: "#document-results" },
   { label: "제품 소개", href: "#product-experience" },
-  { label: "문서 결과", href: "#document-results" },
   { label: "주요 기능", href: "#features" },
   { label: "요금 안내", href: "#pricing" },
 ];

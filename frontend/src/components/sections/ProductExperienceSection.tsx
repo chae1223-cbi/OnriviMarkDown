@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-ProductExperienceSection-0003] ProductExperienceSection ➔ ProductExperienceSection
 // 🎯 @KICK  : Onrivi Author 실제 UI 쇼케이스 — SPLIT VIEW(`onrivi/onrivi_randing_spilit.png`), PREVIEW(`onrivi/onrivi_randing_preview.png`), '구현'(실제 시연 비디오 randing_hero.mp4) 3대 모드
 // 🛡️ @GUARD : Default 모드는 SPLIT VIEW, 200 OK 정규 이미지 URL 연동 및 비디오 스트리밍 최적화
+// 🚨 @PATCH : **2026-09-30** — [섹션 순서 변경에 따른 배경색 교차 동기화]: DocumentResultsSection(#F9FAFC) 직후 06번 섹션으로 이동함에 따라 섹션 배경색을 #FFFFFF(화이트)로 전환하고, 탭 스위처를 연회색(bg-[#F1F5F9] dark:bg-[#16181D])으로 정돈하여 완벽한 상하 1:1 교차 대비 달성
 // 🚨 @PATCH : **2026-09-30** — [랜딩 섹션 교차 배경색 표준화]: ProductExperienceSection 배경색을 사용자 지정 #F9FAFC(연회색)로 적용하여 Workflow(화이트)와 1:1 교차 대비 완성
 // 🚨 @PATCH : **2026-09-30** — [비디오 초기 검은 화면(Black Screen) 방지 패치]:
 //             1. poster="onrivi_randing_spilit.png" 속성 지정으로 버퍼링 중 검은 화면 대신 UI 썸네일 즉시 노출
@@ -41,7 +42,7 @@ export function ProductExperienceSection() {
   return (
     <section
       id="product-experience"
-      className="py-24 sm:py-32 bg-[#F9FAFC] dark:bg-[#0E131F] text-[#0F172A] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5 relative overflow-hidden"
+      className="py-24 sm:py-32 bg-[#FFFFFF] dark:bg-[#0A0D14] text-[#0F172A] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5 relative overflow-hidden"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
@@ -61,7 +62,7 @@ export function ProductExperienceSection() {
 
         {/* View Mode Switcher Tabs (SPLIT VIEW | PREVIEW | 구현) */}
         <div className="flex justify-center mb-8">
-          <div className="inline-flex p-1.5 rounded-2xl bg-white dark:bg-[#16181D] border border-[#E2E4F6] dark:border-white/10 shadow-xs gap-1.5">
+          <div className="inline-flex p-1.5 rounded-2xl bg-[#F1F5F9] dark:bg-[#16181D] border border-[#E2E4F6] dark:border-white/10 shadow-xs gap-1.5">
             {/* 1. SPLIT VIEW (기본) */}
             <button
               type="button"
