@@ -2,17 +2,18 @@
 // 📊 [OMD-UI-LocalFirstSection-0001] LocalFirstSection ➔ LocalFirstSection
 // 🎯 @KICK  : Onrivi Author의 핵심 철학인 Local First 원칙 — 내 문서는 내 컴퓨터에 안전하게 저장·관리
 // 🛡️ @GUARD : 과장된 보안 주장 대신 실제 로컬 저장 및 오프라인 구동 구조를 정직하게 시각화
+// 🚨 @PATCH : **2026-09-30** — [우측 모의 UI를 실제 Windows 탐색기 & Onrivi 연동 이미지(/onrivi_local_workspace.png)로 교체]: 로컬 1:1 실시간 직결 및 프라이버시 가치 시각적 극대화
 // 🚨 @PATCH : **2026-09-30** — [랜딩 개편 Local First 섹션 신규 구현]:
 //             1. Heading: "내 문서는, 내 컴퓨터에."
 //             2. Supporting: "외부 클라우드 의존 없이, 내 로컬 환경에서 문서를 안전하게 작성하고 영구적으로 보관하세요."
 //             3. YOUR COMPUTER 로컬 파일 시스템 및 오프라인 영구 소장 다이어그램 시각화
-// 🔗 @CALLS : motion.div, HardDrive, ShieldCheck, WifiOff, FileCheck
+// 🔗 @CALLS : motion.div, HardDrive, ShieldCheck, WifiOff
 // ====================================================================
 "use client";
 
 import React from "react";
 import { motion } from "framer-motion";
-import { HardDrive, ShieldCheck, WifiOff, FolderKey } from "lucide-react";
+import { HardDrive, ShieldCheck, WifiOff } from "lucide-react";
 
 export function LocalFirstSection() {
   return (
@@ -62,54 +63,22 @@ export function LocalFirstSection() {
             </div>
           </div>
 
-          {/* Right Visual Column: YOUR COMPUTER Diagram */}
+          {/* Right Visual Column: Real Local Workspace & Explorer Showcase */}
           <div className="lg:col-span-6 flex justify-center">
-            <div className="w-full max-w-[480px] rounded-3xl border-2 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#16181D] p-7 shadow-lg relative overflow-hidden text-left space-y-5">
-              {/* Computer Header */}
-              <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <FolderKey className="w-4 h-4 text-[#1d4ed8]" />
-                  <span className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                    YOUR COMPUTER
-                  </span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold">
-                  LOCAL ONLY
-                </span>
-              </div>
-
-              {/* Local File Tree Mockup */}
-              <div className="p-4 rounded-xl bg-[#F8FAFC] dark:bg-[#0E131F] border border-zinc-200 dark:border-zinc-800 font-mono text-xs space-y-2.5">
-                <div className="text-zinc-500 flex items-center gap-2">
-                  <span>📁 Documents/Onrivi_Workspace</span>
-                </div>
-                <div className="pl-4 space-y-1.5 text-zinc-700 dark:text-zinc-300">
-                  <div className="flex items-center justify-between">
-                    <span>├── 📄 2026_q3_report.md</span>
-                    <span className="text-[10px] text-zinc-400">14.2 KB</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>├── 📄 gangneung-travel.md</span>
-                    <span className="text-[10px] text-zinc-400">8.4 KB</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>├── 📁 assets/</span>
-                    <span className="text-[10px] text-zinc-400">3 Images</span>
-                  </div>
-                  <div className="flex items-center justify-between text-emerald-600 font-bold">
-                    <span>└── 📕 executive_summary.pdf</span>
-                    <span className="text-[10px]">출판 사출</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-center pt-2">
-                <div className="inline-flex items-center gap-2 text-xs font-bold text-[#1d4ed8] dark:text-blue-400 font-mono">
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>100% PRIVATE & OFFLINE READY</span>
-                </div>
-              </div>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.15 }}
+              className="relative w-full max-w-[560px] rounded-2xl sm:rounded-3xl overflow-hidden border border-zinc-200/80 dark:border-white/10 shadow-[0_20px_50px_-15px_rgba(29,78,216,0.15)] dark:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.7)] group bg-white dark:bg-zinc-900"
+            >
+              <img
+                src="/onrivi_local_workspace.png"
+                alt="Onrivi Author 로컬 파일 시스템 및 Windows 탐색기 실시간 1:1 연동 화면"
+                className="w-full h-auto object-cover select-none group-hover:scale-[1.01] transition-transform duration-300"
+                loading="lazy"
+              />
+            </motion.div>
           </div>
         </div>
       </div>
