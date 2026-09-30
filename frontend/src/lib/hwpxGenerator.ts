@@ -1,9 +1,14 @@
 // ====================================================================
 // 📊 [OMD-IO-hwpxGenerator-0001] hwpxGenerator.ts ➔ generateHwpx
 // 🎯 @KICK  : HTML/미리보기 DOM을 한글 표준 OWPML(.hwpx) 파일로 조판 및 변환 사출
-// 🛡️ @GUARD : KS X 6101 표준 준수, JSZip 기반 100% 클라이언트/오프라인 구동, 한글 2014 이상 완벽 호환
-// 🚨 @PATCH : **2026-09-30** — 한글 문서 (.hwpx) 내보내기 생성기 신규 구현 (제목, 본문, 표, 인용구, 리스트 완벽 지원)
-// 🔗 @CALLS : JSZip, saveAs / downloadBlob
+// 🛡️ @GUARD : KS X 6101 OWPML 표준 엄격 준수 — secPr 용지설정, 7대 언어 fontface, ctrl/tbl 글자처럼 취급, 고유 p id 부여로 한글 프로그램 크래시 완전 방어
+// 🚨 @PATCH : **2026-09-30** — [한글 프로그램 파서 크래시 완벽 해결]:
+//             1. 루트 태그 <hs:sec> 및 OWPML 2011 네임스페이스 정규화
+//             2. 첫 문단 내 필수 A4 용지설정(<hp:secPr>, <hp:pagePr>) 주입으로 한글 레이아웃 엔진 널포인터 크래시 방어
+//             3. 7대 언어군(hangul, latin, hanja, japanese, other, symbol, user) fontface 및 beginNum, borderFills 완비
+//             4. 표(<hp:tbl>)를 <hp:run><hp:ctrl><hp:tbl> 및 <hp:subList> 정규 OWPML 구조로 교정하고 treatAsChar='1' 글자처럼 취급 부여
+//             5. 모든 문단(<hp:p>)에 고유 증분 id 부여
+// 🔗 @CALLS : JSZip, downloadBlob
 // ====================================================================
 
 import JSZip from 'jszip';
@@ -75,21 +80,52 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
 </opf:package>`
   );
 
-  // 5. Contents/header.xml (글꼴, 글자모양, 문단모양, 스타일 정의)
+  // 5. Contents/header.xml (7대 언어 글꼴, 글자모양, 문단모양, 테두리, 스타일 정의)
   zip.file(
     'Contents/header.xml',
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"
          xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"
+         xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
          version="1.0">
-  <hh:fontfaces itemCnt="1">
-    <hh:fontface lang="hangul" fontCnt="1">
-      <hh:font id="0" face="맑은 고딕" type="ttf" isEmbedded="0"/>
-    </hh:fontface>
-    <hh:fontface lang="latin" fontCnt="1">
-      <hh:font id="0" face="맑은 고딕" type="ttf" isEmbedded="0"/>
-    </hh:fontface>
+  <hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
+
+  <hh:fontfaces itemCnt="7">
+    <hh:fontface lang="hangul" fontCnt="1"><hh:font id="0" face="맑은 고딕" type="ttf"/></hh:fontface>
+    <hh:fontface lang="latin" fontCnt="1"><hh:font id="0" face="맑은 고딕" type="ttf"/></hh:fontface>
+    <hh:fontface lang="hanja" fontCnt="1"><hh:font id="0" face="맑은 고딕" type="ttf"/></hh:fontface>
+    <hh:fontface lang="japanese" fontCnt="1"><hh:font id="0" face="맑은 고딕" type="ttf"/></hh:fontface>
+    <hh:fontface lang="other" fontCnt="1"><hh:font id="0" face="맑은 고딕" type="ttf"/></hh:fontface>
+    <hh:fontface lang="symbol" fontCnt="1"><hh:font id="0" face="맑은 고딕" type="ttf"/></hh:fontface>
+    <hh:fontface lang="user" fontCnt="1"><hh:font id="0" face="맑은 고딕" type="ttf"/></hh:fontface>
   </hh:fontfaces>
+
+  <!-- 테두리/배경 목록 (borderFills) -->
+  <hh:borderFills itemCnt="3">
+    <!-- 1: 테두리 없음 -->
+    <hh:borderFill id="1" backSlash="none" slash="none" crookedSlash="none">
+      <hh:leftBorder type="none" width="0.1 mm" color="#000000"/>
+      <hh:rightBorder type="none" width="0.1 mm" color="#000000"/>
+      <hh:topBorder type="none" width="0.1 mm" color="#000000"/>
+      <hh:bottomBorder type="none" width="0.1 mm" color="#000000"/>
+    </hh:borderFill>
+    <!-- 2: 표 기본 테두리 (실선 회색) -->
+    <hh:borderFill id="2" backSlash="none" slash="none" crookedSlash="none">
+      <hh:leftBorder type="solid" width="0.12 mm" color="#CBD5E1"/>
+      <hh:rightBorder type="solid" width="0.12 mm" color="#CBD5E1"/>
+      <hh:topBorder type="solid" width="0.12 mm" color="#CBD5E1"/>
+      <hh:bottomBorder type="solid" width="0.2 mm" color="#94A3B8"/>
+      <hh:fillBrush><hh:winBrush faceColor="#FFFFFF"/></hh:fillBrush>
+    </hh:borderFill>
+    <!-- 3: 표 헤더 테두리 및 음영 -->
+    <hh:borderFill id="3" backSlash="none" slash="none" crookedSlash="none">
+      <hh:leftBorder type="solid" width="0.12 mm" color="#CBD5E1"/>
+      <hh:rightBorder type="solid" width="0.12 mm" color="#CBD5E1"/>
+      <hh:topBorder type="solid" width="0.15 mm" color="#94A3B8"/>
+      <hh:bottomBorder type="solid" width="0.25 mm" color="#1D4ED8"/>
+      <hh:fillBrush><hh:winBrush faceColor="#F8FAFC"/></hh:fillBrush>
+    </hh:borderFill>
+  </hh:borderFills>
 
   <!-- 글자 모양 목록 (charPr) -->
   <hh:charProperties itemCnt="10">
@@ -106,12 +142,12 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
     <!-- 5: 볼드 텍스트 -->
     <hh:charPr id="5" height="1000" textColor="#222222" bold="1" fontFaceId="0"/>
     <!-- 6: 이탤릭 텍스트 -->
-    <hh:charPr id="6" height="1000" textColor="#222222" italic="1" fontFaceId="0"/>
-    <!-- 7: 인라인 코드 (9pt, 마젠타/그레이) -->
+    <hh:charPr id="6" height="1000" textColor="#475569" italic="1" fontFaceId="0"/>
+    <!-- 7: 인라인 코드 (9pt, 마젠타) -->
     <hh:charPr id="7" height="950" textColor="#BE185D" fontFaceId="0"/>
     <!-- 8: 링크 (파랑, 밑줄) -->
     <hh:charPr id="8" height="1000" textColor="#1D4ED8" underline="1" fontFaceId="0"/>
-    <!-- 9: 표 헤더 (볼드, 중앙) -->
+    <!-- 9: 표 헤더 (10pt, 볼드, 진한 텍스트) -->
     <hh:charPr id="9" height="1000" textColor="#0F172A" bold="1" fontFaceId="0"/>
   </hh:charProperties>
 
@@ -133,7 +169,7 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
     <hh:paraPr id="3" align="left" lineSpacing="140" lineSpacingType="percent">
       <hh:margin top="200" bottom="100"/>
     </hh:paraPr>
-    <!-- 4: 인용구 문단 (왼쪽 들여쓰기 400) -->
+    <!-- 4: 인용구/리스트 문단 (왼쪽 들여쓰기 400) -->
     <hh:paraPr id="4" align="left" lineSpacing="150" lineSpacingType="percent">
       <hh:margin left="400" bottom="140"/>
     </hh:paraPr>
@@ -164,6 +200,23 @@ export async function generateHwpx(containerEl: HTMLElement, options: HwpxOption
  */
 function buildSectionXml(containerEl: HTMLElement): string {
   const pListXml: string[] = [];
+  let pCounter = 0;
+  let tblCounter = 1;
+
+  // 🌟 [핵심 안정성 가드] 첫 번째 문단에 반드시 필요한 A4 용지설정(secPr) 주입
+  // A4 크기: 59528 x 84188 (1/7200 inch 단위 = 210mm x 297mm)
+  // 좌우여백 8504 (30mm), 상하여백 5669/4252 (20mm/15mm)
+  pListXml.push(`
+  <hp:p id="${pCounter++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0">
+    <hp:run charPrIDRef="0">
+      <hp:secPr id="0" textDirection="0" spaceColumns="1134" tabStop="8000" outlineShapeIdRef="1" memoShapeIdRef="1">
+        <hp:grid char="0" line="0"/>
+        <hp:pagePr width="59528" height="84188" gutterType="leftOnly">
+          <hp:margin left="8504" right="8504" top="5669" bottom="4252" header="4252" footer="4252" gutter="0"/>
+        </hp:pagePr>
+      </hp:secPr>
+    </hp:run>
+  </hp:p>`);
 
   // 인라인 노드들을 <hp:run> 조각들로 분할 변환
   function parseInlines(element: Node, defaultCharPr = 0): string {
@@ -215,14 +268,15 @@ function buildSectionXml(containerEl: HTMLElement): string {
       const level = parseInt(tag.substring(1), 10);
       let charPrId = 1;
       let paraPrId = 1;
+      let styleId = 1;
 
-      if (level === 2) { charPrId = 2; paraPrId = 2; }
-      else if (level === 3) { charPrId = 3; paraPrId = 3; }
-      else if (level >= 4) { charPrId = 4; paraPrId = 3; }
+      if (level === 2) { charPrId = 2; paraPrId = 2; styleId = 2; }
+      else if (level === 3) { charPrId = 3; paraPrId = 3; styleId = 3; }
+      else if (level >= 4) { charPrId = 4; paraPrId = 3; styleId = 0; }
 
       const inlines = parseInlines(el, charPrId);
       pListXml.push(`
-        <hp:p paraPrIDRef="${paraPrId}">
+        <hp:p id="${pCounter++}" paraPrIDRef="${paraPrId}" styleIDRef="${styleId}" pageBreak="0" columnBreak="0">
           ${inlines}
         </hp:p>
       `);
@@ -234,7 +288,7 @@ function buildSectionXml(containerEl: HTMLElement): string {
       const inlines = parseInlines(el, 0);
       if (inlines.trim()) {
         pListXml.push(`
-          <hp:p paraPrIDRef="0">
+          <hp:p id="${pCounter++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0">
             ${inlines}
           </hp:p>
         `);
@@ -249,7 +303,7 @@ function buildSectionXml(containerEl: HTMLElement): string {
         pElements.forEach((p) => {
           const inlines = parseInlines(p, 6);
           pListXml.push(`
-            <hp:p paraPrIDRef="4">
+            <hp:p id="${pCounter++}" paraPrIDRef="4" styleIDRef="0" pageBreak="0" columnBreak="0">
               <hp:run charPrIDRef="1"><hp:t>┃ </hp:t></hp:run>
               ${inlines}
             </hp:p>
@@ -258,7 +312,7 @@ function buildSectionXml(containerEl: HTMLElement): string {
       } else {
         const inlines = parseInlines(el, 6);
         pListXml.push(`
-          <hp:p paraPrIDRef="4">
+          <hp:p id="${pCounter++}" paraPrIDRef="4" styleIDRef="0" pageBreak="0" columnBreak="0">
             <hp:run charPrIDRef="1"><hp:t>┃ </hp:t></hp:run>
             ${inlines}
           </hp:p>
@@ -275,7 +329,7 @@ function buildSectionXml(containerEl: HTMLElement): string {
         const prefix = isOrdered ? `${idx + 1}. ` : `• `;
         const inlines = parseInlines(item, 0);
         pListXml.push(`
-          <hp:p paraPrIDRef="4">
+          <hp:p id="${pCounter++}" paraPrIDRef="4" styleIDRef="0" pageBreak="0" columnBreak="0">
             <hp:run charPrIDRef="5"><hp:t>${prefix}</hp:t></hp:run>
             ${inlines}
           </hp:p>
@@ -292,7 +346,7 @@ function buildSectionXml(containerEl: HTMLElement): string {
 
       lines.forEach((line) => {
         pListXml.push(`
-          <hp:p paraPrIDRef="4">
+          <hp:p id="${pCounter++}" paraPrIDRef="4" styleIDRef="0" pageBreak="0" columnBreak="0">
             <hp:run charPrIDRef="7"><hp:t>${escapeXml(line)}</hp:t></hp:run>
           </hp:p>
         `);
@@ -303,56 +357,77 @@ function buildSectionXml(containerEl: HTMLElement): string {
     // 6. 구분선 (HR)
     if (tag === 'hr') {
       pListXml.push(`
-        <hp:p paraPrIDRef="0">
+        <hp:p id="${pCounter++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0">
           <hp:run charPrIDRef="0"><hp:t>────────────────────────────────────────────</hp:t></hp:run>
         </hp:p>
       `);
       return;
     }
 
-    // 7. 표 (TABLE)
+    // 7. 표 (TABLE) — 🌟 [한글 공식 규격: hp:p > hp:run > hp:ctrl > hp:tbl 완벽 포장]
     if (tag === 'table') {
       const trs = Array.from(el.querySelectorAll('tr'));
       if (trs.length === 0) return;
 
       const rowCnt = trs.length;
-      let colCnt = 0;
+      let colCnt = 1;
       trs.forEach((tr) => {
         const cnt = tr.children.length;
         if (cnt > colCnt) colCnt = cnt;
       });
 
-      let tblXml = `<hp:tbl rowCnt="${rowCnt}" colCnt="${colCnt}">`;
+      // A4 본문 기본 너비: 42520 HWP단위 (150mm)
+      const totalWidth = 42520;
+      const colWidth = Math.floor(totalWidth / colCnt);
+      const rowHeight = 850; // 약 3mm
 
-      trs.forEach((tr) => {
-        tblXml += `<hp:tr>`;
+      let tblRowsXml = '';
+
+      trs.forEach((tr, rIdx) => {
+        tblRowsXml += `<hp:tr>`;
         const cells = Array.from(tr.children).filter((c) => {
           const t = c.tagName.toLowerCase();
           return t === 'th' || t === 'td';
         });
 
-        cells.forEach((cell) => {
+        cells.forEach((cell, cIdx) => {
           const isTh = cell.tagName.toLowerCase() === 'th';
           const inlines = parseInlines(cell, isTh ? 9 : 0);
-          tblXml += `
-            <hp:tc>
-              <hp:subList>
-                <hp:p paraPrIDRef="${isTh ? '5' : '0'}">
+          const borderFillId = isTh ? '3' : '2';
+
+          tblRowsXml += `
+            <hp:tc colAddr="${cIdx}" rowAddr="${rIdx}" colSpan="1" rowSpan="1">
+              <hp:cellSz width="${colWidth}" height="${rowHeight}"/>
+              <hp:cellMargin left="283" right="283" top="283" bottom="283"/>
+              <hp:subList id="${pCounter++}" textDirection="0" lineWrap="break" vertAlign="center">
+                <hp:p id="${pCounter++}" paraPrIDRef="${isTh ? '5' : '0'}" styleIDRef="0" pageBreak="0" columnBreak="0">
                   ${inlines}
                 </hp:p>
               </hp:subList>
             </hp:tc>
           `;
         });
-        tblXml += `</hp:tr>`;
+        tblRowsXml += `</hp:tr>`;
       });
 
-      tblXml += `</hp:tbl>`;
-      pListXml.push(`
-        <hp:p paraPrIDRef="0">
-          ${tblXml}
+      const currentTblId = tblCounter++;
+      const tblContainerXml = `
+        <hp:p id="${pCounter++}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0">
+          <hp:run charPrIDRef="0">
+            <hp:ctrl>
+              <hp:tbl id="${currentTblId}" zOrder="0" numberingType="table" textWrap="topAndBottom" textFlow="bothSides" lock="0" dropcapStyle="None">
+                <hp:sz width="${totalWidth}" height="${rowHeight * rowCnt}" widthRelTo="absolute" heightRelTo="absolute"/>
+                <hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="para" horzRelTo="para" vertAlign="top" horzAlign="left" vertOffset="0" horzOffset="0"/>
+                <hp:outMargin left="0" right="0" top="283" bottom="283"/>
+                <hp:inMargin left="283" right="283" top="283" bottom="283"/>
+                ${tblRowsXml}
+              </hp:tbl>
+            </hp:ctrl>
+          </hp:run>
         </hp:p>
-      `);
+      `;
+
+      pListXml.push(tblContainerXml);
       return;
     }
 
@@ -362,10 +437,12 @@ function buildSectionXml(containerEl: HTMLElement): string {
 
   Array.from(containerEl.childNodes).forEach(processBlockNode);
 
+  // 🌟 한글 OWPML 표준 루트 태그: <hs:sec>
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<hp:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph"
         xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core"
         xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head">
   ${pListXml.join('\n')}
-</hp:sec>`;
+</hs:sec>`;
 }
