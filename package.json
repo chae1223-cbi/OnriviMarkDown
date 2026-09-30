@@ -38,7 +38,7 @@
     "appId": "com.onrivi.author",
     "productName": "Onrivi Author",
     "directories": {
-      "output": "dist",
+      "output": "dist-electron",
       "buildResources": "build"
     },
     "nsis": {

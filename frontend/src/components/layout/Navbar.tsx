@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-Navbar-0020] Navbar ➔ Navbar
 // 🎯 @KICK  : 상단 고정식 내비게이션 바로, 테마 스위처와 Supabase Auth 로그인 유무에 따른 동적 버튼/사용자 이메일 노출 및 로그아웃 기능 지원
 // 🛡️ @GUARD : Supabase Auth 세션 상태를 실시간 감지하여 hydration 미스매치 방지 및 안전한 로그아웃 예외 처리
+// 🚨 @PATCH : **2026-09-30** — [랜딩페이지 네비게이션 메뉴 현행화]: 구현계획서 3번 항목에 맞추어 헤더 메뉴를 '제품 소개(#product-experience)', '주요 기능(#features)', '활용 사례(#transformation)', '요금 안내(#pricing)'로 최신화
 // 🚨 @PATCH : **2026-09-26** — [상단 헤더(Navbar) 블로그 링크 제거]: 사용자 요청에 따라 랜딩페이지 네비게이션 바에서 블로그 링크 제거 및 깔끔한 원본 유지
 // 🚨 @PATCH : **2026-09-17** — [로그아웃 시 환경설정(Gemini API 키 등) 영구 보존 및 선별적 세션 정리]: clearAuthSessionStorage 연동으로 API 키 및 사용자 설정 삭제 결함 해결
 // 🚨 @PATCH : **2026-09-11** — 헤더(Navbar) 딥 네이비(#0B0F19) 진한 색상 및 고대비 화이트/코발트 UI 적용
@@ -167,30 +168,15 @@ export function Navbar({ content }: { content?: NavbarContent }) {
 
           {/* Nav Links */}
           <div className="hidden md:flex items-center gap-9">
-            <a
-              href="#philosophy"
-              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
-            >
-              추천대상
-            </a>
-            <a
-              href="#experience"
-              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
-            >
-              기능
-            </a>
-            <a
-              href="#pricing"
-              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
-            >
-              요금제
-            </a>
-            <a
-              href="#faq"
-              className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
-            >
-              FAQ
-            </a>
+            {(content?.navLinks ?? NAV_LINKS).map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="text-[14px] font-medium text-zinc-300 hover:text-white transition-colors tracking-tight"
+              >
+                {link.label}
+              </a>
+            ))}
 
             {/* 진행 중인 이벤트 — 활성 프로모션 있을 때만 노출 */}
             {hasActivePromo && (

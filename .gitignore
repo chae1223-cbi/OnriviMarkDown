@@ -4,6 +4,9 @@ node_modules/
 
 # 빌드 및 배포 산출물
 dist/
+dist*/
+dist-electron/
+dist-win/
 dist1/
 out/
 build/

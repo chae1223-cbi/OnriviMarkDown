@@ -2,9 +2,13 @@
   "css.customData": [],
   "css.lint.unknownAtRules": "ignore",
   "files.watcherExclude": {
-    "**/.next/**": true
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/out/**": true
   },
   "search.exclude": {
-    "**/.next/**": true
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/out/**": true
   }
 }

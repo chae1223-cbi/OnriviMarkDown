@@ -1,82 +1,81 @@
 // ====================================================================
-// 📊 [OMD-UI-CtaSection-0025] CtaSection ➔ CtaSection
-// 🎯 @KICK  : 사용자 가입 전환(CTA)을 강력하게 소구하고 회원가입 경로로 리다이렉트하는 랜딩페이지 마지막 전환 유도 영역
-// 🛡️ @GUARD : viewport once 옵션을 활성화하여 모션 버벅임 억제
-// 🚨 @PATCH : **2026-09-12** — 랜딩페이지 섹션 교차(#EFEFFF / #FFFFFF) 배경 순서 반전 적용 (CtaSection: #EFEFFF)
-//             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(CTA: #FFFFFF)
-//             **2026-09-11** — DocumentGallerySection 제거에 따른 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 유지(CTA: #EFEFFF)
-//             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
-//             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
-//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
-//             2026-09-03** — Onrivi Author Premium V2 랜딩페이지 개편: 둥근 카드 박스를 걷어내고 전체 폭 활용 + 은은한 Green Glow 배경의 모던 와이드 CTA 탑재
-//             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치 (글래스 CTA 카드, Ice Blue 그래디언트 배경); 비로그인 상태 가입 진입 버튼 제거 및 텍스트 교체 패치
-//             **2026-06-21** — OMDLanding UI 이식 및 /login 리다이렉트 변경 패치
-// 🔗 @CALLS : Button, Link, motion.div
+// 📊 [OMD-UI-CtaSection-0026] CtaSection ➔ CtaSection
+// 🎯 @KICK  : Onrivi Author 랜딩페이지 Final CTA 섹션 — AI가 만든 콘텐츠를 당신의 문서로 완성하세요.
+// 🛡️ @GUARD : viewport once 옵션 및 간결한 전환 유도
+// 🚨 @PATCH : **2026-09-30** — [랜딩 개편 Final CTA 섹션 구현]:
+//             1. Heading: "AI가 만든 콘텐츠를 당신의 문서로 완성하세요."
+//             2. Supporting: "작성부터 미리보기, 완성된 문서까지 하나의 작업 흐름으로 연결하세요."
+//             3. CTA 버튼: "무료로 시작하기 →"
+//             4. 보조 정보: "Windows · Local First · Markdown"
+// 🔗 @CALLS : motion.div, Link, ArrowRight, ShieldCheck
 // ====================================================================
 "use client";
 
+import React from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 export function CtaSection() {
   return (
     <section
-      className="py-28 sm:py-36 px-6 relative overflow-hidden bg-[#EFEFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9] border-t border-[#E2E4F6] dark:border-white/5"
-      style={{
-        fontFamily: "Pretendard, sans-serif",
-      }}
+      className="py-24 sm:py-32 px-6 relative overflow-hidden bg-[#FFFFFF] dark:bg-[#0A0D14] text-[#0F172A] dark:text-[#E8ECE9] border-t border-[#E2E4F6] dark:border-white/5"
+      style={{ fontFamily: "Pretendard, sans-serif" }}
     >
-      {/* Subtle Background Cobalt Glow */}
+      {/* Subtle Background Glow */}
       <div
         aria-hidden
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-[radial-gradient(ellipse_at_center,rgba(29,78,216,0.12)_0%,transparent_70%)] pointer-events-none z-0"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[450px] bg-[radial-gradient(ellipse_at_center,rgba(29,78,216,0.08)_0%,transparent_70%)] pointer-events-none z-0"
       />
 
-      <div className="max-w-[900px] mx-auto text-center relative z-10">
+      <div className="max-w-[900px] mx-auto text-center relative z-10 space-y-6">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="space-y-6"
+          className="space-y-4"
         >
-          {/* Top Tag */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800 border border-[#E2E4F6] text-[11px] font-extrabold text-[#1A1A18] dark:text-zinc-200 tracking-widest uppercase shadow-2xs">
+          {/* Eyebrow */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-zinc-800 border border-blue-100 dark:border-white/10 text-[11px] font-extrabold text-[#1d4ed8] dark:text-blue-400 tracking-widest uppercase shadow-2xs">
             <span className="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]" />
             ONRIVI AUTHOR
           </div>
 
-          {/* Main Title */}
-          <h2 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
-            글쓰기를 다시 생각하세요.
+          {/* Heading */}
+          <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight text-[#0F172A] dark:text-white">
+            AI가 만든 콘텐츠를<br />
+            <span className="text-[#1d4ed8]">당신의 문서로 완성하세요.</span>
           </h2>
 
-          {/* Subtitle */}
-          <p className="text-xl sm:text-2xl font-bold text-[#1d4ed8] tracking-tight">
-            AI는 마크다운으로, 사람은 문서로.
+          {/* Supporting */}
+          <p className="text-base sm:text-xl text-[#475569] dark:text-zinc-300 font-normal leading-relaxed max-w-xl mx-auto">
+            작성부터 미리보기, 완성된 문서까지<br className="hidden sm:inline" /> 하나의 작업 흐름으로 연결하세요.
           </p>
+        </motion.div>
 
-          {/* Description */}
-          <p className="text-sm sm:text-base text-[#2D3748] dark:text-zinc-300 max-w-lg mx-auto leading-relaxed">
-            복잡한 서식 설정 없이 텍스트 본연에만 집중하는 정밀 에디터.<br className="hidden sm:inline" />
-            지금 바로 Onrivi Author와 함께 새로운 창작의 기준을 경험하세요.
-          </p>
+        {/* Action Button */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="pt-2 flex flex-col items-center justify-center gap-4"
+        >
+          <Link href="/signup">
+            <button className="inline-flex items-center justify-center gap-2 px-9 py-4 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-base shadow-[0_4px_24px_rgba(29,78,216,0.3)] hover:shadow-[0_6px_30px_rgba(29,78,216,0.4)] transition-all transform hover:-translate-y-0.5 active:translate-y-0">
+              무료로 시작하기
+              <ArrowRight size={17} />
+            </button>
+          </Link>
 
-          {/* Action Button */}
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3.5">
-            <Link href="/signup" className="w-full sm:w-auto">
-              <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-base shadow-[0_4px_28px_rgba(29, 78, 216,0.3)] hover:shadow-[0_8px_32px_rgba(29, 78, 216,0.45)] transition-all transform hover:-translate-y-0.5">
-                무료로 시작하기
-                <ArrowRight size={18} />
-              </button>
-            </Link>
-          </div>
-
-          {/* Bottom Trust Line */}
-          <div className="pt-6 flex items-center justify-center gap-2 text-xs text-[#68716D] dark:text-zinc-500 font-medium">
-            <CheckCircle2 size={14} className="text-[#1d4ed8] shrink-0" />
-            <span>신용카드 등록 없이 즉시 시작 · 로컬 우선 데이터 무결성 보장</span>
+          {/* Auxiliary Proof */}
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B] dark:text-zinc-400 pt-2">
+            <span>Windows</span>
+            <span>·</span>
+            <span>Local First</span>
+            <span>·</span>
+            <span>Markdown</span>
           </div>
         </motion.div>
       </div>

@@ -1,25 +1,20 @@
 // ====================================================================
-// 📊 [OMD-UI-HeroSection-0022] HeroSection ➔ HeroSection
-// 🎯 @KICK  : Onrivi Author Premium V2의 타이포그래피 가치 제안 및 실제 라이프스타일/업무 씬을 2열 레이아웃과 무깜빡임(Cross-Fade) 3초 자동 롤링 이미지 슬라이더로 전달하는 히어로 영역
+// 📊 [OMD-UI-HeroSection-0024] HeroSection ➔ HeroSection
+// 🎯 @KICK  : Onrivi Author 랜딩 HERO — 좌측 핵심 메시지("AI가 만든 글, 바로 문서로 완성하세요") + 우측 무깜빡임(Cross-Fade) 3초 자동 롤링 이미지 슬라이더 복원
 // 🛡️ @GUARD : 슬라이더 타이머 메모리 릭 방지(clearInterval) 및 이미지 상시 DOM 적재 기반 깜빡임 원천 차단
-// 🚨 @PATCH : **2026-09-26** — [외부 노트 내보내기 마크다운 호환 카피 강화]: 슬라이드 2번 비즈니스 기획 카피에 외부 노트 내보내기 파일의 깨진 표·서식 복원 가치 반영
-//             **2026-09-12** — 랜딩페이지 섹션 교차(#EFEFFF / #FFFFFF) 배경 순서 반전 적용 (HeroSection: #EFEFFF)
-//             **2026-09-11** — 랜딩페이지 섹션 교차(#FFFFFF / #EFEFFF) 배경 및 헤어라인 보더(#E2E4F6) 적용
-//             **2026-09-11** — 랜딩페이지 서피스 배경 Primary #DCE1FF 및 헤어라인 보더(#C5CEF8) 적용
-//             **2026-09-11** — '제품 살펴보기' 버튼 제거 및 슬라이더 이미지 상시 렌더링(CSS Cross-Fade) 전환으로 깜빡임 현상 완벽 제거
-//             **2026-09-11** — 히어로 섹션 2열(좌측 카피/CTA + 우측 3초 자동 롤링 이미지 슬라이더 5종) 전면 개편 및 기존 목업 제거
-//             **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
-//             2026-09-03** — Onrivi Author Premium V2 개편: 웜 페이퍼 크림(#F9F8F6) 베이스 및 멀티미디어 비주얼 쇼케이스 탑재
-//             **2026-06-22** — Luminous Arctic 디자인 시스템 라이트모드 적용 패치
-//             **2026-06-21** — OMDLanding UI 디자인 이식 및 /login 리다이렉트 변경 패치
-// 🔗 @CALLS : motion.div, Link, ChevronLeft, ChevronRight
+// 🚨 @PATCH : **2026-09-30** — [히어로 배경색 사용자 지정 색상(#EFEFFF) 적용]: 첨부된 이미지 기준 고유한 소프트 페리윙클(#EFEFFF) 단색 배경 적용
+// 🚨 @PATCH : **2026-09-30** — [우측 시각 영역 3초 자동 롤링 이미지 슬라이더 복원]:
+//             1. 우측 영역을 이전의 고화질 슬라이더(5개 핵심 씬, 3초 무깜빡임 Cross-Fade, 캡션 오버레이)로 복원
+//             2. 좌측 42:58 비율의 메인 카피("AI가 만든 글, 바로 문서로 완성하세요") 및 버튼, 하단 증거 칩 유지
+//             3. 뷰포트 하단 다음 섹션(Positioning) 노출을 위한 최적화된 패딩 유지
+// 🔗 @CALLS : motion.div, Link, ArrowRight, Sparkles
 // ====================================================================
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowRight, ChevronLeft, ChevronRight, ShieldCheck, Zap, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 
 interface HeroSlide {
   id: number;
@@ -80,129 +75,136 @@ export function HeroSection() {
     return () => clearInterval(timer);
   }, [isPaused]);
 
-  const handlePrev = useCallback(() => {
-    setCurrentSlide((prev) => (prev === 0 ? HERO_SLIDES.length - 1 : prev - 1));
-  }, []);
-
-  const handleNext = useCallback(() => {
-    setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-  }, []);
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   return (
     <section
-      className="pt-28 pb-16 sm:pt-36 sm:pb-24 overflow-hidden relative bg-[#EFEFFF] dark:bg-[#0A0D14] text-[#1A1A18] dark:text-[#E8ECE9]"
+      className="pt-24 pb-12 sm:pt-28 sm:pb-16 overflow-hidden relative bg-[#EFEFFF] dark:bg-[#0A0E18] text-[#1A1A18] dark:text-[#E8ECE9] border-b border-[#E2E4F6] dark:border-white/5"
       style={{ fontFamily: "Pretendard, sans-serif" }}
     >
-      {/* Subtle Top Ambient Glow (Cobalt Authority on Warm Base) */}
+      {/* Subtle Top Ambient Glow & Luxury Gradient */}
       <div
         aria-hidden
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[860px] h-[420px] bg-[radial-gradient(ellipse_at_top,rgba(29,78,216,0.12)_0%,transparent_70%)] pointer-events-none z-0"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(29,78,216,0.12)_0%,rgba(147,197,253,0.06)_45%,transparent_70%)] pointer-events-none z-0"
+      />
+      <div
+        aria-hidden
+        className="absolute -top-24 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(59,130,246,0.06)_0%,transparent_60%)] pointer-events-none z-0"
       />
 
-      <div className="max-w-[1240px] mx-auto px-6 lg:px-10 relative z-10">
-        {/* 2-Column Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center">
+      <div className="max-w-[1280px] mx-auto px-6 lg:px-10 relative z-10">
+        {/* 2-Column Grid Layout: 42 : 58 비율 */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
           {/* ======================================================= */}
-          {/* Left Column: Headline, Copy, Single CTA & Badges */}
+          {/* Left Column: Eyebrow, H1, Subtitle, CTA & Proof (42%)   */}
           {/* ======================================================= */}
-          <div className="lg:col-span-6 text-left">
-            {/* Top Badge */}
+          <div className="lg:col-span-5 text-left space-y-6">
+            {/* Eyebrow */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
-              className="inline-flex mb-5"
+              className="inline-flex"
             >
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800/80 border border-[#E2E4F6] dark:border-white/10 text-xs font-semibold text-[#1A1A18] dark:text-zinc-200 tracking-tight shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-[#1d4ed8] animate-pulse" />
-                AI-NATIVE DOCUMENT PLATFORM
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1d4ed8]/10 dark:bg-zinc-800/80 border border-[#1d4ed8]/20 dark:border-white/10 text-xs font-bold text-[#1d4ed8] dark:text-blue-400 tracking-wider uppercase shadow-2xs">
+                <Sparkles size={13} className="text-[#1d4ed8] animate-pulse" />
+                AI DOCUMENT AUTHORING
               </div>
             </motion.div>
 
-            {/* Headline */}
+            {/* H1 Heading */}
             <motion.h1
-              initial={{ opacity: 0, y: 18 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.08 }}
-              className="tracking-tight font-extrabold text-[#111413] dark:text-white mb-6"
+              className="tracking-tight font-extrabold text-[#0F172A] dark:text-white"
               style={{
-                fontSize: "clamp(38px, 4.4vw, 58px)",
-                lineHeight: 1.12,
+                fontSize: "clamp(34px, 4.0vw, 54px)",
+                lineHeight: 1.15,
                 letterSpacing: "-0.04em",
               }}
             >
-              AI는 마크다운으로,<br />
-              <span className="text-[#1d4ed8]">사람은 문서로.</span>
+              AI가 만든 글,<br />
+              <span className="text-[#1d4ed8]">바로 문서로 완성하세요.</span>
             </motion.h1>
 
             {/* Sub-headline */}
             <motion.p
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.16 }}
-              className="mb-8 max-w-xl text-[#2D3748] dark:text-zinc-300 font-normal leading-relaxed text-[16px] sm:text-[18px] tracking-tight"
+              className="text-[#475569] dark:text-zinc-300 font-normal leading-relaxed text-[16px] sm:text-[18px] tracking-tight max-w-lg"
             >
-              생각은 Markdown으로 빠르게. 결과물은 사람이 읽는 아름다운 문서처럼.<br className="hidden sm:inline" />
-              타이핑의 즉시성과 출판 규격의 조판 품질을 하나의 화면에서 완성합니다.
+              Markdown으로 작성하고 실시간으로 확인하세요.<br />
+              <strong className="font-semibold text-[#0F172A] dark:text-white">Onrivi Author</strong>가 전문 문서로 완성합니다.
             </motion.p>
 
-            {/* CTA Button (단일 무료로 시작하기 버튼) */}
+            {/* CTA Buttons */}
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.22 }}
-              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 mb-10"
+              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2"
             >
               <Link href="/signup" className="w-full sm:w-auto">
-                <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[16px] shadow-[0_4px_24px_rgba(29,78,216,0.28)] hover:shadow-[0_6px_28px_rgba(29,78,216,0.4)] transition-all transform hover:-translate-y-0.5 active:translate-y-0">
+                <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-[#1d4ed8] hover:bg-[#1e40af] text-white font-bold text-[15px] shadow-[0_4px_20px_rgba(29,78,216,0.25)] hover:shadow-[0_6px_24px_rgba(29,78,216,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0">
                   무료로 시작하기
-                  <ArrowRight size={17} />
+                  <ArrowRight size={16} />
                 </button>
               </Link>
+              <button
+                type="button"
+                onClick={() => scrollToSection("product-experience")}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-[#0F172A] dark:text-zinc-100 font-semibold text-[15px] transition-all"
+              >
+                기능 살펴보기
+              </button>
             </motion.div>
 
-            {/* Trust Highlights */}
+            {/* Bottom Proof Badges */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.28 }}
-              className="grid grid-cols-3 gap-3 pt-6 border-t border-[#E2E4F6] dark:border-white/10"
+              className="pt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#64748B] dark:text-zinc-400"
             >
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={16} className="text-[#1d4ed8] shrink-0" />
-                <span className="text-xs font-semibold text-[#1E293B] dark:text-zinc-300 tracking-tight">
-                  100% 로컬 프라이버시
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Zap size={16} className="text-[#1d4ed8] shrink-0" />
-                <span className="text-xs font-semibold text-[#1E293B] dark:text-zinc-300 tracking-tight">
-                  1ms 듀얼 싱크
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-[#1d4ed8] shrink-0" />
-                <span className="text-xs font-semibold text-[#1E293B] dark:text-zinc-300 tracking-tight">
-                  출판급 조판 사출
-                </span>
-              </div>
+              <span className="px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                Local First
+              </span>
+              <span>·</span>
+              <span className="px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                Markdown
+              </span>
+              <span>·</span>
+              <span className="px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                Live Preview
+              </span>
+              <span>·</span>
+              <span className="px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                PDF · EPUB
+              </span>
             </motion.div>
           </div>
 
           {/* ======================================================= */}
-          {/* Right Column: Seamless Cross-Fade 3s Image Slider */}
+          {/* Right Column: Seamless Cross-Fade 3s Image Slider (58%) */}
           {/* ======================================================= */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
+            initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="lg:col-span-6 relative"
+            transition={{ duration: 0.6, delay: 0.18 }}
+            className="lg:col-span-7 relative"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
           >
-            {/* Slider Card Container */}
-            <div className="relative aspect-square w-full max-w-[540px] mx-auto rounded-2xl sm:rounded-3xl overflow-hidden border border-[#E2E4F6] dark:border-white/10 bg-zinc-950 shadow-[0_20px_60px_-15px_rgba(29,78,216,0.22)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] group select-none">
-              {/* All slides mounted continuously in DOM - Pure CSS Cross-Fade to prevent any flash/blink */}
+            {/* Slider Container Window Chrome */}
+            <div className="relative aspect-[16/10] w-full mx-auto rounded-2xl sm:rounded-3xl overflow-hidden border border-[#E2E4F6] dark:border-white/10 bg-zinc-950 shadow-[0_20px_50px_-15px_rgba(29,78,216,0.18)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] select-none">
+              {/* All slides mounted continuously in DOM - Pure CSS Cross-Fade */}
               {HERO_SLIDES.map((s, idx) => {
                 const isActive = idx === currentSlide;
                 return (
@@ -224,7 +226,7 @@ export function HeroSection() {
                 );
               })}
 
-              {/* Caption Overlays (Cross-Faded smoothly per slide) */}
+              {/* Caption Overlays */}
               {HERO_SLIDES.map((s, idx) => {
                 const isActive = idx === currentSlide;
                 return (
@@ -250,44 +252,15 @@ export function HeroSection() {
                 );
               })}
 
-              {/* Navigation Arrows (Visible on Hover) */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePrev();
-                }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-30 cursor-pointer"
-                aria-label="이전 이미지"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleNext();
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md active:scale-95 z-30 cursor-pointer"
-                aria-label="다음 이미지"
-              >
-                <ChevronRight size={18} />
-              </button>
-
-              {/* Pagination Dots (Top Right Inside Container) */}
-              <div className="absolute top-4 right-4 z-30 flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1.5 rounded-full">
-                {HERO_SLIDES.map((s, idx) => (
+              {/* Bottom Dot Indicators */}
+              <div className="absolute top-4 right-4 z-30 flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full">
+                {HERO_SLIDES.map((_, idx) => (
                   <button
-                    key={s.id}
+                    key={idx}
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCurrentSlide(idx);
-                    }}
-                    className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
-                      idx === currentSlide
-                        ? "w-5 bg-[#1d4ed8] shadow-[0_0_8px_rgba(29,78,216,0.8)]"
-                        : "w-1.5 bg-white/50 hover:bg-white/80"
+                    onClick={() => setCurrentSlide(idx)}
+                    className={`h-1.5 rounded-full transition-all ${
+                      idx === currentSlide ? "w-5 bg-[#1d4ed8]" : "w-1.5 bg-white/50"
                     }`}
                     aria-label={`슬라이드 ${idx + 1}`}
                   />
