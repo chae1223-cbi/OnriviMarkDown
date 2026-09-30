@@ -1,5 +1,5 @@
+// 🚨 @PATCH : **2026-10-01** — [Word(.docx) 내보내기 시 미리보기 DOM 직접 조판 및 마크다운 태그 누출 완전 해결]: 렌더링된 미리보기 DOM을 바탕으로 유니코드 불릿, 볼드, 인라인 코드, 표, DrawingML 이미지를 Word 규격에 맞게 100% 온전히 사출하도록 연동
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 기능 삭제]: exportHWPX 함수 및 한글 문서 내보내기 파이프라인 완전 제거
-// 🚨 @PATCH : **2026-10-01** — [DOCX 원본 마크다운 직접 파싱 사출 파이프라인 연동]: DOM 스크랩 대신 원본 마크다운(markdownContent) 텍스트를 전달받아 marked AST 기반으로 Word 문서를 직접 조판 사출하도록 연동
 // 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 긴 Mermaid 다이어그램 앞 빈 페이지(백지) 발생 원천 차단]: .not-prose의 강제 break-inside: avoid로 인한 브라우저 페이지 밀림 버그를 해소하고, Mermaid SVG에 max-height: 230mm 및 auto-scale을 적용하여 긴 다이어그램도 A4 1페이지 내에 깔끔하게 쏙 들어가도록 조판 최적화
 // 🚨 @PATCH : **2026-10-01** — [DOCX 이미지·Mermaid 다이어그램 자동 추출 및 임베딩 연동]: extractMediaFromElements 엔진을 호출하여 라이브 미리보기 DOM 내 모든 이미지 및 다이어그램 바이너리를 추출하고, Word(.docx) 내보내기 시 미디어 파일 및 캡션을 100% 온전히 임베딩 사출하도록 개선
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 파이프라인 신설]: 미리보기 DOM을 파싱하여 MS Word(Office Open XML) 및 한글(OWPML) 표준 문서로 변환 사출하는 exportDOCX, exportHWPX 함수 구현 및 데스크톱/브라우저 연동
@@ -2436,13 +2436,13 @@ export async function exportPNG({
 // 🔗 @CALLS : clonePreview, generateDocx, downloadBlob, saveToDownloads
 // ====================================================================
 // 📊 [OMD-IO-exportHandlers-0014] exportHandlers.ts ➔ exportDOCX
-// 🎯 @KICK  : 원본 마크다운 또는 미리보기 DOM을 MS Word(.docx) 문서로 변환하여 내보내기
-// 🛡️ @GUARD : Electron saveFileAs 및 브라우저 다운로드 분기 지원
-// 🚨 @PATCH : **2026-10-01** — 원본 마크다운(markdownContent) 직접 전달 및 marked AST 기반 고정밀 Word 변환 연동
+// 🎯 @KICK  : 미리보기 렌더링 DOM을 MS Word(.docx) 문서로 변환하여 내보내기
+// 🛡️ @GUARD : Electron saveFileAs 및 브라우저 다운로드 분기 지원, 유니코드 불릿/인라인 태그 누출 차단
+// 🚨 @PATCH : **2026-10-01** — 미리보기 DOM 직접 조판 기반으로 전환하여 마크다운 태그 누출을 완전 방지하고 깨끗한 Word 문서 사출 지원
 // 🚨 @PATCH : **2026-09-30** — MS Word (.docx) 내보내기 파이프라인 신설
 // 🔗 @CALLS : clonePreview, generateDocx, downloadBlob, saveToDownloads
 // ====================================================================
-export async function exportDOCX({ previewEl, currentFileName, showToast, markdownContent }: ExportOptions) {
+export async function exportDOCX({ previewEl, currentFileName, showToast }: ExportOptions) {
   try {
     showToast('Word 문서 (.docx) 생성 중...', 'info');
 
@@ -2457,7 +2457,7 @@ export async function exportDOCX({ previewEl, currentFileName, showToast, markdo
     const filename = `${docTitle}.docx`;
 
     const { generateDocx, downloadBlob } = await import('@/lib/docxGenerator');
-    const docxBlob = await generateDocx(clone, { title: docTitle, images, markdown: markdownContent });
+    const docxBlob = await generateDocx(clone, { title: docTitle, images });
 
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const arrayBuffer = await docxBlob.arrayBuffer();
