@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-10-01** — [제한사용자 미리보기 모드 시 메뉴바 내보내기 활성화]: isRestrictedUser 조건으로 인해 미리보기 모드에서도 내보내기 메뉴가 비활성화되던 가드를 해제하여 previewMode === 'preview'일 때 제한사용자도 문서 내보내기(인쇄, Word, 한글, HTML, EPUB, PNG)를 정상 이용할 수 있도록 개선
 // 🚨 @PATCH : **2026-09-30** — [내보내기 서브메뉴 Word(.docx) 및 한글(.hwpx) 항목 추가]: 파일 > 내보내기 메뉴에 Word 문서(.docx) 및 한글 문서(.hwpx) 사출 액션 등록
 // 🚨 @PATCH : **2026-09-30** — [미리보기 모드 시 문서 병합 및 각주 정리 비활성화]: previewMode가 'preview'일 때 도구 메뉴의 '문서 병합' 및 '각주 정리' 버튼을 disabled 처리하고 비활성화 툴팁 및 클릭 가드 적용
 // 🚨 @PATCH : **2026-09-28** — 제한사용자 메뉴에서 읽기·이동·설정 명령만 활성화하고 저장·편집·변환·병합 명령 비활성화
@@ -250,7 +251,8 @@ export default function MenuBar() {
     { 
       label: t('export') + (previewMode !== 'preview' ? " (미리보기 모드 전용)" : ""), 
       icon: <Icon name="Export" size={15} />,
-      disabled: isRestrictedUser || previewMode !== 'preview',
+      disabled: previewMode !== 'preview',
+      title: previewMode !== 'preview' ? "내보내기는 미리보기 모드에서만 가능합니다." : undefined,
       subItems: [
         { label: t('print'), icon: <Icon name="Print" size={14} />, onClick: () => dispatch('PRINT') },
         { label: t('docx'), icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_DOCX') },
