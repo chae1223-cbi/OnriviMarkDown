@@ -7,7 +7,7 @@
  * 2. next build 실행
  * 3. 임시 이동한 폴더 원위치 복원
  * 
- * 🚨 @PATCH : **2026-09-30** — [데스크톱 빌드 독립 디렉토리 격리] 개발 서버 캐시 충돌 방지를 위해 NEXT_BUILD_DIR=.next-desktop 주입 및 .next 폴더 오염 원천 차단
+ * 🚨 @PATCH : **2026-09-30** — [데스크톱 정적 빌드 안정화] Next.js 14 정적 내보내기(export) 워커 간 manifest 탐색 불일치(PageNotFoundError: /)를 유발하던 NEXT_BUILD_DIR 분리를 걷어내고 기본 .next 단일 빌드로 정상 복원
  * 🚨 @PATCH : **2026-09-26** — [데스크톱 빌드 캐시 자동 정리] .next 빌드 캐시 선행 삭제 로직 추가로 청크 불일치 오류 방지
  * 🚨 @PATCH : **2026-09-26** — [데스크톱 빌드 격리] DEV_ONLY_ROUTES에 /blog 라우트 추가하여 데스크톱 번들 빌드 안정화
  * 🚨 @PATCH : **2026-09-23** — [데스크톱 빌드 실패 해결] DEV_ONLY_ROUTES에 /knowledge 웹 리다이렉트 라우트 추가 및 빌드 후 public/icons 정적 에셋 동기화 보강
@@ -60,12 +60,12 @@ for (const item of DEV_ONLY_ROUTES) {
 // 2. Next.js 빌드 실행
 let buildSuccess = false;
 try {
-  const nextCacheDir = path.join(__dirname, '.next-desktop');
+  const nextCacheDir = path.join(__dirname, '.next');
   if (fs.existsSync(nextCacheDir)) {
     fs.rmSync(nextCacheDir, { recursive: true, force: true });
   }
-  console.log('[desktop-build] next build 시작 (독립 빌드 폴더: .next-desktop)...');
-  execSync('npx next build', { stdio: 'inherit', env: { ...process.env, ASSET_PREFIX: './', NEXT_BUILD_TARGET: 'desktop', NEXT_BUILD_DIR: '.next-desktop' } });
+  console.log('[desktop-build] next build 시작...');
+  execSync('npx next build', { stdio: 'inherit', env: { ...process.env, ASSET_PREFIX: './', NEXT_BUILD_TARGET: 'desktop' } });
   buildSuccess = true;
 } catch (err) {
   console.error('[desktop-build] 빌드 실패:', err.message);
