@@ -1,9 +1,9 @@
 // ====================================================================
 // 📊 [OMD-IO-exportMediaHelper-0001] exportMediaHelper.ts
-// 🎯 @KICK  : DOCX 및 HWPX 내보내기 시 미리보기 내 이미지(IMG) 및 다이어그램(Mermaid SVG) 추출·PNG 래스터라이즈 엔진
+// 🎯 @KICK  : DOCX 내보내기 시 미리보기 내 이미지(IMG) 및 다이어그램(Mermaid SVG) 추출·PNG 래스터라이즈 엔진
 // 🛡️ @GUARD : 2x 고해상도 캔버스 래스터라이즈, Base64/Blob/SVG 완전 변환, 캡션([그림 N]) 지능형 추출 연동
-// 🚨 @PATCH : **2026-10-01** — [DOCX/HWPX Mermaid 다이어그램 이미지 완벽 임베딩]: SVG Base64 DataURL 래스터라이즈 파이프라인으로 전환하여 브라우저 SVG 보안 차단 버그를 해소하고, Mermaid 래퍼 블록을 클론 DOM에서 정규 이미지 블록으로 즉시 치환하여 Word 및 한글에서 다이어그램이 100% 온전히 이미지로 임베딩되도록 조치
-// 🚨 @PATCH : **2026-10-01** — MS Word(.docx) 및 한글(.hwpx) 이미지·다이어그램 임베딩용 미디어 추출기 신규 개발
+// 🚨 @PATCH : **2026-10-01** — [DOCX Mermaid 다이어그램 이미지 완벽 임베딩]: SVG Base64 DataURL 래스터라이즈 파이프라인으로 전환하여 브라우저 SVG 보안 차단 버그를 해소하고, Mermaid 래퍼 블록을 클론 DOM에서 정규 이미지 블록으로 즉시 치환하여 Word에서 다이어그램이 100% 온전히 이미지로 임베딩되도록 조치
+// 🚨 @PATCH : **2026-10-01** — MS Word(.docx) 이미지·다이어그램 임베딩용 미디어 추출기 신규 개발
 // 🔗 @CALLS : HTMLCanvasElement, XMLSerializer
 // ====================================================================
 

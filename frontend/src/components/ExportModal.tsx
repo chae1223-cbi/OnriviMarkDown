@@ -11,19 +11,20 @@ import { Download, Printer, Globe, Image as ImageIcon, X, Check, BookOpen, FileT
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (format: 'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub') => void;
+  onExport: (format: 'print' | 'docx' | 'html' | 'png' | 'epub') => void;
   isDarkMode: boolean;
 }
 
 /**
  * [ONR-UI-012] ExportModal 컴포넌트 함수
- * @description 에디터에서 완성된 문서를 OS 인쇄(미리보기+PDF저장), Word(.docx), 한글(.hwpx), HTML, EPUB 전자책, PNG 이미지 포맷 중 선택하여 내보내기 요청을 처리하는 모달 창입니다.
+ * @description 에디터에서 완성된 문서를 OS 인쇄(미리보기+PDF저장), Word(.docx), HTML, EPUB 전자책, PNG 이미지 포맷 중 선택하여 내보내기 요청을 처리하는 모달 창입니다.
  */
 // ====================================================================
 // 📊 [OMD-IO-ExportModal-0001] ExportModal ➔ ExportModal
-// 🎯 @KICK  : OS 인쇄(미리보기+PDF저장)/Word/한글/HTML/EPUB/PNG 포맷 선택 및 내보내기 요청을 처리하는 모달 창
+// 🎯 @KICK  : OS 인쇄(미리보기+PDF저장)/Word/HTML/EPUB/PNG 포맷 선택 및 내보내기 요청을 처리하는 모달 창
 // 🛡️ @GUARD : isOpen 및 mounted 상태 모두 true일 때만 포털 렌더링
-// 🚨 @PATCH : **2026-09-30** — Word 문서(.docx) 및 한글 문서(.hwpx) 내보내기 옵션 추가
+// 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 옵션 삭제]: 모달 선택 옵션에서 한글 문서(.hwpx) 항목 제거
+// 🚨 @PATCH : **2026-09-30** — Word 문서(.docx) 내보내기 옵션 추가
 // 🚨 @PATCH : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용 (Cobalt #1d4ed8, Inter / Plus Jakarta Sans)
 //             2026-07-18** — 워터마크 입력창 타이핑 시 keydown 이벤트가 document.body로 전파되어 Monaco getModifierState 크래시가 발생하는 결함 해결을 위해 최외각 wrapper에 stopPropagation 가드 장착; 인쇄 모달 내 즉석 워터마크(pdfUseWatermark, pdfWatermark, pdfWatermarkOpacity) 설정 UI 추가 개편
 //             PDF/HTML → OS 인쇄(print) 통합 후 HTML 파일 저장 별도 추가; icon/label/desc 변경
@@ -35,7 +36,7 @@ export default function ExportModal({
   onExport, 
   isDarkMode,
 }: ExportModalProps) {
-  const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'hwpx' | 'html' | 'png' | 'epub'>('print');
+  const [selectedFormat, setSelectedFormat] = useState<'print' | 'docx' | 'html' | 'png' | 'epub'>('print');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -48,7 +49,6 @@ export default function ExportModal({
   const formats = [
     { id: 'print', label: "인쇄 / PDF 출력", desc: "OS 인쇄 미리보기 후 프린터 출력 또는 PDF 저장", icon: <Printer size={20} className="text-red-500" /> },
     { id: 'docx', label: "Word 문서 (.docx)", desc: "MS Word 및 구글 Docs 완벽 호환 문서", icon: <FileText size={20} className="text-blue-600" /> },
-    { id: 'hwpx', label: "한글 문서 (.hwpx)", desc: "한글 2014 이상 표준 OWPML 규격 문서", icon: <FileText size={20} className="text-teal-600" /> },
     { id: 'html', label: "HTML 파일", desc: "웹 브라우저에서 바로 열기용 (.html)", icon: <Globe size={20} className="text-blue-500" /> },
     { id: 'epub', label: "EPUB 전자책", desc: "eBook 리더 및 태블릿 기기용", icon: <BookOpen size={20} className="text-purple-500" /> },
     { id: 'png', label: "PNG 이미지", desc: "SNS 공유 및 프리젠테이션용", icon: <ImageIcon size={20} className="text-green-500" /> },

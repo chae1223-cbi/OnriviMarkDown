@@ -2,7 +2,7 @@
  * 프로그램명 : OnriviAuthor
  * 프로그램 ID : oaar-modal-manager
  * -----------------------------------------------------------------------
- * 변경내역
+ * 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 모달 핸들러 제거]: ExportModal의 hwpx 선택 핸들러 분기 완전 삭제
  * 🚨 @PATCH : **2026-09-30** — [내보내기 모달 onExport 핸들러 Word(.docx) 및 한글(.hwpx) 연동]: ExportModal의 docx, hwpx 선택 시 handlers.exportDOCX 및 handlers.exportHWPX 실행 연결
  * 🚨 @PATCH : **2026-09-24** — [새 서식 생성 시 Onrivi 기본서식 100% 완전체 정규화(normalizeCssProfile) 연동]: onAddProfile 호출 시 DEFAULT_PROFILE의 모든 7대 쇼케이스 태그 및 구조체를 100% 하이드레이션하여 누락 없는 완전체로 신규 서식 생성
  * 🚨 @PATCH : **2026-09-24** — [외부 서식 가져오기 표준 정규화(normalizeCssProfile) 연동]: ID 중복 방지 및 7대 쇼케이스·구조체 100% 자동 하이드레이션, 신규 서식 ID 반환 보장
@@ -225,7 +225,6 @@ export default function ModalManager({ modals, deps }: ModalManagerProps) {
           }
           if (format === 'print') handlers.print();
           else if (format === 'docx') handlers.exportDOCX();
-          else if (format === 'hwpx') handlers.exportHWPX();
           else if (format === 'html') handlers.exportHTML();
           else if (format === 'png') handlers.exportPNG();
           else if (format === 'epub') handlers.exportEPUB();

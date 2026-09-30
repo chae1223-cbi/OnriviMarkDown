@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 메뉴 삭제]: 상단 파일 > 내보내기 서브메뉴에서 한글 문서(.hwpx) 항목 및 번역 키 완전 제거
 // 🚨 @PATCH : **2026-10-01** — [제한사용자 미리보기 모드 시 메뉴바 내보내기 활성화]: isRestrictedUser 조건으로 인해 미리보기 모드에서도 내보내기 메뉴가 비활성화되던 가드를 해제하여 previewMode === 'preview'일 때 제한사용자도 문서 내보내기(인쇄, Word, 한글, HTML, EPUB, PNG)를 정상 이용할 수 있도록 개선
 // 🚨 @PATCH : **2026-09-30** — [내보내기 서브메뉴 Word(.docx) 및 한글(.hwpx) 항목 추가]: 파일 > 내보내기 메뉴에 Word 문서(.docx) 및 한글 문서(.hwpx) 사출 액션 등록
 // 🚨 @PATCH : **2026-09-30** — [미리보기 모드 시 문서 병합 및 각주 정리 비활성화]: previewMode가 'preview'일 때 도구 메뉴의 '문서 병합' 및 '각주 정리' 버튼을 disabled 처리하고 비활성화 툴팁 및 클릭 가드 적용
@@ -45,7 +46,6 @@ const localTranslations: Record<string, Record<string, string>> = {
     export: "내보내기",
     print: "인쇄/PDF",
     docx: "Word 문서 (.docx)",
-    hwpx: "한글 문서 (.hwpx)",
     html: "HTML 파일 (.html)",
     epub: "EPUB 전자책 (.epub)",
     png: "PNG 이미지 (.png)",
@@ -87,7 +87,6 @@ const localTranslations: Record<string, Record<string, string>> = {
     export: "Export",
     print: "Print/PDF",
     docx: "Word Document (.docx)",
-    hwpx: "Hangul Document (.hwpx)",
     html: "HTML File (.html)",
     epub: "EPUB E-book (.epub)",
     png: "PNG Image (.png)",
@@ -256,7 +255,6 @@ export default function MenuBar() {
       subItems: [
         { label: t('print'), icon: <Icon name="Print" size={14} />, onClick: () => dispatch('PRINT') },
         { label: t('docx'), icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_DOCX') },
-        { label: t('hwpx'), icon: <Icon name="Document" size={14} />, onClick: () => dispatch('EXPORT_HWPX') },
         { divider: true },
         { label: t('html'), icon: <Icon name="FileCode" size={14} />, onClick: () => dispatch('EXPORT_HTML') },
         { label: t('epub'), icon: <Icon name="Book" size={14} />, onClick: () => dispatch('EXPORT_EPUB') },
