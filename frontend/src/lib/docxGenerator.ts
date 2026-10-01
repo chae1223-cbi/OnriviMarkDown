@@ -2,6 +2,7 @@
 // 📊 [OMD-IO-docxGenerator-0001] docxGenerator.ts ➔ generateDocx
 // 🎯 @KICK  : 미리보기 렌더링 DOM을 표준 Office Open XML(.docx) 파일로 조판 및 변환 사출
 // 🛡️ @GUARD : JSZip 기반 100% 클라이언트/오프라인 구동, 미리보기 DOM 1:1 무결성, DrawingML 이미지/다이어그램 임베딩, 헤딩 코발트 바 & 라이트 음영 코드블록 완벽 조판
+// 🚨 @PATCH : **2026-10-01** — [Word(.docx) 사출 시 우측 정렬(align="right" / text-align: right) 완벽 지원]: <p>, <div>, <span> 등 서명/날짜/발신인 우측 정렬 태그를 Word 정렬 XML(<w:jc w:val="right"/>)로 완벽 변환하여 전자책, 웹, Word 문서 간 시각적 일치 보장
 // 🚨 @PATCH : **2026-10-01** — [Word(.docx) 사출 시 Heading keepNext 및 Caption 네이티브 스타일 매핑]: Heading1~Heading6에 keepNext를 선언하여 페이지 하단 단독 잔존(Orphan heading)을 원천 방지하고, figcaption을 Word 표준 Caption 스타일(<w:pStyle w:val="Caption"/>)로 지정 및 이미지-캡션 간 keepNext 연동을 통해 전문가급 Word 네이티브 조판 실현
 // 🚨 @PATCH : **2026-10-01** — [미리보기 DOM 직접 파싱 기반 Word(.docx) 사출 엔진 전면 개편 및 마크다운 태그 누출 완전 해결]: marked AST 대신 이미 서식이 100% 렌더링된 미리보기 DOM을 직접 순회하여 유니코드 불릿(• ) 및 인라인 볼드/인라인 코드 태그(**, `) 누출을 원천 박멸하고, 코드블록 다크 배지([TEXT])를 단일 라이트 음영 카드로 일원화하며, 메타영역(Frontmatter) 제외 및 DrawingML 듀얼 클램프 이미지/Mermaid 완벽 임베딩 실현
 // 🚨 @PATCH : **2026-10-01** — [DOCX 파일 오픈 오류 긴급 해결 및 MS Word 완벽 호환]: w:document 루트에 필수 DrawingML(wp, a, pic) 네임스페이스 선언 완비, docProps/core.xml·app.xml 패키징, Relationship Id 정규 순차 번호(rId2~) 매핑 및 wp:docPr/pic:cNvPr 고유 ID 분리로 Word 유효성 검사 에러 완전 차단
@@ -561,10 +562,19 @@ function buildDocumentXml(
     if (tag === 'p') {
       const inlines = parseInlines(el);
       if (inlines.trim()) {
+        const rawAlign = (
+          el.getAttribute('align') ||
+          el.style?.textAlign ||
+          el.closest('[align]')?.getAttribute('align') ||
+          (el.closest('[style*="text-align"]') as HTMLElement)?.style?.textAlign ||
+          ''
+        ).toLowerCase();
+        const jcXml = rawAlign === 'right' ? '<w:jc w:val="right"/>' : (rawAlign === 'center' ? '<w:jc w:val="center"/>' : '');
         bodyXmls.push(`
           <w:p>
             <w:pPr>
               <w:spacing w:after="160" w:line="276" w:lineRule="auto"/>
+              ${jcXml}
             </w:pPr>
             ${inlines}
           </w:p>
@@ -755,7 +765,34 @@ function buildDocumentXml(
       return;
     }
 
-    // 8. 일반 래퍼 컨테이너 (DIV, SECTION, ARTICLE 등): 재귀 순회
+    // 8. 일반 래퍼 컨테이너 (DIV, SECTION, ARTICLE 등)
+    if (tag === 'div' || tag === 'section' || tag === 'article') {
+      const hasBlockChildren = el.querySelector('p, h1, h2, h3, h4, h5, h6, table, ul, ol, pre, blockquote, hr, figure') !== null;
+      if (!hasBlockChildren) {
+        const inlines = parseInlines(el);
+        if (inlines.trim()) {
+          const rawAlign = (
+            el.getAttribute('align') ||
+            el.style?.textAlign ||
+            el.closest('[align]')?.getAttribute('align') ||
+            (el.closest('[style*="text-align"]') as HTMLElement)?.style?.textAlign ||
+            ''
+          ).toLowerCase();
+          const jcXml = rawAlign === 'right' ? '<w:jc w:val="right"/>' : (rawAlign === 'center' ? '<w:jc w:val="center"/>' : '');
+          bodyXmls.push(`
+            <w:p>
+              <w:pPr>
+                <w:spacing w:after="160" w:line="276" w:lineRule="auto"/>
+                ${jcXml}
+              </w:pPr>
+              ${inlines}
+            </w:p>
+          `);
+        }
+        return;
+      }
+    }
+
     Array.from(el.childNodes).forEach(processBlockNode);
   }
 
