@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [PDF 3·4·5페이지 섹션 시작 조판 최적화 및 제목+소개+미디어 원자적 결속]: H1~H6 바로 뒤의 소개 문단/목록이 핵심 이미지나 다이어그램으로 이어질 때, 이미지가 다음 페이지로 넘어갈 경우 제목과 한 줄 소개만 앞 페이지 하단에 덩그러니 남겨지는 분리 현상을 원천 방어하도록 break-after: avoid를 결속하여 제목+소개+이미지가 다음 페이지 첫머리에서 온전히 함께 시작되도록 출판형 조판 완성
 // 🚨 @PATCH : **2026-10-01** — [PDF Mermaid 다이어그램 컨테이너 분할 분리 및 이전 페이지 빈 사각형 잔상 버그 완전 해결]: .not-prose, .not-prose > div, .mermaid-svg-container, .mermaid-block-container에 break-inside: avoid를 전면 강제 적용하여 컨테이너와 SVG가 분리되어 이전 페이지에 빈 사각형 박스가 남는 렌더링 결함을 완전히 차단하고, 도표 전체가 한 덩어리로 온전히 다음 페이지로 넘어가도록 원자적(Atomic) 조판 완결
 // 🚨 @PATCH : **2026-10-01** — [PDF 인쇄 조판(Pagination) 전면 최적화 및 하단 과도한 빈 공간/고아 제목 원천 박멸]: 제목 고아 방지(break-after: avoid), 일반 본문/문단/인용구/리스트 행 단위 자연스러운 분할(break-inside: auto, orphans/widows: 2), 컨테이너(section/article/div) 분할 허용, 대형 이미지 자동 축소(max-height: 190mm) 및 이미지-캡션 묶음 조판(display: block 정규화)을 적용하여 A4 페이지 하단 대형 공백 소거 완료
 // 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 공백) 제거 및 자연스러운 페이지 분할(Pagination) 정책 수립]: p, li, blockquote의 break-inside를 auto로 전면 개편하고 orphans/widows: 2를 적용하며, figure, img, tr, .codeblock-area만 break-inside: avoid를 유지하여 긴 문단이 다음 페이지로 통째로 밀리지 않고 자연스럽게 넘어가도록 조판 최적화
@@ -784,6 +785,30 @@ pre {
     margin-top: 6px !important;
   }
   h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+  /* [P1: Section 시작 위치 최적화] Heading 직후 소개 문단이 이미지/도표로 이어질 때 한 덩어리로 결속 */
+  h1 + p:has(+ figure),
+  h2 + p:has(+ figure),
+  h3 + p:has(+ figure),
+  h4 + p:has(+ figure),
+  h1 + p:has(+ .onrivi-image-figure),
+  h2 + p:has(+ .onrivi-image-figure),
+  h3 + p:has(+ .onrivi-image-figure),
+  h4 + p:has(+ .onrivi-image-figure),
+  h1 + p:has(+ .not-prose),
+  h2 + p:has(+ .not-prose),
+  h3 + p:has(+ .not-prose),
+  h4 + p:has(+ .not-prose),
+  h1 + ul:has(+ figure),
+  h2 + ul:has(+ figure),
+  h3 + ul:has(+ figure),
+  h4 + ul:has(+ figure),
+  h1 + ul:has(+ .onrivi-image-figure),
+  h2 + ul:has(+ .onrivi-image-figure),
+  h3 + ul:has(+ .onrivi-image-figure),
+  h4 + ul:has(+ .onrivi-image-figure) {
     page-break-after: avoid !important;
     break-after: avoid !important;
   }
@@ -2005,6 +2030,32 @@ export async function exportPDF({
       cap.style.setProperty('break-inside', 'avoid', 'important');
     });
 
+    // 🎯 [P1: Section 시작 위치 최적화] Heading + Intro + 핵심 미디어 원자적 결속
+    // H1~H6 바로 뒤의 소개 문단(p) 또는 목록(ul/ol)이 이미지(figure)나 다이어그램(not-prose)으로 바로 이어질 때,
+    // 이미지가 다음 페이지로 넘어갈 경우 제목과 한 줄 소개만 이전 페이지 하단에 덩그러니 남는 고아 현상을 차단하고,
+    // Heading + Intro + Image가 다음 페이지 첫머리에서 깔끔하게 함께 시작되도록 소개 요소에 break-after: avoid 주입
+    clone.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(heading => {
+      let next = heading.nextElementSibling as HTMLElement | null;
+      while (next && (next.classList.contains('no-export') || next.tagName === 'STYLE' || next.tagName === 'SCRIPT')) {
+        next = next.nextElementSibling as HTMLElement | null;
+      }
+      if (next && (next.tagName === 'P' || next.tagName === 'UL' || next.tagName === 'OL')) {
+        let afterNext = next.nextElementSibling as HTMLElement | null;
+        while (afterNext && (afterNext.classList.contains('no-export') || afterNext.tagName === 'STYLE' || afterNext.tagName === 'SCRIPT')) {
+          afterNext = afterNext.nextElementSibling as HTMLElement | null;
+        }
+        if (afterNext && (
+          afterNext.tagName === 'FIGURE' ||
+          afterNext.classList.contains('onrivi-image-figure') ||
+          afterNext.classList.contains('not-prose') ||
+          afterNext.querySelector('.mermaid-svg-container')
+        )) {
+          next.style.setProperty('page-break-after', 'avoid', 'important');
+          next.style.setProperty('break-after', 'avoid', 'important');
+        }
+      }
+    });
+
     // 🌟 가로폭 좁아짐 현상 해결: 미리보기 컴포넌트에 남겨질 수 있는 가로폭 제약(width, max-width)을 초기화하여
     //    Electron 및 브라우저 인쇄 영역에 맞게 자연스럽게 반응형 100% 본문 너비를 확보하게 처리합니다.
     clone.style.width = '100%';
@@ -2139,6 +2190,31 @@ export async function exportPDF({
     @media print {
       /* [P1] 제목 고아 방지 (Orphan Heading 원천 차단): 제목이 페이지 하단에 홀로 남지 않도록 보장 */
       h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+
+      /* [P1: Section 시작 위치 최적화] Heading 직후 소개 문단이 이미지/도표로 이어질 때 한 덩어리로 결속 */
+      h1 + p:has(+ figure),
+      h2 + p:has(+ figure),
+      h3 + p:has(+ figure),
+      h4 + p:has(+ figure),
+      h1 + p:has(+ .onrivi-image-figure),
+      h2 + p:has(+ .onrivi-image-figure),
+      h3 + p:has(+ .onrivi-image-figure),
+      h4 + p:has(+ .onrivi-image-figure),
+      h1 + p:has(+ .not-prose),
+      h2 + p:has(+ .not-prose),
+      h3 + p:has(+ .not-prose),
+      h4 + p:has(+ .not-prose),
+      h1 + ul:has(+ figure),
+      h2 + ul:has(+ figure),
+      h3 + ul:has(+ figure),
+      h4 + ul:has(+ figure),
+      h1 + ul:has(+ .onrivi-image-figure),
+      h2 + ul:has(+ .onrivi-image-figure),
+      h3 + ul:has(+ .onrivi-image-figure),
+      h4 + ul:has(+ .onrivi-image-figure) {
         page-break-after: avoid !important;
         break-after: avoid !important;
       }
