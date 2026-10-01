@@ -11,6 +11,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 여백) 소거 및 자연스러운 문단 분할(Pagination) 정책 정립]: p, li, blockquote의 강제 break-inside: avoid를 auto로 전면 개편하고 orphans/widows: 2를 적용하여 긴 문단이 페이지 하단에서 통째로 밀리지 않고 자연스럽게 페이지를 넘어가도록 최적화
  * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 긴 Mermaid 다이어그램 앞 빈 페이지(백지) 발생 방지]: .not-prose 강제 break-inside 해제 및 Mermaid SVG max-height(230mm) 제어로 인쇄 시 A4 1페이지 내 온전한 안착 보장
  * 🚨 @PATCH : **2026-09-30** — [미리보기 내부 텍스트 검색 하이라이트 스타일 추가]: CSS.highlights(::highlight) 및 .preview-find-match 고대비 시인성 스타일 탑재
  * 🚨 @PATCH : **2026-09-28** — [관리자 UI 디자인 시스템 통일]: DESIGN.md의 카드·버튼(Primary/Secondary/Danger)·입력·타이포그래피·상태 색상·모달 표면과 배경을 관리자 전용 범위에 적용
@@ -1609,14 +1610,16 @@ div.onrivi-list-spacer {
   }
 }
 
-/* 미리보기 및 인쇄 시 행 잘림 방지 */
+/* 미리보기 및 인쇄 시 자연스러운 페이지 분할(Pagination) 보장: 문단/인용구/리스트는 auto 분할 허용하여 하단 거대 공백 차단 */
 .preview-page-sheet p,
 .preview-page-sheet li,
 .preview-page-sheet blockquote,
-.preview-page-sheet figcaption,
 .preview-page-sheet .prose p {
-  orphans: 3 !important;
-  widows: 3 !important;
+  orphans: 2 !important;
+  widows: 2 !important;
+  break-inside: auto !important;
+}
+.preview-page-sheet figcaption {
   break-inside: avoid !important;
 }
 .preview-page-sheet pre,
@@ -1661,9 +1664,17 @@ div.onrivi-list-spacer {
     orphans: 2 !important;
     widows: 2 !important;
   }
-  p, li, blockquote, figcaption, .prose p {
-    orphans: 3 !important;
-    widows: 3 !important;
+  p, li, .prose p {
+    orphans: 2 !important;
+    widows: 2 !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  blockquote {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  figcaption {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }

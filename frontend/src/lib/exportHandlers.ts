@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 공백) 제거 및 자연스러운 페이지 분할(Pagination) 정책 수립]: p, li, blockquote의 break-inside를 auto로 전면 개편하고 orphans/widows: 2를 적용하며, figure, img, tr, .codeblock-area만 break-inside: avoid를 유지하여 긴 문단이 다음 페이지로 통째로 밀리지 않고 자연스럽게 넘어가도록 조판 최적화
 // 🚨 @PATCH : **2026-10-01** — [모든 내보내기(PDF/HTML/인쇄/PNG) 시 코드블록 긴 코드 자동 줄바꿈 및 전체 내용 100% 노출]: applyExportInlineStyles를 HTML 내보내기에도 전면 탑재하고, generateExportCss 및 내보내기 스타일시트에 pre/code/.onrivi-line의 white-space: pre-wrap, word-break: break-all, overflow-wrap: anywhere 및 overflow-x: visible을 강제 주입하여 가로 스크롤 없이 전체 코드가 깔끔하게 줄바꿈되어 보이도록 일원화
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이전 페이지 이미지 우측 경계가 다음 페이지 좌측으로 누출되는 잔상 현상 완전 차단]: clone 단계에서 figure 및 .onrivi-image-wrapper에 overflow: hidden 및 box-sizing: border-box를 강제 주입하여 인접 페이지 침범 원천 방어
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이미지 우측 쏠림 및 다음 컬럼 침범 버그 완전 해결]: 리더기 기본 figure 마진(40px) 및 inline-flex로 인한 우측 편향을 clone 단계에서 figure/wrapper margin:0 auto 및 display:block으로 정규화하여 100% 중앙 정렬
@@ -750,41 +751,57 @@ pre {
   /* 페이지 나눔 제어: 리스트가 통째로 다음 페이지로 밀리지 않고 자연스럽게 분할되도록 */
   css += `
 @media print {
-  li {
+  p, li, .prose p {
     page-break-inside: auto !important;
+    break-inside: auto !important;
     orphans: 2 !important;
     widows: 2 !important;
   }
   ul, ol {
     page-break-inside: auto !important;
+    break-inside: auto !important;
   }
-  p {
-    orphans: 2 !important;
-    widows: 2 !important;
+  blockquote {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  figcaption {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
   h1, h2, h3, h4, h5, h6 {
     page-break-after: avoid !important;
+    break-after: avoid !important;
   }
-  table, thead, tbody, tr, td, th {
+  table {
     page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+  figure, img, video, iframe, .katex-display, .onrivi-image-figure, .onrivi-image-wrapper {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
   pre, code, .codeblock-area {
     page-break-inside: auto !important;
-  }
-  img, video, iframe, .katex-display {
-    page-break-inside: avoid !important;
+    break-inside: auto !important;
   }
   .injected-page-break-marker {
-      break-before: page !important;
-      page-break-before: always !important;
-    }
-    hr:not(.page-break) {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+  hr:not(.page-break) {
     page-break-after: avoid !important;
-    page-break-before: avoid !important;
-    page-break-inside: avoid !important;
     break-after: avoid !important;
-    break-before: avoid !important;
-    break-inside: avoid !important;
   }
 }
 `;
@@ -2007,6 +2024,39 @@ export async function exportPDF({
       top: 2px !important;
       vertical-align: baseline !important;
       margin-right: 6px !important;
+    }
+    /* 📄 자연스러운 본문 페이지 분할(Pagination) 보장 (하단 거대 빈 공간 원천 방어) */
+    p, li, .prose p {
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+      orphans: 2 !important;
+      widows: 2 !important;
+    }
+    blockquote {
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+    }
+    figcaption {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    figure, img, video, iframe, .onrivi-image-figure, .onrivi-image-wrapper {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    table {
+      page-break-inside: auto !important;
+      break-inside: auto !important;
+    }
+    tr {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    thead {
+      display: table-header-group !important;
+    }
+    tfoot {
+      display: table-footer-group !important;
     }
     /* 카텍스 수식 가드 */
     .katex-display {
