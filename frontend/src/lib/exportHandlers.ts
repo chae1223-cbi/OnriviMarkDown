@@ -916,12 +916,13 @@ function flushIME(): void {
 // ====================================================================
 // 📊 [OMD-IO-exportHandlers-0002] exportHandlers.ts ➔ applyExportInlineStyles
 // 🎯 @KICK  : 이미지/PDF 내보내기 시 인라인 코드 높이 오계산 및 상향 솟구침, 단어 쪼개짐 버그 해결
+// 🚨 @PATCH : **2026-10-01** — [미리보기 실시간 계산 스타일(Computed Style) 1:1 복제 엔진 도입]: sourceEl(미리보기 실제 DOM)의 각 table, th, td에서 브라우저가 렌더링한 실제 테두리·색상·배경·정렬(Computed Style)을 1:1로 복사하여, 미리보기의 외곽 테두리 및 가로선/세로선 구조를 이미지/PDF 내보내기 시 100% 동일하게 재현
 // 🚨 @PATCH : **2026-10-01** — [표 내보내기 시 외곽 테두리 및 행/열 테두리 인라인 주입]: html-to-image/canvas 캡처 시 외곽 테두리 소실을 막기 위해 table 및 셀의 최외곽 4면에 테두리를 직접 주입하고, colBorderWidth가 0px일 때 세로선을 완전 소거하여 미리보기와 100% 일치하도록 보장
 // 🚨 @PATCH : **2026-10-01** — display:inline-block 및 vertical-align:0으로 인한 인라인 코드 두 줄 쪼개짐 및 상단 솟구침 버그를 display:inline, vertical-align:baseline, white-space:nowrap(단어보호), box-decoration-break:clone으로 전면 개편하여 완벽 해결
 // 🚨 @PATCH : **2026-06-19** — PNG/HTML 내보내기 시 인라인 코드 스타일을 미리보기(globals.css)와 100% 동기화하기 위해 vertical-align:0, line-height:1.35, padding:1px 4.5px 규격으로 완전 치환
 // 🔗 @CALLS : 없음
 // ====================================================================
-function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile): void {
+function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile, sourceEl?: HTMLElement): void {
   // 🌟 querySelectorAll('code') + closest('pre') 조합으로 블록 코드블록을 제외한 모든 인라인 코드를 100% 포착
   clone.querySelectorAll('code').forEach((code) => {
     const el = code as HTMLElement;
@@ -954,64 +955,103 @@ function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile)
   });
 
   // 🌟 표(Table) 외곽 테두리 및 행/열 구분선 인라인 주입 (html-to-image/canvas 변환 시 테두리 누락 완전 방어)
+  const destTables = Array.from(clone.querySelectorAll('table'));
+  const srcTables = sourceEl ? Array.from(sourceEl.querySelectorAll('table')) : [];
+
   const tableStruct = activeProfile?.tableStructure || DEFAULT_PROFILE.tableStructure;
-  const outerWidth = tableStruct?.outerBorderWidth || '1px';
-  const rowWidth = tableStruct?.rowBorderWidth || '1px';
-  const colWidth = tableStruct?.colBorderWidth ?? '0px';
+  const fallbackOuterWidth = tableStruct?.outerBorderWidth || '1px';
+  const fallbackRowWidth = tableStruct?.rowBorderWidth || '1px';
+  const fallbackColWidth = tableStruct?.colBorderWidth ?? '0px';
 
-  const outerIsZero = outerWidth === '0px' || outerWidth === '0';
-  const rowIsZero = rowWidth === '0px' || rowWidth === '0';
-  const colIsZero = colWidth === '0px' || colWidth === '0';
+  destTables.forEach((destTable, tIdx) => {
+    const tableEl = destTable as HTMLElement;
+    const srcTable = srcTables[tIdx] as HTMLElement | undefined;
+    const srcTableStyle = (srcTable && typeof window !== 'undefined') ? window.getComputedStyle(srcTable) : null;
 
-  const tableBorderStyle = activeProfile?.rules?.table?.['border-style'] || 'solid';
-  const outerBorderColor = activeProfile?.rules?.table?.['border-color'] || '#374151';
-  const rowBorderColor = activeProfile?.rules?.th?.['border-color'] || activeProfile?.rules?.td?.['border-color'] || activeProfile?.rules?.table?.['border-color'] || '#cbd5e1';
-  const colBorderColor = rowBorderColor;
+    // 원본 테이블의 실제 렌더링된 외곽 테두리 스타일 추출
+    const tableBorderStyle = srcTableStyle?.borderTopStyle || activeProfile?.rules?.table?.['border-style'] || 'solid';
+    const outerWidth = (srcTableStyle && srcTableStyle.borderTopWidth !== '0px') ? srcTableStyle.borderTopWidth : fallbackOuterWidth;
+    const outerBorderColor = (srcTableStyle && srcTableStyle.borderTopColor && srcTableStyle.borderTopColor !== 'rgba(0, 0, 0, 0)') 
+      ? srcTableStyle.borderTopColor 
+      : (activeProfile?.rules?.table?.['border-color'] || '#1f2328');
 
-  clone.querySelectorAll('table').forEach((table) => {
-    const tableEl = table as HTMLElement;
+    const outerIsZero = outerWidth === '0px' || outerWidth === '0' || tableBorderStyle === 'none';
+
     tableEl.style.setProperty('border-collapse', 'collapse', 'important');
     tableEl.style.setProperty('border', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
 
-    const rows = Array.from(tableEl.querySelectorAll('tr'));
-    const totalRows = rows.length;
+    const destRows = Array.from(tableEl.querySelectorAll('tr'));
+    const srcRows = srcTable ? Array.from(srcTable.querySelectorAll('tr')) : [];
+    const totalRows = destRows.length;
 
-    rows.forEach((row, rowIndex) => {
-      const cells = Array.from(row.querySelectorAll('th, td')) as HTMLElement[];
-      const totalCells = cells.length;
+    destRows.forEach((destRow, rowIndex) => {
+      const destCells = Array.from(destRow.querySelectorAll('th, td')) as HTMLElement[];
+      const srcRow = srcRows[rowIndex] as HTMLElement | undefined;
+      const srcCells = srcRow ? Array.from(srcRow.querySelectorAll('th, td')) : [];
+      const totalCells = destCells.length;
       const isFirstRow = rowIndex === 0;
       const isLastRow = rowIndex === totalRows - 1;
 
-      cells.forEach((cell, cellIndex) => {
+      destCells.forEach((destCell, cellIndex) => {
+        const srcCell = srcCells[cellIndex] as HTMLElement | undefined;
+        const srcCellStyle = (srcCell && typeof window !== 'undefined') ? window.getComputedStyle(srcCell) : null;
+
         const isFirstCol = cellIndex === 0;
         const isLastCol = cellIndex === totalCells - 1;
 
-        // 최외곽 상단
+        // 원본 셀의 텍스트 색상, 배경색, 정렬, 패딩 1:1 동기화
+        if (srcCellStyle) {
+          if (srcCellStyle.color) destCell.style.setProperty('color', srcCellStyle.color, 'important');
+          if (srcCellStyle.backgroundColor && srcCellStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+            destCell.style.setProperty('background-color', srcCellStyle.backgroundColor, 'important');
+          } else {
+            destCell.style.setProperty('background-color', 'transparent', 'important');
+          }
+          if (srcCellStyle.textAlign) destCell.style.setProperty('text-align', srcCellStyle.textAlign, 'important');
+          if (srcCellStyle.fontWeight) destCell.style.setProperty('font-weight', srcCellStyle.fontWeight, 'important');
+        }
+
+        // 행 가로선 두께 및 색상 판별
+        const rowWidth = srcCellStyle?.borderBottomWidth && srcCellStyle.borderBottomWidth !== '0px'
+          ? srcCellStyle.borderBottomWidth 
+          : fallbackRowWidth;
+        const rowBorderColor = srcCellStyle?.borderBottomColor && srcCellStyle.borderBottomColor !== 'rgba(0, 0, 0, 0)'
+          ? srcCellStyle.borderBottomColor
+          : (activeProfile?.rules?.th?.['border-color'] || activeProfile?.rules?.td?.['border-color'] || outerBorderColor);
+        const rowBorderStyle = srcCellStyle?.borderBottomStyle || tableBorderStyle;
+        const rowIsZero = rowWidth === '0px' || rowWidth === '0' || rowBorderStyle === 'none';
+
+        // 열 세로선 두께 판별 (원본에서 세로선이 0px이면 무조건 none)
+        const srcColWidth = srcCellStyle?.borderRightWidth;
+        const colWidth = (srcColWidth !== undefined) ? srcColWidth : fallbackColWidth;
+        const colIsZero = colWidth === '0px' || colWidth === '0';
+
+        // 1. 최외곽 상단 (1행 셀의 위쪽)
         if (isFirstRow) {
-          cell.style.setProperty('border-top', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+          destCell.style.setProperty('border-top', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
         } else {
-          cell.style.setProperty('border-top', 'none', 'important');
+          destCell.style.setProperty('border-top', 'none', 'important');
         }
 
-        // 최외곽 하단 및 내부 행(가로선)
+        // 2. 최외곽 하단 및 내부 행(가로선)
         if (isLastRow) {
-          cell.style.setProperty('border-bottom', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+          destCell.style.setProperty('border-bottom', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
         } else {
-          cell.style.setProperty('border-bottom', rowIsZero ? 'none' : `${rowWidth} ${tableBorderStyle} ${rowBorderColor}`, 'important');
+          destCell.style.setProperty('border-bottom', rowIsZero ? 'none' : `${rowWidth} ${rowBorderStyle} ${rowBorderColor}`, 'important');
         }
 
-        // 최외곽 좌측
+        // 3. 최외곽 좌측 (1열 셀의 왼쪽)
         if (isFirstCol) {
-          cell.style.setProperty('border-left', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+          destCell.style.setProperty('border-left', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
         } else {
-          cell.style.setProperty('border-left', 'none', 'important');
+          destCell.style.setProperty('border-left', 'none', 'important');
         }
 
-        // 최외곽 우측 및 내부 열(세로선: colIsZero이면 none)
+        // 4. 최외곽 우측 및 내부 열(세로선)
         if (isLastCol) {
-          cell.style.setProperty('border-right', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+          destCell.style.setProperty('border-right', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
         } else {
-          cell.style.setProperty('border-right', colIsZero ? 'none' : `${colWidth} ${tableBorderStyle} ${colBorderColor}`, 'important');
+          destCell.style.setProperty('border-right', colIsZero ? 'none' : `${colWidth} ${tableBorderStyle} ${rowBorderColor}`, 'important');
         }
       });
     });
@@ -1637,7 +1677,7 @@ export async function exportPDF({
     clone.style.height = 'auto';
 
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
-    applyExportInlineStyles(clone, activeProfile);
+    applyExportInlineStyles(clone, activeProfile, targetEl);
 
     // 📄 페이지 나누기 마커 DOM 직접 삽입
     // CSS page-break 선택자 방식은 h3·h4 레벨에서 섹션 내부 이중 break가 발생하는 한계가 있어
@@ -1651,8 +1691,8 @@ export async function exportPDF({
     const { inlineStyles, linkTags } = collectAllStyles();
 
     const pageBg = backgroundColor || '#ffffff';
-    // 💡 activeProfile이 있으면 무조건 라이트모드 기준 export용 CSS를 다시 생성하여 dynamicCssString을 대체
-    const activeCss = activeProfile ? generateExportCss(activeProfile) : (dynamicCssString || '');
+    // 💡 미리보기에 적용된 dynamicCssString이 있으면 그대로 우선 적용하여 100% 화면 일치 보장
+    const activeCss = dynamicCssString ? dynamicCssString : (activeProfile ? generateExportCss(activeProfile) : '');
 
     const paperKey = (paperSize || 'a4').toLowerCase();
     const paperSpec = PAPER_SIZES[paperKey] || PAPER_SIZES.a4;
@@ -2321,7 +2361,8 @@ export async function exportPNG({
 
     // 🌟 공유 스타일 주입 (인디케이터 숨김 + 동적 CSS 프로필)
     const pageBg = backgroundColor || '#ffffff';
-    const activeCss = activeProfile ? generateExportCss(activeProfile) : (dynamicCssString || '');
+    // 💡 미리보기에 적용된 dynamicCssString이 있으면 그대로 우선 적용하여 100% 화면 일치 보장
+    const activeCss = dynamicCssString ? dynamicCssString : (activeProfile ? generateExportCss(activeProfile) : '');
     injectExportStyles(clone, activeCss, { hideIndicators: true }, pageBg);
 
     // ✅ 폰트 로딩 대기 (html-to-image는 폰트 미적용 상태로 캡처 시 텍스트 누락)
@@ -2330,8 +2371,8 @@ export async function exportPNG({
 
     // 🎯 html2canvas가 ::before/counter() 미지원 → 목록 마커 DOM 직접 주입
     fixListMarkers(clone);
-    // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
-    applyExportInlineStyles(clone, activeProfile);
+    // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용 (미리보기 실제 DOM과 1:1 동기화)
+    applyExportInlineStyles(clone, activeProfile, targetEl);
 
     clone.querySelectorAll('img').forEach(img => img.setAttribute('crossOrigin', 'anonymous'));
 
