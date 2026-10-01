@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이전 페이지 이미지 우측 경계가 다음 페이지 좌측으로 누출되는 잔상 현상 완전 차단]: figure 및 .onrivi-image-wrapper에 overflow: hidden 및 box-sizing: border-box를 강제 주입하여 멀티컬럼/양면 보기 시 인접 페이지로 이미지 픽셀이 1px도 침범하지 않도록 완벽 격리
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이미지 우측 쏠림 및 다음 컬럼 침범 버그 완전 해결]: 전자책 단말기 기본 스타일(figure margin-left 40px) 및 inline-flex 래퍼로 인해 이미지가 우측으로 밀리던 결함을 figure/wrapper margin:0 auto 및 display:block으로 전면 리셋하여 완벽 중앙 정렬
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 긴 Mermaid 다이어그램 리더기 페이지 높이 맞춤(max-height: 85vh) 및 잘림 방지]: .mermaid-svg-container, .mermaid-block-container 및 img에 break-inside: avoid 및 max-height: 85vh, object-fit: contain을 적용하여 세로로 긴 다이어그램이 전자책 단말기 화면에서 잘리지 않고 온전히 사출되도록 개선
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 원본 서식(다크 테마/헤더 바/TEXT 라벨/복사 배지) 1:1 완벽 동기화]: .codeblock-header 및 언어 라벨을 온전히 보존하고 button을 표준 span 배지로 치환하며, 코드블록 테마 CSS(.codeblock-area, .codeblock-header, .codeblock-header-text, .copy-button-hook) 및 줄바꿈을 완벽 탑재
@@ -115,7 +116,7 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
     }
   });
   
-  // 🖼️ 이미지 <figure> 및 .onrivi-image-wrapper 여백 초기화 및 중앙 정렬 (40px 우측 쏠림 및 컬럼 침범 방지)
+  // 🖼️ 이미지 <figure> 및 .onrivi-image-wrapper 여백 초기화 및 중앙 정렬 (40px 우측 쏠림 및 컬럼 침범/잔상 방지)
   doc.querySelectorAll('figure, .onrivi-image-figure').forEach(fig => {
     if (fig instanceof HTMLElement) {
       fig.style.margin = '1.5em 0';
@@ -125,6 +126,7 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
       fig.style.maxWidth = '100%';
       fig.style.boxSizing = 'border-box';
       fig.style.display = 'block';
+      fig.style.overflow = 'hidden';
     }
   });
   doc.querySelectorAll('.onrivi-image-wrapper').forEach(wrap => {
@@ -134,6 +136,7 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
       wrap.style.maxWidth = '100%';
       wrap.style.textAlign = 'center';
       wrap.style.boxSizing = 'border-box';
+      wrap.style.overflow = 'hidden';
     }
   });
   doc.querySelectorAll('figcaption, .onrivi-image-figure figcaption').forEach(cap => {
@@ -802,6 +805,7 @@ figure,
   text-align: center !important;
   display: block !important;
   clear: both !important;
+  overflow: hidden !important;
 }
 .onrivi-image-wrapper {
   display: block !important;
@@ -810,6 +814,7 @@ figure,
   margin: 0 auto !important;
   text-align: center !important;
   box-sizing: border-box !important;
+  overflow: hidden !important;
 }
 figure img,
 .onrivi-image-figure img,
@@ -825,6 +830,7 @@ img {
   border-radius: 6px !important;
   page-break-inside: avoid !important;
   break-inside: avoid !important;
+  box-sizing: border-box !important;
 }
 figcaption,
 .onrivi-image-figure figcaption {

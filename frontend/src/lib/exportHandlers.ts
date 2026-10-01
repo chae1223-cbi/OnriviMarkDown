@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이전 페이지 이미지 우측 경계가 다음 페이지 좌측으로 누출되는 잔상 현상 완전 차단]: clone 단계에서 figure 및 .onrivi-image-wrapper에 overflow: hidden 및 box-sizing: border-box를 강제 주입하여 인접 페이지 침범 원천 방어
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이미지 우측 쏠림 및 다음 컬럼 침범 버그 완전 해결]: 리더기 기본 figure 마진(40px) 및 inline-flex로 인한 우측 편향을 clone 단계에서 figure/wrapper margin:0 auto 및 display:block으로 정규화하여 100% 중앙 정렬
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 긴 Mermaid 다이어그램 하단 잘림 및 유실 버그 완전 해결]: Mermaid 다이어그램 이미지에 max-height: 85vh, width: auto, height: auto, object-fit: contain 및 break-inside: avoid를 강제 주입하여 리더기 뷰포트 높이에 맞춰 자동 축소 피팅되고 페이지 경계에서 잘리지 않도록 완벽 보정
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 원본 서식(다크 테마/헤더 바/TEXT 라벨/복사 배지) 1:1 완벽 동기화]: applyExportInlineStyles를 exportEPUB에도 연동하여 미리보기 DOM의 코드블록 테마/헤더 스타일을 100% 보존하고, pre/code 자동 줄바꿈을 적용하여 박스 밖 돌출 방지
@@ -2432,7 +2433,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       }
     });
 
-    // 🖼️ 이미지 <figure> 및 래퍼 정규화 (EPUB 리더기의 기본 figure margin 40px 및 inline-flex로 인한 우측 쏠림 방지)
+    // 🖼️ 이미지 <figure> 및 래퍼 정규화 (EPUB 리더기의 기본 figure margin 40px 및 inline-flex로 인한 우측 쏠림/잔상 방지)
     clone.querySelectorAll('figure, .onrivi-image-figure').forEach(el => {
       const fig = el as HTMLElement;
       fig.style.setProperty('margin', '1.5em 0', 'important');
@@ -2442,6 +2443,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       fig.style.setProperty('max-width', '100%', 'important');
       fig.style.setProperty('box-sizing', 'border-box', 'important');
       fig.style.setProperty('display', 'block', 'important');
+      fig.style.setProperty('overflow', 'hidden', 'important');
     });
     clone.querySelectorAll('.onrivi-image-wrapper').forEach(el => {
       const wrap = el as HTMLElement;
@@ -2450,6 +2452,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       wrap.style.setProperty('max-width', '100%', 'important');
       wrap.style.setProperty('text-align', 'center', 'important');
       wrap.style.setProperty('box-sizing', 'border-box', 'important');
+      wrap.style.setProperty('overflow', 'hidden', 'important');
     });
     clone.querySelectorAll('figure img, .onrivi-image-figure img, .onrivi-image-wrapper img').forEach(el => {
       const img = el as HTMLElement;
