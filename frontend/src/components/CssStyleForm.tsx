@@ -9,6 +9,7 @@
  *   2. CSS 직접 편집 모드 — JSON textarea로 한꺼번에 편집
  * 시스템 프로필(id='system-*') 선택 시 모든 입력이 비활성화(disabled)됩니다.
  * 🚨 @PATCH
+ *   2026-10-01 — [내보내기 페이지 나누기 설정 UI 제거]: PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 폐지에 따라 페이지 설정 탭의 '내보내기 페이지 나누기' 드롭다운 컨트롤 제거
  *   2026-09-26 — [서식 설정 전체 프리셋 및 굵기 선택 활성화 상태 전수 점검 및 일괄 개선]: 1) 코드블록(라이트/다크 배경색 감지), 2) 이미지(썸네일/폴라로이드/기본형), 3) 인용구(왼쪽띠/전체박스/그림자 복합 border 우선순위), 4) 표(가로선전용 td border-left:none 정밀 감지), 5) 인용구/링크/각주 글자굵기 select에 isFontWeightBold 연동으로 숫자 font-weight 공백 현상 방지, 6) hrStructure 개별 속성 폴백 안전화로 모든 서식의 설정 상태가 UI에 100% 명확히 표시되도록 개선
  *   2026-09-26 — [제목 하단 밑줄(border-bottom) 선 스타일 키워드 기반 활성 판별 및 색상 보존 개선]: '2px solid #ff5a00' 등 다양한 두께/색상의 border-bottom 설정 시 startsWith('1px') 실패로 인해 [실선] 버튼이 미선택으로 보이던 결함을 solid/double 키워드 기반 판별(isBorderMatch)로 전면 개선하여 H1~H6의 하단 밑줄 설정 상태를 정확하게 표시하고 변경 시 기존 색상 보존 연동
  *   2026-09-26 — [서식설정 버튼 활성 표시 정확도 개선]: font-weight('700'/'bold'/>=700 모두 굵게 활성), border-bottom(''/'none'/undefined → 선없음 활성), text-decoration(includes 매칭), text-align(미지정 시 왼쪽 활성) 등 isStyleOptionActive·isBorderMatch·isAlignActive 헬퍼 도입으로 H1~H6 모든 스타일 버튼 정확히 하이라이트
@@ -1522,24 +1523,6 @@ ${guideContent}
               </div>
             </div>
 
-            {/* 내보내기 페이지 분할 기준 */}
-            <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/40 p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60">
-              <span className="text-zinc-650 dark:text-zinc-350 font-semibold text-sm">내보내기 페이지 나누기</span>
-              <select
-                disabled={isSystemProfile}
-                value={currentProfile.pageStyle.exportPageBreakLevel || 'none'}
-                onChange={(e) => handlePageStyleChange('exportPageBreakLevel', e.target.value)}
-                className="px-3 py-2 rounded text-sm border bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 disabled:opacity-50"
-              >
-                <option value="none">사용 안함</option>
-                <option value="h1">제목 1단계 기준</option>
-                <option value="h2">제목 2단계 기준</option>
-                <option value="h3">제목 3단계 기준</option>
-                <option value="h4">제목 4단계 기준</option>
-                <option value="h5">제목 5단계 기준</option>
-                <option value="h6">제목 6단계 기준</option>
-              </select>
-            </div>
 
             {/* 페이지 배경색 */}
             <ColorPickerWidget

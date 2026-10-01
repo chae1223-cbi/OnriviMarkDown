@@ -1,4 +1,5 @@
-// 🚨 @PATCH : **2026-08-14** — EPUB 내보내기 시 제목1(h1), 제목2(h2) 태그를 만날 때마다 자동으로 페이지를 넘겨(단원 분할) 깔끔한 챕터 구분이 되도록 page-break-before: always 속성 추가 (단, 첫 번째 요소 제외). 또한, 긴 코드 블록, 인용문(blockquote), 표(table)가 통째로 다음 페이지로 넘어가 거대한 빈 공간을 만드는 현상을 방지하기 위해 래퍼 컨테이너들에 page-break-inside: auto 강제 주입.
+// 🚨 @PATCH : **2026-10-01** — [EPUB 기본 페이지 나누기 기준 폐지]: exportPageBreakLevel 기본값을 'none'으로 변경하여 제목별 인위적 챕터 분할 없이 자연스러운 흐름 유지
+//             **2026-08-14** — EPUB 내보내기 시 제목1(h1), 제목2(h2) 태그를 만날 때마다 자동으로 페이지를 넘겨(단원 분할) 깔끔한 챕터 구분이 되도록 page-break-before: always 속성 추가 (단, 첫 번째 요소 제외). 또한, 긴 코드 블록, 인용문(blockquote), 표(table)가 통째로 다음 페이지로 넘어가 거대한 빈 공간을 만드는 현상을 방지하기 위해 래퍼 컨테이너들에 page-break-inside: auto 강제 주입.
 //             **2026-06-25** — EPUB 내보내기 시 제목 배경색/글자색이 기본값(푸른색)으로만 고정되던 버그를 수정하고, 사용자가 CssStyleForm에서 커스텀한 h1~h6의 테두리(border), 둥근 모서리(border-radius), 그리고 본문 및 인용구 텍스트 정렬(text-align), 외부 여백(margin-top, bottom) 등 모든 커스텀 스타일이 완벽히 인젝션되도록 코드 생성 파이프라인 대폭 확장; clone.querySelector() 루틴을 유연하게 교체하여 모든 태그의 스타일 덮어쓰기 지원
 //             **2026-06-19** — blobURL 처리 누락 해결, 이미지 다운로드 3회 재시도 및 blob 다운스트림 병합
 //             **2026-06-03** — generateEpub 함수 구현, jszip 기반 epub3 생성 로직
@@ -155,7 +156,7 @@ export async function generateEpub({
   contentHtml,
   dynamicCssString,
   fontFamily,
-  exportPageBreakLevel = 'h2'
+  exportPageBreakLevel = 'none'
 }: EpubOptions): Promise<Blob> {
   const zip = new JSZip();
   const uuid = typeof crypto !== 'undefined' && crypto.randomUUID 

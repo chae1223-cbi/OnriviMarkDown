@@ -1,6 +1,7 @@
 /**
  * 프로그램명 : OnriviAuthor
  * 파일명 : StyleManagerModal.tsx
+ * 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 페이지 나누기 기준 기본값 'none' 동기화]: AI 서식 생성 프롬프트 예시 내 exportPageBreakLevel을 'none'으로 변경
  * 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
  * 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 프리셋 가이드·AI 프롬프트 동기화]: tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth) 세로선(Grid: 1px, Horizontal: 0px) 명세 보강 및 th/td 레거시 border-left/right: none 주입 방지 지시 탑재
  * 🚨 @PATCH : **2026-09-25** — [Onrivi 한컴 테크 블로그 서식 시스템 제공 서식 탭 연동 및 조판 동기화]: 한컴 테크 블로그 프리미엄 서식(오렌지 포인트 H2 하단선, H3 좌측바, 1.8배 본문 줄간격 및 8px 문장 간격, 가로선 중심 비교표) 시스템 서식 목록 노출 및 조판 연동
@@ -356,7 +357,7 @@ export default function StyleManagerModal({
      "backgroundColor": "#ffffff",
      "headingSizeOffset": "0px",
      "tabSize": "2",
-     "exportPageBreakLevel": "h1"
+     "exportPageBreakLevel": "none"
    }
 3. 특히 표(tableStructure) 구조체를 반드시 포함하여 외곽 테두리 및 행/열 두께를 명확히 지정하세요:
    "tableStructure": {

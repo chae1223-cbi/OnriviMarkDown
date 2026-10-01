@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 전면 폐지]: exportPDF 및 exportEPUB에서 exportPageBreakLevel에 따른 제목별 강제 페이지 나누기를 완전히 배제하고, 인위적 공백/페이지 쪼개짐 없이 자연스러운 본문 흐름으로 사출되도록 개선
 // 🚨 @PATCH : **2026-10-01** — [표 내보내기 시 외곽 테두리 소실 및 세로선 출현 버그 완전 해결]: html-to-image 캡처 시 table collapse로 인한 외곽 테두리 누락을 최외곽 4면 셀 직접 주입으로 100% 방어하고, 기본 표 서식(colBorderWidth 0px)에 맞춰 내부 세로선은 완전 소거, 가로선 및 외곽선만 미리보기와 1:1 일치하도록 동기화
 // 🚨 @PATCH : **2026-10-01** — [이미지/PDF 내보내기 시 인라인 코드 상향 솟구침 및 단어 쪼개짐 버그 해결]: applyExportInlineStyles 및 exportStyles에서 display:inline-block 및 vertical-align:0으로 인해 인라인 코드가 두 줄로 쪼개지며 상단으로 솟구치던 현상을 display:inline, vertical-align:baseline, white-space:nowrap(단어보호), box-decoration-break:clone으로 전면 개편하여 완벽 해결
 // 🚨 @PATCH : **2026-10-01** — [Word(.docx) 내보내기 시 미리보기 DOM 직접 조판 및 마크다운 태그 누출 완전 해결]: 렌더링된 미리보기 DOM을 바탕으로 유니코드 불릿, 볼드, 인라인 코드, 표, DrawingML 이미지를 Word 규격에 맞게 100% 온전히 사출하도록 연동
@@ -1679,11 +1680,7 @@ export async function exportPDF({
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
     applyExportInlineStyles(clone, activeProfile, targetEl);
 
-    // 📄 페이지 나누기 마커 DOM 직접 삽입
-    // CSS page-break 선택자 방식은 h3·h4 레벨에서 섹션 내부 이중 break가 발생하는 한계가 있어
-    // 버퍼 알고리즘으로 정확한 섹션 경계를 찾아 break-before:page 마커 div를 직접 삽입함.
-    const pbLevelForDom = activeProfile?.pageStyle?.exportPageBreakLevel || 'h2';
-    injectPageBreakMarkers(clone, pbLevelForDom);
+    // 📄 페이지 나누기: 제목 기준 강제 페이지 분할 전면 폐지 (자연스러운 본문 흐름 유지, exportPageBreakLevel 미적용)
 
     const filename = `${currentFileName.replace(/\.[^/.]+$/, '')}.pdf`;
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
@@ -2273,7 +2270,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       contentHtml: clone.innerHTML, 
       dynamicCssString: activeCss, 
       fontFamily: computedFontFamily,
-      exportPageBreakLevel: activeProfile?.pageStyle?.exportPageBreakLevel || 'h2'
+      exportPageBreakLevel: 'none'
     });
 
     showToast('EPUB 저장 중...', 'info');
