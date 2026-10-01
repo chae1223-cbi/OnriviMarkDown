@@ -21,7 +21,7 @@ import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
-// 🛡️ @GUARD : 각 핸들러별 editorRef/selection/model 방어 로직; previewRef 누락 시 export early return
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 핸들러 추가]: 선택 영역 우측 정렬 감싸기/토글 및 미선택 시 오늘 날짜 기반 기본 서명 템플릿 삽입(작성자명 자동 선택) 구현 (handlers.signature)
 // 🚨 @PATCH : **2026-10-01** — [DOCX 내보내기 시 미리보기 DOM 직결 연동]: 마크다운 태그 누출을 원천 방지하기 위해 렌더링된 previewRef DOM을 기반으로 exportDOCX를 호출하도록 연동
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 핸들러 제거]: handlers.exportHWPX 액션 및 exportHWPX 임포트 완전 삭제
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 핸들러 연동]: handlers.exportDOCX 및 handlers.exportHWPX 액션 등록
@@ -92,7 +92,8 @@ export const useEditorHandlers = ({
     switchTab,
     setTabs,
     activeTabIdRef,
-    licenseStatusRef
+    licenseStatusRef,
+    lastSelectionRef
 }: any) => {
 
   // 날짜/시간 형식 토큰: YYYY(연), MM(월), DD(일), HH(24시), mm(분), ss(초)
@@ -1176,6 +1177,103 @@ export const useEditorHandlers = ({
       });
     },
     quickWrap: (format: 'h1' | 'h2' | 'h3' | 'quote' | 'code') => quickWrap(format),
+    // ====================================================================
+    // 📊 [OMD-EDIT-USEEDITORHANDLERS-0015] useEditorHandlers.ts ➔ signature
+    // 🎯 @KICK  : 서명/발신인 우측 정렬 삽입 및 선택 영역 우측 정렬 감싸기/토글
+    // 🛡️ @GUARD : editorRef, model, selection 존재 여부 확인
+    // 🚨 @PATCH : **2026-10-01** — 신규 추가
+    // 🔗 @CALLS : editor.pushUndoStop, editor.executeEdits, editor.setSelection
+    // ====================================================================
+    signature: () => {
+      if (!editorRef.current || typeof window === 'undefined' || !(window as any).monaco) return;
+      const editor = editorRef.current;
+      const model = editor.getModel();
+      if (!model) return;
+
+      let selection = editor.getSelection();
+      if ((!selection || selection.isEmpty()) && lastSelectionRef?.current && !lastSelectionRef.current.isEmpty()) {
+        selection = lastSelectionRef.current;
+      }
+      if (!selection) return;
+
+      const rawSelectedText = model.getValueInRange(selection);
+      const trimmedText = rawSelectedText.trim();
+
+      // 1. 이미 <div align="right">...</div> 로 감싸져 있는 경우 토글 해제(Unwrap)
+      const rightDivRegex = /^<div\s+align=["']right["'][^>]*>([\s\S]*?)<\/div>$/i;
+      const match = trimmedText.match(rightDivRegex);
+      if (match) {
+        const unwrapped = match[1].trim();
+        editor.pushUndoStop();
+        editor.executeEdits('signature-unwrap', [{
+          range: selection,
+          text: unwrapped,
+          forceMoveMarkers: true
+        }]);
+        editor.pushUndoStop();
+        editor.focus();
+        return;
+      }
+
+      // 2. 텍스트가 선택되어 있는 경우: 각 줄의 마크다운 줄바꿈(공백 2개) 보존하며 감싸기
+      if (trimmedText) {
+        const lines = trimmedText.split('\n');
+        const processedLines = lines.map((line: string) => {
+          const rTrimmed = line.trimEnd();
+          if (rTrimmed.length > 0 && !rTrimmed.endsWith('  ') && !rTrimmed.endsWith('<br>') && !rTrimmed.endsWith('<br/>')) {
+            return rTrimmed + '  ';
+          }
+          return line;
+        });
+        const contentText = processedLines.join('\n');
+        const newText = `<div align="right">\n\n${contentText}\n\n</div>\n`;
+
+        editor.pushUndoStop();
+        editor.executeEdits('signature-wrap', [{
+          range: selection,
+          text: newText,
+          forceMoveMarkers: true
+        }]);
+        editor.pushUndoStop();
+        editor.focus();
+        return;
+      }
+
+      // 3. 선택 영역이 없는 경우: 오늘 날짜 기반 기본 서명 템플릿 삽입 및 작성자 성명 자동 선택
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
+      const template = `<div align="right">\n\n${dateStr}  \n**작성자: 홍길동 (인)**\n\n</div>\n`;
+
+      const startLine = selection.startLineNumber;
+      editor.pushUndoStop();
+      editor.executeEdits('signature-insert', [{
+        range: selection,
+        text: template,
+        forceMoveMarkers: true
+      }]);
+      editor.pushUndoStop();
+
+      // 💡 [UX 최적화] 작성자 이름('홍길동') 부분을 자동 선택하여 곧바로 실제 성명 입력 가능하도록 편의 제공
+      setTimeout(() => {
+        try {
+          const targetLineNumber = startLine + 3;
+          const targetLineText = model.getLineContent(targetLineNumber) || '';
+          const nameKeyword = '홍길동';
+          const nameIndex = targetLineText.indexOf(nameKeyword);
+          if (nameIndex !== -1) {
+            const startCol = nameIndex + 1; // Monaco 1-indexed column
+            const endCol = startCol + nameKeyword.length;
+            editor.setSelection(new (window as any).monaco.Selection(
+              targetLineNumber,
+              startCol,
+              targetLineNumber,
+              endCol
+            ));
+          }
+          editor.focus();
+        } catch (_) {}
+      }, 20);
+    },
   };
 
   return handlers;

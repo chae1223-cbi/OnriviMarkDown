@@ -2,6 +2,7 @@
 // 📊 [OMD-CORE-Icons-0001] icons/index.ts ➔ Icons Registry
 // 🎯 @KICK  : Onrivi Author 전체 애플리케이션의 아이콘을 중앙 집중식으로 관리하는 통합 레지스트리
 // 🛡️ @GUARD : Lucide React 기반의 벡터 일관성, strokeWidth 일원화, 트리 셰이킹 지원
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 아이콘 추가] FileSignature 벡터 아이콘을 Signature 레지스트리에 등록
 // 🚨 @PATCH : **2026-09-23** — [아이콘 레지스트리 정리] 미사용 CubeFocus 임시 정의 제거 (PNG 이미지 직참조로 전환)
 // 🚨 @PATCH : **2026-09-20** — [툴바 CubeFocus 아이콘 추가] FloatingToolbar 켜기/끄기 버튼을 CubeFocus(BoxSelect) 아이콘으로 교체, 레지스트리 등록
 // 🚨 @PATCH : **2026-09-20** — [툴바 아이콘 3종 교체] TerminalWindow(TerminalSquare), NewspaperClipping(Newspaper), HeadCircuit(BrainCircuit) 레지스트리 추가
@@ -53,6 +54,7 @@ import {
   AlignCenter,
   AlignRight,
   Superscript,
+  FileSignature,
 
   // 3. 미디어 & 확장 객체
   Link,
@@ -218,6 +220,8 @@ export const Icons = {
   Film: Film,
   DateNow: Calendar,
   Clock: Clock,
+  Signature: FileSignature,
+  FileSignature: FileSignature,
   Map: MapPin,
   MapArea: Map,
   Table: Table,
@@ -370,6 +374,7 @@ export const ICON_THEMES: Partial<Record<IconName, IconThemeDef>> = {
   Film: { color: 'text-rose-600 dark:text-rose-500' },
   DateNow: { color: 'text-orange-500 dark:text-orange-400' },
   Clock: { color: 'text-amber-500 dark:text-amber-400' },
+  Signature: { color: 'text-zinc-700 dark:text-zinc-200' },
   Map: { color: 'text-teal-600 dark:text-teal-400' },
   MapArea: { color: 'text-teal-600 dark:text-teal-400' },
   Table: { color: 'text-blue-600 dark:text-blue-400' },

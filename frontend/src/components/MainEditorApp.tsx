@@ -4,6 +4,9 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 충돌 해결 및 듀얼 바인딩]: 다른 이름으로 저장(Ctrl+Shift+S) 단축키 오지정 수정, 설정 복원 시 신규 단축키 누락 방어, Monaco 및 전역 이벤트에서 서명 단축키 Ctrl+Alt+R 및 Ctrl+Alt+S 동시 지원 및 윈도우 Alt 키 포커스 보정
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장(Ctrl+Shift+S)과의 충돌 방지를 위해 서명/발신인(우측 정렬) 단축키를 Ctrl+Alt+R로 변경
+// 🚨 @PATCH : **2026-10-01** — [플로팅 툴바 서명/발신인 추가]: EditorCommandType 및 dispatchCommand에 SIGNATURE 액션 연동, 플로팅 툴바에 서명/발신인(우측 정렬) 버튼 탑재 및 단축키(Ctrl+Alt+R) 연결
 // 🚨 @PATCH : **2026-10-01** — [서식 설정 내 [align="right"] 및 [style*="text-align: right"] 등 정렬 규칙 전역 보장]: dynamicCssString에 우측/중앙 정렬 셀렉터를 명시하여 p { text-align: left !important; }가 사용자 지정 우측 정렬을 덮어쓰지 않도록 완전 보장
 // 🚨 @PATCH : **2026-10-01** — [표 미리보기 외곽 테두리 및 행/열 구분선 동적 인젝션 정합화]: dynamicCssString 내 tableStructure 인젝션 시 최외곽 4면 셀 테두리 및 colBorderWidth 0px 소거 처리를 내보내기 규격과 100% 동기화
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 명령 제거]: EditorCommandType 및 executeCommand에서 EXPORT_HWPX 액션 완전 삭제
@@ -336,7 +339,7 @@ export type EditorCommandType =
   | 'MERGE'                                                                             // ⑯ 파일 병합
   | 'AI_HELP'                                                                           // ⑰ AI 글쓰기 도우미
   | 'ADD_REFERENCE'                                                                     // ⑱ 참조 파일 추가
-  | 'AI_DRAFT' | 'OPEN_AI_WRITER' | 'SLASH_COMMAND' | 'AUTO_RENUMBER';
+  | 'AI_DRAFT' | 'OPEN_AI_WRITER' | 'SLASH_COMMAND' | 'AUTO_RENUMBER' | 'SIGNATURE';
 
 // 모듈 레벨 Monaco 설정: 컴포넌트 렌더 전에 loader 경로 확정 (레이스 컨디션 방지)
 if (typeof window !== 'undefined') { // @window : 브라우저에서만 사용되는 객체, @undefined : 브라우저가 아닌 환경(Node.js 등)에서 사용되는 값 
@@ -6716,7 +6719,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     switchTab,
     setTabs,
     activeTabIdRef,
-    licenseStatusRef
+    licenseStatusRef,
+    lastSelectionRef
   });
 
   handlersRef.current = handlers;
@@ -7058,6 +7062,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       case 'CHART': handlers.chart(); break;
       case 'LATEX':
       case 'MATH': handlers.math(); break;
+      case 'SIGNATURE': handlers.signature(); break;
 
       // ★ 퀵 래핑 (Quick Transform)
       case 'WRAP_H1': handlers.quickWrap('h1'); break;
@@ -7141,6 +7146,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       table: 'TABLE',
       footnote: 'FOOTNOTE',
       citation: 'CITE',
+      signature: 'SIGNATURE',
       quickTable: 'QUICK_TABLE',
       insertTableRow: 'INSERT_TABLE_ROW',
       deleteTableRow: 'DELETE_TABLE_ROW',
@@ -7276,13 +7282,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 이유: handlers 메소드명과 TOOLBAR_ITEMS의 id가 불일치하면(예: checklist vs check, divider vs hr)
     //       일부 단축키가 등록되지 않아 툴바·슬래시·단축키 3자 사이의 갯수·기능 싱크가 깨짐
     TOOLBAR_ITEMS.forEach(item => {
-      const kbStr = customHotkeys[item.id];
+      const kbStr = (customHotkeys && customHotkeys[item.id]) ? customHotkeys[item.id] : item.defaultHotkey;
       const kb = kbStr ? parseKeybinding(kbStr) : 0;
+      const keybindings = kb !== 0 ? [kb] : [];
+
+      // 💡 [서명 단축키 듀얼 바인딩] Ctrl+Alt+R 및 Ctrl+Alt+S 모두 지원하여 사용자 편의 극대화
+      if (item.id === 'signature') {
+        const altKb = parseKeybinding('Ctrl+Alt+S');
+        if (altKb && !keybindings.includes(altKb)) {
+          keybindings.push(altKb);
+        }
+      }
 
       const disposable = editor.addAction({
         id: `custom-action-${item.id}`,
         label: `${item.name} (${item.group})`,
-        keybindings: kb !== 0 ? [kb] : [],
+        keybindings,
         run: () => {
           // 🚀 handlers 직접 호출 대신 dispatchCommand 단방향 파이프라인으로 일원화
           const cmdType = mapIdToCommandType(item.id);
@@ -7306,7 +7321,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const saveAsAction = editor.addAction({
       id: 'custom-action-save-as',
       label: '다른 이름으로 저장 (Save As)',
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyS],
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS],
       run: () => {
         dispatchCommand('SAVE_AS');
       }
@@ -7388,7 +7403,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 
       // 💡 [IME-02] 브라우저 환경에서 Ctrl+S 저장 시 웹페이지 저장(HTML) 다이얼로그가 강제 노출되는 이벤트를 차단하고 
       // 우리 에디터 고유의 저장 커맨드를 실행하도록 원천 차단합니다. (에디터 포커스 여부와 관계없이 전역 방어)
-      if (isCtrl) {
+      if (isCtrl && !isAlt) {
         const keyUpper = e.key.toUpperCase();
         if (keyUpper === 'S' && isShift) {
           e.preventDefault();
@@ -7453,8 +7468,13 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
       if (handledGlobal) return;
 
-      // 💡 에디터 텍스트 포커스 여부 판별
-      const editorHasFocus = Boolean(editorRef.current && editorRef.current.hasTextFocus());
+      // 💡 에디터 텍스트 포커스 여부 판별 (Windows Alt 키 입력 시 일시적 포커스 이탈 방어)
+      const editorHasFocus = Boolean(
+        editorRef.current && (
+          editorRef.current.hasTextFocus() ||
+          editorRef.current.getDomNode()?.contains(document.activeElement)
+        )
+      );
 
       // 🔍 [미리보기 vs 에디터 단축키 격리 라우터]
       // 1. 미리보기 텍스트 찾기 전용 직접 단축키 (Ctrl + Alt + F)
@@ -7587,7 +7607,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           .toUpperCase()
           .replace('CTRLCMD', 'CTRL');
 
-        if (combinationStr === normalizedConfig) {
+        if (
+          combinationStr === normalizedConfig ||
+          (item.id === 'signature' && (combinationStr === 'CTRL+ALT+R' || combinationStr === 'CTRL+ALT+S'))
+        ) {
           // 단축키 매치 성공: 브라우저 기본 및 이벤트 전파 강제 억제
           e.preventDefault();
           e.stopPropagation();
@@ -8836,6 +8859,17 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                       title="날짜/시간 형식 선택 후 삽입"
                                     >
                                       <img src="./icons/Calendar.png" alt="현재 날짜/시간" className="w-5 h-5 object-contain dark:invert" />
+                                    </button>
+                                    <button
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        dispatchCommand('SIGNATURE');
+                                        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+                                      }}
+                                      className="w-9 h-9 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all flex items-center justify-center text-zinc-800 dark:text-zinc-100"
+                                      title="서명/발신인 (우측 정렬) (Ctrl+Alt+R)"
+                                    >
+                                      <Icon name="Signature" size={19} className="text-zinc-800 dark:text-zinc-100" />
                                     </button>
                                   </div>
                                   <div className="w-px h-7 bg-black/15 dark:bg-white/15" />

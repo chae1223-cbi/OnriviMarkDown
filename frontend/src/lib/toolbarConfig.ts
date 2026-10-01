@@ -1,3 +1,9 @@
+// ====================================================================
+// 📊 [OMD-CORE-ToolbarConfig-0001] toolbarConfig.ts ➔ Toolbar Items Configuration
+// 🎯 @KICK  : 에디터 툴바, 플로팅 툴바 및 단축키/슬래시 커맨드 전역 설정 메타데이터
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장(Ctrl+Shift+S)과의 충돌 방지를 위해 서명/발신인 기본 단축키를 Ctrl+Alt+R로 변경
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 툴바 아이템 추가]: 문서(Document) 그룹에 서명/발신인 (우측 정렬, signature) 툴바 아이템 신설
+// ====================================================================
 export const TOOLBAR_ITEMS = [
   // 1. 서식 (Formatting)
   { id: 'bold', icon: 'B', name: '굵게', group: '서식', tagFormat: '**텍스트**', defaultHotkey: 'Ctrl+B', defaultCommand: 'bold', insertText: '**텍스트**', kind: 15 },
@@ -45,6 +51,7 @@ export const TOOLBAR_ITEMS = [
 
   // 6. 문서 (Document)
   { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '문서', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },
+  { id: 'signature', icon: '✍️', name: '서명/발신인 (우측 정렬)', group: '문서', tagFormat: '<div align="right">...</div>', defaultHotkey: 'Ctrl+Alt+R', defaultCommand: 'sign', insertText: '<div align="right">\n\n2026년 10월 1일  \n**작성자: 홍길동 (인)**\n\n</div>', kind: 15 },
   { id: 'styleSettings', icon: '🎨', name: '서식관리', group: '문서', tagFormat: '서식 테마 갤러리', defaultHotkey: '', defaultCommand: 'style', insertText: '', kind: 17 },
 
   // 7. 부가기능 (Extra)
@@ -95,6 +102,8 @@ export const getDefaultCommands = () => {
 // 📊 [OMD-EDIT-toolbarConfig-0003] toolbarConfig.ts ➔ getSlashCommands
 // 🎯 @KICK  : TOOLBAR_ITEMS를 Monaco 슬래시 자동완성 항목으로 변환 (모달/액션/플레이스홀더 처리)
 // 🛡️ @GUARD : EXCLUDED_FROM_SLASH 필터, modalKeys/actionOnlyKeys 분기, 플레이스홀더 우선순위 매칭
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장(Ctrl+Shift+S)과의 오인·충돌 방지를 위해 서명/발신인(우측 정렬) 단축키를 Ctrl+Alt+R(Right)로 변경
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 우측 정렬 도구 추가] TOOLBAR_ITEMS에 signature(Ctrl+Alt+R, /sign, /사인) 추가 및 슬래시 다국어 듀얼 자동완성(/sign, /사인) 등록
 // 🚨 @PATCH : **2026-09-11** — 코드 블록(codeblock) 기본 언어를 javascript에서 markdown으로 변경 연동
 //             **2026-09-11** — 플로팅 툴바와 1:1 일치하도록 기능·구분(서식, 제목, 목록, 미디어, 코드, 문서, 부가기능) 순서 동기화, Alert 인용구 5종(Ctrl+Shift+1~5) 및 태그 취소(Ctrl+Shift+0) 단축키 부여, 슬래시(/) 명령어 구분 태그 표기 및 코드블록(codeblock) 액션 연동 추가
 //             **2026-09-11** — GitHub Alert 인용구 5종(Note, Tip, Important, Warning, Caution) 슬래시 자동완성(/note, /팁, /주의 등) 및 aliasTerms 다국어 검색 지원 추가
@@ -112,9 +121,9 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
 
   return TOOLBAR_ITEMS
     .filter(item => !EXCLUDED_FROM_SLASH.has(item.id))
-    .map(item => {
+    .flatMap(item => {
       const cmdStr = customCommands[item.id] || item.defaultCommand;
-      if (!cmdStr) return null;
+      if (!cmdStr) return [];
 
       let insertText = item.insertText;
       let insertTextRules = undefined;
@@ -127,8 +136,8 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
 
       // 💡 [한글 주석] 모달이 필요한 항목 (youtube 추가)
       const modalKeys = ['image', 'video', 'youtube', 'map', 'table', 'math', 'add_reference'];
-      // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 표 행 편집, 코드블록 언어선택 연동)
-      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'insertTableRow', 'deleteTableRow', 'taglink', 'footnote', 'styleSettings', 'aiHelp', 'add_reference', 'citation', 'codeblock'];
+      // 💡 [한글 주석] 텍스트 선 삽입 없이 액션만 실행하는 항목 (모달 수반 고급 기능 및 동적 시간 삽입 'now', 서명 'signature', 표 행 편집, 코드블록 언어선택 연동)
+      const actionOnlyKeys = ['cleanDoc', 'clear', 'calendar', 'image', 'video', 'youtube', 'map', 'table', 'math', 'now', 'signature', 'insertTableRow', 'deleteTableRow', 'taglink', 'footnote', 'styleSettings', 'aiHelp', 'add_reference', 'citation', 'codeblock'];
 
       if (modalKeys.includes(item.id)) {
         command = {
@@ -189,10 +198,38 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
       else if (item.id === 'quoteWarning') aliasTerms = '주의 warning warn';
       else if (item.id === 'quoteCaution') aliasTerms = '경고 caution alert danger';
       else if (item.id === 'quote') aliasTerms = '인용 인용구 quote';
+      else if (item.id === 'signature') aliasTerms = '사인 sign 서명 발신인 right 우측정렬';
 
       const filterText = `/${cmdStr} /${item.name} ${item.name} ${cmdStr} ${item.group} ${aliasTerms}`;
 
-      return {
+      // 💡 [서명 듀얼 슬래시 커맨드] /sign 및 /사인 모두 개별 자동완성 항목으로 즉시 제안
+      if (item.id === 'signature') {
+        const signItem = {
+          id: 'signature',
+          label: `${iconStr}/sign   ${item.name}`,
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: insertText,
+          insertTextRules: insertTextRules,
+          detail: `[${item.group}] ${item.name}${item.tagFormat ? `  ·  ${item.tagFormat}` : ''}`,
+          filterText: `/sign /사인 서명 sign 사인 우측정렬 발신인 ${item.name}`,
+          sortText: 'sign',
+          command: command
+        };
+        const koreanSignItem = {
+          id: 'signature-ko',
+          label: `${iconStr}/사인   ${item.name}`,
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: insertText,
+          insertTextRules: insertTextRules,
+          detail: `[${item.group}] ${item.name}${item.tagFormat ? `  ·  ${item.tagFormat}` : ''}`,
+          filterText: `/사인 /sign 서명 사인 sign 우측정렬 발신인 ${item.name}`,
+          sortText: '사인',
+          command: command
+        };
+        return [signItem, koreanSignItem];
+      }
+
+      return [{
         id: item.id,
         label,
         kind: item.kind === 17 ? monaco.languages.CompletionItemKind.Keyword : monaco.languages.CompletionItemKind.Snippet,
@@ -202,7 +239,7 @@ export const getSlashCommands = (monaco: any, customCommands: Record<string, str
         filterText,
         sortText: cmdStr,  // 알파벳 순 정렬
         command: command
-      };
+      }];
     }).filter((item) => item !== null) as any[];
 };
 

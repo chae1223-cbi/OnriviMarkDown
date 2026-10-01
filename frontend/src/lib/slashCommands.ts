@@ -1,3 +1,8 @@
+// ====================================================================
+// 📊 [OMD-CORE-SlashCommands-0001] slashCommands.ts ➔ Default Slash Commands & Hotkeys
+// 🎯 @KICK  : 기본 슬래시 명령어 목록 및 단축키 기본 매핑 정의
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장과의 충돌 방지를 위해 서명/발신인 단축키를 Ctrl+Alt+R로 변경 및 /sign, /사인 슬래시 명령어 탑재
+// ====================================================================
 export const DEFAULT_HOTKEYS: Record<string, string> = {
   bold: 'Ctrl+B',
   italic: 'Ctrl+I',
@@ -13,7 +18,8 @@ export const DEFAULT_HOTKEYS: Record<string, string> = {
   quoteCaution: 'Ctrl+Shift+5',
   inlineCode: 'Ctrl+E',
   codeblock: 'Ctrl+Shift+E',
-  clear: 'Ctrl+Shift+0'
+  clear: 'Ctrl+Shift+0',
+  signature: 'Ctrl+Alt+R'
 };
 
 export const DEFAULT_SLASH_COMMANDS = [
@@ -32,6 +38,7 @@ export const DEFAULT_SLASH_COMMANDS = [
   { id: 'list', label: 'List (글머리 기호)', kind: 17, insertText: '- ', detail: '기호 목록' },
   { id: 'checklist', label: 'Checklist (체크리스트)', kind: 17, insertText: '- [ ] ', detail: '할 일 목록' },
   { id: 'clear', label: 'Clear Tag (태그 취소)', kind: 17, insertText: '', detail: '서식 마크다운 태그 취소', actionId: 'clear' },
+  { id: 'signature', label: 'Sign / 사인 (서명/발신인)', kind: 15, insertText: '', detail: '서명 및 발신인 우측 정렬 삽입 (Ctrl+Alt+R)', actionId: 'signature' },
   { id: 'image', label: 'Image (이미지)', kind: 15, insertText: '![대체 텍스트](이미지_URL)', detail: '이미지 삽입' },
   { id: 'link', label: 'Link (링크)', kind: 15, insertText: '[링크 텍스트](URL)', detail: '링크 삽입' },
   { id: 'cite', label: 'Cite (참조문헌 인용)', kind: 15, insertText: '', detail: '참조문헌(bib) 선택 및 인용 삽입', actionId: 'custom-action-citation' },
@@ -43,6 +50,8 @@ export const DEFAULT_SLASH_COMMANDS = [
 // 📊 [OMD-EDIT-slashCommands-0001] slashCommands.ts ➔ getSlashCommands
 // 🎯 @KICK  : 기본 슬래시 명령어 배열을 Monaco CompletionItem 형식으로 변환
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장(Ctrl+Shift+S)과의 충돌 방지를 위해 서명/발신인 단축키를 Ctrl+Alt+R로 변경
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 슬래시 및 단축키 추가] signature(Ctrl+Alt+R, /sign, /사인) 기본 명령어 및 단축키 등록
 // 🚨 @PATCH : **2026-09-11** — 코드블록(codeblock) 언어 자동 선택 액션 연동 및 Alert 인용구 5종/태그 취소 단축키 동기화
 //             **2026-09-11** — Alert 인용구 5종(Note, Tip, Important, Warning, Caution) 슬래시 명령어 추가
 // 🔗 @CALLS : 없음

@@ -17,6 +17,7 @@ import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 // 🎯 @KICK  : 에디터 사용자 설정(테마, 단축키, 폰트크기 등)을 관리하고 영구 저장소에 동기화
 // 🛡️ @GUARD : 각 스토리지 로드 실패 시 기본값 fallback
 // 🚨 @PATCH : **2026-09-25** — [에디터 기본 글꼴 크기 16px 상향 및 가독성 최적화]: 작은 글씨로 인한 피로를 해소하기 위해 기본 에디터 fontSize를 14px에서 16px로 전면 상향 조정
+// 🚨 @PATCH : **2026-10-01** — [단축키/명령어 기본값 자동 병합 복구]: localStorage 복원 시 기존 저장 데이터에 신규 단축키(signature 등)가 누락되지 않도록 getDefaultHotkeys/getDefaultCommands와의 베이스 병합 보장
 // 🚨 @PATCH : **2026-09-25** — [에디터 글꼴 굵기 SemiBold(600) 신설 및 중간 굵기 선택지 확장]: editorFontWeight 타입에 'semibold' 추가, 400(Regular)/500(Medium)/600(SemiBold)/700(Bold) 4단계 굵기 체계 구축
 // 🚨 @PATCH : **2026-09-23** — [난반사 및 저조도 대비 에디터 글꼴 굵기/고대비 설정 탑재] 환경설정에 에디터 폰트 굵기(보통/선명하게/굵게) 및 고대비 모드(ON/OFF) 상태 신설, 로컬스토리지/Electron 자동 영구 동기화 연동
 // 🚨 @PATCH : **2026-09-17** — [AES 암호화 키/모델명 평문 누출 원천 차단 및 양방향 자동 복호화 연동]: 스토리지 내 U2FsdGVkX1... 암호문 유입 시 loadSecureData를 통한 즉시 복호화 보장, aiModelName 불필요한 암호화 제거 및 기본 플래그십 자동 무해 전환
@@ -135,7 +136,20 @@ export const useEditorSettings = (
       try {
         const localData = localStorage.getItem('onrivi_settings');
         if (localData) {
-          Object.assign(baseSettings, JSON.parse(localData));
+          const parsed = JSON.parse(localData);
+          Object.assign(baseSettings, parsed);
+          if (parsed.customHotkeys) {
+            baseSettings.customHotkeys = {
+              ...getDefaultHotkeys(),
+              ...parsed.customHotkeys
+            };
+          }
+          if (parsed.customSlashCommands) {
+            baseSettings.customSlashCommands = {
+              ...getDefaultCommands(),
+              ...parsed.customSlashCommands
+            };
+          }
           if (baseSettings.previewMode === 'css-style') baseSettings.previewMode = 'both';
         }
         
@@ -185,11 +199,19 @@ export const useEditorSettings = (
 
         const savedHotkeys = localStorage.getItem('customHotkeys');
         if (savedHotkeys) {
-          Object.assign(baseSettings.customHotkeys, JSON.parse(savedHotkeys));
+          baseSettings.customHotkeys = {
+            ...getDefaultHotkeys(),
+            ...baseSettings.customHotkeys,
+            ...JSON.parse(savedHotkeys)
+          };
         }
         const savedSlashCmds = localStorage.getItem('customSlashCommands');
         if (savedSlashCmds) {
-          Object.assign(baseSettings.customSlashCommands, JSON.parse(savedSlashCmds));
+          baseSettings.customSlashCommands = {
+            ...getDefaultCommands(),
+            ...baseSettings.customSlashCommands,
+            ...JSON.parse(savedSlashCmds)
+          };
         }
         
         // 2차 백업 키에서 API 키와 모델명 개별 복구 (암호화 보안 스토리지 복호화 및 유효 키 보존)
