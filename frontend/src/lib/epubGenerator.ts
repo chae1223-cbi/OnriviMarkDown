@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 헤더(text 라벨) 소거 및 긴 코드/해시태그 박스 돌출 버그 해결]: sanitizeToXHTML에서 .codeblock-header UI 요소를 소거하고, pre/code/.onrivi-line에 white-space:pre-wrap, word-break:break-all, overflow-wrap:anywhere를 적용하여 박스 외곽 돌출 차단
 // 🚨 @PATCH : **2026-10-01** — [EPUB 기본 페이지 나누기 기준 폐지]: exportPageBreakLevel 기본값을 'none'으로 변경하여 제목별 인위적 챕터 분할 없이 자연스러운 흐름 유지
 //             **2026-08-14** — EPUB 내보내기 시 제목1(h1), 제목2(h2) 태그를 만날 때마다 자동으로 페이지를 넘겨(단원 분할) 깔끔한 챕터 구분이 되도록 page-break-before: always 속성 추가 (단, 첫 번째 요소 제외). 또한, 긴 코드 블록, 인용문(blockquote), 표(table)가 통째로 다음 페이지로 넘어가 거대한 빈 공간을 만드는 현상을 방지하기 위해 래퍼 컨테이너들에 page-break-inside: auto 강제 주입.
 //             **2026-06-25** — EPUB 내보내기 시 제목 배경색/글자색이 기본값(푸른색)으로만 고정되던 버그를 수정하고, 사용자가 CssStyleForm에서 커스텀한 h1~h6의 테두리(border), 둥근 모서리(border-radius), 그리고 본문 및 인용구 텍스트 정렬(text-align), 외부 여백(margin-top, bottom) 등 모든 커스텀 스타일이 완벽히 인젝션되도록 코드 생성 파이프라인 대폭 확장; clone.querySelector() 루틴을 유연하게 교체하여 모든 태그의 스타일 덮어쓰기 지원
@@ -60,9 +61,29 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString, 'text/html');
   
-  // UI 제어 요소 (복사 버튼, 지도 컨트롤 등) 제거
-  const copyButtons = doc.querySelectorAll('button, .copy-btn, [title*="복사"]');
-  copyButtons.forEach(btn => btn.remove());
+  // UI 제어 요소 (복사 버튼, 코드블록 헤더/언어 라벨, 지도 컨트롤 등) 제거
+  const uiElements = doc.querySelectorAll('button, .copy-btn, .copy-button-hook, .codeblock-header, [title*="복사"]');
+  uiElements.forEach(el => el.remove());
+
+  // 코드블록 태그(pre, code, .onrivi-line) 가로 오버플로우 방지 및 자동 줄바꿈 강제
+  doc.querySelectorAll('pre, code, .onrivi-line').forEach(el => {
+    if (el instanceof HTMLElement) {
+      el.classList.remove('w-max');
+      el.style.whiteSpace = 'pre-wrap';
+      el.style.wordBreak = 'break-all';
+      el.style.overflowWrap = 'anywhere';
+      el.style.maxWidth = '100%';
+      el.style.boxSizing = 'border-box';
+    }
+  });
+
+  doc.querySelectorAll('.codeblock-area, .codeblock-area div').forEach(div => {
+    if (div instanceof HTMLElement) {
+      div.classList.remove('w-max');
+      div.style.maxWidth = '100%';
+      div.style.boxSizing = 'border-box';
+    }
+  });
   
   // 🔗 하이퍼링크(<a> 태그) 규격 표준화 및 보안 등급 정비
   const links = doc.querySelectorAll('a');
@@ -527,31 +548,57 @@ pre {
   border-radius: 6px;
   padding: 1em;
   overflow: visible; /* EPUB에서는 잘리지 않게 visible 처리 */
-  white-space: pre-wrap; /* EPUB 가로 스크롤 불가 대비 자동 줄바꿈 */
-  word-wrap: break-word;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
   page-break-inside: auto !important;
   break-inside: auto !important;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
   font-size: 0.9em;
   tab-size: 4;
   -moz-tab-size: 4;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 .codeblock-area {
   page-break-inside: auto !important;
   break-inside: auto !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 .codeblock-area div {
   page-break-inside: auto !important;
   break-inside: auto !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 pre code {
   display: block !important;
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
   page-break-inside: auto !important;
   break-inside: auto !important;
   background-color: transparent !important;
   padding: 0 !important;
+  box-sizing: border-box !important;
+  max-width: 100% !important;
+}
+.codeblock-area .onrivi-line,
+.onrivi-line {
+  display: block !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 code {
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Nanum Gothic Coding', 'D2Coding', '맑은 고딕', 'Malgun Gothic', monospace !important;

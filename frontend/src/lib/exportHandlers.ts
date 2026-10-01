@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 헤더(text 라벨) 소거 및 긴 코드/해시태그 박스 돌출 버그 해결]: .codeblock-header UI 잔재를 완전 제거하고, pre/code/.onrivi-line에 white-space:pre-wrap 및 word-break:break-all을 강제 주입하여 코드/단어 박스 밖 돌출 방지
 // 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 전면 폐지]: exportPDF 및 exportEPUB에서 exportPageBreakLevel에 따른 제목별 강제 페이지 나누기를 완전히 배제하고, 인위적 공백/페이지 쪼개짐 없이 자연스러운 본문 흐름으로 사출되도록 개선
 // 🚨 @PATCH : **2026-10-01** — [표 내보내기 시 외곽 테두리 소실 및 세로선 출현 버그 완전 해결]: html-to-image 캡처 시 table collapse로 인한 외곽 테두리 누락을 최외곽 4면 셀 직접 주입으로 100% 방어하고, 기본 표 서식(colBorderWidth 0px)에 맞춰 내부 세로선은 완전 소거, 가로선 및 외곽선만 미리보기와 1:1 일치하도록 동기화
 // 🚨 @PATCH : **2026-10-01** — [이미지/PDF 내보내기 시 인라인 코드 상향 솟구침 및 단어 쪼개짐 버그 해결]: applyExportInlineStyles 및 exportStyles에서 display:inline-block 및 vertical-align:0으로 인해 인라인 코드가 두 줄로 쪼개지며 상단으로 솟구치던 현상을 display:inline, vertical-align:baseline, white-space:nowrap(단어보호), box-decoration-break:clone으로 전면 개편하여 완벽 해결
@@ -2240,6 +2241,19 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
 
     // EPUB 본문에 html2canvas용 인라인 스타일이 포함되지 않도록 제거 (외부 style.css에서만 처리)
     clone.querySelector('style.export-style-element')?.remove();
+
+    // 🛡️ 코드블록 헤더(언어 라벨 'text' 및 복사 버튼) 제거 및 줄바꿈/너비 규격 최적화
+    clone.querySelectorAll('.codeblock-header, button, .copy-btn, .copy-button-hook').forEach(el => el.remove());
+    clone.querySelectorAll('pre, code, .onrivi-line').forEach(el => {
+      if (el instanceof HTMLElement) {
+        el.classList.remove('w-max');
+        el.style.whiteSpace = 'pre-wrap';
+        el.style.wordBreak = 'break-all';
+        el.style.overflowWrap = 'anywhere';
+        el.style.maxWidth = '100%';
+        el.style.boxSizing = 'border-box';
+      }
+    });
 
     // 🛡️ Mermaid SVG → base64 data:image/svg+xml <img> 변환
     //     EPUB DOMParser가 SVG 네임스페이스를 손상시켜 도형이 사라지는 문제 우회
