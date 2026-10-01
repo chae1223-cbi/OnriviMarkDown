@@ -21,6 +21,7 @@ import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 // ====================================================================
 // 📊 [OMD-EDIT-USEEDITORHANDLERS-0014] useEditorHandlers.ts ➔ useEditorHandlers
 // 🎯 @KICK  : 에디터 주요 액션 핸들러(저장, 내보내기, 서식 삽입 등)를 통합 관리
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 붉은색 인감도장 태그 적용]: 기본 템플릿의 도장 표식을 붉은색 원형 인감도장 태그(<span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>)로 업그레이드
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 핸들러 추가]: 선택 영역 우측 정렬 감싸기/토글 및 미선택 시 오늘 날짜 기반 기본 서명 템플릿 삽입(작성자명 자동 선택) 구현 (handlers.signature)
 // 🚨 @PATCH : **2026-10-01** — [DOCX 내보내기 시 미리보기 DOM 직결 연동]: 마크다운 태그 누출을 원천 방지하기 위해 렌더링된 previewRef DOM을 기반으로 exportDOCX를 호출하도록 연동
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 핸들러 제거]: handlers.exportHWPX 액션 및 exportHWPX 임포트 완전 삭제
@@ -1242,7 +1243,7 @@ export const useEditorHandlers = ({
       // 3. 선택 영역이 없는 경우: 오늘 날짜 기반 기본 서명 템플릿 삽입 및 작성자 성명 자동 선택
       const now = new Date();
       const dateStr = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
-      const template = `<div align="right">\n\n${dateStr}  \n**작성자: 홍길동 (인)**\n\n</div>\n`;
+      const template = `<div align="right">\n\n${dateStr}  \n**작성자: 홍길동** <span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>\n\n</div>\n`;
 
       const startLine = selection.startLineNumber;
       editor.pushUndoStop();

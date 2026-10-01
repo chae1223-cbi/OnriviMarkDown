@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-SlashCommands-0001] slashCommands.ts ➔ Default Slash Commands & Hotkeys
 // 🎯 @KICK  : 기본 슬래시 명령어 목록 및 단축키 기본 매핑 정의
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 붉은색 인감도장 태그 적용]: 기본 템플릿의 도장 표식을 붉은색 원형 인감도장 태그(<span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>)로 업그레이드
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장과의 충돌 방지를 위해 서명/발신인 단축키를 Ctrl+Alt+R로 변경 및 /sign, /사인 슬래시 명령어 탑재
 // ====================================================================
 export const DEFAULT_HOTKEYS: Record<string, string> = {

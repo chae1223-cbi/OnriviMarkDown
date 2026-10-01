@@ -1,6 +1,7 @@
 // ====================================================================
 // 📊 [OMD-CORE-ToolbarConfig-0001] toolbarConfig.ts ➔ Toolbar Items Configuration
 // 🎯 @KICK  : 에디터 툴바, 플로팅 툴바 및 단축키/슬래시 커맨드 전역 설정 메타데이터
+// 🚨 @PATCH : **2026-10-01** — [서명/발신인 붉은색 인감도장 태그 적용]: 기본 템플릿의 도장 표식을 붉은색 원형 인감도장 태그(<span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>)로 업그레이드
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장(Ctrl+Shift+S)과의 충돌 방지를 위해 서명/발신인 기본 단축키를 Ctrl+Alt+R로 변경
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 툴바 아이템 추가]: 문서(Document) 그룹에 서명/발신인 (우측 정렬, signature) 툴바 아이템 신설
 // ====================================================================
@@ -51,7 +52,7 @@ export const TOOLBAR_ITEMS = [
 
   // 6. 문서 (Document)
   { id: 'now', icon: '📅', name: '현재 날짜/시간', group: '문서', tagFormat: '날짜/시간', defaultHotkey: '', defaultCommand: 'now', insertText: '', kind: 15 },
-  { id: 'signature', icon: '✍️', name: '서명/발신인 (우측 정렬)', group: '문서', tagFormat: '<div align="right">...</div>', defaultHotkey: 'Ctrl+Alt+R', defaultCommand: 'sign', insertText: '<div align="right">\n\n2026년 10월 1일  \n**작성자: 홍길동 (인)**\n\n</div>', kind: 15 },
+  { id: 'signature', icon: '✍️', name: '서명/발신인 (우측 정렬)', group: '문서', tagFormat: '<div align="right">...</div>', defaultHotkey: 'Ctrl+Alt+R', defaultCommand: 'sign', insertText: '<div align="right">\n\n2026년 10월 1일  \n**작성자: 홍길동** <span style="color:#dc2626; border:1.5px solid #dc2626; border-radius:50%; padding:0 3px; font-size:0.85em; font-weight:bold;">인</span>\n\n</div>', kind: 15 },
   { id: 'styleSettings', icon: '🎨', name: '서식관리', group: '문서', tagFormat: '서식 테마 갤러리', defaultHotkey: '', defaultCommand: 'style', insertText: '', kind: 17 },
 
   // 7. 부가기능 (Extra)
