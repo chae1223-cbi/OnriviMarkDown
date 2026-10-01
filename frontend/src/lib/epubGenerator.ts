@@ -1,4 +1,4 @@
-// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 헤더(text 라벨) 소거 및 긴 코드/해시태그 박스 돌출 버그 해결]: sanitizeToXHTML에서 .codeblock-header UI 요소를 소거하고, pre/code/.onrivi-line에 white-space:pre-wrap, word-break:break-all, overflow-wrap:anywhere를 적용하여 박스 외곽 돌출 차단
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 원본 서식(다크 테마/헤더 바/TEXT 라벨/복사 배지) 1:1 완벽 동기화]: .codeblock-header 및 언어 라벨을 온전히 보존하고 button을 표준 span 배지로 치환하며, 코드블록 테마 CSS(.codeblock-area, .codeblock-header, .codeblock-header-text, .copy-button-hook) 및 줄바꿈을 완벽 탑재
 // 🚨 @PATCH : **2026-10-01** — [EPUB 기본 페이지 나누기 기준 폐지]: exportPageBreakLevel 기본값을 'none'으로 변경하여 제목별 인위적 챕터 분할 없이 자연스러운 흐름 유지
 //             **2026-08-14** — EPUB 내보내기 시 제목1(h1), 제목2(h2) 태그를 만날 때마다 자동으로 페이지를 넘겨(단원 분할) 깔끔한 챕터 구분이 되도록 page-break-before: always 속성 추가 (단, 첫 번째 요소 제외). 또한, 긴 코드 블록, 인용문(blockquote), 표(table)가 통째로 다음 페이지로 넘어가 거대한 빈 공간을 만드는 현상을 방지하기 위해 래퍼 컨테이너들에 page-break-inside: auto 강제 주입.
 //             **2026-06-25** — EPUB 내보내기 시 제목 배경색/글자색이 기본값(푸른색)으로만 고정되던 버그를 수정하고, 사용자가 CssStyleForm에서 커스텀한 h1~h6의 테두리(border), 둥근 모서리(border-radius), 그리고 본문 및 인용구 텍스트 정렬(text-align), 외부 여백(margin-top, bottom) 등 모든 커스텀 스타일이 완벽히 인젝션되도록 코드 생성 파이프라인 대폭 확장; clone.querySelector() 루틴을 유연하게 교체하여 모든 태그의 스타일 덮어쓰기 지원
@@ -61,9 +61,17 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString, 'text/html');
   
-  // UI 제어 요소 (복사 버튼, 코드블록 헤더/언어 라벨, 지도 컨트롤 등) 제거
-  const uiElements = doc.querySelectorAll('button, .copy-btn, .copy-button-hook, .codeblock-header, [title*="복사"]');
-  uiElements.forEach(el => el.remove());
+  // UI 제어 요소 중 button 태그를 XHTML 표준에 안전한 span 배지 태그로 치환 (외형 100% 보존)
+  doc.querySelectorAll('button').forEach(btn => {
+    const span = doc.createElement('span');
+    Array.from(btn.attributes).forEach(attr => {
+      if (attr.name !== 'type' && attr.name !== 'onclick') {
+        span.setAttribute(attr.name, attr.value);
+      }
+    });
+    span.innerHTML = btn.innerHTML;
+    btn.parentNode?.replaceChild(span, btn);
+  });
 
   // 코드블록 태그(pre, code, .onrivi-line) 가로 오버플로우 방지 및 자동 줄바꿈 강제
   doc.querySelectorAll('pre, code, .onrivi-line').forEach(el => {
@@ -563,6 +571,11 @@ pre {
   max-width: 100% !important;
 }
 .codeblock-area {
+  background-color: #0f172a !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  overflow: hidden !important;
+  margin: 1.2em 0 !important;
   page-break-inside: auto !important;
   break-inside: auto !important;
   box-sizing: border-box !important;
@@ -576,22 +589,73 @@ pre {
   width: 100% !important;
   max-width: 100% !important;
 }
-pre code {
-  display: block !important;
+.codeblock-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background-color: #1e293b !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding: 6px 14px !important;
+  min-height: 32px !important;
+  box-sizing: border-box !important;
+}
+.codeblock-header-text {
+  color: #94a3b8 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  font-family: inherit, monospace !important;
+  display: inline-block !important;
+}
+.copy-button-hook, .copy-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #cbd5e1 !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  border: none !important;
+  line-height: 1.4 !important;
+}
+.codeblock-area pre {
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0 0 8px 8px !important;
+  padding: 14px 16px !important;
+  margin: 0 !important;
+  color: #f8fafc !important;
+  font-family: "JetBrains Mono", Consolas, "Liberation Mono", Menlo, Courier, monospace !important;
+  font-size: 13.5px !important;
+  line-height: 1.5 !important;
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
   word-break: break-all !important;
   overflow-wrap: anywhere !important;
-  page-break-inside: auto !important;
-  break-inside: auto !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.codeblock-area pre code {
+  display: block !important;
   background-color: transparent !important;
+  color: inherit !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
   padding: 0 !important;
+  border: none !important;
   box-sizing: border-box !important;
   max-width: 100% !important;
 }
 .codeblock-area .onrivi-line,
 .onrivi-line {
   display: block !important;
+  color: inherit !important;
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
   word-break: break-all !important;

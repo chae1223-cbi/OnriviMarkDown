@@ -1,4 +1,4 @@
-// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 헤더(text 라벨) 소거 및 긴 코드/해시태그 박스 돌출 버그 해결]: .codeblock-header UI 잔재를 완전 제거하고, pre/code/.onrivi-line에 white-space:pre-wrap 및 word-break:break-all을 강제 주입하여 코드/단어 박스 밖 돌출 방지
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 원본 서식(다크 테마/헤더 바/TEXT 라벨/복사 배지) 1:1 완벽 동기화]: applyExportInlineStyles를 exportEPUB에도 연동하여 미리보기 DOM의 코드블록 테마/헤더 스타일을 100% 보존하고, pre/code 자동 줄바꿈을 적용하여 박스 밖 돌출 방지
 // 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 전면 폐지]: exportPDF 및 exportEPUB에서 exportPageBreakLevel에 따른 제목별 강제 페이지 나누기를 완전히 배제하고, 인위적 공백/페이지 쪼개짐 없이 자연스러운 본문 흐름으로 사출되도록 개선
 // 🚨 @PATCH : **2026-10-01** — [표 내보내기 시 외곽 테두리 소실 및 세로선 출현 버그 완전 해결]: html-to-image 캡처 시 table collapse로 인한 외곽 테두리 누락을 최외곽 4면 셀 직접 주입으로 100% 방어하고, 기본 표 서식(colBorderWidth 0px)에 맞춰 내부 세로선은 완전 소거, 가로선 및 외곽선만 미리보기와 1:1 일치하도록 동기화
 // 🚨 @PATCH : **2026-10-01** — [이미지/PDF 내보내기 시 인라인 코드 상향 솟구침 및 단어 쪼개짐 버그 해결]: applyExportInlineStyles 및 exportStyles에서 display:inline-block 및 vertical-align:0으로 인해 인라인 코드가 두 줄로 쪼개지며 상단으로 솟구치던 현상을 display:inline, vertical-align:baseline, white-space:nowrap(단어보호), box-decoration-break:clone으로 전면 개편하여 완벽 해결
@@ -1056,6 +1056,136 @@ function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile,
           destCell.style.setProperty('border-right', colIsZero ? 'none' : `${colWidth} ${tableBorderStyle} ${rowBorderColor}`, 'important');
         }
       });
+    });
+  });
+
+  // 🌟 코드블록(CodeBlock) 테마·헤더(언어 라벨 및 복사 배지)·본문 스타일 인라인 1:1 동기화
+  const destCodeBlocks = Array.from(clone.querySelectorAll('.codeblock-area'));
+  const srcCodeBlocks = sourceEl ? Array.from(sourceEl.querySelectorAll('.codeblock-area')) : [];
+
+  destCodeBlocks.forEach((destArea, cbIdx) => {
+    const areaEl = destArea as HTMLElement;
+    const srcArea = srcCodeBlocks[cbIdx] as HTMLElement | undefined;
+    const srcAreaStyle = (srcArea && typeof window !== 'undefined') ? window.getComputedStyle(srcArea) : null;
+
+    // 1. 코드블록 전체 외곽 컨테이너
+    const areaBg = (srcAreaStyle && srcAreaStyle.backgroundColor && srcAreaStyle.backgroundColor !== 'rgba(0, 0, 0, 0)')
+      ? srcAreaStyle.backgroundColor
+      : (activeProfile?.rules?.codeBlock?.['background-color'] || '#0f172a');
+    const areaRadius = srcAreaStyle?.borderRadius || activeProfile?.rules?.codeBlock?.['border-radius'] || '8px';
+    const areaBorder = (srcAreaStyle && srcAreaStyle.borderWidth && srcAreaStyle.borderWidth !== '0px')
+      ? `${srcAreaStyle.borderWidth} ${srcAreaStyle.borderStyle} ${srcAreaStyle.borderColor}`
+      : (activeProfile?.rules?.codeBlock?.['border'] || '1px solid rgba(255, 255, 255, 0.1)');
+
+    areaEl.style.setProperty('background-color', areaBg, 'important');
+    areaEl.style.setProperty('border-radius', areaRadius, 'important');
+    areaEl.style.setProperty('border', areaBorder, 'important');
+    areaEl.style.setProperty('overflow', 'hidden', 'important');
+    areaEl.style.setProperty('margin-top', '16px', 'important');
+    areaEl.style.setProperty('margin-bottom', '16px', 'important');
+    areaEl.style.setProperty('max-width', '100%', 'important');
+    areaEl.style.setProperty('box-sizing', 'border-box', 'important');
+
+    // 2. 코드블록 상단 헤더
+    const destHeader = areaEl.querySelector('.codeblock-header') as HTMLElement | null;
+    const srcHeader = srcArea ? srcArea.querySelector('.codeblock-header') as HTMLElement | null : null;
+    const srcHeaderStyle = (srcHeader && typeof window !== 'undefined') ? window.getComputedStyle(srcHeader) : null;
+
+    if (destHeader) {
+      const headerBg = (srcHeaderStyle && srcHeaderStyle.backgroundColor && srcHeaderStyle.backgroundColor !== 'rgba(0, 0, 0, 0)')
+        ? srcHeaderStyle.backgroundColor
+        : (activeProfile?.rules?.codeBlockTitle?.['background-color'] || 'rgba(30, 41, 59, 0.95)');
+      const headerBorderBottom = (srcHeaderStyle && srcHeaderStyle.borderBottomWidth && srcHeaderStyle.borderBottomWidth !== '0px')
+        ? `${srcHeaderStyle.borderBottomWidth} ${srcHeaderStyle.borderBottomStyle} ${srcHeaderStyle.borderBottomColor}`
+        : '1px solid rgba(255, 255, 255, 0.1)';
+
+      destHeader.style.setProperty('display', 'flex', 'important');
+      destHeader.style.setProperty('align-items', 'center', 'important');
+      destHeader.style.setProperty('justify-content', 'space-between', 'important');
+      destHeader.style.setProperty('background-color', headerBg, 'important');
+      destHeader.style.setProperty('border-bottom', headerBorderBottom, 'important');
+      destHeader.style.setProperty('padding', '6px 14px', 'important');
+      destHeader.style.setProperty('min-height', '32px', 'important');
+      destHeader.style.setProperty('box-sizing', 'border-box', 'important');
+
+      // 3. 언어 라벨 (TEXT 등)
+      const destHeaderText = destHeader.querySelector('.codeblock-header-text') as HTMLElement | null;
+      const srcHeaderText = srcHeader ? srcHeader.querySelector('.codeblock-header-text') as HTMLElement | null : null;
+      const srcHeaderTextStyle = (srcHeaderText && typeof window !== 'undefined') ? window.getComputedStyle(srcHeaderText) : null;
+
+      if (destHeaderText) {
+        const textColor = srcHeaderTextStyle?.color || activeProfile?.rules?.codeBlockTitle?.['color'] || '#94a3b8';
+        const fontSize = srcHeaderTextStyle?.fontSize || '11px';
+        const fontWeight = srcHeaderTextStyle?.fontWeight || '700';
+
+        destHeaderText.style.setProperty('color', textColor, 'important');
+        destHeaderText.style.setProperty('font-size', fontSize, 'important');
+        destHeaderText.style.setProperty('font-weight', fontWeight, 'important');
+        destHeaderText.style.setProperty('text-transform', 'uppercase', 'important');
+        destHeaderText.style.setProperty('letter-spacing', '0.08em', 'important');
+        destHeaderText.style.setProperty('display', 'inline-block', 'important');
+      }
+
+      // 4. 복사 버튼 -> 깔끔한 복사 배지 스타일 유지
+      const destCopyBtn = destHeader.querySelector('button, .copy-button-hook, .copy-btn') as HTMLElement | null;
+      if (destCopyBtn) {
+        destCopyBtn.style.setProperty('display', 'inline-flex', 'important');
+        destCopyBtn.style.setProperty('align-items', 'center', 'important');
+        destCopyBtn.style.setProperty('gap', '4px', 'important');
+        destCopyBtn.style.setProperty('padding', '2px 8px', 'important');
+        destCopyBtn.style.setProperty('background-color', 'rgba(255, 255, 255, 0.1)', 'important');
+        destCopyBtn.style.setProperty('color', '#cbd5e1', 'important');
+        destCopyBtn.style.setProperty('border-radius', '4px', 'important');
+        destCopyBtn.style.setProperty('font-size', '11px', 'important');
+        destCopyBtn.style.setProperty('font-weight', '500', 'important');
+        destCopyBtn.style.setProperty('border', 'none', 'important');
+        destCopyBtn.style.setProperty('cursor', 'default', 'important');
+      }
+    }
+
+    // 5. 코드 본문 (pre 및 code)
+    const destPre = areaEl.querySelector('pre') as HTMLElement | null;
+    const srcPre = srcArea ? srcArea.querySelector('pre') as HTMLElement | null : null;
+    const srcPreStyle = (srcPre && typeof window !== 'undefined') ? window.getComputedStyle(srcPre) : null;
+
+    if (destPre) {
+      destPre.classList.remove('w-max');
+      const preColor = srcPreStyle?.color || activeProfile?.rules?.codeBlock?.['color'] || '#f8fafc';
+      const preFontFamily = srcPreStyle?.fontFamily || '"JetBrains Mono", Consolas, monospace';
+      const preFontSize = srcPreStyle?.fontSize || activeProfile?.rules?.codeBlock?.['font-size'] || '13.5px';
+
+      destPre.style.setProperty('background-color', 'transparent', 'important');
+      destPre.style.setProperty('color', preColor, 'important');
+      destPre.style.setProperty('font-family', preFontFamily, 'important');
+      destPre.style.setProperty('font-size', preFontSize, 'important');
+      destPre.style.setProperty('padding', '14px 16px', 'important');
+      destPre.style.setProperty('margin', '0', 'important');
+      destPre.style.setProperty('border', 'none', 'important');
+      destPre.style.setProperty('width', '100%', 'important');
+      destPre.style.setProperty('max-width', '100%', 'important');
+      destPre.style.setProperty('box-sizing', 'border-box', 'important');
+      destPre.style.setProperty('white-space', 'pre-wrap', 'important');
+      destPre.style.setProperty('word-break', 'break-all', 'important');
+      destPre.style.setProperty('overflow-wrap', 'anywhere', 'important');
+    }
+
+    areaEl.querySelectorAll('code').forEach(code => {
+      const codeEl = code as HTMLElement;
+      codeEl.style.setProperty('background-color', 'transparent', 'important');
+      codeEl.style.setProperty('color', 'inherit', 'important');
+      codeEl.style.setProperty('white-space', 'pre-wrap', 'important');
+      codeEl.style.setProperty('word-break', 'break-all', 'important');
+      codeEl.style.setProperty('overflow-wrap', 'anywhere', 'important');
+      codeEl.style.setProperty('box-sizing', 'border-box', 'important');
+    });
+
+    areaEl.querySelectorAll('.onrivi-line').forEach(line => {
+      const lineEl = line as HTMLElement;
+      lineEl.style.setProperty('color', 'inherit', 'important');
+      lineEl.style.setProperty('white-space', 'pre-wrap', 'important');
+      lineEl.style.setProperty('word-break', 'break-all', 'important');
+      lineEl.style.setProperty('overflow-wrap', 'anywhere', 'important');
+      lineEl.style.setProperty('box-sizing', 'border-box', 'important');
     });
   });
 }
@@ -2242,18 +2372,8 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
     // EPUB 본문에 html2canvas용 인라인 스타일이 포함되지 않도록 제거 (외부 style.css에서만 처리)
     clone.querySelector('style.export-style-element')?.remove();
 
-    // 🛡️ 코드블록 헤더(언어 라벨 'text' 및 복사 버튼) 제거 및 줄바꿈/너비 규격 최적화
-    clone.querySelectorAll('.codeblock-header, button, .copy-btn, .copy-button-hook').forEach(el => el.remove());
-    clone.querySelectorAll('pre, code, .onrivi-line').forEach(el => {
-      if (el instanceof HTMLElement) {
-        el.classList.remove('w-max');
-        el.style.whiteSpace = 'pre-wrap';
-        el.style.wordBreak = 'break-all';
-        el.style.overflowWrap = 'anywhere';
-        el.style.maxWidth = '100%';
-        el.style.boxSizing = 'border-box';
-      }
-    });
+    // 🌟 미리보기 실제 렌더링 스타일(테이블/코드블록 테마/인라인코드)을 clone에 1:1 인라인 주입
+    applyExportInlineStyles(clone, activeProfile, targetEl);
 
     // 🛡️ Mermaid SVG → base64 data:image/svg+xml <img> 변환
     //     EPUB DOMParser가 SVG 네임스페이스를 손상시켜 도형이 사라지는 문제 우회
