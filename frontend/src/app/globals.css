@@ -11,6 +11,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 공백) 제거 및 이미지 축소/컨테이너 분할(Pagination) 정책 수립]: 제목 고아 방지(break-after: avoid), 컨테이너(section/article/div) break-inside: auto 적용, 대형 이미지 자동 축소(max-height: 190mm) 및 이미지-캡션 세트 결속으로 A4 페이지 하단 대형 공백 소거 완료
  * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 여백) 소거 및 자연스러운 문단 분할(Pagination) 정책 정립]: p, li, blockquote의 강제 break-inside: avoid를 auto로 전면 개편하고 orphans/widows: 2를 적용하여 긴 문단이 페이지 하단에서 통째로 밀리지 않고 자연스럽게 페이지를 넘어가도록 최적화
  * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 긴 Mermaid 다이어그램 앞 빈 페이지(백지) 발생 방지]: .not-prose 강제 break-inside 해제 및 Mermaid SVG max-height(230mm) 제어로 인쇄 시 A4 1페이지 내 온전한 안착 보장
  * 🚨 @PATCH : **2026-09-30** — [미리보기 내부 텍스트 검색 하이라이트 스타일 추가]: CSS.highlights(::highlight) 및 .preview-find-match 고대비 시인성 스타일 탑재
@@ -1670,13 +1671,29 @@ div.onrivi-list-spacer {
     page-break-inside: auto !important;
     break-inside: auto !important;
   }
+  ul, ol {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
   blockquote {
     page-break-inside: auto !important;
     break-inside: auto !important;
   }
-  figcaption {
+  section,
+  article,
+  .page-break-container,
+  .markdown-viewer-root,
+  .custom-preview-container {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  figcaption,
+  .onrivi-image-figure figcaption {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    display: block !important;
+    text-align: center !important;
+    margin-top: 6px !important;
   }
   pre, code, .code-block, pre > div, .not-prose, .not-prose > div {
     overflow: visible !important;
@@ -1691,7 +1708,7 @@ div.onrivi-list-spacer {
   .mermaid-svg-container svg,
   .mermaid-block-container svg,
   .not-prose svg {
-    max-height: 230mm !important;
+    max-height: 200mm !important;
     max-width: 100% !important;
     width: auto !important;
     height: auto !important;
@@ -1703,6 +1720,32 @@ div.onrivi-list-spacer {
   }
   .not-prose > div > div:first-child {
     break-after: avoid !important;
+  }
+  figure, .onrivi-image-figure {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    display: block !important;
+    margin: 1.2em auto !important;
+    text-align: center !important;
+  }
+  .onrivi-image-wrapper {
+    display: block !important;
+    margin: 0 auto !important;
+    max-width: 100% !important;
+    text-align: center !important;
+  }
+  figure img,
+  .onrivi-image-figure img,
+  .onrivi-image-wrapper img {
+    max-width: 100% !important;
+    max-height: 190mm !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
   img, video, iframe {
     page-break-inside: avoid !important;

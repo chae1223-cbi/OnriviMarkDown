@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [PDF 인쇄 조판(Pagination) 전면 최적화 및 하단 과도한 빈 공간/고아 제목 원천 박멸]: 제목 고아 방지(break-after: avoid), 일반 본문/문단/인용구/리스트 행 단위 자연스러운 분할(break-inside: auto, orphans/widows: 2), 컨테이너(section/article/div) 분할 허용, 대형 이미지 자동 축소(max-height: 190mm) 및 이미지-캡션 묶음 조판(display: block 정규화)을 적용하여 A4 페이지 하단 대형 공백 소거 완료
 // 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 공백) 제거 및 자연스러운 페이지 분할(Pagination) 정책 수립]: p, li, blockquote의 break-inside를 auto로 전면 개편하고 orphans/widows: 2를 적용하며, figure, img, tr, .codeblock-area만 break-inside: avoid를 유지하여 긴 문단이 다음 페이지로 통째로 밀리지 않고 자연스럽게 넘어가도록 조판 최적화
 // 🚨 @PATCH : **2026-10-01** — [모든 내보내기(PDF/HTML/인쇄/PNG) 시 코드블록 긴 코드 자동 줄바꿈 및 전체 내용 100% 노출]: applyExportInlineStyles를 HTML 내보내기에도 전면 탑재하고, generateExportCss 및 내보내기 스타일시트에 pre/code/.onrivi-line의 white-space: pre-wrap, word-break: break-all, overflow-wrap: anywhere 및 overflow-x: visible을 강제 주입하여 가로 스크롤 없이 전체 코드가 깔끔하게 줄바꿈되어 보이도록 일원화
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이전 페이지 이미지 우측 경계가 다음 페이지 좌측으로 누출되는 잔상 현상 완전 차단]: clone 단계에서 figure 및 .onrivi-image-wrapper에 overflow: hidden 및 box-sizing: border-box를 강제 주입하여 인접 페이지 침범 원천 방어
@@ -765,9 +766,21 @@ pre {
     page-break-inside: auto !important;
     break-inside: auto !important;
   }
-  figcaption {
+  section,
+  article,
+  .page-break-container,
+  .markdown-viewer-root,
+  .custom-preview-container {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+  figcaption,
+  .onrivi-image-figure figcaption {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    display: block !important;
+    text-align: center !important;
+    margin-top: 6px !important;
   }
   h1, h2, h3, h4, h5, h6 {
     page-break-after: avoid !important;
@@ -787,7 +800,33 @@ pre {
   tfoot {
     display: table-footer-group !important;
   }
-  figure, img, video, iframe, .katex-display, .onrivi-image-figure, .onrivi-image-wrapper {
+  figure, .onrivi-image-figure {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    display: block !important;
+    margin: 1.2em auto !important;
+    text-align: center !important;
+  }
+  .onrivi-image-wrapper {
+    display: block !important;
+    margin: 0 auto !important;
+    max-width: 100% !important;
+    text-align: center !important;
+  }
+  figure img,
+  .onrivi-image-figure img,
+  .onrivi-image-wrapper img {
+    max-width: 100% !important;
+    max-height: 190mm !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  img, video, iframe, .katex-display {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
@@ -1895,6 +1934,42 @@ export async function exportPDF({
       }
     });
 
+    // 🖼️ 이미지 <figure> 및 래퍼 정규화: Chromium flex 컨테이너 인쇄 버그 및 과도한 높이로 인한 빈 공간 방지
+    clone.querySelectorAll('figure, .onrivi-image-figure').forEach(el => {
+      const fig = el as HTMLElement;
+      fig.style.setProperty('display', 'block', 'important');
+      fig.style.setProperty('margin', '1.2em auto', 'important');
+      fig.style.setProperty('text-align', 'center', 'important');
+      fig.style.setProperty('page-break-inside', 'avoid', 'important');
+      fig.style.setProperty('break-inside', 'avoid', 'important');
+    });
+    clone.querySelectorAll('.onrivi-image-wrapper').forEach(el => {
+      const wrap = el as HTMLElement;
+      wrap.style.setProperty('display', 'block', 'important');
+      wrap.style.setProperty('margin', '0 auto', 'important');
+      wrap.style.setProperty('text-align', 'center', 'important');
+    });
+    clone.querySelectorAll('figure img, .onrivi-image-figure img, .onrivi-image-wrapper img').forEach(el => {
+      const img = el as HTMLElement;
+      img.style.setProperty('max-width', '100%', 'important');
+      img.style.setProperty('max-height', '190mm', 'important');
+      img.style.setProperty('width', 'auto', 'important');
+      img.style.setProperty('height', 'auto', 'important');
+      img.style.setProperty('object-fit', 'contain', 'important');
+      img.style.setProperty('display', 'block', 'important');
+      img.style.setProperty('margin', '0 auto', 'important');
+      img.style.setProperty('page-break-inside', 'avoid', 'important');
+      img.style.setProperty('break-inside', 'avoid', 'important');
+    });
+    clone.querySelectorAll('figcaption, .onrivi-image-figure figcaption').forEach(el => {
+      const cap = el as HTMLElement;
+      cap.style.setProperty('display', 'block', 'important');
+      cap.style.setProperty('text-align', 'center', 'important');
+      cap.style.setProperty('margin-top', '6px', 'important');
+      cap.style.setProperty('page-break-inside', 'avoid', 'important');
+      cap.style.setProperty('break-inside', 'avoid', 'important');
+    });
+
     // 🌟 가로폭 좁아짐 현상 해결: 미리보기 컴포넌트에 남겨질 수 있는 가로폭 제약(width, max-width)을 초기화하여
     //    Electron 및 브라우저 인쇄 영역에 맞게 자연스럽게 반응형 100% 본문 너비를 확보하게 처리합니다.
     clone.style.width = '100%';
@@ -2025,39 +2100,123 @@ export async function exportPDF({
       vertical-align: baseline !important;
       margin-right: 6px !important;
     }
-    /* 📄 자연스러운 본문 페이지 분할(Pagination) 보장 (하단 거대 빈 공간 원천 방어) */
-    p, li, .prose p {
-      page-break-inside: auto !important;
-      break-inside: auto !important;
-      orphans: 2 !important;
-      widows: 2 !important;
+    /* 📄 [P0 / P1 / P2 / P3] 자연스러운 PDF 페이지 분할(Pagination) 전면 오버라이드 (하단 거대 빈 공간 및 고아 제목 원천 방어) */
+    @media print {
+      /* [P1] 제목 고아 방지 (Orphan Heading 원천 차단): 제목이 페이지 하단에 홀로 남지 않도록 보장 */
+      h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+
+      /* [P0] 일반 본문/문단/인용구/리스트 자연스러운 행 단위 분할 허용 (하단 대형 빈 공간 소거) */
+      p, li, .prose p {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+        orphans: 2 !important;
+        widows: 2 !important;
+      }
+      ul, ol {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+      }
+      blockquote {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+      }
+
+      /* [P0] 일반 섹션 및 래퍼 컨테이너는 페이지 분할 허용 (불필요한 통째 밀림 방지) */
+      section,
+      article,
+      .page-break-container,
+      .markdown-viewer-root,
+      .custom-preview-container {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+      }
+
+      /* [P1] 이미지 및 도표 보호 & 이미지 + 캡션 한 덩어리 결속 */
+      figure,
+      .onrivi-image-figure {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        display: block !important;
+        margin: 1.2em auto !important;
+        text-align: center !important;
+      }
+      .onrivi-image-wrapper {
+        display: block !important;
+        margin: 0 auto !important;
+        max-width: 100% !important;
+        text-align: center !important;
+      }
+      /* [P1] 큰 이미지 자동 축소: 페이지 남은 높이에 맞게 유연하게 축소되어 불필요한 페이지 넘김 및 앞선 대형 빈 공간 원천 방어 */
+      figure img,
+      .onrivi-image-figure img,
+      .onrivi-image-wrapper img {
+        max-width: 100% !important;
+        max-height: 190mm !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain !important;
+        display: block !important;
+        margin: 0 auto !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      figcaption,
+      .onrivi-image-figure figcaption {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        display: block !important;
+        text-align: center !important;
+        margin-top: 6px !important;
+      }
+
+      /* [P2] 표 Pagination: 표 전체 분할 허용, 행 분할 금지, thead 헤더 반복 */
+      table {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+      }
+      tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      thead {
+        display: table-header-group !important;
+      }
+      tfoot {
+        display: table-footer-group !important;
+      }
+
+      /* [P3] 코드블록: 박스 내 자동 줄바꿈 허용 */
+      pre, code, .codeblock-area {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+      }
+
+      /* [P3] Mermaid 다이어그램: 한 페이지 내 안전 축소 */
+      .not-prose,
+      .mermaid-svg-container,
+      .mermaid-block-container {
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+        overflow: visible !important;
+      }
+      .mermaid-svg-container svg,
+      .mermaid-block-container svg,
+      .not-prose svg {
+        max-height: 200mm !important;
+        max-width: 100% !important;
+        width: auto !important;
+        height: auto !important;
+        display: block !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
     }
-    blockquote {
-      page-break-inside: auto !important;
-      break-inside: auto !important;
-    }
-    figcaption {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    figure, img, video, iframe, .onrivi-image-figure, .onrivi-image-wrapper {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    table {
-      page-break-inside: auto !important;
-      break-inside: auto !important;
-    }
-    tr {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    thead {
-      display: table-header-group !important;
-    }
-    tfoot {
-      display: table-footer-group !important;
-    }
+
     /* 카텍스 수식 가드 */
     .katex-display {
       display: block !important;
@@ -2088,35 +2247,6 @@ export async function exportPDF({
       max-width: 100% !important;
       overflow-x: visible !important;
     }
-    /* 🛡️ Mermaid SVG 긴 다이어그램 인쇄/PDF 최적화 (A4 1장 내 안전 스케일 및 빈 페이지 원천 방어) */
-    .not-prose {
-      page-break-inside: auto !important;
-      break-inside: auto !important;
-    }
-    .not-prose > div {
-      overflow: visible !important;
-      page-break-inside: auto !important;
-      break-inside: auto !important;
-    }
-    .mermaid-svg-container,
-    .mermaid-block-container {
-      page-break-inside: auto !important;
-      break-inside: auto !important;
-      overflow: visible !important;
-    }
-    .mermaid-svg-container svg,
-    .mermaid-block-container svg,
-    .not-prose svg {
-      max-height: 230mm !important;
-      max-width: 100% !important;
-      width: auto !important;
-      height: auto !important;
-      display: block !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
     /* 🛡️ 각주 타이틀 및 영어 라벨 원천 차단 */
     .footnotes h2,
     .footnotes #footnote-label,
@@ -2146,7 +2276,8 @@ export async function exportPDF({
       text-decoration: none !important;
       margin-left: 4px !important;
       font-family: sans-serif !important;
-  <style>
+    }
+
     /* ──────────────── 페이지 번호 & 첫 페이지 숨김 CSS ──────────────── */
     @media print {
       body {
@@ -2189,11 +2320,6 @@ export async function exportPDF({
       .print-footer-area .page-num::after {
         content: counter(page);
       }
-      
-
-      
-      /* ──────────────── 배경 워터마크 CSS (real DOM layer) ──────────────── */
-
     }
   </style>
 </head>
