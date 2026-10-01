@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-10-01** — [표 미리보기 외곽 테두리 및 행/열 구분선 동적 인젝션 정합화]: dynamicCssString 내 tableStructure 인젝션 시 최외곽 4면 셀 테두리 및 colBorderWidth 0px 소거 처리를 내보내기 규격과 100% 동기화
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 명령 제거]: EditorCommandType 및 executeCommand에서 EXPORT_HWPX 액션 완전 삭제
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 명령 연동]: EditorCommandType 및 executeCommand에 EXPORT_DOCX, EXPORT_HWPX 액션 등록 및 핸들러 연결
 // 🚨 @PATCH : **2026-09-30** — [단축키 리스너 useEffect 의존성 최적화]: handleGlobalKeyDown 내부에서 사용되는 setFontSize를 의존성 배열에 명시하여 ESLint missing dependency 경고 완전 소거
@@ -6250,12 +6251,18 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (tableStruct) {
       const outerWidth = tableStruct.outerBorderWidth || '1px';
       const rowWidth = tableStruct.rowBorderWidth || '1px';
-      const colWidth = tableStruct.colBorderWidth || '1px';
+      const colWidth = tableStruct.colBorderWidth ?? '0px';
       const tableBorderStyle = prof.rules.table?.['border-style'] || 'solid';
-      const tableBorderColor = prof.rules.table?.['border-color'] || prof.rules.th?.['border-color'] || prof.rules.td?.['border-color'] || '#cbd5e1';
+      // 💡 외곽선 및 테두리 색상: profile 규칙 또는 선명한 차콜 다크(#374151) 고대비 보장
+      const outerBorderColor = prof.rules.table?.['border-color'] || '#374151';
+      const rowBorderColor = prof.rules.th?.['border-color'] || prof.rules.td?.['border-color'] || prof.rules.table?.['border-color'] || '#cbd5e1';
+      const colBorderColor = rowBorderColor;
 
-      // 1. 표 외곽 테두리 (table)
+      // 1. 표 외곽 테두리 (table 및 최외곽 4면 셀 직접 주입)
       const outerIsZero = outerWidth === '0px' || outerWidth === '0';
+      const rowIsZero = rowWidth === '0px' || rowWidth === '0';
+      const colIsZero = colWidth === '0px' || colWidth === '0';
+
       css += `
 .custom-preview-container table,
 .onrivi-content-root table,
@@ -6265,34 +6272,62 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
 .dark .onrivi-content-root .prose table {
   border-width: ${outerWidth} !important;
   border-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
-  border-color: ${tableBorderColor} !important;
+  border-color: ${outerBorderColor} !important;
+  border-collapse: collapse !important;
 }
-`;
 
-      // 2. 표 내부 행(가로선) 및 열(세로선) 구분선 (th, td)
-      const rowIsZero = rowWidth === '0px' || rowWidth === '0';
-      const colIsZero = colWidth === '0px' || colWidth === '0';
-      css += `
-.custom-preview-container th,
-.custom-preview-container td,
-.onrivi-content-root th,
-.onrivi-content-root td,
-.custom-preview-container .prose th,
-.custom-preview-container .prose td,
-.onrivi-content-root .prose th,
-.onrivi-content-root .prose td {
-  border-top-width: ${rowWidth} !important;
+/* 🛡️ 표 최외곽 4면 테두리 */
+.custom-preview-container table tr:first-child th,
+.custom-preview-container table tr:first-child td,
+.onrivi-content-root table tr:first-child th,
+.onrivi-content-root table tr:first-child td {
+  border-top-width: ${outerWidth} !important;
+  border-top-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-top-color: ${outerBorderColor} !important;
+}
+.custom-preview-container table tr:last-child th,
+.custom-preview-container table tr:last-child td,
+.onrivi-content-root table tr:last-child th,
+.onrivi-content-root table tr:last-child td {
+  border-bottom-width: ${outerWidth} !important;
+  border-bottom-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-bottom-color: ${outerBorderColor} !important;
+}
+.custom-preview-container table tr th:first-child,
+.custom-preview-container table tr td:first-child,
+.onrivi-content-root table tr th:first-child,
+.onrivi-content-root table tr td:first-child {
+  border-left-width: ${outerWidth} !important;
+  border-left-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-left-color: ${outerBorderColor} !important;
+}
+.custom-preview-container table tr th:last-child,
+.custom-preview-container table tr td:last-child,
+.onrivi-content-root table tr th:last-child,
+.onrivi-content-root table tr td:last-child {
+  border-right-width: ${outerWidth} !important;
+  border-right-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-right-color: ${outerBorderColor} !important;
+}
+
+/* 2. 표 내부 행(가로선) 구분선 (마지막 행 제외) */
+.custom-preview-container table tr:not(:last-child) th,
+.custom-preview-container table tr:not(:last-child) td,
+.onrivi-content-root table tr:not(:last-child) th,
+.onrivi-content-root table tr:not(:last-child) td {
   border-bottom-width: ${rowWidth} !important;
-  border-left-width: ${colWidth} !important;
-  border-right-width: ${colWidth} !important;
-  border-top-style: ${rowIsZero ? 'none' : tableBorderStyle} !important;
   border-bottom-style: ${rowIsZero ? 'none' : tableBorderStyle} !important;
-  border-left-style: ${colIsZero ? 'none' : tableBorderStyle} !important;
+  border-bottom-color: ${rowBorderColor} !important;
+}
+
+/* 3. 표 내부 열(세로선) 구분선 (마지막 열 제외, colWidth 0px이면 완전 소거) */
+.custom-preview-container table tr th:not(:last-child),
+.custom-preview-container table tr td:not(:last-child),
+.onrivi-content-root table tr th:not(:last-child),
+.onrivi-content-root table tr td:not(:last-child) {
+  border-right-width: ${colWidth} !important;
   border-right-style: ${colIsZero ? 'none' : tableBorderStyle} !important;
-  border-top-color: ${tableBorderColor} !important;
-  border-bottom-color: ${tableBorderColor} !important;
-  border-left-color: ${tableBorderColor} !important;
-  border-right-color: ${tableBorderColor} !important;
+  border-right-color: ${colBorderColor} !important;
 }
 `;
     }

@@ -3,6 +3,7 @@ import { CssProfile } from '../types/cssProfile';
 // ====================================================================
 // 📊 [OMD-CORE-cssProfile-0006] cssProfile ➔ SYSTEM_PROFILE_IDS
 // 🎯 @KICK  : 시스템 프로필 식별자 목록을 정의한다
+// 🚨 @PATCH : **2026-10-01** — [표 미리보기-내보내기 일치화 및 기본 서식 가로선 중심(세로선 0px) 표준화]: DEFAULT_PROFILE 및 system-1의 tableStructure.colBorderWidth를 '0px'로 표준화하여 미리보기와 동일하게 외곽 테두리 및 행 가로선만 렌더링되도록 정합화
 // 🚨 @PATCH : **2026-09-26** — [표 모든 테두리(Grid) 세로선 및 행/열 테두리 기본값 정합화]: DEFAULT_PROFILE의 th/td에서 잔여 레거시 'border-left': 'none' / 'border-right': 'none'을 소거하고 tableStructure(outerBorderWidth, rowBorderWidth, colBorderWidth)와 100% 동기화
 // 🚨 @PATCH : **2026-09-25** — [한글 폰트 원래 시스템 폰트 복원 및 영문 세리프 적용]: Onrivi 기본서식(system-1 및 DEFAULT_PROFILE)의 pageStyle.fontFamily에서 영문은 Times New Roman/Georgia를 적용하고, 한글은 원래의 Noto Sans KR/시스템 고딕으로 복원
 // 🚨 @PATCH : **2026-09-25** — [한컴 테크 블로그 프리미엄 서식 신규 탑재]: 한컴(HANCOM) 공식 블로그의 모던 테크니컬 디자인을 완벽 재현한 'Onrivi 한컴 테크 블로그 서식(hancom-tech-blog)'을 시스템 프로필로 공식 등록 (H2 오렌지 하단선, H3 오렌지 좌측바, 1.8배 본문 줄간격, 8px 문장 사이 간격, 가로선 중심 비교표, 와이드 라운드 미디어 등 반영)
@@ -375,7 +376,7 @@ export const SYSTEM_PROFILES: CssProfile[] = [
     "tableStructure": {
       "outerBorderWidth": "1px",
       "rowBorderWidth": "1px",
-      "colBorderWidth": "1px"
+      "colBorderWidth": "0px"
     },
     "customCss": ""
   },
@@ -2171,7 +2172,7 @@ export function createEmptyProfile(): CssProfile {
     tableStructure: {
       outerBorderWidth: '1px',
       rowBorderWidth: '1px',
-      colBorderWidth: '1px'
+      colBorderWidth: '0px'
     }
   };
 }
@@ -2343,7 +2344,7 @@ export function normalizeCssProfile(
     ...(DEFAULT_PROFILE.tableStructure || {
       outerBorderWidth: '1px',
       rowBorderWidth: '1px',
-      colBorderWidth: '1px',
+      colBorderWidth: '0px',
     }),
     ...(imported?.tableStructure || {}),
   };

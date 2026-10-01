@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [표 내보내기 시 외곽 테두리 소실 및 세로선 출현 버그 완전 해결]: html-to-image 캡처 시 table collapse로 인한 외곽 테두리 누락을 최외곽 4면 셀 직접 주입으로 100% 방어하고, 기본 표 서식(colBorderWidth 0px)에 맞춰 내부 세로선은 완전 소거, 가로선 및 외곽선만 미리보기와 1:1 일치하도록 동기화
 // 🚨 @PATCH : **2026-10-01** — [이미지/PDF 내보내기 시 인라인 코드 상향 솟구침 및 단어 쪼개짐 버그 해결]: applyExportInlineStyles 및 exportStyles에서 display:inline-block 및 vertical-align:0으로 인해 인라인 코드가 두 줄로 쪼개지며 상단으로 솟구치던 현상을 display:inline, vertical-align:baseline, white-space:nowrap(단어보호), box-decoration-break:clone으로 전면 개편하여 완벽 해결
 // 🚨 @PATCH : **2026-10-01** — [Word(.docx) 내보내기 시 미리보기 DOM 직접 조판 및 마크다운 태그 누출 완전 해결]: 렌더링된 미리보기 DOM을 바탕으로 유니코드 불릿, 볼드, 인라인 코드, 표, DrawingML 이미지를 Word 규격에 맞게 100% 온전히 사출하도록 연동
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 기능 삭제]: exportHWPX 함수 및 한글 문서 내보내기 파이프라인 완전 제거
@@ -47,6 +48,7 @@ import { getApiUrl } from '@/lib/apiUrlBuilder';
 import { msg } from '@/lib/systemMessages';
 import { PAPER_SIZES } from '@/constants/paperSizes';
 import { DEFAULT_PROFILE, normalizeCssProfile } from '@/constants/cssProfile';
+import type { CssProfile } from '@/types/cssProfile';
 
 interface ExportOptions {
   previewEl: HTMLElement;
@@ -559,12 +561,18 @@ p .onrivi-line + .onrivi-line {
   if (tableStruct) {
     const outerWidth = tableStruct.outerBorderWidth || '1px';
     const rowWidth = tableStruct.rowBorderWidth || '1px';
-    const colWidth = tableStruct.colBorderWidth || '1px';
+    const colWidth = tableStruct.colBorderWidth ?? '0px';
     const tableBorderStyle = profile.rules?.table?.['border-style'] || 'solid';
-    const tableBorderColor = profile.rules?.table?.['border-color'] || profile.rules?.th?.['border-color'] || profile.rules?.td?.['border-color'] || '#cbd5e1';
+    // 💡 외곽선 및 테두리 색상: profile 규칙 또는 선명한 차콜 다크(#374151) 고대비 보장 (흐릿한 #cbd5e1 지양)
+    const outerBorderColor = profile.rules?.table?.['border-color'] || '#374151';
+    const rowBorderColor = profile.rules?.th?.['border-color'] || profile.rules?.td?.['border-color'] || profile.rules?.table?.['border-color'] || '#cbd5e1';
+    const colBorderColor = rowBorderColor;
 
-    // 1. 표 외곽 테두리 (table)
+    // 1. 표 외곽 테두리 (table 및 최외곽 4면 셀 직접 주입 - html-to-image 테두리 누락 완전 방어)
     const outerIsZero = outerWidth === '0px' || outerWidth === '0';
+    const rowIsZero = rowWidth === '0px' || rowWidth === '0';
+    const colIsZero = colWidth === '0px' || colWidth === '0';
+
     css += `
 .custom-preview-container table,
 .onrivi-content-root table,
@@ -574,34 +582,62 @@ p .onrivi-line + .onrivi-line {
 .dark .onrivi-content-root .prose table {
   border-width: ${outerWidth} !important;
   border-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
-  border-color: ${tableBorderColor} !important;
+  border-color: ${outerBorderColor} !important;
+  border-collapse: collapse !important;
 }
-`;
 
-    // 2. 표 내부 행(가로선) 및 열(세로선) 구분선 (th, td)
-    const rowIsZero = rowWidth === '0px' || rowWidth === '0';
-    const colIsZero = colWidth === '0px' || colWidth === '0';
-    css += `
-.custom-preview-container th,
-.custom-preview-container td,
-.onrivi-content-root th,
-.onrivi-content-root td,
-.custom-preview-container .prose th,
-.custom-preview-container .prose td,
-.onrivi-content-root .prose th,
-.onrivi-content-root .prose td {
-  border-top-width: ${rowWidth} !important;
+/* 🛡️ 표 최외곽 4면 테두리: html-to-image 캔버스 캡처 시 table collapse 테두리 누락 버그 원천 차단 */
+.custom-preview-container table tr:first-child th,
+.custom-preview-container table tr:first-child td,
+.onrivi-content-root table tr:first-child th,
+.onrivi-content-root table tr:first-child td {
+  border-top-width: ${outerWidth} !important;
+  border-top-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-top-color: ${outerBorderColor} !important;
+}
+.custom-preview-container table tr:last-child th,
+.custom-preview-container table tr:last-child td,
+.onrivi-content-root table tr:last-child th,
+.onrivi-content-root table tr:last-child td {
+  border-bottom-width: ${outerWidth} !important;
+  border-bottom-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-bottom-color: ${outerBorderColor} !important;
+}
+.custom-preview-container table tr th:first-child,
+.custom-preview-container table tr td:first-child,
+.onrivi-content-root table tr th:first-child,
+.onrivi-content-root table tr td:first-child {
+  border-left-width: ${outerWidth} !important;
+  border-left-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-left-color: ${outerBorderColor} !important;
+}
+.custom-preview-container table tr th:last-child,
+.custom-preview-container table tr td:last-child,
+.onrivi-content-root table tr th:last-child,
+.onrivi-content-root table tr td:last-child {
+  border-right-width: ${outerWidth} !important;
+  border-right-style: ${outerIsZero ? 'none' : tableBorderStyle} !important;
+  border-right-color: ${outerBorderColor} !important;
+}
+
+/* 2. 표 내부 행(가로선) 구분선 (마지막 행 제외) */
+.custom-preview-container table tr:not(:last-child) th,
+.custom-preview-container table tr:not(:last-child) td,
+.onrivi-content-root table tr:not(:last-child) th,
+.onrivi-content-root table tr:not(:last-child) td {
   border-bottom-width: ${rowWidth} !important;
-  border-left-width: ${colWidth} !important;
-  border-right-width: ${colWidth} !important;
-  border-top-style: ${rowIsZero ? 'none' : tableBorderStyle} !important;
   border-bottom-style: ${rowIsZero ? 'none' : tableBorderStyle} !important;
-  border-left-style: ${colIsZero ? 'none' : tableBorderStyle} !important;
+  border-bottom-color: ${rowBorderColor} !important;
+}
+
+/* 3. 표 내부 열(세로선) 구분선 (마지막 열 제외, colWidth 0px이면 완전 소거) */
+.custom-preview-container table tr th:not(:last-child),
+.custom-preview-container table tr td:not(:last-child),
+.onrivi-content-root table tr th:not(:last-child),
+.onrivi-content-root table tr td:not(:last-child) {
+  border-right-width: ${colWidth} !important;
   border-right-style: ${colIsZero ? 'none' : tableBorderStyle} !important;
-  border-top-color: ${tableBorderColor} !important;
-  border-bottom-color: ${tableBorderColor} !important;
-  border-left-color: ${tableBorderColor} !important;
-  border-right-color: ${tableBorderColor} !important;
+  border-right-color: ${colBorderColor} !important;
 }
 `;
   }
@@ -880,12 +916,12 @@ function flushIME(): void {
 // ====================================================================
 // 📊 [OMD-IO-exportHandlers-0002] exportHandlers.ts ➔ applyExportInlineStyles
 // 🎯 @KICK  : 이미지/PDF 내보내기 시 인라인 코드 높이 오계산 및 상향 솟구침, 단어 쪼개짐 버그 해결
-// 🛡️ @GUARD : pre>code 블록 제외, closest('pre') 조합으로 100% 포착
+// 🚨 @PATCH : **2026-10-01** — [표 내보내기 시 외곽 테두리 및 행/열 테두리 인라인 주입]: html-to-image/canvas 캡처 시 외곽 테두리 소실을 막기 위해 table 및 셀의 최외곽 4면에 테두리를 직접 주입하고, colBorderWidth가 0px일 때 세로선을 완전 소거하여 미리보기와 100% 일치하도록 보장
 // 🚨 @PATCH : **2026-10-01** — display:inline-block 및 vertical-align:0으로 인한 인라인 코드 두 줄 쪼개짐 및 상단 솟구침 버그를 display:inline, vertical-align:baseline, white-space:nowrap(단어보호), box-decoration-break:clone으로 전면 개편하여 완벽 해결
 // 🚨 @PATCH : **2026-06-19** — PNG/HTML 내보내기 시 인라인 코드 스타일을 미리보기(globals.css)와 100% 동기화하기 위해 vertical-align:0, line-height:1.35, padding:1px 4.5px 규격으로 완전 치환
 // 🔗 @CALLS : 없음
 // ====================================================================
-function applyExportInlineStyles(clone: HTMLElement): void {
+function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile): void {
   // 🌟 querySelectorAll('code') + closest('pre') 조합으로 블록 코드블록을 제외한 모든 인라인 코드를 100% 포착
   clone.querySelectorAll('code').forEach((code) => {
     const el = code as HTMLElement;
@@ -915,6 +951,70 @@ function applyExportInlineStyles(clone: HTMLElement): void {
       el.style.setProperty('word-break', 'break-word', 'important');
       el.style.setProperty('overflow-wrap', 'break-word', 'important');
     }
+  });
+
+  // 🌟 표(Table) 외곽 테두리 및 행/열 구분선 인라인 주입 (html-to-image/canvas 변환 시 테두리 누락 완전 방어)
+  const tableStruct = activeProfile?.tableStructure || DEFAULT_PROFILE.tableStructure;
+  const outerWidth = tableStruct?.outerBorderWidth || '1px';
+  const rowWidth = tableStruct?.rowBorderWidth || '1px';
+  const colWidth = tableStruct?.colBorderWidth ?? '0px';
+
+  const outerIsZero = outerWidth === '0px' || outerWidth === '0';
+  const rowIsZero = rowWidth === '0px' || rowWidth === '0';
+  const colIsZero = colWidth === '0px' || colWidth === '0';
+
+  const tableBorderStyle = activeProfile?.rules?.table?.['border-style'] || 'solid';
+  const outerBorderColor = activeProfile?.rules?.table?.['border-color'] || '#374151';
+  const rowBorderColor = activeProfile?.rules?.th?.['border-color'] || activeProfile?.rules?.td?.['border-color'] || activeProfile?.rules?.table?.['border-color'] || '#cbd5e1';
+  const colBorderColor = rowBorderColor;
+
+  clone.querySelectorAll('table').forEach((table) => {
+    const tableEl = table as HTMLElement;
+    tableEl.style.setProperty('border-collapse', 'collapse', 'important');
+    tableEl.style.setProperty('border', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+
+    const rows = Array.from(tableEl.querySelectorAll('tr'));
+    const totalRows = rows.length;
+
+    rows.forEach((row, rowIndex) => {
+      const cells = Array.from(row.querySelectorAll('th, td')) as HTMLElement[];
+      const totalCells = cells.length;
+      const isFirstRow = rowIndex === 0;
+      const isLastRow = rowIndex === totalRows - 1;
+
+      cells.forEach((cell, cellIndex) => {
+        const isFirstCol = cellIndex === 0;
+        const isLastCol = cellIndex === totalCells - 1;
+
+        // 최외곽 상단
+        if (isFirstRow) {
+          cell.style.setProperty('border-top', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+        } else {
+          cell.style.setProperty('border-top', 'none', 'important');
+        }
+
+        // 최외곽 하단 및 내부 행(가로선)
+        if (isLastRow) {
+          cell.style.setProperty('border-bottom', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+        } else {
+          cell.style.setProperty('border-bottom', rowIsZero ? 'none' : `${rowWidth} ${tableBorderStyle} ${rowBorderColor}`, 'important');
+        }
+
+        // 최외곽 좌측
+        if (isFirstCol) {
+          cell.style.setProperty('border-left', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+        } else {
+          cell.style.setProperty('border-left', 'none', 'important');
+        }
+
+        // 최외곽 우측 및 내부 열(세로선: colIsZero이면 none)
+        if (isLastCol) {
+          cell.style.setProperty('border-right', outerIsZero ? 'none' : `${outerWidth} ${tableBorderStyle} ${outerBorderColor}`, 'important');
+        } else {
+          cell.style.setProperty('border-right', colIsZero ? 'none' : `${colWidth} ${tableBorderStyle} ${colBorderColor}`, 'important');
+        }
+      });
+    });
   });
 }
 
@@ -1537,7 +1637,7 @@ export async function exportPDF({
     clone.style.height = 'auto';
 
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
-    applyExportInlineStyles(clone);
+    applyExportInlineStyles(clone, activeProfile);
 
     // 📄 페이지 나누기 마커 DOM 직접 삽입
     // CSS page-break 선택자 방식은 h3·h4 레벨에서 섹션 내부 이중 break가 발생하는 한계가 있어
@@ -2231,7 +2331,7 @@ export async function exportPNG({
     // 🎯 html2canvas가 ::before/counter() 미지원 → 목록 마커 DOM 직접 주입
     fixListMarkers(clone);
     // 🌟 html2canvas 한계 보완: 테이블/인라인코드 inline style 강제 적용
-    applyExportInlineStyles(clone);
+    applyExportInlineStyles(clone, activeProfile);
 
     clone.querySelectorAll('img').forEach(img => img.setAttribute('crossOrigin', 'anonymous'));
 
