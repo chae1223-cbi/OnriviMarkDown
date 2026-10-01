@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [PDF Mermaid 다이어그램 컨테이너 분할 분리 및 이전 페이지 빈 사각형 잔상 버그 완전 해결]: .not-prose, .not-prose > div, .mermaid-svg-container, .mermaid-block-container에 break-inside: avoid를 전면 강제 적용하여 컨테이너와 SVG가 분리되어 이전 페이지에 빈 사각형 박스가 남는 렌더링 결함을 완전히 차단하고, 도표 전체가 한 덩어리로 온전히 다음 페이지로 넘어가도록 원자적(Atomic) 조판 완결
 // 🚨 @PATCH : **2026-10-01** — [PDF 인쇄 조판(Pagination) 전면 최적화 및 하단 과도한 빈 공간/고아 제목 원천 박멸]: 제목 고아 방지(break-after: avoid), 일반 본문/문단/인용구/리스트 행 단위 자연스러운 분할(break-inside: auto, orphans/widows: 2), 컨테이너(section/article/div) 분할 허용, 대형 이미지 자동 축소(max-height: 190mm) 및 이미지-캡션 묶음 조판(display: block 정규화)을 적용하여 A4 페이지 하단 대형 공백 소거 완료
 // 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 공백) 제거 및 자연스러운 페이지 분할(Pagination) 정책 수립]: p, li, blockquote의 break-inside를 auto로 전면 개편하고 orphans/widows: 2를 적용하며, figure, img, tr, .codeblock-area만 break-inside: avoid를 유지하여 긴 문단이 다음 페이지로 통째로 밀리지 않고 자연스럽게 넘어가도록 조판 최적화
 // 🚨 @PATCH : **2026-10-01** — [모든 내보내기(PDF/HTML/인쇄/PNG) 시 코드블록 긴 코드 자동 줄바꿈 및 전체 내용 100% 노출]: applyExportInlineStyles를 HTML 내보내기에도 전면 탑재하고, generateExportCss 및 내보내기 스타일시트에 pre/code/.onrivi-line의 white-space: pre-wrap, word-break: break-all, overflow-wrap: anywhere 및 overflow-x: visible을 강제 주입하여 가로 스크롤 없이 전체 코드가 깔끔하게 줄바꿈되어 보이도록 일원화
@@ -827,6 +828,27 @@ pre {
     break-inside: avoid !important;
   }
   img, video, iframe, .katex-display {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  .not-prose,
+  .not-prose > div,
+  .mermaid-svg-container,
+  .mermaid-block-container {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: visible !important;
+  }
+  .mermaid-svg-container svg,
+  .mermaid-block-container svg,
+  .not-prose svg {
+    max-height: 200mm !important;
+    max-width: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
@@ -1923,15 +1945,28 @@ export async function exportPDF({
     const clone = clonePreview(targetEl);
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
 
-    // 🛡️ Mermaid SVG가 페이지를 넘을 때 헤더(타이틀바)가 분리되지 않도록
-    //     내보내기 시 MermaidBlock의 헤더 자체를 제거 (버튼은 이미 제거됨, 빈 타이틀만 남음)
+    // 🛡️ Mermaid SVG가 페이지를 넘을 때 헤더(타이틀바)가 분리되지 않고 컨테이너와 SVG가 한 덩어리로 유지되도록
+    //     내보내기 시 MermaidBlock의 헤더 자체를 제거하고 wrapper 전체에 break-inside: avoid 주입 (이전 페이지 빈 박스 잔상 원천 차단)
     clone.querySelectorAll('.not-prose > div').forEach(el => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.setProperty('overflow', 'visible', 'important');
       if (htmlEl.querySelector('.mermaid-svg-container')) {
         const header = htmlEl.querySelector(':scope > div:first-child');
         if (header && header.tagName === 'DIV') header.remove();
+        htmlEl.style.setProperty('page-break-inside', 'avoid', 'important');
+        htmlEl.style.setProperty('break-inside', 'avoid', 'important');
+        const parentNotProse = htmlEl.closest('.not-prose') as HTMLElement | null;
+        if (parentNotProse) {
+          parentNotProse.style.setProperty('page-break-inside', 'avoid', 'important');
+          parentNotProse.style.setProperty('break-inside', 'avoid', 'important');
+        }
       }
+    });
+
+    clone.querySelectorAll('.mermaid-svg-container, .mermaid-block-container').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.setProperty('page-break-inside', 'avoid', 'important');
+      htmlEl.style.setProperty('break-inside', 'avoid', 'important');
     });
 
     // 🖼️ 이미지 <figure> 및 래퍼 정규화: Chromium flex 컨테이너 인쇄 버그 및 과도한 높이로 인한 빈 공간 방지
@@ -2194,12 +2229,13 @@ export async function exportPDF({
         break-inside: auto !important;
       }
 
-      /* [P3] Mermaid 다이어그램: 한 페이지 내 안전 축소 */
+      /* [P0] Mermaid 다이어그램: 컨테이너와 SVG를 한 덩어리로 원자적(Atomic) 결속 (6페이지 빈 박스 잔상 원천 차단) */
       .not-prose,
+      .not-prose > div,
       .mermaid-svg-container,
       .mermaid-block-container {
-        page-break-inside: auto !important;
-        break-inside: auto !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
         overflow: visible !important;
       }
       .mermaid-svg-container svg,

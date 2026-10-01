@@ -11,6 +11,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-01** — [PDF Mermaid 다이어그램 컨테이너 분할 분리 및 이전 페이지 빈 박스 잔상 버그 완전 해결]: .not-prose, .not-prose > div, .mermaid-svg-container, .mermaid-block-container에 break-inside: avoid를 강제 적용하여 도표와 컨테이너가 한 덩어리로 온전히 다음 페이지로 넘어가도록 조판 완결
  * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 공백) 제거 및 이미지 축소/컨테이너 분할(Pagination) 정책 수립]: 제목 고아 방지(break-after: avoid), 컨테이너(section/article/div) break-inside: auto 적용, 대형 이미지 자동 축소(max-height: 190mm) 및 이미지-캡션 세트 결속으로 A4 페이지 하단 대형 공백 소거 완료
  * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 여백) 소거 및 자연스러운 문단 분할(Pagination) 정책 정립]: p, li, blockquote의 강제 break-inside: avoid를 auto로 전면 개편하고 orphans/widows: 2를 적용하여 긴 문단이 페이지 하단에서 통째로 밀리지 않고 자연스럽게 페이지를 넘어가도록 최적화
  * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 긴 Mermaid 다이어그램 앞 빈 페이지(백지) 발생 방지]: .not-prose 강제 break-inside 해제 및 Mermaid SVG max-height(230mm) 제어로 인쇄 시 A4 1페이지 내 온전한 안착 보장
@@ -1699,10 +1700,11 @@ div.onrivi-list-spacer {
     overflow: visible !important;
   }
   .not-prose,
+  .not-prose > div,
   .mermaid-svg-container,
   .mermaid-block-container {
-    page-break-inside: auto !important;
-    break-inside: auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     overflow: visible !important;
   }
   .mermaid-svg-container svg,
