@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [이미지/PDF 내보내기 시 인라인 코드 상향 솟구침 및 단어 쪼개짐 버그 해결]: applyExportInlineStyles 및 exportStyles에서 display:inline-block 및 vertical-align:0으로 인해 인라인 코드가 두 줄로 쪼개지며 상단으로 솟구치던 현상을 display:inline, vertical-align:baseline, white-space:nowrap(단어보호), box-decoration-break:clone으로 전면 개편하여 완벽 해결
 // 🚨 @PATCH : **2026-10-01** — [Word(.docx) 내보내기 시 미리보기 DOM 직접 조판 및 마크다운 태그 누출 완전 해결]: 렌더링된 미리보기 DOM을 바탕으로 유니코드 불릿, 볼드, 인라인 코드, 표, DrawingML 이미지를 Word 규격에 맞게 100% 온전히 사출하도록 연동
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 기능 삭제]: exportHWPX 함수 및 한글 문서 내보내기 파이프라인 완전 제거
 // 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 긴 Mermaid 다이어그램 앞 빈 페이지(백지) 발생 원천 차단]: .not-prose의 강제 break-inside: avoid로 인한 브라우저 페이지 밀림 버그를 해소하고, Mermaid SVG에 max-height: 230mm 및 auto-scale을 적용하여 긴 다이어그램도 A4 1페이지 내에 깔끔하게 쏙 들어가도록 조판 최적화
@@ -878,31 +879,42 @@ function flushIME(): void {
  *  (html2canvas of inline-block 높이 오계산 및 글자 처짐 버그를 해결하는 가장 완벽하고 수학적인 해법) */
 // ====================================================================
 // 📊 [OMD-IO-exportHandlers-0002] exportHandlers.ts ➔ applyExportInlineStyles
-// 🎯 @KICK  : html2canvas 인라인코드 높이 오계산 버그 해결 — 자연스러운 display/vertical-align 설정
+// 🎯 @KICK  : 이미지/PDF 내보내기 시 인라인 코드 높이 오계산 및 상향 솟구침, 단어 쪼개짐 버그 해결
 // 🛡️ @GUARD : pre>code 블록 제외, closest('pre') 조합으로 100% 포착
+// 🚨 @PATCH : **2026-10-01** — display:inline-block 및 vertical-align:0으로 인한 인라인 코드 두 줄 쪼개짐 및 상단 솟구침 버그를 display:inline, vertical-align:baseline, white-space:nowrap(단어보호), box-decoration-break:clone으로 전면 개편하여 완벽 해결
 // 🚨 @PATCH : **2026-06-19** — PNG/HTML 내보내기 시 인라인 코드 스타일을 미리보기(globals.css)와 100% 동기화하기 위해 vertical-align:0, line-height:1.35, padding:1px 4.5px 규격으로 완전 치환
 // 🔗 @CALLS : 없음
 // ====================================================================
 function applyExportInlineStyles(clone: HTMLElement): void {
-  // 🌟 querySelectorAll('code') + closest('pre') 조합으로 복잡한 셀렉터 엔진 버그를 원천 차단하고 모든 인라인 코드를 100% 포착
+  // 🌟 querySelectorAll('code') + closest('pre') 조합으로 블록 코드블록을 제외한 모든 인라인 코드를 100% 포착
   clone.querySelectorAll('code').forEach((code) => {
     const el = code as HTMLElement;
     if (el.closest('pre')) return; // 블록 코드 블록은 건드리지 않고 스킵
 
     // 🌟 인라인코드 정렬 싱크 보정:
-    //    globals.css에 정의된 미리보기 인라인 코드 정밀 보정 스타일과 100% 완벽하게 1:1 일치시킵니다.
-    el.style.setProperty('display', 'inline-block', 'important');
-    el.style.setProperty('vertical-align', '0', 'important');
-    el.style.setProperty('padding-top', '1px', 'important');
-    el.style.setProperty('padding-bottom', '1px', 'important');
-    el.style.setProperty('padding-left', '4.5px', 'important');
-    el.style.setProperty('padding-right', '4.5px', 'important');
-    el.style.setProperty('line-height', '1.35', 'important');
-    el.style.setProperty('border-radius', '3px', 'important');
-    el.style.setProperty('word-break', 'break-word', 'important');
+    //    1) globals.css와 동일하게 display: inline 및 vertical-align: baseline을 적용하여 상향 솟구침 원천 차단
+    //    2) box-decoration-break: clone으로 줄바꿈 시에도 라운드 패딩이 예쁘게 감싸지도록 유지
+    //    3) 짧은 인라인 코드 구문(설정명, 단축키, 파일경로 등)이 중간에 어색하게 쪼개지지 않도록 white-space: nowrap 보호
+    el.style.setProperty('display', 'inline', 'important');
+    el.style.setProperty('vertical-align', 'baseline', 'important');
+    el.style.setProperty('padding-top', '1.5px', 'important');
+    el.style.setProperty('padding-bottom', '1.5px', 'important');
+    el.style.setProperty('padding-left', '5px', 'important');
+    el.style.setProperty('padding-right', '5px', 'important');
+    el.style.setProperty('line-height', 'inherit', 'important');
+    el.style.setProperty('border-radius', '4px', 'important');
+    el.style.setProperty('box-decoration-break', 'clone', 'important');
+    el.style.setProperty('-webkit-box-decoration-break', 'clone', 'important');
     el.style.setProperty('margin-left', '2px', 'important');
     el.style.setProperty('margin-right', '2px', 'important');
-    el.style.setProperty('height', 'auto', 'important');
+
+    const text = (el.textContent || '').trim();
+    if (text.length <= 40 && !text.includes('\n')) {
+      el.style.setProperty('white-space', 'nowrap', 'important');
+    } else {
+      el.style.setProperty('word-break', 'break-word', 'important');
+      el.style.setProperty('overflow-wrap', 'break-word', 'important');
+    }
   });
 }
 
@@ -1337,6 +1349,14 @@ html, body {
 .custom-preview-container code::after {
   content: "" !important;
   display: none !important;
+}
+/* 🛡️ 인라인 코드 상향 솟구침 및 줄바꿈 왜곡 방지 */
+.prose :not(pre) > code,
+.custom-preview-container :not(pre) > code {
+  display: inline !important;
+  vertical-align: baseline !important;
+  box-decoration-break: clone !important;
+  -webkit-box-decoration-break: clone !important;
 }
 .export-list-marker {
   vertical-align: baseline !important;
