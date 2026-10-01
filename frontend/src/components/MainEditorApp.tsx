@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-10-01** — [서식 설정 내 [align="right"] 및 [style*="text-align: right"] 등 정렬 규칙 전역 보장]: dynamicCssString에 우측/중앙 정렬 셀렉터를 명시하여 p { text-align: left !important; }가 사용자 지정 우측 정렬을 덮어쓰지 않도록 완전 보장
 // 🚨 @PATCH : **2026-10-01** — [표 미리보기 외곽 테두리 및 행/열 구분선 동적 인젝션 정합화]: dynamicCssString 내 tableStructure 인젝션 시 최외곽 4면 셀 테두리 및 colBorderWidth 0px 소거 처리를 내보내기 규격과 100% 동기화
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 명령 제거]: EditorCommandType 및 executeCommand에서 EXPORT_HWPX 액션 완전 삭제
 // 🚨 @PATCH : **2026-09-30** — [Word(.docx) 및 한글(.hwpx) 내보내기 명령 연동]: EditorCommandType 및 executeCommand에 EXPORT_DOCX, EXPORT_HWPX 액션 등록 및 핸들러 연결
@@ -6547,6 +6548,68 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       css += `  margin-left: ${leftMargin} !important;\n  margin-right: ${rightMargin} !important;\n`;
       css += `  padding-left: ${rule['padding-left'] || '0px'} !important;\n}\n`;
     }
+
+    // 🌟 본문 내 사용자 우측/중앙 정렬(align, text-align, table 등) 100% 보장
+    css += `
+.custom-preview-container [align="right"],
+.onrivi-content-root [align="right"],
+.custom-preview-container [style*="text-align: right"],
+.onrivi-content-root [style*="text-align: right"],
+.custom-preview-container [style*="text-align:right"],
+.onrivi-content-root [style*="text-align:right"],
+.custom-preview-container .text-right,
+.onrivi-content-root .text-right {
+  text-align: right !important;
+}
+.custom-preview-container [align="right"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [align="right"] > :is(p, span, div, strong, em, b, i, td, th),
+.custom-preview-container [style*="text-align: right"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [style*="text-align: right"] > :is(p, span, div, strong, em, b, i, td, th),
+.custom-preview-container [style*="text-align:right"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [style*="text-align:right"] > :is(p, span, div, strong, em, b, i, td, th) {
+  text-align: right !important;
+}
+.custom-preview-container [align="right"] ul,
+.custom-preview-container [align="right"] ol,
+.onrivi-content-root [align="right"] ul,
+.onrivi-content-root [align="right"] ol,
+.custom-preview-container [style*="text-align: right"] ul,
+.custom-preview-container [style*="text-align: right"] ol,
+.onrivi-content-root [style*="text-align: right"] ul,
+.onrivi-content-root [style*="text-align: right"] ol {
+  display: inline-block !important;
+  text-align: left !important;
+}
+.custom-preview-container [align="center"],
+.onrivi-content-root [align="center"],
+.custom-preview-container [style*="text-align: center"],
+.onrivi-content-root [style*="text-align: center"],
+.custom-preview-container [style*="text-align:center"],
+.onrivi-content-root [style*="text-align:center"],
+.custom-preview-container .text-center,
+.onrivi-content-root .text-center {
+  text-align: center !important;
+}
+.custom-preview-container [align="center"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [align="center"] > :is(p, span, div, strong, em, b, i, td, th),
+.custom-preview-container [style*="text-align: center"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [style*="text-align: center"] > :is(p, span, div, strong, em, b, i, td, th),
+.custom-preview-container [style*="text-align:center"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [style*="text-align:center"] > :is(p, span, div, strong, em, b, i, td, th) {
+  text-align: center !important;
+}
+.custom-preview-container [align="center"] ul,
+.custom-preview-container [align="center"] ol,
+.onrivi-content-root [align="center"] ul,
+.onrivi-content-root [align="center"] ol,
+.custom-preview-container [style*="text-align: center"] ul,
+.custom-preview-container [style*="text-align: center"] ol,
+.onrivi-content-root [style*="text-align: center"] ul,
+.onrivi-content-root [style*="text-align: center"] ol {
+  display: inline-block !important;
+  text-align: left !important;
+}
+`;
 
     // Legacy CSS page-break logic removed in favor of injectPageBreakMarkers.
 

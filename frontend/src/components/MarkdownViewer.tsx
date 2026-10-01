@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [본문 우측/중앙 정렬(align, text-align, table 등) 100% 실시간 렌더링 지원]: [align="right"], [style*="text-align: right"], [align="center"] 등의 CSS 규칙을 탑재하고 div/p 컴포넌트의 align 속성을 inline style로 정밀 바인딩하며, th text-align center 강제를 해제하여 사용자 정렬 완벽 보장
 // 🚨 @PATCH : **2026-10-01** — [공통 리소스 폴더 하위 폴더 이미지 경로 인식 및 브라우저 세션 복원 결함 해결]: 1) getEffectiveResourceFolder 연동으로 localStorage의 리소스 폴더 설정(onrivi_resource_folder_path 등)을 100% 반영하여 '리소스 폴더 미지정' 오탐 방지 2) 사용자 마크다운 내부 이미지 경로(subfolder/img.png 등)에 media/ 강제 주입을 배제하고 지정된 해당 서브폴더 경로를 그대로 유지 탐색하도록 경로 정규화 개선 3) 브라우저 모드에서 resolveFileHandleInDirectory 신설로 서브디렉터리 파일 핸들 재귀 탐색 및 IndexedDB 저장소 핸들 동기 복원 지원
 // 🚨 @PATCH : **2026-09-30** — [작업장 실폴더 외부 링크 연결 차단 가드 및 경고 안내]: 마크다운 미리보기 내 폴더 링크(handleFolderClick) 및 문서/파일 링크(handleClick) 클릭 시 대상 경로가 작업장 실폴더(Workspace Root) 외부인지 판별하는 isPathInsideWorkspace 안전 가드를 신설하여 상위 이탈(../../)이나 다른 드라이브/폴더 절대경로 링크의 연결을 원천 차단하고 '⚠️ 작업장 실폴더 외부에 있는 경로는 연결할 수 없습니다. 작업장 내부의 폴더 및 문서만 연결 가능합니다.' 경고 토스트를 띄우도록 보강
 // 🚨 @PATCH : **2026-09-30** — [미리보기 폴더 링크 온리비 표준 UX 구현]: <a> 태그 렌더러에서 상대/절대 폴더 링크(./folder/, /folder 등) 클릭 시 기본 동작으로 좌측 탐색기(LeftSidebar) 자동 펼침·스크롤·코발트 블루 펄스 하이라이트를 발송하고, 데스크톱 Ctrl+클릭 시 시스템 탐색기(openPath) 창을 병행 지원하며 📁 인라인 아이콘 뱃지 및 가이드 툴팁 탑재
@@ -2454,8 +2455,67 @@ function MarkdownViewer({
           font-weight: 700;
           color: #3b82f6;
         }
-        .markdown-viewer-root th {
+        .markdown-viewer-root th:not([style*="text-align"]) {
           text-align: center !important;
+        }
+        /* 🌟 [우측 정렬 / 중앙 정렬 100% 보장] */
+        .markdown-viewer-root [align="right"],
+        .onrivi-content-root [align="right"],
+        .markdown-viewer-root [style*="text-align: right"],
+        .onrivi-content-root [style*="text-align: right"],
+        .markdown-viewer-root [style*="text-align:right"],
+        .onrivi-content-root [style*="text-align:right"],
+        .markdown-viewer-root .text-right,
+        .onrivi-content-root .text-right {
+          text-align: right !important;
+        }
+        .markdown-viewer-root [align="right"] > :is(p, span, div, strong, em, b, i, td, th),
+        .onrivi-content-root [align="right"] > :is(p, span, div, strong, em, b, i, td, th),
+        .markdown-viewer-root [style*="text-align: right"] > :is(p, span, div, strong, em, b, i, td, th),
+        .onrivi-content-root [style*="text-align: right"] > :is(p, span, div, strong, em, b, i, td, th),
+        .markdown-viewer-root [style*="text-align:right"] > :is(p, span, div, strong, em, b, i, td, th),
+        .onrivi-content-root [style*="text-align:right"] > :is(p, span, div, strong, em, b, i, td, th) {
+          text-align: right !important;
+        }
+        .markdown-viewer-root [align="right"] ul,
+        .markdown-viewer-root [align="right"] ol,
+        .onrivi-content-root [align="right"] ul,
+        .onrivi-content-root [align="right"] ol,
+        .markdown-viewer-root [style*="text-align: right"] ul,
+        .markdown-viewer-root [style*="text-align: right"] ol,
+        .onrivi-content-root [style*="text-align: right"] ul,
+        .onrivi-content-root [style*="text-align: right"] ol {
+          display: inline-block !important;
+          text-align: left !important;
+        }
+        .markdown-viewer-root [align="center"],
+        .onrivi-content-root [align="center"],
+        .markdown-viewer-root [style*="text-align: center"],
+        .onrivi-content-root [style*="text-align: center"],
+        .markdown-viewer-root [style*="text-align:center"],
+        .onrivi-content-root [style*="text-align:center"],
+        .markdown-viewer-root .text-center,
+        .onrivi-content-root .text-center {
+          text-align: center !important;
+        }
+        .markdown-viewer-root [align="center"] > :is(p, span, div, strong, em, b, i, td, th),
+        .onrivi-content-root [align="center"] > :is(p, span, div, strong, em, b, i, td, th),
+        .markdown-viewer-root [style*="text-align: center"] > :is(p, span, div, strong, em, b, i, td, th),
+        .onrivi-content-root [style*="text-align: center"] > :is(p, span, div, strong, em, b, i, td, th),
+        .markdown-viewer-root [style*="text-align:center"] > :is(p, span, div, strong, em, b, i, td, th),
+        .onrivi-content-root [style*="text-align:center"] > :is(p, span, div, strong, em, b, i, td, th) {
+          text-align: center !important;
+        }
+        .markdown-viewer-root [align="center"] ul,
+        .markdown-viewer-root [align="center"] ol,
+        .onrivi-content-root [align="center"] ul,
+        .onrivi-content-root [align="center"] ol,
+        .markdown-viewer-root [style*="text-align: center"] ul,
+        .markdown-viewer-root [style*="text-align: center"] ol,
+        .onrivi-content-root [style*="text-align: center"] ul,
+        .onrivi-content-root [style*="text-align: center"] ol {
+          display: inline-block !important;
+          text-align: left !important;
         }
         .markdown-viewer-root .table-wrapper-area,
         .onrivi-content-root .table-wrapper-area {
@@ -3282,8 +3342,10 @@ function MarkdownViewer({
                 </tr>
               );
             },
-            div: ({ node, className, children, ...props }: any) => {
-              return <div className={className} {...props}>{children}</div>;
+            div: ({ node, className, children, align, style, ...props }: any) => {
+              const alignVal = align || (node?.properties && node.properties.align);
+              const alignStyle = alignVal ? { textAlign: alignVal as any } : undefined;
+              return <div className={className} align={alignVal} style={{ ...alignStyle, ...style }} {...props}>{children}</div>;
             },
             style: ({ node, children, ...props }: any) => {
               const cssText = getTextFromChildren(children);
@@ -3375,8 +3437,11 @@ function MarkdownViewer({
               );
             },
             input: ({ node, ...props }: any) => <input {...props} />,
-            p: ({ node, children, style, ...props }) => {
+            p: ({ node, children, style, align, ...props }: any) => {
               if (!children) return <p />;
+              const alignVal = align || (node?.properties && node.properties.align);
+              const alignStyle = alignVal ? { textAlign: alignVal as any } : undefined;
+              const combinedStyle = alignStyle ? { ...alignStyle, ...style } : style;
               // react-markdown은 마크다운 문단의 자식으로 img/video/iframe/미디어 링크가 오면 p 태그로 감쌉니다.
               // 블록 미디어 요소가 p 태그 내부에 중첩되어 생기는 규격 위반 및 DOM 분리를 방지합니다.
               const hasBlockMedia = (function check(n: any): boolean {
@@ -3397,9 +3462,9 @@ function MarkdownViewer({
               })(node);
               
               if (hasBlockMedia) {
-                return <div style={style} {...props} className="my-2">{children}</div>;
+                return <div style={combinedStyle} align={alignVal} {...props} className="my-2">{children}</div>;
               }
-              return <p style={style} {...props}>{children}</p>;
+              return <p style={combinedStyle} align={alignVal} {...props}>{children}</p>;
             },
             ul: ({ node, children, style, ...props }: any) => {
               const line = extractDataLine(props, node);

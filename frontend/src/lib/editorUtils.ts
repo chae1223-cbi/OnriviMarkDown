@@ -172,7 +172,7 @@ export interface ProcessedMarkdown {
  */
 // ====================================================================
 // 📊 [OMD-EDIT-editorUtils-0004] editorUtils.ts ➔ preprocessMarkdownForPreview
-// 🎯 @KICK  : 마크다운 전처리 파이프라인 — frontmatter 제거, 탭 보정, 한글 강조, HTML 이스케이프, 리스트 간격, 개행 버퍼
+// 🚨 @PATCH : **2026-10-01** — [사용자 HTML 컨테이너(div, align, table 등) 임의 이스케이프 제거]: dangerousTags 치환 로직을 제거하여 본문 내 <div align="right"> 등 정당한 HTML 태그가 &lt;div&gt; 문자열로 파괴되어 화면에 그대로 노출되던 결함을 원천 해결하고 rehypeRaw 표준 파이프라인으로 안전하게 렌더링되도록 복원
 // 🚨 @PATCH : **2026-09-26** — [이중 중첩 코드블록 내부 &nbsp; 엔티티 오염 방어 및 코드블록 영역 마스크(getCodeBlockLineMask) 도입]: 단순 startsWith('```') 토글을 CommonMark 기반 코드블록 영역 정밀 마스크로 교체하여 이중 코드블록 내부의 들여쓰기 공백이 &nbsp;로 치환되는 버그 완벽 박멸
 // 🚨 @PATCH : **2026-09-23** — [서브리스트 들여쓰기 보존 및 최상위 리스트 분리 정밀화] 빈 줄 직후 다음 줄의 들여쓰기(Indent > 0) 존재 시 리스트를 닫지 않고 해당 들여쓰기 깊이의 onrivi-empty-row를 주입하여 하위 계층 들여쓰기를 100% 보존하고, 들여쓰기 0칸인 최상위 리스트/문단 조우 시에만 onrivi-list-spacer로 독립 블록 분리하도록 정밀 개편
 // 🚨 @PATCH : **2026-09-23** — [리스트 중간 빈 행/개행 시 독립 블록 분리 및 빈 행 렌더링] 리스트 항목 직후에 빈 행이나 <br> 태그가 나타났을 때 마크다운 파서의 단일 loose list 뭉침 현상을 방어하기 위해 onrivi-list-spacer 블록 및 완충 개행을 주입하여 에디터와 1:1로 동일한 빈 행 공간 렌더링 및 새 리스트 독립 분리 보장
@@ -271,13 +271,6 @@ export function preprocessMarkdownForPreview(content: string): ProcessedMarkdown
     // 6) 한글*단어* -> 한글\u200B*단어*
     processedLine = processedLine.replace(/([가-힣a-zA-Z0-9])((?<!\*)\*)([^\*]+?)(\*)(?!\*)/g, "$1\u200B$2$3$4");
     
-    // 🛡️ 코드 블록 외 본문 텍스트 내 위험 HTML 구조 태그 이스케이프
-    const dangerousTags = ['pre', 'code', 'div', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'tbody', 'thead', 'blockquote'];
-    dangerousTags.forEach(tag => {
-      const openRegex = new RegExp(`<(${tag})(?:\\s+[^>]*)?>`, 'gi');
-      const closeRegex = new RegExp(`</(${tag})>`, 'gi');
-      processedLine = processedLine.replace(openRegex, '&lt;$1&gt;').replace(closeRegex, '&lt;/$1&gt;');
-    });
 
     const isSpecial = /^(?:\s*#+\s|\s*[-*+]\s|\s*\d+\.\s|\s*>|\s*---|\s*\||\s*\$\$|\s*<[a-zA-Z]|\s*[①-⑩❶-❿\u2460-\u2469\u2756-\u2767])/.test(processedLine);
     

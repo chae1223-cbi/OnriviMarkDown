@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [내보내기(PDF/HTML/인쇄) 시 [align="right"] 및 [style*="text-align: right"] 우측 정렬 전역 보장]: generateExportCss에 우측/중앙 정렬 셀렉터를 명시하여 본문 p { text-align: left !important; }가 서명/날짜/발신인 등의 우측 정렬을 덮어쓰지 않도록 완전 보장
 // 🚨 @PATCH : **2026-10-01** — [PDF 3·4·5페이지 섹션 시작 조판 최적화 및 제목+소개+미디어 원자적 결속]: H1~H6 바로 뒤의 소개 문단/목록이 핵심 이미지나 다이어그램으로 이어질 때, 이미지가 다음 페이지로 넘어갈 경우 제목과 한 줄 소개만 앞 페이지 하단에 덩그러니 남겨지는 분리 현상을 원천 방어하도록 break-after: avoid를 결속하여 제목+소개+이미지가 다음 페이지 첫머리에서 온전히 함께 시작되도록 출판형 조판 완성
 // 🚨 @PATCH : **2026-10-01** — [PDF Mermaid 다이어그램 컨테이너 분할 분리 및 이전 페이지 빈 사각형 잔상 버그 완전 해결]: .not-prose, .not-prose > div, .mermaid-svg-container, .mermaid-block-container에 break-inside: avoid를 전면 강제 적용하여 컨테이너와 SVG가 분리되어 이전 페이지에 빈 사각형 박스가 남는 렌더링 결함을 완전히 차단하고, 도표 전체가 한 덩어리로 온전히 다음 페이지로 넘어가도록 원자적(Atomic) 조판 완결
 // 🚨 @PATCH : **2026-10-01** — [PDF 인쇄 조판(Pagination) 전면 최적화 및 하단 과도한 빈 공간/고아 제목 원천 박멸]: 제목 고아 방지(break-after: avoid), 일반 본문/문단/인용구/리스트 행 단위 자연스러운 분할(break-inside: auto, orphans/widows: 2), 컨테이너(section/article/div) 분할 허용, 대형 이미지 자동 축소(max-height: 190mm) 및 이미지-캡션 묶음 조판(display: block 정규화)을 적용하여 A4 페이지 하단 대형 공백 소거 완료
@@ -977,6 +978,68 @@ pre {
     css += `  margin-left: ${leftMargin} !important;\n  margin-right: ${rightMargin} !important;\n`;
     css += `  padding-left: ${rule['padding-left'] || '0px'} !important;\n}\n`;
   }
+
+  // 🌟 본문 내 사용자 우측/중앙 정렬(align, text-align, table 등) 100% 보장
+  css += `
+.custom-preview-container [align="right"],
+.onrivi-content-root [align="right"],
+.custom-preview-container [style*="text-align: right"],
+.onrivi-content-root [style*="text-align: right"],
+.custom-preview-container [style*="text-align:right"],
+.onrivi-content-root [style*="text-align:right"],
+.custom-preview-container .text-right,
+.onrivi-content-root .text-right {
+  text-align: right !important;
+}
+.custom-preview-container [align="right"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [align="right"] > :is(p, span, div, strong, em, b, i, td, th),
+.custom-preview-container [style*="text-align: right"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [style*="text-align: right"] > :is(p, span, div, strong, em, b, i, td, th),
+.custom-preview-container [style*="text-align:right"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [style*="text-align:right"] > :is(p, span, div, strong, em, b, i, td, th) {
+  text-align: right !important;
+}
+.custom-preview-container [align="right"] ul,
+.custom-preview-container [align="right"] ol,
+.onrivi-content-root [align="right"] ul,
+.onrivi-content-root [align="right"] ol,
+.custom-preview-container [style*="text-align: right"] ul,
+.custom-preview-container [style*="text-align: right"] ol,
+.onrivi-content-root [style*="text-align: right"] ul,
+.onrivi-content-root [style*="text-align: right"] ol {
+  display: inline-block !important;
+  text-align: left !important;
+}
+.custom-preview-container [align="center"],
+.onrivi-content-root [align="center"],
+.custom-preview-container [style*="text-align: center"],
+.onrivi-content-root [style*="text-align: center"],
+.custom-preview-container [style*="text-align:center"],
+.onrivi-content-root [style*="text-align:center"],
+.custom-preview-container .text-center,
+.onrivi-content-root .text-center {
+  text-align: center !important;
+}
+.custom-preview-container [align="center"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [align="center"] > :is(p, span, div, strong, em, b, i, td, th),
+.custom-preview-container [style*="text-align: center"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [style*="text-align: center"] > :is(p, span, div, strong, em, b, i, td, th),
+.custom-preview-container [style*="text-align:center"] > :is(p, span, div, strong, em, b, i, td, th),
+.onrivi-content-root [style*="text-align:center"] > :is(p, span, div, strong, em, b, i, td, th) {
+  text-align: center !important;
+}
+.custom-preview-container [align="center"] ul,
+.custom-preview-container [align="center"] ol,
+.onrivi-content-root [align="center"] ul,
+.onrivi-content-root [align="center"] ol,
+.custom-preview-container [style*="text-align: center"] ul,
+.custom-preview-container [style*="text-align: center"] ol,
+.onrivi-content-root [style*="text-align: center"] ul,
+.onrivi-content-root [style*="text-align: center"] ol {
+  display: inline-block !important;
+  text-align: left !important;
+}
+`;
 
   // 🚨 @PATCH : 내보내기에도 설정창 우선 계층을 적용해 미리보기와 같은 결과를 유지한다.
   const extraCss = profile.customCss?.trim()
