@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이미지 우측 쏠림 및 다음 컬럼 침범 버그 완전 해결]: 리더기 기본 figure 마진(40px) 및 inline-flex로 인한 우측 편향을 clone 단계에서 figure/wrapper margin:0 auto 및 display:block으로 정규화하여 100% 중앙 정렬
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 긴 Mermaid 다이어그램 하단 잘림 및 유실 버그 완전 해결]: Mermaid 다이어그램 이미지에 max-height: 85vh, width: auto, height: auto, object-fit: contain 및 break-inside: avoid를 강제 주입하여 리더기 뷰포트 높이에 맞춰 자동 축소 피팅되고 페이지 경계에서 잘리지 않도록 완벽 보정
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 원본 서식(다크 테마/헤더 바/TEXT 라벨/복사 배지) 1:1 완벽 동기화]: applyExportInlineStyles를 exportEPUB에도 연동하여 미리보기 DOM의 코드블록 테마/헤더 스타일을 100% 보존하고, pre/code 자동 줄바꿈을 적용하여 박스 밖 돌출 방지
 // 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 전면 폐지]: exportPDF 및 exportEPUB에서 exportPageBreakLevel에 따른 제목별 강제 페이지 나누기를 완전히 배제하고, 인위적 공백/페이지 쪼개짐 없이 자연스러운 본문 흐름으로 사출되도록 개선
@@ -2429,6 +2430,38 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
         svgBox.style.setProperty('break-inside', 'avoid', 'important');
         svgBox.style.setProperty('overflow', 'visible', 'important');
       }
+    });
+
+    // 🖼️ 이미지 <figure> 및 래퍼 정규화 (EPUB 리더기의 기본 figure margin 40px 및 inline-flex로 인한 우측 쏠림 방지)
+    clone.querySelectorAll('figure, .onrivi-image-figure').forEach(el => {
+      const fig = el as HTMLElement;
+      fig.style.setProperty('margin', '1.5em 0', 'important');
+      fig.style.setProperty('padding', '0', 'important');
+      fig.style.setProperty('text-align', 'center', 'important');
+      fig.style.setProperty('width', '100%', 'important');
+      fig.style.setProperty('max-width', '100%', 'important');
+      fig.style.setProperty('box-sizing', 'border-box', 'important');
+      fig.style.setProperty('display', 'block', 'important');
+    });
+    clone.querySelectorAll('.onrivi-image-wrapper').forEach(el => {
+      const wrap = el as HTMLElement;
+      wrap.style.setProperty('display', 'block', 'important');
+      wrap.style.setProperty('margin', '0 auto', 'important');
+      wrap.style.setProperty('max-width', '100%', 'important');
+      wrap.style.setProperty('text-align', 'center', 'important');
+      wrap.style.setProperty('box-sizing', 'border-box', 'important');
+    });
+    clone.querySelectorAll('figure img, .onrivi-image-figure img, .onrivi-image-wrapper img').forEach(el => {
+      const img = el as HTMLElement;
+      img.style.setProperty('max-width', '100%', 'important');
+      img.style.setProperty('max-height', '85vh', 'important');
+      img.style.setProperty('width', 'auto', 'important');
+      img.style.setProperty('height', 'auto', 'important');
+      img.style.setProperty('object-fit', 'contain', 'important');
+      img.style.setProperty('display', 'block', 'important');
+      img.style.setProperty('margin', '1.5em auto', 'important');
+      img.style.setProperty('page-break-inside', 'avoid', 'important');
+      img.style.setProperty('break-inside', 'avoid', 'important');
     });
 
     const blob = await generateEpub({ 

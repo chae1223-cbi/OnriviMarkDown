@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이미지 우측 쏠림 및 다음 컬럼 침범 버그 완전 해결]: 전자책 단말기 기본 스타일(figure margin-left 40px) 및 inline-flex 래퍼로 인해 이미지가 우측으로 밀리던 결함을 figure/wrapper margin:0 auto 및 display:block으로 전면 리셋하여 완벽 중앙 정렬
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 긴 Mermaid 다이어그램 리더기 페이지 높이 맞춤(max-height: 85vh) 및 잘림 방지]: .mermaid-svg-container, .mermaid-block-container 및 img에 break-inside: avoid 및 max-height: 85vh, object-fit: contain을 적용하여 세로로 긴 다이어그램이 전자책 단말기 화면에서 잘리지 않고 온전히 사출되도록 개선
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 원본 서식(다크 테마/헤더 바/TEXT 라벨/복사 배지) 1:1 완벽 동기화]: .codeblock-header 및 언어 라벨을 온전히 보존하고 button을 표준 span 배지로 치환하며, 코드블록 테마 CSS(.codeblock-area, .codeblock-header, .codeblock-header-text, .copy-button-hook) 및 줄바꿈을 완벽 탑재
 // 🚨 @PATCH : **2026-10-01** — [EPUB 기본 페이지 나누기 기준 폐지]: exportPageBreakLevel 기본값을 'none'으로 변경하여 제목별 인위적 챕터 분할 없이 자연스러운 흐름 유지
@@ -114,6 +115,35 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
     }
   });
   
+  // 🖼️ 이미지 <figure> 및 .onrivi-image-wrapper 여백 초기화 및 중앙 정렬 (40px 우측 쏠림 및 컬럼 침범 방지)
+  doc.querySelectorAll('figure, .onrivi-image-figure').forEach(fig => {
+    if (fig instanceof HTMLElement) {
+      fig.style.margin = '1.5em 0';
+      fig.style.padding = '0';
+      fig.style.textAlign = 'center';
+      fig.style.width = '100%';
+      fig.style.maxWidth = '100%';
+      fig.style.boxSizing = 'border-box';
+      fig.style.display = 'block';
+    }
+  });
+  doc.querySelectorAll('.onrivi-image-wrapper').forEach(wrap => {
+    if (wrap instanceof HTMLElement) {
+      wrap.style.display = 'block';
+      wrap.style.margin = '0 auto';
+      wrap.style.maxWidth = '100%';
+      wrap.style.textAlign = 'center';
+      wrap.style.boxSizing = 'border-box';
+    }
+  });
+  doc.querySelectorAll('figcaption, .onrivi-image-figure figcaption').forEach(cap => {
+    if (cap instanceof HTMLElement) {
+      cap.style.textAlign = 'center';
+      cap.style.display = 'block';
+      cap.style.marginTop = '0.5em';
+    }
+  });
+
   // 🔗 하이퍼링크(<a> 태그) 규격 표준화 및 보안 등급 정비
   const links = doc.querySelectorAll('a');
   links.forEach(a => {
@@ -762,17 +792,47 @@ th {
   page-break-inside: avoid !important;
   break-inside: avoid !important;
 }
+figure,
+.onrivi-image-figure {
+  margin: 1.5em 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+  display: block !important;
+  clear: both !important;
+}
+.onrivi-image-wrapper {
+  display: block !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+figure img,
+.onrivi-image-figure img,
+.onrivi-image-wrapper img,
 img {
-  max-width: 100%;
-  max-height: 85vh;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  display: block;
-  margin: 1.5em auto;
-  border-radius: 6px;
+  max-width: 100% !important;
+  max-height: 85vh !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+  margin: 1.5em auto !important;
+  border-radius: 6px !important;
   page-break-inside: avoid !important;
   break-inside: avoid !important;
+}
+figcaption,
+.onrivi-image-figure figcaption {
+  text-align: center !important;
+  margin-top: 0.5em !important;
+  font-size: 0.9em !important;
+  color: #666666 !important;
+  display: block !important;
 }
 a {
   color: #0058bc;
