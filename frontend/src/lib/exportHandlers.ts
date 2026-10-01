@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 긴 Mermaid 다이어그램 하단 잘림 및 유실 버그 완전 해결]: Mermaid 다이어그램 이미지에 max-height: 85vh, width: auto, height: auto, object-fit: contain 및 break-inside: avoid를 강제 주입하여 리더기 뷰포트 높이에 맞춰 자동 축소 피팅되고 페이지 경계에서 잘리지 않도록 완벽 보정
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 원본 서식(다크 테마/헤더 바/TEXT 라벨/복사 배지) 1:1 완벽 동기화]: applyExportInlineStyles를 exportEPUB에도 연동하여 미리보기 DOM의 코드블록 테마/헤더 스타일을 100% 보존하고, pre/code 자동 줄바꿈을 적용하여 박스 밖 돌출 방지
 // 🚨 @PATCH : **2026-10-01** — [PDF/EPUB 내보내기 시 제목 기준 강제 페이지 분할 전면 폐지]: exportPDF 및 exportEPUB에서 exportPageBreakLevel에 따른 제목별 강제 페이지 나누기를 완전히 배제하고, 인위적 공백/페이지 쪼개짐 없이 자연스러운 본문 흐름으로 사출되도록 개선
 // 🚨 @PATCH : **2026-10-01** — [표 내보내기 시 외곽 테두리 소실 및 세로선 출현 버그 완전 해결]: html-to-image 캡처 시 table collapse로 인한 외곽 테두리 누락을 최외곽 4면 셀 직접 주입으로 100% 방어하고, 기본 표 서식(colBorderWidth 0px)에 맞춰 내부 세로선은 완전 소거, 가로선 및 외곽선만 미리보기와 1:1 일치하도록 동기화
@@ -2377,13 +2378,20 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
 
     // 🛡️ Mermaid SVG → base64 data:image/svg+xml <img> 변환
     //     EPUB DOMParser가 SVG 네임스페이스를 손상시켜 도형이 사라지는 문제 우회
+    //     세로로 긴 다이어그램도 전자책 리더기 화면(85vh) 내에 쏙 들어가도록 auto-scale 및 break-inside: avoid 보정
     clone.querySelectorAll('.not-prose > div').forEach(el => {
       const container = el as HTMLElement;
-      const svgBox = container.querySelector('.mermaid-svg-container');
+      const svgBox = container.querySelector('.mermaid-svg-container') as HTMLElement | null;
       if (!svgBox) return;
       // 헤더(타이틀바) 제거 — 버튼은 이미 제거됨
       const header = container.querySelector(':scope > div:first-child');
       if (header) header.remove();
+
+      // 중간 컨테이너 div들 overflow: visible 보장
+      container.querySelectorAll('div').forEach(d => {
+        (d as HTMLElement).style.setProperty('overflow', 'visible', 'important');
+      });
+
       // SVG를 base64 data URI로 변환
       const svgEl = svgBox.querySelector('svg');
       if (svgEl) {
@@ -2392,11 +2400,35 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
         const img = document.createElement('img');
         img.src = `data:image/svg+xml;base64,${base64}`;
         img.alt = 'Mermaid diagram';
-        img.style.cssText = 'max-width:100%;height:auto;display:block;margin:0 auto;';
+        img.style.cssText = 'max-width:100% !important;max-height:85vh !important;width:auto !important;height:auto !important;object-fit:contain !important;display:block !important;margin:0 auto !important;page-break-inside:avoid !important;break-inside:avoid !important;';
         svgBox.innerHTML = '';
         svgBox.appendChild(img);
       }
       container.style.setProperty('overflow', 'visible', 'important');
+      container.style.setProperty('page-break-inside', 'avoid', 'important');
+      container.style.setProperty('break-inside', 'avoid', 'important');
+      container.style.setProperty('text-align', 'center', 'important');
+      container.style.setProperty('margin', '1.5em auto', 'important');
+    });
+
+    // 추가 안전망: .not-prose > div 구조 밖의 .mermaid-svg-container도 빠짐없이 처리
+    clone.querySelectorAll('.mermaid-svg-container').forEach(svgBoxEl => {
+      const svgBox = svgBoxEl as HTMLElement;
+      if (svgBox.querySelector('img[alt="Mermaid diagram"]')) return;
+      const svgEl = svgBox.querySelector('svg');
+      if (svgEl) {
+        const svgString = new XMLSerializer().serializeToString(svgEl);
+        const base64 = btoa(unescape(encodeURIComponent(svgString)));
+        const img = document.createElement('img');
+        img.src = `data:image/svg+xml;base64,${base64}`;
+        img.alt = 'Mermaid diagram';
+        img.style.cssText = 'max-width:100% !important;max-height:85vh !important;width:auto !important;height:auto !important;object-fit:contain !important;display:block !important;margin:0 auto !important;page-break-inside:avoid !important;break-inside:avoid !important;';
+        svgBox.innerHTML = '';
+        svgBox.appendChild(img);
+        svgBox.style.setProperty('page-break-inside', 'avoid', 'important');
+        svgBox.style.setProperty('break-inside', 'avoid', 'important');
+        svgBox.style.setProperty('overflow', 'visible', 'important');
+      }
     });
 
     const blob = await generateEpub({ 

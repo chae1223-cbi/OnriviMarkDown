@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 긴 Mermaid 다이어그램 리더기 페이지 높이 맞춤(max-height: 85vh) 및 잘림 방지]: .mermaid-svg-container, .mermaid-block-container 및 img에 break-inside: avoid 및 max-height: 85vh, object-fit: contain을 적용하여 세로로 긴 다이어그램이 전자책 단말기 화면에서 잘리지 않고 온전히 사출되도록 개선
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 코드블록 원본 서식(다크 테마/헤더 바/TEXT 라벨/복사 배지) 1:1 완벽 동기화]: .codeblock-header 및 언어 라벨을 온전히 보존하고 button을 표준 span 배지로 치환하며, 코드블록 테마 CSS(.codeblock-area, .codeblock-header, .codeblock-header-text, .copy-button-hook) 및 줄바꿈을 완벽 탑재
 // 🚨 @PATCH : **2026-10-01** — [EPUB 기본 페이지 나누기 기준 폐지]: exportPageBreakLevel 기본값을 'none'으로 변경하여 제목별 인위적 챕터 분할 없이 자연스러운 흐름 유지
 //             **2026-08-14** — EPUB 내보내기 시 제목1(h1), 제목2(h2) 태그를 만날 때마다 자동으로 페이지를 넘겨(단원 분할) 깔끔한 챕터 구분이 되도록 page-break-before: always 속성 추가 (단, 첫 번째 요소 제외). 또한, 긴 코드 블록, 인용문(blockquote), 표(table)가 통째로 다음 페이지로 넘어가 거대한 빈 공간을 만드는 현상을 방지하기 위해 래퍼 컨테이너들에 page-break-inside: auto 강제 주입.
@@ -90,6 +91,26 @@ function sanitizeToXHTML(htmlString: string, currentDocTitle: string): string {
       div.classList.remove('w-max');
       div.style.maxWidth = '100%';
       div.style.boxSizing = 'border-box';
+    }
+  });
+
+  // Mermaid 다이어그램 이미지 및 컨테이너 리더기 페이지 높이 자동 맞춤 및 잘림 방지
+  doc.querySelectorAll('.mermaid-svg-container, .mermaid-block-container, .not-prose > div').forEach(box => {
+    if (box instanceof HTMLElement) {
+      box.style.pageBreakInside = 'avoid';
+      box.style.breakInside = 'avoid';
+      box.style.overflow = 'visible';
+    }
+  });
+  doc.querySelectorAll('img[alt="Mermaid diagram"]').forEach(img => {
+    if (img instanceof HTMLElement) {
+      img.style.maxWidth = '100%';
+      img.style.maxHeight = '85vh';
+      img.style.width = 'auto';
+      img.style.height = 'auto';
+      img.style.objectFit = 'contain';
+      img.style.pageBreakInside = 'avoid';
+      img.style.breakInside = 'avoid';
     }
   });
   
@@ -716,12 +737,42 @@ th {
   background-color: #f6f8fa;
   font-weight: bold;
 }
+.not-prose {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+.mermaid-svg-container,
+.mermaid-block-container {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+  text-align: center !important;
+  margin: 1.5em auto !important;
+  overflow: visible !important;
+}
+.mermaid-svg-container img,
+.mermaid-block-container img,
+.not-prose img[alt="Mermaid diagram"] {
+  max-width: 100% !important;
+  max-height: 85vh !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+  margin: 0 auto !important;
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
 img {
   max-width: 100%;
+  max-height: 85vh;
+  width: auto;
   height: auto;
+  object-fit: contain;
   display: block;
   margin: 1.5em auto;
   border-radius: 6px;
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
 }
 a {
   color: #0058bc;
