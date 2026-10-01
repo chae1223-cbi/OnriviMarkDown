@@ -1,3 +1,4 @@
+// 🚨 @PATCH : **2026-10-01** — [모든 내보내기(PDF/HTML/인쇄/PNG) 시 코드블록 긴 코드 자동 줄바꿈 및 전체 내용 100% 노출]: applyExportInlineStyles를 HTML 내보내기에도 전면 탑재하고, generateExportCss 및 내보내기 스타일시트에 pre/code/.onrivi-line의 white-space: pre-wrap, word-break: break-all, overflow-wrap: anywhere 및 overflow-x: visible을 강제 주입하여 가로 스크롤 없이 전체 코드가 깔끔하게 줄바꿈되어 보이도록 일원화
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이전 페이지 이미지 우측 경계가 다음 페이지 좌측으로 누출되는 잔상 현상 완전 차단]: clone 단계에서 figure 및 .onrivi-image-wrapper에 overflow: hidden 및 box-sizing: border-box를 강제 주입하여 인접 페이지 침범 원천 방어
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 이미지 우측 쏠림 및 다음 컬럼 침범 버그 완전 해결]: 리더기 기본 figure 마진(40px) 및 inline-flex로 인한 우측 편향을 clone 단계에서 figure/wrapper margin:0 auto 및 display:block으로 정규화하여 100% 중앙 정렬
 // 🚨 @PATCH : **2026-10-01** — [EPUB 내보내기 시 긴 Mermaid 다이어그램 하단 잘림 및 유실 버그 완전 해결]: Mermaid 다이어그램 이미지에 max-height: 85vh, width: auto, height: auto, object-fit: contain 및 break-inside: avoid를 강제 주입하여 리더기 뷰포트 높이에 맞춰 자동 축소 피팅되고 페이지 경계에서 잘리지 않도록 완벽 보정
@@ -675,7 +676,22 @@ p .onrivi-line + .onrivi-line {
   margin-bottom: 0 !important;
 }
 
-/* 💬 코드블록 내부 줄간격(행간) 콤팩트 규격화 (본문 1.8배 오염 원천 방어) */
+/* 💬 코드블록 내부 줄간격(행간) 콤팩트 규격화 및 자동 줄바꿈 강제 (내보내기 시 가로 스크롤 소거 및 전체 내용 표시) */
+.custom-preview-container .codeblock-area,
+.onrivi-content-root .codeblock-area,
+.codeblock-area {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.custom-preview-container .codeblock-area div,
+.onrivi-content-root .codeblock-area div,
+.codeblock-area div {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: visible !important;
+}
 .custom-preview-container .codeblock-area pre,
 .custom-preview-container .codeblock-area pre code,
 .custom-preview-container .codeblock-area .onrivi-line,
@@ -683,9 +699,28 @@ p .onrivi-line + .onrivi-line {
 .onrivi-content-root .codeblock-area pre,
 .onrivi-content-root .codeblock-area pre code,
 .onrivi-content-root .codeblock-area .onrivi-line,
-.onrivi-content-root .codeblock-area .onrivi-line * {
+.onrivi-content-root .codeblock-area .onrivi-line *,
+.codeblock-area pre,
+.codeblock-area pre code,
+.codeblock-area .onrivi-line,
+.codeblock-area .onrivi-line *,
+pre,
+pre code {
   line-height: ${(profile.rules?.codeBlock && profile.rules.codeBlock['line-height']) || '1.35'} !important;
   min-height: ${(profile.rules?.codeBlock && profile.rules.codeBlock['line-height']) || '1.35'}em !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  box-sizing: border-box !important;
+}
+.custom-preview-container .codeblock-area pre,
+.onrivi-content-root .codeblock-area pre,
+.codeblock-area pre,
+pre {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: visible !important;
 }
 `;
 
@@ -1146,6 +1181,17 @@ function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile,
       }
     }
 
+    // 중간 스크롤바 래퍼 div 가로 스크롤 및 잘림 해제 (전체 내용 표시)
+    areaEl.querySelectorAll('div').forEach(d => {
+      const divEl = d as HTMLElement;
+      divEl.classList.remove('w-max');
+      divEl.classList.remove('overflow-x-auto');
+      divEl.style.setProperty('width', '100%', 'important');
+      divEl.style.setProperty('max-width', '100%', 'important');
+      divEl.style.setProperty('box-sizing', 'border-box', 'important');
+      divEl.style.setProperty('overflow-x', 'visible', 'important');
+    });
+
     // 5. 코드 본문 (pre 및 code)
     const destPre = areaEl.querySelector('pre') as HTMLElement | null;
     const srcPre = srcArea ? srcArea.querySelector('pre') as HTMLElement | null : null;
@@ -1153,6 +1199,7 @@ function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile,
 
     if (destPre) {
       destPre.classList.remove('w-max');
+      destPre.classList.remove('min-w-full');
       const preColor = srcPreStyle?.color || activeProfile?.rules?.codeBlock?.['color'] || '#f8fafc';
       const preFontFamily = srcPreStyle?.fontFamily || '"JetBrains Mono", Consolas, monospace';
       const preFontSize = srcPreStyle?.fontSize || activeProfile?.rules?.codeBlock?.['font-size'] || '13.5px';
@@ -1168,8 +1215,10 @@ function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile,
       destPre.style.setProperty('max-width', '100%', 'important');
       destPre.style.setProperty('box-sizing', 'border-box', 'important');
       destPre.style.setProperty('white-space', 'pre-wrap', 'important');
+      destPre.style.setProperty('word-wrap', 'break-word', 'important');
       destPre.style.setProperty('word-break', 'break-all', 'important');
       destPre.style.setProperty('overflow-wrap', 'anywhere', 'important');
+      destPre.style.setProperty('overflow-x', 'visible', 'important');
     }
 
     areaEl.querySelectorAll('code').forEach(code => {
@@ -1177,19 +1226,43 @@ function applyExportInlineStyles(clone: HTMLElement, activeProfile?: CssProfile,
       codeEl.style.setProperty('background-color', 'transparent', 'important');
       codeEl.style.setProperty('color', 'inherit', 'important');
       codeEl.style.setProperty('white-space', 'pre-wrap', 'important');
+      codeEl.style.setProperty('word-wrap', 'break-word', 'important');
       codeEl.style.setProperty('word-break', 'break-all', 'important');
       codeEl.style.setProperty('overflow-wrap', 'anywhere', 'important');
       codeEl.style.setProperty('box-sizing', 'border-box', 'important');
+      codeEl.style.setProperty('width', '100%', 'important');
+      codeEl.style.setProperty('max-width', '100%', 'important');
+      codeEl.style.setProperty('display', 'block', 'important');
     });
 
     areaEl.querySelectorAll('.onrivi-line').forEach(line => {
       const lineEl = line as HTMLElement;
       lineEl.style.setProperty('color', 'inherit', 'important');
       lineEl.style.setProperty('white-space', 'pre-wrap', 'important');
+      lineEl.style.setProperty('word-wrap', 'break-word', 'important');
       lineEl.style.setProperty('word-break', 'break-all', 'important');
       lineEl.style.setProperty('overflow-wrap', 'anywhere', 'important');
       lineEl.style.setProperty('box-sizing', 'border-box', 'important');
+      lineEl.style.setProperty('width', '100%', 'important');
+      lineEl.style.setProperty('max-width', '100%', 'important');
+      lineEl.style.setProperty('display', 'block', 'important');
     });
+  });
+
+  // 단독 pre 블록(codeblock-area 외곽)도 가로 스크롤 없이 자동 줄바꿈 강제
+  clone.querySelectorAll('pre').forEach(pre => {
+    const preEl = pre as HTMLElement;
+    if (preEl.closest('.codeblock-area')) return;
+    preEl.classList.remove('w-max');
+    preEl.classList.remove('min-w-full');
+    preEl.style.setProperty('width', '100%', 'important');
+    preEl.style.setProperty('max-width', '100%', 'important');
+    preEl.style.setProperty('box-sizing', 'border-box', 'important');
+    preEl.style.setProperty('white-space', 'pre-wrap', 'important');
+    preEl.style.setProperty('word-wrap', 'break-word', 'important');
+    preEl.style.setProperty('word-break', 'break-all', 'important');
+    preEl.style.setProperty('overflow-wrap', 'anywhere', 'important');
+    preEl.style.setProperty('overflow-x', 'visible', 'important');
   });
 }
 
@@ -1943,6 +2016,28 @@ export async function exportPDF({
       height: auto !important;
       overflow: visible !important;
     }
+    /* 💬 코드블록 내부 자동 줄바꿈 강제 (가로 스크롤 및 잘림 원천 방어) */
+    .codeblock-area,
+    .codeblock-area div {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      overflow-x: visible !important;
+    }
+    .codeblock-area pre,
+    .codeblock-area pre code,
+    .codeblock-area .onrivi-line,
+    .codeblock-area .onrivi-line *,
+    pre, code, .onrivi-line {
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      word-break: break-all !important;
+      overflow-wrap: anywhere !important;
+      box-sizing: border-box !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: visible !important;
+    }
     /* 🛡️ Mermaid SVG 긴 다이어그램 인쇄/PDF 최적화 (A4 1장 내 안전 스케일 및 빈 페이지 원천 방어) */
     .not-prose {
       page-break-inside: auto !important;
@@ -2189,6 +2284,9 @@ export async function exportHTML({
     // 🌟 공유 스타일을 clone에 직접 주입 (동적 CSS + 인디케이터 숨김)
     injectExportStyles(clone, dynamicCssString, { hideIndicators: true });
 
+    // 🌟 미리보기 실제 렌더링 스타일(코드블록 자동줄바꿈/테이블/인라인코드)을 clone에 1:1 인라인 주입
+    applyExportInlineStyles(clone, activeProfile, targetEl);
+
     const baseName = currentFileName.replace(/\.[^/.]+$/, '');
     const filename = `${baseName}.html`;
 
@@ -2261,6 +2359,28 @@ export async function exportHTML({
     }
     .markdown-viewer-root, .prose {
       background-color: transparent !important;
+    }
+    /* 💬 코드블록 내부 자동 줄바꿈 강제 (가로 스크롤 및 잘림 원천 방어) */
+    .codeblock-area,
+    .codeblock-area div {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      overflow-x: visible !important;
+    }
+    .codeblock-area pre,
+    .codeblock-area pre code,
+    .codeblock-area .onrivi-line,
+    .codeblock-area .onrivi-line *,
+    pre, code, .onrivi-line {
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      word-break: break-all !important;
+      overflow-wrap: anywhere !important;
+      box-sizing: border-box !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow-x: visible !important;
     }
     @page {
       size: ${cssPageSize};
