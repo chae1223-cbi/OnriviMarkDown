@@ -7,6 +7,7 @@
  * 2. next build 실행
  * 3. 임시 이동한 폴더 원위치 복원
  * 
+ * 🚨 @PATCH : **2026-10-02** — [빌드 산출물 자동 소탕(Purge) 탑재]: out 디렉터리 내 잔여 소스맵(.map), 테스트 파일, 임시/더미 에셋 자동 소탕 추가
  * 🚨 @PATCH : **2026-09-30** — [데스크톱 정적 빌드 안정화] Next.js 14 정적 내보내기(export) 워커 간 manifest 탐색 불일치(PageNotFoundError: /)를 유발하던 NEXT_BUILD_DIR 분리를 걷어내고 기본 .next 단일 빌드로 정상 복원
  * 🚨 @PATCH : **2026-09-26** — [데스크톱 빌드 캐시 자동 정리] .next 빌드 캐시 선행 삭제 로직 추가로 청크 불일치 오류 방지
  * 🚨 @PATCH : **2026-09-26** — [데스크톱 빌드 격리] DEV_ONLY_ROUTES에 /blog 라우트 추가하여 데스크톱 번들 빌드 안정화
@@ -103,6 +104,36 @@ if (buildSuccess) {
     }
   } catch (copyErr) {
     console.warn('[desktop-build] out/icons 동기화 경고:', copyErr.message);
+  }
+
+  // 🛡️ [용량 최적화 및 보안] out 디렉터리 내 불필요한 .map, 테스트 파일, 임시 에셋 자동 소탕
+  try {
+    const outDir = path.join(__dirname, 'out');
+    if (fs.existsSync(outDir)) {
+      function purgeFiles(dir) {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            purgeFiles(fullPath);
+          } else {
+            const nameLower = entry.name.toLowerCase();
+            if (
+              nameLower.endsWith('.map') ||
+              nameLower.startsWith('users_image_') ||
+              nameLower.includes('.test.') ||
+              nameLower.includes('.spec.')
+            ) {
+              fs.rmSync(fullPath, { force: true });
+            }
+          }
+        }
+      }
+      purgeFiles(outDir);
+      console.log('[desktop-build] out 디렉터리 내 소스맵(.map) 및 테스트/더미 에셋 자동 소탕 완료');
+    }
+  } catch (purgeErr) {
+    console.warn('[desktop-build] out 디렉터리 소탕 경고:', purgeErr.message);
   }
 }
 

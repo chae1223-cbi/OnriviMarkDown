@@ -11,6 +11,7 @@
 }
 
 /* ===================================================================
+ * 🚨 @PATCH : **2026-10-02** — [학교안심 폰트 WOFF2 포맷 일원화 및 구형 중복 파일 정리]: Hakgyoansim 폰트의 중복 TTF/OTF/WOFF를 제거하고 고압축 WOFF2로 일원화하여 시각적 품위를 100% 동일하게 유지하면서 패키징 용량 대폭 경량화
  * 🚨 @PATCH : **2026-10-01** — [PDF 3·4·5페이지 섹션 시작 조판 최적화 및 제목+소개+미디어 원자적 결속]: H1~H6 바로 뒤의 소개 문단/목록이 이미지나 다이어그램으로 이어질 때 break-after: avoid를 연동하여 제목+소개+이미지가 다음 페이지 첫머리에서 온전히 함께 시작되도록 출판형 조판 완성
  * 🚨 @PATCH : **2026-10-01** — [PDF Mermaid 다이어그램 컨테이너 분할 분리 및 이전 페이지 빈 박스 잔상 버그 완전 해결]: .not-prose, .not-prose > div, .mermaid-svg-container, .mermaid-block-container에 break-inside: avoid를 강제 적용하여 도표와 컨테이너가 한 덩어리로 온전히 다음 페이지로 넘어가도록 조판 완결
  * 🚨 @PATCH : **2026-10-01** — [PDF/인쇄 시 과도한 빈 공간(하단 공백) 제거 및 이미지 축소/컨테이너 분할(Pagination) 정책 수립]: 제목 고아 방지(break-after: avoid), 컨테이너(section/article/div) break-inside: auto 적용, 대형 이미지 자동 축소(max-height: 190mm) 및 이미지-캡션 세트 결속으로 A4 페이지 하단 대형 공백 소거 완료
@@ -28,21 +29,11 @@
  * public/fonts/ 에 직접 포함된 무료 배포 폰트들
  * =================================================================== */
 
-/* ── 학교안심 글꼴 (경기도교육청 공식 배포) ── */
+/* ── 학교안심 글꼴 (경기도교육청 공식 배포, 고압축 WOFF2) ── */
 
 @font-face {
   font-family: '학교안심 포스터 B';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff2') format('woff2'),
-       url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff')  format('woff'),
-       url('/fonts/hakgyoansim/Hakgyoansim_PosterB.ttf')   format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: '학교안심 포스터 OTF B';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterOTFB.otf') format('opentype');
+  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -50,17 +41,7 @@
 
 @font-face {
   font-family: '학교안심 어항꾸미기 B';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiB.woff2') format('woff2'),
-       url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiB.woff')  format('woff'),
-       url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiB.ttf')   format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: '학교안심 어항꾸미기 OTF B';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiOTFB.otf') format('opentype');
+  src: url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiB.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -76,17 +57,7 @@
 
 @font-face {
   font-family: '학교안심 보드마카 R';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff2') format('woff2'),
-       url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff')  format('woff'),
-       url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.ttf')   format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: '학교안심 보드마카 OTF R';
-  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerOTFR.otf') format('opentype');
+  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;

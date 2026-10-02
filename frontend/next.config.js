@@ -1,4 +1,7 @@
-/** @type {import('next').NextConfig} */
+/**
+ * @type {import('next').NextConfig}
+ * 🚨 @PATCH : **2026-10-02** — [프로덕션 소스맵 비활성화로 번들 다이어트]: productionBrowserSourceMaps를 false로 전환하여 빌드 산출물 용량 약 18MB 절감
+ */
 // 💡 데스크탑(Electron) 빌드 시 NEXT_BUILD_TARGET=desktop 환경변수가 주입됩니다.
 // 개발 전용 API 라우트(/api/view, /api/upload-pasted-image)는 정적 내보내기(output:export)와
 // 호환되지 않으므로, 데스크탑 빌드 시에만 해당 라우트를 빌드 대상에서 완전히 제외합니다.
@@ -9,7 +12,7 @@ const nextConfig = {
   // 웹 배포 빌드와 실행 중인 개발 서버가 같은 .next 파일을 덮어쓰지 않도록 분리한다.
   distDir: process.env.NEXT_BUILD_DIR || '.next',
   ...(isDev && !isDesktopBuild ? {} : { output: 'export' }), // 개발 환경에서는 API 라우트 활성화를 위해 export 제외
-  productionBrowserSourceMaps: true, // 🔍 [임시] TDZ 에러 추적용 소스맵 활성화
+  productionBrowserSourceMaps: false, // 프로덕션 빌드 용량 최적화 (소스맵 제외)
   assetPrefix: process.env.ASSET_PREFIX !== undefined ? process.env.ASSET_PREFIX : '', // cloudflare/web: (기본) '', desktop: ASSET_PREFIX=./
   images: {
     unoptimized: true, // ?적 빌드 ????지 최적??경고 방?

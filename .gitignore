@@ -48,6 +48,26 @@ repomix-output.xml
 *.sqlite3
 .onrivi/knowledge.db
 db/onrivi_knowledge.db
-# 임시 스크립트 및 스크래치 폴더
+
+# 🛡️ 테스트, 임시 스크립트 및 스크래치 폴더 격리 제외
 scratch/
-scripts/patches/
+**/scratch/
+tests/
+**/tests/
+__tests__/
+**/__tests__/
+*.test.*
+*.spec.*
+*.node.test.*
+
+# 임시 빌드 잔여물, 백업 및 로그
+_dev_api_backup/
+**/_dev_api_backup/
+**/.next-web-build/
+*-launch.*.log
+*.log
+
+# 더미 및 테스트용 임시 에셋
+**/users_image_*
+**/temp_*
+**/test_*
