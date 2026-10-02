@@ -1,4 +1,5 @@
 // ====================================================================
+// 🚨 @PATCH : **2026-10-02** — [붙여넣기 이미지 업로드 대상 폴더 쓰기 예외 방어]: targetFolder 유효성 및 디렉터리 존재 여부 검사, try/catch 가드 추가로 잘못된 경로 요청 시 500 크래시 방어
 import { NextResponse } from 'next/server';
 let fs: any;
 let path: any;
@@ -43,15 +44,21 @@ export async function POST(request: Request) {
     const webFilePath = path.join(webAssetsDir, fileName);
     fs.writeFileSync(webFilePath, buffer);
 
-    if (targetFolder) {
-      const isFile = targetFolder.toLowerCase().endsWith('.md') || targetFolder.toLowerCase().endsWith('.markdown');
-      const dirPath = isFile ? path.dirname(targetFolder) : targetFolder;
-      const localAssetsDir = path.join(dirPath, 'assets');
-      if (!fs.existsSync(localAssetsDir)) {
-        fs.mkdirSync(localAssetsDir, { recursive: true });
+    if (targetFolder && fs && path) {
+      try {
+        const isFile = targetFolder.toLowerCase().endsWith('.md') || targetFolder.toLowerCase().endsWith('.markdown');
+        const dirPath = isFile ? path.dirname(targetFolder) : targetFolder;
+        if (dirPath && fs.existsSync(dirPath)) {
+          const localAssetsDir = path.join(dirPath, 'assets');
+          if (!fs.existsSync(localAssetsDir)) {
+            fs.mkdirSync(localAssetsDir, { recursive: true });
+          }
+          const localFilePath = path.join(localAssetsDir, fileName);
+          fs.writeFileSync(localFilePath, buffer);
+        }
+      } catch (targetErr) {
+        console.warn('[upload-pasted-image] targetFolder local write skipped:', targetErr);
       }
-      const localFilePath = path.join(localAssetsDir, fileName);
-      fs.writeFileSync(localFilePath, buffer);
     }
 
     return NextResponse.json({

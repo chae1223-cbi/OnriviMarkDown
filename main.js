@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-02** — [클립보드 탐색기 파일 복사 및 스크린샷 3중 네이티브 추출 강화]: clipboard:readImage 핸들러에서 비트맵 외에 Windows FileNameW 버퍼 및 파일 경로 텍스트를 감지하여 탐색기 Ctrl+C 복사 이미지 파일의 바이너리를 Base64로 즉시 추출·전달하도록 개선
 // 🚨 @PATCH : **2026-10-01** — [데스크톱 로컬 이미지 읽기 지능형 하위 media 폴백 탐색]: file:readImageAsBase64 핸들러에서 전달된 파일 경로가 존재하지 않는 경우, 리소스 폴더 하위 media 폴더 또는 상위 경로를 교차 탐색하여 사용자 마크다운 경로(단순 파일명 또는 서브폴더)의 이미지를 100% 정상 로드하도록 보강
 // 🚨 @PATCH : **2026-09-27** — 사용자 서식 읽기·수정·가져오기·AI 생성 저장소를 profiles/userCssProfiles.json 하나로 통일. 개별 CSS 생성 및 다른 저장소 폴백 제거.
 // 🚨 @PATCH : **2026-09-23** — [데스크톱 앱 최신 툴바 아이콘 및 에셋 서빙 보장] app:// 커스텀 프로토콜 핸들러에 frontend/out 부재 시 frontend/public 폴백 탐색 엔진을 탑재하여 데스크톱 앱에서 최신 툴바 아이콘(WechatLogo, Password, CubeFocus, NewspaperClipping 등) 100% 정상 노출 보장
@@ -3506,13 +3507,41 @@ ipcMain.handle('clipboard:copyText', (event, text) => {
   }
 });
 
-// 24. 클립보드에서 네이티브 이미지 읽기 API (윈도우 캡쳐 0바이트/누락 버그 우회용)
+// 24. 클립보드에서 네이티브 이미지 읽기 API (윈도우 캡쳐/탐색기 파일 복사/비트맵 직접 복원)
 ipcMain.handle('clipboard:readImage', () => {
   try {
     const { clipboard } = require('electron');
+    // 1. 네이티브 비트맵 이미지 확인 (윈도우 캡처, 그림판, 브라우저 이미지 복사 등)
     const image = clipboard.readImage();
     if (!image.isEmpty()) {
       return image.toDataURL();
+    }
+    // 2. 윈도우 탐색기 파일 복사(Ctrl+C) 확인 (FileNameW / CF_HDROP)
+    if (process.platform === 'win32') {
+      try {
+        const rawBuf = clipboard.readBuffer('FileNameW');
+        if (rawBuf && rawBuf.length > 0) {
+          const filePath = rawBuf.toString('ucs2').replace(/\0.*$/, '').trim();
+          if (filePath && fs.existsSync(filePath)) {
+            const ext = path.extname(filePath).toLowerCase().replace('.', '');
+            if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'].includes(ext)) {
+              const fileData = fs.readFileSync(filePath);
+              const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+              return `data:${mime};base64,${fileData.toString('base64')}`;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    // 3. 파일 경로 텍스트 확인 (파일 복사 경로 문자열 폴백)
+    const text = (clipboard.readText() || '').trim();
+    if (text && fs.existsSync(text)) {
+      const ext = path.extname(text).toLowerCase().replace('.', '');
+      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'].includes(ext)) {
+        const fileData = fs.readFileSync(text);
+        const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+        return `data:${mime};base64,${fileData.toString('base64')}`;
+      }
     }
     return null;
   } catch (err) {

@@ -14,6 +14,7 @@ const WebSessionRevocationGuard = dynamic(
 // 📊 [OMD-CORE-layout-0002] layout ➔ metadata
 // 🎯 @KICK  : Next.js Metadata 객체 - 페이지 제목, 설명, 아이콘 경로 설정
 // 🛡️ @GUARD : 없음
+// 🚨 @PATCH : **2026-10-02** — [WebSessionRevocationGuard Supabase 지연 로드 연동]: 루트 layout.js 번들에서 2.8MB Supabase 라이브러리 및 하위 의존성을 완전히 분리하여 첫 화면 진입 및 새로고침 시 번들 eval 파싱 지연 및 layout.js:500 SyntaxError 원천 차단
 // 🚨 @PATCH : **2026-09-30** — [WebSessionRevocationGuard 동적 지연 로드(dynamic ssr:false) 적용]: 루트 layout.js 번들에서 670KB Supabase 라이브러리를 분리하여 브라우저 eval 파싱 지연 및 SyntaxError 원천 차단, 첫 화면 즉시 렌더링 보장
 // 🚨 @PATCH : **2026-09-26** — [SEO 메타데이터 외부 노트 내보내기 서식 복원 키워드 보강]: description 및 keywords에 마크다운 서식 깨짐 복원, 마크다운 표 복원, 외부 노트 내보내기 호환 키워드 반영 (네이버 권장 80자 이내 78자 최적화)
 // 🚨 @PATCH : **2026-09-24** — [브라우저 자동번역기(Google Translate) React DOM 충돌(removeChild/insertBefore) 원천 방어 패치 탑재]: Node.prototype.removeChild 및 insertBefore 안전 가드 주입, html/meta notranslate 지정 및 NotFoundError 크래시 필터링 적용

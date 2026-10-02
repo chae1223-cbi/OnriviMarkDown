@@ -1,4 +1,5 @@
 // @ts-nocheck
+// 🚨 @PATCH : **2026-10-02** - [미디어 삽입 Range 호환성 강화 및 즉각 상태 동기화] insertMediaAtCursor 내 Range 객체 생성 시 monaco 전역 참조 안전 폴백 및 updateContent 즉시 동기화 연동
 // 🚨 @PATCH : 2026-09-06 - [미디어 삽입 후 2행 자동 추가 및 커서 이동] insertMediaAtCursor 함수 신규 추가: 이미지·동영상·지도 마크다운 삽입 후 자동으로 빈 줄 2행을 추가하고 커서를 마지막 빈 행 끝에 위치시켜 즉시 이어 입력 가능하도록 구현
 
 // ====================================================================
@@ -119,10 +120,9 @@ export const insertMediaAtCursor = (
 
   // ─── 3. Collapsed range (현재 행 끝) 에 삽입 ─────────────────────
   const endCol = model.getLineLength(baseLine) + 1;
-  const RangeClass = (window as any).monaco?.Range || class {
-    constructor(public startLineNumber: number, public startColumn: number, public endLineNumber: number, public endColumn: number) {}
-  };
-  const insertRange = new RangeClass(baseLine, endCol, baseLine, endCol);
+  const insertRange = (window as any).monaco?.Range 
+    ? new (window as any).monaco.Range(baseLine, endCol, baseLine, endCol)
+    : { startLineNumber: baseLine, startColumn: endCol, endLineNumber: baseLine, endColumn: endCol };
 
   editor.pushUndoStop();
   editor.executeEdits('insertMedia', [{ range: insertRange, text: fullText, forceMoveMarkers: true }]);
@@ -151,8 +151,10 @@ export const insertMediaAtCursor = (
     const finalLine = Math.min(targetLine, maxLines);
 
     ed.setPosition({ lineNumber: finalLine, column: 1 });
-    if ((window as any).monaco) {
+    if ((window as any).monaco?.Range) {
       ed.setSelection(new (window as any).monaco.Range(finalLine, 1, finalLine, 1));
+    } else {
+      ed.setSelection({ selectionStartLineNumber: finalLine, selectionStartColumn: 1, positionLineNumber: finalLine, positionColumn: 1 });
     }
     ed.revealLineInCenter(finalLine);
     ed.focus();

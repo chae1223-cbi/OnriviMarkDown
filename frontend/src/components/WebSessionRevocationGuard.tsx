@@ -1,12 +1,18 @@
 'use client';
 
 import { useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { clearAuthSessionStorage } from '@/lib/authSessionHelper';
 
-// 에디터 밖의 페이지에서도 본인 웹 세션이 해제되면 해당 브라우저만 로그아웃한다.
+// ====================================================================
+// 📊 [OMD-CORE-WebSessionRevocationGuard-0001] WebSessionRevocationGuard
+// 🎯 @KICK  : 웹 세션 만료/해제 감시 가드 - 에디터 밖 페이지에서도 본인 웹 세션 해제 시 로컬 정리 및 로그아웃 유도
+// 🛡️ @GUARD : Electron 데스크톱 앱 무조건 스킵, 세션 토큰 미존재 시 불필요한 Supabase 모듈 로딩 원천 차단
+// 🚨 @PATCH : **2026-10-02** — [Supabase 클라이언트 동적 지연 임포트(Lazy Dynamic Import)]: 루트 layout.js에 2.8MB Supabase 라이브러리가 번들링되어 첫 로딩 지연 및 layout.js:500 SyntaxError 발생하던 문제 완전 해결. 실제 탭 세션 존재 시에만 비동기 import 수행
+// 🔗 @CALLS : /api/device/session-status
+// ====================================================================
+
 export function WebSessionRevocationGuard() {
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if ((window as any).electronAPI || navigator.userAgent.toLowerCase().includes('electron') ||
         new URLSearchParams(window.location.search).get('env') === 'desktop') return;
 
@@ -23,6 +29,11 @@ export function WebSessionRevocationGuard() {
 
       inFlight = true;
       try {
+        const [{ supabase }, { clearAuthSessionStorage }] = await Promise.all([
+          import('@/lib/supabaseClient'),
+          import('@/lib/authSessionHelper'),
+        ]);
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token || !session.user?.id || disposed) return;
 

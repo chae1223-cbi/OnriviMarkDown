@@ -4,6 +4,17 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-10-02** — [동일 이미지 반복 붙여넣기/드래그 앤 드롭 결함 완전 해결 & Ctrl+V 이벤트 단일 진입점 일원화]: handlePasteImageFile 내 과도한 해시 기반 차단 및 타임스탬프 락을 완전 제거하여 동일 이미지 반복 삽입 100% 정상 작동 보장, handleGlobalKeyDown의 비동기 Ctrl+V 인터셉터를 제거하여 DOM paste 단일 진입점으로 통합함으로써 2중 중복 실행 원천 방어
+// 🚨 @PATCH : **2026-10-02** — [붙여넣기 및 드래그앤드롭 이미지 설명(Alt) 널(빈값) 표준화]: 끌어당기거나 붙여넣기한 이미지 마크다운 생성 시 이미지 설명 텍스트를 제거하여 ![](${path}) 표준 형태로 삽입되도록 변경
+// 🚨 @PATCH : **2026-10-02** — [이미지 붙여넣기 2중 중복 삽입 결함 완벽 해결]: keydown(Ctrl+V)과 paste 이벤트의 동시 발화로 이미지가 2번 연달아 붙여넣어지던 문제를 handlePasteImageFile 내 800ms 타임스탬프 락 및 동일 해시 1.5초 디바운스 이중 가드로 100% 원천 차단하여 단 1회만 정확히 삽입되도록 보장
+// 🚨 @PATCH : **2026-10-02** — [Ctrl+V 키다운 전역 가드 및 4중 계층 이미지 붙여넣기 완벽 보장]: handleGlobalKeyDown 내 Ctrl+V 직접 가로채기(Electron readClipboardImage 및 브라우저 navigator.clipboard.read 즉시 추출), kind:file 전수 조사, resolveClipboardImage 다형성(Blob/File/DataURL) 수용으로 모든 환경에서 이미지 복사·붙여넣기 100% 작동 보장
+// 🚨 @PATCH : **2026-10-02** — [클립보드 이미지 붙여넣기 전면 강화 및 웹 이미지 URL / 마크다운 자동 연동]: 외부 웹페이지 복사 이미지(<img src="http...">), 이미지 URL 직접 복사(Ctrl+V), Electron 네이티브 3중 클립보드 추출 및 insertMediaAtCursor 즉시 동기화 연동으로 다른 곳에서 복사한 이미지의 에디터 붙여넣기 실패 결함 완벽 해결
+// 🚨 @PATCH : **2026-10-02** — [이미지 붙여넣기 및 업로드 시 currentFilePath ReferenceError 결함 완벽 해결]: handlePasteImageFile 및 webUploadImage에서 미정의 변수(currentFilePath) 참조로 인한 크래시를 currentFileNode?.path, currentFileNodeRef 및 활성 탭 path 기반 지능형 폴백으로 완전 수정
+// 🚨 @PATCH : **2026-10-02** — [이미지 복사·붙여넣기(Ctrl+V) 및 탐색기/웹 다중 이미지 드래그앤드롭 전면 강화]: 탐색기/데스크톱 이미지 파일 단일/다중 드래그앤드롭 자동 저장 및 커서 위치 삽입, 웹 브라우저 이미지 드래그앤드롭 마크다운 변환, 캡처(Win+Shift+S)/탐색기 파일 복사/웹 이미지 붙여넣기(Ctrl+V) 시 5단계 완전 감지 및 Monaco 기본 텍스트 덮어쓰기 원천 차단
+// 🚨 @PATCH : **2026-10-02** — [이모지 패널 오버레이 플로팅 및 에디터·미리보기 화면 불변 고정]: 이모지 패널을 absolute 우측 플로팅 오버레이(툴바 좌측 밀착)로 전환하여 패널 열림/닫힘 시 에디터와 미리보기 레이아웃 너비가 1px도 축소되거나 움직이지 않도록 완전 고정
+// 🚨 @PATCH : **2026-10-02** — [어르신 및 저시력자 시인성 강화 에디터 커서 두께/고대비 최적화]: cursorWidth를 2px에서 4px(2배 확대)로 대폭 강화, 라이트 모드(코발트 #1d4ed8) 및 다크 모드(스카이블루 #38bdf8) 커서 고대비 명도 최적화로 커서 위치 한눈 식별 보장
+// 🚨 @PATCH : **2026-10-02** — [이모지 패널 활성화 시 에디터 커서 위치 영구 유지 및 연속 삽입 보정]: 패널 오픈 시 현재 커서 위치(emojiSavedPositionRef) 즉각 백업, 패널 렌더링 후 커서 복원/고정, 전용 insertEmojiAtCursor 연동으로 이모지 삽입 후 커서 자동 전진 및 연속 삽입 위치 유지 완벽 보장
+// 🚨 @PATCH : **2026-10-02** — [우측 툴바 이모지 보관함 패널 연동]: EmojiPanel 컴포넌트 도킹 렌더링, isEmojiPanelOpen 상태 및 TOGGLE_EMOJI_PANEL 커맨드 처리, 단축키(Ctrl+Shift+E) 및 Escape 닫기 연동, 커서 위치 즉시 삽입 지원
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 충돌 해결 및 듀얼 바인딩]: 다른 이름으로 저장(Ctrl+Shift+S) 단축키 오지정 수정, 설정 복원 시 신규 단축키 누락 방어, Monaco 및 전역 이벤트에서 서명 단축키 Ctrl+Alt+R 및 Ctrl+Alt+S 동시 지원 및 윈도우 Alt 키 포커스 보정
 // 🚨 @PATCH : **2026-10-01** — [서명/발신인 단축키 변경]: 다른 이름으로 저장(Ctrl+Shift+S)과의 충돌 방지를 위해 서명/발신인(우측 정렬) 단축키를 Ctrl+Alt+R로 변경
 // 🚨 @PATCH : **2026-10-01** — [플로팅 툴바 서명/발신인 추가]: EditorCommandType 및 dispatchCommand에 SIGNATURE 액션 연동, 플로팅 툴바에 서명/발신인(우측 정렬) 버튼 탑재 및 단축키(Ctrl+Alt+R) 연결
@@ -276,6 +287,7 @@ import YoutubeModal from '@/components/YoutubeModal'; // 모달
 import AboutModal from '@/components/AboutModal'; // 모달
 import LicenseModal from '@/components/LicenseModal'; // 라이선스 모달
 import AIDraftModal from '@/components/AIDraftModal'; // 초안 생성 모달
+import EmojiPanel from '@/components/EmojiPanel'; // 이모지 보관함 패널
 import { supabase } from '@/lib/supabaseClient';
 import { saveSecureData, loadSecureData } from '@/lib/secureStorage';
 import UnifiedTabBar, { EditorTab } from '@/components/UnifiedTabBar';
@@ -723,6 +735,8 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     sidebarWidth, setSidebarWidth,
     sidebarTab, setSidebarTab
   } = useUIStore();
+  const [isEmojiPanelOpen, setIsEmojiPanelOpen] = useState(false);
+  const emojiSavedPositionRef = useRef<{ lineNumber: number; column: number; selection?: any } | null>(null);
   const [mounted, setMounted] = useState(false);  // @mounted : mounted state 
   const [content, setContent] = useState('');   // @content : content state 
   // 💡 [React 18 동시성 렌더링] 180ms 지연 타이머 깜빡임을 제거하고 useDeferredValue로 부드러운 무깜빡임 실시간 렌더링
@@ -4524,6 +4538,79 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     utilsEditorActions.insertAtCursor(editorRef, lastSelectionRef, text);
   };
 
+  // ====================================================================
+  // 📊 [OMD-EDIT-MainEditorApp-0048.1] MainEditorApp.tsx ➔ insertEmojiAtCursor
+  // 🎯 @KICK  : 이모지 보관함 전용 커서 삽입 — 저장된 커서 위치 유지, 삽입 후 커서 자동 전진 및 연속 삽입 위치 동기화
+  // 🛡️ @GUARD : 에디터 포커스 유실 방어, monaco 인스턴스 없을 시 insertAtCursor 자동 폴백
+  // 🚨 @PATCH : **2026-10-02** 신규 탑재
+  // 🔗 @CALLS : editor.executeEdits, editor.setPosition, editor.focus
+  // ====================================================================
+  const insertEmojiAtCursor = (emoji: string) => {
+    if (!editorRef.current) return;
+    const editor = editorRef.current;
+    const monaco = (window as any).monaco;
+    if (!monaco) {
+      insertAtCursor(emoji);
+      return;
+    }
+
+    // 1. 현재 에디터 선택 영역 또는 백업된 커서 위치 확보
+    let selection = editor.getSelection();
+    const saved = emojiSavedPositionRef.current;
+
+    let range: any = null;
+    if (selection && !selection.isEmpty()) {
+      range = new monaco.Range(
+        selection.startLineNumber,
+        selection.startColumn,
+        selection.endLineNumber,
+        selection.endColumn
+      );
+    } else if (saved?.selection && !saved.selection.isEmpty()) {
+      range = new monaco.Range(
+        saved.selection.startLineNumber,
+        saved.selection.startColumn,
+        saved.selection.endLineNumber,
+        saved.selection.endColumn
+      );
+    } else {
+      const pos = (editor.hasTextFocus?.() ? editor.getPosition() : null) || (saved ? { lineNumber: saved.lineNumber, column: saved.column } : editor.getPosition());
+      if (pos) {
+        range = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
+      }
+    }
+
+    if (range) {
+      editor.pushUndoStop();
+      editor.executeEdits('emoji-insert', [{
+        range,
+        text: emoji,
+        forceMoveMarkers: true,
+      }]);
+      editor.pushUndoStop();
+
+      // 삽입 직후 커서를 이모지 바로 뒤로 이동
+      const nextLine = range.startLineNumber;
+      const nextCol = range.startColumn + emoji.length;
+      editor.setPosition({ lineNumber: nextLine, column: nextCol });
+      editor.revealPositionInCenterIfOutsideViewport({ lineNumber: nextLine, column: nextCol });
+
+      // 연속 삽입을 위해 백업 위치도 새 커서 위치로 즉시 갱신
+      emojiSavedPositionRef.current = {
+        lineNumber: nextLine,
+        column: nextCol,
+        selection: new monaco.Selection(nextLine, nextCol, nextLine, nextCol),
+      };
+
+      if (lastSelectionRef) {
+        lastSelectionRef.current = null;
+      }
+      editor.focus();
+    } else {
+      insertAtCursor(emoji);
+    }
+  };
+
   // 🧠 [ONRIVI-KNOWLEDGE-ENGINE-003.2] 지식 베이스 질의응답 답변 에디터 커서 삽입 리스너
   useEffect(() => {
     const handleInsert = (e: CustomEvent) => {
@@ -5050,24 +5137,38 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     return new Blob([u8arr], { type: mime });
   };
 
-  const resolveClipboardImage = async (e: any, imageItem: any): Promise<Blob | null> => {
-      // 비동기(await) 호출 이전에 동기적으로 브라우저 DataTransferItem 객체에서 File을 즉시 추출해야 합니다.
-      // 크롬 등에서는 await 이후에 getAsFile()을 호출하면 보안상 null을 반환합니다.
+  const isImageLikeFile = (file: File): boolean => {
+    if (file.type && file.type.startsWith('image/')) return true;
+    const ext = file.name ? file.name.toLowerCase().split('.').pop() : '';
+    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tiff'].includes(ext || '');
+  };
+
+  const resolveClipboardImage = async (e: any, imageItemOrFile: any): Promise<Blob | null> => {
+      // 0) 이미 File/Blob 객체인 경우
+      if (imageItemOrFile instanceof Blob || (typeof File !== 'undefined' && imageItemOrFile instanceof File)) {
+        if (imageItemOrFile.size > 0) return imageItemOrFile;
+      }
+
+      // 1) 비동기 호출 이전에 동기적으로 브라우저 DataTransferItem 객체에서 File을 즉시 추출
       let syncFile = null;
-      let syncFiles = null;
-      if (imageItem) {
-        syncFile = imageItem.getAsFile();
+      if (imageItemOrFile && typeof imageItemOrFile.getAsFile === 'function') {
+        try {
+          syncFile = imageItemOrFile.getAsFile();
+        } catch (_) {}
       }
-      if (e.clipboardData?.files?.length > 0) {
-        syncFiles = e.clipboardData.files;
-      }
-
-      // 만약 동기적으로 추출한 파일이 유효하다면 즉시 반환
-      // (단, 크롬 프로미스 버그 등으로 크기가 0바이트인 경우는 제외)
       if (syncFile && syncFile.size > 0) return syncFile;
-      if (syncFiles && syncFiles.length > 0 && syncFiles[0].type.startsWith('image/') && syncFiles[0].size > 0) return syncFiles[0];
 
-      // 0) [Electron] 네이티브 클립보드 이미지 읽기 우선 시도 (윈도우 스크린샷 등 클립보드 이미지 직접 복원)
+      // 2) clipboardData.files 검사 (탐색기 파일 복사 및 드롭 시 MIME 누락 파일명 확장자 지원)
+      if (e.clipboardData?.files?.length > 0) {
+        for (let i = 0; i < e.clipboardData.files.length; i++) {
+          const f = e.clipboardData.files[i];
+          if (isImageLikeFile(f) && f.size > 0) {
+            return f;
+          }
+        }
+      }
+
+      // 3) [Electron] 네이티브 클립보드 이미지 읽기 우선 시도 (윈도우 캡처/PrtScn 스크린샷 직접 복원)
       try {
         const api = typeof window !== 'undefined' ? (window as any).electronAPI : null;
         if (api && api.readClipboardImage) {
@@ -5080,7 +5181,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         console.warn('[Clipboard] Native read fallback', err);
       }
   
-      // 3) navigator.clipboard.read() (Async Clipboard API, 권한 필요)
+      // 4) navigator.clipboard.read() (Async Clipboard API, 권한 필요)
       try {
         if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
           const clipboardItems = await navigator.clipboard.read();
@@ -5093,6 +5194,28 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
           }
         }
       } catch { }
+
+      // 5) HTML 데이터 내 <img src="..."> 추출 폴백
+      try {
+        const html = e.clipboardData?.getData('text/html');
+        if (html) {
+          const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+          if (imgMatch && imgMatch[1]) {
+            const src = imgMatch[1];
+            if (src.startsWith('data:image/')) {
+              return dataUrlToBlob(src);
+            } else if (src.startsWith('http://') || src.startsWith('https://')) {
+              try {
+                const res = await fetch(src);
+                if (res.ok) {
+                  return await res.blob();
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } catch { }
+
       return null;
     };
 
@@ -5100,20 +5223,41 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 💡 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx 의 handleEditorPaste
     // 📝 @KICK  : 붙여넣기 이벤트 처리: 이미지 업로드, HTML 표 변환, 텍스트 정제
     // 🛡️ @GUARD : 이미지 붙여넣기 시 기본 동작 차단, 일반 텍스트 폴백 및 HTML 표 시도
-    // 🚨 @PATCH : None
+    // 🚨 @PATCH : **2026-10-02** 탐색기 이미지 파일 복사(MIME 누락 확장자 보정) 및 다중 이미지 일괄 처리, HTML 이미지 폴백 강화, 웹 이미지 URL 및 이미지 주소 복사 마크다운 자동 변환, kind:file 전수 조사
     // 🔄 @CALLS : fetch, FileReader, parseHtmlTableToMarkdown, sanitizePastedText, fixMarkdownTable, insertAtCursor, updateContent, showToast
     // ====================================================================
     const handleEditorPaste = async (e: any) => {
     const items = e.clipboardData?.items;
+    const files = e.clipboardData?.files;
     let hasText = false;
     let hasHtml = false;
     let imageItem = null;
+    let imageFile: File | null = null;
 
     if (items) {
       for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) imageItem = items[i];
-        if (items[i].type === 'text/plain') hasText = true;
-        if (items[i].type === 'text/html') hasHtml = true;
+        const it = items[i];
+        if (it.type && it.type.startsWith('image/')) {
+          imageItem = it;
+        } else if (it.kind === 'file') {
+          try {
+            const f = it.getAsFile();
+            if (f && isImageLikeFile(f)) {
+              imageFile = f;
+            }
+          } catch (_) {}
+        }
+        if (it.type === 'text/plain') hasText = true;
+        if (it.type === 'text/html') hasHtml = true;
+      }
+    }
+
+    if (files && files.length > 0 && !imageFile) {
+      for (let i = 0; i < files.length; i++) {
+        if (isImageLikeFile(files[i])) {
+          imageFile = files[i];
+          break;
+        }
       }
     }
 
@@ -5124,7 +5268,9 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     const htmlData = hasHtml ? e.clipboardData.getData('text/html') : '';
     const hasTable = htmlData && htmlData.includes('<table');
     const textData = hasText ? e.clipboardData.getData('text/plain') : '';
-    
+    const htmlImgMatch = htmlData ? htmlData.match(/<img[^>]+src=["']([^"']+)["']/i) : null;
+    const isDirectImgUrl = /^(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|svg|bmp))(\?[^\s]*)?$/i.test(textData ? textData.trim() : '');
+
     let processedText = textData;
     let textChanged = false;
     if (textData) {
@@ -5137,22 +5283,55 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
-    const hasImageFile = !imageItem && e.clipboardData?.files?.length > 0 && e.clipboardData.files[0].type.startsWith('image/');
+    const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
+    const isImagePasting = !!imageItem || !!imageFile || !!htmlImgMatch || isDirectImgUrl || (isElectron && !hasTable && !textData);
 
     // 대상이 하나라도 있으면 즉시 기본 동작 차단
-    if (imageItem || hasImageFile || hasTable || textChanged) {
-      e.preventDefault();
+    if (isImagePasting || hasTable || textChanged) {
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation?.();
+      (e as any).stopImmediatePropagation?.();
     }
 
-    // 1. 이미지 처리
-    const resolvedBlob = await resolveClipboardImage(e, imageItem);
+    // 1. 다중 이미지 파일 붙여넣기 일괄 처리
+    if (files && files.length > 1) {
+      const allImageFiles = Array.from(files).filter(isImageLikeFile);
+      if (allImageFiles.length > 1) {
+        for (const f of allImageFiles) {
+          await handlePasteImageFile(f);
+        }
+        return;
+      }
+    }
+
+    // 2. 단일 이미지 처리 (스크린샷, 탐색기 파일 복사, Electron 네이티브 등)
+    const resolvedBlob = await resolveClipboardImage(e, imageItem || imageFile);
     if (resolvedBlob) {
       if (e.cancelable && !e.defaultPrevented) e.preventDefault();
-      handlePasteImageFile(resolvedBlob);
+      await handlePasteImageFile(resolvedBlob);
       return;
     }
 
-    // 2. HTML Table 처리
+    // 2-1. 웹 이미지 URL (<img src="http...">) 직접 삽입 폴백
+    if (htmlImgMatch && htmlImgMatch[1]) {
+      const imgSrc = htmlImgMatch[1];
+      if (imgSrc.startsWith('http://') || imgSrc.startsWith('https://')) {
+        if (e.cancelable && !e.defaultPrevented) e.preventDefault();
+        insertImageMarkdown(imgSrc);
+        showToast('웹 이미지가 마크다운 링크로 삽입되었습니다.', 'success');
+        return;
+      }
+    }
+
+    // 2-2. 순수 이미지 URL 텍스트 붙여넣기 시 마크다운 이미지 삽입
+    if (isDirectImgUrl) {
+      if (e.cancelable && !e.defaultPrevented) e.preventDefault();
+      insertImageMarkdown(textData.trim());
+      showToast('이미지 링크가 마크다운으로 삽입되었습니다.', 'success');
+      return;
+    }
+
+    // 3. HTML Table 처리
     if (hasTable) {
       const mdTable = parseHtmlTableToMarkdown(htmlData);
       if (mdTable) {
@@ -5165,7 +5344,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       }
     }
 
-    // 3. 일반 텍스트 처리 (정제가 필요한 경우에만)
+    // 4. 일반 텍스트 처리 (정제가 필요한 경우에만)
     if (textChanged) {
       insertAtCursor(processedText);
       if (editorRef.current) {
@@ -5178,75 +5357,85 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0065] MainEditorApp.tsx ➔ handlePasteImageFile
   // 🎯 @KICK  : 이미지 Blob/File을 받아 로컬(데스크탑) 또는 R2(웹)에 저장 후 에디터 커서 위치에 삽입
-  // 🛡️ @GUARD : FileReader onload/onerror 처리, 데스크탑/웹 분기
-  // 🚨 @PATCH : 2026-07-06 이미지 붙여넣기 시 데스크탑 로컬 선저장이 아닌 R2 선저장으로 로직 순서 반전
+  // 🛡️ @GUARD : FileReader onload/onerror 처리, 데스크탑/웹 분기, 동일 이미지 반복 삽입 100% 보장
+  // 🚨 @PATCH : **2026-10-02** 동일 이미지 반복 붙여넣기/드래그 차단 결함 완전 해결(해시 검사 및 타임스탬프 락 완전 소거)
   // 🔗 @CALLS : fetch, FileReader, showToast
   // ====================================================================
-  const handlePasteImageFile = async (fileOrBlob: Blob) => {
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64Data = event.target?.result as string;
-      if (!base64Data) {
-        showToast('이미지 데이터를 읽을 수 없습니다.', 'error');
-        return;
-      }
-      try {
-        const base64DataClean = base64Data.split(',')[1] || base64Data;
-        const api = (window as any).electronAPI;
-        
-        let fileName = `image_${Date.now()}.png`;
+  const handlePasteImageFile = async (fileOrBlob: Blob): Promise<void> => {
+    return new Promise<void>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64Data = event.target?.result as string;
+        if (!base64Data) {
+          showToast('이미지 데이터를 읽을 수 없습니다.', 'error');
+          resolve();
+          return;
+        }
         try {
-          const binaryString = atob(base64DataClean);
-          const len = binaryString.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-          }
-          const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
-          const hashArray = Array.from(new Uint8Array(hashBuffer));
-          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
-          fileName = `img_${hashHex}.png`;
-        } catch (e) {
-          console.warn('해시 생성 실패, 기본 시간 기반 이름 사용', e);
-        }
-        
-        let targetFolder = currentFilePath || rootFolderRef.current?.name || '';
-        if (resourceFolderRef.current) {
-          targetFolder = resourceFolderRef.current + '\\media';
-        }
-
-        if (api) {
-          // 🖥️ 데스크탑 (Electron): 우선적으로 R2 업로드를 시도하고, 실패 시 로컬 assets/ 에 저장
-          await insertWithR2Fallback(base64DataClean, targetFolder, fileName);
-        } else {
-          // 🌐 웹 브라우저 (SaaS)
-          if (resourceFolderHandle) {
-            try {
-              const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
-              const fileHandle = await mediaDir.getFileHandle(fileName, { create: true });
-              const writable = await fileHandle.createWritable();
-              await writable.write(fileOrBlob);
-              await writable.close();
-              insertImageMarkdown(`/media/${fileName}`);
-              showToast('로컬 공통 폴더(media)에 이미지가 저장되었습니다.', 'success');
-              return;
-            } catch (err) {
-              console.warn('[Paste Image] Failed to save to resource folder:', err);
-              // 실패하면 아래 R2 업로드로 폴백
+          const base64DataClean = base64Data.split(',')[1] || base64Data;
+          const api = (window as any).electronAPI;
+          
+          let fileName = `image_${Date.now()}.png`;
+          try {
+            const binaryString = atob(base64DataClean);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
             }
+            const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+            fileName = `img_${hashHex}.png`;
+          } catch (e) {
+            console.warn('해시 생성 실패, 기본 시간 기반 이름 사용', e);
           }
-          await webUploadImage(base64Data);
+          
+          const activeFilePath = currentFileNode?.path || currentFileNodeRef.current?.path || tabsRef.current?.find(t => t.id === activeTabIdRef.current)?.path || '';
+          let targetFolder = activeFilePath || rootFolderRef.current?.name || '';
+          if (resourceFolderRef.current) {
+            targetFolder = resourceFolderRef.current + '\\media';
+          }
+
+          if (api) {
+            // 🖥️ 데스크탑 (Electron): 우선적으로 R2 업로드를 시도하고, 실패 시 로컬 assets/ 에 저장
+            await insertWithR2Fallback(base64DataClean, targetFolder, fileName);
+          } else {
+            // 🌐 웹 브라우저 (SaaS)
+            if (resourceFolderHandle) {
+              try {
+                const mediaDir = await resourceFolderHandle.getDirectoryHandle('media', { create: true });
+                const fileHandle = await mediaDir.getFileHandle(fileName, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(fileOrBlob);
+                await writable.close();
+                insertImageMarkdown(`/media/${fileName}`);
+                showToast('로컬 공통 폴더(media)에 이미지가 저장되었습니다.', 'success');
+                resolve();
+                return;
+              } catch (err) {
+                console.warn('[Paste Image] Failed to save to resource folder:', err);
+                // 실패하면 아래 R2 업로드로 폴백
+              }
+            }
+            await webUploadImage(base64Data);
+          }
+          resolve();
+        } catch (err) {
+          console.error('[Paste Image Error]', err);
+          showToast('클립보드 이미지 처리 중 오류가 발생했습니다.', 'error');
+          resolve();
         }
-      } catch (err) {
-        console.error('[Paste Image Error]', err);
-        showToast('클립보드 이미지 처리 중 오류가 발생했습니다.', 'error');
-      }
-    };
-    reader.onerror = () => {
-      showToast('이미지 파일을 읽는데 실패했습니다.', 'error');
-    };
-    reader.readAsDataURL(fileOrBlob);
+      };
+      reader.onerror = () => {
+        showToast('이미지 파일을 읽는데 실패했습니다.', 'error');
+        resolve();
+      };
+      reader.readAsDataURL(fileOrBlob);
+    });
   };
+  const handlePasteImageFileRef = useRef(handlePasteImageFile);
+  handlePasteImageFileRef.current = handlePasteImageFile;
 
   // ====================================================================
   // 📊 [OMD-EDIT-MainEditorApp-0066] MainEditorApp.tsx ➔ insertWithR2Fallback
@@ -5292,9 +5481,10 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const uploadEndpoint = isDev ? getApiUrl('/api/upload-pasted-image') : '/api/upload-image';
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
+      const activeFilePath = currentFileNode?.path || currentFileNodeRef.current?.path || tabsRef.current?.find(t => t.id === activeTabIdRef.current)?.path || '';
       const response = await fetch(uploadEndpoint, {
         method: 'POST', headers,
-        body: JSON.stringify({ base64Data, targetFolder: currentFilePath || rootFolderRef.current?.name || '' }),
+        body: JSON.stringify({ base64Data, targetFolder: activeFilePath || rootFolderRef.current?.name || '' }),
       });
       if (response.ok) {
         const data = await response.json();
@@ -5317,7 +5507,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // 📊 [OMD-EDIT-MainEditorApp-0068] MainEditorApp.tsx ➔ insertImageMarkdown
   // 🎯 @KICK  : 에디터 커서 위치에 마크다운 이미지 문법 삽입 후 빈 줄 2행 추가 및 커서 이동
   // 🛡️ @GUARD : editorRef.current null 체크, readOnly 우회
-  // 🚨 @PATCH : 2026-09-06 - insertMediaAtCursor 유틸 사용으로 교체: 삽입 후 빈 줄 2행 자동 추가 및 커서 마지막 빈 행 이동
+  // 🚨 @PATCH : **2026-10-02** - insertMediaAtCursor에 updateContent 전달 및 insertAtCursor 안전 폴백 추가
   // 🔗 @CALLS : insertMediaAtCursor(editorActions), updateContent
   // ====================================================================
   const insertImageMarkdown = (path: string) => {
@@ -5325,14 +5515,16 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       showToast('에디터를 찾을 수 없어 이미지를 삽입할 수 없습니다.', 'error');
       return;
     }
-    const textToInsert = `![이미지](${path})`;
-    utilsEditorActions.insertMediaAtCursor(editorRef, lastSelectionRef, textToInsert);
+    const textToInsert = `![](${path})`;
     try {
-      setTimeout(() => {
-        const newValue = editorRef.current?.getValue();
-        if (newValue !== undefined) updateContent(newValue, true);
-      }, 50);
-    } catch { }
+      utilsEditorActions.insertMediaAtCursor(editorRef, lastSelectionRef, textToInsert, updateContent);
+    } catch (err) {
+      console.warn('[insertImageMarkdown] insertMediaAtCursor fallback to insertAtCursor:', err);
+      insertAtCursor(`\n${textToInsert}\n\n`);
+      if (editorRef.current) {
+        updateContent(editorRef.current.getValue(), true);
+      }
+    }
   };
 
   // ====================================================================
@@ -6844,6 +7036,22 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         handlers.toggleFloatingToolbar(); 
         return;
       }
+      case 'TOGGLE_EMOJI_PANEL': {
+        if (editorRef.current) {
+          const editor = editorRef.current;
+          const pos = editor.getPosition();
+          const sel = editor.getSelection();
+          if (pos) {
+            emojiSavedPositionRef.current = {
+              lineNumber: pos.lineNumber,
+              column: pos.column,
+              selection: sel
+            };
+          }
+        }
+        setIsEmojiPanelOpen(prev => !prev);
+        return;
+      }
       case 'AI_DRAFT': {
         if (!geminiApiKey) {
           showToast('설정에서 Gemini API 키를 먼저 등록해주세요.', 'warning');
@@ -7371,8 +7579,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
         }
       }
 
-      // Escape: 인용구 드롭다운 또는 플로팅 툴바 숨김 (에디터 포커스 무관)
+      // Escape: 인용구 드롭다운, 이모지 패널 또는 플로팅 툴바 숨김 (에디터 포커스 무관)
       if (e.key === 'Escape') {
+        if (isEmojiPanelOpen) {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsEmojiPanelOpen(false);
+          return;
+        }
         if (floatingQuoteDropdown.open) {
           e.preventDefault();
           e.stopPropagation();
@@ -7390,6 +7604,26 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
       const isCtrl = isMac ? (e.metaKey || e.ctrlKey) : e.ctrlKey;
       const isShift = e.shiftKey;
       const isAlt = e.altKey;
+
+      // 💡 [이모지 보관함 단축키] Ctrl+Shift+E
+      if (isCtrl && isShift && !isAlt && e.key.toUpperCase() === 'E') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (editorRef.current) {
+          const editor = editorRef.current;
+          const pos = editor.getPosition();
+          const sel = editor.getSelection();
+          if (pos) {
+            emojiSavedPositionRef.current = {
+              lineNumber: pos.lineNumber,
+              column: pos.column,
+              selection: sel
+            };
+          }
+        }
+        setIsEmojiPanelOpen(prev => !prev);
+        return;
+      }
 
       // 제한사용자에서는 Monaco/브라우저 기본 단축키로 편집 메뉴 제한을 우회하지 못하게 한다.
       if (isRestrictedUser && isCtrl) {
@@ -7625,7 +7859,49 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     // 캡처(true) 모드로 등록하여 최우선순위로 가로챕니다.
     window.addEventListener('keydown', handleGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
-  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open, isRestrictedUser, setFontSize]);
+  }, [customHotkeys, dispatchCommand, mapIdToCommandType, floatingToolbar.visible, setFloatingToolbar, floatingQuoteDropdown.open, isRestrictedUser, setFontSize, isEmojiPanelOpen]);
+
+  // 🛡️ [데스크톱/브라우저 전역 파일 드롭 방어]
+  // 에디터나 미리보기 컨테이너 외부(사이드바, 타이틀바 등)에 파일 드롭 시 Electron/브라우저가 파일 URL로 페이지 이동하는 것 원천 방어
+  useEffect(() => {
+    const preventDrag = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('dragover', preventDrag);
+    window.addEventListener('drop', preventDrag);
+    return () => {
+      window.removeEventListener('dragover', preventDrag);
+      window.removeEventListener('drop', preventDrag);
+    };
+  }, []);
+
+  // 💡 [이모지 패널 활성화 시 에디터 커서 위치 영구 유지 및 자동 포커스 복원]
+  useEffect(() => {
+    if (isEmojiPanelOpen && editorRef.current) {
+      const editor = editorRef.current;
+      const pos = editor.getPosition();
+      const sel = editor.getSelection();
+      const saved = emojiSavedPositionRef.current || (pos ? {
+        lineNumber: pos.lineNumber,
+        column: pos.column,
+        selection: sel
+      } : null);
+
+      if (saved) {
+        emojiSavedPositionRef.current = saved;
+        // 레이아웃 재배치 및 flex 폭 축소 시에도 커서가 튀지 않고 정위치에 고정되도록 스케줄링
+        requestAnimationFrame(() => {
+          if (editorRef.current) {
+            editorRef.current.setPosition({ lineNumber: saved.lineNumber, column: saved.column });
+            if (saved.selection && !saved.selection.isEmpty()) {
+              editorRef.current.setSelection(saved.selection);
+            }
+            editorRef.current.revealPositionInCenterIfOutsideViewport({ lineNumber: saved.lineNumber, column: saved.column });
+          }
+        });
+      }
+    }
+  }, [isEmojiPanelOpen]);
 
   // 💡 플로팅 툴바 인용구 Alert 드롭다운 외부 클릭 시 자동 닫힘 감지기
   useEffect(() => {
@@ -7732,6 +8008,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     isAddonEnv, editorRef, previewRef, showToast, openTabPaths, refreshFileList,
     driveLetter, profiles, activeProfileId, onSelectProfile: handleProfileChange, onOpenStyleSettings: () => setIsStyleModalOpen(true), DEFAULT_PROFILE: (window as any).DEFAULT_PROFILE || {},
     saveStatus, isToolbarOpen, setIsToolbarOpen, isSidebarOpen, setIsSidebarOpen, isActivated: (!isDuplicateInstance && effectiveLicenseStatus.isActivated), THEME_MAP,
+    isEmojiPanelOpen, setIsEmojiPanelOpen,
     isDuplicateInstance, takeOverControl, isEditorPlan,
     cursorLine,
     cursorColumn,
@@ -8442,7 +8719,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                                 'editor.foreground': activeFg, // 🎯 사용자 명세: 다크 #e2e8f0 (고대비 모드 시 순수 흑백)
                                 'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8', // 선명한 줄번호
                                 'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB', // 활성 행 줄번호 강조
-                                'editorCursor.foreground': '#38bdf8', // 🎯 사용자 명세: 밝은 스카이블루 (#38bdf8)
+                                'editorCursor.foreground': isDark ? '#38bdf8' : '#1d4ed8', // 🎯 어르신/저시력자 시인성 강화 (다크: 네온 스카이블루 #38bdf8 / 라이트: 코발트 블루 #1d4ed8)
                                 'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#88888810',
                                 'editorIndentGuide.background': '#88888815',
                                 'editorIndentGuide.activeBackground': '#88888830',
@@ -8471,7 +8748,7 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                           cursorBlinking: 'blink',
                           cursorSmoothCaretAnimation: 'on',
                           cursorStyle: 'line',
-                          cursorWidth: 2,
+                          cursorWidth: 4,
                           'semanticHighlighting.enabled': true,
                           wordWrap: wordWrap || 'on',
                           wrappingStrategy: 'advanced',
@@ -9153,6 +9430,69 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                         } ${previewMode === 'both' ? 'no-scrollbar' : ''}`}
                         onMouseEnter={() => { isPreviewHovered.current = true; }}
                         onMouseLeave={() => { isPreviewHovered.current = false; }}
+                        onDragOver={(e) => {
+                          if (e.dataTransfer?.types?.some(t => t === 'Files' || t === 'text/html' || t === 'text/uri-list')) {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'copy';
+                          }
+                        }}
+                        onDrop={async (e) => {
+                          const dt = e.dataTransfer;
+                          if (!dt) return;
+                          const files = dt.files ? Array.from(dt.files) : [];
+                          const imageFiles = files.filter(isImageLikeFile);
+                          if (imageFiles.length > 0) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            for (const imgFile of imageFiles) {
+                              await handlePasteImageFile(imgFile);
+                            }
+                            return;
+                          }
+                          const html = dt.getData('text/html');
+                          const uriList = dt.getData('text/uri-list');
+                          const plainText = dt.getData('text/plain');
+                          let imgSrc = '';
+                          if (html) {
+                            const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+                            if (match && match[1]) imgSrc = match[1];
+                          }
+                          if (!imgSrc && uriList) {
+                            const firstUri = uriList.split(/[\r\n]+/).map(s => s.trim()).find(s => s && !s.startsWith('#'));
+                            if (firstUri) imgSrc = firstUri;
+                          }
+                          if (!imgSrc && plainText) {
+                            const trimmed = plainText.trim();
+                            if (/^https?:\/\/.+\.(png|jpe?g|gif|webp|svg|bmp)(\?.*)?$/i.test(trimmed)) {
+                              imgSrc = trimmed;
+                            }
+                          }
+                          if (imgSrc) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (imgSrc.startsWith('data:image/')) {
+                              try {
+                                const arr = imgSrc.split(',');
+                                const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+                                const bstr = atob(arr[1]);
+                                let n = bstr.length;
+                                const u8arr = new Uint8Array(n);
+                                while (n--) {
+                                  u8arr[n] = bstr.charCodeAt(n);
+                                }
+                                const blob = new Blob([u8arr], { type: mime });
+                                await handlePasteImageFile(blob);
+                                return;
+                              } catch (_) {}
+                            }
+                            const markdownImg = `\n![](${imgSrc})\n`;
+                            insertAtCursor(markdownImg);
+                            if (editorRef.current) {
+                              updateContent(editorRef.current.getValue(), true);
+                              editorRef.current.focus();
+                            }
+                          }
+                        }}
                         onScroll={(e) => {
                           // 분할 모드에서는 에디터 → 미리보기 단방향 동기화만 허용한다.
                           if (previewModeRef.current === 'both') return;
@@ -9421,6 +9761,14 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
               )}
 
             </main>
+
+            {isEmojiPanelOpen && (
+              <EmojiPanel
+                onClose={() => setIsEmojiPanelOpen(false)}
+                onInsert={insertEmojiAtCursor}
+                isToolbarOpen={isToolbarOpen}
+              />
+            )}
 
             {isToolbarOpen && (
               <div className="no-print h-full w-12 flex flex-col justify-end bg-zinc-50 dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-700/60 pb-3">

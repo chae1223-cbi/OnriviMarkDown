@@ -2,6 +2,13 @@
 // ====================================================================
 // 📊 [OMD-CORE-useMonacoSetup-0001] useMonacoSetup ➔ List Tab Behavior Patch
 // 🎯 @KICK  : 리스트 들여쓰기 시 스마트 번호 매기기 및 모나코 에디터 3대 이벤트(타이핑/커서/스크롤) 단일 책임 연동
+// 🚨 @PATCH : **2026-10-02** — [이미지 드래그 앤 드롭 실시간 위치 가이드라인 및 드롭 타겟 라인/커서 인디케이터 탑재]: 이미지 드래그 중 마우스 아래 삽입 위치(행 전체 하이라이트 및 실시간 커서 바/위치 뱃지)를 드롭 전에 즉시 시각적으로 확인 가능하도록 완벽 구현
+// 🚨 @PATCH : **2026-10-02** — [붙여넣기 다중 리스너 단일 인스턴스 보장]: 동일 ClipboardEvent에 대해 handledPasteEvents WeakSet 가드를 추가하여 window/container/editorDom 다중 등록으로 인한 중복 실행 원천 차단
+// 🚨 @PATCH : **2026-10-02** — [드래그 앤 드롭 이미지 설명(Alt) 널(빈값) 적용]: 에디터 드래그 드롭 이미지 삽입 시 ![](${url}) 빈 설명으로 통일
+// 🚨 @PATCH : **2026-10-02** — [붙여넣기 리스너 4중 바인딩 및 textarea/전역 전파 보장]: container, editorDom, textarea(inputarea), window 4중 계층에 paste 리스너를 등록하고 depsRef 연동으로 포커스 위치 무관 클립보드 붙여넣기 100% 감지 보장
+// 🚨 @PATCH : **2026-10-02** — [에디터 이미지 드래그 앤 드롭 및 웹/로컬 복사·붙여넣기 전면 강화]: dragover/dragenter 리스너 등록으로 마우스 커서 복사 모양 및 드롭존 즉각 활성화, 로컬 다중 이미지 일괄 드롭, 웹 이미지(URL/img 태그/Base64) 드래그 드롭 마크다운 자동 변환, 코발트 블루 점선 드롭 가이드 링 추가
+// 🚨 @PATCH : **2026-10-02** — [소프트 줄바꿈(Word wrap) 경계면 방향키 2단계 연속 이동 보정]: 문장 끝(윗줄 끝 "단|")에서 오른쪽 키 입력 시 다음 줄 첫 글자 뒤("일|")로 점프하지 않고 아랫줄 시작("|일")에 멈춘 뒤 재입력 시 전진하도록 보정, 아랫줄 시작에서 왼쪽 키 입력 시 윗줄 끝으로 대칭 복귀 지원
+// 🚨 @PATCH : **2026-10-02** — [어르신 및 저시력자 시인성 강화 에디터 커서 두께 4px 확대 및 고대비 최적화]: persistentCaret 너비(4px, 라운드 2px) 및 Monaco 옵션 cursorWidth(4px) 2배 두께 확대, 테마별 커서 고대비 색상(라이트: 코발트 블루 #1d4ed8 / 다크: 스카이블루 #38bdf8) 동기화로 커서 위치 한눈 식별 완벽 보장
 // 🚨 @PATCH : **2026-09-30** — [[[ 위키링크 자동완성 마크다운 문서 전용 원복]: [[ 입력 시 폴더 노드를 배제하고 마크다운 문서(.md)만 추천하여 [문서명](<./경로.md>) 표준 마크다운 링크 자동 완성
 // 🚨 @PATCH : **2026-09-26** — [에디터 수직 스크롤바 너비 슬림화(32px -> 16px)]: 과도하게 두꺼워진 모나코 에디터 verticalScrollbarSize를 기존 32px에서 절반인 16px로 축소하여 슬림하고 미려한 에디터 디자인 복원
 // 🚨 @PATCH : **2026-09-25** — [에디터 Pretendard 폰트 전면 적용 및 줄바꿈 단어 잘림 방지 32px 안전 여백 확보]: 에디터 글꼴을 가독성·원문자 1위인 Pretendard Variable로 변경하고, verticalScrollbarSize를 32px로 확장하여 가변폭/볼드 환경에서도 줄 끝 단어가 스크롤바에 가려지거나 잘리지 않도록 안전 여백 완벽 보장
@@ -50,6 +57,9 @@ import { syncPreviewFromEditorScroll, syncPreviewToTargetLine } from '@/lib/sync
 import { openAndFocusFindWidget } from '@/utils/findWidgetHelper';
 
 export function useMonacoSetup(deps: any) {
+  const depsRef = useRef(deps);
+  depsRef.current = deps;
+
   const handleMount = (editor: any, monaco: any) => {
     // 의존성 풀기 (MainEditorApp에서 넘겨받은 변수들을 지역 변수로 할당)
     const {
@@ -60,7 +70,7 @@ export function useMonacoSetup(deps: any) {
       decorationsCollectionRef, isEditorHovered, prevCursorLineRef, frontmatterLinesRef,
       setActiveLine, setCursorLine, setCursorColumn, tabSizeRef, setFloatingToolbar, lastSelectionRef,
       completionProviderRef, getSlashCommands, customSlashCommandsRef,
-      handleEditorPaste,
+      handleEditorPaste, handlePasteImageFile,
       wikilinkProviderRef, docLinkFilesRef, readFileTextRef, extractHeadings, getRelativePath,
       isEditorMountedRef, updateContent
     } = deps;
@@ -79,13 +89,13 @@ export function useMonacoSetup(deps: any) {
                   persistentCaret.style.cssText = [
                     'position:absolute',
                     'z-index:1000',
-                    'width:2px',
-                    'min-width:2px',
+                    'width:4px',
+                    'min-width:4px',
                     'background:#2563eb',
                     'pointer-events:none',
                     'display:none',
-                    'border-radius:1px',
-                    'box-shadow:0 0 1px rgba(37,99,235,.7)',
+                    'border-radius:2px',
+                    'box-shadow:0 0 3px rgba(37,99,235,.8)',
                     'will-change:transform,height'
                   ].join(';');
                   editorDomNode?.appendChild(persistentCaret);
@@ -93,6 +103,13 @@ export function useMonacoSetup(deps: any) {
                   const updatePersistentCaret = () => {
                     if (!editorDomNode?.isConnected || !editor.hasTextFocus?.()) {
                       persistentCaret.style.display = 'none';
+                      return;
+                    }
+                    const cursorDom = editorDomNode.querySelector('.cursors-layer .cursor') as HTMLElement | null;
+                    if (cursorDom && cursorDom.offsetParent) {
+                      persistentCaret.style.display = 'block';
+                      persistentCaret.style.height = `${cursorDom.offsetHeight || 16}px`;
+                      persistentCaret.style.transform = `translate(${cursorDom.offsetLeft}px, ${cursorDom.offsetTop}px)`;
                       return;
                     }
                     const position = editor.getPosition();
@@ -407,7 +424,7 @@ export function useMonacoSetup(deps: any) {
                     fontWeight: deps.editorFontWeight === 'bold' ? '700' : deps.editorFontWeight === 'semibold' ? '600' : deps.editorFontWeight === 'medium' ? '500' : '400',
                     lineHeight: 28, // 16px 기준 1.75 비율
                     letterSpacing: 0,
-                    cursorWidth: 2,
+                    cursorWidth: 4,
                     padding: { top: 20, bottom: 24, left: 16, right: 32 },
                     lineDecorationsWidth: 26,
                     lineNumbersMinChars: 4,
@@ -1547,7 +1564,7 @@ export function useMonacoSetup(deps: any) {
                         'editor.foreground': isDark ? '#e2e8f0' : '#1e293b',
                         'editorLineNumber.foreground': isDark ? '#475569' : '#94A3B8',
                         'editorLineNumber.activeForeground': isDark ? '#60A5FA' : '#2563EB',
-                        'editorCursor.foreground': '#38bdf8', // 🎯 사용자 명세: 밝은 스카이블루 (#38bdf8)
+                        'editorCursor.foreground': isDark ? '#38bdf8' : '#1d4ed8', // 🎯 어르신/저시력자 시인성 강화 (다크: 네온 스카이블루 #38bdf8 / 라이트: 코발트 블루 #1d4ed8)
                         'editor.lineHighlightBackground': isDark ? '#1e293b50' : '#88888810',
                         'editorIndentGuide.background': '#88888815',
                         'editorIndentGuide.activeBackground': '#88888830',
@@ -1560,39 +1577,258 @@ export function useMonacoSetup(deps: any) {
                   updateDecorations(editor);
                   setIsEditorReady(true);
                   const container = editor.getContainerDomNode();
-                  container.addEventListener('paste', handleEditorPaste, true);
+                  const editorDom = editor.getDomNode();
+                  const handledPasteEvents = new WeakSet<ClipboardEvent>();
+                  const onEditorPaste = (e: ClipboardEvent) => {
+                    if (handledPasteEvents.has(e)) return;
+                    handledPasteEvents.add(e);
+                    if (depsRef.current?.handleEditorPaste) {
+                      depsRef.current.handleEditorPaste(e);
+                    }
+                  };
+                  container?.addEventListener('paste', onEditorPaste, true);
+                  editorDom?.addEventListener('paste', onEditorPaste, true);
+                  const inputArea = editorDom?.querySelector('textarea');
+                  inputArea?.addEventListener('paste', onEditorPaste, true);
+                  window.addEventListener('paste', onEditorPaste, true);
 
-                  // 💡 다른 문서에서 글을 마우스로 드래그앤드롭(Drag & Drop)하여 옮길 때 끝에 $0이 붙는 버그 방지 커스텀 핸들러
-                  container.addEventListener('drop', (e: DragEvent) => {
-                    const files = e.dataTransfer?.files;
-                    if (files && files.length > 0) {
-                      const file = files[0];
-                      if (file.type.startsWith('image/')) {
-                        // 
-                        // 
-                        const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
-                        const position = target?.position || editor.getPosition();
-                        
-                        if (position) {
-                          editor.setPosition(position);
-                          editor.focus();
+                  // 💡 [이미지 바이너리 변환 헬퍼]
+                  const dataUrlToBlob = (dataUrl: string): Blob => {
+                    const parts = dataUrl.split(',');
+                    const mimeMatch = parts[0].match(/:(.*?);/);
+                    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+                    const bstr = atob(parts[1]);
+                    let n = bstr.length;
+                    const u8arr = new Uint8Array(n);
+                    while (n--) {
+                      u8arr[n] = bstr.charCodeAt(n);
+                    }
+                    return new Blob([u8arr], { type: mime });
+                  };
+
+                  const isImageFile = (file: File): boolean => {
+                    if (file.type && file.type.startsWith('image/')) return true;
+                    const ext = file.name ? file.name.toLowerCase().split('.').pop() : '';
+                    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tiff'].includes(ext || '');
+                  };
+
+                  // 💡 [이미지 및 텍스트 드래그 앤 드롭(Drag & Drop) 전용 핸들러]
+                  const dropDecorations = editor.createDecorationsCollection();
+
+                  // 💡 [드롭 위치 실시간 플로팅 인디케이터 커서 & 뱃지 생성]
+                  const dropIndicatorCaret = document.createElement('div');
+                  dropIndicatorCaret.className = 'onrivi-drop-indicator-caret';
+                  dropIndicatorCaret.setAttribute('aria-hidden', 'true');
+                  dropIndicatorCaret.style.cssText = [
+                    'position:absolute',
+                    'z-index:2000',
+                    'width:4px',
+                    'min-width:4px',
+                    'background:#1d4ed8',
+                    'pointer-events:none',
+                    'display:none',
+                    'border-radius:2px',
+                    'box-shadow:0 0 10px rgba(29, 78, 216, 0.9), 0 0 2px rgba(255, 255, 255, 0.9)',
+                    'will-change:transform,height',
+                    'transition:transform 0.04s ease-out'
+                  ].join(';');
+
+                  const dropBadge = document.createElement('div');
+                  dropBadge.className = 'onrivi-drop-indicator-badge';
+                  dropBadge.style.cssText = [
+                    'position:absolute',
+                    'bottom:100%',
+                    'left:50%',
+                    'transform:translateX(-50%) translateY(-6px)',
+                    'white-space:nowrap',
+                    'background:#1d4ed8',
+                    'color:#ffffff',
+                    'font-size:11px',
+                    'font-weight:700',
+                    'font-family:Pretendard, -apple-system, sans-serif',
+                    'padding:3px 8px',
+                    'border-radius:6px',
+                    'box-shadow:0 3px 10px rgba(0, 0, 0, 0.3)',
+                    'pointer-events:none',
+                    'display:flex',
+                    'align-items:center',
+                    'gap:4px',
+                    'letter-spacing:-0.2px'
+                  ].join(';');
+                  dropBadge.innerHTML = '<span>⬇️ 이미지 삽입 위치</span>';
+                  dropIndicatorCaret.appendChild(dropBadge);
+                  editorDomNode?.appendChild(dropIndicatorCaret);
+
+                  const clearDropIndicator = () => {
+                    dropDecorations.clear();
+                    dropIndicatorCaret.style.display = 'none';
+                  };
+
+                  let dragCounter = 0;
+                  const handleDragOver = (e: DragEvent) => {
+                    if (e.dataTransfer) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.dataTransfer.dropEffect = 'copy';
+                    }
+
+                    const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
+                    const pos = target?.position;
+                    if (pos) {
+                      // 1. 에디터 커서 실시간 추종
+                      editor.setPosition(pos);
+                      if (lastSelectionRef) {
+                        lastSelectionRef.current = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
+                      }
+
+                      // 2. 해당 행 전체 하이라이트 가이드 데코레이션
+                      dropDecorations.set([
+                        {
+                          range: new monaco.Range(pos.lineNumber, 1, pos.lineNumber, 1),
+                          options: {
+                            isWholeLine: true,
+                            className: 'onrivi-drop-line-highlight',
+                          }
                         }
-                        
-                        if (deps.handlePasteImageFile) {
-                          deps.handlePasteImageFile(file);
+                      ]);
+
+                      // 3. 플로팅 인디케이터 커서 바 및 뱃지 좌표 실시간 갱신
+                      const visiblePosition = editor.getScrolledVisiblePosition(pos);
+                      if (visiblePosition) {
+                        const isDark = document.documentElement.classList.contains('dark') || editorDomNode?.classList.contains('vs-dark');
+                        dropIndicatorCaret.style.background = isDark ? '#38bdf8' : '#1d4ed8';
+                        dropIndicatorCaret.style.boxShadow = isDark ? '0 0 10px rgba(56, 189, 248, 0.9)' : '0 0 10px rgba(29, 78, 216, 0.9)';
+                        dropBadge.style.background = isDark ? '#0284c7' : '#1d4ed8';
+
+                        dropIndicatorCaret.style.display = 'block';
+                        dropIndicatorCaret.style.height = `${Math.max(18, visiblePosition.height)}px`;
+                        dropIndicatorCaret.style.transform = `translate(${Math.round(visiblePosition.left)}px, ${Math.round(visiblePosition.top)}px)`;
+                        dropBadge.innerHTML = `<span>⬇️ 이미지 삽입 (${pos.lineNumber}행 ${pos.column}열)</span>`;
+                      }
+                    }
+                  };
+
+                  container.addEventListener('dragover', handleDragOver, true);
+                  container.addEventListener('dragenter', (e: DragEvent) => {
+                    handleDragOver(e);
+                    dragCounter++;
+                    if (e.dataTransfer?.types?.includes('Files')) {
+                      container.style.outline = '2px dashed #1d4ed8';
+                      container.style.outlineOffset = '-4px';
+                    }
+                  }, true);
+
+                  container.addEventListener('dragleave', (e: DragEvent) => {
+                    dragCounter--;
+                    if (dragCounter <= 0) {
+                      dragCounter = 0;
+                      container.style.outline = '';
+                      container.style.outlineOffset = '';
+                      clearDropIndicator();
+                    }
+                  }, true);
+
+                  window.addEventListener('dragend', clearDropIndicator, true);
+
+                  container.addEventListener('drop', async (e: DragEvent) => {
+                    dragCounter = 0;
+                    container.style.outline = '';
+                    container.style.outlineOffset = '';
+                    clearDropIndicator();
+
+                    const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
+                    const position = target?.position || editor.getPosition();
+                    if (position) {
+                      editor.setPosition(position);
+                      if (lastSelectionRef) {
+                        lastSelectionRef.current = new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
+                      }
+                      editor.focus();
+                    }
+
+                    const files = e.dataTransfer?.files;
+                    // ① 로컬 이미지 파일 드래그 앤 드롭 (단일 및 다중 파일 일괄 지원)
+                    if (files && files.length > 0) {
+                      const imageFiles = Array.from(files).filter(isImageFile);
+                      if (imageFiles.length > 0) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        for (const imgFile of imageFiles) {
+                          if (handlePasteImageFile) {
+                            await handlePasteImageFile(imgFile);
+                          } else if (deps.handlePasteImageFile) {
+                            await deps.handlePasteImageFile(imgFile);
+                          }
                         }
                         return;
                       }
                     }
 
-                    const text = e.dataTransfer?.getData('text');
+                    // ② 웹 브라우저/외부 페이지에서 이미지를 직접 끌어다 놓은 경우
+                    const html = e.dataTransfer?.getData('text/html');
+                    const uriList = e.dataTransfer?.getData('text/uri-list');
+                    const text = e.dataTransfer?.getData('text') || e.dataTransfer?.getData('text/plain');
+
+                    // HTML 내 <img src="..."> 추출
+                    if (html) {
+                      const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+                      if (imgMatch && imgMatch[1]) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const imgSrc = imgMatch[1];
+                        if (imgSrc.startsWith('data:image/')) {
+                          const blob = dataUrlToBlob(imgSrc);
+                          if (handlePasteImageFile) {
+                            await handlePasteImageFile(blob);
+                          } else if (deps.handlePasteImageFile) {
+                            await deps.handlePasteImageFile(blob);
+                          }
+                          return;
+                        } else if (imgSrc.startsWith('http://') || imgSrc.startsWith('https://')) {
+                          const mdImg = `![](${imgSrc})\n\n`;
+                          if (position) {
+                            editor.executeEdits('dragDropImage', [{
+                              range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                              text: mdImg,
+                              forceMoveMarkers: true
+                            }]);
+                            editor.focus();
+                            if (deps.updateContent) {
+                              deps.updateContent(editor.getValue(), true);
+                            }
+                          }
+                          return;
+                        }
+                      }
+                    }
+
+                    // 텍스트/URI-List가 이미지 URL인 경우
+                    const potentialUrl = (uriList || text || '').trim();
+                    if (potentialUrl && (potentialUrl.startsWith('http://') || potentialUrl.startsWith('https://'))) {
+                      const isImgUrl = /\.(png|jpg|jpeg|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(potentialUrl);
+                      if (isImgUrl) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const mdImg = `![](${potentialUrl})\n\n`;
+                        if (position) {
+                          editor.executeEdits('dragDropImage', [{
+                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                            text: mdImg,
+                            forceMoveMarkers: true
+                          }]);
+                          editor.focus();
+                          if (deps.updateContent) {
+                            deps.updateContent(editor.getValue(), true);
+                          }
+                        }
+                        return;
+                      }
+                    }
+
+                    // ③ 일반 텍스트 드래그 앤 드롭 ($0 버그 방지)
                     if (text) {
-                      // 
-                      // 
-
-                      const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
-                      const position = target?.position || editor.getPosition();
-
+                      e.preventDefault();
+                      e.stopPropagation();
                       if (position) {
                         editor.executeEdits('dragDropText', [{
                           range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
@@ -1600,6 +1836,9 @@ export function useMonacoSetup(deps: any) {
                           forceMoveMarkers: true
                         }]);
                         editor.focus();
+                        if (deps.updateContent) {
+                          deps.updateContent(editor.getValue(), true);
+                        }
                       }
                     }
                   }, true);
@@ -1699,8 +1938,77 @@ export function useMonacoSetup(deps: any) {
                   // 💡 [커서/타이핑/백스페이스 시 스크롤 간섭 0회 보장]
                   // 스크롤 동기화는 오직 사용자의 에디터 휠 및 스크롤바 조작(onDidScrollChange)에서만 구동됩니다.
 
+                  // 💡 [소프트 줄바꿈(Word wrap) 경계면 방향키 2단계 연속 이동 보정]
+                  // 문장 끝(윗줄 끝 "단|")에서 오른쪽 키 입력 시 다음 줄 첫 글자 뒤("일|")로 점프하지 않고
+                  // 아랫줄 시작("|일")에 멈춘 뒤 재입력 시 전진하도록 보정, 아랫줄 시작에서 왼쪽 키 입력 시 윗줄 끝으로 대칭 복귀
+                  const handleWordWrapArrowNavigation = (e: any): boolean => {
+                    try {
+                      const isRight = e.keyCode === monaco.KeyCode.RightArrow || e.browserEvent?.key === 'ArrowRight';
+                      const isLeft = e.keyCode === monaco.KeyCode.LeftArrow || e.browserEvent?.key === 'ArrowLeft';
+                      if (!isRight && !isLeft) return false;
+                      if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return false;
+
+                      const selection = editor.getSelection();
+                      if (selection && !selection.isEmpty()) return false;
+
+                      const viewModel = (editor as any)._viewModel;
+                      if (!viewModel || !viewModel.coordinatesConverter) return false;
+
+                      const cursorStates = viewModel.getCursorStates?.();
+                      if (!cursorStates || cursorStates.length !== 1) return false;
+
+                      const currentCursor = cursorStates[0];
+                      const curViewPos = currentCursor?.viewState?.position;
+                      if (!curViewPos) return false;
+
+                      const modelPos = editor.getPosition();
+                      if (!modelPos) return false;
+
+                      const converter = viewModel.coordinatesConverter;
+                      const viewLeft = converter.convertModelPositionToViewPosition(modelPos, 0 /* Left */);
+                      const viewRight = converter.convertModelPositionToViewPosition(modelPos, 1 /* Right */);
+                      if (!viewLeft || !viewRight) return false;
+
+                      // 두 뷰 위치의 라인이 다르면 소프트 줄바꿈(Word wrap) 경계점임
+                      if (viewLeft.lineNumber !== viewRight.lineNumber) {
+                        // ① 오른쪽 방향키: 윗줄 끝(viewLeft)에 있을 때 -> 아랫줄 시작(viewRight)으로 뷰 상태 전환
+                        if (isRight && curViewPos.lineNumber === viewLeft.lineNumber && curViewPos.column >= viewLeft.column) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.browserEvent?.stopImmediatePropagation?.();
+
+                          const newViewState = currentCursor.viewState.move(false, viewRight.lineNumber, viewRight.column, 0);
+                          viewModel.setCursorStates('keyboard', 3 /* Explicit */, [{ modelState: null, viewState: newViewState }]);
+                          viewModel.revealAllCursors('keyboard', true);
+                          updatePersistentCaret();
+                          return true;
+                        }
+
+                        // ② 왼쪽 방향키: 아랫줄 시작(viewRight)에 있을 때 -> 윗줄 끝(viewLeft)으로 뷰 상태 전환
+                        if (isLeft && curViewPos.lineNumber === viewRight.lineNumber && curViewPos.column <= viewRight.column) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.browserEvent?.stopImmediatePropagation?.();
+
+                          const newViewState = currentCursor.viewState.move(false, viewLeft.lineNumber, viewLeft.column, 0);
+                          viewModel.setCursorStates('keyboard', 3 /* Explicit */, [{ modelState: null, viewState: newViewState }]);
+                          viewModel.revealAllCursors('keyboard', true);
+                          updatePersistentCaret();
+                          return true;
+                        }
+                      }
+                    } catch (err) {
+                      console.warn('[useMonacoSetup] handleWordWrapArrowNavigation error:', err);
+                    }
+                    return false;
+                  };
+
                   // 💡 [Enter 즉시 새 행 가시성 확보 및 자동 저장 트리거]
                   editor.onKeyDown((e) => {
+                    if (handleWordWrapArrowNavigation(e)) {
+                      return;
+                    }
+
                     if (e.keyCode === monaco.KeyCode.Escape || e.browserEvent?.key === 'Escape') {
                       handleEscape();
                     } else if (

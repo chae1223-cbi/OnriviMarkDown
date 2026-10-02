@@ -2,6 +2,7 @@
 // 📊 [OMD-UI-menuBar-0001] MenuBar.tsx ➔ 에디터 상단 메뉴바
 // 🎯 @KICK  : 파일/편집/도구/도움말 드롭다운 및 지식 베이스 독립 페이지(/knowledge) 연동
 // 🛡️ @GUARD : LDSG v5.0 디자인 시스템 준수
+// 🚨 @PATCH : **2026-10-02** — [편집 메뉴 이모지 보관함(Ctrl+Shift+E) 연동]: 상단 편집(Edit) 메뉴에 '이모지 보관함' 항목 및 단축키(Ctrl+Shift+E)를 신설하여 데스크톱 및 웹 환경 어디서나 상단 메뉴를 통해 손쉽게 이모지 보관함을 토글할 수 있도록 확장
 // 🚨 @PATCH : **2026-10-01** — [한글(.hwpx) 내보내기 메뉴 삭제]: 상단 파일 > 내보내기 서브메뉴에서 한글 문서(.hwpx) 항목 및 번역 키 완전 제거
 // 🚨 @PATCH : **2026-10-01** — [제한사용자 미리보기 모드 시 메뉴바 내보내기 활성화]: isRestrictedUser 조건으로 인해 미리보기 모드에서도 내보내기 메뉴가 비활성화되던 가드를 해제하여 previewMode === 'preview'일 때 제한사용자도 문서 내보내기(인쇄, Word, 한글, HTML, EPUB, PNG)를 정상 이용할 수 있도록 개선
 // 🚨 @PATCH : **2026-09-30** — [내보내기 서브메뉴 Word(.docx) 및 한글(.hwpx) 항목 추가]: 파일 > 내보내기 메뉴에 Word 문서(.docx) 및 한글 문서(.hwpx) 사출 액션 등록
@@ -299,6 +300,8 @@ export default function MenuBar() {
         items={[
           { label: t('undo'), icon: <Icon name="Undo" size={15} />, shortcut: 'Ctrl+Z', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('UNDO') },
           { label: t('redo'), icon: <Icon name="Redo" size={15} />, shortcut: 'Ctrl+Y', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('REDO') },
+          { divider: true },
+          { label: "이모지 보관함", icon: <Icon name="Smile" size={15} />, shortcut: 'Ctrl+Shift+E', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('TOGGLE_EMOJI_PANEL') },
           { divider: true },
           { label: t('find'), icon: <Icon name="Search" size={15} />, shortcut: 'Ctrl+F', disabled: isRestrictedUser, onClick: () => dispatch('FIND') },
           { label: t('replace'), icon: <Icon name="Refresh" size={15} />, shortcut: 'Ctrl+H', disabled: isRestrictedUser || previewMode === 'preview', onClick: () => dispatch('REPLACE') },
