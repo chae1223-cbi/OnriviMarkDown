@@ -1,3 +1,8 @@
+// ====================================================================
+// 📊 [OMD-API-licenseActivate-0001] functions/api/license/activate.js
+// 🎯 @KICK  : Cloudflare Functions 기반 라이선스 기기 활성화 엔드포인트
+// 🚨 @PATCH : **2026-10-03** — [세션 제어권 인수 시 타 세션 제한사용자 유지]: force_takeover 시 기존 세션을 DELETE 하지 않고 is_active = false로 업데이트하여 타 세션이 세션아웃 없이 제한사용자(미리보기 전용) 상태로 전환되도록 지원
+// ====================================================================
 import { getBlogUser, withBlogTransaction } from '../blog/_db.js';
 
 // 웹 편집 좌석은 legacy max_devices와 무관하게 사용자당 1개다.
@@ -71,8 +76,9 @@ export async function onRequestPost({ request, env }) {
 
         if (body.p_force_takeover === true && eligible) {
           await db.query(`
-            DELETE FROM public.license_activations AS activation
-            USING public.subscriptions AS subscription
+            UPDATE public.license_activations AS activation
+            SET is_active = false, updated_at = now()
+            FROM public.subscriptions AS subscription
             WHERE activation.subscription_id = subscription.id AND subscription.user_id = $1
               AND lower(trim(coalesce(activation.device_name, ''))) IN ('web saas', 'web browser')
               AND NOT (activation.subscription_id = $2 AND activation.device_uuid = $3)`, [sub.user_id, licenseId, deviceUuid]);

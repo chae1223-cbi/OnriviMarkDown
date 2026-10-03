@@ -2,6 +2,7 @@
 // 📊 [OMD-DB-licenseQueries-0001 ✅ FIXED] src/lib/db/queries/licenseQueries.ts
 // 🎯 @KICK  : Postgres 트랜잭션 기반 라이선스 기기 세션 활성화 및 원자적 제한 판정
 // 🛡️ @GUARD : Rule 1, Rule 2, Rule 7 (원트랜잭션 무결성), 사용자당 웹 편집 세션 1개
+// 🚨 @PATCH : **2026-10-03** — [세션 제어권 인수(Takeover) 시 타 세션 제한사용자(미리보기 전용) 전환 보장]: 편집 권한 획득 시 타 세션을 DB에서 DELETE(강제 로그아웃)하지 않고 is_active = false로 안전하게 업데이트하여, 타 세션이 세션아웃 없이 제한사용자(미리보기 전용) 모드로 유지되도록 개편
 // 웹 세션만 계정당 1개로 제한하고 데스크톱 지정 장치는 별도 검증 경로에 맡긴다.
 // ====================================================================
 export const insertLicenseActivationQuery = async (
@@ -48,10 +49,11 @@ export const insertLicenseActivationQuery = async (
         AND coalesce(updated_at, activated_at) < (now() - interval '2 minutes')
     `;
 
-    // 웹 제어권 인수는 같은 사용자에게 속한 다른 웹 세션을 삭제해 해당 브라우저를 로그아웃시킨다.
+    // 💡 [웹 제어권 인수]: 다른 웹 세션을 강제 삭제(로그아웃)하지 않고, is_active = false로 변경하여 세션아웃 없이 '제한사용자(미리보기 전용)'로 안전하게 전환한다.
     if (forceTakeover && canEdit && !isDesktopReq) {
       await tx`
-        DELETE FROM license_activations
+        UPDATE license_activations
+        SET is_active = false, updated_at = now()
         WHERE subscription_id IN (SELECT id FROM subscriptions WHERE user_id = ${subOwnerId})
           AND NOT (subscription_id = ${licenseId} AND device_uuid = ${deviceUuid})
           AND lower(trim(coalesce(device_name, ''))) IN ('web saas', 'web browser')

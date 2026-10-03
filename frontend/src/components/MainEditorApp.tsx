@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-10-03** — [세션 제어권 인수 시 타 세션 제한사용자 유지 및 미리보기 모드 자동 활성화]: '이 화면에서 편집 시작하기' 클릭 시 다른 세션을 강제 로그아웃시키지 않고 제한사용자(읽기 전용) 모드로 안전하게 전환하며, 화면을 자동으로 미리보기(preview) 모드로 전환하여 문서를 끊김 없이 열람할 수 있도록 개선
 // 🚨 @PATCH : **2026-10-02** — [동일 이미지 반복 붙여넣기/드래그 앤 드롭 결함 완전 해결 & Ctrl+V 이벤트 단일 진입점 일원화]: handlePasteImageFile 내 과도한 해시 기반 차단 및 타임스탬프 락을 완전 제거하여 동일 이미지 반복 삽입 100% 정상 작동 보장, handleGlobalKeyDown의 비동기 Ctrl+V 인터셉터를 제거하여 DOM paste 단일 진입점으로 통합함으로써 2중 중복 실행 원천 방어
 // 🚨 @PATCH : **2026-10-02** — [붙여넣기 및 드래그앤드롭 이미지 설명(Alt) 널(빈값) 표준화]: 끌어당기거나 붙여넣기한 이미지 마크다운 생성 시 이미지 설명 텍스트를 제거하여 ![](${path}) 표준 형태로 삽입되도록 변경
 // 🚨 @PATCH : **2026-10-02** — [이미지 붙여넣기 2중 중복 삽입 결함 완벽 해결]: keydown(Ctrl+V)과 paste 이벤트의 동시 발화로 이미지가 2번 연달아 붙여넣어지던 문제를 handlePasteImageFile 내 800ms 타임스탬프 락 및 동일 해시 1.5초 디바운스 이중 가드로 100% 원천 차단하여 단 1회만 정확히 삽입되도록 보장
@@ -2383,6 +2384,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 planName: prev.planName?.includes('동시 접속 초과') ? prev.planName : `동시 접속 초과 (${chk.max_devices || 1}대) - 제한 사용자`
               };
             });
+            // 💡 [사용자 요청] 다른 세션에서 제어권을 가져갔을 때 현재 화면을 즉시 미리보기 모드로 자동 전환
+            if (previewModeRef.current !== 'preview') {
+              lastGeneralPreviewModeRef.current = previewModeRef.current;
+              setPreviewModeRaw('preview');
+              previewModeRef.current = 'preview';
+            }
           } else {
             // 정상 복구/유지인 경우 상태 동기화
             setLicenseStatus(prev => {
@@ -2669,6 +2676,12 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
                 hasEditorSubscription: true,
                 planName: '동시 접속 초과 - 제한 사용자'
               }));
+              // 💡 [사용자 요청] 다른 세션에서 제어권을 가져갔을 때 현재 화면을 즉시 미리보기 모드로 자동 전환
+              if (previewModeRef.current !== 'preview') {
+                lastGeneralPreviewModeRef.current = previewModeRef.current;
+                setPreviewModeRaw('preview');
+                previewModeRef.current = 'preview';
+              }
               return;
             }
 
@@ -4075,20 +4088,32 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
     if (prevRestrictedRef.current === isRestrictedUser) return;
     prevRestrictedRef.current = isRestrictedUser;
 
-    
-      setTabs(prev => {
-        const hasWelcome = prev.some(t => t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab);
-        if (!hasWelcome) return prev;
-        const cleaned = prev.filter(t => !(t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab));
-        if (cleaned.length === 0) {
-          setActiveTabId(null);
-          setContent(localStorage.getItem('onrivi_content') || '');
-          setCurrentFileName('새 파일.md');
-          setCurrentFileNode(null);
-        }
-        return cleaned;
-      });
-    
+    if (isRestrictedUser) {
+      if (previewModeRef.current !== 'preview') {
+        lastGeneralPreviewModeRef.current = previewModeRef.current;
+        setPreviewModeRaw('preview');
+        previewModeRef.current = 'preview';
+      }
+    } else {
+      const restored = lastGeneralPreviewModeRef.current || 'both';
+      if (previewModeRef.current !== restored) {
+        setPreviewModeRaw(restored);
+        previewModeRef.current = restored;
+      }
+    }
+
+    setTabs(prev => {
+      const hasWelcome = prev.some(t => t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab);
+      if (!hasWelcome) return prev;
+      const cleaned = prev.filter(t => !(t.name === 'Onrivi Author 시작하기.md' && !t.isStyleTab));
+      if (cleaned.length === 0) {
+        setActiveTabId(null);
+        setContent(localStorage.getItem('onrivi_content') || '');
+        setCurrentFileName('새 파일.md');
+        setCurrentFileNode(null);
+      }
+      return cleaned;
+    });
   }, [mounted, isLicenseChecking, isDuplicateInstance, effectiveLicenseStatus]);
 
   // ====================================================================
