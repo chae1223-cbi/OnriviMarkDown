@@ -6,6 +6,7 @@
  * 빌드 대상에서 제외하여 정적 내보내기(output:export) 시 발생하는
  * NEXT_STATIC_GEN_BAILOUT 에러를 제거합니다.
  *
+ * 🚨 @PATCH 2026-10-04: Next.js output:export 정적 빌드 시 신규/기존 API 라우트(create-file, create-folder, delete, rename, save 등)와의 dynamic=force-dynamic 충돌 에러를 원천 차단하기 위해, src/app/api/ 디렉토리 내의 모든 항목을 자동으로 스캔하여 빌드 시 임시 백업 및 제외하도록 개편
  * 🚨 @PATCH 2026-08-07: Cloudflare Pages는 wrangler.toml의 functions_directory 필드를
  * 지원하지 않으므로 무시됩니다 (빌드 로그에 WARNING 표시).
  * 대신 레포 루트의 /functions/ 디렉토리를 자동으로 탐지하여 배포합니다.
@@ -43,22 +44,15 @@ if (fs.existsSync(FRONTEND_FUNCS_SRC)) {
   console.log('  - 동기화 완료: /functions/ (병합 완료)');
 }
 
-// Cloudflare Functions가 존재하지 않아 정적 빌드에서 제외해야 하는 라우트들
-// profiles는 로컬 파일 시스템을 읽는 동적 Next API라 정적 웹 내보내기 대상에서 제외한다.
-const DEV_ONLY_ROUTES = [
-  { parent: API_DIR, route: 'admin' },
-  { parent: API_DIR, route: 'blog' },
-  { parent: API_DIR, route: 'device' },
-  { parent: API_DIR, route: 'cron' },
-  { parent: API_DIR, route: 'faqs' },
-  { parent: API_DIR, route: 'plans' },
-  { parent: API_DIR, route: 'license' },
-  { parent: API_DIR, route: 'user' },
-  { parent: API_DIR, route: 'password' },
-  { parent: API_DIR, route: 'knowledge' },
-  { parent: API_DIR, route: 'file-content' },
-  { parent: API_DIR, route: 'profiles' }
-];
+// Cloudflare Pages 정적 내보내기(output: export) 빌드 시 Next.js는 동적 API 라우트 생성을 지원하지 않습니다.
+// 실제 서버 API는 Cloudflare Functions(/functions/api/)가 전담하므로,
+// API_DIR(/src/app/api/) 내의 모든 엔드포인트를 자동으로 스캔하여 빌드 중 안전하게 임시 백업 및 제외합니다.
+const apiEntries = fs.existsSync(API_DIR)
+  ? fs.readdirSync(API_DIR, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory() || dirent.isFile())
+      .map(dirent => dirent.name)
+  : [];
+const DEV_ONLY_ROUTES = apiEntries.map(name => ({ parent: API_DIR, route: name }));
 
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });

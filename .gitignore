@@ -52,6 +52,8 @@ db/onrivi_knowledge.db
 # 🛡️ 테스트, 임시 스크립트 및 스크래치 폴더 격리 제외
 scratch/
 **/scratch/
+tmp/
+**/tmp/
 tests/
 **/tests/
 __tests__/
