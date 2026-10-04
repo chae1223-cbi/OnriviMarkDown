@@ -235,7 +235,14 @@ export async function requestGoogleDriveAuth(clientId?: string): Promise<string>
           if (isFinished) return;
           isFinished = true;
           if (response.error) {
-            return reject(new Error(`구글 로그인 실패: ${response.error_description || response.error}`));
+            const code = String(response.error);
+            const detail = response.error_description || code;
+            const guidance = code === 'access_denied'
+              ? 'Google OAuth 앱이 테스트 상태이면 해당 계정을 테스트 사용자로 등록해야 합니다. 조직 계정은 관리자의 앱 접근 정책도 확인해 주세요.'
+              : /origin_mismatch|redirect_uri_mismatch/.test(code)
+                ? `Google Cloud의 OAuth 클라이언트에 현재 출처(${window.location.origin})가 등록되어 있는지 확인해 주세요.`
+                : '';
+            return reject(new Error(`구글 로그인 실패 (${code}): ${detail}${guidance ? '\n' + guidance : ''}`));
           }
           if (response.scope) {
             console.log('[GDrive] Granted scopes:', response.scope);

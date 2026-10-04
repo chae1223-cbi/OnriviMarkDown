@@ -1,3 +1,4 @@
+import { embedExportFonts } from './exportFonts';
 // 🚨 @PATCH : **2026-10-01** — [내보내기(PDF/HTML/인쇄) 시 [align="right"] 및 [style*="text-align: right"] 우측 정렬 전역 보장]: generateExportCss에 우측/중앙 정렬 셀렉터를 명시하여 본문 p { text-align: left !important; }가 서명/날짜/발신인 등의 우측 정렬을 덮어쓰지 않도록 완전 보장
 // 🚨 @PATCH : **2026-10-01** — [PDF 3·4·5페이지 섹션 시작 조판 최적화 및 제목+소개+미디어 원자적 결속]: H1~H6 바로 뒤의 소개 문단/목록이 핵심 이미지나 다이어그램으로 이어질 때, 이미지가 다음 페이지로 넘어갈 경우 제목과 한 줄 소개만 앞 페이지 하단에 덩그러니 남겨지는 분리 현상을 원천 방어하도록 break-after: avoid를 결속하여 제목+소개+이미지가 다음 페이지 첫머리에서 온전히 함께 시작되도록 출판형 조판 완성
 // 🚨 @PATCH : **2026-10-01** — [PDF Mermaid 다이어그램 컨테이너 분할 분리 및 이전 페이지 빈 사각형 잔상 버그 완전 해결]: .not-prose, .not-prose > div, .mermaid-svg-container, .mermaid-block-container에 break-inside: avoid를 전면 강제 적용하여 컨테이너와 SVG가 분리되어 이전 페이지에 빈 사각형 박스가 남는 렌더링 결함을 완전히 차단하고, 도표 전체가 한 덩어리로 온전히 다음 페이지로 넘어가도록 원자적(Atomic) 조판 완결
@@ -2018,7 +2019,9 @@ export async function exportPDF({
     const filename = `${currentFileName.replace(/\.[^/.]+$/, '')}.pdf`;
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
-    const { inlineStyles, linkTags } = collectAllStyles();
+    const collected = collectAllStyles();
+    const inlineStyles = collected.inlineStyles + "\n" + await embedExportFonts(previewEl);
+    const linkTags = collected.linkTags;
 
     const pageBg = backgroundColor || '#ffffff';
     // 💡 미리보기에 적용된 dynamicCssString이 있으면 그대로 우선 적용하여 100% 화면 일치 보장
@@ -2501,7 +2504,9 @@ export async function exportHTML({
     const filename = `${baseName}.html`;
 
     // 💡 런타임에 에디터에 선언된 로컬 및 확장프로그램 스타일시트 추출
-    const { inlineStyles, linkTags } = collectAllStyles();
+    const collected = collectAllStyles();
+    const inlineStyles = collected.inlineStyles + "\n" + await embedExportFonts(previewEl);
+    const linkTags = collected.linkTags;
 
     // 💡 미리보기에 실제 렌더링된 font-family를 HTML 템플릿에도 반영 (동적 CSS 프로필 값 포함)
     const computedFontFamily = window.getComputedStyle(targetEl).fontFamily;
@@ -2814,7 +2819,7 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
     const blob = await generateEpub({ 
       title: epubTitle, 
       contentHtml: clone.innerHTML, 
-      dynamicCssString: activeCss, 
+      dynamicCssString: activeCss + "\n" + await embedExportFonts(previewEl), 
       fontFamily: computedFontFamily,
       exportPageBreakLevel: 'none'
     });
@@ -3049,34 +3054,7 @@ export async function exportPNG({
     // 이미지 및 스타일이 완전히 렌더링되도록 500ms 대기합니다.
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // 🌟 런타임에 브라우저 스타일시트에서 KaTeX 폰트 @font-face 룰들만 실시간으로 추출
-    //    이를 통해 외부 구글 폰트(CORS/CSP 에러 유발) fetch를 우회하고, 수식 렌더링에 필수적인 KaTeX 폰트만 임베딩합니다.
-    let katexFontCss = '';
-    if (typeof window !== 'undefined') {
-      try {
-        for (let i = 0; i < document.styleSheets.length; i++) {
-          const sheet = document.styleSheets[i];
-          try {
-            const rules = sheet.cssRules || sheet.rules;
-            if (!rules) continue;
-            for (let j = 0; j < rules.length; j++) {
-              const rule = rules[j];
-              if (rule.type === CSSRule.FONT_FACE_RULE) {
-                const fontFace = rule as CSSFontFaceRule;
-                const fontFamily = fontFace.style.getPropertyValue('font-family');
-                if (fontFamily && (fontFamily.includes('KaTeX') || fontFamily.includes('katex'))) {
-                  katexFontCss += fontFace.cssText + '\n';
-                }
-              }
-            }
-          } catch (e) {
-            // 크로스 도메인 스타일시트 파싱 에러 가드
-          }
-        }
-      } catch (err) {
-        msg.warn('KaTeX font extraction failed for exportPNG', err);
-      }
-    }
+    const katexFontCss = await embedExportFonts(previewEl);
 
     // 전체 본문 내용을 온전히 담기 위해 실제 콘텐츠의 scrollHeight를 측정합니다.
     const rawHeight = wrapper.scrollHeight || wrapper.clientHeight;

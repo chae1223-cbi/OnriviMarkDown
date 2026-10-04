@@ -32,9 +32,17 @@ export async function waitForExportResources(root: HTMLElement, timeoutMs = EXPO
     if (doc.fonts && typeof doc.fonts[Symbol.iterator] === 'function' && doc.defaultView) {
       const failedFonts = Array.from(doc.fonts).filter(face => face.status === 'error');
       if (failedFonts.length) {
-        const usedFamilies = [root, ...Array.from(root.querySelectorAll('*'))]
-          .map(element => doc.defaultView!.getComputedStyle(element).fontFamily.replace(/["']/g, '').toLowerCase());
-        const failed = failedFonts.find(face => usedFamilies.some(family => family.split(',').map(name => name.trim()).includes(face.family.replace(/["']/g, '').toLowerCase())));
+        const usedStyles = [root, ...Array.from(root.querySelectorAll('*'))]
+          .map(element => doc.defaultView!.getComputedStyle(element));
+        const failed = failedFonts.find(face => usedStyles.some(style => {
+          const primary = style.fontFamily.split(',')[0].trim().replace(/["']/g, '').toLowerCase();
+          if (primary !== face.family.replace(/["']/g, '').toLowerCase()) return false;
+          // An unused failed weight or a fallback family must not block the whole document.
+          if (doc.fonts.check && style.fontSize && style.fontWeight) {
+            return !doc.fonts.check(`${style.fontStyle || 'normal'} ${style.fontWeight} ${style.fontSize} "${face.family.replace(/["']/g, '')}"`);
+          }
+          return true;
+        }));
         if (failed) throw new Error(`문서 글꼴 (${failed.family})을 불러오지 못했습니다. 연결 상태나 글꼴 설정을 확인해 주세요.`);
       }
     }

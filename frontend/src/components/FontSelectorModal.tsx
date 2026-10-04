@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { rememberLocalFontSources } from '@/lib/localFontSources';
 
 // =====================================================================
 // 📊 [OMD-CORE-FontSelectorModal-0001] FontSelectorModal ➔ FontEntry
@@ -101,12 +102,9 @@ const FONT_NAME_MAP: Record<string, string> = {
 // ── 임베드 폰트 목록 (항상 목록 선두에 고정) ──
 const EMBEDDED_FONTS: FontEntry[] = [
   { name: '학교안심 포스터 B',         label: '학교안심 포스터 B' },
-  { name: '학교안심 포스터 OTF B',     label: '학교안심 포스터 OTF B' },
   { name: '학교안심 어항꾸미기 B',     label: '학교안심 어항꾸미기 B' },
-  { name: '학교안심 어항꾸미기 OTF B', label: '학교안심 어항꾸미기 OTF B' },
   { name: '학교안심 붓펜M',            label: '학교안심 붓펜M' },
   { name: '학교안심 보드마카 R',       label: '학교안심 보드마카 R' },
-  { name: '학교안심 보드마카 OTF R',   label: '학교안심 보드마카 OTF R' },
   { name: '디자인하우스체',            label: '디자인하우스체' },
   { name: '더서클체',                  label: '더서클체' },
   { name: 'EBS 주시경체',              label: 'EBS 주시경체' },
@@ -115,6 +113,9 @@ const EMBEDDED_FONTS: FontEntry[] = [
 ];
 
 const EMBEDDED_NAMES = new Set(EMBEDDED_FONTS.map(f => f.name));
+const LEGACY_EMBEDDED_ALIASES = new Set([
+  '학교안심 포스터 OTF B', '학교안심 어항꾸미기 OTF B', '학교안심 보드마카 OTF R',
+]);
 
 // queryLocalFonts 미지원 환경 폴백
 const FALLBACK_FONTS: FontEntry[] = [
@@ -152,10 +153,11 @@ async function collectFonts(): Promise<FontEntry[]> {
   try {
     if (typeof window !== 'undefined' && 'queryLocalFonts' in window) {
       const localFonts: any[] = await (window as any).queryLocalFonts();
+      rememberLocalFontSources(localFonts || []);
       if (localFonts && localFonts.length > 0) {
         const fontMap = new Map<string, FontEntry>();
         localFonts.forEach((font: any) => {
-          if (!fontMap.has(font.family) && !EMBEDDED_NAMES.has(font.family)) {
+          if (!fontMap.has(font.family) && !EMBEDDED_NAMES.has(font.family) && !LEGACY_EMBEDDED_ALIASES.has(font.family)) {
             fontMap.set(font.family, {
               name: font.family,
               label: FONT_NAME_MAP[font.family] || font.family,

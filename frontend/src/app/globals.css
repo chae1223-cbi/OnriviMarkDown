@@ -3,6 +3,13 @@
 
 /* 웹과 설치형 앱이 같은 글꼴 파일을 사용하도록 Pretendard를 로컬 정적 자산으로 제공한다. */
 @font-face {
+  font-family: 'Pretendard';
+  src: url('/fonts/pretendard/PretendardVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 45 920;
+  font-display: swap;
+}
+@font-face {
   font-family: 'Pretendard Variable';
   src: url('/fonts/pretendard/PretendardVariable.woff2') format('woff2');
   font-style: normal;
@@ -31,6 +38,28 @@
  * =================================================================== */
 
 /* ── 학교안심 글꼴 (경기도교육청 공식 배포, 고압축 WOFF2) ── */
+/* 기존 문서와 글꼴 선택창의 OTF 이름도 동일한 번들 파일로 연결한다. */
+@font-face {
+  font-family: '학교안심 포스터 OTF B';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_PosterB.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: '학교안심 어항꾸미기 OTF B';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_EohangkkumigiB.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: '학교안심 보드마카 OTF R';
+  src: url('/fonts/hakgyoansim/Hakgyoansim_BoardmarkerR.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 @font-face {
   font-family: '학교안심 포스터 B';
