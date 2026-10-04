@@ -3,6 +3,7 @@
 // ====================================================================
 // 📊 [OMD-FILE-FileTreeItem-0001] FileTreeItem ➔ FileTreeItem
 // 🎯 @KICK  : 파일 탐색기 트리 항목 컴포넌트 (파일/폴더 렌더링, 컨텍스트 메뉴, 지식 등록/해제)
+// 🚨 @PATCH : **2026-10-04** — [다른 폴더의 동일 파일명 삭제 시 현재 열린 탭 오종료 결함 해결]: handleDelete 내 단순 파일명 일치(currentFileName === node.name) 시 openFile(null) 강제 호출 로직을 제거하고, file:close-tab-by-path에 isDir 플래그를 추가하여 정확한 경로 기반으로만 탭 닫기 수행
 // 🚨 @PATCH : **2026-10-04** — [구글 드라이브 드래그앤드롭 이동(handleDrop) GDRIVE 분기 추가]: 드래그로 폴더 간 이동 시 GDRIVE 환경에서 moveDriveItem 호출로 Drive API 기반 실제 이동 수행
 // 🚨 @PATCH : **2026-10-03** — [파일/폴더 삭제 시 열린 탭 즉시 닫기 driveId/name 전면 연동]: handleDelete 시 file:close-tab-by-path에 driveId/name/path 일괄 전달하여 삭제된 파일 탭 미종료 결함 해결
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브(GDRIVE) 파일/폴더 삭제, 생성, 이름 변경 지원 및 /api/delete 404 차단]: 구글 드라이브 항목 삭제 시 trashDriveItem 연동, 생성 시 createDriveMarkdownFile/createDriveFolder 연동, 이름 변경 시 renameDriveItem 연동, 웹 환경 내 불필요한 미구현 /api/delete 등 백엔드 404 호출 원천 차단
@@ -1340,17 +1341,17 @@ const FileTreeItem = ({
             refreshParent();
             window.dispatchEvent(new CustomEvent('file:refresh-all-directories'));
           }
-          if (currentFileName === node.name) {
-            openFile(null); 
-          }
-          // 🚀 삭제된 파일/폴더와 연관된 탭들을 즉시 닫도록 이벤트 발송 (클라우드 driveId 및 path/name 전수 전송)
+          // 🚀 삭제된 파일/폴더와 연관된 탭들을 즉시 닫도록 이벤트 발송 (클라우드 driveId, 정확한 path, isDir 전수 전송)
+          // 🛡️ [동일 파일명 오종료 방어]: 단순 파일명(currentFileName === node.name) 비교로 openFile(null)을 호출하지 않고
+          // MainEditorApp의 handleCloseTabByPath에서 정확한 경로/ID 기반으로 대상 탭만 안전하게 종료합니다.
           const targetDriveId = (node as any).driveId || (node as any).driveFileId || (node as any).id;
           window.dispatchEvent(new CustomEvent('file:tab-deleted', { detail: { deletedPath: node.path || node.name, driveId: targetDriveId } }));
           window.dispatchEvent(new CustomEvent('file:close-tab-by-path', { 
             detail: { 
               path: node.path || node.name, 
               name: node.name, 
-              driveId: targetDriveId 
+              driveId: targetDriveId,
+              isDir: isDir
             } 
           }));
           showToast(`[${node.name}] ${isDir ? "폴더" : "파일"}가 삭제되었습니다.`, 'success');
@@ -1360,13 +1361,17 @@ const FileTreeItem = ({
         }
       }
     });
-  }, [node, showToast, localChildren, askConfirm, workspaceType, parentHandle, refreshParent, currentFileName, openFile]);
+  }, [node, showToast, localChildren, askConfirm, workspaceType, parentHandle, refreshParent]);
 
   const isSelected = (() => {
     if (currentFilePath && node.path) {
       const normCur = currentFilePath.replace(/\\/g, '/').toLowerCase();
       const normNode = node.path.replace(/\\/g, '/').toLowerCase();
       return normCur === normNode;
+    }
+    // 🛡️ 한쪽이라도 경로가 있으면 서로 다른 경로이므로 동명 파일이라도 false 처리
+    if (currentFilePath || node.path) {
+      return false;
     }
     if (currentFileName && node.name) {
       return currentFileName.toLowerCase() === node.name.toLowerCase();

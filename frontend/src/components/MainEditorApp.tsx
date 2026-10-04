@@ -4,6 +4,7 @@
  * 프로그램 ID : oaar-001
  * -----------------------------------------------------------------------
  * 변경내역
+// 🚨 @PATCH : **2026-10-04** — [다른 폴더의 동일 파일명 삭제 시 현재 열린 탭 오종료 결함 해결]: handleCloseTabByPath에서 단순 파일명 일치(targetFileName === tabName) 및 접두사 없는 단일 파일명의 endsWith 검사를 제거하고, 고유 driveId / 정확한 경로(tabPath === normTarget) / 폴더 하위(tabPath.startsWith) / 양방향 디렉터리 경로 포함 시에만 엄격하게 매칭하여 다른 폴더 동명 파일 탭이 오종료되는 현상을 완벽 박멸
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 문서 저장 시 브라우저 파일 다이얼로그 오작동 차단 & useEditorHandlers 직결 연동]: useEditorHandlers에 tabsRef와 saveFile을 주입하고, 클라우드 작업장 문서 저장 시 브라우저 저장 다이얼로그 오작동을 차단하여 구글 드라이브 다이렉트 무음 저장 및 새 문서 저장 프롬프트 정상화
 // 🚨 @PATCH : **2026-10-03** — [파일 삭제 시 열린 탭 자동 닫기(handleCloseTabByPath) driveId/name/접두사 매칭 전면 강화]: 탐색기에서 파일/폴더 삭제 시 driveId 일치, 경로 접두사 무시 매칭(endsWith), 파일명 일치를 모두 수용하여 열려있던 탭을 100% 자동 종료하고 모델 메모리 정리
 // 🚨 @PATCH : **2026-10-03** — [loadUserProfiles 리소스 폴더 미설정 시 불필요한 에러 토스트 차단]: 초기 진입 시 리소스 폴더 미지정 상태에 대한 정상 상태 수용 및 에러 토스트 오발송 방어
@@ -2927,37 +2928,55 @@ export default function MainEditorApp() {                  // @MainEditorApp : M
   // ====================================================================
   useEffect(() => {
     const handleCloseTabByPath = (e: Event) => {
-      const { path, name, driveId } = (e as CustomEvent).detail || {};
+      const { path, name, driveId, isDir } = (e as CustomEvent).detail || {};
       if (!path && !name && !driveId) return;
 
       const normTarget = (path || '').replace(/\\/g, '/').toLowerCase();
       const targetFileName = (name || (normTarget ? normTarget.split('/').pop() : '') || '').toLowerCase();
+      const hasTargetSlash = normTarget.includes('/');
 
-      // 삭제된 파일 또는 삭제된 폴더 하위에 속한 탭들 찾기
+      // 🛡️ [동일 파일명 오종료 방어]: 삭제된 파일 또는 삭제된 폴더 하위에 속한 탭들만 엄격하게 필터링
       const tabsToClose = tabsRef.current.filter(t => {
-        // 1. Google Drive ID 일치 확인
+        // 1. Google Drive 고유 ID 일치 확인 (가장 확실한 식별자)
         const tabDriveId = (t as any).driveFileId || (t as any).driveId || (t as any).id;
         if (driveId && tabDriveId && String(driveId) === String(tabDriveId)) {
           return true;
         }
 
         const tabPath = (t.path || '').replace(/\\/g, '/').toLowerCase();
-        // 2. 정확한 경로 일치 또는 하위 폴더 일치
-        if (normTarget && (tabPath === normTarget || tabPath.startsWith(normTarget + '/'))) {
+        const hasTabSlash = tabPath.includes('/');
+
+        // 2. 정확한 경로 일치 (파일 또는 폴더 경로가 100% 동일)
+        if (normTarget && tabPath && tabPath === normTarget) {
           return true;
         }
 
-        // 3. 경로 끝부분 매칭 (접두사 상이 방어: 예 OnriviAuthor/작업장/02_문서.md vs 02_문서.md)
-        if (normTarget && tabPath && (tabPath.endsWith('/' + normTarget) || normTarget.endsWith('/' + tabPath))) {
-          return true;
+        // 3. 폴더 삭제 시: 해당 폴더 하위에 속한 탭들 닫기
+        if (normTarget && tabPath && (isDir || normTarget.endsWith('/'))) {
+          const folderPrefix = normTarget.endsWith('/') ? normTarget : normTarget + '/';
+          if (tabPath.startsWith(folderPrefix)) {
+            return true;
+          }
         }
 
-        // 4. 파일명 일치 여부
-        const tabName = (t.name || (tabPath ? tabPath.split('/').pop() : '') || '').toLowerCase();
-        if (targetFileName && tabName === targetFileName) {
-          return true;
+        // 4. 경로 끝부분 매칭: 단, 양쪽 모두 디렉토리 경로 구분자(/)를 포함하고 있을 때만!
+        // (예: 절대경로 D:/project/folderA/test.md vs 상대경로 folderA/test.md)
+        // 🚨 단일 파일명(test.md)만으로 endsWith 매칭을 수행하면 다른 폴더의 동명 파일이 닫히므로 차단
+        if (hasTargetSlash && hasTabSlash) {
+          if (tabPath.endsWith('/' + normTarget) || normTarget.endsWith('/' + tabPath)) {
+            return true;
+          }
         }
 
+        // 5. 경로가 양쪽 모두 완전히 없는(미저장 가상 파일 등) 경우에만 한하여 파일명 단독 비교
+        if (!normTarget && !tabPath && targetFileName) {
+          const tabName = (t.name || '').toLowerCase();
+          if (tabName === targetFileName) {
+            return true;
+          }
+        }
+
+        // 그 외: 다른 경로에 있는 동일 파일명의 파일은 절대 닫지 않음!
         return false;
       });
 
