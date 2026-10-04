@@ -283,7 +283,7 @@ export async function generateEpub({
               }
               const buffer = bytes.buffer;
               
-              zip.file(epubImgPath, buffer);
+              zip.file(epubImgPath, buffer, { compression: ext === 'svg' ? 'DEFLATE' : 'STORE' });
               embeddedImages.push({
                 id: `img_${idx}`,
                 href: `images/${filename}`,
@@ -312,7 +312,7 @@ export async function generateEpub({
             const buffer = await imageBlob.arrayBuffer();
             
             // ZIP에 파일 직접 동봉
-            zip.file(epubImgPath, buffer);
+            zip.file(epubImgPath, buffer, { compression: ext === 'svg' ? 'DEFLATE' : 'STORE' });
             
             const mimeType = imageBlob.type || getMimeType(filename);
             embeddedImages.push({
@@ -870,6 +870,24 @@ del {
 #toc .toc-level-5 { margin-left:4em !important; }
 #toc .toc-level-6 { margin-left:5em !important; }
 `;
+  // Keep binary fonts out of the CSS: base64 inflates it and makes ZIP compression expensive.
+  const packagedFonts = new Map<string, { path: string; mime: string }>();
+  styleCss = styleCss.replace(/url\(["']?(data:[^;,)]+;base64,[A-Za-z0-9+/=]+)["']?\)/g, (original, data: string) => {
+    let entry = packagedFonts.get(data);
+    if (!entry) {
+      const binary = atob(data.slice(data.indexOf(',') + 1));
+      const signature = binary.slice(0, 4);
+      const extension = signature === 'wOF2' ? 'woff2' : signature === 'wOFF' ? 'woff' : signature === 'OTTO' ? 'otf' : signature === '\u0000\u0001\u0000\u0000' ? 'ttf' : null;
+      if (!extension) return original;
+      const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+      entry = { path: `fonts/font_${packagedFonts.size}.${extension}`, mime: `font/${extension}` };
+      zip.file(`OEBPS/${entry.path}`, bytes, { compression: extension.startsWith('woff') ? 'STORE' : 'DEFLATE' });
+      packagedFonts.set(data, entry);
+    }
+    return `url("../${entry.path}")`;
+  });
+  const fontManifestItems = Array.from(packagedFonts.values()).map((font, index) =>
+    `<item id="font_${index}" href="${font.path}" media-type="${font.mime}"/>`).join('\n');
   zip.file('OEBPS/styles/style.css', styleCss);
 
   // 8.5. OEBPS/toc.ncx (EPUB2 호환성 목차 파일 생성 - 교보문고, 예스24, 리디북스 등 국내외 이북 리더기 필수 하위 호환 규격)
@@ -922,6 +940,7 @@ del {
     ${sectionManifestItems}
     <item id="style" href="styles/style.css" media-type="text/css"/>
     ${imageManifestItems}
+    ${fontManifestItems}
   </manifest>
   <spine toc="ncx">
     <itemref idref="toc"/>
@@ -932,7 +951,7 @@ del {
 
   // 10. ZIP 파일 생성 및 Blob 반환 (arraybuffer로 생성 후 Blob으로 수동 래핑하여 mimetype이 첫 바이트임을 보장)
   // mimetype은 압축하지 않고(STORE), 나머지 리소스는 표준대로 효율적으로 압축(DEFLATE) 처리합니다!
-  const arrayBuffer = await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
+  const arrayBuffer = await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE', compressionOptions: { level: 1 } });
   return new Blob([arrayBuffer], { type: 'application/epub+zip' });
   return new Blob([arrayBuffer], { type: 'application/epub+zip' });
 }

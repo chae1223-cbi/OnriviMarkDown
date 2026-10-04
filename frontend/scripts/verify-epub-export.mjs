@@ -37,4 +37,19 @@ for(const level of ['none','h2'])test(`EPUB ${level}: valid XML, full heading na
  }
  assert.equal(xhtml.length,level==='none'?1:2);
 });
+test('embedded fonts become deduplicated binary resources with valid manifest and CSS paths',async()=>{
+ const font=Buffer.from([0,1,0,0,1,2,3,4]);
+ const uri='data:font/ttf;base64,'+font.toString('base64');
+ const blob=await generateEpub({title:'Fonts',contentHtml:'<h1>Title</h1>',dynamicCssString:`@font-face {font-family:Test;src:url("${uri}");font-weight:400;} @font-face {font-family:Alias;src:url("${uri}");font-weight:400;}`});
+ const zip=await JSZip.loadAsync(await blob.arrayBuffer());
+ const resources=Object.keys(zip.files).filter(path=>/font_\d+\.ttf$/.test(path));
+ assert.equal(resources.length,1);
+ assert.deepEqual(await zip.file(resources[0]).async('nodebuffer'),font);
+ const css=await zip.file('OEBPS/styles/style.css').async('string');
+ assert.doesNotMatch(css,/data:font\/ttf/);
+ assert.equal((css.match(/\.\.\/fonts\/font_0.ttf/g)||[]).length,2);
+ const manifest=new DOMParser().parseFromString(await zip.file('OEBPS/content.opf').async('string'),'application/xml');
+ assert.equal(manifest.querySelector('parsererror'),null);
+ assert.equal(manifest.querySelector('item[id="font_0"]').getAttribute('media-type'),'font/ttf');
+});
 

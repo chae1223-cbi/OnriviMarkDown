@@ -21,6 +21,9 @@ const root = {
   ] }],
  }, querySelectorAll: () => [],
 };
+function uniqueRoot(filename) {
+ return {...root,ownerDocument:{...root.ownerDocument,styleSheets:root.ownerDocument.styleSheets.map(sheet=>({...sheet,cssRules:sheet.cssRules.map(rule=>({cssText:rule.cssText.replace('doc.ttf',filename)}))}))}};
+}
 test('selected document font is embedded, unrelated fonts are not fetched', async () => {
  const urls=[];
  globalThis.fetch=async url => { urls.push(url); return { ok:true, blob:async()=>new window.Blob(['font-data'],{type:'font/ttf'}) }; };
@@ -29,10 +32,20 @@ test('selected document font is embedded, unrelated fonts are not fetched', asyn
  assert.match(css,/url\("data:font\/ttf;base64,/);
  assert.doesNotMatch(css,/Unused Font|\/fonts\/doc.ttf/);
  assert.match(css,/font-weight:400/);
+ await embedExportFonts(root);
+ assert.equal(urls.length,1,'second export reuses font data');
 });
 test('missing selected font stops export with a named diagnostic',async()=>{
  globalThis.fetch=async()=>({ok:false,status:404});
- await assert.rejects(embedExportFonts(root),/document font.*배포 경로/);
+ await assert.rejects(embedExportFonts(uniqueRoot('missing.ttf')),/document font.*배포 경로/);
+});
+test('bundled document fonts do not request unrelated imported CDN sheets',async()=>{
+ const fonts=[{family:'Document Font',status:'loaded'}];
+ const doc={...root.ownerDocument,fonts,styleSheets:[{...root.ownerDocument.styleSheets[0],cssRules:[...root.ownerDocument.styleSheets[0].cssRules,{cssText:'@import url("https://example.test/unrelated.css");'}]}]};
+ let requests=0;
+ globalThis.fetch=async()=>{requests++;throw Error('no network expected');};
+ await embedExportFonts({...root,ownerDocument:doc});
+ assert.equal(requests,0);
 });
 test('all bundled font-face paths exist in the web and desktop asset source', async () => {
  const css=await readFile(new URL('../src/app/globals.css',import.meta.url),'utf8');
@@ -53,7 +66,7 @@ test('every font listed as bundled has a matching CSS family and legacy OTF entr
 });
 test('HTML returned instead of a font is rejected',async()=>{
  globalThis.fetch=async()=>({ok:true,blob:async()=>new window.Blob(['<!doctype html>'],{type:'text/html'})});
- await assert.rejects(embedExportFonts(root),/document font/);
+ await assert.rejects(embedExportFonts(uniqueRoot('invalid.ttf')),/document font/);
 });
 test('local user fonts include regular and bold files without fetching system paths',async()=>{
  rememberLocalFontSources([

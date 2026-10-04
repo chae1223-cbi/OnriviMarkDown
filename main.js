@@ -3799,6 +3799,7 @@ ipcMain.handle('pdf:printToPDF', async (event, options) => {
 
 // 21-2. HTML 기반 PDF 인쇄 (임시 오프스크린 창 빌드 및 네이티브 printToPDF 구동)
 ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
+  const printStartedAt = Date.now();
   let printWindow = null;
   let tempFilePath = null;
   try {
@@ -3817,6 +3818,7 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
     fs.writeFileSync(tempFilePath, html, 'utf8');
     
     await printWindow.loadFile(tempFilePath);
+    console.info('[PDF desktop] HTML load ms:', Date.now() - printStartedAt);
 
     // Wait for the actual print document, including image decoding and web fonts.
     await printWindow.webContents.executeJavaScript(`(async () => {
@@ -3827,9 +3829,15 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
             if (document.fonts) await document.fonts.ready;
             const failedFonts = Array.from(document.fonts || []).filter(face => face.status === 'error');
             if (failedFonts.length) {
-              const used = Array.from(document.querySelectorAll('*')).map(el => getComputedStyle(el).fontFamily.replace(/["']/g, '').toLowerCase());
-              if (failedFonts.some(face => used.some(family => family.split(',').map(name => name.trim()).includes(face.family.replace(/["']/g, '').toLowerCase())))) {
-                throw new Error('인쇄 문서의 글꼴을 불러오지 못했습니다. 연결 상태나 글꼴 설정을 확인해 주세요.');
+              const used = Array.from(document.querySelectorAll('body, body *')).map(el => getComputedStyle(el));
+              const failed = failedFonts.find(face => used.some(style => {
+                const family = face.family.replace(/["']/g, '').toLowerCase();
+                if (style.fontFamily.split(',')[0].trim().replace(/["']/g, '').toLowerCase() !== family) return false;
+                const descriptor = (style.fontStyle || 'normal') + ' ' + style.fontWeight + ' ' + style.fontSize + ' "' + face.family.replace(/["']/g, '') + '"';
+                return !document.fonts.check(descriptor);
+              }));
+              if (failed) {
+                throw new Error('인쇄 문서의 글꼴 (' + failed.family + ')을 불러오지 못했습니다. 글꼴 파일과 내보내기 설정을 확인해 주세요.');
               }
             }
             await Promise.all(Array.from(document.images).map(async (image, index) => {
@@ -3845,6 +3853,7 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
         ]);
       } finally { clearTimeout(timer); }
     })()`);
+    console.info('[PDF desktop] resources ready ms:', Date.now() - printStartedAt);
 
     // 4. Chromium 네이티브 A4 인쇄 규격으로 PDF 파일 구워내기
     const pdfOptions = {
@@ -3860,6 +3869,7 @@ ipcMain.handle('pdf:printHTMLToPDF', async (event, html, options) => {
     };
     
     const pdfBuffer = await printWindow.webContents.printToPDF(pdfOptions);
+    console.info('[PDF desktop] completed ms:', Date.now() - printStartedAt);
     return pdfBuffer;
   } catch (e) {
     console.error('Electron printHTMLToPDF 에러:', e);

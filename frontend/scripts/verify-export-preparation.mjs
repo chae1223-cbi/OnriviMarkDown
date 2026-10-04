@@ -63,6 +63,24 @@ test('Electron print preparation runs only after image decoding and rejects brok
 test('hanging resource preparation ends with an error', async () => {
   await assert.rejects(prep.waitForExportResources({ ownerDocument: { fonts: { ready: new Promise(() => {}) } }, querySelectorAll: () => [] }, 10), /시간이 초과/);
 });
+test('desktop print ignores obsolete font failures but reports an unavailable selected font', async () => {
+  const source = await readFile(new URL('../../main.js', import.meta.url), 'utf8');
+  const handler = source.slice(source.indexOf("ipcMain.handle('pdf:printHTMLToPDF'"));
+  const script = handler.match(/executeJavaScript\(`([\s\S]*?)`\)/)[1];
+  const fonts = [{ status: 'error', family: 'Selected Font' }, { status: 'error', family: 'Unused Font' }];
+  fonts.ready = Promise.resolve();
+  fonts.check = () => true;
+  const context = {
+    document: { fonts, images: [], querySelectorAll: () => [{}] },
+    getComputedStyle: () => ({ fontFamily: '"Selected Font", "Unused Font", sans-serif', fontWeight: '400', fontSize: '16px', fontStyle: 'normal' }),
+    setTimeout, clearTimeout, requestAnimationFrame: callback => callback(),
+  };
+  await vm.runInNewContext(script, context);
+  fonts.check = () => false;
+  await assert.rejects(vm.runInNewContext(script, context), /Selected Font/);
+  fonts.splice(0, 1);
+  await vm.runInNewContext(script, context);
+});
 
 test('latest preview content must match before snapshot', async () => {
   const expected = '마지막 한글 글자';

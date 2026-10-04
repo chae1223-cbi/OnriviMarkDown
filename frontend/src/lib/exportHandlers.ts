@@ -2020,7 +2020,7 @@ export async function exportPDF({
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
     const collected = collectAllStyles();
-    const inlineStyles = collected.inlineStyles + "\n" + await embedExportFonts(previewEl);
+    const inlineStyles = collected.inlineStyles.replace(/@font-face\s*\{[^}]*\}/gi, '') + "\n" + await embedExportFonts(previewEl);
     const linkTags = collected.linkTags;
 
     const pageBg = backgroundColor || '#ffffff';
@@ -2386,7 +2386,12 @@ export async function exportPDF({
         return Math.max(mm, 0) / 25.4;
       };
 
-      const pdfBuffer: Uint8Array = await (window as any).electronAPI.printHTMLToPDF(finalHtml, {
+      // Font files and application styles are already embedded. Do not make the
+      // temporary desktop window wait for Google Fonts/CDN requests again.
+      const desktopHtml = finalHtml
+        .replace(/<link\b[^>]*href=["']https?:\/\/[^>]*>/gi, '')
+        .replace(/@import\s+(?:url\([^;]+\)|["'][^"']+["'])[^;]*;/gi, '');
+      const pdfBuffer: Uint8Array = await (window as any).electronAPI.printHTMLToPDF(desktopHtml, {
         landscape: isLandscape,
         margins: {
           marginType: 'none'
@@ -2505,7 +2510,7 @@ export async function exportHTML({
 
     // 💡 런타임에 에디터에 선언된 로컬 및 확장프로그램 스타일시트 추출
     const collected = collectAllStyles();
-    const inlineStyles = collected.inlineStyles + "\n" + await embedExportFonts(previewEl);
+    const inlineStyles = collected.inlineStyles.replace(/@font-face\s*\{[^}]*\}/gi, '') + "\n" + await embedExportFonts(previewEl);
     const linkTags = collected.linkTags;
 
     // 💡 미리보기에 실제 렌더링된 font-family를 HTML 템플릿에도 반영 (동적 CSS 프로필 값 포함)
