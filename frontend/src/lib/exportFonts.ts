@@ -36,6 +36,10 @@ export async function embedExportFonts(root: HTMLElement): Promise<string> {
       const rule = match[0];
       const family = /font-family\s*:\s*([^;}]*)/i.exec(rule)?.[1].trim().replace(/["']/g, '').toLowerCase();
       if (!family || !families.has(family)) continue;
+      const weight = /font-weight\s*:\s*([^;}]+)/i.exec(rule)?.[1].trim() || 'normal';
+      const loadedFaces = doc.fonts && typeof doc.fonts[Symbol.iterator] === 'function'
+        ? Array.from(doc.fonts).filter(face => face.status === 'loaded' && normalizeFamily(face.family) === family && face.weight) : [];
+      if (loadedFaces.length && !loadedFaces.some(face => face.weight === weight)) continue;
       const unicodeRange = /unicode-range\s*:\s*([^;}]+)/i.exec(rule)?.[1];
       if (unicodeRange && !codepoints.some(point => unicodeRange.split(',').some(range => {
         const value = range.trim().replace(/^U\+/i, '');

@@ -195,6 +195,7 @@ interface EpubOptions {
   dynamicCssString?: string;
   fontFamily?: string;
   exportPageBreakLevel?: string;
+  onProgress?: (percent: number) => void;
 }
 
 interface EmbeddedImage {
@@ -217,7 +218,8 @@ export async function generateEpub({
   contentHtml,
   dynamicCssString,
   fontFamily,
-  exportPageBreakLevel = 'none'
+  exportPageBreakLevel = 'none',
+  onProgress
 }: EpubOptions): Promise<Blob> {
   const zip = new JSZip();
   const uuid = typeof crypto !== 'undefined' && crypto.randomUUID 
@@ -951,7 +953,11 @@ del {
 
   // 10. ZIP 파일 생성 및 Blob 반환 (arraybuffer로 생성 후 Blob으로 수동 래핑하여 mimetype이 첫 바이트임을 보장)
   // mimetype은 압축하지 않고(STORE), 나머지 리소스는 표준대로 효율적으로 압축(DEFLATE) 처리합니다!
-  const arrayBuffer = await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE', compressionOptions: { level: 1 } });
+  let lastReported = -1;
+  const arrayBuffer = await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE', compressionOptions: { level: 1 } }, metadata => {
+    const percent = Math.floor(metadata.percent);
+    if (percent !== lastReported) { lastReported = percent; onProgress?.(percent); }
+  });
   return new Blob([arrayBuffer], { type: 'application/epub+zip' });
   return new Blob([arrayBuffer], { type: 'application/epub+zip' });
 }

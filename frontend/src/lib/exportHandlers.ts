@@ -1,4 +1,5 @@
 import { embedExportFonts } from './exportFonts';
+import { startExportProgress } from './exportProgress';
 // 🚨 @PATCH : **2026-10-01** — [내보내기(PDF/HTML/인쇄) 시 [align="right"] 및 [style*="text-align: right"] 우측 정렬 전역 보장]: generateExportCss에 우측/중앙 정렬 셀렉터를 명시하여 본문 p { text-align: left !important; }가 서명/날짜/발신인 등의 우측 정렬을 덮어쓰지 않도록 완전 보장
 // 🚨 @PATCH : **2026-10-01** — [PDF 3·4·5페이지 섹션 시작 조판 최적화 및 제목+소개+미디어 원자적 결속]: H1~H6 바로 뒤의 소개 문단/목록이 핵심 이미지나 다이어그램으로 이어질 때, 이미지가 다음 페이지로 넘어갈 경우 제목과 한 줄 소개만 앞 페이지 하단에 덩그러니 남겨지는 분리 현상을 원천 방어하도록 break-after: avoid를 결속하여 제목+소개+이미지가 다음 페이지 첫머리에서 온전히 함께 시작되도록 출판형 조판 완성
 // 🚨 @PATCH : **2026-10-01** — [PDF Mermaid 다이어그램 컨테이너 분할 분리 및 이전 페이지 빈 사각형 잔상 버그 완전 해결]: .not-prose, .not-prose > div, .mermaid-svg-container, .mermaid-block-container에 break-inside: avoid를 전면 강제 적용하여 컨테이너와 SVG가 분리되어 이전 페이지에 빈 사각형 박스가 남는 렌더링 결함을 완전히 차단하고, 도표 전체가 한 덩어리로 온전히 다음 페이지로 넘어가도록 원자적(Atomic) 조판 완결
@@ -1929,14 +1930,29 @@ export async function exportPDF({
   dynamicCssString, marginTop, marginBottom, marginLeft, marginRight, backgroundColor, 
   activeProfile
 }: ExportOptions) {
+  let progress: ReturnType<typeof startExportProgress> | undefined;
   try {
+    const desktopApi = (window as any).electronAPI;
+    let exportDestination: string | undefined;
+    if (desktopApi?.saveBinaryFile) {
+      const selection = await desktopApi.showSaveDialog({
+        title: 'PDF 저장 위치 선택',
+        defaultPath: currentFileName.replace(/\.[^/.]+$/, '') + '.pdf',
+        filters: [{ name: 'PDF Documents', extensions: ['pdf'] }]
+      });
+      if (selection.canceled || !selection.filePath) { showToast('내보내기가 취소되었습니다.', 'info'); return; }
+      exportDestination = selection.filePath;
+    }
     showToast('PDF 내보내기 준비 중...', 'info');
+    progress = startExportProgress('PDF');
+    progress.update('미리보기 확인 중');
     flushIME();
 
     await prepareExportPreview(previewEl);
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
     const clone = clonePreview(targetEl);
     markLeadExportFigure(clone);
+    progress.update('이미지 준비 중');
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
 
     // 🛡️ Mermaid SVG가 페이지를 넘을 때 헤더(타이틀바)가 분리되지 않고 컨테이너와 SVG가 한 덩어리로 유지되도록
@@ -2020,7 +2036,8 @@ export async function exportPDF({
     const isElectron = typeof window !== 'undefined' && !!(window as any).electronAPI;
 
     const collected = collectAllStyles();
-    const inlineStyles = collected.inlineStyles.replace(/@font-face\s*\{[^}]*\}/gi, '') + "\n" + await embedExportFonts(previewEl);
+    progress.update('사용 중인 글꼴 준비 중');
+    const inlineStyles = collected.inlineStyles.replace(/@font-face\s*\{[^}]*\}/gi, '') + "\n" + await withExportTimeout(embedExportFonts(previewEl), '내보내기 글꼴', 60000);
     const linkTags = collected.linkTags;
 
     const pageBg = backgroundColor || '#ffffff';
@@ -2391,6 +2408,7 @@ export async function exportPDF({
       const desktopHtml = finalHtml
         .replace(/<link\b[^>]*href=["']https?:\/\/[^>]*>/gi, '')
         .replace(/@import\s+(?:url\([^;]+\)|["'][^"']+["'])[^;]*;/gi, '');
+      progress.update('PDF 페이지 생성 중');
       const pdfBuffer: Uint8Array = await (window as any).electronAPI.printHTMLToPDF(desktopHtml, {
         landscape: isLandscape,
         margins: {
@@ -2406,7 +2424,13 @@ export async function exportPDF({
         throw new Error("PDF 버퍼 데이터를 수신하지 못했습니다.");
       }
 
-      // Uint8Array 버퍼를 Base64로 전환하여 파일 저장 API 호출
+      if (exportDestination) {
+        progress.update('PDF 파일 저장 중');
+        await desktopApi.saveBinaryFile(exportDestination, new Uint8Array(pdfBuffer));
+        showToast('PDF 파일이 성공적으로 저장되었습니다.', 'success');
+        return;
+      }
+      // 이전 preload 버전 호환 경로
       const base64Data = Buffer.from(pdfBuffer).toString('base64');
       const dataUrl = `data:application/pdf;base64,${base64Data}`;
 
@@ -2465,6 +2489,8 @@ export async function exportPDF({
   } catch (err: any) {
     msg.error('PDF export error', err);
     showToast('PDF 내보내기 실패: ' + err.message, 'error');
+  } finally {
+    progress?.finish();
   }
 }
 
@@ -2692,13 +2718,28 @@ export async function exportHTML({
 // 🔗 @CALLS : clonePreview, inlineLocalImages, injectExportStyles, generateEpub, downloadBlob, saveToDownloads
 // ====================================================================
 export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showToast, dynamicCssString, backgroundColor, activeProfile }: ExportOptions) {
+  let progress: ReturnType<typeof startExportProgress> | undefined;
   try {
+    const desktopApi = (window as any).electronAPI;
+    let exportDestination: string | undefined;
+    if (desktopApi?.saveBinaryFile) {
+      const selection = await desktopApi.showSaveDialog({
+        title: 'EPUB 저장 위치 선택',
+        defaultPath: currentFileName.replace(/\.[^/.]+$/, '') + '.epub',
+        filters: [{ name: 'EPUB Documents', extensions: ['epub'] }]
+      });
+      if (selection.canceled || !selection.filePath) { showToast('내보내기가 취소되었습니다.', 'info'); return; }
+      exportDestination = selection.filePath;
+    }
     showToast('EPUB 내보내기 준비 중...', 'info');
+    progress = startExportProgress('EPUB');
+    progress.update('미리보기 확인 중');
 
     // ✅ PDF/HTML과 동일한 타겟팅
     await prepareExportPreview(previewEl);
     const targetEl = previewEl.querySelector('.markdown-viewer-root') as HTMLElement || previewEl;
     const clone = clonePreview(targetEl);
+    progress.update('이미지 준비 중');
     await inlineLocalImages(clone); // 이미지 Base64 인라인 변환 추가
 
     // 🌟 EPUB 내보내기 가로폭 제약 초기화 패치: clone 객체의 인라인 가로폭 제약을 제거하여 리더기 뷰포트에 맞게 자연스러운 흐름을 보장하도록 보정
@@ -2821,16 +2862,24 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
       img.style.setProperty('break-inside', 'avoid', 'important');
     });
 
+    progress.update('사용 중인 글꼴 준비 중');
+    const fontCss = await withExportTimeout(embedExportFonts(previewEl), '내보내기 글꼴', 60000);
+    progress.update('전자책 구성 중');
     const blob = await generateEpub({ 
       title: epubTitle, 
       contentHtml: clone.innerHTML, 
-      dynamicCssString: activeCss + "\n" + await embedExportFonts(previewEl), 
+      dynamicCssString: activeCss + "\n" + fontCss,
+      onProgress: percent => progress?.update(`전자책 압축 중 ${Math.floor(percent)}%`),
       fontFamily: computedFontFamily,
       exportPageBreakLevel: 'none'
     });
 
     showToast('EPUB 저장 중...', 'info');
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    progress.update('EPUB 파일 저장 중');
+    if (exportDestination) {
+      await desktopApi.saveBinaryFile(exportDestination, new Uint8Array(await blob.arrayBuffer()));
+      showToast('EPUB 파일이 성공적으로 저장되었습니다.', 'success');
+    } else if (typeof window !== 'undefined' && (window as any).electronAPI) {
       const reader = new FileReader();
       const savePromise = new Promise<boolean>((resolve) => {
         reader.onloadend = async () => {
@@ -2873,6 +2922,8 @@ export async function exportEPUB({ previewEl, currentFileName, isDarkMode, showT
     msg.error('EPUB export error', err);
     const errMsg = err?.message || err?.toString() || '알 수 없는 오류';
     showToast('EPUB 내보내기 실패: ' + errMsg, 'error');
+  } finally {
+    progress?.finish();
   }
 }
 

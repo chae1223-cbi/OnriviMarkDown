@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { requestGoogleDriveAuth } from '@/lib/gdrive/googleDriveClient';
+import { requestGoogleDriveAuth, loadGoogleIdentityScript } from '@/lib/gdrive/googleDriveClient';
 import { CheckCircle2, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
 
 function GoogleDriveDesktopBridgeContent() {
@@ -17,9 +17,18 @@ function GoogleDriveDesktopBridgeContent() {
 
   const [status, setStatus] = useState<'idle' | 'authorizing' | 'sending' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isGoogleReady, setIsGoogleReady] = useState(false);
 
   const handleAuthorize = React.useCallback(async () => {
     try {
+      // Script loading may consume the click's popup permission. Prepare first,
+      // then let the user initiate authorization with a fresh click.
+      if (!(window as any).google?.accounts?.oauth2) {
+        await loadGoogleIdentityScript();
+        setIsGoogleReady(true);
+        setStatus('idle');
+        return;
+      }
       setStatus('authorizing');
       setErrorMessage('');
 
@@ -56,13 +65,16 @@ function GoogleDriveDesktopBridgeContent() {
     }
   }, [port]);
 
-  // 진입 시 자동 인증 팝업 유도 (팝업 차단 방어를 위해 500ms 후 1회 자동 실행)
+  // Preload GIS only. Opening a popup from a timer has no browser user activation.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      handleAuthorize();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [handleAuthorize]);
+    let disposed = false;
+    loadGoogleIdentityScript().then(() => {
+      if (!disposed) setIsGoogleReady(true);
+    }).catch((error: Error) => {
+      if (!disposed) { setStatus('error'); setErrorMessage(error.message); }
+    });
+    return () => { disposed = true; };
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950 p-4 font-sans text-zinc-900 dark:text-zinc-100">
@@ -144,10 +156,11 @@ function GoogleDriveDesktopBridgeContent() {
             </p>
             <button
               onClick={handleAuthorize}
+              disabled={!isGoogleReady}
               className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md transition-all cursor-pointer"
             >
               <ExternalLink className="w-4 h-4" />
-              Google 계정으로 로그인
+              {isGoogleReady ? 'Google 계정으로 로그인' : 'Google 로그인 준비 중...'}
             </button>
           </div>
         )}

@@ -2853,8 +2853,21 @@ ipcMain.handle('file:saveAs', async (event, content, suggestedName, defaultDir, 
 // 4.5 프론트엔드에서 저장 다이얼로그 호출
 ipcMain.handle('dialog:showSaveDialog', async (event, options) => {
   if (!mainWindow) return { canceled: true };
-  const result = await dialog.showSaveDialog(mainWindow, options);
+  const settings = { ...options };
+  if (settings.defaultPath && !path.isAbsolute(settings.defaultPath)) {
+    settings.defaultPath = path.join(app.getPath('downloads'), path.basename(settings.defaultPath));
+  }
+  console.info('[Save dialog] requested');
+  const result = await dialog.showSaveDialog(mainWindow, settings);
   return result;
+});
+
+ipcMain.handle('file:saveBinary', async (event, filePath, bytes) => {
+  if (typeof filePath !== 'string' || !path.isAbsolute(filePath) || !(bytes instanceof Uint8Array)) {
+    throw new Error('파일 저장 경로나 데이터가 올바르지 않습니다.');
+  }
+  await fs.promises.writeFile(filePath, bytes);
+  return { name: path.basename(filePath), path: filePath };
 });
 
 // 4. 프론트엔드에서 폴더 선택 다이얼로그 호출 시 OS 표준 창 띄우기

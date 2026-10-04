@@ -38,9 +38,12 @@ for(const level of ['none','h2'])test(`EPUB ${level}: valid XML, full heading na
  assert.equal(xhtml.length,level==='none'?1:2);
 });
 test('embedded fonts become deduplicated binary resources with valid manifest and CSS paths',async()=>{
+ const updates=[];
  const font=Buffer.from([0,1,0,0,1,2,3,4]);
  const uri='data:font/ttf;base64,'+font.toString('base64');
- const blob=await generateEpub({title:'Fonts',contentHtml:'<h1>Title</h1>',dynamicCssString:`@font-face {font-family:Test;src:url("${uri}");font-weight:400;} @font-face {font-family:Alias;src:url("${uri}");font-weight:400;}`});
+ const blob=await generateEpub({title:'Fonts',contentHtml:'<h1>Title</h1>',onProgress:percent=>updates.push(percent),dynamicCssString:`@font-face {font-family:Test;src:url("${uri}");font-weight:400;} @font-face {font-family:Alias;src:url("${uri}");font-weight:400;}`});
+ assert.equal(updates.at(-1),100);
+ assert.ok(updates.every(percent=>percent>=0&&percent<=100));
  const zip=await JSZip.loadAsync(await blob.arrayBuffer());
  const resources=Object.keys(zip.files).filter(path=>/font_\d+\.ttf$/.test(path));
  assert.equal(resources.length,1);

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 3. 다른 이름으로 저장 대화상자를 띄워 파일 기록 (워크스페이스 경로 지원)
   saveFileAs: (content, suggestedName, defaultDir, filters) => ipcRenderer.invoke('file:saveAs', content, suggestedName, defaultDir, filters),
+  saveBinaryFile: (filePath, bytes) => ipcRenderer.invoke('file:saveBinary', filePath, bytes),
 
   // 4. 경로를 지정하여 직접 파일 읽기 (검색 결과 파일 로드용)
   readFromPath: (filePath) => ipcRenderer.invoke('file:readFromPath', filePath),
