@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-04** — [데스크톱 Google OAuth 400 invalid_request 해결 & 시스템 브라우저 웹 Handoff 및 루프백 브리지 엔진 신설]: Google의 임베디드 웹뷰 및 비표준 redirect_uri 차단 정책을 준수하기 위해 gdrive:request-auth IPC 핸들러 및 임시 루프백 서버(http://127.0.0.1:port)를 가동하고, 시스템 기본 브라우저(https://onrivi.com/auth/google-drive-desktop)를 통해 GIS 인증 후 토큰을 데스크톱으로 즉각 수신하는 이중 브리지(루프백 fetch + onriviauthor:// 딥링크) 탑재
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 GIS 연동을 위한 CSP 정책 확장]: cspDirectives 내 script-src, frame-src에 https://accounts.google.com 추가 및 connect-src에 https://accounts.google.com, https://www.googleapis.com 추가하여 구글 로그인 및 드라이브 API 통신 허용
 // 🚨 @PATCH : **2026-10-02** — [클립보드 탐색기 파일 복사 및 스크린샷 3중 네이티브 추출 강화]: clipboard:readImage 핸들러에서 비트맵 외에 Windows FileNameW 버퍼 및 파일 경로 텍스트를 감지하여 탐색기 Ctrl+C 복사 이미지 파일의 바이너리를 Base64로 즉시 추출·전달하도록 개선
 // 🚨 @PATCH : **2026-10-01** — [데스크톱 로컬 이미지 읽기 지능형 하위 media 폴백 탐색]: file:readImageAsBase64 핸들러에서 전달된 파일 경로가 존재하지 않는 경우, 리소스 폴더 하위 media 폴더 또는 상위 경로를 교차 탐색하여 사용자 마크다운 경로(단순 파일명 또는 서브폴더)의 이미지를 100% 정상 로드하도록 보강
@@ -129,6 +130,12 @@ if (!gotTheLock) {
               
               // 렌더러 프로세스에 이벤트 전송
               mainWindow.webContents.send('license-activated', updatedData);
+            }
+          } else if (url.host === 'gdrive-auth' || url.pathname.includes('gdrive-auth')) {
+            const token = url.searchParams.get('token') || url.searchParams.get('access_token');
+            const expiresIn = url.searchParams.get('expires_in') || '3600';
+            if (token && typeof globalResolveGDriveAuth === 'function') {
+              globalResolveGDriveAuth({ access_token: token, expires_in: expiresIn });
             }
           } else {
             const filePath = url.searchParams.get('path') || decodeURIComponent(url.pathname.replace(/^\//, ''));
@@ -4237,3 +4244,131 @@ ipcMain.handle('mermaid:open-window', async (event, svgHtml, options = {}) => {
     return { success: false, error: e.message };
   }
 });
+
+// ====================================================================
+// 📊 [OMD-MAIN-main-0004] main.js ➔ gdrive:request-auth
+// 🎯 @KICK  : 데스크톱 구글 드라이브 인증 루프백 서버 가동 및 외부 브라우저 Handoff 연동
+// 🛡️ @GUARD : 타임아웃(120초), 단일 1회 응답 후 서버 즉시 close, CORS 허용
+// 🚨 @PATCH : **2026-10-04** — 데스크톱 Google OAuth 400 invalid_request 해결을 위한 시스템 브라우저 웹 Handoff 및 루프백 브리지 엔진 신설
+// 🔗 @CALLS : http.createServer, shell.openExternal, getFreePort
+// ====================================================================
+let globalResolveGDriveAuth = null;
+let globalRejectGDriveAuth = null;
+let globalActiveGDriveServer = null;
+
+ipcMain.handle('gdrive:request-auth', async () => {
+  const http = require('http');
+  const { shell } = require('electron');
+
+  if (globalActiveGDriveServer) {
+    try { globalActiveGDriveServer.close(); } catch {}
+    globalActiveGDriveServer = null;
+  }
+  if (globalRejectGDriveAuth) {
+    globalRejectGDriveAuth(new Error('새로운 인증 요청으로 인해 이전 요청이 취소되었습니다.'));
+    globalResolveGDriveAuth = null;
+    globalRejectGDriveAuth = null;
+  }
+
+  return new Promise(async (resolve, reject) => {
+    let isHandled = false;
+
+    const cleanup = () => {
+      if (globalActiveGDriveServer) {
+        try { globalActiveGDriveServer.close(); } catch {}
+        globalActiveGDriveServer = null;
+      }
+      globalResolveGDriveAuth = null;
+      globalRejectGDriveAuth = null;
+    };
+
+    globalResolveGDriveAuth = (data) => {
+      if (isHandled) return;
+      isHandled = true;
+      cleanup();
+      resolve(data);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+    };
+
+    globalRejectGDriveAuth = (err) => {
+      if (isHandled) return;
+      isHandled = true;
+      cleanup();
+      reject(err);
+    };
+
+    try {
+      const loopbackPort = await getFreePort(49152);
+
+      const server = http.createServer((req, res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204);
+          res.end();
+          return;
+        }
+
+        try {
+          const reqUrl = new URL(req.url, `http://127.0.0.1:${loopbackPort}`);
+          if (reqUrl.pathname === '/callback' || reqUrl.pathname === '/token') {
+            const token = reqUrl.searchParams.get('token') || reqUrl.searchParams.get('access_token');
+            const expiresIn = reqUrl.searchParams.get('expires_in') || '3600';
+
+            if (token) {
+              res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+              res.end(JSON.stringify({ ok: true, message: 'Token received' }));
+
+              if (globalResolveGDriveAuth) {
+                globalResolveGDriveAuth({ access_token: token, expires_in: expiresIn });
+              }
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('[GDrive Loopback Error]', e);
+        }
+
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Invalid request');
+      });
+
+      globalActiveGDriveServer = server;
+
+      const timer = setTimeout(() => {
+        if (globalRejectGDriveAuth) {
+          globalRejectGDriveAuth(new Error('구글 드라이브 인증 시간이 초과되었습니다 (120초).'));
+        }
+      }, 120000);
+
+      server.on('close', () => {
+        clearTimeout(timer);
+      });
+
+      server.listen(loopbackPort, '127.0.0.1', () => {
+        console.log(`[GDrive Loopback] Server running on http://127.0.0.1:${loopbackPort}`);
+        const isDev = !app.isPackaged && process.env.NO_SERVER !== 'true';
+        const baseUrl = isDev ? 'http://localhost:3100' : 'https://onrivi.com';
+        const bridgeUrl = `${baseUrl}/auth/google-drive-desktop?port=${loopbackPort}`;
+        shell.openExternal(bridgeUrl);
+      });
+
+      server.on('error', (err) => {
+        console.error('[GDrive Loopback Server Error]', err);
+        if (globalRejectGDriveAuth) {
+          globalRejectGDriveAuth(err);
+        }
+      });
+    } catch (err) {
+      if (globalRejectGDriveAuth) {
+        globalRejectGDriveAuth(err);
+      }
+    }
+  });
+});
+

@@ -67,6 +67,7 @@ export const metadata: Metadata = {
 // 🚨 @PATCH : **2026-09-16** — [CSP connect-src Edge 확장(extension:) 및 브라우저 확장 프로그램 허용 확장]: extension:, edge-extension:, chrome-extension:, https://onrivi.com, https://*.onrivi.com을 connect-src에 추가하여 Edge 및 Chrome 확장 프로그램 충돌 로그 및 외부 연결 차단 콘솔 에러 완전 해결
 // 🚨 @PATCH : **2026-09-16** — [CSP connect-src 포트 3100 및 blob: localhost 허용 확장]: dev 포트(3100), localhost/127.0.0.1 와일드카드, blob:, Ollama(11434) 및 AI 엔드포인트를 connect-src에 보강하여 CSP 연결 차단 콘솔 오류 영구 해결
 // 🚨 @PATCH : **2026-09-16** — 크롬 확장 프로그램(Chrome Extension) 비동기 메시지 채널 조기 종료 및 서드파티 VM 에러(startTime 등) 무해한 콘솔 에러 필터 가드 강화
+// 🚨 @PATCH : **2026-10-04** — [Cloudflare Pages _headers CSP 동기화 — GIS 스크립트 로드 차단 해결]: layout.tsx의 CSP meta 태그에는 이미 포함된 https://accounts.google.com이 public/_headers의 script-src, frame-src, child-src, connect-src에 누락되어 웹 배포 환경에서 GIS 인증 스크립트 로드가 차단되는 문제를 _headers에 동일하게 추가하여 해결; www.gstatic.com, googleusercontent.com도 style-src/img-src에 추가
 //           : **2026-10-03** — [구글 드라이브 GIS 연동을 위한 CSP 정책 확장]: Content-Security-Policy 내 script-src, frame-src, child-src에 https://accounts.google.com 추가 및 connect-src에 https://accounts.google.com, https://www.googleapis.com 추가하여 구글 로그인 및 드라이브 API 통신 정상화
 //           : **2026-09-12** — 크롬 확장 프로그램(Chrome Extension) 비동기 메시지 채널 조기 종료로 인한 무해한 unhandledrejection 콘솔 에러 필터 가드 탑재
 //           : **2026-09-11** — Modern Technical Editorial 디자인 시스템 적용: Plus Jakarta Sans, Inter, JetBrains Mono 구글 웹폰트 사전 로드 및 연동

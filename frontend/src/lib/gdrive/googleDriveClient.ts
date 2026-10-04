@@ -2,6 +2,7 @@
 // 📊 [OMD-LIB-googleDriveClient-0001] src/lib/gdrive/googleDriveClient.ts
 // 🎯 @KICK  : 누구나 쉽게 사용하는 구글 드라이브 무설정(Zero-Config) 자동 연동 및 클라우드 작업장 클라이언트 모듈
 // 🛡️ @GUARD : Rule 1, Rule 2(대문자 코드값 GDRIVE), 최소 권한 원칙(drive.file 스코프 한정)
+// 🚨 @PATCH : **2026-10-04** — [데스크톱 Google OAuth 400 invalid_request 해결 & 시스템 브라우저 웹 Handoff 연동]: 데스크톱(Electron) 환경 감지 시 임베디드 웹뷰 및 비표준 storagerelay 차단 정책을 우회하기 위해 window.electronAPI.requestDesktopGDriveAuth()를 호출하여 시스템 브라우저 웹 브리지(https://onrivi.com/auth/google-drive-desktop)를 통해 토큰을 안전하게 수신하도록 개편
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 FileNode 규격 통일(driveFileId 부여)]: fetchDriveFileNodes 노드에 driveFileId: item.id를 명시하여 탭 로딩 시 빈 본문(0 bytes) 버그 원천 해결
 // 🚨 @PATCH : **2026-10-03** — [클라우드 서재 구성 병렬화(Promise.all) 초고속화 및 진행상황 상세 로그 탑재]: 20여 회의 순차 네트워크 호출을 3단계 배치 병렬화로 개편하여 대기 시간을 15초➔1.5초로 90% 단축하고 전 과정 콘솔 로깅 지원
 // 🚨 @PATCH : **2026-10-03** — [토큰 전달 방어 및 resolveAuthToken 전역 적용]: listDriveChildren, readDriveFileContent, saveDriveFileContent 등 모든 GDrive API 함수에 token 누락 방지 resolveAuthToken 전면 적용
@@ -195,6 +196,19 @@ export function disconnectGoogleDrive(): void {
  * 구글 OAuth 인증 팝업 호출 및 Access Token 발급
  */
 export async function requestGoogleDriveAuth(clientId?: string): Promise<string> {
+  // 🚀 [데스크톱 Electron 환경] 임베디드 웹뷰 및 비표준 리다이렉트 차단 방어를 위해 시스템 브라우저 웹 Handoff 브리지 호출
+  const electronApi = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+  if (electronApi?.requestDesktopGDriveAuth) {
+    console.log('[GDrive] 데스크톱 환경 감지: 시스템 기본 브라우저를 통한 웹 Handoff 인증을 가동합니다.');
+    const result = await electronApi.requestDesktopGDriveAuth();
+    if (result && result.access_token) {
+      saveDriveToken(result.access_token, Number(result.expires_in) || 3600);
+      return result.access_token;
+    }
+    throw new Error('데스크톱 구글 인증 토큰 획득에 실패했습니다.');
+  }
+
+  // 🌐 [웹 브라우저 환경] 기존 Google Identity Services (GIS) 웹 전용 팝업 실행
   await loadGoogleIdentityScript();
 
   const effectiveClientId =

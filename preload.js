@@ -1,3 +1,9 @@
+// ====================================================================
+// 📊 [OMD-PRELOAD-0001] preload.js ➔ Desktop GDrive Auth Bridge & Secure APIs
+// 🎯 @KICK  : Electron contextBridge API 노출 및 안전한 IPC 통신 채널 제공
+// 🛡️ @GUARD : contextIsolation 및 nodeIntegration 보안 원칙 준수
+// 🚨 @PATCH : **2026-10-04** — [구글 드라이브 데스크톱 외부 브라우저 안전 인증]: requestDesktopGDriveAuth IPC 호출 브리지 API(gdrive:request-auth) 추가
+// ====================================================================
 const { contextBridge, ipcRenderer } = require('electron');
 
 // 렌더러 프로세스(Next.js)에 노출할 안전한 API 정의
@@ -160,6 +166,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 28. Mermaid 다이어그램 새 창으로 확대 뷰잉 (Electron BrowserWindow 직접 생성 — window.open 팝업 차단 우회)
   openMermaidWindow: (svgHtml, options) => ipcRenderer.invoke('mermaid:open-window', svgHtml, options),
+
+  // 29. 구글 드라이브 데스크톱 외부 브라우저 안전 인증 (Handoff 및 루프백 연동)
+  requestDesktopGDriveAuth: () => ipcRenderer.invoke('gdrive:request-auth'),
 
   // 리스너 해제를 위한 유틸리티 (컴포넌트 unmount 시 메모리 누수 방지)
   removeListeners: () => {
