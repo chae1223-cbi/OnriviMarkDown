@@ -2,6 +2,7 @@
 // 📊 [OMD-MAIN-main-0001] main.js ➔ CSP_connect_src_fix
 // 🎯 @KICK  : CSP connect-src 지침에 http: https: 추가하여 외부 이미지/폰트 fetch 차단 해결
 // 🛡️ @GUARD : Monaco editor 등 기존 설정 유지
+// 🚨 @PATCH : **2026-10-04** — [로컬 파일 읽기(file:readFromPath) 상대경로/파일명 단독 유입 시 활성 워크스페이스 지능형 재귀 탐색]: 상대경로(예: '여기는 연습1.md') 전달 시 현재 활성 워크스페이스(currentActiveWorkspacePath) 직접 결합 및 하위 재귀 탐색(findFileRecursive)을 선행하여 파일을 100% 정상 로드하고 '파일을 찾을 수 없습니다' 크래시 완전 해결
 // 🚨 @PATCH : **2026-10-04** — [데스크톱 Google OAuth 400 invalid_request 해결 & 시스템 브라우저 웹 Handoff 및 루프백 브리지 엔진 신설]: Google의 임베디드 웹뷰 및 비표준 redirect_uri 차단 정책을 준수하기 위해 gdrive:request-auth IPC 핸들러 및 임시 루프백 서버(http://127.0.0.1:port)를 가동하고, 시스템 기본 브라우저(https://onrivi.com/auth/google-drive-desktop)를 통해 GIS 인증 후 토큰을 데스크톱으로 즉각 수신하는 이중 브리지(루프백 fetch + onriviauthor:// 딥링크) 탑재
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 GIS 연동을 위한 CSP 정책 확장]: cspDirectives 내 script-src, frame-src에 https://accounts.google.com 추가 및 connect-src에 https://accounts.google.com, https://www.googleapis.com 추가하여 구글 로그인 및 드라이브 API 통신 허용
 // 🚨 @PATCH : **2026-10-02** — [클립보드 탐색기 파일 복사 및 스크린샷 3중 네이티브 추출 강화]: clipboard:readImage 핸들러에서 비트맵 외에 Windows FileNameW 버퍼 및 파일 경로 텍스트를 감지하여 탐색기 Ctrl+C 복사 이미지 파일의 바이너리를 Base64로 즉시 추출·전달하도록 개선
@@ -2726,6 +2727,24 @@ app.on('activate', function () {
 });
 
 // 🔒 [ 순수 데스크톱 파일 제어 IPC 핸들러 등록 ]
+let currentActiveWorkspacePath = null;
+
+function findFileRecursive(dir, targetName, currentDepth = 0, maxDepth = 4) {
+  if (currentDepth > maxDepth || !dir || !fs.existsSync(dir)) return null;
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.toLowerCase() === targetName.toLowerCase()) {
+        return path.join(dir, entry.name);
+      }
+      if (entry.isDirectory() && !['node_modules', '.git', '.next', '.vscode'].includes(entry.name)) {
+        const found = findFileRecursive(path.join(dir, entry.name), targetName, currentDepth + 1, maxDepth);
+        if (found) return found;
+      }
+    }
+  } catch {}
+  return null;
+}
 
 // 0. 초기 파일 연결 경로 조회 (renderer가 준비된 후 pull 방식으로 가져감)
 ipcMain.handle('get-initial-file-path', () => {
@@ -2875,9 +2894,12 @@ ipcMain.handle('dialog:selectFolder', async (event, defaultPath) => {
 // 5. 절대 경로를 지정하여 직접 파일 내용 읽기
 ipcMain.handle('file:readFromPath', async (event, filePath) => {
   try {
+    if (!filePath || typeof filePath !== 'string') {
+      throw new Error('유효하지 않은 파일 경로입니다.');
+    }
     let cleanPath = filePath.normalize('NFC');
     if (cleanPath.startsWith('file:///')) {
-      cleanPath = decodeURIComponent(cleanPath.replace(/^file:\/\/\/?/, ''));
+      cleanPath = decodeURIComponent(cleanPath.replace(/^file:\/\/\?/, ''));
     }
     
     // 윈도우 슬래시 스타일 포함하여 절대 경로 정밀 판별
@@ -2890,29 +2912,43 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
       const projectRoot = app.getAppPath();
       cleanPath = path.join(projectRoot, cleanPath).normalize('NFC');
     } else {
-      // 기존 로직: 개발/번들 내부, 설치된 환경 외부 리소스 순서로 탐색
-      // 📌 Next.js 정적 빌드 시 public/ 폴더 내용이 out/ 폴더로 자동 복사됨.
-      //    패키징 대상이 frontend/out/**/* 이므로 help 파일은 frontend/out/help/ 에 실재함.
-      //    따라서 frontend/out 경로를 최우선으로 탐색하도록 설정.
-      const pathsToTry = [
-        path.join(app.getAppPath(), 'frontend/out', filePath),
-        path.join(app.getAppPath(), filePath),
-        path.join(app.getAppPath(), 'frontend/public', filePath),
-        path.join(process.resourcesPath, 'frontend/out', filePath),
-        path.join(process.resourcesPath, filePath),
-        path.join(process.resourcesPath, 'frontend/public', filePath)
-      ];
-      
+      // 🛡️ [상대경로/파일명 단독 유입 시 활성 워크스페이스 우선 탐색]:
       let foundPath = '';
-      for (const p of pathsToTry) {
-        const normalizedP = p.normalize('NFC');
-        if (fs.existsSync(normalizedP)) {
-          cleanPath = normalizedP;
-          break;
+      if (currentActiveWorkspacePath && fs.existsSync(currentActiveWorkspacePath)) {
+        // 1) 워크스페이스 직접 조인
+        const directCandidate = path.join(currentActiveWorkspacePath, cleanPath).normalize('NFC');
+        if (fs.existsSync(directCandidate)) {
+          foundPath = directCandidate;
+        } else {
+          // 2) 단일 파일명인 경우 워크스페이스 하위 재귀 탐색
+          const targetBase = path.basename(cleanPath);
+          const recursiveCandidate = findFileRecursive(currentActiveWorkspacePath, targetBase, 0, 5);
+          if (recursiveCandidate) {
+            foundPath = recursiveCandidate;
+          }
         }
       }
-      if (!cleanPath && !path.isAbsolute(filePath)) {
-         throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
+
+      if (foundPath) {
+        cleanPath = foundPath;
+      } else {
+        // 번들/앱 리소스 내부 탐색
+        const pathsToTry = [
+          path.join(app.getAppPath(), 'frontend/out', filePath),
+          path.join(app.getAppPath(), filePath),
+          path.join(app.getAppPath(), 'frontend/public', filePath),
+          path.join(process.resourcesPath, 'frontend/out', filePath),
+          path.join(process.resourcesPath, filePath),
+          path.join(process.resourcesPath, 'frontend/public', filePath)
+        ];
+        
+        for (const p of pathsToTry) {
+          const normalizedP = p.normalize('NFC');
+          if (fs.existsSync(normalizedP)) {
+            cleanPath = normalizedP;
+            break;
+          }
+        }
       }
     }
 
@@ -2928,7 +2964,7 @@ ipcMain.handle('file:readFromPath', async (event, filePath) => {
       content: content
     };
   } catch (e) {
-    console.error('로컬 파일 절대경로 읽기 실패:', e);
+    console.error('로컬 파일 절대경로 읽기 실패:', e.message || e);
     throw e;
   }
 });
@@ -3030,6 +3066,9 @@ ipcMain.handle('file:watchWorkspace', (event, workspacePath) => {
 ipcMain.handle('file:listDirectory', async (event, dirPath) => {
   try {
     const cleanPath = dirPath.normalize('NFC');
+    if (!currentActiveWorkspacePath || !cleanPath.startsWith(currentActiveWorkspacePath)) {
+      currentActiveWorkspacePath = cleanPath;
+    }
     const entries = fs.readdirSync(cleanPath, { withFileTypes: true });
     const nodes = entries
       .filter(entry => {

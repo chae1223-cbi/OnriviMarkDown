@@ -19,6 +19,7 @@ import {
  * [ONR-16-005] useFileExplorer 커스텀 훅
  * @description 워크스페이스 폴더 연결, IndexedDB 권한 복원, 파일 트리 스캔, 파일 열기 및 저장(I/O) 등의 책임을 전담합니다.
  */
+// 🚨 @PATCH : **2026-10-04** — [데스크톱 파일 열기/수화 시 상대경로 절대경로 자동 승격]: handleFileClick 및 existingOpenTab 수화에서 node.path가 상대경로인 경우 rootFolder.name과 결합하여 완전한 OS 절대경로로 api.readFromPath를 호출하도록 가드 보강
 // 🚨 @PATCH : **2026-10-04** — [react-hooks/exhaustive-deps 경고 해소]: captureEnvironment/restoreEnvironment를 useCallback으로 메모이즈하고, connectGoogleDrive/disconnectGoogleDrive 의존성 배열에 누락된 ref(tabsRef, activeTabIdRef, contentRef, lastSavedContentRef) 및 헬퍼를 추가
 // 🚨 @PATCH : **2026-10-03** — [saveFile targetTabId ReferenceError 결함 완벽 해결 & 구글 드라이브 무음 저장 연동]: targetTabId 미정의 변수 참조를 activeTabIdRef.current로 교체하고, targetFile/activeTab/currentFileNode에서 driveFileId 및 driveId 포괄 추출하여 자동저장 및 물리 저장 시 구글 드라이브 무음 저장 안정화
 // 🚨 @PATCH : **2026-10-03** — [구글 드라이브 파일 중복 탭 생성 방지 및 본문 수화 완비]: handleFileClick 내 driveFileId/driveId/id 3중 폴백 본문 로딩 및 existingTab driveId/name 매칭 고도화로 중복 탭 및 빈 본문 결함 완전 박멸
@@ -653,6 +654,12 @@ export const useFileExplorer = ({
             let nativePath = queryPath;
             if (nativePath.startsWith('file:///')) {
               nativePath = decodeURIComponent(nativePath.replace(/^file:\/\/\/?/, ''));
+            }
+            const isAbs = /^(?:[a-zA-Z]:[\/\\]|\/)/i.test(nativePath);
+            if (!isAbs && rootFolderRef.current?.name) {
+              const root = rootFolderRef.current.name.replace(/[\/\\]+$/, '');
+              const sep = root.includes('/') ? '/' : '\\';
+              nativePath = `${root}${sep}${nativePath.replace(/^[\/\\]+/, '')}`;
             }
             const fileObj = await electronApi.readFromPath(nativePath);
             if (fileObj && typeof fileObj.content === 'string' && fileObj.content.length > trimmedContent.length) {
@@ -1387,11 +1394,20 @@ export const useFileExplorer = ({
         const api = (window as any).electronAPI;
         if (api?.readFromPath) {
           try {
-            const file = await api.readFromPath(node.path);
+            let targetPath = node.path;
+            const isAbs = /^(?:file:\/\/\/|[a-zA-Z]:[\/\\]|\/)/i.test(targetPath);
+            if (!isAbs && rootFolderRef.current?.name) {
+              const root = rootFolderRef.current.name.replace(/[\/\\]+$/, '');
+              const sep = root.includes('/') ? '/' : '\\';
+              targetPath = `${root}${sep}${targetPath.replace(/^[\/\\]+/, '')}`;
+            }
+            const file = await api.readFromPath(targetPath);
             if (file) {
               fileContent = file.content;
+              if (file.path) node.path = file.path;
             }
           } catch (e) {
+            console.warn('[handleFileClick] 파일 읽기 실패:', node.path, e);
             showToast('파일 읽기 실패', 'error');
           }
         } else if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
